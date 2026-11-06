@@ -4,6 +4,15 @@
 #
 # Engine service image. Build context is the data-intelligence-engine/ directory.
 #   docker build -t data-intelligence-engine -f Dockerfile .
+
+FROM node:22-alpine AS build
+
+WORKDIR /console/ui
+COPY ui/package.json ui/package-lock.json ./
+RUN --mount=type=cache,id=engine-npm,target=/root/.npm,sharing=locked npm ci
+COPY ui/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -73,6 +82,7 @@ INSTALL
 # a filesystem object database now checks the root is writable up front, but the
 # directory still has to belong to the user that will write to it.
 COPY . /app/engine/
+COPY --from=build /console/ui/dist/ /app/engine/ui/dist/
 RUN --mount=type=cache,id=engine-pip,target=/root/.cache/pip,sharing=locked \
     pip3 install --no-deps --no-build-isolation --no-index /app/engine \
     && rm -rf /app/engine/workspace \

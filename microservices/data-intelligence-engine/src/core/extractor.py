@@ -46,6 +46,7 @@ from typing import Any, Callable, List, Mapping, Optional, Sequence
 import config
 from core.content import (
     AUDIO,
+    BINARY_KINDS,
     IMAGE,
     TEXT,
     ROLE_AUDIO,
@@ -56,6 +57,7 @@ from core.content import (
     VIDEO,
     ContentBlock,
     ContentStream,
+    asset_family,
     file_uri,
 )
 from core.loader import SUPPORTED_EXTS, file_to_documents
@@ -63,12 +65,10 @@ from core.loader import SUPPORTED_EXTS, file_to_documents
 #: Writes bytes somewhere and returns the key they can be read back by.
 BlobWriter = Callable[[bytes, Optional[str]], str]
 
-_MEDIA_KINDS = {"image": IMAGE, "audio": AUDIO, "video": VIDEO}
-
 def media_kind(path: str) -> str:
     """The binary block kind for a file that is itself media, else `""`."""
-    media_type = mimetypes.guess_type(path)[0] or ""
-    return _MEDIA_KINDS.get(media_type.split("/")[0], "")
+    family = asset_family(os.path.splitext(path)[1])
+    return family if family in BINARY_KINDS else ""
 
 
 def is_supported(path: str) -> bool:

@@ -12,8 +12,8 @@ different `build_*` call.
 model that satisfies it drops in by being registered in
 `core/multimodal/registry.py`; nothing else in the engine changes. Modalities
 a model genuinely cannot do raise `NotImplementedError` rather than returning
-something plausible -- X-CLIP has no single-image encoder and GME has no video
-encoder, and a source is routed to one or the other by block kind, so the
+something plausible -- ViCLIP exposes video, not single-image, embeddings
+and GME has no video encoder. A source is routed to the appropriate model, so the
 unsupported call should never be reached. If it is, that is a routing bug and
 it should say so loudly.
 """
@@ -86,10 +86,13 @@ def build_multimodal_embedding(
     from core.multimodal import registry
 
     options = dict(options or {})
+    registry.validate_model_options(options)
+    model = registry.model_for_record(record)
     key = (
         record.get("name"),
+        record.get("id"),
         record.get("path"),
-        options.get("embedding_device"),
+        options.get("embedding_device") or registry._category_defaults(model.category)["device"],
         tuple(sorted((k, options[k]) for k in registry.MODEL_PARAMS if k in options)),
     )
     return _CACHE.get_or_build(key, lambda: registry.load(record, options))

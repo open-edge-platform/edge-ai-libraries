@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 
 from api.routes.devices import router as devices_router
 import api.api_schemas as schemas
+from cpu_topology import CoreType, CpuTopology, LogicalCpu, TopologySource
 
 
 class TestDevicesAPI(unittest.TestCase):
@@ -114,6 +115,103 @@ class TestDevicesAPI(unittest.TestCase):
             data = response.json()
             self.assertEqual(len(data), 1)
             self.assertIsNone(data[0]["gpu_id"])
+
+    def _cpu_and_gpu(self):
+        return [
+            self._make_device(
+                "CPU",
+                "Intel(R) Core(TM) Ultra 9 285H",
+                schemas.DeviceType.INTEGRATED,
+                schemas.DeviceFamily.CPU,
+            ),
+            self._make_device(
+                "GPU",
+                "Intel(R) Arc(TM) 140T GPU (16GB)",
+                schemas.DeviceType.INTEGRATED,
+                schemas.DeviceFamily.GPU,
+                gpu_id=0,
+            ),
+        ]
+
+    def _get_with_topology(self, **topology_patch):
+        with (
+            patch("api.routes.devices.DeviceDiscovery") as MockDiscovery,
+            patch("api.routes.devices.get_cpu_topology", **topology_patch),
+        ):
+            MockDiscovery.return_value.list_devices.return_value = self._cpu_and_gpu()
+            return self.client.get("/devices")
+
+    def test_get_devices_reports_cpu_topology_on_cpu_only(self):
+        """CPU entry carries the core types; other devices get null."""
+        topology = CpuTopology(
+            cpus=(
+                LogicalCpu(cpu=0, core_type=CoreType.P, core_id=0),
+                LogicalCpu(cpu=1, core_type=CoreType.P, core_id=0),
+                LogicalCpu(cpu=2, core_type=CoreType.E, core_id=2),
+                LogicalCpu(cpu=3, core_type=CoreType.LPE, core_id=3),
+            ),
+            source=TopologySource.SYSFS_PMU,
+        )
+        response = self._get_with_topology(return_value=topology)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(
+            data[0]["cpu_topology"],
+            {
+                "is_hybrid": True,
+                "source": "sysfs_pmu",
+                "cores": [
+                    {"cpu": 0, "core_type": "P", "core_id": 0},
+                    {"cpu": 1, "core_type": "P", "core_id": 0},
+                    {"cpu": 2, "core_type": "E", "core_id": 2},
+                    {"cpu": 3, "core_type": "LPE", "core_id": 3},
+                ],
+            },
+        )
+        self.assertIsNone(data[1]["cpu_topology"])
+
+    def test_get_devices_reports_uniform_cpu(self):
+        topology = CpuTopology(
+            cpus=(LogicalCpu(cpu=0, core_type=CoreType.UNIFORM, core_id=0),),
+            source=TopologySource.UNIFORM,
+        )
+        response = self._get_with_topology(return_value=topology)
+
+        self.assertEqual(response.status_code, 200)
+        cpu_topology = response.json()[0]["cpu_topology"]
+        self.assertFalse(cpu_topology["is_hybrid"])
+        self.assertEqual(cpu_topology["source"], "uniform")
+        self.assertEqual(cpu_topology["cores"][0]["core_type"], "UNIFORM")
+
+    def test_get_devices_unavailable_topology_is_null(self):
+        topology = CpuTopology(cpus=(), source=TopologySource.UNAVAILABLE)
+        response = self._get_with_topology(return_value=topology)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()[0]["cpu_topology"])
+
+    def test_get_devices_topology_error_does_not_fail_request(self):
+        """A topology failure is logged and reported as null, not as 500."""
+        with self.assertLogs("api.routes.devices", level="ERROR"):
+            response = self._get_with_topology(side_effect=RuntimeError("boom"))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 2)
+        self.assertIsNone(data[0]["cpu_topology"])
+        self.assertIsNone(data[1]["cpu_topology"])
+
+    def test_get_devices_discovery_error_returns_500(self):
+        with patch("api.routes.devices.DeviceDiscovery") as MockDiscovery:
+            MockDiscovery.return_value.list_devices.side_effect = RuntimeError("x")
+            with self.assertLogs("api.routes.devices", level="ERROR"):
+                response = self.client.get("/devices")
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.json(), {"message": "Unexpected error when discovering devices"}
+        )
 
 
 if __name__ == "__main__":

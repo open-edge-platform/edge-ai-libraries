@@ -55,10 +55,10 @@ services:
       GST_DEBUG: "1"
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: "${no_proxy:+${no_proxy},}vippet,mediamtx"
+      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx"
       HTTP_PROXY: ${http_proxy}
       HTTPS_PROXY: ${https_proxy}
-      NO_PROXY: "${no_proxy:+${no_proxy},}vippet,mediamtx"
+      NO_PROXY: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx"
     tmpfs:
       - /tmp
       - /var/tmp

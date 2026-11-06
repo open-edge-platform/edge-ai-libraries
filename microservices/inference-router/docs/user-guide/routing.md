@@ -11,9 +11,9 @@ The router supports two kinds of routing rules, which plug into the same rule â†
 
 The router makes a decision in three layers:
 
-1. **Rule**: checks one request feature, such as message content, context length, tools, model name, or metadata.
+1. **Rule**: checks one request feature -- the built-in rules are listed under [Rule-Based Routing](#rule-based-routing).
 2. **Strategy**: combines rules with AND semantics, then filters providers with `provider_selector`.
-3. **Policy**: runs strategies in order and selects the final provider using `FirstMatch` or `AllMatch`.
+3. **Policy**: runs strategies in order and selects the final provider (`FirstMatch` or `AllMatch` -- the semantics are expanded under [Built-in Strategies and Policies](#built-in-strategies-and-policies)).
 
 If the policy selects no provider, the request goes to the provider marked
 `fallback: true` in `config.yaml` (at most one); when no provider is marked, the
@@ -30,7 +30,7 @@ The default strategies are defined in [src/rsd/strategy.yaml](../../src/rsd/stra
 | `ContextLengthQuality` | Total context length falls in configured zones | Zone-based `capability.complexity` threshold |
 | `ZeroCost` | Always matches | `cost <= 0` |
 | `ModelBasedRouting` | Classifier maps the last user message to index `0` or `1` | Index-based `label` (`0: local`, `1: cloud`) |
-| `PerformanceBased` | Always matches | `performance.requests <= 40`, then sorts by fewest in-flight requests |
+| `PerformanceBased` | Always matches | `performance.requests <= 10`, then sorts by fewest in-flight requests |
 
 The default policies are defined in [src/rsd/policy.yaml](../../src/rsd/policy.yaml):
 
@@ -138,22 +138,7 @@ Useful requests to exercise the default rule-based policies:
 ### Keyword Strategies
 
 A keyword strategy routes a task type to a provider label with a
-`MessageContentRule` regex over the user messages. `DataAnalysis` is the
-built-in one. The strategies below follow the same pattern; add the ones you
-need:
-
-1. Copy [src/rsd/strategy.yaml](../../src/rsd/strategy.yaml) to
-   `<workspace>/strategy.yaml` (a workspace file replaces the built-in one, so
-   keep the strategies you still use) and append the strategies.
-2. Add the target label (for example `coding`) to the `metadata.labels` of the
-   provider that should serve the task.
-3. Add the strategy names to a policy in `<workspace>/policy.yaml`.
-
-With `FirstMatch`, the first matching strategy that finds a provider wins, so
-order matters when patterns overlap: "write a Python function" matches both
-`Coding` and `CreativeWriting`, so put `Coding` first. Put keyword strategies
-before catch-all strategies such as `ContextLengthQuality`. A strategy whose
-label no provider carries matches nothing, and the policy moves on.
+`MessageContentRule` regex over the user messages. `Planning` and `DataAnalysis` are built in. You may also add below strategies as you need:
 
 ```yaml
 strategies:
@@ -228,31 +213,6 @@ strategies:
         complexity: 0.6
 ```
 
-A policy using all of them, most specific first:
-
-```yaml
-policies:
-  - name: Balanced
-    criterion: FirstMatch
-    strategies:
-      - Planning
-      - Coding
-      - DataAnalysis
-      - MathCalculation
-      - Summarization
-      - Translation
-      - CreativeWriting
-      - ContextLengthQuality
-```
-
-| Strategy | Example request | Provider label |
-| --- | --- | --- |
-| `Coding` | "Write a Python function to merge two sorted lists" | `coding` |
-| `MathCalculation` | "Solve this equation: 3x + 5 = 20" | `math` |
-| `Summarization` | "Summarize this article in three sentences" | `summarization` |
-| `Translation` | "Translate this paragraph into French" | `translation` |
-| `CreativeWriting` | "Write a one-line birthday message for my mom" | `writing` |
-
 ### Performance-Based Routing
 
 `PerformanceBased` routes on **live backend load** instead of request content. A
@@ -262,16 +222,21 @@ metadata, and the strategy filters and ranks on those fresh values.
 
 #### How the strategy reads the metrics
 
-The strategy's `provider_selector.performance` is a map of
-`metric -> threshold`. Two rules apply to **every** metric, so pick metrics
-where both hold:
+The strategy's `provider_selector.performance` maps each metric to the values a
+provider may report and stay eligible. Each value is one of:
 
-- **Lower is better.** A threshold is an *upper bound*: a provider stays
-  eligible only while `performance.<metric> <= threshold`. A provider that is
-  missing the field, or whose value is non-numeric, is dropped (the same
-  conservative stance the `cost` selector takes). This is why the metrics below
-  are *load* and *latency* signals, never capacity or throughput (which are
-  higher-is-better).
+| Form | Meaning |
+|------|---------|
+| `requests: 10` | Shorthand upper bound: `performance.requests <= 10` |
+| `kv_cache_usage_perc: [null, 0.8]` | `<= 0.8` |
+| `tokens_per_s: [50, null]` | `>= 50` (for higher-is-better metrics such as throughput) |
+| `ttft_ms: [0, 500]` | `0 <= ttft_ms <= 500` |
+
+- **Inclusive ranges.** `[lower, upper]` uses the same inclusive bounds as a
+  `ContextLengthRule` zone; `null` leaves that side open. A provider must fall
+  in range for **every** configured metric. A provider that is missing the
+  field, or whose value is non-numeric, is dropped whichever side is bounded
+  (the same conservative stance the `cost` selector takes).
 - **Read straight from metadata.** The value used is whatever the probe last
   published to `performance.<metric>`; the strategy does no arithmetic. `sort`
   then orders the survivors by one `performance.*` attribute
@@ -342,7 +307,7 @@ strategies:
     description: "Prefer the least-loaded backend by live in-flight request count."
     provider_selector:
       performance:
-        requests: 40      # drop a backend already running 40+ concurrent requests
+        requests: 10      # drop a backend running more than 10 concurrent requests
     sort:
       - provider_attribute: performance.requests
         descending: false # fewest in-flight requests first
@@ -377,7 +342,7 @@ provider was selected.
 
 ## Model-Based Routing
 
-`ModelBasedRule` runs a small classifier model on the router host against the last user message of each request and returns a routing zone index. The strategy's index-keyed `provider_selector` turns that index into a provider.
+`ModelBasedRule` runs a small classifier model on the router host against the last user message, and returns a **routing zone** index: the strategy's index-keyed `provider_selector` maps each zone to a provider (for example `0` -> local, `1` -> cloud). 
 
 ### Quick Start
 
@@ -407,7 +372,7 @@ The built-in `ModelBased` policy runs the `ModelBasedRouting` strategy:
 strategies:
   - name: ModelBasedRouting
     rules:
-      - type: ModelBasedRule        # no param: default backbone, version v1
+      - type: ModelBasedRule
     provider_selector:
       label:
         0: local
@@ -423,8 +388,6 @@ strategies:
 | `qwen35-2b` (default) | `Qwen/Qwen3.5-2B` | `v1` | `IR_OV_MODEL_QWEN35_2B`, or `IR_OV_MODEL` |
 | `qwen3-0.6b` | `Qwen/Qwen3-0.6B` | `v1` | `IR_OV_MODEL_QWEN3_0P6B`, or `IR_OV_MODEL` when `IR_BACKBONE=qwen3-0.6b` |
 | `llama3-1b` | `meta-llama/Llama-3.2-1B-Instruct` | `v1` | `IR_OV_MODEL_LLAMA3_1B`, or `IR_OV_MODEL` when `IR_BACKBONE=llama3-1b` |
-
-A classifier version only works on the backbone it was trained for. The router checks this before using a version.
 
 #### Download
 
@@ -443,8 +406,7 @@ export IR_OV_MODEL_QWEN3_0P6B=/opt/models/Qwen3-0.6B-FP16
 ```
 
 There is no prebuilt FP16 IR for Llama-3.2-1B-Instruct, so convert it once
-with optimum-cli (accept the model's license on Hugging Face first via
-`hf auth login`):
+with optimum-cli:
 
 ```bash
 pip install "optimum-intel[openvino]"
@@ -454,12 +416,6 @@ optimum-cli export openvino --model meta-llama/Llama-3.2-1B-Instruct \
     --weight-format fp16 /opt/models/Llama-3.2-1B-Instruct-FP16
 export IR_OV_MODEL_LLAMA3_1B=/opt/models/Llama-3.2-1B-Instruct-FP16
 ```
-
-#### Devices
-
-`IR_DEVICE` selects the OpenVINO device: `GPU` (the default), `GPU.0`,
-`GPU.1`, ... or `CPU`. When the requested GPU is not available, the router
-logs a warning and falls back to the CPU. NPU is not supported yet.
 
 ### Configure the Router
 
@@ -477,76 +433,29 @@ Model-based routing is configured with environment variables:
 | `IR_SWAP_MODE` | `load_first` | Policy switch order: `load_first` keeps the old classifiers until the new ones are ready; `unload_first` releases them first to save memory |
 
 **Docker Compose**: export `IR_OV_MODEL` and, optionally, `IR_DEVICE` on the
-host before running `scripts/deploy_docker.sh`. The compose file mounts
-`IR_OV_MODEL` into the container at `/models/ov-classifier` and passes
-`IR_DEVICE` through; for GPU devices, the deploy script also maps
-`/dev/dri`. Put the other `IR_*` variables in `workspace/.env`. The workspace
-is the container's working directory, so the default `IR_ARTIFACTS_DIR` is
-`workspace/artifacts/router` on the host. Compose mounts only one backbone
-directory. To serve Qwen3-0.6B, point `IR_OV_MODEL` at its IR and set
-`IR_BACKBONE=qwen3-0.6b` in `workspace/.env`.
-
-### Enable ModelBasedRule
-
-Reference the rule from a strategy, and the strategy from the active policy.
-You can use the built-in `ModelBased` policy as is, or define your own
-strategies in `<workspace>/strategy.yaml` and `<workspace>/policy.yaml`.
-REST management goes through the strategy and policy endpoints â€” see the
-[API Reference](./api-reference.md).
-
-Rule parameters for the classifier-version mode:
-
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `model` | `IR_BACKBONE`, or `qwen35-2b` | Backbone key; see [Supported Backbones](#supported-backbones) |
-| `version` | `v1` | `vN`, or `default` (an alias of the packaged `v1`) |
-
-Examples:
-
-```yaml
-rules:
-  - type: ModelBasedRule                 # qwen35-2b / v1
-```
-
-```yaml
-rules:
-  - type: ModelBasedRule
-    param:
-      model: qwen3-0.6b
-```
-
-```yaml
-rules:
-  - type: ModelBasedRule
-    param:
-      model: llama3-1b
-```
-
-```yaml
-rules:
-  - type: ModelBasedRule
-    param:
-      model: qwen35-2b
-      version: v2
-```
+host before running `scripts/deploy_docker.sh`. Put the other `IR_*` variables in `workspace/.env`.
 
 ### Classifier Versions
 
-A classifier version is a single `.rcv` file. It holds a prompt, the classification head, the zone map, and a fingerprint of the backbone it was built for. The prompt is either a trained soft prompt (a `soft` version) or a text system prompt (a `hard` version, whose head is the backbone's own output rows for the answer tokens). The router reads the kind from the file; the rule is configured the same way for both. The packaged `v1` versions are soft.
+A classifier version file holds a prompt, either a trained soft prompt or a text system prompt. The packaged `v1` versions are soft.
 
 - **Packaged**: `v1` for each backbone, shipped in
   `src/rsd/model_based/prompts/<backbone>/v1.rcv`. `default` always means this
   file.
 - **From prompt text**: POST a strategy whose `ModelBasedRule` sets `param.text`
   (plus optional `labels` and `threshold`). The router packs a hard version
-  into `<IR_ARTIFACTS_DIR>/<backbone>/vN.rcv`, checks it, and stores
-  `version: vN` in the strategy. Posting the same content again reuses that
-  version. See [Create or Update Strategy](./api-reference.md#create-or-update-strategy).
+  into `<IR_ARTIFACTS_DIR>/<backbone>/vN.rcv`.
 - **Your own**: Train your own version of classifier will be available next release.
 
 ### Multi-class Routing
 
-Set `prompt_file` to switch `ModelBasedRule` from a classifier version to multi-class routing: the classifier sorts each request into one of your own categories, and the category's zone index picks the provider. By default the categories are the provider labels in `provider_selector.label`: zone `i` is the category routed to `label[i]`, so you write the names once. No multi-class strategy ships by default. Add one like this to the `strategy.yaml` in your workspace and reference it from a policy.
+Multi-class routing classifies each request into one of your own categories,
+and the category's zone index selects the provider.
+
+- The categories default to the values of `provider_selector.label` -- zone
+  `i` is the category routed to `label[i]` -- so you write each name once.
+- No multi-class strategy ships by default; add one to the `strategy.yaml` in
+  your workspace and reference it from a policy, as below.
 
 ```yaml
 strategies:

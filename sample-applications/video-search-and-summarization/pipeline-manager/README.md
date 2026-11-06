@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Pipeline Manager Service is a core component of the Intel EGAI Video Summary application. It manages the video processing pipeline, coordinating various services to generate video summaries.
+The Pipeline Manager Service is a core component of the Video Search and Summarization application. It manages the video processing pipeline, coordinating various services to generate video summaries.
 
 ## Features
 

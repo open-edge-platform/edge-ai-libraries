@@ -59,7 +59,7 @@ flowchart TB
 6. Service computes candidate retrieval size (`fetch_k`), including over-fetch when pushdown is partial or absent.
 7. For text queries, the selected vector store executes similarity search with score. For image queries, the service computes the image embedding via the embedding API and performs vector search by embedding.
 8. Service applies fallback filtering against returned metadata for consistency across backends.
-9. Results are sorted and returned as `BatchQueryResponse` with partial errors when needed.
+9. When the query sets `min_score`, items scoring below it are dropped. Results are then sorted (highest score first), trimmed to `top_k`, and returned as `BatchQueryResponse` with partial errors when needed.
 
 ```mermaid
 sequenceDiagram
@@ -90,7 +90,7 @@ sequenceDiagram
 
     Backend-->>Service: candidate results + scores
     Service->>Service: Apply fallback filtering on metadata
-    Service->>Service: Sort & trim to top_k
+    Service->>Service: Drop below min_score, sort & trim to top_k
     Service-->>Batch: QueryResultBlock (or QueryError)
     Batch-->>API: results + partial errors
     API-->>Client: BatchQueryResponse

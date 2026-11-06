@@ -16,7 +16,8 @@ SPDX-License-Identifier: Apache-2.0
 
 Run the summarization pipeline via the Pipeline Manager. Call the documented
 API yourself and report only observed responses. Endpoints use the nginx
-`/manager` prefix.
+`/manager` prefix. When the `vss_*` MCP tools are connected,
+`vss_summarize_video` covers the same work; this skill is the REST route.
 
 Set `HOST=http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}`.
 

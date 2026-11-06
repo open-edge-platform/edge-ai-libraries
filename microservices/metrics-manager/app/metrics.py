@@ -51,7 +51,7 @@ class ServiceMetrics:
 
     # Latency tracking (in milliseconds)
     _max_latency_samples: int = 1000
-    _request_latencies: deque = field(default_factory=deque)
+    _request_latencies: deque[float] = field(default_factory=deque)
 
     def __post_init__(self) -> None:
         self._request_latencies = deque(maxlen=self._max_latency_samples)
@@ -198,21 +198,18 @@ class ServiceMetrics:
         ]:
             lines.append(f'metrics_manager_metrics_received_total{{source="{src}"}} {val}')
 
-        gauge(
-            "metrics_manager_sse_events_sent", "Total SSE events sent", self.sse_events_sent
-        )
+        gauge("metrics_manager_sse_events_sent", "Total SSE events sent", self.sse_events_sent)
         avg_latency = round(self.request_latency_avg_ms, 3)
         gauge(
             "metrics_manager_request_latency_avg_ms",
             "Average request latency in ms",
             avg_latency,
         )
-        error_count = (
-            self.parse_errors + self.storage_errors + self.sse_errors
-        )
+        error_count = self.parse_errors + self.storage_errors + self.sse_errors
         counter("metrics_manager_errors_total", "Total errors by type", error_count)
 
         return "\n".join(lines) + "\n"
+
 
 # Global metrics instance
 _service_metrics: ServiceMetrics | None = None
