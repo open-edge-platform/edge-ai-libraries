@@ -1,11 +1,24 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Metrics Manager
+
+This checkout targets **2026.3.0**, which is not yet released. Build locally
+until the corresponding image is published; registry commands below show the
+target release tag, not a guarantee that it is already available.
+
+**Breaking native metric migration:** 2026.3.0 uses explicit base-unit fields
+without legacy aliases. Upgrade collectors and custom queries together;
+see the [conversion and configuration guide](./docs/user-guide/get-started/native-metric-migration.md).
 
 A unified metrics collection, ingestion, and relay service that combines Telegraf-based system metrics with a flexible REST API for custom metrics. Supports multiple input formats including JSON, InfluxDB Line Protocol, and OpenTelemetry (OTLP).
 
 - **Get Started:** [Get Started Guide](docs/user-guide/get-started.md) — install and run in 5 minutes
 - **Full Documentation:** [Documentation](docs/user-guide/index.md)
 - **Issues / feature requests:** [Edge AI Libraries Issues Page](https://github.com/open-edge-platform/edge-ai-libraries/issues) (use the `metrics-manager` label)
-- **Container image (Docker Hub):** [`intel/metrics-manager`](https://hub.docker.com/r/intel/metrics-manager) - tagged `intel/metrics-manager:<VERSION>` (e.g. `intel/metrics-manager:2026.2.0`)
+- **Container image (Docker Hub):** [`intel/metrics-manager`](https://hub.docker.com/r/intel/metrics-manager) - tagged `intel/metrics-manager:<VERSION>` (e.g. `intel/metrics-manager:2026.3.0`)
 - **Helm chart (OCI):** `oci://registry-1.docker.io/intel/metrics-manager:<VERSION>-helm` (see [Helm Deployment Guide](./docs/user-guide/get-started/deploy-with-helm.md))
 
 ## Features
@@ -15,7 +28,10 @@ A unified metrics collection, ingestion, and relay service that combines Telegra
 - **REST API**: Push custom metrics via JSON, InfluxDB Line Protocol, or OpenTelemetry format
 - **SSE Streaming**: Real-time metrics streaming via Server-Sent Events (`GET /metrics/stream`)
 - **Prometheus Compatible**: Metrics endpoint for Prometheus scraping
+- **Terminal dashboard**: Responsive Overview, Trends, Details and Alerts with five-minute history, configurable thresholds and process limits. Build and run the standalone [TUI](./docs/user-guide/get-started/terminal-dashboard.md) against the same telemetry endpoint.
+- **Native Debian package**: Install collectors, TUI and systemd services without Docker on the target host; see the [bare-metal guide](./docs/user-guide/get-started/bare-metal-package.md). REST API and SSE remain container-only.
 - **Custom Telegraf Config**: Mount your own Telegraf configuration
+- **Additional native Docker collectors**: Opt in to RAPL, per-CPU powerstat, Turbostat, temperature statistics, IRQ, network and storage with `ENABLE_*=true`; additions default off and mounted drop-ins are loaded at startup ([setup guide](./docs/user-guide/get-started/native-docker-collectors.md))
 - **Rate Limiting**: IP-based request throttling with configurable limits
 - **Correlation IDs**: Distributed tracing support with automatic ID propagation
 - **Structured Logging**: JSON-formatted logs for log aggregators (ELK, Loki)
@@ -31,13 +47,12 @@ A unified metrics collection, ingestion, and relay service that combines Telegra
 ### Prerequisites
 
 ```bash
-cd microservices/metrics-manager
+cd siv-telemetry/metrics-manager
 
 # (Optional) If behind a proxy, edit .env and uncomment proxy settings
 ```
 
-> [!NOTE]
-> The Docker build automatically resolves Python dependencies.
+> **Note:** The Docker build automatically resolves Python dependencies.
 > No local `uv lock` or Python installation is required.
 
 ### Pulling the published image (no build required)
@@ -45,7 +60,7 @@ cd microservices/metrics-manager
 Released images are published to Docker Hub as `intel/metrics-manager`:
 
 ```bash
-docker pull intel/metrics-manager:2026.2.0
+docker pull intel/metrics-manager:2026.3.0
 ```
 
 Pick the run invocation that matches your hardware:
@@ -57,7 +72,7 @@ docker run --rm \
   -p 9090:9090 -p 9273:9273 \
   -v /sys:/sys:ro -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
 **With Intel® GPU telemetry** (adds `--device /dev/dri` so qmassa can
@@ -69,7 +84,7 @@ docker run --rm \
   -p 9090:9090 -p 9273:9273 \
   -v /sys:/sys:ro -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
 **With Intel® NPU telemetry** (NPU readings come from the `intel_pmt`
@@ -80,11 +95,10 @@ docker run --rm --privileged \
   -p 9090:9090 -p 9273:9273 \
   -v /sys:/sys:ro -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
-> [!NOTE]
-> On hosts that have **both** an Intel® GPU and NPU, add `--device
+> **Note:** On hosts that have **both** an Intel® GPU and NPU, add `--device
 > /dev/dri` to the NPU command above to enable qmassa as well.
 
 On hosts without an Intel® GPU or NPU the corresponding readers detect
@@ -99,6 +113,12 @@ curl -s http://localhost:9273/metrics | head
 ```
 
 ### Using Docker Compose
+
+The default service uses bridge networking. For host NIC counters, use the
+optional `metrics-manager-host-nic` service under `host-nic-telemetry`.
+Stop the bridge service first and name the target service explicitly:
+activating the profile alone selects both. See
+[deployment variants, port settings and exposure](./docs/user-guide/get-started/native-docker-collectors.md#compose-deployment-variants).
 
 ```bash
 docker compose up --build
@@ -127,8 +147,9 @@ docker run -d \
 
 ### On Kubernetes (Helm)
 
-The same release is published as a Helm chart at the same OCI repository,
-distinguished by the `-helm` tag suffix:
+The existing Helm chart is published at the same OCI repository, distinguished
+by the `-helm` tag suffix. The chart remains at its upstream version; the native
+Docker migration described here does not update its deployment configuration.
 
 ```bash
 helm install metrics-manager \
@@ -145,26 +166,25 @@ complete reference.
 ## Building the Image
 
 The image version is the **single source of truth** in [`VERSION`](VERSION) (currently
-`2026.2.0`). Locally-built images are tagged `metrics-manager:<VERSION>` (no
+`2026.3.0`). Locally-built images are tagged `metrics-manager:<VERSION>` (no
 registry prefix); the **official released image** on Docker Hub is
 `intel/metrics-manager:<VERSION>`. Neither tag is `:latest` by default.
 
 ### With Make (recommended)
 
 ```bash
-make version            # → 2026.2.0
-make build              # → metrics-manager:2026.2.0    (local build)
+make version            # → 2026.3.0
+make build              # → metrics-manager:2026.3.0    (local build)
 make up                 # docker compose up -d
 make logs               # tail container logs
 make down               # stop & remove
 make test               # build test image and run pytest
 make clean              # remove built images, volumes, orphaned containers
-make bump NEW=2026.2.0  # update VERSION + every file that mirrors it
 
 # Helm chart (requires the `helm` CLI)
 make helm-lint          # helm lint helm/metrics-manager
 make helm-template      # render the chart with default values
-make helm-package       # build dist/helm/metrics-manager-<VERSION>-helm.tgz
+make helm-package       # use the chart's own version from Chart.yaml
 make generate-helm      # alias: helm-lint + helm-package
 make helm-push          # push the packaged chart to oci://registry-1.docker.io/intel
 
@@ -172,30 +192,95 @@ make helm-push          # push the packaged chart to oci://registry-1.docker.io/
 make build TAG=dev      # → metrics-manager:dev
 
 # Build with the published Docker Hub naming (matches what we release)
-REGISTRY=intel/ make build              # → intel/metrics-manager:2026.2.0
+REGISTRY=intel/ make build              # → intel/metrics-manager:2026.3.0
 ```
+
+`make clean` removes volumes, including stored custom metrics scripts. Use
+`make down` for routine shutdown; back up volume contents before cleanup.
 
 ### With Docker Compose directly
 
+The Python build and runtime stages share the digest-pinned `PYTHON_IMAGE`
+from `versions.env`, using Debian 13 (trixie). The runtime build applies
+available Debian package updates. To refresh the base, update its verified
+digest and run `make sync-versions`; to rerun package updates without cached
+layers, use `docker compose build --no-cache metrics-manager`.
+
+Build proxies use Docker's predefined proxy arguments without persisting their
+values. Empty runtime defaults are preserved; runtime proxies are supplied explicitly
+through Compose.
+
 ```bash
-# Uses the TAG from .env (defaults to 2026.2.0)
+# Uses the TAG from .env (defaults to 2026.3.0)
 docker compose build metrics-manager
 
 # Override on the command line
-TAG=2026.2.0-rc1 docker compose build metrics-manager
+TAG=2026.3.0-rc1 docker compose build metrics-manager
 
 # Build and run in one step
 docker compose up --build -d
 ```
 
+### Building both release-candidate variants
+
+Keep the project version at `2026.3.0` while validating RC images. Build the
+two variants with distinct tags so that one does not overwrite the other:
+
+```bash
+# Default: telemetry collectors and API, without OpenVINO or media VA drivers
+make build REGISTRY=intel/ TAG=2026.3.0-rc1 INSTALL_OPENVINO=false
+
+# Extended: the same collectors/API plus OpenVINO GPU/NPU runtimes and VAAPI tools
+make build REGISTRY=intel/ TAG=2026.3.0-extended-rc1 INSTALL_OPENVINO=true
+```
+
+The extended image includes checksum-pinned Intel OpenCL/Level Zero GPU and NPU
+userspace packages, including the graphics and NPU compilers. These are official
+Ubuntu-targeted vendor binaries compatibility-tested inside Debian 13; this is
+not a claim of upstream Debian certification. System dependencies still come
+from Debian repositories. No host kernel drivers or NPU firmware are installed.
+The default image and bare-metal package do not acquire these dependencies.
+See [accelerator requirements](./docs/user-guide/get-started/system-requirements.md#openvino-inference-in-the-extended-image)
+and the [explicit hardware smoke test](./docs/user-guide/get-started/testing.md#openvino-accelerator-smoke-test).
+
+The tag alone does not select the variant: always pass `INSTALL_OPENVINO`
+explicitly. Both commands build locally and do not push anything. The image's
+OCI version label, native collector versions, API version and structured log
+version use the build tag. The checked-in project/package version stays
+`2026.3.0`; a runtime `SERVICE_VERSION` override changes the API/log identity
+only, not the OCI label or native binaries.
+
+To run a locally built RC with Compose, use its matching tag and
+`--no-build` (choose one deployment variant as described above):
+
+```bash
+REGISTRY=intel/ TAG=2026.3.0-rc1 docker compose up --no-build -d metrics-manager
+```
+
+After validation and authorization to publish, push each explicit tag;
+do not publish the stable `2026.3.0` or `latest` tags for this RC:
+
+The [release validation scope](./docs/user-guide/get-started/testing.md#release-validation-scope)
+distinguishes functional checks from real-hardware validation.
+
+```bash
+docker push intel/metrics-manager:2026.3.0-rc1
+docker push intel/metrics-manager:2026.3.0-extended-rc1
+```
+
 ### Releasing a new version
 
-1. **Bump everywhere with one command** — `make bump NEW=2026.2.0` updates
-   `VERSION`, `pyproject.toml`, `.env`, `.env.example`, `compose.yaml`,
-   `app/settings.py`, `app/logging_config.py` and `docs/DOCKERHUB.md` in
-   one go (see [Why so many files?](#why-so-many-files) below).
+1. **Align the current release mirrors** — update `VERSION`, `pyproject.toml`,
+   `.env.example`, `compose.yaml`, both `ARG VERSION` defaults in `Dockerfile`,
+   `app/settings.py`, `app/logging_config.py` and current documentation examples.
+   Preserve historical release entries and third-party versions. Check your
+   local `.env` for an intentional `TAG` override; it is not rewritten for you.
+   For 2026.3.0, Helm is outside this work's scope. Do not use the legacy
+   `make bump` target for this change: it references old documentation paths
+   and does not update every current mirror. Helm packaging reads its version
+   from `Chart.yaml`, independently of the application `VERSION`.
 2. Review the change: `git diff`.
-3. `make build` — the image will be tagged `metrics-manager:2026.2.0` and the
+3. `make build` — the image will be tagged `metrics-manager:2026.3.0` and the
    OCI label `org.opencontainers.image.version` will be stamped automatically
    from the `VERSION` build arg.
 4. Verify the running service reports the new version:
@@ -204,11 +289,9 @@ docker compose up --build -d
    curl -s http://localhost:9090/health | jq .version
    ```
 
-5. Commit and (optionally) tag:
-
-   ```bash
-   git add -A && git commit -m "release: 2026.2.0" && git tag v2026.2.0
-   ```
+5. Stage only the reviewed changes and commit them. Create a stable release
+   tag separately, only after final-release validation and authorization.
+   Do not create the stable `v2026.3.0` tag for an RC-only publication.
 
 #### Why so many files?
 
@@ -222,12 +305,17 @@ read at a different time:
 | `pyproject.toml`                  | `pip install .`, `python -m build`                                 | Packaging                                                |
 | `.env` / `.env.example`           | `docker compose` (without Make)                                    | Build time                                               |
 | `compose.yaml`                    | `${TAG:-...}` and `VERSION:` build-arg fallbacks                   | Build time when no `TAG` env is set                      |
+| `Dockerfile`                      | Native collector version, OCI label and `SERVICE_VERSION` defaults | Image build; `VERSION` build argument overrides them     |
 | `app/settings.py`                 | Pydantic default for `/health` `version` field                     | Runtime fallback when `SERVICE_VERSION` env var is unset |
 | `app/logging_config.py`           | Default `version` field in JSON log records                        | Runtime fallback                                         |
-| `docs/DOCKERHUB.md`               | Long description published on the Docker Hub page                  | Manual sync at release time                              |
+| Current README and user guides   | Installation examples and API responses                            | Documentation                                            |
 | `helm/metrics-manager/Chart.yaml` | Helm chart `version` (`<X.Y.Z>-helm`) and `appVersion` (`<X.Y.Z>`) | Build time when packaging the chart                      |
 
-`make bump` keeps them all in sync so you don't have to remember.
+`tests/test_versions.py` guards the current non-Helm release mirrors and
+third-party pins. Run it with the repository's Python test environment.
+`TAG` still overrides Compose image tags/build arguments, and `SERVICE_VERSION`
+still overrides the reported service version at runtime. Setting one does not
+automatically set the other. Helm metadata is unchanged in this work.
 
 ### Verify
 
@@ -306,7 +394,12 @@ metrics-manager/
 │   ├── logging_config.py    # Structured logging setup
 │   └── responses.py         # API response models
 ├── tests/                   # Pytest test suite
-├── scripts/                 # System metrics scripts
+├── native/                  # Go telemetry plugins
+│   ├── cmd/                 # Collector command-line entry points
+│   │   ├── mm-plugin-cpu/   # CPU frequency and per-core-class utilisation
+│   │   ├── mm-plugin-gpu/   # Intel GPU, parsed from the qmassa named pipe
+│   │   └── mm-plugin-npu/   # Intel NPU, read via PMT sysfs
+│   └── internal/            # Shared parsing and line-protocol packages
 ├── helm/                    # Helm chart published as oci://.../metrics-manager:<VERSION>-helm
 │   └── metrics-manager/
 │       ├── Chart.yaml       # Chart metadata (version, appVersion)

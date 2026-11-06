@@ -41,6 +41,8 @@ ensure_nvm_loaded() {
   # Explicit return 0: a missing nvm.sh (non-nvm Node) is not an error, and a
   # trailing failed `[[ ]] &&` would otherwise abort `set -e` callers.
   if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # nvm is installed on the target host at runtime.
+    # shellcheck disable=SC1091
     \. "$NVM_DIR/nvm.sh"
   fi
   return 0

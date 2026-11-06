@@ -2,7 +2,7 @@
   "profile": {
     "label": "Interactive AI Smart Signage",
     "value": "interactive_ai_smart_signage",
-    "supports": { "OP_SYSTEM": ["UBUNTU_24_04"] }
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
   },
   "modules": [
     {
