@@ -298,8 +298,10 @@ if(SIFT_ENABLE_OPENCL OR SIFT_ENABLE_SYCL)
       GIT_TAG v2.13.6
     )
     FetchContent_MakeAvailable(pybind11)
+    # Extension lives inside the sift_extractor package as _native.*.so so the
+    # pure-Python __init__.py can document GPU stack deps and wrap ImportError.
     pybind11_add_module(sift_extractor_py MODULE python/sift_extractor_bindings.cpp)
-    set_target_properties(sift_extractor_py PROPERTIES OUTPUT_NAME sift_extractor)
+    set_target_properties(sift_extractor_py PROPERTIES OUTPUT_NAME _native)
     target_link_libraries(sift_extractor_py PRIVATE sift_extractor)
     target_include_directories(sift_extractor_py PRIVATE ${SIFT_GENERATED_INCLUDE_DIR})
   endif()
@@ -368,7 +370,11 @@ if(SIFT_INSTALL_TARGETS)
       DESTINATION include/sift_extractor)
   endif()
   if(TARGET sift_extractor_py)
-    install(TARGETS sift_extractor_py LIBRARY DESTINATION lib/python3/dist-packages)
+    install(TARGETS sift_extractor_py LIBRARY DESTINATION lib/python3/dist-packages/sift_extractor)
+    install(FILES
+      python/sift_extractor/__init__.py
+      python/sift_extractor/py.typed
+      DESTINATION lib/python3/dist-packages/sift_extractor)
     install(FILES python/time_sift_extract.py DESTINATION share/sift_extractor)
   endif()
 

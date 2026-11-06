@@ -47,7 +47,7 @@ std::vector<sift_extractor::SiftFeature> extract_numpy(
 
 } // namespace
 
-PYBIND11_MODULE(sift_extractor, module) {
+PYBIND11_MODULE(_native, module) {
   using sift_extractor::Backend;
   using sift_extractor::Extractor;
   using sift_extractor::ExtractorOptions;

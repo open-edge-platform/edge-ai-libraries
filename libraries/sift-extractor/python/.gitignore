@@ -1,0 +1,5 @@
+build/
+dist/
+*.egg-info/
+sift_extractor/_native*.so
+__pycache__/

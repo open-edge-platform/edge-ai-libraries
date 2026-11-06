@@ -17,7 +17,7 @@ not interchangeable). See [comparison](docs/comparison.md) and
 - **SYCL** extract path plus `MatchSiftData` tiled matcher
 - **`Extractor` dispatch** with `Backend::OpenCL`, `Backend::Sycl`, or
   `Backend::Auto` (see [backend selection](docs/backend-selection.md))
-- Install / pkg-config, native samples, optional Python bindings, optional
+- Install / pkg-config, native samples, optional Python wheel/bindings, optional
   OpenCV `cv::Mat` / `cv::KeyPoint` adapters (not OpenCV features2d SIFT)
 - Scoped GitHub Actions configure/build without GPU backends (no Intel GPU
   runners in CI; OpenCL/SYCL CTest and Arc timing are lab gates)
@@ -55,7 +55,7 @@ Useful CMake options:
 | `SIFT_ENABLE_OPENCL` | OFF | OpenCL runtime + extract + matcher |
 | `SIFT_BUILD_TESTS` | ON when `BUILD_TESTING` | CTest targets |
 | `SIFT_BUILD_SAMPLES` | ON | `extract_sift`, timing/soak helpers |
-| `SIFT_BUILD_PYTHON` | OFF | `sift_extractor` Python module |
+| `SIFT_BUILD_PYTHON` | OFF | `sift_extractor` Python package (`_native` extension) |
 | `SIFT_BUILD_OPENCV_ADAPTER` | OFF | Thin OpenCV type adapters |
 | `SIFT_ENABLE_OPENCV_VALIDATION` | OFF | `validate_sift_pair` diagnostic |
 
@@ -69,9 +69,24 @@ ONEAPI_DEVICE_SELECTOR=level_zero:gpu ctest --test-dir build --output-on-failure
 validation. `SIFT_SYCL_SYNC_EACH_STAGE=1` forces per-stage sync for debugging
 and must not be used for performance measurements.
 
-## Install and pkg-config
+## Install and use
+
+This library does **not** install the GPU stack. Provide driver + compute
+runtimes on the host, then install the native library (CMake) and/or a thin
+Python wheel (pip).
+
+### System requirements (host — not via pip / CMake install)
+
+| Need | Used for |
+| --- | --- |
+| Intel GPU driver with compute | Device access |
+| OpenCL ICD (`libOpenCL.so.1`) | OpenCL backend |
+| Intel oneAPI SYCL + Level Zero | SYCL backend (often `source /opt/intel/oneapi/setvars.sh`) |
+
+### Native install (CMake / pkg-config)
 
 ```bash
+source /opt/intel/oneapi/setvars.sh   # when using SYCL
 cmake -S . -B build -DCMAKE_CXX_COMPILER=icpx -DCMAKE_BUILD_TYPE=Release \
   -DSIFT_ENABLE_SYCL=ON -DSIFT_ENABLE_OPENCL=ON -DSIFT_BUILD_PYTHON=ON \
   -DSIFT_OPENCL_INCLUDE_DIR=/opt/intel/oneapi/compiler/latest/include \
@@ -82,33 +97,16 @@ export PKG_CONFIG_PATH=$PWD/install/lib/pkgconfig:$PKG_CONFIG_PATH
 pkg-config --libs --cflags sift_extractor
 ```
 
-## Usage
-
-Native sample:
+Native samples after build/install:
 
 ```bash
 ./build/extract_sift [auto|opencl|sycl]
-```
-
-Timing and soak:
-
-```bash
 ./build/time_sift_extract [backend] [W] [H] [warmups] [samples] [seed] [image.pgm]
 ./build/soak_sift_extract [--release] [--calls N] [--minutes M] [--concurrency N]
 ```
 
 `--release` targets ≥10 000 mixed calls (no wall-clock floor unless `--minutes`
 is set).
-
-Python (with `SIFT_BUILD_PYTHON=ON`):
-
-```python
-import numpy as np
-import sift_extractor
-
-ext = sift_extractor.Extractor(64, 64, backend="auto")
-features = ext.extract(np.zeros((64, 64), dtype=np.float32))
-```
 
 Optional OpenCV adapters (`-DSIFT_BUILD_OPENCV_ADAPTER=ON`):
 
@@ -124,6 +122,46 @@ sift_extractor::opencv::detect_and_compute(
 
 `KeyPoint::size` is `2 * SiftFeature::scale` (diameter). The core library does
 not depend on OpenCV.
+
+### Python install (thin wheel)
+
+The wheel ships the pybind extension (`.so`) only — not drivers, OpenCL, or
+oneAPI. Details: [`python/README.python.md`](python/README.python.md).
+
+```bash
+source /opt/intel/oneapi/setvars.sh   # SYCL / Intel runtime on loader path
+bash python/build_wheel.sh            # writes python/dist/sift_extractor-*-linux_*.whl
+
+python3 -m venv --system-site-packages /tmp/sift-venv
+source /tmp/sift-venv/bin/activate
+pip install python/dist/sift_extractor-*.whl   # also needs numpy
+python python/samples/extract_smoke.py
+```
+
+After `cmake --install` with `-DSIFT_BUILD_PYTHON=ON`, the same package also
+lands under `$PREFIX/lib/python3/dist-packages/sift_extractor/` (set
+`PYTHONPATH` if not using the wheel).
+
+### Python usage
+
+```python
+import numpy as np
+import sift_extractor
+
+print(sift_extractor.__version__)
+print(sift_extractor.system_requirements())  # stack is host-provided
+print(list(sift_extractor.available_backends()))  # e.g. ['opencl', 'sycl']
+
+# Contiguous float32 grayscale HxW; shape must match Extractor width/height.
+image = np.zeros((480, 640), dtype=np.float32)
+ext = sift_extractor.Extractor(640, 480, backend="auto")  # or "opencl" / "sycl"
+features = ext.extract(image)
+# list of dicts: x, y, scale, orientation_degrees, response, descriptor(128,)
+print(ext.backend, len(features))
+```
+
+If `import sift_extractor` fails on a missing shared library, the GPU/runtime
+stack or loader path is incomplete — fix the host environment, not pip.
 
 ## Diagnostics
 
