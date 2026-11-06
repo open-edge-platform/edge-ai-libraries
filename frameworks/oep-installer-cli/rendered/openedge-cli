@@ -3174,7 +3174,18 @@ configure_realsense ()
     rs_key_file=/etc/apt/keyrings/librealsenseai.gpg;
     rs_list=/etc/apt/sources.list.d/librealsense.list;
     rs_deb_entry="deb [signed-by=$rs_key_file] https://$rs_repo_name/Debian/apt-repo $VERSION_CODENAME main";
+    rs_use_eci=true;
+    if [ "$ID" = ubuntu ] && [ "$VERSION_ID" = 26.04 ]; then
+        rs_use_eci=false;
+    fi;
+    rs_repo_files=("$rs_key_file" "$rs_list");
+    if [ "$rs_use_eci" = true ]; then
+        rs_repo_files=("$eci_key_file" "$eci_repo_list_file" "${rs_repo_files[@]}");
+    fi;
     rs_packages=(librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl);
+    if [ "$rs_use_eci" = false ]; then
+        rs_packages=(librealsense2 librealsense2-utils librealsense2-dev librealsense2-gl librealsense2-udev-rules);
+    fi;
     rs_ros_package=;
     if [[ " $* " = *" ros2 "* || " $* " = *" edge_base_robotics "* ]]; then
         case "$VERSION_CODENAME" in 
@@ -5195,6 +5206,17 @@ f.close()
 debian_55_install_realsense () 
 { 
     configure_realsense "$@";
+    if [ "$rs_use_eci" = false ]; then
+        echo "ECI and librealsense2-dkms are skipped on Ubuntu 26.04. Only userspace packages and udev rules are installed; camera streaming requires separate validation." 1>&2;
+        if [ -e "$eci_repo_list_file" ] || [ -L "$eci_repo_list_file" ]; then
+            if [ "$(ensure_prop get "installed/realsense/repositories/${eci_repo_list_file##*/}")" != true ]; then
+                echo "Cannot disable unowned ECI source $eci_repo_list_file. Review and disable it manually before retrying." 1>&2;
+                return 3;
+            fi;
+            ensure_rm "$eci_repo_list_file" || return $?;
+            ensure_prop remove "installed/realsense/repositories/${eci_repo_list_file##*/}";
+        fi;
+    fi;
     ensure_prop create installed/realsense/packages/;
     if ensure_apt_is_installed "${rs_packages[@]}" && [[ " $* " != *" --reinstall "* ]]; then
         echo "RealSense packages are installed." 1>&2;
@@ -5209,14 +5231,16 @@ debian_55_install_realsense ()
         echo "@@STEP Configuring Apt";
         local repo_file;
         ensure_prop create installed/realsense/repositories/;
-        for repo_file in "$eci_key_file" "$eci_repo_list_file" "$rs_key_file" "$rs_list";
+        for repo_file in "${rs_repo_files[@]}";
         do
             if [ ! -e "$repo_file" ] && [ ! -L "$repo_file" ]; then
                 ensure_prop set "installed/realsense/repositories/${repo_file##*/}" true;
             fi;
         done;
-        ensure_apt_key "$eci_key_file" "$eci_key_url" --dearmor;
-        ensure_apt_source "$eci_repo_list_file" "$eci_repo_list";
+        if [ "$rs_use_eci" = true ]; then
+            ensure_apt_key "$eci_key_file" "$eci_key_url" --dearmor;
+            ensure_apt_source "$eci_repo_list_file" "$eci_repo_list";
+        fi;
         ensure_apt_key "$rs_key_file" "$rs_key_url" --dearmor;
         ensure_apt_source "$rs_list" "$rs_deb_entry";
         ensure_apt update -y;
@@ -5284,7 +5308,7 @@ debian_55_remove_realsense ()
 { 
     configure_realsense;
     local package owned_packages=();
-    for package in "${rs_packages[@]}" ros-humble-librealsense2 ros-jazzy-librealsense2;
+    for package in librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl librealsense2-udev-rules ros-humble-librealsense2 ros-jazzy-librealsense2;
     do
         if [ "$(ensure_prop get "installed/realsense/packages/$package")" = true ]; then
             owned_packages+=("$package");
@@ -6623,6 +6647,7 @@ debian_90_install_uav_mission_compute_sdk ()
         source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?;
         cd "$sdk_path" || return $?;
         make init || return $?;
+        sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
         if [ ! -r "$sdk_path/Makefile" ] || [ ! -r "$sdk_path/.env" ] || [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" != "$source_commit" ]; then
             echo "Mission Compute SDK initialization did not produce the expected source and .env." 1>&2;
             return 1;
@@ -7271,7 +7296,7 @@ debian_90_start_handheld_multi_modal ()
     ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     cd "$workspace"/handheld-multi-modal;
     make up CONFIRM=yes;
-    echo "@@HIGHLIGHT URL: https://localhost:8443/ (trust config/tls/server.crt)";
+    echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)";
     echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 debian_90_start_image_based_video_search () 
@@ -7733,6 +7758,7 @@ debian_90_start_uav_mission_compute_sdk ()
         return 1
     };
     cd "$sdk_path" || return $?;
+    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
     if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
         ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?;
     fi;
@@ -7759,7 +7785,7 @@ debian_90_start_uav_mission_compute_sdk ()
     ensure_prop create started/uav_mission_compute_sdk/ports || return $?;
     ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?;
     echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras";
-    echo "@@HIGHLIGHT UAV REST API: http://localhost:8080";
+    echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080";
     echo "@@HIGHLIGHT $installer_name stop uav_mission_compute_sdk"
 }
 debian_90_start_uncrewed_aerial_vehicle_ground_station () 
@@ -8208,10 +8234,10 @@ debian_99_profile_mission_decision_support_blueprint ()
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io ubuntu_server"
         ;;
         *)
-            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony);
+            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony ubuntu_server);
             if [[ " $* " = *" --k3s "* ]]; then
                 modules+=(k3s_io);
             else
@@ -10164,6 +10190,7 @@ ground_station_install_uav_application ()
     cd "$uav_dir" || return $?;
     echo "Review $uav_dir/.env and upstream LAN bindings before starting the application.";
     make init || return $?;
+    sed -i -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?;
     if [ "$uav_app" = vision-analytics ]; then
         ground_station_configure_uav_application_models || return $?;
         make _check_certs || return $?;
@@ -10205,6 +10232,7 @@ ground_station_start_uav_application ()
     else
         read -r -a uav_ports <<< "$(ensure_prop get "started/$uav_module/ports")";
     fi;
+    sed -i -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?;
     if [ "$uav_app" = ground-station ]; then
         make up || return $?;
     else
@@ -12353,6 +12381,7 @@ vision_analytics_install_uav_application ()
     cd "$uav_dir" || return $?;
     echo "Review $uav_dir/.env and upstream LAN bindings before starting the application.";
     make init || return $?;
+    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
     if [ "$uav_app" = vision-analytics ]; then
         vision_analytics_configure_uav_application_models || return $?;
         make _check_certs || return $?;
@@ -12394,6 +12423,7 @@ vision_analytics_start_uav_application ()
     else
         read -r -a uav_ports <<< "$(ensure_prop get "started/$uav_module/ports")";
     fi;
+    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
     if [ "$uav_app" = ground-station ]; then
         make up || return $?;
     else

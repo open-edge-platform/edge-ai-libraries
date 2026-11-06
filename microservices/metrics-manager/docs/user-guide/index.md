@@ -17,7 +17,7 @@ hide_directive-->
 
 - **Multi-format Ingestion**: Accepts metrics from any source — JSON, InfluxDB Line Protocol, OpenTelemetry (OTLP), or simple single-metric endpoints
 - **Real-time Streaming**: Live SSE stream for dashboards without polling overhead; browser-friendly HTML UI included
-- **Hardware Telemetry**: Automatic collection from CPU, RAM, temperature sensors, Intel® Arc GPU (qmassa), and Intel® NPU (via PMT), plus [opt-in collectors](./get-started/hardware-telemetry.md) for power, DRAM bandwidth, disk, network, interrupts and GPU throttle state
+- **Hardware Telemetry**: Automatic collection from CPU, RAM, temperature sensors, Intel® Arc GPU (qmassa), and Intel® NPU (via PMT)
 - **Container-Ready**: Single Docker image with all dependencies; runs on Kubernetes via Helm chart
 - **Low Latency**: In-memory metrics with configurable retention; debounced persistence to avoid bottlenecks
 
@@ -85,7 +85,9 @@ For details, see [How It Works](./how-it-works.md).
 - [How It Works (Architecture Details)](./how-it-works.md)
 - [API Reference](./api-reference.md)
 - [Environment Variables](./get-started/environment-variables.md)
-- [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md)
+- [Additional Native Docker Collectors](./get-started/native-docker-collectors.md)
+- [Terminal Dashboard](./get-started/terminal-dashboard.md)
+- [Bare-metal Package](./get-started/bare-metal-package.md)
 - [Custom Metrics Scripts](./get-started/custom-metrics.md)
 - [Helm Deployment](./get-started/deploy-with-helm.md)
 - [Building from Source](./get-started/build-from-source.md)

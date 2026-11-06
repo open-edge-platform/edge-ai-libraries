@@ -1,342 +1,295 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Helm Deployment
 
-The `metrics-manager` Helm chart deploys the same container image onto a Kubernetes cluster. The secure default profile runs non-root without host-level access; enable the hardware telemetry profile when CPU / GPU / NPU telemetry from the node is required.
+The chart deploys Metrics Manager's native 2026.3.0 container as a Deployment
+or DaemonSet. Docker Compose and the native Debian package remain separate
+deployment options.
 
-The chart is published to the **same OCI repository as the container image**.
+## Versions and prerequisites
 
-| Artifact      | OCI Reference                                                                |
-|---------------|------------------------------------------------------------------------------|
-| Image         | `registry-1.docker.io/intel/metrics-manager:2026.2.0`                        |
-| Helm chart    | `oci://registry-1.docker.io/intel/metrics-manager:2026.2.0-helm`             |
+| Artifact | Version |
+|----------|---------|
+| Local chart | `2026.3.0-helm` |
+| Default application image | `intel/metrics-manager:2026.3.0` |
+| Default RC image for validation | `intel/metrics-manager:2026.3.0-rc1` |
+| Extended RC image for validation | `intel/metrics-manager:2026.3.0-extended-rc1` |
 
-## Prerequisites
+The chart version is independent of the application `VERSION` file.
+`make helm-package` reads `Chart.yaml`; `make bump` does not update it.
+These versions do not imply that the chart or stable image has been published.
+Use the local chart and explicitly select the RC image until release approval.
+The extended image adds inference libraries, not host kernel drivers or firmware.
 
-| Tool       | Minimum | Notes                                                                       |
-|------------|---------|-----------------------------------------------------------------------------|
-| Helm       | 3.8     | Required for OCI registries                                                 |
-| Kubernetes | 1.25    | Older clusters use the legacy AppArmor pod annotation. The chart auto-detects. 1.30+ uses the native `appArmorProfile` field. |
-| kubectl    | matching K8s | For cluster interaction                                                      |
+Requirements:
 
-**Secure default profile:**
+- Helm 3.8+ for OCI chart support.
+- Kubernetes 1.25+ and a matching `kubectl`. AppArmor is rendered as a legacy
+  pod annotation before 1.30 and a native security-context field on 1.30+.
+  Rendering compatibility is not proof of runtime compatibility on every version.
+- Access to the selected image, or an explicitly configured image mirror.
+- Prometheus Operator CRDs only if `serviceMonitor.enabled=true`.
+- For hardware telemetry: supported Intel hardware, compatible host drivers and
+  an administrator-approved namespace permitting the requested host access.
 
-The default pod runs as non-root with `hostPID: false`, `privileged: false`, a read-only root filesystem, dropped capabilities and `RuntimeDefault` AppArmor/seccomp profiles. It does not mount host paths and is intended for the restricted application profile.
+Run the examples below from `microservices/metrics-manager`.
 
-**Hardware telemetry profile:**
+## Restricted default profile
 
-To collect host CPU/GPU/NPU telemetry, enable the profile explicitly. It requires `hostPID: true`, `privileged: true`, host paths (`/sys`, `/run`, `/dev/dri`) and the GPU render group when GPU telemetry is enabled:
+The default uses UID/GID 10001, a read-only root filesystem, dropped capabilities,
+RuntimeDefault AppArmor/seccomp and no host namespaces or hostPath volumes.
+The chart supplies a Telegraf configuration for CPU, memory, native CPU-frequency
+and process metrics, custom metric scripts and HTTP ingestion/export. It does
+not launch GPU/NPU/IMC/MSR collectors. CPU/memory/sysfs readings can describe the
+node rather than cgroup limits; process visibility is pod-local. This is not a
+full host telemetry profile.
+
+Writable `emptyDir` volumes provide `/tmp` and, by default, `/app/custom-metrics`.
+The qmassa FIFO uses `/tmp/qmassa.fifo` consistently. Telegraf configuration and
+drop-ins remain read-only; the image prepares its active snapshot under `/tmp`.
 
 ```bash
-helm install metrics-manager \
-  oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
+helm lint ./helm/metrics-manager
+helm template metrics-manager ./helm/metrics-manager \
+  --namespace observability --set image.tag=2026.3.0-rc1
+
+# Run only against your intended, approved cluster/context.
+helm install metrics-manager ./helm/metrics-manager \
   --namespace observability --create-namespace \
-  --set hardware.telemetry.enabled=true
+  --set image.tag=2026.3.0-rc1 --wait --timeout 5m
 ```
 
-**PodSecurityAdmission must allow the `privileged` profile** in the target namespace when using the hardware telemetry profile:
+`--wait` checks Kubernetes readiness, not the availability of every hardware
+metric. Verify the data separately.
+
+## Hardware telemetry profile
+
+`hardware.telemetry.enabled=true` explicitly enables root, privileged access,
+host PID visibility, Unconfined profiles and `/sys` plus `/run` host mounts.
+It uses the image's native Telegraf configuration: CPU, GPU/NPU, top processes,
+IMC memory bandwidth and package power/C-state collectors. Unsupported counters
+remain unavailable; the chart cannot create hardware support.
 
 ```bash
-kubectl label namespace observability \
-  pod-security.kubernetes.io/enforce=privileged --overwrite
-```
-
-**For Kubernetes < 1.30:**
-
-The chart uses the native `appArmorProfile` field. On older clusters either upgrade or fork the chart to use the legacy `container.apparmor.security.beta.kubernetes.io/<name>` annotation.
-
-## Install
-
-### Basic Installation
-
-```bash
-helm install metrics-manager \
-  oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
-  --namespace observability --create-namespace
-```
-
-### View Rendered Manifests (Without Installing)
-
-```bash
-helm template metrics-manager \
-  oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm
-```
-
-### Pull for Offline / Air-Gapped Deployments
-
-```bash
-helm pull oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm
-# -> metrics-manager-2026.2.0-helm.tgz
-```
-
-### Show Default Values
-
-```bash
-helm show values oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm
-```
-
----
-
-## Common Configurations
-
-### Deploy on Every Node (DaemonSet)
-
-```bash
-helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
+helm install metrics-manager ./helm/metrics-manager \
+  --namespace observability --create-namespace \
+  --set image.tag=2026.3.0-rc1 \
   --set controller.kind=DaemonSet \
-  --set hardware.telemetry.enabled=true
-```
-
-### CPU / NPU only host (no GPU)
-
-```bash
-helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
-  --set hardware.gpu.enabled=false \
-  --set hardware.telemetry.enabled=true
-```
-
-### Enable Hardware Telemetry Collectors
-
-The [hardware telemetry collectors](./hardware-telemetry.md) are controlled by `config.enable*` values. All of them default to `"false"`, so an upgrade adds no metrics unless you opt in. Most collectors read host sysfs and MSRs, so also set `hardware.telemetry.enabled=true`.
-
-```bash
-helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
   --set hardware.telemetry.enabled=true \
-  --set-string config.enableRaplPower=true \
-  --set-string config.enablePsysPower=true \
-  --set-string config.enableDiskIo=true \
-  --set-string config.enableInterrupts=true
+  --wait --timeout 5m
 ```
 
-| Value | Environment variable | Default |
-|-------|----------------------|---------|
-| `config.enableRaplPower` | `ENABLE_RAPL_POWER` | `"false"` |
-| `config.enablePsysPower` | `ENABLE_PSYS_POWER` | `"false"` |
-| `config.enableDramBw` | `ENABLE_DRAM_BW` | `"false"` |
-| `config.enableDiskIo` | `ENABLE_DISK_IO` | `"false"` |
-| `config.enableNetIo` | `ENABLE_NET_IO` | `"false"` |
-| `config.enableInterrupts` | `ENABLE_INTERRUPTS` | `"false"` |
-| `config.enableTempStats` | `ENABLE_TEMP_STATS` | `"false"` |
-| `config.enableGpuThrottle` | `ENABLE_GPU_THROTTLE` | `"false"` |
-| `config.enableTurbostat` | `ENABLE_TURBOSTAT` | `"false"` |
-| `config.turbostatInterval` | `TURBOSTAT_INTERVAL` | `"5"` |
+Review host access with the cluster administrator. Do not relax namespace
+admission, AppArmor, seccomp or host security settings merely to pass a test.
+OpenShift deployments also need an appropriate administrator-managed SCC.
 
-Notes for Kubernetes:
+### Devices and optional executables
 
-- `config.enableDramBw` needs `perf`, which is not in the published image. Use an image built with `INSTALL_PERF=true`.
-- `config.enableTurbostat` needs a kernel-matched `turbostat` binary on the node, and the chart has no mount for it, so the collector is skipped with a warning. Use Docker Compose for turbostat.
-- `config.enableNetIo` reports the pod's interface unless `pod.hostNetwork=true`, which changes the pod's networking model. Review that before enabling it.
-- A change to any of these values restarts the pod.
+| Value | Behavior when hardware telemetry is enabled |
+|-------|----------------------------------------------|
+| `hardware.gpu.enabled` (default `true`) | Mount `/dev/dri`, add `hardware.gpuRenderGroup` and start qmassa |
+| `hardware.npu.enabled` (default `false`) | Mount `/dev/accel` for NPU inference in the extended image; not needed for PMT telemetry |
+| `hardware.msr.enabled` (default `false`) | Mount `/dev/cpu` for power/C-state and Turbostat MSR access |
+| `hardware.turbostat.hostPath` (default empty) | Mount an operator-supplied executable read-only at `/usr/local/bin/turbostat` |
 
-### Stable Hostname Label Across Pod Restarts
+NPU/MSR directories must already exist on the target node. Prepare the host's
+MSR module, NPU firmware and drivers separately; the chart does not install them.
+On a CPU/NPU node without a GPU, set `hardware.gpu.enabled=false`; qmassa stays
+disabled. The GPU reader in the hardware base configuration remains idle.
+Privileged containers have broad device access: disabling a mount is not a
+device-isolation guarantee for this profile.
+
+Turbostat requires all of `hardware.telemetry.enabled=true`,
+`hardware.msr.enabled=true`, `hardware.turbostat.hostPath` and
+`config.enableTurbostat=true`. The mounted binary must run with the container's
+libraries. The image logs a warning and skips it if its executable/MSR checks fail.
+
+### Native optional collectors
+
+All optional additions default to false. Use YAML booleans or the exact strings
+`"true"`/`"false"` for these `config.enable*` values:
+
+| Value | Environment variable |
+|-------|----------------------|
+| `config.enableRapl` | `ENABLE_RAPL` |
+| `config.enablePowerstatExtra` | `ENABLE_POWERSTAT_EXTRA` |
+| `config.enableTurbostat` | `ENABLE_TURBOSTAT` |
+| `config.enableTemperature` | `ENABLE_TEMPERATURE` |
+| `config.enableInterrupts` | `ENABLE_INTERRUPTS` |
+| `config.enableNetwork` | `ENABLE_NETWORK` |
+| `config.enableNetworkVirtual` | `ENABLE_NETWORK_VIRTUAL` |
+| `config.enableStorage` | `ENABLE_STORAGE` |
+
+`config.turbostatInterval` is positive integer seconds, default `5`.
+For semantics, prerequisites, filtering and duplicate-input handling, see
+[Native Docker Collectors](./native-docker-collectors.md); the chart uses the
+same image entrypoint. Enabling an option does not grant host permissions.
+Do not duplicate optional inputs in a custom Telegraf configuration.
+
+### Host identity and networking
+
+Hardware telemetry defaults `METRICS_MANAGER_HOSTNAME` to the Kubernetes node
+name through the downward API. This keeps per-node time series stable across pod
+restarts. `config.hostnameOverride` takes precedence; do not set one shared label
+for a multi-node DaemonSet. The restricted profile keeps the pod hostname.
+
+`pod.hostNetwork` remains false, even in the hardware profile.
+For host NIC statistics explicitly set both `pod.hostNetwork=true` and
+`config.enableNetwork=true`. Otherwise network metrics describe the pod network.
+Host networking defaults DNS to `ClusterFirstWithHostNet`.
+
+API, Prometheus and HTTP ingestion ports must be distinct values in 1..65535.
+Changing `service.metricsPort`, `service.telegrafPort` or
+`service.telegrafHttpPort` also changes the listeners and internal forwarding
+URLs. With host networking, check for conflicts with existing host services and
+other pods; do not schedule multiple instances using the same host ports.
+
+Storage inputs see the container's mount namespace, not automatically every
+host filesystem. No whole-host root filesystem mount is added by the chart.
+
+## Custom configuration and storage
+
+`telegraf.config` replaces the selected base configuration completely:
 
 ```bash
-helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
-  --set config.hostnameOverride=lab-node-42
-```
-
-### Persist `/app/custom-metrics` to a PersistentVolume
-
-```bash
-helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
-  --set customMetrics.storage=pvc \
-  --set customMetrics.size=1Gi \
-  --set customMetrics.storageClassName=standard
-```
-
-### Override the Telegraf Configuration
-
-```bash
-helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
+helm template metrics-manager ./helm/metrics-manager \
+  --set image.tag=2026.3.0-rc1 \
   --set-file telegraf.config=./my-telegraf.conf
 ```
 
-### Expose to Prometheus Operator (ServiceMonitor)
+Preserve the Prometheus output and HTTP listener, including their environment
+port substitutions, if using the API/SSE forwarding path.
+Additional drop-ins can be supplied without replacing the base:
 
-```bash
-helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
-  --set serviceMonitor.enabled=true \
-  --set serviceMonitor.labels.release=prometheus
+```yaml
+telegraf:
+  extraConfigs:
+    application.conf: |
+      [[inputs.prometheus]]
+        urls = ["http://application:8080/metrics"]
 ```
 
-This creates a `ServiceMonitor` that Prometheus Operator can scrape via the `:9273` Prometheus endpoint.
+These strings are not evaluated as Helm templates. Only simple `*.conf` filenames
+are accepted. Changes to either ConfigMap trigger pod rollout using checksums.
+Do not put secrets in values or ConfigMaps. `config.extraEnv` supports Kubernetes
+environment entries, including `valueFrom` references to existing Secrets;
+managed, legacy and duplicate variable names are rejected.
 
----
+Custom metric scripts/files use `customMetrics.storage=emptyDir` by default.
+For persistence, select `pvc` and either an existing claim or the chart-generated
+claim (`size`, `storageClassName`, `accessModes`). For DaemonSets, design storage
+access explicitly: one ReadWriteOnce claim generally cannot serve several nodes.
+`storage=none` or `enabled=false` removes the writable custom-metrics volume;
+with a read-only root filesystem, file uploads cannot persist.
+HTTP metric ingestion remains available.
 
-## Upgrade / Uninstall
+## Prometheus and terminal dashboard
 
-### Upgrade to a Newer Version
+Enable `serviceMonitor.enabled=true` after installing Prometheus Operator CRDs
+and supplying labels matching your Prometheus instance's selector.
+`serviceMonitor.namespace` may differ from the release namespace: the monitor
+explicitly selects services in the release namespace. Ensure Prometheus watches
+the monitor's namespace too.
+
+The TUI runs outside the pod. Port-forward one selected pod's Prometheus port
+and run your local dashboard:
 
 ```bash
-helm upgrade metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
-  --reuse-values
+kubectl -n observability get pods -l app.kubernetes.io/instance=metrics-manager
+# Replace POD_NAME with a specific pod; keep this command running.
+kubectl -n observability port-forward pod/POD_NAME 9273:9273
 ```
 
-### Uninstall
+In another terminal, run `mm-tui -endpoint http://127.0.0.1:9273/metrics`.
+For a DaemonSet select a specific pod/node rather than treating the Service as an
+aggregated cluster metrics endpoint. See [Terminal Dashboard](./terminal-dashboard.md).
+
+## Upgrade from 2026.2.0
+
+This is a configuration and metric migration, not just an image-tag change.
+Back up your explicit values (`helm get values`) and custom metric data first.
+Treat exported values as potentially sensitive and store them securely.
+Review the [native metric migration guide](./native-metric-migration.md):
+queries and dashboards must use the native names and base units.
+
+Recreate overrides against the new defaults. Removed keys fail rendering even
+when set to false; they are not silently aliased:
+
+| Removed `config` key | Migration |
+|----------------------|-----------|
+| `hardwareTelemetryEnabled` | Use `hardware.telemetry.enabled`; qmassa follows the hardware/GPU profile |
+| `enableRaplPower` | Review baseline power/C-state metrics; `enableRapl` is a separate native energy/power collector, not a direct alias |
+| `enableDramBw` | IMC bandwidth is part of the native hardware base; no external `perf` binary |
+| `enableDiskIo` | Review `enableStorage` and device/filesystem filtering |
+| `enableNetIo` | Review `enableNetwork`, `enableNetworkVirtual` and host networking |
+| `enableTempStats` | Review `enableTemperature` |
+| `enablePsysPower`, `enableGpuThrottle` | No equivalent old toggle; inspect available native metrics and unsupported fields |
+
+Migrate legacy executable paths and fields in `telegraf.config` and drop-ins.
+Old environment variable names in `config.extraEnv` also fail rendering.
+Do not use `--reuse-values`, which can retain removed keys:
+
+```bash
+helm upgrade metrics-manager ./helm/metrics-manager \
+  --namespace observability --reset-values \
+  -f migrated-values.yaml --set image.tag=2026.3.0-rc1 \
+  --wait --timeout 5m
+```
+
+Keep Deployment/DaemonSet kind, resource names, PVCs and selectors consistent
+during an ordinary upgrade. Changing controller kind is a separate migration.
+Changing the restricted profile may intentionally remove metrics that formerly
+attempted unavailable privileged access.
+
+## Verification and troubleshooting
+
+1. Check rollout and pod events in the intended namespace.
+2. Port-forward the selected pod's API and verify `/health`.
+3. POST a custom metric and confirm it reaches the Prometheus endpoint.
+4. Check expected native metric families and advancing timestamps for the selected
+   node; healthy API status alone does not prove GPU/NPU/MSR/IMC access.
+5. Inspect pod logs for configuration failures, unavailable counters or restarts.
+
+For admission failures, ask the administrator whether the requested profile is
+allowed; do not automatically relabel a shared namespace.
+For missing Intel GPU metrics, check node scheduling, Intel `i915`/`xe` drivers,
+`/dev/dri`, render-group permissions and qmassa logs. For missing NPU metrics,
+check PMT and platform support. Device detection is not proof of inference:
+see [OpenVINO smoke testing](./testing.md#openvino-accelerator-smoke-test).
+AppArmor before 1.30 uses the legacy annotation automatically; do not force the
+native field on an API server that does not support it.
+
+## Packaging and publication
+
+```bash
+make helm-lint
+make helm-template
+make helm-package
+# Creates dist/helm/metrics-manager-2026.3.0-helm.tgz
+```
+
+After validation and authorization, `make helm-push` publishes to
+`oci://registry-1.docker.io/intel/metrics-manager`. Publishing the chart does not
+publish either container variant. Once the chart and selected image are available,
+replace the local chart path in install/upgrade commands with the OCI reference
+and add `--version 2026.3.0-helm`.
+
+To remove a release on the intended cluster:
 
 ```bash
 helm uninstall metrics-manager --namespace observability
 ```
 
----
-
-## Verification
-
-### Check Deployment Status
-
-```bash
-kubectl -n observability get pods -l app.kubernetes.io/name=metrics-manager
-```
-
-### Port-Forward to Access the API
-
-```bash
-kubectl -n observability port-forward svc/metrics-manager 9090:9090 &
-curl -s http://localhost:9090/health
-```
-
-### Access Telegraf Prometheus Endpoint
-
-```bash
-kubectl -n observability port-forward svc/metrics-manager 9273:9273 &
-curl -s http://localhost:9273/metrics | head
-```
-
-### View Logs
-
-```bash
-kubectl -n observability logs -f deployment/metrics-manager
-```
-
----
-
-## Troubleshooting
-
-### Pod Stuck in `CreateContainerConfigError`
-
-**Cause**: Namespace rejects privileged pods.
-
-**Solution**: Label the namespace:
-
-```bash
-kubectl label namespace observability \
-  pod-security.kubernetes.io/enforce=privileged --overwrite
-```
-
-### Empty GPU Metrics
-
-**Cause**: GPU not enabled or not available on the node.
-
-**Solution**:
-
-```bash
-# Check if GPU is available on the node
-kubectl describe node <node-name> | grep nvidia.com
-
-# If no GPU, disable GPU in the chart
-helm install metrics-manager ... \
-  --set hardware.gpu.enabled=false
-```
-
-### AppArmor Errors on Kubernetes < 1.30
-
-**Cause**: Chart uses the native `appArmorProfile` field, which is not supported on older clusters.
-
-**Solution**: Either upgrade Kubernetes or fork the chart to use the legacy annotation.
-
-### OpenShift Compatibility
-
-`hostPID: true` and `privileged: true` require a `SecurityContextConstraint` such as `privileged` bound to the chart's ServiceAccount:
-
-```bash
-oc adm policy add-scc-to-user privileged -z metrics-manager
-```
-
-### ServiceMonitor Not Picked Up by Prometheus
-
-**Cause**: Prometheus Operator not configured or label selector mismatch.
-
-**Solution**: Verify Prometheus Operator is installed:
-
-```bash
-kubectl get crd servicemonitors.monitoring.coreos.com
-```
-
-Confirm the ServiceMonitor labels match the Prometheus instance's `serviceMonitorSelector`:
-
-```bash
-kubectl get prometheus -o yaml | grep serviceMonitorSelector
-```
-
-Update the Helm install to match:
-
-```bash
-helm install metrics-manager ... \
-  --set serviceMonitor.labels.release=<your-prometheus-label>
-```
-
----
-
-## Advanced: Custom Values File
-
-Create a `values.yaml` file with your custom configuration:
-
-```yaml
-# my-values.yaml
-controller:
-  kind: DaemonSet
-  replicas: 1
-
-hardware:
-  gpu:
-    enabled: true
-  npu:
-    enabled: true
-
-config:
-  hostnameOverride: lab-node-42
-  loglevel: DEBUG
-
-customMetrics:
-  storage: pvc
-  size: 5Gi
-  storageClassName: fast-ssd
-
-serviceMonitor:
-  enabled: true
-  labels:
-    release: kube-prometheus-stack
-```
-
-Install with custom values:
-
-```bash
-helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
-  -f my-values.yaml
-```
+Back up custom metric files first and review generated PVC retention/deletion.
+Existing claims are managed outside the chart.
 
 ## Supporting Resources
 
 - [Get Started Guide](../get-started.md)
 - [Environment Variables](./environment-variables.md)
-- [Hardware Telemetry Collectors](./hardware-telemetry.md)
+- [Native Docker Collectors](./native-docker-collectors.md)
 - [System Requirements](./system-requirements.md)
 - [Troubleshooting](../troubleshooting.md)
-
-## License
-
-Copyright (C) 2025-2026 Intel Corporation
-
-SPDX-License-Identifier: Apache-2.0

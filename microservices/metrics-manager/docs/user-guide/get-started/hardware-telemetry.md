@@ -1,13 +1,26 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Hardware Telemetry Collectors
 
-Besides the default CPU, memory, temperature, GPU and NPU metrics, Metrics Manager can
+> [!IMPORTANT]
+> This page documents the legacy Python-reader images and their configuration,
+> retained for users of older images and charts. For the native Docker image
+> in 2026.3.0, use [Native Docker Collectors](./native-docker-collectors.md)
+> and the [metric migration guide](./native-metric-migration.md).
+> The legacy `ENABLE_*` switches below are not the native image's interface.
+
+Besides the default CPU, memory, temperature, GPU, and NPU metrics, Metrics Manager can
 collect a set of additional Intel hardware metrics: package and platform power,
 DRAM bandwidth, per-core frequency and C-state residency, interrupts, disk and network
 I/O, GPU throttle state, and (opt-in) turbostat diagnostics.
 
-These collectors cover what **TCMI** (**T**hermal, **C**ompute, **M**emory, **I/O**) measures. TCMI describes the four
-areas of hardware behavior that matter for robotics and physical-AI workloads on Intel
-platforms. Each collector is a separate, opt-in switch, so you only pay for what you enable.
+These collectors cover what **TCMI** (**T**hermal, **C**ompute, **M**emory, **I/O**)
+measures. TCMI describes the four areas of hardware behavior that matter for robotics and
+physical-AI workloads on Intel platforms. Each collector is a separate, opt-in switch, so
+you incur only the cost of the collectors you enable.
 
 > [!NOTE]
 > **Everything on this page is off by default.** With no `ENABLE_*` variable set, the
@@ -16,24 +29,24 @@ platforms. Each collector is a separate, opt-in switch, so you only pay for what
 
 ## Collectors at a Glance
 
-| Variable              | Default | Telegraf drop-in      | Source                                    | Main series (Prometheus names)                                       |
-| --------------------- | ------- | --------------------- | ----------------------------------------- | -------------------------------------------------------------------- |
-| `ENABLE_RAPL_POWER`   | `false` | `10-power.conf`       | `inputs.intel_powerstat`                  | `powerstat_package_*`, `powerstat_core_*`                            |
-| `ENABLE_PSYS_POWER`   | `false` | `90-rapl-psys.conf`   | `rapl_reader.py` (RAPL sysfs)             | `rapl_power_power_w{domain="psys"\|"package-0"}`                     |
-| `ENABLE_DRAM_BW`      | `false` | `20-dram-bw.conf`     | `dram_bw_reader.py` (`perf stat`)         | `dram_bw_read_gbps`, `dram_bw_write_gbps`, `dram_bw_total_gbps`      |
-| `ENABLE_DISK_IO`      | `false` | `30-disk.conf`        | `inputs.diskio`                           | `diskio_*`                                                           |
-| `ENABLE_NET_IO`       | `false` | `40-net.conf`         | `inputs.net`, `inputs.ethtool`            | `net_*`, `ethtool_*`                                                 |
-| `ENABLE_INTERRUPTS`   | `false` | `50-interrupts.conf`  | `inputs.interrupts`                       | `interrupts_total{irq,type,device}`                                  |
-| `ENABLE_TEMP_STATS`   | `false` | `70-temp-stats.conf`  | `inputs.temp` at 100 ms + aggregator      | `temp_highres_temp_min`, `_max`, `_mean`                             |
+| Variable              | Default | Telegraf drop-in       | Source                                      | Main series (Prometheus names)                                                   |
+| --------------------- | ------- | ---------------------- | ------------------------------------------- | -------------------------------------------------------------------------------- |
+| `ENABLE_RAPL_POWER`   | `false` | `10-power.conf`        | `inputs.intel_powerstat`                    | `powerstat_package_*`, `powerstat_core_*`                                        |
+| `ENABLE_PSYS_POWER`   | `false` | `90-rapl-psys.conf`    | `rapl_reader.py` (RAPL sysfs)               | `rapl_power_power_w{domain="psys"\|"package-0"}`                                 |
+| `ENABLE_DRAM_BW`      | `false` | `20-dram-bw.conf`      | `dram_bw_reader.py` (`perf stat`)           | `dram_bw_read_gbps`, `dram_bw_write_gbps`, `dram_bw_total_gbps`                  |
+| `ENABLE_DISK_IO`      | `false` | `30-disk.conf`         | `inputs.diskio`                             | `diskio_*`                                                                       |
+| `ENABLE_NET_IO`       | `false` | `40-net.conf`          | `inputs.net`, `inputs.ethtool`              | `net_*`, `ethtool_*`                                                             |
+| `ENABLE_INTERRUPTS`   | `false` | `50-interrupts.conf`   | `inputs.interrupts`                         | `interrupts_total{irq,type,device}`                                              |
+| `ENABLE_TEMP_STATS`   | `false` | `70-temp-stats.conf`   | `inputs.temp` at 100 ms + aggregator        | `temp_highres_temp_min`, `_max`, `_mean`                                         |
 | `ENABLE_GPU_THROTTLE` | `false` | `91-gpu-throttle.conf` | `gpu_throttle_reader.py` (Intel `xe` sysfs) | `gpu_throttle_act_freq_mhz`, `gpu_throttle_throttled`, `gpu_throttle_throttle_*` |
-| `ENABLE_TURBOSTAT`    | `false` | `60-turbostat.conf`   | `inputs.turbostat`                        | `turbostat_*` (IPC, SMI, per-core temperature, ...)                  |
+| `ENABLE_TURBOSTAT`    | `false` | `60-turbostat.conf`    | `inputs.turbostat`                          | `turbostat_*` (IPC, SMI, per-core temperature, ...)                              |
 
 The NPU `power_state` field (`npu_power_state`) is not behind a toggle; it is part of the
-existing NPU reader. Accepted "on" values are `true`, `1`, `yes`, `on` and `auto`
-(case-insensitive). See [Environment Variables](./environment-variables.md#hardware-telemetry-collectors)
-for the full variable reference.
+existing NPU reader. Accepted "on" values are `true`, `1`, `yes`, `on`, and `auto`
+(case-insensitive). The table above lists the legacy collector variables;
+the [current variable reference](./environment-variables.md) describes native images.
 
-## Quick Start: the TCMI Preset
+## Quick Start: The TCMI Preset
 
 To turn on the set of collectors TCMI users typically need on an Intel host, add this to
 your `.env` (copy it from `.env.example`):
@@ -76,66 +89,67 @@ docker compose logs metrics-manager | grep -E "^\[(INFO|WARN)\]  "
 [INFO]   60-turbostat: disabled
 ```
 
-A collector that was requested but can't work is skipped with a `[WARN]` line (for
+A collector that was requested but cannot work is skipped with a `[WARN]` line (for
 example turbostat without a usable binary, or `ENABLE_DRAM_BW=auto` without `perf` in
 the image). The rest of Telegraf keeps running.
 
 ## Supported Hardware and Expected Series Count
 
-Collectors never take down core metrics: on hardware that lacks a data source they emit
-nothing and log why (see [Troubleshooting](#troubleshooting)). Plan for the following.
+Collectors never disrupt core metrics: on hardware that lacks a data source they emit
+nothing and log why (see [Troubleshooting](#troubleshooting)). Plan for the following:
 
-| Collector           | Where it gives no or partial data                                                                                                                                           |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ENABLE_DRAM_BW`    | No data on CPUs without the IMC free-running PMU, for example Skylake-SP (Xeon 8176), which exposes only `uncore_imc_0..5`. The reader idles.                                |
-| `ENABLE_GPU_THROTTLE` | Intel `xe` driver only. It idles on `i915`, which is still the default driver on some client GPUs (for example Meteor Lake and Arrow Lake).                                |
-| `ENABLE_RAPL_POWER` | Arrow Lake and Panther Lake client parts: no `cpu_temperature` and no C1/C6 residency, only frequency and C0. Skylake-SP: one `uncore_frequency` error is logged at startup. |
-| `ENABLE_NET_IO`     | In the default bridge deployment it reports only the container's own interface. See [Network metrics](#network-metrics-and-the-host-nic-profile).                           |
+| Collector             | Where it gives no or partial data                                                                                                                                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ENABLE_DRAM_BW`      | No data on CPUs without the IMC free-running PMU, for example Skylake-SP (Intel® Xeon® 8176), which exposes only `uncore_imc_0..5`. The reader idles.                                                                                             |
+| `ENABLE_GPU_THROTTLE` | Intel `xe` driver only. It idles on `i915`, which is still the default driver on some client GPUs (for example Intel® Core™ Ultra Series 1 and Intel® Core™ Ultra Series 2).                                                                      |
+| `ENABLE_RAPL_POWER`   | Intel® Core™ Ultra Series 2 and Intel® Core™ Ultra Series 3 (formerly codenamed as Panther Lake) client parts: no `cpu_temperature` and no C1/C6 residency, only frequency and C0. Skylake-SP: one `uncore_frequency` error is logged at startup. |
+| `ENABLE_NET_IO`       | In the default bridge deployment it reports only the container's own interface. See [Network metrics](#network-metrics-and-the-host-nic-profile).                                                                                                 |
 
 Some collectors scale with the number of CPU cores or devices. Measured per Prometheus
-scrape on a 112-thread Xeon Platinum 8176:
+scrape on a 112-thread Intel® Xeon® Platinum 8176:
 
-| Collector              | Lines per scrape (112 threads) | Notes                                                              |
-| ---------------------- | ------------------------------ | ------------------------------------------------------------------ |
-| `ENABLE_RAPL_POWER`    | about 650                      | Per-core frequency, temperature and C-state series scale with core count. |
-| `ENABLE_INTERRUPTS`    | about 150 (21 KB)              | One `interrupts_total` series per device IRQ, not per CPU.         |
-| `ENABLE_TURBOSTAT`     | about 2,050 per sample         | Per-core diagnostics. Use it for engineering work, not continuous monitoring. |
+| Collector           | Lines per scrape (112 threads) | Notes                                                                         |
+| ------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
+| `ENABLE_RAPL_POWER` | about 650                      | Per-core frequency, temperature, and C-state series scale with core count.    |
+| `ENABLE_INTERRUPTS` | about 150 (21 KB)              | One `interrupts_total` series per device IRQ, not per CPU.                    |
+| `ENABLE_TURBOSTAT`  | about 2,050 per sample         | Per-core diagnostics. Use it for engineering work, not continuous monitoring. |
 
 On smaller client systems the same collectors produce far fewer lines. Measured per
-scrape on a 6-CPU Panther Lake and a 16-CPU Arrow Lake system: `ENABLE_INTERRUPTS` 40 and
-57 lines, `ENABLE_TURBOSTAT` 266 and 612 lines, and the full TCMI preset about 167 and 202
-lines in total (3.5 KB without any collector).
+scrape on a 6-CPU Intel® Core™ Ultra Series 3 and a 16-CPU Intel® Core™ Ultra Series 2 system:
+`ENABLE_INTERRUPTS` 40 and 57 lines, `ENABLE_TURBOSTAT` 266 and 612 lines, and the full TCMI
+preset about 167 and 202 lines in total (3.5 KB without any collector).
 
 > [!NOTE]
-> Every Telegraf sample is also forwarded to each `/metrics/stream` (SSE) client every
-> 500 ms, so large collectors increase the size of every stream frame. Enable only what
-> you use.
+> Every Telegraf sample is also forwarded to each `/metrics/stream` Server-Sent Events
+> (SSE) client every 500 ms, so large collectors increase the size of every stream frame.
+> Enable only what you use.
 
 ## Requirements and Behavior per Collector
 
 ### Power: `ENABLE_RAPL_POWER` and `ENABLE_PSYS_POWER`
 
 - Need the privileged container (the compose default), `/sys` mounted read-only, and
-  `pid: host`. RAPL `energy_uj` is readable by root only; without privilege the readers
-  find nothing readable and idle.
+  `pid: host`. Running Average Power Limit (RAPL) `energy_uj` is readable by root only;
+  without privilege the readers find nothing readable and idle.
 - Kernel modules: `intel_rapl_common`, `msr`, `cpufreq`, `intel-uncore-frequency`.
 - `ENABLE_PSYS_POWER` adds the RAPL platform (`psys`) domain, the best Linux proxy for
-  whole-board power (CPU, iGPU, NPU and memory). `intel_powerstat` does not expose it.
+  whole-board power (CPU, iGPU, NPU, and memory). `intel_powerstat` does not expose it.
 - Package and psys power are gauges in watts. DRAM RAPL power is not collected by
   default because client SoCs have no DRAM subzone.
 
-### DRAM bandwidth: `ENABLE_DRAM_BW`
+### DRAM Bandwidth: `ENABLE_DRAM_BW`
 
-The reader runs `perf stat` on the IMC free-running counters and reports ready-to-use
-GB/s. Telegraf's native `inputs.intel_pmu` plugin is not used for three reasons:
+The reader runs `perf stat` on the integrated memory controller (IMC) free-running counters
+and reports ready-to-use GB/s. Telegraf's native `inputs.intel_pmu` plugin is not used for
+three reasons:
 
 - It needs per-model perfmon event JSON files (from the `intel/perfmon` project) that the
   image does not ship, and the files must match the CPU model.
-- On a Meteor Lake CPU (Core Ultra 5 125H, Telegraf 1.39.3) the `UNC_M_CAS_COUNT_RD/WR`
-  events did work under memory load: about 11.0 GB/s read and 5.5 GB/s write, against
-  10.6 and 5.6 GB/s from `perf stat` over the same period (single samples). The plugin
-  returns raw per-IMC cache-line counts, so you must multiply by 64 bytes and take a rate
-  yourself, and the counters are multiplexed, so the values are scaled estimates.
+- On an Intel® Core™ Ultra Series 1 CPU (Intel® Core™ Ultra 5 125H, Telegraf 1.39.3) the
+  `UNC_M_CAS_COUNT_RD/WR` events did work under memory load: about 11.0 GB/s read and 5.5 GB/s
+  write, against 10.6 and 5.6 GB/s from `perf stat` over the same period (single samples). The
+  plugin returns raw per-IMC cache-line counts, so you must multiply by 64 bytes and take a
+  rate yourself. The counters are also multiplexed, so the values are scaled estimates.
 - The `*_CAS_COUNT_FREERUN` events read zero under the same load. On CPUs whose model is
   not in the perfmon event tables the plugin cannot be used at all.
 
@@ -153,12 +167,13 @@ GB/s. Telegraf's native `inputs.intel_pmu` plugin is not used for three reasons:
 - Set `ENABLE_DRAM_BW=auto`. If `perf` is missing, the entrypoint logs
   `ENABLE_DRAM_BW=auto but perf not installed` and skips the drop-in.
 - Needs `perf_event_paranoid` at `0` or lower (`cat /proc/sys/kernel/perf_event_paranoid`)
-  and the PMU to be exposed (`ls /sys/bus/event_source/devices/uncore_imc_free_running*`).
+  and the performance monitoring unit (PMU) to be exposed
+  (`ls /sys/bus/event_source/devices/uncore_imc_free_running*`).
 - Sampling window: `DRAM_BW_INTERVAL` (seconds, default `1`).
 
 ### Interrupts: `ENABLE_INTERRUPTS`
 
-Emits one `interrupts_total` series per numbered (device) IRQ, with `irq`, `type` and
+Emits one `interrupts_total` series per numbered (device) IRQ, with `irq`, `type`, and
 `device` tags. Kernel housekeeping counters (`LOC`, `NMI`, `IPI`, ...) and the per-CPU
 breakdown are dropped. Keeping per-CPU fields would produce about 16,000 lines per
 scrape on a 112-thread host. If you need per-CPU affinity, remove
@@ -168,11 +183,11 @@ It is a counter, so query it with `rate()`.
 ### Disk I/O: `ENABLE_DISK_IO`
 
 Collects whole physical disks only. The default device filter is
-`nvme[0-9]*n[0-9]`, `sd[a-z]`, `vd[a-z]` and `mmcblk[0-9]`. It skips loop, RAM and
+`nvme[0-9]*n[0-9]`, `sd[a-z]`, `vd[a-z]`, and `mmcblk[0-9]`. It skips loop, RAM, and
 device-mapper devices and partitions. It also misses the 27th SCSI disk onward
 (`sdaa`, ...) and NVMe namespaces 10 and above. The series are counters.
 
-### Network metrics and the host-NIC profile
+### Network Metrics and the Host-NIC Profile
 
 `ENABLE_NET_IO` loads `inputs.net` and `inputs.ethtool`. In the default bridge
 deployment they see only the container's own interface (usually `eth0`), not the host's
@@ -196,7 +211,7 @@ docker compose --profile host-nic-telemetry up -d metrics-manager-host-nic
 > docker compose up -d metrics-manager
 > ```
 
-### GPU throttle: `ENABLE_GPU_THROTTLE`
+### GPU Throttle: `ENABLE_GPU_THROTTLE`
 
 Reads the Intel `xe` DRM sysfs tree for the achieved GPU frequency and throttle reasons
 (thermal, PL1, PL2, PROCHOT). It complements the existing GPU metrics, which report the
@@ -206,10 +221,10 @@ Hosts using the `i915` driver produce no data.
 
 ### Turbostat: `ENABLE_TURBOSTAT`
 
-Turbostat is an engineering diagnostic. It adds IPC (distinguishes busy from stalled),
-SMI counts (a common hidden cause of latency spikes), per-core temperature and per-core
-interrupts. The summary row carries `core="-"`, so filter per-core queries with
-`core!="-"`.
+Turbostat is an engineering diagnostic. It adds instructions per cycle (IPC), which
+distinguishes busy from stalled; system management interrupt (SMI) counts, a common hidden
+cause of latency spikes; per-core temperature; and per-core interrupts. The summary row
+carries `core="-"`, so filter per-core queries with `core!="-"`.
 
 - The image ships **no** turbostat binary because it is coupled to the kernel version.
   Compose bind-mounts the host's kernel-matched binary from `TURBOSTAT_BIN`. When you use
@@ -223,26 +238,27 @@ interrupts. The summary row carries `core="-"`, so filter per-core queries with
   ```
 
 - Do not write a kernel-specific path into `.env`; it breaks on the next kernel update.
-- Needs MSR access (`msr` module, privileged container). Before loading the drop-in the
-  entrypoint checks that the binary is a runnable file and that `/dev/cpu/0/msr` can be
-  opened. If either check fails, it logs `[WARN]  60-turbostat: ...` and skips the
-  collector instead of letting turbostat restart in a loop.
+- Needs model-specific register (MSR) access (`msr` module, privileged container). Before
+  loading the drop-in the entrypoint checks that the binary is a runnable file and that
+  `/dev/cpu/0/msr` can be opened. If either check fails, it logs `[WARN]  60-turbostat: ...`
+  and skips the collector instead of letting turbostat restart in a loop.
 - `TURBOSTAT_INTERVAL` sets the sampling cadence in seconds (default `5`).
 - The Helm chart has no turbostat bind-mount. Turbostat is a Docker Compose feature
   in this release.
 
-### High-frequency temperature: `ENABLE_TEMP_STATS`
+### High-Frequency Temperature: `ENABLE_TEMP_STATS`
 
 Adds `temp_highres_*` series sampled every 100 ms and aggregated to per-second
-min, max and mean for the CPU package sensors. The default `temp` input keeps its 1-second
-cadence.
+minimum, maximum, and mean for the CPU package sensors. The default `temp` input keeps its
+1-second cadence.
 
 ## Using Your Own `telegraf.conf`
 
 You can still mount your own `telegraf.conf` with `TELEGRAF_CONFIG`. The container
 always starts Telegraf with `--config-directory /etc/telegraf/active.d`, which holds only
-the collectors you enabled. With every toggle off that directory is empty, so your config
-runs unchanged. See [How It Works](../how-it-works.md#hardware-telemetry-collectors) for details.
+the collectors you enabled. With every toggle off that directory is empty, so your
+configuration runs unchanged. Native images use the separate
+[native collector selection](./native-docker-collectors.md) interface instead.
 
 ## Querying the Metrics
 
@@ -251,7 +267,7 @@ dashboards. A scrape-job snippet is in `dashboards/prometheus-scrape-job.yml`. T
 chart can create a `ServiceMonitor` (see [Helm Deployment](./deploy-with-helm.md)).
 
 Prometheus appends the field name to the measurement name, so `rapl_power` with field
-`power_w` becomes `rapl_power_power_w`. Counters need `rate()`; gauges are queried directly.
+`power_w` becomes `rapl_power_power_w`. Counters need `rate()`; gauges are queried directly:
 
 ```promql
 # Gauges

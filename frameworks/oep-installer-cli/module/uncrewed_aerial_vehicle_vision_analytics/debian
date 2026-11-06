@@ -126,6 +126,7 @@ vision_analytics_install_uav_application () {
   cd "$uav_dir" || return $?
   echo "Review $uav_dir/.env and upstream LAN bindings before starting the application."
   make init || return $?
+  sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
   if [ "$uav_app" = vision-analytics ]; then
     vision_analytics_configure_uav_application_models || return $?
     make _check_certs || return $?
@@ -218,6 +219,7 @@ vision_analytics_start_uav_application () {
   else
     read -r -a uav_ports <<< "$(ensure_prop get "started/$uav_module/ports")"
   fi
+  sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
   if [ "$uav_app" = ground-station ]; then
     make up || return $?
   else

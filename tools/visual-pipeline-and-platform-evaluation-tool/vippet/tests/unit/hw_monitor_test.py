@@ -9,6 +9,7 @@ ok / no_samples / idle classification used to flag missing or idle
 device families in reports instead of leaving blank cells.
 """
 
+import json
 import unittest
 import warnings
 from unittest import mock
@@ -18,6 +19,7 @@ from tests.performance.perf_helpers.hw_monitor import (
     _drop_npu_settle_sample,
     _family_kpi_status,
     _family_sample_count,
+    _fetch_metrics_manager,
     _trim_edge_samples,
 )
 
@@ -318,8 +320,8 @@ class TestNpuSettleSample(unittest.TestCase):
         self.assertEqual(dropped, 0)
 
 
-class TestCollectNpuFrequency(unittest.TestCase):
-    """``_collect`` maps metrics-manager ``npu_frequency`` (Hz) to MHz."""
+class TestCollectNativeCollectorMetrics(unittest.TestCase):
+    """``_collect`` maps metrics-manager native-collector metrics to report KPIs."""
 
     def _collect_from(self, mm: dict[str, float]) -> dict[str, float]:
         monitor = HardwareMonitor()
@@ -330,19 +332,106 @@ class TestCollectNpuFrequency(unittest.TestCase):
             return monitor._collect()  # noqa: SLF001
 
     def test_npu_frequency_hz_is_reported_in_mhz(self):
-        sample = self._collect_from({"npu_frequency": 1.4e9, "npu_power": 1.5})
+        sample = self._collect_from({"npu_frequency_hz": 1.4e9, "npu_power_w": 1.5})
         self.assertEqual(sample["npu_frequency_mhz"], 1400.0)
         self.assertEqual(sample["npu_power"], 1.5)
-        self.assertNotIn("npu_frequency", sample)
+        self.assertNotIn("npu_frequency_hz", sample)
 
     def test_missing_npu_frequency_is_omitted(self):
-        sample = self._collect_from({"npu_power": 1.5})
+        sample = self._collect_from({"npu_power_w": 1.5})
         self.assertNotIn("npu_frequency_mhz", sample)
 
-    def test_legacy_npu_frequency_mhz_metric_is_ignored(self):
-        # metrics-manager never publishes npu_frequency_mhz; don't pick it up.
-        sample = self._collect_from({"npu_frequency_mhz": 1400.0})
-        self.assertNotIn("npu_frequency_mhz", sample)
+    def test_legacy_metric_names_are_ignored(self):
+        # Names published before metrics-manager 2026.3.0 must not leak in.
+        sample = self._collect_from(
+            {
+                "npu_frequency_mhz": 1400.0,
+                "npu_frequency": 1.4e9,
+                "npu_power": 1.5,
+                "cpu_frequency_avg_frequency": 2_800_000.0,
+                "gpu_frequency__cur_freq": 2350.0,
+                "gpu_power__gpu_cur_power": 9.0,
+            }
+        )
+        self.assertEqual(sample, {})
+
+    def test_npu_kpis_keep_their_report_units(self):
+        sample = self._collect_from(
+            {
+                "npu_utilization": 99.4,
+                "npu_temperature_c": 48.0,
+                "npu_memory_bytes": 128.0 * 1024 * 1024,
+                "npu_bandwidth_bytes_per_second": 50_366e6,
+            }
+        )
+        self.assertEqual(sample["npu_utilization"], 99.4)
+        self.assertEqual(sample["npu_temperature"], 48.0)
+        self.assertEqual(sample["npu_memory_mb"], 128.0)
+        self.assertEqual(sample["npu_bandwidth"], 50_366.0)
+
+    def test_cpu_and_gpu_frequency_hz_are_reported_in_mhz(self):
+        sample = self._collect_from(
+            {
+                "cpu_frequency_avg_frequency_hz": 1_805_400_000.0,
+                "gpu_frequency_cur_freq_hz__cur_freq": 2.35e9,
+                "gpu_power_power_w__gpu_cur_power": 9.1,
+                "gpu_power_power_w__pkg_cur_power": 27.7,
+            }
+        )
+        self.assertEqual(sample["cpu_freq_mhz"], 1805.0)
+        self.assertEqual(sample["gpu_freq_mhz"], 2350.0)
+        self.assertEqual(sample["gpu_power_w"], 9.1)
+        self.assertEqual(sample["pkg_power_w"], 27.7)
+
+
+class TestFetchMetricsManager(unittest.TestCase):
+    """``_fetch_metrics_manager`` flattens one SSE event into composite keys."""
+
+    def _fetch(self, metrics: list[dict]) -> dict[str, float]:
+        response = mock.MagicMock()
+        response.iter_lines.return_value = ["data: " + json.dumps({"metrics": metrics})]
+        stream = mock.MagicMock()
+        stream.__enter__.return_value = response
+        with mock.patch(
+            "tests.performance.perf_helpers.hw_monitor.httpx.stream",
+            return_value=stream,
+        ):
+            return _fetch_metrics_manager("http://mm/metrics/stream")
+
+    @staticmethod
+    def _freq(tile: str, value: float, gpu_id: str = "0") -> dict:
+        return {
+            "name": "gpu_frequency_cur_freq_hz",
+            "labels": {"gpu_id": gpu_id, "type": "cur_freq", "tile": tile},
+            "value": value,
+        }
+
+    def test_primary_tile_wins_regardless_of_order(self):
+        for metrics in (
+            [self._freq("gt0", 2.35e9), self._freq("gt1", 3.5e8)],
+            [self._freq("gt1", 3.5e8), self._freq("gt0", 2.35e9)],
+        ):
+            result = self._fetch(metrics)
+            self.assertEqual(result["gpu_frequency_cur_freq_hz__cur_freq"], 2.35e9)
+
+    def test_non_primary_gpu_is_skipped(self):
+        result = self._fetch([self._freq("gt0", 1.0e9, gpu_id="1")])
+        self.assertEqual(result, {})
+
+    def test_untiled_metrics_use_type_or_engine_suffix(self):
+        result = self._fetch(
+            [
+                {
+                    "name": "gpu_power_power_w",
+                    "labels": {"gpu_id": "0", "type": "pkg_cur_power"},
+                    "value": 27.7,
+                },
+                {"name": "npu_power_w", "labels": {}, "value": 5.9},
+            ]
+        )
+        self.assertEqual(
+            result, {"gpu_power_power_w__pkg_cur_power": 27.7, "npu_power_w": 5.9}
+        )
 
 
 if __name__ == "__main__":
