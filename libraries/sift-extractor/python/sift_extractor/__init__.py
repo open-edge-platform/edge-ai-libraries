@@ -38,16 +38,26 @@ try:
         Extractor,
         __version__,
         available_backends,
+        has_opencl_matcher,
+        match,
         resolve_backend,
     )
 except ImportError as exc:  # pragma: no cover - depends on host stack
     raise ImportError(_STACK_HELP) from exc
 
+try:
+    from sift_extractor._native import OpenCLMatcher  # noqa: F401
+except ImportError:  # OpenCL matcher not built into this wheel
+    OpenCLMatcher = None  # type: ignore[misc, assignment]
+
 __all__ = [
     "Backend",
     "Extractor",
+    "OpenCLMatcher",
     "__version__",
     "available_backends",
+    "has_opencl_matcher",
+    "match",
     "resolve_backend",
     "system_requirements",
 ]

@@ -135,7 +135,8 @@ bash python/build_wheel.sh            # writes python/dist/sift_extractor-*-linu
 python3 -m venv --system-site-packages /tmp/sift-venv
 source /tmp/sift-venv/bin/activate
 pip install python/dist/sift_extractor-*.whl   # also needs numpy
-python python/samples/extract_smoke.py
+python python/samples/extract_image.py left.png right.png
+python python/samples/extract_image.py scene.pgm --affine-pair --backend opencl
 ```
 
 After `cmake --install` with `-DSIFT_BUILD_PYTHON=ON`, the same package also
@@ -151,13 +152,16 @@ import sift_extractor
 print(sift_extractor.__version__)
 print(sift_extractor.system_requirements())  # stack is host-provided
 print(list(sift_extractor.available_backends()))  # e.g. ['opencl', 'sycl']
+print("opencl_matcher:", sift_extractor.has_opencl_matcher)
 
 # Contiguous float32 grayscale HxW; shape must match Extractor width/height.
-image = np.zeros((480, 640), dtype=np.float32)
-ext = sift_extractor.Extractor(640, 480, backend="auto")  # or "opencl" / "sycl"
-features = ext.extract(image)
-# list of dicts: x, y, scale, orientation_degrees, response, descriptor(128,)
-print(ext.backend, len(features))
+ext = sift_extractor.Extractor(image1.shape[1], image1.shape[0], backend="auto")
+feats1 = ext.extract(image1)
+ext2 = sift_extractor.Extractor(image2.shape[1], image2.shape[0], backend="auto")
+feats2 = ext2.extract(image2)
+# Match descriptors (OpenCL GPU matcher when built; Lowe ratio on ambiguity).
+matches = sift_extractor.match(feats1, feats2, ratio=0.8)
+print(ext.backend, len(feats1), len(feats2), "matches", len(matches))
 ```
 
 If `import sift_extractor` fails on a missing shared library, the GPU/runtime
