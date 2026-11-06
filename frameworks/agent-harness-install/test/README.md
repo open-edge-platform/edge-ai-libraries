@@ -16,8 +16,49 @@ succeeded.
 
 ## Offline PR gate
 
+### Monorepo merge protection
+
+The workflow starts on every PR, but only runs component jobs when changes
+match `frameworks/agent-harness-install/**`, the workflow itself, or
+`.github/scripts/agent-harness-required-gate.mjs`. The pinned path-filter action
+uses the PR files API, including added, modified, deleted and renamed paths.
+Only change detection receives `pull-requests: read`; no write permission or
+repository secret is needed for fork PRs. PRs with 3000 or more changed files
+run all component checks conservatively because the API cannot list more than
+3000 files. A failed filter never becomes a "no changes" result.
+
+Pushes to `main` retain these path filters, while manual dispatch always runs
+component checks. The final **Agent Harness required static gate** runs with
+`always()` after change detection and static analysis only. Offline regression
+and Hermes image runtime remain separate conditional checks; their results do
+not affect this static-analysis merge gate.
+
+This is an intentional change from the earlier recommendation to require
+static, offline and Hermes checks together: this PR provides a static-only
+merge-protection policy. Offline/Hermes failures remain visible but are not
+merge blockers under this policy unless separately required by administrators.
+Existing required checks must not be removed automatically.
+
+| Decision | Required outcomes |
+|---|---|
+| Relevant changes | Static analysis must succeed (ShellCheck and production `node --check`) |
+| Unrelated changes | Static analysis must be skipped |
+| Failed/cancelled detection, missing/invalid decision, or unexpected job outcome | Fail the final gate |
+
+The final job also runs the required-gate decision tests, independently of
+component selection. Workflow cancellation may prevent a final job from
+finishing; a cancelled or missing required check is not successful evidence.
+Live prepared-runner validation remains a separate manual opt-in, not part of
+this automatic merge gate.
+
+Administrators should require **only `Agent Harness required static gate`** for
+this component in the `main` ruleset/branch protection, retaining unrelated
+existing required checks. Do not separately require the conditional component
+jobs or change detection for this static-only policy.
+The workflow does not modify repository rulesets or bypass permissions.
+
 The workflow also runs an independent **Agent Harness static analysis** job on
-pull requests, pushes to `main`, and manual dispatch. It scans production shell
+relevant pull requests, pushes to `main`, and manual dispatch. It scans production shell
 and JavaScript files throughout this component, excluding `test/`, `tests/`,
 `node_modules/` and `.venv/`. Existing regression tests still run separately.
 
@@ -45,9 +86,9 @@ for file in "${js_files[@]}"; do
 done
 ```
 
-The workflow fails if either file list is empty. The static job must be selected
-as a required status check in repository branch protection/rulesets to prevent
-merging when it fails; adding the workflow alone does not configure that policy.
+The workflow fails if either file list is empty. The final required gate
+propagates a static-job failure; adding the workflow alone does not configure
+repository merge protection.
 
 ### Hermes image runtime gate
 
@@ -78,8 +119,7 @@ configuration, Docker socket, credentials or OpenShell gateway is mounted.
 The image's production model-config helper is tested, and TAP output is uploaded
 as `hermes-runtime-results`. See the [local commands](unit-tests.md#hermes-runtime-dependent-cases).
 This is real dependency/configuration coverage, not live inference or sandbox
-lifecycle acceptance. Administrators must make this check required in branch
-protection/rulesets; the workflow alone does not enforce merge protection.
+lifecycle acceptance. Its result is reported separately from the required static gate.
 
 ### Installer runtime regression
 

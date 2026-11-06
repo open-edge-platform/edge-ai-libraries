@@ -4,14 +4,12 @@ name: "[Agent Harness] OpenShell quality gates"
 
 on:
   pull_request:
-    paths:
-      - frameworks/agent-harness-install/**
-      - .github/workflows/agent-harness-openshell.yml
   push:
     branches: [main]
     paths:
       - frameworks/agent-harness-install/**
       - .github/workflows/agent-harness-openshell.yml
+      - .github/scripts/agent-harness-required-gate.mjs
   workflow_dispatch:
     inputs:
       live:
@@ -26,8 +24,47 @@ on:
 permissions: {}
 
 jobs:
+  changes:
+    name: Agent Harness change detection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.result.outputs.relevant }}
+    steps:
+      - name: Detect component changes
+        id: filter
+        if: github.event_name == 'pull_request' && github.event.pull_request.changed_files < 3000
+        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+        with:
+          filters: |
+            harness:
+              - 'frameworks/agent-harness-install/**'
+              - '.github/workflows/agent-harness-openshell.yml'
+              - '.github/scripts/agent-harness-required-gate.mjs'
+      - name: Publish change decision
+        id: result
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+          FILTER_RESULT: ${{ steps.filter.outputs.harness }}
+        run: |
+          set -euo pipefail
+          # The PR files API is limited to 3000 files; large PRs run all checks.
+          if [[ "$EVENT_NAME" != pull_request ]] || (( CHANGED_FILES >= 3000 )); then
+            echo 'relevant=true' >>"$GITHUB_OUTPUT"
+          else
+            case "$FILTER_RESULT" in
+              true|false) echo "relevant=$FILTER_RESULT" >>"$GITHUB_OUTPUT" ;;
+              *) echo '::error::Missing or invalid component change decision'; exit 1 ;;
+            esac
+          fi
+
   static:
     name: Agent Harness static analysis
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -74,6 +111,8 @@ jobs:
 
   offline:
     name: OpenShell offline gate
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -156,6 +195,8 @@ jobs:
 
   hermes:
     name: Hermes image runtime gate
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -201,6 +242,30 @@ jobs:
           path: ${{ runner.temp }}/hermes-defaults.tap
           if-no-files-found: warn
           retention-days: 14
+
+  required:
+    name: Agent Harness required static gate
+    if: always()
+    needs: [changes, static]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.21.0
+      - name: Test required-gate decisions
+        run: node --test frameworks/agent-harness-install/test/required-gate-test.mjs
+      - name: Require expected static-analysis outcome
+        env:
+          CHANGE_RESULT: ${{ needs.changes.result }}
+          RELEVANT: ${{ needs.changes.outputs.relevant }}
+          STATIC_RESULT: ${{ needs.static.result }}
+        run: node .github/scripts/agent-harness-required-gate.mjs
 
   live:
     name: OpenShell prepared-runner gate
