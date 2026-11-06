@@ -16,7 +16,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { AxiosError } from 'axios';
-import { SearchEmbeddingsBatchDTO, SearchEmbeddingsDTO, Video, VideoDTO, VideoRO } from '../models/video.model';
+import {
+  CopyVideoDTO,
+  SearchEmbeddingsBatchDTO,
+  SearchEmbeddingsDTO,
+  Video,
+  VideoDTO,
+  VideoRO,
+} from '../models/video.model';
 import { VideoService } from '../services/video.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FeaturesService } from '../../features/features.service';
@@ -108,6 +115,49 @@ export class VideoController {
   async getVideos(): Promise<{ videos: Video[] }> {
     const videos = await this.$video.getVideos();
     return { videos };
+  }
+
+  @Post(':videoId/copy')
+  @ApiOperation({
+    summary: 'Add an existing video again as a new video',
+    description:
+      'Copies the stored file to a new video ID with the same name, as if it were uploaded again. ' +
+      'Embeddings and summaries are not copied; create them for the returned videoId.',
+  })
+  @ApiParam({
+    name: 'videoId',
+    type: String,
+    description: 'ID of the video to copy',
+  })
+  @ApiBody({
+    required: false,
+    schema: {
+      type: 'object',
+      properties: {
+        tags: {
+          type: 'string',
+          example: 'outdoor,daytime',
+          description:
+            'Optional comma-separated tags to add to the copy on top of the source tags',
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Video copied; returns the new videoId' })
+  async copyVideo(
+    @Param() params: { videoId: string },
+    @Body() reqBody: CopyVideoDTO = {},
+  ): Promise<VideoRO> {
+    const tagsArray =
+      typeof reqBody?.tags === 'string'
+        ? reqBody.tags
+            .split(',')
+            .map((curr) => curr.trim())
+            .filter((curr) => curr.length > 0)
+        : [];
+
+    const videoId = await this.$video.copyVideo(params.videoId, tagsArray);
+    return { videoId };
   }
 
   @Post('search-embeddings/:videoId')

@@ -7,8 +7,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from api.routers import pipelines, validate, elements, optimize
+from api.routers import pipelines, validate, elements, devices, optimize
 from config.loader import load_legacy_config
+from core.openvino_devices import init_device_cache
 from core.optimizer_manager import OptimizerManager
 from core.pipeline_manager import PipelineManager
 from core.telemetry import OpenTelemetryExporter, telemetry_enabled
@@ -53,6 +54,8 @@ async def lifespan(app: FastAPI):
     optimizer_manager = OptimizerManager()
     optimize.set_optimizer_manager(optimizer_manager)
 
+    init_device_cache()
+
     otel_exporter = None
     if telemetry_enabled():
         try:
@@ -94,3 +97,4 @@ app.include_router(pipelines.router)
 app.include_router(validate.router)
 app.include_router(optimize.router)
 app.include_router(elements.router)
+app.include_router(devices.router)

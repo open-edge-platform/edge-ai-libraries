@@ -242,3 +242,14 @@ class ElementDetailResponse(BaseModel):
     description: str
     details: str  # Full gst-inspect output
 
+
+# ---------------------------------------------------------------------------
+# OpenVINO Devices
+# ---------------------------------------------------------------------------
+
+class DeviceInfo(BaseModel):
+    """An OpenVINO inference device visible to the DLSPS runtime."""
+
+    name: str  # Device name used by OpenVINO, e.g. CPU, GPU
+    properties: dict[str, Any]  # Read-only OpenVINO device properties
+

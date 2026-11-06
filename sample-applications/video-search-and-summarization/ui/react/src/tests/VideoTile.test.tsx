@@ -226,4 +226,20 @@ describe('VideoTile Component', () => {
     
     expect(container).toBeTruthy();
   });
+
+  it('shows the result tags in the ungrouped view', () => {
+    store = createMockStore([
+      { ...mockSearchResults[0], metadata: { ...mockSearchResults[0].metadata, tags: 'parking, gate ,' } },
+    ]);
+    const { getByTestId } = renderVideoTile({ resultIndex: 0 });
+
+    const chips = Array.from(getByTestId('result-tags').children).map((el) => el.textContent);
+    expect(chips).toEqual(['parking', 'gate']);
+  });
+
+  it('renders no tag row when the result has no tags', () => {
+    const { queryByTestId } = renderVideoTile({ resultIndex: 0 });
+
+    expect(queryByTestId('result-tags')).toBeNull();
+  });
 });

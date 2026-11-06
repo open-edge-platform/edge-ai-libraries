@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Get Started
 
 This guide provides step-by-step instructions to install and run Metrics Manager on your machine using Docker Compose.
@@ -16,21 +21,31 @@ See [System Requirements](./get-started/system-requirements.md) for detailed har
 
 ## Pre-built Image (Optional)
 
+This checkout targets the unreleased 2026.3.0 version. Until that image is
+published, use the build-from-source instructions. Registry examples below use
+the target release tag.
+
 Instead of building from source, you can pull the pre-built Docker image from the registry:
 
 ```bash
-docker pull intel/metrics-manager:2026.2.0
+docker pull intel/metrics-manager:2026.3.0
 ```
 
-The image is based on `python:3.12-slim` and includes:
+The image uses a digest-pinned `python:3.12-slim-trixie` base (Debian 13) and includes:
 
-- Telegraf 1.39.3 (system metrics agent)
-- qmassa 1.3.1 (Intel® GPU telemetry)
-- Intel® NPU reader (`npu_reader.py`)
+- Telegraf 1.40.3 (system metrics agent)
+- qmassa 2.1.0 (Intel® GPU telemetry)
+- Native Go collectors: `mm-plugin-cpu`, `mm-plugin-gpu`, `mm-plugin-npu`,
+  `mm-plugin-proc`, `mm-plugin-membw`, plus the opt-in `mm-plugin-rapl`
 - Python 3.12 runtime with FastAPI
 - supervisord process manager
 
-**GPU/NPU Drivers:** No proprietary drivers are bundled in the image. GPU and NPU metrics are read directly from sysfs (`/sys/`) at runtime, so no additional setup is needed on the host beyond accessing `/dev/dri/*` for GPUs.
+**GPU/NPU prerequisites:** The host must provide the appropriate GPU/NPU drivers
+and telemetry interfaces. GPU collection uses qmassa and can require DRM,
+perf or MSR access; NPU telemetry requires supported PMT data and read
+permissions. Installing an image does not supply host kernel drivers.
+The extended build adds OpenVINO and VAAPI userspace tooling, not kernel
+drivers. See [hardware-specific requirements](./get-started/system-requirements.md#hardware-specific-notes).
 
 **Next:** You can now run the image directly with `docker run` (see [Running Without Docker Compose](#running-without-docker-compose-docker-run) below), or continue below to build from source using Docker Compose.
 
@@ -117,7 +132,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
 Then verify:
@@ -139,7 +154,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
 Verify GPU metrics:
@@ -159,7 +174,7 @@ docker run --rm --privileged \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
 Verify NPU metrics:
@@ -178,7 +193,7 @@ docker run --rm --privileged \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
 ### With Custom Ports
@@ -192,7 +207,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
 Then access on the new ports:
@@ -215,10 +230,22 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
 See [Environment Variables](./get-started/environment-variables.md) for all available variables.
+
+### Additional Native Collectors
+
+For optional per-CPU powerstat, high-resolution temperature, IRQ, network,
+storage, RAPL and Turbostat collection, follow
+[Additional collectors in the native-enabled Docker image](./get-started/native-docker-collectors.md).
+Use this image's native-consistent `ENABLE_*` flags or mounted `.conf` drop-ins,
+not legacy Python-reader switch names or the bare-metal configuration helper.
+The guide also covers the optional `host-nic-telemetry` deployment variant,
+explicit service switching, and host-network port exposure. Bridge mode
+remains the default; the host-NIC variant enables network collection unless
+explicitly disabled.
 
 ### With Custom Metrics Directory (Volume Mount)
 
@@ -234,7 +261,7 @@ docker run --rm \
   -v /run:/run:ro \
   -v ./my-scripts:/app/custom-metrics \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
 Drop your scripts in `./my-scripts/` (they must be executable: `chmod +x script.sh`).
@@ -251,7 +278,7 @@ docker run -d \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.2.0
+  intel/metrics-manager:2026.3.0
 ```
 
 Stop it:
@@ -344,20 +371,24 @@ TELEGRAF_CONFIG=./my-telegraf.conf
 
 ### Add Inputs on Top of Default Config
 
-Drop `.conf` files in `telegraf.d/`:
+The container loads `.conf` files recursively from the mounted `telegraf.d/`
+directory, or the directory selected by `TELEGRAF_CONFIG_DIR`. Startup copies
+them into a private snapshot without modifying the originals. Recreate the
+selected container after changing these files.
+
+For a bundled optional collector, prefer its enable flag. For example:
 
 ```bash
-mkdir -p telegraf.d
-
-cat > telegraf.d/my-input.conf << 'EOF'
-[[inputs.exec]]
-  commands = ["/app/custom-metrics/my-sensor.sh"]
-  interval = "5s"
-  data_format = "influx"
-EOF
-
-docker compose up --build
+ENABLE_RAPL=true docker compose up -d --no-build --force-recreate metrics-manager
 ```
+
+If custom configuration already declares the RAPL input, keep
+`ENABLE_RAPL=false`: the flag controls automatic additions, not your custom
+input. Enabling both is rejected as a conflict.
+RAPL requires readable host energy counters; package power can appear even
+when the hardware has no platform (`psys`) domain. See the complete
+[additional native Docker collectors guide](./get-started/native-docker-collectors.md)
+for prerequisites, other inputs and verification commands.
 
 ### Restrict CORS Origins
 
@@ -415,6 +446,8 @@ See [Troubleshooting](./troubleshooting.md) for more issues.
 - **Configure**: See [Environment Variables](./get-started/environment-variables.md)
 - **Custom metrics**: See [Custom Metrics Scripts](./get-started/custom-metrics.md)
 - **Kubernetes**: See [Helm Deployment](./get-started/deploy-with-helm.md)
+- **Terminal dashboard**: Build and run the [standalone TUI](./get-started/terminal-dashboard.md)
+- **Without Docker on the target host**: Install the [bare-metal package](./get-started/bare-metal-package.md)
 
 ## Supporting Resources
 
@@ -437,6 +470,8 @@ SPDX-License-Identifier: Apache-2.0
 ./get-started/deploy-with-helm.md
 ./get-started/environment-variables.md
 ./get-started/custom-metrics.md
+./get-started/terminal-dashboard.md
+./get-started/bare-metal-package.md
 ./get-started/testing.md
 
 :::
