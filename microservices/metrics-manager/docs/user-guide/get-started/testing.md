@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Testing Guide
 
 This guide covers how to run tests for Metrics Manager.
@@ -236,6 +241,46 @@ tests/test_telegraf_integration.py::...  SKIPPED (requires Docker)
 ```
 
 ---
+
+## Native collector build and tests
+
+The Go module in `native/` contains six standalone collectors:
+
+| Command | Data source |
+|---------|-------------|
+| `mm-plugin-cpu` | CPU topology, frequency and utilization from procfs/sysfs |
+| `mm-plugin-gpu` | GPU and optional per-process telemetry from a qmassa JSON stream |
+| `mm-plugin-npu` | Intel NPU PMT telemetry and sysfs |
+| `mm-plugin-proc` | Process CPU and memory usage from procfs |
+| `mm-plugin-membw` | Memory-controller performance counters, with multi-socket affinity |
+| `mm-plugin-rapl` | Package/platform energy counters exposed through powercap |
+
+Collectors emit InfluxDB line protocol to stdout by default. The shared `-out`
+option also supports a Unix stream socket for Telegraf's `socket_listener`.
+Native measurements use base units such as Hz, bytes, bytes per second and
+watts; percentages remain percentages.
+
+Build and test the module independently of the service image or Debian package.
+From `microservices/metrics-manager`, run on a Linux host with Docker:
+
+```bash
+. ./versions.env
+docker run --rm --cap-drop ALL --security-opt no-new-privileges \
+  --user "$(id -u):$(id -g)" \
+  -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
+  -e http_proxy -e https_proxy -e no_proxy \
+  -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomodcache \
+  -e GOTOOLCHAIN=local -e GOFLAGS=-mod=readonly \
+  -v "$PWD/native:/src:ro" -w /src "$GO_IMAGE" \
+  sh -ec 'go test -race ./...; go vet ./...; CGO_ENABLED=0 go build ./cmd/...'
+```
+
+`versions.env` pins the compiler image by digest; `go.mod` declares the minimum
+language version and module dependency. The command downloads that dependency
+into the disposable container and leaves no build outputs in the checkout.
+Unit tests use synthetic kernel files, qmassa fixtures and mocked performance
+counters; they do not require GPU/NPU devices or privileged hardware access.
+Passing these tests does not replace real-hardware validation of each collector.
 
 ## Development Setup
 
