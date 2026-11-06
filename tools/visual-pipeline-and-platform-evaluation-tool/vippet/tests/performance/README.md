@@ -528,7 +528,7 @@ classifies that family's activity across the run:
 
 | Status       | Meaning                                                                                                                                                                                                                                           |
 |--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ok`         | At least one activity KPI (e.g. `npu_utilization`, falling back to `npu_frequency_mhz`/`npu_power` for NPU) was nonzero somewhere in the run. `npu_frequency_mhz` is derived from the metrics-manager `npu_frequency` metric (Hz) divided by 1e6. |
+| `ok`         | At least one activity KPI (e.g. `npu_utilization`, falling back to `npu_frequency_mhz`/`npu_power` for NPU) was nonzero somewhere in the run. `npu_frequency_mhz` is derived from the metrics-manager `npu_frequency_hz` metric divided by 1e6.   |
 | `no_samples` | None of the family's KPI keys were ever reported by metrics-manager — the device is missing or the harness never got a successful poll.                                                                                                           |
 | `idle`       | Samples exist for the family, but every activity value was zero for the entire run (hardware present but never dispatched work).                                                                                                                  |
 
