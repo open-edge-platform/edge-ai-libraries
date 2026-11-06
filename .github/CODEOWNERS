@@ -11,6 +11,8 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 # GitHub Workflows
 /.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo @yangjianfeng1208
+/.github/workflows/agent-harness-openshell.yml @vinayg-intel @bharagha @shahmitu
+/.github/scripts/agent-harness-required-gate.mjs @vinayg-intel @bharagha @shahmitu
 
 # ============================================================================
 # Libraries
