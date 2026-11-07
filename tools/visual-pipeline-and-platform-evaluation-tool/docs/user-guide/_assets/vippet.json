@@ -673,7 +673,7 @@
           "devices"
         ],
         "summary": "List available inference devices",
-        "description": "**Return all devices discovered by the OpenVINO runtime.**\n\n## Operation\nDiscovers CPU, GPU, and NPU devices available in the system and exposes\nthem in a simplified, API-friendly format.\n\n1. Initialize OpenVINO Core\n2. Discover all available inference devices\n3. Extract device properties and metadata\n4. Return formatted device list\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\nJSON array of Device objects.\n\n**Each device includes:**\n- `device_name` - Short identifier used by runtime (e.g., `\"CPU\"`, `\"GPU\"`, `\"GPU.0\"`, `\"NPU\"`)\n- `full_device_name` - Human-readable name (e.g., CPU/GPU marketing name)\n- `device_type` - `INTEGRATED` or `DISCRETE`\n- `device_family` - `CPU`, `GPU`, or `NPU`\n- `gpu_id` - Integer index for GPU devices (when applicable), otherwise `null`\n\n## Conditions\n\n### \u2705 Success\n- OpenVINO Core initializes correctly\n- At least zero devices are returned (empty list is valid)\n\n### \u274c Failure\n- Unhandled exception during device discovery \u2192 500\n- OpenVINO cannot be initialized \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"device_name\": \"CPU\",\n    \"full_device_name\": \"Intel(R) Core(TM) Ultra 7 155H\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"CPU\",\n    \"gpu_id\": null\n  },\n  {\n    \"device_name\": \"GPU.0\",\n    \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"GPU\",\n    \"gpu_id\": 0\n  }\n]\n```",
+        "description": "**Return all devices discovered by the OpenVINO runtime.**\n\n## Operation\nDiscovers CPU, GPU, and NPU devices available in the system and exposes\nthem in a simplified, API-friendly format.\n\n1. Initialize OpenVINO Core\n2. Discover all available inference devices\n3. Extract device properties and metadata\n4. Attach the core type of every online logical CPU to the CPU device\n5. Return formatted device list\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\nJSON array of Device objects.\n\n**Each device includes:**\n- `device_name` - Short identifier used by runtime (e.g., `\"CPU\"`, `\"GPU\"`, `\"GPU.0\"`, `\"NPU\"`)\n- `full_device_name` - Human-readable name (e.g., CPU/GPU marketing name)\n- `device_type` - `INTEGRATED` or `DISCRETE`\n- `device_family` - `CPU`, `GPU`, or `NPU`\n- `gpu_id` - Integer index for GPU devices (when applicable), otherwise `null`\n- `cpu_topology` - For the CPU device, the core type (`P`, `E`, `LPE` or `UNIFORM`)\n  of every online logical CPU, read from Linux sysfs. `null` for other devices, or\n  when the core types cannot be determined\n\n## Conditions\n\n### \u2705 Success\n- OpenVINO Core initializes correctly\n- At least zero devices are returned (empty list is valid)\n- A failure to read the CPU topology does not fail the request; `cpu_topology` is `null`\n\n### \u274c Failure\n- Unhandled exception during device discovery \u2192 500\n- OpenVINO cannot be initialized \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"device_name\": \"CPU\",\n    \"full_device_name\": \"Intel(R) Core(TM) Ultra 7 155H\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"CPU\",\n    \"gpu_id\": null,\n    \"cpu_topology\": {\n      \"is_hybrid\": true,\n      \"source\": \"sysfs_pmu\",\n      \"cores\": [\n        {\"cpu\": 0, \"core_type\": \"P\", \"core_id\": 0},\n        {\"cpu\": 6, \"core_type\": \"E\", \"core_id\": 6},\n        {\"cpu\": 14, \"core_type\": \"LPE\", \"core_id\": 14}\n      ]\n    }\n  },\n  {\n    \"device_name\": \"GPU.0\",\n    \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"GPU\",\n    \"gpu_id\": 0,\n    \"cpu_topology\": null\n  }\n]\n```",
         "operationId": "get_devices",
         "responses": {
           "200": {
@@ -5315,6 +5315,76 @@
         "title": "CameraType",
         "description": "**Type of camera device.**\n\n## Values\n- `USB` - USB camera connected directly to the system\n- `NETWORK` - Network camera accessible via IP protocols\n- `GIGE` - GigE Vision machine vision camera\n\n### Example\n```json\n\"USB\"\n```"
       },
+      "CpuCore": {
+        "properties": {
+          "cpu": {
+            "type": "integer",
+            "title": "Cpu"
+          },
+          "core_type": {
+            "$ref": "#/components/schemas/CpuCoreType"
+          },
+          "core_id": {
+            "type": "integer",
+            "title": "Core Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cpu",
+          "core_type",
+          "core_id"
+        ],
+        "title": "CpuCore",
+        "description": "**One online logical CPU and its core type.**\n\n## Attributes\n- `cpu` - Logical CPU id, as used for CPU affinity (for example `taskset -c`)\n- `core_type` - Core type of this CPU\n- `core_id` - Lowest logical CPU id among its SMT siblings; hyper-threads of one physical core share it\n\n### Example\n```json\n{\"cpu\": 0, \"core_type\": \"P\", \"core_id\": 0}\n```"
+      },
+      "CpuCoreType": {
+        "type": "string",
+        "enum": [
+          "P",
+          "E",
+          "LPE",
+          "UNIFORM"
+        ],
+        "title": "CpuCoreType",
+        "description": "**Type of a logical CPU on an Intel processor.**\n\n## Values\n- `P` - Performance core on a hybrid processor\n- `E` - Efficient core on a hybrid processor\n- `LPE` - Low-power efficient core on a hybrid processor\n- `UNIFORM` - Core of a non-hybrid processor, where all cores are the same type\n\n### Example\n```json\n\"P\"\n```"
+      },
+      "CpuTopology": {
+        "properties": {
+          "is_hybrid": {
+            "type": "boolean",
+            "title": "Is Hybrid"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CpuTopologySource"
+          },
+          "cores": {
+            "items": {
+              "$ref": "#/components/schemas/CpuCore"
+            },
+            "type": "array",
+            "title": "Cores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_hybrid",
+          "source",
+          "cores"
+        ],
+        "title": "CpuTopology",
+        "description": "**Core types of all online logical CPUs of the host.**\n\n## Attributes\n- `is_hybrid` - True when the CPUs are classified into `P`, `E` or `LPE` types\n- `source` - Method used to determine the core types\n- `cores` - Online logical CPUs sorted by id\n\n### Example\n```json\n{\n  \"is_hybrid\": true,\n  \"source\": \"sysfs_pmu\",\n  \"cores\": [\n    {\"cpu\": 0, \"core_type\": \"P\", \"core_id\": 0},\n    {\"cpu\": 6, \"core_type\": \"E\", \"core_id\": 6},\n    {\"cpu\": 14, \"core_type\": \"LPE\", \"core_id\": 14}\n  ]\n}\n```"
+      },
+      "CpuTopologySource": {
+        "type": "string",
+        "enum": [
+          "sysfs_pmu",
+          "sysfs_cache",
+          "uniform"
+        ],
+        "title": "CpuTopologySource",
+        "description": "**Method used to determine the CPU core types.**\n\n## Values\n- `sysfs_pmu` - Hybrid PMU CPU lists in Linux sysfs (`cpu_core`, `cpu_atom`, `cpu_lowpower`)\n- `sysfs_cache` - Cache topology in Linux sysfs, used when the hybrid PMU lists are missing\n- `uniform` - Non-hybrid processor; every core is `UNIFORM`\n\n### Example\n```json\n\"sysfs_pmu\"\n```"
+      },
       "DensityJobStatus": {
         "properties": {
           "id": {
@@ -5546,6 +5616,16 @@
               }
             ],
             "title": "Gpu Id"
+          },
+          "cpu_topology": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CpuTopology"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5557,7 +5637,7 @@
           "gpu_id"
         ],
         "title": "Device",
-        "description": "**Hardware device description used by multiple APIs.**\n\nThis model is a simplified view of the device information returned\nby the runtime (e.g., OpenVINO) and is suitable for UI consumption.\n\n## Attributes\n- `device_name` - Short identifier used when selecting the device (e.g., \"CPU\", \"GPU\", \"GPU.0\", \"NPU\")\n- `full_device_name` - Human readable device name (CPU/GPU/NPU model)\n- `device_type` - High level device type (INTEGRATED or DISCRETE)\n- `device_family` - Hardware family (CPU, GPU, NPU)\n- `gpu_id` - Optional GPU index when applicable; null for non-GPU devices\n\n### Example\n```json\n{\n  \"device_name\": \"GPU.0\",\n  \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n  \"device_type\": \"INTEGRATED\",\n  \"device_family\": \"GPU\",\n  \"gpu_id\": 0\n}\n```"
+        "description": "**Hardware device description used by multiple APIs.**\n\nThis model is a simplified view of the device information returned\nby the runtime (e.g., OpenVINO) and is suitable for UI consumption.\n\n## Attributes\n- `device_name` - Short identifier used when selecting the device (e.g., \"CPU\", \"GPU\", \"GPU.0\", \"NPU\")\n- `full_device_name` - Human readable device name (CPU/GPU/NPU model)\n- `device_type` - High level device type (INTEGRATED or DISCRETE)\n- `device_family` - Hardware family (CPU, GPU, NPU)\n- `gpu_id` - Optional GPU index when applicable; null for non-GPU devices\n- `cpu_topology` - Core types of the host CPUs for the CPU device; null for other devices\n  or when they cannot be determined\n\n### Example\n```json\n{\n  \"device_name\": \"GPU.0\",\n  \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n  \"device_type\": \"INTEGRATED\",\n  \"device_family\": \"GPU\",\n  \"gpu_id\": 0,\n  \"cpu_topology\": null\n}\n```"
       },
       "DeviceFamily": {
         "type": "string",

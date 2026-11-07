@@ -12,10 +12,11 @@ const helper = process.env.HARNESS_TEST_MODEL_CONFIG ??
   fileURLToPath(new URL("../openshell/model-config.mjs", import.meta.url));
 const model = "Qwen3.5-9B-int8-ov";
 const endpoint = "http://host.openshell.internal:8010/v1";
+const requireHermes = process.env.HARNESS_TEST_REQUIRE_HERMES === "1";
 const hermes = "/home/node/.local/bin/hermes";
-const python = fs.existsSync(hermes)
+const python = requireHermes && fs.existsSync(hermes)
   ? JSON.parse(execFileSync(hermes, ["--print-runtime-command"], {encoding: "utf8"}))[0] : null;
-if (process.env.HARNESS_TEST_REQUIRE_HERMES === "1" && python === null)
+if (requireHermes && python === null)
   throw Error("Hermes defaults validation requires the pinned Hermes image runtime");
 const bootstrap = 'import sys; sys.path.insert(0, "/home/node/.hermes/hermes-agent"); ' +
   "import hermes_bootstrap; import hermes_yaml as yaml; ";
@@ -54,14 +55,14 @@ test("Qwen OpenClaw defaults cover catalog, request parameters and lean prompt",
   const f = fixture(t);
   const config = f.apply();
   assert.equal(config.models.providers.ovms.models[0].contextWindow, 65536);
-  assert.equal(config.models.providers.ovms.models[0].maxTokens, 512);
+  assert.equal(config.models.providers.ovms.models[0].maxTokens, 4096);
   assert.equal(config.agents.defaults.experimental.localModelLean, true);
   assert.equal(config.agents.defaults.bootstrapMaxChars, 4000);
   assert.equal(config.agents.defaults.bootstrapTotalMaxChars, 12000);
   assert.equal(config.agents.defaults.thinkingDefault, "off");
   assert.equal(config.tools.profile, "coding");
   assert.deepEqual(config.agents.defaults.models[`ovms/${model}`].params, {
-    maxTokens: 512, temperature: 0.2, chat_template_kwargs: {enable_thinking: false}
+    maxTokens: 4096, temperature: 0.2, chat_template_kwargs: {enable_thinking: false}
   });
   assert.equal(config.gateway.auth.token, "preserved-token");
   assert.equal(config.userSetting, true);
@@ -114,7 +115,7 @@ test("switching away removes managed Qwen tuning and restores generic catalog de
   assert.equal(config.agents.defaults.experimental, undefined);
   assert.equal(config.agents.defaults.models, undefined);
   assert.equal(config.tools, undefined);
-  assert.equal(f.apply().models.providers.ovms.models[0].maxTokens, 512);
+  assert.equal(f.apply().models.providers.ovms.models[0].maxTokens, 4096);
 });
 
 test("non-Qwen models retain existing configuration", t => {
@@ -152,17 +153,17 @@ test("pre-existing empty configuration sections retain their identity and orderi
   assert.deepEqual(switched.tools, {});
 });
 
-test("Hermes Qwen defaults normalize into actual custom-provider request overrides",
-  {skip: python === null ? "Requires the pinned Hermes image Python/YAML runtime" : false}, t => {
-    const f = fixture(t, "hermes");
-    const config = f.apply();
-    assert.equal(config.model.context_length, 65536);
-    assert.equal(config.model.provider, "custom:harness-ovms-qwen");
-    assert.equal(config.agent.reasoning_overrides[model], "none");
-    const body = config.providers["harness-ovms-qwen"].extra_body;
-    assert.deepEqual(body, {max_tokens: 512, temperature: 0.2,
-      chat_template_kwargs: {enable_thinking: false}});
-    execFileSync(python, ["-I", "-c", bootstrap + `
+const hermesOptions = {skip: requireHermes ? false : "Requires the pinned Hermes image runtime"};
+test("Hermes Qwen defaults normalize into actual custom-provider request overrides", hermesOptions, t => {
+  const f = fixture(t, "hermes");
+  const config = f.apply();
+  assert.equal(config.model.context_length, 65536);
+  assert.equal(config.model.provider, "custom:harness-ovms-qwen");
+  assert.equal(config.agent.reasoning_overrides[model], "none");
+  const body = config.providers["harness-ovms-qwen"].extra_body;
+  assert.deepEqual(body, {max_tokens: 4096, temperature: 0.2,
+    chat_template_kwargs: {enable_thinking: false}});
+  execFileSync(python, ["-I", "-c", bootstrap + `
 import json, sys
 sys.path.insert(0, "/home/node/.hermes/hermes-agent")
 from hermes_cli.config_providers import providers_dict_to_custom_providers
@@ -171,36 +172,35 @@ config = json.load(sys.stdin)
 entries = providers_dict_to_custom_providers(config["providers"])
 body = _custom_provider_extra_body_for_agent(provider=config["model"]["provider"],
     model=config["model"]["default"], base_url=config["model"]["base_url"], custom_providers=entries)
-assert body == {"max_tokens": 512, "temperature": 0.2, "chat_template_kwargs": {"enable_thinking": False}}, body
+assert body == {"max_tokens": 4096, "temperature": 0.2, "chat_template_kwargs": {"enable_thinking": False}}, body
 `], {input: JSON.stringify(config)});
-    assert.deepEqual(f.apply(), config);
-    const switched = f.apply("other-model");
-    assert.equal(switched.model.provider, "custom");
-    assert.equal(switched.model.context_length, undefined);
-    assert.equal(switched.providers, undefined);
-    assert.equal(switched.agent, undefined);
-    assert.equal(switched.userSetting, true);
-  });
+  assert.deepEqual(f.apply(), config);
+  const switched = f.apply("other-model");
+  assert.equal(switched.model.provider, "custom");
+  assert.equal(switched.model.context_length, undefined);
+  assert.equal(switched.providers, undefined);
+  assert.equal(switched.agent, undefined);
+  assert.equal(switched.userSetting, true);
+});
 
-test("Hermes explicit overrides survive restart and switching away",
-  {skip: python === null ? "Requires the pinned Hermes image Python/YAML runtime" : false}, t => {
-    const f = fixture(t, "hermes");
-    const config = f.read();
-    config.model.context_length = 16384;
-    config.providers = {"harness-ovms-qwen": {extra_body: {
-      max_tokens: 2048, temperature: 0.7, chat_template_kwargs: {enable_thinking: true}
-    }}};
-    config.agent = {reasoning_overrides: {[model]: "low"}};
-    f.write(config);
-    const result = f.apply();
-    assert.equal(result.model.context_length, 16384);
-    assert.equal(result.providers["harness-ovms-qwen"].extra_body.max_tokens, 2048);
-    assert.equal(result.providers["harness-ovms-qwen"].extra_body.temperature, 0.7);
-    assert.equal(result.providers["harness-ovms-qwen"].extra_body.chat_template_kwargs.enable_thinking, true);
-    assert.equal(result.agent.reasoning_overrides[model], "low");
-    assert.deepEqual(f.apply(), result);
-    const switched = f.apply("other-model");
-    assert.equal(switched.model.context_length, 16384);
-    assert.deepEqual(switched.providers["harness-ovms-qwen"].extra_body,
-      config.providers["harness-ovms-qwen"].extra_body);
-  });
+test("Hermes explicit overrides survive restart and switching away", hermesOptions, t => {
+  const f = fixture(t, "hermes");
+  const config = f.read();
+  config.model.context_length = 16384;
+  config.providers = {"harness-ovms-qwen": {extra_body: {
+    max_tokens: 2048, temperature: 0.7, chat_template_kwargs: {enable_thinking: true}
+  }}};
+  config.agent = {reasoning_overrides: {[model]: "low"}};
+  f.write(config);
+  const result = f.apply();
+  assert.equal(result.model.context_length, 16384);
+  assert.equal(result.providers["harness-ovms-qwen"].extra_body.max_tokens, 2048);
+  assert.equal(result.providers["harness-ovms-qwen"].extra_body.temperature, 0.7);
+  assert.equal(result.providers["harness-ovms-qwen"].extra_body.chat_template_kwargs.enable_thinking, true);
+  assert.equal(result.agent.reasoning_overrides[model], "low");
+  assert.deepEqual(f.apply(), result);
+  const switched = f.apply("other-model");
+  assert.equal(switched.model.context_length, 16384);
+  assert.deepEqual(switched.providers["harness-ovms-qwen"].extra_body,
+    config.providers["harness-ovms-qwen"].extra_body);
+});

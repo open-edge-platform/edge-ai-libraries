@@ -77,7 +77,7 @@ class SourceServingStateUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    serving_state: Literal["SERVING", "DEPRECATED"]
+    serving_state: Literal["SERVING", "DEGRADE"]
 
 
 class AssetPoolAssetsIn(BaseModel):
@@ -441,8 +441,7 @@ class ModelInfo(BaseModel):
 
     name: str
     path: Optional[str] = None
-    # Whether the OpenVINO IR is already exported (an unexported model is exported
-    # on first use, which takes a while).
+    # Whether inference artifacts are prepared; the runtime never exports models.
     ready: bool = True
     model_type: str
     # Set when the model must run on a specific backend (the Qwen3-VL reranker
@@ -462,9 +461,38 @@ class ModelOptions(BaseModel):
     # For reranker only: the default model a media (multimodal) search reranks
     # with, which differs from the text reranker in `model_id`.
     media_model_id: Optional[str] = None
+    media_backend: Optional[str] = None
+    media_device: Optional[str] = None
     api_base: Optional[str] = None
     workspace: Optional[str] = None
     models: List[ModelInfo] = Field(default_factory=list)
+
+
+class EmbeddingModelInfo(ModelInfo):
+    """One embedding model and its supported asset families."""
+
+    # Asset families may be supported through derived text (e.g. transcripts).
+    supported_asset_types: List[str] = Field(default_factory=list)
+
+
+class ModelDefault(BaseModel):
+    """The inherited configuration for one asset family, without loading a model."""
+
+    backend: str
+    model_id: Optional[str] = None
+    model_path: Optional[str] = None
+    device: Optional[str] = None
+    api_base: Optional[str] = None
+
+
+class EmbeddingModelOptions(BaseModel):
+    """Available embeddings and inherited configuration per asset family."""
+
+    model_type: Literal["embedding", "multimodal"]
+    backends: List[str] = Field(default_factory=list)
+    workspace: Optional[str] = None
+    models: List[EmbeddingModelInfo] = Field(default_factory=list)
+    defaults: Dict[str, ModelDefault] = Field(default_factory=dict)
 
 
 # --- Database -------------------------------------------------------------------
@@ -482,9 +510,9 @@ class DatabaseIn(BaseModel):
 
     `options` is passed to the backend's adapter verbatim, so it is whatever
     that backend needs -- `uri` for Milvus (plus any `token` / `user` /
-    `password` / `db_name` it forwards to the client), `root` for the filesystem
-    object store, `endpoint` and keys for MinIO. `GET /backends` lists what each
-    one takes.
+    `password` / `db_name` it forwards to the client), `url` for NebulaGraph,
+    `root` for the filesystem object store. `GET /backends` lists the
+    registrable backends.
     """
 
     id: str

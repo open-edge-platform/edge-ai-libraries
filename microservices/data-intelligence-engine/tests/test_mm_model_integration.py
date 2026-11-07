@@ -26,7 +26,47 @@ from inference.multimodal.gme_qwen2vl import GmeQwen2VLEmbedding
 
 ROOT = Path(__file__).resolve().parents[1]
 GME_ID = "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"
-XCLIP_ID = "microsoft/xclip-base-patch16-zero-shot"
+VICLIP_ID = "viclip-b-fp16"
+VICLIP_OFFICIAL_ID = "OpenGVLab/ViCLIP-B-16-hf"
+
+
+def _video_package(path, name="viclip-b"):
+    """Satisfy the runtime's prepared-package contract without compiling IR."""
+    path.mkdir(parents=True)
+    dimension, preprocessing, context_length, tokenizer_type, model_id = {
+        "viclip-b": (512, "viclip", 32, "clip_bpe", VICLIP_OFFICIAL_ID),
+        "viclip-l": (768, "viclip", 32, "clip_bpe", "OpenGVLab/ViCLIP-L-14-hf"),
+        "cosmos-224p": (256, "cosmos", 128, "bert", "nvidia/Cosmos-Embed1-224p"),
+    }[name]
+    tokenizer = ["tokenizer_config.json", "special_tokens_map.json"]
+    tokenizer += ["vocab.txt"] if name == "cosmos-224p" else ["vocab.json", "merges.txt"]
+    artifacts = {
+        "video_encoder": ["video_encoder.xml", "video_encoder.bin"],
+        "text_encoder": ["text_encoder.xml", "text_encoder.bin"],
+        "tokenizer": tokenizer,
+    }
+    for files in artifacts.values():
+        for filename in files:
+            (path / filename).write_text("{}" if filename.endswith(".json") else "test artifact")
+    (path / "video_embedding.json").write_text(json.dumps({
+        "format": 1, "name": name, "model_id": model_id,
+        "preprocessing": preprocessing, "dimension": dimension, "context_length": context_length,
+        "tokenizer_type": tokenizer_type, "frames": 8, "image_size": 224,
+        "precision": "fp16", "parameter_count": 1, "artifacts": artifacts,
+    }))
+    model = registry.lookup(path.name, str(path))
+    assert model.name == name and model.is_ready(path)
+    return path
+
+
+@pytest.fixture
+def prepared_video_root(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
+    _video_package(tmp_path / VICLIP_ID)
+    # Official checkpoint identity resolves its own directory, never an alias
+    # to the default precision package or a remote checkpoint.
+    _video_package(tmp_path / VICLIP_OFFICIAL_ID.rsplit("/", 1)[-1])
+    return tmp_path
 
 
 def _package(path):
@@ -251,11 +291,10 @@ def test_g15_no_obsolete_embedding_module_or_imports():
                 assert all(alias.name != "core.embeddings" for alias in node.names), str(path)
 
 
-def test_g14_all_model_options_expose_gme_in_both_pickers_only(tmp_path, monkeypatch):
+def test_g14_all_model_options_expose_each_package_once_as_embedding(tmp_path, monkeypatch):
     _package(tmp_path / "gme")
-    xclip = tmp_path / "xclip"
-    xclip.mkdir()
-    (xclip / "config.json").write_text('{"model_type": "xclip"}')
+    for family in ("viclip-b", "viclip-l", "cosmos-224p"):
+        _video_package(tmp_path / f"{family}-fp16", family)
     whisper = tmp_path / "whisper"
     whisper.mkdir()
     (whisper / "config.json").write_text('{"model_type": "whisper"}')
@@ -267,29 +306,57 @@ def test_g14_all_model_options_expose_gme_in_both_pickers_only(tmp_path, monkeyp
         for kind, option in options.items()
     }
 
-    assert names[models.EMBEDDING] == ["gme"]
-    assert names[models.MULTIMODAL] == ["gme", "xclip"]
+    assert tuple(options) == (models.EMBEDDING, models.RERANKER, models.LAYOUT, models.ASR)
+    assert names[models.EMBEDDING] == ["cosmos-224p-fp16", "gme", "viclip-b-fp16", "viclip-l-fp16"]
+    assert models.MULTIMODAL not in options
     assert names[models.ASR] == ["whisper"]
     assert models.LAYOUT in options
     assert options[models.ASR]["backends"] == ["openvino"]
     assert all(entry["ready"] for entry in options[models.EMBEDDING]["models"])
+    assert {
+        entry["name"]: entry["supported_kinds"] for entry in options[models.EMBEDDING]["models"]
+    } == {
+        "cosmos-224p-fp16": ["video"], "gme": ["audio", "image", "text"],
+        "viclip-b-fp16": ["video"], "viclip-l-fp16": ["video"],
+    }
+    assert {
+        entry["name"]: (entry["supported_asset_types"], entry["supported_roles"])
+        for entry in options[models.EMBEDDING]["models"]
+    } == {
+        "cosmos-224p-fp16": (["video"], ["l1_segment", "short_video"]),
+        "gme": (["audio", "document", "image"],
+                ["doc_image", "image", "l2_caption", "l2_transcript", "l3_wiki"]),
+        "viclip-b-fp16": (["video"], ["l1_segment", "short_video"]),
+        "viclip-l-fp16": (["video"], ["l1_segment", "short_video"]),
+    }
+    assert options[models.ASR]["models"] == [{
+        "name": "whisper", "path": str(whisper), "ready": False, "model_type": models.ASR,
+    }]
+    assert models.model_options(models.MULTIMODAL)["models"] == options[models.EMBEDDING]["models"]
 
 
-def test_g14_incomplete_gme_is_listed_in_both_pickers_but_not_ready(tmp_path, monkeypatch):
+def test_g14_incomplete_gme_is_one_embedding_with_compatibility_view(tmp_path, monkeypatch):
     package = _package(tmp_path / "gme")
     (package / "visual.bin").unlink()
     monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
 
     entries = models.workspace_models()
 
-    assert {entry["model_type"] for entry in entries} == {models.EMBEDDING, models.MULTIMODAL}
+    assert len(entries) == 1
+    assert entries[0]["model_type"] == models.EMBEDDING
+    assert entries[0]["supported_kinds"] == ["audio", "image", "text"]
+    assert entries[0]["supported_asset_types"] == ["audio", "document", "image"]
+    assert entries[0]["supported_roles"] == ["doc_image", "image", "l2_caption", "l2_transcript", "l3_wiki"]
+    assert models.workspace_models(models.MULTIMODAL) == entries
     assert not any(entry["ready"] for entry in entries)
     assert registry.lookup(None, str(package)).is_ready(package) is False
 
 
-@pytest.mark.parametrize("model_id,asset_type", [(GME_ID, "image"), (XCLIP_ID, "video")])
+@pytest.mark.parametrize("model_id,asset_type", [
+    (GME_ID, "image"), (VICLIP_ID, "video"), (VICLIP_OFFICIAL_ID, "video"),
+])
 @pytest.mark.parametrize("backend", ["openvino", "llamaindex_openvino"])
-def test_g18_registry_accepts_alias_and_main_canonical_backend(model_id, asset_type, backend):
+def test_g18_registry_accepts_alias_and_main_canonical_backend(prepared_video_root, model_id, asset_type, backend):
     resolved = registry.resolve({
         "asset_types": [asset_type], "embedding_model": model_id, "embedding_backend": backend,
     })
@@ -297,6 +364,10 @@ def test_g18_registry_accepts_alias_and_main_canonical_backend(model_id, asset_t
     assert resolved.backend == "llamaindex_openvino"
     assert resolved.model_id == model_id
     assert resolved.params["asset_types"] == [asset_type]
+    if asset_type == "video":
+        assert resolved.model.name == "viclip-b"
+        assert resolved.model_path == model_id.rsplit("/", 1)[-1]
+        assert resolved.model.is_ready(prepared_video_root / resolved.model_path)
 
 
 def test_g18_registry_accepts_native_gme_for_image_assets():
@@ -312,17 +383,17 @@ def test_g18_registry_accepts_native_gme_for_image_assets():
     }
 
 
-def test_g18_registry_still_rejects_native_gme_for_xclip():
+def test_g18_registry_still_rejects_native_gme_for_viclip(prepared_video_root):
     with pytest.raises(ValueError, match="runs on"):
         registry.resolve({
-            "asset_types": ["video"], "embedding_model": XCLIP_ID,
+            "asset_types": ["video"], "embedding_model": VICLIP_ID,
             "embedding_backend": "native_openvino_gme",
         })
 
 
-@pytest.mark.parametrize("model_id,asset_type", [(GME_ID, "image"), (XCLIP_ID, "video")])
+@pytest.mark.parametrize("model_id,asset_type", [(GME_ID, "image"), (VICLIP_ID, "video")])
 @pytest.mark.parametrize("backend", ["openai_compatible", "openvino_genai"])
-def test_g18_registry_does_not_redesign_main_providers(model_id, asset_type, backend):
+def test_g18_registry_does_not_redesign_main_providers(prepared_video_root, model_id, asset_type, backend):
     assert config.normalize_model_backend(backend) == backend
     with pytest.raises(ValueError, match="runs on"):
         registry.resolve({
@@ -393,7 +464,7 @@ def test_g16_empty_model_root_keeps_the_prepared_package_defaults(monkeypatch, t
     )
 
     for prefix, leaf in (
-        ("VIDEO_EMBEDDING", "xclip-base-patch16-zero-shot"),
+        ("VIDEO_EMBEDDING", "viclip-b-fp16"),
         ("IMAGE_EMBEDDING", "gme-Qwen2-VL-2B-Instruct-OV"),
         ("ASR", "whisper-small"),
     ):

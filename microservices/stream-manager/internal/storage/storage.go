@@ -43,7 +43,7 @@ func openPrivateDir(directory, lockName string) (_ *os.Root, _ *os.File, result 
 		return nil, nil, err
 	}
 	if stat.Uid != uint32(os.Geteuid()) || stat.Mode&0o077 != 0 {
-		return nil, nil, errors.New("SM_STORAGE_DIR must be private (0700) and owned by the service user")
+		return nil, nil, errors.New("storage directory must be owned by the service user; check StorageDir or SM_DATA_DIR")
 	}
 	lock, err := root.OpenFile(lockName, os.O_CREATE|os.O_RDWR|unix.O_NOFOLLOW, 0o600)
 	if err != nil {

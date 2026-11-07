@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Lightweight image for the sample sender/receiver clients: no torch/openvino,
+# so it builds in seconds compared to the main encoder/decoder image.
+FROM python:3.10-slim
+
+WORKDIR /app
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN pip install --no-cache-dir "httpx>=0.27" "pillow==12.2.0"
+
+COPY tests/sample_clients/ /app/sample_clients/
+COPY tests/sample_data/ /app/sample_data/
+
+ENTRYPOINT ["python"]

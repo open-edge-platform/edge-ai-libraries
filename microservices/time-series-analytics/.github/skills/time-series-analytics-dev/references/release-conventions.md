@@ -25,11 +25,10 @@ across the repo:
 | File | Field |
 |---|---|
 | `docker/.env` | `IMAGE_SUFFIX` (e.g. `"2026.2.0"`), `WEEKLY_BUILD_DATE` for dated dev builds |
-| `helm/values.yaml` | `images.image_suffix`, `images.weekly_build_date` |
-| `README-dockerhub.md` | New version section with Docker Compose + Helm deployment doc links (see existing entries for the exact format) |
+| `README-dockerhub.md` | New version section with Docker Compose deployment doc links (see existing entries for the exact format) |
 | `CHANGELOG.md` | New `## [YYYY.M]` heading |
 
-Docker Hub image tags and the Helm chart's `image_suffix` are expected to
+Docker Hub image tags and the Docker Compose `IMAGE_SUFFIX` are expected to
 match for a given release — check both when bumping, not just one.
 
 ## `Dockerfile` build args worth knowing before touching the image

@@ -58,7 +58,15 @@ data:
   MM_DATAPREP_ENABLE_OBJECT_DETECTION: "true"
   {{- end }}
   MM_DATAPREP_DETECTION_CONFIDENCE: {{ .Values.frameProcessing.detectionConfidence | default 0.85 | quote }}
-  MM_DATAPREP_DETECTION_MODEL_DIR: {{ .Values.frameProcessing.detectionModelDir | default "/app/models/yolox" | quote }}
+  MM_DATAPREP_DETECTION_MODEL_DIR: {{ .Values.frameProcessing.detectionModelDir | default "/app/models/object-detection" | quote }}
+  {{- if or (not (hasKey .Values.frameProcessing "enableObjectDetection")) (eq (printf "%v" .Values.frameProcessing.enableObjectDetection | lower) "true") }}
+  MM_DATAPREP_DETECTION_MODEL_NAME: {{ required "multimodaldataprep.frameProcessing.detectionModelName is required when object detection is enabled (or set multimodaldataprep.frameProcessing.enableObjectDetection=false)" .Values.frameProcessing.detectionModelName | quote }}
+  {{- else if .Values.frameProcessing.detectionModelName }}
+  MM_DATAPREP_DETECTION_MODEL_NAME: {{ .Values.frameProcessing.detectionModelName | quote }}
+  {{- end }}
+  {{- with .Values.frameProcessing.detectionClasses }}
+  MM_DATAPREP_DETECTION_CLASSES: {{ . | quote }}
+  {{- end }}
   MM_DATAPREP_FRAMES_TEMP_DIR: {{ .Values.frameProcessing.framesTempDir | default "/tmp/dataprep" | quote }}
   MM_DATAPREP_EMBEDDING_BATCH_SIZE: {{ .Values.sdkPipeline.embeddingBatchSize | default .Values.global.env.EMBEDDING_BATCH_SIZE | default 32 | quote }}
   MM_DATAPREP_MAX_PARALLEL_WORKERS: {{ .Values.sdkPipeline.maxParallelWorkers | default .Values.global.env.MAX_PARALLEL_WORKERS | quote }}
@@ -70,6 +78,7 @@ data:
   MM_DATAPREP_DETECTION_WORKER_THREADS: {{ .Values.sdkPipeline.detectionWorkerThreads | default .Values.global.env.SDK_DETECTION_WORKER_THREADS | default 2 | quote }}
   MM_DATAPREP_EMBED_WORKER_THREADS: {{ .Values.sdkPipeline.embedWorkerThreads | default .Values.global.env.SDK_EMBED_WORKER_THREADS | default 2 | quote }}
   MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S: {{ .Values.sdkPipeline.pipelineQueueGetTimeoutS | default .Values.global.env.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S | default 1.0 | quote }}
+  MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S: {{ hasKey .Values.sdkPipeline "pipelineStallTimeoutS" | ternary .Values.sdkPipeline.pipelineStallTimeoutS 300 | quote }}
   MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS: {{ .Values.sdkPipeline.saveRuntimePipelineStats | default .Values.global.env.SAVE_RUNTIME_PIPELINE_STATS | default false | quote }}
   MM_DATAPREP_ENABLE_TRACING: {{ .Values.sdkPipeline.enableTracing | default .Values.global.env.SDK_ENABLE_TRACING | default false | quote }}
   MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS: {{ .Values.sdkPipeline.videoFrameDecoderWorkers | default .Values.global.env.VIDEO_FRAME_DECODER_WORKERS | default 2 | quote }}
@@ -81,6 +90,7 @@ data:
   # everything.
   MM_DATAPREP_LIVE_STREAM_ENABLED: {{ printf "%v" .Values.liveStream.enabled | quote }}
   MM_DATAPREP_LIVE_RETENTION_HOURS: {{ .Values.liveStream.retentionHours | toString | default "24" | quote }}
+  MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT: {{ .Values.liveStream.maxConcurrent | default 8 | quote }}
   MM_DATAPREP_LIVE_STREAM_DB_HOST: {{ .Values.postgresql.name | quote }}
   MM_DATAPREP_LIVE_STREAM_DB_PORT: {{ .Values.postgresql.service.port | quote }}
   MM_DATAPREP_LIVE_STREAM_DB_NAME: {{ .Values.global.env.POSTGRES_DB | default "video_summary_db" | quote }}

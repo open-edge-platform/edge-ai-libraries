@@ -11,14 +11,22 @@ module reports, per kind:
     ├── bge-small-en-v1.5/          -> embedding
     ├── BAAI/bge-reranker-base/     -> reranker  (vendor subdirectories are walked)
     ├── PP-DocLayoutV3/             -> layout
+    ├── viclip-b-fp16/             -> embedding (video)
+    ├── viclip-l-fp16/             -> embedding (video)
+    ├── cosmos-224p-fp16/          -> embedding (video)
     └── ...
 
 A directory is classified by its name and structured model metadata. `ready` says
 whether the model's inference artifacts are already prepared. A model that is
 not ready must be downloaded/exported outside the engine before it can be used.
+Video directories contain a validated video_embedding.json, root-level
+video_encoder.xml/.bin and text_encoder.xml/.bin, and standard tokenizer assets.
+All use eight 224x224 RGB frames; no checkpoint Python or PyTorch weights
+are needed at runtime. Independent package IDs retain the canonical model
+identity in the manifest's name field.
 
-The `openai_compatible` provider addresses a remote endpoint instead, so there is
-nothing local to list: the configured model id is reported as the only option.
+The `openai_compatible` provider addresses a remote endpoint. Its configured
+embedding model is listed alongside local packages, with text capability.
 """
 
 import json
@@ -35,7 +43,7 @@ LAYOUT = "layout"
 OCR = "ocr"
 MULTIMODAL = "multimodal"
 ASR = "asr"
-MODEL_TYPES = (EMBEDDING, RERANKER, LAYOUT, MULTIMODAL, ASR)
+MODEL_TYPES = (EMBEDDING, RERANKER, LAYOUT, ASR)
 # How deep to walk under workspace/models: the directory itself, and one level of
 # vendor prefix ("BAAI/bge-reranker-base").
 _MAX_DEPTH = 2
@@ -104,15 +112,22 @@ def _classify(name: str, path: str) -> str:
 
 
 def _multimodal(path: str):
-    """The multimodal model a directory holds, by its contents, not its name.
+    """The multimodal identity a directory declares, with canonical IDs exact.
 
-    X-CLIP is media-only; GME also serves main's text/fused embedding provider,
-    so the scan reports it in both pickers without duplicating its runtime.
+    All recognized packages are embeddings; their supported kinds distinguish
+    text, image, audio and video inputs. Video identity and readiness come from
+    the validated manifest.
     """
     from core.multimodal import registry  # noqa: PLC0415
 
+    candidate = Path(path)
+    # A canonical directory name is also an explicit identity. In particular,
+    # a directory called viclip-b-fp16 containing an L manifest is not a ready B.
     for model in registry.MODELS:
-        if model.matches_dir(Path(path)):
+        if model.category == registry.VIDEO_CATEGORY and model.matches_id(candidate.name):
+            return model
+    for model in registry.MODELS:
+        if model.matches_dir(candidate):
             return model
     return None
 
@@ -130,8 +145,41 @@ def _is_asr(path: str) -> bool:
         return False
 
 
+def _capabilities(model_type: str, backend: str = None, mm=None) -> dict:
+    """Catalog metadata only: asset families do not imply raw-input support."""
+    roles = []
+    if mm is not None:
+        kinds = set(mm.supported_kinds)
+        asset_types = set(mm.supported_asset_types)
+        if "text" in kinds:
+            asset_types.add("document")
+        roles = sorted(mm.supported_roles)
+    elif model_type == EMBEDDING:
+        kinds, asset_types = {"text"}, {"document"}
+    elif model_type == RERANKER:
+        # Audio is supplied as transcript text, never raw sound.
+        kinds, asset_types = {"text"}, {"audio", "document"}
+        if backend == "openvino_vl":
+            kinds.update(("image", "video"))
+            asset_types.update(("image", "video"))
+    elif model_type == LAYOUT:
+        kinds, asset_types = {"image"}, {"document", "image"}
+    elif model_type == ASR:
+        # ASR produces transcripts, not embedding-role vectors.
+        kinds, asset_types = {"audio"}, {"audio"}
+    else:
+        kinds, asset_types = set(), set()
+    return {
+        "supported_kinds": sorted(kinds),
+        "supported_asset_types": sorted(asset_types),
+        "supported_roles": roles,
+    }
+
+
 def _scan(root: str, prefix: str = "", depth: int = 1) -> List[dict]:
-    """Model directories under `root`, as {name, path, ready, model_type}."""
+    """Model directories under `root`, with declared capability metadata."""
+    from core.multimodal.registry import is_video_package
+
     models = []
     try:
         entries = sorted(os.listdir(root))
@@ -144,12 +192,14 @@ def _scan(root: str, prefix: str = "", depth: int = 1) -> List[dict]:
         name = f"{prefix}{entry}"
         mm = _multimodal(path)
         if mm is not None:
-            kinds = (EMBEDDING, MULTIMODAL) if mm.name == "gme_qwen2vl" else (MULTIMODAL,)
             ready = _gme_model_exist(path) if mm.name == "gme_qwen2vl" else mm.is_ready(Path(path))
-            models.extend(
-                {"name": name, "path": path, "ready": ready, "model_type": kind}
-                for kind in kinds
-            )
+            models.append({
+                "name": name, "path": path, "ready": ready,
+                "model_type": EMBEDDING, **_capabilities(EMBEDDING, mm=mm),
+            })
+            continue
+        if is_video_package(Path(path)):
+            # Unsupported or malformed video packages are not text models.
             continue
         if _is_asr(path):
             from core.multimodal.asr import find_ir_dir  # noqa: PLC0415
@@ -160,6 +210,7 @@ def _scan(root: str, prefix: str = "", depth: int = 1) -> List[dict]:
                     "path": path,
                     "ready": find_ir_dir(path) is not None,
                     "model_type": ASR,
+                    **_capabilities(ASR),
                 }
             )
             continue
@@ -175,72 +226,160 @@ def _scan(root: str, prefix: str = "", depth: int = 1) -> List[dict]:
                 # The picker must route this reranker to the VL backend; the
                 # text reranker backends cannot load this export.
                 model["backend"] = "openvino_vl"
+            model.update(_capabilities(model["model_type"], model.get("backend")))
             models.append(model)
             continue
         # A vendor directory (no model files of its own): look one level deeper.
         nested = _scan(path, prefix=f"{name}/", depth=depth + 1)
-        models.extend(nested or [{"name": name, "path": path, "ready": False,
-                                  "model_type": _classify(name, path)}])
+        if nested:
+            models.extend(nested)
+        elif not any(
+            is_video_package(Path(path) / child)
+            for child in os.listdir(path)
+            if os.path.isdir(os.path.join(path, child)) and not child.startswith(".")
+        ):
+            model = {"name": name, "path": path, "ready": False,
+                     "model_type": _classify(name, path)}
+            model.update(_capabilities(model["model_type"]))
+            models.append(model)
     return models
 
 
 def workspace_models(model_type: str = None) -> List[dict]:
-    """The models present in the workspace, optionally of one kind only."""
+    """Local models by type; `multimodal` aliases media-capable embeddings."""
     models = _scan(config.MODEL_DIR)
-    if model_type:
+    if model_type == MULTIMODAL:
+        models = [
+            model for model in models
+            if model["model_type"] == EMBEDDING
+            and {"image", "video", "audio"}.intersection(model.get("supported_kinds", ()))
+        ]
+    elif model_type:
         models = [model for model in models if model["model_type"] == model_type]
     return models
 
 
-def model_options(model_type: str) -> dict:
-    """Everything a picker needs for one kind of model: the backend the engine runs
-    it on, the device, the configured default, and what it can choose from."""
-    if model_type not in MODEL_TYPES:
-        raise ValueError(f"Unknown model type '{model_type}'; expected one of {', '.join(MODEL_TYPES)}")
+def _configured_default(prefix: str, *, api_base=None) -> dict:
+    """Report configuration, not readiness or a constructed runtime."""
+    return {
+        "backend": getattr(config, f"{prefix}_BACKEND"),
+        "model_id": getattr(config, f"{prefix}_MODEL_ID"),
+        "model_path": getattr(config, f"{prefix}_MODEL_PATH"),
+        "device": getattr(config, f"{prefix}_DEVICE"),
+        "api_base": api_base,
+    }
+
+
+def _media_embedding_default(asset_type: str) -> dict:
+    """Resolve exactly what a new single-asset source inherits; never load it."""
+    from core.multimodal import registry
+
+    # Keep configured values visible even if the category cannot be resolved.
+    category = registry.VIDEO_CATEGORY if asset_type == "video" else registry.IMAGE_CATEGORY
+    try:
+        resolved = registry.resolve({"asset_types": [asset_type]})
+        return {
+            **registry._category_defaults(resolved.model.category),
+            "backend": resolved.backend,
+            "model_id": resolved.model_id,
+            "model_path": str(registry.local_path(resolved.model_path).resolve()),
+            "api_base": None,
+        }
+    except (ValueError, OSError):
+        return {**registry._category_defaults(category), "api_base": None}
+
+
+def _model_defaults(model_type: str) -> Dict[str, dict]:
+    defaults = {}
     if model_type == EMBEDDING:
-        backend, device, model_id = config.EMBEDDING_BACKEND, config.EMBEDDING_DEVICE, config.EMBEDDING_MODEL_ID
+        defaults["document"] = _configured_default(
+            "EMBEDDING", api_base=config.EMBEDDING_API_BASE,
+        )
+    defaults.update({
+        asset: _media_embedding_default(asset) for asset in ("image", "video", "audio")
+    })
+    return defaults
+
+
+def model_options(model_type: str) -> dict:
+    """Available models, backends and per-asset defaults for a model picker.
+
+    `multimodal` is a compatibility view of local media-capable embeddings.
+    """
+    if model_type not in (*MODEL_TYPES, MULTIMODAL):
+        raise ValueError(
+            f"Unknown model type '{model_type}'; expected one of {', '.join(MODEL_TYPES)} "
+            f"or the '{MULTIMODAL}' compatibility alias"
+        )
+    if model_type in (RERANKER, LAYOUT, ASR):
+        # Preserve the original non-embedding catalog contracts.
+        if model_type == RERANKER:
+            backend, device, model_id = config.RERANK_BACKEND, config.RERANK_DEVICE, config.RERANK_MODEL_ID
+            api_base = config.RERANK_API_BASE
+            backends = (*config.MODEL_BACKENDS, "openvino_vl")
+        elif model_type == ASR:
+            backend, device, model_id = config.ASR_BACKEND, config.ASR_DEVICE, config.ASR_MODEL_ID
+            api_base = ""
+            backends = ("openvino",)
+        else:
+            backend, device, model_id = config.LAYOUT_BACKEND, config.LAYOUT_DEVICE, config.LAYOUT_MODEL_ID
+            api_base = None
+            backends = config.LAYOUT_BACKENDS
+        if model_type in (LAYOUT, ASR) or backend in config.LOCAL_MODEL_BACKENDS:
+            models = [
+                {key: model[key] for key in ("name", "path", "ready", "model_type", "backend")
+                 if key in model}
+                for model in workspace_models(model_type)
+            ]
+        else:
+            models = [{
+                "name": model_id, "path": api_base,
+                "ready": True, "model_type": model_type,
+            }]
+        options = {
+            "model_type": model_type,
+            "backend": backend,
+            "backends": list(backends),
+            "device": device,
+            "model_id": model_id,
+            "api_base": api_base,
+            "workspace": config.MODEL_DIR,
+            "models": models,
+        }
+        if model_type == RERANKER:
+            options.update({
+                "media_model_id": config.MEDIA_RERANK_MODEL_ID,
+                "media_backend": config.MEDIA_RERANK_BACKEND,
+                "media_device": config.MEDIA_RERANK_DEVICE,
+            })
+        return options
+    if model_type == EMBEDDING:
+        backend, model_id = config.EMBEDDING_BACKEND, config.EMBEDDING_MODEL_ID
         api_base = config.EMBEDDING_API_BASE
         backends = config.MODEL_BACKENDS
-    elif model_type == RERANKER:
-        backend, device, model_id = config.RERANK_BACKEND, config.RERANK_DEVICE, config.RERANK_MODEL_ID
-        api_base = config.RERANK_API_BASE
-        backends = config.MODEL_BACKENDS
-    elif model_type == ASR:
-        backend, device, model_id = config.ASR_BACKEND, config.ASR_DEVICE, config.ASR_MODEL_ID
-        api_base = ""
-        backends = ("openvino",)
-    elif model_type == MULTIMODAL:
-        # Local OpenVINO models of more than one category (video, image); what a
-        # source runs is fixed in its profile, so there is no single default to
-        # report here -- only which of them are on disk.
-        backend, device, model_id = config.VIDEO_EMBEDDING_BACKEND, "", ""
-        api_base = ""
+    else:
         backends = ("llamaindex_openvino",)
-    else:
-        backend, device, model_id = config.LAYOUT_BACKEND, config.LAYOUT_DEVICE, config.LAYOUT_MODEL_ID
-        api_base = None
-        backends = config.LAYOUT_BACKENDS
 
-    if model_type in (LAYOUT, MULTIMODAL, ASR) or backend in config.LOCAL_MODEL_BACKENDS:
-        models = workspace_models(model_type)
+    if model_type == EMBEDDING:
+        models = workspace_models(EMBEDDING)
+        if backend not in config.LOCAL_MODEL_BACKENDS:
+            models.append({
+                "name": model_id, "path": api_base, "ready": True,
+                "model_type": EMBEDDING, **_capabilities(EMBEDDING),
+            })
+        by_identity = {}
+        for model in models:
+            by_identity.setdefault((model["name"], model["path"]), model)
+        models = list(by_identity.values())
     else:
-        # Remote endpoint: the engine has no local directory to offer.
-        models = [{"name": model_id, "path": api_base, "ready": True, "model_type": model_type}]
-    options = {
+        models = workspace_models(model_type)
+    return {
         "model_type": model_type,
-        "backend": backend,
         "backends": list(backends),
-        "device": device,
-        "model_id": model_id,
-        "api_base": api_base,
         "workspace": config.MODEL_DIR,
         "models": models,
+        "defaults": _model_defaults(model_type),
     }
-    if model_type == RERANKER:
-        # Media (multimodal) search reranks with its own default, so the picker can
-        # name what "Media default" resolves to.
-        options["media_model_id"] = config.MEDIA_RERANK_MODEL_ID
-    return options
 
 
 def all_model_options() -> Dict[str, dict]:

@@ -110,7 +110,12 @@ install_openclaw() {
   # npm 11.16+/12+ blocks a package's install-time lifecycle scripts unless
   # explicitly allow-listed; OpenClaw's own install docs require this flag
   # on those npm versions, and skipping it silently leaves the CLI broken.
-  npm_ver="$(command_exists npm && npm --version 2>/dev/null || true)"
+  npm_ver=""
+  if command_exists npm; then
+    if ! npm_ver="$(npm --version 2>/dev/null)"; then
+      npm_ver=""
+    fi
+  fi
   if [[ -n "$npm_ver" ]] && version_gte "$npm_ver" "11.16.0"; then
     npm_args+=(--allow-scripts=openclaw)
   fi
@@ -212,6 +217,13 @@ configure_dcode_provider() {
       !skip
     ' "$config_file" >"$tmp"
   fi
+  # A user-owned per-model table must not be duplicated by the Qwen defaults
+  # writer. Reject before replacing the config so the valid file stays intact.
+  if [[ "$model_name" == "Qwen3.5-9B-int8-ov" ]] && grep -qE "^[[:space:]]*\[models\.providers\.openai\.params\.(\"Qwen3\.5-9B-int8-ov\"|'Qwen3\.5-9B-int8-ov')\][[:space:]]*(#.*)?$" "$tmp"; then
+    rm -f "$tmp"
+    warn "${config_file} already defines Qwen3.5-9B-int8-ov model-specific params outside the installer-managed block; leaving it untouched to avoid a duplicate TOML table. Merge the OpenShell provider settings into this config manually."
+    return 1
+  fi
   # A second [models] (or provider) table would make the whole file invalid
   # TOML, so leave the operator's own tables alone and say what to add.
   if grep -qE '^[[:space:]]*\[models(\.providers\.openai(\.params)?)?\][[:space:]]*(#.*)?$' "$tmp"; then
@@ -308,8 +320,11 @@ to accept the risk and proceed without pinning)."
     : >"$hermes_log"
     # tee into hermes_log so the failure can be classified; spin still
     # shows/prints the output as before.
-    if spin "Installing Hermes" bash -c \
-      'bash "$1" "${@:3}" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' \
+    if spin "Installing Hermes" bash -c "$(cat <<'SH'
+bash "$1" "${@:3}" 2>&1 | tee "$2"
+exit "${PIPESTATUS[0]}"
+SH
+    )" \
       _ "$installer_tmp" "$hermes_log" "${installer_args[@]}"; then
       hermes_installed=1
       break
@@ -617,7 +632,7 @@ Check HARNESS_AGENT, or re-install with --harness <name>."
         # The CLI can exit 0 with no output when the upstream call fails
         # after the HTTP 200 (e.g. a streaming error), so require output too.
         local openclaw_out=""
-        if openclaw_out="$("$cli_bin" infer model run --prompt "Say hello." --model "ovms/${model_hint}" --json 2>/dev/null)" \
+        if openclaw_out="$("$cli_bin" infer model run --prompt "Say hello." --model "ovms/${model_hint}" --thinking off --json 2>/dev/null)" \
           && [[ -n "${openclaw_out//[[:space:]]/}" ]]; then
           ok "OpenClaw smoke test passed"
         else

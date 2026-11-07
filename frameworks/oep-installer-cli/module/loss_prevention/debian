@@ -16,23 +16,23 @@ configure_loss_prevention_options () {
   local workload_dist="$(grep -m1 -E '^WORKLOAD_DIST [?]=' | cut -f2 -d= | tr -d ' ')"
   local mode
 
-  if [[ " $* " = *" --od "* ]]; then
+  if ensure_parse_option --od "$@"; then
     mode="object detection $device"
     camera_stream="camera_to_workload_asc_object_detection.json"
     workload_dist="workload_to_pipeline_asc_object_detection_$device.json"
-  elif [[ " $* " = *" --oc "* ]]; then
+  elif ensure_parse_option --oc "$@"; then
     mode="object classification $device"
     camera_stream="camera_to_workload_asc_object_detection_classification.json"
     workload_dist="workload_to_pipeline_asc_object_detection_classification_$device.json"
-  elif [[ " $* " = *" --age "* ]]; then
+  elif ensure_parse_option --age "$@"; then
     mode="age verification $device"
     camera_stream="camera_to_workload_asc_age_verification.json"
     workload_dist="workload_to_pipeline_asc_age_verification_$device.json"
-  elif [[ " $* " = *" --lpvlm "* ]]; then
+  elif ensure_parse_option --lpvlm "$@"; then
     mode="VLM gpu"
     camera_stream="camera_to_workload_vlm.json"
     workload_dist="workload_to_pipeline_vlm.json"
-  elif [[ " $* " = *" --lp "* ]]; then
+  elif ensure_parse_option --lp "$@"; then
     mode="default ${device/npu/gpu-npu}"
     camera_stream="camera_to_workload.json"
     workload_dist="workload_to_pipeline_${device/npu/gpu-npu}.json"
@@ -78,7 +78,7 @@ debian_90_profile_loss_prevention () {
 debian_90_install_loss_prevention () {
   configure_loss_prevention
 
-  if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_loss_prevention && ! ensure_parse_reinstall "$@"; then
     echo "Loss prevention is installed." >&2
   else 
     ensure_disk_size 15000
@@ -146,9 +146,9 @@ debian_90_start_loss_prevention () {
   ensure_ports_open start loss_prevention "${used_ports[@]}"
 
   cd "$workspace"
-  local device1=$(ensure_parse_device "$@")
-  local device2=$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ')
-  [[ " $* " = *" --$device1 "* || " $* " = *" --${device1^^} "* ]] || device1="${device2,,}"
+  local device1="$(ensure_parse_device "$@")"
+  local device2="$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ')"
+  ensure_parse_option --"$device1" "$@" || ensure_parse_option --"${device1^^}" "$@" || device1="${device2,,}"
   configure_loss_prevention_options "$device1" "$@"
 
   make down-lp 2> /dev/null || true
