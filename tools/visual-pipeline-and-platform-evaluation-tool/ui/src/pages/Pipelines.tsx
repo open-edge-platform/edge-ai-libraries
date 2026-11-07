@@ -35,7 +35,15 @@ import {
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils";
-import type { OutputMode } from "@/api/api.generated";
+import {
+  hasFileMetadataPublisher,
+  hasMetadataPublisher,
+} from "@/lib/pipelineUtils";
+import type {
+  Node as GraphNode,
+  OutputMode,
+  PipelineGraph,
+} from "@/api/api.generated";
 import {
   Tooltip,
   TooltipContent,
@@ -120,18 +128,18 @@ const normalizeSourceNodeData = (
   return normalizedData as { [key: string]: string };
 };
 
-const buildGraphData = (
-  nodes: ReactFlowNode[],
-  edges: ReactFlowEdge[],
-): {
-  nodes: Array<{ id: string; type: string; data: { [key: string]: string } }>;
-  edges: Array<{ id: string; source: string; target: string }>;
-} => ({
-  nodes: nodes.map((node) => ({
+const toGraphNodes = (nodes: ReactFlowNode[]): GraphNode[] =>
+  nodes.map((node) => ({
     id: node.id,
     type: node.type ?? "",
     data: normalizeSourceNodeData(node),
-  })),
+  }));
+
+const buildGraphData = (
+  nodes: ReactFlowNode[],
+  edges: ReactFlowEdge[],
+): PipelineGraph => ({
+  nodes: toGraphNodes(nodes),
   edges: edges.map((edge) => ({
     id: edge.id,
     source: edge.source,
@@ -392,10 +400,7 @@ export const Pipelines = () => {
         }).unwrap();
       }
 
-      // Check the ADVANCED graph for gvametapublish (simple mode hides these nodes)
-      const hasMetadata = payloadGraphData.nodes.some(
-        (n) => n.type === "gvametapublish",
-      );
+      const hasMetadata = hasFileMetadataPublisher(payloadGraphData.nodes);
 
       const status = await runPipeline({
         performanceTestSpec: {
@@ -512,10 +517,14 @@ export const Pipelines = () => {
           : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
     const isReadOnly = currentVariantData?.read_only ?? false;
-    const pipelineHasMetadata =
-      currentVariantData?.pipeline_graph.nodes.some(
-        (n) => n.type === "gvametapublish",
-      ) ?? false;
+    const editedGraphNodes = toGraphNodes(currentNodes);
+    const metadataPublisherNodes =
+      !isSimpleMode && hasMetadataPublisher(editedGraphNodes)
+        ? editedGraphNodes
+        : (currentVariantData?.pipeline_graph.nodes ?? []);
+    const pipelineHasMetadata = hasFileMetadataPublisher(
+      metadataPublisherNodes,
+    );
     const hasMissingRequiredModels = pipelineModelStatuses.some(
       (item) => item.installStatus !== "installed",
     );

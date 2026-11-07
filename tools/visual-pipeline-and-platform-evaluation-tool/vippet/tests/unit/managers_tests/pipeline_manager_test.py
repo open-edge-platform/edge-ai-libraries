@@ -1813,7 +1813,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             )
 
         self.assertIn(
-            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element.",
+            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file.",
             str(ctx.exception),
         )
 
@@ -1845,7 +1845,35 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             self.manager.build_pipeline_command(specs, execution_config, self.job_id)
 
         self.assertIn(
-            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element.",
+            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file.",
+            str(ctx.exception),
+        )
+
+    def test_metadata_mode_file_with_only_broker_publisher_raises(self):
+        """A pipeline whose only gvametapublish targets a broker cannot produce a file."""
+        graph = create_gvametapublish_graph()
+        for node in graph.nodes:
+            if node.type == "gvametapublish":
+                node.data["method"] = "mqtt"
+                node.data["address"] = "broker:1883"
+                node.data["topic"] = "vippet/metadata"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/mqtt-only/variants/cpu",
+                pipeline_name="mqtt-only",
+                pipeline_graph=graph,
+                streams=1,
+            ),
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        with self.assertRaises(ValueError) as ctx:
+            self.manager.build_pipeline_command(specs, execution_config, self.job_id)
+
+        self.assertIn(
+            "gvametapublish element publishing to a file",
             str(ctx.exception),
         )
 

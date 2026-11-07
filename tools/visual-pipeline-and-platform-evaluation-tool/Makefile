@@ -24,6 +24,10 @@ EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
 DLSPS2 ?= 0
 DLSPS2_COMPOSE := $(if $(filter 1,$(DLSPS2)),-f compose.dlsps2.yml)
 
+# Set MQTT=1 to run a Mosquitto broker for gvametapublish method=mqtt (see compose.mqtt.yml).
+MQTT ?= 0
+MQTT_COMPOSE := $(if $(filter 1,$(MQTT)),-f compose.mqtt.yml)
+
 # Set GIGE=1 to run vippet with host networking for GigE Vision camera streaming (see compose.gige.yml).
 GIGE ?= 0
 GIGE_COMPOSE := $(if $(filter 1,$(GIGE)),-f compose.gige.yml)
@@ -143,7 +147,7 @@ env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup
 	./setup_env.sh
 
 build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager); DLSPS2=1 adds DLSPS 2.0
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) $(GIGE_COMPOSE) build
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) $(MQTT_COMPOSE) $(GIGE_COMPOSE) build
 
 build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, sensor-manager)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
@@ -158,8 +162,8 @@ build-onvif-discovery: build-sensor-manager ## Deprecated alias of build-sensor-
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0; GIGE=1 enables GigE camera streaming
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) $(GIGE_COMPOSE) up -d
+run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0; MQTT=1 adds an MQTT broker; GIGE=1 enables GigE camera streaming
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) $(MQTT_COMPOSE) $(GIGE_COMPOSE) up -d
 
 run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source; GIGE=1 enables GigE camera streaming
 	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && echo "Running published images tagged $$DOCKER_TAG" && \
@@ -169,8 +173,8 @@ run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
 
-run-dev: env-setup ## Run the docker compose services for development; GIGE=1 enables GigE camera streaming
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) $(GIGE_COMPOSE) up -d
+run-dev: env-setup ## Run the docker compose services for development; MQTT=1 adds an MQTT broker; GIGE=1 enables GigE camera streaming
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) $(MQTT_COMPOSE) $(GIGE_COMPOSE) up -d
 
 build-experimental: env-setup ## Build core images for experimental timeseries setup
 	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
@@ -281,7 +285,7 @@ shell-dlsps: ## Open shell in DLSPS 2.0 container (started with DLSPS2=1)
 	$(MAKE) shell SERVICE=dlstreamer-pipeline-server
 
 stop: ## Stop the docker compose services
-	docker compose $(if $(DLSPS2_COMPOSE),-f $(COMPOSE_FILE) $(DLSPS2_COMPOSE)) down
+	docker compose -f $(COMPOSE_FILE) $(DLSPS2_COMPOSE) -f compose.mqtt.yml down
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/videos/input shared/videos/video-generator
