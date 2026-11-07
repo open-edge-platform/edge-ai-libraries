@@ -3091,7 +3091,11 @@ fedora_08_install_system_inspection ()
 }
 fedora_08_profile_system_inspection () 
 { 
-    [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+    case "$1" in 
+        bootstrap | install)
+            echo "curl dmidecode pciutils"
+        ;;
+    esac
 }
 fedora_10_install_gnupg2 () 
 { 
@@ -3478,7 +3482,7 @@ fedora_70_install_openvino ()
 fedora_70_profile_openvino () 
 { 
     echo "curl gnupg2 pip";
-    if ensure_parse_option --validate "$@"; then
+    if ensure_parse_option --validate "$@" || [ "$1" = "bootstrap" ]; then
         echo "make cmake gcc";
     fi
 }

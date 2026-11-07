@@ -2592,7 +2592,11 @@ debian_08_install_system_inspection ()
 }
 debian_08_profile_system_inspection () 
 { 
-    [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+    case "$1" in 
+        bootstrap | install)
+            echo "curl dmidecode pciutils"
+        ;;
+    esac
 }
 debian_10_install_gnupg () 
 { 
@@ -3361,7 +3365,11 @@ debian_40_install_system_info ()
 }
 debian_40_profile_core_types () 
 { 
-    [ "$1" != "install" ] || echo "cpuid curl"
+    case "$1" in 
+        bootstrap | install)
+            echo "cpuid curl"
+        ;;
+    esac
 }
 debian_40_profile_edge_pack_base_standard () 
 { 
@@ -4007,12 +4015,12 @@ debian_99_install_system_summary ()
 }
 debian_99_profile_edge_base () 
 { 
+    echo "core_types system_inspection system_summary";
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
+            echo "edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
         ;;
         *)
-            echo "core_types system_inspection system_summary";
             if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
                 echo "edge_pack_base_standard edge_pack_npu";
             else
