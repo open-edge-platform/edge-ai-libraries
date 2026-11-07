@@ -54,7 +54,7 @@ debian_90_profile_smart_kiosk_assistant () {
 
 debian_90_install_smart_kiosk_assistant () {
   configure_smart_kiosk_assistant "$@"
-  if verify_smart_kiosk_assistant && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_smart_kiosk_assistant && ! ensure_parse_reinstall "$@"; then
     echo "Smart Kiosk Assistant is installed." >&2
   else
     ensure_disk_size 300

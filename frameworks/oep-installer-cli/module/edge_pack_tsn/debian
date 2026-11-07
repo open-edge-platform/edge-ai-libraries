@@ -10,7 +10,7 @@ debian_40_profile_edge_pack_tsn () {
 
 debian_40_install_edge_pack_tsn () {
   configure_edge_pack_tsn "$@"
-  if ensure_apt_is_installed intel-edge-tsn && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-tsn && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-tsn is installed." >&2
   else
     ensure_prop set installed/edge_pack_tsn/owned true

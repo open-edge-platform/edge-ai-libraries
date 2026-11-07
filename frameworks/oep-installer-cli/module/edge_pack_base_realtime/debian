@@ -13,7 +13,7 @@ debian_40_group_edge_pack_base_realtime () {
 
 debian_40_install_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
-  if ensure_apt_is_installed intel-edge-base-realtime && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-base-realtime && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-base-realtime is installed." >&2
   else
     local candidate

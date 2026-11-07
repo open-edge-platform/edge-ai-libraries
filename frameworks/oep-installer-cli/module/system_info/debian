@@ -15,7 +15,7 @@ debian_40_profile_system_info () {
 
 debian_40_install_system_info () {
   configure_system_info
-  if verify_system_info && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_system_info && ! ensure_parse_reinstall "$@"; then
     echo "System info script is installed." >&2
   else
     ensure_git_export "$workspace" "$version" "$repository" tools/system-info || return $?

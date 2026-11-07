@@ -98,7 +98,7 @@ ground_station_configure_uav_application_models () {
 
 ground_station_install_uav_application () {
   ground_station_configure_uav_application "$1" "$2" || return $?
-  if ground_station_verify_uav_application && [[ " $* " != *" --reinstall "* ]]; then
+  if ground_station_verify_uav_application && ! ensure_parse_reinstall "$@"; then
     echo "$uav_app is already installed."
     return 0
   fi

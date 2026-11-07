@@ -30,7 +30,7 @@ debian_40_group_gpu_accel () {
 debian_40_install_gpu_accel () {
   configure_gpu_accel "$@"
 
-  if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_gpu_accel && ! ensure_parse_reinstall "$@"; then
     echo "Gpu drivers are installed." >&2
   else
     # remove legacies

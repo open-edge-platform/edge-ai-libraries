@@ -18,7 +18,7 @@ debian_35_profile_intel_lpmd () {
 
 debian_35_install_intel_lpmd () {
   configure_intel_lpmd
-  if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_intel_lpmd && ! ensure_parse_reinstall "$@"; then
     echo "Intel-lpmd is installed" >&2
   else
     echo "@@STEP Installing prerequisites"
