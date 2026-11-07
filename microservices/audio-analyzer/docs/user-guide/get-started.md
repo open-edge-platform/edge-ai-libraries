@@ -27,100 +27,80 @@ provisioning or startup fails visibly instead of silently disabling diarization.
 ### FunASR Paraformer with ModelScope
 
 FunASR is opt-in: set `models.asr.provider: funasr` and `models.asr.name:
-paraformer-zh` (or `paraformer-en` / `paraformer-online`) in `config.yaml`.
-Build Audio Analyzer with `INSTALL_CJK=true`. Paraformer, VAD, and punctuation
-snapshots are provisioned **only through Model Download's ModelScope
-plugin**; Audio Analyzer loads them locally and never downloads them directly or falls back
-to another hub. Mandarin uses
+paraformer-zh` (or `paraformer-en` / `paraformer-online`) in `config.yaml` and
+build Audio Analyzer with `INSTALL_CJK=true`. Mandarin uses
 `iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch`,
 `iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`, and
-`iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch`, each at the
-ModelScope release revision `v2.0.4`.
-These are native PyTorch snapshots; downloading them does not produce OpenVINO IR.
+`iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch`, each pinned to the
+ModelScope release revision `v2.0.4`. These are native PyTorch snapshots;
+downloading them does not produce OpenVINO IR. Custom `vad_model` and
+`punc_model` values must be ModelScope repository IDs and use their default
+revision.
 
-For this repository's Compose deployment, run
-`INSTALL_CJK=true docker compose up -d --build`. The downloader is a one-shot job:
-it reads the same `config.yaml`, provisions the selected models and their companions,
-and exits. Compose starts Audio Analyzer only after that job exits successfully.
-Both containers share the persistent `audio_analyzer_models` volume; an exited
-downloader container with exit code `0` is expected. No downloader API or health
-check is needed during transcription.
+### Where model snapshots come from
 
-For a separate deployment that already runs a long-lived Model Download REST
-service (for example Smart Classroom), do **not** start a second provisioning
-container. Instead set `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` on Audio Analyzer to
-that service's base URL (for example `http://model-downloader:8000`) and mount
-the service's `MODELS_DIR` (default `/opt/models`) and Audio Analyzer's
-`/app/audio_analyzer/models` from the **same** storage. On startup Audio Analyzer
-derives the required snapshots from its configuration, submits each one to
-`POST /models/download` on that service (`modelscope` for FunASR, `huggingface`
-for Whisper sources and diarization), waits for the job to complete, writes the
-completion inventory, and validates the snapshot before loading it. Enable the
-`modelscope` and `huggingface` plugins on the shared service. Already valid
-snapshots are reused without contacting the service. Set
-`AUDIO_ANALYZER_MODEL_DOWNLOAD_TIMEOUT_SEC` (default `1800`) if large downloads
-need longer; the internal call bypasses `http_proxy`/`https_proxy`. Gated
-diarization models forward `HF_TOKEN` per request as a Model Download
-`override_credentials` entry. When the variable is unset, Audio Analyzer never
-contacts a downloader and requires the snapshots to be provisioned up front.
+At startup Audio Analyzer derives the snapshots it needs from `config.yaml`
+(Whisper source for the `openvino` provider, a single `ggml` file for
+`whispercpp`, Paraformer/VAD/punctuation for `funasr`, the pyannote pipeline and
+its dependencies when diarization is enabled) and makes each one available in
+this order:
 
-Alternatively, run the same one-shot provisioning command in the Model Download
-image with the `modelscope` and `huggingface`
-plugins enabled (Hugging Face is still needed for Whisper and diarization).
-Mount Audio Analyzer's `utils/` at `/opt/audio_analyzer/utils` and its configuration
-at `/opt/audio_analyzer/config.yaml`, both read-only. Set
-`PYTHONPATH=/opt/audio_analyzer:/opt` and
-`AUDIO_ANALYZER_CONFIG_PATH=/opt/audio_analyzer/config.yaml`, then use
-`--plugins huggingface,modelscope --ephemeral --command python -m utils.provision_models`.
-Mount the **same** persistent storage at `/opt/models` in Model Download
-and `/app/audio_analyzer/models` in Audio Analyzer. Wait for successful
-provisioning before starting Audio Analyzer. The standalone host workflow must
-likewise make this provisioned storage available at its configured model path.
-The mounted configuration and any model-selection environment overrides must
-match in both containers. Keep `models_base_path: models` for the standard mounts;
-custom model roots require equivalent storage mappings.
+1. **Already on the models volume and valid** — reused without any network
+   access.
+2. **Shared Model Download service** — when `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL`
+   is set (for example `http://model-downloader:8000`) and the service answers
+   `GET /health`, each snapshot is requested with `POST /models/download`
+   (`huggingface` for Whisper sources and diarization, `modelscope` for FunASR)
+   and the job is polled until it completes. Both containers must mount the
+   **same** storage: the service's `MODELS_DIR` (default `/opt/models`) and Audio
+   Analyzer's `/app/audio_analyzer/models`. Enable the `huggingface` and
+   `modelscope` plugins on the service. Gated diarization models forward
+   `HF_TOKEN` per request as an `override_credentials` entry. The internal call
+   bypasses `http_proxy`/`https_proxy`; set
+   `AUDIO_ANALYZER_MODEL_DOWNLOAD_TIMEOUT_SEC` (default `1800`) if large
+   downloads need longer. This is how Smart Classroom shares one Model Download
+   container between its text-generation and ASR services.
+3. **Direct download inside Audio Analyzer** — the default when no service URL
+   is set, and the fallback (with a warning) when the configured service is
+   unreachable. Audio Analyzer calls the same Hugging Face / ModelScope
+   `snapshot_download` the Model Download plugins use, with the same pinned
+   revisions, so the result on disk is identical. This keeps deployments without
+   a Model Download container (the standalone Compose file in this repository,
+   VSS, Helm charts, bare-metal runs) working with no extra configuration. Set
+   `AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD=false` to forbid in-container downloads;
+   Audio Analyzer then fails fast if a snapshot is missing (or if the configured
+   service is unreachable).
 
-Snapshots have a completion inventory recording the requested model/revision and
-file sizes. Valid snapshots are reused without contacting either hub. Missing,
-truncated, or mismatched snapshots require another provisioning run and cannot
-silently trigger downloads from Audio Analyzer. This inventory detects incomplete
-files, not same-size content tampering or upstream changes to an unpinned branch.
-Existing snapshots without an inventory, or invalid snapshots, are rebuilt by
-Model Download once; this can redownload their model files. Other valid snapshots
-are retained. Existing exported OpenVINO models can still be reused locally.
-Add `modelscope` to existing downloader plugin lists and rebuild the Model Download
-image to include its plugin and dependency extra. Existing Hugging Face snapshots
-are not migrated or deleted: the first ModelScope provisioning run downloads
-into `models/funasr/modelscope/` and requires additional disk space.
-Custom `vad_model` and `punc_model` values must now be ModelScope repository IDs;
-custom repositories use their default revision.
-OpenVINO Whisper source, whisper.cpp, and pyannote are also fetched through
-the ephemeral downloader's Hugging Face plugin. Native OpenAI Whisper checkpoints are
-downloaded directly by Audio Analyzer's Whisper package. OpenVINO conversion still
-runs locally in Audio Analyzer, using the downloaded source snapshot and the
-past-aware ASR export required by OpenVINO GenAI. For
-gated pyannote, provide `HF_TOKEN` to the provisioning container, or use its
-configured `models.asr.hf_token` override. Tokens are not required to load a fully
-provisioned local diarization pipeline. Standalone diarization dependencies are
-discovered from the downloaded pipeline configuration and provisioned before
-the job exits. Audio Analyzer writes a separate local pipeline configuration,
-leaving the original downloaded configuration unchanged.
+Snapshots live under `models/<destination>/<hub>/<owner_model>/`
+(`whisper-source/`, `funasr/`, `diarization/`) with a completion inventory that
+records the requested model, revision, and file sizes. Missing, truncated, or
+mismatched snapshots are rebuilt by the active source; valid ones are retained.
+The inventory detects incomplete files, not same-size content tampering or
+upstream changes to an unpinned branch. Existing exported OpenVINO models are
+reused locally. Existing Hugging Face FunASR snapshots are not migrated or
+deleted: the first ModelScope download goes into `models/funasr/modelscope/` and
+requires additional disk space.
 
-Native OpenAI Whisper and optional sentiment preparation retain their existing
-direct-download behavior in Audio Analyzer; ephemeral Model Download does not
-make those paths offline.
+OpenVINO conversion runs locally in Audio Analyzer from the downloaded source
+snapshot (past-aware ASR export for OpenVINO GenAI). For gated pyannote,
+provide `HF_TOKEN` (or `models.asr.hf_token`); tokens are not required to load
+an already provisioned diarization pipeline. Standalone diarization dependencies
+are discovered from the downloaded pipeline configuration; Audio Analyzer writes
+a separate local pipeline configuration and leaves the downloaded one unchanged.
+Native OpenAI Whisper checkpoints and the optional sentiment model keep their
+own direct-download behavior and are not affected by these settings.
 
-After changing the selected model, companions, or diarization settings, rerun
-provisioning and recreate Audio Analyzer:
+After changing the selected model, companions, or diarization settings, recreate
+Audio Analyzer; it provisions whatever is missing on the next start:
 
 ```bash
-docker compose run --rm model-downloader
 docker compose up -d --force-recreate audio-analyzer
 ```
 
-If provisioning fails, inspect `docker compose logs model-downloader`, correct the
-configuration, credentials, or network access, and rerun it. Do not delete the
-models volume when restarting the services.
+If provisioning fails, inspect `docker compose logs audio-analyzer` (and the
+Model Download service logs when one is configured), correct the configuration,
+credentials, or network access, and restart. Do not delete the models volume
+when restarting the services.
 
 ## Choose Deployment Path
 

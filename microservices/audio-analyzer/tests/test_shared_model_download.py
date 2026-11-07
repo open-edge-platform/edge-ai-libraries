@@ -105,7 +105,7 @@ class LocalSnapshotTests(unittest.TestCase):
                 "iic/example", "v2.0.4", hub="modelscope",
                 models_base_path=base, required_files=["model.pt"],
             ), str(directory))
-            with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+            with self.assertRaisesRegex(RuntimeError, "not provisioned correctly"):
                 get_local_model("iic/example", "v2.0.4", models_base_path=base)
 
     def test_invalid_hub_is_rejected(self):
@@ -140,7 +140,7 @@ class LocalSnapshotTests(unittest.TestCase):
                 with self.subTest(metadata=metadata):
                     if metadata is not None:
                         (directory / COMPLETION_FILE).write_text(metadata)
-                    with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+                    with self.assertRaisesRegex(RuntimeError, "not provisioned correctly"):
                         get_local_model("funasr/example", "commit", models_base_path=base, required_files=["model.pt"])
 
     def test_deleted_or_empty_required_file_fails(self):
@@ -150,11 +150,11 @@ class LocalSnapshotTests(unittest.TestCase):
             (directory / "model.pt").write_bytes(b"weights")
             record_snapshot("funasr/example", None, directory)
             (directory / "model.pt").unlink()
-            with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+            with self.assertRaisesRegex(RuntimeError, "not provisioned correctly"):
                 get_local_model("funasr/example", models_base_path=base)
             (directory / "model.pt").touch()
             record_snapshot("funasr/example", None, directory)
-            with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+            with self.assertRaisesRegex(RuntimeError, "not provisioned correctly"):
                 get_local_model("funasr/example", models_base_path=base, required_files=["model.pt"])
 
     def test_inventory_cannot_reference_files_outside_snapshot(self):
@@ -164,7 +164,7 @@ class LocalSnapshotTests(unittest.TestCase):
             (directory / COMPLETION_FILE).write_text(json.dumps({
                 "model": "funasr/example", "revision": None, "files": {"../../outside": 1},
             }))
-            with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+            with self.assertRaisesRegex(RuntimeError, "not provisioned correctly"):
                 get_local_model("funasr/example", models_base_path=base)
 
     def test_invalid_identifiers_and_destinations_are_rejected(self):

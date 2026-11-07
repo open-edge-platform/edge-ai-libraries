@@ -10,7 +10,14 @@ from unittest.mock import AsyncMock, patch
 import yaml
 
 from utils import ensure_model, provision_models
-from utils.local_models import FUNASR_MODEL_MAP, FUNASR_MODEL_REVISIONS, FUNASR_VAD_MODEL
+from utils.local_models import (
+    COMPLETION_FILE,
+    FUNASR_MODEL_MAP,
+    FUNASR_MODEL_REVISIONS,
+    FUNASR_VAD_MODEL,
+    get_local_model,
+    model_directory,
+)
 
 
 def configuration(provider="openvino", name="whisper-base", diarization=False):
@@ -126,34 +133,102 @@ class DiarizationLocalConfigTests(unittest.TestCase):
             self.assertEqual(local["pipeline"]["params"]["segmentation"], str(weights))
 
 
-class EphemeralDeploymentTests(unittest.TestCase):
-    def test_compose_waits_for_successful_exit_and_retains_models(self):
+class StandaloneDeploymentTests(unittest.TestCase):
+    def test_compose_runs_a_single_self_provisioning_container(self):
         compose = yaml.safe_load((Path(__file__).resolve().parents[1] / "docker-compose.yml").read_text())
+        self.assertEqual(list(compose["services"]), ["audio-analyzer"])
         app = compose["services"]["audio-analyzer"]
-        job = compose["services"]["model-downloader"]
-        self.assertEqual(app["depends_on"]["model-downloader"]["condition"], "service_completed_successfully")
-        self.assertEqual(job["restart"], "no")
-        self.assertTrue(job["healthcheck"]["disable"])
-        self.assertIn("--ephemeral", job["command"])
-        self.assertEqual(job["command"][1], "huggingface,modelscope")
-        self.assertEqual(job["environment"]["ENABLED_PLUGINS"], "huggingface,modelscope")
+        self.assertNotIn("depends_on", app)
         self.assertNotIn("AUDIO_ANALYZER_MODEL_DOWNLOAD_URL", app["environment"])
-        self.assertIn("audio_analyzer_models:/opt/models", job["volumes"])
+        self.assertNotIn("AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD", app["environment"])
         self.assertIn("audio_analyzer_models:/app/audio_analyzer/models", app["volumes"])
-        self.assertNotIn("ports", job)
+        self.assertIn("HF_TOKEN", app["environment"])
 
-    def test_downloader_normalizes_proxy_variable_case(self):
-        compose = yaml.safe_load((Path(__file__).resolve().parents[1] / "docker-compose.yml").read_text())
-        environment = compose["services"]["model-downloader"]["environment"]
-        for lower, upper in (
-            ("http_proxy", "HTTP_PROXY"),
-            ("https_proxy", "HTTPS_PROXY"),
-            ("no_proxy", "NO_PROXY"),
-        ):
-            with self.subTest(variable=lower):
-                expected = "${" + lower + ":-${" + upper + ":-}}"
-                self.assertEqual(environment[lower], expected)
-                self.assertEqual(environment[upper], expected)
+
+class DirectDownloadTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.base = tempfile.TemporaryDirectory()
+        self.addCleanup(self.base.cleanup)
+
+    async def test_huggingface_download_writes_snapshot_and_inventory(self):
+        def fake_snapshot_download(**kwargs):
+            Path(kwargs["local_dir"], "config.yaml").write_bytes(b"cfg")
+            return kwargs["local_dir"]
+
+        fake_hub = SimpleNamespace(snapshot_download=fake_snapshot_download)
+        with patch.dict("sys.modules", {"huggingface_hub": fake_hub}):
+            path = await provision_models.fetch_direct(
+                "pyannote/example", download_path="diarization", required_files=["config.yaml"],
+                files=["config.yaml"], hf_token="hf_x", models_base_path=self.base.name,
+            )
+        directory = model_directory("pyannote/example", "diarization", self.base.name)
+        self.assertEqual(path, str(directory.resolve()))
+        self.assertTrue((directory / COMPLETION_FILE).is_file())
+        self.assertEqual(get_local_model(
+            "pyannote/example", download_path="diarization", required_files=["config.yaml"],
+            models_base_path=self.base.name,
+        ), str(directory.resolve()))
+
+    async def test_huggingface_download_forwards_revision_token_and_patterns(self):
+        calls = []
+
+        def fake_snapshot_download(**kwargs):
+            calls.append(kwargs)
+            Path(kwargs["local_dir"], "ggml-base.bin").write_bytes(b"w")
+
+        with patch.dict("sys.modules", {"huggingface_hub": SimpleNamespace(snapshot_download=fake_snapshot_download)}):
+            await provision_models.fetch_direct(
+                "ggerganov/whisper.cpp", "abc", download_path="whisper-source",
+                required_files=["ggml-base.bin"], files=["ggml-base.bin"], hf_token="hf_x",
+                models_base_path=self.base.name,
+            )
+        self.assertEqual(calls[0]["repo_id"], "ggerganov/whisper.cpp")
+        self.assertEqual(calls[0]["revision"], "abc")
+        self.assertEqual(calls[0]["token"], "hf_x")
+        self.assertEqual(calls[0]["allow_patterns"], ["ggml-base.bin"])
+
+    async def test_modelscope_download_uses_pinned_revision(self):
+        calls = []
+
+        def fake_snapshot_download(model, revision=None, local_dir=None):
+            calls.append((model, revision))
+            for name in ("config.yaml", "model.pt"):
+                Path(local_dir, name).write_bytes(b"w")
+
+        modules = {
+            "modelscope": SimpleNamespace(),
+            "modelscope.hub": SimpleNamespace(),
+            "modelscope.hub.snapshot_download": SimpleNamespace(snapshot_download=fake_snapshot_download),
+        }
+        with patch.dict("sys.modules", modules):
+            await provision_models.fetch_direct(
+                "iic/example", "v2.0.4", hub="modelscope", download_path="funasr",
+                required_files=["config.yaml", "model.pt"], models_base_path=self.base.name,
+            )
+        self.assertEqual(calls, [("iic/example", "v2.0.4")])
+        directory = model_directory("iic/example", "funasr", self.base.name, hub="modelscope")
+        self.assertTrue((directory / COMPLETION_FILE).is_file())
+
+    async def test_missing_modelscope_dependency_is_explained(self):
+        with patch.dict("sys.modules", {"modelscope": None, "modelscope.hub": None, "modelscope.hub.snapshot_download": None}):
+            with self.assertRaisesRegex(RuntimeError, "requirements-cjk.txt"):
+                await provision_models.fetch_direct(
+                    "iic/example", "v2.0.4", hub="modelscope", download_path="funasr",
+                    required_files=["config.yaml"], models_base_path=self.base.name,
+                )
+
+    async def test_valid_snapshot_skips_download(self):
+        directory = model_directory("iic/example", "funasr", self.base.name, hub="modelscope")
+        directory.mkdir(parents=True)
+        (directory / "config.yaml").write_bytes(b"cfg")
+        provision_models.record_snapshot("iic/example", "v2.0.4", directory)
+        with patch.object(provision_models, "download_from_hub") as download:
+            await provision_models.fetch_direct(
+                "iic/example", "v2.0.4", hub="modelscope", download_path="funasr",
+                required_files=["config.yaml"], models_base_path=self.base.name,
+            )
+        download.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

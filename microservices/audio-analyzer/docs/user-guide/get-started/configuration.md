@@ -64,19 +64,18 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 - `openvino`: exports the configured Whisper model to OpenVINO IR under `models/openvino/...` and supports `CPU`, `GPU`, and `NPU` (when available and correctly configured).
 - `whispercpp`: downloads the matching whisper.cpp `ggml` model under `models/whispercpp/...` and runs on `CPU` only.
 
-- `funasr`: loads provisioned Paraformer, VAD, and punctuation snapshots locally;
+- `funasr`: loads Paraformer, VAD, and punctuation snapshots from ModelScope;
   requires the optional `INSTALL_CJK=true` image build.
 
-Compose runs Model Download as a one-shot provisioning job, deriving its model
-selection from this same configuration. Audio Analyzer starts only after the job
-completes successfully. Deployments that already run a Model Download REST
-service can instead set `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` (and optionally
-`AUDIO_ANALYZER_MODEL_DOWNLOAD_TIMEOUT_SEC`) so Audio Analyzer requests the same
-snapshots from that service at startup over a shared models volume; see
-[FunASR Paraformer with ModelScope](../get-started.md#funasr-paraformer-with-modelscope).
+Audio Analyzer provisions the snapshots this configuration selects on startup:
+it reuses valid snapshots on the models volume, requests missing ones from a
+shared Model Download REST service when `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` is
+set and reachable (optionally tuned with `AUDIO_ANALYZER_MODEL_DOWNLOAD_TIMEOUT_SEC`),
+and otherwise downloads them directly from Hugging Face / ModelScope.
+`AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD=false` forbids in-container downloads. See
+[Where model snapshots come from](../get-started.md#where-model-snapshots-come-from).
 OpenVINO conversion still runs in Audio Analyzer, using the local source snapshot;
 native OpenAI Whisper and optional sentiment keep their direct-download behavior.
-See [model provisioning and restart instructions](../get-started.md#funasr-paraformer-with-modelscope).
 
 
 ### ASR Provider/Device Matrix

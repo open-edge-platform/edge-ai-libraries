@@ -43,8 +43,8 @@ class EnsureModelDiarizationStartupPolicyTests(unittest.TestCase):
         cfg = _cfg(diarization_enabled=True, hf_token="hf_bad")
         with patch.object(ensure_model, "config", cfg), patch.object(
             ensure_model, "_download_openvino_model", return_value=(True, "/tmp/asr")
-        ), patch.object(ensure_model, "_get_diarization_snapshot", side_effect=RuntimeError("Run provisioning job")):
-            with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+        ), patch.object(ensure_model, "_get_diarization_snapshot", side_effect=RuntimeError("snapshot not provisioned correctly")):
+            with self.assertRaisesRegex(RuntimeError, "not provisioned correctly"):
                 ensure_model.ensure_model()
 
     def test_ensure_model_allows_missing_hf_token_when_diarization_disabled(self):

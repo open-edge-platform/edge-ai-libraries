@@ -41,9 +41,13 @@ services:
       - "${RENDER_GID:-992}"
     environment:
       HF_HOME: /app/audio_analyzer/.cache/huggingface
-      # Sharing an existing Model Download REST service instead of the one-shot
-      # job below? Remove `model-downloader`/its depends_on and set
-      # AUDIO_ANALYZER_MODEL_DOWNLOAD_URL (e.g. http://model-downloader:8000).
+      # Model snapshots (Whisper source, FunASR via ModelScope, diarization)
+      # are downloaded by Audio Analyzer itself on first start and kept on the
+      # models volume. To source them from a shared Model Download REST
+      # service instead, set AUDIO_ANALYZER_MODEL_DOWNLOAD_URL (for example
+      # http://model-downloader:8000) and mount its models directory here.
+      # AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD=false forbids in-container
+      # downloads (snapshots must then already be present).
       # NPU runtime selection. ZE_ENABLE_ALT_DRIVERS is required for Intel NPU
       # enumeration; ACCEL_MOUNT_PATH should point to the host NPU device node
       # (for example /dev/accel/accel0 on Meteor Lake systems).
@@ -65,51 +69,23 @@ services:
       - audio_analyzer_chunks:/app/audio_analyzer/chunks
       - audio_analyzer_storage:/app/audio_analyzer/storage
       - audio_analyzer_cache:/app/audio_analyzer/.cache
-    depends_on:
-      model-downloader:
-        condition: service_completed_successfully
     devices:
       - /dev/dri:/dev/dri
       - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
-    # Whisper warmup on GPU can take ~120s; override the image healthcheck
-    # so connection-refused during boot doesn't trip `unhealthy`.
+    # First start downloads the configured models (FunASR paraformer-zh is
+    # ~900MB) and Whisper warmup on GPU can take ~120s; override the image
+    # healthcheck so connection-refused during boot doesn't trip `unhealthy`.
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health', timeout=5).read()"]
       interval: 15s
       timeout: 10s
-      start_period: 240s
+      start_period: 1800s
       retries: 5
     restart: unless-stopped
     # Uncomment the next lines if you also need microphone capture from the host.
     # devices:
     #   - /dev/snd:/dev/snd
-
-  model-downloader:
-    build:
-      context: ../model-download
-      dockerfile: docker/Dockerfile
-    image: model-download:local
-    command: ["--plugins", "huggingface,modelscope", "--ephemeral", "--command", "python", "-m", "utils.provision_models"]
-    environment:
-      ENABLED_PLUGINS: huggingface,modelscope
-      MODEL_PATH: /opt/models
-      PYTHONPATH: /opt/audio_analyzer:/opt
-      AUDIO_ANALYZER_CONFIG_PATH: /opt/audio_analyzer/config.yaml
-      HF_TOKEN: ${HF_TOKEN:-}
-      http_proxy: ${http_proxy:-${HTTP_PROXY:-}}
-      https_proxy: ${https_proxy:-${HTTPS_PROXY:-}}
-      HTTP_PROXY: ${http_proxy:-${HTTP_PROXY:-}}
-      HTTPS_PROXY: ${https_proxy:-${HTTPS_PROXY:-}}
-      no_proxy: ${no_proxy:-${NO_PROXY:-}}
-      NO_PROXY: ${no_proxy:-${NO_PROXY:-}}
-    volumes:
-      - audio_analyzer_models:/opt/models
-      - ./config.yaml:/opt/audio_analyzer/config.yaml:ro
-      - ./utils:/opt/audio_analyzer/utils:ro
-    healthcheck:
-      disable: true
-    restart: "no"
 
 volumes:
   audio_analyzer_models:

@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Derive and prepare the model snapshots Audio Analyzer needs.
 
-`provision_models()` maps the Audio Analyzer configuration to Model Download
+`provision_models()` maps the Audio Analyzer configuration to hub download
 requests. The actual transfer is delegated to a `fetch` callable so the same
-plan works both inside an ephemeral Model Download container (`main()` below,
-in-process API) and against a running Model Download REST service
-(`utils.model_download_client`).
+plan works against a shared Model Download REST service
+(`utils.model_download_client.fetch_from_service`) or by downloading directly
+from the hub inside Audio Analyzer (`fetch_direct` below). Both leave an
+identical, manifest-certified snapshot on disk.
 """
 
 import asyncio
@@ -191,53 +192,60 @@ async def prepare_snapshot(
         raise
 
 
-async def main() -> None:
-    # These packages belong to the Model Download image, not Audio Analyzer.
-    from src.api.models import ModelDownloadRequest, ModelRequest
-    from src.core.model_manager import ModelManager
-    from src.core.model_submission import submit_models
-    from src.core.plugin_registry import PluginRegistry
-    import src.plugins as plugins
+def download_from_hub(
+    directory: Path,
+    model: str,
+    revision: str | None,
+    *,
+    hub: str,
+    files: list[str] | None = None,
+    hf_token: str | None = None,
+) -> None:
+    """Fetch a snapshot straight from the hub into `directory` (same calls the
+    Model Download huggingface/modelscope plugins make)."""
+    if hub == "huggingface":
+        from huggingface_hub import snapshot_download
 
-    registry = PluginRegistry()
-    registry.discover_plugins(plugins)
-    models_dir = os.environ.get("MODELS_DIR", "/opt/models")
-    manager = ModelManager(registry, default_dir=models_dir)
-    tasks: set[asyncio.Task] = set()
+        kwargs: dict[str, object] = {
+            "repo_id": model, "local_dir": str(directory), "revision": revision, "token": hf_token,
+        }
+        if files:
+            kwargs["allow_patterns"] = files
+        snapshot_download(**kwargs)
+    elif hub == "modelscope":
+        try:
+            from modelscope.hub.snapshot_download import snapshot_download
+        except ImportError as exc:
+            raise RuntimeError(
+                "modelscope is not installed. Install the optional Chinese-ASR dependencies "
+                "(pip install -r requirements-cjk.txt or build with INSTALL_CJK=true)."
+            ) from exc
+        snapshot_download(model, revision=revision, local_dir=str(directory))
+    else:
+        raise ValueError(f"Unsupported model hub: {hub}")
 
-    async def fetch(
-        model: str,
-        revision: str | None = None,
-        *,
-        hub: str = "huggingface",
-        download_path: str,
-        required_files: list[str],
-        files: list[str] | None = None,
-        hf_token: str | None = None,
-    ) -> str:
-        async def download(_: Path) -> None:
-            entry = build_request_entry(model, revision, hub=hub, files=files, hf_token=hf_token)
-            jobs = await submit_models(
-                ModelDownloadRequest(models=[ModelRequest.model_validate(entry)]),
-                download_path, plugin_registry=registry, model_manager=manager,
-                models_dir=models_dir, background_tasks=tasks,
-            )
-            await asyncio.gather(*tasks)
-            if not jobs or any(
-                (manager.get_job_status(job) or {}).get("status") != "completed"
-                for job in jobs
-            ):
-                raise RuntimeError(f"Model provisioning failed for {model}; inspect Model Download job logs")
 
-        return await prepare_snapshot(
-            model, revision, hub=hub, download_path=download_path,
-            required_files=required_files, models_dir=models_dir, download=download,
+async def fetch_direct(
+    model: str,
+    revision: str | None = None,
+    *,
+    hub: str = "huggingface",
+    download_path: str,
+    required_files: list[str],
+    files: list[str] | None = None,
+    hf_token: str | None = None,
+    models_base_path: str | None = None,
+) -> str:
+    """`fetch` implementation that downloads inside Audio Analyzer."""
+    models_dir = models_base_path or config.models.asr.models_base_path
+
+    async def download(directory: Path) -> None:
+        logger.info("Downloading %s from %s into %s", model, hub, directory)
+        await asyncio.to_thread(
+            download_from_hub, directory, model, revision, hub=hub, files=files, hf_token=hf_token,
         )
 
-    await provision_models(fetch)
-    logger.info("All configured Model Download snapshots are ready")
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    asyncio.run(main())
+    return await prepare_snapshot(
+        model, revision, hub=hub, download_path=download_path,
+        required_files=required_files, models_dir=models_dir, download=download,
+    )

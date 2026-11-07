@@ -88,24 +88,20 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Before starting a standalone process, provision the configured Hugging Face models
-into its host model directory. From the same `audio-analyzer/` directory:
+A standalone process downloads the configured models into its `models/`
+directory on first start (set `HF_TOKEN` for gated diarization models, and
+install `requirements-cjk.txt` for FunASR). From the same `audio-analyzer/`
+directory:
 
 ```bash
 mkdir -p models
-docker compose build model-downloader
-docker compose run --rm -v "$PWD/models:/opt/models" model-downloader
 python main.py
 ```
 
-The `-v` override replaces the provisioning job's named models volume with the
-host directory used by the standalone process. It must be writable by the
-downloader's UID/GID `1000:1000`; see the linked permission troubleshooting guide
-if your host identity differs. No downloader API remains running. For custom
-`models_base_path` values, bind the corresponding host directory instead.
-Repeat provisioning after changing model selections or enabling diarization;
-provide its Hugging Face credentials to the provisioning job.
-Native OpenAI Whisper and optional sentiment retain their direct-download setup.
+To source snapshots from a shared Model Download service instead, set
+`AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` and point `models_base_path` at the storage
+that service writes to. Native OpenAI Whisper and optional sentiment retain
+their direct-download setup.
 
 ## Verifying the Build
 

@@ -10,7 +10,7 @@ from api.openai_endpoints import router as openai_router
 from api.realtime_endpoints import router as realtime_router
 from utils.config_loader import config
 from utils.ensure_model import ensure_model
-from utils.model_download_client import provision_from_service_if_configured
+from utils.model_download_client import provision_at_startup
 from utils.openvino_runtime_validation import validate_runtime_configuration
 from utils.preload_models import preload_models
 import logging
@@ -73,9 +73,10 @@ def startup_event():
             "some inference paths may not be available: %s", exc
         )
     try:
-        # With a shared Model Download service configured, request the
-        # configured snapshots first; otherwise they must be pre-provisioned.
-        provision_from_service_if_configured()
+        # Snapshots come from a shared Model Download service when configured
+        # and reachable, otherwise Audio Analyzer downloads them itself (unless
+        # AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD=false requires pre-provisioning).
+        provision_at_startup()
         ensure_model()
         preload_models()
     except Exception as exc:

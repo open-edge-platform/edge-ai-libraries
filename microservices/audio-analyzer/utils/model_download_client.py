@@ -3,10 +3,15 @@
 """Provision snapshots through an already running Model Download REST service.
 
 Used when Audio Analyzer is deployed next to a shared Model Download container
-(for example Smart Classroom) instead of its own ephemeral provisioning job.
-Both containers must mount the same models storage: Model Download writes to
-`MODELS_DIR` (default /opt/models) and Audio Analyzer reads the same files at
-`models.asr.models_base_path`.
+(for example Smart Classroom). Both containers must mount the same models
+storage: Model Download writes to `MODELS_DIR` (default /opt/models) and Audio
+Analyzer reads the same files at `models.asr.models_base_path`.
+
+`provision_at_startup()` picks the source: the service when
+`AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` is set and answers, otherwise a direct hub
+download inside Audio Analyzer (`utils.provision_models.fetch_direct`), unless
+`AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD=false` makes pre-provisioned snapshots
+mandatory.
 """
 
 import asyncio
@@ -15,18 +20,25 @@ import logging
 import os
 import re
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import ProxyHandler, Request, build_opener
 
 from utils.config_loader import config
-from utils.provision_models import build_request_entry, prepare_snapshot, provision_models
+from utils.provision_models import (
+    build_request_entry,
+    fetch_direct,
+    prepare_snapshot,
+    provision_models,
+)
 
 logger = logging.getLogger(__name__)
 
 SERVICE_URL_ENV = "AUDIO_ANALYZER_MODEL_DOWNLOAD_URL"
 TIMEOUT_ENV = "AUDIO_ANALYZER_MODEL_DOWNLOAD_TIMEOUT_SEC"
+DIRECT_DOWNLOAD_ENV = "AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD"
 DEFAULT_TIMEOUT_SEC = 1800.0
 POLL_INTERVAL_SEC = 2.0
 _REQUEST_TIMEOUT_SEC = 15
@@ -69,6 +81,24 @@ def _timeout_sec() -> float:
     if value <= 0:
         raise RuntimeError(f"{TIMEOUT_ENV} must be positive")
     return value
+
+
+def direct_download_enabled() -> bool:
+    raw = os.environ.get(DIRECT_DOWNLOAD_ENV, "true").strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(f"{DIRECT_DOWNLOAD_ENV} must be true or false")
+
+
+def service_reachable(base_url: str) -> bool:
+    try:
+        _request_json(f"{base_url}/health")
+    except RuntimeError as exc:
+        logger.warning("Model Download service not reachable: %s", exc)
+        return False
+    return True
 
 
 def _request_json(url: str, payload: dict | None = None) -> dict:
@@ -177,9 +207,33 @@ async def provision_from_service() -> None:
     logger.info("All configured snapshots are ready on the shared models volume")
 
 
-def provision_from_service_if_configured() -> bool:
-    """Provision via the shared service when configured; returns False when not."""
-    if get_service_url() is None:
+def select_fetch() -> Callable[..., Awaitable[str]] | None:
+    """Pick the snapshot source for this start; None means rely on existing snapshots."""
+    base_url = get_service_url()
+    if base_url is not None:
+        if service_reachable(base_url):
+            logger.info("Provisioning models through Model Download at %s", base_url)
+            return fetch_from_service
+        if not direct_download_enabled():
+            raise RuntimeError(
+                f"Model Download at {base_url} is unreachable and {DIRECT_DOWNLOAD_ENV} is false"
+            )
+        logger.warning("Falling back to downloading models inside Audio Analyzer")
+    if direct_download_enabled():
+        return fetch_direct
+    logger.info("Direct downloads disabled; using pre-provisioned snapshots only")
+    return None
+
+
+def provision_at_startup() -> bool:
+    """Make every configured snapshot available before models are loaded.
+
+    Returns False when no source is available (strict mode); `ensure_model()`
+    then reports any missing snapshot.
+    """
+    fetch = select_fetch()
+    if fetch is None:
         return False
-    asyncio.run(provision_from_service())
+    asyncio.run(provision_models(fetch))
+    logger.info("All configured model snapshots are ready")
     return True

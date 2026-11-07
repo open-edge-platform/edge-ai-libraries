@@ -30,7 +30,6 @@ class ServiceUrlTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop(client.SERVICE_URL_ENV, None)
             self.assertIsNone(client.get_service_url())
-            self.assertFalse(client.provision_from_service_if_configured())
 
     def test_trailing_slash_is_stripped(self):
         with patch.dict(os.environ, {client.SERVICE_URL_ENV: BASE_URL + "/"}):
@@ -198,6 +197,56 @@ class FetchFromServiceTests(unittest.IsolatedAsyncioTestCase):
             await client.provision_from_service()
         self.assertEqual(fetch.await_count, 3)
         self.assertTrue(all(call.kwargs["hub"] == "modelscope" for call in fetch.await_args_list))
+
+
+class SourceSelectionTests(unittest.TestCase):
+    def setUp(self):
+        self.env = patch.dict(os.environ, {}, clear=False)
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        os.environ.pop(client.SERVICE_URL_ENV, None)
+        os.environ.pop(client.DIRECT_DOWNLOAD_ENV, None)
+
+    def test_defaults_to_direct_download_when_no_service_is_configured(self):
+        self.assertIs(client.select_fetch(), client.fetch_direct)
+
+    def test_uses_service_when_configured_and_reachable(self):
+        os.environ[client.SERVICE_URL_ENV] = BASE_URL
+        with patch.object(client, "_request_json", return_value={"status": "healthy"}) as request:
+            self.assertIs(client.select_fetch(), client.fetch_from_service)
+        request.assert_called_once_with(f"{BASE_URL}/health")
+
+    def test_falls_back_to_direct_download_when_service_is_unreachable(self):
+        os.environ[client.SERVICE_URL_ENV] = BASE_URL
+        with patch.object(client, "_request_json", side_effect=RuntimeError("unreachable")):
+            self.assertIs(client.select_fetch(), client.fetch_direct)
+
+    def test_strict_mode_without_service_relies_on_existing_snapshots(self):
+        os.environ[client.DIRECT_DOWNLOAD_ENV] = "false"
+        self.assertIsNone(client.select_fetch())
+        self.assertFalse(client.provision_at_startup())
+
+    def test_strict_mode_with_unreachable_service_fails(self):
+        os.environ[client.SERVICE_URL_ENV] = BASE_URL
+        os.environ[client.DIRECT_DOWNLOAD_ENV] = "false"
+        with patch.object(client, "_request_json", side_effect=RuntimeError("unreachable")):
+            with self.assertRaisesRegex(RuntimeError, "unreachable"):
+                client.select_fetch()
+
+    def test_invalid_direct_download_flag_is_rejected(self):
+        os.environ[client.DIRECT_DOWNLOAD_ENV] = "maybe"
+        with self.assertRaisesRegex(RuntimeError, client.DIRECT_DOWNLOAD_ENV):
+            client.direct_download_enabled()
+
+    def test_provision_at_startup_runs_plan_with_selected_fetch(self):
+        cfg = SimpleNamespace(models=SimpleNamespace(
+            asr=SimpleNamespace(provider="openvino", name="whisper-base", diarization=False),
+        ))
+        with patch.object(provision_models, "config", cfg), \
+             patch.object(client, "fetch_direct", AsyncMock(return_value="/x")) as fetch:
+            self.assertTrue(client.provision_at_startup())
+        fetch.assert_awaited_once()
+        self.assertEqual(fetch.await_args.args[0], "openai/whisper-base")
 
 
 class RequestJsonTests(unittest.TestCase):

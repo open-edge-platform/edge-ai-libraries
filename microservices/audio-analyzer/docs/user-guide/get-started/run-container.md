@@ -13,20 +13,15 @@ To rebuild the image from source instead of pulling, see the
 
 - Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see the [Configuration Guide](./configuration.md).
 - The Compose setup bind-mounts `config.yaml` and stores model, chunk, storage, and Hugging Face cache data in named Docker volumes (`audio_analyzer_models`, `audio_analyzer_chunks`, `audio_analyzer_storage`, `audio_analyzer_cache`). Nothing is written into the source tree.
-- `model-downloader` is an ephemeral provisioning job, not a running API service.
-  It reads the same configuration, downloads the selected Hugging Face snapshots
-  onto the persistent models volume, and exits. Audio Analyzer waits for exit code
-  `0` before starting. The downloader has no health check or published port;
-  `Exited (0)` in `docker compose ps -a` is normal. If your deployment already
-  runs a Model Download REST service, drop this job and set
-  `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` on Audio Analyzer instead (see the
-  [Get Started guide](../get-started.md#funasr-paraformer-with-modelscope)).
+- Audio Analyzer downloads the configured model snapshots onto the persistent
+  models volume on first start (Whisper sources and pyannote from Hugging Face,
+  FunASR from ModelScope) and reuses them afterwards. Set
+  `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` to source them from a shared Model Download
+  REST service instead; see
+  [Where model snapshots come from](../get-started.md#where-model-snapshots-come-from).
 - Behind a proxy, export `http_proxy`/`https_proxy` (or their uppercase forms)
-  before running Compose. The provisioning container receives both forms with
-  identical values for compatibility with Python and `uv`; lowercase values take
-  precedence when both are set. The same normalization applies to `no_proxy`.
-  Dependency resolution still needs network access even when model snapshots
-  are cached.
+  before running Compose so the first-start model downloads can reach the hubs.
+  The same applies to `no_proxy`.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
 - For Intel NPU acceleration, set `ACCEL_MOUNT_PATH` in your local `.env` (or export it before running Compose) to the host NPU device node. The host path is machine-specific; on some Meteor Lake systems it is `/dev/accel/accel0`.
 - Compose maps the configurable host path `${ACCEL_MOUNT_PATH}` to the fixed container path `/dev/accel/accel0` expected by the OpenVINO NPU stack.
@@ -100,15 +95,14 @@ If you plan to enable speaker diarization by setting `models.asr.diarization: tr
    ```bash
    HF_TOKEN=hf_your_token_here
    ```
-4. Provision the newly enabled models, then recreate Audio Analyzer:
+4. Recreate Audio Analyzer; it downloads the newly enabled models on start:
    ```bash
-   docker compose run --rm model-downloader
    docker compose up -d --force-recreate audio-analyzer
    ```
 
-Without valid credentials and gate acceptance on the first download, provisioning
-fails and Audio Analyzer does not start with missing diarization models.
-Inspect `docker compose logs model-downloader` after a failed initial deployment.
+Without valid credentials and gate acceptance on the first download, Audio
+Analyzer does not start with missing diarization models. Inspect
+`docker compose logs audio-analyzer` after a failed initial deployment.
 Already provisioned, validated snapshots do not require a token or downloader API
 to load locally.
 If diarization is disabled in `config.yaml`, `HF_TOKEN` is not required.

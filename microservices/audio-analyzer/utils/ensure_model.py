@@ -39,7 +39,7 @@ def _get_diarization_snapshot(
     model_name: str,
     required_files: list[str] | None = None,
 ) -> str:
-    """Resolve a snapshot prepared by the one-shot downloader."""
+    """Resolve a diarization snapshot certified on the models volume."""
     return get_local_model(
         model_name, download_path="diarization",
         required_files=required_files,

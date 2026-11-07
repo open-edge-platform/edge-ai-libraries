@@ -77,10 +77,9 @@ application provisioning code/configuration; keep artifacts on persistent storag
 Put `--plugins` before `--ephemeral`, since all following arguments belong to
 the one-shot command.
 
-Audio Analyzer uses this mode with `python -m utils.provision_models` to derive
-the required snapshots from its mounted configuration, provision them using the
-existing model submission/job machinery, and exit before inference starts.
-See its [provisioning setup](../../../../audio-analyzer/docs/user-guide/get-started.md#funasr-paraformer-with-modelscope).
+Applications can use this mode to run their own provisioning logic against the
+service's model submission/job machinery in a one-shot container and exit before
+inference starts.
 Existing `--ephemeral --model-name ... --hub ...` behavior is unchanged.
 
 ### Model Parameters

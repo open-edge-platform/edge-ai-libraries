@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Resolve snapshots prepared by the one-shot Model Download job."""
+"""Resolve model snapshots certified by a completion inventory."""
 
 import json
 import re
@@ -88,6 +88,7 @@ def get_local_model(
     except (OSError, ValueError) as exc:
         raise RuntimeError(
             f"Model {model!r} is not provisioned correctly at {model_dir}. "
-            "Run the model-downloader provisioning job successfully before starting Audio Analyzer."
+            "Check the startup provisioning logs (Model Download service or direct download), "
+            "or provision the snapshot before starting Audio Analyzer."
         ) from exc
     return str(model_dir.resolve())
