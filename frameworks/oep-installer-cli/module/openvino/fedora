@@ -19,7 +19,7 @@ configure_openvino () {
 
 fedora_70_profile_openvino () {
   echo "curl gnupg2 pip"
-  if ensure_parse_option --validate "$@"; then
+  if ensure_parse_option --validate "$@" || [ "$1" = "bootstrap" ]; then
     echo "make cmake gcc"
   fi
 }
