@@ -12,7 +12,7 @@ configure_openvino () {
 
 debian_70_profile_openvino () {
   echo "curl gnupg python3_venv edge_base"
-  if ensure_parse_option --validate "$@"; then
+  if ensure_parse_option --validate "$@" || [ "$1" = "bootstrap" ]; then
     echo "build_essential cmake"
   fi
 }

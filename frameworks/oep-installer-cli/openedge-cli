@@ -247,9 +247,7 @@ subcommand_bootstrap () {
         done
         [ ! -r "$script_nos" ] || . "$script_nos" > /dev/null
         [ ! -r "$script" ] || . "$script" > /dev/null
-        for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do
-          $profiler $cmd
-        done | LC_ALL=C.UTF-8 sort -u
+        $profiler bootstrap | LC_ALL=C.UTF-8 sort -u
       ))
       depsof[$name]="${deps[*]}"
       modules+=(${deps[*]})
