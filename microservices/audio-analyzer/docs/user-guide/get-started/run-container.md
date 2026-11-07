@@ -17,7 +17,10 @@ To rebuild the image from source instead of pulling, see the
   It reads the same configuration, downloads the selected Hugging Face snapshots
   onto the persistent models volume, and exits. Audio Analyzer waits for exit code
   `0` before starting. The downloader has no health check or published port;
-  `Exited (0)` in `docker compose ps -a` is normal.
+  `Exited (0)` in `docker compose ps -a` is normal. If your deployment already
+  runs a Model Download REST service, drop this job and set
+  `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` on Audio Analyzer instead (see the
+  [Get Started guide](../get-started.md#funasr-paraformer-with-modelscope)).
 - Behind a proxy, export `http_proxy`/`https_proxy` (or their uppercase forms)
   before running Compose. The provisioning container receives both forms with
   identical values for compatibility with Python and `uv`; lowercase values take

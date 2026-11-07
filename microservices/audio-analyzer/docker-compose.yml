@@ -41,6 +41,9 @@ services:
       - "${RENDER_GID:-992}"
     environment:
       HF_HOME: /app/audio_analyzer/.cache/huggingface
+      # Sharing an existing Model Download REST service instead of the one-shot
+      # job below? Remove `model-downloader`/its depends_on and set
+      # AUDIO_ANALYZER_MODEL_DOWNLOAD_URL (e.g. http://model-downloader:8000).
       # NPU runtime selection. ZE_ENABLE_ALT_DRIVERS is required for Intel NPU
       # enumeration; ACCEL_MOUNT_PATH should point to the host NPU device node
       # (for example /dev/accel/accel0 on Meteor Lake systems).

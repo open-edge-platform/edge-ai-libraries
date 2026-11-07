@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Prepare configured snapshots inside the ephemeral Model Download container."""
+"""Derive and prepare the model snapshots Audio Analyzer needs.
+
+`provision_models()` maps the Audio Analyzer configuration to Model Download
+requests. The actual transfer is delegated to a `fetch` callable so the same
+plan works both inside an ephemeral Model Download container (`main()` below,
+in-process API) and against a running Model Download REST service
+(`utils.model_download_client`).
+"""
 
 import asyncio
 import base64
@@ -38,8 +45,10 @@ async def provision_models(fetch: Callable[..., Awaitable[str]]) -> None:
     """Derive downloads from the same configuration used by Audio Analyzer."""
     asr = config.models.asr
     if asr.provider == "openvino":
+        # Mirror ensure_model(): full repo ids ("distil-whisper/...") pass through.
+        hf_model_id = asr.name if "/" in asr.name else f"openai/{asr.name}"
         await fetch(
-            f"openai/{asr.name}", download_path="whisper-source",
+            hf_model_id, download_path="whisper-source",
             required_files=["config.json"],
         )
     elif asr.provider == "whispercpp":
@@ -121,6 +130,67 @@ def record_snapshot(model: str, revision: str | None, directory: Path) -> None:
             temporary.unlink(missing_ok=True)
 
 
+def build_request_entry(
+    model: str,
+    revision: str | None,
+    *,
+    hub: str,
+    files: list[str] | None = None,
+    hf_token: str | None = None,
+) -> dict[str, object]:
+    """Build one Model Download `ModelRequest` payload (API and REST share this schema)."""
+    entry: dict[str, object] = {"name": model, "hub": hub, "revision": revision}
+    if files:
+        entry["config"] = {"files": files}
+    if hf_token:
+        entry["override_credentials"] = {
+            "HF_TOKEN": base64.b64encode(hf_token.encode("utf-8")).decode("ascii"),
+        }
+    return entry
+
+
+async def prepare_snapshot(
+    model: str,
+    revision: str | None,
+    *,
+    hub: str,
+    download_path: str,
+    required_files: list[str],
+    models_dir: str,
+    download: Callable[[Path], Awaitable[None]],
+) -> str:
+    """Reuse a valid snapshot or rebuild it via `download`, then certify it.
+
+    `download(directory)` must leave the model files in `directory`; this helper
+    owns the skip/rebuild decision, the completion inventory, and re-validation.
+    """
+    directory = model_directory(model, download_path, models_dir, hub=hub)
+    try:
+        return get_local_model(
+            model, revision, download_path=download_path,
+            required_files=required_files, models_base_path=models_dir, hub=hub,
+        )
+    except RuntimeError:
+        logger.info("Preparing missing or changed snapshot: %s", model)
+    if directory.is_symlink() or not directory.resolve().is_relative_to(Path(models_dir).resolve()):
+        raise RuntimeError(f"Unsafe snapshot location for {model}")
+    if directory.exists():
+        # Rebuild only this invalid snapshot: stale hub metadata and files from
+        # another revision must not be certified as the requested revision.
+        shutil.rmtree(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    await download(directory)
+    record_snapshot(model, revision, directory)
+    try:
+        return get_local_model(
+            model, revision, download_path=download_path,
+            required_files=required_files, models_base_path=models_dir, hub=hub,
+        )
+    except RuntimeError:
+        (directory / COMPLETION_FILE).unlink(missing_ok=True)
+        raise
+
+
 async def main() -> None:
     # These packages belong to the Model Download image, not Audio Analyzer.
     from src.api.models import ModelDownloadRequest, ModelRequest
@@ -145,48 +215,24 @@ async def main() -> None:
         files: list[str] | None = None,
         hf_token: str | None = None,
     ) -> str:
-        directory = model_directory(model, download_path, models_dir, hub=hub)
-        try:
-            return get_local_model(
-                model, revision, download_path=download_path,
-                required_files=required_files, models_base_path=models_dir, hub=hub,
+        async def download(_: Path) -> None:
+            entry = build_request_entry(model, revision, hub=hub, files=files, hf_token=hf_token)
+            jobs = await submit_models(
+                ModelDownloadRequest(models=[ModelRequest.model_validate(entry)]),
+                download_path, plugin_registry=registry, model_manager=manager,
+                models_dir=models_dir, background_tasks=tasks,
             )
-        except RuntimeError:
-            logger.info("Preparing missing or changed snapshot: %s", model)
-        if directory.is_symlink() or not directory.resolve().is_relative_to(Path(models_dir).resolve()):
-            raise RuntimeError(f"Unsafe snapshot location for {model}")
-        if directory.exists():
-            # Rebuild only this invalid snapshot: stale hub metadata and files from
-            # another revision must not be certified as the requested revision.
-            shutil.rmtree(directory)
-        directory.mkdir(parents=True, exist_ok=True)
-        entry: dict[str, object] = {"name": model, "hub": hub, "revision": revision}
-        if files:
-            entry["config"] = {"files": files}
-        if hf_token:
-            entry["override_credentials"] = {
-                "HF_TOKEN": base64.b64encode(hf_token.encode("utf-8")).decode("ascii"),
-            }
-        jobs = await submit_models(
-            ModelDownloadRequest(models=[ModelRequest.model_validate(entry)]),
-            download_path, plugin_registry=registry, model_manager=manager,
-            models_dir=models_dir, background_tasks=tasks,
+            await asyncio.gather(*tasks)
+            if not jobs or any(
+                (manager.get_job_status(job) or {}).get("status") != "completed"
+                for job in jobs
+            ):
+                raise RuntimeError(f"Model provisioning failed for {model}; inspect Model Download job logs")
+
+        return await prepare_snapshot(
+            model, revision, hub=hub, download_path=download_path,
+            required_files=required_files, models_dir=models_dir, download=download,
         )
-        await asyncio.gather(*tasks)
-        if not jobs or any(
-            (manager.get_job_status(job) or {}).get("status") != "completed"
-            for job in jobs
-        ):
-            raise RuntimeError(f"Model provisioning failed for {model}; inspect Model Download job logs")
-        record_snapshot(model, revision, directory)
-        try:
-            return get_local_model(
-                model, revision, download_path=download_path,
-                required_files=required_files, models_base_path=models_dir, hub=hub,
-            )
-        except RuntimeError:
-            (directory / COMPLETION_FILE).unlink(missing_ok=True)
-            raise
 
     await provision_models(fetch)
     logger.info("All configured Model Download snapshots are ready")

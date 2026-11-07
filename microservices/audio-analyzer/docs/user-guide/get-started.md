@@ -46,8 +46,26 @@ Both containers share the persistent `audio_analyzer_models` volume; an exited
 downloader container with exit code `0` is expected. No downloader API or health
 check is needed during transcription.
 
-For a separate deployment (including Smart Classroom), run the same provisioning
-command in the Model Download image with the `modelscope` and `huggingface`
+For a separate deployment that already runs a long-lived Model Download REST
+service (for example Smart Classroom), do **not** start a second provisioning
+container. Instead set `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` on Audio Analyzer to
+that service's base URL (for example `http://model-downloader:8000`) and mount
+the service's `MODELS_DIR` (default `/opt/models`) and Audio Analyzer's
+`/app/audio_analyzer/models` from the **same** storage. On startup Audio Analyzer
+derives the required snapshots from its configuration, submits each one to
+`POST /models/download` on that service (`modelscope` for FunASR, `huggingface`
+for Whisper sources and diarization), waits for the job to complete, writes the
+completion inventory, and validates the snapshot before loading it. Enable the
+`modelscope` and `huggingface` plugins on the shared service. Already valid
+snapshots are reused without contacting the service. Set
+`AUDIO_ANALYZER_MODEL_DOWNLOAD_TIMEOUT_SEC` (default `1800`) if large downloads
+need longer; the internal call bypasses `http_proxy`/`https_proxy`. Gated
+diarization models forward `HF_TOKEN` per request as a Model Download
+`override_credentials` entry. When the variable is unset, Audio Analyzer never
+contacts a downloader and requires the snapshots to be provisioned up front.
+
+Alternatively, run the same one-shot provisioning command in the Model Download
+image with the `modelscope` and `huggingface`
 plugins enabled (Hugging Face is still needed for Whisper and diarization).
 Mount Audio Analyzer's `utils/` at `/opt/audio_analyzer/utils` and its configuration
 at `/opt/audio_analyzer/config.yaml`, both read-only. Set
