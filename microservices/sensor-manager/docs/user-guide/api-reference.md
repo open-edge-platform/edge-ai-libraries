@@ -9,8 +9,9 @@ Returns `{"healthy": true}` when the service is running.
 
 ## GET /sensors
 
-Returns all USB cameras (enumerated on each request) and ONVIF cameras (from the latest
-WS-Discovery sweep). ONVIF profiles loaded earlier are preserved.
+Returns all USB cameras (enumerated on each request), ONVIF cameras (from the latest
+WS-Discovery sweep) and GigE Vision cameras (from the latest Aravis sweep). ONVIF profiles
+loaded earlier are preserved.
 
 ```json
 [
@@ -38,9 +39,29 @@ WS-Discovery sweep). ONVIF profiles loaded earlier are preserved.
       "profiles": [],
       "best_profile": null
     }
+  },
+  {
+    "device_id": "gige-camera-basler-aca1300-30gm-21234567",
+    "device_name": "Basler acA1300-30gm",
+    "device_type": "GIGE",
+    "details": {
+      "ip": "192.168.10.20",
+      "vendor": "Basler",
+      "model": "acA1300-30gm",
+      "serial": "21234567",
+      "current_capture": {
+        "pixel_format": "Mono8",
+        "width": 1280,
+        "height": 1024,
+        "fps": 30.0
+      }
+    }
   }
 ]
 ```
+
+For `GIGE` sensors, `vendor`, `model`, `serial` and `current_capture` are `null` when the camera
+could not be opened (for example, because another application controls it).
 
 | Code | Description                             |
 | ---- | --------------------------------------- |

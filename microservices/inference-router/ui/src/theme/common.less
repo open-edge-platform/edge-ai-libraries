@@ -318,12 +318,12 @@
   background: transparent;
 }
 
-.router-module-heading {
+.router-detail-module .router-module-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 10px;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
   border-bottom: 1px solid
     color-mix(in srgb, var(--border-main-color) 78%, transparent);
 }
@@ -332,19 +332,21 @@
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+}
+
+.router-module-heading .router-module-actions .intel-btn {
+  border: 1px solid
+    color-mix(in srgb, var(--border-main-color) 86%, transparent);
 }
 
 .section-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.section-icon {
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
   background: var(--color-primary);
@@ -354,11 +356,18 @@
 .section-title {
   font-size: var(--font-size-13);
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .section-caption {
   color: var(--font-tip-color);
   font-size: var(--font-size-11);
+}
+
+@media (max-width: 760px) {
+  .router-detail-module .router-module-heading {
+    margin-bottom: 10px;
+  }
 }
 
 .create-card-icon {
@@ -406,9 +415,7 @@
   font-size: var(--font-size-12);
 }
 
-.router-provider-config-list,
-.router-strategy-config-list,
-.router-policy-config-list {
+.router-config-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 380px));
   justify-content: start;
@@ -418,9 +425,7 @@
   padding-bottom: 2px;
 }
 
-.router-provider-config-card,
-.router-strategy-config-card,
-.router-policy-config-card {
+.router-config-card {
   display: grid;
   gap: 14px;
   min-width: 0;
@@ -445,18 +450,14 @@
     box-shadow 0.2s ease;
 }
 
-.router-provider-config-card:hover,
-.router-strategy-config-card:hover,
-.router-policy-config-card:hover {
+.router-config-card:hover {
   transform: translateY(-2px);
   box-shadow:
     0 22px 38px color-mix(in srgb, var(--bg-box-shadow) 86%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--color-white) 14%, transparent);
 }
 
-.router-provider-create-card,
-.router-strategy-create-card,
-.router-policy-create-card {
+.router-config-create-card {
   place-content: center;
   text-align: center;
   gap: 12px;
@@ -472,49 +473,46 @@
     color-mix(in srgb, var(--surface-card-bg) 82%, var(--color-primarySoft) 18%);
 }
 
-.router-provider-create-card:hover,
-.router-strategy-create-card:hover,
-.router-policy-create-card:hover {
+.router-config-create-card:hover {
   border-color: color-mix(in srgb, var(--color-primary) 62%, transparent);
   box-shadow: 0 8px 22px
     color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
-.router-provider-config-header,
-.router-strategy-config-header,
-.router-policy-config-header {
+.router-config-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
 }
 
-.router-provider-config-header strong,
-.router-strategy-config-header strong,
-.router-policy-config-header strong {
-  color: var(--font-main-color);
-  font-size: var(--font-size-14);
-  font-weight: 600;
-}
-
-.router-provider-title-wrap,
-.router-strategy-title-wrap,
-.router-policy-title-wrap {
+.router-config-title-wrap {
   display: block;
   min-width: 0;
 }
 
-.provider-name-main,
-.strategy-name-main,
-.policy-name-main {
+.router-config-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.router-config-name-main {
   display: grid;
   gap: 4px;
   min-width: 0;
 }
 
-.provider-name-icon,
-.strategy-name-icon,
-.policy-name-icon {
+.router-config-name {
+  .single-ellipsis;
+  min-width: 0;
+  color: var(--font-main-color);
+  font-size: var(--font-size-14);
+  font-weight: 600;
+}
+
+.router-config-name-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -527,18 +525,12 @@
   font-size: 18px;
 }
 
-.router-provider-title-wrap strong,
-.router-strategy-title-wrap strong,
-.router-policy-title-wrap strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.router-config-subtitle {
+  color: var(--font-tip-color);
+  font-size: var(--font-size-11);
 }
 
-.provider-info-grid,
-.strategy-info-grid,
-.policy-info-grid {
+.router-config-info-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
@@ -546,9 +538,7 @@
   padding: 0;
 }
 
-.provider-info-item,
-.strategy-info-item,
-.policy-info-item {
+.router-config-info-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -557,21 +547,19 @@
   padding: 0;
 }
 
-.provider-info-item dt,
-.strategy-info-item dt,
-.policy-info-item dt {
-  flex: 1;
-  min-width: 0;
+.router-config-info-item dt {
+  flex: 0 0 auto;
+  min-width: 100px;
+  max-width: min(120px, 40%);
   color: var(--font-text-color);
   font-size: var(--font-size-11);
   font-weight: 500;
 }
 
-.provider-info-item dd,
-.strategy-info-item dd,
-.policy-info-item dd {
+.router-config-info-item dd {
+  flex: 1;
+  min-width: 0;
   margin: 0;
-  max-width: 55%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -581,9 +569,7 @@
   text-align: right;
 }
 
-.router-provider-card-actions,
-.router-strategy-card-actions,
-.router-policy-card-actions {
+.router-config-card-actions {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
@@ -593,15 +579,11 @@
 }
 
 @media (max-width: 720px) {
-  .router-provider-config-list,
-  .router-strategy-config-list,
-  .router-policy-config-list {
+  .router-config-list {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .router-provider-config-card,
-  .router-strategy-config-card,
-  .router-policy-config-card {
+  .router-config-card {
     max-width: none;
   }
 }

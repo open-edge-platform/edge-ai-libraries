@@ -44,7 +44,9 @@ class SamplePlugin(PluginBaseNode):
     def settings_model(cls):
         return SamplePluginSettings
 
-    async def process_request(self, request: ChatCompletionRequest) -> ChatCompletionRequest:
+    async def process_request(
+        self, request: ChatCompletionRequest, **kwargs: Any
+    ) -> ChatCompletionRequest:
         if self.parsed_settings.annotate_extra_body:
             if request.extra_body is None:
                 request.extra_body = {}
@@ -258,3 +260,312 @@ def test_postresponse_plugins_are_loaded_and_executed():
 
     processed = asyncio.run(plugin_manager.process_postresponse_response(response))
     assert processed == response
+
+
+def test_standalone_plugins_built_but_not_in_any_hook_chain():
+    """A ``standalone`` plugin is built and discoverable, but never runs in a chain."""
+    plugin_manager = create_plugin_manager(
+        [
+            PluginConfig(
+                name="route-only",
+                node="test-plugin",
+                trigger="standalone",
+                settings={"enabled_tag": "standalone", "annotate_extra_body": True},
+            ),
+        ]
+    )
+
+    # Present in no hook bucket, so no request/response chain ever runs it...
+    assert plugin_manager.prerouting_plugins == []
+    assert plugin_manager.postrouting_plugins == []
+    assert plugin_manager.postresponse_plugins == []
+    assert [p.name for p in plugin_manager.standalone_plugins] == ["route-only"]
+    # ...but still discoverable (for route handlers to read its settings).
+    assert plugin_manager.get_plugin_by_name("route-only") is not None
+
+    request = ChatCompletionRequest(
+        model="test-model",
+        messages=[ChatCompletionMessage(role="user", content="hello")],
+    )
+    processed = asyncio.run(plugin_manager.process_request(request))
+    # The standalone plugin did not touch the request.
+    assert processed.extra_body is None
+
+
+def test_config_accepts_standalone_plugin_section():
+    """The loader parses a ``standalone`` plugins section and tags the trigger."""
+    config = _build_router_config(
+        {
+            "providers": [{"name": "provider", "type": "openai", "model": "model"}],
+            "plugins": {
+                "standalone": [
+                    {"name": "route-only", "node": "test-plugin", "settings": {}}
+                ]
+            },
+        }
+    )
+
+    assert [(p.name, p.trigger) for p in config.plugins] == [("route-only", "standalone")]
+
+
+class _RecordingPluginManager:
+    """Records the kwargs each plugin hook receives."""
+
+    def __init__(self):
+        self.calls = []
+
+    async def process_prerouting_request(self, request, **kwargs):
+        self.calls.append(("prerouting", kwargs))
+        return request
+
+    async def process_postrouting_request(self, request, **kwargs):
+        self.calls.append(("postrouting", kwargs))
+        return request
+
+
+def _orchestrator_with(plugin_manager):
+    """A RouterOrchestrator with one provider and a stub decision engine."""
+    from types import SimpleNamespace
+
+    from src.router import RouterOrchestrator
+
+    provider = SimpleNamespace(name="provider-a")
+
+    class _Engine:
+        async def route(self, request, providers):
+            return SimpleNamespace(provider=provider, reason="stub", metadata={})
+
+    orch = RouterOrchestrator.__new__(RouterOrchestrator)
+    orch.plugin_manager = plugin_manager
+    orch.decision_engine = _Engine()
+    orch.providers = [provider]
+    orch.provider_map = {"provider-a": provider}
+    orch.model_to_provider = {"model-a": provider}
+    return orch
+
+
+@pytest.mark.parametrize("model", ["model-a", "provider-a", "auto"])
+def test_orchestrator_passes_provider_name_to_postrouting_only(model):
+    """Direct (model/provider name) and auto paths pass provider_name to postrouting."""
+    pm = _RecordingPluginManager()
+    orch = _orchestrator_with(pm)
+    request = ChatCompletionRequest(
+        model=model,
+        messages=[ChatCompletionMessage(role="user", content="hello")],
+    )
+
+    provider, route_info, _ = asyncio.run(orch._select_provider(request))
+
+    assert provider.name == "provider-a"
+    assert route_info.is_direct is (model != "auto")
+    assert pm.calls == [
+        ("prerouting", {}),
+        (
+            "postrouting",
+            {"provider_name": "provider-a", "metrics_values": {"provider": "provider-a"}},
+        ),
+    ]
+
+
+def _post_plugin(name: str, trigger: str = "postrouting") -> PluginConfig:
+    return PluginConfig(
+        name=name,
+        node="test-plugin",
+        trigger=trigger,
+        settings={"enabled_tag": name, "annotate_extra_body": True},
+    )
+
+
+def _provider_config(name: str, plugins: list[str], enabled: bool = True):
+    from src.config import ProviderConfig
+
+    return ProviderConfig(
+        name=name, type="openai", model=f"{name}-model", enabled=enabled, plugins=plugins
+    )
+
+
+def _ran_plugins(request: ChatCompletionRequest) -> list[str]:
+    return list(((request.extra_body or {}).get("plugins") or {}).keys())
+
+
+def _fresh_request() -> ChatCompletionRequest:
+    return ChatCompletionRequest(
+        model="test-model",
+        messages=[ChatCompletionMessage(role="user", content="hello")],
+    )
+
+
+def test_postrouting_plugins_scoped_to_attached_providers():
+    """Attached plugins run only for their providers; unattached ones run for all."""
+    pm = create_plugin_manager(
+        [
+            _post_plugin("pre", trigger="prerouting"),
+            _post_plugin("global"),
+            _post_plugin("shared"),
+            _post_plugin("local-only"),
+        ],
+        [
+            _provider_config("local", ["shared", "local-only"]),
+            _provider_config("cloud", ["shared"]),
+            _provider_config("other", []),
+        ],
+    )
+
+    def run(provider_name):
+        return _ran_plugins(
+            asyncio.run(
+                pm.process_postrouting_request(_fresh_request(), provider_name=provider_name)
+            )
+        )
+
+    # Configured order is preserved within the filtered chain.
+    assert run("local") == ["global", "shared", "local-only"]
+    assert run("cloud") == ["global", "shared"]
+    assert run("other") == ["global"]
+    # Unknown provider → only unattached plugins.
+    assert run(None) == ["global"]
+    # Prerouting is never scoped.
+    assert _ran_plugins(
+        asyncio.run(pm.process_prerouting_request(_fresh_request()))
+    ) == ["pre"]
+
+    # Providers attaching the same name share one instance.
+    local_shared = pm.plugins_for_provider("local", "postrouting")[1]
+    cloud_shared = pm.plugins_for_provider("cloud", "postrouting")[1]
+    assert local_shared is cloud_shared
+
+
+def test_postrouting_plugins_receive_provider_name():
+    """The manager forwards provider_name (and other kwargs) to each plugin."""
+    seen = []
+
+    class _Recorder(SamplePlugin):
+        async def process_request(self, request, **kwargs):
+            seen.append(kwargs)
+            return request
+
+    pm = create_plugin_manager([_post_plugin("p")], [_provider_config("local", ["p"])])
+    pm.postrouting_plugins = [_Recorder(name="p", settings={}, trigger="postrouting")]
+
+    asyncio.run(
+        pm.process_postrouting_request(
+            _fresh_request(), provider_name="local", metrics_values={"provider": "local"}
+        )
+    )
+
+    assert seen == [{"provider_name": "local", "metrics_values": {"provider": "local"}}]
+
+
+def test_postresponse_plugins_scoped_to_attached_providers():
+    seen = []
+
+    class _Recorder(SamplePlugin):
+        async def process_response(self, response, **kwargs):
+            seen.append((self.name, kwargs.get("provider_name")))
+            return response
+
+    pm = create_plugin_manager(
+        [_post_plugin("all", "postresponse"), _post_plugin("local-only", "postresponse")],
+        [_provider_config("local", ["local-only"])],
+    )
+    pm.postresponse_plugins = [
+        _Recorder(name=p.name, settings={}, trigger="postresponse")
+        for p in pm.postresponse_plugins
+    ]
+    response = ChatCompletionResponse(id="r", created=0, model="m", choices=[])
+
+    asyncio.run(pm.process_postresponse_response(response, provider_name="cloud"))
+    asyncio.run(pm.process_postresponse_response(response, provider_name="local"))
+
+    assert seen == [("all", "cloud"), ("all", "local"), ("local-only", "local")]
+
+
+def test_disabled_provider_keeps_its_plugins_scoped():
+    """Disabling the only attaching provider must not make its plugin global."""
+    pm = create_plugin_manager(
+        [_post_plugin("local-only")],
+        [_provider_config("local", ["local-only"], enabled=False)],
+    )
+
+    out = asyncio.run(pm.process_postrouting_request(_fresh_request(), provider_name="cloud"))
+
+    assert _ran_plugins(out) == []
+
+
+def _config_with_provider_plugins(provider_plugins, plugins_section):
+    return {
+        "providers": [
+            {"name": "local", "type": "openai", "model": "m", "plugins": provider_plugins}
+        ],
+        "plugins": plugins_section,
+    }
+
+
+def test_config_parses_provider_plugins():
+    config = _build_router_config(
+        _config_with_provider_plugins(
+            ["comp", "logger", "comp"],
+            {
+                "postrouting": [{"name": "comp", "node": "test-plugin"}],
+                "postresponse": [
+                    {"name": "logger", "node": "test-plugin", "enabled": False}
+                ],
+            },
+        )
+    )
+
+    # Duplicates collapse; disabled plugins may still be referenced.
+    assert config.providers[0].plugins == ["comp", "logger"]
+
+
+def test_config_provider_plugins_default_empty():
+    config = _build_router_config(
+        {"providers": [{"name": "local", "type": "openai", "model": "m"}]}
+    )
+
+    assert config.providers[0].plugins == []
+
+
+def test_config_rejects_unknown_provider_plugin():
+    with pytest.raises(ConfigurationError, match="unknown plugin 'missing'"):
+        _build_router_config(_config_with_provider_plugins(["missing"], {}))
+
+
+@pytest.mark.parametrize("trigger", ["prerouting", "standalone"])
+def test_config_rejects_attaching_non_post_plugin(trigger):
+    with pytest.raises(ConfigurationError, match="cannot attach plugin 'comp'"):
+        _build_router_config(
+            _config_with_provider_plugins(
+                ["comp"], {trigger: [{"name": "comp", "node": "test-plugin"}]}
+            )
+        )
+
+
+def test_config_rejects_non_list_provider_plugins():
+    with pytest.raises(ConfigurationError, match="must be a list of plugin names"):
+        _build_router_config(_config_with_provider_plugins("comp", {}))
+
+
+def test_orchestrator_passes_provider_name_to_postresponse():
+    """chat() runs the postresponse chain for the provider that served the request."""
+    calls = []
+
+    class _PM(_RecordingPluginManager):
+        async def process_postresponse_response(self, response, **kwargs):
+            calls.append(kwargs)
+            return response
+
+    orch = _orchestrator_with(_PM())
+    orch.telemetry = None
+    response = ChatCompletionResponse(id="r", created=0, model="m", choices=[])
+
+    async def _chat(request):
+        return response
+
+    orch.provider_map["provider-a"].chat = _chat
+
+    asyncio.run(orch.chat(_fresh_request().model_copy(update={"model": "auto"})))
+
+    assert calls == [
+        {"provider_name": "provider-a", "metrics_values": {"provider": "provider-a"}}
+    ]

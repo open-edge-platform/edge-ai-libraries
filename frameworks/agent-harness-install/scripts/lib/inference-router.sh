@@ -268,13 +268,15 @@ ${HARNESS_IR_WORKSPACE_DIR}/config.yaml."
   # given key). Skipped when routing externally: there is no OVMS container,
   # and the external endpoint should follow the host's proxy settings.
   if [[ -z "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
-    no_proxy_combined="${NO_PROXY:-${no_proxy:-}}"
+    no_proxy_combined="${NO_PROXY:-}"
+    no_proxy_combined="${no_proxy_combined:+${no_proxy_combined},}${no_proxy:-}"
     no_proxy_combined="${no_proxy_combined:+${no_proxy_combined},}${HARNESS_OVMS_CONTAINER}"
     proxy_args+=(-e "NO_PROXY=${no_proxy_combined}" -e "no_proxy=${no_proxy_combined}")
   fi
   info "Starting Inference Router on port ${HARNESS_IR_PORT}…"
-  bind_host="$(resolve_bind_host)" && [[ -n "$bind_host" ]] \
-    || error "Could not resolve the address to publish the Inference Router on; refusing to publish on all interfaces."
+  if ! bind_host="$(resolve_bind_host)" || [[ -z "$bind_host" ]]; then
+    error "Could not resolve the address to publish the Inference Router on; refusing to publish on all interfaces."
+  fi
   # shellcheck disable=SC2086
   docker run -d --name "$HARNESS_IR_CONTAINER" --restart unless-stopped \
     "${network_args[@]}" \

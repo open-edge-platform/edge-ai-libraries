@@ -318,6 +318,10 @@ export_model_to_openvino() {
   out_dir="${HARNESS_MODELS_DIR}/${model_name}"
   if [[ -f "${out_dir}/graph.pbtxt" ]]; then
     info "Model '${model_name}' is already exported."
+    ensure_ovms_config
+    with_state_lock ovms-config _add_model_config_entry_locked \
+      "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$model_name" \
+      || error "Could not register the cached model '${model_name}' with OVMS."
     return 0
   fi
   command_exists python3 || error "python3 is required to export models to OpenVINO IR --
@@ -891,7 +895,8 @@ _remove_unregistered_download_entry_locked() {
 # plain huggingface_hub.snapshot_download, unlike the other three exporters
 # which all run an optimum-cli-based conversion step. Set
 # HARNESS_HF_MODEL_REVISION to pin an exact commit/tag for reproducible
-# deployments.
+# deployments. Qwen3.5's preconverted repository omits graph.pbtxt; the pinned
+# serving image generates that graph after download, without reconversion.
 export_model_via_hf_snapshot() {
   local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir venv revision_desc
   out_dir="${HARNESS_MODELS_DIR}/${model_name}"
@@ -936,6 +941,9 @@ access to huggingface.co, and that '${hf_model_id}' (revision: ${revision_desc})
 exists."
   fi
   deactivate
+  if [[ "$hf_model_id" == OpenVINO/Qwen3.5-9B-int8-ov && ! -f "${out_dir}/graph.pbtxt" ]]; then
+    configure_ovms_text_generation_graph "$out_dir"
+  fi
   if [[ ! -f "${out_dir}/graph.pbtxt" ]]; then
     rm -rf -- "$out_dir"
     error "Downloaded ${hf_model_id} to ${out_dir} but it has no graph.pbtxt -- this
@@ -951,6 +959,20 @@ HARNESS_OVMS_EXPORTER=docker-pull or export-model-py to convert a plain
     error "Downloaded ${hf_model_id} but could not update OVMS's config.json --
 add a model_config_list entry for base_path '${model_name}' manually."
   fi
+}
+
+configure_ovms_text_generation_graph() {
+  local out_dir="$1" target_device=CPU
+  command_exists docker || error "Docker is required to configure the OVMS model graph."
+  [[ -z "$(intel_gpu_docker_device_args)" ]] || target_device=GPU
+  # --configure writes metadata only: no model loading, GPU access or network is needed.
+  spin "Configuring the downloaded OVMS text-generation graph (${target_device})" \
+    docker run --rm --network none -u "$(id -u):$(id -g)" \
+      -v "${out_dir}:/model:rw" "$HARNESS_OVMS_IMAGE" \
+      --configure --model_path /model --task text_generation --target_device "$target_device" \
+    || error "Could not configure the OVMS graph for ${out_dir}; downloaded weights were preserved."
+  [[ -s "${out_dir}/graph.pbtxt" ]] \
+    || error "OVMS graph configuration produced no graph.pbtxt in ${out_dir}."
 }
 
 # Lock-protected append/replace of a model_config_list entry -- mirrors
@@ -972,7 +994,7 @@ _add_model_config_entry_locked() {
   # `printf >file` happens to avoid this (its permissions come from umask,
   # typically 644), which is why only the *first* registration ever breaks.
   chmod 644 "$tmp"
-  node -e '
+  if ! node -e '
       const fs = require("node:fs");
       const [configFile, name, basePath] = process.argv.slice(1);
       let data = {};
@@ -982,7 +1004,14 @@ _add_model_config_entry_locked() {
       data.model_config_list.push({ config: { name, base_path: basePath } });
       data.mediapipe_config_list = Array.isArray(data.mediapipe_config_list) ? data.mediapipe_config_list : [];
       process.stdout.write(JSON.stringify(data, null, 2));
-    ' "$config_file" "$name" "$base_path" >"$tmp" && mv -f "$tmp" "$config_file" || { rm -f "$tmp"; return 1; }
+    ' "$config_file" "$name" "$base_path" >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! mv -f "$tmp" "$config_file"; then
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 # ensure_backend_network — idempotent create of the user-defined network
@@ -1018,8 +1047,9 @@ ensure_openvino_model_server() {
   # exact extra flag for GPU-targeted containers).
   group_add_args="$(intel_gpu_docker_group_add_args)"
   docker_proxy_env_args_into proxy_args
-  bind_host="$(resolve_bind_host)" && [[ -n "$bind_host" ]] \
-    || error "Could not resolve the address to publish OpenVINO Model Server on; refusing to publish on all interfaces."
+  if ! bind_host="$(resolve_bind_host)" || [[ -z "$bind_host" ]]; then
+    error "Could not resolve the address to publish OpenVINO Model Server on; refusing to publish on all interfaces."
+  fi
   info "Starting OpenVINO Model Server on port ${HARNESS_OVMS_REST_PORT}…"
   local docker_run_output
   # shellcheck disable=SC2086
@@ -1113,6 +1143,9 @@ ensure_inference_backend() {
 docker-pull, export-model-py, model-download, or hf-snapshot)." ;;
         esac
         [[ "$HARNESS_LAST_MODEL_REGISTERED" -eq 1 ]] || model_download_unregistered=1
+        if [[ "${HARNESS_RUNTIME:-host}" == openshell && "$model_download_unregistered" == 0 ]]; then
+          with_state_lock ovms-config _select_ovms_model_locked "$(model_dir_name "$HARNESS_HF_MODEL")"
+        fi
         ensure_openvino_model_server
         # wait_for_ovms_model_ready returning 1 means "still loading, not
         # confirmed ready yet" -- its own warn() message is the complete,
@@ -1158,6 +1191,33 @@ Set HARNESS_LLM_ROUTER_ENDPOINT instead to route to an existing external
 OpenAI-compatible endpoint without this installer managing a backend."
       ;;
   esac
+}
+
+_select_ovms_model_locked() {
+  local tmp config_file="${HARNESS_MODELS_DIR}/config.json"
+  tmp="$(mktemp "${config_file}.XXXXXX")"
+  chmod 644 "$tmp"
+  if ! node - "$config_file" "$1" >"$tmp" <<'JS'
+const fs = require("node:fs");
+const [file, model] = process.argv.slice(2);
+const config = JSON.parse(fs.readFileSync(file, "utf8"));
+let found = false;
+for (const key of ["model_config_list", "mediapipe_config_list"]) {
+  if (!Array.isArray(config[key])) continue;
+  config[key] = config[key].filter(e => {
+    const selected = (e?.config?.name ?? e?.name) === model;
+    found ||= selected;
+    return selected;
+  });
+}
+if (!found) throw Error(`Selected OVMS model '${model}' is not registered`);
+console.log(JSON.stringify(config, null, 2));
+JS
+  then
+    rm -f -- "$tmp"
+    error "Could not select the requested OVMS model; existing configuration was preserved."
+  fi
+  mv -f -- "$tmp" "$config_file"
 }
 
 # ovms_has_exported_models — true if config.json already lists at least one
@@ -1304,15 +1364,16 @@ list_exported_models() {
       [[ -n "$line" ]] || continue
       found=1
       printf '  %s\n' "$line"
-    done < <(node -e '
+    done < <(node - "$reg_file" <<'JS'
       try {
-        const data = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+        const data = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8"));
         for (const name of Object.keys(data)) {
           const hub = data[name]?.hub || "?";
           console.log(`${name}\t(hub: ${hub}, not served by OVMS)`);
         }
       } catch {}
-    ' "$reg_file")
+JS
+    )
   fi
   [[ "$found" -eq 1 ]] && return 0
   [[ -d "$dir" ]] || { info "No models exported yet (${dir})."; return 0; }
@@ -1417,7 +1478,7 @@ _remove_model_from_ovms_config_locked() {
   # mktemp-defaults-to-0600 vs. OVMS's fixed non-root container uid issue
   # applies here too.
   chmod 644 "$tmp"
-  node -e '
+  if ! node -e '
       const fs = require("node:fs");
       const [configFile, name] = process.argv.slice(1);
       let data;
@@ -1428,7 +1489,14 @@ _remove_model_from_ovms_config_locked() {
         }
       }
       process.stdout.write(JSON.stringify(data, null, 2));
-    ' "$config_file" "$name" >"$tmp" && mv -f "$tmp" "$config_file" || { rm -f "$tmp"; return 1; }
+    ' "$config_file" "$name" >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! mv -f "$tmp" "$config_file"; then
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 # ovms_managed_marker_file / record_ovms_managed / ovms_is_managed — persist

@@ -352,6 +352,7 @@ class CameraType(str, Enum):
     ## Values
     - `USB` - USB camera connected directly to the system
     - `NETWORK` - Network camera accessible via IP protocols
+    - `GIGE` - GigE Vision machine vision camera
 
     ### Example
     ```json
@@ -361,6 +362,7 @@ class CameraType(str, Enum):
 
     USB = "USB"
     NETWORK = "NETWORK"
+    GIGE = "GIGE"
 
 
 class HealthResponse(BaseModel):
@@ -2155,6 +2157,96 @@ class ValidationJobSummary(BaseModel):
     request: PipelineValidation
 
 
+class CpuCoreType(str, Enum):
+    """
+    **Type of a logical CPU on an Intel processor.**
+
+    ## Values
+    - `P` - Performance core on a hybrid processor
+    - `E` - Efficient core on a hybrid processor
+    - `LPE` - Low-power efficient core on a hybrid processor
+    - `UNIFORM` - Core of a non-hybrid processor, where all cores are the same type
+
+    ### Example
+    ```json
+    "P"
+    ```
+    """
+
+    P = "P"
+    E = "E"
+    LPE = "LPE"
+    UNIFORM = "UNIFORM"
+
+
+class CpuTopologySource(str, Enum):
+    """
+    **Method used to determine the CPU core types.**
+
+    ## Values
+    - `sysfs_pmu` - Hybrid PMU CPU lists in Linux sysfs (`cpu_core`, `cpu_atom`, `cpu_lowpower`)
+    - `sysfs_cache` - Cache topology in Linux sysfs, used when the hybrid PMU lists are missing
+    - `uniform` - Non-hybrid processor; every core is `UNIFORM`
+
+    ### Example
+    ```json
+    "sysfs_pmu"
+    ```
+    """
+
+    SYSFS_PMU = "sysfs_pmu"
+    SYSFS_CACHE = "sysfs_cache"
+    UNIFORM = "uniform"
+
+
+class CpuCore(BaseModel):
+    """
+    **One online logical CPU and its core type.**
+
+    ## Attributes
+    - `cpu` - Logical CPU id, as used for CPU affinity (for example `taskset -c`)
+    - `core_type` - Core type of this CPU
+    - `core_id` - Lowest logical CPU id among its SMT siblings; hyper-threads of one physical core share it
+
+    ### Example
+    ```json
+    {"cpu": 0, "core_type": "P", "core_id": 0}
+    ```
+    """
+
+    cpu: int
+    core_type: CpuCoreType
+    core_id: int
+
+
+class CpuTopology(BaseModel):
+    """
+    **Core types of all online logical CPUs of the host.**
+
+    ## Attributes
+    - `is_hybrid` - True when the CPUs are classified into `P`, `E` or `LPE` types
+    - `source` - Method used to determine the core types
+    - `cores` - Online logical CPUs sorted by id
+
+    ### Example
+    ```json
+    {
+      "is_hybrid": true,
+      "source": "sysfs_pmu",
+      "cores": [
+        {"cpu": 0, "core_type": "P", "core_id": 0},
+        {"cpu": 6, "core_type": "E", "core_id": 6},
+        {"cpu": 14, "core_type": "LPE", "core_id": 14}
+      ]
+    }
+    ```
+    """
+
+    is_hybrid: bool
+    source: CpuTopologySource
+    cores: list[CpuCore]
+
+
 class Device(BaseModel):
     """
     **Hardware device description used by multiple APIs.**
@@ -2168,6 +2260,8 @@ class Device(BaseModel):
     - `device_type` - High level device type (INTEGRATED or DISCRETE)
     - `device_family` - Hardware family (CPU, GPU, NPU)
     - `gpu_id` - Optional GPU index when applicable; null for non-GPU devices
+    - `cpu_topology` - Core types of the host CPUs for the CPU device; null for other devices
+      or when they cannot be determined
 
     ### Example
     ```json
@@ -2176,7 +2270,8 @@ class Device(BaseModel):
       "full_device_name": "Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)",
       "device_type": "INTEGRATED",
       "device_family": "GPU",
-      "gpu_id": 0
+      "gpu_id": 0,
+      "cpu_topology": null
     }
     ```
     """
@@ -2186,6 +2281,7 @@ class Device(BaseModel):
     device_type: DeviceType
     device_family: DeviceFamily
     gpu_id: Optional[int]
+    cpu_topology: CpuTopology | None = None
 
 
 class ModelInstallStatus(str, Enum):
@@ -3268,18 +3364,59 @@ class NetworkCameraDetails(CameraDetails):
     best_profile: Optional["CameraProfileInfo"] = None
 
 
+class GigECapture(BaseModel):
+    """
+    **Capture configuration currently set on a GigE Vision camera.**
+
+    ## Attributes
+    - `pixel_format` - GenICam pixel format (e.g., "Mono8", "BayerRG8")
+    - `width` - Frame width in pixels
+    - `height` - Frame height in pixels
+    - `fps` - Acquisition frame rate
+    """
+
+    pixel_format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+
+
+class GigECameraDetails(CameraDetails):
+    """
+    **GigE Vision camera details.**
+
+    Identity fields may be missing when the camera could not be opened during
+    discovery (e.g. it is streaming to another application).
+
+    ## Attributes
+    - `ip` - IP address of the camera
+    - `vendor` - Camera vendor name (optional)
+    - `model` - Camera model name (optional)
+    - `serial` - Camera serial number (optional)
+    - `current_capture` - Capture configuration currently set on the camera (optional)
+    """
+
+    ip: str
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    current_capture: Optional[GigECapture] = None
+
+
 class Camera(BaseModel):
     """
-    **Camera device information supporting both USB and network cameras.**
+    **Camera device information supporting USB, network and GigE Vision cameras.**
 
     Common attributes apply to all camera types. Type-specific details are stored
-    in the details field which contains either USBCameraDetails or NetworkCameraDetails.
+    in the details field which contains USBCameraDetails, NetworkCameraDetails
+    or GigECameraDetails.
 
     ## Attributes
     - `device_id` - Unique identifier for the camera
     - `device_name` - Human-readable camera name
-    - `device_type` - Type of camera (USB or NETWORK)
-    - `details` - Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK)
+    - `device_type` - Type of camera (USB, NETWORK or GIGE)
+    - `details` - Type-specific camera details (USBCameraDetails for USB,
+      NetworkCameraDetails for NETWORK, GigECameraDetails for GIGE)
 
     ### Example (USB Camera)
     ```json
@@ -3329,12 +3466,33 @@ class Camera(BaseModel):
       }
     }
     ```
+
+    ### Example (GigE Vision Camera)
+    ```json
+    {
+      "device_id": "gige-camera-basler-12345678",
+      "device_name": "Basler acA1920-25gc",
+      "device_type": "GIGE",
+      "details": {
+        "ip": "192.168.1.50",
+        "vendor": "Basler",
+        "model": "acA1920-25gc",
+        "serial": "12345678",
+        "current_capture": {
+          "pixel_format": "BayerRG8",
+          "width": 1920,
+          "height": 1080,
+          "fps": 25.0
+        }
+      }
+    }
+    ```
     """
 
     device_id: str
     device_name: str
     device_type: CameraType
-    details: Union[USBCameraDetails, NetworkCameraDetails]
+    details: Union[USBCameraDetails, NetworkCameraDetails, GigECameraDetails]
 
 
 class CameraProfilesRequest(BaseModel):

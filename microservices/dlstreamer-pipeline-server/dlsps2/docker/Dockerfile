@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-ARG BASE_IMAGE=intel/dlstreamer:2026.1.0-ubuntu24
+ARG BASE_IMAGE=intel/dlstreamer:2026.2.0-ubuntu24
 FROM ${BASE_IMAGE}
 
 USER root
@@ -27,7 +27,7 @@ RUN python3 -m venv --system-site-packages /python3venv && \
 
 ENV VIRTUAL_ENV=/python3venv
 ENV PATH=$VIRTUAL_ENV/bin:$PATH
-ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python
+ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:/opt/intel/openvino/python
 
 # Create a non-root user
 ARG USER=pipeline-server

@@ -1,0 +1,67 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=Metrics Manager memory bandwidth collector
+Documentation=file:///usr/share/doc/metrics-manager/README.md
+After=systemd-tmpfiles-setup.service metrics-manager-telegraf.service
+
+[Service]
+Type=simple
+User=metrics-manager
+Group=metrics-manager
+EnvironmentFile=/etc/metrics-manager/metrics-manager.env
+
+ExecStart=/usr/libexec/metrics-manager/mm-plugin-membw \
+    -out unix:///run/metrics-manager/collect.sock
+
+Restart=on-failure
+RestartSec=5s
+
+# --- Why this needs a capability --------------------------------------------
+#
+# The counters live in the integrated memory controller and are read through
+# perf_event_open. /proc/sys/kernel/perf_event_paranoid is 2 or higher on any
+# ordinary system, which refuses system-wide events to an unprivileged process.
+#
+# CAP_PERFMON is the capability the kernel added for exactly this: reading
+# performance counters without the rest of what CAP_SYS_ADMIN once implied. It
+# is narrower than root and narrower than the capability it replaced.
+#
+# Worth stating plainly: performance counters can leak information about what
+# other processes are doing, which is why the kernel gates them. This service
+# reads two aggregate throughput counters for the whole package and publishes
+# their sum; it opens nothing per-process.
+CapabilityBoundingSet=CAP_PERFMON
+AmbientCapabilities=CAP_PERFMON
+NoNewPrivileges=true
+
+# --- Filesystem -------------------------------------------------------------
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/run/metrics-manager
+
+# --- Kernel and namespaces --------------------------------------------------
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectProc=invisible
+PrivateDevices=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+# perf_event_open is not part of @system-service, and it is the whole point of
+# this service.
+SystemCallFilter=@system-service perf_event_open
+SystemCallErrorNumber=EPERM
+
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

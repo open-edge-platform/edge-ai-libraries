@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 [project]
 name = "model-download"
 version = "1.0.1"
@@ -14,8 +17,9 @@ dependencies = [
     "structlog==25.1.0",
     "uvicorn==0.38.0",
     "PyYAML==6.0.2",
+    "httpx>=0.27,<1.0.0",
     "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.2",
-    "fastmcp>=3.0,<4.0",
+    "fastmcp>=3.4.11,<4.0",
 ]
 
 [project.optional-dependencies]
@@ -45,7 +49,7 @@ modelscope = [
 ]
 
 ultralytics = [
-    "ultralytics==8.2.3",
+    "ultralytics==8.4.199",
     "torch==2.9.1+cpu",
     "torchvision==0.24.1+cpu",
 ]
@@ -58,9 +62,7 @@ ollama = [
     # Ollama is installed as a binary, no Python dependencies required
 ]
 
-geti = [
-    "geti-sdk==2.13.1",
-]
+geti = []
 
 hls = [
     "torch==2.9.1+cpu",

@@ -31,6 +31,7 @@ def serialize_router_config(config: RouterConfig) -> dict[str, Any]:
         "prerouting": [],
         "postrouting": [],
         "postresponse": [],
+        "standalone": [],
     }
     for plugin in config.plugins:
         plugins.setdefault(plugin.trigger, []).append(
@@ -50,8 +51,10 @@ def serialize_router_config(config: RouterConfig) -> dict[str, Any]:
                 "type": provider.type,
                 "model": provider.model,
                 "enabled": provider.enabled,
+                "fallback": provider.fallback,
                 "metadata": copy.deepcopy(provider.metadata),
                 "settings": copy.deepcopy(provider.settings),
+                "plugins": list(provider.plugins),
                 "extra": copy.deepcopy(provider.extra),
             }
             for provider in config.providers

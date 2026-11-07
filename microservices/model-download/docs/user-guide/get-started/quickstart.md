@@ -113,8 +113,6 @@ Existing `--ephemeral --model-name ... --hub ...` behavior is unchanged.
 |----------|---------|
 | `HF_TOKEN` or `HUGGINGFACEHUB_API_TOKEN` | HuggingFace authentication for gated models |
 | `GETI_HOST` | Geti server hostname |
-| `GETI_TOKEN` | Geti authentication token |
-| `GETI_WORKSPACE_ID` | Geti workspace ID |
 
 ---
 

@@ -6,6 +6,12 @@
   },
   "modules": [
     {
+      "label": "Digital Signage",
+      "value": "digital_signage",
+      "startStop": true,
+      "remove": true
+    },
+    {
       "label": "Loss Prevention",
       "value": "loss_prevention",
       "startStop": true, 
@@ -27,6 +33,20 @@
       "options": ["--gpu", "--cpu", "--npu"]
     },
     {
+      "label": "Store Wide Loss Prevention - Person of Interest",
+      "value": "person_of_interest",
+      "startStop": true, 
+      "remove": true,
+      "options": ["--gpu", "--cpu", "--npu"]
+    },
+    {
+      "label": "Store Wide Loss Prevention - Suspicious Activity Detection",
+      "value": "suspicious_activity_detection",
+      "startStop": true, 
+      "remove": true,
+      "options": ["--gpu", "--cpu", "--npu"]
+    },
+    {
       "label": "Voice Enabled Interactions - Smart Kiosk Assistant",
       "value": "smart_kiosk_assistant",
       "startStop": true, 
@@ -40,12 +60,20 @@
   },
   "resources": [
     {
+      "text": "Digital Signage",
+      "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
+    },
+    {
       "text": "Loss Prevention",
       "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/loss-prevention/index.html"
     },
     {
       "text": "Order Accuracy",
       "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/order-accuracy/index.html"
+    },
+    {
+      "text": "Store Wide Loss Prevention",
+      "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html"
     },
     {
       "text": "Voice Enabled Interactions",

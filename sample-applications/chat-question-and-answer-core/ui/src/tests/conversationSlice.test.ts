@@ -4,6 +4,11 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { it, expect, describe, vi, afterEach, beforeEach } from 'vitest';
 import { waitFor } from '@testing-library/react';
+import {
+  fetchEventSource,
+  EventSourceMessage,
+  FetchEventSourceInit,
+} from '@microsoft/fetch-event-source';
 
 import conversationReducer, {
   logout,
@@ -19,13 +24,20 @@ import conversationReducer, {
   removeFile,
   removeAllFiles,
   uploadFile,
+  doConversation,
 } from '../redux/conversation/conversationSlice.ts';
+import appStore from '../redux/store.ts';
+import {
+  notify,
+  NotificationSeverity,
+} from '../components/Notification/notify.ts';
 import {
   ConversationReducer,
   Message,
   MessageRole,
 } from '../redux/conversation/conversation.ts';
 import {
+  checkHealth,
   getCurrentTimeStamp,
   removeLastTagIfPresent,
   uuidv4,
@@ -35,6 +47,17 @@ vi.mock('../utils/util.ts', () => ({
   uuidv4: vi.fn(),
   getCurrentTimeStamp: vi.fn(),
   removeLastTagIfPresent: vi.fn(),
+  getTitle: vi.fn((input: string) => input),
+  checkHealth: vi.fn(),
+}));
+
+vi.mock('@microsoft/fetch-event-source', () => ({
+  fetchEventSource: vi.fn(),
+}));
+
+vi.mock('../components/Notification/notify.ts', () => ({
+  notify: vi.fn(),
+  NotificationSeverity: { ERROR: 'error' },
 }));
 
 const userPrompt: Message = {
@@ -79,6 +102,56 @@ describe('conversationSlice test suite', () => {
 
   afterEach(() => {
     vi.resetAllMocks();
+  });
+
+  it('keeps the sources event out of the streamed answer', () => {
+    vi.mocked(checkHealth).mockResolvedValue({ status: 200 } as never);
+    let init: FetchEventSourceInit | undefined;
+    vi.mocked(fetchEventSource).mockImplementation(async (_url, options) => {
+      init = options;
+    });
+    const message = (event: string, data: string): EventSourceMessage => ({
+      id: '',
+      event,
+      data,
+    });
+
+    const dispatch = vi.spyOn(appStore, 'dispatch');
+
+    doConversation(conversationRequest);
+    init?.onmessage?.(message('sources', '{"sources": [{"id": "S1"}]}'));
+    init?.onmessage?.(message('', 'Torque to '));
+    init?.onmessage?.(message('', '25 Nm [S1]'));
+    init?.onclose?.();
+
+    expect(dispatch).toHaveBeenCalledWith(
+      setOnGoingResult('Torque to 25 Nm [S1]'),
+    );
+    expect(dispatch).toHaveBeenLastCalledWith(
+      addMessageToMessages({
+        role: MessageRole.Assistant,
+        content: 'Torque to 25 Nm [S1]',
+        time: 100,
+        conversationId: '',
+      }),
+    );
+    dispatch.mockRestore();
+  });
+
+  it('shows the backend detail when the chat request is rejected', async () => {
+    vi.mocked(checkHealth).mockResolvedValue({ status: 200 } as never);
+    let init: FetchEventSourceInit | undefined;
+    vi.mocked(fetchEventSource).mockImplementation(async (_url, options) => {
+      init = options;
+    });
+
+    doConversation(conversationRequest);
+    const response = new Response(JSON.stringify({ detail: 'Too long' }), {
+      status: 413,
+    });
+
+    await expect(init?.onopen?.(response)).rejects.toThrow('Too long');
+    expect(notify).toHaveBeenCalledWith('Too long', NotificationSeverity.ERROR);
   });
 
   it('should return the initial state', () => {

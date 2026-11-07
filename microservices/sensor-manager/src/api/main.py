@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from src.api.routes import health, sensors
 from src.core.camera_manager import CameraManager
 from src.core.config import Settings
+from src.core.gige import GigECameraDiscovery
 from src.core.onvif import ONVIFCameraDiscovery
 from src.core.usb import USBCameraDiscovery
 
@@ -30,16 +31,20 @@ async def lifespan(app: FastAPI):
     onvif_discovery = ONVIFCameraDiscovery(interval_s=settings.onvif_discovery_interval_s)
     if settings.onvif_discovery_enabled:
         onvif_discovery.start()
-    app.state.camera_manager = CameraManager(USBCameraDiscovery(), onvif_discovery)
+    gige_discovery = GigECameraDiscovery(interval_s=settings.gige_discovery_interval_s)
+    if settings.gige_discovery_enabled:
+        gige_discovery.start()
+    app.state.camera_manager = CameraManager(USBCameraDiscovery(), onvif_discovery, gige_discovery)
     try:
         yield
     finally:
         onvif_discovery.stop()
+        gige_discovery.stop()
 
 
 app = FastAPI(
     title="Sensor Manager API",
-    description="Discovery and description of USB and ONVIF network cameras.",
+    description="Discovery and description of USB, ONVIF network and GigE Vision cameras.",
     version="2026.3.0-dev",
     lifespan=lifespan,
 )

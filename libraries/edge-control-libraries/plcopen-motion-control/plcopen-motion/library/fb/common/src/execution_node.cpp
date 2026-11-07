@@ -31,6 +31,9 @@ ExecutionNode::ExecutionNode()
   , node_freq_(1000)
   , node_delta_time_(0.001)
   , node_active_time_(0)
+  , blend_replan_position_(NAN)
+  , blend_resume_position_(NAN)
+  , blend_resume_velocity_(0)
   , planner_()
   , planner_type_(mcOffLine)
 {
@@ -108,21 +111,22 @@ void ExecutionNode::copyMemberVar(const ExecutionNode& node)
     pos_tmp_         = node.pos_tmp_;
     vel_tmp_         = node.vel_tmp_;
     acc_tmp_         = node.acc_tmp_;
-    need_plan_        = node.need_plan_;
-    pos_done_factor_  = node.pos_done_factor_;
-    vel_done_factor_  = node.vel_done_factor_;
-    prev_pos_err_     = node.prev_pos_err_;
-    has_prev_pos_err_ = node.has_prev_pos_err_;
-    motion_mode_      = node.motion_mode_;
+    need_plan_       = node.need_plan_;
+    pos_done_factor_ = node.pos_done_factor_;
+    vel_done_factor_ = node.vel_done_factor_;
+    motion_mode_     = node.motion_mode_;
 
     override_factors_.vel           = node.override_factors_.vel;
     override_factors_.acc           = node.override_factors_.acc;
     override_factors_.jerk          = node.override_factors_.jerk;
     override_factors_.override_flag = node.override_factors_.override_flag;
 
-    node_freq_        = node.node_freq_;
-    node_delta_time_  = node.node_delta_time_;
-    node_active_time_ = node.node_active_time_;
+    node_freq_             = node.node_freq_;
+    node_delta_time_       = node.node_delta_time_;
+    node_active_time_      = node.node_active_time_;
+    blend_replan_position_ = node.blend_replan_position_;
+    blend_resume_position_ = node.blend_resume_position_;
+    blend_resume_velocity_ = node.blend_resume_velocity_;
 
     planner_      = node.planner_;
     planner_type_ = node.planner_type_;
@@ -186,23 +190,26 @@ void ExecutionNode::reset()
   error_           = mcFALSE;
   error_id_        = mcErrorCodeGood;
 
-  start_pos_       = 0;
-  end_pos_         = 0;
-  start_vel_       = 0;
-  end_vel_         = 0;
-  start_acc_       = 0;
-  end_acc_         = 0;
-  duration_        = 1000000.0;
-  pos_cmd_         = 0;
-  vel_cmd_         = 0;
-  acc_cmd_         = 0;
-  pos_tmp_         = 0;
-  vel_tmp_         = 0;
-  acc_tmp_         = 0;
-  need_plan_       = mcFALSE;
-  motion_mode_     = mcNoMoveType;
-  node_freq_       = 1000;
-  node_delta_time_ = 0.001;
+  start_pos_             = 0;
+  end_pos_               = 0;
+  start_vel_             = 0;
+  end_vel_               = 0;
+  start_acc_             = 0;
+  end_acc_               = 0;
+  duration_              = 1000000.0;
+  pos_cmd_               = 0;
+  vel_cmd_               = 0;
+  acc_cmd_               = 0;
+  pos_tmp_               = 0;
+  vel_tmp_               = 0;
+  acc_tmp_               = 0;
+  need_plan_             = mcFALSE;
+  motion_mode_           = mcNoMoveType;
+  node_freq_             = 1000;
+  node_delta_time_       = 0.001;
+  blend_replan_position_ = NAN;
+  blend_resume_position_ = NAN;
+  blend_resume_velocity_ = 0;
 
   fb_           = nullptr;
   position_     = 0;
@@ -321,6 +328,97 @@ void ExecutionNode::setReplan()
 void ExecutionNode::setVelocity(mcLREAL velocity)
 {
   velocity_ = velocity;
+}
+
+void ExecutionNode::prepareBlendEntry(mcLREAL position, mcLREAL velocity,
+                                      mcLREAL acceleration)
+{
+  setStartPos(position);
+  setStartVel(velocity);
+  setStartAcc(acceleration);
+
+  const mcLREAL velocity_delta = fabs(velocity) - fabs(velocity_);
+  if (planner_type_ != mcRuckig || isnan(end_pos_) || velocity_delta <= 0.0)
+    return;
+
+  // First decelerate to the commanded cruise velocity. Planning directly to
+  // the final target with a lower velocity limit can undershoot that velocity.
+  const mcLREAL ramp_velocity = acceleration_ * acceleration_ / jerk_;
+  const mcLREAL transition_duration =
+      velocity_delta >= ramp_velocity ?
+          velocity_delta / acceleration_ + acceleration_ / jerk_ :
+          2.0 * sqrt(velocity_delta / jerk_);
+  const mcLREAL cruise_velocity = copysign(fabs(velocity_), velocity);
+  const mcLREAL transition_distance =
+      (fabs(velocity) + fabs(cruise_velocity)) * 0.5 * transition_duration;
+  const mcLREAL direction = end_pos_ >= position ? 1.0 : -1.0;
+
+  blend_resume_position_ = end_pos_;
+  blend_resume_velocity_ = end_vel_;
+  velocity_              = fabs(velocity);
+  // Leave one command cycle after the theoretical transition distance so the
+  // temporary trajectory reaches a stable cruise velocity before resuming.
+  end_pos_ = position + direction * (transition_distance +
+                                     fabs(cruise_velocity) * node_delta_time_);
+  end_vel_ = cruise_velocity;
+}
+
+void ExecutionNode::scheduleBlendReplan(mcLREAL current_position,
+                                        mcLREAL current_velocity,
+                                        mcLREAL end_velocity)
+{
+  // Delay acceleration until the last jerk-limited transition that can reach
+  // the requested blend velocity at the existing endpoint.
+  const mcLREAL velocity_delta = fabs(end_velocity) - fabs(current_velocity);
+  const mcLREAL ramp_velocity  = acceleration_ * acceleration_ / jerk_;
+  const mcLREAL transition_duration =
+      velocity_delta >= ramp_velocity ?
+          velocity_delta / acceleration_ + acceleration_ / jerk_ :
+          2.0 * sqrt(velocity_delta / jerk_);
+  const mcLREAL transition_distance =
+      (fabs(current_velocity) + fabs(end_velocity)) * 0.5 * transition_duration;
+  const mcLREAL direction = end_pos_ >= current_position ? 1.0 : -1.0;
+  blend_replan_position_ =
+      end_pos_ -
+      direction * (transition_distance + fabs(end_velocity) * node_delta_time_);
+  end_vel_  = end_velocity;
+  velocity_ = std::max(velocity_, fabs(end_velocity));
+}
+
+void ExecutionNode::applyBlendReplanIfDue(mcLREAL position, mcLREAL velocity,
+                                          mcLREAL acceleration)
+{
+  if (!isnan(blend_resume_position_))
+  {
+    const bool entry_complete = start_pos_ <= end_pos_ ? position >= end_pos_ :
+                                                         position <= end_pos_;
+    if (entry_complete)
+    {
+      // Continue from the measured state to the original final target.
+      velocity_              = fabs(end_vel_);
+      end_pos_               = blend_resume_position_;
+      end_vel_               = blend_resume_velocity_;
+      blend_resume_position_ = NAN;
+      setStartPos(position);
+      setStartVel(velocity);
+      setStartAcc(acceleration);
+      setReplan();
+    }
+  }
+
+  if (isnan(blend_replan_position_))
+    return;
+  const bool position_reached = start_pos_ <= end_pos_ ?
+                                    position >= blend_replan_position_ :
+                                    position <= blend_replan_position_;
+  if (!position_reached)
+    return;
+  // Start the outgoing blend from the measured state at the deferred trigger.
+  blend_replan_position_ = NAN;
+  setStartPos(position);
+  setStartVel(velocity);
+  setStartAcc(acceleration);
+  setReplan();
 }
 
 void ExecutionNode::offsetFB(mcLREAL home_pos)
@@ -514,10 +612,6 @@ void ExecutionNode::onExecution(mcLREAL master_ref_pos, mcLREAL master_ref_vel)
     MC_ERROR_CODE res = planner_.onReplan();
     if (res)
       onError(res);
-    // A new trajectory segment has started: forget the previous segment's
-    // position-error sign so checkMissionDone()'s crossing detection below
-    // does not fire on stale data.
-    has_prev_pos_err_ = false;
   }
 
   // Compute waypoint
@@ -614,29 +708,16 @@ mcBOOL ExecutionNode::checkMissionDone(const mcLREAL axis_pos,
     case mcMoveAbsoluteMode:
     case mcMoveAdditiveMode:
     case mcMoveRelativeMode: {
-      mcLREAL pos_err = axis_pos - end_pos_;
-      // A fixed +/-0.0001 done-tolerance band can be crossed entirely within
-      // a single cycle whenever the per-cycle displacement (axis velocity x
-      // cycle time) exceeds the band width -- e.g. a blended end-velocity at
-      // any cycle rate, not just a specific one (a slower cycle rate only
-      // makes it more likely, since displacement per cycle is larger). Also
-      // treat the cycle in which the position error changes sign as done,
-      // since that is the exact cycle the target was passed in. Only for
-      // end_vel_ != 0 (continuation/blending): a full stop should never
-      // legitimately overshoot, so leave that path on the tolerance-only
-      // check.
-      bool crossed = end_vel_ != 0.0 && has_prev_pos_err_ &&
-                     (prev_pos_err_ * pos_err < 0.0);
-      if ((fabs(pos_err) <= pos_done_factor_ &&
-          fabs(axis_vel - end_vel_ * override_factors_.vel) <= vel_done_factor_) ||
-          crossed)
+      const bool position_reached =
+          start_pos_ <= end_pos_ ? axis_pos >= end_pos_ - pos_done_factor_ :
+                                   axis_pos <= end_pos_ + pos_done_factor_;
+      if (position_reached &&
+          fabs(axis_vel - end_vel_ * override_factors_.vel) <= vel_done_factor_)
         res = mcTRUE;
-      prev_pos_err_     = pos_err;
-      has_prev_pos_err_ = true;
       DEBUG_PRINT("ExecutionNode::checkMissionDone: \n"
                   "\tfabs(axis_pos - end_pos_): %f, pos_done_factor_: %f, \n"
                   "\tfabs(axis_vel - end_vel_): %f, vel_done_factor_: %f\n",
-                  fabs(pos_err), pos_done_factor_,
+                  fabs(axis_pos - end_pos_), pos_done_factor_,
                   fabs(axis_vel - end_vel_ * override_factors_.vel),
                   vel_done_factor_);
     }
