@@ -43,9 +43,7 @@ Notes on what it does with Docker:
 > `~/.agent-harness-install/models` and register it with OVMS. Because that
 > download is large, `./uninstall.sh` deletes the models by default; pass
 > `--keep-models` to retain the models and avoid re-downloading them on the
-> next install (see [Uninstall](uninstall.md)). With an external router
-> endpoint (`HARNESS_LLM_ROUTER_ENDPOINT`), nothing is downloaded or registered
-> with OVMS, and `--model` only names the model that endpoint serves.
+> next install (see [Uninstall](uninstall.md)).
 
 1. **Host prep** — runs `startup.sh` (curl/git, Docker, Node.js, Python),
    then an Intel GPU check (PCI vendor `8086`, `i915`/`xe` driver,
