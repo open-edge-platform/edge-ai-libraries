@@ -3811,16 +3811,23 @@ debian_90_install_handheld_multi_modal ()
             ;;
         esac;
     done <<< "$installed";
-    configure_handheld_multi_modal;
+    configure_handheld_multi_modal "$@";
     if verify_handheld_multi_modal $* && ! ensure_parse_reinstall "$@"; then
         echo "handheld_multi_modal is installed." 1>&2;
     else
         ensure_disk_size 45000;
-        ensure_ports_open install handheld_multi_modal "${used_ports[@]}";
+        echo "@@STEP Removing conflicting app";
+        ensure_ports_open install handheld_multi_modal "${used_ports[@]}" || { 
+            docker rm -f handheld-multi-modal-model-downloader-1 || true;
+            ensure_ports_open install handheld_multi_modal "${used_ports[@]}"
+        };
+        echo "@@STEP Cloning repository";
         ensure_git_clone "$workspace" $version $repository handheld-multi-modal;
+        echo "@@STEP Setting up sample";
         cd "$workspace"/handheld-multi-modal;
         make setup;
         make prereq CONFIRM=yes;
+        echo "@@STEP Pulling images";
         docker compose -f compose/handheld-multi-modal.yaml -f compose/cameras.yaml -f config/devices.yaml pull --ignore-buildable;
         verify_handheld_multi_modal $*;
     fi;
@@ -3898,9 +3905,9 @@ debian_90_remove_deterministic_threat_detection ()
 }
 debian_90_remove_handheld_multi_modal () 
 { 
-    configure_handheld_multi_modal;
+    debian_90_stop_handheld_multi_modal "$@";
     local app_dir="$workspace"/handheld-multi-modal;
-    [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes );
+    [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes || true );
     ensure_rm "$workspace"
 }
 debian_90_remove_uav_mission_compute_sdk () 
@@ -3930,7 +3937,7 @@ debian_90_remove_uncrewed_aerial_vehicle_vision_analytics ()
 }
 debian_90_start_handheld_multi_modal () 
 { 
-    configure_handheld_multi_modal;
+    configure_handheld_multi_modal "$@";
     ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     cd "$workspace"/handheld-multi-modal;
     make up CONFIRM=yes;
@@ -3985,9 +3992,9 @@ debian_90_start_uncrewed_aerial_vehicle_vision_analytics ()
 }
 debian_90_stop_handheld_multi_modal () 
 { 
-    configure_handheld_multi_modal;
-    cd "$workspace"/handheld-multi-modal;
-    make stop
+    configure_handheld_multi_modal "$@";
+    docker rm -f handheld-multi-modal-model-downloader-1 || true;
+    cd "$workspace"/handheld-multi-modal && make stop || true
 }
 debian_90_stop_uav_mission_compute_sdk () 
 { 
@@ -5650,7 +5657,7 @@ ensure_ports_open ()
         ensure_prop set started/$name/ports "$*";
     fi;
     if command -v ss > /dev/null; then
-        local port out stopper;
+        local port out stopper mname;
         for port in $*;
         do
             out="$(ss -Hltunp "sport = :$port")";
