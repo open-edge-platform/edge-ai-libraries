@@ -64,7 +64,7 @@ debian_90_profile_uav_mission_compute_sdk () {
 
 debian_90_install_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk "$@"
-  if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_uav_mission_compute_sdk && ! ensure_parse_reinstall "$@"; then
     echo "uav_mission_compute_sdk is installed." >&2
   else
     . /etc/os-release

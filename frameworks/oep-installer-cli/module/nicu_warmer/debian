@@ -47,7 +47,7 @@ debian_90_profile_nicu_warmer () {
 
 debian_90_install_nicu_warmer () {
   configure_nicu_warmer "$@"
-  if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_nicu_warmer && ! ensure_parse_reinstall "$@"; then
     echo "NICU Warmer is installed." >&2
   else
     ensure_disk_size 15000

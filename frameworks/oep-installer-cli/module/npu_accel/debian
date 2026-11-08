@@ -34,7 +34,7 @@ debian_40_group_npu_accel () {
 debian_40_install_npu_accel () {
   configure_npu_accel "$@"
 
-  if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_npu_accel && ! ensure_parse_reinstall "$@"; then
     echo "Npu drivers are installed." >&2
   else
     # declare ownership

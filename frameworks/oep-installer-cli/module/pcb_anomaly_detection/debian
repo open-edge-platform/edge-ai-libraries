@@ -23,7 +23,7 @@ debian_90_profile_pcb_anomaly_detection () {
 
 debian_90_install_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection "$@"
-  if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_pcb_anomaly_detection && ! ensure_parse_reinstall "$@"; then
     echo "PCB anomaly detection is installed." >&2
   else
     ensure_disk_size 10000

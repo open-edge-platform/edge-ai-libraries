@@ -20,7 +20,7 @@ debian_90_profile_scenescape () {
 
 debian_90_install_scenescape () {
   configure_scenescape "$@"
-  if verify_scenescape && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_scenescape && ! ensure_parse_reinstall "$@"; then
     echo "Scenescape is installed." >&2
   else
     ensure_disk_size 300

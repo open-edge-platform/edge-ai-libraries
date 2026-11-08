@@ -44,7 +44,7 @@ debian_90_install_physical_ai_studio () {
   configure_physical_ai_studio_device "$@"
   configure_uv
 
-  if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_physical_ai_studio "$@" && ! ensure_parse_reinstall "$@"; then
     echo "Physical AI Studio is installed." >&2
   else
     ensure_disk_size 20000

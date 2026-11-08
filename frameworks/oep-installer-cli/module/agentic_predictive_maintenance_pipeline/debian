@@ -30,7 +30,7 @@ debian_90_profile_agentic_predictive_maintenance_pipeline () {
 
 debian_90_install_agentic_predictive_maintenance_pipeline () {
   configure_agentic_predictive_maintenance_pipeline "$@"
-  if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_agentic_predictive_maintenance_pipeline && ! ensure_parse_reinstall "$@"; then
     echo "Agentic Predictive Maintenance Pipeline is installed." 1>&2
   else
     ensure_disk_size 15000

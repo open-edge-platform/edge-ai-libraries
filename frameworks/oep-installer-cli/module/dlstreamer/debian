@@ -29,7 +29,7 @@ verify_dlstreamer () {
 debian_75_install_dlstreamer () {
   configure_dlstreamer "$@"
   
-  if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_dlstreamer && ! ensure_parse_reinstall "$@"; then
     echo "dlstreamer-${version} is installed." >&2
   else
     ensure_disk_size 15000
