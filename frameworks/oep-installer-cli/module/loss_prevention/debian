@@ -1,7 +1,7 @@
 
 configure_loss_prevention () {
   workspace="$(ensure_project_path)/loss-prevention"
-  version=1e960e399a4f82feca32dcd65b023f7a46d3ebf1
+  version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4
   repository="https://github.com/intel-retail/loss-prevention.git"
   used_ports=(4000 15672 5672 8002 4001)
 }
@@ -12,58 +12,64 @@ configure_loss_prevention_options () {
   cd "$workspace"
   sed -i -e "s|^TARGET_DEVICE [?]= .*|TARGET_DEVICE ?= ${device^^}|" -e "s|^VLM_DEVICE [?]= .*|VLM_DEVICE ?= ${device^^}|" Makefile
 
-  local camera_stream="$(grep -m1 -E '^CAMREA_STREAM [?]=' | cut -f2 -d= | tr -d ' ')"
-  local workload_dist="$(grep -m1 -E '^WORKLOAD_DIST [?]=' | cut -f2 -d= | tr -d ' ')"
-  local mode
+  local camera_stream="$(< .camera_stream)"
+  local workload_dist="$(< .workload_dist)"
+  local benchmark_mode="$(< .benchmark_mode)"
 
   if ensure_parse_option --od "$@"; then
-    mode="object detection $device"
+    benchmark_mode="object detection $device"
     camera_stream="camera_to_workload_asc_object_detection.json"
     workload_dist="workload_to_pipeline_asc_object_detection_$device.json"
   elif ensure_parse_option --oc "$@"; then
-    mode="object classification $device"
+    benchmark_mode="object classification $device"
     camera_stream="camera_to_workload_asc_object_detection_classification.json"
     workload_dist="workload_to_pipeline_asc_object_detection_classification_$device.json"
   elif ensure_parse_option --age "$@"; then
-    mode="age verification $device"
+    benchmark_mode="age verification $device"
     camera_stream="camera_to_workload_asc_age_verification.json"
     workload_dist="workload_to_pipeline_asc_age_verification_$device.json"
   elif ensure_parse_option --lpvlm "$@"; then
-    mode="VLM gpu"
+    benchmark_mode="VLM gpu"
     camera_stream="camera_to_workload_vlm.json"
     workload_dist="workload_to_pipeline_vlm.json"
   elif ensure_parse_option --lp "$@"; then
-    mode="default ${device/npu/gpu-npu}"
+    benchmark_mode="default ${device/npu/gpu-npu}"
     camera_stream="camera_to_workload.json"
     workload_dist="workload_to_pipeline_${device/npu/gpu-npu}.json"
   fi
-  sed -i -e "s|^CAMERA_STREAM [?]= .*|CAMERA_STREAM ?= $camera_stream|" -e "s|^WORKLOAD_DIST [?]= .*|WORKLOAD_DIST ?= $workload_dist|" Makefile
 
-  echo "@@STEP Download videos"
-  make download-sample-videos && {
-    local v rc=0
-    for v in $(grep '"fileSrc":' configs/$camera_stream | cut -f4 -d'"' | cut -f1 -d'|'); do
-      [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { 
-        echo "Failed to download video $v" 1>&2
-        rc=1
-      }
-    done
-    [ $rc -eq 0 ]
+  [ "$camera_stream" = "$(< .camera_stream)" ] || {
+    echo "@@STEP Download videos"
+    make download-sample-videos CAMERA_STREAM="$camera_stream" && {
+      local v rc=0
+      for v in $(grep '"fileSrc":' configs/$camera_stream | cut -f4 -d'"' | cut -f1 -d'|'); do
+        [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { 
+          echo "Failed to download video $v" 1>&2
+          rc=1
+        }
+      done
+      [ $rc -eq 0 ]
+    }
   }
 
-  echo "@@STEP Download models"
-  make download-models && {
-    local m rc=0
-    for m in $(grep -E '"model":|"vlm_model":' configs/$workload_dist | cut -f4 -d'"'); do
-      [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { 
-        echo "Failed to download model $m" 1>&2
-        rc=1
-      }
-    done
-    [ $rc -eq 0 ]
+  [ "$workload_dist" = "$(< .workload_dist)" ] || {
+    echo "@@STEP Download models"
+    make download-models WORKLOAD_DIST="$workload_dist" && {
+      local m rc=0
+      for m in $(grep -E '"model":|"vlm_model":' configs/$workload_dist | cut -f4 -d'"'); do
+        [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { 
+          echo "Failed to download model $m" 1>&2
+          rc=1
+        }
+      done
+      [ $rc -eq 0 ]
+    }
   }
 
-  echo "@@STEP Configured $mode"
+  echo "@@STEP Configured $benchmark_mode"
+  echo "$camera_stream" > .camera_stream
+  echo "$workload_dist" > .workload_dist
+  echo "$benchmark_mode" > .benchmark_mode
 }
 
 verify_loss_prevention () {
@@ -89,7 +95,11 @@ debian_90_install_loss_prevention () {
     ensure_git_clone "$workspace" $version $repository
 
     # setup
-    pushd "$workspace" > /dev/null
+    cd "$workspace"
+    sed -i 's|^benchmark-stream-density: .*|benchmark-stream-density:|' Makefile
+    sed -i 's|^benchmark: .*|benchmark:|' Makefile
+    sed -i 's|^run-lp: .*|run-lp:|' Makefile
+    touch .camera_stream .workload_dist .benchmark_mode
     cat > src/.env <<EOF
 MINIO_ROOT_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 MINIO_ROOT_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
@@ -97,18 +107,6 @@ MINIO_API_HOST_PORT="4000"
 MINIO_CONSOLE_HOST_PORT="4001"
 RABBITMQ_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 RABBITMQ_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
-LP_IP="$(ensure_ip)"
-LP_BASE_DIR="$workspace"
-LLM_BASE_DIR="$workspace/microservices/vlm/ov-models"
-VLM_SERVICE_PORT="8000"
-LOW_LATENCY=1
-DROP_OLD_FRAMES=1
-MEDIAN_LATENCY=0
-USER_GROUP_ID=$(id -g)
-VIDEO_GROUP_ID=$(getent group video | cut -f3 -d:)
-RENDER_GROUP_ID=$(getent group render | cut -f3 -d:)
-LOCAL_UID=$(id -u)
-LOCAL_GID=$(id -g)
 EOF
 
     # build images
@@ -134,11 +132,11 @@ EOF
   configure_loss_prevention_options "$device" "$@" --lp   # --lp as default
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
-  echo "@@HIGHLIGHT $installer_name start --od"
-  echo "@@HIGHLIGHT $installer_name start --oc"
-  echo "@@HIGHLIGHT $installer_name start --age"
-  echo "@@HIGHLIGHT $installer_name start --lp"
-  echo "@@HIGHLIGHT $installer_name start --lpvlm"
+  echo "@@HIGHLIGHT $installer_name start --od [--benchmark]"
+  echo "@@HIGHLIGHT $installer_name start --oc [--benchmark]"
+  echo "@@HIGHLIGHT $installer_name start --age [--benchmark]"
+  echo "@@HIGHLIGHT $installer_name start --lp [--benchmark]"
+  echo "@@HIGHLIGHT $installer_name start --lpvlm [--benchmark]"
 }
 
 debian_90_start_loss_prevention () {
@@ -152,22 +150,39 @@ debian_90_start_loss_prevention () {
   configure_loss_prevention_options "$device1" "$@"
 
   make down-lp 2> /dev/null || true
-  make -o build-benchmark -o download-sample-videos -o download-models benchmark-stream-density
 
-  echo "@@HIGHLIGHT $installer_name start --od"
-  echo "@@HIGHLIGHT $installer_name start --oc"
-  echo "@@HIGHLIGHT $installer_name start --age"
-  echo "@@HIGHLIGHT $installer_name start --lp"
-  echo "@@HIGHLIGHT $installer_name start --lpvlm"
+  local camera_stream="$(< .camera_stream)" workload_dist="$(< .workload_dist)"
+  ensure_rm benchmark results
+  if ensure_parse_option --benchmark "$@"; then
+    if [[ "$workload_dist" = *"vlm"* ]]; then
+      make benchmark CAMERA_STREAM="$camera_stream" WORKLOAD_DIST="$workload_dist"
+    else
+      make benchmark-stream-density CAMERA_STREAM="$camera_stream" WORKLOAD_DIST="$workload_dist" &
+      local pid_b=$!
+      while kill -0 $pid_b; do
+        sleep 1
+        find benchmark -name stream_density.log -exec tail --pid=$pid_b -f {} \;
+      done &
+      wait
+    fi
+  else
+    make run-lp CAMERA_STREAM="$camera_stream" WORKLOAD_DIST="$workload_dist"
+  fi
+
+  echo "@@HIGHLIGHT $installer_name start --od [--benchmark]"
+  echo "@@HIGHLIGHT $installer_name start --oc [--benchmark]"
+  echo "@@HIGHLIGHT $installer_name start --age [--benchmark]"
+  echo "@@HIGHLIGHT $installer_name start --lp [--benchmark]"
+  echo "@@HIGHLIGHT $installer_name start --lpvlm [--benchmark]"
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_stop_loss_prevention () {
   configure_loss_prevention
   cd "$workspace" && {
+    pkill -f "python3 benchmark.py" || true
     make down-lp || true
     cd src && docker compose down -v --remove-orphans || true
-    pkill -f "python3 benchmark.py"
   } || true
 }
 
