@@ -180,9 +180,9 @@ debian_90_start_loss_prevention () {
 debian_90_stop_loss_prevention () {
   configure_loss_prevention
   cd "$workspace" && {
+    pkill -f "python3 benchmark.py" || true
     make down-lp || true
     cd src && docker compose down -v --remove-orphans || true
-    pkill -f "python3 benchmark.py"
   } || true
 }
 
