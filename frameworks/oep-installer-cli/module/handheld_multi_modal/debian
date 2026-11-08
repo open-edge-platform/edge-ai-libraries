@@ -78,6 +78,6 @@ debian_90_stop_handheld_multi_modal () {
 debian_90_remove_handheld_multi_modal () {
   debian_90_stop_handheld_multi_modal "$@"
   local app_dir="$workspace"/handheld-multi-modal
-  [ ! -d "$app_dir" ] || (cd "$app_dir" && make clean-all CONFIRM=yes)
+  [ ! -d "$app_dir" ] || (cd "$app_dir" && make clean-all CONFIRM=yes || true)
   ensure_rm "$workspace"
 }
