@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import base64
 import itertools
 import os
@@ -224,7 +225,7 @@ class SourceSelectionTests(unittest.TestCase):
     def test_strict_mode_without_service_relies_on_existing_snapshots(self):
         os.environ[client.DIRECT_DOWNLOAD_ENV] = "false"
         self.assertIsNone(client.select_fetch())
-        self.assertFalse(client.provision_at_startup())
+        self.assertFalse(asyncio.run(client.provision_at_startup()))
 
     def test_strict_mode_with_unreachable_service_fails(self):
         os.environ[client.SERVICE_URL_ENV] = BASE_URL
@@ -244,7 +245,7 @@ class SourceSelectionTests(unittest.TestCase):
         ))
         with patch.object(provision_models, "config", cfg), \
              patch.object(client, "fetch_direct", AsyncMock(return_value="/x")) as fetch:
-            self.assertTrue(client.provision_at_startup())
+            self.assertTrue(asyncio.run(client.provision_at_startup()))
         fetch.assert_awaited_once()
         self.assertEqual(fetch.await_args.args[0], "openai/whisper-base")
 

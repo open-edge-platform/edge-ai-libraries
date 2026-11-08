@@ -225,15 +225,16 @@ def select_fetch() -> Callable[..., Awaitable[str]] | None:
     return None
 
 
-def provision_at_startup() -> bool:
+async def provision_at_startup() -> bool:
     """Make every configured snapshot available before models are loaded.
 
+    Awaitable so it can run inside the FastAPI/uvicorn startup event loop.
     Returns False when no source is available (strict mode); `ensure_model()`
     then reports any missing snapshot.
     """
     fetch = select_fetch()
     if fetch is None:
         return False
-    asyncio.run(provision_models(fetch))
+    await provision_models(fetch)
     logger.info("All configured model snapshots are ready")
     return True

@@ -55,7 +55,7 @@ def _clear_storage_on_startup() -> None:
 
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     _clear_storage_on_startup()
     try:
         validate_runtime_configuration(config)
@@ -76,7 +76,7 @@ def startup_event():
         # Snapshots come from a shared Model Download service when configured
         # and reachable, otherwise Audio Analyzer downloads them itself (unless
         # AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD=false requires pre-provisioning).
-        provision_at_startup()
+        await provision_at_startup()
         ensure_model()
         preload_models()
     except Exception as exc:
