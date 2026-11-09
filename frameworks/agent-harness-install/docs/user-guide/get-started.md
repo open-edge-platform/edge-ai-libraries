@@ -40,8 +40,8 @@ Notes on what it does with Docker:
 
 > **Models are downloaded by the installer.** You do not download or place a
 > model beforehand: `--model` makes the installer fetch it into
-> `~/.agent-harness-install/models` and register it with OVMS. Because that
-> download is large, `./uninstall.sh` deletes the models by default; pass
+> `~/.agent-harness-install/models` and register it with OVMS. The
+> model download size is large, and `./uninstall.sh` deletes the models by default; pass
 > `--keep-models` to retain the models and avoid re-downloading them on the
 > next install (see [Uninstall](uninstall.md)).
 
