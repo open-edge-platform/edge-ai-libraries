@@ -13,13 +13,12 @@ from unittest.mock import MagicMock, patch
 
 from platform_paths import (
     IS_WINDOWS,
-    LEGACY_MODELS_PATH,
-    LEGACY_PUBLIC_MODEL_PROC,
-    data_path,
-    resolve_legacy_path,
+    LINUX_MODELS_PREFIX,
+    LINUX_PUBLIC_MODEL_PROC_PREFIX,
+    resolve_linux_path,
 )
 from graph import Graph, Node, _input_video_name_to_path, _build_chain
-from gst_properties import quote_property, unquote_property, split_pipeline
+from gst_properties import quote_property, unquote_property
 from models import SupportedModel, SupportedModelsManager
 from resources import DirectoryResourceManager
 from videos import VideosManager
@@ -32,7 +31,7 @@ PATH_DEFAULTS = {
     "SCRIPTS_PATH": ("scripts", "/scripts"),
     "PUBLIC_MODEL_PROC_PATH": (
         "model-proc/public",
-        LEGACY_PUBLIC_MODEL_PROC,
+        LINUX_PUBLIC_MODEL_PROC_PREFIX,
     ),
     "UPLOADED_IMAGES_DIR": ("images/input/uploaded", "/images/input/uploaded"),
     "AUTO_VIDEO_DIR": ("videos/input/auto", "/videos/input/auto"),
@@ -83,15 +82,11 @@ class TestPortablePathDefaults(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="vippet data ") as root:
             for windows in (False, True):
                 config = self.read_config(windows, {}, root)
-                for key, (relative, posix) in PATH_DEFAULTS.items():
+                for key, (_, posix) in PATH_DEFAULTS.items():
                     expected = (
-                        str(Path(root) / "Vippet" / relative)
-                        if windows
-                        else (
-                            posix
-                            if key in {"MODELS_PATH", "DEFAULT_RECORDINGS_FILE"}
-                            else os.path.normpath(posix)
-                        )
+                        posix
+                        if key in {"MODELS_PATH", "DEFAULT_RECORDINGS_FILE"}
+                        else os.path.normpath(posix)
                     )
                     with self.subTest(windows=windows, key=key):
                         self.assertEqual(config[key], expected)
@@ -113,26 +108,13 @@ class TestPortablePathDefaults(unittest.TestCase):
                     config["TIMESERIES_METADATA_DIR"], overrides["METADATA_DIR"]
                 )
 
-    def test_windows_default_without_localappdata(self):
-        with (
-            tempfile.TemporaryDirectory() as root,
-            patch("platform_paths.IS_WINDOWS", True),
-            patch.dict(os.environ),
-            patch("platform_paths.Path.home", return_value=Path(root)),
-        ):
-            os.environ.pop("LOCALAPPDATA", None)
-            self.assertEqual(
-                data_path("models/output", "/models/output"),
-                str(Path(root) / "AppData/Local/Vippet/models/output"),
-            )
-
 
 class TestPortableProperties(unittest.TestCase):
     def test_quoted_properties_round_trip(self):
         for value in (
             r"C:\video files\clip.mp4",
             r"\\server\share\clip.mp4",
-            'C:/video files/a!"b.mp4',
+            'C:/video files/a"b.mp4',
             "C:/video's/clip.mp4",
             "C:\\video files\\",
             "",
@@ -147,13 +129,9 @@ class TestPortableProperties(unittest.TestCase):
                 graph = Graph.from_pipeline_description(" ".join(parts))
                 self.assertEqual(graph.nodes[0].data["location"], value)
 
-    def test_pipeline_separators_and_unterminated_quotes(self):
-        self.assertEqual(
-            split_pipeline('filesrc location="a ! b.mp4" ! fakesink'),
-            ['filesrc location="a ! b.mp4" ', " fakesink"],
-        )
-        with self.assertRaisesRegex(ValueError, "Unterminated"):
-            split_pipeline('filesrc location="unfinished')
+    def test_pipeline_separators(self):
+        graph = Graph.from_pipeline_description('filesrc location="a b.mp4" ! fakesink')
+        self.assertEqual([node.type for node in graph.nodes], ["filesrc", "fakesink"])
 
     def test_native_absolute_source_bypasses_video_lookup(self):
         with tempfile.TemporaryDirectory(prefix="video paths ") as root:
@@ -195,12 +173,18 @@ class TestPortableProperties(unittest.TestCase):
 
 class TestLegacyResourceMapping(unittest.TestCase):
     def test_mapping_is_windows_only_and_preserves_custom_paths(self):
-        legacy = LEGACY_PUBLIC_MODEL_PROC + "/preproc.json"
+        legacy = LINUX_PUBLIC_MODEL_PROC_PREFIX + "/preproc.json"
         with tempfile.TemporaryDirectory() as root:
             for windows in (False, True):
-                with patch("platform_paths.IS_WINDOWS", windows):
+                with (
+                    patch("platform_paths.IS_WINDOWS", windows),
+                    patch.dict(
+                        "platform_paths.LINUX_PATH_MAPPINGS",
+                        {LINUX_PUBLIC_MODEL_PROC_PREFIX: root},
+                    ),
+                ):
                     self.assertEqual(
-                        resolve_legacy_path(legacy, LEGACY_PUBLIC_MODEL_PROC, root),
+                        resolve_linux_path(legacy),
                         str(Path(root) / "preproc.json") if windows else legacy,
                     )
                     for value in (
@@ -210,9 +194,7 @@ class TestLegacyResourceMapping(unittest.TestCase):
                     ):
                         with self.subTest(windows=windows, value=value):
                             self.assertEqual(
-                                resolve_legacy_path(
-                                    value, LEGACY_PUBLIC_MODEL_PROC, root
-                                ),
+                                resolve_linux_path(value),
                                 value,
                             )
 
@@ -221,17 +203,22 @@ class TestLegacyResourceMapping(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as root,
             patch("platform_paths.IS_WINDOWS", True),
+            patch.dict(
+                "platform_paths.LINUX_PATH_MAPPINGS",
+                {
+                    LINUX_MODELS_PREFIX: root,
+                    LINUX_PUBLIC_MODEL_PROC_PREFIX: root,
+                },
+            ),
         ):
-            for legacy_root in (
-                LEGACY_MODELS_PATH,
-                LEGACY_PUBLIC_MODEL_PROC,
+            for linux_root in (
+                LINUX_MODELS_PREFIX,
+                LINUX_PUBLIC_MODEL_PROC_PREFIX,
             ):
                 for suffix in ("", "/"):
-                    with self.subTest(legacy_root=legacy_root, suffix=suffix):
+                    with self.subTest(linux_root=linux_root, suffix=suffix):
                         self.assertEqual(
-                            resolve_legacy_path(
-                                f"{legacy_root}/{relative}{suffix}", legacy_root, root
-                            ),
+                            resolve_linux_path(f"{linux_root}/{relative}{suffix}"),
                             str(Path(root) / relative),
                         )
 
@@ -257,9 +244,7 @@ class TestLegacyResourceMapping(unittest.TestCase):
                 "model/../",
             ):
                 with self.subTest(suffix=suffix), self.assertRaises(ValueError):
-                    resolve_legacy_path(
-                        "/models/output/" + suffix, "/models/output", "models"
-                    )
+                    resolve_linux_path("/models/output/" + suffix)
 
     def test_mapping_rejects_symlink_outside_configured_root(self):
         if IS_WINDOWS:
@@ -272,18 +257,53 @@ class TestLegacyResourceMapping(unittest.TestCase):
             (root / "link").symlink_to(outside, target_is_directory=True)
             with (
                 patch("platform_paths.IS_WINDOWS", True),
+                patch.dict(
+                    "platform_paths.LINUX_PATH_MAPPINGS",
+                    {LINUX_MODELS_PREFIX: str(root)},
+                ),
                 self.assertRaises(ValueError),
             ):
-                resolve_legacy_path(
-                    "/models/output/link/model.xml", "/models/output", str(root)
-                )
+                resolve_linux_path("/models/output/link/model.xml")
+
+    def test_mapping_selects_matching_root_from_table(self):
+        with (
+            tempfile.TemporaryDirectory() as root,
+            patch("platform_paths.IS_WINDOWS", True),
+            patch.dict(
+                "platform_paths.LINUX_PATH_MAPPINGS",
+                {
+                    LINUX_MODELS_PREFIX: str(Path(root) / "models"),
+                    LINUX_PUBLIC_MODEL_PROC_PREFIX: str(Path(root) / "model-proc"),
+                },
+            ),
+        ):
+            mappings = {
+                LINUX_MODELS_PREFIX: str(Path(root) / "models"),
+                LINUX_PUBLIC_MODEL_PROC_PREFIX: str(Path(root) / "model-proc"),
+            }
+            for linux_root, directory in mappings.items():
+                with self.subTest(linux_root=linux_root):
+                    self.assertEqual(
+                        resolve_linux_path(linux_root + "/file.json"),
+                        str(Path(directory) / "file.json"),
+                    )
+            for value in (
+                "relative.xml",
+                "/custom/file.xml",
+                "/models/output_backup/file.xml",
+            ):
+                with self.subTest(value=value):
+                    self.assertEqual(resolve_linux_path(value), value)
 
     def test_model_proc_mapping_does_not_change_stored_reference(self):
-        legacy = LEGACY_PUBLIC_MODEL_PROC + "/preproc.json"
+        legacy = LINUX_PUBLIC_MODEL_PROC_PREFIX + "/preproc.json"
         with (
             tempfile.TemporaryDirectory(prefix="public proc ") as root,
             patch("platform_paths.IS_WINDOWS", True),
-            patch("models.PUBLIC_MODEL_PROC_PATH", root),
+            patch.dict(
+                "platform_paths.LINUX_PATH_MAPPINGS",
+                {LINUX_PUBLIC_MODEL_PROC_PREFIX: root},
+            ),
             patch.object(SupportedModelsManager, "_instance", None),
         ):
             model = SupportedModel(
@@ -318,6 +338,10 @@ class TestLegacyResourceMapping(unittest.TestCase):
             tempfile.TemporaryDirectory(prefix="model paths ") as root,
             patch("platform_paths.IS_WINDOWS", True),
             patch("models.MODELS_PATH", root),
+            patch.dict(
+                "platform_paths.LINUX_PATH_MAPPINGS",
+                {LINUX_MODELS_PREFIX: root},
+            ),
             patch.object(SupportedModelsManager, "_instance", None),
         ):
             model = SupportedModel(
@@ -337,11 +361,15 @@ class TestLegacyResourceMapping(unittest.TestCase):
 
     def test_genai_directory_model_lookup_accepts_trailing_separator(self):
         relative = "openvino_models/cpu/int4/google/gemma-3-4b-it/"
-        legacy = LEGACY_MODELS_PATH + "/" + relative
+        legacy = LINUX_MODELS_PREFIX + "/" + relative
         with (
             tempfile.TemporaryDirectory(prefix="model paths ") as root,
             patch("platform_paths.IS_WINDOWS", True),
             patch("models.MODELS_PATH", root),
+            patch.dict(
+                "platform_paths.LINUX_PATH_MAPPINGS",
+                {LINUX_MODELS_PREFIX: root},
+            ),
             patch.object(SupportedModelsManager, "_instance", None),
         ):
             model = SupportedModel(

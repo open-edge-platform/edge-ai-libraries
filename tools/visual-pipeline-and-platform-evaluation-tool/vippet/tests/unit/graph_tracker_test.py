@@ -41,35 +41,6 @@ class TestDeepSortPropertySerialization(unittest.TestCase):
                 self.assertEqual(imported.to_pipeline_description(), exported)
                 self.assertEqual(graph.nodes[0].data["deepsort-trck-cfg"], value)
 
-    def test_config_preserves_embedded_quotes_backslashes_and_separators(self):
-        for decoded in (
-            'max_age=60,object_class=person "walking"',
-            r"max_age=60,object_class=person\walking",
-            "max_age=60,object_class=person ! walking",
-            "",
-        ):
-            with self.subTest(decoded=decoded):
-                graph = Graph.from_dict(
-                    {
-                        "nodes": [
-                            {
-                                "id": "0",
-                                "type": "gvatrack",
-                                "data": {"deepsort-trck-cfg": decoded},
-                            }
-                        ],
-                        "edges": [],
-                    }
-                )
-
-                imported = Graph.from_pipeline_description(
-                    graph.to_pipeline_description()
-                )
-
-                self.assertEqual(len(imported.nodes), 1)
-                self.assertEqual(imported.nodes[0].type, "gvatrack")
-                self.assertEqual(imported.nodes[0].data["deepsort-trck-cfg"], decoded)
-
     def test_other_properties_keep_literal_surrounding_quotes(self):
         graph = Graph.from_dict(
             {

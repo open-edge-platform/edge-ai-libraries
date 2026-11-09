@@ -18,7 +18,6 @@ import cv2
 import yaml
 
 from pipeline_runner import PipelineRunner
-from platform_paths import data_path
 from gst_properties import quote_property
 
 # Allowed video file extensions (lowercase, without dot)
@@ -43,19 +42,15 @@ VideoSourceKind = Literal["auto", "uploaded"]
 #   - UPLOADED_VIDEO_DIR  - videos uploaded by the user via the API
 # Both are independently configurable. Defaults match the shared volume
 # layout declared in compose.yml.
-_OUTPUT_VIDEO_DIR = data_path("videos/output", "/videos/output")
-_AUTO_VIDEO_DIR = data_path("videos/input/auto", "/videos/input/auto")
-_UPLOADED_VIDEO_DIR = data_path("videos/input/uploaded", "/videos/input/uploaded")
-
 # Read paths from environment variables, falling back to defaults.
 OUTPUT_VIDEO_DIR: str = os.path.normpath(
-    os.environ.get("OUTPUT_VIDEO_DIR", _OUTPUT_VIDEO_DIR)
+    os.environ.get("OUTPUT_VIDEO_DIR", "/videos/output")
 )
 AUTO_VIDEO_DIR: str = os.path.normpath(
-    os.environ.get("AUTO_VIDEO_DIR", _AUTO_VIDEO_DIR)
+    os.environ.get("AUTO_VIDEO_DIR", "/videos/input/auto")
 )
 UPLOADED_VIDEO_DIR: str = os.path.normpath(
-    os.environ.get("UPLOADED_VIDEO_DIR", _UPLOADED_VIDEO_DIR)
+    os.environ.get("UPLOADED_VIDEO_DIR", "/videos/input/uploaded")
 )
 
 # Path to the default recordings YAML file. Configurable via the
@@ -63,7 +58,7 @@ UPLOADED_VIDEO_DIR: str = os.path.normpath(
 # default shipped with the image.
 DEFAULT_RECORDINGS_FILE: str = os.environ.get(
     "DEFAULT_RECORDINGS_FILE",
-    data_path("videos/default_recordings.yaml", "/videos/default_recordings.yaml"),
+    "/videos/default_recordings.yaml",
 )
 
 logger = logging.getLogger("videos")

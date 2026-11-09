@@ -10,7 +10,7 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
-from gst_properties import quote_property, unquote_property, split_pipeline
+from gst_properties import quote_property, unquote_property
 from typing import Optional
 
 from models import SupportedModelsManager
@@ -428,7 +428,7 @@ class Graph:
         prev_token_kind: str | None = None
 
         # Split the pipeline into segments by '!' which separates elements/caps
-        raw_elements = split_pipeline(pipeline_description)
+        raw_elements = pipeline_description.split("!")
 
         # node_id is derived from the position of segments/elements
         node_id = 0
@@ -3830,7 +3830,7 @@ def _parse_caps_segment(segment: str) -> tuple[str, dict[str, str]] | None:
 
 
 def _tokenize(element: str) -> Iterator[_Token]:
-    """
+    r"""
     Tokenize a non-caps pipeline segment into TYPE/PROPERTY/TEE_END tokens.
 
     This tokenizer is only used for segments that were NOT recognized as caps
@@ -3857,9 +3857,22 @@ def _tokenize(element: str) -> Iterator[_Token]:
         - MISMATCH: Unrecognized token (caller should raise error)
         - SKIP: Whitespace (filtered out, never yielded)
 
-    Example:
+    Examples:
         Input: "filesrc location=/tmp/foo.mp4"
         Output: [Token(TYPE, "filesrc"), Token(PROPERTY, "location=/tmp/foo.mp4")]
+
+        Windows path with forward slashes and spaces:
+        Input: filesrc location="C:/video files/clip.mp4"
+        Output: TYPE(filesrc), PROPERTY(location="C:/video files/clip.mp4")
+
+        Windows path with escaped backslashes and spaces:
+        Input: filesrc location="C:\\video files\\clip.mp4"
+        Output: TYPE(filesrc), PROPERTY(location="C:\\video files\\clip.mp4")
+
+        Quoted values remain serialized in PROPERTY tokens; decoding is handled
+        by _add_property_to_last_node(). These examples are individual segments,
+        not complete pipelines; '!' in property values is not supported by the
+        preceding pipeline split.
     """
     token_specification = [
         # Property in key=value format, with support for quoted values containing spaces
@@ -4193,7 +4206,7 @@ def _build_chain(
                 if output_key == "file-path" and value == "/dev/null":
                     value = os.devnull
                 if node.type == "gvatrack" and output_key == "deepsort-trck-cfg":
-                    # Older editors stored syntax quotes in the property value.
+                    # Normalize tracker configurations stored with surrounding syntax quotes.
                     value = unquote_property(value)
                 # Caps properties may already contain GStreamer quoting syntax.
                 serialized = (

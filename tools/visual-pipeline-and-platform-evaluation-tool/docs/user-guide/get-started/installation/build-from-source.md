@@ -51,9 +51,34 @@ Hugging Face Hub.
 
 ## Steps to Build
 
+Choose the section for your host operating system. The Ubuntu procedure builds and runs the
+application in Docker. The native Windows procedure currently covers source and resource
+preparation only; full native application startup is not yet supported.
+
+### Native Ubuntu 24.04
+
+1. Open a terminal on your Ubuntu host.
+2. Install Docker Engine and the Docker Compose plugin using the
+   [Docker apt repository instructions](https://docs.docker.com/engine/install/ubuntu/).
+   Complete the [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/)
+   so you can run Docker as a non-root user. Do not use Docker Desktop on Linux.
+3. Install Git and Make, and configure GPU or NPU drivers if required, as described in
+   [Prerequisites](#prerequisites).
+4. Verify the tools before continuing:
+
+   ```bash
+   git --version
+   make --version
+   docker info
+   docker compose version
+   ```
+
+Continue in the same Ubuntu terminal to build and verify the application.
+
 1. Clone the repository:
 
    ```bash
+   cd ~
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
    cd edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
    ```
@@ -89,76 +114,78 @@ Hugging Face Hub.
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
 
-## Native Windows path and resource foundations
+### Native Windows (preparation only)
 
-Portable filesystem handling is the first step toward native Windows execution.
-It does not yet provide Windows subprocess control or multimedia adaptation.
-The Docker and WSL instructions above remain the supported application startup flow.
+These steps run directly in Windows PowerShell, without WSL or Docker. The Docker, Make and
+Linux driver prerequisites above apply to the Ubuntu procedure, not to this preparation.
 
-On Windows, data defaults to `%LOCALAPPDATA%\Vippet`. If `LOCALAPPDATA` is unset,
-the base directory is the user's `AppData\Local\Vippet`. Explicit environment-variable
-overrides take precedence. Linux defaults remain unchanged:
+1. Install [Git for Windows](https://git-scm.com/downloads/win), open PowerShell and verify Git:
 
-- `MODELS_PATH`: `models/output` relative to the Windows base (Linux: `/models/output`).
-- `LABELS_PATH`: `labels` (Linux: `/home/dlstreamer/dlstreamer/samples/labels`).
-- `SCRIPTS_PATH`: `scripts` (Linux: `/scripts`).
-- `PUBLIC_MODEL_PROC_PATH`: `model-proc/public`
-  (Linux: `/home/dlstreamer/dlstreamer/samples/gstreamer/model_proc/public`).
-- `AUTO_VIDEO_DIR`: `videos/input/auto` (Linux: `/videos/input/auto`).
-- `UPLOADED_VIDEO_DIR`: `videos/input/uploaded` (Linux: `/videos/input/uploaded`).
-- `OUTPUT_VIDEO_DIR`: `videos/output` (Linux: `/videos/output`).
-- `UPLOADED_IMAGES_DIR`: `images/input/uploaded` (Linux: `/images/input/uploaded`).
-- `METADATA_DIR`: `metadata` (Linux: `/metadata`).
-- `DEFAULT_RECORDINGS_FILE`: `videos/default_recordings.yaml` (Linux: `/videos/default_recordings.yaml`).
+   ```powershell
+   git --version
+   ```
 
-Provide resource files in the configured directories; this change does not install models,
-labels, scripts or public model-proc files. Configure model-download to write into the same
-model directory as the backend.
+2. Clone the repository and set the backend working directory:
 
-On Windows, known `/models/output/...` and Linux public model-proc paths are resolved
-against `MODELS_PATH` and `PUBLIC_MODEL_PROC_PATH` when constructing runtime paths.
-Stored model references and the catalog YAML format are unchanged; no database migration
-or new model-proc reference syntax is introduced. Unrelated custom paths are preserved.
-Mapped paths may have one trailing `/` for directory models and must stay within the
-configured directory; internal empty components, traversal, drive/stream prefixes
-and symlink escapes are rejected.
+   ```powershell
+   Set-Location $HOME
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+   Set-Location edge-ai-libraries\tools\visual-pipeline-and-platform-evaluation-tool\vippet
+   ```
 
-The default database remains in-memory on both platforms. `DATABASE_URL` can still
-select a persistent database explicitly.
+3. Choose local data directories and configure their paths explicitly in the PowerShell
+   session before starting the backend. Defaults remain Linux paths on every platform;
+   the backend does not select Windows directories automatically. This example uses
+   `%LOCALAPPDATA%\Vippet`, with a fallback to `%USERPROFILE%\AppData\Local\Vippet`:
 
-GStreamer property serialization preserves spaces, backslashes, quotes, commas and `!`.
-The Deep SORT editor stores decoded `deepsort-trck-cfg` values without surrounding
-syntax quotes; the backend quotes them for GStreamer and normalizes legacy
-prequoted tracker configurations on export. The `caps` property retains its
-serialized quoting.
-This escaping is for GStreamer descriptions, not shell commands. Null metadata output
-uses the native null device. Video downloads use unique temporary files in `AUTO_VIDEO_DIR`,
-closed before moving to the target location; the existing 600-second network timeout remains.
-On Linux, completed downloads are set to mode `0644` after moving so the UI's nginx
-user can serve previews; staging files remain private. Permission-setting failures
-are logged as warnings without failing the download, matching uploaded recordings.
+   ```powershell
+   $base = if ($env:LOCALAPPDATA) {
+       Join-Path $env:LOCALAPPDATA "Vippet"
+   } else {
+       Join-Path $HOME "AppData\Local\Vippet"
+   }
+      $env:MODELS_PATH = Join-Path $base "models\output"
+      $env:SCRIPTS_PATH = Join-Path $base "scripts"
+      $env:PUBLIC_MODEL_PROC_PATH = Join-Path $base "model-proc\public"
+      $env:AUTO_VIDEO_DIR = Join-Path $base "videos\input\auto"
+      $env:UPLOADED_VIDEO_DIR = Join-Path $base "videos\input\uploaded"
+      $env:OUTPUT_VIDEO_DIR = Join-Path $base "videos\output"
+      $env:UPLOADED_IMAGES_DIR = Join-Path $base "images\input\uploaded"
+      $env:METADATA_DIR = Join-Path $base "metadata"
+      $env:DEFAULT_RECORDINGS_FILE = Join-Path $base "videos\default_recordings.yaml"
+   $directories = @(
+         "models\output", "scripts", "model-proc\public",
+       "videos\input\auto", "videos\input\uploaded", "videos\output",
+       "images\input\uploaded", "metadata"
+   )
+   foreach ($directory in $directories) {
+       New-Item -ItemType Directory -Force -Path (Join-Path $base $directory) | Out-Null
+   }
+   ```
 
-### Verify the portable foundations
+   Place models, scripts and public model-proc files in the corresponding directories;
+   creating the directories does not install these resources. If using default recordings,
+   provide `videos\default_recordings.yaml` under the same base directory.
 
-Run unit tests on Linux with the project's Python runtime and development dependencies
-installed, from `tools/visual-pipeline-and-platform-evaluation-tool/vippet`:
+4. Set `LABELS_PATH` to the labels directory in your DLStreamer installation. For the
+   installation under `Program Files`, use:
 
-```bash
-python -m pytest tests/unit/portable_paths_test.py tests/unit/models_test.py tests/unit/resources_test.py tests/unit/videos_test.py
-```
+   ```powershell
+   $env:LABELS_PATH = Join-Path $env:ProgramFiles "Intel\dlstreamer\samples\labels"
+   ```
 
-The portability tests simulate Windows configuration selection on Linux; they do not
-replace checks on native Windows. Windows is the application runtime target, not a
-required unit-test development environment.
+   Adjust this path if DLStreamer is installed elsewhere. If public model-proc files are
+   provided by your installation, set `PUBLIC_MODEL_PROC_PATH` to their actual directory
+   instead of copying them to the example data directory. Configure model-download to use
+   the same model directory as the backend. These environment variables apply to the current
+   PowerShell session and child processes only; set them again in each new session.
 
-On Windows, manually verify GStreamer description import/export in the Advanced editor:
-check paths containing spaces, backslashes and `!`, configured model and model-proc
-paths, and replacement of `/dev/null` with the native null device. Verify downloaded
-recordings in the configured input directory. Full pipeline execution and automatic
-TS conversion still require Windows subprocess support in a subsequent change.
-
-Keep the backend working directory set to `vippet`; changing pipeline-catalog discovery
-is not part of this step. These checks do not certify full native GStreamer execution.
+> [!IMPORTANT]
+> This is not a complete native Windows build or startup procedure. A native runtime still needs
+> compatible Python, GStreamer, DLStreamer/OpenVINO and Python bindings, plus Windows subprocess
+> control and multimedia adaptation. Installing Python dependencies alone is not sufficient.
+> Full pipeline execution and automatic TS conversion are not yet supported natively. Do not run
+> `make build run`, `setup_env.sh` or the Docker commands in this guide as native Windows steps.
 
 ## Optional: run pipelines on DL Streamer Pipeline Server 2.0 (experimental)
 
