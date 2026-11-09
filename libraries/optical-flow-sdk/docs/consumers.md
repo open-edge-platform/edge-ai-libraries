@@ -49,7 +49,19 @@ gst-launch-1.0 videotestsrc pattern=ball ! video/x-raw,format=NV12,width=640,hei
 python3 examples/flow_track_consumer.py
 ```
 
-Full DL Streamer (when `gvatrack` is installed):
+Full consumer-chain smoke (gvatrack prior + watermark draw; no DL Streamer plugins):
+
+```bash
+export GST_PLUGIN_PATH=.../integrations/gvaopticalflow/build
+python3 examples/flow_full_chain.py
+# frames>0 with_roi>0 tracked_frames>0 unique_object_ids>0 watermarked>0 → PASS
+```
+
+**Lab PASS 2026-11-10** on Series 2 (`flow_full_chain.py`): track-motion-rois →
+`object_id` association → NV12 box watermark. `gvamotiondetect` is intentionally
+not chained (complementary frame-diff).
+
+Full DL Streamer (when plugins are installed):
 
 ```bash
 ... ! gvaopticalflow preset=fast device=GPU emit-motion-rois=true roi-mag-threshold=0.5 ! \

@@ -1,13 +1,13 @@
 # Intel Optical Flow SDK — Plan
 
-Status: **in progress** (P0–P2 exit met; **P3 in progress**). Decisions
-locked 2026-11-09. **Named HW gate is Series 2 iGPU only** (lab
-`labrat@10.91.82.130`, Core Ultra 7 255H / Arc Graphics; no Arc B580).
-OpenCL is the primary speed path; SYCL uses user-local `~/intel/oneapi`.
-Sintel/KITTI OpenCV DIS disparity **measured FAIL** (DIS-lite ≠ full
-OpenCV DIS; §11.6). SEA-RAFT-S OpenVINO quality + iGPU FPS reported.
-`gvaopticalflow` scaffold lives on dlstreamer `feat/gvaopticalflow`.
-Leftovers: §11.7.
+Status: **in progress** (P0–P2 exit met; **P3 coding exit met**; P3
+upstream PR + P4 leftovers open — §11.7). Decisions locked 2026-11-09.
+**Named HW gate is Series 2 iGPU only** (lab `labrat@10.91.82.130`,
+Core Ultra 7 255H / Arc Graphics; no Arc B580). OpenCL is the primary
+speed path; SYCL uses user-local `~/intel/oneapi`. Sintel/KITTI OpenCV
+DIS disparity **measured FAIL** (DIS-lite ≠ full OpenCV DIS; §11.6).
+SEA-RAFT-S OpenVINO quality + iGPU FPS reported. `gvaopticalflow`
+scaffold lives on dlstreamer `feat/gvaopticalflow`.
 
 ### Implementation status (2026-11-10)
 
@@ -15,9 +15,9 @@ Leftovers: §11.7.
 |------|--------|
 | Tree / CMake / CI (`optical-flow-sdk.yml`) | Done (CPU CI on GitHub runners) |
 | C++ API: `OpticalFlow`, presets, cost, `calcBoth` | Done |
-| `Algorithm::{Dis,Farneback,SeaRaft}` | Done (CPU DIS/Farneback; OpenCL DIS + Farneback-class; SeaRaft via OpenVINO) |
+| `Algorithm::{Dis,Farneback,SeaRaft}` | Done (CPU/OpenCL DIS + Farneback; SeaRaft via OpenVINO) |
 | CPU DIS-lite dense flow | Done (synthetic-shift tests pass) |
-| CPU / OpenCL Farneback dense flow | Done; full WLS quadratic poly expansion + displacement (`docs/farneback.md`); soft vs OpenCV numerical identity |
+| CPU / OpenCL Farneback dense flow | Done; OpenCV-aligned poly expand + UpdateMatrices/Flow (`docs/farneback.md`); soft vs OpenCV identity |
 | Host `calc` vs `calc_device` speed gap | **Documented + sample** — `docs/backend-selection.md`, `samples/calc_flow_opencl_device.cpp`; host ≈6–8×; ≥10× = `calc_device` |
 | FRUC / warp demos | **P4 landed** — `warp_u8`, `fruc_opencl`, `fruc_video_opencl` @720p/1080p |
 | CPU / OpenCL `SparsePyrLK` (+ Python) | Done (OpenCL P2) |
@@ -35,7 +35,8 @@ Leftovers: §11.7.
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
 | SEA-RAFT OpenVINO accuracy tier | **P2 PASS** — KITTI Fl-all **2.70%**; **iGPU ~15.7 FPS** @384×1248; presets/resolutions documented (`docs/sea_raft.md`) |
 | Root README under Computer Vision Primitives | Done |
-| `gvaopticalflow` DL Streamer element | **P3 scaffold + lab smoke PASS** 2026-11-10 (`gst-inspect` / `gst-launch` NV12 GPU on Series 2 via standalone `integrations/gvaopticalflow`); VAMemory / consumers open; **dlstreamer PR deferred** |
+| `gvaopticalflow` DL Streamer element | **P3 scaffold + lab smoke PASS**; VA E2E + motion-ROI consumers landed; **dlstreamer upstream PR deferred** |
+| VA → OpenCL import E2E | **PASS** (`sample_va_import_opencl`; media-driver 26.4.2 / libva 2.25 on ARL) |
 | IPU DVS path | Deferred (out of scope) |
 
 ## 1. Decision
@@ -466,22 +467,16 @@ samples for median/p95.
   OV GPU (`p2_sea_raft_openvino_fps_2026-11-10.json`). OpenCL SparsePyrLK
   landed. Farneback OpenCV compare recorded (CPU path still soft). Optional
   SYCL catch-up remains non-blocking.
-- **P3 — Pipeline integration:** **in progress.** `gvaopticalflow` scaffold
-  in dlstreamer (`feat/gvaopticalflow`, `-DENABLE_OPTICAL_FLOW=ON`): system-
-  memory NV12/GRAY8 path, props `preset`/`device`/`algorithm`, GPU path
-  calls `calc_device` then downloads flow into `GstGVATensorMeta` v0
-  (`docs/gvaopticalflow.md`). Remaining: lab smoke, VAMemory/DMABuf→CL
-  import (no host luma copy), consumer hooks for `gvatrack` /
-  `gvamotiondetect` / `gvawatermark`. **Also in P3 scope:** harden OpenCL
-  Farneback vs OpenCV (currently soft); keep documenting / narrowing the
-  host `calc` H↔D gap so callers default to `calc_device`. **dlstreamer
-  upstream PR deferred** (local `feat/gvaopticalflow` only for now). Exit:
-  DL Streamer pipeline GPU-resident with no host copy per frame where the
-  path allows it.
-- **P4 — Harden comparative story + demos:** measured Nvidia host numbers
-  if available; **FRUC / warp demos** (frame interpolation + flow-based
-  warp samples on Series 2); further preset tuning; SEA-RAFT resolution /
-  FPS notes.
+- **P3 — Pipeline integration:** **coding exit met** 2026-11-10.
+  `gvaopticalflow` scaffold + lab smoke PASS; DMA-BUF / VA import E2E
+  (`sample_va_import_opencl`); motion-ROI consumer prior for gvatrack;
+  full Farneback poly expansion; host `calc` steered to `calc_device`.
+  **Still deferred:** dlstreamer upstream PR / monorepo pin. Optional:
+  install-time full `gvatrack`/`gvamotiondetect`/`gvawatermark` chain.
+- **P4 — Harden comparative story + demos:** **FRUC / warp demos landed**;
+  SEA-RAFT preset/FPS notes landed. Remaining: measured Nvidia host
+  FPS/quality tables (if hardware available); optional extra SEA-RAFT IR
+  benches.
 
 Build / CI:
 
@@ -547,7 +542,7 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | `gvaopticalflow` scaffold + v0 tensor meta | P3 | **Scaffold landed** dlstreamer `feat/gvaopticalflow`; contract in `docs/gvaopticalflow.md` |
 | `gvaopticalflow` lab smoke (`gst-inspect` / `gst-launch`) | P3 | **PASS 2026-11-10** — standalone plugin + micromamba `gst-dev`; NV12 640×480×30 GPU DIS Fast → EOS |
 | VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **E2E PASS** (`sample_va_import_opencl`); needs media-driver ≥26 / libva ≥2.25 on ARL (stock 24.1 iHD fails); DMA-BUF + system OK |
-| Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **ROI prior landed** — detection-shaped motion ROIs + `track-motion-rois` `object_id`; `docs/consumers.md` |
+| Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **Chain smoke PASS** (`flow_full_chain.py` track+watermark); native DL Streamer plugins still not installed on lab |
 | OpenCL Farneback vs OpenCV numerical hardening | P3 | **Full poly expansion landed** (`fb_poly_expand` + `fb_farneback_update`); soft vs OpenCV numerical identity (`docs/farneback.md`) |
 | Host `calc` H↔D tax vs `calc_device` | P3 | **Steered** — docs + `sample_calc_flow_opencl_device`; residual H↔D on host `calc` remains |
 | FRUC / warp demos | P4 | **Landed** (`warp_u8`, `fruc_opencl`, `fruc_video_opencl`) |
@@ -711,45 +706,27 @@ P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
 
 ### 11.7 Remaining work (2026-11-10)
 
-**P3 — do next (blocks exit / in-plan):**
+**P3 coding checklist — all landed:**
 
-1. ~~Lab `gvaopticalflow` smoke~~ — **PASS 2026-11-10** (ControlMaster
-   `arc` / `labrat@10.91.82.130`): standalone
-   `integrations/gvaopticalflow` + micromamba `gst-dev`;
-   `gst-inspect` + `gst-launch` NV12 GPU DIS Fast → EOS.
-2. Device import path — **E2E PASS 2026-11-10:** DMA-BUF + strided upload +
-   ping-pong; VA `import_va_surface_luma`→`calc_device` via
-   `sample_va_import_opencl` (user-local media-driver 26.4.2 / libva 2.25 on
-   ARL; stock Ubuntu 24.1 iHD still broken).
-3. Consumers — **gvatrack prior landed** (`docs/consumers.md`): detection-shaped
-   motion ROIs + optional IoU `object_id` (`track-motion-rois`); examples
-   `flow_consumer.py` / `flow_track_consumer.py`. Full DL Streamer
-   `gvatrack` chain when the plugin is installed.
-4. OpenCL Farneback — **full poly-coefficient expansion landed**
-   (`fb_poly_expand` + `fb_farneback_update`, aligned with CPU); soft vs
-   OpenCV numerical identity (`docs/farneback.md`).
-5. Host `calc` vs `calc_device` — **docs + sample steered**; keep ≥10× claims
-   on resident path only (host `calc` still ≈6–8×).
+1. Lab `gvaopticalflow` smoke — **PASS**
+2. VA / DMA-BUF device import — **E2E PASS** (`sample_va_import_opencl`)
+3. Consumer chain (`gvatrack` prior + watermark) — **PASS** (`flow_full_chain.py`)
+4. Full Farneback poly expansion — **landed**
+5. Host `calc` vs `calc_device` steering — **landed** (claims on resident path)
 
-**Deferred (not now):**
+**Still open:**
 
-- dlstreamer upstream PR for `gvaopticalflow` / monorepo submodule pin
-  bump — hold; lab smoke used standalone integration build.
-
-**P4 — in plan:**
-
-- **FRUC / warp** — `warp_u8`, `fruc_opencl`, `fruc_video_opencl` landed
-  (`docs/fruc_warp.md`).
-- Measured Nvidia host FPS/quality tables (if hardware available).
-- SEA-RAFT preset / resolution / FPS notes — **documented**
-  (`docs/sea_raft.md`); optional extra IR benches as models appear.
-
-**Non-blocking leftovers:**
-
-- SYCL DIS `calc_device` catch-up — **landed** (OpenCL still owns ≥10×).
-- Classical DIS §8 pairwise/Fl-all vs OpenCV remains **FAIL** by design
-  (DIS-lite); only SEA-RAFT closes the quality gate.
-- Arc B580 discrete gates (explicitly out of scope for this revision).
+| Item | Priority | Notes |
+|------|----------|-------|
+| dlstreamer `gvaopticalflow` upstream PR + monorepo pin | P3 deferred | Local `feat/gvaopticalflow` only; no PR yet |
+| Native DL Streamer `gvatrack` / `gvawatermark` plugins on lab | P3 optional | Standalone chain smoke **PASS** (`flow_full_chain.py`); install plugins for bit-identical element names |
+| Measured Nvidia host FPS/quality tables | P4 | **HW OK** on `gklab-233-162` (RTX 5060 + OFA + `libnvidia-opticalflow`); needs Video Codec / OF SDK headers + CUDA toolkit to bench |
+| Extra SEA-RAFT IR resolution/FPS benches | P4 optional | Preset notes already in `docs/sea_raft.md` |
+| Tighten Farneback vs OpenCV numerical gates | Non-blocking | Soft honesty harness remains |
+| Classical DIS §8 pairwise/Fl-all vs OpenCV | By design FAIL | DIS-lite; SEA-RAFT owns quality gate |
+| Stock Ubuntu media-driver upgrade on ARL lab | Ops | User-local 26.4.2 works; distro 24.1 iHD still broken |
+| Arc B580 discrete gates | Out of scope | This revision is Series 2 iGPU only |
+| IPU DVS productization | Deferred | Separate future plan |
 
 ## 12. Sources
 

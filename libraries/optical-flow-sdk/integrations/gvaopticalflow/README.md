@@ -44,6 +44,9 @@ python3 examples/flow_consumer.py
 
 python3 examples/flow_track_consumer.py
 # frames=40 buffers_with_motion_roi>0  (track-motion-rois IoU prior)
+
+python3 examples/flow_full_chain.py
+# PASS — track-motion-rois + object_id + watermark draw (gvatrack/gvawatermark roles)
 ```
 
 Motion ROI / gvatrack prior:
