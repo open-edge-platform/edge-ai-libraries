@@ -1,12 +1,12 @@
 # HIWIN ROS-I Package
 
 This package allows you to monitor and control HIWIN industrial robots within the ROS framework. HIWIN currently support the following supports packages.
-- [RA605 710 GB Robotic arm](https://www.hiwin.tw/products/mar/articulated/ra605/ra605_710_gb.aspx) - 5kg payload industrial robot.
-- [RA610 1355 Robotic arm](https://www.hiwin.tw/products/mar/articulated/ra610/ra610_1355_gb.aspx) - 10kg playload industrial robot.
-- [RA620 1621 Robotic arm](https://www.hiwin.tw/products/mar/articulated/ra620/ra620_1621.aspx) - 20kg playload industrial robot.
-- [XEG16 electric gripper](https://www.hiwin.tw/products/ee/xeg/xeg_16.aspx) - High presision electric gripper.
-- [XEG32 electric gripper](https://www.hiwin.tw/products/ee/xeg/xeg_32.aspx) - High presision electric gripper.
-- [XEG64 electric gripper](https://www.hiwin.tw/products/ee/xeg/xeg_64.aspx) - High presision electric gripper.
+- [RA605 710 GB Robotic arm](https://www.hiwin.tw/products/multi_axis_robot/ra605.aspx) - 5kg payload industrial robot.
+- [RA610 1355 Robotic arm](https://www.hiwin.tw/products/multi_axis_robot/ra610.aspx) - 10kg playload industrial robot.
+- [RA620 1621 Robotic arm](https://www.hiwin.sg/product/ra620-series-articulated-robot/?mode=list) - 20kg playload industrial robot.
+- [XEG16 electric gripper](https://www.hiwin.tw/products/end_effector/xeg.aspx) - High presision electric gripper.
+- [XEG32 electric gripper](https://www.hiwin.tw/products/end_effector/xeg.aspx) - High presision electric gripper.
+- [XEG64 electric gripper](https://www.hiwin.tw/products/end_effector/xeg.aspx) - High presision electric gripper.
 
 ## Prerequisites:
 - A 64bit Windows OS (x64 architecture is needed for .dll libraries)
@@ -27,7 +27,7 @@ If you already purchased a robotic arm and an electric gripper you can follow th
 
 1. Connect the robotic arm to your network through an ethernet cable, make sure your computer and your robot are on the same domain (e.g. robot's ip is 192.168.0.1, computer's ip is 192.168.0.100).
 
-1. Connect your gripper via USB to your computer and check in which COM port is the USB insert. (You can use [XEG-W1](https://www.hiwin.tw/support/ee/eg_software.aspx) software to check gripper's COM Port)
+1. Connect your gripper via USB to your computer and check in which COM port is the USB insert. (You can use [XEG-W1](https://www.hiwinsupport.com/download_center.aspx?pid=EE) software to check gripper's COM Port)
 
 1. Load the control nodes for robot and gripper:
 
