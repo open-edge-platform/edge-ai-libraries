@@ -2499,6 +2499,16 @@ configure_edge_pack_npu ()
     configure_edge_pack "$@";
     version="1.0"
 }
+configure_edge_pack_selection () 
+{ 
+    local ep_list="$1";
+    shift;
+    if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
+        echo "$ep_list";
+    else
+        echo "gpu_accel npu_accel";
+    fi
+}
 configure_edge_pack_tsn () 
 { 
     configure_edge_pack "$@";
@@ -6900,17 +6910,13 @@ debian_90_profile_dine_in ()
 }
 debian_90_profile_edge_base_robotics () 
 { 
+    echo "core_types system_inspection system_summary ros2 ros_openvino realsense";
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel ros2 ros_openvino realsense"
+            echo "edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel"
         ;;
         *)
-            echo "ros2 ros_openvino realsense";
-            if ensure_parse_option --realtime "$@" && [[ "$(uname -r)" = "7."* ]] && configure_edge_pack_kernel_image "$@"; then
-                echo "core_types system_inspection system_summary edge_pack_base_realtime edge_pack_npu";
-            else
-                echo "edge_base";
-            fi
+            configure_edge_pack_selection "edge_pack_base_realtime edge_pack_npu" "$@"
         ;;
     esac
 }
@@ -8396,11 +8402,7 @@ debian_99_profile_edge_base ()
             echo "edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
         ;;
         *)
-            if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-                echo "edge_pack_base_standard edge_pack_npu";
-            else
-                echo "gpu_accel npu_accel";
-            fi
+            configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu" "$@"
         ;;
     esac
 }
@@ -8429,11 +8431,7 @@ debian_99_profile_handheld_blueprint ()
             else
                 modules+=(docker_io);
             fi;
-            if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst);
-            else
-                modules+=(gpu_accel npu_accel);
-            fi;
+            modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst" "$@"));
             echo "${modules[*]}"
         ;;
     esac
@@ -8474,11 +8472,7 @@ debian_99_profile_mission_decision_support_blueprint ()
             else
                 modules+=(docker_io);
             fi;
-            if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst);
-            else
-                modules+=(gpu_accel npu_accel);
-            fi;
+            modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst" "$@"));
             echo "${modules[*]}"
         ;;
     esac
@@ -8509,11 +8503,7 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint ()
             else
                 modules+=(docker_io);
             fi;
-            if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst);
-            else
-                modules+=(gpu_accel npu_accel);
-            fi;
+            modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst" "$@"));
             echo "${modules[*]}"
         ;;
     esac
