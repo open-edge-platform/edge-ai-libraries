@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "optical_flow_sdk/optical_flow.hpp"
+#include "optical_flow_sdk/sparse_pyrlk.hpp"
 
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -127,4 +129,49 @@ PYBIND11_MODULE(_native, module) {
             return py::make_tuple(flow_to_numpy(fwd), flow_to_numpy(bwd));
           },
           py::arg("prev"), py::arg("next"));
+
+  py::class_<optical_flow_sdk::Point2f>(module, "Point2f")
+      .def(py::init<>())
+      .def(py::init<float, float>(), py::arg("x"), py::arg("y"))
+      .def_readwrite("x", &optical_flow_sdk::Point2f::x)
+      .def_readwrite("y", &optical_flow_sdk::Point2f::y);
+
+  py::class_<optical_flow_sdk::SparsePyrLKOptions>(module, "SparsePyrLKOptions")
+      .def(py::init<>())
+      .def_readwrite("max_level", &optical_flow_sdk::SparsePyrLKOptions::max_level)
+      .def_readwrite("win_size", &optical_flow_sdk::SparsePyrLKOptions::win_size)
+      .def_readwrite("max_iters", &optical_flow_sdk::SparsePyrLKOptions::max_iters)
+      .def_readwrite("epsilon", &optical_flow_sdk::SparsePyrLKOptions::epsilon)
+      .def_readwrite("min_eig", &optical_flow_sdk::SparsePyrLKOptions::min_eig);
+
+  py::class_<optical_flow_sdk::SparsePyrLK>(module, "SparsePyrLK")
+      .def(py::init<>())
+      .def(py::init<optical_flow_sdk::SparsePyrLKOptions>(), py::arg("options"))
+      .def(
+          "calc",
+          [](const optical_flow_sdk::SparsePyrLK &self, const py::array &prev, const py::array &next,
+             const py::array &prev_pts) {
+            auto pts_buf = prev_pts.request();
+            if (pts_buf.ndim != 2 || pts_buf.shape[1] != 2)
+              throw std::invalid_argument("prev_pts must be Nx2 float32");
+            if (pts_buf.itemsize != sizeof(float))
+              throw std::invalid_argument("prev_pts dtype must be float32");
+            const auto n = static_cast<std::size_t>(pts_buf.shape[0]);
+            std::vector<optical_flow_sdk::Point2f> pts(n);
+            const float *src = static_cast<const float *>(pts_buf.ptr);
+            for (std::size_t i = 0; i < n; ++i)
+              pts[i] = {src[i * 2], src[i * 2 + 1]};
+            std::vector<optical_flow_sdk::Point2f> tracked;
+            std::vector<std::uint8_t> status;
+            std::vector<float> err;
+            self.calc(numpy_to_image(prev), numpy_to_image(next), pts, tracked, status, err);
+            py::array_t<float> next_pts({static_cast<py::ssize_t>(n), py::ssize_t{2}});
+            auto out = next_pts.mutable_unchecked<2>();
+            for (std::size_t i = 0; i < n; ++i) {
+              out(static_cast<py::ssize_t>(i), 0) = tracked[i].x;
+              out(static_cast<py::ssize_t>(i), 1) = tracked[i].y;
+            }
+            return py::make_tuple(next_pts, status, err);
+          },
+          py::arg("prev"), py::arg("next"), py::arg("prev_pts"));
 }

@@ -50,7 +50,10 @@ configure_file(
 )
 set(OPTICALFLOW_GENERATED_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 
-set(OPTICALFLOW_CORE_SOURCES src/optical_flow.cpp)
+set(OPTICALFLOW_CORE_SOURCES
+  src/optical_flow.cpp
+  src/metrics.cpp
+)
 if(OPTICALFLOW_ENABLE_CPU)
   list(APPEND OPTICALFLOW_CORE_SOURCES
     src/cpu/cpu_optical_flow.cpp
@@ -126,7 +129,15 @@ if(OPTICALFLOW_BUILD_TESTS)
     add_executable(test_optical_flow_determinism tests/test_determinism.cpp)
     target_link_libraries(test_optical_flow_determinism PRIVATE optical_flow_sdk)
     add_test(NAME optical_flow_sdk.determinism COMMAND test_optical_flow_determinism)
+
+    add_executable(test_optical_flow_algorithm tests/test_algorithm_resolve.cpp)
+    target_link_libraries(test_optical_flow_algorithm PRIVATE optical_flow_sdk)
+    add_test(NAME optical_flow_sdk.algorithm_resolve COMMAND test_optical_flow_algorithm)
   endif()
+
+  add_executable(test_optical_flow_metrics tests/test_metrics_flo.cpp)
+  target_link_libraries(test_optical_flow_metrics PRIVATE optical_flow_sdk)
+  add_test(NAME optical_flow_sdk.metrics_flo COMMAND test_optical_flow_metrics)
 endif()
 
 if(OPTICALFLOW_BUILD_OPENCV_ADAPTER)
@@ -160,11 +171,15 @@ if(OPTICALFLOW_BUILD_SAMPLES AND OPTICALFLOW_ENABLE_CPU)
   target_link_libraries(sample_calc_flow_cpu PRIVATE optical_flow_sdk)
   add_executable(sample_stabilize_global_flow samples/stabilize_global_flow.cpp)
   target_link_libraries(sample_stabilize_global_flow PRIVATE optical_flow_sdk)
+  add_executable(sample_track_points_cpu samples/track_points_cpu.cpp)
+  target_link_libraries(sample_track_points_cpu PRIVATE optical_flow_sdk)
 endif()
 
 if(OPTICALFLOW_BUILD_BENCHMARKS AND OPTICALFLOW_ENABLE_CPU)
   add_executable(microbench_cpu benchmarks/microbench_cpu.cpp)
   target_link_libraries(microbench_cpu PRIVATE optical_flow_sdk)
+  add_executable(eval_flow_epe benchmarks/eval_flow_epe.cpp)
+  target_link_libraries(eval_flow_epe PRIVATE optical_flow_sdk)
 endif()
 
 if(OPTICALFLOW_BUILD_PYTHON)
