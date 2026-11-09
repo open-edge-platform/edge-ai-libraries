@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 1. Read JSON files and `PLAN.md` §10 / §11.6–§11.7 / `docs/sea_raft.md`.
 2. Classical DIS remains §8 **FAIL** (DIS-lite); SEA-RAFT closes the quality gate.
 3. Prefer `calc_device` for ≥10× claims (`docs/backend-selection.md`).
-4. OpenCL Farneback is Farneback-**class** (windowed LK), soft vs OpenCV —
+4. OpenCL Farneback uses full poly expansion; soft vs OpenCV identity —
    `docs/farneback.md`. PyrLK OpenCL landed.
 5. FRUC/warp: seed sample `sample_warp_with_flow`; see `docs/fruc_warp.md`.
 6. After accuracy changes, add a **new** dated JSON (do not overwrite priors).

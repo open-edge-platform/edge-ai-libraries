@@ -9,33 +9,30 @@ SPDX-License-Identifier: Apache-2.0
 
 | Path | Class | Notes |
 |------|--------|-------|
-| CPU `FarnebackOpticalFlow` / `Algorithm::Farneback` | Pyramid + `poly_n` / `poly_sigma` neighborhood gradients + windowed LK | OpenCV-free; soft GT-EPE vs OpenCV in CI |
-| OpenCL `OpenCLFarnebackOpticalFlow` | Same `poly_n` / `poly_sigma` / winsize / levels dial as CPU | `fb_poly_lk` in `src/opencl/farneback_kernels.hpp` |
+| CPU `FarnebackOpticalFlow` / `Algorithm::Farneback` | Separable Farneback poly expansion + UpdateMatrices / box UpdateFlow | OpenCV-aligned layout; soft vs OpenCV identity |
+| OpenCL `OpenCLFarnebackOpticalFlow` | Same dial; WLS poly → OpenCV channel order + UpdateMatrices/Flow | `fb_poly_expand` / `fb_update_matrices` / `fb_farneback_update` |
 
-## Poly dial (landed)
+## Poly expansion (landed)
 
-Both CPU and OpenCL use a **polynomial-neighborhood gradient proxy**:
+CPU uses OpenCV’s separable Gaussian-moment expansion (`poly_n` / `poly_sigma`)
+into 5 channels `[cy, cx, cyy, cxx, cxy]`. OpenCL fits the same quadratic via
+per-pixel WLS and stores the same channel order. Displacement follows
+Farneback/OpenCV UpdateMatrices (`AᵀA` / `Aᵀb` with current flow folded in) and
+winsize box averaging.
 
-- `poly_n` = 5/5/7 for Fast/Medium/Slow (neighborhood diameter)
-- `poly_sigma` = 1.1/1.2/1.5 (Gaussian σ for that neighborhood, OpenCV dial)
+Dial (Fast / Medium / Slow):
 
-Weights are `exp(-0.5 · r² / poly_sigma²)`, then a windowed LK solve. This is
-still not OpenCV’s full Farneback polynomial-coefficient expansion; treat
-OpenCV pairwise EPE / Fl-all as soft.
+- `poly_n` = 5 / 5 / 7
+- `poly_sigma` = 1.1 / 1.2 / 1.5
+- winsize / levels / iterations match usual OpenCV tutorial presets
 
-Expect:
+Expect strong synthetic-shift behavior and tight CPU↔OpenCL parity. Pairwise
+EPE vs OpenCV remains a soft honesty gate (pyramid / border details may differ).
 
-- Reasonable synthetic-shift / coarse motion behavior
-- Tight CPU↔OpenCL parity when presets match
-- **Not** OpenCV numerical identity without a fuller poly-coefficient port
-- DIS + `calc_device` remain the primary ≥10× / quality-report path
+DIS + `calc_device` remain the primary ≥10× / quality-report path.
 
 ## Hardening
 
 1. Document residual gap vs OpenCV (this file) — **done**
 2. Keep `compare_opencv_dis --algo farneback` as the honesty harness
-3. Optional: full Farneback poly coefficients (or retarget soft gates to
-   Farneback-class criteria explicitly)
-
-Do not claim OpenCV Farneback parity until a fuller poly-coefficient port
-lands or gates are explicitly retargeted.
+3. Full poly-coefficient expansion — **landed** (CPU + OpenCL)

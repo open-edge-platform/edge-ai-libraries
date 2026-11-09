@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-// OpenCL Farneback with polynomial neighborhood gradients (poly_n), matching
-// the CPU Farneback-class path in src/cpu/farneback.cpp.
+// OpenCL Farneback: WLS quadratic coeffs in OpenCV channel order + UpdateMatrices/Flow.
 inline constexpr const char *kOpenCLFarnebackKernelSource = R"CLC(
 __kernel void fb_u8_to_float(__global const uchar *src, __global float *dst,
                              const int width, const int height, const int src_stride) {
@@ -59,7 +58,90 @@ __kernel void fb_upsample_flow(__global const float *coarse, __global float *fin
   fine[(y * fw + x) * 2 + 1] = v * 2.0f;
 }
 
-inline float fb_sample(__global const float *img, const int w, const int h, float x, float y) {
+__kernel void fb_zero_flow(__global float *flow, const int n) {
+  const int i = get_global_id(0);
+  if (i < n)
+    flow[i] = 0.0f;
+}
+
+// WLS quadratic → OpenCV Farneback channels [cy, cx, cyy, cxx, cxy].
+__kernel void fb_poly_expand(__global const float *I, __global float *R, const int width,
+                             const int height, const int poly_n, const float poly_sigma) {
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+  const int rad = poly_n / 2;
+  const float var = max(poly_sigma * poly_sigma, 1e-6f);
+  float ATA[6][6];
+  float ATb[6];
+  for (int i = 0; i < 6; ++i) {
+    ATb[i] = 0.0f;
+    for (int j = 0; j < 6; ++j)
+      ATA[i][j] = 0.0f;
+  }
+  for (int dy = -rad; dy <= rad; ++dy) {
+    for (int dx = -rad; dx <= rad; ++dx) {
+      const int xx = clamp(x + dx, 0, width - 1);
+      const int yy = clamp(y + dy, 0, height - 1);
+      const float w = exp(-0.5f * (float)(dx * dx + dy * dy) / var);
+      const float X = (float)dx;
+      const float Y = (float)dy;
+      const float bv[6] = {1.0f, X, Y, X * X, Y * Y, X * Y};
+      const float z = I[yy * width + xx];
+      for (int i = 0; i < 6; ++i) {
+        ATb[i] += w * bv[i] * z;
+        for (int j = i; j < 6; ++j)
+          ATA[i][j] += w * bv[i] * bv[j];
+      }
+    }
+  }
+  for (int i = 0; i < 6; ++i)
+    for (int j = 0; j < i; ++j)
+      ATA[i][j] = ATA[j][i];
+
+  float M[6][7];
+  for (int i = 0; i < 6; ++i) {
+    for (int j = 0; j < 6; ++j)
+      M[i][j] = ATA[i][j];
+    M[i][6] = ATb[i];
+  }
+  for (int col = 0; col < 6; ++col) {
+    int piv = col;
+    for (int r = col + 1; r < 6; ++r)
+      if (fabs(M[r][col]) > fabs(M[piv][col]))
+        piv = r;
+    if (fabs(M[piv][col]) < 1e-12f)
+      continue;
+    if (piv != col) {
+      for (int c = col; c < 7; ++c) {
+        const float tmp = M[piv][c];
+        M[piv][c] = M[col][c];
+        M[col][c] = tmp;
+      }
+    }
+    const float inv = 1.0f / M[col][col];
+    for (int c = col; c < 7; ++c)
+      M[col][c] *= inv;
+    for (int r = 0; r < 6; ++r) {
+      if (r == col)
+        continue;
+      const float f = M[r][col];
+      for (int c = col; c < 7; ++c)
+        M[r][c] -= f * M[col][c];
+    }
+  }
+  // c = [c0,c1,c2,c3,c4,c5]; OpenCV R = [c2,c1,c4,c3,c5]
+  const int o = (y * width + x) * 5;
+  R[o + 0] = M[2][6];
+  R[o + 1] = M[1][6];
+  R[o + 2] = M[4][6];
+  R[o + 3] = M[3][6];
+  R[o + 4] = M[5][6];
+}
+
+void fb_sample_poly(__global const float *R, const int w, const int h, float x, float y,
+                    float *c /*5*/) {
   x = clamp(x, 0.0f, (float)(w - 1));
   y = clamp(y, 0.0f, (float)(h - 1));
   const int x0 = (int)x;
@@ -68,82 +150,80 @@ inline float fb_sample(__global const float *img, const int w, const int h, floa
   const int y1 = min(y0 + 1, h - 1);
   const float dx = x - (float)x0;
   const float dy = y - (float)y0;
-  return (1.0f - dx) * (1.0f - dy) * img[y0 * w + x0] + dx * (1.0f - dy) * img[y0 * w + x1] +
-         (1.0f - dx) * dy * img[y1 * w + x0] + dx * dy * img[y1 * w + x1];
+  for (int k = 0; k < 5; ++k) {
+    const float v00 = R[(y0 * w + x0) * 5 + k];
+    const float v10 = R[(y0 * w + x1) * 5 + k];
+    const float v01 = R[(y1 * w + x0) * 5 + k];
+    const float v11 = R[(y1 * w + x1) * 5 + k];
+    c[k] = (1.0f - dx) * (1.0f - dy) * v00 + dx * (1.0f - dy) * v10 + (1.0f - dx) * dy * v01 +
+           dx * dy * v11;
+  }
 }
 
-__kernel void fb_zero_flow(__global float *flow, const int n) {
-  const int i = get_global_id(0);
-  if (i < n)
-    flow[i] = 0.0f;
-}
-
-// Polynomial-neighborhood gradients + windowed LK (matches CPU farneback_level).
-// poly_sigma is Gaussian σ for the poly_n neighborhood (OpenCV dial).
-__kernel void fb_poly_lk(__global const float *I0, __global const float *I1,
-                         __global const float *flow_in, __global float *flow_out,
-                         __global uchar *cost, const int width, const int height,
-                         const int win_half, const int poly_n, const float poly_sigma,
-                         const int max_step_x100) {
+// Build OpenCV-style M = A^T A / A^T b (absolute flow form with A*f folded in).
+__kernel void fb_update_matrices(__global const float *R0, __global const float *R1,
+                                 __global const float *flow, __global float *M, const int width,
+                                 const int height) {
   const int x = get_global_id(0);
   const int y = get_global_id(1);
   if (x >= width || y >= height)
     return;
-  const int out = (y * width + x) * 2;
-  if (x < win_half || y < win_half || x >= width - win_half || y >= height - win_half) {
-    flow_out[out] = flow_in[out];
-    flow_out[out + 1] = flow_in[out + 1];
-    cost[y * width + x] = (uchar)255;
+  const float dx = flow[(y * width + x) * 2];
+  const float dy = flow[(y * width + x) * 2 + 1];
+  float r1[5];
+  fb_sample_poly(R1, width, height, (float)x + dx, (float)y + dy, r1);
+  const int i0 = (y * width + x) * 5;
+  float r2 = (R0[i0 + 0] - r1[0]) * 0.5f;
+  float r3 = (R0[i0 + 1] - r1[1]) * 0.5f;
+  float r4 = (R0[i0 + 2] + r1[2]) * 0.5f;
+  float r5 = (R0[i0 + 3] + r1[3]) * 0.5f;
+  float r6 = (R0[i0 + 4] + r1[4]) * 0.25f;
+  r2 += r4 * dy + r6 * dx;
+  r3 += r6 * dy + r5 * dx;
+  M[i0 + 0] = r4 * r4 + r6 * r6;
+  M[i0 + 1] = (r4 + r5) * r6;
+  M[i0 + 2] = r5 * r5 + r6 * r6;
+  M[i0 + 3] = r4 * r2 + r6 * r3;
+  M[i0 + 4] = r6 * r2 + r5 * r3;
+}
+
+__kernel void fb_farneback_update(__global const float *M, __global float *flow_out,
+                                  __global uchar *cost, __global const float *flow_in,
+                                  const int width, const int height, const int win_half) {
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  if (x >= width || y >= height)
     return;
-  }
-  const int poly_half = poly_n / 2;
-  const float poly_var = max(poly_sigma * poly_sigma, 1e-6f);
-  const float u0 = flow_in[out];
-  const float v0 = flow_in[out + 1];
-  float Gxx = 0.0f, Gxy = 0.0f, Gyy = 0.0f, bx = 0.0f, by = 0.0f, ssd = 0.0f;
+  const int winsize = 2 * win_half + 1;
+  const float scale = 1.0f / (float)(winsize * winsize);
+  float g11 = 0.0f, g12 = 0.0f, g22 = 0.0f, h1 = 0.0f, h2 = 0.0f;
   for (int wy = -win_half; wy <= win_half; ++wy) {
+    const int yy = clamp(y + wy, 0, height - 1);
     for (int wx = -win_half; wx <= win_half; ++wx) {
-      float Ix = 0.0f, Iy = 0.0f, wsum = 0.0f;
-      for (int py = -poly_half; py <= poly_half; ++py) {
-        for (int px = -poly_half; px <= poly_half; ++px) {
-          const int xx = clamp(x + wx + px, 0, width - 1);
-          const int yy = clamp(y + wy + py, 0, height - 1);
-          const float w = exp(-0.5f * (float)(px * px + py * py) / poly_var);
-          Ix += w * (float)px * I0[yy * width + xx];
-          Iy += w * (float)py * I0[yy * width + xx];
-          wsum += w;
-        }
-      }
-      Ix /= (wsum + 1e-6f);
-      Iy /= (wsum + 1e-6f);
-      const int x1 = clamp(x + wx, 0, width - 1);
-      const int y1 = clamp(y + wy, 0, height - 1);
-      const float i0 = I0[y1 * width + x1];
-      const float i1 = fb_sample(I1, width, height, (float)x1 + u0, (float)y1 + v0);
-      const float It = i1 - i0;
-      Gxx += Ix * Ix;
-      Gxy += Ix * Iy;
-      Gyy += Iy * Iy;
-      bx += Ix * It;
-      by += Iy * It;
-      ssd += It * It;
+      const int xx = clamp(x + wx, 0, width - 1);
+      const int j = (yy * width + xx) * 5;
+      g11 += M[j + 0];
+      g12 += M[j + 1];
+      g22 += M[j + 2];
+      h1 += M[j + 3];
+      h2 += M[j + 4];
     }
   }
-  const float det = Gxx * Gyy - Gxy * Gxy;
-  float u = u0;
-  float v = v0;
-  if (fabs(det) >= 1e-4f) {
-    float du = -(Gyy * bx - Gxy * by) / det;
-    float dv = -(-Gxy * bx + Gxx * by) / det;
-    const float max_step = (float)max_step_x100 * 0.01f;
-    du = clamp(du, -max_step, max_step);
-    dv = clamp(dv, -max_step, max_step);
-    u = u0 + du;
-    v = v0 + dv;
-  }
-  flow_out[out] = u;
-  flow_out[out + 1] = v;
-  const float norm = (float)((2 * win_half + 1) * (2 * win_half + 1));
-  cost[y * width + x] = (uchar)clamp(sqrt(ssd / norm), 0.0f, 255.0f);
+  g11 *= scale;
+  g12 *= scale;
+  g22 *= scale;
+  h1 *= scale;
+  h2 *= scale;
+  const float idet = 1.0f / (g11 * g22 - g12 * g12 + 1e-3f);
+  const float fx = (g11 * h2 - g12 * h1) * idet;
+  const float fy = (g22 * h1 - g12 * h2) * idet;
+  const int o = (y * width + x) * 2;
+  const float ou = flow_in[o];
+  const float ov = flow_in[o + 1];
+  flow_out[o] = fx;
+  flow_out[o + 1] = fy;
+  const float du = fx - ou;
+  const float dv = fy - ov;
+  cost[y * width + x] = (uchar)clamp(sqrt(du * du + dv * dv) * 16.0f, 0.0f, 255.0f);
 }
 )CLC";

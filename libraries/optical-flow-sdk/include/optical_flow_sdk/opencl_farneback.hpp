@@ -12,8 +12,8 @@
 
 namespace optical_flow_sdk {
 
-// OpenCL Farneback-class dense flow (windowed LK pyramid). Same preset dial as
-// CPU Farneback; first device port uses central-diff gradients.
+// OpenCL Farneback dense flow (poly expand + displacement). Same preset dial
+// and math as CPU Farneback.
 class OpenCLFarnebackOpticalFlow {
 public:
   explicit OpenCLFarnebackOpticalFlow(Preset preset = Preset::Fast);

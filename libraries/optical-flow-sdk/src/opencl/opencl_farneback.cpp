@@ -51,7 +51,9 @@ struct FbContext {
   cl_kernel k_down = nullptr;
   cl_kernel k_up = nullptr;
   cl_kernel k_zero = nullptr;
-  cl_kernel k_lk = nullptr;
+  cl_kernel k_expand = nullptr;
+  cl_kernel k_matrices = nullptr;
+  cl_kernel k_update = nullptr;
 
   FbContext() {
     device = pick_gpu();
@@ -86,7 +88,9 @@ struct FbContext {
     k_down = mk("fb_downsample2");
     k_up = mk("fb_upsample_flow");
     k_zero = mk("fb_zero_flow");
-    k_lk = mk("fb_poly_lk");
+    k_expand = mk("fb_poly_expand");
+    k_matrices = mk("fb_update_matrices");
+    k_update = mk("fb_farneback_update");
   }
 
   ~FbContext() {
@@ -100,7 +104,9 @@ struct FbContext {
     rk(k_down);
     rk(k_up);
     rk(k_zero);
-    rk(k_lk);
+    rk(k_expand);
+    rk(k_matrices);
+    rk(k_update);
     if (program)
       clReleaseProgram(program);
     if (queue)
@@ -240,11 +246,15 @@ void OpenCLFarnebackOpticalFlow::calc(const ImageView &prev, const ImageView &ne
   upload(next_u8, next, "upload next");
 
   std::vector<cl_mem> pyr0(levels, nullptr), pyr1(levels, nullptr);
+  std::vector<cl_mem> poly0(levels, nullptr), poly1(levels, nullptr), mats(levels, nullptr);
   std::vector<cl_mem> flow_a(levels, nullptr), flow_b(levels, nullptr), cost_l(levels, nullptr);
   for (int s = 0; s < levels; ++s) {
     const std::size_t pix = static_cast<std::size_t>(widths[s]) * heights[s];
     pyr0[s] = buf(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
     pyr1[s] = buf(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
+    poly0[s] = buf(ctx.context, CL_MEM_READ_WRITE, pix * 5 * sizeof(float));
+    poly1[s] = buf(ctx.context, CL_MEM_READ_WRITE, pix * 5 * sizeof(float));
+    mats[s] = buf(ctx.context, CL_MEM_READ_WRITE, pix * 5 * sizeof(float));
     flow_a[s] = buf(ctx.context, CL_MEM_READ_WRITE, pix * 2 * sizeof(float));
     flow_b[s] = buf(ctx.context, CL_MEM_READ_WRITE, pix * 2 * sizeof(float));
     cost_l[s] = buf(ctx.context, CL_MEM_READ_WRITE, pix);
@@ -279,7 +289,6 @@ void OpenCLFarnebackOpticalFlow::calc(const ImageView &prev, const ImageView &ne
   check_cl(clSetKernelArg(ctx.k_zero, 1, sizeof(int), &nflow), "zeron");
   enqueue_1d(ctx.queue, ctx.k_zero, nflow);
 
-  const int max_step_x100 = 150;
   for (int s = coarse; s >= 0; --s) {
     if (s != coarse) {
       check_cl(clSetKernelArg(ctx.k_up, 0, sizeof(cl_mem), &flow_a[s + 1]), "up in");
@@ -290,27 +299,41 @@ void OpenCLFarnebackOpticalFlow::calc(const ImageView &prev, const ImageView &ne
       check_cl(clSetKernelArg(ctx.k_up, 5, sizeof(int), &heights[s]), "fh");
       enqueue_2d(ctx.queue, ctx.k_up, widths[s], heights[s]);
     }
+    auto expand = [&](cl_mem img, cl_mem poly) {
+      check_cl(clSetKernelArg(ctx.k_expand, 0, sizeof(cl_mem), &img), "exp I");
+      check_cl(clSetKernelArg(ctx.k_expand, 1, sizeof(cl_mem), &poly), "exp R");
+      check_cl(clSetKernelArg(ctx.k_expand, 2, sizeof(int), &widths[s]), "exp w");
+      check_cl(clSetKernelArg(ctx.k_expand, 3, sizeof(int), &heights[s]), "exp h");
+      check_cl(clSetKernelArg(ctx.k_expand, 4, sizeof(int), &poly_n), "exp poly_n");
+      check_cl(clSetKernelArg(ctx.k_expand, 5, sizeof(float), &poly_sigma), "exp poly_sigma");
+      enqueue_2d(ctx.queue, ctx.k_expand, widths[s], heights[s]);
+    };
+    expand(pyr0[s], poly0[s]);
+    expand(pyr1[s], poly1[s]);
+
     cl_mem in = flow_a[s];
     cl_mem out = flow_b[s];
     for (int it = 0; it < impl_->iterations; ++it) {
-      check_cl(clSetKernelArg(ctx.k_lk, 0, sizeof(cl_mem), &pyr0[s]), "lk I0");
-      check_cl(clSetKernelArg(ctx.k_lk, 1, sizeof(cl_mem), &pyr1[s]), "lk I1");
-      check_cl(clSetKernelArg(ctx.k_lk, 2, sizeof(cl_mem), &in), "lk fin");
-      check_cl(clSetKernelArg(ctx.k_lk, 3, sizeof(cl_mem), &out), "lk fout");
-      check_cl(clSetKernelArg(ctx.k_lk, 4, sizeof(cl_mem), &cost_l[s]), "lk cost");
-      check_cl(clSetKernelArg(ctx.k_lk, 5, sizeof(int), &widths[s]), "lk w");
-      check_cl(clSetKernelArg(ctx.k_lk, 6, sizeof(int), &heights[s]), "lk h");
-      check_cl(clSetKernelArg(ctx.k_lk, 7, sizeof(int), &half), "lk half");
-      check_cl(clSetKernelArg(ctx.k_lk, 8, sizeof(int), &poly_n), "lk poly_n");
-      check_cl(clSetKernelArg(ctx.k_lk, 9, sizeof(float), &poly_sigma), "lk poly_sigma");
-      check_cl(clSetKernelArg(ctx.k_lk, 10, sizeof(int), &max_step_x100), "lk step");
-      enqueue_2d(ctx.queue, ctx.k_lk, widths[s], heights[s]);
+      check_cl(clSetKernelArg(ctx.k_matrices, 0, sizeof(cl_mem), &poly0[s]), "mat R0");
+      check_cl(clSetKernelArg(ctx.k_matrices, 1, sizeof(cl_mem), &poly1[s]), "mat R1");
+      check_cl(clSetKernelArg(ctx.k_matrices, 2, sizeof(cl_mem), &in), "mat flow");
+      check_cl(clSetKernelArg(ctx.k_matrices, 3, sizeof(cl_mem), &mats[s]), "mat M");
+      check_cl(clSetKernelArg(ctx.k_matrices, 4, sizeof(int), &widths[s]), "mat w");
+      check_cl(clSetKernelArg(ctx.k_matrices, 5, sizeof(int), &heights[s]), "mat h");
+      enqueue_2d(ctx.queue, ctx.k_matrices, widths[s], heights[s]);
+
+      check_cl(clSetKernelArg(ctx.k_update, 0, sizeof(cl_mem), &mats[s]), "upd M");
+      check_cl(clSetKernelArg(ctx.k_update, 1, sizeof(cl_mem), &out), "upd fout");
+      check_cl(clSetKernelArg(ctx.k_update, 2, sizeof(cl_mem), &cost_l[s]), "upd cost");
+      check_cl(clSetKernelArg(ctx.k_update, 3, sizeof(cl_mem), &in), "upd fin");
+      check_cl(clSetKernelArg(ctx.k_update, 4, sizeof(int), &widths[s]), "upd w");
+      check_cl(clSetKernelArg(ctx.k_update, 5, sizeof(int), &heights[s]), "upd h");
+      check_cl(clSetKernelArg(ctx.k_update, 6, sizeof(int), &half), "upd half");
+      enqueue_2d(ctx.queue, ctx.k_update, widths[s], heights[s]);
       std::swap(in, out);
     }
-    if (in != flow_a[s]) {
-      // last write is in `in`; copy label by swap back into flow_a
+    if (in != flow_a[s])
       std::swap(flow_a[s], flow_b[s]);
-    }
   }
 
   flow.allocate(W, H);
@@ -328,6 +351,9 @@ void OpenCLFarnebackOpticalFlow::calc(const ImageView &prev, const ImageView &ne
   for (int s = 0; s < levels; ++s) {
     release(pyr0[s]);
     release(pyr1[s]);
+    release(poly0[s]);
+    release(poly1[s]);
+    release(mats[s]);
     release(flow_a[s]);
     release(flow_b[s]);
     release(cost_l[s]);

@@ -17,7 +17,7 @@ See [PLAN.md](PLAN.md) for decisions, gates, and roadmap. IPU DVS is deferred.
 |-------|--------|
 | C++ API (`OpticalFlow`, presets, cost, `calcBoth`) | Available |
 | CPU DIS-style backend | Available (OpenCV-free) |
-| CPU / OpenCL Farneback-class + sparse PyrLK | Available; OpenCL Farneback **soft vs OpenCV** (`docs/farneback.md`) |
+| CPU / OpenCL Farneback + sparse PyrLK | Available; full poly expansion; soft vs OpenCV identity (`docs/farneback.md`) |
 | EPE / Middlebury `.flo` metrics | Available (`metrics.hpp`, `eval_flow_epe`) |
 | OpenCL DIS + `calc_device` | Device-resident ≥10× on Series 2 iGPU; prefer over host `calc` (`docs/backend-selection.md`) |
 | SYCL DIS | Landed + `calc_device` / resident microbench; OpenCL remains ≥10× path |
