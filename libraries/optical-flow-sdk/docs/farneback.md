@@ -9,30 +9,29 @@ SPDX-License-Identifier: Apache-2.0
 
 | Path | Class | Notes |
 |------|--------|-------|
-| CPU `FarnebackOpticalFlow` / `Algorithm::Farneback` | Farneback-style pyramid + neighborhood motion | OpenCV-free; soft GT-EPE vs OpenCV in CI |
-| OpenCL `OpenCLFarnebackOpticalFlow` | **Farneback-class** dense windowed LK on a pyramid | Same level/winsize/iter dial as CPU presets |
+| CPU `FarnebackOpticalFlow` / `Algorithm::Farneback` | Pyramid + `poly_n` neighborhood gradients + windowed LK | OpenCV-free; soft GT-EPE vs OpenCV in CI |
+| OpenCL `OpenCLFarnebackOpticalFlow` | Same poly-n / winsize / levels dial as CPU presets | `fb_poly_lk` in `src/opencl/farneback_kernels.hpp` |
 
-## Why OpenCL is “soft” vs OpenCV
+## Poly expansion (landed)
 
-OpenCV `calcOpticalFlowFarneback` uses **polynomial expansion** (`poly_n` /
-`poly_sigma`) then solves for displacement. Our OpenCL port uses **central-diff
-gradients + windowed Lucas–Kanade** at each pyramid level (`fb_windowed_lk` in
-`src/opencl/farneback_kernels.hpp`) — a lighter first device path, not a
-bit-exact Farneback clone.
+Both CPU and OpenCL use a **polynomial-neighborhood gradient proxy**
+(`poly_n` = 5/5/7 for Fast/Medium/Slow) then solve a windowed LK system —
+aligned with each other. This is still not OpenCV’s full Farneback polynomial
+expansion + `poly_sigma` fit; treat OpenCV pairwise EPE / Fl-all as soft.
 
 Expect:
 
 - Reasonable synthetic-shift / coarse motion behavior
-- **Not** OpenCV numerical identity (pairwise EPE / Fl-all will look soft)
-- DIS + `calc_device` remain the primary ≥10× / quality-report path; Farneback
-  OpenCL is a secondary classical option
+- CPU↔OpenCL parity much tighter than the old central-diff OpenCL path
+- **Not** OpenCV numerical identity until a fuller poly / `poly_sigma` port
+- DIS + `calc_device` remain the primary ≥10× / quality-report path
 
-## Hardening plan (P3)
+## Hardening
 
-1. Document residual gap (this file) — **done**
+1. Document residual gap vs OpenCV (this file) — **done**
 2. Keep `compare_opencv_dis --algo farneback` as the honesty harness
-3. Optional follow-on: poly-expansion kernels (or accept “Farneback-class”
-   naming permanently and tighten soft GT-EPE gates only)
+3. Optional: full Farneback poly coefficients + `poly_sigma` (or retarget soft
+   gates to Farneback-class criteria explicitly)
 
-Do not claim OpenCV Farneback parity until poly expansion lands or gates are
-explicitly retargeted to Farneback-class criteria.
+Do not claim OpenCV Farneback parity until a fuller poly port lands or gates
+are explicitly retargeted.

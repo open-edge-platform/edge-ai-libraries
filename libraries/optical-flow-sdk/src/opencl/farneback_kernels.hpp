@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-// Farneback-class dense windowed LK on OpenCL (P2). Matches CPU Farneback
-// operating points for levels/winsize/iters; uses central-diff gradients
-// (lighter than full poly_n expansion) for the first device port.
+// OpenCL Farneback with polynomial neighborhood gradients (poly_n), matching
+// the CPU Farneback-class path in src/cpu/farneback.cpp.
 inline constexpr const char *kOpenCLFarnebackKernelSource = R"CLC(
 __kernel void fb_u8_to_float(__global const uchar *src, __global float *dst,
                              const int width, const int height, const int src_stride) {
@@ -79,11 +78,11 @@ __kernel void fb_zero_flow(__global float *flow, const int n) {
     flow[i] = 0.0f;
 }
 
-// One work-item per pixel: windowed LK update (Farneback-class).
-__kernel void fb_windowed_lk(__global const float *I0, __global const float *I1,
-                             __global const float *flow_in, __global float *flow_out,
-                             __global uchar *cost, const int width, const int height,
-                             const int win_half, const int max_step_x100) {
+// Polynomial-neighborhood gradients + windowed LK (matches CPU farneback_level).
+__kernel void fb_poly_lk(__global const float *I0, __global const float *I1,
+                         __global const float *flow_in, __global float *flow_out,
+                         __global uchar *cost, const int width, const int height,
+                         const int win_half, const int poly_n, const int max_step_x100) {
   const int x = get_global_id(0);
   const int y = get_global_id(1);
   if (x >= width || y >= height)
@@ -95,19 +94,30 @@ __kernel void fb_windowed_lk(__global const float *I0, __global const float *I1,
     cost[y * width + x] = (uchar)255;
     return;
   }
+  const int poly_half = poly_n / 2;
+  const float poly_var = 0.5f * (float)(poly_n * poly_n);
   const float u0 = flow_in[out];
   const float v0 = flow_in[out + 1];
   float Gxx = 0.0f, Gxy = 0.0f, Gyy = 0.0f, bx = 0.0f, by = 0.0f, ssd = 0.0f;
   for (int wy = -win_half; wy <= win_half; ++wy) {
     for (int wx = -win_half; wx <= win_half; ++wx) {
-      const int xx = x + wx;
-      const int yy = y + wy;
-      const float Ix =
-          0.5f * (I0[yy * width + min(xx + 1, width - 1)] - I0[yy * width + max(xx - 1, 0)]);
-      const float Iy =
-          0.5f * (I0[min(yy + 1, height - 1) * width + xx] - I0[max(yy - 1, 0) * width + xx]);
-      const float i0 = I0[yy * width + xx];
-      const float i1 = fb_sample(I1, width, height, (float)xx + u0, (float)yy + v0);
+      float Ix = 0.0f, Iy = 0.0f, wsum = 0.0f;
+      for (int py = -poly_half; py <= poly_half; ++py) {
+        for (int px = -poly_half; px <= poly_half; ++px) {
+          const int xx = clamp(x + wx + px, 0, width - 1);
+          const int yy = clamp(y + wy + py, 0, height - 1);
+          const float w = exp(-0.5f * (float)(px * px + py * py) / poly_var);
+          Ix += w * (float)px * I0[yy * width + xx];
+          Iy += w * (float)py * I0[yy * width + xx];
+          wsum += w;
+        }
+      }
+      Ix /= (wsum + 1e-6f);
+      Iy /= (wsum + 1e-6f);
+      const int x1 = clamp(x + wx, 0, width - 1);
+      const int y1 = clamp(y + wy, 0, height - 1);
+      const float i0 = I0[y1 * width + x1];
+      const float i1 = fb_sample(I1, width, height, (float)x1 + u0, (float)y1 + v0);
       const float It = i1 - i0;
       Gxx += Ix * Ix;
       Gxy += Ix * Iy;

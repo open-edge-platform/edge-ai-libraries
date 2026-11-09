@@ -17,9 +17,9 @@ Leftovers: §11.7.
 | C++ API: `OpticalFlow`, presets, cost, `calcBoth` | Done |
 | `Algorithm::{Dis,Farneback,SeaRaft}` | Done (CPU DIS/Farneback; OpenCL DIS + Farneback-class; SeaRaft via OpenVINO) |
 | CPU DIS-lite dense flow | Done (synthetic-shift tests pass) |
-| CPU / OpenCL Farneback-class dense flow | Done; **OpenCL soft vs OpenCV by design** (windowed LK ≠ poly expansion — `docs/farneback.md`); poly kernels optional |
+| CPU / OpenCL Farneback-class dense flow | Done; OpenCL `fb_poly_lk` aligned with CPU `poly_n` (`docs/farneback.md`); still soft vs OpenCV full Farneback |
 | Host `calc` vs `calc_device` speed gap | **Documented + sample** — `docs/backend-selection.md`, `samples/calc_flow_opencl_device.cpp`; host ≈6–8×; ≥10× = `calc_device` |
-| FRUC / warp demos | **P4 seed landed** — `samples/warp_with_flow.cpp` + `docs/fruc_warp.md`; OpenCL/video follow-on |
+| FRUC / warp demos | **P4 OpenCL landed** — `warp_u8` + `samples/fruc_opencl.cpp`; video clip follow-on |
 | CPU / OpenCL `SparsePyrLK` (+ Python) | Done (OpenCL P2) |
 | Python `OpticalFlow` bindings | Done |
 | Optional OpenCV `Mat` adapter + CPU compare tool | Done (`compare_opencv_dis`: DIS/Farneback/PyrLK) |
@@ -548,9 +548,9 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | `gvaopticalflow` lab smoke (`gst-inspect` / `gst-launch`) | P3 | **PASS 2026-11-10** — standalone plugin + micromamba `gst-dev`; NV12 640×480×30 GPU DIS Fast → EOS |
 | VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **API+caps landed** (`import_va_surface_luma`, VAMemory pads); lab VA driver init **blocked**; DMA-BUF + system path OK |
 | Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **Partial** — `flow_consumer.py` + `emit-motion-rois` for watermark; `gvatrack` prior still open |
-| OpenCL Farneback vs OpenCV numerical hardening | P3 | **Documented soft** (`docs/farneback.md` — no poly_n yet); optional poly kernels later |
+| OpenCL Farneback vs OpenCV numerical hardening | P3 | **poly_n OpenCL landed** (`fb_poly_lk`); still soft vs OpenCV full Farneback (`docs/farneback.md`) |
 | Host `calc` H↔D tax vs `calc_device` | P3 | **Steered** — docs + `sample_calc_flow_opencl_device`; residual H↔D on host `calc` remains |
-| FRUC / warp demos | P4 | **Seed landed** (`warp_with_flow`, `docs/fruc_warp.md`); OpenCL/video demos open |
+| FRUC / warp demos | P4 | **OpenCL landed** (`warp_u8`, `fruc_opencl`); video clip follow-on |
 | dlstreamer `gvaopticalflow` upstream PR | P3 later | **Deferred** — keep local `feat/gvaopticalflow`; no PR yet |
 | Optional SYCL DIS speed catch-up vs OpenCL | P2 leftover | **Non-blocking** — OpenCL owns ≥10× |
 | IPU DVS productization | Deferred | Separate future plan |
@@ -724,8 +724,8 @@ P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
 3. Consumers — **hooks landed** (`docs/consumers.md`): `flow_consumer.py`;
    `emit-motion-rois` → `GstVideoRegionOfInterestMeta` for `gvawatermark`.
    Full `gvatrack` prior still open.
-4. OpenCL Farneback soft gap — **documented** (`docs/farneback.md`); optional
-   poly-expansion kernels remain open.
+4. OpenCL Farneback — **poly_n kernels landed** (`fb_poly_lk`, aligned with
+   CPU); residual soft vs OpenCV full Farneback (`docs/farneback.md`).
 5. Host `calc` vs `calc_device` — **docs + sample steered**; keep ≥10× claims
    on resident path only (host `calc` still ≈6–8×).
 
@@ -736,15 +736,15 @@ P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
 
 **P4 — in plan:**
 
-- **FRUC / warp demos** — CPU seed landed; OpenCL/video follow-on
-  (`docs/fruc_warp.md`).
+- **FRUC / warp** — OpenCL `warp_u8` + `fruc_opencl` landed; video clip
+  follow-on (`docs/fruc_warp.md`).
 - Measured Nvidia host FPS/quality tables (if hardware available).
 - Further SEA-RAFT preset / resolution / FPS notes.
 
 **Non-blocking leftovers:**
 
 - Optional SYCL DIS performance catch-up (OpenCL already clears ≥10×).
-- Optional Farneback poly-expansion OpenCL kernels (vs accepting Farneback-class).
+- Optional fuller Farneback poly coefficients + `poly_sigma` (vs OpenCV).
 - Classical DIS §8 pairwise/Fl-all vs OpenCV remains **FAIL** by design
   (DIS-lite); only SEA-RAFT closes the quality gate.
 - Arc B580 discrete gates (explicitly out of scope for this revision).

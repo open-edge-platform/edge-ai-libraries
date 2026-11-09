@@ -579,4 +579,30 @@ __kernel void zero_flow(__global float *flow, const int n) {
   if (i < n)
     flow[i] = 0.0f;
 }
+
+// Mid-frame / FRUC warp: dst(x) = bilinear(src, x - t * flow).
+__kernel void warp_u8_flow(__global const uchar *src, __global const float *flow,
+                           __global uchar *dst, const int width, const int height,
+                           const float t) {
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+  const int idx = y * width + x;
+  const float sx = (float)x - t * flow[idx * 2];
+  const float sy = (float)y - t * flow[idx * 2 + 1];
+  const float cx = clamp(sx, 0.0f, (float)(width - 1));
+  const float cy = clamp(sy, 0.0f, (float)(height - 1));
+  const int x0 = (int)cx;
+  const int y0 = (int)cy;
+  const int x1 = min(x0 + 1, width - 1);
+  const int y1 = min(y0 + 1, height - 1);
+  const float dx = cx - (float)x0;
+  const float dy = cy - (float)y0;
+  const float v = (1.0f - dx) * (1.0f - dy) * (float)src[y0 * width + x0] +
+                  dx * (1.0f - dy) * (float)src[y0 * width + x1] +
+                  (1.0f - dx) * dy * (float)src[y1 * width + x0] +
+                  dx * dy * (float)src[y1 * width + x1];
+  dst[idx] = (uchar)clamp(v + 0.5f, 0.0f, 255.0f);
+}
 )CLC";

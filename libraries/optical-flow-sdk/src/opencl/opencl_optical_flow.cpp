@@ -108,6 +108,7 @@ struct OpenCLContext {
   cl_kernel k_normalize_flow = nullptr;
   cl_kernel k_zero_float = nullptr;
   cl_kernel k_zero_flow = nullptr;
+  cl_kernel k_warp_u8_flow = nullptr;
 
   OpenCLContext() {
     cl_int status = CL_SUCCESS;
@@ -199,6 +200,7 @@ struct OpenCLContext {
     k_normalize_flow = make_kernel("normalize_flow");
     k_zero_float = make_kernel("zero_float");
     k_zero_flow = make_kernel("zero_flow");
+    k_warp_u8_flow = make_kernel("warp_u8_flow");
   }
 
   ~OpenCLContext() {
@@ -222,6 +224,7 @@ struct OpenCLContext {
     release_k(k_normalize_flow);
     release_k(k_zero_float);
     release_k(k_zero_flow);
+    release_k(k_warp_u8_flow);
     if (program)
       clReleaseProgram(program);
     if (queue)
@@ -663,6 +666,38 @@ void OpenCLOpticalFlow::copy_u8(const OpenCLU8Image &src, OpenCLU8Image &dst) co
                                static_cast<cl_mem>(dst.handle()), 0, 0, src.bytes(), 0, nullptr,
                                nullptr),
            "copy_u8");
+}
+
+void OpenCLOpticalFlow::download_u8(const OpenCLU8Image &src, std::uint8_t *dst,
+                                    std::size_t dst_bytes) const {
+  if (src.empty() || !dst || dst_bytes < src.bytes())
+    throw std::invalid_argument("download_u8 size mismatch");
+  OpenCLContext &ctx = shared_context();
+  check_cl(clEnqueueReadBuffer(ctx.queue, static_cast<cl_mem>(src.handle()), CL_TRUE, 0, src.bytes(),
+                               dst, 0, nullptr, nullptr),
+           "download_u8");
+}
+
+void OpenCLOpticalFlow::warp_u8(const OpenCLU8Image &src, const OpenCLFlowBuffer &flow,
+                                OpenCLU8Image &dst, float t) const {
+  if (src.empty() || flow.empty() || dst.empty())
+    throw std::invalid_argument("warp_u8 requires non-empty device buffers");
+  if (src.width() != flow.width() || src.height() != flow.height() || src.width() != dst.width() ||
+      src.height() != dst.height())
+    throw std::invalid_argument("warp_u8 buffer sizes must match");
+  OpenCLContext &ctx = shared_context();
+  cl_mem s = static_cast<cl_mem>(src.handle());
+  cl_mem f = static_cast<cl_mem>(flow.handle());
+  cl_mem d = static_cast<cl_mem>(dst.handle());
+  const int w = src.width();
+  const int h = src.height();
+  check_cl(clSetKernelArg(ctx.k_warp_u8_flow, 0, sizeof(cl_mem), &s), "warp src");
+  check_cl(clSetKernelArg(ctx.k_warp_u8_flow, 1, sizeof(cl_mem), &f), "warp flow");
+  check_cl(clSetKernelArg(ctx.k_warp_u8_flow, 2, sizeof(cl_mem), &d), "warp dst");
+  check_cl(clSetKernelArg(ctx.k_warp_u8_flow, 3, sizeof(int), &w), "warp w");
+  check_cl(clSetKernelArg(ctx.k_warp_u8_flow, 4, sizeof(int), &h), "warp h");
+  check_cl(clSetKernelArg(ctx.k_warp_u8_flow, 5, sizeof(float), &t), "warp t");
+  enqueue_2d(ctx.queue, ctx.k_warp_u8_flow, w, h);
 }
 
 void OpenCLOpticalFlow::download_flow(const OpenCLFlowBuffer &src, FlowField &dst) const {

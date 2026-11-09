@@ -8,17 +8,18 @@ SPDX-License-Identifier: Apache-2.0
 Goal: show optical-flow SDK value beyond raw dx/dy — **frame interpolation
 (FRUC)** and **flow-based warping** on Core Ultra Series 2 iGPU.
 
-## Seed (landed)
+## Landed
 
-| Sample | Path | Notes |
-|--------|------|-------|
-| `warp_with_flow` | `samples/warp_with_flow.cpp` | CPU DIS + bilinear mid-frame warp on synthetic shift |
+| Sample / API | Path | Notes |
+|--------------|------|-------|
+| `warp_with_flow` | `samples/warp_with_flow.cpp` | CPU DIS + host bilinear mid-frame warp |
+| `fruc_opencl` | `samples/fruc_opencl.cpp` | `calc_device` → `warp_u8(t=0.5)` device-resident |
+| `OpenCLOpticalFlow::warp_u8` | `opencl_optical_flow.hpp` | `dst(x) = bilinear(src, x - t·flow)` |
 
 ## Planned
 
-1. OpenCL path: `calc_device` → device or host warp kernel (no full D2H when possible)
-2. Real video clip demo (stabilize / interpolate) under `samples/`
-3. Optional gst-launch snippet once `gvaopticalflow` lab smoke passes
-4. Report wall ms @720p/1080p next to DIS Fast resident numbers
+1. Real video clip demo (stabilize / interpolate) under `samples/`
+2. Optional gst-launch snippet once `gvaopticalflow` lab smoke passes
+3. Report wall ms @720p/1080p next to DIS Fast resident numbers
 
 Nvidia host FRUC comparison stays gated on available NVOFA hardware (PLAN P4).

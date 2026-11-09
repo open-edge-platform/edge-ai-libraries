@@ -7,6 +7,7 @@
 #include "optical_flow_sdk/types.hpp"
 #include "optical_flow_sdk/version.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 
@@ -50,10 +51,14 @@ public:
   // Requires opencl_set_va_display() before context creation. `va_surface_id` is VASurfaceID.
   void import_va_surface_luma(std::uint32_t va_surface_id, OpenCLU8Image &dst) const;
   void upload_u8(OpenCLU8Image &dst, const ImageView &src) const;
+  void download_u8(const OpenCLU8Image &src, std::uint8_t *dst, std::size_t dst_bytes) const;
   void download_flow(const OpenCLFlowBuffer &src, FlowField &dst) const;
   void copy_u8(const OpenCLU8Image &src, OpenCLU8Image &dst) const;
   void calc_device(const OpenCLU8Image &prev, const OpenCLU8Image &next,
                   OpenCLFlowBuffer &flow) const;
+  // Device-resident FRUC/warp: dst(x) = bilinear(src, x - t * flow). t=0.5 ≈ mid-frame.
+  void warp_u8(const OpenCLU8Image &src, const OpenCLFlowBuffer &flow, OpenCLU8Image &dst,
+               float t = 0.5f) const;
   void finish() const;
 
   Preset preset() const;
