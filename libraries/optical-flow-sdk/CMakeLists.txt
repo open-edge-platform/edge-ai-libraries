@@ -144,6 +144,10 @@ if(OPTICALFLOW_BUILD_TESTS)
     add_executable(test_optical_flow_opencl_shift tests/test_opencl_synthetic_shift.cpp)
     target_link_libraries(test_optical_flow_opencl_shift PRIVATE optical_flow_sdk)
     add_test(NAME optical_flow_sdk.opencl_synthetic_shift COMMAND test_optical_flow_opencl_shift)
+
+    add_executable(test_optical_flow_opencl_resident tests/test_opencl_device_resident.cpp)
+    target_link_libraries(test_optical_flow_opencl_resident PRIVATE optical_flow_sdk)
+    add_test(NAME optical_flow_sdk.opencl_device_resident COMMAND test_optical_flow_opencl_resident)
   endif()
 
   if(OPTICALFLOW_ENABLE_SYCL)
@@ -205,6 +209,8 @@ endif()
 
 if(OPTICALFLOW_BUILD_BENCHMARKS AND OPTICALFLOW_ENABLE_OPENCL)
   add_executable(microbench_opencl benchmarks/microbench_opencl.cpp)
+  add_executable(microbench_opencl_resident benchmarks/microbench_opencl_resident.cpp)
+  target_link_libraries(microbench_opencl_resident PRIVATE optical_flow_sdk)
   target_link_libraries(microbench_opencl PRIVATE optical_flow_sdk)
 endif()
 

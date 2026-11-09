@@ -7,11 +7,11 @@ SPDX-License-Identifier: Apache-2.0
 
 `Backend::Auto` resolves in this order:
 
-1. SYCL — if `OPTICALFLOW_ENABLE_SYCL=ON` and the toolchain provides `-fsycl`
-2. OpenCL — if `OPTICALFLOW_ENABLE_OPENCL=ON`
+1. OpenCL — if `OPTICALFLOW_ENABLE_OPENCL=ON` (primary GPU latency path)
+2. SYCL — if `OPTICALFLOW_ENABLE_SYCL=ON` and the toolchain provides `-fsycl`
 3. CPU — if `OPTICALFLOW_ENABLE_CPU=ON` (default)
 
-OpenCL and SYCL DIS are device-resident (pyramid + patch inverse search +
-atomic densify) when their CMake options are ON. SYCL builds need `icpx` /
-oneAPI (`-fsycl`). Lab gates in `PLAN.md` target Core Ultra Series 2 iGPU
-(≥10× wall vs OpenCV CPU DIS-Fast).
+OpenCL DIS is the primary device path (`calc` host wall, plus `calc_device`
+for GPU-resident pipelines). SYCL DIS is a secondary backend (landed; speed
+tuning is lower priority than OpenCL). Lab gates in `PLAN.md` target Core
+Ultra Series 2 iGPU (≥10× wall vs OpenCV CPU DIS-Fast on **OpenCL**).

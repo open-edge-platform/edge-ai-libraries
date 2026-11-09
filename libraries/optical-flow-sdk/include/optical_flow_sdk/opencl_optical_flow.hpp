@@ -3,6 +3,7 @@
 #pragma once
 
 #include "optical_flow_sdk/backend.hpp"
+#include "optical_flow_sdk/opencl_device.hpp"
 #include "optical_flow_sdk/types.hpp"
 #include "optical_flow_sdk/version.hpp"
 
@@ -23,8 +24,18 @@ public:
   OpenCLOpticalFlow(const OpenCLOpticalFlow &) = delete;
   OpenCLOpticalFlow &operator=(const OpenCLOpticalFlow &) = delete;
 
+  // Host path: H→D frames, kernels, D→H flow (wall includes copies).
   void calc(const ImageView &prev, const ImageView &next, FlowField &flow) const;
   void calc(const ImageView &prev, const ImageView &next, FlowField &flow, CostMap &cost) const;
+
+  // Device-resident path: prev/next/flow stay on the GPU (no host flow readback).
+  OpenCLU8Image create_u8_image(int width, int height) const;
+  OpenCLFlowBuffer create_flow_buffer(int width, int height) const;
+  void upload_u8(OpenCLU8Image &dst, const ImageView &src) const;
+  void download_flow(const OpenCLFlowBuffer &src, FlowField &dst) const;
+  void calc_device(const OpenCLU8Image &prev, const OpenCLU8Image &next,
+                  OpenCLFlowBuffer &flow) const;
+  void finish() const;
 
   Preset preset() const;
 

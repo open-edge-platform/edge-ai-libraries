@@ -11,7 +11,7 @@
 namespace optical_flow_sdk {
 
 // CPU is always available. SYCL/OpenCL are optional build-time backends.
-// Auto prefers SYCL, then OpenCL, then CPU (speed-biased for Intel GPU SKUs).
+// Auto prefers OpenCL, then SYCL, then CPU (OpenCL is the primary GPU speed path).
 enum class Backend {
   Auto = 0,
   Cpu = 1,
@@ -125,10 +125,10 @@ inline std::vector<Backend> available_backends() {
 
 inline Backend resolve_backend(Backend requested) {
   if (requested == Backend::Auto) {
-    if (OPTICALFLOW_HAS_SYCL)
-      return Backend::Sycl;
     if (OPTICALFLOW_HAS_OPENCL)
       return Backend::OpenCL;
+    if (OPTICALFLOW_HAS_SYCL)
+      return Backend::Sycl;
     if (OPTICALFLOW_HAS_CPU)
       return Backend::Cpu;
     throw std::runtime_error("No optical-flow backend was enabled at build time");
