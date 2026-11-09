@@ -18,8 +18,10 @@ See [PLAN.md](PLAN.md) for decisions, gates, and roadmap. IPU DVS is deferred.
 | C++ API (`OpticalFlow`, presets, cost, `calcBoth`) | Available |
 | CPU DIS-style backend | Available (OpenCV-free) |
 | OpenCL / SYCL backends | Wired; currently fall back to CPU until device kernels land |
+| OpenCV Mat adapter | Optional (`-DOPTICALFLOW_BUILD_OPENCV_ADAPTER=ON`) |
 | Python (`optical_flow_sdk`) | Available when `-DOPTICALFLOW_BUILD_PYTHON=ON` |
-| Lab GPU timing / OpenCV parity gates | Not runnable without oneAPI + Intel GPU |
+| CPU microbench / OpenCV DIS compare tools | Available under `benchmarks/` |
+| Lab GPU timing / strict OpenCV parity gates | Not runnable without oneAPI + Intel GPU |
 
 ## Build (CPU)
 
@@ -31,9 +33,13 @@ cmake -S . -B build \
   -DOPTICALFLOW_ENABLE_OPENCL=OFF \
   -DOPTICALFLOW_BUILD_TESTS=ON \
   -DOPTICALFLOW_BUILD_SAMPLES=ON \
+  -DOPTICALFLOW_BUILD_BENCHMARKS=ON \
+  -DOPTICALFLOW_BUILD_OPENCV_ADAPTER=ON \
   -DOPTICALFLOW_BUILD_PYTHON=ON
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
+./build/microbench_cpu
+./build/compare_opencv_dis   # requires OpenCV adapter
 ```
 
 For SYCL on a oneAPI host:

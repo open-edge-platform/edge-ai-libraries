@@ -12,6 +12,9 @@ option(OPTICALFLOW_ENABLE_OPENCL "Build the OpenCL backend" OFF)
 option(OPTICALFLOW_BUILD_TESTS "Build optical-flow-sdk tests" ${BUILD_TESTING})
 option(OPTICALFLOW_BUILD_SAMPLES "Build native sample applications" ON)
 option(OPTICALFLOW_BUILD_PYTHON "Build Python bindings (requires pybind11)" OFF)
+option(OPTICALFLOW_BUILD_OPENCV_ADAPTER
+  "Build thin OpenCV Mat adapters and OpenCV-based diagnostics" OFF)
+option(OPTICALFLOW_BUILD_BENCHMARKS "Build CPU microbench / OpenCV compare tools" ON)
 
 if(NOT OPTICALFLOW_ENABLE_CPU AND NOT OPTICALFLOW_ENABLE_SYCL AND NOT OPTICALFLOW_ENABLE_OPENCL)
   message(FATAL_ERROR "At least one of OPTICALFLOW_ENABLE_CPU/SYCL/OPENCL must be ON")
@@ -26,6 +29,7 @@ endif()
 set(OPTICALFLOW_HAS_CPU 0)
 set(OPTICALFLOW_HAS_OPENCL 0)
 set(OPTICALFLOW_HAS_SYCL 0)
+set(OPTICALFLOW_HAS_OPENCV_ADAPTER 0)
 if(OPTICALFLOW_ENABLE_CPU)
   set(OPTICALFLOW_HAS_CPU 1)
 endif()
@@ -34,6 +38,9 @@ if(OPTICALFLOW_ENABLE_OPENCL)
 endif()
 if(OPTICALFLOW_ENABLE_SYCL)
   set(OPTICALFLOW_HAS_SYCL 1)
+endif()
+if(OPTICALFLOW_BUILD_OPENCV_ADAPTER)
+  set(OPTICALFLOW_HAS_OPENCV_ADAPTER 1)
 endif()
 
 configure_file(
@@ -106,9 +113,42 @@ if(OPTICALFLOW_BUILD_TESTS)
   endif()
 endif()
 
+if(OPTICALFLOW_BUILD_OPENCV_ADAPTER)
+  find_package(OpenCV REQUIRED COMPONENTS core imgproc video)
+  add_library(optical_flow_opencv_adapter src/opencv_adapter.cpp)
+  add_library(optical_flow_sdk::opencv_adapter ALIAS optical_flow_opencv_adapter)
+  target_compile_features(optical_flow_opencv_adapter PUBLIC cxx_std_17)
+  target_link_libraries(optical_flow_opencv_adapter PUBLIC optical_flow_sdk ${OpenCV_LIBS})
+  target_include_directories(optical_flow_opencv_adapter PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${OPTICALFLOW_GENERATED_INCLUDE_DIR}>
+    $<INSTALL_INTERFACE:include>
+    ${OpenCV_INCLUDE_DIRS}
+  )
+  set_target_properties(optical_flow_opencv_adapter PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+  if(OPTICALFLOW_BUILD_TESTS)
+    add_executable(test_optical_flow_opencv_adapter tests/test_opencv_adapter.cpp)
+    target_link_libraries(test_optical_flow_opencv_adapter PRIVATE optical_flow_opencv_adapter)
+    add_test(NAME optical_flow_sdk.opencv_adapter COMMAND test_optical_flow_opencv_adapter)
+  endif()
+
+  if(OPTICALFLOW_BUILD_BENCHMARKS)
+    add_executable(compare_opencv_dis benchmarks/compare_opencv_dis.cpp)
+    target_link_libraries(compare_opencv_dis PRIVATE optical_flow_opencv_adapter)
+  endif()
+endif()
+
 if(OPTICALFLOW_BUILD_SAMPLES AND OPTICALFLOW_ENABLE_CPU)
   add_executable(sample_calc_flow_cpu samples/calc_flow_cpu.cpp)
   target_link_libraries(sample_calc_flow_cpu PRIVATE optical_flow_sdk)
+  add_executable(sample_stabilize_global_flow samples/stabilize_global_flow.cpp)
+  target_link_libraries(sample_stabilize_global_flow PRIVATE optical_flow_sdk)
+endif()
+
+if(OPTICALFLOW_BUILD_BENCHMARKS AND OPTICALFLOW_ENABLE_CPU)
+  add_executable(microbench_cpu benchmarks/microbench_cpu.cpp)
+  target_link_libraries(microbench_cpu PRIVATE optical_flow_sdk)
 endif()
 
 if(OPTICALFLOW_BUILD_PYTHON)

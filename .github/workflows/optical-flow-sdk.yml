@@ -73,6 +73,8 @@ jobs:
         working-directory: libraries/optical-flow-sdk
         run: |
           set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libopencv-dev
           cmake -S . -B build-ci \
             -DCMAKE_BUILD_TYPE=Release \
             -DOPTICALFLOW_ENABLE_CPU=ON \
@@ -80,6 +82,11 @@ jobs:
             -DOPTICALFLOW_ENABLE_SYCL=OFF \
             -DOPTICALFLOW_BUILD_TESTS=ON \
             -DOPTICALFLOW_BUILD_SAMPLES=ON \
+            -DOPTICALFLOW_BUILD_BENCHMARKS=ON \
+            -DOPTICALFLOW_BUILD_OPENCV_ADAPTER=ON \
             -DOPTICALFLOW_BUILD_PYTHON=OFF
           cmake --build build-ci --parallel
           ctest --test-dir build-ci --output-on-failure
+          ./build-ci/sample_stabilize_global_flow
+          ./build-ci/microbench_cpu
+          ./build-ci/compare_opencv_dis
