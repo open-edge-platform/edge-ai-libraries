@@ -44,14 +44,13 @@ subcommand_remove () {
   if ensure_parse_option --help "$@"; then
     echo "remove options:"
     echo "  --dry-run       dry-run operations"
-    echo "  --continue      ignore errors and proceed to the end"
     echo "  --remove-all    remove all previously installed components"
     echo "  --remove-me     remove $installer_name"
     echo
     return 0
   fi
   local rc=0
-  act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?
+  act_helper "remove,Removal,Removing,Removed" "-r" "$@" --continue || rc=$?
 
   if ensure_parse_option --remove-me "$@"; then
     ensure_rm "$HOME/.local/bin/$installer_name" \
@@ -85,6 +84,7 @@ subcommand_stop () {
   if ensure_parse_option --help "$@"; then
     echo "stop options:"
     echo "  --dry-run       dry-run operations"
+    echo "  --stop-all      stop all previously started components"
     echo
     return 0
   fi
