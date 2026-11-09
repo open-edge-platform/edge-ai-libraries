@@ -33,7 +33,7 @@ ITEP-93043) is reuse-only and does not define product identity.
 | ≥10× vs OpenCV CPU DIS-Fast | **Met on device-resident OpenCL** (`calc_device` ≥13× @720p); host `calc` still ≈6–8× (§11.5) |
 | OpenCL device-resident API (`calc_device`) | **Landed** (buffers stay on GPU; see §7 / §11.5) |
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
-| SEA-RAFT OpenVINO accuracy tier | **Not started** (P2) |
+| SEA-RAFT OpenVINO accuracy tier | **Stubbed** (`Algorithm::SeaRaft`; need OpenVINO + model — `docs/sea_raft.md`) |
 | Root README under Computer Vision Primitives | Done |
 | `gvaopticalflow` DL Streamer element | **Not started** (P3) |
 | IPU DVS path | Deferred (out of scope) |
@@ -457,15 +457,14 @@ samples for median/p95.
   FPS gates met. Host `calc` remains ~6–8× (convenience). Sintel/KITTI
   OpenCV DIS disparity **measured and fails** §8 pairwise/Fl-all gates
   (expected for DIS-lite; §11.6). SYCL is not a P1 speed blocker.
-- **P2 — Accuracy tier + SYCL follow-on:** SEA-RAFT-S OpenVINO under Slow;
-  classical Farneback/PyrLK GPU ports + OpenCV parity; optional SYCL
-  performance catch-up / Level Zero path. (CPU Farneback/PyrLK already
-  present as classical scaffolding.) Exit: neural quality gate measured.
-  **Start from** frozen P1 baseline
-  `benchmarks/results/p1_opencv_dis_parity_baseline.json` (§11.6): DIS-lite
-  fails §8 vs OpenCV DIS; improve OpenCL Fast first; re-measure with
-  `parity_opencv_datasets` and add a new dated results file (do not
-  overwrite the P1 baseline).
+- **P2 — Accuracy tier + SYCL follow-on:** **in progress.** Classical OpenCL
+  DIS quality retune landed 2026-11-10 (SSD/step clamps + Fast neighbor
+  propagate; Medium Sintel Final blow-up fixed). Resident ≥10× retained.
+  Results: `benchmarks/results/p2_opencv_dis_parity_2026-11-10.json` vs P1
+  baseline (§11.6). §8 pairwise/Fl-all still **FAIL** (DIS-lite). SEA-RAFT-S
+  API stub (`Algorithm::SeaRaft`, `docs/sea_raft.md`) — OpenVINO load/infer
+  + KITTI Fl-all gate **not measured**. Farneback/PyrLK OpenCL ports +
+  optional SYCL catch-up remain. Exit: neural quality gate measured.
 - **P3 — Pipeline integration:** `gvaopticalflow`; richer samples. Root
   README Computer Vision Primitives listing — done. Exit: DL Streamer
   pipeline GPU-resident with no host copy per frame where the path allows
@@ -684,6 +683,12 @@ Clean. Reproduce:
 ./build/parity_opencv_datasets --sintel ~/datasets/optical-flow \
   --backend opencl --preset fast --max-pairs 69
 ```
+
+**P2 classical retune (2026-11-10):** see
+`benchmarks/results/p2_opencv_dis_parity_2026-11-10.json`. Headline deltas vs
+P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
+400→9.4 (blow-up fixed); KITTI Fast EPE 35.4→31.9. Resident Fast still
+≥10× @720p/1080p. §8 gates remain FAIL.
 
 ## 12. Sources
 

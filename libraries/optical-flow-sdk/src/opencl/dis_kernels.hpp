@@ -240,7 +240,12 @@ __kernel void estimate_and_scatter(__global const float *I0, __global const floa
 
   float u = flow_in[(cy * width + cx) * 2];
   float v = flow_in[(cy * width + cx) * 2 + 1];
-  float last_ssd = 0.0f;
+  // Per-scale clamp — stops Medium/Slow runaway on large-motion Sintel Final.
+  const float max_disp = 32.0f;
+  const float max_step = 1.5f;
+  u = clamp(u, -max_disp, max_disp);
+  v = clamp(v, -max_disp, max_disp);
+  float last_ssd = 1e30f;
   for (int it = 0; it < iters; ++it) {
     float b1 = 0.0f, b2 = 0.0f, ssd = 0.0f;
     for (int py = 0; py < patch_size; ++py) {
@@ -255,11 +260,15 @@ __kernel void estimate_and_scatter(__global const float *I0, __global const floa
         b2 += Iy[idx] * err;
       }
     }
+    if (it > 0 && ssd > last_ssd * 1.05f)
+      break;
     last_ssd = ssd;
-    const float du = invH11 * b1 + invH12 * b2;
-    const float dv = invH12 * b1 + invH22 * b2;
-    u -= du;
-    v -= dv;
+    float du = invH11 * b1 + invH12 * b2;
+    float dv = invH12 * b1 + invH22 * b2;
+    du = clamp(du, -max_step, max_step);
+    dv = clamp(dv, -max_step, max_step);
+    u = clamp(u - du, -max_disp, max_disp);
+    v = clamp(v - dv, -max_disp, max_disp);
     if (du * du + dv * dv < 1e-8f)
       break;
   }
@@ -344,7 +353,11 @@ __kernel void estimate_centers(__global const float *I0, __global const float *I
 
   float u = flow_in[(cy * width + cx) * 2];
   float v = flow_in[(cy * width + cx) * 2 + 1];
-  float last_ssd = 0.0f;
+  const float max_disp = 32.0f;
+  const float max_step = 1.5f;
+  u = clamp(u, -max_disp, max_disp);
+  v = clamp(v, -max_disp, max_disp);
+  float last_ssd = 1e30f;
   for (int it = 0; it < iters; ++it) {
     float b1 = 0.0f, b2 = 0.0f, ssd = 0.0f;
     for (int py = 0; py < 8; ++py) {
@@ -359,11 +372,15 @@ __kernel void estimate_centers(__global const float *I0, __global const float *I
         b2 += Iy[idx] * err;
       }
     }
+    if (it > 0 && ssd > last_ssd * 1.05f)
+      break;
     last_ssd = ssd;
-    const float du = invH11 * b1 + invH12 * b2;
-    const float dv = invH12 * b1 + invH22 * b2;
-    u -= du;
-    v -= dv;
+    float du = invH11 * b1 + invH12 * b2;
+    float dv = invH12 * b1 + invH22 * b2;
+    du = clamp(du, -max_step, max_step);
+    dv = clamp(dv, -max_step, max_step);
+    u = clamp(u - du, -max_disp, max_disp);
+    v = clamp(v - dv, -max_disp, max_disp);
     if (du * du + dv * dv < 1e-8f)
       break;
   }
@@ -371,6 +388,117 @@ __kernel void estimate_centers(__global const float *I0, __global const float *I
   patch_u[pidx] = u;
   patch_v[pidx] = v;
   patch_c[pidx] = sqrt(last_ssd / 64.0f);
+}
+
+// Fast-path spatial propagation: re-seed each patch from self + 4-neighbors,
+// keep the candidate with lowest SSD after a short LK refine.
+__kernel void propagate_refine_centers(__global const float *I0, __global const float *I1,
+                                       __global const float *patch_u_in,
+                                       __global const float *patch_v_in,
+                                       __global float *patch_u_out, __global float *patch_v_out,
+                                       __global float *patch_c_out, const int width,
+                                       const int height, const int patch_size,
+                                       const int patch_stride, const int iters, const int n_gx,
+                                       const int n_gy) {
+  const int gx = get_global_id(0);
+  const int gy = get_global_id(1);
+  if (gx >= n_gx || gy >= n_gy)
+    return;
+  const int ph = patch_size / 2;
+  const int cx = ph + gx * patch_stride;
+  const int cy = ph + gy * patch_stride;
+  const int pidx = gy * n_gx + gx;
+  if (cx >= width - ph || cy >= height - ph || patch_size != 8) {
+    patch_u_out[pidx] = 0.0f;
+    patch_v_out[pidx] = 0.0f;
+    patch_c_out[pidx] = 255.0f;
+    return;
+  }
+
+  float H11 = 0.0f, H12 = 0.0f, H22 = 0.0f;
+  float Ix[64];
+  float Iy[64];
+  float T[64];
+  for (int py = 0; py < 8; ++py) {
+    for (int px = 0; px < 8; ++px) {
+      const int x = cx - ph + px;
+      const int y = cy - ph + py;
+      const float gxv =
+          0.5f * (I0[y * width + min(x + 1, width - 1)] - I0[y * width + max(x - 1, 0)]);
+      const float gyv =
+          0.5f * (I0[min(y + 1, height - 1) * width + x] - I0[max(y - 1, 0) * width + x]);
+      const int idx = py * 8 + px;
+      Ix[idx] = gxv;
+      Iy[idx] = gyv;
+      T[idx] = I0[y * width + x];
+      H11 += gxv * gxv;
+      H12 += gxv * gyv;
+      H22 += gyv * gyv;
+    }
+  }
+  const float det = H11 * H22 - H12 * H12;
+  if (fabs(det) < 1e-3f) {
+    patch_u_out[pidx] = patch_u_in[pidx];
+    patch_v_out[pidx] = patch_v_in[pidx];
+    patch_c_out[pidx] = 255.0f;
+    return;
+  }
+  const float invH11 = H22 / det;
+  const float invH12 = -H12 / det;
+  const float invH22 = H11 / det;
+
+  const int nbs_dx[5] = {0, -1, 1, 0, 0};
+  const int nbs_dy[5] = {0, 0, 0, -1, 1};
+  float best_u = patch_u_in[pidx];
+  float best_v = patch_v_in[pidx];
+  float best_ssd = 1e30f;
+  const float max_disp = 32.0f;
+  const float max_step = 1.5f;
+
+  for (int n = 0; n < 5; ++n) {
+    const int ngx = clamp(gx + nbs_dx[n], 0, n_gx - 1);
+    const int ngy = clamp(gy + nbs_dy[n], 0, n_gy - 1);
+    float u = patch_u_in[ngy * n_gx + ngx];
+    float v = patch_v_in[ngy * n_gx + ngx];
+    u = clamp(u, -max_disp, max_disp);
+    v = clamp(v, -max_disp, max_disp);
+    float last_ssd = 1e30f;
+    for (int it = 0; it < iters; ++it) {
+      float b1 = 0.0f, b2 = 0.0f, ssd = 0.0f;
+      for (int py = 0; py < 8; ++py) {
+        for (int px = 0; px < 8; ++px) {
+          const int x = cx - ph + px;
+          const int y = cy - ph + py;
+          const int idx = py * 8 + px;
+          const float warped = sample_bilinear(I1, width, height, (float)x + u, (float)y + v);
+          const float err = warped - T[idx];
+          ssd += err * err;
+          b1 += Ix[idx] * err;
+          b2 += Iy[idx] * err;
+        }
+      }
+      if (it > 0 && ssd > last_ssd * 1.05f)
+        break;
+      last_ssd = ssd;
+      float du = invH11 * b1 + invH12 * b2;
+      float dv = invH12 * b1 + invH22 * b2;
+      du = clamp(du, -max_step, max_step);
+      dv = clamp(dv, -max_step, max_step);
+      u = clamp(u - du, -max_disp, max_disp);
+      v = clamp(v - dv, -max_disp, max_disp);
+      if (du * du + dv * dv < 1e-8f)
+        break;
+    }
+    if (last_ssd < best_ssd) {
+      best_ssd = last_ssd;
+      best_u = u;
+      best_v = v;
+    }
+  }
+
+  patch_u_out[pidx] = best_u;
+  patch_v_out[pidx] = best_v;
+  patch_c_out[pidx] = sqrt(best_ssd / 64.0f);
 }
 
 // Bilinear densify from sparse patch grid — O(pixels), no atomics.

@@ -15,18 +15,21 @@ option(OPTICALFLOW_BUILD_PYTHON "Build Python bindings (requires pybind11)" OFF)
 option(OPTICALFLOW_BUILD_OPENCV_ADAPTER
   "Build thin OpenCV Mat adapters and OpenCV-based diagnostics" OFF)
 option(OPTICALFLOW_BUILD_BENCHMARKS "Build CPU microbench / OpenCV compare tools" ON)
+option(OPTICALFLOW_ENABLE_OPENVINO
+  "Link OpenVINO for SEA-RAFT-S Slow accuracy tier (P2)" OFF)
 
 if(NOT OPTICALFLOW_ENABLE_CPU AND NOT OPTICALFLOW_ENABLE_SYCL AND NOT OPTICALFLOW_ENABLE_OPENCL)
   message(FATAL_ERROR "At least one of OPTICALFLOW_ENABLE_CPU/SYCL/OPENCL must be ON")
 endif()
 
-# Farneback / SparsePyrLK remain CPU-only; keep CPU on for the full SDK surface.
-# OpenCL and SYCL DIS are device-resident.
+# SparsePyrLK remains CPU; Farneback has CPU + OpenCL Farneback-class path.
+# OpenCL/SYCL DIS are device-resident. SEA-RAFT needs OpenVINO.
 
 set(OPTICALFLOW_HAS_CPU 0)
 set(OPTICALFLOW_HAS_OPENCL 0)
 set(OPTICALFLOW_HAS_SYCL 0)
 set(OPTICALFLOW_HAS_OPENCV_ADAPTER 0)
+set(OPTICALFLOW_HAS_OPENVINO 0)
 if(OPTICALFLOW_ENABLE_CPU)
   set(OPTICALFLOW_HAS_CPU 1)
 endif()
@@ -39,6 +42,10 @@ endif()
 if(OPTICALFLOW_BUILD_OPENCV_ADAPTER)
   set(OPTICALFLOW_HAS_OPENCV_ADAPTER 1)
 endif()
+if(OPTICALFLOW_ENABLE_OPENVINO)
+  find_package(OpenVINO REQUIRED COMPONENTS Runtime)
+  set(OPTICALFLOW_HAS_OPENVINO 1)
+endif()
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/optical_flow_sdk/version.hpp.in
@@ -50,6 +57,7 @@ set(OPTICALFLOW_GENERATED_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 set(OPTICALFLOW_CORE_SOURCES
   src/optical_flow.cpp
   src/metrics.cpp
+  src/sea_raft.cpp
 )
 if(OPTICALFLOW_ENABLE_CPU)
   list(APPEND OPTICALFLOW_CORE_SOURCES
@@ -65,7 +73,10 @@ if(OPTICALFLOW_ENABLE_OPENCL)
   endif()
   find_package(OpenCL REQUIRED)
   find_package(Threads REQUIRED)
-  list(APPEND OPTICALFLOW_CORE_SOURCES src/opencl/opencl_optical_flow.cpp)
+  list(APPEND OPTICALFLOW_CORE_SOURCES
+    src/opencl/opencl_optical_flow.cpp
+    src/opencl/opencl_farneback.cpp
+  )
 endif()
 if(OPTICALFLOW_ENABLE_SYCL)
   list(APPEND OPTICALFLOW_CORE_SOURCES src/sycl/sycl_optical_flow.cpp)
@@ -92,6 +103,10 @@ if(OPTICALFLOW_ENABLE_OPENCL)
   if(OpenMP_CXX_FOUND)
     target_link_libraries(optical_flow_sdk PRIVATE OpenMP::OpenMP_CXX)
   endif()
+endif()
+
+if(OPTICALFLOW_ENABLE_OPENVINO)
+  target_link_libraries(optical_flow_sdk PUBLIC openvino::runtime)
 endif()
 
 if(OPTICALFLOW_ENABLE_SYCL)

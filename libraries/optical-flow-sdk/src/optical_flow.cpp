@@ -5,8 +5,10 @@
 
 #include "optical_flow_sdk/cpu_optical_flow.hpp"
 #include "optical_flow_sdk/farneback.hpp"
+#include "optical_flow_sdk/sea_raft.hpp"
 
 #if OPTICALFLOW_HAS_OPENCL
+#include "optical_flow_sdk/opencl_farneback.hpp"
 #include "optical_flow_sdk/opencl_optical_flow.hpp"
 #endif
 #if OPTICALFLOW_HAS_SYCL
@@ -24,8 +26,10 @@ struct OpticalFlow::Impl {
   Algorithm algorithm = Algorithm::Dis;
   std::unique_ptr<CpuOpticalFlow> cpu_dis;
   std::unique_ptr<FarnebackOpticalFlow> cpu_farneback;
+  std::unique_ptr<SeaRaftOpticalFlow> sea_raft;
 #if OPTICALFLOW_HAS_OPENCL
   std::unique_ptr<OpenCLOpticalFlow> opencl;
+  std::unique_ptr<OpenCLFarnebackOpticalFlow> opencl_farneback;
 #endif
 #if OPTICALFLOW_HAS_SYCL
   std::unique_ptr<SyclOpticalFlow> sycl;
@@ -38,9 +42,18 @@ OpticalFlow::OpticalFlow(Backend backend, Preset preset, Algorithm algorithm)
   impl_->preset = preset;
   impl_->algorithm = algorithm;
 
-  // Dense Farneback is CPU-implemented today; GPU backends fall back to CPU for
-  // that algorithm until device kernels exist.
+  if (algorithm == Algorithm::SeaRaft) {
+    impl_->sea_raft = std::make_unique<SeaRaftOpticalFlow>();
+    return;
+  }
+
   if (algorithm == Algorithm::Farneback) {
+#if OPTICALFLOW_HAS_OPENCL
+    if (impl_->backend == Backend::OpenCL) {
+      impl_->opencl_farneback = std::make_unique<OpenCLFarnebackOpticalFlow>(preset);
+      return;
+    }
+#endif
     impl_->cpu_farneback = std::make_unique<FarnebackOpticalFlow>(preset);
     return;
   }
@@ -83,7 +96,17 @@ void OpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowField &
 
 void OpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowField &flow,
                        CostMap &cost) {
+  if (impl_->algorithm == Algorithm::SeaRaft) {
+    impl_->sea_raft->calc(prev, next, flow, cost);
+    return;
+  }
   if (impl_->algorithm == Algorithm::Farneback) {
+#if OPTICALFLOW_HAS_OPENCL
+    if (impl_->opencl_farneback) {
+      impl_->opencl_farneback->calc(prev, next, flow, cost);
+      return;
+    }
+#endif
     impl_->cpu_farneback->calc(prev, next, flow, cost);
     return;
   }

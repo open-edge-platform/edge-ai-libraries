@@ -25,11 +25,12 @@ enum class Preset {
   Fast = 2,
 };
 
-// Dense classical algorithms. DIS is implemented on CPU, OpenCL, and SYCL.
-// Farneback remains CPU-only in v1.
+// Dense algorithms. DIS: CPU / OpenCL / SYCL. Farneback: CPU (+ OpenCL class path).
+// SeaRaft: OpenVINO SEA-RAFT-S under Slow (P2; optional build).
 enum class Algorithm {
   Dis = 0,
   Farneback = 1,
+  SeaRaft = 2,
 };
 
 inline const char *backend_name(Backend backend) {
@@ -86,6 +87,8 @@ inline const char *algorithm_name(Algorithm algorithm) {
     return "dis";
   case Algorithm::Farneback:
     return "farneback";
+  case Algorithm::SeaRaft:
+    return "sea-raft";
   }
   return "unknown";
 }
@@ -95,6 +98,8 @@ inline Algorithm algorithm_from_name(const std::string &name) {
     return Algorithm::Dis;
   if (name == "farneback")
     return Algorithm::Farneback;
+  if (name == "sea-raft" || name == "searaft" || name == "sea_raft")
+    return Algorithm::SeaRaft;
   throw std::invalid_argument("Unknown optical-flow algorithm name: " + name);
 }
 

@@ -15,8 +15,9 @@ SPDX-License-Identifier: Apache-2.0
   SDK GT-EPE ceilings used by CI.
 - `parity_opencv_datasets` — honest OpenCV DIS disparity on MPI Sintel
   training + KITTI 2015 training (adapter ON). Protocol/gates: `../PLAN.md` §8.
-- `results/p1_opencv_dis_parity_baseline.json` — frozen lab numbers + P2
-  agent instructions (`results/README.md`).
+- `results/p1_opencv_dis_parity_baseline.json` — frozen P1 lab numbers.
+- `results/p2_opencv_dis_parity_2026-11-10.json` — P2 classical DIS retune.
+  See `results/README.md` and `docs/sea_raft.md`.
 
 ## Dataset download (lab)
 

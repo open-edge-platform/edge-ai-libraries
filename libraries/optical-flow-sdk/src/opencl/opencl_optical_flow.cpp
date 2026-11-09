@@ -60,6 +60,7 @@ struct OpenCLContext {
   cl_kernel k_upsample_flow_scaled = nullptr;
   cl_kernel k_estimate_and_scatter = nullptr;
   cl_kernel k_estimate_centers = nullptr;
+  cl_kernel k_propagate_refine_centers = nullptr;
   cl_kernel k_densify_from_patches = nullptr;
   cl_kernel k_normalize_flow = nullptr;
   cl_kernel k_zero_float = nullptr;
@@ -105,6 +106,7 @@ struct OpenCLContext {
     k_upsample_flow_scaled = make_kernel("upsample_flow_scaled");
     k_estimate_and_scatter = make_kernel("estimate_and_scatter");
     k_estimate_centers = make_kernel("estimate_centers");
+    k_propagate_refine_centers = make_kernel("propagate_refine_centers");
     k_densify_from_patches = make_kernel("densify_from_patches");
     k_normalize_flow = make_kernel("normalize_flow");
     k_zero_float = make_kernel("zero_float");
@@ -127,6 +129,7 @@ struct OpenCLContext {
     release_k(k_upsample_flow_scaled);
     release_k(k_estimate_and_scatter);
     release_k(k_estimate_centers);
+    release_k(k_propagate_refine_centers);
     release_k(k_densify_from_patches);
     release_k(k_normalize_flow);
     release_k(k_zero_float);
@@ -191,6 +194,9 @@ struct Workspace {
   cl_mem patch_u = nullptr;
   cl_mem patch_v = nullptr;
   cl_mem patch_c = nullptr;
+  cl_mem patch_u2 = nullptr;
+  cl_mem patch_v2 = nullptr;
+  cl_mem patch_c2 = nullptr;
   int patch_capacity = 0;
   std::vector<int> widths;
   std::vector<int> heights;
@@ -219,6 +225,9 @@ struct Workspace {
     release_mem(patch_u);
     release_mem(patch_v);
     release_mem(patch_c);
+    release_mem(patch_u2);
+    release_mem(patch_v2);
+    release_mem(patch_c2);
     pyr0.clear();
     pyr1.clear();
     flow.clear();
@@ -233,16 +242,22 @@ struct Workspace {
   }
 
   void ensure_patches(OpenCLContext &ctx, int n_patches) {
-    if (n_patches <= patch_capacity && patch_u)
+    if (n_patches <= patch_capacity && patch_u && patch_u2)
       return;
     release_mem(patch_u);
     release_mem(patch_v);
     release_mem(patch_c);
+    release_mem(patch_u2);
+    release_mem(patch_v2);
+    release_mem(patch_c2);
     patch_capacity = std::max(n_patches, 1);
     const std::size_t bytes = static_cast<std::size_t>(patch_capacity) * sizeof(float);
     patch_u = create_buffer(ctx.context, CL_MEM_READ_WRITE, bytes);
     patch_v = create_buffer(ctx.context, CL_MEM_READ_WRITE, bytes);
     patch_c = create_buffer(ctx.context, CL_MEM_READ_WRITE, bytes);
+    patch_u2 = create_buffer(ctx.context, CL_MEM_READ_WRITE, bytes);
+    patch_v2 = create_buffer(ctx.context, CL_MEM_READ_WRITE, bytes);
+    patch_c2 = create_buffer(ctx.context, CL_MEM_READ_WRITE, bytes);
   }
 
   void ensure(OpenCLContext &ctx, int w, int h, int n_scales) {
@@ -302,12 +317,12 @@ OpenCLOpticalFlow::OpenCLOpticalFlow(Preset preset) : impl_(std::make_unique<Imp
   impl_->preset = preset;
   switch (preset) {
   case Preset::Fast:
-    // Quarter-res single-scale + atomic-free densify (OpenCL primary speed path).
+    // Quarter-res + atomic-free densify; neighbor propagate + clamps (keep ≥10×).
     impl_->patch_size = 8;
     impl_->patch_stride = 8;
     impl_->coarsest_scale = 2;
     impl_->finest_scale = 2;
-    impl_->gradient_descent_iters = 2;
+    impl_->gradient_descent_iters = 3;
     break;
   case Preset::Medium:
     impl_->patch_size = 8;
@@ -587,10 +602,29 @@ void run_opencl_dis(OpenCLContext &ctx, Workspace &ws, int patch_size, int patch
       seti(ctx.k_estimate_centers, n_gx);
       enqueue_2d(ctx.queue, ctx.k_estimate_centers, n_gx, n_gy);
 
+      // Neighbor seed + short refine (OpenCV DIS-style propagation, GPU-parallel).
+      const int prop_iters = std::max(2, gd_iters / 2);
       arg = 0;
-      setm(ctx.k_densify_from_patches, ws.patch_u);
-      setm(ctx.k_densify_from_patches, ws.patch_v);
-      setm(ctx.k_densify_from_patches, ws.patch_c);
+      setm(ctx.k_propagate_refine_centers, ws.pyr0[scale]);
+      setm(ctx.k_propagate_refine_centers, ws.pyr1[scale]);
+      setm(ctx.k_propagate_refine_centers, ws.patch_u);
+      setm(ctx.k_propagate_refine_centers, ws.patch_v);
+      setm(ctx.k_propagate_refine_centers, ws.patch_u2);
+      setm(ctx.k_propagate_refine_centers, ws.patch_v2);
+      setm(ctx.k_propagate_refine_centers, ws.patch_c2);
+      seti(ctx.k_propagate_refine_centers, w);
+      seti(ctx.k_propagate_refine_centers, h);
+      seti(ctx.k_propagate_refine_centers, patch_size);
+      seti(ctx.k_propagate_refine_centers, patch_stride);
+      seti(ctx.k_propagate_refine_centers, prop_iters);
+      seti(ctx.k_propagate_refine_centers, n_gx);
+      seti(ctx.k_propagate_refine_centers, n_gy);
+      enqueue_2d(ctx.queue, ctx.k_propagate_refine_centers, n_gx, n_gy);
+
+      arg = 0;
+      setm(ctx.k_densify_from_patches, ws.patch_u2);
+      setm(ctx.k_densify_from_patches, ws.patch_v2);
+      setm(ctx.k_densify_from_patches, ws.patch_c2);
       setm(ctx.k_densify_from_patches, ws.flow[scale]);
       setm(ctx.k_densify_from_patches, ws.cost[scale]);
       seti(ctx.k_densify_from_patches, w);

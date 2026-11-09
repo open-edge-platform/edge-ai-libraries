@@ -7,16 +7,17 @@ SPDX-License-Identifier: Apache-2.0
 
 | File | Role |
 |------|------|
-| `p1_opencv_dis_parity_baseline.json` | Frozen P1 Sintel/KITTI vs OpenCV DIS numbers + agent instructions for P2 |
+| `p1_opencv_dis_parity_baseline.json` | Frozen P1 Sintel/KITTI vs OpenCV DIS + agent instructions |
+| `p2_opencv_dis_parity_2026-11-10.json` | P2 classical DIS retune (clamps + Fast propagate); §8 still FAIL |
 
-## For agents starting P2
+## For agents continuing P2
 
-1. Read `p1_opencv_dis_parity_baseline.json` (and `PLAN.md` §10 P2 / §11.6).
-2. Do **not** treat classical DIS as §8-pass; baseline is honest **FAIL**.
-3. After accuracy changes, re-run `parity_opencv_datasets` with the same
-   methodology fields in the JSON and record a new dated file beside this one
-   (do not overwrite the P1 baseline).
-4. SEA-RAFT P2 quality gate is vs **NVOFA Medium Fl-all**, not vs this
-   OpenCV DIS pairwise table — still re-measure KITTI/Sintel for reporting.
+1. Read both JSON files and `PLAN.md` §10 P2 / §11.6 / `docs/sea_raft.md`.
+2. Classical DIS is still §8 **FAIL**, but P2 OpenCL Fast/Medium EPE improved
+   vs P1; keep resident ≥10× when retuning further.
+3. After accuracy changes, re-run `parity_opencv_datasets` and add a **new**
+   dated JSON (do not overwrite P1 or prior P2 files).
+4. SEA-RAFT gate is vs **NVOFA Medium Fl-all** (`Algorithm::SeaRaft` stub +
+   `-DOPTICALFLOW_ENABLE_OPENVINO=ON`). Farneback/PyrLK OpenCL ports remain open.
 
 Narrative tables: `../../PLAN.md` §11.6.

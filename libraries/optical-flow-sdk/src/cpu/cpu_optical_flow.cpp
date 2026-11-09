@@ -129,7 +129,11 @@ void estimate_level(const GrayImage &I0, const GrayImage &I1, FlowField &flow, C
 
       float u = flow.dx(cx, cy);
       float v = flow.dy(cx, cy);
-      float last_ssd = 0.0f;
+      constexpr float kMaxDisp = 32.0f;
+      constexpr float kMaxStep = 1.5f;
+      u = std::clamp(u, -kMaxDisp, kMaxDisp);
+      v = std::clamp(v, -kMaxDisp, kMaxDisp);
+      float last_ssd = 1e30f;
       for (int it = 0; it < iters; ++it) {
         float b1 = 0.0f, b2 = 0.0f, ssd = 0.0f;
         for (int py = 0; py < patch_size; ++py) {
@@ -145,14 +149,18 @@ void estimate_level(const GrayImage &I0, const GrayImage &I1, FlowField &flow, C
             b2 += Iy[idx] * err;
           }
         }
+        if (it > 0 && ssd > last_ssd * 1.05f)
+          break;
         last_ssd = ssd;
         // Forward-additive style with template gradients and err = I(W)-T:
         // minimize ||I(W)-T|| => Δp from ∇T^T (I-T) then p ← p - Δp is equivalent
         // to p ← p + Δp when err = T-I. Use err=I-T and p ← p - Δp.
-        const float du = invH11 * b1 + invH12 * b2;
-        const float dv = invH12 * b1 + invH22 * b2;
-        u -= du;
-        v -= dv;
+        float du = invH11 * b1 + invH12 * b2;
+        float dv = invH12 * b1 + invH22 * b2;
+        du = std::clamp(du, -kMaxStep, kMaxStep);
+        dv = std::clamp(dv, -kMaxStep, kMaxStep);
+        u = std::clamp(u - du, -kMaxDisp, kMaxDisp);
+        v = std::clamp(v - dv, -kMaxDisp, kMaxDisp);
         if (du * du + dv * dv < 1e-8f)
           break;
       }
