@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: optical-flow-sdk
+
+# Scoped CI for libraries/optical-flow-sdk. GitHub-hosted runners do NOT provide
+# Intel GPU / oneAPI OpenCL or Level Zero devices. SYCL/OpenCL CTest and Arc
+# timing are NOT executed here.
+
+on:
+  pull_request:
+    paths:
+      - "libraries/optical-flow-sdk/**"
+      - ".github/workflows/optical-flow-sdk.yml"
+  push:
+    paths:
+      - "libraries/optical-flow-sdk/**"
+      - ".github/workflows/optical-flow-sdk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disclose-no-gpu-runner:
+    name: Disclose absent GPU runners
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record CI scope
+        run: |
+          cat <<'EOF'
+          optical-flow-sdk CI scope
+          -------------------------
+          - Runs on GitHub-hosted ubuntu-latest (no Intel GPU).
+          - Builds and tests the CPU backends (DIS / Farneback / PyrLK).
+          - Soft OpenCV CPU synthetic parity runs when the adapter is ON.
+          - SYCL/OpenCL kernels, Arc timing, and Sintel/KITTI OpenCV parity remain lab-only.
+          EOF
+
+  header-hygiene:
+    name: SPDX header hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check SPDX identifiers on sources
+        working-directory: libraries/optical-flow-sdk
+        run: |
+          set -euo pipefail
+          missing=0
+          while IFS= read -r -d '' file; do
+            if ! grep -q 'SPDX-License-Identifier:' "$file"; then
+              echo "missing SPDX-License-Identifier: $file"
+              missing=1
+            fi
+          done < <(find . -type f \( \
+            -name '*.cpp' -o -name '*.hpp' -o -name '*.h' -o -name '*.py' \
+            -o -name 'CMakeLists.txt' -o -name '*.cmake' -o -name '*.cmake.in' \
+            \) -print0)
+          if [[ "$missing" -ne 0 ]]; then
+            echo "::error::One or more sources lack SPDX-License-Identifier"
+            exit 1
+          fi
+
+  cmake-cpu-build:
+    name: CMake CPU build + ctest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Configure, build, test (CPU)
+        working-directory: libraries/optical-flow-sdk
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libopencv-dev
+          cmake -S . -B build-ci \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DOPTICALFLOW_ENABLE_CPU=ON \
+            -DOPTICALFLOW_ENABLE_OPENCL=OFF \
+            -DOPTICALFLOW_ENABLE_SYCL=OFF \
+            -DOPTICALFLOW_BUILD_TESTS=ON \
+            -DOPTICALFLOW_BUILD_SAMPLES=ON \
+            -DOPTICALFLOW_BUILD_BENCHMARKS=ON \
+            -DOPTICALFLOW_BUILD_OPENCV_ADAPTER=ON \
+            -DOPTICALFLOW_BUILD_PYTHON=OFF
+          cmake --build build-ci --parallel
+          ctest --test-dir build-ci --output-on-failure
+          ./build-ci/sample_stabilize_global_flow
+          ./build-ci/sample_track_points_cpu
+          ./build-ci/microbench_cpu
+          ./build-ci/eval_flow_epe
+          ./build-ci/compare_opencv_dis --strict
