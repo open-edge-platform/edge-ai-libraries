@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+__pycache__/
+.git/
+.env
+venv/
+
+*.pt
+*.ckpt
+*.log
+.idea
+
+/outputs/
+/output/
+/output_backup/
+/data/
+/checkpoints/
+/Deliverables/
+/runs/
+/docs/
+hf_cache
+
+tests/test_semantic_image_manager.py

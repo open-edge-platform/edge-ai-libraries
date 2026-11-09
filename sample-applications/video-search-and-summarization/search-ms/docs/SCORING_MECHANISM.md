@@ -117,6 +117,7 @@ All knobs are surfaced as environment variables (and mirrored in `config.yaml`).
 
 | Knob | Default | Intuition | When to tweak |
 | --- | --- | --- | --- |
+| `SEARCH_MIN_PEAK_SCORE` | `0` | Minimum frame score (0-1) kept at retrieval; a request's `min_peak_score` overrides it. Every surviving segment's peak is at or above it, and segment scoring and normalization use only the surviving frames. `0` disables it. | Raise to drop weak matches instead of returning the top `AGGREGATION_MAX_RESULTS` regardless of quality. |
 | `AGGREGATION_ENABLED` | `true` | Master switch for aggregation. When `false`, we return raw frame hits. | Disable only for debugging or when aggregation latency must be zero. |
 | `AGGREGATION_INITIAL_K` | `1000` | Size of the frame pool fetched from VDMS before aggregation. | Increase for long videos or very diverse scenes; decrease to reduce VDMS load. |
 | `AGGREGATION_SEGMENT_DURATION` | `10` | Segment length (seconds). | Shorten for fast action scenes; lengthen for slow-moving footage. |
@@ -167,6 +168,7 @@ Suppose the raw score range across all segments is [0.180, 0.360]:
 ## ⚙️ Operational notes
 
 - **Aggregation fallback:** If aggregation is disabled or fails, the API returns the top 20 frame hits. Failures are marked with `aggregation_stats.aggregation_failed = true` so clients can degrade gracefully.
+- **Minimum peak score:** When `min_peak_score` (or `SEARCH_MIN_PEAK_SCORE`) is above `0`, it is sent to the vector-retriever as `min_score`, so frames below it are dropped before the `AGGREGATION_INITIAL_K` cut. search-ms applies the same check locally in case an older retriever ignores the field. A high threshold can legitimately return no results.
 - **Tag filtering:** Before aggregation, frame metadata can be filtered by query-specified tags. This affects both the global max score and the segment pool.
 - **Telemetry:** Each response reports stage-by-stage timings (`segmentation_time_ms`, `scoring_time_ms`, etc.) plus the `score_breakdown` payload described above—use this for regression checks when retuning knobs.
 

@@ -22,7 +22,7 @@ from src.core.embedding import (
 )
 from src.core.media import detect_media_kind
 from src.core.utils.common_utils import get_minio_client
-from src.core.utils.config_utils import read_config
+from src.core.utils.config_utils import get_config
 from src.core.validation import validate_params
 
 router = APIRouter(tags=["Media Processing APIs"])
@@ -54,10 +54,6 @@ async def upload_and_process_video(
     enable_object_detection: Annotated[
         Optional[bool],
         Query(description="Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)"),
-    ] = None,
-    detection_confidence: Annotated[
-        Optional[float],
-        Query(ge=0.1, le=1.0, description="Confidence threshold for object detection (defaults to the service's configured threshold, 0.85 unless overridden)"),
     ] = None,
     tags: Annotated[
         Optional[List[str]],
@@ -92,7 +88,6 @@ async def upload_and_process_video(
     - **bucket_name (str, optional) :** The bucket name to store the video in. If not provided, default bucket will be used.
     - **frame_interval (int, optional) :** Extract every Nth frame for processing (range: 1-60; defaults to the service's configured frame_interval, 15 unless overridden)
     - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)
-    - **detection_confidence (float, optional) :** Confidence threshold for object detection (range: 0.1-1.0; defaults to the service's configured threshold, 0.85 unless overridden)
     - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
 
     #### Raises:
@@ -109,25 +104,19 @@ async def upload_and_process_video(
     metadata_temp_dir: Optional[pathlib.Path] = None
 
     try:
-        config = read_config(settings.CONFIG_FILEPATH, type="yaml")
+        config = get_config()
 
-        # Not able to read config file is a fatal error.
-        if config is None:
-            raise Exception(Strings.config_error)
-
-        # Get processing parameters, fall back to config if not specified
-        frame_interval = frame_interval or config.get("frame_interval", 15)
+        # Get processing parameters, fall back to settings if not specified
+        frame_interval = frame_interval or config["frame_interval"]
         enable_object_detection = (
-            enable_object_detection if enable_object_detection is not None else config.get("enable_object_detection", True)
+            enable_object_detection
+            if enable_object_detection is not None
+            else config["enable_object_detection"]
         )
-        detection_confidence = detection_confidence or config.get("detection_confidence", 0.85)
         bucket_name = bucket_name or settings.DEFAULT_BUCKET_NAME
 
-        # Get directory paths from config file
-        videos_temp_dir = pathlib.Path(config.get("videos_local_temp_dir", "/tmp/dataprep/videos"))
-        metadata_temp_dir = pathlib.Path(
-            config.get("metadata_local_temp_dir", "/tmp/dataprep/metadata")
-        )
+        videos_temp_dir = pathlib.Path(config["videos_temp_dir"])
+        metadata_temp_dir = pathlib.Path(config["metadata_temp_dir"])
 
         # Detect the media kind from the uploaded filename so images and videos
         # can share this endpoint. Unknown extensions are rejected earlier by
@@ -197,7 +186,6 @@ async def upload_and_process_video(
                 video_id=video_id,
                 filename=filename,
                 enable_object_detection=enable_object_detection,
-                detection_confidence=detection_confidence,
                 tags=tags or [],
                 telemetry_context=telemetry_context,
             )
@@ -211,7 +199,6 @@ async def upload_and_process_video(
                 metadata_temp_path=metadata_temp_dir,
                 frame_interval=frame_interval,
                 enable_object_detection=enable_object_detection,
-                detection_confidence=detection_confidence,
                 tags=tags or [],
                 telemetry_context=telemetry_context,
             )

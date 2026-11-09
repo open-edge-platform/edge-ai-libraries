@@ -164,17 +164,17 @@ subcommand_bootstrap () {
     echo "  --validate             validate installation orders."
     echo "  --dry-run              dry run the bootstrapping process."
     echo
-    local profiles=($(cd "$mydir";find profile -name "$installer_family" | cut -f2 -d/))
+    local profiles=($(cd "$mydir";LC_ALL=C.UTF-8 find profile -name "$installer_family" | cut -f2 -d/))
     [ ${#profiles[*]} -eq 0 ] || (
       IFS=$'\n'
       echo "  list of bootstrap profiles:"
-      echo "${profiles[*]/#/    }" | sort
+      echo "${profiles[*]/#/    }" | LC_ALL=C.UTF-8 sort
     )
-    local modules=($(cd "$mydir";find module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
+    local modules=($(cd "$mydir";LC_ALL=C.UTF-8 find module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";LC_ALL=C.UTF-8 find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
     [ ${#modules[*]} -eq 0 ] || (
       IFS=$'\n'
       echo "  list of bootstrap components:"
-      echo "${modules[*]/#/    }" | sort
+      echo "${modules[*]/#/    }" | LC_ALL=C.UTF-8 sort
     )
     [ "${#profiles[*]}${#modules[*]}" = "00" ] || echo
     return 0
@@ -215,7 +215,7 @@ subcommand_bootstrap () {
   done
 
   # scan for dependencies
-  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
+  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";LC_ALL=C.UTF-8 find profile module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";LC_ALL=C.UTF-8 find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
   modules=(${modules[*]##*/})
   local -A scripts=() orders=() known=() depsof=()
   local i=0 script license_common=0
@@ -230,8 +230,8 @@ subcommand_bootstrap () {
       local script_nos="${script%/*}/linux"
       local name=${modules[$i]}
       local funcs=($(
-        [ ! -r "$script_nos" ] || . "$script_nos"
-        . "$script"
+        [ ! -r "$script_nos" ] || . "$script_nos" > /dev/null
+        [ ! -r "$script" ] || . "$script" > /dev/null
         declare -F | grep -E " ${installer_family}_[0-9]+_(install|profile)_${name}$" | cut -f3 -d' '
       ))
       local profiler=$(printf '%s\n' "${funcs[@]}" | grep -m1 "_profile_${name}$")
@@ -242,17 +242,18 @@ subcommand_bootstrap () {
       known[$name]=1
       local deps=()
       [ -z "$profiler" ] || deps=($(
-        [ ! -r "$script_nos" ] || . "$script_nos"
-        . "$script"
-        for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do
-          $profiler $cmd
-        done | sort -u
+        for c in "$mydir"/common/linux/* "$mydir"/common/$installer_family/*; do
+          [ ! -r "$c" ] || . "$c" > /dev/null
+        done
+        [ ! -r "$script_nos" ] || . "$script_nos" > /dev/null
+        [ ! -r "$script" ] || . "$script" > /dev/null
+        $profiler bootstrap | LC_ALL=C.UTF-8 sort -u
       ))
       depsof[$name]="${deps[*]}"
       modules+=(${deps[*]})
       local licenser=$(
-        [ ! -r "$script_nos" ] || . "$script_nos"
-        . "$script"
+        [ ! -r "$script_nos" ] || . "$script_nos" > /dev/null
+        [ ! -r "$script" ] || . "$script" > /dev/null
         declare -F | grep -E -m1 " ${installer_family}_[0-9]+_license_${modules[$i]}$"
       )
       [ -z "$licenser" ] || license_common=1
@@ -277,7 +278,7 @@ subcommand_bootstrap () {
           [[ " $* " != *" --strict "* ]] || { echo "$p: unknown dependency '$d'" 1>&2; bad=1; }
         elif [ -z "${orders[$d]:-}" ]; then
           q+=(${depsof[$d]}) # virtual: look through it
-        elif [ "$d" != reboot ] && [ $((10#${orders[$d]})) -ne 99 ] && [ $((10#${orders[$d]})) -gt $((10#${orders[$p]})) ]; then
+        elif [ "$d" != reboot ] && [ $((10#${orders[$d]})) -ne 99 ] && [ $((10#${orders[$d]})) -ge $((10#${orders[$p]})) ]; then
           echo "$p (${orders[$p]}) depends on $d (${orders[$d]}) which installs later" 1>&2; bad=1
         fi
       done
@@ -285,7 +286,7 @@ subcommand_bootstrap () {
     done
     for p in ${!known[*]}; do
       for d in ${depsof[$p]}; do [ "$d" = "$p" ] || echo "$d $p"; done
-    done | tsort > /dev/null || bad=1
+    done | LC_ALL=C.UTF-8 tsort > /dev/null || bad=1
     if [ $bad -eq 0 ]; then
       echo "OK"
       exit 0
@@ -306,13 +307,13 @@ subcommand_bootstrap () {
   sources+=("$mydir"/common/linux/*)
   [ ! -d "$mydir"/common/${installer_family} ] || sources+=("$mydir"/common/${installer_family}/*)
   if [ $license_common -ne 0 ]; then
-    for f in "$mydir"/license/linux/ensure_license_* "$mydir"/license/${installer_family}/ensure_license_*; do
+    for f in "$mydir"/license/linux/* "$mydir"/license/${installer_family}/*; do
       [ ! -r "$f" ] || sources+=("$f")
     done
   fi
 
   local scripts_ordered
-  mapfile -t scripts_ordered < <(printf '%s\n' "${!scripts[@]}" | sort)
+  mapfile -t scripts_ordered < <(printf '%s\n' "${!scripts[@]}" | LC_ALL=C.UTF-8 sort)
   for script in "${scripts_ordered[@]}"; do
     echo "==== bootstrapping ${script#"$mydir/"} ===="
     sources+=("$script")

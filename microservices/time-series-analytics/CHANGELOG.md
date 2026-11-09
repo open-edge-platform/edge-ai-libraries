@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.3] - December 2026
+
+### Added
+- Added `POST /stop_pipeline` and `GET /pipeline_status` APIs to stop a UDF task and check its status without shutting down Kapacitor. ([a1fba42](https://github.com/open-edge-platform/edge-ai-libraries/commit/a1fba423371cd78f4b834b34b116848ef4a9dd67))
+
+### Changed
+- Built Kapacitor 1.8.7 from source with a pinned Go toolchain and simplified GPU driver installation to reduce image size. (#3386, #3281, #3426)
+- Updated deployment images to 2026.3.0 and refreshed the Python base image. (#3207, #3228)
+- Updated Python runtime, test, and simulator dependencies. (#3161, #3277, #3332, #3399, #3462)
+- Added shell linting to CI and corrected ShellCheck findings in startup scripts. (#3226, #3310)
+
+### Fixed
+- Fixed the `/config` restart field to use a non-nullable boolean in the API and OpenAPI schema. (#3334)
+- Fixed CodeQL findings in classifier startup handling. (#3143)
+- Fixed the Swagger UI display of the optional restart parameter. (#3415)
+
+### Documentation
+- Updated release documentation and publishing links, standardized admonitions, and improved component documentation cross-links. (#2783, #2838, #3028, #3230, #3246)
+
+---
+
+## [2026.2] - September 2026
+
+### Changed
+- Bumped Intel GPU driver/compute-runtime version to 26.27.39122 and added corresponding install script logic. (#2722)
+- Updated Kapacitor version to 1.8.6. (#2417)
+- Bumped python-multipart and setuptools dependency versions. (#2427)
+- Updated image suffix and Helm chart version to 2026.2.0-rc1. (#2577)
+- Updated tag references to rc1. (#2720)
+
+### Removed
+- Removed leftover Model Registry references (MODEL_REGISTRY_URL environment variable and related config) from Docker Compose, Helm, and unit tests. (#2457)
+
+### Fixed
+- Fixed SDLe-reported path traversal vulnerability by adding sanitize_dir_name() validation before deriving UDF working directories from configuration/environment input. (#2671)
+
+### Documentation
+- Reviewed release notes and separated 2025 release notes into their own file. (#2580)
+- Updated release notes for Time Series Analytics. (#2372)
+- Added explicit branch checkout instructions. (#2354)
+
+---
+
 ## [2026.1] - June 2026
 
 ### Added

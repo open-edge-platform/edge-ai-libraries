@@ -326,6 +326,78 @@ class TestMetricsDerivationIntegration(_TmpConfigMixin):
         self.assertEqual(resolved.sources["metrics.metrics_url"], s.SOURCE_ENV)
         self.assertEqual(resolved.sources["metrics.capabilities_url"], s.SOURCE_ENV)
 
+    def test_presets_derive_metrics_url_from_base_url(self) -> None:
+        # No preset may pin metrics_url to localhost: that would stop remote
+        # runs (--base-url / VIPPET_BASE_URL) from sampling the target host.
+        for preset in ("default", "quick", "full"):
+            with self.subTest(preset=preset):
+                resolved = s.resolve_settings(
+                    preset, env={"VIPPET_BASE_URL": "http://board:8080/api/v1"}
+                )
+                self.assertEqual(
+                    resolved.sources["metrics.metrics_url"], s.SOURCE_DEFAULT
+                )
+                self.assertEqual(
+                    resolved["metrics.metrics_url"],
+                    "http://board:8080/metrics/stream",
+                )
+                self.assertEqual(
+                    resolved["metrics.capabilities_url"],
+                    "http://board:9090/api/v1/capabilities",
+                )
+
+    def test_cli_base_url_cascades_to_metrics_url_for_presets(self) -> None:
+        for preset in ("quick", "full"):
+            with self.subTest(preset=preset):
+                resolved = s.resolve_settings(
+                    preset,
+                    env={},
+                    cli_overrides={"vippet.base_url": "http://board/api/v1"},
+                )
+                self.assertEqual(
+                    resolved["metrics.metrics_url"], "http://board/metrics/stream"
+                )
+
+
+class TestTrimFractionBounds(_TmpConfigMixin):
+    """metrics.trim_fraction must satisfy 0 <= value < 0.5 from every source."""
+
+    _KEY = "metrics.trim_fraction"
+
+    def test_valid_values_accepted(self) -> None:
+        for value in (0, 0.0, "0", 0.1, "0.25", 0.49):
+            with self.subTest(value=value):
+                self.assertEqual(s.SPECS_BY_KEY[self._KEY].coerce(value), float(value))
+
+    def test_out_of_range_rejected_from_yaml(self) -> None:
+        for value in ("0.5", "1", "-0.1"):
+            with self.subTest(value=value):
+                path = self.write_config(f"metrics:\n  trim_fraction: {value}\n")
+                with self.assertRaisesRegex(s.SettingsError, self._KEY):
+                    s.resolve_settings(path, env={})
+
+    def test_out_of_range_rejected_from_env(self) -> None:
+        for value in ("0.5", "1", "-0.1"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    s.SettingsError, "env PERF_METRICS_TRIM_FRACTION"
+                ):
+                    s.resolve_settings(
+                        "default", env={"PERF_METRICS_TRIM_FRACTION": value}
+                    )
+
+    def test_out_of_range_rejected_from_cli(self) -> None:
+        for value in (0.5, 1, 1.0, -0.1):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(s.SettingsError, "--metrics-trim-fraction"):
+                    s.resolve_settings(
+                        "default", env={}, cli_overrides={self._KEY: value}
+                    )
+
+    def test_upper_bound_message_is_explicit(self) -> None:
+        with self.assertRaisesRegex(s.SettingsError, "less than 0.5"):
+            s.SPECS_BY_KEY[self._KEY].coerce("0.5")
+
 
 class TestValidation(_TmpConfigMixin):
     def test_missing_preset_fails_loudly(self) -> None:
@@ -342,8 +414,61 @@ class TestValidation(_TmpConfigMixin):
             s.resolve_settings(path, env={})
 
     def test_invalid_env_value_names_the_source(self) -> None:
-        with self.assertRaisesRegex(s.SettingsError, "env VIPPET_BASE_URL"):
+        with self.assertRaisesRegex(s.SettingsError, "env VIPPET_BASE_URL") as ctx:
             s.resolve_settings(env={"VIPPET_BASE_URL": "ftp://host"})
+        self.assertIn(
+            "To fix: change or unset the VIPPET_BASE_URL environment variable",
+            str(ctx.exception),
+        )
+
+    def test_invalid_value_fix_matches_its_source(self) -> None:
+        path = self.write_config("benchmark:\n  stream_counts: [0]\n")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(path, env={})
+        self.assertIn(
+            f"To fix: edit benchmark.stream_counts in {path}", str(ctx.exception)
+        )
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(
+                "default", env={}, cli_overrides={"benchmark.stream_counts": "0"}
+            )
+        self.assertIn("To fix: correct the --streams flag", str(ctx.exception))
+
+    def test_config_errors_name_their_origin_and_fix(self) -> None:
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.select_config_source(None, {s.ENV_CONFIG: "nope"})
+        message = str(ctx.exception)
+        self.assertIn(f"given via env {s.ENV_CONFIG}", message)
+        self.assertIn("To fix: use one of these presets", message)
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.select_config_source(None, {s.ENV_CONFIG_FILE: "/no/such.yaml"})
+        self.assertIn(f"given via env {s.ENV_CONFIG_FILE}", str(ctx.exception))
+        self.assertIn("To fix: check the path", str(ctx.exception))
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.select_config_source(" ", {})
+        self.assertIn("given via --config is empty", str(ctx.exception))
+
+    def test_unknown_key_suggests_closest_valid_key(self) -> None:
+        path = self.write_config("vippet:\n  base_ulr: x\n")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(path, env={})
+        message = str(ctx.exception)
+        self.assertIn("Did you mean: 'vippet.base_ulr' -> 'vippet.base_url'?", message)
+        self.assertIn("To fix: rename or remove them", message)
+
+    def test_malformed_yaml_is_actionable(self) -> None:
+        not_mapping = self.write_config("- a\n- b\n")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(not_mapping, env={})
+        self.assertIn(
+            "must be a YAML mapping at the top level, got list", str(ctx.exception)
+        )
+        self.assertIn("To fix: start the file with sections", str(ctx.exception))
+        broken = self.write_config("vippet: [unclosed\n", "broken.yaml")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(broken, env={})
+        self.assertIn("cannot read config", str(ctx.exception))
+        self.assertIn("valid YAML", str(ctx.exception))
 
     def test_coercions(self) -> None:
         spec = s.SPECS_BY_KEY
@@ -352,6 +477,8 @@ class TestValidation(_TmpConfigMixin):
         self.assertEqual(spec["benchmark.pipelines"].coerce("a,b"), ["a", "b"])
         self.assertEqual(spec["benchmark.filters.skip_pipelines"].coerce(""), [])
         self.assertIs(spec["results.create_latest_link"].coerce("false"), False)
+        self.assertIs(spec["results.save_log"].default, True)
+        self.assertIs(spec["results.save_log"].coerce("false"), False)
         bad = [
             ("benchmark.stream_counts", "0"),
             ("benchmark.stream_counts", []),

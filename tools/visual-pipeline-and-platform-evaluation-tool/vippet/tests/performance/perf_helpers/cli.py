@@ -11,24 +11,36 @@ Effective configuration precedence (later wins)::
 
     built-in defaults -> YAML (--config / PERF_CONFIG) -> env vars -> CLI flags
 
-A normal run writes the fully resolved config to a private temp file,
-exports it through ``PERF_CONFIG_FILE`` and runs ``python -m pytest -m perf``
-in a subprocess. ``--dry-run`` prints the resolved matrix with exclusion
-reasons and exits without submitting any job.
+A normal run passes ``--config`` and the setting flags to a
+``python -m pytest -m perf`` subprocess through ``PERF_CLI_LAYER``; pytest
+resolves them again, so the result artefact records the same values and
+sources. ``--dry-run`` prints the resolved matrix with exclusion reasons and
+exits without submitting any job.
 """
 
 import argparse
 import httpx
+import json
 import os
 import subprocess
 import sys
-import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
-from .matrix import Matrix, MatrixFilters
-from .preflight import FATAL_PREFLIGHT_EXIT_CODE, PreflightError, wait_for_vippet_ready
+from .matrix import (
+    Matrix,
+    MatrixFilters,
+    describe_no_cases,
+    format_matrix,
+    format_table,
+)
+from .preflight import (
+    FATAL_PREFLIGHT_EXIT_CODE,
+    PreflightError,
+    describe_discovery_error,
+    wait_for_vippet_ready,
+)
 from .reporters import (
     ReportInputError,
     generate_html_report,
@@ -36,7 +48,7 @@ from .reporters import (
     resolve_result_json,
 )
 from .settings import (
-    ENV_CONFIG_FILE,
+    ENV_CLI_LAYER,
     PERF_DIR,
     SPECS,
     ResolvedSettings,
@@ -77,71 +89,111 @@ def build_parser() -> argparse.ArgumentParser:
             "to pytest unchanged."
         ),
     )
-    parser.add_argument(
-        "--config",
-        metavar="NAME_OR_PATH",
-        help=(
-            "Config preset name in config/ (default, quick, full) or a YAML "
-            "path. Defaults to $PERF_CONFIG_FILE, then $PERF_CONFIG, then "
-            "'default'."
-        ),
-    )
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print the resolved matrix and exclusions, then exit 0 without running jobs.",
-    )
-    mode.add_argument(
-        "--report-only",
-        nargs="*",
-        metavar="PATH",
-        default=None,
-        # None means the flag is absent; [] means "use latest".
-        help=(
-            "Rebuild the HTML report from result JSON (file, run directory "
-            "or 'latest' symlink); several paths render as several runs. "
-            "Defaults to <results-dir>/latest. Does not contact ViPPET."
-        ),
-    )
-    parser.add_argument(
-        "--report-output",
-        metavar="PATH",
-        default=None,
-        help="HTML output path for --report-only.",
-    )
 
-    group = parser.add_argument_group("settings (override YAML and env)")
+    # Every option is collected first and registered sorted by flag, so
+    # --help and the usage line list them alphabetically. argparse keeps the
+    # order in which add_argument is called, also for the mutually exclusive
+    # group, whose actions belong to the parser.
+    options: list[tuple[str, Any, dict[str, Any]]] = [
+        (
+            "--config",
+            parser,
+            {
+                "metavar": "NAME_OR_PATH",
+                "help": (
+                    "Config preset name in config/ (default, quick, full), a "
+                    "YAML path, or a result JSON / run directory whose "
+                    "recorded settings are reused. Defaults to "
+                    "$PERF_CONFIG_FILE, then $PERF_CONFIG, then 'default'."
+                ),
+            },
+        ),
+        (
+            "--dry-run",
+            mode,
+            {
+                "action": "store_true",
+                "help": (
+                    "Print the resolved matrix and exclusions, then exit 0 "
+                    "without running jobs."
+                ),
+            },
+        ),
+        (
+            "--report-only",
+            mode,
+            {
+                "nargs": "*",
+                "metavar": "PATH",
+                # None means the flag is absent; [] means "use latest".
+                "default": None,
+                "help": (
+                    "Rebuild the HTML report from result JSON (file, run "
+                    "directory or 'latest' symlink); several paths render as "
+                    "several runs. Defaults to <results-dir>/latest. Does "
+                    "not contact ViPPET."
+                ),
+            },
+        ),
+        (
+            "--report-output",
+            parser,
+            {
+                "metavar": "PATH",
+                "default": None,
+                "help": "HTML output path for --report-only.",
+            },
+        ),
+    ]
     for spec in SPECS:
         env_note = f" [env: {spec.env}]" if spec.env else ""
         help_text = f"{spec.help} (YAML: {spec.key}){env_note}"
         if spec.kind == "bool":
-            group.add_argument(
-                spec.flag,
-                dest=spec.dest,
-                action="store_const",
-                const=True,
-                default=None,
-                help=help_text,
-            )
             assert spec.negative_flag, spec.key
-            group.add_argument(
-                spec.negative_flag,
-                dest=spec.dest,
-                action="store_const",
-                const=False,
-                help=f"Set {spec.key} to false.",
+            options.append(
+                (
+                    spec.flag,
+                    parser,
+                    {
+                        "dest": spec.dest,
+                        "action": "store_const",
+                        "const": True,
+                        "default": None,
+                        "help": help_text,
+                    },
+                )
+            )
+            options.append(
+                (
+                    spec.negative_flag,
+                    parser,
+                    {
+                        "dest": spec.dest,
+                        "action": "store_const",
+                        "const": False,
+                        "help": f"Set {spec.key} to false.",
+                    },
+                )
             )
         else:
-            group.add_argument(
-                spec.flag,
-                dest=spec.dest,
-                type=_argparse_type(spec),
-                default=None,
-                metavar=spec.metavar,
-                choices=spec.choices if spec.kind == "choice" else None,
-                help=help_text,
+            options.append(
+                (
+                    spec.flag,
+                    parser,
+                    {
+                        "dest": spec.dest,
+                        "type": _argparse_type(spec),
+                        "default": None,
+                        "metavar": spec.metavar,
+                        "choices": spec.choices if spec.kind == "choice" else None,
+                        "help": help_text,
+                    },
+                )
             )
+
+    for flag, target, kwargs in sorted(options, key=lambda option: option[0]):
+        target.add_argument(flag, **kwargs)
     return parser
 
 
@@ -189,23 +241,12 @@ def _ensure_import_paths() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
-    cells = [list(map(str, headers))] + [[str(c) for c in row] for row in rows]
-    widths = [max(len(row[i]) for row in cells) for i in range(len(headers))]
-    lines = []
-    for n, row in enumerate(cells):
-        lines.append("  ".join(c.ljust(w) for c, w in zip(row, widths)).rstrip())
-        if n == 0:
-            lines.append("  ".join("-" * w for w in widths))
-    return "\n".join(lines)
-
-
 def format_settings(settings: ResolvedSettings) -> str:
     rows = [
         (spec.key, _render(settings[spec.key]), settings.sources[spec.key])
         for spec in SPECS
     ]
-    return f"Config file: {settings.config_path}\n" + _table(
+    return f"Config file: {settings.config_path}\n" + format_table(
         ("setting", "value", "source"), rows
     )
 
@@ -214,68 +255,6 @@ def _render(value: Any) -> str:
     if isinstance(value, list):
         return ",".join(map(str, value)) if value else "(none)"
     return str(value)
-
-
-def format_matrix(matrix: Matrix) -> str:
-    """Render the dry-run report: matrix, exclusions and run-time skips."""
-    out: list[str] = []
-    families = ", ".join(matrix.available_families) or "(none)"
-    out.append(f"Host device families: {families}")
-    streams = ", ".join(map(str, matrix.stream_counts))
-
-    rows = matrix.rows()
-    will_run = [
-        (case.pipeline_id, case.device_family, s, case.case_id + f"_x{s}")
-        for case, s in rows
-        if case.pipeline_id not in matrix.missing_models
-    ]
-    out.append("")
-    out.append(
-        f"Matrix: {len(will_run)} run(s) = pipeline x variant x streams [{streams}]"
-    )
-    out.append(
-        _table(("pipeline", "variant", "streams", "test id"), will_run)
-        if will_run
-        else "  (empty)"
-    )
-
-    out.append("")
-    out.append(f"Excluded: {len(matrix.excluded)} pipeline/variant(s)")
-    out.append(
-        _table(
-            ("pipeline", "variant", "reason", "detail"),
-            [
-                (
-                    e.pipeline_id or e.pipeline_name or "?",
-                    e.variant,
-                    e.reason.value,
-                    e.detail,
-                )
-                for e in matrix.excluded
-            ],
-        )
-        if matrix.excluded
-        else "  (none)"
-    )
-
-    skipped = [
-        (
-            case.pipeline_id,
-            case.device_family,
-            s,
-            ", ".join(matrix.missing_models[case.pipeline_id]),
-        )
-        for case, s in rows
-        if case.pipeline_id in matrix.missing_models
-    ]
-    out.append("")
-    out.append(f"Skipped at run time: missing_models: {len(skipped)} run(s)")
-    out.append(
-        _table(("pipeline", "variant", "streams", "missing models"), skipped)
-        if skipped
-        else "  (none)"
-    )
-    return "\n".join(out)
 
 
 def _default_discover(settings: ResolvedSettings) -> Matrix:
@@ -334,11 +313,19 @@ def run_dry_run(
         return FATAL_PREFLIGHT_EXIT_CODE
     except Exception as exc:  # report any discovery failure, never crash
         print(
-            f"error: pipeline discovery failed: {type(exc).__name__}: {exc}",
+            f"error: {describe_discovery_error(exc, settings['vippet.base_url'])}",
             file=stderr,
         )
         return FATAL_PREFLIGHT_EXIT_CODE
-    print(format_matrix(matrix), file=stdout)
+    print(
+        format_matrix(
+            matrix,
+            skip_missing_models=settings["benchmark.filters.skip_missing_models"],
+        ),
+        file=stdout,
+    )
+    if not matrix.included:
+        print(f"\nnote: {describe_no_cases(matrix)}", file=stdout)
     return EXIT_OK
 
 
@@ -428,25 +415,22 @@ def build_pytest_command(pytest_args: Sequence[str]) -> list[str]:
 
 
 def run_pytest(
-    settings: ResolvedSettings,
+    cli_layer: Mapping[str, Any],
     pytest_args: Sequence[str],
     *,
     base_env: Mapping[str, str] | None = None,
     runner: Callable[..., subprocess.CompletedProcess[Any]] = subprocess.run,
 ) -> int:
-    env = dict(os.environ if base_env is None else base_env)
-    env.update(settings_env(settings))
+    """Run pytest, which resolves the settings again from *cli_layer*.
 
-    fd, config_file = tempfile.mkstemp(prefix="vippet-perf-", suffix=".yaml")
-    try:
-        # mkstemp creates the file with 0600 permissions.
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(settings.to_yaml())
-        env[ENV_CONFIG_FILE] = config_file
-        completed = runner(build_pytest_command(pytest_args), env=env, check=False)
-        return int(completed.returncode)
-    finally:
-        Path(config_file).unlink(missing_ok=True)
+    The resolved values are deliberately not exported as env vars: pytest
+    would then report them as coming from the environment instead of from
+    the YAML file or CLI flag they really came from.
+    """
+    env = dict(os.environ if base_env is None else base_env)
+    env[ENV_CLI_LAYER] = json.dumps(cli_layer)
+    completed = runner(build_pytest_command(pytest_args), env=env, check=False)
+    return int(completed.returncode)
 
 
 # --------------------------------------------------------------------------- #
@@ -462,11 +446,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if namespace.report_output is not None and namespace.report_only is None:
         parser.error("--report-output requires --report-only")
 
+    overrides = cli_overrides(namespace)
     try:
         settings = resolve_settings(
             config=namespace.config,
             env=os.environ,
-            cli_overrides=cli_overrides(namespace),
+            cli_overrides=overrides,
         )
     except SettingsError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -476,7 +461,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run_dry_run(settings)
     if namespace.report_only is not None:
         return run_report_only(settings, namespace.report_only, namespace.report_output)
-    return run_pytest(settings, pytest_args)
+    cli_layer = {"config": namespace.config, "overrides": overrides}
+    return run_pytest(cli_layer, pytest_args)
 
 
 if __name__ == "__main__":

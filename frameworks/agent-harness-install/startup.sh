@@ -29,11 +29,21 @@ ensure_base_tools() {
   local -a missing=()
   command_exists curl || missing+=(curl)
   command_exists git || missing+=(git)
+  # A host without the system CA bundle fails every HTTPS download with
+  # "unable to get local issuer certificate".
+  if command_exists apt-get && [[ ! -r /etc/ssl/certs/ca-certificates.crt ]]; then
+    missing+=(ca-certificates)
+  elif ! command_exists apt-get && [[ ! -r /etc/ssl/certs/ca-certificates.crt && ! -r /etc/pki/tls/certs/ca-bundle.crt ]]; then
+    warn "No system CA bundle found; HTTPS downloads will fail until your distribution's
+ca-certificates package is installed."
+  fi
   [[ "${#missing[@]}" -eq 0 ]] && return 0
   if command_exists apt-get; then
     info "Installing missing base tools: ${missing[*]}…"
     sudo apt-get update -qq
     sudo apt-get install -y -qq "${missing[@]}"
+    # An already-installed package is not reinstalled, so its bundle must be regenerated.
+    [[ -r /etc/ssl/certs/ca-certificates.crt ]] || sudo update-ca-certificates
   else
     error "Missing required tool(s): ${missing[*]}. This installer only knows
 how to install them via apt-get -- install them yourself, then re-run."
@@ -98,7 +108,9 @@ main() {
   done
   export NON_INTERACTIVE
 
-  printf "\n${C_GREEN}${C_BOLD}agent-harness-install — Prerequisite Setup${C_RESET}\n\n"
+  printf '\n%s%sagent-harness-install — Prerequisite Setup%s\n\n' "$C_GREEN" "$C_BOLD" "$C_RESET"
+
+  assert_proxy_env_well_formed
 
   if [[ -z "$SKIP_BASE" ]]; then
     info "Checking base tools (curl, git)…"
@@ -135,8 +147,8 @@ main() {
     info "Skipping Python (--skip-python)."
   fi
 
-  printf "\n${C_GREEN}${C_BOLD}=== Prerequisites ready ===${C_RESET}\n\n"
-  printf "  Run ${C_BOLD}./install.sh${C_RESET} next.\n\n"
+  printf '\n%s%s=== Prerequisites ready ===%s\n\n' "$C_GREEN" "$C_BOLD" "$C_RESET"
+  printf '  Run %s./install.sh%s next.\n\n' "$C_BOLD" "$C_RESET"
 }
 
 main "$@"

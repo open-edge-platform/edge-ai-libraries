@@ -1,0 +1,39 @@
+# The workspace holds runtime state only: Milvus/etcd/minio data (written by the
+# compose stack, root-owned — remove with sudo), models, uploads, and the persisted
+# asset libraries. Its layout is tracked through .gitkeep files; its contents are not.
+workspace/**
+!workspace/**/
+!workspace/**/.gitkeep
+
+# Your own files to ingest (the docs' example paths point here).
+/data/
+
+# Milvus volumes before they moved into the workspace (see README).
+volumes/
+*.db
+
+# Compose overrides holding host-specific values -- the /dev/dri group ids in
+# particular, which differ per machine (see README).
+deployment/docker/.env
+
+# Python packaging artifacts.
+*.egg-info/
+build/
+dist/
+
+# Local Python environment and caches.
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Test results and cache.
+results/
+
+# Local service credentials
+/.env
+
+# IDE/editor specific files.
+.vscode/
+.github/
+.venv**/
+results/

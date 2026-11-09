@@ -9,9 +9,10 @@ import pytest
 
 from src.models import ChatCompletionMessage, ChatCompletionRequest, ChatCompletionRole
 from src.providers.base import ProviderAdapter, ProviderMetadata
-from src.rsd.strategy import (
+from src.rsd.engine.strategy import (
     build_strategy_definition,
     CapabilitySelector,
+    PerformanceSelector,
     ProviderSelector,
     RuleBinding,
     SortCriterion,
@@ -19,7 +20,7 @@ from src.rsd.strategy import (
     StrategyExecutor,
 )
 from src.exceptions import ConfigurationError
-from src.rsd.rule import ContextLengthRule, QueryComplexityScoreRule
+from src.rsd.rule_based.rules import ContextLengthRule, QueryComplexityScoreRule
 
 
 class MockProvider(ProviderAdapter):
@@ -422,6 +423,211 @@ def test_strategy_executor_filters_providers_by_cost_selector():
     candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["cheap"]
+
+
+@pytest.mark.unit
+def test_strategy_executor_filters_and_ranks_by_performance_selector():
+    """Performance selector should drop over-threshold providers and rank the rest by TTFT."""
+    request = ChatCompletionRequest(
+        model="test-model",
+        messages=[
+            ChatCompletionMessage(
+                role=ChatCompletionRole.USER,
+                content="compare inference routing options",
+            )
+        ],
+    )
+    providers = [
+        MockProvider(
+            "fast",
+            metadata=ProviderMetadata(performance={"ttft_ms": 200, "tpot_ms": 15}),
+        ),
+        MockProvider(
+            "mid",
+            metadata=ProviderMetadata(performance={"ttft_ms": 450, "tpot_ms": 30}),
+        ),
+        MockProvider(
+            "slow-ttft",
+            metadata=ProviderMetadata(performance={"ttft_ms": 900, "tpot_ms": 15}),
+        ),
+        MockProvider(
+            "slow-tpot",
+            metadata=ProviderMetadata(performance={"ttft_ms": 200, "tpot_ms": 80}),
+        ),
+        MockProvider(
+            "no-perf",
+            metadata=ProviderMetadata(cost=0.1),
+        ),
+    ]
+    executor = StrategyExecutor()
+    definition = StrategyDefinition(
+        name="performance_based",
+        provider_selector=ProviderSelector(
+            performance=PerformanceSelector(
+                bounds={"ttft_ms": (None, 500.0), "tpot_ms": (None, 50.0)}
+            )
+        ),
+        rules=[
+            RuleBinding(
+                "perf_score",
+                QueryComplexityScoreRule((0.0, 1.0), target=0.5),
+            )
+        ],
+        sort=[SortCriterion("performance.ttft_ms", descending=False)],
+    )
+
+    candidates = asyncio.run(executor.execute(request, providers, definition))
+
+    # slow-ttft (900 > 500), slow-tpot (80 > 50) and no-perf (missing) are filtered;
+    # survivors ranked ascending by ttft.
+    assert [candidate.provider.name for candidate in candidates] == ["fast", "mid"]
+
+
+@pytest.mark.unit
+def test_strategy_loader_builds_performance_selector():
+    """provider_selector.performance should parse into a PerformanceSelector."""
+    definition = build_strategy_definition(
+        {
+            "name": "performance_based",
+            "rules": [],
+            "provider_selector": {"performance": {"ttft_ms": 500, "tpot_ms": 50}},
+        }
+    )
+
+    # A bare number is shorthand for an upper bound.
+    assert definition.provider_selector.performance == PerformanceSelector(
+        bounds={"ttft_ms": (None, 500.0), "tpot_ms": (None, 50.0)}
+    )
+
+
+@pytest.mark.unit
+def test_strategy_loader_builds_performance_ranges():
+    """[lower, upper] ranges parse with null leaving that side unbounded."""
+    definition = build_strategy_definition(
+        {
+            "name": "performance_based",
+            "rules": [],
+            "provider_selector": {
+                "performance": {
+                    "kv_cache_usage_perc": [None, 0.8],
+                    "tokens_per_s": [50, None],
+                    "ttft_ms": [0, 500],
+                }
+            },
+        }
+    )
+
+    assert definition.provider_selector.performance == PerformanceSelector(
+        bounds={
+            "kv_cache_usage_perc": (None, 0.8),
+            "tokens_per_s": (50.0, None),
+            "ttft_ms": (0.0, 500.0),
+        }
+    )
+
+
+@pytest.mark.unit
+def test_strategy_executor_filters_by_performance_ranges():
+    """Lower, upper and two-sided ranges are inclusive; missing metrics are dropped."""
+    request = ChatCompletionRequest(
+        model="test-model",
+        messages=[ChatCompletionMessage(role=ChatCompletionRole.USER, content="hi")],
+    )
+    providers = [
+        MockProvider(
+            "at-bounds",
+            metadata=ProviderMetadata(performance={"tokens_per_s": 50, "requests": 10}),
+        ),
+        MockProvider(
+            "inside",
+            metadata=ProviderMetadata(performance={"tokens_per_s": 120, "requests": 3}),
+        ),
+        MockProvider(
+            "too-slow",
+            metadata=ProviderMetadata(performance={"tokens_per_s": 49.9, "requests": 3}),
+        ),
+        MockProvider(
+            "too-busy",
+            metadata=ProviderMetadata(performance={"tokens_per_s": 120, "requests": 11}),
+        ),
+        MockProvider(
+            "below-floor",
+            metadata=ProviderMetadata(performance={"tokens_per_s": 120, "requests": -1}),
+        ),
+        MockProvider(
+            "no-throughput",
+            metadata=ProviderMetadata(performance={"requests": 3}),
+        ),
+    ]
+    definition = StrategyDefinition(
+        name="performance_based",
+        provider_selector=ProviderSelector(
+            performance=PerformanceSelector(
+                bounds={"tokens_per_s": (50.0, None), "requests": (0.0, 10.0)}
+            )
+        ),
+        sort=[SortCriterion("performance.tokens_per_s", descending=True)],
+    )
+
+    candidates = asyncio.run(StrategyExecutor().execute(request, providers, definition))
+
+    assert [candidate.provider.name for candidate in candidates] == ["inside", "at-bounds"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("spec", "message"),
+    [
+        ("fast", r"must be a number or a \[lower, upper\] range"),
+        ([1, 2, 3], r"must be a number or a \[lower, upper\] range"),
+        ([None, "fast"], "range bounds must be numbers or null"),
+        ([True, 10], "range bounds must be numbers or null"),
+        ([None, None], "range must bound at least one side"),
+        ([10, 5], r"range lower bound \(10\) must be <= upper bound \(5\)"),
+    ],
+)
+def test_strategy_loader_rejects_invalid_performance_range(spec, message):
+    """Malformed performance values are rejected at load time."""
+    with pytest.raises(ConfigurationError, match=message):
+        build_strategy_definition(
+            {
+                "name": "performance_based",
+                "rules": [],
+                "provider_selector": {"performance": {"ttft_ms": spec}},
+            }
+        )
+
+
+@pytest.mark.unit
+def test_strategy_loader_rejects_non_numeric_performance_threshold():
+    """performance selector thresholds must be numbers."""
+    with pytest.raises(
+        ConfigurationError,
+        match=r"provider_selector.performance.ttft_ms must be a number or a \[lower, upper\] range",
+    ):
+        build_strategy_definition(
+            {
+                "name": "performance_based",
+                "rules": [],
+                "provider_selector": {"performance": {"ttft_ms": "fast"}},
+            }
+        )
+
+
+@pytest.mark.unit
+def test_strategy_loader_rejects_non_mapping_performance_selector():
+    """performance selector must be a non-empty mapping."""
+    with pytest.raises(
+        ConfigurationError,
+        match="provider_selector.performance must be a non-empty mapping",
+    ):
+        build_strategy_definition(
+            {
+                "name": "performance_based",
+                "rules": [],
+                "provider_selector": {"performance": 500},
+            }
+        )
 
 
 @pytest.mark.unit

@@ -1,4 +1,3 @@
-
 configure_edge_pack_base_realtime () {
   configure_edge_pack "$@"
   version="1.0"
@@ -9,12 +8,12 @@ debian_40_profile_edge_pack_base_realtime () {
 }
 
 debian_40_group_edge_pack_base_realtime () {
-  echo "render:992 video:"
+  echo "render:992 video:44"
 }
 
 debian_40_install_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
-  if ensure_apt_is_installed intel-edge-base-realtime && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-base-realtime && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-base-realtime is installed." >&2
   else
     local candidate
@@ -41,9 +40,9 @@ debian_40_install_edge_pack_base_realtime () {
 
     ensure_prop remove installed/edge_pack_base_realtime/fallback
     ensure_prop set installed/edge_pack_base_realtime/owned true
-    ensure_apt purge --auto-remove -y intel-edge-base-realtime || true
+    ensure_apt purge --auto-remove -y intel-edge-base-realtime onevpl-tools || true
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" || true
-    ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
+    ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')"
   fi
   [ -c /dev/dri/renderD128 ]
   ensure_group_add $(debian_40_group_edge_pack_base_realtime)
@@ -70,4 +69,3 @@ debian_40_sbom_edge_pack_base_realtime () {
     ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*"
   fi
 }
-

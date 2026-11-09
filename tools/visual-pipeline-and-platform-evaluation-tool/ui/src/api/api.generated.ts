@@ -1149,12 +1149,25 @@ export type PipelineDescription = {
 };
 export type DeviceType = "DISCRETE" | "INTEGRATED";
 export type DeviceFamily = "CPU" | "GPU" | "NPU";
+export type CpuTopologySource = "sysfs_pmu" | "sysfs_cache" | "uniform";
+export type CpuCoreType = "P" | "E" | "LPE" | "UNIFORM";
+export type CpuCore = {
+  cpu: number;
+  core_type: CpuCoreType;
+  core_id: number;
+};
+export type CpuTopology = {
+  is_hybrid: boolean;
+  source: CpuTopologySource;
+  cores: CpuCore[];
+};
 export type Device = {
   device_name: string;
   full_device_name: string;
   device_type: DeviceType;
   device_family: DeviceFamily;
   gpu_id: number | null;
+  cpu_topology?: CpuTopology | null;
 };
 export type TestJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type PipelineStreamSpec = {
@@ -1720,7 +1733,7 @@ export type ImageInfo = {
   /** Image height in pixels, or null if it could not be read. */
   height?: number | null;
 };
-export type CameraType = "USB" | "NETWORK";
+export type CameraType = "USB" | "NETWORK" | "GIGE";
 export type V4L2BestCapture = {
   fourcc: string;
   width: number;
@@ -1745,11 +1758,24 @@ export type NetworkCameraDetails = {
   profiles: CameraProfileInfo[];
   best_profile?: CameraProfileInfo | null;
 };
+export type GigECapture = {
+  pixel_format?: string | null;
+  width?: number | null;
+  height?: number | null;
+  fps?: number | null;
+};
+export type GigECameraDetails = {
+  ip: string;
+  vendor?: string | null;
+  model?: string | null;
+  serial?: string | null;
+  current_capture?: GigECapture | null;
+};
 export type Camera = {
   device_id: string;
   device_name: string;
   device_type: CameraType;
-  details: UsbCameraDetails | NetworkCameraDetails;
+  details: UsbCameraDetails | NetworkCameraDetails | GigECameraDetails;
 };
 export type CameraAuthResponse = {
   /** Camera object with populated ONVIF profiles after successful authentication. */

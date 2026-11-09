@@ -11,6 +11,7 @@ import { UIReducer } from './ui/ui.slice.ts';
 import { VideoReducers } from './video/videoSlice.ts';
 import { SearchReducers } from './search/searchSlice.ts';
 import { StreamsReducers } from './streams/streamsSlice.ts';
+import { GeoReducer } from './geo/geoSlice.ts';
 
 /**
  * Slices that must never reach localStorage.
@@ -18,8 +19,9 @@ import { StreamsReducers } from './streams/streamsSlice.ts';
  * `ui` is ephemeral view state. `streams` is live telemetry polled every few
  * seconds - persisting it would both write to disk continuously and show the
  * user yesterday's frame counts on the next page load.
+ * `geo` (map locations) is owned by the backend; a persisted copy would mask updates.
  */
-const NON_PERSISTED_SLICES = ['ui', 'streams'] as const;
+const NON_PERSISTED_SLICES = ['ui', 'streams', 'geo'] as const;
 
 export const loadFromLocalStorage = () => {
   try {
@@ -73,6 +75,7 @@ const store = configureStore({
     search: SearchReducers,
     streams: StreamsReducers,
     ui: UIReducer,
+    geo: GeoReducer,
   }),
   // `import.meta.env.PROD || true` was always true, leaving the DevTools
   // action log - which carries every dispatched payload - enabled in

@@ -17,7 +17,7 @@ The recommended way to build is inside Docker, which handles all dependencies (R
 ### Step 1: Navigate to the Project
 
 ```bash
-cd edge-ai-libraries/metrics-manager
+cd edge-ai-libraries/microservices/metrics-manager
 ```
 
 ### Step 2: Copy Environment Configuration
@@ -31,16 +31,21 @@ Edit `.env` if needed (usually defaults work fine).
 ### Step 3: Build the Docker Image
 
 ```bash
-docker compose build
+docker compose build metrics-manager
 ```
 
 This runs a multi-stage build:
 
-1. **Stage 1**: Compiles qmassa (Intel GPU reader) from Rust source
-2. **Stage 2**: Compiles Telegraf from Go source with patched dependencies
-3. **Stage 3**: Installs Python dependencies (production only, no test packages)
-4. **Stage 4**: Creates a test image with test dependencies (optional)
-5. **Stage 5**: Creates the production image based on `python:3.12-slim` with Telegraf, qmassa, and supervisord
+1. **Rust builder**: Compiles qmassa and qmmd from their pinned upstream tags with locked dependencies.
+2. **Telegraf stage**: Downloads the official pinned release archive and verifies its SHA-256 checksum. Telegraf is not rebuilt or patched locally.
+3. **Go builder**: Compiles the six native telemetry collectors with the pinned Go toolchain.
+4. **Python builder**: Installs runtime dependencies, optionally including OpenVINO.
+5. **Test target**: Adds test dependencies and sources when explicitly selected.
+6. **Accelerator stage**: For extended builds only, downloads the pinned Intel GPU/NPU userspace packages from official release assets, verifies SHA-256 digests and selects only the required packages. Pins are read directly from `versions.env`; firmware and debug packages are excluded.
+7. **Production target**: Uses digest-pinned `python:3.12-slim-trixie` (Debian 13), applies available Debian updates, and assembles the API, collectors and supervisor. Extended builds install the accelerator packages with normal APT dependency checks. Downloaded packages are build-only mounts, not retained archive layers in the final image.
+
+For the two separately tagged RC1 builds, see
+[Building both release-candidate variants](../../../README.md#building-both-release-candidate-variants).
 
 **First build duration**: 3–10 minutes (depends on download speeds and CPU)
 
@@ -72,17 +77,17 @@ If you want to run the service locally without Docker, use the following approac
 
 ### Prerequisites
 
-- **Python 3.10+** (`python3 --version`)
-- **uv** (fast Python package manager): `pip install uv` or see [UV Documentation](https://docs.astral.sh/uv/)
-- **Telegraf** installed on the system (for system metrics)
-- **qmassa binary** (for GPU metrics) — compile from [qmassa GitHub](https://github.com/ulissesf/qmassa) or skip if not needed
+- **Python 3.12+** (`python3 --version`)
+- **uv**: follow the [uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/)
+- **Running telemetry backend**: Telegraf with a Prometheus endpoint and HTTP
+  ingestion listener. The steps below run the API separately from this backend.
 - **Git**
 
 ### Step 1: Clone and Navigate
 
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
-cd edge-ai-libraries/metrics-manager
+cd edge-ai-libraries/microservices/metrics-manager
 ```
 
 ### Step 2: Create a Virtual Environment
@@ -105,11 +110,8 @@ source .venv/bin/activate
 uv sync --group test
 ```
 
-Or with pip:
-
-```bash
-pip install -e ".[test]"
-```
+The test dependencies are a dependency group, not a `test` extra. Use
+`uv sync --group test`; `pip install -e ".[test]"` does not install this group.
 
 ### Step 4: Configure the Environment
 
@@ -126,20 +128,24 @@ TELEGRAF_HTTP_ENDPOINT=http://localhost:8186/write
 PROMETHEUS_TELEGRAF_ENDPOINT=http://localhost:9273
 ```
 
-### Step 5: Start Telegraf
+### Step 5: Verify the Telemetry Backend
 
-On your host machine, start Telegraf with the bundled config:
+Check that your configured telemetry backend is reachable:
 
 ```bash
-telegraf --config telegraf.conf
+curl --fail http://127.0.0.1:9273/metrics | head
 ```
 
-This exposes metrics on `http://localhost:9273/metrics` and listens for writes on `http://localhost:8186/write`.
+The example settings expect `127.0.0.1:9273` for metrics and `127.0.0.1:8186`
+for writes. Adapt them to your backend and do not start a second Telegraf on
+occupied ports. The container's
+root-level `telegraf.conf` uses container paths and environment substitutions;
+it is not a standalone host configuration.
 
 ### Step 6: Run the Application
 
 ```bash
-uvicorn app.main:app --reload --port 9090
+.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 9090
 ```
 
 The service will start on `http://localhost:9090`.
@@ -159,6 +165,7 @@ curl http://localhost:9273/metrics | head
 
 ```bash
 # Run all tests
+docker compose --profile test build metrics-manager-test
 docker compose --profile test run --rm metrics-manager-test
 
 # Run with coverage
@@ -194,11 +201,14 @@ tests/test_routes.py::...                PASSED
 tests/test_metrics.py::...               PASSED
 tests/test_rate_limit.py::...            PASSED
 tests/test_sse.py::...                   PASSED
-tests/test_npu_monitor_tool.py::...      PASSED
-tests/test_npu_reader.py::...            PASSED
-tests/test_telegraf_integration.py::...  SKIPPED (requires Docker)
-========================= 179 passed in 1.70s ==========================
+tests/test_versions.py::...              PASSED
+tests/test_telegraf_integration.py::...  PASSED
 ```
+
+This is an illustrative excerpt, not a fixed test count or timing guarantee.
+The Telegraf wiring tests inspect configuration and do not require a running
+Docker daemon. Binary-backed selection tests and live deployment tests have
+separate prerequisites; see the [Testing Guide](./testing.md).
 
 ---
 
@@ -211,7 +221,7 @@ For local development with hot-reload and debugging:
 uv sync --group test --group dev
 
 # Run with auto-reload
-uvicorn app.main:app --reload --port 9090
+.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 9090
 
 # Run linting and formatting
 black app/
@@ -243,9 +253,16 @@ The `telegraf.conf` file controls system metric collection. To customize:
 
 1. Edit `telegraf.conf` in the metrics-manager root directory
 2. Or mount a custom config: `TELEGRAF_CONFIG=./my-telegraf.conf docker compose up`
-3. Or drop additional `.conf` files in the `telegraf.d/` directory
+3. Add custom `.conf` files to `telegraf.d/`, or select another source directory
+   with `TELEGRAF_CONFIG_DIR`. Startup recursively copies these files into a
+   private snapshot without modifying the mounted originals.
+4. Recreate the selected container to apply changes. Do not enable an automatic
+   collector flag for an input already supplied by your custom configuration:
+   overlapping inputs are rejected instead of collected twice.
 
-See [Environment Variables](./environment-variables.md) for Telegraf customization examples.
+See [Additional Native Docker Collectors](./native-docker-collectors.md) for a
+complete example and [Environment Variables](./environment-variables.md) for
+Telegraf configuration settings.
 
 ### Extending with Custom Inputs
 
@@ -268,10 +285,10 @@ The script runs every 10 seconds and outputs InfluxDB Line Protocol.
 | Error                       | Solution                                                                                       |
 | --------------------------- | ---------------------------------------------------------------------------------------------- |
 | `Rust toolchain not found`  | First Docker build compiles Rust. Try `docker compose build --no-cache`.                       |
-| `Module not found: app`     | Ensure you're in the `metrics-manager/` directory and have run `uv sync` or `pip install -e .` |
-| `Port 9090 already in use`  | Change port in `.env`: `HOST_METRICS_PORT=19090`                                               |
-| `Telegraf not found`        | Install Telegraf: `apt-get install telegraf` (Debian/Ubuntu) or use Docker                     |
-| `Permission denied on /sys` | Ensure you run with `--privileged` (Docker) or as root (local)                                 |
+| `Module not found: app`     | Run from `edge-ai-libraries/microservices/metrics-manager` using the environment created by `uv sync`. |
+| `Port 9090 already in use`  | For Compose, set `HOST_METRICS_PORT=19090`. For a local API, change the Uvicorn `--port` argument. |
+| `Telegraf not found`        | Build the Docker image or configure an existing telemetry backend. |
+| `Permission denied on /sys` | Check the collector-specific device/capability requirements; do not run the local API as root to grant collector access. |
 
 ## Supporting Resources
 

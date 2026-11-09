@@ -78,6 +78,9 @@ export class LlmService {
       if (this.$config.get(`${accessKey}.seed`) !== null) {
         params.seed = +this.$config.get(`${accessKey}.seed`)!;
       }
+      // Reasoning models (e.g. Qwen3.5) think by default and can spend the whole
+      // token budget on reasoning, leaving content empty. Templates without the flag ignore it.
+      params.chat_template_kwargs = { enable_thinking: false };
     }
 
     if (this.$config.get(`${accessKey}.temperature`) !== null) {

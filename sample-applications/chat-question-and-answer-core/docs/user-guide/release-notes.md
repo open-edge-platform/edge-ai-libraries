@@ -1,5 +1,19 @@
 # Release Notes: Chat Q&A Core Sample Application
 
+## Version 2026.3.0-rc1
+
+**Release Date:** November 6, 2026
+
+> **Note:** Helm Chart support will be deprecated in the next release. Limited validation has been performed on the Helm charts for this release.
+
+**New:**
+
+- Added NPU acceleration support for embedding, reranking, and LLM inference models running on the OpenVINO™ Runtime.
+- Upgraded the Ollama runtime to v0.40.12.
+- Updated GPU drivers.
+- Consolidated OpenVINO Docker image releases, removing device-specific runtime images and standardizing image delivery across supported hardware platforms.
+- Updated backend and frontend dependencies to address reported security vulnerabilities and enhance overall platform security and reliability.
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026

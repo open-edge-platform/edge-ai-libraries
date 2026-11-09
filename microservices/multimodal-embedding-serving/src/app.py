@@ -17,15 +17,18 @@ Key endpoints:
 - /models: List available models
 - /model/current: Get current model information
 - /embeddings: Generate embeddings from input data
+- /v1/embeddings: OpenAI-compatible text embeddings (for OpenAI-style clients)
 
 The application follows a factory pattern for model instantiation and provides
 comprehensive error handling and logging.
 """
 
-from typing import Any, Dict, List, Union, Optional
+import base64
+from typing import Annotated, Any, Dict, List, Literal, Union, Optional
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from .utils import (
     ErrorMessages,
     logger,
@@ -37,6 +40,7 @@ from .utils import (
     validate_video_artifact_reference,
 )
 from .models import ModelFactory, get_model_handler, list_available_models
+from .models.config import resolve_model_id
 from .wrapper import EmbeddingModel
 
 app = FastAPI(title=settings.APP_DISPLAY_NAME, description=settings.APP_DESC)
@@ -249,6 +253,40 @@ class FramesManifest(BaseModel):
         return v
 
 
+class FusedImageUrl(BaseModel):
+    """Image of a fused item, downloaded from a URL."""
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["image_url"]
+    image_url: StrictStr
+
+
+class FusedImageBase64(BaseModel):
+    """Image of a fused item, as base64 (optionally a data URL)."""
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["image_base64"]
+    image_base64: StrictStr
+
+
+class FusedItem(BaseModel):
+    """One (text, image) pair embedded jointly into one vector."""
+    model_config = ConfigDict(extra="forbid")
+    text: StrictStr
+    image: Annotated[Union[FusedImageUrl, FusedImageBase64], Field(discriminator="type")]
+
+
+class FusedInput(BaseModel):
+    """
+    Input model for image+text pairs embedded jointly (models with supports_fused only).
+
+    Attributes:
+        type: Input type identifier, exactly "fused"
+        items: Non-empty list of (text, image) pairs; one embedding per item, in order
+    """
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["fused"]
+    items: List[FusedItem] = Field(..., min_length=1)
+
+
 class EmbeddingRequest(BaseModel):
     """
     Main request model for embedding generation.
@@ -268,11 +306,51 @@ class EmbeddingRequest(BaseModel):
         VideoBase64Input,
         VideoFileInput,
         FramesBatchInput,
+        FusedInput,
     ]
     encoding_format: str = Field(
         default="float",
         description='Optional output format for returned embeddings. Defaults to "float".',
     )
+
+
+class OpenAIEmbeddingRequest(BaseModel):
+    """
+    OpenAI-compatible embeddings request (text only).
+
+    Every input is embedded as a document (``embed_documents``): the OpenAI
+    protocol has no query/document distinction.
+    """
+    model: str
+    input: Union[StrictStr, List[StrictStr]]
+    encoding_format: Literal["float", "base64"] = "float"
+    dimensions: Optional[int] = None
+    user: Optional[str] = None
+
+    @field_validator("input")
+    @classmethod
+    def validate_input_not_empty(cls, value):
+        if isinstance(value, list) and not value:
+            raise ValueError("input must contain at least one string")
+        return value
+
+
+class OpenAIEmbeddingData(BaseModel):
+    object: Literal["embedding"] = "embedding"
+    index: int
+    embedding: Union[List[float], str]
+
+
+class OpenAIUsage(BaseModel):
+    prompt_tokens: int
+    total_tokens: int
+
+
+class OpenAIEmbeddingResponse(BaseModel):
+    object: Literal["list"] = "list"
+    data: List[OpenAIEmbeddingData]
+    model: str
+    usage: OpenAIUsage
 
 
 class HealthResponse(BaseModel):
@@ -297,6 +375,7 @@ class ModelCapabilitiesResponse(BaseModel):
     supports_text: bool
     supports_image: bool
     supports_video: bool
+    supports_fused: bool
 
 
 class EmbeddingResponse(BaseModel):
@@ -389,6 +468,7 @@ async def get_model_capabilities() -> dict:
         "supports_text": embedding_model.supports_text(),
         "supports_image": embedding_model.supports_image(),
         "supports_video": embedding_model.supports_video(),
+        "supports_fused": embedding_model.supports_fused(),
     }
 
 
@@ -475,6 +555,21 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
             embedding = await embedding_model.get_video_embedding_from_frames_manifest(
                 input_data.frames_manifest_path
             )
+        elif isinstance(input_data, FusedInput):
+            if not embedding_model.supports_fused():
+                raise HTTPException(status_code=400, detail="Fused image+text inputs are not supported by the active model")
+            images = []
+            for item in input_data.items:
+                if item.image.type == "image_url":
+                    images.append(await download_image(item.image.image_url))
+                else:
+                    images.append(decode_base64_image(item.image.image_base64))
+            embedding = embedding_model.get_fused_embeddings(
+                [item.text for item in input_data.items], images
+            )
+        elif input_data.type == "fused":
+            # Matched a looser input model (e.g. {"type": "fused", "text": ...}).
+            raise HTTPException(status_code=422, detail="Fused input requires 'items' of {text, image} pairs")
         else:
             raise HTTPException(status_code=400, detail="Invalid input type")
 
@@ -486,6 +581,83 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
     except FileNotFoundError as e:
         logger.error(f"File not found error creating embedding: {e}")
         raise HTTPException(status_code=404, detail=f"File not found: {e}")
+    except ValueError as e:
+        logger.error(f"Validation error creating embedding: {e}")
+        raise HTTPException(status_code=422, detail=f"Invalid input data: {e}")
+    except Exception as e:
+        logger.error(f"Error creating embedding: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"{ErrorMessages.CREATE_EMBEDDING_ERROR}: {e}"
+        )
+
+
+def _is_active_model(model_id: str) -> bool:
+    """True if ``model_id`` (registered ID, alias or bare name) is the loaded model."""
+    if model_id == settings.EMBEDDING_MODEL_NAME:
+        return True
+    try:
+        return resolve_model_id(model_id) == resolve_model_id(settings.EMBEDDING_MODEL_NAME)
+    except ValueError:
+        return False
+
+
+def _encode_openai_embedding(vector: List[float], encoding_format: str) -> Union[List[float], str]:
+    if encoding_format == "base64":
+        # OpenAI clients decode base64 as little-endian float32.
+        return base64.b64encode(np.asarray(vector, dtype="<f4").tobytes()).decode("ascii")
+    return vector
+
+
+@app.post(
+    "/v1/embeddings",
+    tags=["Embeddings"],
+    summary="Create embeddings (OpenAI-compatible)",
+    response_model=OpenAIEmbeddingResponse,
+)
+async def create_openai_embeddings(request: OpenAIEmbeddingRequest) -> dict:
+    """
+    OpenAI-compatible text embeddings, for clients that speak the OpenAI API.
+
+    Accepts a string or a list of strings and returns one embedding per input
+    in ``data[].embedding``. Inputs are embedded as documents. ``usage`` is not
+    tracked and is always reported as 0.
+    """
+    try:
+        if not _is_active_model(request.model):
+            logger.warning("Model mismatch between requested model and active server model")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model mismatch: requested model '{request.model}' does not match the currently loaded model '{settings.EMBEDDING_MODEL_NAME}'.",
+            )
+        if embedding_model is None:
+            raise HTTPException(status_code=503, detail="Model is not initialized")
+        if not embedding_model.supports_text():
+            raise HTTPException(status_code=400, detail="Text inputs are not supported by the active model")
+        if request.dimensions is not None and request.dimensions != embedding_model.get_embedding_length():
+            raise HTTPException(
+                status_code=400,
+                detail=f"dimensions={request.dimensions} is not supported; the active model returns {embedding_model.get_embedding_length()}",
+            )
+
+        texts = [request.input] if isinstance(request.input, str) else list(request.input)
+        vectors = embedding_model.embed_documents(texts)
+        logger.info(f"OpenAI-compatible embeddings created successfully - {len(vectors)} inputs")
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "object": "embedding",
+                    "index": index,
+                    "embedding": _encode_openai_embedding(vector, request.encoding_format),
+                }
+                for index, vector in enumerate(vectors)
+            ],
+            "model": request.model,
+            "usage": {"prompt_tokens": 0, "total_tokens": 0},
+        }
+    except HTTPException as e:
+        logger.error(f"HTTP error creating embedding: {e.detail}")
+        raise e
     except ValueError as e:
         logger.error(f"Validation error creating embedding: {e}")
         raise HTTPException(status_code=422, detail=f"Invalid input data: {e}")

@@ -1,9 +1,9 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Trust-boundary posture of the Lingua server (ATC-SEC-003).
+"""Trust-boundary posture of the Compress Server (ATC-SEC-003).
 
-The Lingua model server is **unauthenticated by design** — it is meant to run on
+The compress-server model server is **unauthenticated by design** — it is meant to run on
 a trusted network / behind a gateway, not exposed directly. That is a deliberate
 security decision, and these tests *codify* it: if someone later adds an auth
 layer (or an auth scheme leaks into the OpenAPI spec) without updating the
@@ -22,7 +22,7 @@ import types
 
 import pytest
 
-from adaptive_token_compressor.model_servers.lingua import app as app_module
+from adaptive_token_compressor.model_servers.compress_server import app as app_module
 
 
 class _FakeModel:
@@ -46,7 +46,7 @@ def app(monkeypatch):
     )
     return app_module.build_app(
         argparse.Namespace(
-            backend="pytorch",
+            runtime="pytorch",
             device="cpu",
             device_index=0,
             model_name_id="",

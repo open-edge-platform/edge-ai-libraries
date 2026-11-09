@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Opt-in: copy to /etc/metrics-manager/powerstat.d/turbostat.conf and restart
+# metrics-manager-powerstat.service. Do not load this in telegraf.d: the
+# unprivileged Telegraf cannot read the CPU MSRs used by turbostat.
+#
+# Requires a turbostat binary built for the running kernel; on Debian/Ubuntu
+# this is commonly provided by linux-tools-$(uname -r). Check that
+# the configured TURBOSTAT_BIN --version works before enabling this input.
+# Set TURBOSTAT_BIN and TURBOSTAT_INTERVAL in metrics-manager.env.
+
+[[inputs.turbostat]]
+  path = "${TURBOSTAT_BIN}"
+  interval = "${TURBOSTAT_INTERVAL}s"
