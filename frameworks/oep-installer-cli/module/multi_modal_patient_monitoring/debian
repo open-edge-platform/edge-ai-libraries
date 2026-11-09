@@ -36,7 +36,7 @@ debian_90_profile_multi_modal_patient_monitoring () {
 
 debian_90_install_multi_modal_patient_monitoring () {
   configure_multi_modal_patient_monitoring "$@"
-  if verify_multi_modal_patient_monitoring && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_multi_modal_patient_monitoring && ! ensure_parse_reinstall "$@"; then
     echo "Multi Modal Patient Monitoring is installed" >&2
   else
     ensure_disk_size 50000

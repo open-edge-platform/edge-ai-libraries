@@ -17,12 +17,12 @@ verify_person_of_interest () {
 }
 
 debian_90_profile_person_of_interest () {
-  echo "edge_base git make curl"
+  echo "docker_io edge_base git make curl"
 }
 
 debian_90_install_person_of_interest () {
   configure_person_of_interest "$@"
-  if verify_person_of_interest && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_person_of_interest && ! ensure_parse_reinstall "$@"; then
     echo "Person of Interest is installed" >&2
   else
     ensure_disk_size 15000

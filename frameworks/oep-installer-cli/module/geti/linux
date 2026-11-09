@@ -15,7 +15,7 @@ verify_geti () {
 install_geti () {
   configure_geti "$@"
 
-  if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_geti && ! ensure_parse_reinstall "$@"; then
     echo "Geti is installed." >&2
   else
     ensure_disk_size 20000

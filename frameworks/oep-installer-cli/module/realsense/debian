@@ -27,7 +27,7 @@ configure_realsense () {
     rs_packages=(librealsense2 librealsense2-utils librealsense2-dev librealsense2-gl librealsense2-udev-rules)
   fi
   rs_ros_package=
-  if [[ " $* " = *" ros2 "* || " $* " = *" edge_base_robotics "* ]]; then
+  if ensure_parse_option ros2 "$@" || ensure_parse_option edge_base_robotics "$@"; then
     case "$VERSION_CODENAME" in
     jammy) rs_ros_package=ros-humble-librealsense2 ;;
     noble) rs_ros_package=ros-jazzy-librealsense2 ;;
@@ -63,7 +63,7 @@ debian_55_install_realsense () {
     fi
   fi
   ensure_prop create installed/realsense/packages/
-  if ensure_apt_is_installed "${rs_packages[@]}" && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed "${rs_packages[@]}" && ! ensure_parse_reinstall "$@"; then
     echo "RealSense packages are installed." >&2
   else
     local package
