@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <cstdlib>
 #include <iostream>
 #include <vector>
@@ -53,11 +54,19 @@ int main() {
   const auto next = shift_image(prev, kW, kH, kDx, kDy);
 
   OpenCLOpticalFlow of(Preset::Fast);
+  std::cout << "dmabuf_import_supported=" << (of.supports_dmabuf_import() ? "yes" : "no") << "\n";
+
   auto d_prev = of.create_u8_image(kW, kH);
   auto d_next = of.create_u8_image(kW, kH);
   auto d_flow = of.create_flow_buffer(kW, kH);
   of.upload_u8(d_prev, ImageView{prev.data(), kW, kH, 0});
-  of.upload_u8(d_next, ImageView{next.data(), kW, kH, 0});
+  // Strided upload (simulate NV12 Y pitch = width + 16).
+  constexpr int kPitch = kW + 16;
+  std::vector<std::uint8_t> next_strided(static_cast<std::size_t>(kPitch) * kH, 0);
+  for (int y = 0; y < kH; ++y)
+    std::memcpy(next_strided.data() + static_cast<std::size_t>(y) * kPitch,
+                next.data() + static_cast<std::size_t>(y) * kW, static_cast<std::size_t>(kW));
+  of.upload_u8(d_next, ImageView{next_strided.data(), kW, kH, static_cast<std::size_t>(kPitch)});
   of.calc_device(d_prev, d_next, d_flow);
 
   FlowField flow;

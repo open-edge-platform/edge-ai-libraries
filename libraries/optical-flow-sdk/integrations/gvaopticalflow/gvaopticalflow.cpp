@@ -254,46 +254,90 @@ static gboolean ensure_engine(GstGvaOpticalFlow *self) {
     }
 }
 
+#if OPTICALFLOW_HAS_OPENCL
+// Map luma plane as ImageView (NV12/GRAY8). Caller must keep GstVideoFrame mapped.
+static gboolean luma_view_from_frame(GstVideoFrame *frame, optical_flow_sdk::ImageView *view, int *w, int *h) {
+    const GstVideoFormat fmt = GST_VIDEO_FRAME_FORMAT(frame);
+    *w = GST_VIDEO_FRAME_WIDTH(frame);
+    *h = GST_VIDEO_FRAME_HEIGHT(frame);
+    if (fmt != GST_VIDEO_FORMAT_GRAY8 && fmt != GST_VIDEO_FORMAT_NV12 && fmt != GST_VIDEO_FORMAT_NV21)
+        return FALSE;
+    view->data = static_cast<const std::uint8_t *>(GST_VIDEO_FRAME_PLANE_DATA(frame, 0));
+    view->width = *w;
+    view->height = *h;
+    view->stride = static_cast<std::size_t>(GST_VIDEO_FRAME_PLANE_STRIDE(frame, 0));
+    return TRUE;
+}
+#endif
+
 static GstFlowReturn gst_gva_optical_flow_transform_ip(GstBaseTransform *base, GstBuffer *buf) {
     GstGvaOpticalFlow *self = GST_GVA_OPTICAL_FLOW(base);
     if (!ensure_engine(self))
         return GST_FLOW_ERROR;
 
-    if (!extract_gray(self, buf, self->ctx->next_gray))
-        return GST_FLOW_ERROR;
-
     ++self->ctx->frame_index;
-    if (!self->ctx->have_prev) {
-        self->ctx->prev_gray.swap(self->ctx->next_gray);
-        self->ctx->have_prev = true;
-        return GST_FLOW_OK;
-    }
-
-    optical_flow_sdk::ImageView prev_view{self->ctx->prev_gray.data(), self->ctx->gray_w, self->ctx->gray_h, 0};
-    optical_flow_sdk::ImageView next_view{self->ctx->next_gray.data(), self->ctx->gray_w, self->ctx->gray_h, 0};
     optical_flow_sdk::FlowField flow;
     optical_flow_sdk::CostMap cost;
 
     try {
 #if OPTICALFLOW_HAS_OPENCL
-        if (self->ctx->flow_ocl) {
-            if (self->attach_cost) {
-                // Cost map still needs the host OpenCL calc path.
-                self->ctx->flow_ocl->calc(prev_view, next_view, flow, cost);
+        // OpenCL DIS: map Y in-place, strided upload (WriteBufferRect), device ping-pong.
+        // Only one H2D of the new frame; prev stays on GPU. Flow D2H for meta v0 only.
+        if (self->ctx->flow_ocl && !self->attach_cost) {
+            GstVideoFrame frame;
+            if (!gst_video_frame_map(&frame, &self->vinfo, buf, GST_MAP_READ))
+                return GST_FLOW_ERROR;
+            optical_flow_sdk::ImageView luma{};
+            int w = 0, h = 0;
+            if (!luma_view_from_frame(&frame, &luma, &w, &h)) {
+                gst_video_frame_unmap(&frame);
+                // RGB(A) etc.: fall back to packed gray extract path below.
             } else {
-                if (!self->ctx->ocl_bufs_ready || self->ctx->prev_dev.width() != self->ctx->gray_w ||
-                    self->ctx->prev_dev.height() != self->ctx->gray_h) {
-                    self->ctx->prev_dev = self->ctx->flow_ocl->create_u8_image(self->ctx->gray_w, self->ctx->gray_h);
-                    self->ctx->next_dev = self->ctx->flow_ocl->create_u8_image(self->ctx->gray_w, self->ctx->gray_h);
-                    self->ctx->flow_dev = self->ctx->flow_ocl->create_flow_buffer(self->ctx->gray_w, self->ctx->gray_h);
+                self->ctx->gray_w = w;
+                self->ctx->gray_h = h;
+                if (!self->ctx->ocl_bufs_ready || self->ctx->prev_dev.width() != w ||
+                    self->ctx->prev_dev.height() != h) {
+                    self->ctx->prev_dev = self->ctx->flow_ocl->create_u8_image(w, h);
+                    self->ctx->next_dev = self->ctx->flow_ocl->create_u8_image(w, h);
+                    self->ctx->flow_dev = self->ctx->flow_ocl->create_flow_buffer(w, h);
                     self->ctx->ocl_bufs_ready = true;
+                    self->ctx->have_prev = false;
                 }
-                self->ctx->flow_ocl->upload_u8(self->ctx->prev_dev, prev_view);
-                self->ctx->flow_ocl->upload_u8(self->ctx->next_dev, next_view);
+                if (!self->ctx->have_prev) {
+                    self->ctx->flow_ocl->upload_u8(self->ctx->prev_dev, luma);
+                    self->ctx->flow_ocl->finish();
+                    self->ctx->have_prev = true;
+                    gst_video_frame_unmap(&frame);
+                    return GST_FLOW_OK;
+                }
+                self->ctx->flow_ocl->upload_u8(self->ctx->next_dev, luma);
                 self->ctx->flow_ocl->calc_device(self->ctx->prev_dev, self->ctx->next_dev, self->ctx->flow_dev);
-                // v0 GstGVATensorMeta consumers need host float2 bytes.
                 self->ctx->flow_ocl->download_flow(self->ctx->flow_dev, flow);
+                std::swap(self->ctx->prev_dev, self->ctx->next_dev);
+                gst_video_frame_unmap(&frame);
+
+                if (!gst_buffer_is_writable(buf))
+                    buf = gst_buffer_make_writable(buf);
+                attach_flow_meta(self, buf, flow, nullptr);
+                return GST_FLOW_OK;
             }
+        }
+#endif
+        if (!extract_gray(self, buf, self->ctx->next_gray))
+            return GST_FLOW_ERROR;
+
+        if (!self->ctx->have_prev) {
+            self->ctx->prev_gray.swap(self->ctx->next_gray);
+            self->ctx->have_prev = true;
+            return GST_FLOW_OK;
+        }
+
+        optical_flow_sdk::ImageView prev_view{self->ctx->prev_gray.data(), self->ctx->gray_w, self->ctx->gray_h, 0};
+        optical_flow_sdk::ImageView next_view{self->ctx->next_gray.data(), self->ctx->gray_w, self->ctx->gray_h, 0};
+
+#if OPTICALFLOW_HAS_OPENCL
+        if (self->ctx->flow_ocl) {
+            self->ctx->flow_ocl->calc(prev_view, next_view, flow, cost);
         } else
 #endif
         {

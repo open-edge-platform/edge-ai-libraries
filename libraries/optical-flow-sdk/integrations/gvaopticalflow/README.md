@@ -33,4 +33,12 @@ gst-launch-1.0 videotestsrc num-buffers=30 pattern=ball ! \
 ```
 
 **Lab smoke 2026-11-10:** `gst-inspect` OK; `gst-launch` 30×640×480 NV12 GPU
-DIS Fast → EOS, no errors (ControlMaster `arc`).
+DIS Fast → EOS (ControlMaster `arc`). Device path uses strided Y upload +
+ping-pong (`docs/device_import.md`).
+
+**Consumer example:**
+
+```bash
+python3 examples/flow_consumer.py
+# frames=12 buffers_with_gva_tensor_meta=11  (frame0 has no prev)
+```

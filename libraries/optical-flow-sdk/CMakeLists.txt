@@ -99,7 +99,7 @@ set_target_properties(optical_flow_sdk PROPERTIES
 )
 
 if(OPTICALFLOW_ENABLE_OPENCL)
-  target_link_libraries(optical_flow_sdk PUBLIC OpenCL::OpenCL Threads::Threads)
+  target_link_libraries(optical_flow_sdk PUBLIC OpenCL::OpenCL Threads::Threads ${CMAKE_DL_LIBS})
   find_package(OpenMP)
   if(OpenMP_CXX_FOUND)
     target_link_libraries(optical_flow_sdk PRIVATE OpenMP::OpenMP_CXX)

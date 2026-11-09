@@ -31,8 +31,16 @@ public:
   // Device-resident path: prev/next/flow stay on the GPU (no host flow readback).
   OpenCLU8Image create_u8_image(int width, int height) const;
   OpenCLFlowBuffer create_flow_buffer(int width, int height) const;
+  // Non-owning wrap of an existing cl_mem (packed u8 luma). Caller keeps lifetime.
+  OpenCLU8Image wrap_u8_image(void *cl_mem_handle, int width, int height) const;
+  // Import a DMA-BUF fd as packed u8 luma via cl_khr_external_memory (when available).
+  // `size_bytes` is the import size (typically stride * height for a Y plane).
+  // Requires device support (clinfo: "External memory handle types: DMA buffer").
+  OpenCLU8Image import_dmabuf_u8(int fd, std::size_t size_bytes, int width, int height) const;
+  bool supports_dmabuf_import() const;
   void upload_u8(OpenCLU8Image &dst, const ImageView &src) const;
   void download_flow(const OpenCLFlowBuffer &src, FlowField &dst) const;
+  void copy_u8(const OpenCLU8Image &src, OpenCLU8Image &dst) const;
   void calc_device(const OpenCLU8Image &prev, const OpenCLU8Image &next,
                   OpenCLFlowBuffer &flow) const;
   void finish() const;

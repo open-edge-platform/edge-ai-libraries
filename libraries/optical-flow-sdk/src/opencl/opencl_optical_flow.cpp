@@ -11,10 +11,23 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <dlfcn.h>
 #include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+// OpenCL 3.0 / cl_khr_external_memory DMA-BUF (may be absent from older CL/cl.h).
+#ifndef CL_EXTERNAL_MEMORY_HANDLE_DMA_BUF_KHR
+#define CL_EXTERNAL_MEMORY_HANDLE_DMA_BUF_KHR 0x2067
+#endif
+#ifndef CL_DEVICE_HANDLE_LIST_KHR
+#define CL_DEVICE_HANDLE_LIST_KHR 0x2051
+#define CL_DEVICE_HANDLE_LIST_END_KHR 0
+#endif
+#ifndef CL_MEM_PROPERTIES
+using cl_mem_properties = cl_bitfield;
+#endif
 
 namespace optical_flow_sdk {
 namespace {
@@ -426,6 +439,75 @@ OpenCLFlowBuffer OpenCLOpticalFlow::create_flow_buffer(int width, int height) co
   return OpenCLFlowBuffer(mem, width, height, true);
 }
 
+OpenCLU8Image OpenCLOpticalFlow::wrap_u8_image(void *cl_mem_handle, int width, int height) const {
+  if (!cl_mem_handle || width <= 0 || height <= 0)
+    throw std::invalid_argument("wrap_u8_image requires non-null cl_mem and positive size");
+  return OpenCLU8Image(cl_mem_handle, width, height, /*owns=*/false);
+}
+
+bool OpenCLOpticalFlow::supports_dmabuf_import() const {
+  OpenCLContext &ctx = shared_context();
+  cl_platform_id platform = nullptr;
+  check_cl(clGetDeviceInfo(ctx.device, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr),
+           "clGetDeviceInfo PLATFORM");
+  std::size_t ext_size = 0;
+  check_cl(clGetPlatformInfo(platform, CL_PLATFORM_EXTENSIONS, 0, nullptr, &ext_size),
+           "clGetPlatformInfo EXT size");
+  std::string ext(ext_size, '\0');
+  check_cl(clGetPlatformInfo(platform, CL_PLATFORM_EXTENSIONS, ext_size, ext.data(), nullptr),
+           "clGetPlatformInfo EXT");
+  return ext.find("cl_khr_external_memory") != std::string::npos;
+}
+
+OpenCLU8Image OpenCLOpticalFlow::import_dmabuf_u8(int fd, std::size_t size_bytes, int width,
+                                                 int height) const {
+  if (fd < 0 || size_bytes == 0 || width <= 0 || height <= 0)
+    throw std::invalid_argument("import_dmabuf_u8 bad args");
+  if (size_bytes < static_cast<std::size_t>(width) * static_cast<std::size_t>(height))
+    throw std::invalid_argument("import_dmabuf_u8 size_bytes smaller than width*height");
+  if (!supports_dmabuf_import())
+    throw std::runtime_error("OpenCL platform lacks cl_khr_external_memory (DMA-BUF)");
+
+  OpenCLContext &ctx = shared_context();
+  using CreateBufPropsFn = cl_mem (*)(cl_context, const cl_mem_properties *, cl_mem_flags, size_t,
+                                      void *, cl_int *);
+  static CreateBufPropsFn create_with_props = nullptr;
+  static std::once_flag once;
+  std::call_once(once, [] {
+    create_with_props =
+        reinterpret_cast<CreateBufPropsFn>(dlsym(RTLD_DEFAULT, "clCreateBufferWithProperties"));
+    if (!create_with_props)
+      create_with_props = reinterpret_cast<CreateBufPropsFn>(
+          dlsym(RTLD_DEFAULT, "clCreateBufferWithPropertiesINTEL"));
+  });
+  if (!create_with_props)
+    throw std::runtime_error("clCreateBufferWithProperties not available in OpenCL ICD");
+
+  const cl_mem_properties props[] = {
+      static_cast<cl_mem_properties>(CL_EXTERNAL_MEMORY_HANDLE_DMA_BUF_KHR),
+      static_cast<cl_mem_properties>(static_cast<intptr_t>(fd)),
+      static_cast<cl_mem_properties>(CL_DEVICE_HANDLE_LIST_KHR),
+      static_cast<cl_mem_properties>(reinterpret_cast<intptr_t>(ctx.device)),
+      static_cast<cl_mem_properties>(CL_DEVICE_HANDLE_LIST_END_KHR),
+      static_cast<cl_mem_properties>(0),
+  };
+  cl_int status = CL_SUCCESS;
+  cl_mem mem =
+      create_with_props(ctx.context, props, CL_MEM_READ_ONLY, size_bytes, nullptr, &status);
+  if (status != CL_SUCCESS || !mem) {
+    // Fallback property list without device handle list (some ICDs).
+    const cl_mem_properties props_simple[] = {
+        static_cast<cl_mem_properties>(CL_EXTERNAL_MEMORY_HANDLE_DMA_BUF_KHR),
+        static_cast<cl_mem_properties>(static_cast<intptr_t>(fd)),
+        static_cast<cl_mem_properties>(0),
+    };
+    mem = create_with_props(ctx.context, props_simple, CL_MEM_READ_ONLY, size_bytes, nullptr,
+                            &status);
+  }
+  check_cl(status, "clCreateBufferWithProperties DMA-BUF");
+  return OpenCLU8Image(mem, width, height, /*owns=*/true);
+}
+
 void OpenCLOpticalFlow::upload_u8(OpenCLU8Image &dst, const ImageView &src) const {
   src.validate();
   if (dst.empty() || dst.width() != src.width || dst.height() != src.height)
@@ -437,14 +519,27 @@ void OpenCLOpticalFlow::upload_u8(OpenCLU8Image &dst, const ImageView &src) cons
     check_cl(clEnqueueWriteBuffer(ctx.queue, mem, CL_FALSE, 0, nbytes, src.data, 0, nullptr, nullptr),
              "upload_u8");
   } else {
-    std::vector<std::uint8_t> pack(nbytes);
-    for (int y = 0; y < src.height; ++y)
-      std::memcpy(pack.data() + static_cast<std::size_t>(y) * src.width, src.row(y),
-                  static_cast<std::size_t>(src.width));
-    check_cl(clEnqueueWriteBuffer(ctx.queue, mem, CL_FALSE, 0, nbytes, pack.data(), 0, nullptr,
-                                  nullptr),
-             "upload_u8 packed");
+    // Strided host plane (e.g. NV12 Y) → packed device buffer without an extra host pack.
+    const std::size_t src_origin[3] = {0, 0, 0};
+    const std::size_t dst_origin[3] = {0, 0, 0};
+    const std::size_t region[3] = {static_cast<std::size_t>(src.width),
+                                   static_cast<std::size_t>(src.height), 1};
+    check_cl(clEnqueueWriteBufferRect(ctx.queue, mem, CL_FALSE, dst_origin, src_origin, region,
+                                      /*dst_row_pitch=*/static_cast<std::size_t>(src.width),
+                                      /*dst_slice_pitch=*/0, /*src_row_pitch=*/src.row_stride(),
+                                      /*src_slice_pitch=*/0, src.data, 0, nullptr, nullptr),
+             "upload_u8 WriteBufferRect");
   }
+}
+
+void OpenCLOpticalFlow::copy_u8(const OpenCLU8Image &src, OpenCLU8Image &dst) const {
+  if (src.empty() || dst.empty() || src.width() != dst.width() || src.height() != dst.height())
+    throw std::invalid_argument("copy_u8 size mismatch");
+  OpenCLContext &ctx = shared_context();
+  check_cl(clEnqueueCopyBuffer(ctx.queue, static_cast<cl_mem>(src.handle()),
+                               static_cast<cl_mem>(dst.handle()), 0, 0, src.bytes(), 0, nullptr,
+                               nullptr),
+           "copy_u8");
 }
 
 void OpenCLOpticalFlow::download_flow(const OpenCLFlowBuffer &src, FlowField &dst) const {

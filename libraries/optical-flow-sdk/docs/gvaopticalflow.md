@@ -29,11 +29,12 @@ Optional `attach-cost=true` adds a second meta with `layer_name=cost`
 
 ## Device path
 
-- `device=GPU` / `AUTO` + OpenCL SDK build → `OpenCLOpticalFlow::calc_device`
-  after H2D luma upload; flow downloaded only to fill tensor meta (v0).
+- `device=GPU` / `AUTO` + OpenCL SDK build → map NV12/GRAY8 Y → strided
+  `upload_u8` → `calc_device` with **device ping-pong** (prev stays on GPU);
+  flow D2H only for tensor meta (v0). See `docs/device_import.md`.
 - `device=CPU` → `OpticalFlow` CPU facade.
-- VAMemory / DMABuf → OpenCL import (no host luma copy) is the P3 resident
-  upgrade; not in v0.
+- DMA-BUF import API: `import_dmabuf_u8` (lab-supported). VAMemory pad
+  templates + VA↔CL sharing still open.
 
 ## Consumers
 
@@ -47,6 +48,7 @@ Optional `attach-cost=true` adds a second meta with `layer_name=cost`
 ## Status
 
 Scaffold on dlstreamer `feat/gvaopticalflow` + standalone lab build under
-`integrations/gvaopticalflow/`. **Lab smoke PASS 2026-11-10** on Series 2
-(`gst-inspect` / `gst-launch` NV12 GPU). **Open:** VAMemory/DMABuf→CL
-import, consumer wiring, dlstreamer upstream PR (deferred). See PLAN §11.7.
+`integrations/gvaopticalflow/`. **Lab smoke PASS**; device ping-pong +
+DMA-BUF import API + `examples/flow_consumer.py` landed 2026-11-10.
+**Open:** VAMemory pads / VA↔CL sharing, track/motion/watermark hooks,
+dlstreamer upstream PR (deferred). See PLAN §11.7.
