@@ -217,6 +217,13 @@ if(OPTICALFLOW_BUILD_SAMPLES AND OPTICALFLOW_ENABLE_CPU)
   target_link_libraries(sample_stabilize_global_flow PRIVATE optical_flow_sdk)
   add_executable(sample_track_points_cpu samples/track_points_cpu.cpp)
   target_link_libraries(sample_track_points_cpu PRIVATE optical_flow_sdk)
+  add_executable(sample_warp_with_flow samples/warp_with_flow.cpp)
+  target_link_libraries(sample_warp_with_flow PRIVATE optical_flow_sdk)
+endif()
+
+if(OPTICALFLOW_BUILD_SAMPLES AND OPTICALFLOW_ENABLE_OPENCL)
+  add_executable(sample_calc_flow_opencl_device samples/calc_flow_opencl_device.cpp)
+  target_link_libraries(sample_calc_flow_opencl_device PRIVATE optical_flow_sdk)
 endif()
 
 if(OPTICALFLOW_BUILD_BENCHMARKS AND OPTICALFLOW_ENABLE_CPU)

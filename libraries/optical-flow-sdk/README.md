@@ -17,15 +17,15 @@ See [PLAN.md](PLAN.md) for decisions, gates, and roadmap. IPU DVS is deferred.
 |-------|--------|
 | C++ API (`OpticalFlow`, presets, cost, `calcBoth`) | Available |
 | CPU DIS-style backend | Available (OpenCV-free) |
-| CPU Farneback dense + sparse PyrLK | Available (OpenCV-free) |
+| CPU / OpenCL Farneback-class + sparse PyrLK | Available; OpenCL Farneback **soft vs OpenCV** (`docs/farneback.md`) |
 | EPE / Middlebury `.flo` metrics | Available (`metrics.hpp`, `eval_flow_epe`) |
-| OpenCL DIS backend | Device-resident (lab-validated on Core Ultra 7 255H Arc Graphics) |
-| SYCL backend | Wired; falls back to CPU until `icpx` / oneAPI available |
+| OpenCL DIS + `calc_device` | Device-resident ≥10× on Series 2 iGPU; prefer over host `calc` (`docs/backend-selection.md`) |
+| SYCL DIS | Landed (lab); OpenCL remains the primary speed path |
+| SEA-RAFT OpenVINO | P2 quality PASS + iGPU FPS (`docs/sea_raft.md`) |
 | OpenCV Mat adapter | Optional (`-DOPTICALFLOW_BUILD_OPENCV_ADAPTER=ON`) |
 | Python (`optical_flow_sdk`) | Available when `-DOPTICALFLOW_BUILD_PYTHON=ON` |
-| CPU microbench / OpenCV DIS·Farneback·PyrLK compare | Available under `benchmarks/` |
-| OpenCV CPU synthetic parity test | Soft GT-EPE gates when adapter ON |
-| Lab GPU timing / Sintel·KITTI OpenCV parity | Lab harness `parity_opencv_datasets`; §8 gate **FAIL** (DIS-lite — see PLAN §11.6) |
+| Samples | CPU calc / stabilize / track; OpenCL `calc_device`; warp seed (`docs/fruc_warp.md`) |
+| Lab GPU timing / Sintel·KITTI OpenCV parity | §8 gate **FAIL** for DIS-lite (PLAN §11.6) |
 
 ## Build (CPU)
 
@@ -57,8 +57,13 @@ cmake -S . -B build-opencl \
   -DOPTICALFLOW_BUILD_BENCHMARKS=ON
 cmake --build build-opencl --parallel
 ./build-opencl/test_optical_flow_opencl_shift
-./build-opencl/microbench_opencl
+./build-opencl/microbench_opencl_resident   # ≥10× path (calc_device)
+./build-opencl/sample_calc_flow_opencl_device
 ```
+
+**Speed tip:** use `OpenCLOpticalFlow::calc_device` for pipelines. Host
+`OpticalFlow::calc` on OpenCL is convenience-only (~6–8×); see
+`docs/backend-selection.md`.
 
 For SYCL on a oneAPI host:
 
@@ -78,6 +83,20 @@ optical_flow_sdk::OpticalFlow of(optical_flow_sdk::Backend::Cpu,
                                  optical_flow_sdk::Preset::Fast);
 optical_flow_sdk::FlowField flow;
 of.calc(prev, next, flow);  // dense dx/dy floats
+```
+
+GPU-resident (preferred for speed):
+
+```cpp
+#include "optical_flow_sdk/opencl_optical_flow.hpp"
+
+optical_flow_sdk::OpenCLOpticalFlow of(optical_flow_sdk::Preset::Fast);
+auto d_prev = of.create_u8_image(w, h);
+auto d_next = of.create_u8_image(w, h);
+auto d_flow = of.create_flow_buffer(w, h);
+of.upload_u8(d_prev, prev_view);
+of.upload_u8(d_next, next_view);
+of.calc_device(d_prev, d_next, d_flow);  // flow stays on GPU
 ```
 
 ## License

@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Benchmark results (agent / P2 baseline)
+# Benchmark results (agent baselines)
 
 | File | Role |
 |------|------|
@@ -12,14 +12,14 @@ SPDX-License-Identifier: Apache-2.0
 | `p2_sea_raft_kitti_fl_all_2026-11-10.json` | P2 SEA-RAFT-S KITTI Fl-all **PASS** (2.70% ≤ 19.11%) |
 | `p2_sea_raft_openvino_fps_2026-11-10.json` | P2 SEA-RAFT OpenVINO iGPU ~15.7 FPS @384×1248 |
 
-## For agents continuing P2
+## For agents (P2 exit met; P3 in progress)
 
-1. Read both JSON files and `PLAN.md` §10 P2 / §11.6 / `docs/sea_raft.md`.
-2. Classical DIS is still §8 **FAIL**, but P2 OpenCL Fast/Medium EPE improved
-   vs P1; keep resident ≥10× when retuning further.
-3. After accuracy changes, re-run `parity_opencv_datasets` and add a **new**
-   dated JSON (do not overwrite P1 or prior P2 files).
-4. SEA-RAFT gate is vs **NVOFA Medium Fl-all** (`Algorithm::SeaRaft` stub +
-   `-DOPTICALFLOW_ENABLE_OPENVINO=ON`). Farneback/PyrLK OpenCL ports remain open.
+1. Read JSON files and `PLAN.md` §10 / §11.6–§11.7 / `docs/sea_raft.md`.
+2. Classical DIS remains §8 **FAIL** (DIS-lite); SEA-RAFT closes the quality gate.
+3. Prefer `calc_device` for ≥10× claims (`docs/backend-selection.md`).
+4. OpenCL Farneback is Farneback-**class** (windowed LK), soft vs OpenCV —
+   `docs/farneback.md`. PyrLK OpenCL landed.
+5. FRUC/warp: seed sample `sample_warp_with_flow`; see `docs/fruc_warp.md`.
+6. After accuracy changes, add a **new** dated JSON (do not overwrite priors).
 
-Narrative tables: `../../PLAN.md` §11.6.
+Narrative tables: `../../PLAN.md` §11.5–§11.6.
