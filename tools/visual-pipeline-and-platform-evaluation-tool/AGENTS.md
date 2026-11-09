@@ -141,7 +141,7 @@ make generate_openapi
 | `mediamtx`                   | RTSP server                                                                  | 8554                             |
 | `model-download`             | Model download microservice                                                  | 8000                             |
 | `metrics-manager`            | Metrics collector                                                            | 9090                             |
-| `dlstreamer-pipeline-server` | DL Streamer Pipeline Server 2.0; runs every pipeline                         | 8081 (`DLSPS2_REST_SERVER_PORT`) |
+| `dlstreamer-pipeline-server` | DL Streamer Pipeline Server 2.0; runs every pipeline                         | 8080, compose network only       |
 | `vippet-plugins`             | One-shot; copies `vippet/gst_plugins` to `shared/gst-plugins` for the server | -                                |
 
 Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automatically by `setup_env.sh`.
@@ -204,8 +204,9 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 
 Build and compose variables for the pipeline server: `DLSPS2_IMAGE` (use a published
 `intel/dlstreamer-pipeline-server:<tag>-2.0` image instead of building it), `DLSPS2_BASE_IMAGE` (base image of the
-source build, defaults to `DLSTREAMER_IMAGE`) and `DLSPS2_REST_SERVER_PORT` (host port of its REST API, default
-`8081`). `make run-prebuilt` uses `DLSPS2_IMAGE`, or `PREBUILT_DLSPS2_IMAGE` from the `Makefile`.
+source build, defaults to `DLSTREAMER_IMAGE`) and `DLSPS2_REST_SERVER_PORT` (port its REST API binds on the host with
+`GIGE=1`, default `8081`). `make run-prebuilt` uses `DLSPS2_IMAGE`, or `PREBUILT_DLSPS2_IMAGE` from the `Makefile`.
+The REST API is not published on the host otherwise.
 
 ## Important Notes for AI Agents
 

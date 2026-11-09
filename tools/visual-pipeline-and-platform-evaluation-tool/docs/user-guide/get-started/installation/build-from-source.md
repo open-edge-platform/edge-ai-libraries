@@ -117,7 +117,8 @@ make build run
 `make run-prebuilt` also pulls the server image: `DLSPS2_IMAGE` if it is set, otherwise
 `PREBUILT_DLSPS2_IMAGE` from the `Makefile`.
 
-The server's REST API is published on host port `DLSPS2_REST_SERVER_PORT` (default `8081`). Use
+The server's REST API is not published on the host: `vippet` reaches it over the compose network. To query it,
+run e.g. `docker exec vippet curl -s http://dlstreamer-pipeline-server:8080/pipelines/status`. Use
 `docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to open a shell in it.
 
 ### Latency and VLM metrics
@@ -168,6 +169,10 @@ streaming needs:
 ```bash
 make build run GIGE=1
 ```
+
+With host networking, the server's REST API listens on all host interfaces, on `DLSPS2_REST_SERVER_PORT`
+(default `8081`), without authentication. Use `GIGE=1` only on a trusted network, or block that port in the host
+firewall.
 
 See [GigE Vision Cameras](../../user-guide/input-management/cameras.md#gige-vision-cameras)
 for details.

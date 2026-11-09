@@ -16,17 +16,16 @@
 #   (or: docker compose -f compose.yml -f compose.$COMPOSE_PROFILES.yml -f compose.gige.yml up -d)
 #
 # Security note: with host networking the server's REST API listens on all host
-# interfaces, on DLSPS2_REST_SERVER_PORT (the same port that is published
-# without this overlay).
+# interfaces, on DLSPS2_REST_SERVER_PORT. Without this overlay it is reachable
+# only from the compose network.
 services:
   dlstreamer-pipeline-server:
     network_mode: host
     hostname: !reset null
-    ports: !reset []
     healthcheck:
       test: ["CMD", "python3", "-c", "import os, urllib.request; urllib.request.urlopen('http://localhost:' + os.environ['REST_SERVER_PORT'] + '/pipelines/status', timeout=5)"]
     environment:
-      # Bound on the host, so it uses the port published without this overlay.
+      # Bound directly on the host, so keep it off ports other services publish.
       REST_SERVER_PORT: ${DLSPS2_REST_SERVER_PORT:-8081}
       # The compose network DNS is not available on the host network; use the
       # port published by metrics-manager instead.
