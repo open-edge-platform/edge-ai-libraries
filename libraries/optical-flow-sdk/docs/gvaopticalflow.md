@@ -46,6 +46,7 @@ Optional `attach-cost=true` adds a second meta with `layer_name=cost`
 
 ## Status
 
-Scaffold landed 2026-11-10 on dlstreamer branch `feat/gvaopticalflow`
-(sibling checkout @ `7f6caaf`). **Open:** lab smoke, VAMemory/DMABuf→CL
-import, consumer wiring. See PLAN §11.7.
+Scaffold on dlstreamer `feat/gvaopticalflow` + standalone lab build under
+`integrations/gvaopticalflow/`. **Lab smoke PASS 2026-11-10** on Series 2
+(`gst-inspect` / `gst-launch` NV12 GPU). **Open:** VAMemory/DMABuf→CL
+import, consumer wiring, dlstreamer upstream PR (deferred). See PLAN §11.7.

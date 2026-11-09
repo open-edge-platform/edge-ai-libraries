@@ -35,7 +35,7 @@ Leftovers: §11.7.
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
 | SEA-RAFT OpenVINO accuracy tier | **P2 PASS** — KITTI Fl-all **2.70%** ≤ 19.11%; **iGPU ~15.7 FPS** @384×1248 (`docs/sea_raft.md`) |
 | Root README under Computer Vision Primitives | Done |
-| `gvaopticalflow` DL Streamer element | **P3 scaffold** (dlstreamer `feat/gvaopticalflow`; system-memory + `calc_device`; `docs/gvaopticalflow.md`) — lab smoke / VAMemory / consumers open; **dlstreamer PR deferred** |
+| `gvaopticalflow` DL Streamer element | **P3 scaffold + lab smoke PASS** 2026-11-10 (`gst-inspect` / `gst-launch` NV12 GPU on Series 2 via standalone `integrations/gvaopticalflow`); VAMemory / consumers open; **dlstreamer PR deferred** |
 | IPU DVS path | Deferred (out of scope) |
 
 ## 1. Decision
@@ -545,7 +545,7 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | Sintel/KITTI parity vs OpenCV DIS | P1 | **Done (FAIL)** 2026-11-10 — `parity_opencv_datasets`; §11.6 |
 | SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | **Quality PASS** Fl-all 2.70%; **iGPU ~15.7 FPS** @384×1248 OV (`p2_sea_raft_openvino_fps_2026-11-10.json`); P4: Nvidia host compare / more presets |
 | `gvaopticalflow` scaffold + v0 tensor meta | P3 | **Scaffold landed** dlstreamer `feat/gvaopticalflow`; contract in `docs/gvaopticalflow.md` |
-| `gvaopticalflow` lab smoke (`gst-inspect` / `gst-launch`) | P3 | **Open** — needs installed SDK + dlstreamer `-DENABLE_OPTICAL_FLOW=ON` on Series 2 |
+| `gvaopticalflow` lab smoke (`gst-inspect` / `gst-launch`) | P3 | **PASS 2026-11-10** — standalone plugin + micromamba `gst-dev`; NV12 640×480×30 GPU DIS Fast → EOS |
 | VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **Open** — exit criterion for GPU-resident pipeline |
 | Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **Open** — v0 meta readable via `gvapython` / apps only |
 | OpenCL Farneback vs OpenCV numerical hardening | P3 | **Documented soft** (`docs/farneback.md` — no poly_n yet); optional poly kernels later |
@@ -712,27 +712,25 @@ P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
 
 **P3 — do next (blocks exit / in-plan):**
 
-1. Install OpenCL `optical-flow-sdk` on lab; build dlstreamer with
-   `-DENABLE_OPTICAL_FLOW=ON`; `gst-inspect-1.0 gvaopticalflow`.
-2. Smoke: `samples/.../optical_flow/optical_flow.sh` (or equivalent
-   `gst-launch`) on Series 2 iGPU; confirm `GstGVATensorMeta` attaches.
-3. VAMemory / DMABuf → OpenCL `cl_mem` import (or mapped plane) so the
+1. ~~Lab `gvaopticalflow` smoke~~ — **PASS 2026-11-10** (ControlMaster
+   `arc` / `labrat@10.91.82.130`): standalone
+   `integrations/gvaopticalflow` + micromamba `gst-dev`;
+   `gst-inspect` + `gst-launch` NV12 GPU DIS Fast → EOS.
+2. VAMemory / DMABuf → OpenCL `cl_mem` import (or mapped plane) so the
    pipeline can avoid per-frame host luma copies; keep flow on device
    when consumers allow.
-4. Wire or document consumers: `gvapython` example first; then optional
+3. Wire or document consumers: `gvapython` example first; then optional
    flow→ROI for `gvamotiondetect` / prior for `gvatrack` / viz in
    `gvawatermark`.
-5. OpenCL Farneback soft gap — **documented** (`docs/farneback.md`); optional
+4. OpenCL Farneback soft gap — **documented** (`docs/farneback.md`); optional
    poly-expansion kernels remain open.
-6. Host `calc` vs `calc_device` — **docs + sample steered**; keep ≥10× claims
+5. Host `calc` vs `calc_device` — **docs + sample steered**; keep ≥10× claims
    on resident path only (host `calc` still ≈6–8×).
 
 **Deferred (not now):**
 
 - dlstreamer upstream PR for `gvaopticalflow` / monorepo submodule pin
-  bump — hold until lab smoke + resident path are solid.
-- Lab `gvaopticalflow` smoke — needs SSH/keys to Series 2 host from this
-  workstation (unreachable 2026-11-10).
+  bump — hold; lab smoke used standalone integration build.
 
 **P4 — in plan:**
 
