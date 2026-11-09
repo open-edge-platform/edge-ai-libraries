@@ -125,8 +125,18 @@ struct OpenCLContext {
       check_cl(clGetPlatformIDs(nplat, plats.data(), nullptr), "clGetPlatformIDs list");
       using GetDevFromVAFn = cl_int (*)(cl_platform_id, cl_uint, void *, cl_uint, cl_uint, cl_device_id *,
                                         cl_uint *);
-      auto get_from_va = reinterpret_cast<GetDevFromVAFn>(
-          dlsym(RTLD_DEFAULT, "clGetDeviceIDsFromVA_APIMediaAdapterINTEL"));
+      auto resolve_ext = [](cl_platform_id p, const char *name) -> void * {
+        if (auto *fn = clGetExtensionFunctionAddressForPlatform(p, name))
+          return fn;
+        if (auto *fn = dlsym(RTLD_DEFAULT, name))
+          return fn;
+        static void *igdrcl =
+            dlopen("/usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so", RTLD_LAZY | RTLD_LOCAL);
+        return igdrcl ? dlsym(igdrcl, name) : nullptr;
+      };
+      auto get_from_va =
+          reinterpret_cast<GetDevFromVAFn>(resolve_ext(plats.front(),
+                                                       "clGetDeviceIDsFromVA_APIMediaAdapterINTEL"));
       device = nullptr;
       if (get_from_va) {
         cl_uint ndev = 0;
@@ -545,6 +555,24 @@ bool OpenCLOpticalFlow::supports_va_media_sharing() const {
          std::string::npos;
 }
 
+void *resolve_cl_ext(cl_platform_id platform, const char *name) {
+  void *fn = reinterpret_cast<void *>(clGetExtensionFunctionAddressForPlatform(platform, name));
+  if (!fn)
+    fn = dlsym(RTLD_DEFAULT, name);
+  if (!fn) {
+    // ICD loader often hides vendor symbols; open Intel NEO directly.
+    static void *igdrcl = [] {
+      void *h = dlopen("/usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so", RTLD_LAZY | RTLD_LOCAL);
+      if (!h)
+        h = dlopen("libigdrcl.so", RTLD_LAZY | RTLD_LOCAL);
+      return h;
+    }();
+    if (igdrcl)
+      fn = dlsym(igdrcl, name);
+  }
+  return fn;
+}
+
 void OpenCLOpticalFlow::import_va_surface_luma(std::uint32_t va_surface_id, OpenCLU8Image &dst) const {
   if (dst.empty())
     throw std::invalid_argument("import_va_surface_luma requires allocated dst");
@@ -553,20 +581,24 @@ void OpenCLOpticalFlow::import_va_surface_luma(std::uint32_t va_surface_id, Open
   if (!supports_va_media_sharing())
     throw std::runtime_error("OpenCL platform lacks cl_intel_va_api_media_sharing");
 
+  OpenCLContext &ctx = shared_context();
+  cl_platform_id platform = nullptr;
+  check_cl(clGetDeviceInfo(ctx.device, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr),
+           "clGetDeviceInfo PLATFORM");
+
   using CreateFromVAFn = cl_mem (*)(cl_context, cl_mem_flags, void *, cl_uint, cl_int *);
   using AcquireFn = cl_int (*)(cl_command_queue, cl_uint, const cl_mem *, cl_uint, const cl_event *,
                                cl_event *);
   using ReleaseFn = AcquireFn;
-  auto create_from_va =
-      reinterpret_cast<CreateFromVAFn>(dlsym(RTLD_DEFAULT, "clCreateFromVA_APIMediaSurfaceINTEL"));
+  auto create_from_va = reinterpret_cast<CreateFromVAFn>(
+      resolve_cl_ext(platform, "clCreateFromVA_APIMediaSurfaceINTEL"));
   auto acquire = reinterpret_cast<AcquireFn>(
-      dlsym(RTLD_DEFAULT, "clEnqueueAcquireVA_APIMediaSurfacesINTEL"));
+      resolve_cl_ext(platform, "clEnqueueAcquireVA_APIMediaSurfacesINTEL"));
   auto release = reinterpret_cast<ReleaseFn>(
-      dlsym(RTLD_DEFAULT, "clEnqueueReleaseVA_APIMediaSurfacesINTEL"));
+      resolve_cl_ext(platform, "clEnqueueReleaseVA_APIMediaSurfacesINTEL"));
   if (!create_from_va || !acquire || !release)
     throw std::runtime_error("VA media sharing entry points missing from OpenCL ICD");
 
-  OpenCLContext &ctx = shared_context();
   // clCreateFromVA_APIMediaSurfaceINTEL takes VASurfaceID* — pass address of local id.
   cl_int status = CL_SUCCESS;
   cl_uint plane = 0;

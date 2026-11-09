@@ -27,9 +27,9 @@ Series 2 lab (`clinfo`): DMA-BUF external memory **and** `cl_intel_va_api_media_
 3. **VAMemory:** element advertises VAMemory/DMABuf caps and binds VA display via
    `gst.va.display.handle` → `opencl_set_va_display`. Runtime path:
    `import_va_surface_luma(surface_id, dst)` then `calc_device`.
-   **Lab note (2026-11-10):** `vainfo --display drm` fails (`iHD_drv_video.so`
-   init) on `labrat`, so VA end-to-end smoke is blocked; API + caps are landed
-   and system-memory path remains the validated gate.
+   **Lab E2E (2026-11-10):** PASS with user-local media-driver 26.4.2 + libva 2.25
+   (`LIBVA_DRIVERS_PATH` / `LD_LIBRARY_PATH` under `~/va-local/opt`) — stock
+   Ubuntu 24.1 iHD fails on Arrow Lake. Sample: `sample_va_import_opencl`.
 
 ## Caps
 

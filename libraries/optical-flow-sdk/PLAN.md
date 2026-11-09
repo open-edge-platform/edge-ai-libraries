@@ -546,7 +546,7 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | **Quality PASS** Fl-all 2.70%; **iGPU ~15.7 FPS** @384×1248; preset/resolution notes in `docs/sea_raft.md`; Nvidia host compare still open |
 | `gvaopticalflow` scaffold + v0 tensor meta | P3 | **Scaffold landed** dlstreamer `feat/gvaopticalflow`; contract in `docs/gvaopticalflow.md` |
 | `gvaopticalflow` lab smoke (`gst-inspect` / `gst-launch`) | P3 | **PASS 2026-11-10** — standalone plugin + micromamba `gst-dev`; NV12 640×480×30 GPU DIS Fast → EOS |
-| VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **API+caps landed** (`import_va_surface_luma`, VAMemory pads); lab VA driver init **blocked**; DMA-BUF + system path OK |
+| VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **E2E PASS** (`sample_va_import_opencl`); needs media-driver ≥26 / libva ≥2.25 on ARL (stock 24.1 iHD fails); DMA-BUF + system OK |
 | Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **ROI prior landed** — detection-shaped motion ROIs + `track-motion-rois` `object_id`; `docs/consumers.md` |
 | OpenCL Farneback vs OpenCV numerical hardening | P3 | **Full poly expansion landed** (`fb_poly_expand` + `fb_farneback_update`); soft vs OpenCV numerical identity (`docs/farneback.md`) |
 | Host `calc` H↔D tax vs `calc_device` | P3 | **Steered** — docs + `sample_calc_flow_opencl_device`; residual H↔D on host `calc` remains |
@@ -717,11 +717,10 @@ P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
    `arc` / `labrat@10.91.82.130`): standalone
    `integrations/gvaopticalflow` + micromamba `gst-dev`;
    `gst-inspect` + `gst-launch` NV12 GPU DIS Fast → EOS.
-2. Device import path — **advanced 2026-11-10:** DMA-BUF import + strided
-   upload + ping-pong; **VA API landed** (`opencl_set_va_display`,
-   `import_va_surface_luma`, VAMemory/DMABuf caps, `gst.va.display.handle`
-   bind). **Lab VA smoke blocked** (`iHD` vainfo init fail on renderD128).
-   Remaining: end-to-end VA surface→`calc_device` once VA driver works.
+2. Device import path — **E2E PASS 2026-11-10:** DMA-BUF + strided upload +
+   ping-pong; VA `import_va_surface_luma`→`calc_device` via
+   `sample_va_import_opencl` (user-local media-driver 26.4.2 / libva 2.25 on
+   ARL; stock Ubuntu 24.1 iHD still broken).
 3. Consumers — **gvatrack prior landed** (`docs/consumers.md`): detection-shaped
    motion ROIs + optional IoU `object_id` (`track-motion-rois`); examples
    `flow_consumer.py` / `flow_track_consumer.py`. Full DL Streamer
