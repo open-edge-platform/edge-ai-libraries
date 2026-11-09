@@ -303,10 +303,10 @@ act_helper ()
     local explicit_mods=($(act_extract_modules $act_name "$@"));
     local stop_remove_all=$(case "$act_name" in 
     remove)
-        ensure_parse_option --remove-all "$@" && ${#explicit_mods[*]} -eq 0 && echo 1 || echo 0
+        ensure_parse_option --remove-all "$@" && [ ${#explicit_mods[*]} -eq 0 ] && echo 1 || echo 0
     ;;
     stop)
-        ensure_parse_option --stop-all "$@" && ${#explicit_mods[*]} -eq 0 && echo 1 || echo 0
+        ensure_parse_option --stop-all "$@" && [ ${#explicit_mods[*]} -eq 0 ] && echo 1 || echo 0
     ;;
     *)
         echo 0
@@ -375,6 +375,7 @@ esac);
                     local -A _needed=();
                     for _pair in $(act_find_parents "$name1" "$@");
                     do
+                        [[ -v _act_cache_functions["remove_${_pair%%:*}"] ]] || continue;
                         _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}";
                     done;
                     if [ ${#_needed[@]} -gt 0 ]; then
