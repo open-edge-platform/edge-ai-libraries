@@ -139,6 +139,8 @@ class PipelineInstance:
     stop_requested: bool = False
     finalized: bool = False
     teardown_timer: Optional[threading.Timer] = None
+    # Validator subprocess while QUEUED, so a cancel can kill it
+    validator_process: Optional[subprocess.Popen] = None
     # Serialises start/restart/stop commands sent to the worker for this instance
     command_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
@@ -361,6 +363,8 @@ class PipelineManager:
                     instance.stop_requested = True
                     instance.finalized = True
                     instance.set_lifecycle(stop_time=time.time())
+                    if instance.validator_process is not None and instance.validator_process.poll() is None:
+                        instance.validator_process.kill()
                     logger.info("Cancelled pipeline instance %s in state %s", instance_id, previous_state.value)
                     return True
                 if instance.state == PipelineState.STOPPING:
@@ -470,13 +474,27 @@ class PipelineManager:
         logger.debug("Processing pipeline %s (validate=%s)", instance.instance_id, instance.validate)
         if instance.validate:
             logger.info("Validating pipeline %s before submission", instance.instance_id)
-            ok, reason = self._validate(instance.pipeline_description, _VALIDATION_SUBPROCESS_TIMEOUT_SECONDS)
+
+            def track_validator(process: subprocess.Popen) -> None:
+                # Kill at once if stop() ran between the state check and the spawn.
+                with self._lock:
+                    if instance.state == PipelineState.QUEUED:
+                        instance.validator_process = process
+                        return
+                process.kill()
+
+            ok, reason = self._validate(
+                instance.pipeline_description,
+                _VALIDATION_SUBPROCESS_TIMEOUT_SECONDS,
+                on_spawn=track_validator,
+            )
         else:
             logger.info("Skipping validation for pipeline %s before submission", instance.instance_id)
             ok, reason = True, None
 
         with instance.command_lock:
             with self._lock:
+                instance.validator_process = None
                 # stop() finalizes a queued instance it cancels; never submit that one.
                 if instance.state != PipelineState.QUEUED:
                     logger.info("Pipeline %s was stopped while queued; not submitting", instance.instance_id)
@@ -517,8 +535,14 @@ class PipelineManager:
                 logger.error("Pipeline %s failed to submit to worker", instance.instance_id)
 
     @staticmethod
-    def _validate(pipeline_description: str, timeout: int = 30) -> Tuple[bool, Optional[str]]:
+    def _validate(
+        pipeline_description: str,
+        timeout: int = 30,
+        on_spawn: Optional[Callable[[subprocess.Popen], None]] = None,
+    ) -> Tuple[bool, Optional[str]]:
         """Run gst_validator.py in its own short-lived subprocess.
+
+        ``on_spawn`` receives the process right after it starts, so the caller can kill it.
 
         Returns:
             (True, None)      if the pipeline is valid.
@@ -534,19 +558,26 @@ class PipelineManager:
         ]
 
         try:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=timeout,
             )
-        except subprocess.TimeoutExpired:
-            return False, "validation subprocess timed out"
         except Exception as exc:  # noqa: BLE001
             return False, f"validation subprocess failed to launch: {exc!r}"
 
-        if result.returncode == 0:
+        if on_spawn is not None:
+            on_spawn(process)
+
+        try:
+            _, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            return False, "validation subprocess timed out"
+
+        if process.returncode == 0:
             return True, None
 
         # Surface the most relevant diagnostic line from the validator's stderr.
@@ -557,16 +588,16 @@ class PipelineManager:
         # first specific ERROR line so callers see the real cause instead
         # of the generic summary.
         reason = None
-        for line in result.stderr.splitlines():
+        for line in stderr.splitlines():
             if "ERROR" in line and "Pipeline validation FAILED" not in line:
                 reason = line.strip()
                 break
         if reason is None:
-            for line in reversed(result.stderr.splitlines()):
+            for line in reversed(stderr.splitlines()):
                 if "ERROR" in line:
                     reason = line.strip()
                     break
-        return False, reason or f"validator exited with code {result.returncode}"
+        return False, reason or f"validator exited with code {process.returncode}"
 
     def _run_validation(self, ticket: ValidationTicket) -> None:
         """Background-thread body: run validation on a ticket."""

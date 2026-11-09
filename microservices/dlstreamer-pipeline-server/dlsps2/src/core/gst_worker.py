@@ -549,6 +549,10 @@ class GstWorker:
 
 
 def main() -> int:
+    # Native code (e.g. gvafpscounter) writes to fd 1, so the event channel gets a private fd and fd 1 goes to stderr.
+    sys.stdout.flush()
+    sys.stdout = os.fdopen(os.dup(1), "w", buffering=1)
+    os.dup2(2, 1)
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(_JsonLogFormatter())
     level = getattr(logging, os.environ.get("APP_LOG_LEVEL", "INFO").upper(), logging.INFO)
