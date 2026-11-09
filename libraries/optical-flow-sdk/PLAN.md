@@ -6,9 +6,10 @@ listing landed on branch `optical-flow-plan` (2026-11-09). **OpenCL DIS
 kernels + Core Ultra Series 2 iGPU lab baselines landed 2026-11-09** (host
 `labrat`, Core Ultra 7 255H / Arc Graphics). **Named HW gate is Series 2
 iGPU only** (no Arc B580 discrete access). SYCL uses a user-local oneAPI
-`icpx` under `~/intel/oneapi`. Sintel/KITTI datasets remain open. Research base written 2026-11-08; SIFT scaffolding
-(`libraries/sift-extractor`, PR #3646, ITEP-93043) is reuse-only and does
-not define product identity.
+`icpx` under `~/intel/oneapi`. Sintel/KITTI OpenCV DIS disparity **measured
+FAIL** on lab (DIS-lite ≠ full OpenCV DIS; see §11.6). Research base written
+2026-11-08; SIFT scaffolding (`libraries/sift-extractor`, PR #3646,
+ITEP-93043) is reuse-only and does not define product identity.
 
 ### Implementation status (2026-11-09)
 
@@ -28,7 +29,7 @@ not define product identity.
 | Determinism + `calcBoth` consistency tests | Done |
 | Real OpenCL DIS kernels | **Done** (device pyramid + patch IS + densify; synthetic EPE ≈0) |
 | Real SYCL DIS kernels | **Landed** (lab-validated); **performance follow-on** — OpenCL is the primary speed path |
-| OpenCV DIS disparity gate on Sintel/KITTI | **Deferred** (no Sintel/KITTI on lab; synthetic gate only) |
+| OpenCV DIS disparity gate on Sintel/KITTI | **Measured FAIL** (lab 2026-11-10; DIS-lite ≠ full OpenCV DIS — §11.6) |
 | ≥10× vs OpenCV CPU DIS-Fast | **Met on device-resident OpenCL** (`calc_device` ≥13× @720p); host `calc` still ≈6–8× (§11.5) |
 | OpenCL device-resident API (`calc_device`) | **Landed** (buffers stay on GPU; see §7 / §11.5) |
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
@@ -454,11 +455,17 @@ samples for median/p95.
   kernels** + device-resident `calc_device` — done. **≥10× vs OpenCV
   CPU DIS-Fast met** on OpenCL resident/pipeline wall (§11.5); absolute
   FPS gates met. Host `calc` remains ~6–8× (convenience). Sintel/KITTI
-  parity deferred. SYCL is not a P1 speed blocker.
+  OpenCV DIS disparity **measured and fails** §8 pairwise/Fl-all gates
+  (expected for DIS-lite; §11.6). SYCL is not a P1 speed blocker.
 - **P2 — Accuracy tier + SYCL follow-on:** SEA-RAFT-S OpenVINO under Slow;
   classical Farneback/PyrLK GPU ports + OpenCV parity; optional SYCL
   performance catch-up / Level Zero path. (CPU Farneback/PyrLK already
   present as classical scaffolding.) Exit: neural quality gate measured.
+  **Start from** frozen P1 baseline
+  `benchmarks/results/p1_opencv_dis_parity_baseline.json` (§11.6): DIS-lite
+  fails §8 vs OpenCV DIS; improve OpenCL Fast first; re-measure with
+  `parity_opencv_datasets` and add a new dated results file (do not
+  overwrite the P1 baseline).
 - **P3 — Pipeline integration:** `gvaopticalflow`; richer samples. Root
   README Computer Vision Primitives listing — done. Exit: DL Streamer
   pipeline GPU-resident with no host copy per frame where the path allows
@@ -526,7 +533,7 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | Replace OpenCL CPU fallback with real DIS kernels | P1 | **Done 2026-11-09** |
 | Replace SYCL CPU fallback with real DIS kernels | P1 | **Done** (lab-validated); further SYCL speed work is **P2** (OpenCL owns ≥10×) |
 | OpenCV CPU synthetic GT-EPE (DIS / Farneback / PyrLK) | P1 | **Done 2026-11-09** — soft CI gates; not OpenCV numerical identity |
-| Sintel/KITTI parity vs OpenCV DIS | P1 | **Deferred** — no datasets on lab; synthetic gate only |
+| Sintel/KITTI parity vs OpenCV DIS | P1 | **Done (FAIL)** 2026-11-10 — `parity_opencv_datasets`; §11.6 |
 | SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | No published Intel-GPU benchmark found; feasibility unverified |
 | `gvaopticalflow` metadata contract vs `gvatrack` / `gvamotiondetect` | P3 | Define when element lands |
 | IPU DVS productization | Deferred | Separate future plan |
@@ -553,9 +560,9 @@ one OpenCV Farneback call site above. Path search from 2026-11-08 stands.
 
 Useful on a CPU-only host (not moat-closing): OpenMP/SIMD on DIS-lite,
 NV12 plane helpers, ASAN/UBSAN in CI, SEA-RAFT OpenVINO stub under Slow,
-richer samples/docs. **Deferred without datasets / extra HW:** honest
-Sintel/KITTI OpenCV DIS parity. **Out of scope for this plan revision:**
-Arc B580 discrete gates. `gvaopticalflow` remains P3.
+richer samples/docs. Sintel/KITTI OpenCV DIS disparity is **measured**
+(§11.6). **Out of scope for this plan revision:** Arc B580 discrete gates.
+`gvaopticalflow` remains P3.
 
 ### 11.5 Lab host results (2026-11-09) — Core Ultra Series 2 iGPU
 
@@ -624,6 +631,59 @@ optional P2 performance work after OpenCL device-resident / H↔D work.
 `libhwloc`). `source setvars.sh` after `compiler/latest` symlink. Prefer
 `ONEAPI_DEVICE_SELECTOR=opencl:gpu` on this partial install (Level Zero UR
 init fails).
+
+### 11.6 Honest OpenCV DIS disparity — Sintel / KITTI (2026-11-10)
+
+**Machine-readable baseline for P2 agents:**
+`benchmarks/results/p1_opencv_dis_parity_baseline.json` (do not overwrite;
+see `benchmarks/results/README.md`).
+
+Datasets on lab: `~/datasets/optical-flow` via `scripts/fetch_datasets.sh`
+(KITTI 2015 scene flow + MPI Sintel complete). Harness:
+`parity_opencv_datasets` (OpenCV adapter ON). Pairwise EPE is masked to
+GT-valid pixels. Sintel `--max-pairs` samples **round-robin across sorted
+sequences** (Clean and Final each get the budget).
+
+**Interpretation:** SDK DIS is **DIS-lite** (no variational refinement).
+OpenCV `cv::DISOpticalFlow` is full DIS. §8 pairwise
+`≤ max(0.05px, 2%)` and KITTI Fl-all `≤ 0.5pp` are classical-equivalence
+bars — **all measured configs FAIL**. Do not claim OpenCV numerical
+identity. Closest classical path: **OpenCL Fast**. Quality catch-up is
+P2 (refinement / SEA-RAFT), not a silent P1 pass.
+
+**KITTI train 200 (full):**
+
+| Backend | Preset | SDK EPE | OpenCV EPE | Pairwise EPE | Gate | SDK Fl-all% | OCV Fl-all% | Fl gate |
+|---------|--------|---------|------------|--------------|------|-------------|-------------|---------|
+| CPU | Fast | 53.97 | 18.12 | 40.88 | FAIL | 61.97 | 41.66 | FAIL |
+| CPU | Medium | 76.14 | 16.32 | 65.79 | FAIL | 53.36 | 33.48 | FAIL |
+| OpenCL | Fast | 35.36 | 18.12 | 20.02 | FAIL | 74.23 | 41.66 | FAIL |
+| OpenCL | Medium | 53.01 | 16.32 | 42.18 | FAIL | 53.09 | 33.48 | FAIL |
+
+**Sintel train (69 pairs/pass, stratified across sequences):**
+
+| Backend | Preset | Pass | SDK EPE | OpenCV EPE | Pairwise EPE | Gate |
+|---------|--------|------|---------|------------|--------------|------|
+| OpenCL | Fast | Clean | 15.38 | 6.91 | 16.68 | FAIL |
+| OpenCL | Fast | Final | 25.23 | 5.57 | 23.28 | FAIL |
+| OpenCL | Medium | Clean | 87.36 | 8.75 | 87.26 | FAIL |
+| OpenCL | Medium | Final | 400.5 | 5.46 | 399.1 | FAIL |
+| CPU | Fast | Clean | 54.05 | 6.91 | 54.98 | FAIL |
+| CPU | Fast | Final | 208.8 | 5.57 | 207.5 | FAIL |
+| CPU | Medium | Clean | 103.4 | 8.75 | 103.2 | FAIL |
+| CPU | Medium | Final | 495.7 | 5.46 | 494.4 | FAIL |
+
+CPU/OpenCL Medium blow up on large-motion Final sequences; OpenCL Fast is
+the only classical config with single-digit–to–low-tens EPE on Sintel
+Clean. Reproduce:
+
+```bash
+./scripts/fetch_datasets.sh ~/datasets/optical-flow
+./build/parity_opencv_datasets --kitti ~/datasets/optical-flow \
+  --backend opencl --preset fast
+./build/parity_opencv_datasets --sintel ~/datasets/optical-flow \
+  --backend opencl --preset fast --max-pairs 69
+```
 
 ## 12. Sources
 

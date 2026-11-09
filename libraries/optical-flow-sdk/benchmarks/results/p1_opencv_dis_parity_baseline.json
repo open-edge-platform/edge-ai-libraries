@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "id": "p1_opencv_dis_parity_baseline",
+  "date": "2026-11-10",
+  "purpose": "P1 leftover baseline for P2 accuracy work. SDK DIS-lite vs full OpenCV DIS on Sintel/KITTI. §8 classical-equivalence gates FAIL — do not claim OpenCV numerical identity.",
+  "plan_refs": [
+    "PLAN.md §8 (parity / Fl-all gates)",
+    "PLAN.md §11.6 (narrative tables)",
+    "PLAN.md §10 P2 (accuracy tier + classical GPU ports)"
+  ],
+  "agent_instructions": {
+    "when_executing_p2": [
+      "Treat this file as the frozen P1 classical-DIS quality baseline.",
+      "Re-run parity_opencv_datasets after any DIS refinement / Farneback / PyrLK / SEA-RAFT change and compare against these numbers.",
+      "§8 pairwise EPE <= max(0.05px, 2% of OpenCV GT-EPE) and KITTI Fl-all delta <= 0.5pp remain the classical-equivalence bars.",
+      "P2 quality gate for SEA-RAFT is separate: <= NVOFA Medium Fl-all on KITTI train at a measured Series 2 iGPU FPS.",
+      "Closest classical path to improve first: OpenCL Fast (best EPE among measured DIS-lite configs).",
+      "CPU/OpenCL Medium blow up on large-motion Sintel Final — fix or document before claiming Medium quality."
+    ],
+    "reproduce": [
+      "./scripts/fetch_datasets.sh ~/datasets/optical-flow",
+      "cmake --build build --target parity_opencv_datasets",
+      "./build/parity_opencv_datasets --kitti ~/datasets/optical-flow --backend opencl --preset fast",
+      "./build/parity_opencv_datasets --sintel ~/datasets/optical-flow --backend opencl --preset fast --max-pairs 69"
+    ]
+  },
+  "host": {
+    "ssh_alias": "labrat@10.91.82.130",
+    "cpu": "Intel Core Ultra 7 255H",
+    "gpu": "Arrow Lake-P Intel Arc Graphics (PCI 8086:7d51)",
+    "opencl_driver": "26.14.37833.4",
+    "opencv": "4.14.0-pre (~/opencv/build_host)",
+    "dataset_root": "~/datasets/optical-flow",
+    "harness": "parity_opencv_datasets",
+    "sdk_note": "DIS-lite (no variational refinement); OpenCV cv::DISOpticalFlow is full DIS"
+  },
+  "methodology": {
+    "pairwise_mask": "GT-valid pixels only (KITTI invalid / Sintel finite GT)",
+    "sintel_sampling": "round-robin across sorted sequences; Clean and Final each get max_pairs",
+    "sintel_max_pairs_per_pass": 69,
+    "kitti_pairs": 200,
+    "kitti_split": "training image_2 *_10.png -> *_11.png with flow_occ",
+    "opencv_preset_map": {
+      "fast": "PRESET_FAST",
+      "medium": "PRESET_MEDIUM",
+      "slow": "PRESET_MEDIUM"
+    },
+    "gates": {
+      "pairwise_epe": "mean pairwise EPE <= max(0.05px, 0.02 * opencv_gt_epe)",
+      "kitti_fl_all_pp": "abs(sdk_fl_all - opencv_fl_all) <= 0.5"
+    }
+  },
+  "summary": {
+    "all_configs_section8_pass": false,
+    "best_classical_path": "opencl/fast",
+    "p2_focus": [
+      "variational refinement or stronger classical DIS",
+      "Farneback/PyrLK GPU + OpenCV parity",
+      "SEA-RAFT-S OpenVINO under Slow (KITTI Fl-all vs NVOFA Medium)"
+    ]
+  },
+  "kitti_train_200": [
+    {
+      "backend": "cpu",
+      "preset": "fast",
+      "pairs": 200,
+      "sdk_epe_vs_gt": 53.9701,
+      "opencv_epe_vs_gt": 18.1191,
+      "pairwise_epe": {"all": 40.876, "s0_10": 8.05081, "s10_40": 41.1497, "s40p": 103.115},
+      "pairwise_gate": "FAIL",
+      "fl_all_sdk_pct": 61.9654,
+      "fl_all_opencv_pct": 41.6608,
+      "fl_all_abs_diff_pp": 20.3046,
+      "fl_all_gate": "FAIL",
+      "source_log": "parity_kitti_cpu_fast.log"
+    },
+    {
+      "backend": "cpu",
+      "preset": "medium",
+      "pairs": 200,
+      "sdk_epe_vs_gt": 76.1382,
+      "opencv_epe_vs_gt": 16.3248,
+      "pairwise_epe": {"all": 65.7883, "s0_10": 11.9368, "s10_40": 59.4502, "s40p": 157.237},
+      "pairwise_gate": "FAIL",
+      "fl_all_sdk_pct": 53.3604,
+      "fl_all_opencv_pct": 33.4847,
+      "fl_all_abs_diff_pp": 19.8757,
+      "fl_all_gate": "FAIL",
+      "source_log": "parity_kitti_cpu_medium.log"
+    },
+    {
+      "backend": "opencl",
+      "preset": "fast",
+      "pairs": 200,
+      "sdk_epe_vs_gt": 35.3568,
+      "opencv_epe_vs_gt": 18.1191,
+      "pairwise_epe": {"all": 20.0225, "s0_10": 2.56907, "s10_40": 20.0415, "s40p": 47.9039},
+      "pairwise_gate": "FAIL",
+      "fl_all_sdk_pct": 74.2323,
+      "fl_all_opencv_pct": 41.6608,
+      "fl_all_abs_diff_pp": 32.5715,
+      "fl_all_gate": "FAIL",
+      "source_log": "parity_kitti_opencl_fast.log"
+    },
+    {
+      "backend": "opencl",
+      "preset": "medium",
+      "pairs": 200,
+      "sdk_epe_vs_gt": 53.008,
+      "opencv_epe_vs_gt": 16.3248,
+      "pairwise_epe": {"all": 42.1809, "s0_10": 9.25812, "s10_40": 40.252, "s40p": 100.842},
+      "pairwise_gate": "FAIL",
+      "fl_all_sdk_pct": 53.0867,
+      "fl_all_opencv_pct": 33.4847,
+      "fl_all_abs_diff_pp": 19.6021,
+      "fl_all_gate": "FAIL",
+      "source_log": "parity_kitti_opencl_medium.log"
+    }
+  ],
+  "sintel_train_stratified_69": [
+    {
+      "backend": "opencl",
+      "preset": "fast",
+      "pass": "clean",
+      "pairs": 69,
+      "sdk_epe_vs_gt": 15.3818,
+      "opencv_epe_vs_gt": 6.90554,
+      "pairwise_epe": {"all": 16.678, "s0_10": 2.04512, "s10_40": 13.813, "s40p": 31.9622},
+      "pairwise_gate": "FAIL",
+      "source_log": "parity_sintel_opencl_fast_strat.log"
+    },
+    {
+      "backend": "opencl",
+      "preset": "fast",
+      "pass": "final",
+      "pairs": 69,
+      "sdk_epe_vs_gt": 25.2262,
+      "opencv_epe_vs_gt": 5.56693,
+      "pairwise_epe": {"all": 23.2752, "s0_10": 3.84417, "s10_40": 25.2712, "s40p": 40.7413},
+      "pairwise_gate": "FAIL",
+      "source_log": "parity_sintel_opencl_fast_strat.log"
+    },
+    {
+      "backend": "opencl",
+      "preset": "medium",
+      "pass": "clean",
+      "pairs": 69,
+      "sdk_epe_vs_gt": 87.3646,
+      "opencv_epe_vs_gt": 8.75345,
+      "pairwise_epe": {"all": 87.2618, "s0_10": 23.5136, "s10_40": 84.8036, "s40p": 127.549},
+      "pairwise_gate": "FAIL",
+      "source_log": "parity_sintel_opencl_medium_strat.log"
+    },
+    {
+      "backend": "opencl",
+      "preset": "medium",
+      "pass": "final",
+      "pairs": 69,
+      "sdk_epe_vs_gt": 400.458,
+      "opencv_epe_vs_gt": 5.46443,
+      "pairwise_epe": {"all": 399.105, "s0_10": 225.744, "s10_40": 474.502, "s40p": 620.285},
+      "pairwise_gate": "FAIL",
+      "note": "large-motion blow-up",
+      "source_log": "parity_sintel_opencl_medium_strat.log"
+    },
+    {
+      "backend": "cpu",
+      "preset": "fast",
+      "pass": "clean",
+      "pairs": 69,
+      "sdk_epe_vs_gt": 54.0519,
+      "opencv_epe_vs_gt": 6.90554,
+      "pairwise_epe": {"all": 54.9812, "s0_10": 12.4563, "s10_40": 65.2644, "s40p": 94.5842},
+      "pairwise_gate": "FAIL",
+      "source_log": "parity_sintel_cpu_fast_strat.log"
+    },
+    {
+      "backend": "cpu",
+      "preset": "fast",
+      "pass": "final",
+      "pairs": 69,
+      "sdk_epe_vs_gt": 208.849,
+      "opencv_epe_vs_gt": 5.56693,
+      "pairwise_epe": {"all": 207.48, "s0_10": 64.763, "s10_40": 250.336, "s40p": 300.887},
+      "pairwise_gate": "FAIL",
+      "note": "large-motion blow-up",
+      "source_log": "parity_sintel_cpu_fast_strat.log"
+    },
+    {
+      "backend": "cpu",
+      "preset": "medium",
+      "pass": "clean",
+      "pairs": 69,
+      "sdk_epe_vs_gt": 103.433,
+      "opencv_epe_vs_gt": 8.75345,
+      "pairwise_epe": {"all": 103.216, "s0_10": 29.0991, "s10_40": 104.689, "s40p": 144.705},
+      "pairwise_gate": "FAIL",
+      "source_log": "parity_sintel_cpu_medium_strat.log"
+    },
+    {
+      "backend": "cpu",
+      "preset": "medium",
+      "pass": "final",
+      "pairs": 69,
+      "sdk_epe_vs_gt": 495.729,
+      "opencv_epe_vs_gt": 5.46443,
+      "pairwise_epe": {"all": 494.44, "s0_10": 301.509, "s10_40": 587.963, "s40p": 751.774},
+      "pairwise_gate": "FAIL",
+      "note": "large-motion blow-up",
+      "source_log": "parity_sintel_cpu_medium_strat.log"
+    }
+  ]
+}

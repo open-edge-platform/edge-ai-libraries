@@ -25,7 +25,7 @@ See [PLAN.md](PLAN.md) for decisions, gates, and roadmap. IPU DVS is deferred.
 | Python (`optical_flow_sdk`) | Available when `-DOPTICALFLOW_BUILD_PYTHON=ON` |
 | CPU microbench / OpenCV DIS·Farneback·PyrLK compare | Available under `benchmarks/` |
 | OpenCV CPU synthetic parity test | Soft GT-EPE gates when adapter ON |
-| Lab GPU timing / Sintel·KITTI OpenCV parity | Not runnable without datasets + oneAPI + Intel GPU |
+| Lab GPU timing / Sintel·KITTI OpenCV parity | Lab harness `parity_opencv_datasets`; §8 gate **FAIL** (DIS-lite — see PLAN §11.6) |
 
 ## Build (CPU)
 

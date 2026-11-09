@@ -162,7 +162,7 @@ if(OPTICALFLOW_BUILD_TESTS)
 endif()
 
 if(OPTICALFLOW_BUILD_OPENCV_ADAPTER)
-  find_package(OpenCV REQUIRED COMPONENTS core imgproc video)
+  find_package(OpenCV REQUIRED COMPONENTS core imgproc video imgcodecs)
   add_library(optical_flow_opencv_adapter src/opencv_adapter.cpp)
   add_library(optical_flow_sdk::opencv_adapter ALIAS optical_flow_opencv_adapter)
   target_compile_features(optical_flow_opencv_adapter PUBLIC cxx_std_17)
@@ -188,6 +188,9 @@ if(OPTICALFLOW_BUILD_OPENCV_ADAPTER)
   if(OPTICALFLOW_BUILD_BENCHMARKS)
     add_executable(compare_opencv_dis benchmarks/compare_opencv_dis.cpp)
     target_link_libraries(compare_opencv_dis PRIVATE optical_flow_opencv_adapter)
+
+    add_executable(parity_opencv_datasets benchmarks/parity_opencv_datasets.cpp)
+    target_link_libraries(parity_opencv_datasets PRIVATE optical_flow_opencv_adapter)
   endif()
 endif()
 
