@@ -27,7 +27,7 @@ debian_39_profile_edge_pack () {
 
 debian_39_install_edge_pack () {
   configure_edge_pack "$@"
-  local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0)
+  local reinstall=$(ensure_parse_reinstall "$@" && echo 1 || echo 0)
   local reconfigured=0 p
   for p in "${edge_pack_incompatible_files[@]}"; do
     if [ -f "$p" ]; then

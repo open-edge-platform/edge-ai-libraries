@@ -31,7 +31,7 @@ debian_90_profile_digital_signage () {
 
 debian_90_install_digital_signage () {
   configure_digital_signage "$@"
-  if verify_digital_signage && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_digital_signage && ! ensure_parse_reinstall "$@"; then
     echo "Digital Signage is installed." >&2
   else
     ensure_disk_size 25000

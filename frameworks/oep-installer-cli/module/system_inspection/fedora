@@ -1,6 +1,10 @@
 
 fedora_08_profile_system_inspection () {
-  [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+  case "$1" in
+  bootstrap|install)
+    echo "curl dmidecode pciutils"
+    ;;
+  esac
 }
 
 fedora_08_install_system_inspection () {

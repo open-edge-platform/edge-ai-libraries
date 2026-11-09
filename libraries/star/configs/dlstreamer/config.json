@@ -1,0 +1,78 @@
+{
+    "config": {
+        "pipelines": [
+            {
+                "name": "star_image_object_detection",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} ! decodebin ! videoconvert ! gvadetect model=/home/pipeline-server/models/star_image/best.xml name=detection ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish file-format=json-lines file-path=/app/output/default.jsonl name=publish ! fakesink sync=false",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "publish-properties": {
+                            "element": {
+                                "name": "publish",
+                                "format": "element-properties"
+                            }
+                        }
+                    }
+                },
+                "auto_start": false
+            },
+            {
+                "name": "star_image_object_detection_gpu",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} ! decodebin ! videoconvert ! gvadetect model=/home/pipeline-server/models/star_image/best.xml device=GPU name=detection ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish file-format=json-lines file-path=/app/output/default.jsonl name=publish ! fakesink sync=false",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "publish-properties": {
+                            "element": {
+                                "name": "publish",
+                                "format": "element-properties"
+                            }
+                        }
+                    }
+                },
+                "auto_start": false
+            },
+            {
+                "name": "star_image_object_detection_npu",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} ! decodebin ! videoconvert ! gvadetect model=/home/pipeline-server/models/star_image/best.xml device=NPU name=detection ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish file-format=json-lines file-path=/app/output/default.jsonl name=publish ! fakesink sync=false",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "publish-properties": {
+                            "element": {
+                                "name": "publish",
+                                "format": "element-properties"
+                            }
+                        }
+                    }
+                },
+                "auto_start": false
+            }
+        ]
+    }
+}

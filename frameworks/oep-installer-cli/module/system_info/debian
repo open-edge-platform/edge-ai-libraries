@@ -1,7 +1,7 @@
 configure_system_info () {
   workspace="$(ensure_project_path)/system_info"
   repository=https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git
-  version=8e6f01943286f0e838dad3bf46390119b7645ad2
+  version=6adeb8ad778d8700b2f9773cbd438e10a718bf79
   system_info_path=/opt/edge/developer/tools/system-info
 }
 
@@ -15,7 +15,7 @@ debian_40_profile_system_info () {
 
 debian_40_install_system_info () {
   configure_system_info
-  if verify_system_info && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_system_info && ! ensure_parse_reinstall "$@"; then
     echo "System info script is installed." >&2
   else
     ensure_git_export "$workspace" "$version" "$repository" tools/system-info || return $?

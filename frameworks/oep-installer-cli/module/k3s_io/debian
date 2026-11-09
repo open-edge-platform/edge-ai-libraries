@@ -2,7 +2,7 @@
 configure_k3s_io () {
   workspace="$(ensure_project_path)/k3s_io"
   repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git"
-  version=8e6f01943286f0e838dad3bf46390119b7645ad2
+  version=6adeb8ad778d8700b2f9773cbd438e10a718bf79
   install_sh_sha256=d75e014f2d2ab5d30a318efa5c326f3b0b7596f194afcff90fa7a7a91166d5f7
 }
 
