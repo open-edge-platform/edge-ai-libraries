@@ -35,7 +35,7 @@ ITEP-93043) is reuse-only and does not define product identity.
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
 | SEA-RAFT OpenVINO accuracy tier | **P2 gate PASS** (KITTI Fl-all **2.70%** ≤ 19.11%; OV IR + C++ loader — `docs/sea_raft.md`) |
 | Root README under Computer Vision Primitives | Done |
-| `gvaopticalflow` DL Streamer element | **Not started** (P3) |
+| `gvaopticalflow` DL Streamer element | **P3 scaffold started** (dlstreamer `feat/gvaopticalflow`; system-memory + `calc_device`; see `docs/gvaopticalflow.md`) |
 | IPU DVS path | Deferred (out of scope) |
 
 ## 1. Decision
@@ -457,20 +457,23 @@ samples for median/p95.
   FPS gates met. Host `calc` remains ~6–8× (convenience). Sintel/KITTI
   OpenCV DIS disparity **measured and fails** §8 pairwise/Fl-all gates
   (expected for DIS-lite; §11.6). SYCL is not a P1 speed blocker.
-- **P2 — Accuracy tier + SYCL follow-on:** **in progress.** Classical OpenCL
-  DIS quality retune landed 2026-11-10 (`p2_opencv_dis_parity_2026-11-10.json`;
-  §8 still FAIL; ≥10× kept). **SEA-RAFT-S quality gate PASS** 2026-11-10:
-  KITTI train Fl-all **2.70%** ≤ NVOFA Medium 19.11%
-  (`p2_sea_raft_kitti_fl_all_2026-11-10.json`); OpenVINO IR export + C++
-  `Algorithm::SeaRaft` loader landed (`docs/sea_raft.md`). **iGPU FPS
-  ~15.7** @384×1248 OV GPU (`p2_sea_raft_openvino_fps_2026-11-10.json`).
-  OpenCL SparsePyrLK landed. Farneback OpenCV compare recorded (CPU path
-  still soft vs OpenCV). Optional SYCL catch-up remains. Exit: neural
-  quality gate measured — **met** (Fl-all + FPS reported).
-- **P3 — Pipeline integration:** `gvaopticalflow`; richer samples. Root
-  README Computer Vision Primitives listing — done. Exit: DL Streamer
-  pipeline GPU-resident with no host copy per frame where the path allows
-  it.
+- **P2 — Accuracy tier + SYCL follow-on:** **exit met** 2026-11-10.
+  Classical OpenCL DIS quality retune (`p2_opencv_dis_parity_2026-11-10.json`;
+  §8 still FAIL; ≥10× kept). **SEA-RAFT-S quality gate PASS**: KITTI train
+  Fl-all **2.70%** ≤ NVOFA Medium 19.11%
+  (`p2_sea_raft_kitti_fl_all_2026-11-10.json`); OpenVINO IR + C++
+  `Algorithm::SeaRaft` (`docs/sea_raft.md`). **iGPU FPS ~15.7** @384×1248
+  OV GPU (`p2_sea_raft_openvino_fps_2026-11-10.json`). OpenCL SparsePyrLK
+  landed. Farneback OpenCV compare recorded (CPU path still soft). Optional
+  SYCL catch-up remains non-blocking.
+- **P3 — Pipeline integration:** **in progress.** `gvaopticalflow` scaffold
+  in dlstreamer (`feat/gvaopticalflow`, `-DENABLE_OPTICAL_FLOW=ON`): system-
+  memory NV12/GRAY8 path, props `preset`/`device`/`algorithm`, GPU path
+  calls `calc_device` then downloads flow into `GstGVATensorMeta` v0
+  (`docs/gvaopticalflow.md`). Remaining: lab smoke, VAMemory/DMABuf→CL
+  import (no host luma copy), consumer hooks for `gvatrack` /
+  `gvamotiondetect` / `gvawatermark`. Exit: DL Streamer pipeline
+  GPU-resident with no host copy per frame where the path allows it.
 - **P4 — Harden comparative story:** measured Nvidia host numbers if
   available; FRUC/warp demos; further preset tuning; SEA-RAFT Intel-GPU
   feasibility notes if still open.
@@ -536,7 +539,7 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | OpenCV CPU synthetic GT-EPE (DIS / Farneback / PyrLK) | P1 | **Done 2026-11-09** — soft CI gates; not OpenCV numerical identity |
 | Sintel/KITTI parity vs OpenCV DIS | P1 | **Done (FAIL)** 2026-11-10 — `parity_opencv_datasets`; §11.6 |
 | SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | **Quality PASS** Fl-all 2.70%; **iGPU ~15.7 FPS** @384×1248 OV (`p2_sea_raft_openvino_fps_2026-11-10.json`) |
-| `gvaopticalflow` metadata contract vs `gvatrack` / `gvamotiondetect` | P3 | Define when element lands |
+| `gvaopticalflow` metadata contract vs `gvatrack` / `gvamotiondetect` | P3 | **v0 defined** (`docs/gvaopticalflow.md`); consumer wiring still open |
 | IPU DVS productization | Deferred | Separate future plan |
 
 ### 11.3 Content grep result (2026-11-09)
