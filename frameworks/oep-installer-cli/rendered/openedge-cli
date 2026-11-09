@@ -300,13 +300,13 @@ act_helper ()
     shift;
     shift;
     act_validate_modules $act_name "$@" || return 3;
-    local explicit_mods="$(act_extract_modules $act_name "$@")";
+    local explicit_mods=($(act_extract_modules $act_name "$@"));
     local stop_remove_all=$(case "$act_name" in 
     remove)
-        ensure_parse_option --remove-all "$@" && echo 1 || echo 0
+        ensure_parse_option --remove-all "$@" && ${#explicit_mods[*]} -eq 0 && echo 1 || echo 0
     ;;
     stop)
-        ensure_parse_option --stop-all "$@" && echo 1 || echo 0
+        ensure_parse_option --stop-all "$@" && ${#explicit_mods[*]} -eq 0 && echo 1 || echo 0
     ;;
     *)
         echo 0
@@ -430,7 +430,7 @@ else
 fi) 2>&1;
         wait;
         ensure_parse_option --dry-run "$@" || { 
-            [ -n "${explicit_mods// }" ] && ensure_prop set modules "$explicit_mods";
+            [ ${#explicit_mods[*]} -gt 0 ] && ensure_prop set modules "${explicit_mods[*]}";
             [[ "$act_name" = "remove" && $stop_remove_all -eq 1 && $rc -eq 0 ]] && ensure_prop remove modules
         };
         return $rc;
