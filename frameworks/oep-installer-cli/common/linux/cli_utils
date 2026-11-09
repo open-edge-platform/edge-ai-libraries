@@ -169,7 +169,7 @@ act_helper () {
     [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1
     {
       local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && 
-        echo "${handles[0]#*_*_*_}" || echo "${handles[*]#*_*_*_}"
+        echo "${explicit_mods[*]}" || echo "${handles[*]#*_*_*_}"
       )) _pair _h _m
       for handler in ${handles[*]}; do
         name1=${handler#*_*_*_}
