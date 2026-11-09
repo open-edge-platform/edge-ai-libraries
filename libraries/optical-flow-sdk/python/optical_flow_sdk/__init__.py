@@ -4,9 +4,11 @@
 
 try:
     from ._native import (  # noqa: F401
+        Algorithm,
         Backend,
         OpticalFlow,
         Preset,
+        algorithm_name,
         available_backends,
         backend_name,
         preset_name,
@@ -19,9 +21,11 @@ except ImportError as exc:  # pragma: no cover - packaging help text
     ) from exc
 
 __all__ = [
+    "Algorithm",
     "Backend",
     "OpticalFlow",
     "Preset",
+    "algorithm_name",
     "available_backends",
     "backend_name",
     "preset_name",

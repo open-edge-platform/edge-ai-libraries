@@ -4,6 +4,7 @@
 #include "optical_flow_sdk/optical_flow.hpp"
 
 #include "optical_flow_sdk/cpu_optical_flow.hpp"
+#include "optical_flow_sdk/farneback.hpp"
 
 #if OPTICALFLOW_HAS_OPENCL
 #include "optical_flow_sdk/opencl_optical_flow.hpp"
@@ -20,7 +21,9 @@ namespace optical_flow_sdk {
 struct OpticalFlow::Impl {
   Backend backend = Backend::Cpu;
   Preset preset = Preset::Fast;
-  std::unique_ptr<CpuOpticalFlow> cpu;
+  Algorithm algorithm = Algorithm::Dis;
+  std::unique_ptr<CpuOpticalFlow> cpu_dis;
+  std::unique_ptr<FarnebackOpticalFlow> cpu_farneback;
 #if OPTICALFLOW_HAS_OPENCL
   std::unique_ptr<OpenCLOpticalFlow> opencl;
 #endif
@@ -29,12 +32,22 @@ struct OpticalFlow::Impl {
 #endif
 };
 
-OpticalFlow::OpticalFlow(Backend backend, Preset preset) : impl_(std::make_unique<Impl>()) {
+OpticalFlow::OpticalFlow(Backend backend, Preset preset, Algorithm algorithm)
+    : impl_(std::make_unique<Impl>()) {
   impl_->backend = resolve_backend(backend);
   impl_->preset = preset;
+  impl_->algorithm = algorithm;
+
+  // Dense Farneback is CPU-implemented today; GPU backends fall back to CPU for
+  // that algorithm until device kernels exist.
+  if (algorithm == Algorithm::Farneback) {
+    impl_->cpu_farneback = std::make_unique<FarnebackOpticalFlow>(preset);
+    return;
+  }
+
   switch (impl_->backend) {
   case Backend::Cpu:
-    impl_->cpu = std::make_unique<CpuOpticalFlow>(preset);
+    impl_->cpu_dis = std::make_unique<CpuOpticalFlow>(preset);
     break;
   case Backend::OpenCL:
 #if OPTICALFLOW_HAS_OPENCL
@@ -61,6 +74,7 @@ OpticalFlow &OpticalFlow::operator=(OpticalFlow &&) noexcept = default;
 
 Backend OpticalFlow::backend() const { return impl_->backend; }
 Preset OpticalFlow::preset() const { return impl_->preset; }
+Algorithm OpticalFlow::algorithm() const { return impl_->algorithm; }
 
 void OpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowField &flow) {
   CostMap cost;
@@ -69,9 +83,14 @@ void OpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowField &
 
 void OpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowField &flow,
                        CostMap &cost) {
+  if (impl_->algorithm == Algorithm::Farneback) {
+    impl_->cpu_farneback->calc(prev, next, flow, cost);
+    return;
+  }
+
   switch (impl_->backend) {
   case Backend::Cpu:
-    impl_->cpu->calc(prev, next, flow, cost);
+    impl_->cpu_dis->calc(prev, next, flow, cost);
     break;
   case Backend::OpenCL:
 #if OPTICALFLOW_HAS_OPENCL

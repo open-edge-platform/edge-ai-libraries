@@ -25,6 +25,13 @@ enum class Preset {
   Fast = 2,
 };
 
+// Dense classical algorithms available on CPU today. GPU backends currently
+// route through the same CPU implementations until device kernels land.
+enum class Algorithm {
+  Dis = 0,
+  Farneback = 1,
+};
+
 inline const char *backend_name(Backend backend) {
   switch (backend) {
   case Backend::Auto:
@@ -71,6 +78,24 @@ inline Preset preset_from_name(const std::string &name) {
   if (name == "fast")
     return Preset::Fast;
   throw std::invalid_argument("Unknown optical-flow preset name: " + name);
+}
+
+inline const char *algorithm_name(Algorithm algorithm) {
+  switch (algorithm) {
+  case Algorithm::Dis:
+    return "dis";
+  case Algorithm::Farneback:
+    return "farneback";
+  }
+  return "unknown";
+}
+
+inline Algorithm algorithm_from_name(const std::string &name) {
+  if (name == "dis")
+    return Algorithm::Dis;
+  if (name == "farneback")
+    return Algorithm::Farneback;
+  throw std::invalid_argument("Unknown optical-flow algorithm name: " + name);
 }
 
 inline bool backend_available(Backend backend) {

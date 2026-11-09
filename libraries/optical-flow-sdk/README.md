@@ -17,6 +17,7 @@ See [PLAN.md](PLAN.md) for decisions, gates, and roadmap. IPU DVS is deferred.
 |-------|--------|
 | C++ API (`OpticalFlow`, presets, cost, `calcBoth`) | Available |
 | CPU DIS-style backend | Available (OpenCV-free) |
+| CPU Farneback dense + sparse PyrLK | Available (OpenCV-free) |
 | OpenCL / SYCL backends | Wired; currently fall back to CPU until device kernels land |
 | OpenCV Mat adapter | Optional (`-DOPTICALFLOW_BUILD_OPENCV_ADAPTER=ON`) |
 | Python (`optical_flow_sdk`) | Available when `-DOPTICALFLOW_BUILD_PYTHON=ON` |

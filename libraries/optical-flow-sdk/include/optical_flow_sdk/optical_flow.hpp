@@ -9,11 +9,12 @@
 
 namespace optical_flow_sdk {
 
-// NVOFA-shaped dense optical-flow facade. v1 classical path is DIS on the
-// selected backend; Slow preset may map to neural accuracy in a later phase.
+// NVOFA-shaped dense optical-flow facade. Classical algorithms: DIS (default)
+// and Farneback. Slow preset may map to neural accuracy in a later phase.
 class OpticalFlow {
 public:
-  explicit OpticalFlow(Backend backend = Backend::Auto, Preset preset = Preset::Fast);
+  explicit OpticalFlow(Backend backend = Backend::Auto, Preset preset = Preset::Fast,
+                       Algorithm algorithm = Algorithm::Dis);
   ~OpticalFlow();
 
   OpticalFlow(const OpticalFlow &) = delete;
@@ -23,6 +24,7 @@ public:
 
   Backend backend() const;
   Preset preset() const;
+  Algorithm algorithm() const;
 
   void calc(const ImageView &prev, const ImageView &next, FlowField &flow);
   void calc(const ImageView &prev, const ImageView &next, FlowField &flow, CostMap &cost);

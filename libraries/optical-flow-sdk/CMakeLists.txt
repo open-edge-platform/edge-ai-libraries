@@ -52,7 +52,11 @@ set(OPTICALFLOW_GENERATED_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 set(OPTICALFLOW_CORE_SOURCES src/optical_flow.cpp)
 if(OPTICALFLOW_ENABLE_CPU)
-  list(APPEND OPTICALFLOW_CORE_SOURCES src/cpu/cpu_optical_flow.cpp)
+  list(APPEND OPTICALFLOW_CORE_SOURCES
+    src/cpu/cpu_optical_flow.cpp
+    src/cpu/farneback.cpp
+    src/cpu/sparse_pyrlk.cpp
+  )
 endif()
 if(OPTICALFLOW_ENABLE_OPENCL)
   find_package(OpenCL REQUIRED)
@@ -110,6 +114,18 @@ if(OPTICALFLOW_BUILD_TESTS)
     add_executable(test_optical_flow_cpu_shift tests/test_cpu_synthetic_shift.cpp)
     target_link_libraries(test_optical_flow_cpu_shift PRIVATE optical_flow_sdk)
     add_test(NAME optical_flow_sdk.cpu_synthetic_shift COMMAND test_optical_flow_cpu_shift)
+
+    add_executable(test_optical_flow_farneback tests/test_farneback_shift.cpp)
+    target_link_libraries(test_optical_flow_farneback PRIVATE optical_flow_sdk)
+    add_test(NAME optical_flow_sdk.farneback_shift COMMAND test_optical_flow_farneback)
+
+    add_executable(test_optical_flow_sparse_pyrlk tests/test_sparse_pyrlk.cpp)
+    target_link_libraries(test_optical_flow_sparse_pyrlk PRIVATE optical_flow_sdk)
+    add_test(NAME optical_flow_sdk.sparse_pyrlk COMMAND test_optical_flow_sparse_pyrlk)
+
+    add_executable(test_optical_flow_determinism tests/test_determinism.cpp)
+    target_link_libraries(test_optical_flow_determinism PRIVATE optical_flow_sdk)
+    add_test(NAME optical_flow_sdk.determinism COMMAND test_optical_flow_determinism)
   endif()
 endif()
 

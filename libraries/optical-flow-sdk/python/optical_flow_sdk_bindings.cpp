@@ -64,8 +64,13 @@ PYBIND11_MODULE(_native, module) {
       .value("Medium", optical_flow_sdk::Preset::Medium)
       .value("Fast", optical_flow_sdk::Preset::Fast);
 
+  py::enum_<optical_flow_sdk::Algorithm>(module, "Algorithm")
+      .value("Dis", optical_flow_sdk::Algorithm::Dis)
+      .value("Farneback", optical_flow_sdk::Algorithm::Farneback);
+
   module.def("backend_name", &optical_flow_sdk::backend_name);
   module.def("preset_name", &optical_flow_sdk::preset_name);
+  module.def("algorithm_name", &optical_flow_sdk::algorithm_name);
   module.def("available_backends", []() {
     std::vector<std::string> names;
     for (auto b : optical_flow_sdk::available_backends())
@@ -78,12 +83,15 @@ PYBIND11_MODULE(_native, module) {
   });
 
   py::class_<optical_flow_sdk::OpticalFlow>(module, "OpticalFlow")
-      .def(py::init([](const std::string &backend, const std::string &preset) {
+      .def(py::init([](const std::string &backend, const std::string &preset,
+                       const std::string &algorithm) {
              return std::make_unique<optical_flow_sdk::OpticalFlow>(
                  optical_flow_sdk::backend_from_name(backend),
-                 optical_flow_sdk::preset_from_name(preset));
+                 optical_flow_sdk::preset_from_name(preset),
+                 optical_flow_sdk::algorithm_from_name(algorithm));
            }),
-           py::arg("backend") = "auto", py::arg("preset") = "fast")
+           py::arg("backend") = "auto", py::arg("preset") = "fast",
+           py::arg("algorithm") = "dis")
       .def_property_readonly("backend",
                              [](const optical_flow_sdk::OpticalFlow &self) {
                                return optical_flow_sdk::backend_name(self.backend());
@@ -91,6 +99,10 @@ PYBIND11_MODULE(_native, module) {
       .def_property_readonly("preset",
                              [](const optical_flow_sdk::OpticalFlow &self) {
                                return optical_flow_sdk::preset_name(self.preset());
+                             })
+      .def_property_readonly("algorithm",
+                             [](const optical_flow_sdk::OpticalFlow &self) {
+                               return optical_flow_sdk::algorithm_name(self.algorithm());
                              })
       .def(
           "calc",
