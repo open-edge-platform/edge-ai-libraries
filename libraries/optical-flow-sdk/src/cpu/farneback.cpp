@@ -95,10 +95,12 @@ void upsample_flow(const FlowField &coarse, FlowField &fine, float scale_inv) {
 }
 
 // Dense windowed polynomial / LK hybrid (Farneback-class operating points).
+// poly_sigma is the Gaussian σ for the poly_n neighborhood (OpenCV dial).
 void farneback_level(const GrayImage &I0, const GrayImage &I1, FlowField &flow, CostMap &cost,
-                     int winsize, int iterations, int poly_n) {
+                     int winsize, int iterations, int poly_n, float poly_sigma) {
   const int half = winsize / 2;
   const int poly_half = poly_n / 2;
+  const float poly_var = std::max(poly_sigma * poly_sigma, 1e-6f);
   FlowField updated = flow;
 
   for (int it = 0; it < iterations; ++it) {
@@ -109,14 +111,14 @@ void farneback_level(const GrayImage &I0, const GrayImage &I1, FlowField &flow, 
         const float v0 = flow.dy(x, y);
         for (int wy = -half; wy <= half; ++wy) {
           for (int wx = -half; wx <= half; ++wx) {
-            // Local polynomial gradient proxy from poly_n neighborhood.
+            // Local polynomial gradient proxy from poly_n × poly_sigma neighborhood.
             float Ix = 0.0f, Iy = 0.0f, wsum = 0.0f;
             for (int py = -poly_half; py <= poly_half; ++py) {
               for (int px = -poly_half; px <= poly_half; ++px) {
                 const int xx = std::clamp(x + wx + px, 0, I0.width - 1);
                 const int yy = std::clamp(y + wy + py, 0, I0.height - 1);
-                const float w = std::exp(-0.5f * static_cast<float>(px * px + py * py) /
-                                         (0.5f * poly_n * poly_n));
+                const float w =
+                    std::exp(-0.5f * static_cast<float>(px * px + py * py) / poly_var);
                 Ix += w * px * I0.at(xx, yy);
                 Iy += w * py * I0.at(xx, yy);
                 wsum += w;
@@ -197,7 +199,6 @@ FarnebackOpticalFlow::FarnebackOpticalFlow(Preset preset) : preset_(preset) {
     poly_sigma_ = 1.5;
     break;
   }
-  (void)poly_sigma_;
 }
 
 void FarnebackOpticalFlow::calc(const ImageView &prev, const ImageView &next,
@@ -238,7 +239,7 @@ void FarnebackOpticalFlow::calc(const ImageView &prev, const ImageView &next, Fl
       level_cost.allocate(level_flow.width, level_flow.height);
     }
     farneback_level(pyr0[scale], pyr1[scale], level_flow, level_cost, winsize_, iterations_,
-                    poly_n_);
+                    poly_n_, static_cast<float>(poly_sigma_));
   }
 
   flow = std::move(level_flow);

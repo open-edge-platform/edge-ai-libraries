@@ -79,10 +79,12 @@ __kernel void fb_zero_flow(__global float *flow, const int n) {
 }
 
 // Polynomial-neighborhood gradients + windowed LK (matches CPU farneback_level).
+// poly_sigma is Gaussian σ for the poly_n neighborhood (OpenCV dial).
 __kernel void fb_poly_lk(__global const float *I0, __global const float *I1,
                          __global const float *flow_in, __global float *flow_out,
                          __global uchar *cost, const int width, const int height,
-                         const int win_half, const int poly_n, const int max_step_x100) {
+                         const int win_half, const int poly_n, const float poly_sigma,
+                         const int max_step_x100) {
   const int x = get_global_id(0);
   const int y = get_global_id(1);
   if (x >= width || y >= height)
@@ -95,7 +97,7 @@ __kernel void fb_poly_lk(__global const float *I0, __global const float *I1,
     return;
   }
   const int poly_half = poly_n / 2;
-  const float poly_var = 0.5f * (float)(poly_n * poly_n);
+  const float poly_var = max(poly_sigma * poly_sigma, 1e-6f);
   const float u0 = flow_in[out];
   const float v0 = flow_in[out + 1];
   float Gxx = 0.0f, Gxy = 0.0f, Gyy = 0.0f, bx = 0.0f, by = 0.0f, ssd = 0.0f;

@@ -13,13 +13,23 @@ Goal: show optical-flow SDK value beyond raw dx/dy — **frame interpolation
 | Sample / API | Path | Notes |
 |--------------|------|-------|
 | `warp_with_flow` | `samples/warp_with_flow.cpp` | CPU DIS + host bilinear mid-frame warp |
-| `fruc_opencl` | `samples/fruc_opencl.cpp` | `calc_device` → `warp_u8(t=0.5)` device-resident |
+| `fruc_opencl` | `samples/fruc_opencl.cpp` | `calc_device` → `warp_u8(t=0.5)` synthetic pair |
+| `fruc_video_opencl` | `samples/fruc_video_opencl.cpp` | Multi-frame clip @720p/1080p; pipeline + resident ms |
 | `OpenCLOpticalFlow::warp_u8` | `opencl_optical_flow.hpp` | `dst(x) = bilinear(src, x - t·flow)` |
+
+```bash
+# Synthetic pan clip (default 16 frames)
+./sample_fruc_video_opencl 720
+./sample_fruc_video_opencl 1080 24
+
+# Optional packed gray file: N frames of W×H uint8
+./sample_fruc_video_opencl --raw 1280 720 16 clip.gray
+```
 
 ## Planned
 
-1. Real video clip demo (stabilize / interpolate) under `samples/`
-2. Optional gst-launch snippet once `gvaopticalflow` lab smoke passes
-3. Report wall ms @720p/1080p next to DIS Fast resident numbers
+1. Optional gst-launch snippet once `gvaopticalflow` lab smoke passes
+2. Nvidia host FRUC comparison (gated on NVOFA hardware)
 
-Nvidia host FRUC comparison stays gated on available NVOFA hardware (PLAN P4).
+Report wall ms next to DIS Fast resident numbers from
+`microbench_opencl_resident`.

@@ -7,8 +7,8 @@
 
 namespace optical_flow_sdk {
 
-// CPU Farneback-style dense flow (polynomial neighborhood expansion on a
-// Gaussian pyramid). OpenCV-free; parameters follow the usual Farneback dial.
+// CPU Farneback-style dense flow (poly_n / poly_sigma neighborhood gradients
+// on a Gaussian pyramid). OpenCV-free; dial matches usual Farneback presets.
 class FarnebackOpticalFlow {
 public:
   explicit FarnebackOpticalFlow(Preset preset = Preset::Fast);

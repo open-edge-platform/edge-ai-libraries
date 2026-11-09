@@ -226,6 +226,8 @@ if(OPTICALFLOW_BUILD_SAMPLES AND OPTICALFLOW_ENABLE_OPENCL)
   target_link_libraries(sample_calc_flow_opencl_device PRIVATE optical_flow_sdk)
   add_executable(sample_fruc_opencl samples/fruc_opencl.cpp)
   target_link_libraries(sample_fruc_opencl PRIVATE optical_flow_sdk)
+  add_executable(sample_fruc_video_opencl samples/fruc_video_opencl.cpp)
+  target_link_libraries(sample_fruc_video_opencl PRIVATE optical_flow_sdk)
 endif()
 
 if(OPTICALFLOW_BUILD_BENCHMARKS AND OPTICALFLOW_ENABLE_CPU)

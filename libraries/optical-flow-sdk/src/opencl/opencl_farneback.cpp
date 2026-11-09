@@ -141,6 +141,7 @@ struct OpenCLFarnebackOpticalFlow::Impl {
   int winsize = 9;
   int iterations = 2;
   int poly_n = 5;
+  float poly_sigma = 1.1f;
   mutable std::mutex mutex;
 };
 
@@ -153,18 +154,21 @@ OpenCLFarnebackOpticalFlow::OpenCLFarnebackOpticalFlow(Preset preset)
     impl_->winsize = 9;
     impl_->iterations = 2;
     impl_->poly_n = 5;
+    impl_->poly_sigma = 1.1f;
     break;
   case Preset::Medium:
     impl_->levels = 3;
     impl_->winsize = 13;
     impl_->iterations = 3;
     impl_->poly_n = 5;
+    impl_->poly_sigma = 1.2f;
     break;
   case Preset::Slow:
     impl_->levels = 4;
     impl_->winsize = 15;
     impl_->iterations = 5;
     impl_->poly_n = 7;
+    impl_->poly_sigma = 1.5f;
     break;
   }
   (void)fb_ctx();
@@ -198,6 +202,7 @@ void OpenCLFarnebackOpticalFlow::calc(const ImageView &prev, const ImageView &ne
   const int levels = impl_->levels;
   const int half = impl_->winsize / 2;
   const int poly_n = impl_->poly_n;
+  const float poly_sigma = impl_->poly_sigma;
 
   std::vector<int> widths(levels), heights(levels);
   widths[0] = W;
@@ -297,7 +302,8 @@ void OpenCLFarnebackOpticalFlow::calc(const ImageView &prev, const ImageView &ne
       check_cl(clSetKernelArg(ctx.k_lk, 6, sizeof(int), &heights[s]), "lk h");
       check_cl(clSetKernelArg(ctx.k_lk, 7, sizeof(int), &half), "lk half");
       check_cl(clSetKernelArg(ctx.k_lk, 8, sizeof(int), &poly_n), "lk poly_n");
-      check_cl(clSetKernelArg(ctx.k_lk, 9, sizeof(int), &max_step_x100), "lk step");
+      check_cl(clSetKernelArg(ctx.k_lk, 9, sizeof(float), &poly_sigma), "lk poly_sigma");
+      check_cl(clSetKernelArg(ctx.k_lk, 10, sizeof(int), &max_step_x100), "lk step");
       enqueue_2d(ctx.queue, ctx.k_lk, widths[s], heights[s]);
       std::swap(in, out);
     }
