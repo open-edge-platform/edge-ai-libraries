@@ -1,8 +1,9 @@
 # Intel Optical Flow SDK — Plan
 
-Status: **in progress**. Decisions locked 2026-11-09. CPU-side scaffold and
-classical paths landed on branch `optical-flow-plan` (2026-11-09); real
-SYCL/OpenCL kernels and lab SKU gates remain open. Research base written
+Status: **in progress**. Decisions locked 2026-11-09. CPU classical paths,
+OpenCV synthetic parity harness, monorepo content grep, and root README
+listing landed on branch `optical-flow-plan` (2026-11-09). Real SYCL/OpenCL
+kernels and lab SKU / dataset gates remain open. Research base written
 2026-11-08; SIFT scaffolding (`libraries/sift-extractor`, PR #3646,
 ITEP-93043) is reuse-only and does not define product identity.
 
@@ -17,7 +18,7 @@ ITEP-93043) is reuse-only and does not define product identity.
 | CPU Farneback-class dense flow | Done |
 | CPU `SparsePyrLK` (+ Python) | Done |
 | Python `OpticalFlow` bindings | Done |
-| Optional OpenCV `Mat` adapter + DIS compare tool | Done |
+| Optional OpenCV `Mat` adapter + CPU compare tool | Done (`compare_opencv_dis`: DIS/Farneback/PyrLK) |
 | OpenCV CPU synthetic parity (DIS / Farneback / PyrLK) | Done (soft `--strict` GT-EPE gates) |
 | EPE / Middlebury `.flo` I/O (`metrics.hpp`, `eval_flow_epe`) | Done |
 | Samples: calc / stabilise / track points | Done |
@@ -26,6 +27,7 @@ ITEP-93043) is reuse-only and does not define product identity.
 | OpenCV DIS parity gate on Sintel/KITTI | **Lab** (needs datasets + honest DIS parity) |
 | ≥10× / NVOFA comparative gates on Arc B580 | **Lab** (needs oneAPI + Intel GPU) |
 | SEA-RAFT OpenVINO accuracy tier | **Not started** (P2) |
+| Root README under Computer Vision Primitives | Done |
 | `gvaopticalflow` DL Streamer element | **Not started** (P3) |
 | IPU DVS path | Deferred (out of scope) |
 
@@ -53,7 +55,8 @@ open-edge-platform/edge-ai-libraries
     ├── src/cpu/                    # DIS-lite, Farneback, PyrLK
     ├── src/opencl/ · src/sycl/     # wired; CPU fallback until kernels land
     ├── tests/ · benchmarks/ · samples/ · python/ · docs/
-└── .github/workflows/optical-flow-sdk.yml
+    │     # compare_opencv_dis + test_opencv_cpu_parity (soft GT-EPE)
+└── .github/workflows/optical-flow-sdk.yml   # CPU + OpenCV adapter; --strict compare
 ```
 
 CMake option prefix: `OPTICALFLOW_`. Default host build: CPU ON, SYCL/OpenCL
@@ -428,15 +431,17 @@ samples for median/p95.
   written "no baseline" note.
 - **P1 — SDK v1:** **partially landed.** Tree, CPU DIS/Farneback,
   `SparsePyrLK`, cost/`calcBoth`, C++ + Python, OpenCV adapter, EPE/flo
-  harness, CPU CI, samples — done. **Still open for P1 exit:** real
-  SYCL + OpenCL DIS kernels (replace CPU fallback), Sintel/KITTI parity
-  harness vs OpenCV DIS, moat speed gates measured on named SKUs.
+  harness, OpenCV CPU synthetic parity (`compare_opencv_dis --strict`,
+  `test_opencv_cpu_parity`), CPU CI, samples — done. **Still open for
+  P1 exit:** real SYCL + OpenCL DIS kernels (replace CPU fallback),
+  Sintel/KITTI parity vs OpenCV DIS on named SKUs, moat speed gates.
 - **P2 — Accuracy tier:** SEA-RAFT-S OpenVINO under Slow; classical
   Farneback/PyrLK GPU ports + OpenCV parity. (CPU Farneback/PyrLK already
   present as classical scaffolding.) Exit: neural quality gate measured.
-- **P3 — Pipeline integration:** `gvaopticalflow`; richer samples; root
-  README under Computer Vision Primitives. Exit: DL Streamer pipeline
-  GPU-resident with no host copy per frame where the path allows it.
+- **P3 — Pipeline integration:** `gvaopticalflow`; richer samples. Root
+  README Computer Vision Primitives listing — done. Exit: DL Streamer
+  pipeline GPU-resident with no host copy per frame where the path allows
+  it.
 - **P4 — Harden comparative story:** measured Nvidia host numbers if
   available; FRUC/warp demos; further preset tuning; SEA-RAFT Intel-GPU
   feasibility notes if still open.
@@ -457,9 +462,11 @@ cmake -S . -B build -DCMAKE_CXX_COMPILER=icpx -DCMAKE_BUILD_TYPE=Release \
 ```
 
 Scoped GitHub Actions builds/tests the **CPU** path (installs OpenCV for
-adapter diagnostics). No Intel GPU runners; OpenCL/SYCL CTest and Arc
-timing are lab gates. Apache-2.0, DCO sign-off, fork from `main`, PRs as
-the contribution path — same as CONTRIBUTING.md.
+adapter diagnostics and soft synthetic parity: `test_opencv_cpu_parity`
+plus `compare_opencv_dis --strict`). No Intel GPU runners; OpenCL/SYCL
+CTest, Arc timing, and Sintel/KITTI OpenCV parity are lab gates.
+Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
+— same as CONTRIBUTING.md.
 
 ## 11. Decisions (locked) and verification backlog
 
@@ -491,7 +498,8 @@ the contribution path — same as CONTRIBUTING.md.
 | OpenCV CPU baselines on Core Ultra Series 2 + Arc B580 | P0 | Exit criterion for spike |
 | Nvidia SDK beyond 5.0 / Blackwell support | P0 | Re-check download before asserting |
 | Replace SYCL/OpenCL CPU fallback with real DIS kernels | P1 | Blocking for moat speed claims |
-| Sintel/KITTI parity vs OpenCV DIS | P1 | Harness scaffolding exists; datasets + lab run outstanding |
+| OpenCV CPU synthetic GT-EPE (DIS / Farneback / PyrLK) | P1 | **Done 2026-11-09** — soft CI gates; not OpenCV numerical identity |
+| Sintel/KITTI parity vs OpenCV DIS | P1 | Synthetic harness exists; datasets + lab run outstanding |
 | SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | No published Intel-GPU benchmark found; feasibility unverified |
 | `gvaopticalflow` metadata contract vs `gvatrack` / `gvamotiondetect` | P3 | Define when element lands |
 | IPU DVS productization | Deferred | Separate future plan |
@@ -512,6 +520,15 @@ and related dense/sparse flow tokens.
 **Conclusion:** no prior Optical Flow SDK / NVOFA-class product, and no
 in-tree classical DIS/Farneback/PyrLK library besides this tree and the
 one OpenCV Farneback call site above. Path search from 2026-11-08 stands.
+`video-chunking-utils` is a future optional adopter, not a blocker.
+
+### 11.4 Remaining without lab hardware
+
+Useful on a CPU-only host (not moat-closing): OpenMP/SIMD on DIS-lite,
+NV12 plane helpers, ASAN/UBSAN in CI, SEA-RAFT OpenVINO stub under Slow,
+richer samples/docs. **Blocked without HW / datasets:** real SYCL/OpenCL
+DIS kernels, Arc B580 ≥10× gates, honest Sintel/KITTI OpenCV DIS parity,
+`gvaopticalflow` GPU-resident path.
 
 ## 12. Sources
 
