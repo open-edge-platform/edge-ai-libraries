@@ -18,6 +18,7 @@ ITEP-93043) is reuse-only and does not define product identity.
 | CPU `SparsePyrLK` (+ Python) | Done |
 | Python `OpticalFlow` bindings | Done |
 | Optional OpenCV `Mat` adapter + DIS compare tool | Done |
+| OpenCV CPU synthetic parity (DIS / Farneback / PyrLK) | Done (soft `--strict` GT-EPE gates) |
 | EPE / Middlebury `.flo` I/O (`metrics.hpp`, `eval_flow_epe`) | Done |
 | Samples: calc / stabilise / track points | Done |
 | Determinism + `calcBoth` consistency tests | Done |
@@ -66,7 +67,7 @@ Why this repo, and not the alternatives:
   primitive; this SDK is a peer product in the same category, not a SIFT
   clone. No optical-flow library existed on main as of 2026-11-08
   (path search: zero matches for "optical", "Farneback", "RAFT",
-  "Lucas", or "calcOpticalFlow" — P0 content grep still required).
+  "Lucas", or "calcOpticalFlow" — content grep completed 2026-11-09, §11.3).
 - **Not `libraries/robotics-ai-libraries/orb-extractor`** — Robotics
   Libraries / ROS packaging; flow consumers are broader than robotics.
 - **Not `dlstreamer`** — submodule and pipeline consumer. A
@@ -420,11 +421,11 @@ samples for median/p95.
 
 ## 10. Roadmap
 
-- **P0 — Spike:** partially done on non-lab hosts. Remaining: content
-  grep across full monorepo/suites; OpenCV CPU + `UMat` baselines on
-  **Core Ultra Series 2 + Arc B580**; pin driver/oneAPI; Nvidia SDK
-  freshness. Exit: baseline numbers + named stack, or written "no
-  baseline" note.
+- **P0 — Spike:** partially done on non-lab hosts. Content grep across
+  the monorepo is done (§11.3). Remaining: OpenCV CPU + `UMat`
+  baselines on **Core Ultra Series 2 + Arc B580**; pin driver/oneAPI;
+  Nvidia SDK freshness. Exit: baseline numbers + named stack, or
+  written "no baseline" note.
 - **P1 — SDK v1:** **partially landed.** Tree, CPU DIS/Farneback,
   `SparsePyrLK`, cost/`calcBoth`, C++ + Python, OpenCV adapter, EPE/flo
   harness, CPU CI, samples — done. **Still open for P1 exit:** real
@@ -484,7 +485,7 @@ the contribution path — same as CONTRIBUTING.md.
 
 | Item | When | Notes |
 |------|------|-------|
-| In-repo content grep for existing flow code | P0 | Path search was negative 2026-11-08; content search still required |
+| In-repo content grep for existing flow code | P0 | **Done 2026-11-09** — see §11.3 |
 | OpenCV `UMat`/OpenCL path for DIS / Farneback / PyrLK on target SKU | P0 | Empirical; do not assume |
 | Named driver + oneAPI versions on benchmark hosts | P0 | Required for reporting gate |
 | OpenCV CPU baselines on Core Ultra Series 2 + Arc B580 | P0 | Exit criterion for spike |
@@ -494,6 +495,23 @@ the contribution path — same as CONTRIBUTING.md.
 | SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | No published Intel-GPU benchmark found; feasibility unverified |
 | `gvaopticalflow` metadata contract vs `gvatrack` / `gvamotiondetect` | P3 | Define when element lands |
 | IPU DVS productization | Deferred | Separate future plan |
+
+### 11.3 Content grep result (2026-11-09)
+
+Searched the monorepo (excluding `libraries/optical-flow-sdk/` and
+build/`pcl` patch blobs) for
+`calcOpticalFlow|DISOpticalFlow|Farneback|PyrLK|optical.?flow|NVOFA|Lucas.?Kanade|SEA-?RAFT|\bRAFT\b`
+and related dense/sparse flow tokens.
+
+| Hit | Classification |
+|-----|----------------|
+| `libraries/video-chunking-utils/.../pelt_chunk.py` uses `cv2.calcOpticalFlowFarneback` for a motion-difference feature | **Consumer** of OpenCV Farneback — not a competing SDK; future optional adopter of this library |
+| Chinese prompt strings mentioning “Raft” (consensus) under `microservices/inference-router` | False positive |
+| Binary noise inside `libraries/robotics-ai-libraries/pcl/patches/...` | False positive |
+
+**Conclusion:** no prior Optical Flow SDK / NVOFA-class product, and no
+in-tree classical DIS/Farneback/PyrLK library besides this tree and the
+one OpenCV Farneback call site above. Path search from 2026-11-08 stands.
 
 ## 12. Sources
 

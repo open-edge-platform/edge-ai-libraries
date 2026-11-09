@@ -158,6 +158,10 @@ if(OPTICALFLOW_BUILD_OPENCV_ADAPTER)
     add_executable(test_optical_flow_opencv_adapter tests/test_opencv_adapter.cpp)
     target_link_libraries(test_optical_flow_opencv_adapter PRIVATE optical_flow_opencv_adapter)
     add_test(NAME optical_flow_sdk.opencv_adapter COMMAND test_optical_flow_opencv_adapter)
+
+    add_executable(test_optical_flow_opencv_cpu_parity tests/test_opencv_cpu_parity.cpp)
+    target_link_libraries(test_optical_flow_opencv_cpu_parity PRIVATE optical_flow_opencv_adapter)
+    add_test(NAME optical_flow_sdk.opencv_cpu_parity COMMAND test_optical_flow_opencv_cpu_parity)
   endif()
 
   if(OPTICALFLOW_BUILD_BENCHMARKS)

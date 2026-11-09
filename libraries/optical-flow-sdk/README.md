@@ -22,8 +22,9 @@ See [PLAN.md](PLAN.md) for decisions, gates, and roadmap. IPU DVS is deferred.
 | OpenCL / SYCL backends | Wired; currently fall back to CPU until device kernels land |
 | OpenCV Mat adapter | Optional (`-DOPTICALFLOW_BUILD_OPENCV_ADAPTER=ON`) |
 | Python (`optical_flow_sdk`) | Available when `-DOPTICALFLOW_BUILD_PYTHON=ON` |
-| CPU microbench / OpenCV DIS compare tools | Available under `benchmarks/` |
-| Lab GPU timing / strict OpenCV parity gates | Not runnable without oneAPI + Intel GPU |
+| CPU microbench / OpenCV DIS·Farneback·PyrLK compare | Available under `benchmarks/` |
+| OpenCV CPU synthetic parity test | Soft GT-EPE gates when adapter ON |
+| Lab GPU timing / Sintel·KITTI OpenCV parity | Not runnable without datasets + oneAPI + Intel GPU |
 
 ## Build (CPU)
 
