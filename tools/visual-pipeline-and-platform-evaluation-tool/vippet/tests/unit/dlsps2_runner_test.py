@@ -1571,7 +1571,7 @@ class TestDlsps2RunnerEvents(unittest.TestCase):
         self.assertEqual(os.listdir(self.tmp.name), [])
 
 
-class TestWithMainSinkLast(unittest.TestCase):
+class TestWithFpsChainLast(unittest.TestCase):
     SID = "src_p0_s0__sink_p0_s0"
     MAIN = (
         "filesrc location=/v.ts ! tsdemux ! decodebin3 ! tee name=t ! queue ! "
@@ -1581,7 +1581,7 @@ class TestWithMainSinkLast(unittest.TestCase):
 
     def test_main_chain_moves_after_the_side_branch(self):
         self.assertEqual(
-            dlsps2_runner.with_main_sink_last(f"{self.MAIN} {self.SIDE}", self.SID),
+            dlsps2_runner.with_fps_chain_last(f"{self.MAIN} {self.SIDE}", self.SID),
             f"{self.SIDE} {self.MAIN}",
         )
 
@@ -1591,7 +1591,7 @@ class TestWithMainSinkLast(unittest.TestCase):
             "t. ! queue ! fakesink name=side"
         )
         self.assertEqual(
-            dlsps2_runner.with_main_sink_last(command, self.SID),
+            dlsps2_runner.with_fps_chain_last(command, self.SID),
             "videotestsrc ! tee name=t t. ! queue ! fakesink name=side "
             "t. ! queue ! fakesink name=sink_p0_s0",
         )
@@ -1612,7 +1612,7 @@ class TestWithMainSinkLast(unittest.TestCase):
             )
             with self.subTest(caps=caps):
                 self.assertEqual(
-                    dlsps2_runner.with_main_sink_last(f"{main} {self.SIDE}", self.SID),
+                    dlsps2_runner.with_fps_chain_last(f"{main} {self.SIDE}", self.SID),
                     f"{self.SIDE} {main}",
                 )
 
@@ -1627,7 +1627,47 @@ class TestWithMainSinkLast(unittest.TestCase):
         ):
             with self.subTest(command=command, stream_id=stream_id):
                 self.assertEqual(
-                    dlsps2_runner.with_main_sink_last(command, stream_id), command
+                    dlsps2_runner.with_fps_chain_last(command, stream_id), command
+                )
+
+    def test_counted_side_branch_moves_last(self):
+        # video-captioning-vlm / alerting-vlm: gvafpscounter on the VLM branch.
+        side = (
+            "t. ! queue leaky=downstream max-size-buffers=1 ! gvagenai "
+            'prompt="Is it! safe?" ! gvafpscounter starting-frame=10 ! '
+            "fakesink sync=false async=false"
+        )
+        self.assertEqual(
+            dlsps2_runner.with_fps_chain_last(f"{self.MAIN} {side}", self.SID),
+            f"{self.MAIN} {side}",
+        )
+        self.assertEqual(
+            dlsps2_runner.with_fps_chain_last(f"{side} {self.MAIN}", self.SID),
+            f"{self.MAIN} {side}",
+        )
+
+    def test_counted_main_chain_moves_last(self):
+        # cv-triggered-vlm: gvafpscounter before a second tee on the main chain.
+        main = (
+            "filesrc location=/v.ts ! decodebin3 ! tee name=t ! queue ! "
+            "gvafpscounter ! tee name=t2 ! queue ! fakesink name=sink_p0_s0"
+        )
+        record = "t2. ! queue ! filesink location=/out.mp4"
+        self.assertEqual(
+            dlsps2_runner.with_fps_chain_last(f"{main} {record} {self.SIDE}", self.SID),
+            f"{record} {self.SIDE} {main}",
+        )
+
+    def test_main_sink_when_gvafpscounter_does_not_pick_one_chain(self):
+        counted = "t. ! queue ! gvafpscounter ! fakesink name=a"
+        for side in (
+            f"{counted} t. ! queue ! gvafpscounter ! fakesink name=b",  # two
+            "t. ! queue ! gvafpscounter ! tee name=t2 t2. ! fakesink",  # no sink
+        ):
+            with self.subTest(side=side):
+                self.assertEqual(
+                    dlsps2_runner.with_fps_chain_last(f"{self.MAIN} {side}", self.SID),
+                    f"{side} {self.MAIN}",
                 )
 
     def test_runs_start_with_the_main_sink_last(self):
