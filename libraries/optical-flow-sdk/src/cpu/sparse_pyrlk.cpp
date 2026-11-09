@@ -3,8 +3,15 @@
 
 #include "optical_flow_sdk/sparse_pyrlk.hpp"
 
+#include "optical_flow_sdk/version.hpp"
+
+#if OPTICALFLOW_HAS_OPENCL
+#include "optical_flow_sdk/opencl_sparse_pyrlk.hpp"
+#endif
+
 #include <algorithm>
 #include <cmath>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -110,18 +117,45 @@ bool track_point(const GrayImage &I0, const GrayImage &I1, float x, float y, flo
 
 } // namespace
 
-SparsePyrLK::SparsePyrLK() : SparsePyrLK(SparsePyrLKOptions{}) {}
+SparsePyrLK::SparsePyrLK() : SparsePyrLK(SparsePyrLKOptions{}, Backend::Auto) {}
 
-SparsePyrLK::SparsePyrLK(SparsePyrLKOptions options) : options_(options) {
+SparsePyrLK::SparsePyrLK(SparsePyrLKOptions options, Backend backend) : options_(options) {
   if (options_.win_size < 3 || (options_.win_size % 2) == 0)
     throw std::invalid_argument("SparsePyrLK win_size must be odd and >= 3");
   if (options_.max_level < 0)
     throw std::invalid_argument("SparsePyrLK max_level must be >= 0");
+  if (backend == Backend::Auto) {
+#if OPTICALFLOW_HAS_OPENCL
+    backend_ = Backend::OpenCL;
+#else
+    backend_ = Backend::Cpu;
+#endif
+  } else {
+    backend_ = backend;
+  }
+  if (backend_ == Backend::OpenCL && !OPTICALFLOW_HAS_OPENCL)
+    throw std::runtime_error("SparsePyrLK OpenCL backend was not enabled at build time");
+  if (backend_ == Backend::Sycl)
+    throw std::runtime_error("SparsePyrLK has no SYCL path; use Cpu or OpenCL");
 }
 
 void SparsePyrLK::calc(const ImageView &prev, const ImageView &next,
                        const std::vector<Point2f> &prev_pts, std::vector<Point2f> &next_pts,
                        std::vector<std::uint8_t> &status, std::vector<float> &err) const {
+#if OPTICALFLOW_HAS_OPENCL
+  if (backend_ == Backend::OpenCL) {
+    // Reconstruct lightweight device tracker with the same options (context is shared/static).
+    OpenCLSparsePyrLK ocl(options_);
+    ocl.calc(prev, next, prev_pts, next_pts, status, err);
+    return;
+  }
+#endif
+  calc_cpu(prev, next, prev_pts, next_pts, status, err);
+}
+
+void SparsePyrLK::calc_cpu(const ImageView &prev, const ImageView &next,
+                           const std::vector<Point2f> &prev_pts, std::vector<Point2f> &next_pts,
+                           std::vector<std::uint8_t> &status, std::vector<float> &err) const {
   if (prev.width != next.width || prev.height != next.height)
     throw std::invalid_argument("prev/next must share dimensions");
 

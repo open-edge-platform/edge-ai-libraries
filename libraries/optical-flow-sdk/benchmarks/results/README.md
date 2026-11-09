@@ -10,6 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 | `p1_opencv_dis_parity_baseline.json` | Frozen P1 Sintel/KITTI vs OpenCV DIS + agent instructions |
 | `p2_opencv_dis_parity_2026-11-10.json` | P2 classical DIS retune (clamps + Fast propagate); §8 still FAIL |
 | `p2_sea_raft_kitti_fl_all_2026-11-10.json` | P2 SEA-RAFT-S KITTI Fl-all **PASS** (2.70% ≤ 19.11%) |
+| `p2_sea_raft_openvino_fps_2026-11-10.json` | P2 SEA-RAFT OpenVINO iGPU ~15.7 FPS @384×1248 |
 
 ## For agents continuing P2
 

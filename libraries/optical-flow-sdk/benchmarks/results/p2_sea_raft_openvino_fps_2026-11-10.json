@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "p2_sea_raft_openvino_fps_2026-11-10",
+  "date": "2026-11-10",
+  "purpose": "SEA-RAFT-S OpenVINO sync infer FPS on Core Ultra Series 2 iGPU (and CPU reference).",
+  "plan_refs": ["PLAN.md §10 P2", "docs/sea_raft.md"],
+  "model_ir": "sea_raft_s_384x1248.xml (fixed NCHW 1x3x384x1248)",
+  "host": {
+    "cpu": "Intel Core Ultra 7 255H",
+    "gpu": "Intel Arc Graphics (iGPU)",
+    "openvino": "2025.2 toolkit + pip openvino 2026.4.1 for bench script"
+  },
+  "results": [
+    {
+      "device": "GPU",
+      "device_name": "Intel(R) Arc(TM) Graphics (iGPU)",
+      "ms_per_pair": 63.86344652622938,
+      "fps": 15.658409534619928
+    },
+    {
+      "device": "CPU",
+      "device_name": "Intel(R) Core(TM) Ultra 7 255H",
+      "ms_per_pair": 871.6322413645685,
+      "fps": 1.147272843458002
+    }
+  ],
+  "literature_ref": "SEA-RAFT-S 21 FPS @1080p on RTX 3090 (paper); this is 384x1248 OV sync wall on Series 2 iGPU",
+  "reproduce": [
+    "python scripts/bench_sea_raft_openvino.py --model ~/models/sea-raft/openvino/sea_raft_s_384x1248.xml --device GPU"
+  ],
+  "notes": [
+    "Quality gate already PASS (KITTI Fl-all 2.70%). This file is FPS reporting only.",
+    "Wall is OpenVINO InferRequest::infer sync; excludes decode/resize to model shape."
+  ]
+}

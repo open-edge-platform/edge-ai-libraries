@@ -16,7 +16,7 @@ Plan gate (§8 quality / §10 P2): SEA-RAFT-S KITTI train Fl-all ≤ NVOFA Mediu
 | Measurement path | PyTorch SEA-RAFT-S HF weights on CPU (`scripts/eval_sea_raft_kitti.py`) |
 | OpenVINO IR export | Done on lab (`sea_raft_s_384x1248.{xml,bin}`) via `scripts/export_sea_raft_openvino.py` |
 | C++ `Algorithm::SeaRaft` | OpenVINO Runtime loader (gray→RGB replicate; resize to model HxW) |
-| iGPU FPS claim | **Not yet** — measure with `OPTICALFLOW_SEA_RAFT_DEVICE=GPU` after OV GPU plugin OK |
+| iGPU FPS claim | **~15.7 FPS** @384×1248 OpenVINO GPU (`benchmarks/results/p2_sea_raft_openvino_fps_2026-11-10.json`) |
 
 Model: `MemorySlices/Tartan-C-T-TSKH-kitti432x960-S` + `config/eval/kitti-S.json`.
 

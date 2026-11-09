@@ -23,20 +23,26 @@ struct SparsePyrLKOptions {
   float min_eig = 1e-4f;
 };
 
-// Sparse pyramidal Lucas-Kanade tracker (Bouguet). CPU-only for now.
+// Sparse pyramidal Lucas-Kanade tracker (Bouguet). Backend::OpenCL uses the
+// device path when OPTICALFLOW_HAS_OPENCL; Auto prefers OpenCL then CPU.
 class SparsePyrLK {
 public:
   SparsePyrLK();
-  explicit SparsePyrLK(SparsePyrLKOptions options);
+  explicit SparsePyrLK(SparsePyrLKOptions options, Backend backend = Backend::Auto);
 
   void calc(const ImageView &prev, const ImageView &next, const std::vector<Point2f> &prev_pts,
             std::vector<Point2f> &next_pts, std::vector<std::uint8_t> &status,
             std::vector<float> &err) const;
 
   const SparsePyrLKOptions &options() const { return options_; }
+  Backend backend() const { return backend_; }
 
 private:
   SparsePyrLKOptions options_;
+  Backend backend_ = Backend::Cpu;
+  void calc_cpu(const ImageView &prev, const ImageView &next, const std::vector<Point2f> &prev_pts,
+                std::vector<Point2f> &next_pts, std::vector<std::uint8_t> &status,
+                std::vector<float> &err) const;
 };
 
 } // namespace optical_flow_sdk

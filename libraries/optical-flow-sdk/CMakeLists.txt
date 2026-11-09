@@ -76,6 +76,7 @@ if(OPTICALFLOW_ENABLE_OPENCL)
   list(APPEND OPTICALFLOW_CORE_SOURCES
     src/opencl/opencl_optical_flow.cpp
     src/opencl/opencl_farneback.cpp
+    src/opencl/opencl_sparse_pyrlk.cpp
   )
 endif()
 if(OPTICALFLOW_ENABLE_SYCL)

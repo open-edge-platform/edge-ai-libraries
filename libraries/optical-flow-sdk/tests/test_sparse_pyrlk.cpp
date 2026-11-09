@@ -58,7 +58,7 @@ int main() {
   SparsePyrLKOptions opts;
   opts.max_level = 2;
   opts.win_size = 11;
-  SparsePyrLK lk(opts);
+  SparsePyrLK lk(opts, Backend::Cpu);
   lk.calc({prev.data(), kW, kH, 0}, {next.data(), kW, kH, 0}, pts, tracked, status, err);
 
   int ok = 0;
