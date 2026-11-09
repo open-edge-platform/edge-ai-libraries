@@ -1,0 +1,10 @@
+
+configure_edge_pack_selection () {
+  local ep_list="$1"; shift
+  ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@" || {
+    echo "gpu_accel npu_accel"
+    return 0
+  }
+  echo "$ep_list"
+}
+
