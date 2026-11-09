@@ -113,9 +113,10 @@ const PerformanceTestPanel = ({
     entries: [string, string][];
   } | null>(null);
 
-  // Poll all performance jobs to collect metadata stream URLs from ALL running jobs
-  const { data: allJobs } = useGetPerformanceStatusesQuery(undefined, {
+  // currentData (unlike data) is cleared when skipped, so stale RUNNING jobs are not reused.
+  const { currentData: allJobs } = useGetPerformanceStatusesQuery(undefined, {
     pollingInterval: METADATA_POLL_INTERVAL,
+    skip: !isRunning || !enableMetadata,
   });
 
   const metadataStreamUrls = useMemo(() => {
@@ -160,10 +161,12 @@ const PerformanceTestPanel = ({
       setDisplayedEvents(events?.length ? events : []);
     } else if (wasRunning && !isRunning) {
       freezeSnapshot(resultOverrides);
+      // metadataEntries is already empty here because polling stops with the run.
+      const entries = Object.entries(metadataSourceUrlsRef.current);
       setFrozenMetadata((prev) => {
         const hasLines = Object.values(metadataLines).some((l) => l.length > 0);
         if (!hasLines) return prev;
-        return { lines: { ...metadataLines }, entries: [...metadataEntries] };
+        return { lines: { ...metadataLines }, entries };
       });
     }
   }, [
@@ -173,7 +176,6 @@ const PerformanceTestPanel = ({
     resultOverrides,
     events,
     metadataLines,
-    metadataEntries,
   ]);
 
   useEffect(() => {
