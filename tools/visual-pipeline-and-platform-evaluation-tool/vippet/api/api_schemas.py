@@ -1442,13 +1442,15 @@ class ExecutionConfig(BaseModel):
     enable_latency_metrics: bool = Field(
         default=False,
         description=(
-            "When true, runs the DLStreamer `latency_tracer` in "
-            "pipeline-only mode with a 1000 ms interval and reports one "
-            "latency sample per stream and interval. The tracer posts each "
-            "interval as a `dlstreamer/latency-window` bus message; with a "
-            "DLStreamer that predates these messages, ViPPET falls back to "
-            "parsing the tracer's log records. When false (default), the "
-            "tracer is not started."
+            "When true, the job reports DLStreamer `latency_tracer` samples "
+            "per stream in `latency_tracer_metrics`. This flag does not "
+            "start the tracer: DL Streamer Pipeline Server runs it for every "
+            "pipeline when configured server-wide (`DLSPS2_GST_TRACERS` with "
+            "`post-metrics=true`, and `DLSPS2_OTEL=true`), and ViPPET only "
+            "reads the samples the server exports to metrics-manager. If the "
+            "server is not configured that way, the test runs without "
+            "latency metrics and the job's `details` say so. When false "
+            "(default), no latency samples are read."
         ),
     )
 
@@ -1818,9 +1820,10 @@ class LatencyMetrics(BaseModel):
     """
     **Last observed DLStreamer `latency_tracer` sample for a single stream.**
 
-    Each value describes one `latency_tracer` interval (~1000 ms) of
-    one stream. Only the most recent sample per stream is kept; history
-    is not reported here.
+    Each value merges the `latency_tracer` windows of one stream over one
+    DL Streamer Pipeline Server export period (`DLSPS2_OTEL_INTERVAL_MS`,
+    10000 ms by default). Only the most recent sample per stream is kept;
+    history is not reported here.
 
     All timing fields are in milliseconds. `fps` reported by the tracer
     is intentionally **not** included because FPS is already exposed on
@@ -1828,7 +1831,7 @@ class LatencyMetrics(BaseModel):
     `gvafpscounter`).
 
     ## Attributes
-    - `interval_ms` - Length of the measurement window, in milliseconds
+    - `interval_ms` - Total length of the tracer windows in the sample, in milliseconds
     - `avg_ms` - Mean frame latency over the window, in milliseconds
     - `min_ms` - Minimum frame latency observed in the window, in milliseconds
     - `max_ms` - Maximum frame latency observed in the window, in milliseconds
@@ -1841,7 +1844,7 @@ class LatencyMetrics(BaseModel):
     ### Example
     ```json
     {
-      "interval_ms": 1000.25,
+      "interval_ms": 10002.5,
       "avg_ms": 364.31,
       "min_ms": 0.004,
       "max_ms": 529.26,
@@ -1852,8 +1855,11 @@ class LatencyMetrics(BaseModel):
 
     interval_ms: float = Field(
         ...,
-        description="Length of the measurement window reported by the tracer, in ms.",
-        examples=[1000.25],
+        description=(
+            "Total length of the tracer windows merged into this sample, "
+            "in ms (about one export period)."
+        ),
+        examples=[10002.5],
     )
     avg_ms: float = Field(
         ...,
@@ -1960,11 +1966,13 @@ class TestsJobStatus(BaseModel):
         description=(
             "Last observed DLStreamer `latency_tracer` sample per stream, "
             "keyed by `stream_id` (`{source_name}__{sink_name}`). `null` "
-            "when the job was executed with "
-            "`execution_config.enable_latency_metrics=false` (the tracer "
-            "was not started at all). An empty object `{}` means the "
-            "tracer was active but produced no samples — for example when "
-            "the pipeline exited before the first 1000 ms interval closed."
+            "when no latency samples were read: the job was executed with "
+            "`execution_config.enable_latency_metrics=false`, or latency "
+            "was requested but DL Streamer Pipeline Server runs without the "
+            "latency tracer (the job's `details` then say so). An empty "
+            "object `{}` means samples were read but none arrived — for "
+            "example when the pipeline stopped before the server's first "
+            "export."
         ),
     )
 

@@ -97,14 +97,13 @@ class PipelineResult:
             (``"{source_name}__{sink_name}"``).
 
             * ``None`` when the runner was started with
-              ``enable_latency_metrics=False`` — the tracer was not
-              activated at all, so no samples could ever be produced.
-            * Empty ``dict`` when the tracer was active but produced no
-              samples (e.g. the pipeline exited before the first 1000 ms
-              interval closed).
+              ``enable_latency_metrics=False`` — no latency samples are
+              read.
+            * Empty ``dict`` when samples were read but none arrived (e.g.
+              the pipeline stopped before the server's first export).
             * Non-empty ``dict`` otherwise. Only the latest sample per
               stream is kept; earlier samples for the same stream are
-              overwritten as new tracer windows arrive.
+              overwritten as new samples arrive.
         stream_fps: Measured FPS per stream, keyed by ``stream_id``.
             Empty when FPS cannot be attributed to individual streams.
     """

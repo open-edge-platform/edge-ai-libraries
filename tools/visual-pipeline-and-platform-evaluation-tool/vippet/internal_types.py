@@ -573,9 +573,10 @@ class InternalExecutionConfig:
         output_mode: Mode for pipeline output generation.
         max_runtime: Maximum runtime in seconds (0 = run until EOS).
         metadata_mode: Mode for metadata publishing via gvametapublish elements.
-        enable_latency_metrics: When True, the GStreamer subprocess runs with
-            the DLStreamer `latency_tracer` active in pipeline-only mode with
-            a 1000 ms interval. Defaults to False (tracer disabled).
+        enable_latency_metrics: When True, the job reads the latency samples
+            DLSPS 2.0 exports to metrics-manager, if the server runs the
+            DLStreamer `latency_tracer` (see ``dlsps2_latency_configured``).
+            Defaults to False (no latency samples read).
     """
 
     output_mode: InternalOutputMode
@@ -658,11 +659,11 @@ class InternalPerformanceJobStatus:
         live_stream_urls: Mapping from pipeline ID to live stream URL.
         latency_tracer_metrics: Last observed latency_tracer sample per
             stream, keyed by ``stream_id`` (``"{source_name}__{sink_name}"``).
-            ``None`` when the job was executed with
-            ``execution_config.enable_latency_metrics=False`` (tracer was
-            not started at all); an empty dict means the tracer was
-            active but no samples were produced (e.g. the pipeline
-            exited before the first interval).
+            ``None`` when no latency samples were read: the job was executed
+            with ``execution_config.enable_latency_metrics=False``, or the
+            server runs without the latency tracer; an empty dict means
+            samples were read but none arrived (e.g. the pipeline stopped
+            before the server's first export).
         events: Most recent live pipeline events (oldest first), bounded.
     """
 
@@ -719,9 +720,10 @@ class InternalDensityJobStatus:
         video_output_paths: Mapping from pipeline ID to output file paths.
         latency_tracer_metrics: Last observed latency_tracer sample per
             stream, keyed by ``stream_id`` (``"{source_name}__{sink_name}"``).
-            ``None`` when the job was executed with
-            ``execution_config.enable_latency_metrics=False``; an empty
-            dict means the tracer was active but produced no samples.
+            ``None`` when no latency samples were read: the job was executed
+            with ``execution_config.enable_latency_metrics=False``, or the
+            server runs without the latency tracer; an empty dict means
+            samples were read but none arrived.
     """
 
     id: str

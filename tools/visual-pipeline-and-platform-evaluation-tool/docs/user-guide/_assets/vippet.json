@@ -5501,7 +5501,7 @@
               }
             ],
             "title": "Latency Tracer Metrics",
-            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples \u2014 for example when the pipeline exited before the first 1000 ms interval closed."
+            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when no latency samples were read: the job was executed with `execution_config.enable_latency_metrics=false`, or latency was requested but DL Streamer Pipeline Server runs without the latency tracer (the job's `details` then say so). An empty object `{}` means samples were read but none arrived \u2014 for example when the pipeline stopped before the server's first export."
           }
         },
         "type": "object",
@@ -5719,7 +5719,7 @@
           "enable_latency_metrics": {
             "type": "boolean",
             "title": "Enable Latency Metrics",
-            "description": "When true, runs the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval and reports one latency sample per stream and interval. The tracer posts each interval as a `dlstreamer/latency-window` bus message; with a DLStreamer that predates these messages, ViPPET falls back to parsing the tracer's log records. When false (default), the tracer is not started.",
+            "description": "When true, the job reports DLStreamer `latency_tracer` samples per stream in `latency_tracer_metrics`. This flag does not start the tracer: DL Streamer Pipeline Server runs it for every pipeline when configured server-wide (`DLSPS2_GST_TRACERS` with `post-metrics=true`, and `DLSPS2_OTEL=true`), and ViPPET only reads the samples the server exports to metrics-manager. If the server is not configured that way, the test runs without latency metrics and the job's `details` say so. When false (default), no latency samples are read.",
             "default": false
           }
         },
@@ -6089,9 +6089,9 @@
           "interval_ms": {
             "type": "number",
             "title": "Interval Ms",
-            "description": "Length of the measurement window reported by the tracer, in ms.",
+            "description": "Total length of the tracer windows merged into this sample, in ms (about one export period).",
             "examples": [
-              1000.25
+              10002.5
             ]
           },
           "avg_ms": {
@@ -6137,7 +6137,7 @@
           "latency_ms"
         ],
         "title": "LatencyMetrics",
-        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value describes one `latency_tracer` interval (~1000 ms) of\none stream. Only the most recent sample per stream is kept; history\nis not reported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Length of the measurement window, in milliseconds\n- `avg_ms` - Mean frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - **Deprecated.** Mean time between output frames in the window, in milliseconds (frame period, `1000 / fps`). It is **not** a frame latency; use `avg_ms` (mean) and `max_ms`\n\nA frame's latency is the time from the moment the source element\noutputs the frame to the moment the frame is pushed into the sink;\nthe sink's own work is excluded.\n\n### Example\n```json\n{\n  \"interval_ms\": 1000.25,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
+        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value merges the `latency_tracer` windows of one stream over one\nDL Streamer Pipeline Server export period (`DLSPS2_OTEL_INTERVAL_MS`,\n10000 ms by default). Only the most recent sample per stream is kept;\nhistory is not reported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Total length of the tracer windows in the sample, in milliseconds\n- `avg_ms` - Mean frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - **Deprecated.** Mean time between output frames in the window, in milliseconds (frame period, `1000 / fps`). It is **not** a frame latency; use `avg_ms` (mean) and `max_ms`\n\nA frame's latency is the time from the moment the source element\noutputs the frame to the moment the frame is pushed into the sink;\nthe sink's own work is excluded.\n\n### Example\n```json\n{\n  \"interval_ms\": 10002.5,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
       },
       "MessageResponse": {
         "properties": {
@@ -7095,7 +7095,7 @@
               }
             ],
             "title": "Latency Tracer Metrics",
-            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples \u2014 for example when the pipeline exited before the first 1000 ms interval closed."
+            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when no latency samples were read: the job was executed with `execution_config.enable_latency_metrics=false`, or latency was requested but DL Streamer Pipeline Server runs without the latency tracer (the job's `details` then say so). An empty object `{}` means samples were read but none arrived \u2014 for example when the pipeline stopped before the server's first export."
           },
           "live_stream_urls": {
             "anyOf": [
