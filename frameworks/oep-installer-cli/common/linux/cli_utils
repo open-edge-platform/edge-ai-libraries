@@ -104,11 +104,11 @@ act_helper () {
   act_validate_modules $act_name "$@" || return 3
 
   # fill in the saved module list if none is named; remember explicit ones
-  local explicit_mods="$(act_extract_modules $act_name "$@")"
+  local explicit_mods=($(act_extract_modules $act_name "$@"))
   local stop_remove_all=$(
     case "$act_name" in
-    remove) ensure_parse_option --remove-all "$@" && echo 1 || echo 0;;
-    stop) ensure_parse_option --stop-all "$@" && echo 1 || echo 0;;
+    remove) ensure_parse_option --remove-all "$@" && ${#explicit_mods[*]} -eq 0 && echo 1 || echo 0;;
+    stop) ensure_parse_option --stop-all "$@" && ${#explicit_mods[*]} -eq 0 && echo 1 || echo 0;;
     *) echo 0;;
     esac
   )
@@ -243,7 +243,7 @@ act_helper () {
 
     ensure_parse_option --dry-run "$@" || {
       # pass on modules to subsequent command
-      [ -n "${explicit_mods// }" ] && ensure_prop set modules "$explicit_mods"
+      [ ${#explicit_mods[*]} -gt 0 ] && ensure_prop set modules "${explicit_mods[*]}"
       # everything is gone; drop the saved default
       [[ "$act_name" = "remove" && $stop_remove_all -eq 1 && $rc -eq 0 ]] && ensure_prop remove modules
     }
