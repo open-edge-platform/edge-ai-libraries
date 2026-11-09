@@ -17,7 +17,9 @@ Leftovers: §11.7.
 | C++ API: `OpticalFlow`, presets, cost, `calcBoth` | Done |
 | `Algorithm::{Dis,Farneback,SeaRaft}` | Done (CPU DIS/Farneback; OpenCL DIS + Farneback-class; SeaRaft via OpenVINO) |
 | CPU DIS-lite dense flow | Done (synthetic-shift tests pass) |
-| CPU / OpenCL Farneback-class dense flow | Done (OpenCL soft vs OpenCV) |
+| CPU / OpenCL Farneback-class dense flow | Done; **OpenCL vs OpenCV still soft** — harden (planned) |
+| Host `calc` vs `calc_device` speed gap | **Documented** — host `calc` ≈6–8×; pipelines must prefer `calc_device` (≥10×); close H↔D tax where practical (planned) |
+| FRUC / warp demos | **Planned (P4)** — frame interpolation / warp samples on Series 2 |
 | CPU / OpenCL `SparsePyrLK` (+ Python) | Done (OpenCL P2) |
 | Python `OpticalFlow` bindings | Done |
 | Optional OpenCV `Mat` adapter + CPU compare tool | Done (`compare_opencv_dis`: DIS/Farneback/PyrLK) |
@@ -33,7 +35,7 @@ Leftovers: §11.7.
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
 | SEA-RAFT OpenVINO accuracy tier | **P2 PASS** — KITTI Fl-all **2.70%** ≤ 19.11%; **iGPU ~15.7 FPS** @384×1248 (`docs/sea_raft.md`) |
 | Root README under Computer Vision Primitives | Done |
-| `gvaopticalflow` DL Streamer element | **P3 scaffold** (dlstreamer `feat/gvaopticalflow`; system-memory + `calc_device`; `docs/gvaopticalflow.md`) — lab smoke / VAMemory / consumers open |
+| `gvaopticalflow` DL Streamer element | **P3 scaffold** (dlstreamer `feat/gvaopticalflow`; system-memory + `calc_device`; `docs/gvaopticalflow.md`) — lab smoke / VAMemory / consumers open; **dlstreamer PR deferred** |
 | IPU DVS path | Deferred (out of scope) |
 
 ## 1. Decision
@@ -470,11 +472,16 @@ samples for median/p95.
   calls `calc_device` then downloads flow into `GstGVATensorMeta` v0
   (`docs/gvaopticalflow.md`). Remaining: lab smoke, VAMemory/DMABuf→CL
   import (no host luma copy), consumer hooks for `gvatrack` /
-  `gvamotiondetect` / `gvawatermark`. Exit: DL Streamer pipeline
-  GPU-resident with no host copy per frame where the path allows it.
-- **P4 — Harden comparative story:** measured Nvidia host numbers if
-  available; FRUC/warp demos; further preset tuning; SEA-RAFT Intel-GPU
-  feasibility notes if still open.
+  `gvamotiondetect` / `gvawatermark`. **Also in P3 scope:** harden OpenCL
+  Farneback vs OpenCV (currently soft); keep documenting / narrowing the
+  host `calc` H↔D gap so callers default to `calc_device`. **dlstreamer
+  upstream PR deferred** (local `feat/gvaopticalflow` only for now). Exit:
+  DL Streamer pipeline GPU-resident with no host copy per frame where the
+  path allows it.
+- **P4 — Harden comparative story + demos:** measured Nvidia host numbers
+  if available; **FRUC / warp demos** (frame interpolation + flow-based
+  warp samples on Series 2); further preset tuning; SEA-RAFT resolution /
+  FPS notes.
 
 Build / CI:
 
@@ -541,6 +548,10 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | `gvaopticalflow` lab smoke (`gst-inspect` / `gst-launch`) | P3 | **Open** — needs installed SDK + dlstreamer `-DENABLE_OPTICAL_FLOW=ON` on Series 2 |
 | VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **Open** — exit criterion for GPU-resident pipeline |
 | Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **Open** — v0 meta readable via `gvapython` / apps only |
+| OpenCL Farneback vs OpenCV numerical hardening | P3 | **Open (soft today)** — land tighter parity / document residual gap |
+| Host `calc` H↔D tax vs `calc_device` | P3 | **Open** — host ≈6–8×; ≥10× is `calc_device` only; reduce copies / steer API users |
+| FRUC / warp demos | P4 | **Planned** — interpolation + warp samples on Series 2 iGPU |
+| dlstreamer `gvaopticalflow` upstream PR | P3 later | **Deferred** — keep local `feat/gvaopticalflow`; no PR yet |
 | Optional SYCL DIS speed catch-up vs OpenCL | P2 leftover | **Non-blocking** — OpenCL owns ≥10× |
 | IPU DVS productization | Deferred | Separate future plan |
 
@@ -699,7 +710,7 @@ P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
 
 ### 11.7 Remaining work (2026-11-10)
 
-**P3 — do next (blocks exit):**
+**P3 — do next (blocks exit / in-plan):**
 
 1. Install OpenCL `optical-flow-sdk` on lab; build dlstreamer with
    `-DENABLE_OPTICAL_FLOW=ON`; `gst-inspect-1.0 gvaopticalflow`.
@@ -711,22 +722,28 @@ P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
 4. Wire or document consumers: `gvapython` example first; then optional
    flow→ROI for `gvamotiondetect` / prior for `gvatrack` / viz in
    `gvawatermark`.
-5. Land dlstreamer PR (`feat/gvaopticalflow`); optionally bump
-   `libraries/dlstreamer` submodule pin in this monorepo.
+5. **Harden OpenCL Farneback** vs OpenCV (soft today) — retune / document
+   residual gap honestly.
+6. **Host `calc` vs `calc_device`:** keep ≥10× claims on resident path only;
+   reduce H↔D where practical and steer samples/docs/API toward
+   `calc_device` (host `calc` still ≈6–8×).
+
+**Deferred (not now):**
+
+- dlstreamer upstream PR for `gvaopticalflow` / monorepo submodule pin
+  bump — hold until lab smoke + resident path are solid.
+
+**P4 — in plan:**
+
+- **FRUC / warp demos** (frame interpolation + flow-based warp on Series 2).
+- Measured Nvidia host FPS/quality tables (if hardware available).
+- Further SEA-RAFT preset / resolution / FPS notes.
 
 **Non-blocking leftovers:**
 
 - Optional SYCL DIS performance catch-up (OpenCL already clears ≥10×).
-- Farneback OpenCL numerical hardening vs OpenCV (currently soft).
 - Classical DIS §8 pairwise/Fl-all vs OpenCV remains **FAIL** by design
   (DIS-lite); only SEA-RAFT closes the quality gate.
-- Host `OpticalFlow::calc` still ≈6–8× (convenience); pipelines should
-  prefer `calc_device`.
-
-**P4 — later:**
-
-- Measured Nvidia host FPS/quality tables (if hardware available).
-- FRUC / warp demos; further SEA-RAFT preset / resolution notes.
 - Arc B580 discrete gates (explicitly out of scope for this revision).
 
 ## 12. Sources
