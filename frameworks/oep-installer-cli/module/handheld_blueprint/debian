@@ -11,7 +11,7 @@ debian_99_profile_handheld_blueprint () {
     else
       modules+=(docker_io)
     fi
-    modules+=($(configure_edge_pack_section "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst" "$@"))
+    modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst" "$@"))
     echo "${modules[*]}"
     ;;
   esac
