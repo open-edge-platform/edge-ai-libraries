@@ -30,7 +30,7 @@ vision_analytics_configure_uav_application () {
   uav_module="$1"
   uav_app="$2"
   uav_repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
-  uav_commit="cebc4af2abda194c2c62055fb378c48ec4119783"
+  uav_commit="main"
   uav_workspace="$(ensure_project_path)/uav-mission-compute-sdk"
   uav_checkout="$uav_workspace/$uav_app"
   uav_dir="$uav_checkout/uav-$uav_app"
@@ -105,7 +105,7 @@ vision_analytics_configure_uav_application_models () {
 
 vision_analytics_install_uav_application () {
   vision_analytics_configure_uav_application "$1" "$2" || return $?
-  if vision_analytics_verify_uav_application && [[ " $* " != *" --reinstall "* ]]; then
+  if vision_analytics_verify_uav_application && ! ensure_parse_reinstall "$@"; then
     echo "$uav_app is already installed."
     return 0
   fi
@@ -116,7 +116,7 @@ vision_analytics_install_uav_application () {
     fi
     python3 -c 'import ensurepip' || return $?
   fi
-  echo "@@STEP Fetching UAV source commit $uav_commit for $uav_app"
+  echo "@@STEP Fetching UAV source ref $uav_commit for $uav_app"
   vision_analytics_configure_uav_application_source || return $?
   if [[ ! -f "$uav_dir/Makefile" || ! -f "$uav_dir/.env.example" ]]; then
     echo "Required UAV application source is missing: $uav_dir" >&2
@@ -126,6 +126,7 @@ vision_analytics_install_uav_application () {
   cd "$uav_dir" || return $?
   echo "Review $uav_dir/.env and upstream LAN bindings before starting the application."
   make init || return $?
+  sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
   if [ "$uav_app" = vision-analytics ]; then
     vision_analytics_configure_uav_application_models || return $?
     make _check_certs || return $?
@@ -218,6 +219,7 @@ vision_analytics_start_uav_application () {
   else
     read -r -a uav_ports <<< "$(ensure_prop get "started/$uav_module/ports")"
   fi
+  sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
   if [ "$uav_app" = ground-station ]; then
     make up || return $?
   else

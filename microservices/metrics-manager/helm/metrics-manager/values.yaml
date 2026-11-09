@@ -6,15 +6,15 @@
 # To print the rendered defaults from the published OCI artifact, run:
 #   helm show values oci://registry-1.docker.io/intel/metrics-manager \
 #     --version <X.Y.Z>-helm
-# (See docs/HELM.md for the exact pinned version.)
+# See docs/user-guide/get-started/deploy-with-helm.md.
 
 # -----------------------------------------------------------------------------
 # Container image
 # -----------------------------------------------------------------------------
 image:
   repository: docker.io/intel/metrics-manager
-  # tag defaults to .Chart.AppVersion (kept in sync with ./VERSION).
-  # Override only when running a custom build.
+  # Defaults to .Chart.AppVersion. For RC validation use 2026.3.0-rc1
+  # or 2026.3.0-extended-rc1; the tag, not a chart flag, selects OpenVINO.
   tag: ""
   pullPolicy: IfNotPresent
 
@@ -41,15 +41,18 @@ controller:
 # Pod-level configuration
 # -----------------------------------------------------------------------------
 pod:
-  # Required for the bundled npu_reader to read /proc/<pid>/... and the
-  # Telegraf [[inputs.system]] / [[inputs.processes]] plugins to see all
-  # processes on the host. Equivalent to `pid: host` in compose.yaml.
+  # Host process visibility for native process/GPU client collectors.
+  # The explicit hardware profile enables this, equivalent to pid: host.
   hostPID: false
   fsGroup: 10001
   supplementalGroups: []
-  # CPU/RAM/temperature/GPU/NPU readers all read sysfs from the host.
-  # The pod itself does not need hostNetwork, but exposing the API on the
-  # host's network namespace can simplify scraping by node-local agents.
+  # CPU/RAM/temperature/GPU/NPU readers all read sysfs from the host and do not
+  # need hostNetwork. Enable it only to opt in to host-NIC telemetry: it makes
+  # net/ethtool read the host's physical NICs instead of the pod's virtual
+  # interface, mirroring the opt-in `metrics-manager-host-nic` Compose profile.
+  # This changes the pod's networking model (service discovery, port access)
+  # for existing consumers, so it is never enabled implicitly by
+  # hardware.telemetry.enabled - set it explicitly after reviewing the impact.
   hostNetwork: false
   # Leave dnsPolicy empty to let the chart pick a sensible default:
   #   * ClusterFirstWithHostNet when hostNetwork=true (required by the
@@ -112,8 +115,17 @@ hardware:
   # hardware telemetry is enabled.
   gpu:
     enabled: true
-  # NPU telemetry comes from /sys/class/intel_pmt which is exposed via
-  # the /sys hostPath mount below; no additional device knob is needed.
+  # NPU inference in the extended image needs /dev/accel. PMT telemetry
+  # uses /sys and does not need this optional inference device mount.
+  npu:
+    enabled: false
+  # Explicit opt-in: host /dev/cpu must exist (load msr on the host first).
+  msr:
+    enabled: false
+  # Optional host-installed executable compatible with the container.
+  # Requires telemetry + msr and config.enableTurbostat=true.
+  turbostat:
+    hostPath: ""
 
 # -----------------------------------------------------------------------------
 # Container ports + Service
@@ -136,7 +148,7 @@ service:
 
 # -----------------------------------------------------------------------------
 # Application configuration (every value below maps 1:1 to an environment
-# variable. See docs/CONFIGURATION.md for the full reference.)
+# variable. See docs/user-guide/get-started/environment-variables.md.)
 # -----------------------------------------------------------------------------
 config:
   logLevel: INFO
@@ -144,10 +156,23 @@ config:
   corsOrigins: "*"
   metricsRetentionSeconds: 300
   maxMetricsBatchSize: 1000
-  hardwareTelemetryEnabled: false
-  # Optional: stable host label for Telegraf, qmassa_reader and npu_reader.
-  # Empty -> kernel hostname (default Telegraf behaviour).
+  # Empty -> spec.nodeName for hardware telemetry; pod hostname otherwise.
+  # Avoid a shared override for DaemonSets: each node needs a distinct label.
   hostnameOverride: ""
+
+  # Native 2026.3.0 optional additions. Base hardware telemetry already
+  # includes process, memory-bandwidth and package power/C-state collectors.
+  # Boolean values and exact strings "true"/"false" are accepted.
+  enableRapl: "false"
+  enablePowerstatExtra: "false"
+  enableTemperature: "false"
+  enableInterrupts: "false"
+  enableNetwork: "false"
+  enableNetworkVirtual: "false"
+  enableStorage: "false"
+  enableTurbostat: "false"
+  turbostatInterval: "5"
+
   # Free-form extra environment variables. Use this for any setting not
   # surfaced as a typed value above (e.g. RATE_LIMIT_*, TRUST_FORWARDED_*).
   # Each item must be a {name, value} pair.
@@ -159,10 +184,14 @@ config:
 # Telegraf configuration
 # -----------------------------------------------------------------------------
 # Set telegraf.config to a string to ship a custom telegraf.conf via a
-# generated ConfigMap, mounted at /etc/telegraf/telegraf.conf. When empty,
-# the image's default telegraf.conf is used.
+# generated ConfigMap, mounted read-only. When empty, the restricted profile
+# uses the chart's CPU/memory/process/API configuration, while the hardware
+# profile uses the image's native telegraf.conf.
 telegraf:
   config: ""
+  # Additional *.conf files, snapshotted by the existing image entrypoint.
+  # Files are configuration, not Helm templates; never put secrets here.
+  extraConfigs: {}
 
 # -----------------------------------------------------------------------------
 # Custom metrics directory (/app/custom-metrics)
@@ -172,8 +201,8 @@ telegraf:
 # `pvc`: bind a PersistentVolumeClaim (existing or generated). Best when
 #   you ship scripts via a sidecar / init job and want them to survive
 #   pod restarts.
-# `none`: skip the volume entirely. The image will write to the empty
-#   directory created by the Dockerfile - lost on restart, no scripts.
+# `none`: skip the volume. With a read-only root filesystem, file uploads
+# cannot persist; HTTP metric ingestion is unaffected.
 customMetrics:
   enabled: true
   storage: emptyDir          # emptyDir | pvc | none

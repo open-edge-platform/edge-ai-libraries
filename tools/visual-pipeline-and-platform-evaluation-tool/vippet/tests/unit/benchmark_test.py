@@ -592,7 +592,7 @@ class TestBenchmarkMetrics(unittest.TestCase):
                                 {"engine": "video"},
                             ),
                             self._metric(
-                                "gpu_power",
+                                "gpu_power_power_w",
                                 10.0,
                                 {"type": "pkg_cur_power"},
                             ),
@@ -615,7 +615,7 @@ class TestBenchmarkMetrics(unittest.TestCase):
                                 {"engine": "video"},
                             ),
                             self._metric(
-                                "gpu_power",
+                                "gpu_power_power_w",
                                 12.0,
                                 {"type": "pkg_cur_power"},
                             ),
@@ -633,6 +633,43 @@ class TestBenchmarkMetrics(unittest.TestCase):
         self.assertEqual(metrics.media_usage(parsed_metrics), 35.0)
         self.assertEqual(metrics.power_usage(parsed_metrics), 11.0)
         self.assertEqual(metrics.latency_avg_ms(parsed_metrics), 15.0)
+
+    def test_power_usage_reads_only_package_power_from_native_collector(self):
+        parsed_metrics = metrics.parse_metrics_text(
+            json.dumps(
+                [
+                    {
+                        "metrics": [
+                            # Pre-2026.3.0 metrics-manager name; no longer emitted.
+                            self._metric("gpu_power", 99.0, {"type": "pkg_cur_power"}),
+                            self._metric(
+                                "gpu_power_power_w", 4.0, {"type": "gpu_cur_power"}
+                            ),
+                            self._metric(
+                                "gpu_power_power_w", 20.0, {"type": "pkg_cur_power"}
+                            ),
+                        ]
+                    }
+                ]
+            )
+        )
+
+        self.assertEqual(metrics.power_usage(parsed_metrics), 20.0)
+
+    def test_power_usage_returns_none_without_native_power_samples(self):
+        parsed_metrics = metrics.parse_metrics_text(
+            json.dumps(
+                [
+                    {
+                        "metrics": [
+                            self._metric("gpu_power", 9.0, {"type": "pkg_cur_power"})
+                        ]
+                    }
+                ]
+            )
+        )
+
+        self.assertIsNone(metrics.power_usage(parsed_metrics))
 
 
 class TestBenchmarkLatencyTracerMetrics(unittest.TestCase):

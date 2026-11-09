@@ -104,43 +104,20 @@ act_helper () {
   act_validate_modules $act_name "$@" || return 3
 
   # fill in the saved module list if none is named; remember explicit ones
-  local explicit_mods="$(act_extract_modules $act_name "$@")"
-  local remove_all=0
-  if [[ "$act_name" = "remove" && " $* " = *" --remove-all "* ]]; then
-    if [ -z "${explicit_mods// }" ]; then
-      remove_all=1
-    else
-      echo -e "${yellow}--remove-all ignored: components specified ($explicit_mods)${reset}" 1>&2
-    fi
-  fi
+  local explicit_mods=($(act_extract_modules $act_name "$@"))
+  local stop_remove_all=$(
+    case "$act_name" in
+    remove) ensure_parse_option --remove-all "$@" && ${#explicit_mods[*]} -eq 0 && echo 1 || echo 0;;
+    stop) ensure_parse_option --stop-all "$@" && ${#explicit_mods[*]} -eq 0 && echo 1 || echo 0;;
+    *) echo 0;;
+    esac
+  )
+
+  # resolve args
   set -- $(act_resolve_args $act_name "$@")
-  # full argument list, for handlers that need options scoped to their dependents
-  local _act_args="$*"
 
   # scan for dependencies
-  local handles=($(act_find_deps $act_name "$@"))
-
-  # refuse to remove modules that other installed modules still depend on
-  if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ] && [ ${#handles[@]} -gt 0 ]; then
-    local _targets=() _top=0 _h _o _pair
-    for _h in $(printf '%s\n' "${handles[@]}" | sort $sort_options); do
-      _o=${_h#*_}; _o=${_o%%_*}
-      [ "$_top" -gt 0 ] || _top=$_o
-      [ "$_o" -ge "$_top" ] || break          # same order limit as the removal loop
-      _targets+=(${_h#*_*_*_})
-    done
-    local -A _needed=()
-    for _pair in $(act_find_parents "${_targets[*]}" "$@"); do
-      _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}"
-    done
-    if [ ${#_needed[@]} -gt 0 ]; then
-      for _h in ${!_needed[*]}; do
-        echo -e "${red}Cannot remove $_h: required by ${_needed[$_h]}${reset}" 1>&2
-      done
-      echo "Remove the dependent components in the same command, or use --remove-all." 1>&2
-      return 3
-    fi
-  fi
+  local handles=($(act_find_deps $act_name "$@" | tr ' ' '\n' | sort $sort_options))
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
@@ -187,24 +164,36 @@ act_helper () {
     [ -z "$sp" ] || export https_proxy="$sp" HTTPS_PROXY="$sp"
     [ -z "$np" ] || export no_proxy="${np%%,}" NO_PROXY="${np%%,}"
 
-    local rc=0 order=0
+    local rc=0 name1
     export _INSTALLER_PANEL_ACTIVE=
     [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1
     {
-      for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
-        local name1=${handler#*_*_*_}
-        if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ]; then
-          local order1=${handler#*_};order1=${order1%%_*}
-          [ "$order" -gt 0 ] || order=$order1
-          [ "$order1" -ge "$order" ] || break
-        fi
+      local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && 
+        echo "${handles[0]#*_*_*_}" || echo "${handles[*]#*_*_*_}"
+      )) _pair _h _m
+      for handler in ${handles[*]}; do
+        name1=${handler#*_*_*_}
+        [[ " ${modules[*]} " = *" $name1 "* ]] || continue
+
+        # refuse to remove modules that other installed modules still depend on
+        if [ "$act_name" = "remove" ] && [ $stop_remove_all -eq 0 ]; then
+          local -A _needed=()
+          for _pair in $(act_find_parents "$name1" "$@"); do
+            _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}"
+          done
+          if [ ${#_needed[@]} -gt 0 ]; then
+            echo "@@COMP $name1"
+            for _h in ${!_needed[*]}; do
+              echo -e "${red}Required by ${_needed[$_h]}${reset}." 1>&2
+            done
+            echo "Remove the dependent components in the same command, or use --remove-all." 1>&2
+            echo "@@FAIL $name1"
+            continue
+          fi
+        fi 
+
         local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${installer_family}_*_${act_name}_}" "$@")"
-        # Multi-app modules keep one marker per app and need an explicit bulk lifecycle operation.
-        if { [[ "$act_name" = "stop" && -z "${explicit_mods// }" ]] || [ "$remove_all" -eq 1 ]; } &&
-           [ -n "$(ensure_prop find "installed/$name1/apps/*")" ]; then
-          invoke_args+=" --all-apps"
-        fi
-        if [[ " $* " = *" --dry-run "* ]]; then
+        if ensure_parse_option --dry-run "$@"; then
           echo "@@COMP $name1"
           echo "Invoke $handler with $invoke_args" 
           echo "@@OK $name1"
@@ -215,21 +204,25 @@ act_helper () {
           local rc1=0
           ( set -e; $handler $invoke_args) &
           wait $! || rc1=$?
-          if [[ " stop remove " = *" $act_name "* ]] &&
-             [ -z "$(ensure_prop find "started/$name1/apps/*")" ]; then
+
+          case "$act_name" in
+          stop)
+            modules+=($(ensure_prop get started/$name1/stops))
+            [ $rc1 -eq 0 ] && ensure_prop remove started/$name1/
+            ;;
+          remove)
+            modules+=($(ensure_prop get installed/$name1/removes))
             ensure_prop remove started/$name1/
-          fi
-          if [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] &&
-             [ -z "$(ensure_prop find "installed/$name1/apps/*")" ]; then
-            ensure_prop remove installed/$name1/
-          fi
+            [ $rc1 -eq 0 ] && ensure_prop remove installed/$name1/
+            ;;
+          esac
 
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
           else
             echo "@@FAIL $name1"
             rc=$rc1
-            [[ " $* " = *" --continue "* ]] || break
+            ensure_parse_option --continue "$@" || break
           fi
         fi
       done
@@ -248,15 +241,17 @@ act_helper () {
     # wait for background processes
     wait
 
-    # pass on modules to subsequent command
-    [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]] && ensure_prop set modules "$explicit_mods"
-    # everything is gone; drop the saved default
-    [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && ensure_prop remove modules
+    ensure_parse_option --dry-run "$@" || {
+      # pass on modules to subsequent command
+      [ ${#explicit_mods[*]} -gt 0 ] && ensure_prop set modules "${explicit_mods[*]}"
+      # everything is gone; drop the saved default
+      [[ "$act_name" = "remove" && $stop_remove_all -eq 1 && $rc -eq 0 ]] && ensure_prop remove modules
+    }
 
     return $rc
   else
     echo "Component not found" 1>&2
-    [[ " $* " = *" --dry-run "* ]] || ensure_prop remove modules
+    ensure_parse_option --dry-run "$@" || ensure_prop remove modules
     return 3
   fi
 }
@@ -265,13 +260,21 @@ act_helper () {
 act_resolve_args () {
   local act_name=$1; shift
   local args=("$@") margs=(${*##-*})
-  if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
-    args+=($(ensure_prop find "started/*" | cut -f2 -d/ | uniq))
-  elif [ "$act_name" = "remove" ] && [[ " $* " = *" --remove-all "* ]] \
-       && [ -z "$(act_extract_modules $act_name "$@")" ]; then
-    args+=($(ensure_prop find "installed/*" | cut -f2 -d/ | uniq))
-  elif [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
-    args=($(ensure_prop get modules) "${args[@]}")
+  if [ -z "$(act_extract_modules $act_name "$@")" ]; then
+    case "$act_name" in
+    remove)
+      ensure_parse_option --remove-all "$@" && 
+        args=($(ensure_prop find "installed/*" | cut -f2 -d/ | uniq) "${args[@]}") ||
+        args=($(ensure_prop get modules) "${args[@]}")
+      ;;
+    stop)
+      args=($(ensure_prop get modules) "${args[@]}")
+      ensure_parse_option --stop-all "$@" && args=($(ensure_prop find "started/*" | cut -f2 -d/ | uniq) "${args[@]}")
+      ;;
+    *)
+      args=($(ensure_prop get modules) "${args[@]}")
+      ;;
+    esac
   fi
   echo "${args[*]}"
 }
