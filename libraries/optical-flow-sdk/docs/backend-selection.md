@@ -11,6 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 2. OpenCL — if `OPTICALFLOW_ENABLE_OPENCL=ON`
 3. CPU — if `OPTICALFLOW_ENABLE_CPU=ON` (default)
 
-Until device DIS kernels land, SYCL and OpenCL backends fall back to the CPU
-DIS path so API and packaging stay wired. Lab gates in `PLAN.md` still require
-real GPU kernels before moat speed claims.
+OpenCL DIS is device-resident (pyramid + patch inverse search + densify) when
+`OPTICALFLOW_ENABLE_OPENCL=ON`. SYCL still falls back to the CPU DIS path until
+kernels land (`icpx` / oneAPI required). Lab gates in `PLAN.md` still gate moat
+speed claims (≥10× vs OpenCV CPU DIS-Fast).

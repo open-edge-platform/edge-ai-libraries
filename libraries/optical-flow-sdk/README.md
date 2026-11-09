@@ -19,7 +19,8 @@ See [PLAN.md](PLAN.md) for decisions, gates, and roadmap. IPU DVS is deferred.
 | CPU DIS-style backend | Available (OpenCV-free) |
 | CPU Farneback dense + sparse PyrLK | Available (OpenCV-free) |
 | EPE / Middlebury `.flo` metrics | Available (`metrics.hpp`, `eval_flow_epe`) |
-| OpenCL / SYCL backends | Wired; currently fall back to CPU until device kernels land |
+| OpenCL DIS backend | Device-resident (lab-validated on Core Ultra 7 255H Arc Graphics) |
+| SYCL backend | Wired; falls back to CPU until `icpx` / oneAPI available |
 | OpenCV Mat adapter | Optional (`-DOPTICALFLOW_BUILD_OPENCV_ADAPTER=ON`) |
 | Python (`optical_flow_sdk`) | Available when `-DOPTICALFLOW_BUILD_PYTHON=ON` |
 | CPU microbench / OpenCV DIS·Farneback·PyrLK compare | Available under `benchmarks/` |
@@ -43,6 +44,20 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ./build/microbench_cpu
 ./build/compare_opencv_dis   # requires OpenCV adapter
+```
+
+For OpenCL on an Intel GPU host (ICD + headers; override include dir if needed):
+
+```bash
+cmake -S . -B build-opencl \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DOPTICALFLOW_ENABLE_CPU=ON \
+  -DOPTICALFLOW_ENABLE_OPENCL=ON \
+  -DOPTICALFLOW_BUILD_TESTS=ON \
+  -DOPTICALFLOW_BUILD_BENCHMARKS=ON
+cmake --build build-opencl --parallel
+./build-opencl/test_optical_flow_opencl_shift
+./build-opencl/microbench_opencl
 ```
 
 For SYCL on a oneAPI host:

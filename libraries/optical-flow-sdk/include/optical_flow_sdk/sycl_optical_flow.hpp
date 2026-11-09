@@ -10,8 +10,8 @@
 
 namespace optical_flow_sdk {
 
-// SYCL DIS backend. Kernel path lands in a follow-on change; the type exists
-// so Auto dispatch and packaging wire correctly when SYCL is enabled.
+// SYCL DIS backend. Still CPU-fallback until device kernels land; the type
+// exists so Auto dispatch and packaging wire correctly when SYCL is enabled.
 class SyclOpticalFlow {
 public:
   explicit SyclOpticalFlow(Preset preset = Preset::Fast);

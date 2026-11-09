@@ -4,3 +4,4 @@
 **/_native*.so
 **/__pycache__/
 *.pyc
+.nvofa-*

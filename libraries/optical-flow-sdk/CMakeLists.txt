@@ -20,10 +20,11 @@ if(NOT OPTICALFLOW_ENABLE_CPU AND NOT OPTICALFLOW_ENABLE_SYCL AND NOT OPTICALFLO
   message(FATAL_ERROR "At least one of OPTICALFLOW_ENABLE_CPU/SYCL/OPENCL must be ON")
 endif()
 
-# GPU backends currently fall back to the CPU DIS path until device kernels land.
-if((OPTICALFLOW_ENABLE_SYCL OR OPTICALFLOW_ENABLE_OPENCL) AND NOT OPTICALFLOW_ENABLE_CPU)
+# Farneback / SparsePyrLK remain CPU-only; keep CPU on when those APIs are needed.
+# OpenCL DIS is device-resident. SYCL DIS still falls back to CPU until kernels land.
+if(OPTICALFLOW_ENABLE_SYCL AND NOT OPTICALFLOW_ENABLE_CPU)
   message(FATAL_ERROR
-    "OPTICALFLOW_ENABLE_CPU is required while SYCL/OpenCL backends use the CPU fallback")
+    "OPTICALFLOW_ENABLE_CPU is required while the SYCL backend uses the CPU fallback")
 endif()
 
 set(OPTICALFLOW_HAS_CPU 0)
@@ -62,6 +63,10 @@ if(OPTICALFLOW_ENABLE_CPU)
   )
 endif()
 if(OPTICALFLOW_ENABLE_OPENCL)
+  # Lab hosts may ship the ICD without distro opencl-headers; allow an override.
+  if(DEFINED OPTICALFLOW_OPENCL_INCLUDE_DIR AND OPTICALFLOW_OPENCL_INCLUDE_DIR)
+    set(OpenCL_INCLUDE_DIR "${OPTICALFLOW_OPENCL_INCLUDE_DIR}" CACHE PATH "OpenCL headers" FORCE)
+  endif()
   find_package(OpenCL REQUIRED)
   find_package(Threads REQUIRED)
   list(APPEND OPTICALFLOW_CORE_SOURCES src/opencl/opencl_optical_flow.cpp)
@@ -135,6 +140,12 @@ if(OPTICALFLOW_BUILD_TESTS)
     add_test(NAME optical_flow_sdk.algorithm_resolve COMMAND test_optical_flow_algorithm)
   endif()
 
+  if(OPTICALFLOW_ENABLE_OPENCL)
+    add_executable(test_optical_flow_opencl_shift tests/test_opencl_synthetic_shift.cpp)
+    target_link_libraries(test_optical_flow_opencl_shift PRIVATE optical_flow_sdk)
+    add_test(NAME optical_flow_sdk.opencl_synthetic_shift COMMAND test_optical_flow_opencl_shift)
+  endif()
+
   add_executable(test_optical_flow_metrics tests/test_metrics_flo.cpp)
   target_link_libraries(test_optical_flow_metrics PRIVATE optical_flow_sdk)
   add_test(NAME optical_flow_sdk.metrics_flo COMMAND test_optical_flow_metrics)
@@ -184,6 +195,11 @@ if(OPTICALFLOW_BUILD_BENCHMARKS AND OPTICALFLOW_ENABLE_CPU)
   target_link_libraries(microbench_cpu PRIVATE optical_flow_sdk)
   add_executable(eval_flow_epe benchmarks/eval_flow_epe.cpp)
   target_link_libraries(eval_flow_epe PRIVATE optical_flow_sdk)
+endif()
+
+if(OPTICALFLOW_BUILD_BENCHMARKS AND OPTICALFLOW_ENABLE_OPENCL)
+  add_executable(microbench_opencl benchmarks/microbench_opencl.cpp)
+  target_link_libraries(microbench_opencl PRIVATE optical_flow_sdk)
 endif()
 
 if(OPTICALFLOW_BUILD_PYTHON)
