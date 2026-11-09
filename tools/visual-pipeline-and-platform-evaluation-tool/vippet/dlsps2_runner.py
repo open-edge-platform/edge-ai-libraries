@@ -120,8 +120,9 @@ DLSPS2_WARMUP_S: float = float(os.environ.get("DLSPS2_WARMUP_S", "5"))
 # How long to retry DELETE on instances still in validation (capped at 30 s by DLSPS).
 DLSPS2_STOP_TIMEOUT_S: float = float(os.environ.get("DLSPS2_STOP_TIMEOUT_S", "40"))
 
-# How often metrics-manager is read for the DLSPS-exported latency/VLM series, seconds.
-DLSPS2_METRICS_POLL_S: float = float(os.environ.get("DLSPS2_METRICS_POLL_S", "2"))
+# How often metrics-manager is read for the DLSPS-exported latency/VLM series,
+# seconds. Matches the default export interval, so every export reaches the chart.
+DLSPS2_METRICS_POLL_S: float = float(os.environ.get("DLSPS2_METRICS_POLL_S", "1"))
 
 # Per-request timeout of metrics-manager reads, seconds. Separate from, and much
 # shorter than, DLSPS2_HTTP_TIMEOUT_S: the reads share the polling loop, so a hung
@@ -133,7 +134,7 @@ DLSPS2_METRICS_HTTP_TIMEOUT_S: float = float(
 # OpenTelemetry export interval of the DLSPS 2.0 server, milliseconds (passed to the
 # server as OTEL_EXPORT_INTERVAL_MILLIS by compose.yml).
 DLSPS2_OTEL_INTERVAL_MS: float = float(
-    os.environ.get("DLSPS2_OTEL_INTERVAL_MS", "10000")
+    os.environ.get("DLSPS2_OTEL_INTERVAL_MS", "1000")
 )
 
 # Wait for the final export after the instances stop, beyond one export interval.

@@ -72,7 +72,7 @@ x-vippet: &vippet
     # up to one export interval for the server's final export after a run.
     DLSPS2_OTEL: ${DLSPS2_OTEL:-true}
     DLSPS2_GST_TRACERS: ${DLSPS2_GST_TRACERS-latency_tracer(flags=pipeline,interval=1000,post-metrics=true)}
-    DLSPS2_OTEL_INTERVAL_MS: ${DLSPS2_OTEL_INTERVAL_MS:-10000}
+    DLSPS2_OTEL_INTERVAL_MS: ${DLSPS2_OTEL_INTERVAL_MS:-1000}
     # Collect DLStreamer latency tracer samples for benchmark test cases.
     # Set to "false" to run benchmark suites without the tracer.
     BENCHMARK_ENABLE_LATENCY_METRICS: ${BENCHMARK_ENABLE_LATENCY_METRICS:-true}
@@ -256,7 +256,7 @@ services:
       OTEL_COLLECTOR_PORT: "9090"
       OTEL_COLLECTOR_PATH: /api/v1/metrics/otlp
       OTEL_EXPORTER_OTLP_PROTOCOL: http/json
-      OTEL_EXPORT_INTERVAL_MILLIS: ${DLSPS2_OTEL_INTERVAL_MS:-10000}
+      OTEL_EXPORT_INTERVAL_MILLIS: ${DLSPS2_OTEL_INTERVAL_MS:-1000}
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager"

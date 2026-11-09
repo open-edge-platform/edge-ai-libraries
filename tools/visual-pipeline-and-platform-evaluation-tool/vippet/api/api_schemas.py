@@ -1822,8 +1822,8 @@ class LatencyMetrics(BaseModel):
 
     Each value merges the `latency_tracer` windows of one stream over one
     DL Streamer Pipeline Server export period (`DLSPS2_OTEL_INTERVAL_MS`,
-    10000 ms by default). Only the most recent sample per stream is kept;
-    history is not reported here.
+    1000 ms by default, so usually one tracer window). Only the most
+    recent sample per stream is kept; history is not reported here.
 
     All timing fields are in milliseconds. `fps` reported by the tracer
     is intentionally **not** included because FPS is already exposed on
@@ -1844,7 +1844,7 @@ class LatencyMetrics(BaseModel):
     ### Example
     ```json
     {
-      "interval_ms": 10002.5,
+      "interval_ms": 1000.25,
       "avg_ms": 364.31,
       "min_ms": 0.004,
       "max_ms": 529.26,
@@ -1859,7 +1859,7 @@ class LatencyMetrics(BaseModel):
             "Total length of the tracer windows merged into this sample, "
             "in ms (about one export period)."
         ),
-        examples=[10002.5],
+        examples=[1000.25],
     )
     avg_ms: float = Field(
         ...,

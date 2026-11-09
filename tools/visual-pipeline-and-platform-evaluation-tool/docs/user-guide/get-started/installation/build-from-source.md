@@ -124,7 +124,7 @@ run e.g. `docker exec vippet curl -s http://dlstreamer-pipeline-server:8080/pipe
 ### Latency and VLM metrics
 
 The server exports its own per-instance metrics over OpenTelemetry to `metrics-manager` (`DLSPS2_OTEL`,
-default `true`). `DLSPS2_OTEL_INTERVAL_MS` sets the export interval (default `10000`). `vippet` reads the
+default `true`). `DLSPS2_OTEL_INTERVAL_MS` sets the export interval (default `1000`). `vippet` reads the
 latency and VLM series of its own instances from `metrics-manager` and republishes them under the job. Each
 republished sample aggregates one export period: the latency windows of that period, or the mean over its
 `gvagenai` requests. After a run, `vippet` waits for the server's final export, for at most

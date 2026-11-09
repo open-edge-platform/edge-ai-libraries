@@ -29,7 +29,7 @@ the `vippet` and `dlstreamer-pipeline-server` services in `compose.yml`:
 | ------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | `DLSPS2_GST_TRACERS`      | `latency_tracer(flags=pipeline,interval=1000,post-metrics=true)` | Passed to the server as `GST_TRACERS` (default); empty turns it off    |
 | `DLSPS2_OTEL`             | `true` (default)                                                 | Server exports its metrics over OpenTelemetry to metrics-manager       |
-| `DLSPS2_OTEL_INTERVAL_MS` | `10000` (default)                                                | Export interval of the server, in milliseconds                         |
+| `DLSPS2_OTEL_INTERVAL_MS` | `1000` (default)                                                 | Export interval of the server, in milliseconds                         |
 
 - **`flags=pipeline`** — measures the total source-to-sink latency (as opposed to per-element latency).
 - **`interval=1000`** — the tracer reports statistics accumulated during each 1 000 ms window.
@@ -46,7 +46,7 @@ that predates
 The server merges the windows of each source-sink branch over one export period and exports them, tagged with the
 instance's `pipeline_id`, `source` and `sink`, as the `pipeline_latency_avg`, `_min`, `_max`, `_window` and
 `_frames` gauges. `Dlsps2PipelineRunner` reads these series from metrics-manager every `DLSPS2_METRICS_POLL_S`
-seconds (default `2`), only for its own instances, and derives one sample per export period:
+seconds (default `1`), only for its own instances, and derives one sample per export period:
 
 | Sample field  | Value                                               | Meaning                                                                              |
 | ------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------ |
