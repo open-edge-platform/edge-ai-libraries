@@ -28,8 +28,38 @@
 #ifndef CL_MEM_PROPERTIES
 using cl_mem_properties = cl_bitfield;
 #endif
+#ifndef CL_CONTEXT_VA_API_DISPLAY_INTEL
+#define CL_CONTEXT_VA_API_DISPLAY_INTEL 0x4097
+#endif
+#ifndef CL_VA_API_DISPLAY_INTEL
+#define CL_VA_API_DISPLAY_INTEL 0x4094
+#endif
+#ifndef CL_PREFERRED_DEVICES_FOR_VA_API_INTEL
+#define CL_PREFERRED_DEVICES_FOR_VA_API_INTEL 0x4095
+#endif
 
 namespace optical_flow_sdk {
+namespace {
+
+std::mutex g_va_mu;
+void *g_va_display = nullptr;
+bool g_shared_context_created = false;
+
+} // namespace
+
+void opencl_set_va_display(void *va_display) {
+  std::lock_guard<std::mutex> lock(g_va_mu);
+  if (g_shared_context_created && g_va_display != va_display)
+    throw std::runtime_error(
+        "opencl_set_va_display: OpenCL context already created; set VA display before first use");
+  g_va_display = va_display;
+}
+
+void *opencl_va_display() {
+  std::lock_guard<std::mutex> lock(g_va_mu);
+  return g_va_display;
+}
+
 namespace {
 
 void check_cl(cl_int status, const char *op) {
@@ -80,10 +110,55 @@ struct OpenCLContext {
   cl_kernel k_zero_flow = nullptr;
 
   OpenCLContext() {
-    device = pick_gpu_device();
     cl_int status = CL_SUCCESS;
-    context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &status);
-    check_cl(status, "clCreateContext");
+    void *va_dpy = nullptr;
+    {
+      std::lock_guard<std::mutex> lock(g_va_mu);
+      va_dpy = g_va_display;
+    }
+    if (va_dpy) {
+      // Prefer devices associated with the VA display when the extension is present.
+      cl_uint nplat = 0;
+      check_cl(clGetPlatformIDs(0, nullptr, &nplat), "clGetPlatformIDs");
+      std::vector<cl_platform_id> plats(nplat);
+      check_cl(clGetPlatformIDs(nplat, plats.data(), nullptr), "clGetPlatformIDs list");
+      using GetDevFromVAFn = cl_int (*)(cl_platform_id, cl_uint, void *, cl_uint, cl_uint, cl_device_id *,
+                                        cl_uint *);
+      auto get_from_va = reinterpret_cast<GetDevFromVAFn>(
+          dlsym(RTLD_DEFAULT, "clGetDeviceIDsFromVA_APIMediaAdapterINTEL"));
+      device = nullptr;
+      if (get_from_va) {
+        cl_uint ndev = 0;
+        if (get_from_va(plats.front(), CL_VA_API_DISPLAY_INTEL, va_dpy,
+                        CL_PREFERRED_DEVICES_FOR_VA_API_INTEL, 0, nullptr, &ndev) == CL_SUCCESS &&
+            ndev > 0) {
+          std::vector<cl_device_id> devs(ndev);
+          check_cl(get_from_va(plats.front(), CL_VA_API_DISPLAY_INTEL, va_dpy,
+                               CL_PREFERRED_DEVICES_FOR_VA_API_INTEL, ndev, devs.data(), nullptr),
+                   "clGetDeviceIDsFromVA_APIMediaAdapterINTEL");
+          device = devs.front();
+        }
+      }
+      if (!device)
+        device = pick_gpu_device();
+      cl_platform_id platform = nullptr;
+      check_cl(clGetDeviceInfo(device, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr),
+               "clGetDeviceInfo PLATFORM");
+      const cl_context_properties props[] = {
+          CL_CONTEXT_PLATFORM, static_cast<cl_context_properties>(reinterpret_cast<intptr_t>(platform)),
+          CL_CONTEXT_VA_API_DISPLAY_INTEL,
+          static_cast<cl_context_properties>(reinterpret_cast<intptr_t>(va_dpy)), 0};
+      context = clCreateContext(props, 1, &device, nullptr, nullptr, &status);
+      check_cl(status, "clCreateContext(VA)");
+    } else {
+      device = pick_gpu_device();
+      context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &status);
+      check_cl(status, "clCreateContext");
+    }
+    {
+      std::lock_guard<std::mutex> lock(g_va_mu);
+      g_shared_context_created = true;
+    }
 #if defined(CL_VERSION_2_0)
     queue = clCreateCommandQueueWithProperties(context, device, nullptr, &status);
 #else
@@ -445,10 +520,9 @@ OpenCLU8Image OpenCLOpticalFlow::wrap_u8_image(void *cl_mem_handle, int width, i
   return OpenCLU8Image(cl_mem_handle, width, height, /*owns=*/false);
 }
 
-bool OpenCLOpticalFlow::supports_dmabuf_import() const {
-  OpenCLContext &ctx = shared_context();
+std::string platform_extensions(cl_device_id device) {
   cl_platform_id platform = nullptr;
-  check_cl(clGetDeviceInfo(ctx.device, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr),
+  check_cl(clGetDeviceInfo(device, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr),
            "clGetDeviceInfo PLATFORM");
   std::size_t ext_size = 0;
   check_cl(clGetPlatformInfo(platform, CL_PLATFORM_EXTENSIONS, 0, nullptr, &ext_size),
@@ -456,7 +530,56 @@ bool OpenCLOpticalFlow::supports_dmabuf_import() const {
   std::string ext(ext_size, '\0');
   check_cl(clGetPlatformInfo(platform, CL_PLATFORM_EXTENSIONS, ext_size, ext.data(), nullptr),
            "clGetPlatformInfo EXT");
-  return ext.find("cl_khr_external_memory") != std::string::npos;
+  return ext;
+}
+
+bool OpenCLOpticalFlow::supports_dmabuf_import() const {
+  return platform_extensions(shared_context().device).find("cl_khr_external_memory") != std::string::npos;
+}
+
+bool OpenCLOpticalFlow::supports_va_media_sharing() const {
+  return platform_extensions(shared_context().device).find("cl_intel_va_api_media_sharing") !=
+         std::string::npos;
+}
+
+void OpenCLOpticalFlow::import_va_surface_luma(std::uint32_t va_surface_id, OpenCLU8Image &dst) const {
+  if (dst.empty())
+    throw std::invalid_argument("import_va_surface_luma requires allocated dst");
+  if (!opencl_va_display())
+    throw std::runtime_error("import_va_surface_luma: call opencl_set_va_display() before OpenCL init");
+  if (!supports_va_media_sharing())
+    throw std::runtime_error("OpenCL platform lacks cl_intel_va_api_media_sharing");
+
+  using CreateFromVAFn = cl_mem (*)(cl_context, cl_mem_flags, void *, cl_uint, cl_int *);
+  using AcquireFn = cl_int (*)(cl_command_queue, cl_uint, const cl_mem *, cl_uint, const cl_event *,
+                               cl_event *);
+  using ReleaseFn = AcquireFn;
+  auto create_from_va =
+      reinterpret_cast<CreateFromVAFn>(dlsym(RTLD_DEFAULT, "clCreateFromVA_APIMediaSurfaceINTEL"));
+  auto acquire = reinterpret_cast<AcquireFn>(
+      dlsym(RTLD_DEFAULT, "clEnqueueAcquireVA_APIMediaSurfacesINTEL"));
+  auto release = reinterpret_cast<ReleaseFn>(
+      dlsym(RTLD_DEFAULT, "clEnqueueReleaseVA_APIMediaSurfacesINTEL"));
+  if (!create_from_va || !acquire || !release)
+    throw std::runtime_error("VA media sharing entry points missing from OpenCL ICD");
+
+  OpenCLContext &ctx = shared_context();
+  // clCreateFromVA_APIMediaSurfaceINTEL takes VASurfaceID* — pass address of local id.
+  cl_int status = CL_SUCCESS;
+  cl_uint plane = 0;
+  void *surface_ptr = &va_surface_id;
+  cl_mem img = create_from_va(ctx.context, CL_MEM_READ_ONLY, surface_ptr, plane, &status);
+  check_cl(status, "clCreateFromVA_APIMediaSurfaceINTEL");
+  check_cl(acquire(ctx.queue, 1, &img, 0, nullptr, nullptr), "AcquireVA");
+
+  const std::size_t origin[3] = {0, 0, 0};
+  const std::size_t region[3] = {static_cast<std::size_t>(dst.width()),
+                                 static_cast<std::size_t>(dst.height()), 1};
+  status = clEnqueueCopyImageToBuffer(ctx.queue, img, static_cast<cl_mem>(dst.handle()), origin,
+                                      region, 0, 0, nullptr, nullptr);
+  check_cl(status, "clEnqueueCopyImageToBuffer VA luma");
+  check_cl(release(ctx.queue, 1, &img, 0, nullptr, nullptr), "ReleaseVA");
+  clReleaseMemObject(img);
 }
 
 OpenCLU8Image OpenCLOpticalFlow::import_dmabuf_u8(int fd, std::size_t size_bytes, int width,

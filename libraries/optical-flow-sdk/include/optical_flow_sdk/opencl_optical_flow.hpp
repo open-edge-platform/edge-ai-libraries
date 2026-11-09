@@ -7,11 +7,18 @@
 #include "optical_flow_sdk/types.hpp"
 #include "optical_flow_sdk/version.hpp"
 
+#include <cstdint>
 #include <memory>
 
 #if OPTICALFLOW_HAS_OPENCL
 
 namespace optical_flow_sdk {
+
+// Bind a VADisplay* before the first OpenCLOpticalFlow / shared context use so
+// the OpenCL context is created with CL_CONTEXT_VA_API_DISPLAY_INTEL.
+// No-op if display is null. Throws if context already exists with a different display.
+void opencl_set_va_display(void *va_display);
+void *opencl_va_display();
 
 // OpenCL DIS backend: device-resident pyramid + patch inverse search + densify.
 class OpenCLOpticalFlow {
@@ -38,6 +45,10 @@ public:
   // Requires device support (clinfo: "External memory handle types: DMA buffer").
   OpenCLU8Image import_dmabuf_u8(int fd, std::size_t size_bytes, int width, int height) const;
   bool supports_dmabuf_import() const;
+  bool supports_va_media_sharing() const;
+  // Copy VA surface plane 0 (luma) into dst via cl_intel_va_api_media_sharing.
+  // Requires opencl_set_va_display() before context creation. `va_surface_id` is VASurfaceID.
+  void import_va_surface_luma(std::uint32_t va_surface_id, OpenCLU8Image &dst) const;
   void upload_u8(OpenCLU8Image &dst, const ImageView &src) const;
   void download_flow(const OpenCLFlowBuffer &src, FlowField &dst) const;
   void copy_u8(const OpenCLU8Image &src, OpenCLU8Image &dst) const;

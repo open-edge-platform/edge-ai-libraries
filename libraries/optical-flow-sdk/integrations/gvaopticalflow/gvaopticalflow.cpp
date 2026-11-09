@@ -20,6 +20,7 @@
 #endif
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
@@ -34,7 +35,10 @@ enum {
     PROP_PRESET,
     PROP_DEVICE,
     PROP_ALGORITHM,
-    PROP_ATTACH_COST
+    PROP_ATTACH_COST,
+    PROP_EMIT_MOTION_ROIS,
+    PROP_ROI_BLOCK,
+    PROP_ROI_MAG_THRESHOLD
 };
 
 #define DEFAULT_PRESET "fast"
@@ -71,6 +75,10 @@ struct _GstGvaOpticalFlow {
     gchar *device_str;
     gchar *algorithm_str;
     gboolean attach_cost;
+    gboolean emit_motion_rois;
+    gint roi_block;
+    gdouble roi_mag_threshold;
+    gpointer va_dpy; // VADisplay when VAMemory context is provided
 
     OpticalFlowContext *ctx;
 };
@@ -225,6 +233,32 @@ static void attach_flow_meta(GstGvaOpticalFlow *self, GstBuffer *buf, const opti
     }
 }
 
+// Optional motion ROIs from flow magnitude — consumable by gvawatermark / track-like apps.
+static void attach_motion_rois(GstGvaOpticalFlow *self, GstBuffer *buf,
+                               const optical_flow_sdk::FlowField &flow) {
+    if (!self->emit_motion_rois || flow.data.empty())
+        return;
+    const int bw = std::max(8, self->roi_block);
+    const float thr = static_cast<float>(self->roi_mag_threshold);
+    for (int by = 0; by + bw <= flow.height; by += bw) {
+        for (int bx = 0; bx + bw <= flow.width; bx += bw) {
+            double sum = 0.0;
+            int n = 0;
+            for (int y = by; y < by + bw; ++y) {
+                for (int x = bx; x < bx + bw; ++x) {
+                    sum += std::hypot(flow.dx(x, y), flow.dy(x, y));
+                    ++n;
+                }
+            }
+            if (n > 0 && (sum / n) >= thr) {
+                gst_buffer_add_video_region_of_interest_meta(buf, "optical-flow-motion",
+                                                            static_cast<guint>(bx), static_cast<guint>(by),
+                                                            static_cast<guint>(bw), static_cast<guint>(bw));
+            }
+        }
+    }
+}
+
 static gboolean ensure_engine(GstGvaOpticalFlow *self) {
     try {
         self->ctx->preset = parse_preset(self->preset_str);
@@ -319,6 +353,7 @@ static GstFlowReturn gst_gva_optical_flow_transform_ip(GstBaseTransform *base, G
                 if (!gst_buffer_is_writable(buf))
                     buf = gst_buffer_make_writable(buf);
                 attach_flow_meta(self, buf, flow, nullptr);
+                attach_motion_rois(self, buf, flow);
                 return GST_FLOW_OK;
             }
         }
@@ -354,6 +389,7 @@ static GstFlowReturn gst_gva_optical_flow_transform_ip(GstBaseTransform *base, G
     if (!gst_buffer_is_writable(buf))
         buf = gst_buffer_make_writable(buf);
     attach_flow_meta(self, buf, flow, self->attach_cost ? &cost : nullptr);
+    attach_motion_rois(self, buf, flow);
 
     self->ctx->prev_gray.swap(self->ctx->next_gray);
     return GST_FLOW_OK;
@@ -404,6 +440,15 @@ static void gst_gva_optical_flow_set_property(GObject *object, guint prop_id, co
     case PROP_ATTACH_COST:
         self->attach_cost = g_value_get_boolean(value);
         break;
+    case PROP_EMIT_MOTION_ROIS:
+        self->emit_motion_rois = g_value_get_boolean(value);
+        break;
+    case PROP_ROI_BLOCK:
+        self->roi_block = std::max(8, g_value_get_int(value));
+        break;
+    case PROP_ROI_MAG_THRESHOLD:
+        self->roi_mag_threshold = std::max(0.0, g_value_get_double(value));
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
     }
@@ -423,6 +468,15 @@ static void gst_gva_optical_flow_get_property(GObject *object, guint prop_id, GV
         break;
     case PROP_ATTACH_COST:
         g_value_set_boolean(value, self->attach_cost);
+        break;
+    case PROP_EMIT_MOTION_ROIS:
+        g_value_set_boolean(value, self->emit_motion_rois);
+        break;
+    case PROP_ROI_BLOCK:
+        g_value_set_int(value, self->roi_block);
+        break;
+    case PROP_ROI_MAG_THRESHOLD:
+        g_value_set_double(value, self->roi_mag_threshold);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -445,18 +499,46 @@ static void gst_gva_optical_flow_init(GstGvaOpticalFlow *self) {
     self->device_str = g_strdup(DEFAULT_DEVICE);
     self->algorithm_str = g_strdup(DEFAULT_ALGORITHM);
     self->attach_cost = FALSE;
+    self->emit_motion_rois = FALSE;
+    self->roi_block = 32;
+    self->roi_mag_threshold = 1.0;
+    self->va_dpy = nullptr;
     self->ctx = new OpticalFlowContext();
     gst_base_transform_set_in_place(GST_BASE_TRANSFORM(self), TRUE);
     gst_base_transform_set_passthrough(GST_BASE_TRANSFORM(self), FALSE);
 }
 
-static GstStaticPadTemplate sink_template =
-    GST_STATIC_PAD_TEMPLATE("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-                            GST_STATIC_CAPS(GST_VIDEO_CAPS_MAKE("{ GRAY8, NV12, NV21, RGB, BGR, RGBA, BGRA, RGBx, BGRx }")));
+static void gst_gva_optical_flow_set_context(GstElement *elem, GstContext *context) {
+    GstGvaOpticalFlow *self = GST_GVA_OPTICAL_FLOW(elem);
+    const gchar *ctype = context ? gst_context_get_context_type(context) : nullptr;
+    if (ctype && g_strcmp0(ctype, "gst.va.display.handle") == 0) {
+        const GstStructure *st = gst_context_get_structure(context);
+        if (st && gst_structure_has_field(st, "va-display")) {
+            self->va_dpy = g_value_get_pointer(gst_structure_get_value(st, "va-display"));
+#if OPTICALFLOW_HAS_OPENCL
+            try {
+                optical_flow_sdk::opencl_set_va_display(self->va_dpy);
+                GST_INFO_OBJECT(self, "Bound OpenCL context to VA display for media sharing");
+            } catch (const std::exception &e) {
+                GST_WARNING_OBJECT(self, "opencl_set_va_display: %s", e.what());
+            }
+#endif
+        }
+    }
+    GST_ELEMENT_CLASS(gst_gva_optical_flow_parent_class)->set_context(elem, context);
+}
 
-static GstStaticPadTemplate src_template =
-    GST_STATIC_PAD_TEMPLATE("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-                            GST_STATIC_CAPS(GST_VIDEO_CAPS_MAKE("{ GRAY8, NV12, NV21, RGB, BGR, RGBA, BGRA, RGBx, BGRx }")));
+static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE(
+    "sink", GST_PAD_SINK, GST_PAD_ALWAYS,
+    GST_STATIC_CAPS("video/x-raw(memory:VAMemory), format=(string)NV12; "
+                    "video/x-raw(memory:DMABuf), format=(string)NV12; " GST_VIDEO_CAPS_MAKE(
+                        "{ GRAY8, NV12, NV21, RGB, BGR, RGBA, BGRA, RGBx, BGRx }")));
+
+static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE(
+    "src", GST_PAD_SRC, GST_PAD_ALWAYS,
+    GST_STATIC_CAPS("video/x-raw(memory:VAMemory), format=(string)NV12; "
+                    "video/x-raw(memory:DMABuf), format=(string)NV12; " GST_VIDEO_CAPS_MAKE(
+                        "{ GRAY8, NV12, NV21, RGB, BGR, RGBA, BGRA, RGBx, BGRx }")));
 
 static void gst_gva_optical_flow_class_init(GstGvaOpticalFlowClass *klass) {
     GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
@@ -466,6 +548,7 @@ static void gst_gva_optical_flow_class_init(GstGvaOpticalFlowClass *klass) {
     gobject_class->set_property = gst_gva_optical_flow_set_property;
     gobject_class->get_property = gst_gva_optical_flow_get_property;
     gobject_class->finalize = gst_gva_optical_flow_finalize;
+    element_class->set_context = GST_DEBUG_FUNCPTR(gst_gva_optical_flow_set_context);
 
     g_object_class_install_property(
         gobject_class, PROP_PRESET,
@@ -483,6 +566,21 @@ static void gst_gva_optical_flow_class_init(GstGvaOpticalFlowClass *klass) {
         gobject_class, PROP_ATTACH_COST,
         g_param_spec_boolean("attach-cost", "Attach cost", "Also attach NVOFA-shaped cost map as GstGVATensorMeta",
                              FALSE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+    g_object_class_install_property(
+        gobject_class, PROP_EMIT_MOTION_ROIS,
+        g_param_spec_boolean("emit-motion-rois", "Emit motion ROIs",
+                             "Attach GstVideoRegionOfInterestMeta blocks from flow magnitude "
+                             "(gvawatermark / motion consumers)",
+                             FALSE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+    g_object_class_install_property(
+        gobject_class, PROP_ROI_BLOCK,
+        g_param_spec_int("roi-block", "ROI block", "Block size (px) for emit-motion-rois grid", 8, 512, 32,
+                         (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+    g_object_class_install_property(
+        gobject_class, PROP_ROI_MAG_THRESHOLD,
+        g_param_spec_double("roi-mag-threshold", "ROI magnitude threshold",
+                            "Mean |flow| (px/frame) to emit a motion ROI block", 0.0, 1000.0, 1.0,
+                            (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
     gst_element_class_set_static_metadata(element_class, "Optical Flow (Intel Optical Flow SDK)", "Filter/Analyzer/Video",
                                           "Dense optical flow via optical-flow-sdk; emits GstGVATensorMeta (flow)",

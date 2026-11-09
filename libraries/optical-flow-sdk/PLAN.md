@@ -546,8 +546,8 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | **Quality PASS** Fl-all 2.70%; **iGPU ~15.7 FPS** @384×1248 OV (`p2_sea_raft_openvino_fps_2026-11-10.json`); P4: Nvidia host compare / more presets |
 | `gvaopticalflow` scaffold + v0 tensor meta | P3 | **Scaffold landed** dlstreamer `feat/gvaopticalflow`; contract in `docs/gvaopticalflow.md` |
 | `gvaopticalflow` lab smoke (`gst-inspect` / `gst-launch`) | P3 | **PASS 2026-11-10** — standalone plugin + micromamba `gst-dev`; NV12 640×480×30 GPU DIS Fast → EOS |
-| VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **Partial** — `import_dmabuf_u8` + strided `upload_u8` + device ping-pong (`docs/device_import.md`); VA surface sharing still open |
-| Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **gvapython-style example landed** (`integrations/gvaopticalflow/examples/flow_consumer.py`); track/motion/watermark wiring still open |
+| VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **API+caps landed** (`import_va_surface_luma`, VAMemory pads); lab VA driver init **blocked**; DMA-BUF + system path OK |
+| Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **Partial** — `flow_consumer.py` + `emit-motion-rois` for watermark; `gvatrack` prior still open |
 | OpenCL Farneback vs OpenCV numerical hardening | P3 | **Documented soft** (`docs/farneback.md` — no poly_n yet); optional poly kernels later |
 | Host `calc` H↔D tax vs `calc_device` | P3 | **Steered** — docs + `sample_calc_flow_opencl_device`; residual H↔D on host `calc` remains |
 | FRUC / warp demos | P4 | **Seed landed** (`warp_with_flow`, `docs/fruc_warp.md`); OpenCL/video demos open |
@@ -716,13 +716,14 @@ P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
    `arc` / `labrat@10.91.82.130`): standalone
    `integrations/gvaopticalflow` + micromamba `gst-dev`;
    `gst-inspect` + `gst-launch` NV12 GPU DIS Fast → EOS.
-2. Device import path — **partial 2026-11-10:** `import_dmabuf_u8` (lab
-   `supports_dmabuf_import=yes`), strided `WriteBufferRect` upload, element
-   device ping-pong (one H2D/frame). **Still open:** VAMemory pad templates
-   + `cl_intel_va_api_media_sharing` / full zero-copy VA→CL.
-3. Consumers — **gvapython-style example landed**
-   (`examples/flow_consumer.py`, lab: 11/12 buffers with tensor meta).
-   Still open: `gvatrack` / `gvamotiondetect` / `gvawatermark` hooks.
+2. Device import path — **advanced 2026-11-10:** DMA-BUF import + strided
+   upload + ping-pong; **VA API landed** (`opencl_set_va_display`,
+   `import_va_surface_luma`, VAMemory/DMABuf caps, `gst.va.display.handle`
+   bind). **Lab VA smoke blocked** (`iHD` vainfo init fail on renderD128).
+   Remaining: end-to-end VA surface→`calc_device` once VA driver works.
+3. Consumers — **hooks landed** (`docs/consumers.md`): `flow_consumer.py`;
+   `emit-motion-rois` → `GstVideoRegionOfInterestMeta` for `gvawatermark`.
+   Full `gvatrack` prior still open.
 4. OpenCL Farneback soft gap — **documented** (`docs/farneback.md`); optional
    poly-expansion kernels remain open.
 5. Host `calc` vs `calc_device` — **docs + sample steered**; keep ≥10× claims

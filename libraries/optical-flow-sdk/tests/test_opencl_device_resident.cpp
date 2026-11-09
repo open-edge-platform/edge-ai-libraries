@@ -55,6 +55,8 @@ int main() {
 
   OpenCLOpticalFlow of(Preset::Fast);
   std::cout << "dmabuf_import_supported=" << (of.supports_dmabuf_import() ? "yes" : "no") << "\n";
+  std::cout << "va_media_sharing_supported=" << (of.supports_va_media_sharing() ? "yes" : "no") << "\n";
+
 
   auto d_prev = of.create_u8_image(kW, kH);
   auto d_next = of.create_u8_image(kW, kH);
