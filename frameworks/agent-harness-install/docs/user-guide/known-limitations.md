@@ -109,6 +109,17 @@ For sandbox setup, architecture and lifecycle guidance, see
   there's no dual-node pairing/reboot-resume receipt handling.
 - Model export (`optimum-cli export openvino`) is CPU/host-bound and can be
   slow for large models.
+- OVMS runs as the fixed UID 5000 and must read the models directory. After
+  each export or download the installer runs `chmod -R o+rX` on it, so models
+  created under a restrictive umask (for example `077`) are still loadable.
+  This makes the models world-readable on the host. The step is skipped, with
+  a warning, if the directory resolves to `/`, `$HOME` or a parent of `$HOME`,
+  and files owned by another user are reported with the `sudo chmod` to run.
+- `./install.sh models ...` and `onboard` need Node.js. When `node` is not on
+  `PATH` (for example a non-login shell), they load nvm and select
+  `HARNESS_NODE_VERSION`. If Node.js is still missing they warn that results
+  may be incomplete; run `./startup.sh --skip-docker --skip-python` to
+  install it.
 - `mcp register` has Hermes's config shape and OpenClaw's `mcp set` command
   built in; other agents need `HARNESS_MCP_REGISTER_CMD` set to a real
   registration script.

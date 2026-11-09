@@ -93,6 +93,23 @@ ensure_ovms_config() {
   [[ -f "$config_file" ]] || printf '{"model_config_list": [], "mediapipe_config_list": []}' >"$config_file"
 }
 
+# OVMS runs as the image's fixed uid (5000), not the host user, so a restrictive
+# host umask (e.g. 077) leaves the model files unreadable to it.
+ensure_ovms_models_readable() {
+  [[ -d "$HARNESS_MODELS_DIR" ]] || return 0
+  local resolved home_resolved
+  resolved="$(realpath -m -- "$HARNESS_MODELS_DIR" 2>/dev/null || true)"
+  home_resolved="$(realpath -m -- "$HOME" 2>/dev/null || true)"
+  if [[ -z "$resolved" || -z "$home_resolved" || "$resolved" == "/" \
+        || "$resolved" == "$home_resolved" || "$home_resolved" == "$resolved"/* ]]; then
+    warn "Not changing permissions under HARNESS_MODELS_DIR='${HARNESS_MODELS_DIR}': it is, or contains, your home directory (or could not be resolved). Use a dedicated models directory."
+    return 0
+  fi
+  # Trailing slash so chmod -R also descends when the directory is a symlink.
+  chmod -R o+rX -- "${HARNESS_MODELS_DIR%/}/" 2>/dev/null \
+    || warn "Could not make every file under ${HARNESS_MODELS_DIR} readable by OVMS (some may belong to another user); if the model fails to load, run: sudo chmod -R o+rX '${HARNESS_MODELS_DIR}/'"
+}
+
 # The HF/OpenVINO export tooling shells out via httpx, which only understands
 # http/https/socks5/socks5h proxy schemes — a bare "socks://" (missing the
 # "5") fails deep inside httpx with a raw traceback instead of a clear error.
@@ -1028,6 +1045,7 @@ ensure_openvino_model_server() {
   local gpu_args group_add_args bind_host
   local -a proxy_args=()
   ensure_ovms_config
+  ensure_ovms_models_readable
   ensure_backend_network
   if docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
     # Recreated, not just restarted -- a plain `docker restart` keeps
