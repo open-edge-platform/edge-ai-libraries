@@ -22,7 +22,7 @@ Control commands are read from stdin, one JSON object per line::
 Status events are written to stdout, one JSON object per line::
 
     {"instance_id": "<id>", "event": "started"}
-    {"instance_id": "<id>", "event": "fps", "avg_fps": 30.0, "last_fps": 29.4, "frame_interval": 1.023}
+    {"instance_id": "<id>", "event": "fps", "avg_fps": 30.0, "last_fps": 29.4, "frame_interval": 1.023, "frame_count": 912, "frame_count_time": 1767225601.5}
     {"instance_id": "<id>", "event": "eos"}
     {"instance_id": "<id>", "event": "error", "reason": "..."}
     {"instance_id": "<id>", "event": "stopped"}
@@ -315,6 +315,13 @@ class GstWorker:
         excluded (measured from first frame after warmup) and is only emitted
         once warmup is complete.
 
+        ``frame_count`` is every frame counted since the first one, warmup
+        included, and ``frame_count_time`` the Unix epoch time it was read at.
+        Both are emitted on every poll after the first frame, also when the
+        window has no frames, so a client can compute the FPS between any
+        two polls, including the seconds in which a bursty pipeline passes
+        no frames.
+
         Returns GLib.SOURCE_CONTINUE to keep firing every
         _FPS_POLL_INTERVAL_SECONDS until the pipeline's main loop exits.
 
@@ -325,8 +332,11 @@ class GstWorker:
         """
         now = time.monotonic()
         with inst.frame_count_lock:
+            read_at = time.time()
             window_count = inst.frame_count
             inst.frame_count = 0
+            total_count = inst.total_frame_count
+            counting = inst.first_frame_sent
             frames_after = inst.frames_after_warmup
             window_elapsed = now - inst.last_poll_time
             inst.last_poll_time = now
@@ -346,6 +356,10 @@ class GstWorker:
         # Emit avg_fps only after warmup is complete
         if total_elapsed > 0 and frames_after > 0:
             payload["avg_fps"] = frames_after / total_elapsed
+
+        if counting:
+            payload["frame_count"] = total_count
+            payload["frame_count_time"] = read_at
 
         if len(payload) > 2:  # More than just instance_id and event keys
             _emit(payload)

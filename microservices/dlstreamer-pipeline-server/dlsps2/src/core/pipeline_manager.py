@@ -87,6 +87,8 @@ class FpsSample(NamedTuple):
     avg_fps: float = 0.0
     frame_fps: float = 0.0
     frame_interval: float = 0.0  # Window in seconds that frame_fps was measured over
+    frame_count: int = 0  # Frames counted since the first frame of the run, warmup included
+    frame_count_time: Optional[float] = None  # Unix epoch time frame_count was read at
 
 
 class Lifecycle(NamedTuple):
@@ -99,6 +101,10 @@ class Lifecycle(NamedTuple):
 
 def _opt_float(value: Any) -> Optional[float]:
     return None if value is None else float(value)
+
+
+def _opt_int(value: Any) -> Optional[int]:
+    return None if value is None else int(value)
 
 
 @dataclass
@@ -161,17 +167,23 @@ class PipelineInstance:
         avg_fps: Optional[float] = None,
         frame_fps: Optional[float] = None,
         frame_interval: Optional[float] = None,
+        frame_count: Optional[int] = None,
+        frame_count_time: Optional[float] = None,
     ) -> None:
         """Apply one fps event; values it does not carry keep their previous value.
 
-        frame_fps and frame_interval describe the same window, so they only change together.
+        frame_fps and frame_interval describe the same window, and frame_count and
+        frame_count_time the same reading, so each pair only changes together.
         """
         prev = self.fps_sample
         window_complete = frame_fps is not None and frame_interval is not None
+        count_complete = frame_count is not None and frame_count_time is not None
         self.fps_sample = FpsSample(
             prev.avg_fps if avg_fps is None else avg_fps,
             frame_fps if window_complete else prev.frame_fps,
             frame_interval if window_complete else prev.frame_interval,
+            frame_count if count_complete else prev.frame_count,
+            frame_count_time if count_complete else prev.frame_count_time,
         )
 
     @property
@@ -212,6 +224,8 @@ class PipelineInstance:
             "avg_fps": fps.avg_fps,
             "frame_fps": fps.frame_fps,
             "frame_interval": fps.frame_interval,
+            "frame_count": fps.frame_count,
+            "frame_count_time": fps.frame_count_time,
             "start_time": lifecycle.start_time,
             "first_frame_time": lifecycle.first_frame_time,
             "stop_time": lifecycle.stop_time,
@@ -638,6 +652,8 @@ class PipelineManager:
                     avg_fps=_opt_float(event.get("avg_fps")),
                     frame_fps=_opt_float(event.get("last_fps")),
                     frame_interval=_opt_float(event.get("frame_interval")),
+                    frame_count=_opt_int(event.get("frame_count")),
+                    frame_count_time=_opt_float(event.get("frame_count_time")),
                 )
         elif evt == "firstframe":
             # Reset restart attempts on first frame (restart was successful)
@@ -789,6 +805,8 @@ class PipelineManager:
                     logger.warning("Pipeline %s no longer in RESTARTING state; aborting restart", instance.instance_id)
                     return
                 instance.set_lifecycle(start_time=time.time(), first_frame_time=None, stop_time=None)
+                # The restarted run counts its frames from zero again.
+                instance.fps_sample = instance.fps_sample._replace(frame_count=0, frame_count_time=None)
                 instance.finalized = False
                 instance.error = None
                 instance.state = PipelineState.RUNNING
