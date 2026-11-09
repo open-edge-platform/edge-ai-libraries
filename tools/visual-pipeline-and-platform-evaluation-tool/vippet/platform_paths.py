@@ -23,39 +23,20 @@ LINUX_PATH_MAPPINGS: dict[str, str] = {
 
 
 def resolve_linux_path(value: str) -> str:
-    r"""Map a Linux resource reference to a configured directory on Windows.
+    """Adapt stored Linux model and model-proc paths for native Windows.
 
-    ``value`` is the stored path. Map LINUX_MODELS_PREFIX to MODELS_PATH and
-    LINUX_PUBLIC_MODEL_PROC_PREFIX to PUBLIC_MODEL_PROC_PATH.
-    Use the first matching root.
-    Only on Windows, paths starting with a mapped Linux root plus '/' are mapped.
-    On Linux, or when the prefix does not match, return ``value`` unchanged.
-    Relative paths are not joined to a destination directory by this function.
+    Pipeline descriptions and model definitions can contain absolute Linux paths
+    for model, model-proc or extra-model-proc files. On Windows, replace their known Linux
+    prefixes with the configured MODELS_PATH or PUBLIC_MODEL_PROC_PATH,
+    preserving the relative path within the destination directory.
 
-    Preserve the relative suffix, allowing one trailing '/'. Raise
-    ValueError for empty, '.' or '..' components, backslashes, colons,
-    NUL characters, or a resolved target outside the destination root
-    (including an existing symlink pointing outside it). Files need not
-    exist; this function does not create directories or copy files.
+    MODELS_PATH cannot serve as the source prefix: when configured for Windows,
+    it points to a Windows directory, while the stored reference still starts
+    with '/models/output'. LINUX_MODELS_PREFIX and LINUX_PUBLIC_MODEL_PROC_PREFIX
+    therefore identify source paths independently of the configured destinations.
 
-    Examples on Linux (all inputs are unchanged):
-        resolve_linux_path('/models/output/model.xml')
-        -> /models/output/model.xml
-        resolve_linux_path('public/model.xml')
-        -> public/model.xml
-
-    Examples on native Windows, with environment variables set before import:
-        MODELS_PATH=C:\Vippet\models
-        PUBLIC_MODEL_PROC_PATH=C:\DLStreamer\model-proc
-
-        resolve_linux_path('/models/output/public/model.xml')
-        -> C:\Vippet\models\public\model.xml
-        resolve_linux_path(LINUX_PUBLIC_MODEL_PROC_PREFIX + '/preproc.json')
-        -> C:\DLStreamer\model-proc\preproc.json
-        resolve_linux_path('public/model.xml')
-        -> public/model.xml
-        resolve_linux_path(r'C:\custom\model.xml')
-        -> C:\custom\model.xml
+    On Linux, or for paths without a recognized prefix, return the input unchanged.
+    Reject invalid mapped suffixes and targets outside the configured directory.
     """
     if not IS_WINDOWS:
         return value

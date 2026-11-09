@@ -58,13 +58,13 @@ preparation only; full native application startup is not yet supported.
 ### Native Ubuntu 24.04
 
 1. Open a terminal on your Ubuntu host.
-2. Install Docker Engine and the Docker Compose plugin using the
+1. Install Docker Engine and the Docker Compose plugin using the
    [Docker apt repository instructions](https://docs.docker.com/engine/install/ubuntu/).
    Complete the [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/)
    so you can run Docker as a non-root user. Do not use Docker Desktop on Linux.
-3. Install Git and Make, and configure GPU or NPU drivers if required, as described in
+1. Install Git and Make, and configure GPU or NPU drivers if required, as described in
    [Prerequisites](#prerequisites).
-4. Verify the tools before continuing:
+1. Verify the tools before continuing:
 
    ```bash
    git --version
@@ -125,7 +125,7 @@ Linux driver prerequisites above apply to the Ubuntu procedure, not to this prep
    git --version
    ```
 
-2. Clone the repository and set the backend working directory:
+1. Clone the repository and set the backend working directory:
 
    ```powershell
    Set-Location $HOME
@@ -133,7 +133,7 @@ Linux driver prerequisites above apply to the Ubuntu procedure, not to this prep
    Set-Location edge-ai-libraries\tools\visual-pipeline-and-platform-evaluation-tool\vippet
    ```
 
-3. Choose local data directories and configure their paths explicitly in the PowerShell
+1. Choose local data directories and configure their paths explicitly in the PowerShell
    session before starting the backend. Defaults remain Linux paths on every platform;
    the backend does not select Windows directories automatically. This example uses
    `%LOCALAPPDATA%\Vippet`, with a fallback to `%USERPROFILE%\AppData\Local\Vippet`:
@@ -167,7 +167,7 @@ Linux driver prerequisites above apply to the Ubuntu procedure, not to this prep
    creating the directories does not install these resources. If using default recordings,
    provide `videos\default_recordings.yaml` under the same base directory.
 
-4. Set `LABELS_PATH` to the labels directory in your DLStreamer installation. For the
+1. Set `LABELS_PATH` to the labels directory in your DLStreamer installation. For the
    installation under `Program Files`, use:
 
    ```powershell
