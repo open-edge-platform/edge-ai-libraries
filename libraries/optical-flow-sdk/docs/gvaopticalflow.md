@@ -47,4 +47,5 @@ Optional `attach-cost=true` adds a second meta with `layer_name=cost`
 ## Status
 
 Scaffold landed 2026-11-10 on dlstreamer branch `feat/gvaopticalflow`
-(sibling checkout). Lab smoke and VAMemory upgrade remain.
+(sibling checkout @ `7f6caaf`). **Open:** lab smoke, VAMemory/DMABuf→CL
+import, consumer wiring. See PLAN §11.7.

@@ -1,25 +1,23 @@
 # Intel Optical Flow SDK — Plan
 
-Status: **in progress**. Decisions locked 2026-11-09. CPU classical paths,
-OpenCV synthetic parity harness, monorepo content grep, and root README
-listing landed on branch `optical-flow-plan` (2026-11-09). **OpenCL DIS
-kernels + Core Ultra Series 2 iGPU lab baselines landed 2026-11-09** (host
-`labrat`, Core Ultra 7 255H / Arc Graphics). **Named HW gate is Series 2
-iGPU only** (no Arc B580 discrete access). SYCL uses a user-local oneAPI
-`icpx` under `~/intel/oneapi`. Sintel/KITTI OpenCV DIS disparity **measured
-FAIL** on lab (DIS-lite ≠ full OpenCV DIS; see §11.6). Research base written
-2026-11-08; SIFT scaffolding (`libraries/sift-extractor`, PR #3646,
-ITEP-93043) is reuse-only and does not define product identity.
+Status: **in progress** (P0–P2 exit met; **P3 in progress**). Decisions
+locked 2026-11-09. **Named HW gate is Series 2 iGPU only** (lab
+`labrat@10.91.82.130`, Core Ultra 7 255H / Arc Graphics; no Arc B580).
+OpenCL is the primary speed path; SYCL uses user-local `~/intel/oneapi`.
+Sintel/KITTI OpenCV DIS disparity **measured FAIL** (DIS-lite ≠ full
+OpenCV DIS; §11.6). SEA-RAFT-S OpenVINO quality + iGPU FPS reported.
+`gvaopticalflow` scaffold lives on dlstreamer `feat/gvaopticalflow`.
+Leftovers: §11.7.
 
-### Implementation status (2026-11-09)
+### Implementation status (2026-11-10)
 
 | Area | Status |
 |------|--------|
 | Tree / CMake / CI (`optical-flow-sdk.yml`) | Done (CPU CI on GitHub runners) |
 | C++ API: `OpticalFlow`, presets, cost, `calcBoth` | Done |
-| `Algorithm::{Dis,Farneback}` | Done (CPU); DIS also on OpenCL |
+| `Algorithm::{Dis,Farneback,SeaRaft}` | Done (CPU DIS/Farneback; OpenCL DIS + Farneback-class; SeaRaft via OpenVINO) |
 | CPU DIS-lite dense flow | Done (synthetic-shift tests pass) |
-| CPU Farneback-class dense flow | Done |
+| CPU / OpenCL Farneback-class dense flow | Done (OpenCL soft vs OpenCV) |
 | CPU / OpenCL `SparsePyrLK` (+ Python) | Done (OpenCL P2) |
 | Python `OpticalFlow` bindings | Done |
 | Optional OpenCV `Mat` adapter + CPU compare tool | Done (`compare_opencv_dis`: DIS/Farneback/PyrLK) |
@@ -28,14 +26,14 @@ ITEP-93043) is reuse-only and does not define product identity.
 | Samples: calc / stabilise / track points | Done |
 | Determinism + `calcBoth` consistency tests | Done |
 | Real OpenCL DIS kernels | **Done** (device pyramid + patch IS + densify; synthetic EPE ≈0) |
-| Real SYCL DIS kernels | **Landed** (lab-validated); **performance follow-on** — OpenCL is the primary speed path |
+| Real SYCL DIS kernels | **Landed** (lab-validated); **optional perf follow-on** — OpenCL owns ≥10× |
 | OpenCV DIS disparity gate on Sintel/KITTI | **Measured FAIL** (lab 2026-11-10; DIS-lite ≠ full OpenCV DIS — §11.6) |
 | ≥10× vs OpenCV CPU DIS-Fast | **Met on device-resident OpenCL** (`calc_device` ≥13× @720p); host `calc` still ≈6–8× (§11.5) |
 | OpenCL device-resident API (`calc_device`) | **Landed** (buffers stay on GPU; see §7 / §11.5) |
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
-| SEA-RAFT OpenVINO accuracy tier | **P2 gate PASS** (KITTI Fl-all **2.70%** ≤ 19.11%; OV IR + C++ loader — `docs/sea_raft.md`) |
+| SEA-RAFT OpenVINO accuracy tier | **P2 PASS** — KITTI Fl-all **2.70%** ≤ 19.11%; **iGPU ~15.7 FPS** @384×1248 (`docs/sea_raft.md`) |
 | Root README under Computer Vision Primitives | Done |
-| `gvaopticalflow` DL Streamer element | **P3 scaffold started** (dlstreamer `feat/gvaopticalflow`; system-memory + `calc_device`; see `docs/gvaopticalflow.md`) |
+| `gvaopticalflow` DL Streamer element | **P3 scaffold** (dlstreamer `feat/gvaopticalflow`; system-memory + `calc_device`; `docs/gvaopticalflow.md`) — lab smoke / VAMemory / consumers open |
 | IPU DVS path | Deferred (out of scope) |
 
 ## 1. Decision
@@ -513,7 +511,7 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 |----------|------------|
 | Product name / home | `libraries/optical-flow-sdk/`; include `optical_flow_sdk/`; CMake `OPTICALFLOW_`; workflow `optical-flow-sdk.yml` |
 | Product identity | Intel Optical Flow SDK (NVOFA-competitive), not `*-extractor` |
-| C++ facade | `OpticalFlow`; `Backend { Auto, Cpu, OpenCL, Sycl }`; `Preset { Slow, Medium, Fast }`; `Algorithm { Dis, Farneback }` |
+| C++ facade | `OpticalFlow`; `Backend { Auto, Cpu, OpenCL, Sycl }`; `Preset { Slow, Medium, Fast }`; `Algorithm { Dis, Farneback, SeaRaft }` |
 | Sparse tracking | `SparsePyrLK` (C++ + Python) |
 | Python | First-class in v1 — landed |
 | `calcBoth` + cost | In v1 — landed |
@@ -538,8 +536,12 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | Replace SYCL CPU fallback with real DIS kernels | P1 | **Done** (lab-validated); further SYCL speed work is **P2** (OpenCL owns ≥10×) |
 | OpenCV CPU synthetic GT-EPE (DIS / Farneback / PyrLK) | P1 | **Done 2026-11-09** — soft CI gates; not OpenCV numerical identity |
 | Sintel/KITTI parity vs OpenCV DIS | P1 | **Done (FAIL)** 2026-11-10 — `parity_opencv_datasets`; §11.6 |
-| SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | **Quality PASS** Fl-all 2.70%; **iGPU ~15.7 FPS** @384×1248 OV (`p2_sea_raft_openvino_fps_2026-11-10.json`) |
-| `gvaopticalflow` metadata contract vs `gvatrack` / `gvamotiondetect` | P3 | **v0 defined** (`docs/gvaopticalflow.md`); consumer wiring still open |
+| SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | **Quality PASS** Fl-all 2.70%; **iGPU ~15.7 FPS** @384×1248 OV (`p2_sea_raft_openvino_fps_2026-11-10.json`); P4: Nvidia host compare / more presets |
+| `gvaopticalflow` scaffold + v0 tensor meta | P3 | **Scaffold landed** dlstreamer `feat/gvaopticalflow`; contract in `docs/gvaopticalflow.md` |
+| `gvaopticalflow` lab smoke (`gst-inspect` / `gst-launch`) | P3 | **Open** — needs installed SDK + dlstreamer `-DENABLE_OPTICAL_FLOW=ON` on Series 2 |
+| VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **Open** — exit criterion for GPU-resident pipeline |
+| Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **Open** — v0 meta readable via `gvapython` / apps only |
+| Optional SYCL DIS speed catch-up vs OpenCL | P2 leftover | **Non-blocking** — OpenCL owns ≥10× |
 | IPU DVS productization | Deferred | Separate future plan |
 
 ### 11.3 Content grep result (2026-11-09)
@@ -563,10 +565,10 @@ one OpenCV Farneback call site above. Path search from 2026-11-08 stands.
 ### 11.4 Remaining without lab hardware
 
 Useful on a CPU-only host (not moat-closing): OpenMP/SIMD on DIS-lite,
-NV12 plane helpers, ASAN/UBSAN in CI, SEA-RAFT OpenVINO stub under Slow,
-richer samples/docs. Sintel/KITTI OpenCV DIS disparity is **measured**
-(§11.6). **Out of scope for this plan revision:** Arc B580 discrete gates.
-`gvaopticalflow` remains P3.
+NV12 plane helpers, ASAN/UBSAN in CI, richer samples/docs. Sintel/KITTI
+OpenCV DIS disparity is **measured** (§11.6). SEA-RAFT Slow / OpenVINO
+loader **landed**. **Out of scope for this plan revision:** Arc B580
+discrete gates. Primary remaining work is **P3 on lab** (§11.7).
 
 ### 11.5 Lab host results (2026-11-09) — Core Ultra Series 2 iGPU
 
@@ -694,6 +696,38 @@ Clean. Reproduce:
 P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
 400→9.4 (blow-up fixed); KITTI Fast EPE 35.4→31.9. Resident Fast still
 ≥10× @720p/1080p. §8 gates remain FAIL.
+
+### 11.7 Remaining work (2026-11-10)
+
+**P3 — do next (blocks exit):**
+
+1. Install OpenCL `optical-flow-sdk` on lab; build dlstreamer with
+   `-DENABLE_OPTICAL_FLOW=ON`; `gst-inspect-1.0 gvaopticalflow`.
+2. Smoke: `samples/.../optical_flow/optical_flow.sh` (or equivalent
+   `gst-launch`) on Series 2 iGPU; confirm `GstGVATensorMeta` attaches.
+3. VAMemory / DMABuf → OpenCL `cl_mem` import (or mapped plane) so the
+   pipeline can avoid per-frame host luma copies; keep flow on device
+   when consumers allow.
+4. Wire or document consumers: `gvapython` example first; then optional
+   flow→ROI for `gvamotiondetect` / prior for `gvatrack` / viz in
+   `gvawatermark`.
+5. Land dlstreamer PR (`feat/gvaopticalflow`); optionally bump
+   `libraries/dlstreamer` submodule pin in this monorepo.
+
+**Non-blocking leftovers:**
+
+- Optional SYCL DIS performance catch-up (OpenCL already clears ≥10×).
+- Farneback OpenCL numerical hardening vs OpenCV (currently soft).
+- Classical DIS §8 pairwise/Fl-all vs OpenCV remains **FAIL** by design
+  (DIS-lite); only SEA-RAFT closes the quality gate.
+- Host `OpticalFlow::calc` still ≈6–8× (convenience); pipelines should
+  prefer `calc_device`.
+
+**P4 — later:**
+
+- Measured Nvidia host FPS/quality tables (if hardware available).
+- FRUC / warp demos; further SEA-RAFT preset / resolution notes.
+- Arc B580 discrete gates (explicitly out of scope for this revision).
 
 ## 12. Sources
 
