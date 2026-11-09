@@ -62,20 +62,8 @@ curl -sf http://localhost:5000/health   # proxies Kapacitor daemon health, not j
 docker logs -f ia-time-series-analytics-microservice
 ```
 
-## Helm deployment
-
-Full walkthrough:
-[Deploy with Helm](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/get-started/deploy-with-helm.md)
-(chart-specific value docs: `helm/README.md`). The one gotcha worth calling
-out here since it's easy to trip over while testing: the Helm deployment's
-externally exposed REST API port is **30002**
-(`config.time_series_analytics_microservice_rest_api.ext.port` in
-`helm/values.yaml`), distinct from the Docker Compose deployment's **5000**
-— don't assume the port from one deployment mode carries over to the other.
-
 ## Teardown
 
 ```bash
 docker compose down -v   # -v removes the tmpfs volume UDF packages extract into
-helm uninstall time-series-analytics-microservice -n apps
 ```

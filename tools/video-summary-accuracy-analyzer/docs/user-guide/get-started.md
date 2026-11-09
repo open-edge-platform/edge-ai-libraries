@@ -170,4 +170,4 @@ To inspect one service only, specify `nginx`, `video-accuracy-eval`, or `video-a
 ## Supporting Resources
 
 - [How to Build from Source](./build-from-source.md)
-- [Project README](../../README.md)
+- [Project README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/video-summary-accuracy-analyzer/README.md)

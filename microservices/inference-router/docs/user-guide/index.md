@@ -102,6 +102,7 @@ Key Features:
 ./routing.md
 ./plugin.md
 ./api-reference.md
+Backend probes - advanced setup <./probe.md>
 Release Notes <./release-notes.md>
 
 :::

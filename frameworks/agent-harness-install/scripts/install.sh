@@ -11,10 +11,34 @@ set -euo pipefail
 
 # Repo root is one level up from this payload script.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs python-setup openvino inference-router agents harness-mcp openshell; do
-  # shellcheck disable=SC1090
-  . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
-done
+# shellcheck source=lib/colors.sh
+. "${SCRIPT_DIR}/scripts/lib/colors.sh"
+# shellcheck source=lib/verify.sh
+. "${SCRIPT_DIR}/scripts/lib/verify.sh"
+# shellcheck source=lib/state.sh
+. "${SCRIPT_DIR}/scripts/lib/state.sh"
+# shellcheck source=lib/sudo.sh
+. "${SCRIPT_DIR}/scripts/lib/sudo.sh"
+# shellcheck source=lib/shim.sh
+. "${SCRIPT_DIR}/scripts/lib/shim.sh"
+# shellcheck source=lib/gpu-intel.sh
+. "${SCRIPT_DIR}/scripts/lib/gpu-intel.sh"
+# shellcheck source=lib/docker-setup.sh
+. "${SCRIPT_DIR}/scripts/lib/docker-setup.sh"
+# shellcheck source=lib/nodejs.sh
+. "${SCRIPT_DIR}/scripts/lib/nodejs.sh"
+# shellcheck source=lib/python-setup.sh
+. "${SCRIPT_DIR}/scripts/lib/python-setup.sh"
+# shellcheck source=lib/openvino.sh
+. "${SCRIPT_DIR}/scripts/lib/openvino.sh"
+# shellcheck source=lib/inference-router.sh
+. "${SCRIPT_DIR}/scripts/lib/inference-router.sh"
+# shellcheck source=lib/agents.sh
+. "${SCRIPT_DIR}/scripts/lib/agents.sh"
+# shellcheck source=lib/harness-mcp.sh
+. "${SCRIPT_DIR}/scripts/lib/harness-mcp.sh"
+# shellcheck source=lib/openshell.sh
+. "${SCRIPT_DIR}/scripts/lib/openshell.sh"
 
 TOTAL_STEPS=3
 NON_INTERACTIVE="${NON_INTERACTIVE:-}"
@@ -256,7 +280,7 @@ install just Node.js, then re-run ./install.sh."
 }
 
 print_done() {
-  printf "\n${C_GREEN}${C_BOLD}=== Installation complete ===${C_RESET}\n\n"
+  printf '\n%s%s=== Installation complete ===%s\n\n' "$C_GREEN" "$C_BOLD" "$C_RESET"
 }
 
 # print_status — combined health view: host/GPU, OVMS, the Inference Router,
@@ -264,7 +288,7 @@ print_done() {
 print_status() {
   local agent cli_bin
 
-  printf "\n${C_BOLD}Host${C_RESET}\n"
+  printf '\n%sHost%s\n' "$C_BOLD" "$C_RESET"
   if command_exists docker && docker info >/dev/null 2>&1; then
     ok "Docker is running"
   else
@@ -276,7 +300,7 @@ print_status() {
     info "No Intel GPU detected (CPU-only)"
   fi
 
-  printf "\n${C_BOLD}Inference backend${C_RESET}\n"
+  printf '\n%sInference backend%s\n' "$C_BOLD" "$C_RESET"
   if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
     ok "Upstream routed externally — ${HARNESS_LLM_ROUTER_ENDPOINT} (not managed by this installer)"
   fi
@@ -337,7 +361,7 @@ print_status() {
     fi
   fi
 
-  printf "\n${C_BOLD}Agent${C_RESET}\n"
+  printf '\n%sAgent%s\n' "$C_BOLD" "$C_RESET"
   local display
   agent="$(resolve_installed_agent)"
   # agent_cli_bin returns 1 on an unrecognized name -- status is read-only
@@ -414,7 +438,9 @@ main() {
         HARNESS_RUNTIME="$2"; shift ;;
       --model)
         [[ -n "${2:-}" ]] || { usage; error "--model requires a value (the model name as its hub names it, e.g. a Hugging Face id)."; }
-        HARNESS_HF_MODEL="$2"; HARNESS_LLM_MODEL=""; shift ;;
+        HARNESS_HF_MODEL="$2"
+        HARNESS_LLM_MODEL=""
+        shift ;;
       --model-hub)
         [[ -n "${2:-}" ]] || { usage; error "--model-hub requires a value (e.g. openvino, huggingface, ollama)."; }
         HARNESS_MODEL_HUB="$2"; HARNESS_MODEL_HUB_WAS_SET=1; shift ;;
@@ -489,6 +515,13 @@ run_installer_command() {
     exit 0
   fi
   if [[ "${positional[0]:-}" == "onboard" ]]; then
+    # nvm's node is not on PATH in a fresh shell; without it the registered-model lookup falls back to 'default'.
+    set +u
+    ensure_nvm_loaded
+    if ! command_exists node && command_exists nvm; then
+      nvm use "$HARNESS_NODE_VERSION" --silent 2>/dev/null || nvm use default --silent 2>/dev/null || true
+    fi
+    set -u
     run_agent_onboard
     exit 0
   fi
@@ -510,7 +543,7 @@ run_installer_command() {
       || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
   fi
 
-  printf "\n${C_GREEN}${C_BOLD}agent-harness-install${C_RESET}\n\n"
+  printf '\n%s%sagent-harness-install%s\n\n' "$C_GREEN" "$C_BOLD" "$C_RESET"
 
   if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
     prepare_installer_host
@@ -541,6 +574,7 @@ run_installer_command() {
   HARNESS_LLM_ENDPOINT="${HARNESS_LLM_ENDPOINT:-$(harness_llm_endpoint)}"
   export HARNESS_LLM_ENDPOINT
   ok "LLM endpoint: ${HARNESS_LLM_ENDPOINT}"
+  announce_served_model_name
   if [[ "${positional[0]:-}" == inference ]]; then
     ok "Shared inference provisioned; no agent was installed."
     exit 0

@@ -13,13 +13,13 @@ debian_40_group_edge_pack_npu () {
 
 debian_40_install_edge_pack_npu () {
   configure_edge_pack_npu "$@"
-  if ensure_apt_is_installed intel-edge-npu && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-npu && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-npu is installed." >&2
   else
     ensure_prop set installed/edge_pack_npu/owned true
     ensure_apt purge --auto-remove -y intel-edge-npu || true
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" || true
-    ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
+    ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')"
   fi
   [ -c /dev/accel/accel0 ]
   ensure_group_add $(debian_40_group_edge_pack_npu)

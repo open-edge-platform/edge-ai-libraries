@@ -15,10 +15,12 @@ helm install sensor-manager ./chart \
 
 | Value | Default | Description |
 | ----- | ------- | ----------- |
-| `hostNetwork` | `true` | Required for ONVIF WS-Discovery. The service listens on the node's interfaces on `port`. |
+| `hostNetwork` | `true` | Required for ONVIF WS-Discovery and GigE Vision discovery. The service listens on the node's interfaces on `port`. |
 | `port` | `8090` | HTTP port of the service |
 | `env.ONVIF_DISCOVERY_ENABLED` | `"true"` | Enable ONVIF discovery |
 | `env.ONVIF_DISCOVERY_INTERVAL_S` | `"20"` | Seconds between discovery sweeps |
+| `env.GIGE_DISCOVERY_ENABLED` | `"true"` | Enable GigE Vision discovery |
+| `env.GIGE_DISCOVERY_INTERVAL_S` | `"20"` | Seconds between GigE Vision discovery sweeps |
 | `usb.enabled` | `false` | Mount the node's `/dev` for USB cameras |
 | `usb.videoGroupId` | `44` | GID of the node's `video` group |
 | `service.type` / `service.port` | `ClusterIP` / `8090` | Kubernetes Service |

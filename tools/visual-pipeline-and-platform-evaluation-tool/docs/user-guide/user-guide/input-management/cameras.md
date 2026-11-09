@@ -3,8 +3,9 @@
 This article explains how to use the Camera module in ViPPET to detect and connect to cameras.
 From the left-side menu, choose **Cameras** to open the camera management page.
 
-ViPPET supports two types of cameras: USB cameras and network cameras. USB cameras are detected
-automatically via plug-and-play, while network cameras are discovered using the ONVIF standard.
+ViPPET supports three types of cameras: USB cameras, network cameras, and GigE Vision cameras. USB
+cameras are detected automatically via plug-and-play, network cameras are discovered using the ONVIF
+standard, and GigE Vision cameras are discovered using [Aravis](https://github.com/AravisProject/aravis).
 
 ![Cameras](../../_assets/ViPPET-UI-Cameras-light.png)
 
@@ -55,7 +56,44 @@ To authorize a camera:
 
 ## GigE Vision Cameras
 
-*To be addressed in the 2026.2 release.*
+### GigE Vision camera discovery
+
+GigE Vision (GenICam) machine vision cameras are discovered automatically by the Sensor Manager
+service. Connect the camera to a network interface of the host machine and make sure that the camera
+has an IP address in the same subnet as that interface (for example, a persistent IP address or a
+link-local address). No authorization is required.
+
+The *Cameras* tab shows the camera IP address, serial number, and the resolution, pixel format,
+and frame rate currently configured on the camera. ViPPET uses the camera's current
+configuration; change it with the camera vendor's tools if needed.
+
+> [!NOTE]
+> The vendor, model, serial number, and capture settings are read once, when the camera is first
+> found. If the camera is streaming to another application at that moment, only its IP address
+> is shown.
+
+### Streaming from GigE Vision cameras
+
+GigE Vision cameras send video as UDP packets directly to the receiving host. The default ViPPET
+deployment runs on a Docker bridge network, which cannot receive these packets, so streaming from
+GigE Vision cameras requires running the ViPPET backend with host networking:
+
+```bash
+make build run GIGE=1
+```
+
+This applies the `compose.gige.yml` overlay. `GIGE=1` is also supported by `make run-prebuilt`
+and `make run-dev`. Use `make stop` to stop the services as usual.
+
+> [!NOTE]
+> The `GIGE=1` overlay is not supported together with `DLSPS2=1`.
+
+Frames in uncompressed pixel formats such as `Mono8`, `RGB8`, `BGR8`, or `YUV422_8` are converted
+with `videoconvert`, and frames in 8-bit Bayer formats (`BayerRG8`, `BayerBG8`, `BayerGR8`,
+`BayerGB8`) are converted to color with `bayer2rgb`.
+
+A GigE Vision camera can be used by only one pipeline stream at a time, and it is not supported in
+density tests.
 
 ## Use cameras in pipelines as input sources
 
@@ -77,3 +115,7 @@ The selected camera will now be used as the pipeline input.
 > A network camera that has not been authorized yet appears grayed out in the list and cannot
 > be selected. To authorize the camera first, follow the steps in the
 > [Network camera authorization](#network-camera-authorization) section.
+
+GigE Vision cameras are identified in pipelines by their IP address (`gige://<IP address>`), so
+assign a persistent IP address to the camera. In the advanced pipeline view, the camera is shown as
+an `aravissrc` element with the `camera-name` property set to the IP address.

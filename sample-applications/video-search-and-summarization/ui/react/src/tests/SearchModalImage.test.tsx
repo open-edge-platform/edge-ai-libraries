@@ -26,6 +26,9 @@ import { SearchReducers } from '../redux/search/searchSlice.ts';
 import { MAX_IMAGE_SIZE_MB } from '../utils/constant';
 import i18n from '../utils/i18n';
 
+// The query text area; the minimum peak score box is a second textbox.
+const QUERY_PLACEHOLDER = 'Red bus or white plane...';
+
 const mockDispatch = vi.fn();
 
 const createMockStore = () =>
@@ -123,7 +126,7 @@ describe('SearchModal image search', () => {
       ).toBeInTheDocument();
     });
     // The text area is still shown (no preview) after a rejected file.
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(QUERY_PLACEHOLDER)).toBeInTheDocument();
   });
 
   it('rejects an oversized image with a validation error', async () => {
@@ -160,7 +163,7 @@ describe('SearchModal image search', () => {
       expect(screen.getByAltText('Uploaded image')).toBeInTheDocument();
     });
     // ...and the text area is removed to reclaim the space.
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(QUERY_PLACEHOLDER)).not.toBeInTheDocument();
   });
 
   it('anchors the remove control to the image rather than the full-width preview', async () => {
@@ -202,7 +205,7 @@ describe('SearchModal image search', () => {
         screen.getByText('Could not read the image. Please try a different file.'),
       ).toBeInTheDocument();
     });
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(QUERY_PLACEHOLDER)).toBeInTheDocument();
   });
 
   it('dispatches a search when submitting with an image', async () => {
@@ -228,7 +231,7 @@ describe('SearchModal image search', () => {
     renderComponent();
 
     // Type a query, then attach an image (which hides the text area).
-    fireEvent.change(screen.getByRole('textbox'), {
+    fireEvent.change(screen.getByPlaceholderText(QUERY_PLACEHOLDER), {
       target: { value: 'red bus' },
     });
     fireEvent.change(
@@ -239,12 +242,12 @@ describe('SearchModal image search', () => {
     await waitFor(() => {
       expect(screen.getByAltText('Uploaded image')).toBeInTheDocument();
     });
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(QUERY_PLACEHOLDER)).not.toBeInTheDocument();
 
     // Remove the image -> the text area returns with the preserved query.
     fireEvent.click(screen.getByRole('button', { name: /remove image/i }));
 
-    const restored = screen.getByRole('textbox') as HTMLTextAreaElement;
+    const restored = screen.getByPlaceholderText(QUERY_PLACEHOLDER) as HTMLTextAreaElement;
     expect(restored).toBeInTheDocument();
     expect(restored.value).toBe('red bus');
   });

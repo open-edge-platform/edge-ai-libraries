@@ -28,9 +28,10 @@ and clean them up; no sudo or real deployment is needed.
 ```bash
 set -o pipefail
 bash test/openshell-test.sh | tee openshell-offline.tap
+bash test/installer-runtime-test.sh | tee installer-runtime.tap
 ```
 
-The outer suite currently reports 73 cases. Three are wrapper cases that run
+The outer suite currently reports 77 cases. Three are wrapper cases that run
 the managed-inference, lifecycle and model-default suites below. Their case
 counts must not be added to the outer count as independent top-level results.
 
@@ -38,10 +39,11 @@ counts must not be added to the outer count as independent top-level results.
 
 | Scope | Command | Current cases |
 |---|---|---|
-| Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 73, including three nested-suite wrappers |
+| Installer bootstrap, profiles, failure guards, configuration publication and environment isolation | `bash test/installer-runtime-test.sh` | 27; see [runtime behavior coverage](README.md#installer-runtime-regression) |
+| Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Agent model defaults | `node --test test/model-defaults-test.mjs` | 9; two require the Hermes image runtime |
+| Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
 accept a case-name filter. Use the focused suite to reproduce a Bash failure.
@@ -62,8 +64,8 @@ Both relevant PRs and relevant pushes to `main` run the same offline coverage in
 the [quality-gates workflow](../../../.github/workflows/agent-harness-openshell.yml).
 CI separates the suites into named steps and TAP artifacts rather than invoking
 the nested wrappers: `HARNESS_TEST_SKIP_NESTED=1 bash test/openshell-test.sh`
-runs the 70 direct cases; the other three suites run once in their own steps.
-The all-in-one local command still runs 73 outer registrations as documented
+runs the 74 direct cases; the other three suites run once in their own steps.
+The all-in-one local command still runs 77 outer registrations as documented
 above. CI additionally runs the reporting-helper tests described below.
 CI triggers, syntax checks and prepared-runner instructions are described in
 the [test README](README.md).
@@ -109,7 +111,9 @@ expected outcomes are visible. These references are not CLI filter arguments.
 | `startup_model_switch` | Restart after model selection | Honor the durable new model despite the original sandbox environment. |
 | `startup_blocked_temp` | Temp-directory creation failure | Fail before Node starts rather than continue without usable temporary storage. |
 | `startup_permissions_failure` | Temp-directory permission failure | Fail before Node starts when private permissions cannot be established. |
-| `dcode_startup` | Deep Agents Code startup | Configure and persist its provider model. |
+| `dcode_startup` | Deep Agents Code startup | Configure and persist its provider model; verify Qwen request overrides are scoped to that model. |
+| `legacy_model_readiness` | Existing sandbox without model marker | Verify each agent can use its native persisted config as a readiness signal when upgrading an image created before `.harness-model.json`. |
+| Hermes config changes are staged and atomically published | Hermes startup | Keep the installed dependency home stable, publish staged YAML before defaults/readiness metadata, and preserve owner-only config permissions. |
 | `runtime_default` | Non-interactive runtime omitted | Keep host as the default. |
 | `runtime_supported host openclaw` | Explicit host runtime | Continue accepting the existing host deployment mode. |
 | `runtime_supported openshell openclaw` | OpenClaw sandbox support | Accept this runtime/agent combination. |
@@ -172,6 +176,7 @@ expected outcomes are visible. These references are not CLI filter arguments.
 | live suite requires explicit opt-in | Live-test safety | Refuse live execution without the opt-in variable. |
 | interactive policy adds only sandbox-local PTY paths to the base policy | Policy structure | Verify the interactive policy differs only by `/dev/ptmx` and `/dev/pts`, ignoring comments/blank lines. |
 | `policy_paths` | Agent policy selection | Select the base policy for OpenClaw and the interactive policy for Hermes and Deep Agents Code. |
+| sandbox policy docs cover static and live updates | Policy customization documentation | Check static installation, live network updates, full-policy replacement, startup-only filesystem semantics and upstream references. |
 
 The remaining three outer registrations invoke entire suites:
 
@@ -281,7 +286,7 @@ helper against temporary files, not an LLM.
 
 | Registered test name | Objective / expected result |
 |---|---|
-| Qwen OpenClaw defaults cover catalog, request parameters and lean prompt | Verify 65536 context, 512 output cap, sampling/thinking/prompt settings, preservation of unrelated values and idempotence. |
+| Qwen OpenClaw defaults cover catalog, request parameters and lean prompt | Verify 65536 context, 4096 output cap, sampling/thinking/prompt settings, preservation of unrelated values and idempotence. |
 | explicit OpenClaw overrides survive initial application and restarts | Preserve explicit catalog, sampling, thinking, prompt and tool settings. |
 | user edits to generated defaults survive later restarts and model changes | Retain edits rather than overwrite them as managed defaults. |
 | switching away removes managed Qwen tuning and restores generic catalog defaults | Remove unchanged Qwen defaults, restore generic budgets and reapply Qwen defaults when selected again. |
@@ -293,23 +298,37 @@ helper against temporary files, not an LLM.
 
 ### Hermes runtime-dependent cases
 
-The final two cases skip when the pinned Hermes runtime is unavailable at
-`/home/node/.local/bin/hermes`. The normal offline host/CI run therefore
-executes seven cases and reports two skips, not nine passes.
+The final two cases remain registered in every run with explicit skip reasons.
+The normal offline host/CI run executes seven cases and reports two image-required skips; it does not
+probe or invoke Hermes, even if it is installed. Explicit Hermes mode requires
+the pinned runtime at `/home/node/.local/bin/hermes` and fails if it is missing.
 
-To require these cases rather than permit a missing-runtime skip, run inside
-the prepared Hermes image environment:
+The separate automatic **Hermes image runtime gate** builds the production
+image and requires a complete, nonempty passing TAP report without failures or
+skips (currently nine cases). To reproduce it from the
+component directory (Docker and network access required for the build):
 
 ```bash
-HARNESS_TEST_REQUIRE_HERMES=1 node --test test/model-defaults-test.mjs
+set -euo pipefail
+docker build --build-arg HARNESS_AGENT=hermes -f openshell/Dockerfile -t harness-hermes-validation .
+docker run --rm --network none \
+  --cap-drop ALL --security-opt no-new-privileges \
+  --tmpfs /tmp:rw,nosuid,nodev,size=256m \
+  --mount "type=bind,source=$PWD/test/model-defaults-test.mjs,target=/opt/harness/model-defaults-test.mjs,readonly" \
+  --env HARNESS_TEST_REQUIRE_HERMES=1 \
+  --env HARNESS_TEST_MODEL_CONFIG=/opt/harness/model-config.mjs \
+  harness-hermes-validation \
+  node --test --test-reporter=tap /opt/harness/model-defaults-test.mjs \
+  | tee hermes-defaults.tap
+node test/tap-summary.mjs --require-no-skips hermes-defaults.tap
 ```
 
-The image must have Node, the pinned Hermes Python/YAML runtime, and the current
-test/helper files. `HARNESS_TEST_MODEL_CONFIG` can point to the current helper
-when it is mounted at a different location. See the
-[prepared-runner gate](README.md#opt-in-prepared-runner-gate) for the existing
-image-based execution path; do not run these as configuration changes in a
-user's active sandbox.
+The image supplies Node, the pinned Hermes Python/YAML runtime, real Hermes
+provider modules, and the current production helper. A host Python/PyYAML
+installation alone is not equivalent. Test configurations are temporary and no
+active sandbox is accessed. Build dependencies need network access; test
+execution does not. This does not replace the opt-in prepared-runner gate for
+live inference and lifecycle behavior.
 
 ## Interpretation and maintenance
 

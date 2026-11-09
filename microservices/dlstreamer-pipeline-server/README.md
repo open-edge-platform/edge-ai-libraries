@@ -160,7 +160,7 @@ Now you have successfully run the Deep Learning Streamer Pipeline Server contain
 
 ## Build from source
 
-You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the OpenVINO Model API and ROS2 on top of the optimized image.
+You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the OpenVINO Model API and ROS2 on top of the optimized image. The Geti SDK has not been included in DLSPS images since the 2026.3 release. Its upstream repository is archived and deprecated, is no longer maintained, supports Geti v2.x but not v3.0+, and reports known security issues. Geti-specific model download and inference features are therefore unavailable in these images.
 
 > [!NOTE]
 > Ensure to set the right values in the [.env file](./docker/.env) for building

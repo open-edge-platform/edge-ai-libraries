@@ -9,7 +9,8 @@ const [agent, model, endpoint, mode = "apply"] = process.argv.slice(2);
 const home = process.env.HOME;
 if (!["openclaw", "deepagents-code", "hermes"].includes(agent) || !model || /[\x00-\x1f]/.test(model))
   throw Error("Invalid agent or model selection");
-if (!["apply", "select"].includes(mode)) throw Error("Invalid model configuration mode");
+if (!["apply", "select", "stage"].includes(mode) || (mode === "stage" && agent !== "hermes"))
+  throw Error("Invalid model configuration mode");
 const url = new URL(endpoint);
 if (url.protocol !== "http:" || url.hostname !== "host.openshell.internal" ||
     url.pathname !== "/v1" || url.username || url.password || url.search || url.hash)
@@ -119,7 +120,7 @@ if (agent === "openclaw" && mode === "apply") {
       }
     }
   }
-  const catalogDefaults = {contextWindow: qwen ? 65536 : 32768, maxTokens: qwen ? 512 : 4096};
+  const catalogDefaults = {contextWindow: qwen ? 65536 : 32768, maxTokens: 4096};
   for (const [key, value] of Object.entries(catalogDefaults))
     defaultAt(config, ["models", "providers", "ovms", "models", "0", key], value);
   if (qwen) {
@@ -136,7 +137,7 @@ if (agent === "openclaw" && mode === "apply") {
   writeJson(file, config);
   writeJson(defaultsFile, {agent, entries: installedDefaults, containers: createdContainers});
 }
-if (agent === "hermes" && mode === "apply") {
+if (agent === "hermes" && (mode === "apply" || mode === "stage")) {
   const hermesHome = process.env.HERMES_HOME ?? "/home/node/.hermes";
   // Dependencies belong to the image installation, not the sandbox HOME.
   const runtimeOptions = {encoding: "utf8", env: {...process.env, HERMES_HOME: "/home/node/.hermes"}};
@@ -147,13 +148,15 @@ if (agent === "hermes" && mode === "apply") {
   const python = runtime[0];
   const bootstrap = 'import sys; sys.path.insert(0, "/home/node/.hermes/hermes-agent"); ' +
     "import hermes_bootstrap; import hermes_yaml as yaml; ";
-  const file = path.join(hermesHome, "config.yaml");
-  const config = JSON.parse(execFileSync(python, ["-I", "-c", bootstrap +
-    "import json; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))", file],
-  runtimeOptions));
+  const file = process.env.HARNESS_HERMES_CONFIG_FILE ?? path.join(hermesHome, "config.yaml");
+  const config = fs.existsSync(file) ? JSON.parse(execFileSync(python, ["-I", "-c", bootstrap +
+    "import json; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))", file], runtimeOptions)) : {};
+  if (!config || typeof config !== "object" || Array.isArray(config))
+    throw Error("Invalid Hermes configuration");
   removePreviousDefaults(config);
-  if (!config.model || typeof config.model !== "object")
-    throw Error("Missing installer-managed Hermes model configuration");
+  if (!Object.hasOwn(config, "model")) config.model = {};
+  if (!config.model || typeof config.model !== "object" || Array.isArray(config.model))
+    throw Error("Invalid Hermes model configuration");
   config.model.default = model;
   config.model.base_url = endpoint;
   config.model.provider = "custom";
@@ -164,7 +167,7 @@ if (agent === "hermes" && mode === "apply") {
     defaultAt(config, ["providers", provider, "base_url"], endpoint);
     defaultAt(config, ["providers", provider, "default_model"], model);
     defaultAt(config, ["providers", provider, "api_key"], "not-needed");
-    defaultAt(config, ["providers", provider, "extra_body", "max_tokens"], 512);
+    defaultAt(config, ["providers", provider, "extra_body", "max_tokens"], 4096);
     defaultAt(config, ["providers", provider, "extra_body", "temperature"], 0.2);
     defaultAt(config, ["providers", provider, "extra_body", "chat_template_kwargs", "enable_thinking"], false);
     config.model.provider = `custom:${provider}`;
@@ -173,9 +176,19 @@ if (agent === "hermes" && mode === "apply") {
     "import json; print(yaml.safe_dump(json.load(sys.stdin), sort_keys=False), end='')"],
   {...runtimeOptions, input: JSON.stringify(config)});
   writeFile(file, yaml);
-  writeJson(defaultsFile, {agent, entries: installedDefaults, containers: createdContainers});
 }
 // The creation environment is immutable. Select mode persists the new choice
 // without editing agent config; startup applies it and this record takes
 // precedence over the original creation environment, including for Hermes.
-writeJson(path.join(home, ".harness-model.json"), {model, endpoint, applied: mode === "apply"});
+if (mode === "stage") {
+  const stageDir = process.env.HARNESS_MODEL_CONFIG_STAGE_DIR;
+  if (!stageDir || !path.isAbsolute(stageDir)) throw Error("Invalid model configuration stage directory");
+  writeJson(path.join(stageDir, ".harness-local-defaults.json"),
+    {agent, entries: installedDefaults, containers: createdContainers});
+  writeJson(path.join(stageDir, ".harness-model.pending.json"), {model, endpoint, applied: false});
+  writeJson(path.join(stageDir, ".harness-model.json"), {model, endpoint, applied: true});
+} else {
+  if (agent === "hermes" && mode === "apply")
+    writeJson(defaultsFile, {agent, entries: installedDefaults, containers: createdContainers});
+  writeJson(path.join(home, ".harness-model.json"), {model, endpoint, applied: mode === "apply"});
+}

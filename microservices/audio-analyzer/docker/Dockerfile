@@ -113,9 +113,16 @@ RUN python3.12 -m venv "$VIRTUAL_ENV" \
     # by pip). Re-installing dependencies later requires rebuilding the
     # image, which is the intended workflow.
     && rm -rf "$VIRTUAL_ENV"/lib/python3.12/site-packages/pip* \
-        "$VIRTUAL_ENV"/lib/python3.12/site-packages/setuptools* \
         "$VIRTUAL_ENV"/lib/python3.12/site-packages/wheel* \
         "$VIRTUAL_ENV"/bin/pip* \
+    # Paraformer imports distutils.version, supplied by setuptools on Python 3.12.
+    && if [ "$INSTALL_CJK" != "true" ]; then \
+        rm -rf "$VIRTUAL_ENV"/lib/python3.12/site-packages/setuptools*; \
+    fi \
+    && if [ "$INSTALL_CJK" = "true" ]; then \
+        "$VIRTUAL_ENV/bin/python" -c \
+            "from funasr.register import tables; import funasr; assert 'BiCifParaformer' in tables.model_classes, 'Paraformer registration failed'"; \
+    fi \
     && find "$VIRTUAL_ENV" -type d -name "__pycache__" -prune -exec rm -rf {} +
 
 # ---------------------------------------------------------------- runtime --

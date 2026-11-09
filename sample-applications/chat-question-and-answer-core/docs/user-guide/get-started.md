@@ -45,17 +45,13 @@ By following this guide, you will learn how to:
 
    ```bash
    export REGISTRY="intel/"
-   export UI_TAG=core_2026.2.0-rc2
+   export UI_TAG=core_2026.3.0-rc1
 
-   # If you prefer to use the default CPU device, set the following:
-   export BACKEND_TAG=core_2026.2.0-rc2
-
-   # If you want to utilize GPU device for inferencing, set the following:
-   # Note: This image also supports CPU devices.
-   export BACKEND_TAG=core_gpu_2026.2.0-rc2
+   # For OpenVINO framework, set the following:
+   export BACKEND_TAG=core_2026.3.0-rc1
 
    # For those who prefer Ollama framework, set the following:
-   export BACKEND_TAG=core_ollama_2026.2.0-rc2
+   export BACKEND_TAG=core_ollama_2026.3.0-rc1
    ```
 
    Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
@@ -66,23 +62,13 @@ By following this guide, you will learn how to:
 
    - **OpenVINO toolkit framework**
 
-     - CPU-only setup (Default):
+     - Support CPU, GPU and NPU devices (Default):
 
        ```bash
        # HF Token is mandatory for gated or private model. Else, it can be skipped.
        export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
        source scripts/setup_env.sh
        ```
-
-     - GPU-enabled setup:
-
-       ```bash
-       # HF Token is mandatory for gated or private model. Else, it can be skipped.
-       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-       source scripts/setup_env.sh -d gpu
-       ```
-
-       ℹ️ The `-d gpu` flag enables the GPU-DEVICE profile required for GPU-based execution.
 
    - **Ollama framework**
 
@@ -105,13 +91,13 @@ By following this guide, you will learn how to:
 
    - A collection of ready-to-use YAML configuration files featuring validated combinations of LLMs, Embedding models, and Rerankers is available in the [model_config folder](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer-core/model_config). Feel free to explore these examples and use them as a starting point.
 
-   - If you wish to assign the inference workload to other dedicated device such as CPU/GPU device independently, you can assign each model's inference workload to a specific device(e.g., CPU or GPU) independently by configuring the `device_settings` section in the YAML as below:
+   - If you wish to assign the inference workload to other dedicated device such as CPU/GPU/NPU device independently, you can assign each model's inference workload to a specific device(e.g., CPU, GPU or NPU) independently by configuring the `device_settings` section in the YAML as below:
 
      ```bash
-     # EMBEDDING_DEVICE: Specifies the device for embedding model inference.
-     # RERANKER_DEVICE: Specifies the device for reranker model inference.
-     # LLM_DEVICE: Specifies the device for LLM model inference.
-     # Make sure that you are using the correct backend image if you wish to use GPU inferencing.
+     # EMBEDDING_DEVICE: Specifies the device for embedding model inference. <CPU, GPU or NPU>
+     # RERANKER_DEVICE: Specifies the device for reranker model inference. <CPU, GPU or NPU>
+     # LLM_DEVICE: Specifies the device for LLM model inference. <CPU, GPU or NPU>
+     # Make sure that you are using the correct backend framework image if you wish to use GPU or NPU inferencing.
      device_settings:
        EMBEDDING_DEVICE: "GPU"
        RERANKER_DEVICE: "GPU"
@@ -119,10 +105,10 @@ By following this guide, you will learn how to:
      ```
 
      > [!NOTE]
-     > 
+     >
      > - **GPU inferencing only supported for OpenVINO toolkit framework not Ollama framework.**
      > - If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel® GPU) It is done by specifying GPU.0, GPU.1
-     > 
+     >
      >   ```bash
      >   device_settings:
      >     EMBEDDING_DEVICE: "<GPU.0/GPU.1>"

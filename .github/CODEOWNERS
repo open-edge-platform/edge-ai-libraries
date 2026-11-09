@@ -11,12 +11,14 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 # GitHub Workflows
 /.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo @yangjianfeng1208
+/.github/workflows/agent-harness-openshell.yml @vinayg-intel @bharagha @shahmitu
+/.github/scripts/agent-harness-required-gate.mjs @vinayg-intel @bharagha @shahmitu
 
 # ============================================================================
 # Libraries
 # ============================================================================
 
-/libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
+/libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @RoboticsYY @intelzhangw2
 /libraries/edge-control-libraries/**/*.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
 
 /libraries/robotics-ai-libraries/                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
@@ -33,6 +35,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /libraries/kv-quant-offload/                           @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel
 /libraries/kv-quant-offload/README.md                  @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
+/libraries/star/                                       @pperycz @ikyrycho @osemiari
+/libraries/star/README.md                              @pperycz @ikyrycho @osemiari @open-edge-platform/open-edge-platform-docs-write
+/libraries/star/docs                                   @pperycz @ikyrycho @osemiari @open-edge-platform/open-edge-platform-docs-write
+
 # ============================================================================
 # microservices
 # ============================================================================
@@ -44,6 +50,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @avinash-palleti
 /microservices/audio-analyzer/docs/                    @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
 /microservices/audio-analyzer/README.md                @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
+
+/microservices/data-intelligence-engine/               @myqi @Yongbozzz @Johere @lijiunderstand
+/microservices/data-intelligence-engine/docs/          @myqi @Yongbozzz @Johere @lijiunderstand @open-edge-platform/open-edge-platform-docs-write
+/microservices/data-intelligence-engine/README.md      @myqi @Yongbozzz @Johere @lijiunderstand @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/dlstreamer-pipeline-server/             @tbujewsk @OskarFiedot @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @walidbarakat
 /microservices/dlstreamer-pipeline-server/docs/        @tbujewsk @OskarFiedot @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
@@ -67,9 +77,9 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /microservices/multilevel-video-understanding/docs/      @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /microservices/multilevel-video-understanding/README.md  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
-/microservices/multimodal-embedding-serving/docs/      @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
-/microservices/multimodal-embedding-serving/README.md  @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
+/microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60 @Yongbozzz
+/microservices/multimodal-embedding-serving/docs/      @bhardwaj-nakul @bharagha @yogeshmpandey @llin60 @open-edge-platform/open-edge-platform-docs-write @Yongbozzz
+/microservices/multimodal-embedding-serving/README.md  @bhardwaj-nakul @bharagha @yogeshmpandey @llin60 @open-edge-platform/open-edge-platform-docs-write @Yongbozzz
 
 # lack codeowners, need resolution
 # /microservices/scene-understanding-service/          owners needed
@@ -142,6 +152,9 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /tools/visual-pipeline-and-platform-evaluation-tool/           @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya
 /tools/visual-pipeline-and-platform-evaluation-tool/docs/      @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
 /tools/visual-pipeline-and-platform-evaluation-tool/README.md  @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
+
+/tools/vippet-portal/                                          @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya
+/tools/vippet-portal/README.md                                 @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
 
 /tools/genai-applications-sizing/                              @bharagha @rudra-intel @madhuri-rai07 @hteeyeoh
 

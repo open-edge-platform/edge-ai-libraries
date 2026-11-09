@@ -48,7 +48,7 @@ improve inference efficiency on edge hardware.
   historical stubs, and optional edit-aware safeguards help maintain continuity
   as the conversation evolves. Eligible content can also be compressed through
   Claw Compactor or Compress Server.
-- **Compress Server runtimes** — supports PyTorch and OpenVINO runtimes for the
+- **Compress Server runtimes** — supports PyTorch and OpenVINO™ runtimes for the
   compression service, including Intel GPU (XPU) acceleration.
 - **CompressionManager** — orchestrates multiple compressors in a single
   pipeline and provides cross-compressor metric aggregation (tokens saved,

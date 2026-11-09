@@ -132,8 +132,9 @@ openshell_ensure_shared_inference() {
 _openshell_ensure_shared_inference() {
   [[ "$(resolve_bind_host)" == 127.0.0.1 ]] \
     || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
-  [[ "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] && (( HARNESS_IR_PORT > 0 && HARNESS_IR_PORT < 65536 )) \
-    || error "HARNESS_IR_PORT must be between 1 and 65535."
+  if [[ ! "$HARNESS_IR_PORT" =~ ^[1-9][0-9]{0,4}$ ]] || (( HARNESS_IR_PORT > 65535 )); then
+    error "HARNESS_IR_PORT must be between 1 and 65535."
+  fi
   openshell_validate_recorded_ir_port
   local containers pending source model
   pending="$(harness_state_root)/openshell-model-pending.json"
@@ -263,7 +264,7 @@ _openshell_sync_agent_model_locked() {
     openshell sandbox start "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
       || error "Could not restart ${agent}; model transition retained for retry."
     openshell_wait_phase Ready
-    openshell_agent_exec /usr/local/bin/node -e '
+    openshell_agent_exec /usr/local/bin/node -e "$(cat <<'JS'
       const fs = require("node:fs");
       const [agent, model] = process.argv.slice(1);
       (async () => {
@@ -283,7 +284,8 @@ _openshell_sync_agent_model_locked() {
         }
         throw Error("Agent startup did not apply the selected model within 180 seconds");
       })().catch(error => { console.error(error.message); process.exitCode = 1; });
-    ' "$agent" "$model" || error "Agent model did not survive restart; pending transition retained."
+JS
+    )" "$agent" "$model" || error "Agent model did not survive restart; pending transition retained."
   fi
   profile="$(node - "$dir/profile.json" "$model" <<'JS'
 const fs = require("node:fs");
@@ -508,8 +510,9 @@ openshell_validate_shared_inference() {
   local endpoint model
   [[ "$(resolve_bind_host)" == "127.0.0.1" ]] \
     || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
-  [[ "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] && (( HARNESS_IR_PORT > 0 && HARNESS_IR_PORT < 65536 )) \
-    || error "HARNESS_IR_PORT must be between 1 and 65535."
+  if [[ ! "$HARNESS_IR_PORT" =~ ^[1-9][0-9]{0,4}$ ]] || (( HARNESS_IR_PORT > 65535 )); then
+    error "HARNESS_IR_PORT must be between 1 and 65535."
+  fi
   # Validate the existing container's publication, not just the requested bind setting.
   local bindings
   bindings="$(docker inspect "$HARNESS_IR_CONTAINER" --format '{{json .HostConfig.PortBindings}}')" \
@@ -644,7 +647,46 @@ openshell_agent_exec() {
     -g "$OPENSHELL_GATEWAY" -- "$@"
 }
 
+openshell_wait_agent_config() {
+  local model attempt
+  model="${OPENSHELL_MODEL:-${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}}"
+  for attempt in {1..90}; do
+    if openshell_agent_exec /usr/local/bin/node -e "$(cat <<'JS'
+      const fs = require("node:fs");
+      const model = process.argv[1];
+      const agent = process.env.HARNESS_AGENT;
+      const home = process.env.HOME;
+      const stateFile = `${home}/.harness-model.json`;
+      const endpoint = process.env.HARNESS_SANDBOX_ENDPOINT;
+      const hasState = fs.existsSync(stateFile);
+      if (hasState) {
+        const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+        if (state.model !== model || state.applied !== true) process.exit(1);
+      }
+      if (agent === "openclaw") {
+        const config = JSON.parse(fs.readFileSync(`${home}/.openclaw/openclaw.json`, "utf8"));
+        if (config.agents?.defaults?.model?.primary !== `ovms/${model}` ||
+            config.models?.providers?.ovms?.models?.[0]?.id !== model) process.exit(1);
+      } else if (!hasState) {
+        const configFile = agent === "hermes" ? `${home}/.hermes/config.yaml` : `${home}/.deepagents/config.toml`;
+        const config = fs.readFileSync(configFile, "utf8");
+        const legacyModel = agent === "hermes" ? model : `openai:${model}`;
+        if (!config.includes(legacyModel) || !config.includes(endpoint)) process.exit(1);
+      }
+JS
+    )" "$model" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  error "Agent model configuration did not become ready for ${OPENSHELL_NAME}."
+}
+
 onboard_openshell_agent() {
+  openshell_load_profile
+  openshell_assert_owned
+  openshell_wait_phase Ready
+  openshell_wait_agent_config
   openshell_agent_exec /usr/bin/curl --fail --silent --show-error --max-time 20 \
     "http://host.openshell.internal:${HARNESS_IR_PORT}/v1/models" \
     || error "Sandbox cannot reach the shared Inference Router."
@@ -652,7 +694,7 @@ onboard_openshell_agent() {
   if [[ "$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")" == openclaw ]]; then
     local response
     response="$(openshell_agent_exec /home/node/.local/bin/openclaw infer model run \
-      --prompt "Say hello." --model "ovms/${OPENSHELL_MODEL}" --json)" \
+      --prompt "Say hello." --model "ovms/${OPENSHELL_MODEL}" --thinking off --json)" \
       || error "Sandboxed OpenClaw inference failed."
     node -e '
       const fs = require("node:fs");
@@ -680,9 +722,9 @@ onboard_openshell_agent() {
         /home/node/.local/bin/dcode -n "Say hello briefly. Do not use any tools." \
         --model "openai:${OPENSHELL_MODEL}" --no-interpreter)" \
         || error "Sandboxed Deep Agents Code inference failed."
-      [[ -n "${dcode_response//[[:space:]]/}" ]] \
-        && ! grep -q '^\[ERROR\]' <<<"$dcode_response" \
-        || error "Sandboxed Deep Agents Code returned no successful inference output."
+      if [[ -z "${dcode_response//[[:space:]]/}" ]] || grep -q '^\[ERROR\]' <<<"$dcode_response"; then
+        error "Sandboxed Deep Agents Code returned no successful inference output."
+      fi
       printf '%s\n' "$dcode_response"
       ok "Sandboxed Deep Agents Code inference returned output; verify task effects separately."
     fi
@@ -724,7 +766,7 @@ _remove_openshell_agent_locked() {
       || error "Could not request sandbox removal; ownership record retained."
     # Deletion is asynchronous; keep its provider and ownership record until cleanup completes.
     local attempt
-    for attempt in {1..30}; do
+    for ((attempt = 0; attempt < 30; attempt++)); do
       openshell_resource_exists sandbox || break
       sleep 1
     done

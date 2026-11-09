@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Opt-in: copy to /etc/metrics-manager/telegraf.d/network.conf and restart
+# metrics-manager-telegraf.service. It is NOT loaded from the examples directory.
+[[inputs.net]]
+  # Primary interface selection; these name patterns do not prove physical NICs.
+  # Replace with local names, e.g. ["enp1s0"], ["bond0"] or ["wlan0"].
+  # Keep selections disjoint from network-virtual.conf. Empty selects all UP
+  # non-loopback interfaces (including virtual links), not "disabled".
+  interfaces = ["eth*", "en*"]
+  # The TUI uses net_* fields with host/interface tags and measurement timestamps.
+  # Keep metric_version = 1 and export_timestamp = true in prometheus_client.
+
+# Driver-specific NIC counters (availability and names depend on the driver).
+# Like net, this reads interfaces in the service's network namespace.
+[[inputs.ethtool]]
+  # Keep driver-counter selection aligned with the desired primary interfaces.
+  # veth peer/XDP/page-pool counters are not provided by physical NIC drivers.
+  # For host-side container links, enable the separate network-virtual example
+  # with ENABLE_NETWORK_VIRTUAL=true; do not also select those interfaces here.
+  interface_include = ["eth*", "en*"]
