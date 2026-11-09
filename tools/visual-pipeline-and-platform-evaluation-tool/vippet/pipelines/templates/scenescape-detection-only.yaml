@@ -1,0 +1,84 @@
+name: SceneScape (Detection Only)
+definition: >
+  Template pipeline for SceneScape with a single object detection model.
+  Detections are timestamped and published through the SceneScape post-inference data publisher.
+tags:
+  - template
+  - detection
+  - scenescape
+type: vision
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location="" !
+      decodebin3 !
+      sscape_timestamp_capture name=timesync !
+      gvadetect
+        scheduling-policy=latency
+        batch-size=2
+        inference-interval=1
+        model-instance-id=retail-cpu
+        model=""
+        device=CPU
+        pre-process-backend=opencv !
+      queue !
+      gvametaconvert add-tensor-data=true name=metaconvert !
+      videoconvert !
+      video/x-raw,format=BGR !
+      sscape_post_inference_data_publish name=datapublisher !
+      gvametapublish !
+      gvawatermark !
+      videoconvert !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink
+  - name: GPU
+    pipeline_description: >-
+      filesrc location="" !
+      decodebin3 !
+      sscape_timestamp_capture name=timesync !
+      gvadetect
+        scheduling-policy=latency
+        batch-size=2
+        inference-interval=1
+        model-instance-id=retail
+        model=""
+        device=GPU
+        pre-process-backend=va-surface-sharing !
+      queue !
+      gvametaconvert add-tensor-data=true name=metaconvert !
+      vapostproc !
+      video/x-raw,format=BGRA !
+      videoconvert !
+      video/x-raw,format=BGR !
+      sscape_post_inference_data_publish name=datapublisher !
+      gvametapublish !
+      gvawatermark !
+      videoconvert !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink
+  - name: NPU
+    pipeline_description: >-
+      filesrc location="" !
+      decodebin3 !
+      sscape_timestamp_capture name=timesync !
+      gvadetect
+        scheduling-policy=latency
+        batch-size=1
+        inference-interval=1
+        model-instance-id=retail-npu
+        model=""
+        device=NPU
+        pre-process-backend=va
+        nireq=4 !
+      queue !
+      gvametaconvert add-tensor-data=true name=metaconvert !
+      vapostproc !
+      video/x-raw,format=BGRA !
+      videoconvert !
+      video/x-raw,format=BGR !
+      sscape_post_inference_data_publish name=datapublisher !
+      gvametapublish !
+      gvawatermark !
+      videoconvert !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink

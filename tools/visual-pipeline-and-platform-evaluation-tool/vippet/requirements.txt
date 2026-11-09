@@ -10,3 +10,7 @@ python-multipart==0.0.32
 python-slugify==8.0.4
 SQLAlchemy==2.0.51
 aiosqlite==0.22.1
+ntplib==0.4.0
+paho-mqtt==2.2.0
+pytz==2026.6
+scipy==1.18.1

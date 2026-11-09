@@ -54,6 +54,8 @@ import { tsamIngestionConfig } from "@/features/pipeline-editor/nodes/TsamIngest
 import { tsamOutputConfig } from "@/features/pipeline-editor/nodes/TsamOutputNode.config.ts";
 import { tsamUdfConfig } from "@/features/pipeline-editor/nodes/TsamUdfNode.config.ts";
 import { proximityTriggerConfig } from "@/features/pipeline-editor/nodes/custom/ProximityTriggerNode.config.ts";
+import { sscapeTimestampCaptureConfig } from "@/features/pipeline-editor/nodes/custom/SscapeTimestampCaptureNode.config.ts";
+import { sscapePostInferenceDataPublishConfig } from "@/features/pipeline-editor/nodes/custom/SscapePostInferenceDataPublishNode.config.ts";
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 import type { Pipeline } from "@/api/api.generated";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
@@ -124,6 +126,10 @@ const nodeTypeToTag: Record<string, string> = {
   gvafpscounter: "Counter",
   gvaproximitytrigger_py: "Trigger",
 
+  // SceneScape
+  sscape_timestamp_capture: "Timestamp",
+  sscape_post_inference_data_publish: "Publisher",
+
   // Video Processing
   videoconvert: "Converter",
   videoconvertscale: "Transform",
@@ -184,6 +190,10 @@ const getNodeConfig = (nodeType: string): NodeConfig | null => {
       return gvaDetectConfig;
     case "gvaproximitytrigger_py":
       return proximityTriggerConfig;
+    case "sscape_timestamp_capture":
+      return sscapeTimestampCaptureConfig;
+    case "sscape_post_inference_data_publish":
+      return sscapePostInferenceDataPublishConfig;
     case "multifilesink":
       return multiFileSinkConfig;
     case "filesink":
