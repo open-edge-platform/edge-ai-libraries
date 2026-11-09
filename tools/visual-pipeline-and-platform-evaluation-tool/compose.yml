@@ -241,8 +241,9 @@ services:
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       WEB_SERVER_LOG_LEVEL: ${WEB_SERVER_LOG_LEVEL:-WARNING}
       GST_DEBUG: "1"
-      # Custom Python elements shipped with VIPPET (vippet/gst_plugins/python/),
-      # copied by vippet-plugins; the server's run.sh appends this to GST_PLUGIN_PATH.
+      # Custom elements shipped with VIPPET (vippet/gst_plugins/: Python elements
+      # and the Aravis plugin), copied by vippet-plugins; the server's run.sh
+      # appends this to GST_PLUGIN_PATH.
       ADDITIONAL_GST_PLUGIN_PATH: /opt/vippet/gst_plugins
       # The server's per-instance metrics (OTLP/JSON into metrics-manager). VIPPET
       # reads the latency and VLM series of its own instances from metrics-manager;
@@ -325,10 +326,12 @@ services:
       - MTX_WEBRTCADDRESS=:8889
       - MTX_RTSPADDRESS=:8554
       - MTX_WEBRTCADDITIONALHOSTS=${HOST_IPS}
+      - MTX_WEBRTCLOCALTCPADDRESS=:8189
     ports:
       - "8554:8554"     # RTSP
       - "8889:8889"     # WebRTC signaling/HTTP
       - "8189:8189/udp" # WebRTC/ICE UDP
+      - "8189:8189/tcp"
     restart: unless-stopped
   sensor-manager:
     image: docker.io/intel/sensor-manager:${DOCKER_TAG}

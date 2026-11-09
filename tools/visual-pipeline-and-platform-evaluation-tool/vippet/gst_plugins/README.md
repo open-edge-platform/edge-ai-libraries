@@ -11,8 +11,18 @@ loaded by DL Streamer Pipeline Server 2.0, which runs every pipeline.
 gst_plugins/
 ├── python/                 # Python-based elements (loaded by libgstpython.so)
 │   └── <element_name>.py   # Each file exports __gstelementfactory__
+├── aravis/                 # Added at image build time (vippet/Dockerfile), not in git
+│   ├── libgstaravis.0.8.so # Aravis plugin (aravissrc), RUNPATH=$ORIGIN
+│   └── libaravis-0.8.so.0  # Its library, absent from the server image
 └── README.md
 ```
+
+The Aravis plugin (`aravissrc`, GigE Vision cameras) is taken from the Ubuntu
+24.04 `libaravis-0.8-0` package in the `aravis` stage of `vippet/Dockerfile`,
+because the DL Streamer Pipeline Server 2.0 image does not include it. Its
+RUNPATH is set to `$ORIGIN`, so it finds `libaravis` next to it without
+changes to the server's `LD_LIBRARY_PATH`. It needs a server image on the same
+base as `vippet`.
 
 ## How discovery works
 

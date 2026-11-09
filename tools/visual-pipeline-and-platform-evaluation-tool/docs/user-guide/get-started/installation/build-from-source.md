@@ -158,10 +158,10 @@ See [Known limitations of pipeline execution on DL Streamer Pipeline Server 2.0]
 
 ## Optional: stream from GigE Vision cameras
 
-> [!NOTE]
-> GigE Vision camera pipelines are not supported for now: the DL Streamer Pipeline Server 2.0 image does not
-> include the Aravis GStreamer plugin (`aravissrc`), so such pipelines fail validation. See
-> [Known limitations](../../troubleshooting.md#16-known-limitations-of-pipeline-execution-on-dl-streamer-pipeline-server-20).
+The DL Streamer Pipeline Server 2.0 image does not include the Aravis GStreamer plugin (`aravissrc`), so
+the `vippet` image ships it with the custom elements in `vippet/gst_plugins/`, and the server loads it from the
+`vippet-gst-plugins` volume. See
+[Known limitations](../../troubleshooting.md#16-known-limitations-of-pipeline-execution-on-dl-streamer-pipeline-server-20).
 
 The `GIGE=1` flag runs the `dlstreamer-pipeline-server` container with host networking, which GigE Vision
 streaming needs:

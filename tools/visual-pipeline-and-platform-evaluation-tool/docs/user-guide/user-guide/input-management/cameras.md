@@ -74,12 +74,11 @@ configuration; change it with the camera vendor's tools if needed.
 
 ### Streaming from GigE Vision cameras
 
-> [!NOTE]
-> Streaming from GigE Vision cameras is not supported for now. Pipelines run on DL Streamer Pipeline
-> Server 2.0, and its image does not include the Aravis GStreamer plugin yet, so a pipeline with a
-> GigE Vision camera (`aravissrc`) fails validation with an unknown element. Camera discovery is not
-> affected. See
-> [Known limitations](../../troubleshooting.md#16-known-limitations-of-pipeline-execution-on-dl-streamer-pipeline-server-20).
+Pipelines run on DL Streamer Pipeline Server 2.0, whose image does not include the Aravis GStreamer
+plugin (`aravissrc`). ViPPET ships the plugin with its custom elements, and the server loads it from
+the `vippet-gst-plugins` volume. The plugin comes from the `vippet` image (Ubuntu 24.04), so it works
+with a server image on the same base, which the default deployment provides. See
+[Known limitations](../../troubleshooting.md#16-known-limitations-of-pipeline-execution-on-dl-streamer-pipeline-server-20).
 
 GigE Vision cameras send video as UDP packets directly to the receiving host. The default ViPPET
 deployment runs on a Docker bridge network, which cannot receive these packets, so streaming from

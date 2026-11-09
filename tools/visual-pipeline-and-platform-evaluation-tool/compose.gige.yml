@@ -8,9 +8,9 @@
 # discovery works without this overlay, because sensor-manager always uses host
 # networking.
 #
-# Note: the published and source-built DLSPS 2.0 images do not include the
-# Aravis GStreamer plugin yet, so aravissrc pipelines fail validation until they
-# do. See the user guide.
+# The DLSPS 2.0 image does not include the Aravis GStreamer plugin: the server
+# loads aravissrc from the vippet-gst-plugins volume, which the vippet image
+# fills (vippet/Dockerfile, aravis stage). See the user guide.
 #
 # Usage: make build run GIGE=1
 #   (or: docker compose -f compose.yml -f compose.$COMPOSE_PROFILES.yml -f compose.gige.yml up -d)
