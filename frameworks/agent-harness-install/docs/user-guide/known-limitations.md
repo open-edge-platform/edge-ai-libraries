@@ -112,9 +112,9 @@ For sandbox setup, architecture and lifecycle guidance, see
 - OVMS runs as the fixed UID 5000 and must read the models directory. After
   each export or download the installer runs `chmod -R o+rX` on it, so models
   created under a restrictive umask (for example `077`) are still loadable.
-  This makes the models world-readable on the host. The step is skipped, with
-  a warning, if the directory resolves to `/`, `$HOME` or a parent of `$HOME`,
-  and files owned by another user are reported with the `sudo chmod` to run.
+  The step is skipped, with a warning, if the directory resolves to `/`,
+  `$HOME` or a parent of `$HOME`, and files owned by another user are
+  reported with the `sudo chmod` to run.
 - `./install.sh models ...` and `onboard` need Node.js. When `node` is not on
   `PATH` (for example a non-login shell), they load nvm and select
   `HARNESS_NODE_VERSION`. If Node.js is still missing they warn that results
