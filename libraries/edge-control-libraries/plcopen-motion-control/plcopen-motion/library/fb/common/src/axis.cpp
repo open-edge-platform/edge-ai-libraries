@@ -498,10 +498,14 @@ void Axis::addFBToQueue(FbAxisNode* fb, MC_MOTION_MODE mode)
                             fb->getJerk(), fb->getBufferMode(), mcRuckig);
       break;
     case mcMoveVelocityMode:
+    case mcStopMode:
+      (*it_).setBasicParams(fb, mode, NAN, fb->getVelocity(),
+                            fb->getAcceleration(), fb->getDeceleration(),
+                            fb->getJerk(), fb->getBufferMode(), mcRuckig);
+      break;
     case mcGearInMode:
     case mcSyncOutMode:
     case mcHaltMode:
-    case mcStopMode:
       (*it_).setBasicParams(fb, mode, NAN, fb->getVelocity(),
                             fb->getAcceleration(), fb->getDeceleration(),
                             fb->getJerk(), fb->getBufferMode(), mcOffLine);
@@ -568,7 +572,15 @@ mcBOOL Axis::statusHealthy()
   // Check axis error and power status
   if (axis_error_ || power_status_ == mcFALSE)
   {
+    motion_kernel_.abortCurSupMoveFB();
     motion_kernel_.setAllFBsAborted();
+    axis_superimposed_enable_ = mcFALSE;
+    axis_sup_pos_cmd_ = axis_sup_vel_cmd_ = axis_sup_acc_cmd_ = 0.0;
+    axis_sup_move_covered_pos_ = axis_sup_move_total_covered_pos_ = 0.0;
+    // An empty kernel leaves cached commands untouched. Do not restore the
+    // interrupted trajectory's derivatives when power or health returns.
+    axis_underlying_vel_cmd_ = axis_underlying_acc_cmd_ = 0.0;
+    axis_vel_cmd_ = axis_acc_cmd_ = 0.0;
     DEBUG_PRINT("Axis::statusHealthy axis_error_: 0x%X\n", axis_error_);
     return mcFALSE;
   }

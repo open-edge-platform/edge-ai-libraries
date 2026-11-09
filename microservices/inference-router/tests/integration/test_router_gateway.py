@@ -700,8 +700,8 @@ def test_parallel_requests_handled_independently(
 	*its own* token. Also verifies the metrics counter records every request,
 	so admission control isn't silently dropping any.
 
-	Concurrency below the gateway's ``max_concurrency`` cap (default 3) so all
-	three requests should run in parallel and succeed; a separate test would
+	Three requests stay below any reasonable ``max_concurrency`` cap (default
+	unlimited) so all should run in parallel and succeed; a separate test would
 	be needed to exercise the 429 overflow path.
 	"""
 	gateway_client.reset_stats()

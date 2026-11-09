@@ -38,6 +38,10 @@ logger = logging.getLogger(__name__)
 _COVERAGE_EXCLUDED_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
         # Example: ("POST", "/cameras/{camera_id}/profiles"),  # Requires a physical network camera.
+        # Temporary exclusion for experimental timeseries PoC.
+        # TODO: remove once the PoC is integrated into the standard test setup
+        ("GET", "/timeseries/data"),
+        ("GET", "/timeseries/ingestion/stream"),
     }
 )
 

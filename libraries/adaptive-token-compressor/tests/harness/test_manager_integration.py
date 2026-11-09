@@ -1,7 +1,6 @@
 """Manager + Aggregator + HarnessCompressor end-to-end integration.
 
-Mirrors the public-API usage from `ttt.py` (router-side client code) but
-limited to the harness compressor:
+Exercises the public API with the harness compressor:
 
   mgr = CompressionManager(...)
   hp = mgr.register_compressor("harness", HarnessCompressor(...))
@@ -12,7 +11,7 @@ limited to the harness compressor:
   mgr.snapshot()
 
 These tests exercise the real wiring (no monkeypatch on manager / aggregator)
-and only stub the lingua HTTP backend so they run without a server.
+and only stub the compress-server HTTP backend so they run without a server.
 """
 from __future__ import annotations
 
@@ -40,7 +39,7 @@ from adaptive_token_compressor.harness import HarnessCompressor
 class FakeBackend:
     """Stable fake: keeps first 1/3 of text + a tag so tokens drop predictably."""
 
-    cache_tag = "lingua"
+    cache_tag = "token_prune"
 
     def __init__(self, suffix: str = " [c]") -> None:
         self._suffix = suffix

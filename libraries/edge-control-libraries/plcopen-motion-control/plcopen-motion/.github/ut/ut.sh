@@ -2,7 +2,7 @@
 
 cd build/test
 
-test_list=("function_block_test" "online_scurve_test" "offline_scurve_test" "planner_test")
+test_list=("function_block_test" "mc_stop_blending_test" "online_scurve_test" "offline_scurve_test" "planner_test")
 
 for program in "${test_list[@]}"; do
   ./$program

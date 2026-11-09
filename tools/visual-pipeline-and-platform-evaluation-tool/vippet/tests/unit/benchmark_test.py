@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 import api.api_schemas as schemas
+from api.routes.benchmarks import run_benchmark_suite
 from benchmark import (
     Benchmark,
     BenchmarkResult,
@@ -519,6 +520,43 @@ class TestBenchmark(unittest.TestCase):
             self.assertTrue(result.streams_per_pipeline[1].id.startswith("__graph-"))
 
 
+class TestBenchmarkApiRoutes(unittest.TestCase):
+    @patch("api.routes.benchmarks.BenchmarkManager")
+    def test_run_benchmark_suite_returns_accepted_job_response(
+        self, mock_benchmark_manager_cls
+    ):
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.start_suite.return_value = "benchmark-job-123"
+        mock_benchmark_manager_cls.return_value = mock_manager_instance
+
+        response = run_benchmark_suite("manufacturing")
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(
+            json.loads(bytes(response.body)), {"job_id": "benchmark-job-123"}
+        )
+        mock_manager_instance.start_suite.assert_called_once_with("manufacturing")
+
+    @patch("api.routes.benchmarks.BenchmarkManager")
+    def test_run_benchmark_suite_returns_400_for_invalid_suite(
+        self, mock_benchmark_manager_cls
+    ):
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.start_suite.side_effect = ValueError(
+            "Benchmark suite with slug 'unknown' not found."
+        )
+        mock_benchmark_manager_cls.return_value = mock_manager_instance
+
+        response = run_benchmark_suite("unknown")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            json.loads(bytes(response.body)),
+            {"message": "Benchmark suite with slug 'unknown' not found."},
+        )
+        mock_manager_instance.start_suite.assert_called_once_with("unknown")
+
+
 class TestBenchmarkMetrics(unittest.TestCase):
     """Tests for benchmark metric extraction from collected metrics payloads."""
 
@@ -553,7 +591,7 @@ class TestBenchmarkMetrics(unittest.TestCase):
                                 {"engine": "video"},
                             ),
                             self._metric(
-                                "gpu_power",
+                                "gpu_power_power_w",
                                 10.0,
                                 {"type": "pkg_cur_power"},
                             ),
@@ -576,7 +614,7 @@ class TestBenchmarkMetrics(unittest.TestCase):
                                 {"engine": "video"},
                             ),
                             self._metric(
-                                "gpu_power",
+                                "gpu_power_power_w",
                                 12.0,
                                 {"type": "pkg_cur_power"},
                             ),
@@ -594,6 +632,43 @@ class TestBenchmarkMetrics(unittest.TestCase):
         self.assertEqual(metrics.media_usage(parsed_metrics), 35.0)
         self.assertEqual(metrics.power_usage(parsed_metrics), 11.0)
         self.assertEqual(metrics.latency_avg_ms(parsed_metrics), 15.0)
+
+    def test_power_usage_reads_only_package_power_from_native_collector(self):
+        parsed_metrics = metrics.parse_metrics_text(
+            json.dumps(
+                [
+                    {
+                        "metrics": [
+                            # Pre-2026.3.0 metrics-manager name; no longer emitted.
+                            self._metric("gpu_power", 99.0, {"type": "pkg_cur_power"}),
+                            self._metric(
+                                "gpu_power_power_w", 4.0, {"type": "gpu_cur_power"}
+                            ),
+                            self._metric(
+                                "gpu_power_power_w", 20.0, {"type": "pkg_cur_power"}
+                            ),
+                        ]
+                    }
+                ]
+            )
+        )
+
+        self.assertEqual(metrics.power_usage(parsed_metrics), 20.0)
+
+    def test_power_usage_returns_none_without_native_power_samples(self):
+        parsed_metrics = metrics.parse_metrics_text(
+            json.dumps(
+                [
+                    {
+                        "metrics": [
+                            self._metric("gpu_power", 9.0, {"type": "pkg_cur_power"})
+                        ]
+                    }
+                ]
+            )
+        )
+
+        self.assertIsNone(metrics.power_usage(parsed_metrics))
 
 
 class TestBenchmarkLatencyTracerMetrics(unittest.TestCase):

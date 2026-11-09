@@ -6,7 +6,7 @@
 # ==============================================================================
 #
 # Build, test, deploy, and manage the Chat Q&A application.
-# Supports OpenVINO and Ollama backends with CPU/GPU deployment modes.
+# Supports OpenVINO and Ollama backends.
 #
 # Quick Start:
 #   make help          - Show all available commands
@@ -17,7 +17,6 @@
 #
 # Configuration:
 #   BACKEND                    - OPENVINO (default) or OLLAMA
-#   DEVICE                     - CPU (default) or GPU (OpenVINO only)
 #   HUGGINGFACEHUB_API_TOKEN   - Optional for OpenVINO backend (only public models accessible without it)
 #
 # ==============================================================================
@@ -40,8 +39,7 @@ NODE_VERSION := 22
 
 DEFAULT_REGISTRY := intel/
 DEFAULT_UI_TAG := core_1.3.3
-DEFAULT_BACKEND_TAG := core_1.3.3
-DEFAULT_GPU_TAG := core_gpu_1.3.3
+DEFAULT_BACKEND_TAG := core_gpu_1.3.3
 DEFAULT_OLLAMA_TAG := core_ollama_1.3.3
 
 # ==============================================================================
@@ -61,12 +59,10 @@ backend_DOCKERFILE := ./docker/Dockerfile
 # Deployment Configuration
 # ==============================================================================
 
-DEVICE ?= CPU
 BACKEND ?= OPENVINO
 REGISTRY ?= $(DEFAULT_REGISTRY)
 UI_TAG ?= $(DEFAULT_UI_TAG)
 
-DEVICE_UPPER := $(shell echo $(DEVICE) | tr '[:lower:]' '[:upper:]')
 BACKEND_UPPER := $(shell echo $(BACKEND) | tr '[:lower:]' '[:upper:]')
 
 # ==============================================================================
@@ -146,16 +142,10 @@ deploy:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@if [ "$(BACKEND_UPPER)" = "OLLAMA" ]; then \
 		echo "  BACKEND:      $(BACKEND_UPPER) (CPU only)"; \
-		echo "  DEVICE:       CPU"; \
 		BACKEND_TAG_COMPUTED="$${BACKEND_TAG:-$(DEFAULT_OLLAMA_TAG)}"; \
 	else \
 		echo "  BACKEND:      $(BACKEND_UPPER)"; \
-		echo "  DEVICE:       $(DEVICE_UPPER)"; \
-		if [ "$(DEVICE_UPPER)" = "GPU" ]; then \
-			BACKEND_TAG_COMPUTED="$${BACKEND_TAG:-$(DEFAULT_GPU_TAG)}"; \
-		else \
-			BACKEND_TAG_COMPUTED="$${BACKEND_TAG:-$(DEFAULT_BACKEND_TAG)}"; \
-		fi; \
+		BACKEND_TAG_COMPUTED="$${BACKEND_TAG:-$(DEFAULT_BACKEND_TAG)}"; \
 	fi; \
 	echo ""; \
 	echo "Images:"; \
@@ -185,11 +175,6 @@ deploy:
 		echo ""; \
 		VALIDATION_ERROR="true"; \
 	fi; \
-	if [ "$(BACKEND_UPPER)" = "OPENVINO" ] && [ "$(DEVICE_UPPER)" != "CPU" ] && [ "$(DEVICE_UPPER)" != "GPU" ]; then \
-		echo "❌ Invalid DEVICE '$(DEVICE_UPPER)'. Use CPU or GPU."; \
-		echo ""; \
-		VALIDATION_ERROR="true"; \
-	fi; \
 	if [ -n "$$VALIDATION_ERROR" ]; then \
 		exit 0; \
 	fi; \
@@ -206,11 +191,6 @@ deploy:
 			export UI_TAG="$${UI_TAG:-$(DEFAULT_UI_TAG)}"; \
 			export REGISTRY="$${REGISTRY:-$(DEFAULT_REGISTRY)}"; \
 			bash -c "source scripts/setup_env.sh -b ollama && docker compose -f docker/compose.yaml up -d"; \
-		elif [ "$(DEVICE_UPPER)" = "GPU" ]; then \
-			export BACKEND_TAG="$${BACKEND_TAG:-$(DEFAULT_GPU_TAG)}"; \
-			export UI_TAG="$${UI_TAG:-$(DEFAULT_UI_TAG)}"; \
-			export REGISTRY="$${REGISTRY:-$(DEFAULT_REGISTRY)}"; \
-			bash -c "source scripts/setup_env.sh -d gpu && docker compose -f docker/compose.yaml up -d"; \
 		else \
 			export BACKEND_TAG="$${BACKEND_TAG:-$(DEFAULT_BACKEND_TAG)}"; \
 			export UI_TAG="$${UI_TAG:-$(DEFAULT_UI_TAG)}"; \
@@ -231,10 +211,8 @@ deploy-build:
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		if [ "$(BACKEND_UPPER)" = "OLLAMA" ]; then \
 			echo "  BACKEND:   $(BACKEND_UPPER) (CPU only)"; \
-			echo "  DEVICE:    CPU"; \
 		else \
 			echo "  BACKEND:   $(BACKEND_UPPER)"; \
-			echo "  DEVICE:    $(DEVICE_UPPER)"; \
 		fi; \
 		if [ "$(BACKEND_UPPER)" = "OPENVINO" ]; then \
 			if [ -z "$${HUGGINGFACEHUB_API_TOKEN:-}" ]; then \
@@ -255,9 +233,6 @@ deploy-build:
 		if [ "$(BACKEND_UPPER)" != "OPENVINO" ] && [ "$(BACKEND_UPPER)" != "OLLAMA" ]; then \
 			echo "❌ Invalid BACKEND '\''$(BACKEND_UPPER)'\''. Use OPENVINO or OLLAMA."; \
 			exit 0; \
-		elif [ "$(BACKEND_UPPER)" = "OPENVINO" ] && [ "$(DEVICE_UPPER)" != "CPU" ] && [ "$(DEVICE_UPPER)" != "GPU" ]; then \
-			echo "❌ Invalid DEVICE '\''$(DEVICE_UPPER)'\''. Use CPU or GPU."; \
-			exit 0; \
 		else \
 			read -p "Proceed with deployment? [y/N]: " confirm; \
 			if [ "$$confirm" != "y" ] && [ "$$confirm" != "Y" ]; then \
@@ -269,8 +244,6 @@ deploy-build:
 				echo "→ Building and deploying..."; \
 				if [ "$(BACKEND_UPPER)" = "OLLAMA" ]; then \
 					source scripts/setup_env.sh -b ollama && docker compose -f docker/compose.yaml up -d --build; \
-				elif [ "$(DEVICE_UPPER)" = "GPU" ]; then \
-					source scripts/setup_env.sh -d gpu && docker compose -f docker/compose.yaml up -d --build; \
 				else \
 					source scripts/setup_env.sh && docker compose -f docker/compose.yaml up -d --build; \
 				fi; \
@@ -286,8 +259,6 @@ undeploy:
 	@echo "══════════════════════════════════════════════════"
 	@if [ "$(BACKEND_UPPER)" = "OLLAMA" ]; then \
 		bash -c "source scripts/setup_env.sh -b ollama 2>/dev/null || true && docker compose -f docker/compose.yaml down"; \
-	elif [ "$(DEVICE_UPPER)" = "GPU" ]; then \
-		bash -c "source scripts/setup_env.sh -d gpu 2>/dev/null || true && docker compose -f docker/compose.yaml down"; \
 	else \
 		bash -c "source scripts/setup_env.sh 2>/dev/null || true && docker compose -f docker/compose.yaml down"; \
 	fi
@@ -653,11 +624,10 @@ help:
 	@echo ""
 	@echo "  Environment Variables:"
 	@echo "    BACKEND                    OPENVINO (default) or OLLAMA"
-	@echo "    DEVICE                     CPU (default) or GPU (OpenVINO only)"
 	@echo "    HUGGINGFACEHUB_API_TOKEN   Optional for OpenVINO (only public models accessible without it)"
 	@echo "    REGISTRY                   Image registry (default: $(DEFAULT_REGISTRY))"
 	@echo "    UI_TAG                     UI image tag (default: $(DEFAULT_UI_TAG))"
-	@echo "    BACKEND_TAG                Backend image tag (auto-selected by BACKEND/DEVICE)"
+	@echo "    BACKEND_TAG                Backend image tag (auto-selected by BACKEND)"
 	@echo ""
 	@echo "CODE QUALITY & SECURITY"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -688,8 +658,8 @@ help:
 	@echo "  # Deploy with Ollama"
 	@echo "  BACKEND=OLLAMA make deploy"
 	@echo ""
-	@echo "  # Build and deploy with OpenVINO GPU"
-	@echo "  DEVICE=GPU make deploy-build"
+	@echo "  # Build and deploy with OpenVINO"
+	@echo "  make deploy-build"
 	@echo "  # (set HUGGINGFACEHUB_API_TOKEN for private/gated models)"
 	@echo "  # export HUGGINGFACEHUB_API_TOKEN=<token>"
 	@echo ""

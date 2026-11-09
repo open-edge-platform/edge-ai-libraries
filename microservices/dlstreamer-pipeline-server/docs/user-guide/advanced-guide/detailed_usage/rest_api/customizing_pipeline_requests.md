@@ -349,8 +349,10 @@ Steps for visualizing output over RTSP assuming Pipeline Server and your VLC cli
    The following parameters can be optionally used to customize the stream:
 
    - path (required): custom string to uniquely identify the stream
+   - encoding (default `mjpeg`): video codec used to encode the RTSP stream. Supported values are `mjpeg` and `h264`. See [H.264 RTSP Streaming](#h264-rtsp-streaming) below for details on the `h264` option.
    - cache-length (default 30): number of frames to buffer in rtsp pipeline.
-   - encoding-quality (default 85): jpeg encoding quality (0 - 100). Lower values increase compression but sacrifice quality.
+   - encoding-quality (default 85): jpeg encoding quality (0 - 100). Lower values increase compression but sacrifice quality. Only applies when `encoding` is `mjpeg`.
+   - encode-bitrate (default 4000000, i.e. 4 Mbps): target bitrate, in bits per second, used by the H.264 software encoder (`openh264enc`). Only applies when `encoding` is `h264` and the frame buffer is a regular system-memory buffer; ignored for GPU/VA-API buffers (see note below).
    - sync-with-source: rate limit processing pipeline to encoded frame rate (e.g. 30 fps). Can be set to either `true` or `false`.
    - sync-with-destination (default True): block processing pipeline if rtsp pipeline is blocked.
 
@@ -358,6 +360,49 @@ Steps for visualizing output over RTSP assuming Pipeline Server and your VLC cli
    > If the RTSP stream playback is choppy this may be due to
    > network bandwidth. Decreasing the encoding-quality or increasing the
    > cache-length can help.
+
+#### H.264 RTSP Streaming
+
+By default, RTSP frame destinations are encoded as MJPEG. To instead encode the stream as H.264 (lower bandwidth, broader downstream-client/recorder compatibility), set `"encoding": "h264"` in the `frame` destination block. This is opt-in and does not change the default behavior of existing pipeline requests that omit `encoding`.
+
+```bash
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
+'Content-Type: application/json' -d \
+'{
+    "source": {
+        "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
+        "type": "uri"
+    },
+    "destination": {
+        "metadata": {
+            "type": "file",
+            "format": "json-lines",
+            "path": "/tmp/results.jsonl"
+        },
+        "frame": {
+            "type": "rtsp",
+            "path": "pallet-defect-detection-h264",
+            "encoding": "h264",
+            "encode-bitrate": 4000000
+        }
+    },
+    "parameters": {
+        "detection-properties": {
+            "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
+            "device": "CPU"
+        }
+    }
+}'
+```
+
+View the stream the same way as MJPEG, with an RTSP client such as VLC, at `rtsp://localhost:8554/pallet-defect-detection-h264`.
+
+Encoder selection is automatic and depends on the memory type of the frames produced upstream:
+
+- System-memory buffers (e.g. `device: CPU`) use the software encoder `openh264enc`. `encode-bitrate` applies directly here, in bits/sec.
+- VASurface/DMABuf/VAMemory GPU buffers (e.g. `device: GPU`) use the hardware encoder `vah264enc` for better performance. `vah264enc`'s own bitrate property is in kbit/s rather than bits/sec, so `encode-bitrate` is intentionally **not** applied to it; it runs at its own default rate-control settings instead.
+
+If an unsupported value is passed for `encoding`, Pipeline Server logs a warning and falls back to `mjpeg`.
 
 ### WebRTC
 

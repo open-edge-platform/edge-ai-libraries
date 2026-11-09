@@ -51,6 +51,7 @@ public:
   void addSupMoveFB(ExecutionNode* node, mcLREAL current_pos,
                     mcLREAL current_vel, mcLREAL current_acc, mcLREAL end_acc);
 
+  // Abort and detach the overlay without replanning its underlying motion.
   void abortCurSupMoveFB();
 
   void getSupMoveCommands(mcLREAL* pos_cmd, mcLREAL* vel_cmd, mcLREAL* acc_cmd);

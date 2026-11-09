@@ -290,6 +290,11 @@ private:
 
   /* Sets Device Link Throughput Limit */
   bool setDeviceLinkThroughputLimit (void);
+
+#ifdef GENCAMSRC_ENABLE_HW_TIMESTAMP_META
+  /* Logs frame timestamp and attaches reference timestamp metadata */
+  void addReferenceTimestampMeta (GstBuffer * buf, guint64 timestampNS);
+#endif
 };
 
 #endif

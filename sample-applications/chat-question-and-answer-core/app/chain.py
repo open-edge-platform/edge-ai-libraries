@@ -1,17 +1,29 @@
 from .config import config
 from .document import load_file_document
 from .logger import logger
+from .openvino_xpu import PromptTooLongError
 from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
 from langchain_community.vectorstores import FAISS
+from langchain_core.documents import Document
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from starlette.concurrency import run_in_threadpool
+import anyio
+import contextlib
 import os
+import json
 import importlib
+import threading
 import pandas as pd
 
 vectorstore = None
+# Set from init_models() below; stays None when RUN_TEST bypasses model loading.
+llm = None
+
+# One OpenVINO infer request serves the LLM: generations must not overlap.
+_generation_lock = threading.Lock()
 
 # The RUN_TEST flag is used to bypass the model download and conversion steps during pytest unit testing.
 # If RUN_TEST is set to "True", the model download and conversion steps are skipped.
@@ -72,8 +84,8 @@ def get_retriever():
     else:
         retriever = vectorstore.as_retriever(
             search_kwargs={
-                "k": 3,
-                "fetch_k": fetch_k,
+                "k": config.RETRIEVAL_K,
+                "fetch_k": max(fetch_k, 2 * config.RETRIEVAL_K),
             },
             search_type=search_method
         )
@@ -97,9 +109,9 @@ def build_chain(retriever=None):
     """
 
     if retriever:
-        context = retriever | (
-            lambda docs: "\n\n".join(doc.page_content for doc in docs)
-        )
+        def context(query):
+            docs = fit_documents(retriever.invoke(query), query, plain_context)
+            return plain_context(docs)
     else:
         context = default_context
 
@@ -128,6 +140,346 @@ async def process_query(chain=None, query: str = ""):
 
     async for chunk in chain.astream(query):
         yield f"data: {chunk}\n\n"
+
+
+def retrieve_documents(query: str):
+    """
+    Retrieves the context documents for a query, keeping their metadata.
+
+    The reranker returns new documents that carry only the index of the input document
+    (`id`) and a `relevance_score`, so the original metadata (`source`, `page`, ...) is
+    restored from the base retriever results.
+
+    Args:
+        query (str): The question text.
+
+    Returns:
+        list[Document]: Context documents in rank order, each with a `relevance_score`
+        in its metadata when reranking is enabled.
+    """
+
+    if vectorstore is None:
+        return []
+
+    base_retriever = vectorstore.as_retriever(
+        search_kwargs={
+            "k": config.RETRIEVAL_K,
+            "fetch_k": max(config._FETCH_K, 2 * config.RETRIEVAL_K),
+        },
+        search_type=config._SEARCH_METHOD,
+    )
+    candidates = base_retriever.invoke(query)
+
+    if not config._ENABLE_RERANK or not candidates:
+        return list(candidates)
+
+    reranker.top_n = config.RERANK_TOP_N
+    reranked = reranker.compress_documents(candidates, query)
+    results = []
+    for doc in reranked:
+        idx = doc.metadata.get("id")
+        original = candidates[idx] if isinstance(idx, int) and 0 <= idx < len(candidates) else doc
+        metadata = dict(original.metadata)
+        if "relevance_score" in doc.metadata:
+            metadata["relevance_score"] = float(doc.metadata["relevance_score"])
+        results.append(Document(page_content=original.page_content, metadata=metadata))
+
+    return results
+
+
+def format_labelled_context(docs) -> str:
+    """
+    Formats context documents as numbered sources `[S1]..[Sn]` for the prompt.
+
+    Args:
+        docs (list[Document]): Context documents in rank order.
+
+    Returns:
+        str: The labelled context string.
+    """
+
+    blocks = []
+    for n, doc in enumerate(docs, start=1):
+        header = f"[S{n}]"
+        source = os.path.basename(str(doc.metadata.get("source", "")))
+        if source:
+            header += f" {source}"
+        page = _page_label(doc.metadata)
+        if page is not None:
+            header += f", page {page}"
+        blocks.append(f"{header}\n{doc.page_content}")
+
+    return "\n\n".join(blocks)
+
+
+def _page_label(metadata: dict):
+    if metadata.get("page_label") not in (None, ""):
+        return str(metadata["page_label"])
+    if isinstance(metadata.get("page"), int):
+        return str(metadata["page"] + 1)
+    return None
+
+
+def build_sources(docs) -> list:
+    """
+    Builds the `sources` list returned with an answer.
+
+    Args:
+        docs (list[Document]): Context documents in the same order as in the prompt.
+
+    Returns:
+        list[dict]: One entry per source with `id` (S1..Sn), `source` (file name),
+        `page` (0-based, as set by the loader, or None), `page_label`, `snippet` and
+        `relevance_score` (None when reranking is disabled).
+    """
+
+    sources = []
+    for n, doc in enumerate(docs, start=1):
+        page = doc.metadata.get("page")
+        score = doc.metadata.get("relevance_score")
+        sources.append(
+            {
+                "id": f"S{n}",
+                "source": os.path.basename(str(doc.metadata.get("source", ""))),
+                "page": page if isinstance(page, int) else None,
+                "page_label": _page_label(doc.metadata),
+                "snippet": doc.page_content[: config.SOURCE_SNIPPET_CHARS],
+                "relevance_score": float(score) if score is not None else None,
+            }
+        )
+
+    return sources
+
+
+def build_answer_chain():
+    """
+    Builds the generation chain that takes a prepared `context` and `question`.
+
+    Returns:
+        A runnable mapping {"context", "question"} to the answer text.
+    """
+
+    return prompt | llm | StrOutputParser()
+
+
+def sse_data(chunk: str) -> str:
+    """
+    Encodes a text chunk as one SSE event, with one `data:` line per text line, so
+    that newlines inside the chunk survive standard SSE parsing. Empty chunks are skipped.
+    """
+
+    if not chunk:
+        return ""
+
+    return "".join(f"data: {line}\n" for line in chunk.split("\n")) + "\n"
+
+
+def _is_genai() -> bool:
+    # GenAILLM (LLM on NPU) streams through a callback instead of an HF pipeline.
+    return hasattr(llm, "stream_text")
+
+
+def _render_prompt(docs, query: str, format_context=format_labelled_context) -> str:
+    # Same text as `prompt | llm` sends (ChatPromptValue.to_string()).
+    return prompt.invoke({"context": format_context(docs), "question": query}).to_string()
+
+
+def _prompt_limit():
+    limit = getattr(llm, "max_prompt_tokens", None)
+    return limit if isinstance(limit, int) and limit > 0 else None
+
+
+def plain_context(docs) -> str:
+    """Joins context documents without source labels (the default `/chat` context)."""
+
+    return "\n\n".join(doc.page_content for doc in docs)
+
+
+def fit_documents(docs, query: str, format_context=format_labelled_context):
+    """
+    Drops the lowest-ranked context documents until the rendered prompt fits the LLM
+    prompt limit (`max_prompt_tokens`, set for the LLM on NPU). Without a limit the
+    documents are returned unchanged.
+    """
+
+    limit = _prompt_limit()
+    if limit is None:
+        return docs
+
+    docs = list(docs)
+    while docs and llm.count_tokens(_render_prompt(docs, query, format_context)) > limit:
+        logger.warning(f"Prompt exceeds {limit} tokens; dropping context chunk {len(docs)}.")
+        docs.pop()
+
+    return docs
+
+
+def check_prompt_fits(query: str) -> None:
+    """
+    Raises PromptTooLongError when the question does not fit the LLM prompt limit even
+    without context, so the request can be rejected before any response is sent.
+    """
+
+    limit = _prompt_limit()
+    if limit is None:
+        return
+
+    tokens = llm.count_tokens(_render_prompt([], query))
+    if tokens > limit:
+        raise PromptTooLongError(
+            f"The question needs {tokens} prompt tokens; the LLM on this device accepts at most {limit}."
+        )
+
+
+def retrieval_query(query: str) -> str:
+    """
+    Returns the text used for retrieval. With RETRIEVAL_TRANSLATE_PROMPT set (a template
+    with a `{question}` placeholder), the LLM first rewrites the question, for example
+    into English for an English-only embedding model; the answer still uses `query`.
+    """
+
+    template = config.RETRIEVAL_TRANSLATE_PROMPT
+    if not template or not (hasattr(llm, "pipeline") or _is_genai()):
+        return query
+
+    with _generation_lock:
+        try:
+            if _is_genai():
+                generated = llm.generate_text(template.replace("{question}", query), max_new_tokens=64)
+            else:
+                out = llm.pipeline(
+                    template.replace("{question}", query),
+                    max_new_tokens=64,
+                    do_sample=False,
+                    return_full_text=False,
+                )
+                generated = out[0]["generated_text"]
+        except PromptTooLongError as exc:
+            logger.warning(f"Retrieval query rewrite skipped: {exc}")
+            return query
+    lines = [line.strip() for line in str(generated).splitlines() if line.strip()]
+
+    return lines[0] if lines else query
+
+
+def answer_with_sources(query: str):
+    """
+    Answers a query with labelled context and returns the sources used.
+
+    Args:
+        query (str): The question text.
+
+    Returns:
+        tuple[str, list[dict]]: The answer text and the sources.
+    """
+
+    docs = fit_documents(retrieve_documents(retrieval_query(query)), query)
+    with _generation_lock:
+        answer = build_answer_chain().invoke(
+            {"context": format_labelled_context(docs), "question": query}
+        )
+
+    return answer, build_sources(docs)
+
+
+def _generate(prompt_text: str, streamer, cancel: threading.Event, errors: list) -> None:
+    try:
+        while not _generation_lock.acquire(timeout=0.1):
+            if cancel.is_set():
+                return
+        try:
+            if cancel.is_set():
+                return
+            elif _is_genai():
+                llm.stream_text(
+                    prompt_text, on_text=streamer.put, cancel=cancel, max_new_tokens=config.MAX_TOKENS
+                )
+            else:
+                from transformers import StoppingCriteria, StoppingCriteriaList
+
+                class Cancelled(StoppingCriteria):
+                    def __call__(self, input_ids, scores, **kwargs):
+                        return cancel.is_set()
+
+                llm.pipeline(
+                    prompt_text,
+                    streamer=streamer,
+                    stopping_criteria=StoppingCriteriaList([Cancelled()]),
+                    max_new_tokens=config.MAX_TOKENS,
+                    return_full_text=False,
+                )
+        finally:
+            _generation_lock.release()
+    except Exception as exc:
+        errors.append(exc)
+    finally:
+        # Unblocks the consumer also when generation failed or never started.
+        streamer.end()
+
+
+async def stream_answer(prompt_text: str):
+    """
+    Streams LLM text for a rendered prompt. Generation stops at the next token when the
+    consumer goes away (client disconnect), so the next request does not find the
+    infer request busy.
+    """
+
+    if _is_genai():
+        from .openvino_xpu import TextQueue
+
+        streamer = TextQueue()
+    else:
+        from transformers import TextIteratorStreamer
+
+        streamer = TextIteratorStreamer(
+            llm.pipeline.tokenizer, timeout=None, skip_prompt=True, skip_special_tokens=True
+        )
+    cancel = threading.Event()
+    errors: list = []
+    threading.Thread(
+        target=_generate, args=(prompt_text, streamer, cancel, errors), daemon=True
+    ).start()
+    try:
+        while True:
+            # Abandoned on cancellation (client disconnect); streamer.end() unblocks the thread.
+            chunk = await anyio.to_thread.run_sync(next, streamer, None, abandon_on_cancel=True)
+            if chunk is None:
+                break
+            yield chunk
+    finally:
+        cancel.set()
+
+    if errors:
+        raise errors[0]
+
+
+async def process_query_with_sources(query: str = ""):
+    """
+    Streams an `event: sources` frame first, then the answer with labelled context.
+
+    Yields:
+        str: SSE frames. The first frame is `event: sources` with `{"sources": [...]}`
+        as JSON data; token frames use standard multi-line `data:` encoding.
+    """
+
+    retrieval_q = await run_in_threadpool(retrieval_query, query)
+    docs = await run_in_threadpool(retrieve_documents, retrieval_q)
+    docs = await run_in_threadpool(fit_documents, docs, query)
+    yield f"event: sources\ndata: {json.dumps({'sources': build_sources(docs)})}\n\n"
+
+    inputs = {"context": format_labelled_context(docs), "question": query}
+    if hasattr(llm, "pipeline") or _is_genai():
+        # Same text as `prompt | llm` sends (ChatPromptValue.to_string()).
+        chunks = stream_answer(prompt.invoke(inputs).to_string())
+    else:
+        chunks = build_answer_chain().astream(inputs)
+
+    # Closes the inner generator (and cancels generation) as soon as the client goes away.
+    async with contextlib.aclosing(chunks):
+        async for chunk in chunks:
+            frame = sse_data(chunk)
+            if frame:
+                yield frame
 
 
 def create_faiss_vectordb(file_path: str = "", chunk_size=1000, chunk_overlap=200):

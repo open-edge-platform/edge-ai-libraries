@@ -1,10 +1,16 @@
 {
-  "profile": { "label": "Computer Vision", "value": "computer_vision", "installAll": true },
+  "profile": {
+    "label": "Computer Vision",
+    "value": "computer_vision",
+    "installAll": true,
+    "remove": true,
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
   "modules": [
-    { "label": "DL Streamer", "value": "dlstreamer" },
-    { "label": "ViPPET", "value": "vippet", "startStop": true },
-    { "label": "Intel Geti", "value": "geti", "startStop": true },
-    { "label": "Anomalib", "value": "anomalib" }
+    { "label": "DL Streamer", "value": "dlstreamer", "remove": true },
+    { "label": "ViPPET", "value": "vippet", "startStop": true, "remove": true },
+    { "label": "Intel Geti", "value": "geti", "startStop": true, "remove": true },
+    { "label": "Anomalib", "value": "anomalib", "remove": true }
   ],
   "install": {
     "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"

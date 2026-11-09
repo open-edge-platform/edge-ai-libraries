@@ -1,6 +1,7 @@
 import logging, os, sys
 import yaml
 from typing import Tuple
+from utils.asr_pool_config import POOL_PREVIEW, preview_differs_from_final, resolve_pool_config
 from utils.config_loader import config
 from utils.cli_utils import run_cli
 logger = logging.getLogger(__name__)
@@ -419,7 +420,41 @@ def ensure_model():
     if provider == "openvino":
         output_dir = get_asr_model_path()
         weight_format = getattr(config.models.asr, "weight_format", None)
-        _download_openvino_model(f"openai/{config.models.asr.name}", output_dir, weight_format)
+        # config.models.asr.name may be a short OpenAI alias ("whisper-small",
+        # exported as "openai/whisper-small") or a full HF repo id containing
+        # "/" (e.g. "distil-whisper/distil-small.en") -- pass those through
+        # unchanged instead of forcing the openai/ prefix onto them.
+        hf_model_id = config.models.asr.name if "/" in config.models.asr.name else f"openai/{config.models.asr.name}"
+        _download_openvino_model(hf_model_id, output_dir, weight_format)
+        # The preview pool (see pipeline.py / config.models.asr.preview) may
+        # run a DIFFERENT model on a different device than the main/final asr
+        # config above -- export it too so it is cached before the pipeline's
+        # first preview call, instead of paying a cold HF export on the
+        # request path. get_asr_model_path()'s directory naming is keyed off
+        # the model name + weight_format, so this never collides with the
+        # main model's cache directory.
+        # Every key under models.asr.preview is optional (a deployment may set
+        # only `device:`), so resolve the whole block through the shared
+        # resolver rather than reading attributes that may not exist. When the
+        # preview pool resolves to the same model as the main config there is
+        # nothing extra to export.
+        if preview_differs_from_final():
+            preview_cfg = resolve_pool_config(POOL_PREVIEW)
+            if preview_cfg.provider == "openvino":
+                preview_output_dir = get_asr_model_path(
+                    model_name=preview_cfg.name, weight_format=preview_cfg.weight_format
+                )
+                preview_hf_model_id = (
+                    preview_cfg.name if "/" in preview_cfg.name else f"openai/{preview_cfg.name}"
+                )
+                _download_openvino_model(
+                    preview_hf_model_id, preview_output_dir, preview_cfg.weight_format
+                )
+            else:
+                logger.info(
+                    "Preview ASR pool uses the %s provider; skipping OpenVINO pre-export",
+                    preview_cfg.provider,
+                )
     elif provider == "whispercpp":
         if str(getattr(config.models.asr, "device", "CPU")).upper() != "CPU":
             logger.warning("whispercpp backend is CPU-only; ignoring configured device %s", config.models.asr.device)
@@ -502,19 +537,30 @@ def ensure_sentiment_model():
         raise ValueError(f"Unknown sentiment provider: {provider!r}")
 
 
-def get_asr_model_path() -> str:
+def get_asr_model_path(model_name: str | None = None, weight_format: str | None = None) -> str:
+    # Always the main provider: the preview pool is required to share it
+    # (enforced by validate_asr_preview_configuration at startup), so there is
+    # a single provider directory for both pools to resolve against.
     provider = config.models.asr.provider
-    if provider == "openvino":
-        weight_format = getattr(config.models.asr, "weight_format", None)
-    elif provider == "whispercpp":
-        weight_format = _normalize_whispercpp_weight_format(
-            config.models.asr.name,
-            getattr(config.models.asr, "weight_format", None),
-        )
-    else:
-        weight_format = None
+    name = model_name or config.models.asr.name
+    if weight_format is None:
+        # If `name` is the preview-pool override's model (see
+        # config.models.asr.preview / pipeline.py), use ITS weight_format,
+        # not the main/final config's -- the two pools' models can use
+        # different quantizations, and get_asr_model_path()'s caller (the
+        # runtime OVGenAIWhisper loader) has no other way to know which pool
+        # it's resolving for, only the model_name it was constructed with.
+        if preview_differs_from_final() and resolve_pool_config(POOL_PREVIEW).name == name:
+            weight_format = resolve_pool_config(POOL_PREVIEW).weight_format
+        if weight_format is None and provider == "openvino":
+            weight_format = getattr(config.models.asr, "weight_format", None)
+        elif weight_format is None and provider == "whispercpp":
+            weight_format = _normalize_whispercpp_weight_format(
+                name,
+                getattr(config.models.asr, "weight_format", None),
+            )
     return os.path.join(
         config.models.asr.models_base_path,
         provider,
-        _model_dir_name(config.models.asr.name, weight_format),
+        _model_dir_name(name, weight_format),
     )

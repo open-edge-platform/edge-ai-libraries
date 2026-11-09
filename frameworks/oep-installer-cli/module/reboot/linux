@@ -1,0 +1,33 @@
+
+configure_reboot () {
+  ensure_prop set reboot_requested true
+}
+
+install_reboot () {
+  [ "$(ensure_prop get reboot_requested)" = "true" ] || return 0
+
+  ensure_prop remove reboot_requested
+  subcommand_setup
+  [ -x "$installer_bin" ] || {
+    echo "Failed to find $installer_cli" >&2
+    return 3
+  }
+  [ -n "$(ensure_prop get command)" ] || {
+    echo "Nothing to resume? Reboot deferred!" >&2
+    return 3
+  }
+
+  local delay=2
+  echo "@@ATTENTION @@BR"
+  echo "@@ATTENTION SYSTEM REBOOT REQUIRED"
+  echo "@@ATTENTION @@BR"
+  echo "@@ATTENTION RERUN '$installer_name resume' AFTER SYSTEM IS BACK."
+  echo "@@ATTENTION @@BR"
+  echo "@@ATTENTION @@UNTIL +$(( delay * 60 )) Rebooting in %s (cancel: sudo shutdown -c)"
+  echo "@@ATTENTION @@BR"
+
+  echo "@@HIGHLIGHT RERUN $installer_name resume"
+  ensure_sudo shutdown -r +$delay &&
+  sleep infinity
+}
+

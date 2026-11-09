@@ -37,9 +37,9 @@
 
 set -euo pipefail
 
-COMPONENT="${1:?Usage: $0 <component> <os_like> <results_dir>}"
-OS_LIKE="${2:?Usage: $0 <component> <os_like> <results_dir>}"
-RESULTS_DIR="${3:?Usage: $0 <component> <os_like> <results_dir>}"
+COMPONENT="${1:?Usage: $0 <component> <os_family> <results_dir>}"
+OS_FAMILY="${2:?Usage: $0 <component> <os_family> <results_dir>}"
+RESULTS_DIR="${3:?Usage: $0 <component> <os_family> <results_dir>}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_SH="${SCRIPT_DIR}/platform-target.sh"
@@ -50,7 +50,7 @@ RESULTS_FILE="${RESULTS_DIR}/${COMPONENT}.results"
 : > "$RESULTS_FILE"
 
 # The module file path relative to the repo root (on the target)
-MODULE_FILE="module/${COMPONENT}/${OS_LIKE}"
+MODULE_FILE="module/${COMPONENT}/${OS_FAMILY}"
 
 # Keep track of whether teardown has already run (guard against double-execution)
 _teardown_done=false
@@ -180,14 +180,14 @@ _teardown () {
   echo "=== Teardown for ${COMPONENT} ==="
 
   # Attempt stop (ignore failure — may already be stopped)
-  if _has_function "${OS_LIKE}_[0-9][0-9]_stop_${COMPONENT}"; then
+  if _has_function "${OS_FAMILY}_[0-9][0-9]_stop_${COMPONENT}"; then
     "$TARGET_SH" exec \
       "./rendered/openedge-cli stop ${COMPONENT}" \
       >> "${RESULTS_DIR}/${COMPONENT}.teardown-stop.log" 2>&1 || true
   fi
 
   # Attempt remove (ignore failure)
-  if _has_function "${OS_LIKE}_[0-9][0-9]_remove_${COMPONENT}"; then
+  if _has_function "${OS_FAMILY}_[0-9][0-9]_remove_${COMPONENT}"; then
     "$TARGET_SH" exec \
       "./rendered/openedge-cli remove ${COMPONENT}" \
       >> "${RESULTS_DIR}/${COMPONENT}.teardown-remove.log" 2>&1 || true
@@ -224,9 +224,9 @@ has_start=false
 has_stop=false
 has_remove=false
 
-_has_function "${OS_LIKE}_[0-9][0-9]_start_${COMPONENT}"  && has_start=true  || has_start=false
-_has_function "${OS_LIKE}_[0-9][0-9]_stop_${COMPONENT}"   && has_stop=true   || has_stop=false
-_has_function "${OS_LIKE}_[0-9][0-9]_remove_${COMPONENT}" && has_remove=true || has_remove=false
+_has_function "${OS_FAMILY}_[0-9][0-9]_start_${COMPONENT}"  && has_start=true  || has_start=false
+_has_function "${OS_FAMILY}_[0-9][0-9]_stop_${COMPONENT}"   && has_stop=true   || has_stop=false
+_has_function "${OS_FAMILY}_[0-9][0-9]_remove_${COMPONENT}" && has_remove=true || has_remove=false
 
 echo "has_start=${has_start} has_stop=${has_stop} has_remove=${has_remove}"
 
@@ -293,7 +293,7 @@ if [ "$has_remove" = "true" ]; then
   # Use SYNC_DIR to match the path used by platform-target.sh; default matches
   # the target.sh default of /opt/oep-installer-cli.
   _step "verify-gone" \
-    "bash -c 'cd ${SYNC_DIR:-/opt/oep-installer-cli} && source module/${COMPONENT}/${OS_LIKE} && ! verify_${COMPONENT} 2>/dev/null'" \
+    "bash -c 'cd ${SYNC_DIR:-/opt/oep-installer-cli} && source module/${COMPONENT}/${OS_FAMILY} && ! verify_${COMPONENT} 2>/dev/null'" \
     || lifecycle_ok=false
 else
   _step_skip "remove"     "no remove function defined"

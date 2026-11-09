@@ -25,11 +25,10 @@ across the repo:
 | File | Field |
 |---|---|
 | `docker/.env` | `IMAGE_SUFFIX` (e.g. `"2026.2.0"`), `WEEKLY_BUILD_DATE` for dated dev builds |
-| `helm/values.yaml` | `images.image_suffix`, `images.weekly_build_date` |
-| `README-dockerhub.md` | New version section with Docker Compose + Helm deployment doc links (see existing entries for the exact format) |
+| `README-dockerhub.md` | New version section with Docker Compose deployment doc links (see existing entries for the exact format) |
 | `CHANGELOG.md` | New `## [YYYY.M]` heading |
 
-Docker Hub image tags and the Helm chart's `image_suffix` are expected to
+Docker Hub image tags and the Docker Compose `IMAGE_SUFFIX` are expected to
 match for a given release — check both when bumping, not just one.
 
 ## `Dockerfile` build args worth knowing before touching the image
@@ -38,7 +37,11 @@ match for a given release — check both when bumping, not just one.
 |---|---|---|
 | `KAPACITOR_VERSION` | 1.8.6 | Sparse git checkout of `influxdata/kapacitor` for the UDF agent lib; also the `.deb` version installed for the daemon — bump both together or they'll mismatch |
 | `PYTHON_VERSION` | 3.13 | Base image tag (`python:${PYTHON_VERSION}-slim`) |
-| `INSTALL_DRIVER_VERSION` | pinned in `scripts/install_gpu_drivers.sh` invocation | Intel GPU driver version |
+
+Intel GPU driver version (26.27.39122) is **not** a build arg — it's pinned
+via four shell variables (`IGC_RELEASE_TAG`, `IGC_DEB_VERSION`,
+`COMPUTE_RUNTIME_RELEASE_TAG`, `LIBIGDGMM_DEB_VERSION`) at the top of the
+driver-install `RUN` step in the `Dockerfile`; bump all four together.
 
 ## Dependency/security bumps
 

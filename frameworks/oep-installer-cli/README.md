@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Open Edge Platform (OEP) CLI Installer
 
 The **OEP CLI Installer** (`openedge-cli`) is a modular, self-contained shell
@@ -18,21 +23,21 @@ marketing segments. The table lists the profiles:
 
 | Profile | Description |
 | ------- | ------ |
-| `inferencing` | Core AI inferencing runtime |
 | `computer_vision` | Computer-vision pipelines, models, and runtimes | 
-| `metro_ai_suite` | City monitoring and traffic management |
+| `federal_and_aerospace_ai_suite_handheld` | Federal and Aerospace handheld platform, application, and deterministic threat detection |
+| `federal_and_aerospace_ai_suite_mission_decision_support` | Federal and Aerospace mission decision support blueprint and deterministic threat detection |
+| `federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle` | Federal and Aerospace uncrewed aerial vehicle platform and applications |
+| `health_and_life_science_ai_suite` | Patient and vitals monitoring || `inferencing` | Core AI inferencing runtime |
 | `manufacturing_ai_suite` | Industrial inspection and defect detection |
+| `metro_ai_suite` | City monitoring and traffic management |
 | `retail_ai_suite` | Retail buying-process monitoring |
 | `robotics_ai_suite` | Robotics and Physical AI workflows |
-| `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases |
-| `health_and_life_science_ai_suite` | Patient and vitals monitoring |
 
-> See [`module`](module) for the list of available modules.   
+> See [`modules`](module) or [`packages`](package) for the list of available modules.   
 
 ## Installation
 
-For simplicity, the OEP installer is presented as a single self-contained shell script (located at [`rendered/openedge-cli`](rendered/openedge-cli)) that can be 
-downloaded and then run in a shell environment. 
+For simplicity, the OEP installer is presented as a single self-contained shell script (located at [`rendered/openedge-cli`](rendered/openedge-cli)) that can be downloaded and then run in a shell environment. 
 
 - install components from a profile, or
 ```bash
@@ -47,7 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 <hr>
 
 > Prefer a guided experience? **[Open the OEP CLI Installer Web UI »](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)**
-> to pick a profile and module and copy the exact install command.
+> to pick one profile and one or more of its modules and copy the exact install command.
 
 <hr>
 
@@ -91,10 +96,11 @@ The OEP installer uses the following commandline options:
 Usage: openedge-cli <subcommand> [options] [modules/profiles] [module options] ...
 ```
 
-Multiple subcommands can be specified at once. They are executed in order:
+Multiple subcommands can be specified at once. They are executed in order and the component list from a previous command is passed to next:
 
 ```bash
-openedge-cli install smart_parking --gpu start smart_parking --gpu
+# install with --gpu, start, stop and then start again with --npu
+openedge-cli install smart_parking --gpu start stop start -npu
 ```
 
 The following global options are supported:
@@ -106,6 +112,7 @@ The following global options are supported:
 | `--validate` | Validate features after installation. |
 | `--reinstall` | Force to reinstall a component, if already installed. |
 | `--gpu`/`--npu`/`--cpu` | Select GPU/NPU/CPU device at the component level. |
+| `--docker`/`--k3s` | Select Docker or K3s deployment.
 
 To specify component specific options, insert a `--<component-name>` tag:
 
@@ -116,25 +123,57 @@ where `--gpu` applies to the smart_parking component.
 
 > Omit `--<component-name>` if there is only a single component or the specified options apply to all components.  
 
+The Federal and Aerospace profiles provide handheld, uncrewed aerial vehicle, and
+mission decision support blueprints, applications, and deterministic threat detection:
+
+```bash
+openedge-cli install federal_and_aerospace_ai_suite_handheld
+openedge-cli install federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle
+openedge-cli install federal_and_aerospace_ai_suite_mission_decision_support
+```
+
+The platform blueprints can also be installed independently:
+
+```bash
+openedge-cli install handheld_blueprint
+openedge-cli install uncrewed_aerial_vehicle_blueprint
+openedge-cli install mission_decision_support_blueprint
+```
+
+The UAV applications can be installed independently:
+
+```bash
+openedge-cli install uncrewed_aerial_vehicle_ground_station
+openedge-cli install uncrewed_aerial_vehicle_vision_analytics
+```
+
+For any of these blueprints, pass `--edgepack` to install the Intel Edge Pack
+components, including EP-IPU, EP-Manageability, and EP-TSN:
+
+```bash
+openedge-cli install handheld_blueprint --edgepack
+```
+
 ### List Profiles and Components
 
-Use the `list` subcommand to list all components and profiles 
+Use the `list` subcommand to list components and profiles properties:
 
 ```bash
-openedge-cli list
+openedge-cli list                          # list supported subcommands of all components
+openedge-cli list openvino                 # list supported subcommands of specific component(s)
+openedge-cli list --sbom computer_vision   # list installed system-level components
 ```
 
-### List SBOM
+> The `sbom` listing is limited to system-level installation only. 
 
-Use the `sbom` subcommand to discover what is installed by the OEP installer system wide. 
+### Installation Locations 
 
-```bash
-openedge-cli sbom computer_vision
-```
-
-> The listing is limited to system-level installation only.
-
-> User level installation is under `~/.local/open-edge-platform/<component-name>`.  
+The OEP installer installs the specified components under the following locations:
+- Any component workspace files under `~/.local/open-edge-platform/<component-name>`.  
+- Installation logs under `~/.local/open-edge-platform/openedge-cli/*.logs`.  
+- A replica of the OEP installer under `~/.local/bin`.  
+- A bash auto-completion script under `~/.local/share/bash-completion`.  
+- A `SKILL.md` under `~/.agents/skills/openedge-cli/SKILL.md`.    
 
 ### Bootstrapping
 
@@ -157,16 +196,24 @@ For bootstrapping with different modules/profiles, use the commands below:
 
 # install metro_ai_suite by default
 ./openedge-cli bootstrap --setup --install=metro_ai_suite metro_ai_suite -o rendered/openedge-cli-metro
+
+# include only the Federal and Aerospace profiles and their dependencies
+./openedge-cli bootstrap --family=debian \
+  federal_and_aerospace_ai_suite_handheld \
+  federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle \
+  federal_and_aerospace_ai_suite_mission_decision_support \
+  -o rendered/openedge-cli-federal-aerospace
 ```
 
 > Let `rendered/openedge-cli` be a reserved location for the full installer. If you generate a partial installer, save it other than `rendered/openedge-cli`. 
 
 > **Automated rendering.** You normally do not need to run `bootstrap` by hand. A GitHub
 > Actions workflow ([`oep-cli-render-on-merge.yml`](../../.github/workflows/oep-cli-render-on-merge.yml))
-> regenerates `rendered/openedge-cli` and commits it back automatically whenever the
+> regenerates the full installers and the Debian Federal and Aerospace partial installer,
+> then commits them back automatically whenever the
 > installer source (`openedge-cli`, `common/`, `license/`, `module/`, or `profile/`) changes
 > on `main` or a release branch — i.e. after a pull request is merged. The committed
-> `rendered/openedge-cli` therefore stays in sync with source without manual steps.
+> rendered installers therefore stay in sync with source without manual steps.
 
 ### Web UI Configuration
 

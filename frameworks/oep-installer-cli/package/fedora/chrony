@@ -1,0 +1,11 @@
+
+fedora_30_install_chrony () {
+  ensure_dnf_install_package chrony
+}
+
+# DONOTREMOVE
+
+fedora_30_sbom_chrony () {
+  ensure_sbom_format pkg-list chrony
+}
+

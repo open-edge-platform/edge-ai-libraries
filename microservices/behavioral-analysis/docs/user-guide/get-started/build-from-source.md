@@ -12,7 +12,7 @@ This guide explains how to build the Behavioral Analysis image and run it with t
 
 Model prerequisites:
 
-- YOLO-Pose OpenVINO IR model files (`.xml` and `.bin`) under `./models/yolo_models/yolo26n-pose/`
+- YOLO-Pose OpenVINO™ IR model files (`.xml` and `.bin`) under `./models/yolo_models/yolo26n-pose/`
 - If VLM is enabled, VLM model files under `./models/vlm_models/` (including OVMS model config)
 
 ## Repository Structure
@@ -104,7 +104,9 @@ For host execution without Docker, use the instructions to
 ## Run Tests
 
 ```bash
-source .venv/bin/activate
+python3 -m venv testenv
+source testenv/bin/activate
+pip install pytest requests numpy httpx opencv-python Pillow pytest-asyncio
 PYTHONPATH=src pytest tests/ -v
 ```
 

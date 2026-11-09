@@ -16,14 +16,19 @@
 #   --ui-port PORT            UI port (default: 7010; only with the UI)
 #
 # Environment:
-#   IR_BIND_HOST   Interface the router binds to. Standalone default: 127.0.0.1
-#                  (local-only). With the UI it defaults to the host LAN IP so
-#                  the UI container can reach the router. Export IR_BIND_HOST to
-#                  override (e.g. 0.0.0.0 to allow access from other machines).
+#   IR_BIND_HOST   Interface the router binds to. Default (both modes): 127.0.0.1
+#                  — reachable from localhost only; remote connections refused.
+#                  Export IR_BIND_HOST=0.0.0.0 to serve every interface (remote
+#                  *and* localhost), or a specific address to bind just that one.
+#                  The UI is independent: it listens on every interface and reaches
+#                  the router over host loopback, so it works even at the default.
 #   REGISTRY       Docker registry/namespace prefix for both images (default:
 #                  empty, i.e. use locally built images). Set e.g. REGISTRY=intel/
 #                  to pull prebuilt images from a remote registry instead.
 #   TAG            Image tag for both images (default: latest).
+#   GATEWAY_MAX_CONCURRENCY
+#                  Max concurrent in-flight requests; excess get HTTP 429.
+#                  Default: 0 (unlimited).
 #
 # With no REGISTRY set the deploy uses the local ${REGISTRY}inference-router:${TAG}
 # image (build it first with --build). When REGISTRY is set the image is pulled
@@ -94,27 +99,38 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# ---- Select compose file and resolve the router bind host per mode ----
+# ---- Resolve the router bind host ----
+# Secure by default in every mode: bind loopback so the router answers on
+# localhost only and refuses connections from other machines. Exporting
+# IR_BIND_HOST opts into remote access — set it to 0.0.0.0 to serve every
+# interface (reachable both remotely *and* via localhost), or to a specific
+# address to bind just that interface.
+if [ -n "$IR_BIND_HOST_RAW" ]; then
+    IR_BIND_HOST="$IR_BIND_HOST_RAW"
+else
+    IR_BIND_HOST="127.0.0.1"
+fi
+
+# ---- Select compose file (and, for the UI, where nginx reaches the router) ----
 if [ "$WITH_UI" = true ]; then
     COMPOSE_FILE="$COMPOSE_UI"
-    # The router runs with network_mode: host while the UI is on a bridge
-    # network, so the UI reaches the router via the host's LAN IP. Detect it and
-    # bind the router there (unless the operator overrode IR_BIND_HOST).
+    # The UI's nginx also runs with network_mode: host, so it reverse-proxies to
+    # the router over the shared host loopback -- the router stays local-only
+    # while the UI listens on every interface. Point nginx at an address the
+    # router actually listens on: loopback for the default / 0.0.0.0 binds, or
+    # the specific interface when IR_BIND_HOST names one.
+    case "$IR_BIND_HOST" in
+        0.0.0.0 | :: | 127.0.0.1 | localhost | ::1)
+            SERVER_HOST="127.0.0.1" ;;
+        *)
+            SERVER_HOST="$IR_BIND_HOST" ;;
+    esac
+    # Best-effort host LAN IP, only for the "open the UI at ..." hint printed below.
     HOST_IP="$(ip route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
     : "${HOST_IP:=$(hostname -I 2>/dev/null | awk '{print $1}')}"
-    if [ -z "$HOST_IP" ]; then
-        echo "Error: could not determine host IP for the UI to reach the router."
-        echo "Export IR_BIND_HOST and SERVER_HOST to a reachable address and re-run,"
-        echo "or deploy without the UI using --standalone."
-        exit 1
-    fi
-    IR_BIND_HOST="${IR_BIND_HOST_RAW:-$HOST_IP}"
-    SERVER_HOST="$HOST_IP"
+    : "${HOST_IP:=localhost}"
 else
     COMPOSE_FILE="$COMPOSE_STANDALONE"
-    # Loopback by default: the router is local-only unless the operator opts in
-    # to remote access by exporting IR_BIND_HOST=0.0.0.0 (or a LAN interface).
-    IR_BIND_HOST="${IR_BIND_HOST_RAW:-127.0.0.1}"
 fi
 
 # Pick a `docker compose` command (v2 plugin or legacy v1 binary).
@@ -167,17 +183,6 @@ if [ -z "${IR_OV_MODEL:-}" ]; then
     exit 1
 fi
 
-# Seed workspace with rsd policy/strategy defaults if the operator hasn't
-# provided overrides. The rsd module prefers workspace copies and falls back
-# to the bundled files under src/rsd, so this just surfaces them for editing.
-mkdir -p "$PROJECT_ROOT/workspace"
-for yaml_file in policy.yaml strategy.yaml; do
-    if [ ! -f "$PROJECT_ROOT/workspace/$yaml_file" ]; then
-        echo "workspace/$yaml_file not found; copying default from src/rsd"
-        cp "$PROJECT_ROOT/src/rsd/$yaml_file" "$PROJECT_ROOT/workspace/$yaml_file"
-    fi
-done
-
 mkdir -p "$PROJECT_ROOT/workspace/logs"
 
 # ---- Export environment for docker compose ----
@@ -186,6 +191,7 @@ export ROUTER_PORT
 export IR_BIND_HOST
 export GATEWAY_VERBOSE
 export GATEWAY_VERBOSE_FULL
+export GATEWAY_MAX_CONCURRENCY="${GATEWAY_MAX_CONCURRENCY:-0}"
 export IR_OV_MODEL
 # Image reference the compose file interpolates: ${REGISTRY}inference-router:${TAG}
 export REGISTRY
@@ -207,15 +213,27 @@ echo "  Compose file:     $COMPOSE_FILE"
 echo "  Image:            $IMAGE_REF"
 echo "  Bind host:        $IR_BIND_HOST"
 echo "  Port:             $ROUTER_PORT"
-[ "$IR_BIND_HOST" = "0.0.0.0" ] && echo "  Access:           EXPOSED to all interfaces (remote access enabled)"
+case "$IR_BIND_HOST" in
+    127.0.0.1 | localhost | ::1)
+        echo "  Access:           localhost only (remote refused)" ;;
+    0.0.0.0 | ::)
+        echo "  Access:           EXPOSED to all interfaces (remote access enabled)" ;;
+    *)
+        echo "  Access:           reachable at $IR_BIND_HOST (remote); localhost refused" ;;
+esac
 echo "  OV model:         $IR_OV_MODEL"
 echo "  OV device:        $IR_DEVICE"
 [ -n "$GATEWAY_VERBOSE" ]           && echo "  Verbose:          enabled"
 [ -n "$GATEWAY_VERBOSE_FULL" ]      && echo "  Verbose full:     enabled"
+if [ "$GATEWAY_MAX_CONCURRENCY" -gt 0 ] 2>/dev/null; then
+    echo "  Max concurrency:  $GATEWAY_MAX_CONCURRENCY"
+else
+    echo "  Max concurrency:  unlimited"
+fi
 if [ "$WITH_UI" = true ]; then
     echo "  UI image:         $UI_IMAGE_REF"
-    echo "  UI port:          $UI_PORT"
-    echo "  UI -> router:     http://$SERVER_HOST:$ROUTER_PORT"
+    echo "  UI port:          $UI_PORT (listens on all interfaces: local + remote)"
+    echo "  UI -> router:     http://$SERVER_HOST:$ROUTER_PORT (nginx proxy, host loopback)"
 else
     echo "  UI:               disabled (--standalone)"
 fi
@@ -259,6 +277,34 @@ else
     echo "Using local image: $IMAGE_REF"
 fi
 
+# ---- Seed workspace policy/strategy defaults from the router image ----
+# The rsd module prefers workspace copies and falls back to the files bundled
+# in the image, so this just surfaces them for editing. Copying from the image
+# (not the local checkout) keeps the seeded defaults matched to the router
+# version being deployed, including pulled images. The image's /app is hidden
+# by the workspace mount at runtime, so read it from a created (never started)
+# container, which has no mounts.
+IMAGE_RSD_DIR="/app/src/rsd"
+seed_rsd_defaults() {
+    local missing=() yaml_file cid
+    for yaml_file in policy.yaml strategy.yaml; do
+        [ -f "$PROJECT_ROOT/workspace/$yaml_file" ] || missing+=("$yaml_file")
+    done
+    [ ${#missing[@]} -eq 0 ] && return 0
+
+    cid="$(docker create "$IMAGE_REF")"
+    for yaml_file in "${missing[@]}"; do
+        echo "workspace/$yaml_file not found; copying default from image $IMAGE_REF"
+        if ! docker cp "$cid:$IMAGE_RSD_DIR/$yaml_file" "$PROJECT_ROOT/workspace/$yaml_file"; then
+            docker rm "$cid" >/dev/null
+            echo "Error: failed to copy $IMAGE_RSD_DIR/$yaml_file from $IMAGE_REF"
+            exit 1
+        fi
+    done
+    docker rm "$cid" >/dev/null
+}
+seed_rsd_defaults
+
 # ---- Obtain the UI image: same policy as the router image ----
 if [ "$WITH_UI" = true ]; then
     if [ "$FORCE_BUILD" = true ]; then
@@ -289,7 +335,7 @@ fi
 
 echo "Router started: http://$IR_BIND_HOST:$ROUTER_PORT"
 if [ "$WITH_UI" = true ]; then
-    echo "UI started:     http://$SERVER_HOST:$UI_PORT"
+    echo "UI started:     http://$HOST_IP:$UI_PORT  (also http://localhost:$UI_PORT)"
 fi
 echo "Logs:   ${COMPOSE[*]} logs -f router"
 echo "Stop:   bash $0 --down"

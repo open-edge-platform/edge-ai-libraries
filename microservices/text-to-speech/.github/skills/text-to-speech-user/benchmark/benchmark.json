@@ -1,0 +1,1193 @@
+{
+  "metadata": {
+    "skill_name": "text-to-speech-user",
+    "skill_path": ".github/skills/text-to-speech-user",
+    "executor_model": "claude-sonnet-5.5",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-10-21T10:06:38Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 51.4,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses POST /v1/audio/speech with a JSON body containing input.",
+          "passed": true,
+          "evidence": "curl -X POST http://127.0.0.1:8011/v1/audio/speech with -d '{\"input\": \"Welcome, please take a ticket.\", ...}'"
+        },
+        {
+          "text": "Uses port 8011 (not 8010 or 8000).",
+          "passed": true,
+          "evidence": "Default base URL: http://127.0.0.1:8011 (port 8011, not 8000/8080)"
+        },
+        {
+          "text": "Does not claim model is required \u2014 it defaults from config.models.tts.name and may be omitted; if included, notes it does not select the model.",
+          "passed": true,
+          "evidence": "\"`model` doesn't select a model... uses the model configured in config.yaml, so you can omit it.\""
+        },
+        {
+          "text": "Shows saving raw audio/wav bytes to a .wav file (response_format=wav, the default).",
+          "passed": true,
+          "evidence": "curl -o welcome.wav with response_format wav; Python writes resp.content to welcome.wav; notes wav is the default and returns raw audio/wav bytes"
+        },
+        {
+          "text": "Mentions the X-Session-ID response header.",
+          "passed": true,
+          "evidence": "\"The X-Session-ID response header is saved to headers.txt\"; Python uses resp.headers.get(\"X-Session-ID\")"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 23.8,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States the response includes default_speaker, supported_speakers, and default_language fields.",
+          "passed": true,
+          "evidence": "response.md JSON example and table list model, runtime, default_speaker, supported_speakers, default_language."
+        },
+        {
+          "text": "Notes default_language is a single string, not a list.",
+          "passed": true,
+          "evidence": "Table: \"`default_language` | A single string, not a list. It's `English`...\""
+        },
+        {
+          "text": "Notes supported_speakers is a list.",
+          "passed": true,
+          "evidence": "Table: \"`supported_speakers` | List of valid `voice` values.\"; JSON shows an array."
+        },
+        {
+          "text": "Does not claim the response uses speakers or languages as field names.",
+          "passed": true,
+          "evidence": "Opens with \"Don't look for `speakers` or `languages`\" and says to use the actual field names instead."
+        },
+        {
+          "text": "Uses port 8011 in any example given.",
+          "passed": true,
+          "evidence": "The response gives no curl or URL example, so no port is used incorrectly. This passes only vacuously; nothing shows 8011 was used."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 27.8,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that Kokoro does not reject an unsupported voice name the way SpeechT5 does.",
+          "passed": true,
+          "evidence": "\"The HTTP 400 you saw documented is SpeechT5 behavior... Kokoro does not reject unknown voices.\""
+        },
+        {
+          "text": "Explains Kokoro logs a warning server-side and silently substitutes the configured/default Kokoro voice (or af_heart, or the first available voice) instead of returning an error.",
+          "passed": true,
+          "evidence": "Table: \"No error. The backend logs a warning and substitutes a voice\"; fallback order default_speaker, af_heart, first available voice."
+        },
+        {
+          "text": "States this is model-dependent behavior, not a validation bug: SpeechT5 returns HTTP 400 for the same situation.",
+          "passed": true,
+          "evidence": "\"Validation is not broken.\" Table shows SpeechT5 -> HTTP 400, Kokoro -> no error."
+        },
+        {
+          "text": "Recommends GET /v1/audio/voices to confirm the active model and its supported_speakers before assuming a shared validation contract across models.",
+          "passed": true,
+          "evidence": "\"Check which model is deployed and which voices it supports: curl .../v1/audio/voices\"; it doesn't name the supported_speakers field, but the intent is met."
+        },
+        {
+          "text": "Does not claim this is unintended or something to report as broken.",
+          "passed": true,
+          "evidence": "Titled \"No \u2014 Kokoro is designed to behave this way\"; no suggestion to report a bug."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 24.6,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that input over 5000 characters is a schema validation failure caught by Pydantic before the endpoint body runs, returning HTTP 422, not 400.",
+          "passed": true,
+          "evidence": "\"Pydantic rejects a 6000-character string during schema validation, before the endpoint body runs.\" and \"returns 422\"."
+        },
+        {
+          "text": "Explains 400 is reserved for service-level checks (language, voice, instructions, device) raised as a ValueError inside the endpoint after the request already parsed successfully.",
+          "passed": true,
+          "evidence": "\"400 is for service-level checks that run after the request has parsed successfully. These raise ValueError inside the endpoint\" listing language, voice, instructions, device."
+        },
+        {
+          "text": "States both 422 and 400 use the same OpenAI-compatible error envelope shape, so the status code is the distinguishing signal, not the body.",
+          "passed": true,
+          "evidence": "\"Both use the same envelope. The status code tells you which layer rejected the request\"."
+        },
+        {
+          "text": "Recommends the client check for 422 (not 400) when handling the length-limit case.",
+          "passed": false,
+          "evidence": "The response says the 422 is correct and to treat both 400 and 422 as client errors, but it never explicitly tells the client to check for 422 specifically; the advice is to validate length client-side."
+        },
+        {
+          "text": "Does not claim this is a server bug or inconsistency to report upstream.",
+          "passed": true,
+          "evidence": "It says \"The 422 is the correct, expected behavior\" and calls the 400 premise stale or wrong. It does not suggest reporting a bug."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 23.5,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that POST /v1/audio/speech/stream never writes audio or metadata to storage, regardless of pipeline.persist_outputs.",
+          "passed": true,
+          "evidence": "\"POST /v1/audio/speech/stream never writes to storage/, whatever pipeline.persist_outputs is set to\""
+        },
+        {
+          "text": "States that only POST /v1/audio/speech (non-streaming) honors pipeline.persist_outputs and writes a WAV plus generation.json under storage/<session_id>/.",
+          "passed": true,
+          "evidence": "\"only POST /v1/audio/speech honors persist_outputs. It writes the WAV and a generation.json file under storage/<session_id>/\""
+        },
+        {
+          "text": "Clarifies that the session_id returned by the streaming endpoint is for correlation/latency tracking only, not a pointer to a saved file.",
+          "passed": true,
+          "evidence": "\"for correlation and latency tracking only. It doesn't point to a saved file.\""
+        },
+        {
+          "text": "Does not claim this is a bug or missing feature to report.",
+          "passed": true,
+          "evidence": "\"Persistence isn't broken... this is documented behavior, not something to report.\""
+        },
+        {
+          "text": "Recommends switching to POST /v1/audio/speech if server-side persistence of the full audio is required.",
+          "passed": true,
+          "evidence": "\"If you need the audio saved on the server: use POST /v1/audio/speech\""
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 30.3,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that response_format only supports wav and json for this service, not mp3/opus/aac/flac/pcm.",
+          "passed": true,
+          "evidence": "\"Only `wav` (default) or `json` are accepted.` `mp3`, `opus`, `aac`, `flac` and `pcm` fail schema validation with HTTP 422.\""
+        },
+        {
+          "text": "Recommends changing the client to request wav (or json) instead of mp3.",
+          "passed": true,
+          "evidence": "\"Change to `wav`, or omit it.\" and code sample with response_format=\"wav\" # was \"mp3\""
+        },
+        {
+          "text": "Notes this service is OpenAI-compatible for the fields it supports, not a full superset of OpenAI's format list.",
+          "passed": false,
+          "evidence": "The response lists differences (formats, voices, instructions, speed, model ignored) but never explicitly frames the service as OpenAI-compatible only for supported fields / not a full superset. It says \"OpenAI-style body, so most of the change is configuration\"."
+        },
+        {
+          "text": "Suggests client-side transcoding after receiving WAV if MP3 output is a hard requirement.",
+          "passed": true,
+          "evidence": "\"Transcode on the client, for example with `ffmpeg -i speech.wav speech.mp3`.\""
+        },
+        {
+          "text": "Uses port 8011 in any example given.",
+          "passed": true,
+          "evidence": "All examples use http://127.0.0.1:8011 / <host>:8011; explicitly \"not 8000/8080\"."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 19.9,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States this is not a bug: model is accepted only for OpenAI API-shape compatibility.",
+          "passed": true,
+          "evidence": "\"No \u2014 this is expected behavior, not a bug... accepted only for OpenAI API-shape compatibility.\""
+        },
+        {
+          "text": "States the service always uses whatever model is configured in config.yaml (models.tts.name), regardless of the request's model field.",
+          "passed": true,
+          "evidence": "\"The service always uses the model configured in the deployment's config.yaml (models.tts.name).\""
+        },
+        {
+          "text": "Explains that changing the active model requires a deployment-side config change, not a per-request parameter.",
+          "passed": true,
+          "evidence": "\"edit models.tts.name ... in config.yaml and restart the service. It can't be switched per request.\""
+        },
+        {
+          "text": "Recommends GET /v1/audio/voices to confirm which model is actually active.",
+          "passed": true,
+          "evidence": "Step 1 curls /v1/audio/voices (and /v1/model-info) to check what is deployed."
+        },
+        {
+          "text": "Does not suggest retrying with a different model string as a fix.",
+          "passed": true,
+          "evidence": "It suggests omitting model or sending \"default\" only to simplify the request, and states the model field is ignored; it does not present a different model string as a fix."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 26.9,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that Qwen3-TTS currently cannot start on any device (CPU, GPU, or NPU) due to a qwen-tts/transformers version conflict.",
+          "passed": true,
+          "evidence": "\"Qwen3-TTS (including voice_design) currently cannot start on any device (CPU, GPU, or NPU) because of a qwen-tts/transformers dependency conflict.\""
+        },
+        {
+          "text": "Explains this is a service-startup failure, not a per-request error, so no client-side request change will fix it.",
+          "passed": true,
+          "evidence": "\"fails at startup, so nothing is listening... No client change can fix that.\""
+        },
+        {
+          "text": "Recommends checking the deployment's container logs for a qwen-tts not installed error to confirm.",
+          "passed": true,
+          "evidence": "\"check the container or service logs for a qwen-tts/transformers import or startup error. That confirms the diagnosis.\" Does not literally say 'not installed' but the intent matches."
+        },
+        {
+          "text": "Recommends SpeechT5 or Kokoro as the currently deployable alternatives to raise with the deployment owner.",
+          "passed": true,
+          "evidence": "\"Ask them to switch models.tts.name to SpeechT5 or Kokoro until the upstream conflict is resolved\""
+        },
+        {
+          "text": "Does not suggest the issue is a malformed request body or missing voice/instructions field.",
+          "passed": true,
+          "evidence": "Response says \"your client is probably fine\"; field rules are only given as guidance after the model switch, not as the cause."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 49.1,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses POST /v1/audio/speech/stream for streaming rather than the single-response endpoint.",
+          "passed": true,
+          "evidence": "Response calls POST /v1/audio/speech/stream and reads text/event-stream."
+        },
+        {
+          "text": "Describes parsing data: {...} events and decoding audio_base64 per event.",
+          "passed": true,
+          "evidence": "Steps: strip 'data: ' prefix, json.loads, base64-decode audio_base64; each event is a complete WAV."
+        },
+        {
+          "text": "States that the stream terminates with data: [DONE].",
+          "passed": true,
+          "evidence": "Example shows 'data: [DONE]' and 'If the payload is [DONE], stop.'"
+        },
+        {
+          "text": "Explains that a backend without incremental decoding may emit exactly one event before [DONE], and this is expected, not a bug.",
+          "passed": true,
+          "evidence": "'This is expected and not a bug. Backends without incremental or phrase-level decoding emit exactly one phrase event (index: 0) and then [DONE]'"
+        },
+        {
+          "text": "Mentions checking for an error key in an event instead of assuming every event carries audio.",
+          "passed": true,
+          "evidence": "'If it has an error key, don't treat it as audio.' and code `if \"error\" in evt`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 28.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States this is expected behavior, not a bug or dropped connection.",
+          "passed": true,
+          "evidence": "\"No, the service isn't broken... expected to end the stream with an error event\"; \"normal, well-formed stream termination\""
+        },
+        {
+          "text": "Identifies the cause as the input having no pronounceable characters after text normalization.",
+          "passed": true,
+          "evidence": "\"After text normalization nothing pronounceable remains\""
+        },
+        {
+          "text": "Describes the event shape as {\"error\": \"Input text contains no pronounceable characters\"} followed by [DONE].",
+          "passed": true,
+          "evidence": "`data: {\"error\": \"Input text contains no pronounceable characters\"}` followed by `data: [DONE]`"
+        },
+        {
+          "text": "Recommends validating/sanitizing input client-side before sending it if this case should be avoided.",
+          "passed": true,
+          "evidence": "\"suggests requiring at least one letter or digit client-side\""
+        },
+        {
+          "text": "Does not suggest retrying the same request will produce a different result.",
+          "passed": true,
+          "evidence": "No retry suggestion in the response (grep for retry found nothing)."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 33.6,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Recommends calling GET /v1/audio/voices (or checking config.yaml) to determine the active model before composing the request.",
+          "passed": true,
+          "evidence": "Section 1: 'Ask the service what is running' with curl GET /v1/audio/voices returning the active model."
+        },
+        {
+          "text": "States that SpeechT5 rejects instructions outright with HTTP 400.",
+          "passed": true,
+          "evidence": "'Any non-empty instructions is rejected with HTTP 400'."
+        },
+        {
+          "text": "States that Qwen custom_voice accepts instructions optionally.",
+          "passed": true,
+          "evidence": "'custom_voice: instructions is optional and meant for style guidance'."
+        },
+        {
+          "text": "States that Qwen voice_design requires instructions.",
+          "passed": true,
+          "evidence": "'Qwen voice_design: instructions is required.'"
+        },
+        {
+          "text": "Does not claim instructions always works regardless of the deployed model.",
+          "passed": true,
+          "evidence": "'The same request body is valid on one model and rejected on another'; style instructions will not work on SpeechT5/Kokoro."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 26.2,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that an unknown voice name returns HTTP 400 rather than silently falling back to the default speaker.",
+          "passed": true,
+          "evidence": "\"SpeechT5 | HTTP 400 (`Unsupported voice '...'`). No silent fallback to the default speaker.\""
+        },
+        {
+          "text": "Lists or references the seven bundled SpeechT5 voices or points to GET /v1/audio/voices.",
+          "passed": true,
+          "evidence": "Lists Ryan, Miles, Aaron, Nora, Elena, Kabir, Angus and references GET /v1/audio/voices."
+        },
+        {
+          "text": "Mentions the CMU Arctic id aliases (e.g. bdl, jmk) are also accepted for SpeechT5.",
+          "passed": true,
+          "evidence": "\"`Ryan` (bdl), `Miles` (jmk)... The CMU Arctic aliases are in parentheses.\" Acceptance is implied rather than stated explicitly."
+        },
+        {
+          "text": "Recommends omitting voice entirely if the default speaker is acceptable.",
+          "passed": true,
+          "evidence": "\"Option 1: omit `voice`. SpeechT5 then uses `models.tts.default_speaker`\""
+        },
+        {
+          "text": "Does not claim this fallback behavior is a bug to be fixed client-side with retries.",
+          "passed": true,
+          "evidence": "States \"The 400 is the intended behavior, not a bug.\" The client-side option is a list check, not a retry."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 24.6,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States the service validates the requested device against the configured runtime/model and the devices visible inside the container, and rejects unsupported or unavailable selections.",
+          "passed": true,
+          "evidence": "\"validated against the configured runtime/model and the devices actually visible inside the container. An unsupported or unavailable selection is rejected\""
+        },
+        {
+          "text": "States this is deliberate \u2014 it never silently falls back to CPU.",
+          "passed": true,
+          "evidence": "\"that is by design... rejected, never silently downgraded to CPU\""
+        },
+        {
+          "text": "Notes NPU specifically is accepted as a value but is not currently functional for any model in this service.",
+          "passed": false,
+          "evidence": "The response says NPU is accepted as a value (422 only for non-CPU/GPU/NPU values). It never says NPU is non-functional for every model. It even says \"To use the NPU for real\" is possible with passthrough and runtime support."
+        },
+        {
+          "text": "Recommends omitting the device field to use the deployment's configured default instead.",
+          "passed": true,
+          "evidence": "\"Omit `device`. This is the recommended default. The service uses the deployment's configured `models.tts.device`.\""
+        },
+        {
+          "text": "Does not claim this is a bug to report.",
+          "passed": true,
+          "evidence": "The response frames the error as by-design behaviour and never suggests reporting a bug."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 32.3,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses POST /v1/audio/speech with a JSON body containing input.",
+          "passed": true,
+          "evidence": "curl -X POST http://localhost:8011/v1/audio/speech -d '{\"input\": \"Welcome, please take a ticket.\", ...}'"
+        },
+        {
+          "text": "Uses port 8011 (not 8010 or 8000).",
+          "passed": true,
+          "evidence": "Uses http://localhost:8011 and says 'The service listens on port 8011 (from docker-compose.yml)'."
+        },
+        {
+          "text": "Does not claim model is required \u2014 it defaults from config.models.tts.name and may be omitted; if included, notes it does not select the model.",
+          "passed": true,
+          "evidence": "The example omits model; response.md lists 'Optional fields: model, voice, language, device', so it does not claim model is required. It does not say model fails to select the model, but that note is only needed if model is included."
+        },
+        {
+          "text": "Shows saving raw audio/wav bytes to a .wav file (response_format=wav, the default).",
+          "passed": true,
+          "evidence": "curl uses --output greeting.wav with response_format wav; the Python example writes r.content to greeting.wav in 'wb' mode; it notes wav is the default."
+        },
+        {
+          "text": "Mentions the X-Session-ID response header.",
+          "passed": false,
+          "evidence": "Neither response.md nor the final answer mentions X-Session-ID or session_id."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 27.7,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States the response includes default_speaker, supported_speakers, and default_language fields.",
+          "passed": true,
+          "evidence": "response.md table lists `supported_speakers`, `default_speaker`, `default_language` as fields."
+        },
+        {
+          "text": "Notes default_language is a single string, not a list.",
+          "passed": false,
+          "evidence": "Never stated explicitly. Only implicit via example `\"default_language\": \"English\"` and 'Currently just [default_language]'; no explicit note that it is a single string."
+        },
+        {
+          "text": "Notes supported_speakers is a list.",
+          "passed": true,
+          "evidence": "Table: '`supported_speakers` | List of voice names you can pass as `voice`'; example shows an array."
+        },
+        {
+          "text": "Does not claim the response uses speakers or languages as field names.",
+          "passed": true,
+          "evidence": "Response says it 'doesn't return `speakers` / `languages`' and uses supported_* names."
+        },
+        {
+          "text": "Uses port 8011 in any example given.",
+          "passed": false,
+          "evidence": "No port or curl example appears in response.md; port 8011 is never used."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 31.3,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that Kokoro does not reject an unsupported voice name the way SpeechT5 does.",
+          "passed": true,
+          "evidence": "\"the Kokoro backend doesn't validate voices at all\"; SpeechT5 raises ValueError -> 400."
+        },
+        {
+          "text": "Explains Kokoro logs a warning server-side and silently substitutes the configured/default Kokoro voice (or af_heart, or the first available voice) instead of returning an error.",
+          "passed": true,
+          "evidence": "Logs WARNING 'Unknown voice ... falling back', uses configured default_speaker else af_heart, never raises."
+        },
+        {
+          "text": "States this is model-dependent behavior, not a validation bug: SpeechT5 returns HTTP 400 for the same situation.",
+          "passed": true,
+          "evidence": "\"The validation isn't broken\"; 400 only enforced by backends that raise ValueError, e.g. SpeechT5."
+        },
+        {
+          "text": "Recommends GET /v1/audio/voices to confirm the active model and its supported_speakers before assuming a shared validation contract across models.",
+          "passed": true,
+          "evidence": "Recommends GET /v1/audio/voices (or /v1/model-info -> supported_speakers) and using a name from that list; client-side check advised."
+        },
+        {
+          "text": "Does not claim this is unintended or something to report as broken.",
+          "passed": false,
+          "evidence": "Says the release-notes line is too broad and 'The docs should also be corrected', and suggests changing the code to raise; this treats the docs as wrong, partially conflicting with the expectation, though it says validation isn't broken."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 25.5,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that input over 5000 characters is a schema validation failure caught by Pydantic before the endpoint body runs, returning HTTP 422, not 400.",
+          "passed": true,
+          "evidence": "response.md: limit enforced by Pydantic schema Field(max_length=5000), 'before the endpoint body runs'; 422 is correct."
+        },
+        {
+          "text": "Explains 400 is reserved for service-level checks raised as ValueError inside the endpoint after parsing succeeded.",
+          "passed": true,
+          "evidence": "'HTTP 400 is only returned from inside the endpoints ... when synthesis raises a ValueError, for example an unknown voice or unsupported language.'"
+        },
+        {
+          "text": "States both 422 and 400 use the same error envelope shape, so status code is the distinguishing signal.",
+          "passed": true,
+          "evidence": "'Both use the same error envelope, so read error.param and error.message' with example body. Slightly different emphasis (param vs status) but same-envelope is stated."
+        },
+        {
+          "text": "Recommends client check for 422 (not 400) for the length-limit case.",
+          "passed": true,
+          "evidence": "'Handle 422 for schema-validation failures: ... input longer than 5000 characters'."
+        },
+        {
+          "text": "Does not claim this is a server bug or inconsistency to report upstream.",
+          "passed": true,
+          "evidence": "Says server behavior is correct; only says any doc claiming 400 is inaccurate, no upstream bug report suggested."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 29.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that POST /v1/audio/speech/stream never writes audio or metadata to storage, regardless of pipeline.persist_outputs.",
+          "passed": true,
+          "evidence": "\"Streaming endpoint intentionally does not persist anything, even with pipeline.persist_outputs: true\"; storage/<session_id>/ is never created."
+        },
+        {
+          "text": "States that only POST /v1/audio/speech (non-streaming) honors pipeline.persist_outputs and writes a WAV plus generation.json under storage/<session_id>/.",
+          "passed": false,
+          "evidence": "Says only synthesize() persists under storage/<session_id>/, but never mentions the WAV plus generation.json contents."
+        },
+        {
+          "text": "Clarifies that the session_id returned by the streaming endpoint is for correlation/latency tracking only, not a pointer to a saved file.",
+          "passed": true,
+          "evidence": "\"the session_id for a stream is just a correlation ID; storage/<session_id>/ is never created.\""
+        },
+        {
+          "text": "Does not claim this is a bug or missing feature to report.",
+          "passed": true,
+          "evidence": "Opens with \"No.\" and says it is intentional; offers a code change only as an optional alternative, not a bug report."
+        },
+        {
+          "text": "Recommends switching to POST /v1/audio/speech if server-side persistence of the full audio is required.",
+          "passed": true,
+          "evidence": "\"Need server-side persistence: call the non-streaming POST /v1/audio/speech\""
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 31.5,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that response_format only supports wav and json for this service, not mp3/opus/aac/flac/pcm.",
+          "passed": true,
+          "evidence": "response.md: 'only accepts response_format: Literal[\"wav\", \"json\"]... Sending mp3 (or opus, aac, flac, pcm) fails validation'"
+        },
+        {
+          "text": "Recommends changing the client to request wav (or json) instead of mp3.",
+          "passed": true,
+          "evidence": "'Request wav (or omit it)'; code example uses response_format=\"wav\"  # was \"mp3\"'"
+        },
+        {
+          "text": "Notes this service is OpenAI-compatible for the fields it supports, not a full superset of OpenAI's format list.",
+          "passed": false,
+          "evidence": "The response lists many differences (voices, speed, model ignored) but never states the compatibility is partial or limited to supported fields. It only implies this through the format restriction."
+        },
+        {
+          "text": "Suggests client-side transcoding after receiving WAV if MP3 output is a hard requirement.",
+          "passed": true,
+          "evidence": "'Transcode client-side if you must keep MP3 downstream, e.g. ffmpeg -i speech.wav speech.mp3'"
+        },
+        {
+          "text": "Uses port 8011 in any example given.",
+          "passed": true,
+          "evidence": "Examples use http://localhost:8011/v1 and curl http://localhost:8011/v1/audio/speech"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 27.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States this is not a bug: model is accepted only for OpenAI API-shape compatibility.",
+          "passed": true,
+          "evidence": "\"No, it's by design. The service accepts `model` only for OpenAI API compatibility.\""
+        },
+        {
+          "text": "States the service always uses whatever model is configured in config.yaml (models.tts.name), regardless of the request's model field.",
+          "passed": true,
+          "evidence": "Quotes code comment 'loaded model is always the one defined in config' and says synthesis uses config.models.tts.name, never request.model."
+        },
+        {
+          "text": "Explains that changing the active model requires a deployment-side config change, not a per-request parameter.",
+          "passed": true,
+          "evidence": "\"Switch models: set `models.tts.name` in `config.yaml`... Then restart the service.\" Only device/voice are per-request."
+        },
+        {
+          "text": "Recommends GET /v1/audio/voices to confirm which model is actually active.",
+          "passed": false,
+          "evidence": "It recommends GET /v1/model-info to check what is loaded; /v1/audio/voices is mentioned only for listing voices the loaded model offers, not as the way to confirm the active model."
+        },
+        {
+          "text": "Does not suggest retrying with a different model string as a fix.",
+          "passed": true,
+          "evidence": "Says to leave model as tts-1-hd, harmless with no effect; the only model change suggested is the config.yaml edit."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 33.7,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that Qwen3-TTS currently cannot start on any device (CPU, GPU, or NPU) due to a qwen-tts/transformers version conflict.",
+          "passed": false,
+          "evidence": "Only says voice_design 'may be non-functional in current builds'; no mention of qwen-tts/transformers conflict or inability to start on any device."
+        },
+        {
+          "text": "Explains this is a service-startup failure, not a per-request error, so no client-side request change will fix it.",
+          "passed": true,
+          "evidence": "Says it's 'most likely a deployment or startup issue, not your client code' and /health is independent of client logic; 4xx errors would come from a running service. Though not tied to Qwen3-TTS being unstartable, the startup-vs-request distinction is explained."
+        },
+        {
+          "text": "Recommends checking the deployment's container logs for a qwen-tts not installed error to confirm.",
+          "passed": false,
+          "evidence": "Recommends docker logs generally, but looks for warmup/startup messages and generic causes; never mentions a qwen-tts not installed error."
+        },
+        {
+          "text": "Recommends SpeechT5 or Kokoro as the currently deployable alternatives to raise with the deployment owner.",
+          "passed": false,
+          "evidence": "Mentions the default config uses Kokoro, only as a config-mismatch check; does not recommend Kokoro or SpeechT5 as alternatives."
+        },
+        {
+          "text": "Does not suggest the issue is a malformed request body or missing voice/instructions field.",
+          "passed": true,
+          "evidence": "Explicitly attributes the issue to deployment/startup; says voice/instructions errors would be 4xx from a running service, not silence."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 40.4,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses POST /v1/audio/speech/stream for streaming rather than the single-response endpoint.",
+          "passed": true,
+          "evidence": "Heading and content: 'Streaming longer narration with `POST /v1/audio/speech/stream`'; code posts to /v1/audio/speech/stream."
+        },
+        {
+          "text": "Describes parsing data: {...} events and decoding audio_base64 per event.",
+          "passed": true,
+          "evidence": "'Each event is `data: {json}\\n\\n`' and 'Base64-decode `audio_base64`. Each event is its own self-contained WAV'; code parses frames and decodes evt[\"audio_base64\"]."
+        },
+        {
+          "text": "States that the stream terminates with data: [DONE].",
+          "passed": true,
+          "evidence": "'The stream ends with `data: [DONE]`.'"
+        },
+        {
+          "text": "Explains that a backend without incremental decoding may emit exactly one event before [DONE], and this is expected, not a bug.",
+          "passed": true,
+          "evidence": "'This is expected behavior... The backend doesn't decode incrementally... base class default yields a single full chunk - so e.g. Qwen3-TTS returns the entire audio as one event.'"
+        },
+        {
+          "text": "Mentions checking for an error key in an event instead of assuming every event carries audio.",
+          "passed": true,
+          "evidence": "'Errors arrive in-band as data: {\"error\": ...}' and code: if \"error\" in evt: raise RuntimeError(evt[\"error\"])."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 42.5,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States this is expected behavior, not a bug or dropped connection.",
+          "passed": true,
+          "evidence": "\"No, the service isn't broken. This is intended behavior.\""
+        },
+        {
+          "text": "Identifies the cause as the input having no pronounceable characters after text normalization.",
+          "passed": true,
+          "evidence": "\"punctuation is stripped or normalized, so nothing pronounceable remains and the synthesizer yields zero chunks\""
+        },
+        {
+          "text": "Describes the event shape as {\"error\": \"Input text contains no pronounceable characters\"} followed by [DONE].",
+          "passed": true,
+          "evidence": "Response shows data: {\"error\": \"Input text contains no pronounceable characters\"} then data: [DONE]."
+        },
+        {
+          "text": "Recommends validating/sanitizing input client-side before sending it if this case should be avoided.",
+          "passed": true,
+          "evidence": "\"Validate or strip punctuation-only text on the client before calling.\""
+        },
+        {
+          "text": "Does not suggest retrying the same request will produce a different result.",
+          "passed": true,
+          "evidence": "No retry suggestion; advises changing the input to include a letter or digit."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 26.8,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Recommends calling GET /v1/audio/voices (or checking config.yaml) to determine the active model before composing the request.",
+          "passed": true,
+          "evidence": "Recommends `curl .../v1/model-info` (noting /v1/audio/voices returns the same payload) and reading implementation/model/variant before sending."
+        },
+        {
+          "text": "States that SpeechT5 rejects instructions outright with HTTP 400.",
+          "passed": true,
+          "evidence": "'SpeechT5: any non-empty instructions is rejected... expect a 4xx validation error'. It says 4xx rather than naming 400 exactly, but the outright rejection is clear."
+        },
+        {
+          "text": "States that Qwen custom_voice accepts instructions optionally.",
+          "passed": true,
+          "evidence": "'Qwen3-TTS, custom_voice: validation accepts instructions, and the backend passes it to the model... intended use.' Does not say 'optional' explicitly, but the contrast with voice_design 'required' implies it."
+        },
+        {
+          "text": "States that Qwen voice_design requires instructions.",
+          "passed": true,
+          "evidence": "'Qwen3-TTS, voice_design: instructions is required and voice must be omitted.'"
+        },
+        {
+          "text": "Does not claim instructions always works regardless of the deployed model.",
+          "passed": true,
+          "evidence": "Says instructions is only worth sending for Qwen custom_voice or Parler; SpeechT5 and Kokoro reject it."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 30.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that an unknown voice name returns HTTP 400 rather than silently falling back to the default speaker.",
+          "passed": true,
+          "evidence": "response.md: \"A name that is provided but unrecognized is rejected\"; converted to HTTP 400 with code invalid_request; the 400 is intentional."
+        },
+        {
+          "text": "Lists or references the seven bundled SpeechT5 voices (Ryan, Miles, Aaron, Nora, Elena, Kabir, Angus) or points to GET /v1/audio/voices for the authoritative list.",
+          "passed": true,
+          "evidence": "\"Discover valid voices: GET /v1/audio/voices (or GET /v1/model-info...)\""
+        },
+        {
+          "text": "Mentions the CMU Arctic id aliases (e.g. bdl, jmk) are also accepted for SpeechT5.",
+          "passed": true,
+          "evidence": "response.md: \"looks the name up case-insensitively (display name such as Ryan, or CMU Arctic id such as bdl)\""
+        },
+        {
+          "text": "Recommends omitting voice entirely if the default speaker is acceptable.",
+          "passed": true,
+          "evidence": "\"Send one of those names, or omit voice to get the configured default speaker.\""
+        },
+        {
+          "text": "Does not claim this fallback behavior is a bug to be fixed client-side with retries.",
+          "passed": true,
+          "evidence": "Says the 400 is intentional; the client-side suggestion is a voice-list check, not retries, and is not framed as a bug."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 24.5,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States the service validates the requested device against the configured runtime/model and the devices visible inside the container, and rejects unsupported or unavailable selections.",
+          "passed": true,
+          "evidence": "Response: it 'rejects unsupported or unavailable per-request device values'; table shows errors by runtime/model and 'is not visible in this runtime'."
+        },
+        {
+          "text": "States this is deliberate \u2014 it never silently falls back to CPU.",
+          "passed": true,
+          "evidence": "'No, this is by design. The service deliberately does not fall back to CPU'."
+        },
+        {
+          "text": "Notes NPU specifically is accepted as a value but is not currently functional for any model in this service.",
+          "passed": true,
+          "evidence": "'No model in this service can currently run on NPU end-to-end'; SpeechT5 NPU passes validation then fails at compile."
+        },
+        {
+          "text": "Recommends omitting the device field to use the deployment's configured default instead.",
+          "passed": true,
+          "evidence": "'Omit device to use the configured models.tts.device default, or send CPU'."
+        },
+        {
+          "text": "Does not claim this is a bug to report.",
+          "passed": true,
+          "evidence": "Says it is by design; no bug-report suggestion."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with-skill": {
+      "pass_rate": {
+        "mean": 0.9538,
+        "stddev": 0.0877,
+        "min": 0.8,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 29.9769,
+        "stddev": 9.6165,
+        "min": 19.9,
+        "max": 51.4
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "without-skill": {
+      "pass_rate": {
+        "mean": 0.8462,
+        "stddev": 0.1854,
+        "min": 0.4,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 30.9385,
+        "stddev": 5.4153,
+        "min": 24.5,
+        "max": 42.5
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.11",
+      "time_seconds": "-1.0",
+      "tokens": "+0"
+    }
+  },
+  "notes": []
+}

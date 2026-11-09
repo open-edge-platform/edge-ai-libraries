@@ -28,8 +28,6 @@ jobs:
     with:
       runs_on: ubuntu-24.04-16core-64GB
       bootstrap_tools: 'nodejs'
-      # Keeps the newly blocking security gates non-blocking, as they were on 2026.0.17.
-      security_scans_advisory: true
       run_version_check: false
       run_build: false
       run_lint: true

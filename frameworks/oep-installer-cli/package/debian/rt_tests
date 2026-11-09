@@ -1,0 +1,13 @@
+
+debian_45_install_rt_tests () {
+  ensure_apt_install_package rt-tests
+}
+
+debian_45_remove_rt_tests () {
+  ensure_apt_remove_package rt-tests
+}
+
+debian_45_sbom_rt_tests () {
+  ensure_sbom_format pkg-list rt-tests
+}
+

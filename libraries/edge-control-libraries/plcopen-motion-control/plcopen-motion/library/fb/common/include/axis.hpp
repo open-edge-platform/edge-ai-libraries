@@ -117,6 +117,9 @@ public:
   // A fault stop retains ownership until the slave reaches standstill.
   bool isStoppingOnError() const;
 
+  // Depower/error flushes queued motion and clears command derivatives so
+  // recovery cannot reuse the interrupted trajectory's velocity/acceleration.
+  // Active superimposed motion is aborted and its cached overlay state cleared.
   virtual mcBOOL statusHealthy();
 
   virtual void powerProcess();

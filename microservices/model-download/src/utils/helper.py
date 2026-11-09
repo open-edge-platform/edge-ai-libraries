@@ -8,6 +8,7 @@ import zipfile
 import shutil
 from fastapi import HTTPException
 from .logging import logger
+from .zip_safety import validate_zip_contents_within_target  # noqa: F401  (re-exported)
 
 
 def sanitize_path_part(value: str, field_name: str, strict: bool = False) -> str:
@@ -86,39 +87,6 @@ def cleanup_model_directory(model_dir_path: str):
         except OSError as e:
             logger.error(f"Failed to remove empty directory {model_dir_path}: {str(e)}")
 
-
-def validate_zip_contents_within_target(zf: zipfile.ZipFile, target_dir: str) -> None:
-    """
-    Validate ZIP file for safe extraction:
-    1. All entries stay within target directory (prevent ZIP-slip)
-    2. Contains required OpenVINO IR files (.xml and .bin)
-    """
-    has_xml = False
-    has_bin = False
-
-    for member_name in zf.namelist():
-        # Check for required OpenVINO IR files
-        if member_name.lower().endswith(".xml"):
-            has_xml = True
-        if member_name.lower().endswith(".bin"):
-            has_bin = True
-
-        # Path traversal validation
-        normalized_name = os.path.normpath(member_name.replace("\\", "/"))
-
-        if normalized_name in ("", "."):
-            continue
-
-        if os.path.isabs(normalized_name) or normalized_name.startswith("../") or normalized_name == "..":
-            raise ValueError(f"Invalid ZIP archive: '{member_name}' resolves outside target directory.")
-
-        resolved_member_path = os.path.abspath(os.path.join(target_dir, normalized_name))
-        if os.path.commonpath([target_dir, resolved_member_path]) != target_dir:
-            raise ValueError(f"Invalid ZIP archive: '{member_name}' resolves outside target directory.")
-
-    # Check format requirements
-    if not has_xml or not has_bin:
-        raise ValueError("ZIP must contain at least one .xml and one .bin file (OpenVINO IR format).")
 
 def get_hub_config_keys(plugin, hub: str) -> list[dict]:
         """

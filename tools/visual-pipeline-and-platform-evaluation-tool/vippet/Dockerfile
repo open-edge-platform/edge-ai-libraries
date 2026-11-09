@@ -34,7 +34,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update && \
-    apt-get install --yes --no-install-recommends yq
+    apt-get install --yes --no-install-recommends yq libaravis-0.8-0
+
+# Expose only the Aravis plugin (aravissrc, GigE Vision cameras): the system GStreamer plugin
+# directory also holds core plugins that would shadow the DLStreamer ones.
+RUN mkdir -p /usr/local/lib/vippet-gst-plugins && \
+    ln -s /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstaravis.0.8.so /usr/local/lib/vippet-gst-plugins/
 
 # Remove kernel headers inherited from base image (not needed at runtime,
 # source of CVE-2026-* critical vulnerabilities reported by Trivy).
@@ -45,6 +50,7 @@ USER dlstreamer
 
 # Set GStreamer plugin path (original GST_PLUGIN_PATH ends with a colon, so there is no need to add one here)
 ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/
+ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH:/usr/local/lib/vippet-gst-plugins
 
 # Add DLSOptimizer scripts to PYTHONPATH
 ENV PYTHONPATH=$PYTHONPATH:/opt/intel/dlstreamer/scripts/optimizer/
@@ -79,6 +85,7 @@ COPY --chown=dlstreamer:dlstreamer vippet/benchmarks/ /home/dlstreamer/vippet/be
 COPY --chown=dlstreamer:dlstreamer vippet/models/ /home/dlstreamer/vippet/models
 COPY --chown=dlstreamer:dlstreamer vippet/api/ /home/dlstreamer/vippet/api
 COPY --chown=dlstreamer:dlstreamer vippet/managers/ /home/dlstreamer/vippet/managers
+COPY --chown=dlstreamer:dlstreamer vippet/gst_plugins/ /home/dlstreamer/vippet/gst_plugins
 
 # Build-time release identifiers. Injected via --build-arg (see compose.yml,
 # which sources VIPPET_VERSION from DOCKER_TAG and VIPPET_REVISION from the

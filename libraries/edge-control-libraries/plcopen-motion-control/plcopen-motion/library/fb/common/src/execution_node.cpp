@@ -507,7 +507,9 @@ void ExecutionNode::getCommands(mcLREAL* pos_cmd, mcLREAL* vel_cmd,
     case mcSyncOutMode:
     case mcMoveVelocityMode: {
       vel_cmd_ = vel_tmp_;
-      if (motion_mode_ == mcGearInMode && fb_->isPositionCoupled() == mcTRUE)
+      if ((motion_mode_ == mcMoveVelocityMode && done_ == mcFALSE) ||
+          motion_mode_ == mcStopMode ||
+          (motion_mode_ == mcGearInMode && fb_->isPositionCoupled() == mcTRUE))
         pos_cmd_ = pos_tmp_;
       else
         pos_cmd_ += vel_tmp_ * node_delta_time_;
@@ -628,6 +630,32 @@ void ExecutionNode::onExecution(mcLREAL master_ref_pos, mcLREAL master_ref_vel)
   if (stopping_on_error_ == mcTRUE)
   {
     runErrorStop();
+    return;
+  }
+  if (motion_mode_ == mcMoveVelocityMode || motion_mode_ == mcStopMode)
+  {
+    need_plan_                    = mcFALSE;
+    planner_type_                 = mcRuckig;
+    const mcLREAL target_velocity = end_vel_ * override_factors_.vel;
+    const bool reversing          = vel_cmd_ * target_velocity < 0;
+    const mcLREAL direction       = vel_cmd_ != 0 ? vel_cmd_ : target_velocity;
+    const mcLREAL acceleration    = acceleration_ * override_factors_.acc;
+    const mcLREAL deceleration    = motion_mode_ == mcStopMode ?
+                                        acceleration :
+                                        deceleration_ * override_factors_.acc;
+    const mcLREAL upper = direction >= 0 ? acceleration : deceleration;
+    const mcLREAL lower = direction >= 0 ? -deceleration : -acceleration;
+    // Brake to rest before swapping directional acceleration limits.
+    planner_.setCondition(pos_cmd_, NAN, vel_cmd_,
+                          reversing ? 0 : target_velocity, acc_tmp_, 0,
+                          duration_, target_velocity, upper,
+                          jerk_ * override_factors_.jerk, mcRuckig);
+    const MC_ERROR_CODE result = planner_.onVelocityTracking(
+        node_delta_time_, &pos_tmp_, &vel_tmp_, &acc_tmp_, lower);
+    if (result != mcErrorCodeGood)
+      onError(result);
+    else if (reversing && fabs(vel_tmp_) < 1e-12 && fabs(acc_tmp_) < 1e-12)
+      vel_tmp_ = acc_tmp_ = 0;
     return;
   }
   if (motion_mode_ == mcGearInPosMode && fb_->isPositionCoupled() == mcTRUE)
@@ -972,16 +1000,17 @@ mcBOOL ExecutionNode::checkMissionDone(const mcLREAL axis_pos,
     }
     break;
     case mcHaltMode:
-    case mcStopMode:
     case mcSyncOutMode: {
       if (fabs(axis_vel - end_vel_ * override_factors_.vel) <= vel_done_factor_)
         res = mcTRUE;
     }
     break;
-    case mcMoveVelocityMode: {
+    case mcMoveVelocityMode:
+    case mcStopMode: {
       // Feedback tolerance must not truncate the final jerk-limited samples.
       if (need_plan_ == mcFALSE &&
-          node_active_time_ >= planner_.getScurveProfile().Ta &&
+          fabs(vel_tmp_ - end_vel_ * override_factors_.vel) < 1e-12 &&
+          fabs(acc_tmp_) < 1e-12 &&
           fabs(axis_vel - end_vel_ * override_factors_.vel) <= vel_done_factor_)
         res = mcTRUE;
     }

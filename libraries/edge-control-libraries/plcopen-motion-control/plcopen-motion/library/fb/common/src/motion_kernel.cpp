@@ -386,6 +386,7 @@ bool MotionKernel::isStoppingOnError() const
 
 void MotionKernel::setAllFBsAborted()
 {
+  underlying_move_node_ = nullptr;
   while (!fb_queue_.empty())
   {
     ExecutionNode* fb = fb_queue_.front();
@@ -479,6 +480,7 @@ void MotionKernel::addSupMoveFB(ExecutionNode* node, mcLREAL current_pos,
   node->setStartAcc(current_acc);
   node->setEndAcc(end_acc);
   node->setTerminateCondition(current_pos);
+  node->taken_      = mcTRUE;
   sup_move_node_    = node;
   fb_axis_node_und_ = nullptr;
   fb_axis_node_tmp_ = nullptr;
@@ -490,6 +492,8 @@ void MotionKernel::abortCurSupMoveFB()
   if (sup_move_node_ != nullptr)
   {
     sup_move_node_->onCommandAborted();
+    sup_move_node_->taken_ = mcFALSE;
+    sup_move_node_         = nullptr;
     DEBUG_PRINT(
         "MotionKernel::abortCurSupMoveFB: reset current sup-move-node. \n");
   }

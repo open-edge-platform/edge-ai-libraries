@@ -19,12 +19,23 @@ _TRANSCRIBE_LOCK = threading.Lock()
 class Whisper(BaseASR):
    def __init__(self, model_name="whisper-small", device="CPU", revision=None):
         logger.info(f"Loading Model: model name={model_name}, device={device}")
-        self.model_path = get_asr_model_path()
+        # Must resolve the path for THIS instance's model_name, not the
+        # global config.models.asr.name -- get_asr_model_path() without
+        # arguments always resolves to the main/final config, which is wrong
+        # when this instance is the preview pool's model (see
+        # config.models.asr.preview / pipeline.py) and its name differs from
+        # the final pool's.
+        self.model_path = get_asr_model_path(model_name=model_name)
         self.model = ov_genai.WhisperPipeline( self.model_path, device=device)
- 
+        # On NPU, return_timestamps=True gives corrupted text (repeated short
+        # fragments) or fails with "KV-Cache is full". Seen with OpenVINO
+        # GenAI 2026.1 and 2026.3. Without timestamps the result has no
+        # chunks, and transcribe() below returns one segment for the clip.
+        self.return_timestamps = not str(device).strip().upper().startswith("NPU")
+
    def transcribe(self, audio_path: str, temperature: float = 0.0, language: str | None = None) -> dict:
         audio, sr = self._load_wav_mono_16k(audio_path)
-        gen_kwargs = {"return_timestamps": True}
+        gen_kwargs = {"return_timestamps": self.return_timestamps}
         if language:
             gen_kwargs["language"] = language if language.startswith("<|") else f"<|{language}|>"
         with _TRANSCRIBE_LOCK:

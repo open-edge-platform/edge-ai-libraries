@@ -9,7 +9,7 @@ services:
     container_name: vllm-ipex-serving
     image: ${VLLM_IMAGE:-intel/llm-scaler-vllm:0.14.0-b8.3.2}
     privileged: true
-    restart: always
+    restart: "${VLLM_RESTART_POLICY:-on-failure:2}"
     ports:
       - ${VLLM_SERVICE_PORT:-41091}:8000
     group_add:
@@ -34,6 +34,7 @@ services:
       LOAD_QUANTIZATION: ${LOAD_QUANTIZATION:-fp8}
       TENSOR_PARALLEL_SIZE: ${TENSOR_PARALLEL_SIZE:-1}
       GPU_MEM_UTIL: ${GPU_MEM_UTIL:-0.7}
+      VLLM_OFFLOAD_WEIGHTS_BEFORE_QUANT: ${VLLM_OFFLOAD_WEIGHTS_BEFORE_QUANT:-1}
     shm_size: '16g'
     entrypoint: /bin/bash -c "\
       source /opt/intel/oneapi/setvars.sh --force && \

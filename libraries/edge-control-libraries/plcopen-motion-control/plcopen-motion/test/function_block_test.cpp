@@ -37,7 +37,11 @@
 #include <fb/private/include/fb_digital_cam_switch.hpp>
 
 #ifdef PLOT
+#include <cmath>
 #include <map>
+#include <type_traits>
+#include <utility>
+#include "test_plot.hpp"
 #include <tool/fb_debug_tool.hpp>
 #endif
 
@@ -46,17 +50,13 @@ using namespace RTmotion;
 constexpr double gear_in_pos_execute_pulse_seconds = 0.1;
 
 #ifdef PLOT
-// Each trace owns its timestamps so FBs introduced later in a test can be
-// recorded without padding or retaining pointers to stack-local blocks.
 class GearInTestPlot
 {
 public:
   void add(const std::string& panel, const std::string& label, double time,
            double value)
   {
-    auto& trace = panels_[panel][label];
-    trace.times.push_back(time);
-    trace.values.push_back(value);
+    plot_.add(panel, label, time, value);
   }
 
   void addBlock(const std::string& name, FbAxisNode& fb, double time)
@@ -70,7 +70,7 @@ public:
 
   bool empty() const
   {
-    return panels_.empty();
+    return plot_.empty();
   }
 
   void addPositionGear(FbGearInPos& fb, Axis& master, Axis& slave, double time,
@@ -102,63 +102,279 @@ public:
     add("Error code", "Slave axis", time, slave.getAxisError());
   }
 
-  void plot(const std::string& suffix      = "",
-            const std::string& description = "") const
+  void plot(const std::string& suffix = "", const std::string& description = "",
+            const std::string& xlabel = "Time (s)") const
   {
-    const auto* test = ::testing::UnitTest::GetInstance()->current_test_info();
-    std::string name =
-        std::string(test->test_suite_name()) + "." + test->name();
-    std::string filename = "gearin_" + name + suffix + ".png";
-    std::replace(filename.begin(), filename.end(), '/', '_');
-    size_t height      = 320 * panels_.size();
-    const auto signals = panels_.find("FB signals");
-    if (signals != panels_.end())
-      height += std::max<size_t>(320, 30 * signals->second.size()) - 320;
-    plt::figure_size(1600, height);
-    size_t panel_index = 0;
-    for (const auto& panel : panels_)
-    {
-      plt::subplot(panels_.size(), 1, ++panel_index);
-      if (panel_index == 1)
-        plt::title(name + (description.empty() ? "" : "\n" + description));
-      std::vector<double> ticks;
-      std::vector<std::string> labels;
-      for (const auto& item : panel.second)
-      {
-        auto values = item.second.values;
-        if (panel.first == "FB signals")
-        {
-          const double offset = 2 * ticks.size();
-          for (auto& value : values)
-            value += offset;
-          ticks.push_back(offset + 0.5);
-          labels.push_back(item.first);
-        }
-        plt::named_plot(item.first, item.second.times, values,
-                        values.size() == 1 ? "o" : "-");
-      }
-      if (panel.first == "FB signals")
-        plt::yticks(ticks, labels);
-      else
-        plt::legend();
-      plt::ylabel(panel.first == "FB signals" ? "0/1, offset per signal" :
-                                                panel.first);
-      plt::xlabel("Time (s)");
-      plt::grid(true);
-    }
-    plt::tight_layout();
-    plt::save(filename);
-    plt::close();
+    plot_.save("_gearin" + suffix, description, xlabel);
   }
 
 private:
-  struct Trace
-  {
-    std::vector<double> times, values;
-  };
-  std::map<std::string, std::map<std::string, Trace>> panels_;
+  test_plot::TestPlot plot_{ "function_block_test", 320, "FB signals" };
 };
+
+// Capture the operands, not assertion success. This also covers validation-only
+// tests whose local nodes/configuration never enter a fixture's motion loop.
+class FunctionBlockObservations : public ::testing::EmptyTestEventListener
+{
+public:
+  static FunctionBlockObservations& instance()
+  {
+    static auto* recorder = new FunctionBlockObservations;
+    return *recorder;
+  }
+
+  void OnTestStart(const ::testing::TestInfo&) override
+  {
+    checks_  = test_plot::TestPlot();
+    signals_ = GearInTestPlot();
+    samples_.clear();
+    previous_.clear();
+    identities_.clear();
+    exercised_.clear();
+  }
+
+  void OnTestEnd(const ::testing::TestInfo&) override
+  {
+    checks_.save("_checks", "Observed values and comparison references",
+                 "Observation index (per expression)");
+    if (!signals_.empty())
+      signals_.plot("_subjects", "Subjects exercised by this test",
+                    "Cycle index (per subject)");
+  }
+
+  template <typename T>
+  static void value(const char* expression, int line, const char* role,
+                    const T& value)
+  {
+    if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
+    {
+      auto& self              = instance();
+      const std::string panel = "Check at line " + std::to_string(line);
+      const std::string label = std::string(role) == "Observed" ?
+                                    "Observed: " + std::string(expression) :
+                                    role;
+      const std::string key   = panel + role;
+      const auto sample       = self.samples_[key]++;
+      // Repeated invariants can execute hundreds of thousands of times. Keep
+      // their initial samples, transitions, and regular checkpoints.
+      const double numeric = static_cast<double>(value);
+      auto& previous       = self.previous_[key];
+      if (sample < 2 || sample % 100 == 0 || numeric != previous)
+        self.checks_.add(panel, label, sample, numeric);
+      previous = numeric;
+    }
+  }
+
+  template <typename T>
+  static const T& boolean(const char* expression, int line, const T& value,
+                          bool expected)
+  {
+    FunctionBlockObservations::value(expression, line, "Observed", value);
+    FunctionBlockObservations::value(expression, line, "Expected", expected);
+    return value;
+  }
+
+  static void axis(const std::string& name, Axis& axis, double time)
+  {
+    auto& plot = instance().signals_;
+    plot.add("Position", name + ".actual", time, axis.toUserPos());
+    plot.add("Position", name + ".command", time, axis.toUserPosCmd());
+    plot.add("Velocity", name + ".actual", time, axis.toUserVel());
+    plot.add("Velocity", name + ".command", time, axis.toUserVelCmd());
+    plot.add("Acceleration", name + ".command", time, axis.toUserAccCmd());
+    plot.add("Axis state", name, time, axis.getAxisState());
+    plot.add("Error code", name, time, axis.getAxisError());
+  }
+
+  static void block(const std::string& name, FbAxisNode& block, double time)
+  {
+    instance().signals_.addBlock(name, block, time);
+    instance().signals_.add("Error code", name, time, block.getErrorID());
+  }
+
+  template <typename T>
+  static void cycle(T& subject, const std::string& requested_name)
+  {
+    auto& self          = instance();
+    auto& identities    = self.identities_[requested_name];
+    const auto inserted = identities.emplace(&subject, identities.size());
+    const std::string name =
+        requested_name + "[" + std::to_string(inserted.first->second) + "]";
+    const double cycle = self.samples_["Cycle:" + name]++;
+    if constexpr (std::is_base_of_v<FbAxisNode, T>)
+    {
+      // A fixture also cycles its default gear when a test uses a local block.
+      // Do not mistake that unused block for the subject under test.
+      bool& exercised = self.exercised_[name];
+      exercised |=
+          subject.isEnabled() == mcTRUE || subject.isActive() == mcTRUE ||
+          subject.isBusy() == mcTRUE || subject.isDone() == mcTRUE ||
+          subject.isAborted() == mcTRUE || subject.isError() != mcFALSE;
+      if (!exercised)
+        return;
+    }
+    if constexpr (std::is_base_of_v<Axis, T>)
+      axis(name, subject, cycle);
+    if constexpr (std::is_base_of_v<FbAxisNode, T>)
+    {
+      block(name, subject, cycle);
+      self.signals_.add("FB signals", name + ".Busy", cycle,
+                        subject.isBusy() == mcTRUE);
+    }
+    if constexpr (std::is_base_of_v<FbAxisAdmin, T>)
+    {
+      self.signals_.add("FB signals", name + ".Enable", cycle,
+                        subject.isEnabled() == mcTRUE);
+      self.signals_.add("FB signals", name + ".Done", cycle,
+                        subject.isDone() == mcTRUE);
+      self.signals_.add("FB signals", name + ".Busy", cycle,
+                        subject.isBusy() == mcTRUE);
+      self.signals_.add("FB signals", name + ".Valid", cycle,
+                        subject.isValid() == mcTRUE);
+      self.signals_.add("FB signals", name + ".Error", cycle,
+                        subject.isError() != mcFALSE);
+      self.signals_.add("Error code", name, cycle, subject.getErrorID());
+    }
+    if constexpr (std::is_base_of_v<FbPower, T>)
+      self.signals_.add("FB signals", name + ".Power", cycle,
+                        subject.getPowerStatus() == mcTRUE);
+    if constexpr (std::is_base_of_v<FbAxisRead, T>)
+      self.signals_.add("Read value", name, cycle, subject.getFloatValue());
+    if constexpr (std::is_base_of_v<FbGearInPos, T>)
+    {
+      self.signals_.add("FB signals", name + ".StartSync", cycle,
+                        subject.getStartSync() == mcTRUE);
+      self.signals_.add("FB signals", name + ".InSync", cycle,
+                        subject.getInSync() == mcTRUE);
+    }
+    else if constexpr (std::is_base_of_v<FbGearIn, T>)
+      self.signals_.add("FB signals", name + ".InGear", cycle,
+                        subject.getInGear() == mcTRUE);
+    if constexpr (std::is_base_of_v<FbReadMotionState, T>)
+    {
+      self.signals_.add("FB signals", name + ".ConstantVelocity", cycle,
+                        subject.getConstantVelocity() == mcTRUE);
+      self.signals_.add("FB signals", name + ".Accelerating", cycle,
+                        subject.getAccelerating() == mcTRUE);
+      self.signals_.add("FB signals", name + ".Decelerating", cycle,
+                        subject.getDecelerating() == mcTRUE);
+      self.signals_.add("FB signals", name + ".Positive", cycle,
+                        subject.getDirectionPositive() == mcTRUE);
+      self.signals_.add("FB signals", name + ".Negative", cycle,
+                        subject.getDirectionNegative() == mcTRUE);
+    }
+    if constexpr (std::is_base_of_v<FbDigitalCamSwitch, T>)
+      self.signals_.add("FB signals", name + ".InOperation", cycle,
+                        subject.isInOperation() == mcTRUE);
+  }
+
+  static void commands(double position, double velocity, double acceleration,
+                       double target_velocity    = NAN,
+                       double acceleration_limit = NAN)
+  {
+    auto& self         = instance();
+    const double cycle = self.samples_["Node commands"]++;
+    self.signals_.add("Position", "Node command", cycle, position);
+    self.signals_.add("Velocity", "Node command", cycle, velocity);
+    if (std::isfinite(target_velocity))
+      self.signals_.add("Velocity", "Target", cycle, target_velocity);
+    self.signals_.add("Acceleration", "Node command", cycle, acceleration);
+    if (std::isfinite(acceleration_limit))
+    {
+      self.signals_.add("Acceleration", "Upper limit", cycle,
+                        acceleration_limit);
+      self.signals_.add("Acceleration", "Lower limit", cycle,
+                        -acceleration_limit);
+    }
+  }
+
+private:
+  test_plot::TestPlot checks_;
+  GearInTestPlot signals_;
+  std::map<std::string, size_t> samples_;
+  std::map<std::string, double> previous_;
+  std::map<std::string, std::map<const void*, size_t>> identities_;
+  std::map<std::string, bool> exercised_;
+};
+
+const bool function_block_observations_registered = [] {
+  ::testing::UnitTest::GetInstance()->listeners().Append(
+      &FunctionBlockObservations::instance());
+  return true;
+}();
+
+// GoogleTest still owns evaluation, diagnostics, streaming, and fatal returns;
+// each operand is evaluated exactly once, including calls with side effects.
+#undef EXPECT_PRED_FORMAT2
+#undef ASSERT_PRED_FORMAT2
+#define FB_PLOT_PRED2(pred, v1, v2, failure)                                   \
+  GTEST_PRED_FORMAT2_(                                                         \
+      ([&](const char* e1, const char* e2, const auto& a, const auto& b) {     \
+        FunctionBlockObservations::value(e1, __LINE__, "Observed", a);         \
+        FunctionBlockObservations::value(e1, __LINE__, "Reference: " #v2, b);  \
+        return pred(e1, e2, a, b);                                             \
+      }),                                                                      \
+      v1, v2, failure)
+#define EXPECT_PRED_FORMAT2(pred, v1, v2)                                      \
+  FB_PLOT_PRED2(pred, v1, v2, GTEST_NONFATAL_FAILURE_)
+#define ASSERT_PRED_FORMAT2(pred, v1, v2)                                      \
+  FB_PLOT_PRED2(pred, v1, v2, GTEST_FATAL_FAILURE_)
+
+#undef EXPECT_PRED_FORMAT3
+#undef ASSERT_PRED_FORMAT3
+#define FB_PLOT_PRED3(pred, v1, v2, v3, failure)                               \
+  GTEST_PRED_FORMAT3_(                                                         \
+      ([&](const char* e1, const char* e2, const char* e3, const auto& a,      \
+           const auto& b, const auto& tolerance) {                             \
+        FunctionBlockObservations::value(e1, __LINE__, "Observed", a);         \
+        FunctionBlockObservations::value(e1, __LINE__, "Expected", b);         \
+        FunctionBlockObservations::value(e1, __LINE__, "Tolerance",            \
+                                         tolerance);                           \
+        return pred(e1, e2, e3, a, b, tolerance);                              \
+      }),                                                                      \
+      v1, v2, v3, failure)
+#define EXPECT_PRED_FORMAT3(pred, v1, v2, v3)                                  \
+  FB_PLOT_PRED3(pred, v1, v2, v3, GTEST_NONFATAL_FAILURE_)
+#define ASSERT_PRED_FORMAT3(pred, v1, v2, v3)                                  \
+  FB_PLOT_PRED3(pred, v1, v2, v3, GTEST_FATAL_FAILURE_)
+
+#undef EXPECT_TRUE
+#undef EXPECT_FALSE
+#undef ASSERT_TRUE
+#undef ASSERT_FALSE
+#define EXPECT_TRUE(value)                                                     \
+  GTEST_EXPECT_TRUE(                                                           \
+      FunctionBlockObservations::boolean(#value, __LINE__, (value), true))
+#define EXPECT_FALSE(value)                                                    \
+  GTEST_EXPECT_FALSE(                                                          \
+      FunctionBlockObservations::boolean(#value, __LINE__, (value), false))
+#define ASSERT_TRUE(value)                                                     \
+  GTEST_ASSERT_TRUE(                                                           \
+      FunctionBlockObservations::boolean(#value, __LINE__, (value), true))
+#define ASSERT_FALSE(value)                                                    \
+  GTEST_ASSERT_FALSE(                                                          \
+      FunctionBlockObservations::boolean(#value, __LINE__, (value), false))
+
+template <typename Profile, typename... Args>
+void plotProfile(Profile& profile, const std::string& suffix, Args&&... args)
+{
+  const auto file = test_plot::TestPlot::filename("_" + suffix);
+  profile.plot(file, std::forward<Args>(args)...);
+  plt::close();
+  test_plot::TestPlot::recordFile(file);
+}
 #endif
+
+template <typename T>
+void runObservedCycle(T& subject, const char* name)
+{
+  subject.runCycle();
+#ifdef PLOT
+  FunctionBlockObservations::cycle(subject, name);
+#else
+  (void)name;
+#endif
+}
 
 template <typename MotionBlock>
 class ZeroJerkMotionBlock : public MotionBlock
@@ -198,7 +414,7 @@ TEST(MotionLimitTest, RejectZeroJerkBeforeAxisAccess)
   {
     gear_in_pos.setExecute(cycle >= 1 && cycle <= pulse_cycles ? mcTRUE :
                                                                  mcFALSE);
-    gear_in_pos.runCycle();
+    runObservedCycle(gear_in_pos, "gear_in_pos");
     if (cycle >= 1 && cycle <= pulse_cycles)
     {
       EXPECT_EQ(gear_in_pos.isError(), mcTRUE);
@@ -358,12 +574,12 @@ protected:
 
     while (time < 70.0)
     {
-      axis->runCycle();
-      fb_power.runCycle();
-      set_position.runCycle();
-      move_1.runCycle();
-      move_2.runCycle();
-      move_3.runCycle();
+      runObservedCycle(*axis, "axis");
+      runObservedCycle(fb_power, "fb_power");
+      runObservedCycle(set_position, "set_position");
+      runObservedCycle(move_1, "move_1");
+      runObservedCycle(move_2, "move_2");
+      runObservedCycle(move_3, "move_3");
 
       const double velocity_step = fabs(axis->toUserVel() - previous_velocity);
       if (velocity_step > max_velocity_step)
@@ -499,8 +715,8 @@ protected:
     }
 
 #ifdef PLOT
-    fb_profile_.plot(plot_name + "_signals.png", "Move", 1280, 2400);
-    axis_profile_.plot(plot_name + "_motion.png");
+    plotProfile(fb_profile_, plot_name + "_signals", "Move", 1280, 2400);
+    plotProfile(axis_profile_, plot_name + "_motion");
 #endif
 
     EXPECT_TRUE(sampled_1000);
@@ -531,6 +747,439 @@ protected:
     EXPECT_TRUE(move_1.isAborted() == mcFALSE);
     EXPECT_TRUE(move_2.isAborted() == mcFALSE);
     EXPECT_TRUE(move_3.isAborted() == mcFALSE);
+
+    delete servo;
+    delete axis;
+  }
+
+  // PLCopen Part 1 Version 2.0, Section 3.3, Figure 15: MC_Stop timing
+  // diagram. The axis cruises with MC_MoveVelocity and is ramped down by
+  // MC_Stop. With 'release_before_done' = false, 'Execute' is held after
+  // 'Done' (left side of Figure 15), otherwise it is released while the axis
+  // is still decelerating (right side of Figure 15).
+  void runStopTimingDiagram(double frequency, bool release_before_done,
+                            const std::string& plot_name)
+  {
+#ifdef PLOT
+    fb_profile_.reset();
+    axis_profile_.reset();
+#endif
+    const double dt                = 1.0 / frequency;
+    const double cruise_velocity   = 50;
+    const double stop_deceleration = 20;
+    const double stop_jerk         = 200;
+
+    AxisConfig config;
+    config.frequency_ = frequency;
+    AXIS_REF axis     = new Axis();
+    axis->setAxisId(1);
+    axis->setAxisConfig(&config);
+
+    Servo* servo = new Servo();
+    axis->setServo(servo);
+
+    FbPower fb_power;
+    fb_power.setAxis(axis);
+    fb_power.setEnable(mcTRUE);
+    fb_power.setEnablePositive(mcTRUE);
+    fb_power.setEnableNegative(mcTRUE);
+
+    FbMoveVelocity move_vel;
+    move_vel.setAxis(axis);
+    move_vel.setVelocity(cruise_velocity);
+    move_vel.setAcceleration(50);
+    move_vel.setDeceleration(50);
+    move_vel.setJerk(500);
+    move_vel.setBufferMode(mcAborting);
+
+    FbStop stop;
+    stop.setAxis(axis);
+    stop.setDeceleration(stop_deceleration);
+    stop.setJerk(stop_jerk);
+
+#ifdef PLOT
+    fb_profile_.addFB("stop");
+    fb_profile_.addFB("axis");
+    fb_profile_.addItemName("stop.execute");
+    fb_profile_.addItemName("stop.busy");
+    fb_profile_.addItemName("stop.done");
+    fb_profile_.addItemName("stop.command_aborted");
+    fb_profile_.addItemName("axis.stopping");
+    fb_profile_.addItemName("axis.standstill");
+#endif
+
+    double time                  = 0;
+    double stop_time             = NAN;
+    double stop_velocity         = NAN;
+    double stop_position         = NAN;
+    double done_time             = NAN;
+    double release_time          = NAN;
+    double done_off_time         = NAN;
+    double standstill_time       = NAN;
+    double previous_velocity     = 0;
+    double max_velocity_drop     = 0;
+    double max_velocity_drop_t   = 0;
+    double velocity_before_drop  = 0;
+    double velocity_after_drop   = 0;
+    bool in_velocity_before_stop = false;
+    bool done_before_zero        = false;
+    bool done_dropped_while_exec = false;
+    bool left_stopping_early     = false;
+
+    while (time < 12.0)
+    {
+      axis->runCycle();
+      fb_power.runCycle();
+      move_vel.runCycle();
+      stop.runCycle();
+
+      const double velocity = axis->toUserVel();
+
+      if (move_vel.isEnabled() == mcFALSE &&
+          fb_power.getPowerStatus() == mcTRUE && std::isnan(stop_time))
+        move_vel.setExecute(mcTRUE);
+      in_velocity_before_stop |= std::isnan(stop_time) &&
+                                 move_vel.isInVelocity() == mcTRUE;
+
+      if (std::isnan(stop_time) && time >= 3.0)
+      {
+        stop.setExecute(mcTRUE);
+        stop_time     = time;
+        stop_velocity = velocity;
+        stop_position = axis->toUserPos();
+      }
+      else if (!std::isnan(stop_time))
+      {
+        const double drop = previous_velocity - velocity;
+        if (std::isnan(done_time) && drop > max_velocity_drop)
+        {
+          max_velocity_drop    = drop;
+          max_velocity_drop_t  = time - stop_time;
+          velocity_before_drop = previous_velocity;
+          velocity_after_drop  = velocity;
+        }
+
+        if (std::isnan(done_time) && stop.isDone() == mcTRUE)
+        {
+          done_time        = time;
+          done_before_zero = fabs(velocity) > 1e-3;
+        }
+        if (!std::isnan(done_time) && std::isnan(done_off_time) &&
+            stop.isDone() == mcFALSE)
+        {
+          done_off_time = time;
+          if (std::isnan(release_time))
+            done_dropped_while_exec = true;
+        }
+
+        // Figure 15: 'Stopping' while 'Execute' is TRUE or velocity zero is
+        // not yet reached.
+        const bool must_be_stopping = std::isnan(release_time) ||
+                                      std::isnan(done_time);
+        if (time - stop_time > 2 * dt && must_be_stopping &&
+            axis->getAxisState() != mcStopping)
+          left_stopping_early = true;
+        if (std::isnan(standstill_time) && axis->getAxisState() == mcStandstill)
+          standstill_time = time;
+
+        const bool release = release_before_done ? time - stop_time >= 0.5 :
+                                                   !std::isnan(done_time) &&
+                                                       time - done_time >= 1.0;
+        if (std::isnan(release_time) && release)
+        {
+          stop.setExecute(mcFALSE);
+          release_time = time;
+        }
+      }
+      previous_velocity = velocity;
+
+#ifdef PLOT
+      axis_profile_.addState(axis->toUserPos(), velocity, axis->toUserAccCmd(),
+                             time);
+      fb_profile_.addState("stop.execute", stop.isEnabled() == mcTRUE);
+      fb_profile_.addState("stop.busy", stop.isBusy() == mcTRUE);
+      fb_profile_.addState("stop.done", stop.isDone() == mcTRUE);
+      fb_profile_.addState("stop.command_aborted", stop.isAborted() == mcTRUE);
+      fb_profile_.addState("axis.stopping", axis->getAxisState() == mcStopping);
+      fb_profile_.addState("axis.standstill",
+                           axis->getAxisState() == mcStandstill);
+      fb_profile_.addTime(time);
+#endif
+      time += dt;
+    }
+
+#ifdef PLOT
+    plotProfile(fb_profile_, plot_name + "_signals", "FB", 1280, 1440);
+    plotProfile(axis_profile_, plot_name + "_motion");
+#endif
+
+    EXPECT_TRUE(in_velocity_before_stop);
+    EXPECT_NEAR(stop_velocity, cruise_velocity, 0.01);
+
+    // Motion: velocity ramps down with 'Deceleration', no single-cycle step.
+    const double max_step = stop_deceleration * dt;
+    EXPECT_LE(max_velocity_drop, max_step * 1.05 + 1e-3)
+        << "velocity dropped from " << velocity_before_drop << " to "
+        << velocity_after_drop << " in one " << dt * 1000 << " ms cycle, "
+        << max_velocity_drop_t << " s after MC_Stop; expected at most "
+        << max_step << " per cycle.";
+
+    // Signals: 'Done' when velocity zero is reached.
+    ASSERT_FALSE(std::isnan(done_time)) << "MC_Stop never reported 'Done'";
+    EXPECT_FALSE(done_before_zero);
+    const double min_duration = cruise_velocity / stop_deceleration;
+    EXPECT_GE(done_time - stop_time, 0.95 * min_duration)
+        << "the axis stopped faster than 'Deceleration' allows";
+    EXPECT_LE(done_time - stop_time,
+              min_duration + 2 * stop_deceleration / stop_jerk + 0.5);
+    EXPECT_GE(fabs(axis->toUserPos() - stop_position),
+              0.95 * cruise_velocity * cruise_velocity /
+                  (2 * stop_deceleration))
+        << "braking distance is shorter than 'Deceleration' allows";
+    EXPECT_FALSE(left_stopping_early)
+        << "axis left 'Stopping' while 'Execute' was TRUE or before velocity "
+           "zero";
+    EXPECT_FALSE(done_dropped_while_exec)
+        << "'Done' reset while 'Execute' was still TRUE";
+
+    // 'Done' AND NOT 'Execute' -> 'Standstill'.
+    ASSERT_FALSE(std::isnan(release_time));
+    ASSERT_FALSE(std::isnan(standstill_time));
+    EXPECT_GE(standstill_time, std::max(release_time, done_time));
+    EXPECT_LE(standstill_time - std::max(release_time, done_time), 2 * dt);
+    EXPECT_FALSE(std::isnan(done_off_time)) << "'Done' never reset";
+    EXPECT_EQ(axis->getAxisState(), mcStandstill);
+    EXPECT_NEAR(axis->toUserVel(), 0, 1e-3);
+    EXPECT_TRUE(stop.isError() == mcFALSE) << stop.getErrorID();
+    EXPECT_TRUE(move_vel.isAborted() == mcTRUE);
+
+    delete servo;
+    delete axis;
+  }
+
+  // PLCopen Part 1 Version 2.0, Section 3.3, Figure 16: MC_Stop in
+  // combination with MC_MoveVelocity.
+  //  a) A rotating axis is ramped down with MC_Stop.
+  //  b) The axis rejects motion commands as long as MC_Stop 'Execute' is
+  //     TRUE; MC_MoveVelocity reports an error.
+  void runStopWithMoveVelocity(double frequency, const std::string& plot_name)
+  {
+#ifdef PLOT
+    fb_profile_.reset();
+    axis_profile_.reset();
+#endif
+    const double dt                = 1.0 / frequency;
+    const double cruise_velocity   = 50;
+    const double stop_deceleration = 20;
+    // Figure 16 uses 'Jerk' = 0 (no jerk limit), which this implementation
+    // rejects, so steep jerk values are used instead.
+    const double stop_jerk = 200;
+
+    AxisConfig config;
+    config.frequency_ = frequency;
+    AXIS_REF axis     = new Axis();
+    axis->setAxisId(1);
+    axis->setAxisConfig(&config);
+
+    Servo* servo = new Servo();
+    axis->setServo(servo);
+
+    FbPower fb_power;
+    fb_power.setAxis(axis);
+    fb_power.setEnable(mcTRUE);
+    fb_power.setEnablePositive(mcTRUE);
+    fb_power.setEnableNegative(mcTRUE);
+
+    FbMoveVelocity move_vel;
+    move_vel.setAxis(axis);
+    move_vel.setContinuousUpdate(mcFALSE);
+    move_vel.setVelocity(cruise_velocity);
+    move_vel.setAcceleration(10);
+    move_vel.setDeceleration(10);
+    move_vel.setJerk(100);
+    move_vel.setDirection(mcPositiveDirection);
+    move_vel.setBufferMode(mcAborting);
+
+    FbStop stop;
+    stop.setAxis(axis);
+    stop.setDeceleration(stop_deceleration);
+    stop.setJerk(stop_jerk);
+
+#ifdef PLOT
+    fb_profile_.addFB("move_vel");
+    fb_profile_.addFB("stop");
+    fb_profile_.addItemName("move_vel.execute");
+    fb_profile_.addItemName("move_vel.in_velocity");
+    fb_profile_.addItemName("move_vel.command_aborted");
+    fb_profile_.addItemName("move_vel.error");
+    fb_profile_.addItemName("stop.execute");
+    fb_profile_.addItemName("stop.done");
+#endif
+
+    // Figure 16 'Execute' edges.
+    const double stop_rise        = 7.0;   // Exe_2 rises during a)
+    const double move_fall        = 8.0;   // Exe_1 falls (aborted)
+    const double move_rejected    = 11.0;  // Exe_1 rises during b)
+    const double stop_fall        = 13.0;  // Exe_2 falls
+    const double move_error_reset = 14.0;  // Exe_1 falls, error reset
+    const double move_restart     = 15.0;  // Exe_1 rises again
+
+    double time                  = 0;
+    double stop_time             = NAN;
+    double stop_velocity         = NAN;
+    double stop_position         = NAN;
+    double done_time             = NAN;
+    double done_position         = NAN;
+    double previous_velocity     = 0;
+    double max_velocity_drop     = 0;
+    double max_velocity_drop_t   = 0;
+    double velocity_before_drop  = 0;
+    double velocity_after_drop   = 0;
+    double max_drift_while_stop  = 0;
+    bool in_velocity_before_stop = false;
+    bool aborted_by_stop         = false;
+    bool in_velocity_during_stop = false;
+    bool rejected_with_error     = false;
+    bool done_before_zero        = false;
+    bool done_dropped_while_exec = false;
+    bool left_stopping_early     = false;
+    bool standstill_after_stop   = false;
+    bool error_after_reset       = false;
+
+    while (time < 22.0)
+    {
+      axis->runCycle();
+      fb_power.runCycle();
+      move_vel.runCycle();
+      stop.runCycle();
+
+      const double velocity = axis->toUserVel();
+
+      // FB1 'Exe_1'
+      if (fb_power.getPowerStatus() == mcTRUE &&
+          (time < move_fall ||
+           (time >= move_rejected && time < move_error_reset) ||
+           time >= move_restart))
+        move_vel.setExecute(mcTRUE);
+      else
+        move_vel.setExecute(mcFALSE);
+
+      // FB2 'Exe_2'
+      if (std::isnan(stop_time) && time >= stop_rise)
+      {
+        stop.setExecute(mcTRUE);
+        stop_time     = time;
+        stop_velocity = velocity;
+        stop_position = axis->toUserPos();
+      }
+      else if (time >= stop_fall)
+        stop.setExecute(mcFALSE);
+
+      if (std::isnan(stop_time))
+        in_velocity_before_stop |= move_vel.isInVelocity() == mcTRUE;
+      else if (time < stop_fall)
+      {
+        // a) ramp-down
+        const double drop = previous_velocity - velocity;
+        if (std::isnan(done_time) && drop > max_velocity_drop)
+        {
+          max_velocity_drop    = drop;
+          max_velocity_drop_t  = time - stop_time;
+          velocity_before_drop = previous_velocity;
+          velocity_after_drop  = velocity;
+        }
+        aborted_by_stop |= move_vel.isAborted() == mcTRUE;
+        in_velocity_during_stop |= time - stop_time > 2 * dt &&
+                                   move_vel.isInVelocity() == mcTRUE;
+        if (time - stop_time > 2 * dt && axis->getAxisState() != mcStopping)
+          left_stopping_early = true;
+
+        if (std::isnan(done_time) && stop.isDone() == mcTRUE)
+        {
+          done_time        = time;
+          done_position    = axis->toUserPos();
+          done_before_zero = fabs(velocity) > 1e-3;
+        }
+        if (!std::isnan(done_time))
+        {
+          done_dropped_while_exec |= stop.isDone() == mcFALSE;
+          max_drift_while_stop = std::max(
+              max_drift_while_stop, fabs(axis->toUserPos() - done_position));
+        }
+
+        // b) motion command rejected while MC_Stop 'Execute' is TRUE
+        if (time >= move_rejected)
+          rejected_with_error |= move_vel.isError() == mcTRUE;
+      }
+      else if (time < move_restart)
+      {
+        standstill_after_stop |= axis->getAxisState() == mcStandstill;
+        if (time > move_error_reset + 2 * dt)
+          error_after_reset |= move_vel.isError() == mcTRUE;
+      }
+      previous_velocity = velocity;
+
+#ifdef PLOT
+      axis_profile_.addState(axis->toUserPos(), velocity, axis->toUserAccCmd(),
+                             time);
+      fb_profile_.addState("move_vel.execute", move_vel.isEnabled() == mcTRUE);
+      fb_profile_.addState("move_vel.in_velocity",
+                           move_vel.isInVelocity() == mcTRUE);
+      fb_profile_.addState("move_vel.command_aborted",
+                           move_vel.isAborted() == mcTRUE);
+      fb_profile_.addState("move_vel.error", move_vel.isError() == mcTRUE);
+      fb_profile_.addState("stop.execute", stop.isEnabled() == mcTRUE);
+      fb_profile_.addState("stop.done", stop.isDone() == mcTRUE);
+      fb_profile_.addTime(time);
+#endif
+      time += dt;
+    }
+
+#ifdef PLOT
+    plotProfile(fb_profile_, plot_name + "_signals", "FB", 1280, 1440);
+    plotProfile(axis_profile_, plot_name + "_motion");
+#endif
+
+    // a) InVel_1 before the stop, Abort_1 when MC_Stop takes over.
+    EXPECT_TRUE(in_velocity_before_stop);
+    EXPECT_NEAR(stop_velocity, cruise_velocity, 0.01);
+    EXPECT_TRUE(aborted_by_stop) << "MC_MoveVelocity not aborted by MC_Stop";
+    EXPECT_FALSE(in_velocity_during_stop);
+
+    // a) Velocity ramps down with 'Deceleration', no single-cycle step.
+    const double max_step = stop_deceleration * dt;
+    EXPECT_LE(max_velocity_drop, max_step * 1.05 + 1e-3)
+        << "velocity dropped from " << velocity_before_drop << " to "
+        << velocity_after_drop << " in one " << dt * 1000 << " ms cycle, "
+        << max_velocity_drop_t << " s after MC_Stop; expected at most "
+        << max_step << " per cycle.";
+    ASSERT_FALSE(std::isnan(done_time)) << "MC_Stop never reported 'Done'";
+    EXPECT_FALSE(done_before_zero);
+    const double min_duration = cruise_velocity / stop_deceleration;
+    EXPECT_GE(done_time - stop_time, 0.95 * min_duration)
+        << "the axis stopped faster than 'Deceleration' allows";
+    EXPECT_LE(done_time - stop_time,
+              min_duration + 2 * stop_deceleration / stop_jerk + 0.5);
+    EXPECT_GE(done_position - stop_position, 0.95 * cruise_velocity *
+                                                 cruise_velocity /
+                                                 (2 * stop_deceleration))
+        << "braking distance is shorter than 'Deceleration' allows";
+    EXPECT_FALSE(left_stopping_early)
+        << "axis left 'Stopping' while MC_Stop.Execute was TRUE";
+    EXPECT_FALSE(done_dropped_while_exec)
+        << "'Done_2' reset while 'Exe_2' was still TRUE";
+
+    // b) MC_MoveVelocity rejected with an error, the axis does not move.
+    EXPECT_TRUE(rejected_with_error)
+        << "MC_MoveVelocity accepted while MC_Stop.Execute was TRUE";
+    EXPECT_LE(max_drift_while_stop, 1e-3);
+
+    // 'Done_2' AND NOT 'Exe_2' -> 'Standstill'; motion is accepted again.
+    EXPECT_TRUE(standstill_after_stop);
+    EXPECT_FALSE(error_after_reset);
+    EXPECT_TRUE(move_vel.isInVelocity() == mcTRUE);
+    EXPECT_NEAR(axis->toUserVel(), cruise_velocity, 0.01);
+    EXPECT_TRUE(stop.isError() == mcFALSE) << stop.getErrorID();
 
     delete servo;
     delete axis;
@@ -607,9 +1256,9 @@ TEST_F(FunctionBlockTest, DemoRelative)
   double timeout = 0;
   while (fb_move_rel.isDone() == mcFALSE && timeout < 5)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    fb_move_rel.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(fb_move_rel, "fb_move_rel");
     timeout += 0.001;
 #ifdef PLOT
     axis_profile_.addState(axis->toUserPos(), axis->toUserVel(),
@@ -627,7 +1276,7 @@ TEST_F(FunctionBlockTest, DemoRelative)
     //        axis->toUserVel());
   }
 #ifdef PLOT
-  axis_profile_.plot("DemoRelative.png");
+  plotProfile(axis_profile_, "DemoRelative");
 #endif
   ASSERT_TRUE(fb_move_rel.isDone() == mcTRUE);
   ASSERT_LT(fabs(axis->toUserPos() - 3.14), 0.01);
@@ -677,9 +1326,9 @@ TEST_F(FunctionBlockTest, DemoVelocity)
   double timeout = 0;
   while (fb_move_vel.isInVelocity() == mcFALSE && timeout < 5.0)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    fb_move_vel.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(fb_move_vel, "fb_move_vel");
     timeout += 0.001;
 
 #ifdef PLOT
@@ -698,7 +1347,7 @@ TEST_F(FunctionBlockTest, DemoVelocity)
     //         axis->toUserVel());
   }
 #ifdef PLOT
-  axis_profile_.plot("DemoVelocity.png");
+  plotProfile(axis_profile_, "DemoVelocity");
 #endif
   ASSERT_TRUE(fb_move_vel.isInVelocity() == mcTRUE);
   ASSERT_LT(fabs(axis->toUserVel() - 1.57), 0.01);
@@ -762,10 +1411,10 @@ TEST_F(FunctionBlockTest, MC_Stop)
   double t        = 0;
   while (t < time_out)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    move_vel.runCycle();
-    stop.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(move_vel, "move_vel");
+    runObservedCycle(stop, "stop");
 
     if (move_vel.isEnabled() == mcFALSE && t < 7.5)
     {  //使能成功后move1开始移动
@@ -806,8 +1455,8 @@ TEST_F(FunctionBlockTest, MC_Stop)
     t += 0.001;
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_stop_axis.png");
-  fb_profile_.plot("mc_stop_fb.png");
+  plotProfile(axis_profile_, "mc_stop_axis");
+  plotProfile(fb_profile_, "mc_stop_fb");
 #endif
   ASSERT_TRUE(move_vel.isInVelocity() == mcTRUE);
   ASSERT_LT(fabs(axis->toUserVel() - 50), 0.01);
@@ -816,6 +1465,49 @@ TEST_F(FunctionBlockTest, MC_Stop)
   servo = nullptr;
   axis  = nullptr;
   printf("FB test end. Delete axis and servo.\n");
+}
+
+// PLCopen Part 1 Version 2.0, Section 3.3, Figure 15. The ramp-down must be
+// jerk limited at every axis cycle rate, not only at 1 kHz.
+TEST_F(FunctionBlockTest, MC_StopFigure15ExecuteHeld_1000Hz)
+{
+  runStopTimingDiagram(1000, false,
+                       "plcopen_figure15_mc_stop_execute_held_1000hz");
+}
+
+TEST_F(FunctionBlockTest, MC_StopFigure15ExecuteHeld_500Hz)
+{
+  runStopTimingDiagram(500, false,
+                       "plcopen_figure15_mc_stop_execute_held_500hz");
+}
+
+TEST_F(FunctionBlockTest, MC_StopFigure15ExecuteReleased_1000Hz)
+{
+  runStopTimingDiagram(1000, true,
+                       "plcopen_figure15_mc_stop_execute_released_1000hz");
+}
+
+TEST_F(FunctionBlockTest, MC_StopFigure15ExecuteReleased_500Hz)
+{
+  runStopTimingDiagram(500, true,
+                       "plcopen_figure15_mc_stop_execute_released_500hz");
+}
+
+// PLCopen Part 1 Version 2.0, Section 3.3, Figure 16.
+TEST_F(FunctionBlockTest, MC_StopFigure16MoveVelocity_1000Hz)
+{
+  runStopWithMoveVelocity(1000,
+                          "plcopen_figure16_mc_stop_move_velocity_1000hz");
+}
+
+TEST_F(FunctionBlockTest, MC_StopFigure16MoveVelocity_500Hz)
+{
+  runStopWithMoveVelocity(500, "plcopen_figure16_mc_stop_move_velocity_500hz");
+}
+
+TEST_F(FunctionBlockTest, MC_StopFigure16MoveVelocity_250Hz)
+{
+  runStopWithMoveVelocity(250, "plcopen_figure16_mc_stop_move_velocity_250hz");
 }
 
 // Test MC_Halt
@@ -870,10 +1562,10 @@ TEST_F(FunctionBlockTest, MC_Halt)
   double t        = 0;
   while (t < time_out)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    move_vel.runCycle();
-    halt.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(move_vel, "move_vel");
+    runObservedCycle(halt, "halt");
 
     if (move_vel.isEnabled() == mcFALSE && t < 7.5)
     {  //使能成功后move1开始移动
@@ -920,8 +1612,8 @@ TEST_F(FunctionBlockTest, MC_Halt)
     t += 0.001;
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_halt_axis.png");
-  fb_profile_.plot("mc_halt_fb.png");
+  plotProfile(axis_profile_, "mc_halt_axis");
+  plotProfile(fb_profile_, "mc_halt_fb");
 #endif
   ASSERT_TRUE(move_vel.isInVelocity() == mcTRUE);
   ASSERT_LT(fabs(axis->toUserVel() - 50), 0.01);
@@ -993,11 +1685,11 @@ TEST_F(FunctionBlockTest, MC_MoveAbsolute)
   while (t < time_out)
   {
     //功能块调用
-    axis->runCycle();
-    fb_power.runCycle();
-    set_position1.runCycle();
-    move_abs1.runCycle();
-    move_abs2.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(set_position1, "set_position1");
+    runObservedCycle(move_abs1, "move_abs1");
+    runObservedCycle(move_abs2, "move_abs2");
 
     if (set_position1.isEnabled() == mcFALSE &&
         fb_power.getPowerStatus() == mcTRUE && t < 2)
@@ -1036,8 +1728,8 @@ TEST_F(FunctionBlockTest, MC_MoveAbsolute)
     t += 0.001;
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_move_abs_axis.png");
-  fb_profile_.plot("mc_move_abs_fb.png");
+  plotProfile(axis_profile_, "mc_move_abs_axis");
+  plotProfile(fb_profile_, "mc_move_abs_fb");
 #endif
   ASSERT_LT(fabs(axis->toUserVel() - 0.0), 0.01);
   ASSERT_LT(fabs(axis->toUserPos() - 1000), 0.01);
@@ -1105,10 +1797,10 @@ TEST_F(FunctionBlockTest, MC_MoveRelative)
   mcBOOL trigger  = mcFALSE;
   while (t < time_out)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    fb_move_rel_1.runCycle();
-    fb_move_rel_2.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(fb_move_rel_1, "fb_move_rel_1");
+    runObservedCycle(fb_move_rel_2, "fb_move_rel_2");
     if (trigger == mcTRUE)
     {
       pos_tmp = axis->toUserPos();
@@ -1153,8 +1845,8 @@ TEST_F(FunctionBlockTest, MC_MoveRelative)
     // axis->toUserVel());
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_mov_rel_axis.png");
-  fb_profile_.plot("mc_mov_rel_fb.png");
+  plotProfile(axis_profile_, "mc_mov_rel_axis");
+  plotProfile(fb_profile_, "mc_mov_rel_fb");
 #endif
   ASSERT_LT(fabs(axis->toUserVel() - 0.0), 0.01);
   ASSERT_LT(fabs(axis->toUserPos() - (pos_tmp + 400)), 0.01);
@@ -1226,11 +1918,11 @@ TEST_F(FunctionBlockTest, MC_MoveAdditive)
   double t        = 0;
   while (t < time_out)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    set_position1.runCycle();
-    move_abs1.runCycle();
-    move_add2.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(set_position1, "set_position1");
+    runObservedCycle(move_abs1, "move_abs1");
+    runObservedCycle(move_add2, "move_add2");
 
     if (set_position1.isEnabled() == mcFALSE &&
         fb_power.getPowerStatus() == mcTRUE)
@@ -1271,8 +1963,8 @@ TEST_F(FunctionBlockTest, MC_MoveAdditive)
     // axis->toUserVel());
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_moveAdd_axis.png");
-  fb_profile_.plot("mc_moveAdd_fb.png");
+  plotProfile(axis_profile_, "mc_moveAdd_axis");
+  plotProfile(fb_profile_, "mc_moveAdd_fb");
 #endif
   ASSERT_LT(fabs(axis->toUserVel() - 0.0), 0.01);
   ASSERT_LT(fabs(axis->toUserPos() - (600 + 400)), 0.01);
@@ -1338,10 +2030,10 @@ TEST_F(FunctionBlockTest, MC_MoveVelocity)
   mcBOOL next = mcFALSE, test = mcFALSE;
   while (t < time_out)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    mov_vel1.runCycle();
-    mov_vel2.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(mov_vel1, "mov_vel1");
+    runObservedCycle(mov_vel2, "mov_vel2");
 
     if (mov_vel1.isEnabled() == mcFALSE && t < 5)
     {  //使能成功后move1开始移动
@@ -1397,8 +2089,8 @@ TEST_F(FunctionBlockTest, MC_MoveVelocity)
     // axis->toUserVel());
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_mov_vel_axis.png");
-  fb_profile_.plot("mc_mov_vel_fb.png");
+  plotProfile(axis_profile_, "mc_mov_vel_axis");
+  plotProfile(fb_profile_, "mc_mov_vel_fb");
 #endif
   ASSERT_LT(fabs(axis->toUserVel() - 200), 0.01);
   delete servo;
@@ -1459,12 +2151,12 @@ TEST_F(FunctionBlockTest, MC_SetPosition1)
   while (t < time_out)
   {
     //功能块调用
-    axis->runCycle();
-    fb_power.runCycle();
-    set_position1.runCycle();
-    move_abs1.runCycle();
-    move_abs2.runCycle();
-    read_actual_pos1.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(set_position1, "set_position1");
+    runObservedCycle(move_abs1, "move_abs1");
+    runObservedCycle(move_abs2, "move_abs2");
+    runObservedCycle(read_actual_pos1, "read_actual_pos1");
 
     if (set_position1.isEnabled() == mcFALSE &&
         fb_power.getPowerStatus() == mcTRUE && t < 0.5)
@@ -1556,12 +2248,12 @@ TEST_F(FunctionBlockTest, MC_SetPosition2)
   while (t < time_out)
   {
     //功能块调用
-    axis->runCycle();
-    fb_power.runCycle();
-    move_rel1.runCycle();
-    move_rel2.runCycle();
-    set_position1.runCycle();
-    read_actual_pos1.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(move_rel1, "move_rel1");
+    runObservedCycle(move_rel2, "move_rel2");
+    runObservedCycle(set_position1, "set_position1");
+    runObservedCycle(read_actual_pos1, "read_actual_pos1");
 
     if (move_rel1.isEnabled() == mcFALSE)
     {  //使能成功后move1开始移动
@@ -1632,10 +2324,10 @@ TEST_F(FunctionBlockTest, MC_Homing1)
   while (t < time_out)
   {
     //功能块调用
-    axis->runCycle();
-    fb_power.runCycle();
-    move_homing.runCycle();
-    read_actual_pos.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(move_homing, "move_homing");
+    runObservedCycle(read_actual_pos, "read_actual_pos");
 
     if (move_homing.isEnabled() == mcFALSE &&
         fb_power.getPowerStatus() == mcTRUE)
@@ -1717,11 +2409,11 @@ TEST_F(FunctionBlockTest, MC_Homing2)
   while (t < time_out)
   {
     //功能块调用
-    axis->runCycle();
-    fb_power.runCycle();
-    move_rel.runCycle();
-    move_homing.runCycle();
-    read_actual_pos.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(move_rel, "move_rel");
+    runObservedCycle(move_homing, "move_homing");
+    runObservedCycle(read_actual_pos, "read_actual_pos");
 
     if (move_rel.isEnabled() == mcFALSE && fb_power.getPowerStatus() == mcTRUE)
     {  //使能成功后moveRel开始移动
@@ -1799,10 +2491,10 @@ TEST_F(FunctionBlockTest, MC_Homing3)
   while (t < time_out)
   {
     //功能块调用
-    axis->runCycle();
-    fb_power.runCycle();
-    move_homing.runCycle();
-    read_actual_pos.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(move_homing, "move_homing");
+    runObservedCycle(read_actual_pos, "read_actual_pos");
 
     if (move_homing.isEnabled() == mcFALSE &&
         fb_power.getPowerStatus() == mcTRUE)
@@ -1899,12 +2591,12 @@ TEST_F(FunctionBlockTest, MC_Sequence1)
   double t        = 0;
   while (t < time_out)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    set_position1.runCycle();
-    fb_move_vel.runCycle();
-    fb_halt.runCycle();
-    fb_move_abs.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(set_position1, "set_position1");
+    runObservedCycle(fb_move_vel, "fb_move_vel");
+    runObservedCycle(fb_halt, "fb_halt");
+    runObservedCycle(fb_move_abs, "fb_move_abs");
 
     if (set_position1.isEnabled() == mcFALSE &&
         fb_power.getPowerStatus() == mcTRUE)
@@ -1983,9 +2675,9 @@ TEST_F(FunctionBlockTest, MC_Jog)
   double timeout = 0.0;
   while (timeout < 5.0)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    fb_jog.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(fb_jog, "fb_jog");
     timeout += 0.001;
 
 #ifdef PLOT
@@ -2020,7 +2712,7 @@ TEST_F(FunctionBlockTest, MC_Jog)
     }
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_jog_axis.png");
+  plotProfile(axis_profile_, "mc_jog_axis");
 #endif
   ASSERT_LT(fabs(axis->toUserVel()), 0.01);
   delete servo;
@@ -2144,14 +2836,14 @@ TEST_F(FunctionBlockTest, MC_Cam)
   double t        = 0;
   while (t < time_out)
   {
-    axis1->runCycle();
-    axis2->runCycle();
-    fb_power1.runCycle();
-    fb_power2.runCycle();
-    fb_move_vel.runCycle();
-    fb_cam_table_select.runCycle();
-    fb_cam_in.runCycle();
-    fb_cam_out.runCycle();
+    runObservedCycle(*axis1, "axis1");
+    runObservedCycle(*axis2, "axis2");
+    runObservedCycle(fb_power1, "fb_power1");
+    runObservedCycle(fb_power2, "fb_power2");
+    runObservedCycle(fb_move_vel, "fb_move_vel");
+    runObservedCycle(fb_cam_table_select, "fb_cam_table_select");
+    runObservedCycle(fb_cam_in, "fb_cam_in");
+    runObservedCycle(fb_cam_out, "fb_cam_out");
 
     if (fb_power1.getPowerStatus() == mcTRUE &&
         fb_power2.getPowerStatus() == mcTRUE)
@@ -2180,8 +2872,8 @@ TEST_F(FunctionBlockTest, MC_Cam)
     t += 0.001;
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_cam_in_axis.png");
-  fb_profile_.plot("mc_cam_fb.png");
+  plotProfile(axis_profile_, "mc_cam_in_axis");
+  plotProfile(fb_profile_, "mc_cam_fb");
 #endif
   ASSERT_TRUE(fb_cam_out.isDone() == mcTRUE);
   delete servo1;
@@ -2299,13 +2991,13 @@ TEST_F(FunctionBlockTest, MC_Gear)
 
   while (t < time_out)
   {
-    axis1->runCycle();
-    axis2->runCycle();
-    fb_power1.runCycle();
-    fb_power2.runCycle();
-    fb_move_vel.runCycle();
-    fb_gear_in.runCycle();
-    fb_gear_out.runCycle();
+    runObservedCycle(*axis1, "axis1");
+    runObservedCycle(*axis2, "axis2");
+    runObservedCycle(fb_power1, "fb_power1");
+    runObservedCycle(fb_power2, "fb_power2");
+    runObservedCycle(fb_move_vel, "fb_move_vel");
+    runObservedCycle(fb_gear_in, "fb_gear_in");
+    runObservedCycle(fb_gear_out, "fb_gear_out");
 
     if (fb_gear_in.getInGear() == mcTRUE)
     {
@@ -2416,9 +3108,9 @@ TEST_F(FunctionBlockTest, MC_Gear)
   EXPECT_EQ(fb_gear_out.isError(), mcFALSE);
 
 #ifdef PLOT
-  master_profile.plot("mc_gear_master_axis.png");
-  axis_profile_.plot("mc_gear_slave_axis.png");
-  fb_profile_.plot("mc_gear_fb.png", "gear_");
+  plotProfile(master_profile, "mc_gear_master_axis");
+  plotProfile(axis_profile_, "mc_gear_slave_axis");
+  plotProfile(fb_profile_, "mc_gear_fb", "gear_");
 #endif
 
   /* Post Processing */
@@ -2473,6 +3165,10 @@ TEST(MotionVelocityTest, CompletionHoldsExactTargetWithOverride)
         }
         ASSERT_EQ(node.isError(), mcFALSE);
         node.getCommands(&position, &commanded_velocity, &acceleration);
+#ifdef PLOT
+        FunctionBlockObservations::commands(position, commanded_velocity,
+                                            acceleration, target, 10);
+#endif
         if (node.isDone() == mcTRUE)
         {
           EXPECT_DOUBLE_EQ(commanded_velocity, target);
@@ -2546,6 +3242,10 @@ TEST(MotionVelocityTest, SmallLimitsArePreservedThroughCompletion)
           }
           ASSERT_EQ(node.isError(), mcFALSE);
           node.getCommands(&position, &velocity, &acceleration);
+#ifdef PLOT
+          FunctionBlockObservations::commands(position, velocity, acceleration,
+                                              target, acceleration_limit);
+#endif
           peak_acceleration = std::max(peak_acceleration, fabs(acceleration));
           peak_velocity_step =
               std::max(peak_velocity_step, fabs(velocity - previous_velocity));
@@ -2634,13 +3334,13 @@ TEST_F(FunctionBlockTest, MC_GearIn_MasterVelocityChangeWhileGeared)
 
   for (int cycle = 0; cycle < 6000; ++cycle)
   {
-    master.runCycle();
-    slave.runCycle();
-    master_power.runCycle();
-    slave_power.runCycle();
-    initial_move.runCycle();
-    changed_move.runCycle();
-    gear.runCycle();
+    runObservedCycle(master, "master");
+    runObservedCycle(slave, "slave");
+    runObservedCycle(master_power, "master_power");
+    runObservedCycle(slave_power, "slave_power");
+    runObservedCycle(initial_move, "initial_move");
+    runObservedCycle(changed_move, "changed_move");
+    runObservedCycle(gear, "gear");
 
     ASSERT_EQ(master.getAxisError(), mcErrorCodeGood);
     ASSERT_EQ(slave.getAxisError(), mcErrorCodeGood);
@@ -2715,8 +3415,10 @@ TEST_F(FunctionBlockTest, MC_GearIn_MasterVelocityChangeWhileGeared)
   plt::ylabel("Velocity error");
   plt::xlabel("Time (s)");
   plt::legend();
-  plt::save("mc_gear_velocity_change.png");
-  fb_profile_.plot("mc_gear_velocity_change_fb.png");
+  const auto file = test_plot::TestPlot::filename("_velocity_change");
+  plt::save(file);
+  test_plot::TestPlot::recordFile(file);
+  plotProfile(fb_profile_, "mc_gear_velocity_change_fb");
 #endif
 
   printf("GearIn velocity change: change time=%.3f s, "
@@ -2834,6 +3536,10 @@ TEST(MotionKernelStatusTest, ControlledStopUsesSelectedCommandState)
     kernel.runCycle(0, 0, 0, 0.5, 0, &state, overrides, selected);
     double position = 0, velocity = 0, acceleration = 0;
     kernel.getCommands(&position, &velocity, &acceleration);
+#ifdef PLOT
+    FunctionBlockObservations::commands(position, velocity, acceleration,
+                                        selected == mcTRUE ? 1 : 0.5);
+#endif
     EXPECT_EQ(overlay_fb.isAborted(), mcTRUE);
     EXPECT_EQ(state, mcStopping);
     EXPECT_NEAR(velocity, selected == mcTRUE ? 1 : 0.5, 0.001);
@@ -2874,15 +3580,291 @@ protected:
 
   void runCycle(std::initializer_list<FbAxisMotion*> blocks)
   {
-    axis_.runCycle();
-    power_.runCycle();
+    runObservedCycle(axis_, "axis_");
+    runObservedCycle(power_, "power_");
     for (auto* block : blocks)
     {
-      block->runCycle();
+      runObservedCycle(*block, "block");
       ASSERT_EQ(block->isError(), mcFALSE) << block->getErrorID();
     }
     ASSERT_EQ(axis_.getAxisError(), mcErrorCodeGood);
     ASSERT_EQ(power_.isError(), mcFALSE);
+  }
+
+  void checkPowerRecovery(double direction, bool issue_recovery_move)
+  {
+    ASSERT_EQ(axis_.setHomePositionOffset(7), mcTRUE);
+    const double home = axis_.getHomePos();
+    FbMoveRelative interrupted, pending, recovery;
+    for (auto* move : { &interrupted, &pending, &recovery })
+    {
+      configureMotion(*move);
+      move->setPosition(1000 * direction);
+      move->setVelocity(500);
+      move->setAcceleration(2000);
+      move->setDeceleration(2000);
+      move->setJerk(20000);
+    }
+    interrupted.setBufferMode(mcAborting);
+    interrupted.setExecute(mcTRUE);
+    pending.setExecute(mcTRUE);
+    bool moving = false;
+    for (int cycle = 0; cycle < GetParam(); ++cycle)
+    {
+      runCycle({ &interrupted, &pending });
+      if (direction * axis_.toUserVel() > 300)
+      {
+        moving = true;
+        break;
+      }
+    }
+    ASSERT_TRUE(moving);
+    ASSERT_GT(direction * axis_.toUserVelCmd(), 300);
+    ASSERT_GT(fabs(axis_.toUserAccCmd()), 1);
+    power_.setEnable(mcFALSE);
+    for (int cycle = 0; cycle < 10; ++cycle)
+      runCycle({ &interrupted, &pending });
+    ASSERT_EQ(power_.getPowerStatus(), mcFALSE);
+    const double stop_position = axis_.getPosCmd();
+    EXPECT_EQ(interrupted.isAborted(), mcTRUE);
+    EXPECT_EQ(pending.isAborted(), mcTRUE);
+    power_.setEnable(mcTRUE);
+    for (int cycle = 0; cycle < 10; ++cycle)
+      runCycle({ &interrupted, &pending });
+    ASSERT_EQ(power_.getPowerStatus(), mcTRUE);
+    ASSERT_EQ(axis_.getAxisState(), mcStandstill);
+    EXPECT_DOUBLE_EQ(axis_.toUserVelCmd(), 0);
+    EXPECT_DOUBLE_EQ(axis_.toUserAccCmd(), 0);
+    EXPECT_DOUBLE_EQ(axis_.getHomePos(), home);
+    EXPECT_NEAR(axis_.getPosCmd(), stop_position, 1e-6);
+    const double target       = axis_.toUserPos() + 50 * direction;
+    double peak_overshoot     = 0;
+    double peak_idle_velocity = 0, peak_idle_acceleration = 0;
+    recovery.setPosition(50 * direction);
+    recovery.setBufferMode(mcAborting);
+    if (issue_recovery_move)
+      recovery.setExecute(mcTRUE);
+#ifdef PLOT
+    std::vector<double> times, positions, velocities, accelerations, targets;
+#endif
+    for (int cycle = 0; cycle < 4 * GetParam(); ++cycle)
+    {
+      runCycle({ &interrupted, &pending, &recovery });
+      if (issue_recovery_move && cycle <= 1)
+      {
+        EXPECT_LE(fabs(axis_.toUserVelCmd()),
+                  20000 / (GetParam() * GetParam()));
+        EXPECT_LE(fabs(axis_.toUserAccCmd()), 20000 / GetParam());
+      }
+      peak_overshoot =
+          std::max(peak_overshoot, direction * (axis_.toUserPos() - target));
+      peak_idle_velocity =
+          std::max(peak_idle_velocity, fabs(axis_.toUserVelCmd()));
+      peak_idle_acceleration =
+          std::max(peak_idle_acceleration, fabs(axis_.toUserAccCmd()));
+#ifdef PLOT
+      times.push_back(cycle / GetParam());
+      positions.push_back(axis_.toUserPos());
+      velocities.push_back(axis_.toUserVelCmd());
+      accelerations.push_back(axis_.toUserAccCmd());
+      targets.push_back(issue_recovery_move ? target : stop_position - home);
+#endif
+    }
+    if (issue_recovery_move)
+    {
+      EXPECT_EQ(recovery.isDone(), mcTRUE);
+      EXPECT_LT(peak_overshoot, 0.5);
+      EXPECT_NEAR(axis_.toUserPos(), target, 0.001);
+    }
+    else
+    {
+      EXPECT_DOUBLE_EQ(peak_idle_velocity, 0);
+      EXPECT_DOUBLE_EQ(peak_idle_acceleration, 0);
+      EXPECT_NEAR(axis_.getPosCmd(), stop_position, 1e-6);
+    }
+    EXPECT_DOUBLE_EQ(axis_.getHomePos(), home);
+#ifdef PLOT
+    const auto* test = ::testing::UnitTest::GetInstance()->current_test_info();
+    const auto filename = test_plot::TestPlot::filename("_power_recovery");
+    plt::figure_size(1280, 960);
+    plt::subplot(3, 1, 1);
+    plt::title(test->name());
+    plt::named_plot("Actual", times, positions);
+    plt::named_plot("Target", times, targets);
+    plt::ylabel("Position");
+    plt::legend();
+    plt::subplot(3, 1, 2);
+    plt::plot(times, velocities);
+    plt::ylabel("Command velocity");
+    plt::subplot(3, 1, 3);
+    plt::plot(times, accelerations);
+    plt::ylabel("Command acceleration");
+    plt::xlabel("Time (s)");
+    plt::save(filename);
+    test_plot::TestPlot::recordFile(filename);
+    plt::close();
+#endif
+  }
+
+  void checkSuperimposedRecovery(bool fault, bool with_underlying)
+  {
+    FbMoveRelative underlying;
+    FbMoveSuperimposed overlay;
+    for (auto* move : { static_cast<FbAxisMotion*>(&underlying),
+                        static_cast<FbAxisMotion*>(&overlay) })
+    {
+      configureMotion(*move);
+      move->setPosition(100);
+      move->setVelocity(10);
+      move->setAcceleration(20);
+      move->setDeceleration(20);
+      move->setJerk(200);
+      move->setBufferMode(mcAborting);
+    }
+    if (with_underlying)
+    {
+      underlying.setExecute(mcTRUE);
+      for (int cycle = 0; cycle < GetParam() / 4; ++cycle)
+        ASSERT_NO_FATAL_FAILURE(runCycle({ &underlying }));
+    }
+    overlay.setExecute(mcTRUE);
+    for (int cycle = 0; cycle < GetParam() / 4; ++cycle)
+      ASSERT_NO_FATAL_FAILURE(runCycle({ &underlying, &overlay }));
+    ASSERT_EQ(axis_.getAxisSuperimposedState(), mcTRUE);
+    ASSERT_EQ(overlay.isDone(), mcFALSE);
+    ASSERT_GT(axis_.toUserVelCmd(), 1);
+    ASSERT_GT(fabs(axis_.toUserAccCmd()), 1);
+
+    if (fault)
+    {
+      config_.sw_vel_limit_ = mcTRUE;
+      config_.vel_limit_    = 0.1;
+    }
+    else
+      power_.setEnable(mcFALSE);
+    // Axis health is processed before the FB inputs reach the next cycle.
+    for (int cycle = 0; cycle < 3; ++cycle)
+    {
+      runObservedCycle(axis_, "axis_");
+      runObservedCycle(power_, "power_");
+    }
+    if (fault)
+      ASSERT_EQ(axis_.getAxisError(), mcErrorCodeVelocityOverLimit);
+    else
+      ASSERT_EQ(power_.getPowerStatus(), mcFALSE);
+    EXPECT_EQ(overlay.isAborted(), mcTRUE);
+    EXPECT_EQ(axis_.getAxisSuperimposedState(), mcFALSE);
+    EXPECT_DOUBLE_EQ(axis_.getMoveSupCoveredDistance(), 0);
+    EXPECT_DOUBLE_EQ(axis_.toUserVelCmd(), 0);
+    EXPECT_DOUBLE_EQ(axis_.toUserAccCmd(), 0);
+    if (with_underlying)
+      EXPECT_EQ(underlying.isAborted(), mcTRUE);
+
+    const double position = axis_.getPos();
+    config_.sw_vel_limit_ = mcFALSE;
+    if (fault)
+      axis_.resetError(mcTRUE);
+    else
+      power_.setEnable(mcTRUE);
+    for (int cycle = 0; cycle < GetParam(); ++cycle)
+    {
+      ASSERT_NO_FATAL_FAILURE(runCycle({ &underlying, &overlay }));
+      EXPECT_EQ(axis_.getAxisSuperimposedState(), mcFALSE);
+      EXPECT_DOUBLE_EQ(axis_.toUserVelCmd(), 0);
+      EXPECT_DOUBLE_EQ(axis_.toUserAccCmd(), 0);
+      EXPECT_NEAR(axis_.getPos(), position, 1e-6);
+      EXPECT_NEAR(axis_.getPosCmd(), position, 1e-6);
+    }
+    ASSERT_EQ(power_.getPowerStatus(), mcTRUE);
+    ASSERT_EQ(axis_.getAxisState(), mcStandstill);
+    EXPECT_EQ(overlay.isAborted(), mcTRUE);
+
+    // A new Execute edge may reuse the overlay slot, but no old motion resumes.
+    overlay.setExecute(mcFALSE);
+    ASSERT_NO_FATAL_FAILURE(runCycle({ &overlay }));
+    overlay.setExecute(mcTRUE);
+    for (int cycle = 0; cycle < GetParam() / 4; ++cycle)
+      ASSERT_NO_FATAL_FAILURE(runCycle({ &overlay }));
+    EXPECT_EQ(overlay.isAborted(), mcFALSE);
+    EXPECT_EQ(overlay.isDone(), mcFALSE);
+    EXPECT_EQ(axis_.getAxisSuperimposedState(), mcTRUE);
+    EXPECT_GT(axis_.getPos(), position);
+    EXPECT_GT(axis_.toUserVelCmd(), 1);
+  }
+
+  void checkAxisErrorRecovery()
+  {
+    FbMoveRelative interrupted, recovery;
+    for (auto* move : { &interrupted, &recovery })
+    {
+      configureMotion(*move);
+      move->setPosition(1000);
+      move->setVelocity(500);
+      move->setAcceleration(2000);
+      move->setDeceleration(2000);
+      move->setJerk(20000);
+    }
+    interrupted.setBufferMode(mcAborting);
+    interrupted.setExecute(mcTRUE);
+    bool moving = false;
+    for (int cycle = 0; cycle < GetParam(); ++cycle)
+    {
+      runCycle({ &interrupted });
+      if (axis_.toUserVel() > 300)
+      {
+        moving = true;
+        break;
+      }
+    }
+    ASSERT_TRUE(moving);
+    ASSERT_GT(axis_.toUserVelCmd(), 300);
+    ASSERT_GT(fabs(axis_.toUserAccCmd()), 1);
+
+    config_.sw_vel_limit_ = mcTRUE;
+    config_.vel_limit_    = 1;
+    runObservedCycle(axis_, "axis_");
+    runObservedCycle(power_, "power_");
+    runObservedCycle(axis_, "axis_");
+    runObservedCycle(power_, "power_");
+    ASSERT_EQ(axis_.getAxisError(), mcErrorCodeVelocityOverLimit);
+    ASSERT_EQ(axis_.getAxisState(), mcErrorStop);
+
+    axis_.resetError(mcTRUE);
+    runObservedCycle(axis_, "axis_");
+    runObservedCycle(power_, "power_");
+    ASSERT_EQ(axis_.getAxisError(), mcErrorCodeGood);
+    ASSERT_EQ(power_.getPowerStatus(), mcFALSE);
+    EXPECT_DOUBLE_EQ(axis_.toUserVelCmd(), 0);
+    EXPECT_DOUBLE_EQ(axis_.toUserAccCmd(), 0);
+
+    config_.sw_vel_limit_ = mcFALSE;
+    for (int cycle = 0; cycle < 10; ++cycle)
+    {
+      runObservedCycle(axis_, "axis_");
+      runObservedCycle(power_, "power_");
+      ASSERT_EQ(axis_.getAxisError(), mcErrorCodeGood);
+      ASSERT_EQ(power_.isError(), mcFALSE);
+      EXPECT_DOUBLE_EQ(axis_.toUserVelCmd(), 0);
+      EXPECT_DOUBLE_EQ(axis_.toUserAccCmd(), 0);
+    }
+    ASSERT_EQ(power_.getPowerStatus(), mcTRUE);
+    ASSERT_EQ(axis_.getAxisState(), mcStandstill);
+
+    recovery.setPosition(50);
+    recovery.setBufferMode(mcAborting);
+    recovery.setExecute(mcTRUE);
+    for (int cycle = 0; cycle < 4 * GetParam(); ++cycle)
+    {
+      runCycle({ &interrupted, &recovery });
+      if (cycle <= 1)
+      {
+        EXPECT_LE(fabs(axis_.toUserVelCmd()),
+                  20000 / (GetParam() * GetParam()));
+        EXPECT_LE(fabs(axis_.toUserAccCmd()), 20000 / GetParam());
+      }
+    }
+    EXPECT_EQ(recovery.isDone(), mcTRUE);
+    EXPECT_NEAR(axis_.toUserPos(), 50, 0.001);
   }
 
   void checkHomingSearchAbort(bool use_stop)
@@ -3117,6 +4099,9 @@ TEST_P(AxisCycleTimeTest, ExecutionNodeCopiesRetainClockAfterReset)
     {
       node->onExecution(0, 0);
       node->getCommands(&position, &velocity, &acceleration);
+#ifdef PLOT
+      FunctionBlockObservations::commands(position, velocity, acceleration);
+#endif
       ASSERT_EQ(node->isError(), mcFALSE);
     }
     EXPECT_NEAR(position, 0.825, 1e-9);
@@ -3140,11 +4125,11 @@ TEST_P(AxisCycleTimeTest, AxisCopiesUseAcceptedClockForMotionAndServo)
     configureMotion(move);
     move.setAxis(axis);
     move.setExecute(mcTRUE);
-    move.runCycle();
+    runObservedCycle(move, "move");
     for (int cycle = 0; cycle < GetParam(); ++cycle)
     {
-      axis->runCycle();
-      move.runCycle();
+      runObservedCycle(*axis, "axis");
+      runObservedCycle(move, "move");
       ASSERT_EQ(axis->getAxisError(), mcErrorCodeGood);
       ASSERT_EQ(move.isError(), mcFALSE);
     }
@@ -3178,6 +4163,9 @@ TEST_P(AxisCycleTimeTest, ExternalCycleUsesAcceptedClockAfterConfigMutation)
   for (int cycle = 1; cycle <= 10; ++cycle)
   {
     axis_.runCycle(cycle / GetParam(), 1);
+#ifdef PLOT
+    FunctionBlockObservations::cycle(axis_, "axis_");
+#endif
     EXPECT_EQ(axis_.getAxisError(), mcErrorCodeGood);
     EXPECT_NEAR(axis_.toUserVel(), 1, 0.005);
   }
@@ -3189,7 +4177,7 @@ TEST_P(AxisCycleTimeTest, RejectsClockChangeWhileMotionIsQueued)
   FbMoveRelative move;
   configureMotion(move);
   move.setExecute(mcTRUE);
-  move.runCycle();
+  runObservedCycle(move, "move");
   ASSERT_EQ(move.isBusy(), mcTRUE);
   ASSERT_EQ(move.isActive(), mcFALSE);
   ASSERT_EQ(axis_.getAxisState(), mcStandstill);
@@ -3275,8 +4263,13 @@ TEST_P(AxisCycleTimeTest, ClockChangesOnlyAfterVelocityHoldAndStopFinish)
     }
   }
   ASSERT_GT(completion_cycles, 0);
-  EXPECT_NEAR(completion_cycles / axis_.getFrequency(), 2.35,
-              4 * axis_.getDeltaTime());
+  // The final jerk ramp can satisfy velocity tolerance before its endpoint.
+  const double early_completion =
+      sqrt(2 * config_.factor_.vel_ / next.getJerk());
+  EXPECT_GE(completion_cycles / axis_.getFrequency(),
+            2.35 - early_completion - 4 * axis_.getDeltaTime());
+  EXPECT_LE(completion_cycles / axis_.getFrequency(),
+            2.35 + 4 * axis_.getDeltaTime());
   EXPECT_NEAR(axis_.getPosCmd() - start_position, 2, 0.001);
 }
 
@@ -3288,6 +4281,128 @@ TEST_P(AxisCycleTimeTest, StopAbortsHomingVelocitySearch)
 TEST_P(AxisCycleTimeTest, ReplacementAbortsHomingVelocitySearch)
 {
   checkHomingSearchAbort(false);
+}
+
+TEST_P(AxisCycleTimeTest, PowerRecoveryClearsPositiveCommandDerivatives)
+{
+  checkPowerRecovery(1, false);
+}
+
+TEST_P(AxisCycleTimeTest, PowerRecoveryClearsNegativeCommandDerivatives)
+{
+  checkPowerRecovery(-1, false);
+}
+
+TEST_P(AxisCycleTimeTest, PositiveMoveAfterPowerRecoveryDoesNotOvershoot)
+{
+  checkPowerRecovery(1, true);
+}
+
+TEST_P(AxisCycleTimeTest, NegativeMoveAfterPowerRecoveryDoesNotOvershoot)
+{
+  checkPowerRecovery(-1, true);
+}
+
+TEST_P(AxisCycleTimeTest, ReplacingSuperimposedMotionKeepsItsNodeReserved)
+{
+  axis_.setNodeQueueSize(10);
+  FbMoveRelative underlying[9];
+  for (auto& move : underlying)
+  {
+    configureMotion(move);
+    move.setPosition(1000);
+    move.setBufferMode(mcBuffered);
+    move.setExecute(mcTRUE);
+  }
+  FbMoveSuperimposed first_overlay, replacement_overlay;
+  for (auto* move : { &first_overlay, &replacement_overlay })
+  {
+    configureMotion(*move);
+    move->setDistance(100);
+    move->setVelocityDiff(1);
+    move->setExecute(mcTRUE);
+  }
+  FbMoveRelative replacement;
+  configureMotion(replacement);
+  replacement.setBufferMode(mcAborting);
+
+  const auto run_all = [&]() {
+    runCycle({ &underlying[0], &underlying[1], &underlying[2], &underlying[3],
+               &underlying[4], &underlying[5], &underlying[6], &underlying[7],
+               &underlying[8], &first_overlay, &replacement_overlay,
+               &replacement });
+  };
+  ASSERT_NO_FATAL_FAILURE(run_all());
+  ASSERT_NO_FATAL_FAILURE(run_all());
+  ASSERT_EQ(axis_.getAxisSuperimposedState(), mcTRUE);
+  ASSERT_EQ(first_overlay.isAborted(), mcTRUE);
+  ASSERT_EQ(replacement_overlay.isAborted(), mcFALSE);
+
+  replacement.setExecute(mcTRUE);
+  ASSERT_NO_FATAL_FAILURE(run_all());
+  EXPECT_EQ(replacement.isError(), mcFALSE);
+  EXPECT_EQ(replacement.isAborted(), mcFALSE);
+  EXPECT_EQ(replacement.isBusy(), mcTRUE);
+}
+
+TEST_P(AxisCycleTimeTest, VelocityReversalPreservesAsymmetricLimitsAndJerk)
+{
+  FbMoveVelocity moves[3];
+  const double targets[]       = { 1, -1, 0.5 };
+  double previous_velocity     = axis_.toUserVelCmd();
+  double previous_acceleration = axis_.toUserAccCmd();
+  for (int phase = 0; phase < 3; ++phase)
+  {
+    auto& move = moves[phase];
+    configureMotion(move);
+    move.setBufferMode(mcAborting);
+    move.setVelocity(targets[phase]);
+    move.setAcceleration(2);
+    move.setDeceleration(4);
+    move.setJerk(40);
+    move.setExecute(mcTRUE);
+    for (int cycle = 0; cycle < 3 * GetParam(); ++cycle)
+    {
+      ASSERT_NO_FATAL_FAILURE(runCycle({ &move }));
+      const double velocity     = axis_.toUserVelCmd();
+      const double acceleration = axis_.toUserAccCmd();
+      const double limit        = previous_velocity * acceleration < 0 ? 4 : 2;
+      EXPECT_LE(fabs(acceleration), limit + 1e-8);
+      EXPECT_LE(fabs(acceleration - previous_acceleration),
+                40 / GetParam() + 1e-8);
+      EXPECT_LE(fabs(velocity - previous_velocity), 4 / GetParam() + 1e-8);
+      previous_velocity     = velocity;
+      previous_acceleration = acceleration;
+    }
+    EXPECT_EQ(move.isInVelocity(), mcTRUE);
+    EXPECT_NEAR(axis_.toUserVelCmd(), targets[phase], 1e-12);
+    EXPECT_NEAR(axis_.toUserAccCmd(), 0, 1e-12);
+  }
+}
+
+TEST_P(AxisCycleTimeTest, PowerRecoveryAbortsStandaloneSuperimposedMotion)
+{
+  checkSuperimposedRecovery(false, false);
+}
+
+TEST_P(AxisCycleTimeTest, PowerRecoveryAbortsOverlayAndUnderlyingMotion)
+{
+  checkSuperimposedRecovery(false, true);
+}
+
+TEST_P(AxisCycleTimeTest, ErrorRecoveryAbortsStandaloneSuperimposedMotion)
+{
+  checkSuperimposedRecovery(true, false);
+}
+
+TEST_P(AxisCycleTimeTest, ErrorRecoveryAbortsOverlayAndUnderlyingMotion)
+{
+  checkSuperimposedRecovery(true, true);
+}
+
+TEST_P(AxisCycleTimeTest, AxisErrorRecoveryClearsCommandsAndStartsMoveFromRest)
+{
+  checkAxisErrorRecovery();
 }
 
 INSTANTIATE_TEST_SUITE_P(CycleFrequencies, AxisCycleTimeTest,
@@ -3317,21 +4432,21 @@ protected:
                    slave_.getAxisState());
     gear_plot_.add("Axis state / error code", "Slave error", plot_time_,
                    slave_.getAxisError());
-    if (record_gear_status_)
+    gear_plot_.add("Velocity", "Slave commanded", plot_time_,
+                   slave_.toUserVelCmd());
+    gear_plot_.add("Velocity", "Slave actual", plot_time_, slave_.toUserVel());
+    gear_plot_.add("Acceleration", "Slave commanded", plot_time_,
+                   slave_.toUserAccCmd());
+    gear_plot_.add("Position", "Slave commanded", plot_time_,
+                   slave_.toUserPosCmd());
+    gear_plot_.add("Position", "Slave actual", plot_time_, slave_.toUserPos());
+    if (record_gear_status_ &&
+        (gear_.isEnabled() == mcTRUE || gear_.isActive() == mcTRUE ||
+         gear_.isDone() == mcTRUE || gear_.isAborted() == mcTRUE ||
+         gear_.isError() != mcFALSE))
     {
-      // Position-gearing tests record these traces in addPositionGear instead.
-      gear_plot_.add("Velocity", "Slave commanded", plot_time_,
-                     slave_.toUserVelCmd());
-      gear_plot_.add("Velocity", "Slave actual", plot_time_,
-                     slave_.toUserVel());
       gear_plot_.add("Velocity", "Gear target (while active)", plot_time_,
                      gear_.isActive() == mcTRUE ? gear_.getVelocity() : NAN);
-      gear_plot_.add("Acceleration", "Slave commanded", plot_time_,
-                     slave_.toUserAccCmd());
-      gear_plot_.add("Position", "Slave commanded", plot_time_,
-                     slave_.getPosCmd());
-      gear_plot_.add("Position", "Slave actual", plot_time_,
-                     slave_.toUserPos());
       gear_plot_.addBlock("Gear", gear_, plot_time_);
       gear_plot_.add("FB signals", "Gear.InGear", plot_time_,
                      gear_.getInGear() == mcTRUE);
@@ -3390,12 +4505,12 @@ protected:
 
   void runCycle()
   {
-    master_.runCycle();
-    slave_.runCycle();
-    master_power_.runCycle();
-    slave_power_.runCycle();
-    master_move_.runCycle();
-    gear_.runCycle();
+    runObservedCycle(master_, "master_");
+    runObservedCycle(slave_, "slave_");
+    runObservedCycle(master_power_, "master_power_");
+    runObservedCycle(slave_power_, "slave_power_");
+    runObservedCycle(master_move_, "master_move_");
+    runObservedCycle(gear_, "gear_");
 #ifdef PLOT
     recordPlot();
 #endif
@@ -3413,7 +4528,7 @@ protected:
         gear_in_pos_execute_pulse_seconds * master_config_.frequency_);
     position_gear.setExecute(cycle >= 6 && cycle < 6 + pulse_cycles ? mcTRUE :
                                                                       mcFALSE);
-    position_gear.runCycle();
+    runObservedCycle(position_gear, "position_gear");
     if (cycle >= 6 && cycle <= 6 + pulse_cycles)
       EXPECT_EQ(position_gear.isBusy(), mcTRUE);
   }
@@ -3493,7 +4608,7 @@ void GearInCycleTimeTest::checkPositionGearRetrigger(bool during_acquisition,
             cycle < retrigger_cycle +
                         gear_in_pos_execute_pulse_seconds * GetParam();
     position_gear.setExecute(execute ? mcTRUE : mcFALSE);
-    position_gear.runCycle();
+    runObservedCycle(position_gear, "position_gear");
     ASSERT_EQ(position_gear.isError(), mcFALSE);
     ASSERT_EQ(position_gear.isAborted(), mcFALSE);
     if (retrigger_cycle < 0)
@@ -3618,7 +4733,7 @@ TEST_P(GearInCycleTimeTest, ErrorStopTakesOverExistingSuperimposedMotion)
       superimposed.setExecute(mcTRUE);
       submitted = true;
     }
-    superimposed.runCycle();
+    runObservedCycle(superimposed, "superimposed");
     ASSERT_EQ(superimposed.isError(), mcFALSE);
     if (slave_.isStoppingOnError())
     {
@@ -3716,7 +4831,7 @@ TEST_P(GearInCycleTimeTest, PositionMoveReusesConfiguredGearNode)
   next.setJerk(100);
   next.setBufferMode(mcAborting);
   next.setExecute(mcTRUE);
-  next.runCycle();
+  runObservedCycle(next, "next");
   ASSERT_EQ(next.isError(), mcFALSE);
   EXPECT_EQ(gear_.isAborted(), mcTRUE);
   int completion_cycles    = 0;
@@ -3724,7 +4839,7 @@ TEST_P(GearInCycleTimeTest, PositionMoveReusesConfiguredGearNode)
   for (int cycle = 1; cycle < 5 * frequency; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    next.runCycle();
+    runObservedCycle(next, "next");
 #ifdef PLOT
     gear_plot_.addBlock("Next", next, plot_time_);
 #endif
@@ -3824,6 +4939,9 @@ TEST_P(GearInCycleTimeTest, EngagementHonorsAsymmetricLimits)
             const double previous_velocity = velocity, previous_acc = acc;
             node.onExecution(0, 0);
             node.getCommands(&position, &velocity, &acc);
+#ifdef PLOT
+            FunctionBlockObservations::commands(position, velocity, acc);
+#endif
             ASSERT_EQ(node.isError(), mcFALSE);
             if (!synchronized)
             {
@@ -3931,8 +5049,8 @@ TEST_P(GearInPosLockTest, MaintainsPositionRelationshipThroughReversalAndStop)
   for (int cycle = 0; cycle < 9 * param.frequency; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    reverse.runCycle();
-    halt.runCycle();
+    runObservedCycle(reverse, "reverse");
+    runObservedCycle(halt, "halt");
     runPositionGearCycle(position_gear, cycle);
     ASSERT_EQ(position_gear.isError(), mcFALSE) << position_gear.getErrorID();
     ASSERT_EQ(reverse.isError(), mcFALSE);
@@ -3975,7 +5093,10 @@ TEST_P(GearInPosLockTest, MaintainsPositionRelationshipThroughReversalAndStop)
       // Exercise the public command-input path with a deliberately displaced
       // position. InSync must not remain latched on velocity agreement alone.
       slave_.runCycle(slave_.getPosCmd() + 0.02, slave_.toUserVelCmd());
-      position_gear.runCycle();
+#ifdef PLOT
+      FunctionBlockObservations::cycle(slave_, "slave_");
+#endif
+      runObservedCycle(position_gear, "position_gear");
       EXPECT_EQ(position_gear.getInSync(), mcFALSE);
       EXPECT_EQ(position_gear.getStartSync(), mcFALSE);
       EXPECT_EQ(position_gear.isReadyForBufferedHandoff(), mcFALSE);
@@ -4007,8 +5128,8 @@ TEST_P(GearInPosLockTest, MaintainsPositionRelationshipThroughReversalAndStop)
   for (int cycle = 0; cycle < param.frequency; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    successor.runCycle();
-    position_gear.runCycle();
+    runObservedCycle(successor, "successor");
+    runObservedCycle(position_gear, "position_gear");
     ASSERT_EQ(successor.isError(), mcFALSE);
 #ifdef PLOT
     gear_plot_.addPositionGear(position_gear, master_, slave_, plot_time_,
@@ -4161,7 +5282,7 @@ TEST_F(GearInRegressionTest,
   for (int cycle = 0; cycle < 6000; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    successor.runCycle();
+    runObservedCycle(successor, "successor");
     runPositionGearCycle(position_gear, cycle);
     ASSERT_EQ(position_gear.isError(), mcFALSE);
     ASSERT_EQ(successor.isError(), mcFALSE);
@@ -4239,9 +5360,9 @@ TEST_F(GearInRegressionTest, PositionGearClearsInSyncOnMasterError)
   master_config_.vel_limit_    = 0.5;
   for (int cycle = 0; cycle < 10; ++cycle)
   {
-    master_.runCycle();
-    slave_.runCycle();
-    position_gear.runCycle();
+    runObservedCycle(master_, "master_");
+    runObservedCycle(slave_, "slave_");
+    runObservedCycle(position_gear, "position_gear");
 #ifdef PLOT
     recordPlot();
     gear_plot_.addPositionGear(position_gear, master_, slave_, plot_time_,
@@ -4320,10 +5441,10 @@ TEST_P(GearInPosStartSyncTest, ClearsWhenAcquisitionTerminates)
   bool saw_abort = false;
   for (int cycle = 0; cycle < 10; ++cycle)
   {
-    master_.runCycle();
-    slave_.runCycle();
-    halt.runCycle();
-    position_gear.runCycle();
+    runObservedCycle(master_, "master_");
+    runObservedCycle(slave_, "slave_");
+    runObservedCycle(halt, "halt");
+    runObservedCycle(position_gear, "position_gear");
     if (position_gear.isAborted() == mcTRUE)
       saw_abort = true;
 #ifdef PLOT
@@ -4423,13 +5544,13 @@ TEST_P(GearInPosLimitTest, RejectsInfeasibleAcquisitionAndStopsWithinLimits)
   for (int cycle = 0; cycle < 8 * limits.frequency; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    master_change.runCycle();
+    runObservedCycle(master_change, "master_change");
     if (queued && !successor_submitted)
     {
       submission_during_stop = slave_.isStoppingOnError();
       successor_submitted    = true;
     }
-    successor.runCycle();
+    runObservedCycle(successor, "successor");
     runPositionGearCycle(position_gear, cycle);
     if (cycle == 5)
       master_move_.setExecute(mcTRUE);
@@ -4524,15 +5645,15 @@ TEST_P(GearInPosLimitTest, RejectsInfeasibleAcquisitionAndStopsWithinLimits)
   }
   ASSERT_TRUE(stopped);
   successor.setExecute(mcFALSE);
-  successor.runCycle();
+  runObservedCycle(successor, "successor");
   successor.setBufferMode(mcAborting);
   successor.setExecute(mcTRUE);
   for (int cycle = 0; cycle < 2 * limits.frequency; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    master_change.runCycle();
-    successor.runCycle();
-    position_gear.runCycle();
+    runObservedCycle(master_change, "master_change");
+    runObservedCycle(successor, "successor");
+    runObservedCycle(position_gear, "position_gear");
     ASSERT_EQ(successor.isError(), mcFALSE);
 #ifdef PLOT
     gear_plot_.addPositionGear(
@@ -4618,15 +5739,15 @@ TEST_P(GearInCycleTimeTest, ErrorStopRejectsReplacementBeforeQueueMutation)
     double peak_jerk = 0, peak_acceleration = 0, peak_velocity_step = 0;
     for (int cycle = 0; cycle < 6 * GetParam(); ++cycle)
     {
-      master.runCycle();
-      slave.runCycle();
-      master_power.runCycle();
-      slave_power.runCycle();
+      runObservedCycle(master, "master");
+      runObservedCycle(slave, "slave");
+      runObservedCycle(master_power, "master_power");
+      runObservedCycle(slave_power, "slave_power");
       master_move.setExecute(cycle >= 5 ? mcTRUE : mcFALSE);
-      master_move.runCycle();
+      runObservedCycle(master_move, "master_move");
       gear.setExecute(cycle >= 6 && cycle < 6 + 0.1 * GetParam() ? mcTRUE :
                                                                    mcFALSE);
-      gear.runCycle();
+      runObservedCycle(gear, "gear");
       if (!rejected && slave.isStoppingOnError())
       {
         ASSERT_GT(fabs(slave.toUserVelCmd()), 0.001);
@@ -4636,17 +5757,17 @@ TEST_P(GearInCycleTimeTest, ErrorStopRejectsReplacementBeforeQueueMutation)
         {
           replacement.setBufferMode(mode);
           replacement.setExecute(mcTRUE);
-          replacement.runCycle();
+          runObservedCycle(replacement, "replacement");
           EXPECT_EQ(replacement.isError(), mcTRUE);
           EXPECT_EQ(replacement.getErrorID(), mcErrorCodeAxisStateViolation);
           EXPECT_EQ(replacement.isBusy(), mcFALSE);
           replacement.setExecute(mcFALSE);
-          replacement.runCycle();
+          runObservedCycle(replacement, "replacement");
         }
         stop.setExecute(mcTRUE);
-        stop.runCycle();
+        runObservedCycle(stop, "stop");
         superimposed.setExecute(mcTRUE);
-        superimposed.runCycle();
+        runObservedCycle(superimposed, "superimposed");
         EXPECT_EQ(stop.getErrorID(), mcErrorCodeAxisStateViolation);
         EXPECT_EQ(superimposed.getErrorID(), mcErrorCodeAxisStateViolation);
         slave.addFBToQueue(&direct, mcMoveRelativeMode);
@@ -4685,8 +5806,8 @@ TEST_P(GearInCycleTimeTest, ErrorStopRejectsReplacementBeforeQueueMutation)
     replacement.setExecute(mcTRUE);
     for (int cycle = 0; cycle < 2 * GetParam(); ++cycle)
     {
-      slave.runCycle();
-      replacement.runCycle();
+      runObservedCycle(slave, "slave");
+      runObservedCycle(replacement, "replacement");
       ASSERT_EQ(replacement.isError(), mcFALSE);
     }
     EXPECT_EQ(replacement.isDone(), mcTRUE);
@@ -4734,7 +5855,7 @@ TEST_P(GearInPosReversalTest, NoPositionDriftBelowVelocitySyncThreshold)
   for (int cycle = 0; cycle < 8500; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    reverse.runCycle();
+    runObservedCycle(reverse, "reverse");
     runPositionGearCycle(position_gear, cycle);
     ASSERT_EQ(position_gear.getErrorID(), mcErrorCodeGood);
     ASSERT_EQ(reverse.isError(), mcFALSE);
@@ -4885,7 +6006,7 @@ TEST_F(GearInRegressionTest, FollowsAfterExecuteFallsAndReleasesOnGearOut)
   for (int cycle = 0; cycle < 1500; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    reverse.runCycle();
+    runObservedCycle(reverse, "reverse");
     ASSERT_EQ(reverse.isError(), mcFALSE);
     EXPECT_NEAR(slave_.toUserVelCmd(), master_.toUserVel(), 0.01);
   }
@@ -4898,8 +6019,8 @@ TEST_F(GearInRegressionTest, FollowsAfterExecuteFallsAndReleasesOnGearOut)
   for (int cycle = 0; cycle < 100; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    reverse.runCycle();
-    gear_out.runCycle();
+    runObservedCycle(reverse, "reverse");
+    runObservedCycle(gear_out, "gear_out");
 #ifdef PLOT
     gear_plot_.addBlock("GearOut", gear_out, plot_time_);
 #endif
@@ -4916,8 +6037,8 @@ TEST_F(GearInRegressionTest, FollowsAfterExecuteFallsAndReleasesOnGearOut)
   for (int cycle = 0; cycle < 1500; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    reverse.runCycle();
-    gear_out.runCycle();
+    runObservedCycle(reverse, "reverse");
+    runObservedCycle(gear_out, "gear_out");
 #ifdef PLOT
     gear_plot_.addBlock("GearOut", gear_out, plot_time_);
 #endif
@@ -4955,7 +6076,7 @@ TEST_F(GearInRegressionTest, ConsecutiveGearInAndHaltTakeOwnership)
   for (int cycle = 0; cycle < 1500; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    second.runCycle();
+    runObservedCycle(second, "second");
 #ifdef PLOT
     gear_plot_.addBlock("SecondGear", second, plot_time_);
     gear_plot_.add("FB signals", "SecondGear.InGear", plot_time_,
@@ -4978,8 +6099,8 @@ TEST_F(GearInRegressionTest, ConsecutiveGearInAndHaltTakeOwnership)
   for (int cycle = 0; cycle < 1500; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    second.runCycle();
-    halt.runCycle();
+    runObservedCycle(second, "second");
+    runObservedCycle(halt, "halt");
 #ifdef PLOT
     gear_plot_.addBlock("SecondGear", second, plot_time_);
     gear_plot_.add("FB signals", "SecondGear.InGear", plot_time_,
@@ -5120,7 +6241,7 @@ TEST_F(GearInRegressionTest, EngagesDuringSustainedMasterAcceleration)
   for (int cycle = 0; cycle < 100; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    next.runCycle();
+    runObservedCycle(next, "next");
 #ifdef PLOT
     gear_plot_.addBlock("Next", next, plot_time_);
 #endif
@@ -5168,6 +6289,9 @@ TEST_F(GearInRegressionTest, EngagesWithAlternatingMasterVelocity)
       node.onExecution(0, 0);
       ASSERT_EQ(node.isError(), mcFALSE);
       node.getCommands(&position, &velocity, &acceleration);
+#ifdef PLOT
+      FunctionBlockObservations::commands(position, velocity, acceleration);
+#endif
       peak_acceleration = std::max(peak_acceleration, fabs(acceleration));
       peak_velocity_step =
           std::max(peak_velocity_step, fabs(velocity - previous_velocity));
@@ -5260,15 +6384,15 @@ void GearInRegressionTest::checkAxisLimitError(bool master_error,
   bool outputs_stayed_cleared = true;
   for (int cycle = 0; cycle < 1000; ++cycle)
   {
-    master_.runCycle();
-    slave_.runCycle();
-    master_power_.runCycle();
-    slave_power_.runCycle();
-    master_move_.runCycle();
+    runObservedCycle(master_, "master_");
+    runObservedCycle(slave_, "slave_");
+    runObservedCycle(master_power_, "master_power_");
+    runObservedCycle(slave_power_, "slave_power_");
+    runObservedCycle(master_move_, "master_move_");
     if (fault_axis.getAxisError() != mcErrorCodeGood &&
         execute_at_error == ExecuteAtError::Falling)
       gear_.setExecute(mcFALSE);
-    gear_.runCycle();
+    runObservedCycle(gear_, "gear_");
 #ifdef PLOT
     recordPlot();
     gear_plot_.add("Axis state / error code", "Faulted axis error", plot_time_,
@@ -5350,7 +6474,8 @@ protected:
       { mcBlendingLow, "mcBlendingLow" },
       { mcBlendingPrevious, "mcBlendingPrevious" },
       { mcBlendingNext, "mcBlendingNext" },
-      { mcBlendingHigh, "mcBlendingHigh" }
+      { mcBlendingHigh,
+        "mcBlendingHigh" }
     };
     plot_description_ = names.at(GetParam());
   }
@@ -5395,7 +6520,7 @@ protected:
     next.setJerk(10000);
     next.setBufferMode(GetParam());
     next.setExecute(mcTRUE);
-    next.runCycle();
+    runObservedCycle(next, "next");
     ASSERT_EQ(next.isError(), mcFALSE);
     ASSERT_EQ(next.isActive(), mcFALSE);
 
@@ -5406,7 +6531,7 @@ protected:
       const double previous_position = slave_.toUserPos();
       const double previous_velocity = slave_.toUserVel();
       ASSERT_NO_FATAL_FAILURE(runCycle());
-      next.runCycle();
+      runObservedCycle(next, "next");
 #ifdef PLOT
       gear_plot_.addBlock("Next", next, plot_time_);
 #endif
@@ -5462,7 +6587,7 @@ TEST_P(GearInBufferedHandoffTest, VelocityMoveQueuedAfterSynchronization)
   for (int cycle = 0; cycle < 1500; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    next.runCycle();
+    runObservedCycle(next, "next");
 #ifdef PLOT
     gear_plot_.addBlock("Next", next, plot_time_);
 #endif
@@ -5502,7 +6627,7 @@ TEST_F(GearInRegressionTest, PreservesConfiguredQueueCapacity)
     moves[i].setJerk(10000);
     moves[i].setBufferMode(mcBuffered);
     moves[i].setExecute(mcTRUE);
-    moves[i].runCycle();
+    runObservedCycle(moves[i], "moves");
     ASSERT_EQ(slave_.getAxisError(), mcErrorCodeGood);
   }
   for (int cycle = 0; cycle < 3000; ++cycle)
@@ -5510,7 +6635,7 @@ TEST_F(GearInRegressionTest, PreservesConfiguredQueueCapacity)
     ASSERT_NO_FATAL_FAILURE(runCycle());
     for (auto& move : moves)
     {
-      move.runCycle();
+      runObservedCycle(move, "move");
 #ifdef PLOT
       gear_plot_.addBlock("Move" + std::to_string(&move - moves + 1), move,
                           plot_time_);
@@ -5543,17 +6668,17 @@ TEST_F(GearInRegressionTest, GearOutAbortsFullBufferedQueue)
   next.setJerk(10000);
   next.setBufferMode(mcBuffered);
   next.setExecute(mcTRUE);
-  next.runCycle();
+  runObservedCycle(next, "next");
   FbGearOut gear_out;
   gear_out.setSlave(&slave_);
   gear_out.setExecute(mcTRUE);
-  gear_out.runCycle();
+  runObservedCycle(gear_out, "gear_out");
   ASSERT_EQ(slave_.getAxisError(), mcErrorCodeGood);
   for (int cycle = 0; cycle < 100; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    next.runCycle();
-    gear_out.runCycle();
+    runObservedCycle(next, "next");
+    runObservedCycle(gear_out, "gear_out");
 #ifdef PLOT
     gear_plot_.addBlock("Next", next, plot_time_);
     gear_plot_.addBlock("GearOut", gear_out, plot_time_);
@@ -5592,7 +6717,7 @@ TEST_P(GearInBufferedHandoffTest, RelativeSequenceUsesActualHandoffPosition)
     move.setJerk(10000);
     move.setBufferMode(i == 0 ? mcBuffered : GetParam());
     move.setExecute(mcTRUE);
-    move.runCycle();
+    runObservedCycle(move, "move");
   }
   bool handed_off         = false;
   bool first_completed    = false;
@@ -5603,7 +6728,7 @@ TEST_P(GearInBufferedHandoffTest, RelativeSequenceUsesActualHandoffPosition)
     ASSERT_NO_FATAL_FAILURE(runCycle());
     for (auto& move : moves)
     {
-      move.runCycle();
+      runObservedCycle(move, "move");
 #ifdef PLOT
       gear_plot_.addBlock("Move" + std::to_string(&move - moves + 1), move,
                           plot_time_);
@@ -5667,10 +6792,10 @@ TEST_F(GearInRegressionTest, AbortingAdditiveDestinationDoesNotDependOnCapacity)
 #endif
     for (int cycle = 0; cycle < 15000; ++cycle)
     {
-      axis.runCycle();
-      power.runCycle();
-      first.runCycle();
-      next.runCycle();
+      runObservedCycle(axis, "axis");
+      runObservedCycle(power, "power");
+      runObservedCycle(first, "first");
+      runObservedCycle(next, "next");
 #ifdef PLOT
       const double time = cycle / static_cast<double>(config.frequency_);
       plot.add("Position", "Actual", time, axis.toUserPos());
@@ -5736,6 +6861,9 @@ TEST_F(GearInRegressionTest, SmallEngagementLimitsAreNotBypassed)
       node.onExecution(0, 0);
       ASSERT_EQ(node.isError(), mcFALSE);
       node.getCommands(&position, &velocity, &acceleration);
+#ifdef PLOT
+      FunctionBlockObservations::commands(position, velocity, acceleration);
+#endif
       peak_acceleration = std::max(peak_acceleration, fabs(acceleration));
       peak_velocity_step =
           std::max(peak_velocity_step, fabs(velocity - previous_velocity));
@@ -5797,7 +6925,7 @@ TEST_F(GearInRegressionTest, BufferedHandoffWaitsForPublicInGear)
   for (int cycle = 0; cycle < 2000; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    next.runCycle();
+    runObservedCycle(next, "next");
 #ifdef PLOT
     gear_plot_.addBlock("Next", next, plot_time_);
     gear_plot_.add("FB signals", "Feedback released", plot_time_,
@@ -5854,7 +6982,7 @@ TEST_P(GearInEqualSpeedHandoffTest, ActivatesAndAppliesOverride)
   for (int cycle = 0; cycle < 1000; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    override.runCycle();
+    runObservedCycle(override, "override");
     if (master_power_.getPowerStatus() == mcTRUE &&
         slave_power_.getPowerStatus() == mcTRUE)
     {
@@ -5875,8 +7003,8 @@ TEST_P(GearInEqualSpeedHandoffTest, ActivatesAndAppliesOverride)
   for (int cycle = 0; cycle < 1000; ++cycle)
   {
     ASSERT_NO_FATAL_FAILURE(runCycle());
-    override.runCycle();
-    next.runCycle();
+    runObservedCycle(override, "override");
+    runObservedCycle(next, "next");
 #ifdef PLOT
     gear_plot_.addBlock("Next", next, plot_time_);
     gear_plot_.add("Velocity", "Successor target with override", plot_time_,
@@ -5971,11 +7099,11 @@ TEST_F(FunctionBlockTest, MC_GearInPos)
       static_cast<int>(gear_in_pos_execute_pulse_seconds * 1000);
   while (t < time_out)
   {
-    axis1->runCycle();
-    axis2->runCycle();
-    fb_power1.runCycle();
-    fb_power2.runCycle();
-    fb_move_vel.runCycle();
+    runObservedCycle(*axis1, "axis1");
+    runObservedCycle(*axis2, "axis2");
+    runObservedCycle(fb_power1, "fb_power1");
+    runObservedCycle(fb_power2, "fb_power2");
+    runObservedCycle(fb_move_vel, "fb_move_vel");
     if (!gear_started && fb_power1.getPowerStatus() == mcTRUE &&
         fb_power2.getPowerStatus() == mcTRUE)
     {
@@ -5984,7 +7112,7 @@ TEST_F(FunctionBlockTest, MC_GearInPos)
     }
     fb_gear_in_pos.setExecute(
         gear_started && execute_high_cycles < pulse_cycles ? mcTRUE : mcFALSE);
-    fb_gear_in_pos.runCycle();
+    runObservedCycle(fb_gear_in_pos, "fb_gear_in_pos");
     if (fb_gear_in_pos.isEnabled() == mcTRUE)
       ++execute_high_cycles;
 
@@ -6009,8 +7137,8 @@ TEST_F(FunctionBlockTest, MC_GearInPos)
     t += 0.001;
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_gear_in_pos_axis.png");
-  fb_profile_.plot("mc_gear_in_pos_fb.png");
+  plotProfile(axis_profile_, "mc_gear_in_pos_axis");
+  plotProfile(fb_profile_, "mc_gear_in_pos_fb");
   position_plot.plot("", "1:2 position coupling, pulsed Execute");
 #endif
   EXPECT_EQ(execute_high_cycles, pulse_cycles);
@@ -6085,10 +7213,10 @@ TEST_F(FunctionBlockTest, DemoReadMotionState)
   while (timeout < 4.0)
   {
     // cyclic execution
-    axis->runCycle();
-    fb_power.runCycle();
-    fb_move_vel.runCycle();
-    fb_read_motion_state.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(fb_move_vel, "fb_move_vel");
+    runObservedCycle(fb_read_motion_state, "fb_read_motion_state");
     timeout += 0.001;
     // check power state
     if (fb_power.getPowerStatus() == mcTRUE)
@@ -6157,8 +7285,8 @@ TEST_F(FunctionBlockTest, DemoReadMotionState)
   }
 
 #ifdef PLOT
-  axis_profile_.plot("mc_read_motion_state_axis.png");
-  fb_profile_.plot("mc_read_motion_state_fb.png");
+  plotProfile(axis_profile_, "mc_read_motion_state_axis");
+  plotProfile(fb_profile_, "mc_read_motion_state_fb");
 #endif
 
   // posprocessing
@@ -6218,10 +7346,10 @@ TEST_F(FunctionBlockTest, MC_SetOverride)
   double t        = 0;
   while (t < time_out)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    mov_vel.runCycle();
-    fb_set_override.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(mov_vel, "mov_vel");
+    runObservedCycle(fb_set_override, "fb_set_override");
 
     if (mov_vel.isEnabled() == mcFALSE)
     {
@@ -6265,8 +7393,8 @@ TEST_F(FunctionBlockTest, MC_SetOverride)
   }
 
 #ifdef PLOT
-  axis_profile_.plot("mc_set_override_axis.png");
-  fb_profile_.plot("mc_set_override_fb.png");
+  plotProfile(axis_profile_, "mc_set_override_axis");
+  plotProfile(fb_profile_, "mc_set_override_fb");
 #endif
 
   delete servo;
@@ -6343,10 +7471,10 @@ TEST_F(FunctionBlockTest, MC_DigitalCamSwitch)
   double timeout = 0;
   while (timeout < 10.0)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    fb_move_vel.runCycle();
-    fb_digital_cam_switch.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(fb_move_vel, "fb_move_vel");
+    runObservedCycle(fb_digital_cam_switch, "fb_digital_cam_switch");
     timeout += 0.001;
 
 #ifdef PLOT
@@ -6367,8 +7495,8 @@ TEST_F(FunctionBlockTest, MC_DigitalCamSwitch)
     }
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_digital_cam_switch_axis.png");
-  fb_profile_.plot("mc_digital_cam_switch_fb.png");
+  plotProfile(axis_profile_, "mc_digital_cam_switch_axis");
+  plotProfile(fb_profile_, "mc_digital_cam_switch_fb");
 #endif
   delete servo;
   delete axis;
@@ -6420,9 +7548,9 @@ TEST_F(FunctionBlockTest, MC_MoveSuperimposed1)
   double t        = 0;
   while (t < time_out)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    fb_move_sup.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(fb_move_sup, "fb_move_sup");
 
     if (1 < t && fb_power.isEnabled() == mcTRUE)
       fb_move_sup.setExecute(mcTRUE);
@@ -6437,8 +7565,8 @@ TEST_F(FunctionBlockTest, MC_MoveSuperimposed1)
     t += 0.001;
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_mov_sup1_axis.png");
-  fb_profile_.plot("mc_mov_sup1_fb.png");
+  plotProfile(axis_profile_, "mc_mov_sup1_axis");
+  plotProfile(fb_profile_, "mc_mov_sup1_fb");
 #endif
   ASSERT_LT(fabs(axis->toUserVel() - 0.0), 0.01);
   ASSERT_LT(fabs(axis->toUserPos() - 600), 0.01);
@@ -6522,11 +7650,11 @@ TEST_F(FunctionBlockTest, MC_MoveSuperimposed2)
   double t        = 0;
   while (t < time_out)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    fb_move_rel.runCycle();
-    fb_move_sup1.runCycle();
-    fb_move_sup2.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(fb_move_rel, "fb_move_rel");
+    runObservedCycle(fb_move_sup1, "fb_move_sup1");
+    runObservedCycle(fb_move_sup2, "fb_move_sup2");
 
     // After enabled, move_relative_1 start to move
     if (fb_power.isEnabled() == mcTRUE && t < 1)
@@ -6558,8 +7686,8 @@ TEST_F(FunctionBlockTest, MC_MoveSuperimposed2)
     t += 0.001;
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_mov_sup2_axis.png");
-  fb_profile_.plot("mc_mov_sup2_fb.png");
+  plotProfile(axis_profile_, "mc_mov_sup2_axis");
+  plotProfile(fb_profile_, "mc_mov_sup2_fb");
 #endif
   ASSERT_LT(fabs(axis->toUserVel() - 0.0), 0.01);
   ASSERT_GE(fabs(axis->toUserPos()), 1000);
@@ -6628,10 +7756,10 @@ TEST_F(FunctionBlockTest, MC_MoveSuperimposed3)
   double t        = 0;
   while (t < time_out)
   {
-    axis->runCycle();
-    fb_power.runCycle();
-    fb_move_rel.runCycle();
-    fb_move_sup.runCycle();
+    runObservedCycle(*axis, "axis");
+    runObservedCycle(fb_power, "fb_power");
+    runObservedCycle(fb_move_rel, "fb_move_rel");
+    runObservedCycle(fb_move_sup, "fb_move_sup");
 
     // After enabled, move_relative_1 start to move
     if (fb_power.isEnabled() == mcTRUE && t < 1)
@@ -6669,8 +7797,8 @@ TEST_F(FunctionBlockTest, MC_MoveSuperimposed3)
     t += 0.001;
   }
 #ifdef PLOT
-  axis_profile_.plot("mc_mov_sup3_axis.png");
-  fb_profile_.plot("mc_mov_sup3_fb.png");
+  plotProfile(axis_profile_, "mc_mov_sup3_axis");
+  plotProfile(fb_profile_, "mc_mov_sup3_fb");
 #endif
   ASSERT_LT(fabs(axis->toUserVel() - 0.0), 0.01);
   ASSERT_GE(fabs(axis->toUserPos()), 12000);

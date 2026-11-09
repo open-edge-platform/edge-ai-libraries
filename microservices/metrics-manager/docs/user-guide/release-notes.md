@@ -1,5 +1,33 @@
 # Release Notes: Metrics Manager
 
+## Version 2026.3.0-dev
+
+**Release Date:** TBD
+
+**Changed (breaking):**
+
+- **NPU Frequency Reported in Hz**: The Prometheus metric `npu_frequency` (line-protocol field `frequency`) keeps its name but now carries the NPU (DPU) clock in **raw Hz** (e.g. `1.95e+09` for 1950 MHz). It previously carried the MHz number (e.g. `1950`) under a Hz name, i.e. a value 1e6 too small (and 25% low on Arrow Lake, see below). The value is decoded by the new `PmtTelemetry.get_freq_hz()` with the same per-buttress PLL-ratio formula as the `intel_vpu` kernel driver (`ivpu_hw_btrs.c`), without the kernel's truncation to whole MHz. The misleading `get_freq()` (documented as MHz but returning MHz/500 on Meteor Lake, Lunar Lake and Panther Lake) and `get_display_freq_hz()` getters were removed. Dashboards and queries that treated `npu_frequency` as MHz must divide by `1e6` (or use a Hz unit such as Grafana `rothz`).
+- **NPU Monitor CLI CSV Frequency in Hz**: The CSV written by the bundled `npu_monitor_tool` CLI (`--csv`) keeps its `frequency` column name, but the column now holds the clock in Hz instead of the MHz number.
+
+**New:**
+
+- **Hardware Telemetry Collectors (opt-in)**: Nine collectors, each enabled by its own `ENABLE_*` environment variable (or `config.enable*` Helm value), expose additional Intel hardware metrics through the existing Prometheus endpoint: CPU package power, per-core frequency, temperature and C-state residency (`ENABLE_RAPL_POWER`), platform (`psys`) power (`ENABLE_PSYS_POWER`), DRAM bandwidth (`ENABLE_DRAM_BW`), disk I/O (`ENABLE_DISK_IO`), network and NIC statistics (`ENABLE_NET_IO`), per-device interrupts (`ENABLE_INTERRUPTS`), high-frequency temperature statistics (`ENABLE_TEMP_STATS`), GPU throttle state (`ENABLE_GPU_THROTTLE`) and turbostat diagnostics (`ENABLE_TURBOSTAT`). **All are off by default**, so these optional collectors add no metrics unless enabled, including for deployments that mount their own `telegraf.conf`. The additional NPU `power_state` field and the NPU changes described above are independent of these toggles. See [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md).
+- **NPU `power_state`**: `npu_reader.py` now also reports the NPU PCI power state as `npu_power_state` (D0=0, D1=1, D2=2, D3hot=3, D3cold=4, unknown=-1). This adds one field to the existing `npu` measurement.
+- **`host-nic-telemetry` Compose profile**: Opt-in `metrics-manager-host-nic` service that runs with host networking so the network collector reports the host's physical NICs. The default bridge deployment is unchanged.
+- **Optional `perf` build variant**: New `INSTALL_PERF` build argument installs `linux-perf` (GPL-2.0, about 150 MB), required only for DRAM bandwidth collection. It is off by default and not in the published image.
+
+**Improved:**
+
+- **Telegraf configuration directory**: Telegraf now also loads `/etc/telegraf/active.d`, which the entrypoint assembles at startup from the enabled drop-ins in `telegraf.d/`. With every toggle off the directory is empty.
+- **Safer optional collectors**: Turbostat is skipped with a warning when its binary or `/dev/cpu/0/msr` is not usable, and the DRAM bandwidth, RAPL and GPU throttle readers idle and log their reason instead of failing.
+
+**Fixed:**
+
+- **Arrow Lake NPU Frequency**: Arrow Lake now uses the MTL buttress formula (`ratio * 50 MHz * 2 / 3`), matching the `intel_vpu` kernel driver, instead of the LNL formula that under-reported the clock by 25%.
+- **NPU Bandwidth Rate**: `npu_bandwidth` is now an MB/s rate (NoC bandwidth counter delta divided by the actual elapsed sampling interval) instead of the raw delta per ~1 s polling loop, so polling jitter no longer skews it. A single wrap of the underlying 32-bit counter between two samples is corrected instead of being reported as a large negative value. A counter reset, or more than one wrap within one interval, can't be detected.
+- **NPU Monitor CLI Output**: The bundled `npu_monitor_tool` CLI now displays the NPU clock in `[MHz]` (previously the MHz number labelled `[Hz]`). Its console and CSV `bandwidth` are now an MB/s rate over the actual elapsed time; previously they were the raw per-interval delta, divided by 1024 (GB) whenever the cumulative counter exceeded 1024, so the CSV column mixed MB and GB. The CSV `utilization` and `memory_usage` cells are now empty (console `N/A`) instead of `0` / `-1.00` when the platform can't measure them.
+- **No More Fake Sentinel Values**: `npu_utilization` is omitted from the emitted sample (instead of a fake `0`) when `npu_busy_time_us` isn't exposed by the platform or can't be read. `npu_memory_mb` is omitted (instead of a fake `-1`) on platforms before Panther Lake (Meteor Lake, Arrow Lake, Lunar Lake), and on Panther Lake when the `npu_memory_utilization` node is missing or can't be read. Consumers should treat a missing field as "not measured", not as a real zero/negative reading.
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026

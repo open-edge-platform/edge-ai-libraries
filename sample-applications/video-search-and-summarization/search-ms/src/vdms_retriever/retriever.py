@@ -322,7 +322,7 @@ def _frame_meta(frame: Any) -> Dict[str, Any]:
 
 
 def _is_full_frame(metadata: Dict[str, Any]) -> bool:
-    """True when a frame is a full frame rather than a YOLOX object crop."""
+    """True when a frame is a full frame rather than an object-detection crop."""
     if not isinstance(metadata, dict):
         return False
     is_crop = metadata.get("is_detected_crop")
