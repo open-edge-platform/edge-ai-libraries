@@ -20,8 +20,8 @@ See [PLAN.md](PLAN.md) for decisions, gates, and roadmap. IPU DVS is deferred.
 | CPU / OpenCL Farneback-class + sparse PyrLK | Available; OpenCL Farneback **soft vs OpenCV** (`docs/farneback.md`) |
 | EPE / Middlebury `.flo` metrics | Available (`metrics.hpp`, `eval_flow_epe`) |
 | OpenCL DIS + `calc_device` | Device-resident ≥10× on Series 2 iGPU; prefer over host `calc` (`docs/backend-selection.md`) |
-| SYCL DIS | Landed (lab); OpenCL remains the primary speed path |
-| SEA-RAFT OpenVINO | P2 quality PASS + iGPU FPS (`docs/sea_raft.md`) |
+| SYCL DIS | Landed + `calc_device` / resident microbench; OpenCL remains ≥10× path |
+| SEA-RAFT OpenVINO | P2 quality PASS + preset/resolution FPS notes (`docs/sea_raft.md`) |
 | OpenCV Mat adapter | Optional (`-DOPTICALFLOW_BUILD_OPENCV_ADAPTER=ON`) |
 | Python (`optical_flow_sdk`) | Available when `-DOPTICALFLOW_BUILD_PYTHON=ON` |
 | Samples | CPU calc / stabilize / track; OpenCL `calc_device`; warp seed (`docs/fruc_warp.md`) |

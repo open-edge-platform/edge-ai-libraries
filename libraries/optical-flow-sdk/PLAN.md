@@ -28,12 +28,12 @@ Leftovers: §11.7.
 | Samples: calc / stabilise / track points | Done |
 | Determinism + `calcBoth` consistency tests | Done |
 | Real OpenCL DIS kernels | **Done** (device pyramid + patch IS + densify; synthetic EPE ≈0) |
-| Real SYCL DIS kernels | **Landed** (lab-validated); **optional perf follow-on** — OpenCL owns ≥10× |
+| Real SYCL DIS kernels | **Landed** + `calc_device` / persistent workspace catch-up; OpenCL owns ≥10× |
 | OpenCV DIS disparity gate on Sintel/KITTI | **Measured FAIL** (lab 2026-11-10; DIS-lite ≠ full OpenCV DIS — §11.6) |
 | ≥10× vs OpenCV CPU DIS-Fast | **Met on device-resident OpenCL** (`calc_device` ≥13× @720p); host `calc` still ≈6–8× (§11.5) |
 | OpenCL device-resident API (`calc_device`) | **Landed** (buffers stay on GPU; see §7 / §11.5) |
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
-| SEA-RAFT OpenVINO accuracy tier | **P2 PASS** — KITTI Fl-all **2.70%** ≤ 19.11%; **iGPU ~15.7 FPS** @384×1248 (`docs/sea_raft.md`) |
+| SEA-RAFT OpenVINO accuracy tier | **P2 PASS** — KITTI Fl-all **2.70%**; **iGPU ~15.7 FPS** @384×1248; presets/resolutions documented (`docs/sea_raft.md`) |
 | Root README under Computer Vision Primitives | Done |
 | `gvaopticalflow` DL Streamer element | **P3 scaffold + lab smoke PASS** 2026-11-10 (`gst-inspect` / `gst-launch` NV12 GPU on Series 2 via standalone `integrations/gvaopticalflow`); VAMemory / consumers open; **dlstreamer PR deferred** |
 | IPU DVS path | Deferred (out of scope) |
@@ -543,7 +543,7 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | Replace SYCL CPU fallback with real DIS kernels | P1 | **Done** (lab-validated); further SYCL speed work is **P2** (OpenCL owns ≥10×) |
 | OpenCV CPU synthetic GT-EPE (DIS / Farneback / PyrLK) | P1 | **Done 2026-11-09** — soft CI gates; not OpenCV numerical identity |
 | Sintel/KITTI parity vs OpenCV DIS | P1 | **Done (FAIL)** 2026-11-10 — `parity_opencv_datasets`; §11.6 |
-| SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | **Quality PASS** Fl-all 2.70%; **iGPU ~15.7 FPS** @384×1248 OV (`p2_sea_raft_openvino_fps_2026-11-10.json`); P4: Nvidia host compare / more presets |
+| SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | **Quality PASS** Fl-all 2.70%; **iGPU ~15.7 FPS** @384×1248; preset/resolution notes in `docs/sea_raft.md`; Nvidia host compare still open |
 | `gvaopticalflow` scaffold + v0 tensor meta | P3 | **Scaffold landed** dlstreamer `feat/gvaopticalflow`; contract in `docs/gvaopticalflow.md` |
 | `gvaopticalflow` lab smoke (`gst-inspect` / `gst-launch`) | P3 | **PASS 2026-11-10** — standalone plugin + micromamba `gst-dev`; NV12 640×480×30 GPU DIS Fast → EOS |
 | VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **API+caps landed** (`import_va_surface_luma`, VAMemory pads); lab VA driver init **blocked**; DMA-BUF + system path OK |
@@ -552,7 +552,7 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | Host `calc` H↔D tax vs `calc_device` | P3 | **Steered** — docs + `sample_calc_flow_opencl_device`; residual H↔D on host `calc` remains |
 | FRUC / warp demos | P4 | **Landed** (`warp_u8`, `fruc_opencl`, `fruc_video_opencl`) |
 | dlstreamer `gvaopticalflow` upstream PR | P3 later | **Deferred** — keep local `feat/gvaopticalflow`; no PR yet |
-| Optional SYCL DIS speed catch-up vs OpenCL | P2 leftover | **Non-blocking** — OpenCL owns ≥10× |
+| Optional SYCL DIS speed catch-up vs OpenCL | P2 leftover | **Landed** — SYCL `calc_device` + persistent workspace + `microbench_sycl_resident`; OpenCL still owns ≥10× |
 | IPU DVS productization | Deferred | Separate future plan |
 
 ### 11.3 Content grep result (2026-11-09)
@@ -640,9 +640,10 @@ gate. P3 `gvaopticalflow` should consume `calc_device`.
 Host `calc` (with D2H) remains the convenience API and does **not** clear 10×.
 
 
-**SYCL (secondary):** lab-validated (~3.3 ms @720p / ~4.6 ms @1080p under
-`ONEAPI_DEVICE_SELECTOR=opencl:gpu`). Not the ≥10× measurement vehicle;
-optional P2 performance work after OpenCL device-resident / H↔D work.
+**SYCL (secondary):** `calc_device` + persistent workspace landed
+(`microbench_sycl_resident`, 2026-11-10 under `ONEAPI_DEVICE_SELECTOR=opencl:gpu`):
+~1.66 ms @720p (~7× vs OpenCV) / ~2.13 ms @1080p (~11×). Useful catch-up;
+**OpenCL resident remains the ≥10× @720p measurement vehicle.**
 
 **oneAPI lab notes:** user-local `~/intel/oneapi` (compiler 2025.3 + UMF +
 `libhwloc`). `source setvars.sh` after `compiler/latest` symlink. Prefer
@@ -739,11 +740,12 @@ P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
 - **FRUC / warp** — `warp_u8`, `fruc_opencl`, `fruc_video_opencl` landed
   (`docs/fruc_warp.md`).
 - Measured Nvidia host FPS/quality tables (if hardware available).
-- Further SEA-RAFT preset / resolution / FPS notes.
+- SEA-RAFT preset / resolution / FPS notes — **documented**
+  (`docs/sea_raft.md`); optional extra IR benches as models appear.
 
 **Non-blocking leftovers:**
 
-- Optional SYCL DIS performance catch-up (OpenCL already clears ≥10×).
+- SYCL DIS `calc_device` catch-up — **landed** (OpenCL still owns ≥10×).
 - Optional fuller Farneback poly-coefficient expansion (vs OpenCV).
 - Classical DIS §8 pairwise/Fl-all vs OpenCV remains **FAIL** by design
   (DIS-lite); only SEA-RAFT closes the quality gate.
