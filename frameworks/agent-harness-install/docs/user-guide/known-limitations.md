@@ -117,8 +117,8 @@ For sandbox setup, architecture and lifecycle guidance, see
   reported with the `sudo chmod` to run.
 - `./install.sh models ...` and `onboard` need Node.js. When `node` is not on
   `PATH` (for example a non-login shell), they load nvm and select
-  `HARNESS_NODE_VERSION`. If Node.js is still missing they warn that results
-  may be incomplete; run `./startup.sh --skip-docker --skip-python` to
+  `HARNESS_NODE_VERSION`. If Node.js is still missing, `models` warns that
+  results may be incomplete; run `./startup.sh --skip-docker --skip-python` to
   install it.
 - `mcp register` has Hermes's config shape and OpenClaw's `mcp set` command
   built in; other agents need `HARNESS_MCP_REGISTER_CMD` set to a real
