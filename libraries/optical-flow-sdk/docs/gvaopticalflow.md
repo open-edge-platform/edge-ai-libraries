@@ -40,15 +40,17 @@ Optional `attach-cost=true` adds a second meta with `layer_name=cost`
 
 | Consumer | v0 | Notes |
 |----------|----|-------|
-| `gvapython` / custom apps | Yes | Read `GstGVATensorMeta` by `model_name` / `layer_name` |
-| `gvatrack` | Not yet | Needs flow→track prior or ROI bridge |
-| `gvamotiondetect` | Not yet | Frame-diff today; optional flow magnitude ROI later |
-| `gvawatermark` | Not yet | Flow visualization follow-on |
+| `gvapython` / custom apps | Yes | Tensor meta + ROI/track examples under `integrations/gvaopticalflow/examples/` |
+| `gvatrack` | Yes (ROI bridge) | Detection-shaped motion ROIs; see `docs/consumers.md` |
+| `gvamotiondetect` | Prefer flow ROIs | Frame-diff remains complementary |
+| `gvawatermark` | Yes (ROI boxes) | `emit-motion-rois` / `track-motion-rois` |
+
+Properties for tracking prior: `emit-motion-rois`, `track-motion-rois`,
+`roi-block`, `roi-mag-threshold`, `track-iou-threshold`.
 
 ## Status
 
 Scaffold on dlstreamer `feat/gvaopticalflow` + standalone lab build under
 `integrations/gvaopticalflow/`. **Lab smoke PASS**; device ping-pong +
-DMA-BUF import API + `examples/flow_consumer.py` landed 2026-11-10.
-**Open:** VAMemory pads / VA↔CL sharing, track/motion/watermark hooks,
+DMA-BUF + motion ROI/`object_id` prior landed. **Open:** VAMemory E2E,
 dlstreamer upstream PR (deferred). See PLAN §11.7.

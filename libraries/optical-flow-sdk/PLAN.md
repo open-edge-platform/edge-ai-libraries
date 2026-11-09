@@ -547,7 +547,7 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | `gvaopticalflow` scaffold + v0 tensor meta | P3 | **Scaffold landed** dlstreamer `feat/gvaopticalflow`; contract in `docs/gvaopticalflow.md` |
 | `gvaopticalflow` lab smoke (`gst-inspect` / `gst-launch`) | P3 | **PASS 2026-11-10** — standalone plugin + micromamba `gst-dev`; NV12 640×480×30 GPU DIS Fast → EOS |
 | VAMemory / DMABuf → OpenCL import (no host luma copy) | P3 | **API+caps landed** (`import_va_surface_luma`, VAMemory pads); lab VA driver init **blocked**; DMA-BUF + system path OK |
-| Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **Partial** — `flow_consumer.py` + `emit-motion-rois` for watermark; `gvatrack` prior still open |
+| Flow consumers (`gvatrack` / `gvamotiondetect` / `gvawatermark`) | P3 | **ROI prior landed** — detection-shaped motion ROIs + `track-motion-rois` `object_id`; `docs/consumers.md` |
 | OpenCL Farneback vs OpenCV numerical hardening | P3 | **poly_n + poly_sigma landed** (`fb_poly_lk`); still soft vs OpenCV full Farneback (`docs/farneback.md`) |
 | Host `calc` H↔D tax vs `calc_device` | P3 | **Steered** — docs + `sample_calc_flow_opencl_device`; residual H↔D on host `calc` remains |
 | FRUC / warp demos | P4 | **Landed** (`warp_u8`, `fruc_opencl`, `fruc_video_opencl`) |
@@ -722,9 +722,10 @@ P1 OpenCL: Fast Sintel Clean EPE 15.4→8.8, Final 25.2→9.2; Medium Final
    `import_va_surface_luma`, VAMemory/DMABuf caps, `gst.va.display.handle`
    bind). **Lab VA smoke blocked** (`iHD` vainfo init fail on renderD128).
    Remaining: end-to-end VA surface→`calc_device` once VA driver works.
-3. Consumers — **hooks landed** (`docs/consumers.md`): `flow_consumer.py`;
-   `emit-motion-rois` → `GstVideoRegionOfInterestMeta` for `gvawatermark`.
-   Full `gvatrack` prior still open.
+3. Consumers — **gvatrack prior landed** (`docs/consumers.md`): detection-shaped
+   motion ROIs + optional IoU `object_id` (`track-motion-rois`); examples
+   `flow_consumer.py` / `flow_track_consumer.py`. Full DL Streamer
+   `gvatrack` chain when the plugin is installed.
 4. OpenCL Farneback — **poly_n + poly_sigma landed** (`fb_poly_lk`, aligned
    with CPU); residual soft vs OpenCV full Farneback (`docs/farneback.md`).
 5. Host `calc` vs `calc_device` — **docs + sample steered**; keep ≥10× claims

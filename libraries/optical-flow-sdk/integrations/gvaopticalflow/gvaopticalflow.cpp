@@ -37,8 +37,10 @@ enum {
     PROP_ALGORITHM,
     PROP_ATTACH_COST,
     PROP_EMIT_MOTION_ROIS,
+    PROP_TRACK_MOTION_ROIS,
     PROP_ROI_BLOCK,
-    PROP_ROI_MAG_THRESHOLD
+    PROP_ROI_MAG_THRESHOLD,
+    PROP_TRACK_IOU_THRESHOLD
 };
 
 #define DEFAULT_PRESET "fast"
@@ -65,6 +67,15 @@ struct OpticalFlowContext {
     int gray_h = 0;
     bool have_prev = false;
     guint64 frame_index = 0;
+
+    // Lightweight IoU tracker for motion ROIs (gvatrack-compatible object_id prior).
+    struct MotionTrack {
+        int x = 0, y = 0, w = 0, h = 0;
+        int id = 0;
+        int missed = 0;
+    };
+    std::vector<MotionTrack> motion_tracks;
+    int next_track_id = 1;
 };
 
 struct _GstGvaOpticalFlow {
@@ -76,8 +87,10 @@ struct _GstGvaOpticalFlow {
     gchar *algorithm_str;
     gboolean attach_cost;
     gboolean emit_motion_rois;
+    gboolean track_motion_rois;
     gint roi_block;
     gdouble roi_mag_threshold;
+    gdouble track_iou_threshold;
     gpointer va_dpy; // VADisplay when VAMemory context is provided
 
     OpticalFlowContext *ctx;
@@ -233,13 +246,96 @@ static void attach_flow_meta(GstGvaOpticalFlow *self, GstBuffer *buf, const opti
     }
 }
 
-// Optional motion ROIs from flow magnitude — consumable by gvawatermark / track-like apps.
+struct MotionDet {
+    int x = 0, y = 0, w = 0, h = 0;
+    double mag = 0.0;
+    int track_id = 0; // 0 = unassigned
+};
+
+static double box_iou(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
+    const int x0 = std::max(ax, bx);
+    const int y0 = std::max(ay, by);
+    const int x1 = std::min(ax + aw, bx + bw);
+    const int y1 = std::min(ay + ah, by + bh);
+    const int iw = std::max(0, x1 - x0);
+    const int ih = std::max(0, y1 - y0);
+    const double inter = static_cast<double>(iw) * ih;
+    if (inter <= 0.0)
+        return 0.0;
+    const double uni = static_cast<double>(aw) * ah + static_cast<double>(bw) * bh - inter;
+    return uni > 0.0 ? inter / uni : 0.0;
+}
+
+// Greedy IoU association — zero-term imageless style prior for gvatrack / apps.
+static void associate_motion_tracks(OpticalFlowContext *ctx, std::vector<MotionDet> &dets, double iou_thr) {
+    std::vector<bool> track_used(ctx->motion_tracks.size(), false);
+    std::vector<bool> det_used(dets.size(), false);
+
+    for (std::size_t di = 0; di < dets.size(); ++di) {
+        double best = iou_thr;
+        int best_t = -1;
+        for (std::size_t ti = 0; ti < ctx->motion_tracks.size(); ++ti) {
+            if (track_used[ti])
+                continue;
+            const auto &t = ctx->motion_tracks[ti];
+            const double iou = box_iou(dets[di].x, dets[di].y, dets[di].w, dets[di].h, t.x, t.y, t.w, t.h);
+            if (iou > best) {
+                best = iou;
+                best_t = static_cast<int>(ti);
+            }
+        }
+        if (best_t >= 0) {
+            auto &t = ctx->motion_tracks[static_cast<std::size_t>(best_t)];
+            t.x = dets[di].x;
+            t.y = dets[di].y;
+            t.w = dets[di].w;
+            t.h = dets[di].h;
+            t.missed = 0;
+            dets[di].track_id = t.id;
+            track_used[static_cast<std::size_t>(best_t)] = true;
+            det_used[di] = true;
+        }
+    }
+
+    for (std::size_t ti = 0; ti < ctx->motion_tracks.size(); ++ti) {
+        if (!track_used[ti])
+            ctx->motion_tracks[ti].missed += 1;
+    }
+    ctx->motion_tracks.erase(std::remove_if(ctx->motion_tracks.begin(), ctx->motion_tracks.end(),
+                                            [](const OpticalFlowContext::MotionTrack &t) { return t.missed > 8; }),
+                             ctx->motion_tracks.end());
+
+    for (std::size_t di = 0; di < dets.size(); ++di) {
+        if (det_used[di])
+            continue;
+        OpticalFlowContext::MotionTrack t;
+        t.x = dets[di].x;
+        t.y = dets[di].y;
+        t.w = dets[di].w;
+        t.h = dets[di].h;
+        t.id = ctx->next_track_id++;
+        t.missed = 0;
+        dets[di].track_id = t.id;
+        ctx->motion_tracks.push_back(t);
+    }
+}
+
+// Motion ROIs as detection-shaped GstVideoRegionOfInterestMeta for gvatrack /
+// gvawatermark. Optional IoU tracker assigns object_id (standalone prior).
 static void attach_motion_rois(GstGvaOpticalFlow *self, GstBuffer *buf,
                                const optical_flow_sdk::FlowField &flow) {
-    if (!self->emit_motion_rois || flow.data.empty())
+    const bool emit = self->emit_motion_rois || self->track_motion_rois;
+    if (!emit || flow.data.empty())
         return;
+
     const int bw = std::max(8, self->roi_block);
     const float thr = static_cast<float>(self->roi_mag_threshold);
+    const int frame_w = flow.width > 0 ? flow.width : GST_VIDEO_INFO_WIDTH(&self->vinfo);
+    const int frame_h = flow.height > 0 ? flow.height : GST_VIDEO_INFO_HEIGHT(&self->vinfo);
+    if (frame_w <= 0 || frame_h <= 0)
+        return;
+
+    std::vector<MotionDet> dets;
     for (int by = 0; by + bw <= flow.height; by += bw) {
         for (int bx = 0; bx + bw <= flow.width; bx += bw) {
             double sum = 0.0;
@@ -251,10 +347,43 @@ static void attach_motion_rois(GstGvaOpticalFlow *self, GstBuffer *buf,
                 }
             }
             if (n > 0 && (sum / n) >= thr) {
-                gst_buffer_add_video_region_of_interest_meta(buf, "optical-flow-motion",
-                                                            static_cast<guint>(bx), static_cast<guint>(by),
-                                                            static_cast<guint>(bw), static_cast<guint>(bw));
+                MotionDet d;
+                d.x = bx;
+                d.y = by;
+                d.w = bw;
+                d.h = bw;
+                d.mag = sum / n;
+                dets.push_back(d);
             }
+        }
+    }
+
+    if (self->track_motion_rois)
+        associate_motion_tracks(self->ctx, dets, self->track_iou_threshold);
+
+    for (const MotionDet &d : dets) {
+        GstVideoRegionOfInterestMeta *meta = gst_buffer_add_video_region_of_interest_meta(
+            buf, "optical-flow-motion", static_cast<guint>(d.x), static_cast<guint>(d.y),
+            static_cast<guint>(d.w), static_cast<guint>(d.h));
+        if (!meta)
+            continue;
+
+        // Match gvadetect / gvatrack detection tensor shape so convertRoisToDetectedObjects works.
+        const double conf = std::clamp(d.mag / std::max(thr * 4.0, 1e-3), 0.0, 1.0);
+        const double x_min = static_cast<double>(d.x) / frame_w;
+        const double y_min = static_cast<double>(d.y) / frame_h;
+        const double x_max = static_cast<double>(d.x + d.w) / frame_w;
+        const double y_max = static_cast<double>(d.y + d.h) / frame_h;
+        GstStructure *det = gst_structure_new(
+            "detection", "confidence", G_TYPE_DOUBLE, conf, "label_id", G_TYPE_INT, 0, "x_min", G_TYPE_DOUBLE,
+            x_min, "x_max", G_TYPE_DOUBLE, x_max, "y_min", G_TYPE_DOUBLE, y_min, "y_max", G_TYPE_DOUBLE, y_max,
+            "model_name", G_TYPE_STRING, "optical-flow-sdk", "layer_name", G_TYPE_STRING, "motion-roi", NULL);
+        gst_video_region_of_interest_meta_add_param(meta, det);
+
+        if (d.track_id > 0) {
+            GstStructure *oid =
+                gst_structure_new("object_id", "id", G_TYPE_INT, d.track_id, NULL);
+            gst_video_region_of_interest_meta_add_param(meta, oid);
         }
     }
 }
@@ -443,11 +572,17 @@ static void gst_gva_optical_flow_set_property(GObject *object, guint prop_id, co
     case PROP_EMIT_MOTION_ROIS:
         self->emit_motion_rois = g_value_get_boolean(value);
         break;
+    case PROP_TRACK_MOTION_ROIS:
+        self->track_motion_rois = g_value_get_boolean(value);
+        break;
     case PROP_ROI_BLOCK:
         self->roi_block = std::max(8, g_value_get_int(value));
         break;
     case PROP_ROI_MAG_THRESHOLD:
         self->roi_mag_threshold = std::max(0.0, g_value_get_double(value));
+        break;
+    case PROP_TRACK_IOU_THRESHOLD:
+        self->track_iou_threshold = std::clamp(g_value_get_double(value), 0.0, 1.0);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -472,11 +607,17 @@ static void gst_gva_optical_flow_get_property(GObject *object, guint prop_id, GV
     case PROP_EMIT_MOTION_ROIS:
         g_value_set_boolean(value, self->emit_motion_rois);
         break;
+    case PROP_TRACK_MOTION_ROIS:
+        g_value_set_boolean(value, self->track_motion_rois);
+        break;
     case PROP_ROI_BLOCK:
         g_value_set_int(value, self->roi_block);
         break;
     case PROP_ROI_MAG_THRESHOLD:
         g_value_set_double(value, self->roi_mag_threshold);
+        break;
+    case PROP_TRACK_IOU_THRESHOLD:
+        g_value_set_double(value, self->track_iou_threshold);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -500,8 +641,10 @@ static void gst_gva_optical_flow_init(GstGvaOpticalFlow *self) {
     self->algorithm_str = g_strdup(DEFAULT_ALGORITHM);
     self->attach_cost = FALSE;
     self->emit_motion_rois = FALSE;
+    self->track_motion_rois = FALSE;
     self->roi_block = 32;
     self->roi_mag_threshold = 1.0;
+    self->track_iou_threshold = 0.3;
     self->va_dpy = nullptr;
     self->ctx = new OpticalFlowContext();
     gst_base_transform_set_in_place(GST_BASE_TRANSFORM(self), TRUE);
@@ -569,8 +712,14 @@ static void gst_gva_optical_flow_class_init(GstGvaOpticalFlowClass *klass) {
     g_object_class_install_property(
         gobject_class, PROP_EMIT_MOTION_ROIS,
         g_param_spec_boolean("emit-motion-rois", "Emit motion ROIs",
-                             "Attach GstVideoRegionOfInterestMeta blocks from flow magnitude "
-                             "(gvawatermark / motion consumers)",
+                             "Attach detection-shaped GstVideoRegionOfInterestMeta from flow "
+                             "magnitude (gvatrack / gvawatermark consumers)",
+                             FALSE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+    g_object_class_install_property(
+        gobject_class, PROP_TRACK_MOTION_ROIS,
+        g_param_spec_boolean("track-motion-rois", "Track motion ROIs",
+                             "IoU-associate motion ROIs across frames and attach object_id "
+                             "(standalone gvatrack prior; also emits ROIs)",
                              FALSE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
     g_object_class_install_property(
         gobject_class, PROP_ROI_BLOCK,
@@ -580,6 +729,11 @@ static void gst_gva_optical_flow_class_init(GstGvaOpticalFlowClass *klass) {
         gobject_class, PROP_ROI_MAG_THRESHOLD,
         g_param_spec_double("roi-mag-threshold", "ROI magnitude threshold",
                             "Mean |flow| (px/frame) to emit a motion ROI block", 0.0, 1000.0, 1.0,
+                            (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+    g_object_class_install_property(
+        gobject_class, PROP_TRACK_IOU_THRESHOLD,
+        g_param_spec_double("track-iou-threshold", "Track IoU threshold",
+                            "Min IoU to associate a motion ROI with an existing track", 0.0, 1.0, 0.3,
                             (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
     gst_element_class_set_static_metadata(element_class, "Optical Flow (Intel Optical Flow SDK)", "Filter/Analyzer/Video",

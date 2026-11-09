@@ -36,9 +36,24 @@ gst-launch-1.0 videotestsrc num-buffers=30 pattern=ball ! \
 DIS Fast → EOS (ControlMaster `arc`). Device path uses strided Y upload +
 ping-pong (`docs/device_import.md`).
 
-**Consumer example:**
+**Consumer examples:**
 
 ```bash
 python3 examples/flow_consumer.py
 # frames=12 buffers_with_gva_tensor_meta=11  (frame0 has no prev)
+
+python3 examples/flow_track_consumer.py
+# frames=40 buffers_with_motion_roi>0  (track-motion-rois IoU prior)
 ```
+
+Motion ROI / gvatrack prior:
+
+```bash
+gst-launch-1.0 videotestsrc num-buffers=30 pattern=ball ! \
+  video/x-raw,format=NV12,width=640,height=480,framerate=30/1 ! \
+  gvaopticalflow preset=fast device=GPU track-motion-rois=true \
+    roi-block=32 roi-mag-threshold=0.5 ! fakesink sync=false
+```
+
+See `docs/consumers.md` for the detection-shaped ROI contract and a full
+DL Streamer `gvatrack tracking-type=zero-term-imageless` pipeline.
