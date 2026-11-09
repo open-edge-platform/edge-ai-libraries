@@ -234,6 +234,12 @@ def with_genai_post_metrics(command: str) -> str:
 # A launch string token: whitespace-separated, double-quoted parts kept whole.
 _LAUNCH_TOKEN = re.compile(r'(?:[^\s"]|"[^"]*")+')
 
+# Parentheses attached to the text before them, without spaces inside: caps
+# features (``video/x-raw(memory:VAMemory)``, also shell-escaped as
+# ``\(...\)``) and typed caps fields (``format=(string)NV12``). A bin's
+# parentheses stand apart from the elements they enclose.
+_ATTACHED_PARENS = re.compile(r"(?<=[^\s()\\])\\?\([^\s()\\]*\\?\)")
+
 
 def with_main_sink_last(command: str, stream_id: str) -> str:
     """Move the chain that ends in the stream's main sink to the end of ``command``.
@@ -247,7 +253,8 @@ def with_main_sink_last(command: str, stream_id: str) -> str:
 
     The command is returned unchanged when it has no such sink, the sink's
     chain is already last, it uses bins (``( ... )``) or a ``!`` without
-    spaces around it.
+    spaces around it. Caps features and typed caps fields
+    (``video/x-raw(memory:VAMemory)``, ``format=(string)NV12``) are not bins.
     """
     _, _, sink = stream_id.partition("__")
     if not sink:
@@ -255,7 +262,7 @@ def with_main_sink_last(command: str, stream_id: str) -> str:
     chains: list[list[str]] = [[]]
     after_link = True
     for token in _LAUNCH_TOKEN.findall(command):
-        unquoted = re.sub(r'"[^"]*"', "", token)
+        unquoted = _ATTACHED_PARENS.sub("", re.sub(r'"[^"]*"', "", token))
         if token != "!" and ("!" in unquoted or "(" in unquoted or ")" in unquoted):
             # A link without spaces around it, or a bin: leave it as written.
             return command

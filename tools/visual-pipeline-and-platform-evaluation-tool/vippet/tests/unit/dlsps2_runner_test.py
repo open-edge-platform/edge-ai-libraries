@@ -1596,12 +1596,33 @@ class TestWithMainSinkLast(unittest.TestCase):
             "t. ! queue ! fakesink name=sink_p0_s0",
         )
 
+    def test_caps_with_parentheses_are_not_bins(self):
+        # Caps features and typed fields, as in GPU/NPU pipelines after
+        # decodebin3 is replaced (graph.apply_decodebin3_replacement).
+        for caps in (
+            "video/x-raw(memory:VAMemory)",
+            r"video/x-raw\(memory:VAMemory\)",
+            "video/x-raw(memory:VAMemory),format=NV12,width=320",
+            "video/x-raw,format=(string)NV12,width=(int)320,framerate=(fraction)30/1",
+        ):
+            main = (
+                f"filesrc location=/v.ts ! parsebin ! vah264dec ! {caps} ! "
+                "gvadetect device=GPU ! tee name=t ! queue ! "
+                "fakesink name=sink_p0_s0"
+            )
+            with self.subTest(caps=caps):
+                self.assertEqual(
+                    dlsps2_runner.with_main_sink_last(f"{main} {self.SIDE}", self.SID),
+                    f"{self.SIDE} {main}",
+                )
+
     def test_unchanged_cases(self):
         for command, stream_id in (
             (f"{self.SIDE} {self.MAIN}", self.SID),  # already last
             (f"{self.MAIN} {self.SIDE}", "stream"),  # no sink in the id
             (f"{self.MAIN} {self.SIDE}", "src__other_sink"),  # sink not found
             ("a ! ( b ! fakesink name=sink_p0_s0 ) c ! fakesink", self.SID),  # bin
+            ("a ! (b ! fakesink name=sink_p0_s0) c ! fakesink", self.SID),  # bin
             ("a ! fakesink name=sink_p0_s0 c !fakesink", self.SID),  # odd link
         ):
             with self.subTest(command=command, stream_id=stream_id):
