@@ -142,7 +142,7 @@ make generate_openapi
 | `model-download`             | Model download microservice                                                  | 8000                             |
 | `metrics-manager`            | Metrics collector                                                            | 9090                             |
 | `dlstreamer-pipeline-server` | DL Streamer Pipeline Server 2.0; runs every pipeline                         | 8080, compose network only       |
-| `vippet-plugins`             | One-shot; copies `vippet/gst_plugins` to `shared/gst-plugins` for the server | -                                |
+| `vippet-plugins`             | One-shot; copies `vippet/gst_plugins` to the `vippet-gst-plugins` volume     | -                                |
 
 Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automatically by `setup_env.sh`.
 

@@ -41,6 +41,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN mkdir -p /usr/local/lib/vippet-gst-plugins && \
     ln -s /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstaravis.0.8.so /usr/local/lib/vippet-gst-plugins/
 
+# Where the one-shot vippet-plugins service mounts the vippet-gst-plugins volume (see
+# compose.yml). A new named volume takes the owner of the folder it is mounted on, so
+# dlstreamer can copy the custom elements into it.
+RUN install -d -o dlstreamer -g dlstreamer /plugins
+
 # Remove kernel headers inherited from base image (not needed at runtime,
 # source of CVE-2026-* critical vulnerabilities reported by Trivy).
 RUN dpkg --purge --force-depends linux-libc-dev

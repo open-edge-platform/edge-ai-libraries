@@ -226,7 +226,7 @@ The backend does not run alone. It cooperates with a small set of sibling contai
   every pipeline the backend builds, reached at `DLSPS2_BASE_URL` (default
   `http://dlstreamer-pipeline-server:8080`). It gets the same devices as the backend and loads the custom
   elements of `vippet/gst_plugins/`, which the one-shot **`vippet-plugins`** service copies from the backend
-  image into `shared/gst-plugins/`.
+  image into the `vippet-gst-plugins` Docker volume.
 - **`vippet-ui`** - serves the React app and proxies `/api/v1/*`, `/metrics/*`, and `/docs` to the backend on port 7860.
 - **`mediamtx`** - RTSP server used for live preview streams. The backend publishes live encoded output
   to `rtsp://mediamtx:8554/<stream-name>` (configurable through `LIVE_STREAM_SERVER_HOST` /

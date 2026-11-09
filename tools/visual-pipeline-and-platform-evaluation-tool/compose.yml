@@ -188,10 +188,12 @@ services:
     ports:
       - "7860:7860"
   # One-shot: copies the custom GStreamer elements shipped in the vippet image
-  # (vippet/gst_plugins/) into ./shared/gst-plugins, which the server loads. The
-  # copy always matches the vippet image in use, also for published images, and
-  # replaces the folder's contents so removed elements do not linger. It uses
-  # the image vippet builds or `make run-prebuilt` pulls, so it is never pulled.
+  # (vippet/gst_plugins/) into the vippet-gst-plugins volume, which the server
+  # loads. The copy always matches the vippet image in use, also for published
+  # images, and replaces the volume's contents so removed elements do not linger.
+  # It uses the image vippet builds or `make run-prebuilt` pulls, so it is never
+  # pulled. A named volume rather than a host folder, so that only Docker can
+  # write the code the server loads.
   vippet-plugins:
     image: docker.io/intel/vippet-app:${DOCKER_TAG}
     pull_policy: never
@@ -205,7 +207,7 @@ services:
         cp -R /home/dlstreamer/vippet/gst_plugins/. /plugins/ &&
         find /plugins -name __pycache__ -type d -prune -exec rm -rf {} +
     volumes:
-      - ./shared/gst-plugins/:/plugins
+      - vippet-gst-plugins:/plugins
 
   dlstreamer-pipeline-server:
     # Runs every pipeline vippet builds: validation, performance and density
@@ -269,7 +271,7 @@ services:
       - ./shared/models/:/models
       - ./shared/images/:/images
       - ./shared/metadata/:/metadata
-      - ./shared/gst-plugins/:/opt/vippet/gst_plugins:ro
+      - vippet-gst-plugins:/opt/vippet/gst_plugins:ro
       # gvapython modules (resources.py SCRIPTS_PATH), referenced by absolute path.
       - ./shared/scripts/:/scripts:ro
       # USB cameras (v4l2src), with the same access as vippet had.
@@ -389,4 +391,5 @@ services:
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
 
-volumes: {}
+volumes:
+  vippet-gst-plugins:

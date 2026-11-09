@@ -102,7 +102,7 @@ container, the `dlstreamer-pipeline-server` service. The server runs:
 repository, on the same DL Streamer base image as `vippet` unless `DLSPS2_BASE_IMAGE` is set. The server gets
 the same devices as `vippet`. The
 one-shot `vippet-plugins` service copies the custom elements in `vippet/gst_plugins/` from the `vippet` image
-into `shared/gst-plugins/`, from where the server loads them. `vippet` reads the list of available GStreamer
+into the `vippet-gst-plugins` Docker volume, from where the server loads them. `vippet` reads the list of available GStreamer
 elements from the server, so the decoders and encoders it picks are those of the server.
 
 To use a published server image instead of building one, set `DLSPS2_IMAGE` to one of the
