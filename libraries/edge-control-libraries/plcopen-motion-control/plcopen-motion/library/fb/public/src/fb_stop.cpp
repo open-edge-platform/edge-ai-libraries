@@ -19,7 +19,7 @@ FbStop::FbStop()
 
 MC_ERROR_CODE FbStop::onRisingEdgeExecution()
 {
-  if (acceleration_ == 0)
+  if (acceleration_ == 0 || jerk_ == 0)
     return mcErrorCodeMotionLimitUnset;
   axis_->addFBToQueue(this, mcStopMode);
   return mcErrorCodeGood;

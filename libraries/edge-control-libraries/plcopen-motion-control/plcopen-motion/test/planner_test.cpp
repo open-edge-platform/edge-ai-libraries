@@ -20,6 +20,41 @@ namespace plt = matplotlibcpp;
 
 namespace traj_pro = trajectory_processing;
 
+class PlannerClockTest : public ::testing::TestWithParam<double>
+{
+};
+
+TEST_P(PlannerClockTest, FrequencySurvivesBackendSwitchingAndCopying)
+{
+  using namespace RTmotion;
+  for (const auto type : { mcRuckig, mcOffLine, mcPoly5, mcLine })
+  {
+    SCOPED_TRACE(type);
+    traj_pro::AxisPlanner original;
+    original.setCondition(0, 2, 0, 0, 0, 0, 1, 1, 4, 40, type);
+    original.setFrequency(GetParam());
+    traj_pro::AxisPlanner copied(original);
+    traj_pro::AxisPlanner assigned;
+    assigned.setFrequency(GetParam() / 2);
+    assigned = original;
+    for (auto* planner : { &original, &copied, &assigned })
+    {
+      planner->setCondition(0, 2, 0, 0, 0, 0, NAN, 1, 4, 40, mcRuckig);
+      ASSERT_EQ(planner->onReplan(), mcErrorCodeGood);
+      double position = 0, velocity = 0, acceleration = 0;
+      for (int cycle = 1; cycle <= GetParam(); ++cycle)
+        ASSERT_EQ(planner->onExecution(cycle / GetParam(), &position, &velocity,
+                                       &acceleration),
+                  mcErrorCodeGood);
+      EXPECT_NEAR(position, 0.825, 1e-9);
+      EXPECT_NEAR(velocity, 1, 1e-9);
+    }
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(CycleFrequencies, PlannerClockTest,
+                         ::testing::Values(250.0, 500.0, 1000.0, 2000.0));
+
 // The fixture for testing class Foo.
 class PlannerTest : public ::testing::Test
 {
@@ -96,7 +131,84 @@ protected:
   traj_pro::AxisPlanner planner_ = {};
 };
 
+TEST_F(PlannerTest, VelocityTrackingUsesCycleTime)
+{
+  for (const double delta_time : { 0.001, 0.002 })
+  {
+    SCOPED_TRACE(::testing::Message() << "delta_time=" << delta_time);
+    planner_.setCondition(0, NAN, 0, 1, 0, 0, NAN, 1, 1, 10,
+                          RTmotion::mcRuckig);
+    double position = 0, velocity = 0, acceleration = 0;
+    ASSERT_EQ(planner_.onVelocityTracking(delta_time, &position, &velocity,
+                                          &acceleration),
+              RTmotion::mcErrorCodeGood);
+    EXPECT_NEAR(acceleration, 10 * delta_time, 1e-12);
+    EXPECT_NEAR(velocity, 5 * delta_time * delta_time, 1e-12);
+  }
+}
+
+TEST_F(PlannerTest, VelocityTrackingReportsInvalidLimits)
+{
+  planner_.setCondition(0, NAN, 0, 1, 0, 0, NAN, 1, 1, 0, RTmotion::mcRuckig);
+  double position = 2, velocity = 3, acceleration = 4;
+  EXPECT_EQ(
+      planner_.onVelocityTracking(0.001, &position, &velocity, &acceleration),
+      RTmotion::mcErrorCodeScurveInvalidInput);
+  EXPECT_DOUBLE_EQ(position, 2);
+  EXPECT_DOUBLE_EQ(velocity, 3);
+  EXPECT_DOUBLE_EQ(acceleration, 4);
+}
+
+TEST_F(PlannerTest, PositionPlanningAfterVelocityTracking)
+{
+  planner_.setCondition(0, NAN, 0, 1, 0, 0, NAN, 1, 1, 10, RTmotion::mcRuckig);
+  double position = 0, velocity = 0, acceleration = 0;
+  ASSERT_EQ(
+      planner_.onVelocityTracking(0.001, &position, &velocity, &acceleration),
+      RTmotion::mcErrorCodeGood);
+  planner_.setCondition(0, 1, 0, 0, 0, 0, NAN, 2, 5, 20, RTmotion::mcRuckig);
+  ASSERT_EQ(planner_.onReplan(), RTmotion::mcErrorCodeGood);
+  for (int cycle = 0; cycle < 3000; ++cycle)
+    ASSERT_EQ(planner_.onExecution((cycle + 1) * 0.001, &position, &velocity,
+                                   &acceleration),
+              RTmotion::mcErrorCodeGood);
+  EXPECT_NEAR(position, 1, 1e-12);
+  EXPECT_NEAR(velocity, 0, 1e-12);
+  EXPECT_NEAR(acceleration, 0, 1e-12);
+}
+
 // Tests velocity profile
+TEST_P(PlannerClockTest, TrackingPreservesPositionClockOnSuccessAndError)
+{
+  using namespace RTmotion;
+  for (const bool invalid : { false, true })
+  {
+    SCOPED_TRACE(invalid);
+    traj_pro::AxisPlanner planner;
+    planner.setFrequency(GetParam());
+    planner.setCondition(0, NAN, 0, 1, 0, 0, NAN, 1, 4, invalid ? 0 : 40,
+                         mcRuckig);
+    double position = 0, velocity = 0, acceleration = 0;
+    EXPECT_EQ(planner.onVelocityTracking(2 / GetParam(), &position, &velocity,
+                                         &acceleration, -1),
+              invalid ? mcErrorCodeScurveInvalidInput : mcErrorCodeGood);
+    planner.setCondition(0, 2, 0, 0, 0, 0, NAN, 1, 4, 40, mcRuckig);
+    ASSERT_EQ(planner.onReplan(), mcErrorCodeGood);
+    for (int cycle = 1; cycle <= GetParam(); ++cycle)
+      ASSERT_EQ(planner.onExecution(cycle / GetParam(), &position, &velocity,
+                                    &acceleration),
+                mcErrorCodeGood);
+    EXPECT_NEAR(position, 0.825, 1e-9);
+    for (int cycle = static_cast<int>(GetParam()) + 1;
+         cycle <= static_cast<int>(std::ceil(2.35 * GetParam())); ++cycle)
+      ASSERT_EQ(planner.onExecution(cycle / GetParam(), &position, &velocity,
+                                    &acceleration),
+                mcErrorCodeGood);
+    EXPECT_NEAR(position, 2, 1e-9);
+    EXPECT_NEAR(velocity, 0, 1e-9);
+  }
+}
+
 TEST_F(PlannerTest, VelocityUp)
 {
   planner_.setCondition(5, NAN, -1, 10, 0, 0, NAN, 5, 10, 30,

@@ -29,6 +29,9 @@ void FbJog::setJogBackwardSignal(mcBOOL signal)
 
 MC_ERROR_CODE FbJog::onExecution()
 {
+  if (jerk_ == 0)
+    return mcErrorCodeMotionLimitUnset;
+
   switch (jog_state_)
   {
     case mcJogStill: {

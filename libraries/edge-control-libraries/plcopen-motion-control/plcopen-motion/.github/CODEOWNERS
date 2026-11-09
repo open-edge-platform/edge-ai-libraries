@@ -1,0 +1,146 @@
+# RTmotion code owner file
+
+# Default Reviewers:
+*                          @RoboticsYY @intelzhangw2
+
+# C++ owners: all distinct commit authors in each file history.
+/demo/multi-axis-monitor.cpp                                         @RoboticsYY
+/demo/multi-axis-tcc-measure.cpp                                     @HKH347710 @RoboticsYY
+/demo/multi-axis-tcc-ssram.cpp                                       @HKH347710 @RoboticsYY
+/demo/multi-axis.cpp                                                 @HKH347710 @RoboticsYY
+/library/algo/common/include/math_utils.hpp                          @RoboticsYY
+/library/algo/common/include/scurve_planner.hpp                      @yichongt @RoboticsYY
+/library/algo/common/src/scurve_planner.cpp                          @zyz9740 @jouillet @yichongt @RoboticsYY
+/library/algo/private/include/line_planner.hpp                       @yichongt @RoboticsYY
+/library/algo/private/include/poly_five_planner.hpp                  @yichongt @RoboticsYY
+/library/algo/private/src/line_planner.cpp                           @yichongt @RoboticsYY
+/library/algo/private/src/poly_five_planner.cpp                      @yichongt @RoboticsYY
+/library/algo/public/include/offline_scurve_planner.hpp              @zyz9740 @RoboticsYY
+/library/algo/public/include/online_scurve_planner.hpp               @RoboticsYY
+/library/algo/public/include/ruckig_planner.hpp                      @RoboticsYY
+/library/algo/public/include/time_optimal_trajectory_generation.hpp  @RoboticsYY
+/library/algo/public/include/trajectory.hpp                          @jouillet @RoboticsYY
+/library/algo/public/src/offline_scurve_planner.cpp                  @jouillet @RoboticsYY
+/library/algo/public/src/online_scurve_planner.cpp                   @jouillet @RoboticsYY
+/library/algo/public/src/ruckig_planner.cpp                          @jouillet @yichongt @RoboticsYY
+/library/algo/public/src/time_optimal_trajectory_generation.cpp      @RoboticsYY
+/library/algo/public/src/trajectory.cpp                              @RoboticsYY
+/library/fb/common/include/axis.hpp                                  @AnnikaWU @jouillet @HKH347710 @yichongt @RoboticsYY
+/library/fb/common/include/execution_node.hpp                        @AnnikaWU @zyz9740 @HKH347710 @yichongt @RoboticsYY
+/library/fb/common/include/fb_axis_admin.hpp                         @yichongt @RoboticsYY
+/library/fb/common/include/fb_axis_motion.hpp                        @AnnikaWU @HKH347710 @yichongt @RoboticsYY
+/library/fb/common/include/fb_axis_node.hpp                          @HKH347710 @yichongt @RoboticsYY
+/library/fb/common/include/fb_axis_read.hpp                          @AnnikaWU @RoboticsYY
+/library/fb/common/include/fb_base.hpp                               @AnnikaWU @RoboticsYY
+/library/fb/common/include/global.hpp                                @AnnikaWU @jouillet @HKH347710 @yichongt @RoboticsYY
+/library/fb/common/include/logging.hpp                               @RoboticsYY
+/library/fb/common/include/motion_kernel.hpp                         @AnnikaWU @HKH347710 @yichongt @RoboticsYY
+/library/fb/common/include/planner.hpp                               @jouillet @yichongt @RoboticsYY
+/library/fb/common/include/servo.hpp                                 @HKH347710 @RoboticsYY
+/library/fb/common/src/axis.cpp                                      @AnnikaWU @jouillet @HKH347710 @wenqian77 @yichongt @RoboticsYY
+/library/fb/common/src/execution_node.cpp                            @AnnikaWU @HKH347710 @wenqian77 @yichongt @RoboticsYY
+/library/fb/common/src/fb_axis_admin.cpp                             @yichongt @RoboticsYY
+/library/fb/common/src/fb_axis_motion.cpp                            @AnnikaWU @HKH347710 @yichongt @RoboticsYY
+/library/fb/common/src/fb_axis_node.cpp                              @RoboticsYY
+/library/fb/common/src/fb_axis_read.cpp                              @AnnikaWU @RoboticsYY
+/library/fb/common/src/fb_base.cpp                                   @AnnikaWU @RoboticsYY
+/library/fb/common/src/motion_kernel.cpp                             @AnnikaWU @HKH347710 @yichongt @RoboticsYY
+/library/fb/common/src/planner.cpp                                   @jouillet @yichongt @RoboticsYY
+/library/fb/common/src/servo.cpp                                     @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_cam_in.hpp                            @AnnikaWU @yichongt @RoboticsYY
+/library/fb/private/include/fb_cam_out.hpp                           @yichongt @RoboticsYY
+/library/fb/private/include/fb_cam_ref.hpp                           @yichongt @RoboticsYY
+/library/fb/private/include/fb_cam_table_select.hpp                  @yichongt @RoboticsYY
+/library/fb/private/include/fb_digital_cam_switch.hpp                @yichongt @RoboticsYY
+/library/fb/private/include/fb_gear_in.hpp                           @AnnikaWU @zyz9740 @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_gear_in_pos.hpp                       @yichongt @RoboticsYY
+/library/fb/private/include/fb_gear_out.hpp                          @AnnikaWU @HKH347710 @yichongt @RoboticsYY
+/library/fb/private/include/fb_home.hpp                              @HKH347710 @yichongt @RoboticsYY
+/library/fb/private/include/fb_io_operation.hpp                      @AnnikaWU @RoboticsYY
+/library/fb/private/include/fb_jog.hpp                               @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_move_superimposed.hpp                 @zyz9740 @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_read_actual_torque.hpp                @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_read_axis_info.hpp                    @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_read_digital_input.hpp                @AnnikaWU @zyz9740 @RoboticsYY
+/library/fb/private/include/fb_read_digital_output.hpp               @AnnikaWU @zyz9740 @RoboticsYY
+/library/fb/private/include/fb_read_motion_state.hpp                 @AnnikaWU @zyz9740 @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_read_raw_position.hpp                 @yichongt @RoboticsYY
+/library/fb/private/include/fb_set_controller_mode.hpp               @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_set_override.hpp                      @AnnikaWU @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_set_position.hpp                      @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_torque_control.hpp                    @zyz9740 @HKH347710 @RoboticsYY
+/library/fb/private/include/fb_write_digital_output.hpp              @AnnikaWU @RoboticsYY
+/library/fb/private/include/io.hpp                                   @AnnikaWU @RoboticsYY
+/library/fb/private/src/fb_cam_in.cpp                                @AnnikaWU @HKH347710 @yichongt @RoboticsYY
+/library/fb/private/src/fb_cam_out.cpp                               @AnnikaWU @HKH347710 @yichongt @RoboticsYY
+/library/fb/private/src/fb_cam_ref.cpp                               @yichongt @RoboticsYY
+/library/fb/private/src/fb_cam_table_select.cpp                      @yichongt @RoboticsYY
+/library/fb/private/src/fb_digital_cam_switch.cpp                    @yichongt @RoboticsYY
+/library/fb/private/src/fb_gear_in.cpp                               @AnnikaWU @HKH347710 @RoboticsYY
+/library/fb/private/src/fb_gear_in_pos.cpp                           @AnnikaWU @HKH347710 @yichongt @RoboticsYY
+/library/fb/private/src/fb_gear_out.cpp                              @AnnikaWU @HKH347710 @yichongt @RoboticsYY
+/library/fb/private/src/fb_home.cpp                                  @zyz9740 @HKH347710 @yichongt @RoboticsYY
+/library/fb/private/src/fb_io_operation.cpp                          @AnnikaWU @RoboticsYY
+/library/fb/private/src/fb_jog.cpp                                   @HKH347710 @RoboticsYY
+/library/fb/private/src/fb_move_superimposed.cpp                     @HKH347710 @RoboticsYY
+/library/fb/private/src/fb_read_actual_torque.cpp                    @HKH347710 @RoboticsYY
+/library/fb/private/src/fb_read_axis_info.cpp                        @HKH347710 @RoboticsYY
+/library/fb/private/src/fb_read_digital_input.cpp                    @AnnikaWU @RoboticsYY
+/library/fb/private/src/fb_read_digital_output.cpp                   @AnnikaWU @RoboticsYY
+/library/fb/private/src/fb_read_motion_state.cpp                     @AnnikaWU @RoboticsYY
+/library/fb/private/src/fb_read_raw_position.cpp                     @yichongt @RoboticsYY
+/library/fb/private/src/fb_set_controller_mode.cpp                   @HKH347710 @RoboticsYY
+/library/fb/private/src/fb_set_override.cpp                          @AnnikaWU @RoboticsYY
+/library/fb/private/src/fb_set_position.cpp                          @HKH347710 @RoboticsYY
+/library/fb/private/src/fb_torque_control.cpp                        @HKH347710 @RoboticsYY
+/library/fb/private/src/fb_write_digital_output.cpp                  @AnnikaWU @RoboticsYY
+/library/fb/private/src/io.cpp                                       @AnnikaWU @RoboticsYY
+/library/fb/public/include/fb_halt.hpp                               @yichongt @RoboticsYY
+/library/fb/public/include/fb_homing.hpp                             @zyz9740 @HKH347710 @RoboticsYY
+/library/fb/public/include/fb_move_absolute.hpp                      @zyz9740 @RoboticsYY
+/library/fb/public/include/fb_move_additive.hpp                      @zyz9740 @RoboticsYY
+/library/fb/public/include/fb_move_relative.hpp                      @zyz9740 @RoboticsYY
+/library/fb/public/include/fb_move_velocity.hpp                      @RoboticsYY
+/library/fb/public/include/fb_power.hpp                              @HKH347710 @RoboticsYY
+/library/fb/public/include/fb_read_actual_acceleration.hpp           @RoboticsYY
+/library/fb/public/include/fb_read_actual_position.hpp               @RoboticsYY
+/library/fb/public/include/fb_read_actual_velocity.hpp               @RoboticsYY
+/library/fb/public/include/fb_read_axis_error.hpp                    @HKH347710 @RoboticsYY
+/library/fb/public/include/fb_read_command_acceleration.hpp          @RoboticsYY
+/library/fb/public/include/fb_read_command_position.hpp              @RoboticsYY
+/library/fb/public/include/fb_read_command_velocity.hpp              @RoboticsYY
+/library/fb/public/include/fb_read_status.hpp                        @HKH347710 @RoboticsYY
+/library/fb/public/include/fb_reset.hpp                              @RoboticsYY
+/library/fb/public/include/fb_stop.hpp                               @yichongt @RoboticsYY
+/library/fb/public/src/fb_halt.cpp                                   @HKH347710 @yichongt @RoboticsYY
+/library/fb/public/src/fb_homing.cpp                                 @zyz9740 @HKH347710 @yichongt @RoboticsYY
+/library/fb/public/src/fb_move_absolute.cpp                          @HKH347710 @RoboticsYY
+/library/fb/public/src/fb_move_additive.cpp                          @HKH347710 @RoboticsYY
+/library/fb/public/src/fb_move_relative.cpp                          @HKH347710 @RoboticsYY
+/library/fb/public/src/fb_move_velocity.cpp                          @HKH347710 @RoboticsYY
+/library/fb/public/src/fb_power.cpp                                  @HKH347710 @RoboticsYY
+/library/fb/public/src/fb_read_actual_acceleration.cpp               @RoboticsYY
+/library/fb/public/src/fb_read_actual_position.cpp                   @RoboticsYY
+/library/fb/public/src/fb_read_actual_velocity.cpp                   @RoboticsYY
+/library/fb/public/src/fb_read_axis_error.cpp                        @HKH347710 @RoboticsYY
+/library/fb/public/src/fb_read_command_acceleration.cpp              @RoboticsYY
+/library/fb/public/src/fb_read_command_position.cpp                  @RoboticsYY
+/library/fb/public/src/fb_read_command_velocity.cpp                  @RoboticsYY
+/library/fb/public/src/fb_read_status.cpp                            @RoboticsYY
+/library/fb/public/src/fb_reset.cpp                                  @RoboticsYY
+/library/fb/public/src/fb_stop.cpp                                   @HKH347710 @yichongt @RoboticsYY
+/test/function_block_test.cpp                                        @AnnikaWU @HKH347710 @yichongt @RoboticsYY
+/test/io_operation_test.cpp                                          @AnnikaWU @RoboticsYY
+/test/offline_scurve_test.cpp                                        @AnnikaWU @HKH347710 @RoboticsYY
+/test/online_scurve_test.cpp                                         @AnnikaWU @RoboticsYY
+/test/planner_test.cpp                                               @AnnikaWU @yichongt @RoboticsYY
+/test/test-algorithm_fuzztest.cpp                                    @jouillet @yichongt @RoboticsYY
+/test/test-axis_fuzztest.cpp                                         @jouillet @RoboticsYY
+/test/test-fbs_fuzztest.cpp                                          @jouillet @HKH347710 @RoboticsYY
+/test/test-servo_fuzztest.cpp                                        @jouillet @RoboticsYY
+/util/plot/matplotlibcpp.h                                           @AnnikaWU @HKH347710 @RoboticsYY
+/util/tool/fb_debug_tool.hpp                                         @RoboticsYY
+/util/tool/read_pmu.hpp                                              @RoboticsYY
+
+# Workflow maintainers.
+/.github/workflows         @zyz9740 @RoboticsYY @intelzhangw2

@@ -1,0 +1,37 @@
+name: Clang-tidy
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  pre-commit:
+    name: clang-tidy
+    runs-on: [self-hosted, az-ch]
+    container: ubuntu:jammy
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install clang-tidy
+      run: |
+        apt-get update && apt-get install clang-tidy-11 clang-tools-11 cmake build-essential git -y
+    - name: Build Ruckig
+      run: |
+        git clone -b v0.9.2 https://github.com/pantor/ruckig.git
+        cd ruckig
+        mkdir -p build && cd build
+        cmake -DCMAKE_BUILD_TYPE=Release .. 
+        make && make install
+    - name: Build repo
+      run: |
+        mkdir build && cd build && cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    - name: Clang-tidy fix
+      continue-on-error: true
+      run: |
+        run-clang-tidy-11 -fix -header-filter='./include/.*' -p ./build -export-fixes output.yaml
+    - name: Check result
+      run: |
+        python3 -m unittest discover -s .github -p 'test_check_clang_tidy.py'
+        python3 .github/check-clang-tidy.py
