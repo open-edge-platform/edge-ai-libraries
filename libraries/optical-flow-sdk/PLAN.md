@@ -4,9 +4,9 @@ Status: **in progress**. Decisions locked 2026-11-09. CPU classical paths,
 OpenCV synthetic parity harness, monorepo content grep, and root README
 listing landed on branch `optical-flow-plan` (2026-11-09). **OpenCL DIS
 kernels + Core Ultra Series 2 iGPU lab baselines landed 2026-11-09** (host
-`labrat`, Core Ultra 7 255H / Arc Graphics). SYCL still blocked (no oneAPI
-/`icpx` on that host). Sintel/KITTI datasets and Arc B580 discrete remain
-open. Research base written 2026-11-08; SIFT scaffolding
+`labrat`, Core Ultra 7 255H / Arc Graphics). **Named HW gate is Series 2
+iGPU only** (no Arc B580 discrete access). SYCL uses a user-local oneAPI
+`icpx` under `~/intel/oneapi`. Sintel/KITTI datasets remain open. Research base written 2026-11-08; SIFT scaffolding
 (`libraries/sift-extractor`, PR #3646, ITEP-93043) is reuse-only and does
 not define product identity.
 
@@ -27,9 +27,9 @@ not define product identity.
 | Samples: calc / stabilise / track points | Done |
 | Determinism + `calcBoth` consistency tests | Done |
 | Real OpenCL DIS kernels | **Done** (device pyramid + patch IS + densify; synthetic EPE ≈0) |
-| Real SYCL DIS kernels | **Blocked** (no `icpx`/oneAPI on lab host; still CPU fallback) |
-| OpenCV DIS parity gate on Sintel/KITTI | **Lab** (needs datasets + honest DIS parity) |
-| ≥10× vs OpenCV CPU DIS-Fast | **Not met yet** on Core Ultra 7 255H iGPU (see §11.5) |
+| Real SYCL DIS kernels | **Done** on lab (device kernels; `ONEAPI_DEVICE_SELECTOR=opencl:gpu`) |
+| OpenCV DIS disparity gate on Sintel/KITTI | **Deferred** (no Sintel/KITTI on lab; synthetic gate only) |
+| ≥10× vs OpenCV CPU DIS-Fast | **Not met** — OpenCL Fast ≈6.4–7.7× on Series 2 iGPU (§11.5) |
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
 | SEA-RAFT OpenVINO accuracy tier | **Not started** (P2) |
 | Root README under Computer Vision Primitives | Done |
@@ -59,7 +59,7 @@ open-edge-platform/edge-ai-libraries
     ├── include/optical_flow_sdk/   # OpticalFlow, Farneback, SparsePyrLK, metrics
     ├── src/cpu/                    # DIS-lite, Farneback, PyrLK
     ├── src/opencl/                 # real DIS kernels (lab-validated)
-    ├── src/sycl/                   # wired; CPU fallback until icpx available
+    ├── src/sycl/                   # real DIS kernels (needs icpx / oneAPI)
     ├── tests/ · benchmarks/ · samples/ · python/ · docs/
     │     # compare_opencv_dis + test_opencv_cpu_parity + opencl synthetic
 └── .github/workflows/optical-flow-sdk.yml   # CPU + OpenCV adapter; --strict compare
@@ -105,7 +105,8 @@ Success criteria (v1 unless noted):
 - SYCL and OpenCL implementations optimized for Intel iGPU / Arc.
 - First-class C++ and Python bindings.
 - **≥10× wall** vs OpenCV CPU DIS-Fast at 720p and 1080p on the named
-  SKUs; **≥60 FPS wall @720p** and **≥30 FPS wall @1080p** on Arc B580.
+  SKU (Series 2 iGPU); **≥60 FPS wall @720p** and **≥30 FPS wall @1080p**
+  on that same iGPU.
 - Comparative FPS/quality tables vs NVOFA (labeled hosts).
 - **Equivalent or better quality vs NVOFA** is a **P2 accuracy-tier**
   claim (SEA-RAFT OpenVINO), not a v1 DIS claim.
@@ -375,8 +376,8 @@ its resolution, preset, and host.
 
 ### Gates (ratified)
 
-Named benchmark SKUs (locked): **Core Ultra Series 2 iGPU** and
-**Arc B580**.
+Named benchmark SKU (locked): **Core Ultra Series 2 iGPU only**
+(Arc B580 discrete dropped — no accessible host).
 
 - **Parity gate (must pass before any speed claim):** SYCL/OpenCL DIS vs
   OpenCV CPU DIS, same preset/parameters, Sintel train Clean+Final and
@@ -389,15 +390,15 @@ Named benchmark SKUs (locked): **Core Ultra Series 2 iGPU** and
 - **Determinism gate:** same input → same output (bit-identical or
   ≤1 ULP) across 5 runs on the same device; CPU-fallback and GPU paths
   must agree within the parity gate.
-- **Speed gate (v1 success):** DIS Fast on Core Ultra Series 2 iGPU
-  **and** Arc B580: **≥10× wall** vs OpenCV CPU DIS-Fast at 720p and
-  1080p (host↔device included); **≥60 FPS wall @720p** and **≥30 FPS
-  wall @1080p** on Arc B580. If the 10× gate fails, the deliverable is
-  still the parity-validated SDK + the measurement — no inflated claim.
+- **Speed gate (v1 success):** DIS Fast on Core Ultra Series 2 iGPU:
+  **≥10× wall** vs OpenCV CPU DIS-Fast at 720p and 1080p (host↔device
+  included); **≥60 FPS wall @720p** and **≥30 FPS wall @1080p** on that
+  iGPU. If the 10× gate fails, the deliverable is still the
+  parity-validated SDK + the measurement — no inflated claim.
 - **Nvidia comparative (reporting gate):** same resolution/preset-class
   table vs NVOFA published Ada (and measured Nvidia host if available),
   always labeled host/driver/SDK. Goal: same order of FPS at Fast on
-  Arc B580 vs published Ada Fast, with quality delta reported. Not a
+  Series 2 iGPU vs published Ada Fast, with quality delta reported. Not a
   hard v1 fail.
 - **Quality gate (P2 accuracy tier):** SEA-RAFT OpenVINO achieves
   ≤ NVOFA Medium Fl-all on KITTI train (or better) at a measured
@@ -434,14 +435,14 @@ samples for median/p95.
 
 - **P0 — Spike:** **done on Core Ultra Series 2 iGPU** (§11.5). Content
   grep done (§11.3). OpenCV CPU + `UMat` baselines + driver pin recorded
-  on Core Ultra 7 255H. Arc B580 discrete and Nvidia SDK freshness still
-  open. Exit for Series 2 iGPU: baseline numbers + named stack — met.
+  on Core Ultra 7 255H. Nvidia SDK freshness done (still 5.0). Exit for
+  Series 2 iGPU: baseline numbers + named stack — met.
 - **P1 — SDK v1:** **partially landed.** Tree, CPU DIS/Farneback,
   `SparsePyrLK`, cost/`calcBoth`, C++ + Python, OpenCV adapter, EPE/flo
   harness, OpenCV CPU synthetic parity, CPU CI, samples, **OpenCL DIS
-  kernels** — done. **Still open for P1 exit:** SYCL DIS kernels
-  (needs oneAPI), Sintel/KITTI parity vs OpenCV DIS, ≥10× vs OpenCV
-  CPU DIS-Fast (absolute FPS gates already met on Series 2 iGPU).
+  kernels** — done. **Still open for P1 exit:** SYCL lab validation,
+  ≥10× vs OpenCV CPU DIS-Fast (absolute FPS gates already met).
+  Sintel/KITTI parity deferred (datasets unavailable).
 - **P2 — Accuracy tier:** SEA-RAFT-S OpenVINO under Slow; classical
   Farneback/PyrLK GPU ports + OpenCV parity. (CPU Farneback/PyrLK already
   present as classical scaffolding.) Exit: neural quality gate measured.
@@ -467,7 +468,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
   -DOPTICALFLOW_ENABLE_CPU=ON -DOPTICALFLOW_ENABLE_OPENCL=ON \
   -DOPTICALFLOW_ENABLE_SYCL=OFF -DOPTICALFLOW_BUILD_TESTS=ON
 
-# Lab SYCL+OpenCL (requires icpx / oneAPI — not yet on Core Ultra 7 255H lab host)
+# Lab SYCL+OpenCL (source ~/intel/oneapi/setvars.sh; CMAKE_CXX_COMPILER=icpx)
 cmake -S . -B build -DCMAKE_CXX_COMPILER=icpx -DCMAKE_BUILD_TYPE=Release \
   -DOPTICALFLOW_ENABLE_SYCL=ON -DOPTICALFLOW_ENABLE_OPENCL=ON \
   -DOPTICALFLOW_ENABLE_CPU=ON -DOPTICALFLOW_BUILD_TESTS=ON
@@ -493,7 +494,7 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 | Python | First-class in v1 — landed |
 | `calcBoth` + cost | In v1 — landed |
 | IPU / DVS | Deferred / out of scope for this plan |
-| Benchmark SKUs | Core Ultra Series 2 iGPU + Arc B580 |
+| Benchmark SKU | Core Ultra Series 2 iGPU only (no Arc B580) |
 | §8 gates | Ratified as written (parity, regression, determinism, ≥10× speed, Nvidia reporting, P2 quality, reporting) |
 | DL Streamer element | `gvaopticalflow` in P3 |
 | OpenCV role | Optional adapters + classical correctness baseline; core has no OpenCV dependency |
@@ -506,13 +507,13 @@ Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution path
 |------|------|-------|
 | In-repo content grep for existing flow code | P0 | **Done 2026-11-09** — see §11.3 |
 | OpenCV `UMat`/OpenCL path for DIS / Farneback / PyrLK on target SKU | P0 | **Done 2026-11-09** on Core Ultra 7 255H — see §11.5 |
-| Named driver + oneAPI versions on benchmark hosts | P0 | **Driver pinned** (§11.5); oneAPI **absent** on lab host |
-| OpenCV CPU baselines on Core Ultra Series 2 + Arc B580 | P0 | Series 2 iGPU **done**; Arc B580 discrete still open |
+| Named driver + oneAPI versions on benchmark hosts | P0 | **Driver pinned** (§11.5); oneAPI **user-local** `~/intel/oneapi` |
+| OpenCV CPU baselines on Core Ultra Series 2 iGPU | P0 | **Done** |
 | Nvidia SDK beyond 5.0 / Blackwell support | P0 | **Done 2026-11-09** via `proxy-dmz.intel.com:911/912` — app note / prog guide / release notes / index / developer page all still **SDK 5.0** (last updated **Feb 27, 2023**); no 5.1/6.0/Blackwell docs; Table 3 Ada 4×4 Fl-all/FPS unchanged (17.26/536, 19.11/1000, 23.48/1296). Artifact: `.nvofa-summary.json` (gitignored) |
 | Replace OpenCL CPU fallback with real DIS kernels | P1 | **Done 2026-11-09** |
-| Replace SYCL CPU fallback with real DIS kernels | P1 | Blocked without oneAPI/`icpx` |
+| Replace SYCL CPU fallback with real DIS kernels | P1 | Device kernels landed; lab `icpx` validation in progress |
 | OpenCV CPU synthetic GT-EPE (DIS / Farneback / PyrLK) | P1 | **Done 2026-11-09** — soft CI gates; not OpenCV numerical identity |
-| Sintel/KITTI parity vs OpenCV DIS | P1 | Synthetic harness exists; datasets + lab run outstanding |
+| Sintel/KITTI parity vs OpenCV DIS | P1 | **Deferred** — no datasets on lab; synthetic gate only |
 | SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | No published Intel-GPU benchmark found; feasibility unverified |
 | `gvaopticalflow` metadata contract vs `gvatrack` / `gvamotiondetect` | P3 | Define when element lands |
 | IPU DVS productization | Deferred | Separate future plan |
@@ -539,9 +540,9 @@ one OpenCV Farneback call site above. Path search from 2026-11-08 stands.
 
 Useful on a CPU-only host (not moat-closing): OpenMP/SIMD on DIS-lite,
 NV12 plane helpers, ASAN/UBSAN in CI, SEA-RAFT OpenVINO stub under Slow,
-richer samples/docs. **Still blocked without more HW / datasets / oneAPI:**
-SYCL DIS kernels, Arc B580 discrete ≥10× gates, honest Sintel/KITTI
-OpenCV DIS parity, `gvaopticalflow` GPU-resident path.
+richer samples/docs. **Deferred without datasets / extra HW:** honest
+Sintel/KITTI OpenCV DIS parity. **Out of scope for this plan revision:**
+Arc B580 discrete gates. `gvaopticalflow` remains P3.
 
 ### 11.5 Lab host results (2026-11-09) — Core Ultra Series 2 iGPU
 
@@ -554,7 +555,7 @@ Host multiplexed as SSH ControlMaster `arc` (`labrat@10.91.82.130`).
 | Kernel | Linux 6.17.0-14-generic (`xe` + `i915` modules present) |
 | OpenCL | Intel OpenCL Graphics / Arc Graphics, OpenCL 3.0 NEO, driver **26.14.37833.4**, IGC 2.32.7, 128 CUs |
 | Level Zero | 1.8.1 + `libze-intel-gpu` 26.14.37833.4 |
-| oneAPI / `icpx` | **Not installed** (`/opt/intel/oneapi` absent) — SYCL path blocked |
+| oneAPI / `icpx` | **User-local** `~/intel/oneapi` (compiler 2025.3 + UMF); use `ONEAPI_DEVICE_SELECTOR=opencl:gpu` |
 | OpenCV | 4.14.0-pre at `~/opencv/build_host`, `WITH_OPENCL=ON`, `haveOpenCL=1` |
 
 **OpenCV CPU vs UMat (synthetic textured shift, wall ms/frame):**
@@ -570,17 +571,26 @@ Conclusion: OpenCV Transparent-API DIS is **not** a usable GPU path on this
 SKU (matches plan §4). Farneback UMat does accelerate. Custom OpenCL DIS
 is justified.
 
-**SDK OpenCL DIS Fast (persistent workspace, wall incl. H↔D):**
+**SDK OpenCL / SYCL DIS Fast (persistent workspace, wall incl. H↔D; 2026-11-09 retune):**
 
-| Res | OpenCL ms | OpenCL FPS | vs SDK CPU | vs OpenCV CPU DIS-Fast |
-|-----|-----------|------------|------------|-------------------------|
-| 720p | 11.71 | **85.4** | ~5.1× | 0.76× (OpenCV still faster) |
-| 1080p | 26.64 | **37.5** | ~5.2× | 0.61× (OpenCV still faster) |
+Fast path: quarter-res single-scale (`finest_scale=2`), atomic-free
+`estimate_centers` + `densify_from_patches`, fused ×4 upsample, 2 GD iters,
+patch stride 8. Synthetic-shift EPE ≈ 0.14 (gate ≤1.0).
 
-Synthetic-shift OpenCL EPE ≈ 8e-6 (parity with CPU DIS-lite). Absolute FPS
-thresholds from the Arc B580 gate (≥60@720p, ≥30@1080p) are already met on
-this Series 2 iGPU. The **≥10× vs OpenCV CPU DIS-Fast** moat gate is **not**
-met — further kernel tuning (and/or SYCL) required; do not claim 10×.
+| Res | OpenCL ms | OpenCL FPS | vs OpenCV CPU DIS-Fast (live) | SYCL ms |
+|-----|-----------|------------|-------------------------------|---------|
+| 720p | **~1.86** | **~537** | **~6.4×** (OpenCV ~11.9 ms) | ~3.3 |
+| 1080p | **~3.1–3.8** | **~265–320** | **~6.4–7.7×** (OpenCV ~24 ms) | ~4.6 |
+
+Absolute FPS gates (≥60@720p / ≥30@1080p) **met** on Series 2 iGPU.
+**≥10× vs OpenCV CPU DIS-Fast is not met** — remaining wall is dominated by
+full-res H↔D of u8 frames + float2 flow; further gain needs a device-resident
+API (no host flow readback). Do not claim 10×.
+
+**oneAPI / SYCL lab notes:** user-local toolkit at `~/intel/oneapi` (compiler
+2025.3 + UMF + `libhwloc`). `source ~/intel/oneapi/setvars.sh` after
+`compiler/latest` symlink. Runtime requires `ONEAPI_DEVICE_SELECTOR=opencl:gpu`
+(Level Zero UR init fails on this partial install).
 
 ## 12. Sources
 

@@ -6,23 +6,31 @@
 #include "optical_flow_sdk/types.hpp"
 #include "optical_flow_sdk/version.hpp"
 
+#include <memory>
+
 #if OPTICALFLOW_HAS_SYCL
 
 namespace optical_flow_sdk {
 
-// SYCL DIS backend. Still CPU-fallback until device kernels land; the type
-// exists so Auto dispatch and packaging wire correctly when SYCL is enabled.
+// SYCL DIS backend: device-resident pyramid + patch inverse search + densify.
 class SyclOpticalFlow {
 public:
   explicit SyclOpticalFlow(Preset preset = Preset::Fast);
+  ~SyclOpticalFlow();
+
+  SyclOpticalFlow(SyclOpticalFlow &&) noexcept;
+  SyclOpticalFlow &operator=(SyclOpticalFlow &&) noexcept;
+  SyclOpticalFlow(const SyclOpticalFlow &) = delete;
+  SyclOpticalFlow &operator=(const SyclOpticalFlow &) = delete;
 
   void calc(const ImageView &prev, const ImageView &next, FlowField &flow) const;
   void calc(const ImageView &prev, const ImageView &next, FlowField &flow, CostMap &cost) const;
 
-  Preset preset() const { return preset_; }
+  Preset preset() const;
 
 private:
-  Preset preset_;
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 } // namespace optical_flow_sdk

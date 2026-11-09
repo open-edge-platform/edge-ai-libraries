@@ -25,8 +25,8 @@ enum class Preset {
   Fast = 2,
 };
 
-// Dense classical algorithms. DIS is implemented on CPU and OpenCL (SYCL
-// still falls back to CPU). Farneback remains CPU-only in v1.
+// Dense classical algorithms. DIS is implemented on CPU, OpenCL, and SYCL.
+// Farneback remains CPU-only in v1.
 enum class Algorithm {
   Dis = 0,
   Farneback = 1,

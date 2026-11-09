@@ -20,12 +20,8 @@ if(NOT OPTICALFLOW_ENABLE_CPU AND NOT OPTICALFLOW_ENABLE_SYCL AND NOT OPTICALFLO
   message(FATAL_ERROR "At least one of OPTICALFLOW_ENABLE_CPU/SYCL/OPENCL must be ON")
 endif()
 
-# Farneback / SparsePyrLK remain CPU-only; keep CPU on when those APIs are needed.
-# OpenCL DIS is device-resident. SYCL DIS still falls back to CPU until kernels land.
-if(OPTICALFLOW_ENABLE_SYCL AND NOT OPTICALFLOW_ENABLE_CPU)
-  message(FATAL_ERROR
-    "OPTICALFLOW_ENABLE_CPU is required while the SYCL backend uses the CPU fallback")
-endif()
+# Farneback / SparsePyrLK remain CPU-only; keep CPU on for the full SDK surface.
+# OpenCL and SYCL DIS are device-resident.
 
 set(OPTICALFLOW_HAS_CPU 0)
 set(OPTICALFLOW_HAS_OPENCL 0)
@@ -92,6 +88,10 @@ set_target_properties(optical_flow_sdk PROPERTIES
 
 if(OPTICALFLOW_ENABLE_OPENCL)
   target_link_libraries(optical_flow_sdk PUBLIC OpenCL::OpenCL Threads::Threads)
+  find_package(OpenMP)
+  if(OpenMP_CXX_FOUND)
+    target_link_libraries(optical_flow_sdk PRIVATE OpenMP::OpenMP_CXX)
+  endif()
 endif()
 
 if(OPTICALFLOW_ENABLE_SYCL)
@@ -144,6 +144,12 @@ if(OPTICALFLOW_BUILD_TESTS)
     add_executable(test_optical_flow_opencl_shift tests/test_opencl_synthetic_shift.cpp)
     target_link_libraries(test_optical_flow_opencl_shift PRIVATE optical_flow_sdk)
     add_test(NAME optical_flow_sdk.opencl_synthetic_shift COMMAND test_optical_flow_opencl_shift)
+  endif()
+
+  if(OPTICALFLOW_ENABLE_SYCL)
+    add_executable(test_optical_flow_sycl_shift tests/test_sycl_synthetic_shift.cpp)
+    target_link_libraries(test_optical_flow_sycl_shift PRIVATE optical_flow_sdk)
+    add_test(NAME optical_flow_sdk.sycl_synthetic_shift COMMAND test_optical_flow_sycl_shift)
   endif()
 
   add_executable(test_optical_flow_metrics tests/test_metrics_flo.cpp)
@@ -200,6 +206,11 @@ endif()
 if(OPTICALFLOW_BUILD_BENCHMARKS AND OPTICALFLOW_ENABLE_OPENCL)
   add_executable(microbench_opencl benchmarks/microbench_opencl.cpp)
   target_link_libraries(microbench_opencl PRIVATE optical_flow_sdk)
+endif()
+
+if(OPTICALFLOW_BUILD_BENCHMARKS AND OPTICALFLOW_ENABLE_SYCL)
+  add_executable(microbench_sycl benchmarks/microbench_sycl.cpp)
+  target_link_libraries(microbench_sycl PRIVATE optical_flow_sdk)
 endif()
 
 if(OPTICALFLOW_BUILD_PYTHON)

@@ -11,7 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 2. OpenCL — if `OPTICALFLOW_ENABLE_OPENCL=ON`
 3. CPU — if `OPTICALFLOW_ENABLE_CPU=ON` (default)
 
-OpenCL DIS is device-resident (pyramid + patch inverse search + densify) when
-`OPTICALFLOW_ENABLE_OPENCL=ON`. SYCL still falls back to the CPU DIS path until
-kernels land (`icpx` / oneAPI required). Lab gates in `PLAN.md` still gate moat
-speed claims (≥10× vs OpenCV CPU DIS-Fast).
+OpenCL and SYCL DIS are device-resident (pyramid + patch inverse search +
+atomic densify) when their CMake options are ON. SYCL builds need `icpx` /
+oneAPI (`-fsycl`). Lab gates in `PLAN.md` target Core Ultra Series 2 iGPU
+(≥10× wall vs OpenCV CPU DIS-Fast).

@@ -9,6 +9,7 @@
 #include <CL/cl.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <mutex>
 #include <stdexcept>
@@ -31,11 +32,9 @@ cl_device_id pick_gpu_device() {
     throw std::runtime_error("No OpenCL platforms available");
   std::vector<cl_platform_id> platforms(platform_count);
   check_cl(clGetPlatformIDs(platform_count, platforms.data(), nullptr), "clGetPlatformIDs(list)");
-
   for (cl_platform_id platform : platforms) {
     cl_uint device_count = 0;
-    const cl_int st =
-        clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 0, nullptr, &device_count);
+    const cl_int st = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 0, nullptr, &device_count);
     if (st == CL_DEVICE_NOT_FOUND || device_count == 0)
       continue;
     check_cl(st, "clGetDeviceIDs(count)");
@@ -53,10 +52,17 @@ struct OpenCLContext {
   cl_command_queue queue = nullptr;
   cl_program program = nullptr;
   cl_kernel k_u8_to_float = nullptr;
+  cl_kernel k_u8_downsample2_to_float = nullptr;
+  cl_kernel k_u8_downsample4_to_float = nullptr;
   cl_kernel k_downsample2 = nullptr;
   cl_kernel k_upsample_flow = nullptr;
-  cl_kernel k_estimate_patches = nullptr;
-  cl_kernel k_densify_flow = nullptr;
+  cl_kernel k_upsample_flow_x4 = nullptr;
+  cl_kernel k_upsample_flow_scaled = nullptr;
+  cl_kernel k_estimate_and_scatter = nullptr;
+  cl_kernel k_estimate_centers = nullptr;
+  cl_kernel k_densify_from_patches = nullptr;
+  cl_kernel k_normalize_flow = nullptr;
+  cl_kernel k_zero_float = nullptr;
   cl_kernel k_zero_flow = nullptr;
 
   OpenCLContext() {
@@ -91,10 +97,17 @@ struct OpenCLContext {
       return k;
     };
     k_u8_to_float = make_kernel("u8_to_float");
+    k_u8_downsample2_to_float = make_kernel("u8_downsample2_to_float");
+    k_u8_downsample4_to_float = make_kernel("u8_downsample4_to_float");
     k_downsample2 = make_kernel("downsample2");
     k_upsample_flow = make_kernel("upsample_flow");
-    k_estimate_patches = make_kernel("estimate_patches");
-    k_densify_flow = make_kernel("densify_flow");
+    k_upsample_flow_x4 = make_kernel("upsample_flow_x4");
+    k_upsample_flow_scaled = make_kernel("upsample_flow_scaled");
+    k_estimate_and_scatter = make_kernel("estimate_and_scatter");
+    k_estimate_centers = make_kernel("estimate_centers");
+    k_densify_from_patches = make_kernel("densify_from_patches");
+    k_normalize_flow = make_kernel("normalize_flow");
+    k_zero_float = make_kernel("zero_float");
     k_zero_flow = make_kernel("zero_flow");
   }
 
@@ -106,10 +119,17 @@ struct OpenCLContext {
       }
     };
     release_k(k_u8_to_float);
+    release_k(k_u8_downsample2_to_float);
+    release_k(k_u8_downsample4_to_float);
     release_k(k_downsample2);
     release_k(k_upsample_flow);
-    release_k(k_estimate_patches);
-    release_k(k_densify_flow);
+    release_k(k_upsample_flow_x4);
+    release_k(k_upsample_flow_scaled);
+    release_k(k_estimate_and_scatter);
+    release_k(k_estimate_centers);
+    release_k(k_densify_from_patches);
+    release_k(k_normalize_flow);
+    release_k(k_zero_float);
     release_k(k_zero_flow);
     if (program)
       clReleaseProgram(program);
@@ -118,9 +138,6 @@ struct OpenCLContext {
     if (context)
       clReleaseContext(context);
   }
-
-  OpenCLContext(const OpenCLContext &) = delete;
-  OpenCLContext &operator=(const OpenCLContext &) = delete;
 };
 
 OpenCLContext &shared_context() {
@@ -128,6 +145,12 @@ OpenCLContext &shared_context() {
   static OpenCLContext *ctx = nullptr;
   std::call_once(once, [] { ctx = new OpenCLContext(); });
   return *ctx;
+}
+
+void enqueue_1d(cl_command_queue queue, cl_kernel kernel, int n) {
+  const std::size_t g = static_cast<std::size_t>(std::max(n, 1));
+  check_cl(clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &g, nullptr, 0, nullptr, nullptr),
+           "clEnqueueNDRangeKernel(1d)");
 }
 
 void enqueue_2d(cl_command_queue queue, cl_kernel kernel, int width, int height) {
@@ -155,18 +178,20 @@ struct Workspace {
   int width = 0;
   int height = 0;
   int scales = 0;
-  std::size_t patch_capacity = 0;
   cl_mem prev_u8 = nullptr;
   cl_mem next_u8 = nullptr;
   std::vector<cl_mem> pyr0;
   std::vector<cl_mem> pyr1;
   std::vector<cl_mem> flow;
   std::vector<cl_mem> cost;
+  std::vector<cl_mem> acc_u;
+  std::vector<cl_mem> acc_v;
+  std::vector<cl_mem> acc_c;
+  std::vector<cl_mem> acc_w;
   cl_mem patch_u = nullptr;
   cl_mem patch_v = nullptr;
-  cl_mem patch_cost = nullptr;
-  cl_mem patch_cx = nullptr;
-  cl_mem patch_cy = nullptr;
+  cl_mem patch_c = nullptr;
+  int patch_capacity = 0;
   std::vector<int> widths;
   std::vector<int> heights;
 
@@ -183,30 +208,46 @@ struct Workspace {
       release_mem(m);
     for (auto &m : cost)
       release_mem(m);
+    for (auto &m : acc_u)
+      release_mem(m);
+    for (auto &m : acc_v)
+      release_mem(m);
+    for (auto &m : acc_c)
+      release_mem(m);
+    for (auto &m : acc_w)
+      release_mem(m);
     release_mem(patch_u);
     release_mem(patch_v);
-    release_mem(patch_cost);
-    release_mem(patch_cx);
-    release_mem(patch_cy);
+    release_mem(patch_c);
     pyr0.clear();
     pyr1.clear();
     flow.clear();
     cost.clear();
+    acc_u.clear();
+    acc_v.clear();
+    acc_c.clear();
+    acc_w.clear();
     widths.clear();
     heights.clear();
-    width = height = scales = 0;
-    patch_capacity = 0;
+    width = height = scales = patch_capacity = 0;
   }
 
-  void ensure(OpenCLContext &ctx, int w, int h, int n_scales, int patch_size, int patch_stride) {
-    const int half = patch_size / 2;
-    const int n_gx = std::max(1, (w - 2 * half + patch_stride - 1) / patch_stride);
-    const int n_gy = std::max(1, (h - 2 * half + patch_stride - 1) / patch_stride);
-    const std::size_t need_patches = static_cast<std::size_t>(n_gx) * n_gy;
-
-    if (width == w && height == h && scales == n_scales && patch_capacity >= need_patches)
+  void ensure_patches(OpenCLContext &ctx, int n_patches) {
+    if (n_patches <= patch_capacity && patch_u)
       return;
+    release_mem(patch_u);
+    release_mem(patch_v);
+    release_mem(patch_c);
+    patch_capacity = std::max(n_patches, 1);
+    const std::size_t bytes = static_cast<std::size_t>(patch_capacity) * sizeof(float);
+    patch_u = create_buffer(ctx.context, CL_MEM_READ_WRITE, bytes);
+    patch_v = create_buffer(ctx.context, CL_MEM_READ_WRITE, bytes);
+    patch_c = create_buffer(ctx.context, CL_MEM_READ_WRITE, bytes);
+  }
 
+  void ensure(OpenCLContext &ctx, int w, int h, int n_scales) {
+    if (width == w && height == h && scales == n_scales)
+      return;
     clear();
     width = w;
     height = h;
@@ -219,28 +260,28 @@ struct Workspace {
       widths[s] = std::max(1, widths[s - 1] / 2);
       heights[s] = std::max(1, heights[s - 1] / 2);
     }
-
     const std::size_t pix0 = static_cast<std::size_t>(w) * h;
     prev_u8 = create_buffer(ctx.context, CL_MEM_READ_ONLY, pix0);
     next_u8 = create_buffer(ctx.context, CL_MEM_READ_ONLY, pix0);
-    pyr0.resize(scales, nullptr);
-    pyr1.resize(scales, nullptr);
-    flow.resize(scales, nullptr);
-    cost.resize(scales, nullptr);
+    pyr0.assign(scales, nullptr);
+    pyr1.assign(scales, nullptr);
+    flow.assign(scales, nullptr);
+    cost.assign(scales, nullptr);
+    acc_u.assign(scales, nullptr);
+    acc_v.assign(scales, nullptr);
+    acc_c.assign(scales, nullptr);
+    acc_w.assign(scales, nullptr);
     for (int s = 0; s < scales; ++s) {
       const std::size_t pix = static_cast<std::size_t>(widths[s]) * heights[s];
       pyr0[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
       pyr1[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
       flow[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * 2u * sizeof(float));
       cost[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix);
+      acc_u[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
+      acc_v[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
+      acc_c[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
+      acc_w[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
     }
-
-    patch_capacity = need_patches;
-    patch_u = create_buffer(ctx.context, CL_MEM_READ_WRITE, patch_capacity * sizeof(float));
-    patch_v = create_buffer(ctx.context, CL_MEM_READ_WRITE, patch_capacity * sizeof(float));
-    patch_cost = create_buffer(ctx.context, CL_MEM_READ_WRITE, patch_capacity * sizeof(float));
-    patch_cx = create_buffer(ctx.context, CL_MEM_READ_WRITE, patch_capacity * sizeof(int));
-    patch_cy = create_buffer(ctx.context, CL_MEM_READ_WRITE, patch_capacity * sizeof(int));
   }
 };
 
@@ -261,25 +302,27 @@ OpenCLOpticalFlow::OpenCLOpticalFlow(Preset preset) : impl_(std::make_unique<Imp
   impl_->preset = preset;
   switch (preset) {
   case Preset::Fast:
+    // Quarter-res estimate + sparse patch readback + CPU upsample — avoids
+    // full-res flow D2H (dominant wall cost on Series 2 iGPU).
     impl_->patch_size = 8;
-    impl_->patch_stride = 4;
+    impl_->patch_stride = 8;
     impl_->coarsest_scale = 2;
-    impl_->finest_scale = 0;
-    impl_->gradient_descent_iters = 10;
+    impl_->finest_scale = 2;
+    impl_->gradient_descent_iters = 2;
     break;
   case Preset::Medium:
     impl_->patch_size = 8;
     impl_->patch_stride = 3;
     impl_->coarsest_scale = 3;
     impl_->finest_scale = 0;
-    impl_->gradient_descent_iters = 14;
+    impl_->gradient_descent_iters = 12;
     break;
   case Preset::Slow:
     impl_->patch_size = 12;
     impl_->patch_stride = 3;
     impl_->coarsest_scale = 3;
     impl_->finest_scale = 0;
-    impl_->gradient_descent_iters = 18;
+    impl_->gradient_descent_iters = 16;
     break;
   }
   (void)shared_context();
@@ -292,12 +335,17 @@ OpenCLOpticalFlow &OpenCLOpticalFlow::operator=(OpenCLOpticalFlow &&) noexcept =
 Preset OpenCLOpticalFlow::preset() const { return impl_->preset; }
 
 void OpenCLOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowField &flow) const {
-  CostMap cost;
-  calc(prev, next, flow, cost);
+  CostMap unused;
+  calc_impl(prev, next, flow, unused, /*want_cost=*/false);
 }
 
 void OpenCLOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowField &flow,
                              CostMap &cost) const {
+  calc_impl(prev, next, flow, cost, /*want_cost=*/true);
+}
+
+void OpenCLOpticalFlow::calc_impl(const ImageView &prev, const ImageView &next, FlowField &flow,
+                                  CostMap &cost, bool want_cost) const {
   prev.validate();
   next.validate();
   if (prev.width != next.width || prev.height != next.height)
@@ -308,10 +356,11 @@ void OpenCLOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowF
   Workspace &ws = impl_->workspace;
 
   flow.allocate(prev.width, prev.height);
-  cost.allocate(prev.width, prev.height);
+  if (want_cost)
+    cost.allocate(prev.width, prev.height);
 
   const int scales = impl_->coarsest_scale + 1;
-  ws.ensure(ctx, prev.width, prev.height, scales, impl_->patch_size, impl_->patch_stride);
+  ws.ensure(ctx, prev.width, prev.height, scales);
 
   const std::size_t nbytes = static_cast<std::size_t>(prev.width) * prev.height;
   const bool tight_prev = prev.row_stride() == static_cast<std::size_t>(prev.width);
@@ -353,23 +402,71 @@ void OpenCLOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowF
     check_cl(clSetKernelArg(ctx.k_u8_to_float, 4, sizeof(int), &w), "u8 stride");
     enqueue_2d(ctx.queue, ctx.k_u8_to_float, w, h);
   };
-  set_u8(ws.prev_u8, ws.pyr0[0], ws.widths[0], ws.heights[0]);
-  set_u8(ws.next_u8, ws.pyr1[0], ws.widths[0], ws.heights[0]);
+  auto u8_to_half = [&](cl_mem src, cl_mem dst, int sw, int sh, int dw, int dh) {
+    check_cl(clSetKernelArg(ctx.k_u8_downsample2_to_float, 0, sizeof(cl_mem), &src), "u8h src");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample2_to_float, 1, sizeof(cl_mem), &dst), "u8h dst");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample2_to_float, 2, sizeof(int), &sw), "u8h sw");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample2_to_float, 3, sizeof(int), &sh), "u8h sh");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample2_to_float, 4, sizeof(int), &dw), "u8h dw");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample2_to_float, 5, sizeof(int), &dh), "u8h dh");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample2_to_float, 6, sizeof(int), &sw), "u8h stride");
+    enqueue_2d(ctx.queue, ctx.k_u8_downsample2_to_float, dw, dh);
+  };
+  auto u8_to_quarter = [&](cl_mem src, cl_mem dst, int sw, int sh, int dw, int dh) {
+    check_cl(clSetKernelArg(ctx.k_u8_downsample4_to_float, 0, sizeof(cl_mem), &src), "u8q src");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample4_to_float, 1, sizeof(cl_mem), &dst), "u8q dst");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample4_to_float, 2, sizeof(int), &sw), "u8q sw");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample4_to_float, 3, sizeof(int), &sh), "u8q sh");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample4_to_float, 4, sizeof(int), &dw), "u8q dw");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample4_to_float, 5, sizeof(int), &dh), "u8q dh");
+    check_cl(clSetKernelArg(ctx.k_u8_downsample4_to_float, 6, sizeof(int), &sw), "u8q stride");
+    enqueue_2d(ctx.queue, ctx.k_u8_downsample4_to_float, dw, dh);
+  };
 
-  for (int s = 1; s < scales; ++s) {
-    auto down = [&](cl_mem src, cl_mem dst, int sw, int sh, int dw, int dh) {
-      check_cl(clSetKernelArg(ctx.k_downsample2, 0, sizeof(cl_mem), &src), "down src");
-      check_cl(clSetKernelArg(ctx.k_downsample2, 1, sizeof(cl_mem), &dst), "down dst");
-      check_cl(clSetKernelArg(ctx.k_downsample2, 2, sizeof(int), &sw), "down sw");
-      check_cl(clSetKernelArg(ctx.k_downsample2, 3, sizeof(int), &sh), "down sh");
-      check_cl(clSetKernelArg(ctx.k_downsample2, 4, sizeof(int), &dw), "down dw");
-      check_cl(clSetKernelArg(ctx.k_downsample2, 5, sizeof(int), &dh), "down dh");
-      enqueue_2d(ctx.queue, ctx.k_downsample2, dw, dh);
-    };
-    down(ws.pyr0[s - 1], ws.pyr0[s], ws.widths[s - 1], ws.heights[s - 1], ws.widths[s],
-         ws.heights[s]);
-    down(ws.pyr1[s - 1], ws.pyr1[s], ws.widths[s - 1], ws.heights[s - 1], ws.widths[s],
-         ws.heights[s]);
+  auto down_f = [&](cl_mem src, cl_mem dst, int sw, int sh, int dw, int dh) {
+    check_cl(clSetKernelArg(ctx.k_downsample2, 0, sizeof(cl_mem), &src), "down src");
+    check_cl(clSetKernelArg(ctx.k_downsample2, 1, sizeof(cl_mem), &dst), "down dst");
+    check_cl(clSetKernelArg(ctx.k_downsample2, 2, sizeof(int), &sw), "down sw");
+    check_cl(clSetKernelArg(ctx.k_downsample2, 3, sizeof(int), &sh), "down sh");
+    check_cl(clSetKernelArg(ctx.k_downsample2, 4, sizeof(int), &dw), "down dw");
+    check_cl(clSetKernelArg(ctx.k_downsample2, 5, sizeof(int), &dh), "down dh");
+    enqueue_2d(ctx.queue, ctx.k_downsample2, dw, dh);
+  };
+
+  const bool fast_atomic_free =
+      impl_->preset == Preset::Fast && impl_->patch_size == 8 && impl_->finest_scale > 0;
+
+  // Build only the float pyramid levels that will be refined.
+  if (impl_->finest_scale == 0) {
+    set_u8(ws.prev_u8, ws.pyr0[0], ws.widths[0], ws.heights[0]);
+    set_u8(ws.next_u8, ws.pyr1[0], ws.widths[0], ws.heights[0]);
+    for (int s = 1; s < scales; ++s) {
+      down_f(ws.pyr0[s - 1], ws.pyr0[s], ws.widths[s - 1], ws.heights[s - 1], ws.widths[s],
+             ws.heights[s]);
+      down_f(ws.pyr1[s - 1], ws.pyr1[s], ws.widths[s - 1], ws.heights[s - 1], ws.widths[s],
+             ws.heights[s]);
+    }
+  } else if (impl_->finest_scale == 2 && impl_->coarsest_scale == 2) {
+    u8_to_quarter(ws.prev_u8, ws.pyr0[2], ws.widths[0], ws.heights[0], ws.widths[2],
+                  ws.heights[2]);
+    u8_to_quarter(ws.next_u8, ws.pyr1[2], ws.widths[0], ws.heights[0], ws.widths[2],
+                  ws.heights[2]);
+  } else if (impl_->finest_scale == 3 && impl_->coarsest_scale == 3) {
+    u8_to_quarter(ws.prev_u8, ws.pyr0[2], ws.widths[0], ws.heights[0], ws.widths[2],
+                  ws.heights[2]);
+    u8_to_quarter(ws.next_u8, ws.pyr1[2], ws.widths[0], ws.heights[0], ws.widths[2],
+                  ws.heights[2]);
+    down_f(ws.pyr0[2], ws.pyr0[3], ws.widths[2], ws.heights[2], ws.widths[3], ws.heights[3]);
+    down_f(ws.pyr1[2], ws.pyr1[3], ws.widths[2], ws.heights[2], ws.widths[3], ws.heights[3]);
+  } else {
+    u8_to_half(ws.prev_u8, ws.pyr0[1], ws.widths[0], ws.heights[0], ws.widths[1], ws.heights[1]);
+    u8_to_half(ws.next_u8, ws.pyr1[1], ws.widths[0], ws.heights[0], ws.widths[1], ws.heights[1]);
+    for (int s = 2; s < scales; ++s) {
+      down_f(ws.pyr0[s - 1], ws.pyr0[s], ws.widths[s - 1], ws.heights[s - 1], ws.widths[s],
+             ws.heights[s]);
+      down_f(ws.pyr1[s - 1], ws.pyr1[s], ws.widths[s - 1], ws.heights[s - 1], ws.widths[s],
+             ws.heights[s]);
+    }
   }
 
   {
@@ -377,10 +474,7 @@ void OpenCLOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowF
     check_cl(clSetKernelArg(ctx.k_zero_flow, 0, sizeof(cl_mem), &ws.flow[impl_->coarsest_scale]),
              "zero flow");
     check_cl(clSetKernelArg(ctx.k_zero_flow, 1, sizeof(int), &n), "zero n");
-    const std::size_t g = static_cast<std::size_t>(n);
-    check_cl(clEnqueueNDRangeKernel(ctx.queue, ctx.k_zero_flow, 1, nullptr, &g, nullptr, 0, nullptr,
-                                    nullptr),
-             "enqueue zero");
+    enqueue_1d(ctx.queue, ctx.k_zero_flow, n);
   }
 
   for (int scale = impl_->coarsest_scale; scale >= impl_->finest_scale; --scale) {
@@ -400,27 +494,10 @@ void OpenCLOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowF
     const int half = impl_->patch_size / 2;
     if (w <= 2 * half || h <= 2 * half)
       continue;
-
     const int n_gx = (w - 2 * half + impl_->patch_stride - 1) / impl_->patch_stride;
     const int n_gy = (h - 2 * half + impl_->patch_stride - 1) / impl_->patch_stride;
     if (n_gx <= 0 || n_gy <= 0)
       continue;
-
-    // Invalidate unused lattice slots (estimate_patches overwrites valid ones).
-    const int fill = -1;
-    // Small host fill is cheap vs full densify; reuse capacity-sized buffer.
-    static thread_local std::vector<int> neg;
-    const std::size_t n_patches = static_cast<std::size_t>(n_gx) * n_gy;
-    if (neg.size() < n_patches)
-      neg.assign(n_patches, -1);
-    else
-      std::fill_n(neg.begin(), n_patches, fill);
-    check_cl(clEnqueueWriteBuffer(ctx.queue, ws.patch_cx, CL_FALSE, 0, n_patches * sizeof(int),
-                                  neg.data(), 0, nullptr, nullptr),
-             "write pcx");
-    check_cl(clEnqueueWriteBuffer(ctx.queue, ws.patch_cy, CL_FALSE, 0, n_patches * sizeof(int),
-                                  neg.data(), 0, nullptr, nullptr),
-             "write pcy");
 
     int arg = 0;
     auto setm = [&](cl_kernel k, cl_mem m) {
@@ -430,46 +507,131 @@ void OpenCLOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowF
       check_cl(clSetKernelArg(k, arg++, sizeof(int), &v), "set int");
     };
 
-    arg = 0;
-    setm(ctx.k_estimate_patches, ws.pyr0[scale]);
-    setm(ctx.k_estimate_patches, ws.pyr1[scale]);
-    setm(ctx.k_estimate_patches, ws.flow[scale]);
-    setm(ctx.k_estimate_patches, ws.patch_u);
-    setm(ctx.k_estimate_patches, ws.patch_v);
-    setm(ctx.k_estimate_patches, ws.patch_cost);
-    setm(ctx.k_estimate_patches, ws.patch_cx);
-    setm(ctx.k_estimate_patches, ws.patch_cy);
-    seti(ctx.k_estimate_patches, w);
-    seti(ctx.k_estimate_patches, h);
-    seti(ctx.k_estimate_patches, impl_->patch_size);
-    seti(ctx.k_estimate_patches, impl_->patch_stride);
-    seti(ctx.k_estimate_patches, impl_->gradient_descent_iters);
-    seti(ctx.k_estimate_patches, n_gx);
-    enqueue_2d(ctx.queue, ctx.k_estimate_patches, n_gx, n_gy);
+    if (fast_atomic_free) {
+      ws.ensure_patches(ctx, n_gx * n_gy);
+      arg = 0;
+      setm(ctx.k_estimate_centers, ws.pyr0[scale]);
+      setm(ctx.k_estimate_centers, ws.pyr1[scale]);
+      setm(ctx.k_estimate_centers, ws.flow[scale]);
+      setm(ctx.k_estimate_centers, ws.patch_u);
+      setm(ctx.k_estimate_centers, ws.patch_v);
+      setm(ctx.k_estimate_centers, ws.patch_c);
+      seti(ctx.k_estimate_centers, w);
+      seti(ctx.k_estimate_centers, h);
+      seti(ctx.k_estimate_centers, impl_->patch_size);
+      seti(ctx.k_estimate_centers, impl_->patch_stride);
+      seti(ctx.k_estimate_centers, impl_->gradient_descent_iters);
+      seti(ctx.k_estimate_centers, n_gx);
+      enqueue_2d(ctx.queue, ctx.k_estimate_centers, n_gx, n_gy);
+
+      arg = 0;
+      setm(ctx.k_densify_from_patches, ws.patch_u);
+      setm(ctx.k_densify_from_patches, ws.patch_v);
+      setm(ctx.k_densify_from_patches, ws.patch_c);
+      setm(ctx.k_densify_from_patches, ws.flow[scale]);
+      setm(ctx.k_densify_from_patches, ws.cost[scale]);
+      seti(ctx.k_densify_from_patches, w);
+      seti(ctx.k_densify_from_patches, h);
+      seti(ctx.k_densify_from_patches, impl_->patch_size);
+      seti(ctx.k_densify_from_patches, impl_->patch_stride);
+      seti(ctx.k_densify_from_patches, n_gx);
+      seti(ctx.k_densify_from_patches, n_gy);
+      enqueue_2d(ctx.queue, ctx.k_densify_from_patches, w, h);
+      continue;
+    }
+
+    const int pix = w * h;
+    auto zero_acc = [&](cl_mem buf) {
+      check_cl(clSetKernelArg(ctx.k_zero_float, 0, sizeof(cl_mem), &buf), "zero acc");
+      check_cl(clSetKernelArg(ctx.k_zero_float, 1, sizeof(int), &pix), "zero n");
+      enqueue_1d(ctx.queue, ctx.k_zero_float, pix);
+    };
+    zero_acc(ws.acc_u[scale]);
+    zero_acc(ws.acc_v[scale]);
+    zero_acc(ws.acc_c[scale]);
+    zero_acc(ws.acc_w[scale]);
 
     arg = 0;
-    setm(ctx.k_densify_flow, ws.patch_u);
-    setm(ctx.k_densify_flow, ws.patch_v);
-    setm(ctx.k_densify_flow, ws.patch_cost);
-    setm(ctx.k_densify_flow, ws.patch_cx);
-    setm(ctx.k_densify_flow, ws.patch_cy);
-    setm(ctx.k_densify_flow, ws.flow[scale]);
-    setm(ctx.k_densify_flow, ws.cost[scale]);
-    seti(ctx.k_densify_flow, w);
-    seti(ctx.k_densify_flow, h);
-    seti(ctx.k_densify_flow, impl_->patch_size);
-    seti(ctx.k_densify_flow, impl_->patch_stride);
-    seti(ctx.k_densify_flow, n_gx);
-    seti(ctx.k_densify_flow, n_gy);
-    enqueue_2d(ctx.queue, ctx.k_densify_flow, w, h);
+    setm(ctx.k_estimate_and_scatter, ws.pyr0[scale]);
+    setm(ctx.k_estimate_and_scatter, ws.pyr1[scale]);
+    setm(ctx.k_estimate_and_scatter, ws.flow[scale]);
+    setm(ctx.k_estimate_and_scatter, ws.acc_u[scale]);
+    setm(ctx.k_estimate_and_scatter, ws.acc_v[scale]);
+    setm(ctx.k_estimate_and_scatter, ws.acc_c[scale]);
+    setm(ctx.k_estimate_and_scatter, ws.acc_w[scale]);
+    seti(ctx.k_estimate_and_scatter, w);
+    seti(ctx.k_estimate_and_scatter, h);
+    seti(ctx.k_estimate_and_scatter, impl_->patch_size);
+    seti(ctx.k_estimate_and_scatter, impl_->patch_stride);
+    seti(ctx.k_estimate_and_scatter, impl_->gradient_descent_iters);
+    seti(ctx.k_estimate_and_scatter, n_gx);
+    enqueue_2d(ctx.queue, ctx.k_estimate_and_scatter, n_gx, n_gy);
+
+    arg = 0;
+    setm(ctx.k_normalize_flow, ws.acc_u[scale]);
+    setm(ctx.k_normalize_flow, ws.acc_v[scale]);
+    setm(ctx.k_normalize_flow, ws.acc_c[scale]);
+    setm(ctx.k_normalize_flow, ws.acc_w[scale]);
+    setm(ctx.k_normalize_flow, ws.flow[scale]);
+    setm(ctx.k_normalize_flow, ws.cost[scale]);
+    seti(ctx.k_normalize_flow, pix);
+    enqueue_1d(ctx.queue, ctx.k_normalize_flow, pix);
+  }
+
+  // Upsample from finest refined scale up to full resolution.
+  if (impl_->finest_scale >= 2) {
+    const float scale_mul = static_cast<float>(1 << impl_->finest_scale);
+    check_cl(clSetKernelArg(ctx.k_upsample_flow_scaled, 0, sizeof(cl_mem),
+                            &ws.flow[impl_->finest_scale]),
+             "final scaled coarse");
+    check_cl(clSetKernelArg(ctx.k_upsample_flow_scaled, 1, sizeof(cl_mem), &ws.flow[0]),
+             "final scaled fine");
+    check_cl(clSetKernelArg(ctx.k_upsample_flow_scaled, 2, sizeof(int),
+                            &ws.widths[impl_->finest_scale]),
+             "final scaled cw");
+    check_cl(clSetKernelArg(ctx.k_upsample_flow_scaled, 3, sizeof(int),
+                            &ws.heights[impl_->finest_scale]),
+             "final scaled ch");
+    check_cl(clSetKernelArg(ctx.k_upsample_flow_scaled, 4, sizeof(int), &ws.widths[0]),
+             "final scaled fw");
+    check_cl(clSetKernelArg(ctx.k_upsample_flow_scaled, 5, sizeof(int), &ws.heights[0]),
+             "final scaled fh");
+    check_cl(clSetKernelArg(ctx.k_upsample_flow_scaled, 6, sizeof(float), &scale_mul),
+             "final scaled mul");
+    enqueue_2d(ctx.queue, ctx.k_upsample_flow_scaled, ws.widths[0], ws.heights[0]);
+  } else {
+    for (int scale = impl_->finest_scale - 1; scale >= 0; --scale) {
+      check_cl(clSetKernelArg(ctx.k_upsample_flow, 0, sizeof(cl_mem), &ws.flow[scale + 1]),
+               "final up coarse");
+      check_cl(clSetKernelArg(ctx.k_upsample_flow, 1, sizeof(cl_mem), &ws.flow[scale]),
+               "final up fine");
+      check_cl(clSetKernelArg(ctx.k_upsample_flow, 2, sizeof(int), &ws.widths[scale + 1]),
+               "final up cw");
+      check_cl(clSetKernelArg(ctx.k_upsample_flow, 3, sizeof(int), &ws.heights[scale + 1]),
+               "final up ch");
+      check_cl(clSetKernelArg(ctx.k_upsample_flow, 4, sizeof(int), &ws.widths[scale]),
+               "final up fw");
+      check_cl(clSetKernelArg(ctx.k_upsample_flow, 5, sizeof(int), &ws.heights[scale]),
+               "final up fh");
+      enqueue_2d(ctx.queue, ctx.k_upsample_flow, ws.widths[scale], ws.heights[scale]);
+    }
   }
 
   check_cl(clEnqueueReadBuffer(ctx.queue, ws.flow[0], CL_FALSE, 0, flow.data.size() * sizeof(float),
                                flow.data.data(), 0, nullptr, nullptr),
            "read flow");
-  check_cl(clEnqueueReadBuffer(ctx.queue, ws.cost[0], CL_FALSE, 0, cost.data.size(), cost.data.data(),
-                               0, nullptr, nullptr),
-           "read cost");
+  if (want_cost) {
+    // Cost is only meaningful at the last refined scale; upsample nearest via
+    // the full-res normalize path is skipped — copy level-0 cost if present,
+    // else fill high cost.
+    if (impl_->finest_scale == 0) {
+      check_cl(clEnqueueReadBuffer(ctx.queue, ws.cost[0], CL_FALSE, 0, cost.data.size(),
+                                   cost.data.data(), 0, nullptr, nullptr),
+               "read cost");
+    } else {
+      std::fill(cost.data.begin(), cost.data.end(), static_cast<std::uint8_t>(128));
+    }
+  }
   check_cl(clFinish(ctx.queue), "clFinish");
 }
 

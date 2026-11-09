@@ -29,6 +29,9 @@ public:
   Preset preset() const;
 
 private:
+  void calc_impl(const ImageView &prev, const ImageView &next, FlowField &flow, CostMap &cost,
+                 bool want_cost) const;
+
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };
