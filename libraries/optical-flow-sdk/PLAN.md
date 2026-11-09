@@ -1,9 +1,32 @@
 # Intel Optical Flow SDK — Plan
 
-Status: plan only. No implementation code in this file. Decisions locked
-2026-11-09. Research base written 2026-11-08; SIFT scaffolding
-(`libraries/sift-extractor`, PR #3646, ITEP-93043) is reuse-only and does
-not define product identity.
+Status: **in progress**. Decisions locked 2026-11-09. CPU-side scaffold and
+classical paths landed on branch `optical-flow-plan` (2026-11-09); real
+SYCL/OpenCL kernels and lab SKU gates remain open. Research base written
+2026-11-08; SIFT scaffolding (`libraries/sift-extractor`, PR #3646,
+ITEP-93043) is reuse-only and does not define product identity.
+
+### Implementation status (2026-11-09)
+
+| Area | Status |
+|------|--------|
+| Tree / CMake / CI (`optical-flow-sdk.yml`) | Done (CPU CI on GitHub runners) |
+| C++ API: `OpticalFlow`, presets, cost, `calcBoth` | Done |
+| `Algorithm::{Dis,Farneback}` | Done (CPU) |
+| CPU DIS-lite dense flow | Done (synthetic-shift tests pass) |
+| CPU Farneback-class dense flow | Done |
+| CPU `SparsePyrLK` (+ Python) | Done |
+| Python `OpticalFlow` bindings | Done |
+| Optional OpenCV `Mat` adapter + DIS compare tool | Done |
+| EPE / Middlebury `.flo` I/O (`metrics.hpp`, `eval_flow_epe`) | Done |
+| Samples: calc / stabilise / track points | Done |
+| Determinism + `calcBoth` consistency tests | Done |
+| Real SYCL / OpenCL DIS kernels | **Not started** (backends wired; fall back to CPU) |
+| OpenCV DIS parity gate on Sintel/KITTI | **Lab** (needs datasets + honest DIS parity) |
+| ≥10× / NVOFA comparative gates on Arc B580 | **Lab** (needs oneAPI + Intel GPU) |
+| SEA-RAFT OpenVINO accuracy tier | **Not started** (P2) |
+| `gvaopticalflow` DL Streamer element | **Not started** (P3) |
+| IPU DVS path | Deferred (out of scope) |
 
 ## 1. Decision
 
@@ -17,25 +40,23 @@ Do not attempt a hardware-offload port of NVOFA: Intel has no public
 fixed-function optical-flow equivalent for general video (see §3–§4).
 Do not follow `*-extractor` naming; this product is an SDK.
 
-Home (locked):
+Home (locked; present in-tree):
 
 ```
 open-edge-platform/edge-ai-libraries
-└── libraries/optical-flow-sdk/          ← this plan
-    ├── PLAN.md                          ← this file
+└── libraries/optical-flow-sdk/
+    ├── PLAN.md
     ├── README.md
     ├── CMakeLists.txt
-    ├── include/optical_flow_sdk/
-    ├── src/                             # SYCL + OpenCL backends
-    ├── tests/
-    ├── benchmarks/
-    ├── samples/
-    ├── python/                          # first-class wheel in v1
-    ├── docs/
-    └── .github/workflows/optical-flow-sdk.yml
+    ├── include/optical_flow_sdk/   # OpticalFlow, Farneback, SparsePyrLK, metrics
+    ├── src/cpu/                    # DIS-lite, Farneback, PyrLK
+    ├── src/opencl/ · src/sycl/     # wired; CPU fallback until kernels land
+    ├── tests/ · benchmarks/ · samples/ · python/ · docs/
+└── .github/workflows/optical-flow-sdk.yml
 ```
 
-CMake option prefix: `OPTICALFLOW_`.
+CMake option prefix: `OPTICALFLOW_`. Default host build: CPU ON, SYCL/OpenCL
+OFF until `icpx` / OpenCL ICD available.
 
 Why this repo, and not the alternatives:
 
@@ -225,17 +246,27 @@ the product identity. SIFT-style backend dispatch is scaffolding only.
 
 ```cpp
 namespace optical_flow_sdk {
-enum class Backend { OpenCL, Sycl, Auto };
-enum class Preset  { Slow, Medium, Fast };  // NVOFA-shaped dial
+enum class Backend    { Auto, Cpu, OpenCL, Sycl };
+enum class Preset     { Slow, Medium, Fast };     // NVOFA-shaped dial
+enum class Algorithm  { Dis, Farneback };         // dense classical
 
 class OpticalFlow {
 public:
-  OpticalFlow(Backend backend = Backend::Auto, Preset preset = Preset::Fast);
+  OpticalFlow(Backend backend = Backend::Auto, Preset preset = Preset::Fast,
+              Algorithm algorithm = Algorithm::Dis);
   void calc(const ImageView& prev, const ImageView& next, FlowField& flow);
   void calc(const ImageView& prev, const ImageView& next, FlowField& flow,
             CostMap& cost);
   void calcBoth(const ImageView& prev, const ImageView& next,
                 FlowField& fwd, FlowField& bwd);
+};
+
+// Sparse tracking (SLAM / stabilisation) — separate from dense FlowField.
+class SparsePyrLK {
+  void calc(const ImageView& prev, const ImageView& next,
+            const std::vector<Point2f>& prev_pts,
+            std::vector<Point2f>& next_pts,
+            std::vector<uint8_t>& status, std::vector<float>& err) const;
 };
 }
 ```
@@ -245,18 +276,25 @@ public:
 - Outputs: dense float flow (`dx, dy`); optional cost/confidence map
   (NVOFA-shaped: higher cost = less accurate). Block-based S10.5 is the
   Nvidia hardware format, not this library’s native output.
-- `calcBoth` and cost map are **in v1** (core SDK surface).
+- `calcBoth` and cost map are **in v1** (core SDK surface) — landed.
 - Core library does not depend on OpenCV; optional OpenCV `cv::Mat`
-  adapters for interop and parity harnesses.
-- Python module `optical_flow_sdk` (pybind wheel) is **first-class in
-  v1**, NumPy in/out.
+  adapters (`OPTICALFLOW_BUILD_OPENCV_ADAPTER`) for interop and diagnostics.
+- Python module `optical_flow_sdk` exposes `OpticalFlow` and `SparsePyrLK`
+  (pybind); NumPy in/out.
+- Metrics helpers: banded EPE + Middlebury `.flo` read/write for offline
+  harnesses (`eval_flow_epe`).
 
 Dual-tier quality under one API:
 
-- **Latency (v1):** DIS on SYCL/OpenCL — Fast/Medium presets.
+- **Latency (v1):** DIS on SYCL/OpenCL — Fast/Medium presets (CPU DIS-lite
+  exists now; device kernels outstanding).
 - **Accuracy (P2):** SEA-RAFT-S via OpenVINO — Slow / accuracy preset.
 
 ## 7. Kernel plan (SYCL / OpenCL)
+
+**Current state:** OpenCL/SYCL backend types are wired into `OpticalFlow`
+but still call the CPU path. Replacing that fallback with device-resident
+DIS is the critical remaining P1 work.
 
 Copy scaffolding from `sift-extractor` and the ORB-extractor SYCL
 refactor (PR #1785) — device selection, USM vs buffers, kernel launch —
@@ -382,45 +420,45 @@ samples for median/p95.
 
 ## 10. Roadmap
 
-- **P0 — Spike:** confirm in-repo that no flow code exists
-  (`grep -ri` across `edge-ai-libraries` / `edge-ai-suites`); confirm
-  SIFT pyramid scaffolding is reusable; run OpenCV CPU DIS/Farneback/
-  PyrLK on Core Ultra Series 2 + Arc B580 and record baselines; fix
-  driver and oneAPI version; verify OpenCV `UMat`/OpenCL path for DIS /
-  Farneback / PyrLK empirically; confirm Nvidia SDK download freshness
-  (5.0 vs newer / Blackwell). Exit: baseline numbers + named stack, or
-  a written "no baseline" note.
-- **P1 — SDK v1:** `optical-flow-sdk` tree, DIS SYCL + OpenCL, CPU
-  fallback, cost + `calcBoth`, **C++ and Python**, parity harness, moat
-  speed gates measured. Exit: installable SDK with both language
-  bindings and honest gate report.
-- **P2 — Accuracy tier + Farneback/PyrLK:** SEA-RAFT-S OpenVINO under
-  Slow; Farneback + sparse PyrLK for tracking / SLAM. Exit: neural
-  quality gate measured; classical backends parity-gated.
-- **P3 — Pipeline integration:** `gvaopticalflow`, samples
-  (stabilisation, motion ROI, tracking demo), root-README entry under
-  Computer Vision Primitives. Exit: end-to-end DL Streamer pipeline
-  runs flow GPU-resident with no host copy per frame where the path
-  allows it.
+- **P0 — Spike:** partially done on non-lab hosts. Remaining: content
+  grep across full monorepo/suites; OpenCV CPU + `UMat` baselines on
+  **Core Ultra Series 2 + Arc B580**; pin driver/oneAPI; Nvidia SDK
+  freshness. Exit: baseline numbers + named stack, or written "no
+  baseline" note.
+- **P1 — SDK v1:** **partially landed.** Tree, CPU DIS/Farneback,
+  `SparsePyrLK`, cost/`calcBoth`, C++ + Python, OpenCV adapter, EPE/flo
+  harness, CPU CI, samples — done. **Still open for P1 exit:** real
+  SYCL + OpenCL DIS kernels (replace CPU fallback), Sintel/KITTI parity
+  harness vs OpenCV DIS, moat speed gates measured on named SKUs.
+- **P2 — Accuracy tier:** SEA-RAFT-S OpenVINO under Slow; classical
+  Farneback/PyrLK GPU ports + OpenCV parity. (CPU Farneback/PyrLK already
+  present as classical scaffolding.) Exit: neural quality gate measured.
+- **P3 — Pipeline integration:** `gvaopticalflow`; richer samples; root
+  README under Computer Vision Primitives. Exit: DL Streamer pipeline
+  GPU-resident with no host copy per frame where the path allows it.
 - **P4 — Harden comparative story:** measured Nvidia host numbers if
   available; FRUC/warp demos; further preset tuning; SEA-RAFT Intel-GPU
   feasibility notes if still open.
 
-Build / CI (following SIFT hygiene, SDK naming):
+Build / CI:
 
 ```
-cmake -S . -B build \
-  -DCMAKE_CXX_COMPILER=icpx -DCMAKE_BUILD_TYPE=Release \
+# CPU-only (current CI / this workstation)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DOPTICALFLOW_ENABLE_CPU=ON -DOPTICALFLOW_ENABLE_SYCL=OFF \
+  -DOPTICALFLOW_ENABLE_OPENCL=OFF -DOPTICALFLOW_BUILD_TESTS=ON \
+  -DOPTICALFLOW_BUILD_OPENCV_ADAPTER=ON -DOPTICALFLOW_BUILD_PYTHON=ON
+
+# Lab (oneAPI + Intel GPU)
+cmake -S . -B build -DCMAKE_CXX_COMPILER=icpx -DCMAKE_BUILD_TYPE=Release \
   -DOPTICALFLOW_ENABLE_SYCL=ON -DOPTICALFLOW_ENABLE_OPENCL=ON \
-  -DOPTICALFLOW_BUILD_TESTS=ON -DOPTICALFLOW_BUILD_PYTHON=ON
-cmake --build build --parallel
-ctest --test-dir build --output-on-failure
+  -DOPTICALFLOW_ENABLE_CPU=ON -DOPTICALFLOW_BUILD_TESTS=ON
 ```
 
-Scoped GitHub Actions configure/build without GPU backends (no Intel GPU
-runners in CI; OpenCL/SYCL CTest and Arc timing are lab gates).
-Apache-2.0, DCO sign-off, fork from `main`, PRs as the contribution
-path — same as CONTRIBUTING.md.
+Scoped GitHub Actions builds/tests the **CPU** path (installs OpenCV for
+adapter diagnostics). No Intel GPU runners; OpenCL/SYCL CTest and Arc
+timing are lab gates. Apache-2.0, DCO sign-off, fork from `main`, PRs as
+the contribution path — same as CONTRIBUTING.md.
 
 ## 11. Decisions (locked) and verification backlog
 
@@ -430,15 +468,16 @@ path — same as CONTRIBUTING.md.
 |----------|------------|
 | Product name / home | `libraries/optical-flow-sdk/`; include `optical_flow_sdk/`; CMake `OPTICALFLOW_`; workflow `optical-flow-sdk.yml` |
 | Product identity | Intel Optical Flow SDK (NVOFA-competitive), not `*-extractor` |
-| C++ facade | `optical_flow_sdk::OpticalFlow`; `Backend { OpenCL, Sycl, Auto }`; `Preset { Slow, Medium, Fast }` |
-| Python | First-class in v1 |
-| `calcBoth` + cost | In v1 |
+| C++ facade | `OpticalFlow`; `Backend { Auto, Cpu, OpenCL, Sycl }`; `Preset { Slow, Medium, Fast }`; `Algorithm { Dis, Farneback }` |
+| Sparse tracking | `SparsePyrLK` (C++ + Python) |
+| Python | First-class in v1 — landed |
+| `calcBoth` + cost | In v1 — landed |
 | IPU / DVS | Deferred / out of scope for this plan |
 | Benchmark SKUs | Core Ultra Series 2 iGPU + Arc B580 |
 | §8 gates | Ratified as written (parity, regression, determinism, ≥10× speed, Nvidia reporting, P2 quality, reporting) |
 | DL Streamer element | `gvaopticalflow` in P3 |
 | OpenCV role | Optional adapters + classical correctness baseline; core has no OpenCV dependency |
-| Algo order | DIS (P1) → Farneback + sparse PyrLK + SEA-RAFT OpenVINO (P2) |
+| Algo order | DIS (P1 device kernels) → Farneback/PyrLK GPU + SEA-RAFT OpenVINO (P2); CPU classical already present |
 | SIFT/ORB | Scaffolding reuse only |
 
 ### 11.2 Verification backlog (not product forks)
@@ -450,6 +489,8 @@ path — same as CONTRIBUTING.md.
 | Named driver + oneAPI versions on benchmark hosts | P0 | Required for reporting gate |
 | OpenCV CPU baselines on Core Ultra Series 2 + Arc B580 | P0 | Exit criterion for spike |
 | Nvidia SDK beyond 5.0 / Blackwell support | P0 | Re-check download before asserting |
+| Replace SYCL/OpenCL CPU fallback with real DIS kernels | P1 | Blocking for moat speed claims |
+| Sintel/KITTI parity vs OpenCV DIS | P1 | Harness scaffolding exists; datasets + lab run outstanding |
 | SEA-RAFT / RAFT on Intel GPU via OpenVINO | P2 / P4 | No published Intel-GPU benchmark found; feasibility unverified |
 | `gvaopticalflow` metadata contract vs `gvatrack` / `gvamotiondetect` | P3 | Define when element lands |
 | IPU DVS productization | Deferred | Separate future plan |
