@@ -1,18 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Optical character recognition, as a standalone capability.
-
-`PP-DocLayoutV3` only draws boxes; it reads no text. So every block a layout
-detector reports -- a paragraph as much as a figure -- has its text supplied by
-this separate step. The extractor
-crops each detected region from the page image and asks an `OCR` to read it.
-
-Like `core/layout.py`, callers depend on a stable capability interface
-(`OCR.read`) and never on a backend or a device. `build_ocr` is the sibling
-factory to `build_layout_detector`/`build_embedding`, with the same caching and
-lazy-import conventions. Tesseract, pdfplumber, and hybrid runtimes are selected
-behind this interface.
-"""
 
 import threading
 from abc import ABC, abstractmethod
@@ -23,14 +10,7 @@ import config
 
 
 class OCR(ABC):
-    """Reads the text out of an image, whatever the backend.
-
-    `context` carries where the crop came from -- the source PDF path, the
-    region's box, the page's rendered size and index -- so a backend that reads
-    the PDF's own text layer (`PdfPlumberReader`) can, while a backend that only
-    sees pixels (`TesseractOCR`) ignores it. The extractor fills it in for every
-    region; an injected `image -> str` callable never sees it.
-    """
+    """Reads the text out of an image; `context` describes the crop's PDF region."""
 
     @abstractmethod
     def read(self, image: Any, context: Optional[Mapping[str, Any]] = None) -> str:
@@ -47,13 +27,7 @@ class OCR(ABC):
 
 
 class CallableOCR(OCR):
-    """Adapts a plain `image -> str` callable to the `OCR` interface.
-
-    Lets a caller (or a test) pass a function where an `OCR` is expected without
-    declaring a class -- the extractor accepts either. The callable is handed the
-    image only; the region `context` is dropped, since a bare function has no use
-    for it.
-    """
+    """Adapts a plain `image -> str` callable to the `OCR` interface; `context` is dropped."""
 
     def __init__(self, fn: Callable[[Any], str]):
         self._fn = fn
@@ -71,10 +45,7 @@ def as_ocr(ocr: Any) -> OCR:
     raise TypeError(f"Not an OCR or a callable: {type(ocr).__name__}")
 
 
-# --- backends (ported from mmdir utils/ocr_helper.py) -------------------------
-# "pdfplumber" lifts exact glyphs from a digital PDF's text layer, while the
-# pixel backends read rendered crops. "hybrid" tries the rule-based text layer
-# first for each region and falls back to lightweight Tesseract only when empty.
+# --- backends -----------------------------------------------------------------
 
 
 class TesseractOCR(OCR):
@@ -131,13 +102,7 @@ class TesseractOCR(OCR):
 
 
 class PdfPlumberReader(OCR):
-    """Lifts a region's text from a digital PDF's own text layer.
-
-    No model and no pixels: given the region's box in the rendered page's
-    coordinates, it scales that box back to PDF points and reads the words inside
-    it (ported from mmdir `PdfPlumberReader`). Returns "" when the PDF has no
-    text there -- a scanned page -- which is what lets `HybridOCR` fall back.
-    """
+    """Lifts a region's text from a digital PDF's text layer; "" when there is none."""
 
     def read(self, image: Any, context: Optional[Mapping[str, Any]] = None) -> str:
         context = context or {}
@@ -174,7 +139,7 @@ class PdfPlumberReader(OCR):
                 if bx1 <= bx0 or by1 <= by0:
                     return ""
                 return self._words(page.within_bbox((bx0, by0, bx1, by1)))
-        except Exception:  # noqa: BLE001 - a region with no readable text is ""
+        except Exception:  # noqa: BLE001
             return ""
 
     @staticmethod

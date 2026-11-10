@@ -1,25 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Streaming materialization: embed an asset's nodes as they are built, off the
-request thread.
-
-This module contains two pieces:
-
-- `streaming_materialize` is the producer/consumer engine a vector projection
-  embeds through (`core/indexer.py:VectorIndexer.add`). A producer thread builds
-  nodes block by block onto a *bounded* queue; this thread is the single consumer
-  -- GME is not thread-safe, so only ever one thread embeds -- draining the queue
-  into micro-batches, embedding each by modality and inserting it. Bounded so a
-  large document applies backpressure rather than building every node before any
-  is embedded, and streaming so its early text is searchable without waiting for
-  the rest.
-
-- `ingest` is the background task `create_assets` hands the slow work to, so the
-  request returns 202 at once instead of blocking on render/detect/OCR. It is the
-  same extract -> store -> register -> sync sequence the endpoint used to run
-  inline, moved here whole; the embedding inside `sync` now goes through the
-  streaming engine above.
-"""
 
 import logging
 import queue
@@ -30,9 +10,7 @@ import config
 
 logger = logging.getLogger(__name__)
 
-# Put on the queue once per producer when it is done, so the consumer knows no
-# more nodes are coming. A unique object, never a node, so it cannot be mistaken
-# for one.
+# End-of-stream marker put on the queue by the producer.
 _SENTINEL = object()
 
 
@@ -43,18 +21,7 @@ def streaming_materialize(
     batch_size: Optional[int] = None,
     queue_max: Optional[int] = None,
 ) -> Dict[str, int]:
-    """Embed and insert `assets`' nodes through a bounded producer/consumer queue.
-
-    The producer thread walks each asset's nodes (`indexer.iter_node_items`) and
-    puts `(node, modality, source_id)` onto a queue capped at `queue_max`; the cap
-    is the backpressure. This thread drains the queue into batches of up to
-    `batch_size`, embeds each (`indexer.embed_items`) and inserts it
-    (`indexer.insert_prepared`), then flushes once (`indexer.flush`).
-
-    Any error the producer hits is captured and re-raised here after the threads
-    join. A consumer failure cancels queue writes and joins the producer before
-    returning, so the caller can safely release its asset/model bindings.
-    """
+    """Embed and insert `assets`' nodes through a bounded producer/consumer queue."""
     batch_size = batch_size or config.INGEST_BATCH_SIZE
     queue_max = queue_max or config.INGEST_QUEUE_MAX
     work: "queue.Queue[Any]" = queue.Queue(maxsize=queue_max)
@@ -62,8 +29,7 @@ def streaming_materialize(
     cancelled = threading.Event()
 
     def put(item: Any) -> bool:
-        # A plain blocking put would strand the producer on a full queue after
-        # the consumer failed. The sentinel must be cancellable for the same reason.
+        # Polling put so the producer is not stranded on a full queue after a consumer failure.
         while not cancelled.is_set():
             try:
                 work.put(item, timeout=0.1)
@@ -80,7 +46,7 @@ def streaming_materialize(
                 for item in indexer.iter_node_items(asset):
                     if not put(item):
                         return
-        except Exception as error:  # noqa: BLE001 - re-raised on the consumer
+        except Exception as error:  # noqa: BLE001
             state["error"] = error
         finally:
             put(_SENTINEL)
@@ -94,12 +60,10 @@ def streaming_materialize(
     try:
         done = False
         while not done:
-            first = work.get()  # block until the next batch has at least one node
+            first = work.get()
             if first is _SENTINEL:
                 break
             batch: List[Any] = [first]
-            # Take whatever else is already waiting, up to a full batch, without
-            # blocking -- so a batch forms from what is ready rather than stalling.
             while len(batch) < batch_size:
                 try:
                     item = work.get_nowait()
@@ -125,12 +89,7 @@ def streaming_materialize(
 
 
 # --- Materialization progress, per asset -------------------------------------
-# A process-local record of how far each asset's ingest has got, so the console
-# can show "text searchable" before "fully ready". Ingest runs in a background
-# task in this same process, so a module-level dict is enough; it is ephemeral by
-# design -- after a restart an asset reports no phase and the client just shows
-# nothing, which is correct for a live-progress affordance. Bounded so a long-
-# lived process cannot accumulate entries without limit.
+# Process-local and not persisted; bounded to _PHASE_MAX entries.
 _PHASES: "Dict[str, str]" = {}
 _PHASE_LOCK = threading.Lock()
 _PHASE_MAX = 1000
@@ -138,11 +97,9 @@ _PHASE_MAX = 1000
 
 def _set_phase(asset_id: str, phase: str) -> None:
     with _PHASE_LOCK:
-        # A later flush/enrichment signal must not hide a failed sync. Only a
-        # newly accepted materialization attempt explicitly resets the failure.
+        # "failed" sticks until a new materialization attempt starts.
         if _PHASES.get(asset_id) == "failed" and phase != "materializing":
             return
-        # Re-insert so the most recent asset is last; trim oldest past the cap.
         _PHASES.pop(asset_id, None)
         _PHASES[asset_id] = phase
         while len(_PHASES) > _PHASE_MAX:
@@ -160,29 +117,70 @@ def materialization_phase(asset_id: str) -> Optional[str]:
     with _PHASE_LOCK:
         return _PHASES.get(asset_id)
 
+# (pool_id, asset_id) -> number of in-flight ingests
+_INGESTING: "Dict[tuple, int]" = {}
+_INGESTING_LOCK = threading.Lock()
+
+
+def _begin_ingesting(pool_ids: Sequence[str], asset_ids: Sequence[str]) -> List[tuple]:
+    keys = [(pool_id, asset_id) for pool_id in dict.fromkeys(pool_ids) for asset_id in dict.fromkeys(asset_ids)]
+    with _INGESTING_LOCK:
+        for key in keys:
+            _INGESTING[key] = _INGESTING.get(key, 0) + 1
+    return keys
+
+
+def _end_ingesting(keys: Sequence[tuple]) -> None:
+    with _INGESTING_LOCK:
+        for key in keys:
+            count = _INGESTING.get(key, 0) - 1
+            if count > 0:
+                _INGESTING[key] = count
+            else:
+                _INGESTING.pop(key, None)
+
+
+def ingesting_asset_ids(pool_id: Optional[str]) -> frozenset:
+    with _INGESTING_LOCK:
+        return frozenset(asset_id for pool, asset_id in _INGESTING if pool == pool_id)
+
+
+_ACTIVE_INGESTS: "Dict[tuple, int]" = {}
+
+
+def _begin_active(library_id: Optional[str], pool_ids: Sequence[str]) -> List[tuple]:
+    keys = [(library_id, None)] + [(library_id, pool_id) for pool_id in dict.fromkeys(pool_ids)]
+    with _INGESTING_LOCK:
+        for key in keys:
+            _ACTIVE_INGESTS[key] = _ACTIVE_INGESTS.get(key, 0) + 1
+    return keys
+
+
+def _end_active(keys: Sequence[tuple]) -> None:
+    with _INGESTING_LOCK:
+        for key in keys:
+            count = _ACTIVE_INGESTS.get(key, 0) - 1
+            if count > 0:
+                _ACTIVE_INGESTS[key] = count
+            else:
+                _ACTIVE_INGESTS.pop(key, None)
+
+
+def ingest_active(library_id: Optional[str] = None, pool_id: Optional[str] = None) -> bool:
+    with _INGESTING_LOCK:
+        if library_id is None:
+            return bool(_ACTIVE_INGESTS)
+        return (library_id, pool_id) in _ACTIVE_INGESTS
+
 
 def _emit_phase_signal(asset_id: str, phase: str) -> None:
-    """Record that `asset_id` reached a materialization phase, for the client.
-
-    Two phases a client can act on: ``"text_ready"`` (path-1 text embedded and
-    flushed, so the prose is retrievable) and ``"ready"`` (path-2 figures in too).
-    Both are logged; only ``"text_ready"`` is stored in the tracker above. A
-    two-phase run's ``"ready"`` covers its one projection, before the asset is
-    registered or its other sources synced, so `ingest` records ``"ready"`` itself.
-    """
+    # "ready" is only logged here; `ingest` records it after all pools are synced.
     logger.info("materialize phase %s: asset=%s", phase, asset_id)
     if phase != "ready":
         _set_phase(asset_id, phase)
 
 
 def _embed_insert_batched(indexer: Any, items: Any, batch_size: int) -> int:
-    """Embed and insert nodes in batches of `batch_size`; return how many landed.
-
-    The non-overlapping sibling of `streaming_materialize`: a two-phase ingest
-    already overlaps path-2 extraction with path-1 embedding at the phase level, so
-    within a phase a plain batched loop -- no queue, no extra thread -- keeps memory
-    bounded while reusing the same embed/insert primitives.
-    """
     count = 0
     batch: List[Any] = []
     for item in items:
@@ -213,24 +211,11 @@ def two_phase_ingest(
     read_text: Any = None,
     on_phase: Optional[Callable[[str, str], None]] = None,
 ) -> Any:
-    """Materialize a PDF into `indexer` in two flushed phases, text first.
-
-    Path 1 (text layer) is embedded and flushed before path 2 (figures), so a
-    digital PDF's prose is retrievable while its figures are still being rendered
-    and detected -- that slow extraction runs, overlapped, on a worker thread.
-    Returns the full `ContentStream` for the caller to persist. `on_phase`, when
-    supplied, observes the same ``text_ready`` and ``ready`` milestones emitted
-    by production without replacing the normal phase signal.
-
-    Self-contained on failure: on any unexpected error it drops whatever it had
-    inserted for this asset and falls back to a plain full extraction, so the
-    projection is left either fully holding the asset or not at all -- never half --
-    and the ordinary sync can finish it.
-    """
+    """Materialize a PDF into `indexer` in two flushed phases, text first; falls back to plain extraction."""
     import config
     from core.extractor import extract_pdf
 
-    indexer.delete_by_metadata("asset_id", [asset_id])  # idempotent re-ingest
+    indexer.delete_by_metadata("asset_id", [asset_id])
     try:
         return _two_phase(
             indexer, path, asset_id, metadata, put_blob, source_id,
@@ -239,7 +224,7 @@ def two_phase_ingest(
             batch_size=config.INGEST_BATCH_SIZE,
             on_phase=on_phase,
         )
-    except Exception:  # noqa: BLE001 - clean up partial inserts and fall back
+    except Exception:  # noqa: BLE001
         logger.exception("Two-phase ingest failed for %s; falling back to extract", path)
         indexer.delete_by_metadata("asset_id", [asset_id])
         return extract_pdf(
@@ -285,7 +270,6 @@ def _two_phase(
             digital = False
 
         if not digital:
-            # No fast path for a scan: one phase, everything via path 3 (full OCR).
             full = extract_layout(
                 path, asset_id, put_blob, metadata,
                 detector=detector, ocr=ocr, render=render, dpi=dpi,
@@ -298,12 +282,7 @@ def _two_phase(
             _signal("ready")
             return full
 
-        # Digital. Path-1 text (from the plain-text reader) is extracted here (fast),
-        # then embedded while path-2 (slow render/detect) runs on a worker. The
-        # pdfplumber `layer` is touched by one thread at a time -- path-1 reads its
-        # page count here, finishing before the worker starts, and the main thread
-        # touches no pdfplumber document while embedding -- because one
-        # pdfplumber/PDFium document is not safe for concurrent access.
+        # `layer` must be used by one thread at a time: pdfplumber/PDFium is not thread-safe.
         text_blocks = digital_text_blocks(
             path, asset_id, text_layer=layer, read_text=read_text,
         )
@@ -315,7 +294,7 @@ def _two_phase(
                     path, asset_id, put_blob, text_layer=layer,
                     detector=detector, render=render, dpi=dpi,
                 )
-            except Exception as error:  # noqa: BLE001 - surfaced after join
+            except Exception as error:  # noqa: BLE001
                 visual_state["error"] = error
 
         worker = threading.Thread(
@@ -323,8 +302,6 @@ def _two_phase(
         )
         worker.start()
 
-        # Phase 1: embed path-1 text (overlaps the worker's extraction), flush,
-        # signal -- the text is retrievable now.
         text_stream = assemble_stream(asset_id, path, metadata, text_blocks)
         _embed_insert_batched(
             indexer, indexer.iter_node_items(_asset(text_stream)), batch_size
@@ -341,8 +318,7 @@ def _two_phase(
         visual_blocks = visual_state["blocks"]
         full = assemble_stream(asset_id, path, metadata, text_blocks + visual_blocks)
 
-        # Phase 2: embed only the path-2 blocks, read against the full stream so a
-        # figure's surrounding_text sees the prose around it.
+        # Read against the full stream so a figure's surrounding_text sees the prose.
         visual_ids = {block.block_id for block in visual_blocks}
         if visual_ids:
             _embed_insert_batched(
@@ -358,12 +334,6 @@ def _two_phase(
 
 
 def _structured_two_phase_applies(path: str) -> bool:
-    """Whether `path` is a structured file carrying pictures worth a two-phase run.
-
-    Mirrors `extractor.extract`'s routing: a docx/pptx/xlsx/html file with images
-    is walked natively (so this two-phase path applies); one with none is left to
-    the plain-text reader during the ordinary sync, exactly as before.
-    """
     from core import structured
 
     return bool(structured.structured_kind(path)) and structured.has_media(path)
@@ -379,20 +349,7 @@ def two_phase_structured(
     *,
     on_phase: Optional[Callable[[str, str], None]] = None,
 ) -> Any:
-    """Materialize a structured file into `indexer` in two flushed phases, text first.
-
-    The same payoff as the PDF two-phase -- a document's prose is retrievable
-    before its figures' (slower) fused vectors are computed -- but simpler to
-    reach: a docx/pptx/xlsx/html walk has no render/detect to overlap, so there is
-    no worker thread, just embed-text-flush then embed-figures-flush. Phase 2 reads
-    the figures against the *full* stream, so a figure's `surrounding_text` still
-    sees the prose around it. Returns the full `ContentStream` for the caller to
-    persist.
-
-    Self-contained on failure: drops whatever it inserted for this asset and falls
-    back to a plain extraction, so the projection holds the asset fully or not at
-    all, and the ordinary sync can finish it.
-    """
+    """Materialize a structured file into `indexer` in two flushed phases, text first."""
     import config
     from types import SimpleNamespace
 
@@ -400,7 +357,7 @@ def two_phase_structured(
     from core.structured import extract_structured
 
     batch_size = config.INGEST_BATCH_SIZE
-    indexer.delete_by_metadata("asset_id", [asset_id])  # idempotent re-ingest
+    indexer.delete_by_metadata("asset_id", [asset_id])
 
     def _asset(stream):
         return SimpleNamespace(
@@ -418,8 +375,6 @@ def two_phase_structured(
         text_ids = {b.block_id for b in full.blocks if b.kind not in BINARY_KINDS}
         image_ids = {b.block_id for b in full.blocks if b.kind in BINARY_KINDS}
 
-        # Phase 1: text and tables embedded and flushed -- the prose is retrievable
-        # now, without waiting on the figures' fused vectors.
         if text_ids:
             _embed_insert_batched(
                 indexer,
@@ -429,8 +384,6 @@ def two_phase_structured(
             indexer.flush()
         _signal("text_ready")
 
-        # Phase 2: the figures, read against the full stream so a figure's
-        # surrounding_text sees the prose around it.
         if image_ids:
             _embed_insert_batched(
                 indexer,
@@ -440,7 +393,7 @@ def two_phase_structured(
             indexer.flush()
         _signal("ready")
         return full
-    except Exception:  # noqa: BLE001 - clean up partial inserts and fall back
+    except Exception:  # noqa: BLE001
         logger.exception(
             "Two-phase structured ingest failed for %s; falling back to extract", path
         )
@@ -451,14 +404,7 @@ def two_phase_structured(
 
 
 def _asset_sync_failed(pool: Any, asset: Any, sync_failed: bool) -> bool:
-    """Whether an active sync target for this asset failed, including unloads.
-
-    Pool sync normally records failures per source rather than raising. Asset
-    filters still apply to those records: another file type's failed source
-    must not condemn this asset. Preparing targets take writes; frozen ones do
-    not. Minimal libraries without per-source bookkeeping retain their ordinary
-    success/exception semantics.
-    """
+    """Whether a non-frozen sync target that accepts this asset failed or is unavailable."""
     from assetlib.sources import binding
     from core.indexer import accepts_asset
     from core.multimodal.routing import effective_configuration
@@ -485,8 +431,6 @@ def _asset_sync_failed(pool: Any, asset: Any, sync_failed: bool) -> bool:
         if source_id in frozen or binding.is_frozen(source, statuses.get(source_id)):
             continue
         if accepts_asset(asset, effective_configuration(source)):
-            # No projection means this target could not be synced, even if the
-            # outer pool sync completed and did not raise an exception.
             return True
     return False
 
@@ -501,15 +445,7 @@ def _record_sync_failures(
 
 
 def _enrich_and_save(library: Any, asset_ids: Sequence[str], job: Callable) -> None:
-    """Run a media job and sync the pools its completed results made stale.
-
-    The jobs own the per-asset read/modify/write lock and record model failures
-    on the stream. Do not hold the registry lock across a job or a sync: both
-    may load a model and take minutes. Only snapshot pool membership under it;
-    `registry.save` takes the same reentrant lock while persisting. Even an
-    unexpected job or sync failure must not lose already-recorded job status or
-    prevent the remaining assets (and the later transcription pass) from running.
-    """
+    """Run a media job and sync the pools its completed results made stale."""
     from core.manager import registry
     from core.multimodal import captioning
 
@@ -519,8 +455,9 @@ def _enrich_and_save(library: Any, asset_ids: Sequence[str], job: Callable) -> N
             try:
                 if job(library, asset_id) == captioning.STATUS_COMPLETED:
                     done.append(asset_id)
-            except Exception:  # noqa: BLE001 - isolate a failed background job
+            except Exception:  # noqa: BLE001
                 logger.exception("Enrichment failed for asset %s", asset_id)
+        # Never hold the registry lock across a job or sync; they may take minutes.
         with registry.lock:
             pool_ids = [
                 pool_id
@@ -531,7 +468,7 @@ def _enrich_and_save(library: Any, asset_ids: Sequence[str], job: Callable) -> N
             sync_failed = False
             try:
                 library.sync_asset_pool(pool_id)
-            except Exception:  # noqa: BLE001 - leave its failure on pool status
+            except Exception:  # noqa: BLE001
                 sync_failed = True
                 logger.exception("Enrichment sync failed for pool %s", pool_id)
             _record_sync_failures(
@@ -551,16 +488,29 @@ def ingest(
     pool_ids: Sequence[str],
     source_id: str,
 ) -> None:
-    """Extract, store, register and index assets -- the whole slow path, in the
-    background.
+    from core.file_asset_library import asset_id_for, file_origin, inline_origin
 
-    This is exactly what `create_assets` used to do inline, lifted out so the
-    endpoint can return 202 before any of it runs. Extraction is slow and
-    holds no lock; the registry lock wraps only the fast bookkeeping (registering
-    the assets, adding them to pools, recording provenance). A file that fails to
-    extract is logged and skipped rather than failing the batch -- the client
-    already has its 202, and the rest of the batch should still land.
-    """
+    asset_ids = [asset_id_for(file_origin(path)) for path in file_paths]
+    if text:
+        asset_ids.append(asset_id_for(inline_origin(text_reference)))
+    keys = _begin_ingesting(pool_ids, asset_ids)
+    active = _begin_active(getattr(library, "idx", None), pool_ids)
+    try:
+        _ingest(library, file_paths, text, text_reference, pool_ids, source_id)
+    finally:
+        _end_ingesting(keys)
+        _end_active(active)
+
+
+def _ingest(
+    library: Any,
+    file_paths: Sequence[str],
+    text: str,
+    text_reference: str,
+    pool_ids: Sequence[str],
+    source_id: str,
+) -> None:
+    """Extract, store, register and index assets in the background."""
     from core.content import ContentStream
     from core.extractor import extract
     from core.file_asset_library import FileAsset, asset_id_for, file_origin, inline_origin
@@ -573,12 +523,7 @@ def ingest(
     import os
 
     def _primary_vector_projection(origin: str):
-        """The first serving text vector across the target pools that accepts this
-        asset, judged from its origin alone -- so a PDF can be embedded straight
-        off the two-phase pipeline (text first) rather than extracted then synced.
-        Everything else (graph sources, other vector sources, other pools) is left
-        to the ordinary sync over the persisted stream.
-        """
+        """First serving text vector projection in the target pools that accepts this origin."""
         probe = FileAsset(asset_id=asset_id_for(origin), origin=origin)
         for pool_id in pool_ids:
             pool = library.asset_pools.get(pool_id)
@@ -617,7 +562,7 @@ def ingest(
                 )
             else:
                 stream = extract(path, asset_id, put_blob)
-        except Exception:  # noqa: BLE001 - one bad file must not sink the batch
+        except Exception:  # noqa: BLE001 - skip one bad file, keep the batch
             logger.exception("Extraction failed for %s", path)
             continue
         if not stream.blocks:
@@ -626,8 +571,6 @@ def ingest(
             library.create_asset(origin=origin, stream=stream, source_id=source_id)
         )
         stored_files.append(path)
-        # These decisions need the extracted stream, which the 202 request did
-        # not have. Ask it directly instead of re-reading the content store.
         if captioning.needs_caption(stream):
             caption_ids.append(asset_id)
         if transcription.needs_transcript(stream):
@@ -660,8 +603,7 @@ def ingest(
             library.note_assets_changed(replaced_asset_ids)
         for path in stored_files:
             library.file_map[os.path.basename(path)] = path
-        # A replaced asset's other pools hold the old version too, so sync them
-        # even though this request did not name them.
+        # Also sync other pools holding the old version of a replaced asset.
         sync_pool_ids = list(pool_ids)
         for pool_id, pool in library.asset_pools.items():
             if pool_id not in sync_pool_ids and any(
@@ -674,21 +616,17 @@ def ingest(
         sync_failed = False
         try:
             library.sync_asset_pool(pool_id)
-        except Exception:  # noqa: BLE001 - a failed pool is recorded on its status
+        except Exception:  # noqa: BLE001
             sync_failed = True
             logger.exception("Sync failed for pool %s", pool_id)
         _record_sync_failures(library, pool_id, assets, sync_failed)
     registry.save()
 
-    # Successful assets are fully materialized -- figures and graph included.
-    # Failed targets above latch "failed", which _set_phase will not overwrite
-    # with this final ready or a later phase signal.
+    # Does not overwrite a "failed" phase recorded above.
     for asset in assets:
         _set_phase(asset.asset_id, "ready")
 
-    # Materialization progress keeps main's meaning: stored blocks are ready,
-    # independently of the longer jobs reported by `/enrichment`. Initial sync
-    # must finish before captioning, and captioning before transcription.
+    # Order matters: initial sync, then captioning, then transcription.
     if caption_ids:
         _enrich_and_save(library, caption_ids, captioning.caption_asset)
     if transcript_ids:

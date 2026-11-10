@@ -1,6 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Milvus vector adapter with connection ownership."""
 
 import asyncio
 import json
@@ -23,9 +22,9 @@ def _ensure_event_loop() -> None:
 
 
 class MilvusAdapter(VectorAdapter):
-    """Own Milvus connection information and operate all reachable collections."""
+    """Owns one Milvus connection and operates all collections reachable through it."""
 
-    # `client.query` has no cursor here; see load_nodes.
+    # Max rows per `client.query` call (no cursor).
     QUERY_LIMIT = config.MILVUS_QUERY_LIMIT
 
     def __init__(self, options: Mapping[str, object]):
@@ -69,11 +68,7 @@ class MilvusAdapter(VectorAdapter):
         return self._stores[key]
 
     def flush(self, collection: VectorCollection) -> None:
-        """Seal what was just written, so a following query sees it.
-
-        A failed flush costs read-visibility, not the write that preceded it --
-        the rows are already in Milvus either way.
-        """
+        """Seal recent writes so a following query sees them; failures only cost visibility."""
         try:
             self._client(collection).flush(collection.name)
         except Exception:
@@ -82,16 +77,7 @@ class MilvusAdapter(VectorAdapter):
     def existing_concept_store(
         self, collection: VectorCollection, concept_ids: Set[str], exact: bool = True,
     ):
-        """Read-only recovery for unchanged concepts and embedding configuration.
-
-        Check before constructing a store: its constructor can create a missing
-        collection. Do not use best-effort helpers that swallow query errors.
-
-        `exact` requires the collection to hold `concept_ids` and nothing else.
-        Without it, other concepts may be there too -- a vector source attached
-        to several pools holds every pool's concepts in one collection -- as long
-        as each of `concept_ids` is, once, keyed by its own id.
-        """
+        """Existing store if it already holds each of `concept_ids` once (and only them if `exact`)."""
         client = self._milvus_client
         if not concept_ids or not client.has_collection(collection.name):
             return None
@@ -129,12 +115,7 @@ class MilvusAdapter(VectorAdapter):
         return self.vector_store(collection)
 
     def _client(self, collection: VectorCollection) -> MilvusClient:
-        """The shared client, with `collection`'s store built first.
-
-        Constructing the store is what connects and loads the collection, so the
-        direct client calls below have to go through here rather than reach for
-        `self._milvus_client` themselves.
-        """
+        """The shared client, after building `collection`'s store (which connects and loads it)."""
         self.vector_store(collection)
         return self._milvus_client
 
@@ -163,14 +144,7 @@ class MilvusAdapter(VectorAdapter):
     def present_metadata_values(
         self, collection: VectorCollection, field: str, values: Sequence[str]
     ) -> Set[str]:
-        """Ask in batches, splitting any batch whose answer was truncated.
-
-        Milvus `query` has no DISTINCT, so a batch asking about N ids can match
-        far more than N rows -- one per chunk. When a batch comes back at the
-        row limit its answer may be partial, so it is halved and re-asked. That
-        keeps the result exact while staying at one or two round trips in the
-        normal case, instead of one per id.
-        """
+        """Query in batches, halving any batch whose result hit the row limit."""
         found: Set[str] = set()
         remaining = [list(dict.fromkeys(values))]
         while remaining:
@@ -179,7 +153,7 @@ class MilvusAdapter(VectorAdapter):
                 continue
             rows = self._query_metadata(collection, field, batch)
             if rows is None:
-                continue  # unreachable backend: report a subset, per the contract
+                continue  # unreachable backend: a subset is allowed
             if len(rows) >= self.QUERY_LIMIT and len(batch) > 1:
                 middle = len(batch) // 2
                 remaining.append(batch[:middle])
@@ -218,9 +192,7 @@ class MilvusAdapter(VectorAdapter):
     def load_nodes(self, collection: VectorCollection) -> List[BaseNode]:
         client = self._client(collection)
         try:
-            # Strong: callers cache this list (VectorIndexer.load) and check OKF
-            # provenance against it right after an ingest; a bounded-staleness
-            # read can miss the rows just written and that miss would be kept.
+            # Strong: callers cache this right after an ingest and must see the new rows.
             rows = client.query(
                 collection_name=collection.name,
                 filter="",
@@ -240,12 +212,7 @@ class MilvusAdapter(VectorAdapter):
         return nodes
 
     def ping(self) -> None:
-        """List the collections -- the cheapest thing that proves a round trip.
-
-        `MilvusClient` is constructed eagerly, but constructing it does not
-        always reach the server, so answering "is this Milvus there" needs an
-        actual call.
-        """
+        """List collections to force a server round trip."""
         self._milvus_client.list_collections()
 
     def close(self) -> None:

@@ -6,6 +6,7 @@
         v-bind="$attrs"
         :data-source="pageData"
         :pagination="false"
+        :sticky="{ getContainer: getTableScrollContainer }"
         size="small"
       >
         <template v-for="(_, name) in $slots" #[name]="scope">
@@ -36,6 +37,7 @@ const props = defineProps<{ dataSource: T[]; resetKey?: string }>();
 const current = ref(1);
 const pageSize = ref(10);
 const scrollArea = ref<HTMLElement>();
+const getTableScrollContainer = () => scrollArea.value || window;
 const pageData = computed(() =>
   props.dataSource.slice(
     (current.value - 1) * pageSize.value,
