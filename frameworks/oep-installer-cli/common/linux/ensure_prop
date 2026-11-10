@@ -8,7 +8,7 @@ ensure_prop () {
   case "$op" in
   find)    ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/) ;;
   create)
-    mkdir -m 700 -p "$key_base/${key_path%/*}" ;;
+    mkdir -m 700 -p "$(dirname "$key_base/$key_path")" ;;
   remove)
     if [ -f "$key_base/$key_path" ]; then
       rm -f "$key_base/$key_path"
@@ -39,7 +39,7 @@ ensure_prop () {
       } 9< "$rundir"
     fi
     if ensure_parse_option --create "$@"; then
-      mkdir -m 700 -p "$key_base/${key_path%/*}"
+      mkdir -m 700 -p "$(dirname "$key_base/$key_path")"
     fi
     ( umask 077; printf '%s' "$value" > "$key_base/$key_path" )
     ;;
