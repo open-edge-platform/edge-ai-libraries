@@ -390,7 +390,8 @@ int main(int argc, char **argv) {
     usage();
     return EXIT_FAILURE;
   }
-  std::cout << "note: SDK DIS is DIS-lite (no variational refinement); OpenCV DIS is full DIS.\n"
+  std::cout << "note: SDK DIS matches OpenCV pyramid/mean-norm; variational refine disabled "
+               "(GPU Jacobi regresses Fl-all vs DIS-only).\n"
                "PLAN §8 pairwise EPE<=max(0.05px,2%) is a hard classical-equivalence bar.\n";
   if (!sintel.empty())
     run_sintel(sintel, backend, preset, max_pairs);

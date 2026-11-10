@@ -11,8 +11,9 @@ SPDX-License-Identifier: Apache-2.0
 | `p2_opencv_dis_parity_2026-11-10.json` | P2 classical DIS retune (clamps + Fast propagate); §8 still FAIL |
 | `p2_sea_raft_kitti_fl_all_2026-11-10.json` | P2 SEA-RAFT-S KITTI Fl-all **PASS** (2.70% ≤ 19.11%) |
 | `p2_sea_raft_openvino_fps_2026-11-10.json` | P2 SEA-RAFT OpenVINO iGPU ~15.7 FPS @384×1248 |
+| `p4_nvofa_rtx5060_2026-11-09.json` | P4 measured NVOFA on RTX 5060 (FPS @720p/1080p + KITTI Fl-all) |
 
-## For agents (P2 exit met; P3 in progress)
+## For agents (P2 exit met; P3/P4 comparative)
 
 1. Read JSON files and `PLAN.md` §10 / §11.6–§11.7 / `docs/sea_raft.md`.
 2. Classical DIS remains §8 **FAIL** (DIS-lite); SEA-RAFT closes the quality gate.

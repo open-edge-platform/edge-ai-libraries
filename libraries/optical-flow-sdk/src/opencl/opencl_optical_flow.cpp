@@ -108,6 +108,8 @@ struct OpenCLContext {
   cl_kernel k_normalize_flow = nullptr;
   cl_kernel k_zero_float = nullptr;
   cl_kernel k_zero_flow = nullptr;
+  cl_kernel k_variational_refine_jacobi = nullptr;
+  cl_kernel k_add_flow_increment = nullptr;
   cl_kernel k_warp_u8_flow = nullptr;
 
   OpenCLContext() {
@@ -210,6 +212,8 @@ struct OpenCLContext {
     k_normalize_flow = make_kernel("normalize_flow");
     k_zero_float = make_kernel("zero_float");
     k_zero_flow = make_kernel("zero_flow");
+    k_variational_refine_jacobi = make_kernel("variational_refine_jacobi");
+    k_add_flow_increment = make_kernel("add_flow_increment");
     k_warp_u8_flow = make_kernel("warp_u8_flow");
   }
 
@@ -234,6 +238,8 @@ struct OpenCLContext {
     release_k(k_normalize_flow);
     release_k(k_zero_float);
     release_k(k_zero_flow);
+    release_k(k_variational_refine_jacobi);
+    release_k(k_add_flow_increment);
     release_k(k_warp_u8_flow);
     if (program)
       clReleaseProgram(program);
@@ -287,6 +293,8 @@ struct Workspace {
   std::vector<cl_mem> pyr0;
   std::vector<cl_mem> pyr1;
   std::vector<cl_mem> flow;
+  std::vector<cl_mem> flow_tmp;
+  std::vector<cl_mem> flow_d2;
   std::vector<cl_mem> cost;
   std::vector<cl_mem> acc_u;
   std::vector<cl_mem> acc_v;
@@ -313,6 +321,10 @@ struct Workspace {
       release_mem(m);
     for (auto &m : flow)
       release_mem(m);
+    for (auto &m : flow_tmp)
+      release_mem(m);
+    for (auto &m : flow_d2)
+      release_mem(m);
     for (auto &m : cost)
       release_mem(m);
     for (auto &m : acc_u)
@@ -332,6 +344,8 @@ struct Workspace {
     pyr0.clear();
     pyr1.clear();
     flow.clear();
+    flow_tmp.clear();
+    flow_d2.clear();
     cost.clear();
     acc_u.clear();
     acc_v.clear();
@@ -382,6 +396,8 @@ struct Workspace {
     pyr0.assign(scales, nullptr);
     pyr1.assign(scales, nullptr);
     flow.assign(scales, nullptr);
+    flow_tmp.assign(scales, nullptr);
+    flow_d2.assign(scales, nullptr);
     cost.assign(scales, nullptr);
     acc_u.assign(scales, nullptr);
     acc_v.assign(scales, nullptr);
@@ -392,6 +408,8 @@ struct Workspace {
       pyr0[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
       pyr1[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
       flow[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * 2u * sizeof(float));
+      flow_tmp[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * 2u * sizeof(float));
+      flow_d2[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * 2u * sizeof(float));
       cost[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix);
       acc_u[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
       acc_v[s] = create_buffer(ctx.context, CL_MEM_READ_WRITE, pix * sizeof(float));
@@ -410,6 +428,13 @@ struct OpenCLOpticalFlow::Impl {
   int coarsest_scale = 2;
   int finest_scale = 0;
   int gradient_descent_iters = 10;
+  bool variational_refinement = true;
+  int var_outer_iters = 5;
+  int var_inner_iters = 5;
+  float var_alpha = 20.0f;
+  float var_delta = 5.0f;
+  float var_gamma = 10.0f;
+  float var_omega = 1.0f; // Jacobi-safe; OpenCV uses 1.6 only with red-black SOR
   mutable std::mutex mutex;
   mutable Workspace workspace;
 };
@@ -418,26 +443,51 @@ OpenCLOpticalFlow::OpenCLOpticalFlow(Preset preset) : impl_(std::make_unique<Imp
   impl_->preset = preset;
   switch (preset) {
   case Preset::Fast:
-    // Quarter-res + atomic-free densify; neighbor propagate + clamps (keep ≥10×).
+    // Match OpenCV DIS PRESET_FAST pyramid (finest=2, deep coarsest) + var refine.
     impl_->patch_size = 8;
-    impl_->patch_stride = 8;
-    impl_->coarsest_scale = 2;
+    impl_->patch_stride = 6;
+    // Deep pyramid for NVOFA-competitive Fl-all; prop only at finest (see run_opencl_dis).
+    impl_->coarsest_scale = 5;
     impl_->finest_scale = 2;
-    impl_->gradient_descent_iters = 3;
+    impl_->gradient_descent_iters = 8;
+    // Best KITTI quality is DIS-only (deep pyr + mean-norm); GPU Jacobi var regresses Fl-all.
+    impl_->variational_refinement = false;
+    impl_->var_outer_iters = 1;
+    impl_->var_inner_iters = 5;
+    impl_->var_alpha = 20.0f;
+    impl_->var_delta = 5.0f;
+    impl_->var_gamma = 10.0f;
+    impl_->var_omega = 1.0f;
     break;
   case Preset::Medium:
+    // Match OpenCV DIS PRESET_MEDIUM (finest=1).
     impl_->patch_size = 8;
     impl_->patch_stride = 3;
-    impl_->coarsest_scale = 3;
-    impl_->finest_scale = 0;
-    impl_->gradient_descent_iters = 12;
+    impl_->coarsest_scale = 5;
+    impl_->finest_scale = 1;
+    impl_->gradient_descent_iters = 25;
+    impl_->variational_refinement = false;
+    impl_->var_outer_iters = 2;
+    impl_->var_inner_iters = 5;
+    impl_->var_alpha = 20.0f;
+    impl_->var_delta = 5.0f;
+    impl_->var_gamma = 10.0f;
+    impl_->var_omega = 1.0f;
     break;
   case Preset::Slow:
-    impl_->patch_size = 12;
+    // Quality ceiling: full-res finest + deepest pyramid.
+    impl_->patch_size = 8;
     impl_->patch_stride = 3;
-    impl_->coarsest_scale = 3;
+    impl_->coarsest_scale = 5;
     impl_->finest_scale = 0;
-    impl_->gradient_descent_iters = 16;
+    impl_->gradient_descent_iters = 25;
+    impl_->variational_refinement = false;
+    impl_->var_outer_iters = 2;
+    impl_->var_inner_iters = 5;
+    impl_->var_alpha = 20.0f;
+    impl_->var_delta = 5.0f;
+    impl_->var_gamma = 10.0f;
+    impl_->var_omega = 1.0f;
     break;
   }
   (void)shared_context();
@@ -758,9 +808,55 @@ void OpenCLOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowF
 
 namespace {
 
+void run_variational_refine(OpenCLContext &ctx, Workspace &ws, int scale, int outer_iters,
+                            int inner_iters, float alpha, float delta, float gamma, float omega) {
+  const int w = ws.widths[scale];
+  const int h = ws.heights[scale];
+  const int n2 = w * h * 2;
+  for (int outer = 0; outer < outer_iters; ++outer) {
+    check_cl(clSetKernelArg(ctx.k_zero_flow, 0, sizeof(cl_mem), &ws.flow_tmp[scale]), "zero d");
+    check_cl(clSetKernelArg(ctx.k_zero_flow, 1, sizeof(int), &n2), "zero d n");
+    enqueue_1d(ctx.queue, ctx.k_zero_flow, n2);
+    cl_mem d_a = ws.flow_tmp[scale];
+    cl_mem d_b = ws.flow_d2[scale];
+    for (int inner = 0; inner < inner_iters; ++inner) {
+      int arg = 0;
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(cl_mem), &ws.pyr0[scale]),
+               "var I0");
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(cl_mem), &ws.pyr1[scale]),
+               "var I1");
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(cl_mem), &ws.flow[scale]),
+               "var base");
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(cl_mem), &d_a), "var din");
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(cl_mem), &d_b),
+               "var dout");
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(int), &w), "var w");
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(int), &h), "var h");
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(float), &alpha),
+               "var alpha");
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(float), &delta),
+               "var delta");
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(float), &gamma),
+               "var gamma");
+      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(float), &omega),
+               "var omega");
+      enqueue_2d(ctx.queue, ctx.k_variational_refine_jacobi, w, h);
+      std::swap(d_a, d_b);
+    }
+    int arg = 0;
+    check_cl(clSetKernelArg(ctx.k_add_flow_increment, arg++, sizeof(cl_mem), &ws.flow[scale]),
+             "add flow");
+    check_cl(clSetKernelArg(ctx.k_add_flow_increment, arg++, sizeof(cl_mem), &d_a), "add d");
+    check_cl(clSetKernelArg(ctx.k_add_flow_increment, arg++, sizeof(int), &n2), "add n");
+    enqueue_1d(ctx.queue, ctx.k_add_flow_increment, n2);
+  }
+}
+
 void run_opencl_dis(OpenCLContext &ctx, Workspace &ws, int patch_size, int patch_stride,
                     int coarsest_scale, int finest_scale, int gd_iters, Preset preset,
-                    cl_mem prev_u8, cl_mem next_u8, cl_mem flow_out, int width, int height) {
+                    bool variational, int var_outer, int var_inner, float var_alpha,
+                    float var_delta, float var_gamma, float var_omega, cl_mem prev_u8,
+                    cl_mem next_u8, cl_mem flow_out, int width, int height) {
   const int scales = coarsest_scale + 1;
   ws.ensure(ctx, width, height, scales);
 
@@ -862,6 +958,10 @@ void run_opencl_dis(OpenCLContext &ctx, Workspace &ws, int patch_size, int patch
     if (n_gx <= 0 || n_gy <= 0)
       continue;
 
+    // Fast: fewer GD iters on coarse levels; full budget at finest.
+    const int scale_gd =
+        (preset == Preset::Fast && scale > finest_scale) ? std::max(3, gd_iters / 2) : gd_iters;
+
     int arg = 0;
     auto setm = [&](cl_kernel k, cl_mem m) {
       check_cl(clSetKernelArg(k, arg++, sizeof(cl_mem), &m), "set mem");
@@ -883,33 +983,44 @@ void run_opencl_dis(OpenCLContext &ctx, Workspace &ws, int patch_size, int patch
       seti(ctx.k_estimate_centers, h);
       seti(ctx.k_estimate_centers, patch_size);
       seti(ctx.k_estimate_centers, patch_stride);
-      seti(ctx.k_estimate_centers, gd_iters);
+      seti(ctx.k_estimate_centers, scale_gd);
       seti(ctx.k_estimate_centers, n_gx);
+      // Mean-norm mainly helps at finest; skip on coarse Fast levels for speed.
+      const int use_mean = (preset == Preset::Fast && scale > finest_scale) ? 0 : 1;
+      seti(ctx.k_estimate_centers, use_mean);
       enqueue_2d(ctx.queue, ctx.k_estimate_centers, n_gx, n_gy);
 
-      // Neighbor seed + short refine (OpenCV DIS-style propagation, GPU-parallel).
-      const int prop_iters = std::max(2, gd_iters / 2);
-      arg = 0;
-      setm(ctx.k_propagate_refine_centers, ws.pyr0[scale]);
-      setm(ctx.k_propagate_refine_centers, ws.pyr1[scale]);
-      setm(ctx.k_propagate_refine_centers, ws.patch_u);
-      setm(ctx.k_propagate_refine_centers, ws.patch_v);
-      setm(ctx.k_propagate_refine_centers, ws.patch_u2);
-      setm(ctx.k_propagate_refine_centers, ws.patch_v2);
-      setm(ctx.k_propagate_refine_centers, ws.patch_c2);
-      seti(ctx.k_propagate_refine_centers, w);
-      seti(ctx.k_propagate_refine_centers, h);
-      seti(ctx.k_propagate_refine_centers, patch_size);
-      seti(ctx.k_propagate_refine_centers, patch_stride);
-      seti(ctx.k_propagate_refine_centers, prop_iters);
-      seti(ctx.k_propagate_refine_centers, n_gx);
-      seti(ctx.k_propagate_refine_centers, n_gy);
-      enqueue_2d(ctx.queue, ctx.k_propagate_refine_centers, n_gx, n_gy);
+      // Propagation only at finest Fast scale (coarse levels: estimate → densify).
+      cl_mem densify_u = ws.patch_u;
+      cl_mem densify_v = ws.patch_v;
+      cl_mem densify_c = ws.patch_c;
+      if (!(preset == Preset::Fast && scale > finest_scale)) {
+        const int prop_iters = (preset == Preset::Fast) ? 2 : std::max(2, gd_iters / 4);
+        arg = 0;
+        setm(ctx.k_propagate_refine_centers, ws.pyr0[scale]);
+        setm(ctx.k_propagate_refine_centers, ws.pyr1[scale]);
+        setm(ctx.k_propagate_refine_centers, ws.patch_u);
+        setm(ctx.k_propagate_refine_centers, ws.patch_v);
+        setm(ctx.k_propagate_refine_centers, ws.patch_u2);
+        setm(ctx.k_propagate_refine_centers, ws.patch_v2);
+        setm(ctx.k_propagate_refine_centers, ws.patch_c2);
+        seti(ctx.k_propagate_refine_centers, w);
+        seti(ctx.k_propagate_refine_centers, h);
+        seti(ctx.k_propagate_refine_centers, patch_size);
+        seti(ctx.k_propagate_refine_centers, patch_stride);
+        seti(ctx.k_propagate_refine_centers, prop_iters);
+        seti(ctx.k_propagate_refine_centers, n_gx);
+        seti(ctx.k_propagate_refine_centers, n_gy);
+        enqueue_2d(ctx.queue, ctx.k_propagate_refine_centers, n_gx, n_gy);
+        densify_u = ws.patch_u2;
+        densify_v = ws.patch_v2;
+        densify_c = ws.patch_c2;
+      }
 
       arg = 0;
-      setm(ctx.k_densify_from_patches, ws.patch_u2);
-      setm(ctx.k_densify_from_patches, ws.patch_v2);
-      setm(ctx.k_densify_from_patches, ws.patch_c2);
+      setm(ctx.k_densify_from_patches, densify_u);
+      setm(ctx.k_densify_from_patches, densify_v);
+      setm(ctx.k_densify_from_patches, densify_c);
       setm(ctx.k_densify_from_patches, ws.flow[scale]);
       setm(ctx.k_densify_from_patches, ws.cost[scale]);
       seti(ctx.k_densify_from_patches, w);
@@ -919,6 +1030,9 @@ void run_opencl_dis(OpenCLContext &ctx, Workspace &ws, int patch_size, int patch
       seti(ctx.k_densify_from_patches, n_gx);
       seti(ctx.k_densify_from_patches, n_gy);
       enqueue_2d(ctx.queue, ctx.k_densify_from_patches, w, h);
+      if (variational)
+        run_variational_refine(ctx, ws, scale, var_outer, var_inner, var_alpha, var_delta,
+                               var_gamma, var_omega);
       continue;
     }
 
@@ -958,6 +1072,9 @@ void run_opencl_dis(OpenCLContext &ctx, Workspace &ws, int patch_size, int patch
     setm(ctx.k_normalize_flow, ws.cost[scale]);
     seti(ctx.k_normalize_flow, pix);
     enqueue_1d(ctx.queue, ctx.k_normalize_flow, pix);
+    if (variational)
+      run_variational_refine(ctx, ws, scale, var_outer, var_inner, var_alpha, var_delta, var_gamma,
+                             var_omega);
   }
 
   if (finest_scale >= 2) {
@@ -1016,7 +1133,9 @@ void OpenCLOpticalFlow::calc_device(const OpenCLU8Image &prev, const OpenCLU8Ima
   OpenCLContext &ctx = shared_context();
   run_opencl_dis(ctx, impl_->workspace, impl_->patch_size, impl_->patch_stride,
                  impl_->coarsest_scale, impl_->finest_scale, impl_->gradient_descent_iters,
-                 impl_->preset, static_cast<cl_mem>(prev.handle()),
+                 impl_->preset, impl_->variational_refinement, impl_->var_outer_iters,
+                 impl_->var_inner_iters, impl_->var_alpha, impl_->var_delta, impl_->var_gamma,
+                 impl_->var_omega, static_cast<cl_mem>(prev.handle()),
                  static_cast<cl_mem>(next.handle()), static_cast<cl_mem>(flow.handle()),
                  prev.width(), prev.height());
   check_cl(clFinish(ctx.queue), "clFinish calc_device");
@@ -1073,7 +1192,9 @@ void OpenCLOpticalFlow::calc_impl(const ImageView &prev, const ImageView &next, 
   }
 
   run_opencl_dis(ctx, ws, impl_->patch_size, impl_->patch_stride, impl_->coarsest_scale,
-                 impl_->finest_scale, impl_->gradient_descent_iters, impl_->preset, ws.prev_u8,
+                 impl_->finest_scale, impl_->gradient_descent_iters, impl_->preset,
+                 impl_->variational_refinement, impl_->var_outer_iters, impl_->var_inner_iters,
+                 impl_->var_alpha, impl_->var_delta, impl_->var_gamma, impl_->var_omega, ws.prev_u8,
                  ws.next_u8, ws.flow[0], prev.width, prev.height);
 
   check_cl(clEnqueueReadBuffer(ctx.queue, ws.flow[0], CL_FALSE, 0, flow.data.size() * sizeof(float),

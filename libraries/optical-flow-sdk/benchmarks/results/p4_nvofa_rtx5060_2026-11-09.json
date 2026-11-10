@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "id": "p4_nvofa_rtx5060_2026-11-09",
+  "date": "2026-11-09",
+  "purpose": "Measured Nvidia host NVOFA FPS + KITTI train Fl-all for P4 comparative tables.",
+  "plan_refs": [
+    "PLAN.md §3 Table 3 (published Ada)",
+    "PLAN.md §8 Nvidia comparative reporting gate",
+    "PLAN.md §10 P4",
+    "PLAN.md §11.7"
+  ],
+  "host": {
+    "ssh": "labrat@gklab-233-162",
+    "cpu": "Intel Core Ultra 7 265K",
+    "gpu": "NVIDIA GeForce RTX 5060",
+    "compute_capability": "12.0",
+    "driver": "595.99.02",
+    "cuda_toolkit": "13.1.115 (user-local ~/cuda)",
+    "of_headers": "NVIDIAOpticalFlowSDK @ edb50da (nvOpticalFlowCuda.h API 2.0)",
+    "of_runtime": "/usr/lib/x86_64-linux-gnu/libnvidia-opticalflow.so (driver-bundled)"
+  },
+  "method": {
+    "harness": "benchmarks/microbench_nvofa.cpp",
+    "grid": "4x4",
+    "fps": {
+      "input": "synthetic textured gray + 3px x-shift",
+      "path": "device-resident nvOFExecute",
+      "temporal_hints": "off",
+      "warmup": 20,
+      "iters": 100,
+      "sync": "cudaDeviceSynchronize wall"
+    },
+    "quality": {
+      "dataset": "KITTI 2015 train 200 (native resolution ~1242x375)",
+      "metric": "Fl-all (EPE>3px AND EPE>5% of GT mag) on flow_occ valid pixels",
+      "input": "8-bit grayscale from PNG",
+      "upsample": "nearest S10.5 grid → dense float (/32)",
+      "temporal_hints": "off (independent pairs)"
+    }
+  },
+  "published_ada_ref": {
+    "source": "NVOFA SDK 5.0 Application Note Table 3",
+    "note": "KITTI 2015 @1080p YUV 4:2:0 on Ada — different host/methodology; do not bar-chart vs Intel without labels",
+    "rows": [
+      {"preset": "Slow", "fl_all_pct": 17.26, "fps_1080p": 536},
+      {"preset": "Medium", "fl_all_pct": 19.11, "fps_1080p": 1000},
+      {"preset": "Fast", "fl_all_pct": 23.48, "fps_1080p": 1296}
+    ]
+  },
+  "fps_results": [
+    {"resolution": "1280x720", "preset": "Slow", "fps": 1633.95},
+    {"resolution": "1280x720", "preset": "Medium", "fps": 2669.38},
+    {"resolution": "1280x720", "preset": "Fast", "fps": 3626.88},
+    {"resolution": "1920x1080", "preset": "Slow", "fps": 683.829},
+    {"resolution": "1920x1080", "preset": "Medium", "fps": 1349.6},
+    {"resolution": "1920x1080", "preset": "Fast", "fps": 1880.66}
+  ],
+  "kitti_train_results": [
+    {"preset": "Slow", "pairs": 200, "fl_all_pct": 28.3578, "epe": 14.4579, "n_valid": 18375136},
+    {"preset": "Medium", "pairs": 200, "fl_all_pct": 30.1828, "epe": 15.1944, "n_valid": 18375136},
+    {"preset": "Fast", "pairs": 200, "fl_all_pct": 34.0924, "epe": 18.6008, "n_valid": 18375136}
+  ],
+  "notes": [
+    "FPS at 1080p Fast (1881) exceeds published Ada Fast (1296); host is Blackwell RTX 5060, not Ada.",
+    "KITTI Fl-all here is native resolution grayscale + nearest upsample; published Ada Fl-all is 1080p YUV — expect gap.",
+    "SEA-RAFT-S Intel quality gate still uses published Ada Medium 19.11% as the literature ceiling, not this measured RTX 5060 Fl-all.",
+    "First-20 KITTI Slow Fl-all ≈16.5% (easier scenes); full-200 average is the reporting number."
+  ],
+  "reproduce": [
+    "source ~/cuda/env.sh",
+    "curl -fsSL -o ~/stb_image.h https://raw.githubusercontent.com/nothings/stb/master/stb_image.h",
+    "g++ -O2 -std=c++17 benchmarks/microbench_nvofa.cpp -o microbench_nvofa -I\"$NVIDIA_OPTICAL_FLOW_SDK_ROOT\" -I\"$CUDA_HOME/include\" -I$HOME -L\"$CUDA_HOME/lib\" -lcudart -lcuda -lnvidia-opticalflow -Wl,-rpath,\"$CUDA_HOME/lib\"",
+    "./microbench_nvofa",
+    "./microbench_nvofa --no-fps --kitti ~/datasets/optical-flow"
+  ]
+}

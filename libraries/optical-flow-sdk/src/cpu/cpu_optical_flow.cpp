@@ -103,6 +103,8 @@ void estimate_level(const GrayImage &I0, const GrayImage &I1, FlowField &flow, C
       std::vector<float> Ix(static_cast<std::size_t>(patch_size) * patch_size);
       std::vector<float> Iy(Ix.size());
       std::vector<float> T(Ix.size());
+      float mean_t = 0.0f;
+      const float inv_n = 1.0f / static_cast<float>(patch_size * patch_size);
       for (int py = 0; py < patch_size; ++py) {
         for (int px = 0; px < patch_size; ++px) {
           const int x = cx - half + px;
@@ -115,11 +117,15 @@ void estimate_level(const GrayImage &I0, const GrayImage &I1, FlowField &flow, C
           Ix[idx] = gx;
           Iy[idx] = gy;
           T[idx] = I0.at(x, y);
+          mean_t += T[idx];
           H11 += gx * gx;
           H12 += gx * gy;
           H22 += gy * gy;
         }
       }
+      mean_t *= inv_n;
+      for (float &t : T)
+        t -= mean_t;
       const float det = H11 * H22 - H12 * H12;
       if (std::fabs(det) < 1e-3f)
         continue;
@@ -136,14 +142,23 @@ void estimate_level(const GrayImage &I0, const GrayImage &I1, FlowField &flow, C
       float last_ssd = 1e30f;
       for (int it = 0; it < iters; ++it) {
         float b1 = 0.0f, b2 = 0.0f, ssd = 0.0f;
+        std::vector<float> Wbuf(T.size());
+        float mean_w = 0.0f;
         for (int py = 0; py < patch_size; ++py) {
           for (int px = 0; px < patch_size; ++px) {
             const int x = cx - half + px;
             const int y = cy - half + py;
             const std::size_t idx = static_cast<std::size_t>(py) * patch_size + px;
-            const float warped =
+            Wbuf[idx] =
                 sample_bilinear(I1, static_cast<float>(x) + u, static_cast<float>(y) + v);
-            const float err = warped - T[idx];
+            mean_w += Wbuf[idx];
+          }
+        }
+        mean_w *= inv_n;
+        for (int py = 0; py < patch_size; ++py) {
+          for (int px = 0; px < patch_size; ++px) {
+            const std::size_t idx = static_cast<std::size_t>(py) * patch_size + px;
+            const float err = (Wbuf[idx] - mean_w) - T[idx];
             ssd += err * err;
             b1 += Ix[idx] * err;
             b2 += Iy[idx] * err;
@@ -199,32 +214,79 @@ void estimate_level(const GrayImage &I0, const GrayImage &I1, FlowField &flow, C
   }
 }
 
+// Light incremental Horn–Schunck Jacobi refine (du/dv on top of DIS flow).
+void variational_refine_level(const GrayImage &I0, const GrayImage &I1, FlowField &flow,
+                              int outer_iters, int inner_iters, float alpha, float /*delta*/,
+                              float /*gamma*/, float omega) {
+  FlowField d, d2;
+  d.allocate(flow.width, flow.height);
+  d2.allocate(flow.width, flow.height);
+  for (int outer = 0; outer < outer_iters; ++outer) {
+    std::fill(d.data.begin(), d.data.end(), 0.0f);
+    for (int inner = 0; inner < inner_iters; ++inner) {
+      for (int y = 0; y < flow.height; ++y) {
+        for (int x = 0; x < flow.width; ++x) {
+          const int xm = std::max(x - 1, 0);
+          const int xp = std::min(x + 1, flow.width - 1);
+          const int ym = std::max(y - 1, 0);
+          const int yp = std::min(y + 1, flow.height - 1);
+          const float u0 = flow.dx(x, y);
+          const float v0 = flow.dy(x, y);
+          const float du = d.dx(x, y);
+          const float dv = d.dy(x, y);
+          const float du_avg =
+              0.25f * (d.dx(xm, y) + d.dx(xp, y) + d.dx(x, ym) + d.dx(x, yp));
+          const float dv_avg =
+              0.25f * (d.dy(xm, y) + d.dy(xp, y) + d.dy(x, ym) + d.dy(x, yp));
+          const float Ix = 0.5f * (I0.at(xp, y) - I0.at(xm, y));
+          const float Iy = 0.5f * (I0.at(x, yp) - I0.at(x, ym));
+          const float I1w = sample_bilinear(I1, static_cast<float>(x) + u0 + du,
+                                            static_cast<float>(y) + v0 + dv);
+          const float Iz = I1w - I0.at(x, y);
+          const float num = Ix * du_avg + Iy * dv_avg + Iz;
+          const float den = alpha + Ix * Ix + Iy * Iy;
+          const float du_hat = du_avg - Ix * num / den;
+          const float dv_hat = dv_avg - Iy * num / den;
+          d2.dx(x, y) = std::clamp(du + omega * (du_hat - du), -2.0f, 2.0f);
+          d2.dy(x, y) = std::clamp(dv + omega * (dv_hat - dv), -2.0f, 2.0f);
+        }
+      }
+      d = d2;
+    }
+    for (int y = 0; y < flow.height; ++y)
+      for (int x = 0; x < flow.width; ++x) {
+        flow.dx(x, y) += d.dx(x, y);
+        flow.dy(x, y) += d.dy(x, y);
+      }
+  }
+}
+
 } // namespace
 
 CpuOpticalFlow::CpuOpticalFlow(Preset preset) : preset_(preset) {
   switch (preset_) {
   case Preset::Fast:
     patch_size_ = 8;
-    patch_stride_ = 4;
-    coarsest_scale_ = 2;
-    finest_scale_ = 0;
-    gradient_descent_iters_ = 10;
+    patch_stride_ = 6;
+    coarsest_scale_ = 5;
+    finest_scale_ = 2;
+    gradient_descent_iters_ = 8;
     variational_refinement_ = false;
     break;
   case Preset::Medium:
     patch_size_ = 8;
     patch_stride_ = 3;
-    coarsest_scale_ = 3;
-    finest_scale_ = 0;
-    gradient_descent_iters_ = 14;
+    coarsest_scale_ = 5;
+    finest_scale_ = 1;
+    gradient_descent_iters_ = 25;
     variational_refinement_ = false;
     break;
   case Preset::Slow:
-    patch_size_ = 12;
+    patch_size_ = 8;
     patch_stride_ = 3;
-    coarsest_scale_ = 3;
+    coarsest_scale_ = 5;
     finest_scale_ = 0;
-    gradient_descent_iters_ = 18;
+    gradient_descent_iters_ = 25;
     variational_refinement_ = false;
     break;
   }
@@ -271,9 +333,31 @@ void CpuOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowFiel
     estimate_level(pyr0[scale], pyr1[scale], level_flow, level_cost, patch_size_, patch_stride_,
                    gradient_descent_iters_);
 
+    if (variational_refinement_) {
+      const int outer = (preset_ == Preset::Fast) ? 1 : 2;
+      const int inner = 5;
+      // Light HS path (delta/gamma unused inside until Brox port is stable).
+      variational_refine_level(pyr0[scale], pyr1[scale], level_flow, outer, inner, 20.0f, 5.0f,
+                               10.0f, 1.0f);
+    }
+
     if (scale == finest_scale_) {
-      flow = std::move(level_flow);
-      cost = std::move(level_cost);
+      // Upsample to full-res when finest_scale > 0 (OpenCV multiplies by 1<<finest).
+      FlowField cur = std::move(level_flow);
+      for (int s = finest_scale_ - 1; s >= 0; --s) {
+        FlowField up;
+        up.width = pyr0[s].width;
+        up.height = pyr0[s].height;
+        upsample_flow(cur, up);
+        cur = std::move(up);
+      }
+      flow = std::move(cur);
+      if (finest_scale_ == 0) {
+        cost = std::move(level_cost);
+      } else {
+        cost.allocate(flow.width, flow.height);
+        std::fill(cost.data.begin(), cost.data.end(), static_cast<std::uint8_t>(255));
+      }
     }
   }
 }

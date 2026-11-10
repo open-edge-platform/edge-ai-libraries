@@ -213,6 +213,8 @@ __kernel void estimate_and_scatter(__global const float *I0, __global const floa
   if (patch_size > max_ps)
     return;
 
+  float mean_t = 0.0f;
+  const float inv_n = 1.0f / (float)(patch_size * patch_size);
   for (int py = 0; py < patch_size; ++py) {
     for (int px = 0; px < patch_size; ++px) {
       const int x = cx - ph + px;
@@ -225,11 +227,15 @@ __kernel void estimate_and_scatter(__global const float *I0, __global const floa
       Ix[idx] = gxv;
       Iy[idx] = gyv;
       T[idx] = I0[y * width + x];
+      mean_t += T[idx];
       H11 += gxv * gxv;
       H12 += gxv * gyv;
       H22 += gyv * gyv;
     }
   }
+  mean_t *= inv_n;
+  for (int i = 0; i < patch_size * patch_size; ++i)
+    T[i] -= mean_t;
 
   const float det = H11 * H22 - H12 * H12;
   if (fabs(det) < 1e-3f)
@@ -248,13 +254,22 @@ __kernel void estimate_and_scatter(__global const float *I0, __global const floa
   float last_ssd = 1e30f;
   for (int it = 0; it < iters; ++it) {
     float b1 = 0.0f, b2 = 0.0f, ssd = 0.0f;
+    float mean_w = 0.0f;
+    float Wbuf[16 * 16];
     for (int py = 0; py < patch_size; ++py) {
       for (int px = 0; px < patch_size; ++px) {
         const int x = cx - ph + px;
         const int y = cy - ph + py;
         const int idx = py * patch_size + px;
-        const float warped = sample_bilinear(I1, width, height, (float)x + u, (float)y + v);
-        const float err = warped - T[idx];
+        Wbuf[idx] = sample_bilinear(I1, width, height, (float)x + u, (float)y + v);
+        mean_w += Wbuf[idx];
+      }
+    }
+    mean_w *= inv_n;
+    for (int py = 0; py < patch_size; ++py) {
+      for (int px = 0; px < patch_size; ++px) {
+        const int idx = py * patch_size + px;
+        const float err = (Wbuf[idx] - mean_w) - T[idx];
         ssd += err * err;
         b1 += Ix[idx] * err;
         b2 += Iy[idx] * err;
@@ -299,7 +314,8 @@ __kernel void estimate_centers(__global const float *I0, __global const float *I
                                __global const float *flow_in, __global float *patch_u,
                                __global float *patch_v, __global float *patch_c,
                                const int width, const int height, const int patch_size,
-                               const int patch_stride, const int iters, const int n_gx) {
+                               const int patch_stride, const int iters, const int n_gx,
+                               const int use_mean_norm) {
   const int gx = get_global_id(0);
   const int gy = get_global_id(1);
   const int ph = patch_size / 2;
@@ -322,6 +338,7 @@ __kernel void estimate_centers(__global const float *I0, __global const float *I
   if (patch_size != 8)
     return;
 
+  float mean_t = 0.0f;
   for (int py = 0; py < 8; ++py) {
     for (int px = 0; px < 8; ++px) {
       const int x = cx - ph + px;
@@ -334,10 +351,16 @@ __kernel void estimate_centers(__global const float *I0, __global const float *I
       Ix[idx] = gxv;
       Iy[idx] = gyv;
       T[idx] = I0[y * width + x];
+      mean_t += T[idx];
       H11 += gxv * gxv;
       H12 += gxv * gyv;
       H22 += gyv * gyv;
     }
+  }
+  if (use_mean_norm) {
+    mean_t *= (1.0f / 64.0f);
+    for (int i = 0; i < 64; ++i)
+      T[i] -= mean_t;
   }
 
   const float det = H11 * H22 - H12 * H12;
@@ -360,16 +383,40 @@ __kernel void estimate_centers(__global const float *I0, __global const float *I
   float last_ssd = 1e30f;
   for (int it = 0; it < iters; ++it) {
     float b1 = 0.0f, b2 = 0.0f, ssd = 0.0f;
-    for (int py = 0; py < 8; ++py) {
-      for (int px = 0; px < 8; ++px) {
-        const int x = cx - ph + px;
-        const int y = cy - ph + py;
-        const int idx = py * 8 + px;
-        const float warped = sample_bilinear(I1, width, height, (float)x + u, (float)y + v);
-        const float err = warped - T[idx];
-        ssd += err * err;
-        b1 += Ix[idx] * err;
-        b2 += Iy[idx] * err;
+    if (use_mean_norm) {
+      float mean_w = 0.0f;
+      float Wbuf[64];
+      for (int py = 0; py < 8; ++py) {
+        for (int px = 0; px < 8; ++px) {
+          const int x = cx - ph + px;
+          const int y = cy - ph + py;
+          const int idx = py * 8 + px;
+          Wbuf[idx] = sample_bilinear(I1, width, height, (float)x + u, (float)y + v);
+          mean_w += Wbuf[idx];
+        }
+      }
+      mean_w *= (1.0f / 64.0f);
+      for (int py = 0; py < 8; ++py) {
+        for (int px = 0; px < 8; ++px) {
+          const int idx = py * 8 + px;
+          const float err = (Wbuf[idx] - mean_w) - T[idx];
+          ssd += err * err;
+          b1 += Ix[idx] * err;
+          b2 += Iy[idx] * err;
+        }
+      }
+    } else {
+      for (int py = 0; py < 8; ++py) {
+        for (int px = 0; px < 8; ++px) {
+          const int x = cx - ph + px;
+          const int y = cy - ph + py;
+          const int idx = py * 8 + px;
+          const float warped = sample_bilinear(I1, width, height, (float)x + u, (float)y + v);
+          const float err = warped - T[idx];
+          ssd += err * err;
+          b1 += Ix[idx] * err;
+          b2 += Iy[idx] * err;
+        }
       }
     }
     if (it > 0 && ssd > last_ssd * 1.05f)
@@ -419,6 +466,7 @@ __kernel void propagate_refine_centers(__global const float *I0, __global const 
   float Ix[64];
   float Iy[64];
   float T[64];
+  float mean_t = 0.0f;
   for (int py = 0; py < 8; ++py) {
     for (int px = 0; px < 8; ++px) {
       const int x = cx - ph + px;
@@ -431,11 +479,15 @@ __kernel void propagate_refine_centers(__global const float *I0, __global const 
       Ix[idx] = gxv;
       Iy[idx] = gyv;
       T[idx] = I0[y * width + x];
+      mean_t += T[idx];
       H11 += gxv * gxv;
       H12 += gxv * gyv;
       H22 += gyv * gyv;
     }
   }
+  mean_t *= (1.0f / 64.0f);
+  for (int i = 0; i < 64; ++i)
+    T[i] -= mean_t;
   const float det = H11 * H22 - H12 * H12;
   if (fabs(det) < 1e-3f) {
     patch_u_out[pidx] = patch_u_in[pidx];
@@ -465,13 +517,22 @@ __kernel void propagate_refine_centers(__global const float *I0, __global const 
     float last_ssd = 1e30f;
     for (int it = 0; it < iters; ++it) {
       float b1 = 0.0f, b2 = 0.0f, ssd = 0.0f;
+      float mean_w = 0.0f;
+      float Wbuf[64];
       for (int py = 0; py < 8; ++py) {
         for (int px = 0; px < 8; ++px) {
           const int x = cx - ph + px;
           const int y = cy - ph + py;
           const int idx = py * 8 + px;
-          const float warped = sample_bilinear(I1, width, height, (float)x + u, (float)y + v);
-          const float err = warped - T[idx];
+          Wbuf[idx] = sample_bilinear(I1, width, height, (float)x + u, (float)y + v);
+          mean_w += Wbuf[idx];
+        }
+      }
+      mean_w *= (1.0f / 64.0f);
+      for (int py = 0; py < 8; ++py) {
+        for (int px = 0; px < 8; ++px) {
+          const int idx = py * 8 + px;
+          const float err = (Wbuf[idx] - mean_w) - T[idx];
           ssd += err * err;
           b1 += Ix[idx] * err;
           b2 += Iy[idx] * err;
@@ -578,6 +639,73 @@ __kernel void zero_flow(__global float *flow, const int n) {
   const int i = get_global_id(0);
   if (i < n)
     flow[i] = 0.0f;
+}
+
+// Bilinear sample of a float image (repeated border via clamp).
+inline float sample_bilinear_f(__global const float *img, const int width, const int height,
+                               float sx, float sy) {
+  sx = clamp(sx, 0.0f, (float)(width - 1));
+  sy = clamp(sy, 0.0f, (float)(height - 1));
+  const int x0 = (int)sx;
+  const int y0 = (int)sy;
+  const int x1 = min(x0 + 1, width - 1);
+  const int y1 = min(y0 + 1, height - 1);
+  const float fdx = sx - (float)x0;
+  const float fdy = sy - (float)y0;
+  return (1.0f - fdx) * (1.0f - fdy) * img[y0 * width + x0] +
+         fdx * (1.0f - fdy) * img[y0 * width + x1] +
+         (1.0f - fdx) * fdy * img[y1 * width + x0] + fdx * fdy * img[y1 * width + x1];
+}
+
+// Light incremental Horn–Schunck Jacobi (stable). Brox/OpenCV-style terms regress on GPU
+// Jacobi; keep delta/gamma/omega args for ABI but use classical HS.
+__kernel void variational_refine_jacobi(__global const float *I0, __global const float *I1,
+                                        __global const float *base_flow, __global const float *d_in,
+                                        __global float *d_out, const int width, const int height,
+                                        const float alpha, const float delta, const float gamma,
+                                        const float omega) {
+  // delta/gamma reserved for future Brox/OpenCV-style terms.
+  const float alpha_eff = alpha + 0.0f * (delta + gamma);
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+  const int idx = y * width + x;
+  const float u0 = base_flow[idx * 2];
+  const float v0 = base_flow[idx * 2 + 1];
+  const float du = d_in[idx * 2];
+  const float dv = d_in[idx * 2 + 1];
+
+  const int xm = max(x - 1, 0);
+  const int xp = min(x + 1, width - 1);
+  const int ym = max(y - 1, 0);
+  const int yp = min(y + 1, height - 1);
+  const float du_avg =
+      0.25f * (d_in[(y * width + xm) * 2] + d_in[(y * width + xp) * 2] + d_in[(ym * width + x) * 2] +
+               d_in[(yp * width + x) * 2]);
+  const float dv_avg = 0.25f * (d_in[(y * width + xm) * 2 + 1] + d_in[(y * width + xp) * 2 + 1] +
+                                d_in[(ym * width + x) * 2 + 1] + d_in[(yp * width + x) * 2 + 1]);
+
+  const float Ix = 0.5f * (I0[y * width + xp] - I0[y * width + xm]);
+  const float Iy = 0.5f * (I0[yp * width + x] - I0[ym * width + x]);
+  const float I1w =
+      sample_bilinear_f(I1, width, height, (float)x + u0 + du, (float)y + v0 + dv);
+  const float Iz = I1w - I0[idx];
+  const float num = Ix * du_avg + Iy * dv_avg + Iz;
+  const float den = alpha_eff + Ix * Ix + Iy * Iy;
+  const float du_hat = du_avg - Ix * num / den;
+  const float dv_hat = dv_avg - Iy * num / den;
+  const float du_new = du + omega * (du_hat - du);
+  const float dv_new = dv + omega * (dv_hat - dv);
+  d_out[idx * 2] = clamp(du_new, -2.0f, 2.0f);
+  d_out[idx * 2 + 1] = clamp(dv_new, -2.0f, 2.0f);
+}
+
+__kernel void add_flow_increment(__global float *flow, __global const float *d_flow, const int n) {
+  const int i = get_global_id(0);
+  if (i >= n)
+    return;
+  flow[i] += d_flow[i];
 }
 
 // Mid-frame / FRUC warp: dst(x) = bilinear(src, x - t * flow).

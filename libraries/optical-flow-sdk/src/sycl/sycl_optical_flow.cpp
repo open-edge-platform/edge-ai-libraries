@@ -63,6 +63,8 @@ struct Workspace {
   std::vector<float *> pyr0;
   std::vector<float *> pyr1;
   std::vector<float *> flow;
+  std::vector<float *> flow_tmp;
+  std::vector<float *> flow_d2;
   std::vector<std::uint8_t *> cost;
   std::vector<float *> acc_u;
   std::vector<float *> acc_v;
@@ -84,6 +86,10 @@ struct Workspace {
       free_usm(p, q);
     for (auto &p : flow)
       free_usm(p, q);
+    for (auto &p : flow_tmp)
+      free_usm(p, q);
+    for (auto &p : flow_d2)
+      free_usm(p, q);
     for (auto &p : cost)
       free_usm(p, q);
     for (auto &p : acc_u)
@@ -100,6 +106,8 @@ struct Workspace {
     pyr0.clear();
     pyr1.clear();
     flow.clear();
+    flow_tmp.clear();
+    flow_d2.clear();
     cost.clear();
     acc_u.clear();
     acc_v.clear();
@@ -131,6 +139,8 @@ struct Workspace {
     pyr0.resize(scales, nullptr);
     pyr1.resize(scales, nullptr);
     flow.resize(scales, nullptr);
+    flow_tmp.resize(scales, nullptr);
+    flow_d2.resize(scales, nullptr);
     cost.resize(scales, nullptr);
     acc_u.resize(scales, nullptr);
     acc_v.resize(scales, nullptr);
@@ -141,6 +151,8 @@ struct Workspace {
       pyr0[s] = sycl::malloc_device<float>(pix, q);
       pyr1[s] = sycl::malloc_device<float>(pix, q);
       flow[s] = sycl::malloc_device<float>(pix * 2, q);
+      flow_tmp[s] = sycl::malloc_device<float>(pix * 2, q);
+      flow_d2[s] = sycl::malloc_device<float>(pix * 2, q);
       cost[s] = sycl::malloc_device<std::uint8_t>(pix, q);
       acc_u[s] = sycl::malloc_device<float>(pix, q);
       acc_v[s] = sycl::malloc_device<float>(pix, q);
@@ -235,6 +247,13 @@ struct SyclOpticalFlow::Impl {
   int coarsest_scale = 2;
   int finest_scale = 0;
   int gradient_descent_iters = 6;
+  bool variational_refinement = true;
+  int var_outer_iters = 5;
+  int var_inner_iters = 5;
+  float var_alpha = 20.0f;
+  float var_delta = 5.0f;
+  float var_gamma = 10.0f;
+  float var_omega = 1.0f;
   mutable std::mutex mutex;
   mutable Workspace ws;
 };
@@ -243,25 +262,47 @@ SyclOpticalFlow::SyclOpticalFlow(Preset preset) : impl_(std::make_unique<Impl>()
   impl_->preset = preset;
   switch (preset) {
   case Preset::Fast:
+    // NVOFA-competitive quality under ≥6× budget (match OpenCL Fast).
     impl_->patch_size = 8;
-    impl_->patch_stride = 8;
-    impl_->coarsest_scale = 2;
+    impl_->patch_stride = 6;
+    impl_->coarsest_scale = 5;
     impl_->finest_scale = 2;
-    impl_->gradient_descent_iters = 2;
+    impl_->gradient_descent_iters = 8;
+    impl_->variational_refinement = false;
+    impl_->var_outer_iters = 1;
+    impl_->var_inner_iters = 5;
+    impl_->var_alpha = 20.0f;
+    impl_->var_delta = 5.0f;
+    impl_->var_gamma = 10.0f;
+    impl_->var_omega = 1.0f;
     break;
   case Preset::Medium:
     impl_->patch_size = 8;
     impl_->patch_stride = 3;
-    impl_->coarsest_scale = 3;
-    impl_->finest_scale = 0;
-    impl_->gradient_descent_iters = 12;
+    impl_->coarsest_scale = 5;
+    impl_->finest_scale = 1;
+    impl_->gradient_descent_iters = 25;
+    impl_->variational_refinement = false;
+    impl_->var_outer_iters = 2;
+    impl_->var_inner_iters = 5;
+    impl_->var_alpha = 20.0f;
+    impl_->var_delta = 5.0f;
+    impl_->var_gamma = 10.0f;
+    impl_->var_omega = 1.0f;
     break;
   case Preset::Slow:
-    impl_->patch_size = 12;
+    impl_->patch_size = 8;
     impl_->patch_stride = 3;
-    impl_->coarsest_scale = 3;
+    impl_->coarsest_scale = 5;
     impl_->finest_scale = 0;
-    impl_->gradient_descent_iters = 16;
+    impl_->gradient_descent_iters = 25;
+    impl_->variational_refinement = false;
+    impl_->var_outer_iters = 2;
+    impl_->var_inner_iters = 5;
+    impl_->var_alpha = 20.0f;
+    impl_->var_delta = 5.0f;
+    impl_->var_gamma = 10.0f;
+    impl_->var_omega = 1.0f;
     break;
   }
   (void)shared_queue();
@@ -327,9 +368,70 @@ void SyclOpticalFlow::finish() const { shared_queue().wait(); }
 
 namespace {
 
+void run_variational_refine_sycl(sycl::queue &q, Workspace &ws, int scale, int outer_iters,
+                                 int inner_iters, float alpha, float delta, float gamma,
+                                 float omega) {
+  const int w = ws.widths[scale];
+  const int h = ws.heights[scale];
+  const std::size_t n2 = static_cast<std::size_t>(w) * h * 2;
+  float *I0 = ws.pyr0[scale];
+  float *I1 = ws.pyr1[scale];
+  float *base = ws.flow[scale];
+  float *d_a = ws.flow_tmp[scale];
+  float *d_b = ws.flow_d2[scale];
+  (void)delta;
+  (void)gamma;
+  for (int outer = 0; outer < outer_iters; ++outer) {
+    q.fill(d_a, 0.0f, n2);
+    for (int inner = 0; inner < inner_iters; ++inner) {
+      float *din = d_a;
+      float *dout = d_b;
+      q.parallel_for(sycl::range<2>(h, w), [=](sycl::id<2> id) {
+        const int y = static_cast<int>(id[0]);
+        const int x = static_cast<int>(id[1]);
+        const int idx = y * w + x;
+        const float u0 = base[idx * 2];
+        const float v0 = base[idx * 2 + 1];
+        const float du = din[idx * 2];
+        const float dv = din[idx * 2 + 1];
+        const int xm = sycl::max(x - 1, 0);
+        const int xp = sycl::min(x + 1, w - 1);
+        const int ym = sycl::max(y - 1, 0);
+        const int yp = sycl::min(y + 1, h - 1);
+        const float du_avg =
+            0.25f * (din[(y * w + xm) * 2] + din[(y * w + xp) * 2] + din[(ym * w + x) * 2] +
+                     din[(yp * w + x) * 2]);
+        const float dv_avg =
+            0.25f * (din[(y * w + xm) * 2 + 1] + din[(y * w + xp) * 2 + 1] +
+                     din[(ym * w + x) * 2 + 1] + din[(yp * w + x) * 2 + 1]);
+        const float Ix = 0.5f * (I0[y * w + xp] - I0[y * w + xm]);
+        const float Iy = 0.5f * (I0[yp * w + x] - I0[ym * w + x]);
+        const float I1w = sample_bilinear_dev(I1, w, h, static_cast<float>(x) + u0 + du,
+                                              static_cast<float>(y) + v0 + dv);
+        const float Iz = I1w - I0[idx];
+        const float num = Ix * du_avg + Iy * dv_avg + Iz;
+        const float den = alpha + Ix * Ix + Iy * Iy;
+        const float du_hat = du_avg - Ix * num / den;
+        const float dv_hat = dv_avg - Iy * num / den;
+        dout[idx * 2] = sycl::clamp(du + omega * (du_hat - du), -2.0f, 2.0f);
+        dout[idx * 2 + 1] = sycl::clamp(dv + omega * (dv_hat - dv), -2.0f, 2.0f);
+      });
+      std::swap(d_a, d_b);
+    }
+    float *d_final = d_a;
+    q.parallel_for(sycl::range<1>(n2), [=](sycl::id<1> id) {
+      const int i = static_cast<int>(id[0]);
+      base[i] += d_final[i];
+    });
+  }
+  q.wait();
+}
+
 void run_sycl_dis(sycl::queue &q, Workspace &ws, Preset preset, int patch_size, int patch_stride,
-                  int coarsest_scale, int finest_scale, int iters, int width, int height,
-                  std::uint8_t *d_prev_u8, std::uint8_t *d_next_u8, float *d_flow_out) {
+                  int coarsest_scale, int finest_scale, int iters, bool variational, int var_outer,
+                  int var_inner, float var_alpha, float var_delta, float var_gamma, float var_omega,
+                  int width, int height, std::uint8_t *d_prev_u8, std::uint8_t *d_next_u8,
+                  float *d_flow_out) {
   const int scales = coarsest_scale + 1;
   ws.ensure(q, width, height, scales);
 
@@ -440,6 +542,7 @@ void run_sycl_dis(sycl::queue &q, Workspace &ws, Preset preset, int patch_size, 
         }
         float H11 = 0.0f, H12 = 0.0f, H22 = 0.0f;
         float Ix[64], Iy[64], T[64];
+        float mean_t = 0.0f;
         for (int py = 0; py < 8; ++py) {
           for (int px = 0; px < 8; ++px) {
             const int x = cx - ph + px;
@@ -452,11 +555,15 @@ void run_sycl_dis(sycl::queue &q, Workspace &ws, Preset preset, int patch_size, 
             Ix[idx] = gxv;
             Iy[idx] = gyv;
             T[idx] = I0[y * w + x];
+            mean_t += T[idx];
             H11 += gxv * gxv;
             H12 += gxv * gyv;
             H22 += gyv * gyv;
           }
         }
+        mean_t *= (1.0f / 64.0f);
+        for (int i = 0; i < 64; ++i)
+          T[i] -= mean_t;
         const float det = H11 * H22 - H12 * H12;
         if (sycl::fabs(det) < 1e-3f) {
           patch_u[pidx] = 0.0f;
@@ -472,14 +579,23 @@ void run_sycl_dis(sycl::queue &q, Workspace &ws, Preset preset, int patch_size, 
         float last_ssd = 0.0f;
         for (int it = 0; it < iters; ++it) {
           float b1 = 0.0f, b2 = 0.0f, ssd = 0.0f;
+          float mean_w = 0.0f;
+          float Wbuf[64];
           for (int py = 0; py < 8; ++py) {
             for (int px = 0; px < 8; ++px) {
               const int x = cx - ph + px;
               const int y = cy - ph + py;
               const int idx = py * 8 + px;
-              const float warped = sample_bilinear_dev(
-                  I1, w, h, static_cast<float>(x) + u, static_cast<float>(y) + v);
-              const float err = warped - T[idx];
+              Wbuf[idx] = sample_bilinear_dev(I1, w, h, static_cast<float>(x) + u,
+                                              static_cast<float>(y) + v);
+              mean_w += Wbuf[idx];
+            }
+          }
+          mean_w *= (1.0f / 64.0f);
+          for (int py = 0; py < 8; ++py) {
+            for (int px = 0; px < 8; ++px) {
+              const int idx = py * 8 + px;
+              const float err = (Wbuf[idx] - mean_w) - T[idx];
               ssd += err * err;
               b1 += Ix[idx] * err;
               b2 += Iy[idx] * err;
@@ -536,6 +652,9 @@ void run_sycl_dis(sycl::queue &q, Workspace &ws, Preset preset, int patch_size, 
         cout[y * w + x] = static_cast<std::uint8_t>(sycl::clamp(c, 0.0f, 255.0f));
       });
       q.wait();
+      if (variational)
+        run_variational_refine_sycl(q, ws, scale, var_outer, var_inner, var_alpha, var_delta,
+                                    var_gamma, var_omega);
       continue;
     }
 
@@ -564,6 +683,8 @@ void run_sycl_dis(sycl::queue &q, Workspace &ws, Preset preset, int patch_size, 
       float T[16 * 16];
       if (patch_size > 16)
         return;
+      float mean_t = 0.0f;
+      const float inv_n = 1.0f / static_cast<float>(patch_size * patch_size);
       for (int py = 0; py < patch_size; ++py) {
         for (int px = 0; px < patch_size; ++px) {
           const int x = cx - ph + px;
@@ -576,11 +697,15 @@ void run_sycl_dis(sycl::queue &q, Workspace &ws, Preset preset, int patch_size, 
           Ix[idx] = gxv;
           Iy[idx] = gyv;
           T[idx] = I0[y * w + x];
+          mean_t += T[idx];
           H11 += gxv * gxv;
           H12 += gxv * gyv;
           H22 += gyv * gyv;
         }
       }
+      mean_t *= inv_n;
+      for (int i = 0; i < patch_size * patch_size; ++i)
+        T[i] -= mean_t;
       const float det = H11 * H22 - H12 * H12;
       if (sycl::fabs(det) < 1e-3f)
         return;
@@ -592,14 +717,23 @@ void run_sycl_dis(sycl::queue &q, Workspace &ws, Preset preset, int patch_size, 
       float last_ssd = 0.0f;
       for (int it = 0; it < iters; ++it) {
         float b1 = 0.0f, b2 = 0.0f, ssd = 0.0f;
+        float mean_w = 0.0f;
+        float Wbuf[16 * 16];
         for (int py = 0; py < patch_size; ++py) {
           for (int px = 0; px < patch_size; ++px) {
             const int x = cx - ph + px;
             const int y = cy - ph + py;
             const int idx = py * patch_size + px;
-            const float warped =
+            Wbuf[idx] =
                 sample_bilinear_dev(I1, w, h, static_cast<float>(x) + u, static_cast<float>(y) + v);
-            const float err = warped - T[idx];
+            mean_w += Wbuf[idx];
+          }
+        }
+        mean_w *= inv_n;
+        for (int py = 0; py < patch_size; ++py) {
+          for (int px = 0; px < patch_size; ++px) {
+            const int idx = py * patch_size + px;
+            const float err = (Wbuf[idx] - mean_w) - T[idx];
             ssd += err * err;
             b1 += Ix[idx] * err;
             b2 += Iy[idx] * err;
@@ -662,6 +796,10 @@ void run_sycl_dis(sycl::queue &q, Workspace &ws, Preset preset, int patch_size, 
         cout[i] = 255;
       }
     });
+    q.wait();
+    if (variational)
+      run_variational_refine_sycl(q, ws, scale, var_outer, var_inner, var_alpha, var_delta,
+                                  var_gamma, var_omega);
   }
 
   if (finest_scale >= 2) {
@@ -761,6 +899,8 @@ void SyclOpticalFlow::calc_device(const SyclU8Image &prev, const SyclU8Image &ne
   impl_->ws.ensure(q, prev.width(), prev.height(), scales);
   run_sycl_dis(q, impl_->ws, impl_->preset, impl_->patch_size, impl_->patch_stride,
                impl_->coarsest_scale, impl_->finest_scale, impl_->gradient_descent_iters,
+               impl_->variational_refinement, impl_->var_outer_iters, impl_->var_inner_iters,
+               impl_->var_alpha, impl_->var_delta, impl_->var_gamma, impl_->var_omega,
                prev.width(), prev.height(), static_cast<std::uint8_t *>(prev.handle()),
                static_cast<std::uint8_t *>(next.handle()), static_cast<float *>(flow.handle()));
 }
@@ -809,7 +949,9 @@ void SyclOpticalFlow::calc_impl(const ImageView &prev, const ImageView &next, Fl
   q.wait();
   run_sycl_dis(q, impl_->ws, impl_->preset, impl_->patch_size, impl_->patch_stride,
                impl_->coarsest_scale, impl_->finest_scale, impl_->gradient_descent_iters,
-               prev.width, prev.height, impl_->ws.prev_u8, impl_->ws.next_u8, impl_->ws.flow[0]);
+               impl_->variational_refinement, impl_->var_outer_iters, impl_->var_inner_iters,
+               impl_->var_alpha, impl_->var_delta, impl_->var_gamma, impl_->var_omega, prev.width,
+               prev.height, impl_->ws.prev_u8, impl_->ws.next_u8, impl_->ws.flow[0]);
   // run_sycl_dis already wrote flow[0]; avoid a redundant device memcpy by reading it out.
   flow.allocate(prev.width, prev.height);
   q.memcpy(flow.data.data(), impl_->ws.flow[0], flow.data.size() * sizeof(float)).wait();
