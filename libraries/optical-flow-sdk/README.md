@@ -9,7 +9,8 @@ Dense optical flow for Intel CPU / iGPU / Arc. Product goal: close Nvidia
 Optical Flow SDK (NVOFA) moat with SYCL/OpenCL implementations, first-class
 C++ and Python APIs, and NVOFA-shaped presets / cost / forward-backward.
 
-See [PLAN.md](PLAN.md) for decisions, gates, and roadmap. IPU DVS is deferred.
+Lab quality/speed tables and gates: [benchmarks/README.md](benchmarks/README.md).
+IPU DVS is deferred.
 
 ## Status (this tree)
 
@@ -26,7 +27,7 @@ See [PLAN.md](PLAN.md) for decisions, gates, and roadmap. IPU DVS is deferred.
 | Python (`optical_flow_sdk`) | Available when `-DOPTICALFLOW_BUILD_PYTHON=ON` |
 | Samples | C++ facade DIS / Farneback / PyrLK; Python samples; advanced OpenCL `calc_device` / FRUC / VA |
 | Packaging | CMake install + Debian (`liboptical-flow-sdk*`, `python3-optical-flow-sdk`) + Python wheel (`docs/packaging.md`) |
-| Lab GPU timing / Sintel·KITTI OpenCV parity | §8 gate **FAIL** for DIS-lite (PLAN §11.6) |
+| Lab GPU timing / Sintel·KITTI OpenCV parity | OpenCV DIS parity **FAIL** for DIS-lite ([benchmarks/README.md](benchmarks/README.md) §2.2) |
 
 ## Install / consume
 
@@ -54,7 +55,7 @@ cmake -S . -B build \
   -DOPTICALFLOW_BUILD_PYTHON=ON
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
-./build/microbench_cpu
+./build/microbench --backend cpu --mode host
 ./build/compare_opencv_dis   # requires OpenCV adapter
 PYTHONPATH=python python3 python/samples/calc_flow_dis.py
 ```
@@ -72,7 +73,7 @@ cmake --build build-opencl --parallel
 ./build-opencl/test_optical_flow_opencl_shift
 ./build-opencl/sample_calc_flow_farneback
 ./build-opencl/sample_track_points
-./build-opencl/microbench_opencl_resident   # device-resident speed gate
+./build-opencl/microbench --backend opencl --mode resident   # device-resident speed gate
 ```
 
 **API tip:** pick `Backend` / `Algorithm` on the facade. Only drop to

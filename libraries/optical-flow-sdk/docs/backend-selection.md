@@ -61,7 +61,8 @@ On Series 2 iGPU (OpenCL DIS Fast, device-resident):
 - **SYCL `calc_device`:** catch-up path; OpenCL remains the primary GPU backend under `Auto`
 
 See `samples/calc_flow_opencl_device.cpp` and
-`benchmarks/microbench_opencl_resident.cpp` only when you need the escape hatch.
+`benchmarks/microbench.cpp --backend opencl --mode resident` only when you need
+the escape hatch.
 
 Neural Slow accuracy: `Algorithm::SeaRaft` + `docs/sea_raft.md` (OpenVINO;
 not a `Backend` value).

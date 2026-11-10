@@ -7,6 +7,9 @@
 **/__pycache__/
 *.pyc
 .nvofa-*
+/Benchmark.md
+/PLAN.md
+/benchmarks/results/
 debian/files
 debian/*.substvars
 debian/.debhelper/

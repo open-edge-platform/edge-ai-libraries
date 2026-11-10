@@ -46,7 +46,7 @@ std::string resolve_model_path(std::string requested) {
       " (need -DOPTICALFLOW_ENABLE_OPENVINO=ON + OpenVINO Runtime)."
       " Model path=" +
       (model.empty() ? std::string("<unset; export OPTICALFLOW_SEA_RAFT_MODEL>") : model) +
-      ". See docs/sea_raft.md and benchmarks/results/p2_sea_raft_kitti_fl_all_2026-11-10.json.");
+      ". See docs/sea_raft.md and benchmarks/README.md.");
 }
 
 #if OPTICALFLOW_HAS_OPENVINO

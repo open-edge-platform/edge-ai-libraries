@@ -90,6 +90,6 @@ jobs:
           ctest --test-dir build-ci --output-on-failure
           ./build-ci/sample_stabilize_global_flow
           ./build-ci/sample_track_points_cpu
-          ./build-ci/microbench_cpu
+          ./build-ci/microbench --backend cpu --mode host
           ./build-ci/eval_flow_epe
           ./build-ci/compare_opencv_dis --strict

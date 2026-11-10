@@ -6,7 +6,6 @@ path = [
     "cmake/optical_flow_sdkConfig.cmake.in",
     "cmake/optical_flow_sdk.pc.in",
     "README.md",
-    "PLAN.md",
     "REUSE.toml",
     "third_party_programs.txt",
     "docs/**",

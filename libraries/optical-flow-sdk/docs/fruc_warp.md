@@ -32,4 +32,4 @@ Goal: show optical-flow SDK value beyond raw dx/dy — **frame interpolation
 2. Nvidia host FRUC comparison (gated on NVOFA hardware)
 
 Report wall ms next to DIS Fast resident numbers from
-`microbench_opencl_resident`.
+`microbench --backend opencl --mode resident`.

@@ -3,7 +3,8 @@
 //
 // Honest OpenCV DIS disparity on MPI Sintel training + KITTI 2015 training.
 // Compares SDK DIS (CPU / OpenCL) against OpenCV DIS at matched presets.
-// Does not invent parity — prints deltas vs PLAN §8 gates.
+// Does not invent parity — prints deltas vs classical-equivalence bars
+// documented in benchmarks/README.md.
 
 #include "optical_flow_sdk/metrics.hpp"
 #include "optical_flow_sdk/opencv_adapter.hpp"
@@ -199,7 +200,7 @@ void print_agg(const char *title, const Agg &a, bool kitti) {
             << " rel%=" << rel << "\n"
             << "  EPE sdk vs opencv (parity): all=" << pair << " s0-10=" << pair_s0
             << " s10-40=" << pair_s1 << " s40+=" << pair_s2 << "\n";
-  // PLAN §8: mean EPE difference vs OpenCV <= max(0.05px, 2% relative).
+  // Classical-equivalence bar: mean EPE vs OpenCV <= max(0.05px, 2% relative).
   const double gate = std::max(0.05, 0.02 * std::max(ocv, 1e-6));
   const bool gate_pair = pair <= gate;
   const bool gate_s0 = pair_s0 <= std::max(0.05, 0.02 * std::max(a.sum_s0_ocv * inv, 1e-6));
@@ -392,7 +393,8 @@ int main(int argc, char **argv) {
   }
   std::cout << "note: SDK DIS matches OpenCV pyramid/mean-norm; variational refine disabled "
                "(GPU Jacobi regresses Fl-all vs DIS-only).\n"
-               "PLAN §8 pairwise EPE<=max(0.05px,2%) is a hard classical-equivalence bar.\n";
+               "Pairwise EPE<=max(0.05px,2%) is a classical-equivalence bar "
+               "(diagnostic; see benchmarks/README.md).\n";
   if (!sintel.empty())
     run_sintel(sintel, backend, preset, max_pairs);
   if (!kitti.empty())

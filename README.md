@@ -250,9 +250,8 @@ Python) APIs for feature extraction and related primitives on Intel CPUs/GPUs.
 - [Optical Flow SDK](./libraries/optical-flow-sdk)
 
   Dense optical flow and sparse PyrLK for Intel CPUs and GPUs, with a
-  NVOFA-shaped C++/Python API (presets, cost, `calcBoth`). CPU classical
-  paths are available now; SYCL/OpenCL device kernels and Arc timing gates
-  are in progress. See `libraries/optical-flow-sdk/PLAN.md`.
+  NVOFA-shaped C++/Python API (presets, cost, `calcBoth`). See
+  `libraries/optical-flow-sdk` and `libraries/optical-flow-sdk/benchmarks/README.md`.
 
 ### Robotics Libraries
 

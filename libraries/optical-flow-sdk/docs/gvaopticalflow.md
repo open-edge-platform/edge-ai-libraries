@@ -53,4 +53,4 @@ Properties for tracking prior: `emit-motion-rois`, `track-motion-rois`,
 Scaffold on dlstreamer `feat/gvaopticalflow` + standalone lab build under
 `integrations/gvaopticalflow/`. **Lab smoke PASS**; device ping-pong +
 DMA-BUF + motion ROI/`object_id` prior landed. **Open:** VAMemory E2E,
-dlstreamer upstream PR (deferred). See PLAN §11.7.
+dlstreamer upstream PR (deferred).
