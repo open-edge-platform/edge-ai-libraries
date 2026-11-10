@@ -3115,7 +3115,7 @@ EOF
 }
 debian_35_profile_intel_lpmd () 
 { 
-    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake git"
 }
 debian_35_remove_intel_lpmd () 
 { 

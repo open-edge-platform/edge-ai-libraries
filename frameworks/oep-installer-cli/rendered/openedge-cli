@@ -4364,7 +4364,7 @@ EOF
 }
 debian_35_profile_intel_lpmd () 
 { 
-    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake git"
 }
 debian_35_remove_intel_lpmd () 
 { 
@@ -5646,7 +5646,7 @@ debian_80_install_anomalib ()
 }
 debian_80_profile_anomalib () 
 { 
-    echo "python3_venv edge_base"
+    echo "python3_venv edge_base git"
 }
 debian_80_remove_anomalib () 
 { 
@@ -7010,7 +7010,7 @@ debian_90_profile_smart_intersection ()
 }
 debian_90_profile_smart_kiosk_assistant () 
 { 
-    echo "docker_io make edge_base python3_venv"
+    echo "docker_io make edge_base python3_venv git"
 }
 debian_90_profile_smart_nvr () 
 { 
