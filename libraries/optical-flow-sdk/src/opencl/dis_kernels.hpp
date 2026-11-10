@@ -664,48 +664,233 @@ inline float sample_bilinear_f(__global const float *img, const int width, const
          (1.0f - fdx) * fdy * img[y1 * width + x0] + fdx * fdy * img[y1 * width + x1];
 }
 
-// Light incremental Horn–Schunck Jacobi (stable). Brox/OpenCV-style terms regress on GPU
-// Jacobi; keep delta/gamma/omega args for ABI but use classical HS.
-__kernel void variational_refine_jacobi(__global const float *I0, __global const float *I1,
-                                        __global const float *base_flow, __global const float *d_in,
-                                        __global float *d_out, const int width, const int height,
-                                        const float alpha, const float delta, const float gamma,
-                                        const float omega) {
-  // delta/gamma reserved for future Brox/OpenCV-style terms.
-  const float alpha_eff = alpha + 0.0f * (delta + gamma);
+// OpenCV-style Brox variational (dense layout + red-black SOR).
+// Derivs fixed from warp of I1 by base flow; fixed-point updates d=(du,dv).
+__kernel void var_prepare_derivs(__global const float *I0, __global const float *I1,
+                                 __global const float *base_flow, __global float *Ix,
+                                 __global float *Iy, __global float *Iz, __global float *Ixx,
+                                 __global float *Ixy, __global float *Iyy, __global float *Ixz,
+                                 __global float *Iyz, __global float *Iavg, const int width,
+                                 const int height) {
   const int x = get_global_id(0);
   const int y = get_global_id(1);
   if (x >= width || y >= height)
     return;
   const int idx = y * width + x;
-  const float u0 = base_flow[idx * 2];
-  const float v0 = base_flow[idx * 2 + 1];
-  const float du = d_in[idx * 2];
-  const float dv = d_in[idx * 2 + 1];
+  const float u = base_flow[idx * 2];
+  const float v = base_flow[idx * 2 + 1];
+  const float I1w = sample_bilinear_f(I1, width, height, (float)x + u, (float)y + v);
+  const float i0 = I0[idx];
+  Iz[idx] = I1w - i0;
+  Iavg[idx] = 0.5f * (i0 + I1w);
+  // Second pass fills spatial derivs from Iavg/Iz (see var_spatial_derivs).
+}
 
+__kernel void var_spatial_derivs(__global const float *Iavg, __global const float *Iz,
+                                 __global float *Ix, __global float *Iy, __global float *Ixx,
+                                 __global float *Ixy, __global float *Iyy, __global float *Ixz,
+                                 __global float *Iyz, const int width, const int height) {
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  if (x >= width || y >= height)
+    return;
   const int xm = max(x - 1, 0);
   const int xp = min(x + 1, width - 1);
   const int ym = max(y - 1, 0);
   const int yp = min(y + 1, height - 1);
-  const float du_avg =
-      0.25f * (d_in[(y * width + xm) * 2] + d_in[(y * width + xp) * 2] + d_in[(ym * width + x) * 2] +
-               d_in[(yp * width + x) * 2]);
-  const float dv_avg = 0.25f * (d_in[(y * width + xm) * 2 + 1] + d_in[(y * width + xp) * 2 + 1] +
-                                d_in[(ym * width + x) * 2 + 1] + d_in[(yp * width + x) * 2 + 1]);
+  const int idx = y * width + x;
+  const float ix = 0.5f * (Iavg[y * width + xp] - Iavg[y * width + xm]);
+  const float iy = 0.5f * (Iavg[yp * width + x] - Iavg[ym * width + x]);
+  Ix[idx] = ix;
+  Iy[idx] = iy;
+  Ixz[idx] = 0.5f * (Iz[y * width + xp] - Iz[y * width + xm]);
+  Iyz[idx] = 0.5f * (Iz[yp * width + x] - Iz[ym * width + x]);
+  // Ixx/Ixy/Iyy filled in a follow-up pass from Ix/Iy.
+  Ixx[idx] = 0.0f;
+  Ixy[idx] = 0.0f;
+  Iyy[idx] = 0.0f;
+}
 
-  const float Ix = 0.5f * (I0[y * width + xp] - I0[y * width + xm]);
-  const float Iy = 0.5f * (I0[yp * width + x] - I0[ym * width + x]);
-  const float I1w =
-      sample_bilinear_f(I1, width, height, (float)x + u0 + du, (float)y + v0 + dv);
-  const float Iz = I1w - I0[idx];
-  const float num = Ix * du_avg + Iy * dv_avg + Iz;
-  const float den = alpha_eff + Ix * Ix + Iy * Iy;
-  const float du_hat = du_avg - Ix * num / den;
-  const float dv_hat = dv_avg - Iy * num / den;
-  const float du_new = du + omega * (du_hat - du);
-  const float dv_new = dv + omega * (dv_hat - dv);
-  d_out[idx * 2] = clamp(du_new, -2.0f, 2.0f);
-  d_out[idx * 2 + 1] = clamp(dv_new, -2.0f, 2.0f);
+__kernel void var_second_derivs(__global const float *Ix, __global const float *Iy,
+                                __global float *Ixx, __global float *Ixy, __global float *Iyy,
+                                const int width, const int height) {
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+  const int xm = max(x - 1, 0);
+  const int xp = min(x + 1, width - 1);
+  const int ym = max(y - 1, 0);
+  const int yp = min(y + 1, height - 1);
+  const int idx = y * width + x;
+  Ixx[idx] = 0.5f * (Ix[y * width + xp] - Ix[y * width + xm]);
+  Ixy[idx] = 0.5f * (Ix[yp * width + x] - Ix[ym * width + x]);
+  Iyy[idx] = 0.5f * (Iy[yp * width + x] - Iy[ym * width + x]);
+}
+
+// Fused data + edge weights + smoothness assemble (color constancy; gamma=0 path).
+__kernel void var_build_system(__global const float *Ix, __global const float *Iy,
+                               __global const float *Iz, __global const float *base_flow,
+                               __global const float *d_flow, __global float *A11,
+                               __global float *A12, __global float *A22, __global float *b1,
+                               __global float *b2, __global float *wh, __global float *wv,
+                               const int width, const int height, const float alpha,
+                               const float delta) {
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+  const int idx = y * width + x;
+  const float zeta2 = 0.01f;
+  const float eps2 = 1.0e-4f;
+  const float delta2 = 0.5f * delta;
+  const float alpha2 = 0.5f * alpha;
+  const float pIx = Ix[idx], pIy = Iy[idx], pIz = Iz[idx];
+  const float pdU = d_flow[idx * 2];
+  const float pdV = d_flow[idx * 2 + 1];
+  const float derivNorm = pIx * pIx + pIy * pIy + zeta2;
+  const float Ik1z = pIz + pIx * pdU + pIy * pdV;
+  const float weight = (delta2 / sqrt(Ik1z * Ik1z / derivNorm + eps2)) / derivNorm;
+  float a11 = weight * (pIx * pIx) + zeta2;
+  float a12 = weight * (pIx * pIy);
+  float a22 = weight * (pIy * pIy) + zeta2;
+  float pb1 = -weight * (pIz * pIx);
+  float pb2 = -weight * (pIz * pIy);
+
+  const float u = base_flow[idx * 2] + pdU;
+  const float v = base_flow[idx * 2 + 1] + pdV;
+  float whv = 0.0f, wvv = 0.0f;
+  if (x + 1 < width) {
+    const int r = idx + 1;
+    const float ur = base_flow[r * 2] + d_flow[r * 2];
+    const float vr = base_flow[r * 2 + 1] + d_flow[r * 2 + 1];
+    const int d = min(y + 1, height - 1) * width + x;
+    const float ud = base_flow[d * 2] + d_flow[d * 2];
+    const float vd = base_flow[d * 2 + 1] + d_flow[d * 2 + 1];
+    const float ux = ur - u, vx = vr - v, uy = ud - u, vy = vd - v;
+    whv = alpha2 / sqrt(ux * ux + vx * vx + uy * uy + vy * vy + eps2);
+  }
+  if (y + 1 < height) {
+    const int d = (y + 1) * width + x;
+    const float ud = base_flow[d * 2] + d_flow[d * 2];
+    const float vd = base_flow[d * 2 + 1] + d_flow[d * 2 + 1];
+    const int r = y * width + min(x + 1, width - 1);
+    const float ur = base_flow[r * 2] + d_flow[r * 2];
+    const float vr = base_flow[r * 2 + 1] + d_flow[r * 2 + 1];
+    const float ux = ur - u, vx = vr - v, uy = ud - u, vy = vd - v;
+    wvv = alpha2 / sqrt(ux * ux + vx * vx + uy * uy + vy * vy + eps2);
+  }
+  wh[idx] = whv;
+  wv[idx] = wvv;
+
+  // Smoothness assemble needs neighbor edge weights — second small pass.
+  A11[idx] = a11;
+  A12[idx] = a12;
+  A22[idx] = a22;
+  b1[idx] = pb1;
+  b2[idx] = pb2;
+}
+
+__kernel void var_add_smoothness(__global const float *base_flow, __global const float *wh,
+                                 __global const float *wv, __global float *A11, __global float *A22,
+                                 __global float *b1, __global float *b2, const int width,
+                                 const int height) {
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+  const int idx = y * width + x;
+  const float u = base_flow[idx * 2];
+  const float v = base_flow[idx * 2 + 1];
+  float a11 = A11[idx];
+  float a22 = A22[idx];
+  float pb1 = b1[idx];
+  float pb2 = b2[idx];
+  if (x + 1 < width) {
+    const float w = wh[idx];
+    const int r = idx + 1;
+    a11 += w;
+    a22 += w;
+    pb1 += w * (base_flow[r * 2] - u);
+    pb2 += w * (base_flow[r * 2 + 1] - v);
+  }
+  if (x > 0) {
+    const float w = wh[idx - 1];
+    const int l = idx - 1;
+    a11 += w;
+    a22 += w;
+    pb1 -= w * (u - base_flow[l * 2]);
+    pb2 -= w * (v - base_flow[l * 2 + 1]);
+  }
+  if (y + 1 < height) {
+    const float w = wv[idx];
+    const int d = (y + 1) * width + x;
+    a11 += w;
+    a22 += w;
+    pb1 += w * (base_flow[d * 2] - u);
+    pb2 += w * (base_flow[d * 2 + 1] - v);
+  }
+  if (y > 0) {
+    const float w = wv[(y - 1) * width + x];
+    const int uidx = (y - 1) * width + x;
+    a11 += w;
+    a22 += w;
+    pb1 -= w * (u - base_flow[uidx * 2]);
+    pb2 -= w * (v - base_flow[uidx * 2 + 1]);
+  }
+  A11[idx] = a11;
+  A22[idx] = a22;
+  b1[idx] = pb1;
+  b2[idx] = pb2;
+}
+
+// In-place red-black SOR on d_flow. color=0 → (x+y) even; color=1 → odd.
+__kernel void var_sor_rb(__global const float *A11, __global const float *A12,
+                         __global const float *A22, __global const float *b1,
+                         __global const float *b2, __global const float *wh,
+                         __global const float *wv, __global float *d_flow, const int width,
+                         const int height, const int color, const float omega) {
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+  if (((x + y) & 1) != color)
+    return;
+  const int idx = y * width + x;
+  float sigmaU = 0.0f, sigmaV = 0.0f;
+  if (x > 0) {
+    const float w = wh[idx - 1];
+    const int l = (idx - 1) * 2;
+    sigmaU += w * d_flow[l];
+    sigmaV += w * d_flow[l + 1];
+  }
+  if (x + 1 < width) {
+    const float w = wh[idx];
+    const int r = (idx + 1) * 2;
+    sigmaU += w * d_flow[r];
+    sigmaV += w * d_flow[r + 1];
+  }
+  if (y > 0) {
+    const float w = wv[(y - 1) * width + x];
+    const int u = ((y - 1) * width + x) * 2;
+    sigmaU += w * d_flow[u];
+    sigmaV += w * d_flow[u + 1];
+  }
+  if (y + 1 < height) {
+    const float w = wv[idx];
+    const int d = ((y + 1) * width + x) * 2;
+    sigmaU += w * d_flow[d];
+    sigmaV += w * d_flow[d + 1];
+  }
+  float du = d_flow[idx * 2];
+  float dv = d_flow[idx * 2 + 1];
+  const float a11 = A11[idx];
+  const float a12 = A12[idx];
+  const float a22 = A22[idx];
+  du += omega * ((sigmaU + b1[idx] - dv * a12) / a11 - du);
+  dv += omega * ((sigmaV + b2[idx] - du * a12) / a22 - dv);
+  d_flow[idx * 2] = du;
+  d_flow[idx * 2 + 1] = dv;
 }
 
 __kernel void add_flow_increment(__global float *flow, __global const float *d_flow, const int n) {

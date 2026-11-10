@@ -656,6 +656,16 @@ is convenience-only and slower.
 mid-prop / mean-all / dense median; softmin densify; sparse patch median;
 `prop=3` (~42.0% but ~5.7×); `gd=6+prop=3`; mean@finest+1 (~5.97×).
 
+**OpenCV-style Brox red-black SOR (implemented, Fast off):** dense-layout
+RB-SOR + color-constancy data term + robust smoothness, finest-only.
+| Config | Fl-all (50-pair) | × @720p |
+|--------|------------------|---------|
+| Fast costw only (product) | **~42.3%** | **~6.1×** |
+| + RB outer=1 sor=1 | ~41.6–42.1% | ~4.8–5.0× |
+| + RB outer=2 sor=5 (near-OpenCV budget) | **~39.7%** | ~3.2× |
+Useful quality (~−2.6pp vs costw at full RB) but **does not meet ≥6×**;
+leave wired behind `variational_refinement` for Medium/quality experiments.
+
 SEA-RAFT remains the path to **beat** NVOFA Fl-all (P2).
 
 
@@ -759,7 +769,7 @@ is faster; Fl-all is worse under our native-res harness.
 | dlstreamer `gvaopticalflow` upstream PR + monorepo pin | P3 deferred | Local `feat/gvaopticalflow` only; no PR yet |
 | Native DL Streamer `gvatrack` / `gvawatermark` plugins on lab | P3 optional | Standalone chain smoke **PASS** (`flow_full_chain.py`); install plugins for bit-identical element names |
 | Extra SEA-RAFT IR resolution/FPS benches | P4 optional | Preset notes already in `docs/sea_raft.md` |
-| DIS Fast speed under NVOFA-competitive quality | P4 active | Fast: deep pyr + mean-norm@finest + prop@finest + `stride=6`/`gd=8` + costw densify `1/(c²+1)`. Resident **~6.1× @720p** / **~5.7× @1080p**; KITTI Fl-all **~42.3%** (50-pair) vs NVOFA Fast **~34%**. Gap ~8pp; heavier match/RB-var / SEA-RAFT for the rest |
+| DIS Fast speed under NVOFA-competitive quality | P4 active | Fast: deep pyr + mean-norm@finest + prop@finest + `stride=6`/`gd=8` + costw densify. **~6.1× / ~42.3%**. Brox RB-SOR landed but Fast-off (~39.7%@~3.2×); gap to NVOFA ~8pp → SEA-RAFT / heavier budget |
 | Tighten Farneback vs OpenCV numerical gates | Non-blocking | Soft honesty harness remains |
 | Classical DIS §8 pairwise/Fl-all vs OpenCV | Not a product gate | Honesty table only; compete with **NVOFA Fl-all**, SEA-RAFT owns beating NVOFA |
 | Stock Ubuntu media-driver upgrade on ARL lab | Ops | User-local 26.4.2 works; distro 24.1 iHD still broken |

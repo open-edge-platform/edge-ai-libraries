@@ -108,7 +108,11 @@ struct OpenCLContext {
   cl_kernel k_normalize_flow = nullptr;
   cl_kernel k_zero_float = nullptr;
   cl_kernel k_zero_flow = nullptr;
-  cl_kernel k_variational_refine_jacobi = nullptr;
+  cl_kernel k_var_prepare_derivs = nullptr;
+  cl_kernel k_var_spatial_derivs = nullptr;
+  cl_kernel k_var_build_system = nullptr;
+  cl_kernel k_var_add_smoothness = nullptr;
+  cl_kernel k_var_sor_rb = nullptr;
   cl_kernel k_add_flow_increment = nullptr;
   cl_kernel k_warp_u8_flow = nullptr;
 
@@ -212,7 +216,11 @@ struct OpenCLContext {
     k_normalize_flow = make_kernel("normalize_flow");
     k_zero_float = make_kernel("zero_float");
     k_zero_flow = make_kernel("zero_flow");
-    k_variational_refine_jacobi = make_kernel("variational_refine_jacobi");
+    k_var_prepare_derivs = make_kernel("var_prepare_derivs");
+    k_var_spatial_derivs = make_kernel("var_spatial_derivs");
+    k_var_build_system = make_kernel("var_build_system");
+    k_var_add_smoothness = make_kernel("var_add_smoothness");
+    k_var_sor_rb = make_kernel("var_sor_rb");
     k_add_flow_increment = make_kernel("add_flow_increment");
     k_warp_u8_flow = make_kernel("warp_u8_flow");
   }
@@ -238,7 +246,11 @@ struct OpenCLContext {
     release_k(k_normalize_flow);
     release_k(k_zero_float);
     release_k(k_zero_flow);
-    release_k(k_variational_refine_jacobi);
+    release_k(k_var_prepare_derivs);
+    release_k(k_var_spatial_derivs);
+    release_k(k_var_build_system);
+    release_k(k_var_add_smoothness);
+    release_k(k_var_sor_rb);
     release_k(k_add_flow_increment);
     release_k(k_warp_u8_flow);
     if (program)
@@ -307,10 +319,64 @@ struct Workspace {
   cl_mem patch_v2 = nullptr;
   cl_mem patch_c2 = nullptr;
   int patch_capacity = 0;
+  // Brox RB-SOR scratch (sized on demand to active var level).
+  int var_w = 0;
+  int var_h = 0;
+  cl_mem var_Ix = nullptr, var_Iy = nullptr, var_Iz = nullptr;
+  cl_mem var_Ixx = nullptr, var_Ixy = nullptr, var_Iyy = nullptr;
+  cl_mem var_Ixz = nullptr, var_Iyz = nullptr, var_Iavg = nullptr;
+  cl_mem var_A11 = nullptr, var_A12 = nullptr, var_A22 = nullptr;
+  cl_mem var_b1 = nullptr, var_b2 = nullptr, var_wh = nullptr, var_wv = nullptr;
   std::vector<int> widths;
   std::vector<int> heights;
 
   ~Workspace() { clear(); }
+
+  void clear_var() {
+    release_mem(var_Ix);
+    release_mem(var_Iy);
+    release_mem(var_Iz);
+    release_mem(var_Ixx);
+    release_mem(var_Ixy);
+    release_mem(var_Iyy);
+    release_mem(var_Ixz);
+    release_mem(var_Iyz);
+    release_mem(var_Iavg);
+    release_mem(var_A11);
+    release_mem(var_A12);
+    release_mem(var_A22);
+    release_mem(var_b1);
+    release_mem(var_b2);
+    release_mem(var_wh);
+    release_mem(var_wv);
+    var_w = var_h = 0;
+  }
+
+  void ensure_var(OpenCLContext &ctx, int w, int h) {
+    if (var_w == w && var_h == h && var_Ix)
+      return;
+    clear_var();
+    var_w = w;
+    var_h = h;
+    const std::size_t bytes = static_cast<std::size_t>(w) * h * sizeof(float);
+    auto mk = [&]() { return create_buffer(ctx.context, CL_MEM_READ_WRITE, bytes); };
+    var_Ix = mk();
+    var_Iy = mk();
+    var_Iz = mk();
+    var_Ixx = mk();
+    var_Ixy = mk();
+    var_Iyy = mk();
+    var_Ixz = mk();
+    var_Iyz = mk();
+    var_Iavg = mk();
+    var_A11 = mk();
+    var_A12 = mk();
+    var_A22 = mk();
+    var_b1 = mk();
+    var_b2 = mk();
+    var_wh = mk();
+    var_wv = mk();
+  }
 
   void clear() {
     release_mem(prev_u8);
@@ -341,6 +407,7 @@ struct Workspace {
     release_mem(patch_u2);
     release_mem(patch_v2);
     release_mem(patch_c2);
+    clear_var();
     pyr0.clear();
     pyr1.clear();
     flow.clear();
@@ -434,7 +501,7 @@ struct OpenCLOpticalFlow::Impl {
   float var_alpha = 20.0f;
   float var_delta = 5.0f;
   float var_gamma = 10.0f;
-  float var_omega = 1.0f; // Jacobi-safe; OpenCV uses 1.6 only with red-black SOR
+  float var_omega = 1.6f; // OpenCV RB-SOR default
   mutable std::mutex mutex;
   mutable Workspace workspace;
 };
@@ -450,14 +517,15 @@ OpenCLOpticalFlow::OpenCLOpticalFlow(Preset preset) : impl_(std::make_unique<Imp
     impl_->coarsest_scale = 5;
     impl_->finest_scale = 2;
     impl_->gradient_descent_iters = 8;
-    // Best KITTI quality is DIS-only (deep pyr + mean-norm); GPU Jacobi var regresses Fl-all.
+    // RB Brox-SOR is implemented (finest-only) but breaks ≥6× at useful iters; Fast stays DIS+costw.
+    // Measured: outer2/sor5 → ~39.7% Fl-all @~3.2×; outer1/sor1 → ~41.6–42.1% @~4.8–5.0×.
     impl_->variational_refinement = false;
-    impl_->var_outer_iters = 1;
+    impl_->var_outer_iters = 2;
     impl_->var_inner_iters = 5;
     impl_->var_alpha = 20.0f;
     impl_->var_delta = 5.0f;
     impl_->var_gamma = 10.0f;
-    impl_->var_omega = 1.0f;
+    impl_->var_omega = 1.6f;
     break;
   case Preset::Medium:
     // Match OpenCV DIS PRESET_MEDIUM (finest=1).
@@ -809,47 +877,107 @@ void OpenCLOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowF
 namespace {
 
 void run_variational_refine(OpenCLContext &ctx, Workspace &ws, int scale, int outer_iters,
-                            int inner_iters, float alpha, float delta, float gamma, float omega) {
+                            int inner_iters, float alpha, float delta, float /*gamma*/,
+                            float omega) {
   const int w = ws.widths[scale];
   const int h = ws.heights[scale];
   const int n2 = w * h * 2;
+  ws.ensure_var(ctx, w, h);
+  cl_mem d = ws.flow_tmp[scale];
+  cl_mem base = ws.flow[scale];
+
+  int arg = 0;
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.pyr0[scale]), "vp0");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.pyr1[scale]), "vp1");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &base), "vpbase");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.var_Ix), "vpIx");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.var_Iy), "vpIy");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.var_Iz), "vpIz");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.var_Ixx), "vpIxx");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.var_Ixy), "vpIxy");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.var_Iyy), "vpIyy");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.var_Ixz), "vpIxz");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.var_Iyz), "vpIyz");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(cl_mem), &ws.var_Iavg), "vpavg");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(int), &w), "vpw");
+  check_cl(clSetKernelArg(ctx.k_var_prepare_derivs, arg++, sizeof(int), &h), "vph");
+  enqueue_2d(ctx.queue, ctx.k_var_prepare_derivs, w, h);
+
+  arg = 0;
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(cl_mem), &ws.var_Iavg), "vsavg");
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(cl_mem), &ws.var_Iz), "vsIz");
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(cl_mem), &ws.var_Ix), "vsIx");
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(cl_mem), &ws.var_Iy), "vsIy");
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(cl_mem), &ws.var_Ixx), "vsIxx");
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(cl_mem), &ws.var_Ixy), "vsIxy");
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(cl_mem), &ws.var_Iyy), "vsIyy");
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(cl_mem), &ws.var_Ixz), "vsIxz");
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(cl_mem), &ws.var_Iyz), "vsIyz");
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(int), &w), "vsw");
+  check_cl(clSetKernelArg(ctx.k_var_spatial_derivs, arg++, sizeof(int), &h), "vsh");
+  enqueue_2d(ctx.queue, ctx.k_var_spatial_derivs, w, h);
+
+  check_cl(clSetKernelArg(ctx.k_zero_flow, 0, sizeof(cl_mem), &d), "zero d");
+  check_cl(clSetKernelArg(ctx.k_zero_flow, 1, sizeof(int), &n2), "zero d n");
+  enqueue_1d(ctx.queue, ctx.k_zero_flow, n2);
+
   for (int outer = 0; outer < outer_iters; ++outer) {
-    check_cl(clSetKernelArg(ctx.k_zero_flow, 0, sizeof(cl_mem), &ws.flow_tmp[scale]), "zero d");
-    check_cl(clSetKernelArg(ctx.k_zero_flow, 1, sizeof(int), &n2), "zero d n");
-    enqueue_1d(ctx.queue, ctx.k_zero_flow, n2);
-    cl_mem d_a = ws.flow_tmp[scale];
-    cl_mem d_b = ws.flow_d2[scale];
-    for (int inner = 0; inner < inner_iters; ++inner) {
-      int arg = 0;
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(cl_mem), &ws.pyr0[scale]),
-               "var I0");
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(cl_mem), &ws.pyr1[scale]),
-               "var I1");
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(cl_mem), &ws.flow[scale]),
-               "var base");
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(cl_mem), &d_a), "var din");
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(cl_mem), &d_b),
-               "var dout");
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(int), &w), "var w");
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(int), &h), "var h");
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(float), &alpha),
-               "var alpha");
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(float), &delta),
-               "var delta");
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(float), &gamma),
-               "var gamma");
-      check_cl(clSetKernelArg(ctx.k_variational_refine_jacobi, arg++, sizeof(float), &omega),
-               "var omega");
-      enqueue_2d(ctx.queue, ctx.k_variational_refine_jacobi, w, h);
-      std::swap(d_a, d_b);
+    arg = 0;
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &ws.var_Ix), "vbIx");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &ws.var_Iy), "vbIy");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &ws.var_Iz), "vbIz");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &base), "vbbase");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &d), "vbd");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &ws.var_A11), "vbA11");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &ws.var_A12), "vbA12");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &ws.var_A22), "vbA22");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &ws.var_b1), "vbb1");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &ws.var_b2), "vbb2");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &ws.var_wh), "vbwh");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(cl_mem), &ws.var_wv), "vbwv");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(int), &w), "vbw");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(int), &h), "vbh");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(float), &alpha), "vba");
+    check_cl(clSetKernelArg(ctx.k_var_build_system, arg++, sizeof(float), &delta), "vbdlt");
+    enqueue_2d(ctx.queue, ctx.k_var_build_system, w, h);
+
+    arg = 0;
+    check_cl(clSetKernelArg(ctx.k_var_add_smoothness, arg++, sizeof(cl_mem), &base), "vasbase");
+    check_cl(clSetKernelArg(ctx.k_var_add_smoothness, arg++, sizeof(cl_mem), &ws.var_wh), "vaswh");
+    check_cl(clSetKernelArg(ctx.k_var_add_smoothness, arg++, sizeof(cl_mem), &ws.var_wv), "vaswv");
+    check_cl(clSetKernelArg(ctx.k_var_add_smoothness, arg++, sizeof(cl_mem), &ws.var_A11), "vasA11");
+    check_cl(clSetKernelArg(ctx.k_var_add_smoothness, arg++, sizeof(cl_mem), &ws.var_A22), "vasA22");
+    check_cl(clSetKernelArg(ctx.k_var_add_smoothness, arg++, sizeof(cl_mem), &ws.var_b1), "vasb1");
+    check_cl(clSetKernelArg(ctx.k_var_add_smoothness, arg++, sizeof(cl_mem), &ws.var_b2), "vasb2");
+    check_cl(clSetKernelArg(ctx.k_var_add_smoothness, arg++, sizeof(int), &w), "vasw");
+    check_cl(clSetKernelArg(ctx.k_var_add_smoothness, arg++, sizeof(int), &h), "vash");
+    enqueue_2d(ctx.queue, ctx.k_var_add_smoothness, w, h);
+
+    for (int sor = 0; sor < inner_iters; ++sor) {
+      for (int color = 0; color < 2; ++color) {
+        arg = 0;
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(cl_mem), &ws.var_A11), "sorA11");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(cl_mem), &ws.var_A12), "sorA12");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(cl_mem), &ws.var_A22), "sorA22");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(cl_mem), &ws.var_b1), "sorb1");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(cl_mem), &ws.var_b2), "sorb2");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(cl_mem), &ws.var_wh), "sorwh");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(cl_mem), &ws.var_wv), "sorwv");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(cl_mem), &d), "sord");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(int), &w), "sorw");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(int), &h), "sorh");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(int), &color), "sorc");
+        check_cl(clSetKernelArg(ctx.k_var_sor_rb, arg++, sizeof(float), &omega), "soro");
+        enqueue_2d(ctx.queue, ctx.k_var_sor_rb, w, h);
+      }
     }
-    int arg = 0;
-    check_cl(clSetKernelArg(ctx.k_add_flow_increment, arg++, sizeof(cl_mem), &ws.flow[scale]),
-             "add flow");
-    check_cl(clSetKernelArg(ctx.k_add_flow_increment, arg++, sizeof(cl_mem), &d_a), "add d");
-    check_cl(clSetKernelArg(ctx.k_add_flow_increment, arg++, sizeof(int), &n2), "add n");
-    enqueue_1d(ctx.queue, ctx.k_add_flow_increment, n2);
   }
+
+  arg = 0;
+  check_cl(clSetKernelArg(ctx.k_add_flow_increment, arg++, sizeof(cl_mem), &base), "add flow");
+  check_cl(clSetKernelArg(ctx.k_add_flow_increment, arg++, sizeof(cl_mem), &d), "add d");
+  check_cl(clSetKernelArg(ctx.k_add_flow_increment, arg++, sizeof(int), &n2), "add n");
+  enqueue_1d(ctx.queue, ctx.k_add_flow_increment, n2);
 }
 
 void run_opencl_dis(OpenCLContext &ctx, Workspace &ws, int patch_size, int patch_stride,
@@ -1030,7 +1158,8 @@ void run_opencl_dis(OpenCLContext &ctx, Workspace &ws, int patch_size, int patch
       seti(ctx.k_densify_from_patches, n_gx);
       seti(ctx.k_densify_from_patches, n_gy);
       enqueue_2d(ctx.queue, ctx.k_densify_from_patches, w, h);
-      if (variational)
+      // Fast: RB-SOR only at finest (coarse levels already cheap DIS).
+      if (variational && (preset != Preset::Fast || scale == finest_scale))
         run_variational_refine(ctx, ws, scale, var_outer, var_inner, var_alpha, var_delta,
                                var_gamma, var_omega);
       continue;
@@ -1072,7 +1201,7 @@ void run_opencl_dis(OpenCLContext &ctx, Workspace &ws, int patch_size, int patch
     setm(ctx.k_normalize_flow, ws.cost[scale]);
     seti(ctx.k_normalize_flow, pix);
     enqueue_1d(ctx.queue, ctx.k_normalize_flow, pix);
-    if (variational)
+    if (variational && (preset != Preset::Fast || scale == finest_scale))
       run_variational_refine(ctx, ws, scale, var_outer, var_inner, var_alpha, var_delta, var_gamma,
                              var_omega);
   }
