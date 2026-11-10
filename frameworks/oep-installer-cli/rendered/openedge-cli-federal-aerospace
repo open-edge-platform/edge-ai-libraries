@@ -70,8 +70,7 @@ main () {
         _rc=$?
       else
         # save args for resume
-        ensure_prop create /
-        ensure_prop set command "$*"
+        ensure_prop set command "$*" --create
 
         # critical group permissions
         local -A _groups=()
@@ -373,7 +372,6 @@ do
     [[ " $all_modules_str " != *" $m "* ]] || rmods+=("$m");
 done
 [ ${#rmods[*]} -gt 0 ] && echo "${rmods[*]}" || echo "${handles[0]#*_*_*_}" ) || echo "$all_modules_str")) _pair _h _m;
-            echo "modules=${modules[*]}" 1>&2;
             for handler in ${handles[*]};
             do
                 name1=${handler#*_*_*_};
@@ -5685,26 +5683,27 @@ ensure_project_path ()
 }
 ensure_prop () 
 { 
-    local op="$1" key_path="${2:?}" value="${3:-}";
+    local op="$1" key_rpath="${2:?}" value="${3:-}";
     local key_base="$(ensure_project_path)/${installer_name:?}";
+    local key_path="$key_base/$key_rpath";
     case "$op" in 
         find)
-            ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
+            ( cd "$key_base" && find . -ipath "./$key_rpath" -print 2> /dev/null | cut -f2- -d/ )
         ;;
         create)
-            mkdir -m 700 -p "$key_base/${key_path%/*}"
+            mkdir -m 700 -p "${key_path%/*}"
         ;;
         remove)
-            if [ -f "$key_base/$key_path" ]; then
-                rm -f "$key_base/$key_path";
+            if [ -f "$key_path" ]; then
+                rm -f "$key_path";
             else
-                if [[ "$key_path" = */ && -d "$key_base/${key_path%/}" ]]; then
-                    rm -rf "$key_base/${key_path%/}";
+                if [[ "$key_rpath" = */ && -d "${key_path%/}" ]]; then
+                    rm -rf "${key_path%/}";
                 fi;
             fi
         ;;
         get)
-            [ ! -r "$key_base/$key_path" ] || value="$(< "$key_base/$key_path")";
+            [ ! -r "$key_path" ] || value="$(< "$key_path")";
             if ensure_parse_option --boolean "$@"; then
                 [[ " true yes t y a accept " = *" ${value,,} "* ]] && value="true" || value="false";
             fi;
@@ -5730,8 +5729,11 @@ ensure_prop ()
                     value="$("$askpass_helper" "$prompt" | tr -d '\n')"
                 } 9< "$rundir";
             fi;
+            if ensure_parse_option --create "$@"; then
+                mkdir -m 700 -p "${key_path%/*}";
+            fi;
             ( umask 077;
-            printf '%s' "$value" > "$key_base/$key_path" )
+            printf '%s' "$value" > "$key_path" )
         ;;
     esac
 }
@@ -5839,8 +5841,7 @@ ensure_sudo ()
                     sleep 60;
                 done;
                 ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
-                ensure_prop create pids/sudo/pid$ppid;
-                ensure_prop set pids/sudo/pid$ppid "$pid";
+                ensure_prop set pids/sudo/pid$ppid "$pid" --create;
                 disown $pid;
             fi;
         fi;
