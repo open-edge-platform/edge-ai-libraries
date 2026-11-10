@@ -89,6 +89,8 @@ class TestCapabilitiesEndpoint:
         assert "categories" in payload
         assert "platform" in payload
         assert "devices" in payload
+        assert isinstance(payload["platform"]["hostname"], str)
+        assert payload["platform"]["hostname"]
         assert "system_memory" in payload["platform"]
         assert "device_summary" in payload["platform"]
         assert "platform_overview" in payload["categories"]
@@ -131,6 +133,9 @@ class TestCapabilitiesEndpoint:
     ):
         monkeypatch.delenv("METRICS_MANAGER_HOSTNAME", raising=False)
 
+        # Capture the real implementation BEFORE patching. Referring to
+        # capabilities._read_text inside the fake would resolve to the patched
+        # name (i.e. the fake itself) and recurse forever.
         # Keep the original reader so the fake does not call itself.
         real_read_text = capabilities._read_text
 
