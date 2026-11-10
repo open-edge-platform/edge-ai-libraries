@@ -2358,7 +2358,7 @@ configure_dlstreamer ()
     list_file=/etc/apt/sources.list.d/intel-dlstreamer.list;
     repository=https://github.com/open-edge-platform/dlstreamer;
     workspace="$(ensure_project_path)/dlstreamer";
-    version="$(ensure_parse_value_option version --version=2026.3.0 "$@")";
+    version="$(ensure_parse_value_option version --version=2026.2.0 "$@")";
     od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
     od_model_proc=yolov5m-640_INT8/yolo-v5;
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
