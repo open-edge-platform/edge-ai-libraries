@@ -17,11 +17,11 @@
   },
   "getStarted": {
     "text": "Get Started",
-    "link": "https://docs.openedgeplatform.intel.com/2026.3/ai-libraries.html"
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-libraries.html"
   },
   "resources": [
-    { "text": "DL Streamer", "url": "https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/index.html" },
-    { "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)", "url": "https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html" },
+    { "text": "DL Streamer", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html" },
+    { "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html" },
     { "text": "Intel Geti", "url": "https://github.com/open-edge-platform/geti" },
     { "text": "Anomalib", "url": "https://github.com/open-edge-platform/anomalib" }
   ]

@@ -15,9 +15,9 @@
   },
   "getStarted": {
     "text": "Get Started",
-    "link": "https://docs.openedgeplatform.intel.com/2026.3/ai-suite-fed-aero.html"
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
   },
   "resources": [
-    { "text": "Uncrewed Aerial Vehicle - Vision Analytics", "url": "https://docs.openedgeplatform.intel.com/2026.3/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html" }
+    { "text": "Uncrewed Aerial Vehicle - Vision Analytics", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html" }
   ]
 }
