@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 cmake_minimum_required(VERSION 3.16)
 project(gvaopticalflow_standalone LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
