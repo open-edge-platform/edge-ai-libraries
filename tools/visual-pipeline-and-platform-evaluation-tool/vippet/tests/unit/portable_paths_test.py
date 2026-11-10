@@ -161,7 +161,7 @@ class TestPortableProperties(unittest.TestCase):
                 )
 
     def test_ts_conversion_quotes_paths(self):
-        with patch("videos.PipelineRunner") as runner:
+        with patch("videos.Dlsps2PipelineRunner") as runner:
             for extension in ("mp4", "264"):
                 source = rf"C:\video files\clip!.{extension}"
                 target = r"C:\video files\clip!.ts"
