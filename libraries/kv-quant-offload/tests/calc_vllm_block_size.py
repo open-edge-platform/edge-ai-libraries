@@ -2,7 +2,7 @@
 """Report the hybrid KV-cache block size selected by this vLLM build.
 
 Example matching an API-server launch:
-    python auto.py /llm/models/Qwen3.5-35B-A3B \
+    python tests/calc_vllm_block_size.py /llm/models/Qwen3.5-35B-A3B \
         --dtype float16 --tp-size 1 --block-size 1024 --ma-mode align \
         --enable-prefix-caching
 """
@@ -33,6 +33,10 @@ def get_vllm_config(args: argparse.Namespace):
 
 def update_hybrid_block_size(vllm_config) -> None:
     """Invoke the same vLLM function used after model loading on XPU."""
+    layer_types = getattr(vllm_config.model_config.hf_text_config, "layer_types", ())
+    if "linear_attention" not in layer_types:
+        return
+
     from vllm.platforms import current_platform
     from vllm.v1.attention.backends.flash_attn import FlashAttentionBackend
 
@@ -41,10 +45,6 @@ def update_hybrid_block_size(vllm_config) -> None:
         FlashAttentionBackend,
     )
     if current_platform.device_type != "xpu":
-        return
-
-    layer_types = vllm_config.model_config.hf_text_config.layer_types
-    if "linear_attention" not in layer_types:
         return
 
     # Mirror XPUPlatform.update_block_size_for_backend's GDN post-processing.
@@ -81,7 +81,7 @@ def main() -> None:
     initial_block_size = cache_config.block_size
     update_hybrid_block_size(vllm_config)
 
-    block_size = cache_config.block_size
+    block_size = max(cache_config.block_size, 512)
     chunk_size = block_size * args.chunk_multiplier
     print(f"model                  : {args.model_dir}")
     print(f"model type             : {vllm_config.model_config.hf_text_config.model_type}")

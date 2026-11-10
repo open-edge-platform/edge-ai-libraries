@@ -26,22 +26,70 @@ void MotionKernel::runCycle(const mcLREAL master_ref_pos,
                             const mcLREAL axis_ref_pos,
                             const mcLREAL axis_ref_vel,
                             const mcLREAL axis_ref_acc, MC_AXIS_STATES* state,
-                            OverrideFactors& override_factors)
+                            OverrideFactors& override_factors,
+                            mcBOOL superimposed_enabled)
 {
   // FB queue process
   if (!fb_queue_.empty())
   {
+    if (fb_queue_.size() > 1 &&
+        fb_queue_.front()->isGearSynchronized() == mcTRUE)
+    {
+      // PLCopen 2.4.2 uses InGear as the buffered handoff boundary.
+      // Without a successor, the synchronized node keeps following the master.
+      ExecutionNode* gear = fb_queue_.front();
+      gear->onCommandAborted();
+      // Leave removal to the normal abort path so the successor is activated
+      // (including its axis state and overrides) before checking completion.
+      mcLREAL start_pos = axis_ref_pos;
+      mcLREAL start_vel = axis_ref_vel;
+      mcLREAL start_acc = axis_ref_acc;
+      // Rebase relative successors on the actual handoff, preserving any
+      // blending velocities already selected between the queued moves.
+      for (auto* node : fb_queue_)
+      {
+        if (node == gear)
+          continue;
+        const mcLREAL end_vel = node->getEndVel();
+        setNodeStartState(node, start_pos, start_vel, start_acc,
+                          node->getEndAcc());
+        node->setEndVel(end_vel);
+        start_pos = node->getEndPos();
+        start_vel = end_vel;
+        start_acc = node->getEndAcc();
+      }
+    }
     ExecutionNode* fb_front = fb_queue_.front();
+    if (fb_front->isStoppingOnError() == mcTRUE)
+    {
+      // Include commands queued after the cycle that detected the fault.
+      while (fb_queue_.size() > 1)
+      {
+        ExecutionNode* pending = fb_queue_.back();
+        pending->onCommandAborted();
+        pending->taken_ = mcFALSE;
+        fb_queue_.pop_back();
+      }
+    }
     DEBUG_PRINT("MotionKernel::runCycle fb_queue_ is not empty %p.\n",
                 (void*)fb_front);
 
+    // Restore temporary entry targets or start deferred outgoing blends before
+    // checking completion against the node's current endpoint.
+    fb_front->applyBlendReplanIfDue(axis_ref_pos, axis_ref_vel, axis_ref_acc);
+
     // Check if the motion kernel mission is done
-    if (fb_front->checkMissionDone(axis_ref_pos, axis_ref_vel) == mcTRUE)
+    if (fb_front->isActive() == mcTRUE && fb_front->isAborted() == mcFALSE &&
+        fb_front->isError() == mcFALSE &&
+        fb_front->checkMissionDone(axis_ref_pos, axis_ref_vel) == mcTRUE)
       fb_front->onDone(state);
 
     // If the first FB is aborted or in error, remove it from the execution
     // queue
-    if (fb_front->isAborted() == mcTRUE || fb_front->isError() == mcTRUE)
+    if (fb_front->isAborted() == mcTRUE ||
+        (fb_front->isError() == mcTRUE &&
+         (fb_front->isStoppingOnError() == mcFALSE ||
+          fb_front->isDone() == mcTRUE || fb_front->isActive() == mcFALSE)))
     {
       DEBUG_PRINT("Abort front FB %p.\n", (void*)fb_front);
       fb_front->taken_ = mcFALSE;
@@ -49,7 +97,7 @@ void MotionKernel::runCycle(const mcLREAL master_ref_pos,
     }
 
     // If the first FB is done, move it to be hold
-    if (fb_front->isDone() == mcTRUE)
+    else if (fb_front->isDone() == mcTRUE)
     {
       if (fb_hold_)
       {
@@ -71,23 +119,11 @@ void MotionKernel::runCycle(const mcLREAL master_ref_pos,
       DEBUG_PRINT("Front node is active? %d, is enabled? %d.\n",
                   fb_front->isActive() == mcTRUE,
                   fb_front->getAxisNodeInstance()->isEnabled() == mcTRUE);
-      if (fb_front->isActive() == mcFALSE &&
-          fb_front->getAxisNodeInstance()->isEnabled() == mcTRUE)
+      if (fb_front->isActive() == mcFALSE)
       {
-        // Blending handoff was seeded from the previous FB's idealized end
-        // target (addFBToQueue), which can differ slightly from the actual
-        // axis position/velocity at the crossing cycle; re-seed from real
-        // axis feedback here to avoid a handoff velocity glitch. The gap
-        // between the idealized and actual state grows with cycle time (a
-        // larger dt means more overshoot before checkMissionDone's crossing
-        // check fires), so this matters more at lower cycle rates.
-        if (fb_front->getBufferMode() != mcAborting &&
-            fb_front->getPlannerType() != mcPoly5 &&
-            fb_front->getPlannerType() != mcLine)
-        {
-          fb_front->setStartPos(axis_ref_pos);
-          fb_front->setStartVel(axis_ref_vel);
-        }
+        // Align the accepted node with the measured boundary state. An
+        // overspeed entry is staged so it does not dip below cruise velocity.
+        fb_front->prepareBlendEntry(axis_ref_pos, axis_ref_vel, axis_ref_acc);
         fb_front->updateOverrideFactors(override_factors);
         fb_front->onActive(state);  // Activate the first node from queue
       }
@@ -110,8 +146,33 @@ void MotionKernel::runCycle(const mcLREAL master_ref_pos,
           }
         }
         fb_front->onExecution(master_ref_pos, master_ref_vel);
+        if (fb_front->isStoppingOnError() == mcTRUE)
+        {
+          if (sup_move_node_ != nullptr)
+          {
+            // Stop from the last effective command, not the hidden
+            // underlying trajectory. Do not execute another overlay sample.
+            if (superimposed_enabled == mcTRUE)
+            {
+              mcLREAL position, velocity, acceleration;
+              sup_move_node_->getCommands(&position, &velocity, &acceleration);
+              fb_front->rebaseErrorStop(position, velocity, acceleration);
+            }
+            sup_move_node_->onCommandAborted();
+            sup_move_node_->taken_ = mcFALSE;
+            sup_move_node_         = nullptr;
+          }
+          MC_ERROR_CODE result = fb_front->changeAxisStates(
+              state,
+              fb_front->isActive() == mcFALSE ? mcErrorStop : mcStopping);
+          if (result == mcErrorCodeGood && fb_front->isDone() == mcTRUE)
+            result = fb_front->changeAxisStates(state, mcStandstill);
+          if (result != mcErrorCodeGood)
+            fb_front->onError(result);
+        }
         // check override state and replan the fb_front if it is overridden
-        if (override_factors.override_flag == mcTRUE)
+        if (override_factors.override_flag == mcTRUE &&
+            fb_front->isStoppingOnError() == mcFALSE)
         {
           fb_front->setReplan();
           fb_front->restart();
@@ -200,6 +261,12 @@ void MotionKernel::addFBToQueue(ExecutionNode* node, mcLREAL current_pos,
                                 mcLREAL current_vel, mcLREAL current_acc,
                                 mcLREAL end_acc)
 {
+  if (isStoppingOnError())
+  {
+    node->onError(mcErrorCodeAxisStateViolation);
+    node->taken_ = mcFALSE;
+    return;
+  }
   node->setReplan();
   DEBUG_PRINT("MotionKernel::addFBToQueue: current_pos: %f, current_vel: %f\n",
               current_pos, current_vel);
@@ -216,9 +283,18 @@ void MotionKernel::addFBToQueue(ExecutionNode* node, mcLREAL current_pos,
   {
     setNodeStartState(node, current_pos, current_vel, current_acc, end_acc);
   }
+  else if ((fb_queue_.back()->getMotionMode() == mcGearInMode ||
+            fb_queue_.back()->getMotionMode() == mcGearInPosMode) &&
+           node->getBufferMode() != mcAborting)
+  {
+    // Gearing has no finite endpoint to blend. Resolve the successor's
+    // start state again at synchronization, without changing the gear ramp.
+    setNodeStartState(node, current_pos, current_vel, current_acc, end_acc);
+  }
   else  // If queue is not empty, it's not possible to have a hold node
   {
-    ExecutionNode* fb_prev = fb_queue_.back();
+    ExecutionNode* fb_prev     = fb_queue_.back();
+    mcLREAL blend_end_velocity = fb_prev->getEndVel();
 
     // If not aborting, then set the end velocity of the previous FB
     switch (node->getBufferMode())
@@ -238,44 +314,57 @@ void MotionKernel::addFBToQueue(ExecutionNode* node, mcLREAL current_pos,
         setAllFBsAborted();
         break;
       case mcBlendingPrevious: {
-        fb_prev->setEndVel(fb_prev->getVelocity());
-        fb_prev->setReplan();
+        blend_end_velocity = fb_prev->getVelocity();
       }
       break;
       case mcBlendingNext: {
-        mcLREAL blend_vel = node->getVelocity();
-        // The planner rejects a target end-velocity that exceeds the node's
-        // own configured velocity limit (used as its max_velocity), so raise
-        // that limit to accommodate the blend instead of leaving it planted
-        // at move1's original (lower) velocity.
-        if (blend_vel > fb_prev->getVelocity())
-          fb_prev->setVelocity(blend_vel);
-        fb_prev->setEndVel(blend_vel);
-        fb_prev->setReplan();
+        blend_end_velocity = node->getVelocity();
       }
       break;
       case mcBlendingHigh: {
-        mcLREAL blend_vel = std::max(fb_prev->getVelocity(), node->getVelocity());
-        if (blend_vel > fb_prev->getVelocity())
-          fb_prev->setVelocity(blend_vel);
-        fb_prev->setEndVel(blend_vel);
-        fb_prev->setReplan();
+        blend_end_velocity =
+            std::max(fb_prev->getVelocity(), node->getVelocity());
       }
       break;
       case mcBlendingLow: {
-        fb_prev->setEndVel(
-            std::min(fb_prev->getVelocity(), node->getVelocity()));
-        fb_prev->setReplan();
+        blend_end_velocity =
+            std::min(fb_prev->getVelocity(), node->getVelocity());
       }
       break;
       default:
         break;
     }
 
+    if (node->getBufferMode() >= mcBlendingLow)
+    {
+      const mcLREAL velocity_delta =
+          fabs(blend_end_velocity) - fabs(current_vel);
+      if (fb_prev->isActive() == mcTRUE && velocity_delta > 0.0)
+      {
+        // Preserve the current cruise segment and accelerate only near the
+        // endpoint instead of replanning immediately when look-ahead arrives.
+        fb_prev->scheduleBlendReplan(current_pos, current_vel,
+                                     blend_end_velocity);
+      }
+      else
+      {
+        fb_prev->setEndVel(blend_end_velocity);
+        fb_prev->setVelocity(
+            std::max(fb_prev->getVelocity(), fabs(blend_end_velocity)));
+        if (fb_prev->isActive() == mcTRUE)
+        {
+          fb_prev->setStartPos(current_pos);
+          fb_prev->setStartVel(current_vel);
+          fb_prev->setStartAcc(current_acc);
+        }
+        fb_prev->setReplan();
+      }
+    }
+
     if (node->getBufferMode() != mcAborting)
     {
       node->setStartPos(fb_prev->getEndPos());
-      node->setStartVel(fb_prev->getEndVel());
+      node->setStartVel(blend_end_velocity);
       node->setStartAcc(0.0);
       node->setEndAcc(0.0);
       node->setTerminateCondition(fb_prev->getEndPos());
@@ -290,8 +379,14 @@ std::deque<ExecutionNode*>& MotionKernel::getQueuedMotions()
   return fb_queue_;
 }
 
+bool MotionKernel::isStoppingOnError() const
+{
+  return !fb_queue_.empty() && fb_queue_.front()->isStoppingOnError() == mcTRUE;
+}
+
 void MotionKernel::setAllFBsAborted()
 {
+  underlying_move_node_ = nullptr;
   while (!fb_queue_.empty())
   {
     ExecutionNode* fb = fb_queue_.front();
@@ -342,6 +437,12 @@ void MotionKernel::addSupMoveFB(ExecutionNode* node, mcLREAL current_pos,
                                 mcLREAL current_vel, mcLREAL current_acc,
                                 mcLREAL end_acc)
 {
+  if (isStoppingOnError())
+  {
+    node->onError(mcErrorCodeAxisStateViolation);
+    node->taken_ = mcFALSE;
+    return;
+  }
   // refresh basic params
   if (underlying_move_node_ != nullptr)
   {
@@ -379,6 +480,7 @@ void MotionKernel::addSupMoveFB(ExecutionNode* node, mcLREAL current_pos,
   node->setStartAcc(current_acc);
   node->setEndAcc(end_acc);
   node->setTerminateCondition(current_pos);
+  node->taken_      = mcTRUE;
   sup_move_node_    = node;
   fb_axis_node_und_ = nullptr;
   fb_axis_node_tmp_ = nullptr;
@@ -390,6 +492,8 @@ void MotionKernel::abortCurSupMoveFB()
   if (sup_move_node_ != nullptr)
   {
     sup_move_node_->onCommandAborted();
+    sup_move_node_->taken_ = mcFALSE;
+    sup_move_node_         = nullptr;
     DEBUG_PRINT(
         "MotionKernel::abortCurSupMoveFB: reset current sup-move-node. \n");
   }

@@ -1,0 +1,8 @@
+
+fedora_40_install_python3_pip () {
+  ensure_dnf_install_package python3-pip
+}
+
+fedora_40_sbom_python3_pip () {
+  ensure_sbom_format pkg-list python3-pip
+}

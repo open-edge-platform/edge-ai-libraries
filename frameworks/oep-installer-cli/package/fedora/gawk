@@ -1,0 +1,9 @@
+
+fedora_15_install_gawk () {
+  ensure_dnf_install_package gawk
+}
+
+fedora_15_sbom_gawk () {
+  ensure_sbom_format pkg-list gawk
+}
+

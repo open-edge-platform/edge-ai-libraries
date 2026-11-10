@@ -30,6 +30,7 @@ from src.models import (
     ChatCompletionUsage,
 )
 from src.providers.base import ProviderAdapter, ProviderMetadata
+from src.providers.probes import ProbeHost
 
 
 logger = logging.getLogger(__name__)
@@ -50,13 +51,14 @@ litellm.drop_params = False
 _RESERVED_REQUEST_FIELDS = frozenset({"model", "messages", "stream"})
 
 
-class LitellmProvider(ProviderAdapter):
+class LitellmProvider(ProviderAdapter, ProbeHost):
     """ProviderAdapter that delegates chat completions to litellm."""
 
     def __init__(self, provider_config: ProviderConfig):
         super().__init__(
             name=provider_config.name,
             metadata=ProviderMetadata.from_mapping(provider_config.metadata or {}),
+            fallback=provider_config.fallback,
         )
         settings = provider_config.settings or {}
         auth = settings.get("auth") or {}
@@ -83,6 +85,9 @@ class LitellmProvider(ProviderAdapter):
         self.auth_scheme = (auth.get("scheme") or "bearer").lower()
         self.api_key = None if self.auth_scheme == "none" else auth.get("api_key")
         self.custom_headers = dict(auth.get("custom_headers") or {})
+        # Raw probe specs (see ProbeHost); parsed lazily on start_probes().
+        self.probe_specs = settings.get("probes") or []
+        self._probes: dict[str, Any] = {}
 
     async def chat(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         messages, kwargs = self._prepare_call(request)

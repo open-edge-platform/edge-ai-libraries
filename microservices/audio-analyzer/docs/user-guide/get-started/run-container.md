@@ -40,6 +40,38 @@ In resolved Compose output, confirm device mapping under `services.audio-analyze
 - The container runs as UID/GID `1000:1000` (baked into the image). The named volumes are initialized with that ownership, so no host UID/GID configuration is required.
 - The image reference is `${REGISTRY}/audio-analyzer:${RELEASE_TAG}`, both read from `.env`. Defaults are `REGISTRY=intel` and the committed `RELEASE_TAG` pins the current release.
 
+### GPU Setup and Verification (Optional)
+
+`/dev/dri` is passed through automatically, so GPU inference needs no device
+mapping changes. Two things are still required:
+
+1. Set `models.asr.device: GPU` in `config.yaml` (see the
+   [Configuration Guide](./configuration.md)), or pass `device=GPU` per
+   request on `/v1/audio/transcriptions`.
+2. Export `RENDER_GID` so the container's app user is a member of the host's
+   `render` group and can open the GPU device node:
+
+   ```bash
+   export RENDER_GID=$(stat -c '%g' /dev/dri/renderD128)
+   docker compose up -d
+   ```
+
+Verification:
+
+```bash
+docker compose exec audio-analyzer python3 -c "import openvino as ov; print([str(d).upper() for d in ov.Core().available_devices])"
+curl --noproxy '*' http://127.0.0.1:8010/api/v1/models
+```
+
+The first command must include `GPU` when GPU is configured as the default
+device. If the host has no `/dev/dri` node (no Intel iGPU present), select
+CPU **and** remove the `/dev/dri:/dev/dri` line from
+`services.audio-analyzer.devices` in `docker-compose.yml` (or run the image
+directly with `docker run`, omitting any `--device`/`devices:` mapping) —
+setting `models.asr.device: CPU` in `config.yaml` alone does not prevent
+Compose from still trying to map `/dev/dri`, which fails container creation
+on a GPU-less host regardless of the configured device.
+
 ### Speaker Diarization Setup (Optional)
 
 If you plan to enable speaker diarization by setting `models.asr.diarization: true` in `config.yaml`:
@@ -82,8 +114,10 @@ are not automatically injected into the container unless referenced there.
 To supply MinIO settings to the running container, either:
 
 - Edit the bind-mounted `config.yaml` directly (`minio.endpoint`,
-  `minio.access_key`, `minio.secret_key`, `minio.secure`) and
-  `docker compose restart audio-analyzer`; or
+  `minio.access_key`, `minio.secret_key`, `minio.secure`) and run
+  `docker compose up -d --force-recreate` (see the
+  [config.yaml reload note](./configuration.md#load-order) — `restart`
+  alone is not guaranteed to pick up the edit); or
 - Add the `AUDIO_ANALYZER__MINIO__*` variables under
   `services.audio-analyzer.environment` in `docker-compose.yml` so Compose
   passes them into the container.
@@ -178,8 +212,14 @@ docker compose logs -f audio-analyzer
 If you changed only `config.yaml`:
 
 ```bash
-docker compose restart audio-analyzer
+docker compose up -d --force-recreate
 ```
+
+`docker compose restart` is **not guaranteed** to pick up a `config.yaml`
+edit: Docker's single-file bind mount follows the file's inode, and most
+editors (and tools like `sed -i`) replace the file rather than writing it
+in place, leaving a plain `restart` serving the stale config. Use
+`--force-recreate` to be safe.
 
 To pull a newer release tag, edit `RELEASE_TAG` in `.env`, then:
 

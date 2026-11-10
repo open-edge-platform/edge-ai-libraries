@@ -1,0 +1,12 @@
+
+fedora_30_install_cmake () {
+  ensure_dnf_install_package cmake
+}
+
+fedora_30_remove_cmake () {
+  ensure_dnf_remove_package cmake
+}
+
+fedora_30_sbom_cmake () {
+  ensure_sbom_format pkg-list cmake
+}

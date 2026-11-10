@@ -66,7 +66,6 @@ const makeStream = (overrides: Partial<LiveStream> = {}): LiveStream => ({
   state: LiveStreamState.RUNNING,
   frame_interval: 15,
   enable_object_detection: false,
-  detection_confidence: 0.5,
   tags: ['lobby'],
   stats: {
     frames_processed: 10,

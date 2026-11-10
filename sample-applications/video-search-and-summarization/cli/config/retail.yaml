@@ -45,7 +45,7 @@ singlePromptOverride: |
 ingestionPipelineOverride: "object_detection"  
 
 # Audio transcription model to use
-audioModelOverride: "medium.en"    
+audioModelOverride: "whisper-medium"    
 
 # Path to the retail store video file to be analyzed
 videoPath: "resources/ceramic_store.mp4"

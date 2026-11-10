@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Runtime dependencies for the STAR semantic image compression pipeline.
+#
+# Versions are pinned to a known-good set (verified on Python 3.14).
+# Install with:
+#     pip install -r requirements.txt
+#     pip install -e .          # installs the project itself (src layout)
+#
+# NOTE: this file must stay UTF-8 encoded. Do not regenerate it with
+#     pip freeze > requirements.txt
+# in PowerShell, which writes UTF-16 and corrupts the file for other tools.
+# Use instead:
+#     pip freeze | Out-File -Encoding utf8 requirements.txt
+# =============================================================================
+
+# --- Core numerics / imaging -------------------------------------------------
+# numpy 2.3+ and scipy 1.16+ dropped Python 3.10. The Dockerfile uses
+# python:3.10-slim, so the pins below are split by interpreter version:
+# exact pins on 3.11+ (matches the verified local environment) and the last
+# 3.10-compatible series inside the container.
+numpy==2.4.4; python_version >= "3.11"
+numpy>=2.0,<2.3; python_version < "3.11"
+scipy==1.17.1; python_version >= "3.11"
+scipy>=1.11,<1.16; python_version < "3.11"
+opencv-python==4.13.0.92
+pillow==12.3.0
+
+# --- Object detection --------------------------------------------------------
+# ultralytics drives YOLO inference; openvino is required because the default
+# model in configs/default.yaml is an INT8 OpenVINO model.
+ultralytics==8.4.41
+nncf==3.4.0
+openvino==2026.1.0
+torch==2.11.0
+torchvision==0.26.0
+
+# --- Config, annotations, progress, plotting ---------------------------------
+PyYAML==6.0.3
+pycocotools==2.0.11
+tqdm==4.67.3
+matplotlib==3.10.8
+
+# --- Tests -------------------------------------------------------------------
+pytest==9.0.3
+
+# --- REST services (encoder/decoder REST service side) + test clients -------
+# Version floors rather than exact pins (unlike the rest of this file) since
+# these aren't verified against a specific interpreter/build the way the
+# imaging/ML stack above is.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+httpx>=0.27
+
+# =============================================================================
+# Optional extras — not required for the encoder/decoder pipeline.
+# Uncomment only if you need the corresponding feature.
+# =============================================================================
+# RT-DETR detector support in utils/yolo_wrapper.py (import is guarded;
+# the pipeline runs fine without it):
+# transformers==5.6.0
+#
+#
+
+# =============================================================================
+# External (non-pip) requirement:
+#   avifenc / avifdec from libavif must be on PATH for the AVIF codecs.
+#   Debian/Ubuntu: sudo apt-get install libavif-bin
+# =============================================================================
+

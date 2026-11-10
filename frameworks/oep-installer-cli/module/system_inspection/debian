@@ -1,0 +1,11 @@
+debian_08_profile_system_inspection () {
+  case "$1" in
+  bootstrap|install)
+    echo "curl dmidecode pciutils"
+    ;;
+  esac
+}
+
+debian_08_install_system_inspection () {
+  install_system_inspection
+}

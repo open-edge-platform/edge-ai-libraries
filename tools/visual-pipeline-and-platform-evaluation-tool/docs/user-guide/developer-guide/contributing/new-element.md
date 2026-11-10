@@ -11,7 +11,7 @@ reference it in a pipeline (see
 two extension points contributors actually have:
 
 1. Loading custom Python scripts through the `gvapython` element.
-2. Controlling whether an element is visible in the simplified pipeline view.
+1. Controlling whether an element is visible in the simplified pipeline view.
 
 ## Use custom `gvapython` modules (deprecated)
 
@@ -22,7 +22,7 @@ To add and use a new script:
 
 1. Drop your script into `shared/scripts` (for example
    `tracked_object_filter.py`).
-2. In your pipeline description, set the `module` property on the
+1. In your pipeline description, set the `module` property on the
    `gvapython` element to the script filename.
    Example: `gvapython module=tracked_object_filter.py`.
 

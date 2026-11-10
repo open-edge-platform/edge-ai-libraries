@@ -1,0 +1,9 @@
+
+debian_45_install_qemu_utils () {
+  ensure_apt_install_package qemu-utils
+}
+
+debian_45_sbom_qemu_utils () {
+  ensure_sbom_format pkg-list qemu-utils
+}
+

@@ -1,0 +1,8 @@
+
+fedora_05_install_pciutils () {
+  ensure_dnf_install_package pciutils
+}
+
+fedora_05_sbom_pciutils () {
+  ensure_sbom_format pkg-list pciutils
+}

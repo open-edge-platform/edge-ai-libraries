@@ -1,4 +1,3 @@
-
 configure_kernel_module_essential_debian () {
   local ver
   ver=$(configure_kernel_module_essential) || { local rc=$?; return $rc; }
@@ -18,7 +17,7 @@ debian_30_install_kernel_module_essential () {
   local p pkgs=()
   for p in ${install_pkgs[*]}; do
     if ensure_apt_is_installed $p; then
-      echo "$p is installed. Skipping" >&2
+      echo "$p is installed." >&2
     else
       ensure_prop set installed/kernel_module_essential/owned_$p true
       pkgs+=($p)
@@ -39,7 +38,7 @@ debian_30_remove_kernel_module_essential () {
     [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue
     pkgs+=($p)
   done
-  [ ${#pkgs[@]} -eq 0 ] || ensure_apt autoremove -y "${pkgs[@]}"
+  [ ${#pkgs[@]} -eq 0 ] || ensure_apt purge --auto-remove -y "${pkgs[@]}"
 }
 
 debian_30_sbom_kernel_module_essential () {

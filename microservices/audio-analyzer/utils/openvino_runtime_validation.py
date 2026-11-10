@@ -7,13 +7,15 @@ from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
 
-_SUPPORTED_ASR_PROVIDERS = {"openai", "openvino", "whispercpp"}
+_SUPPORTED_ASR_PROVIDERS = {"openai", "openvino", "whispercpp", "funasr"}
 _SUPPORTED_ASR_DEVICES = {"CPU", "GPU", "NPU"}
 _SUPPORTED_DIARIZATION_DEVICES = {"CPU", "GPU", "NPU"}
 _ASR_PROVIDER_DEVICE_MATRIX = {
     "openai": {"CPU"},
     "openvino": {"CPU", "GPU", "NPU"},
     "whispercpp": {"CPU"},
+    # FunASR Paraformer (Chinese/English) runs on the CPU torch build only.
+    "funasr": {"CPU"},
 }
 
 # Models confirmed not to execute on NPU with OpenVINO 2026.1 on Intel Core Ultra
@@ -71,7 +73,18 @@ def _probe_openvino_npu_runtime() -> None:
     _probe_openvino_device_runtime("NPU")
 
 
+# Devices whose probe compile has already succeeded in this process.
+# resolve_asr_device() runs on every Pipeline() construction, which includes
+# every realtime preview and commit, so without this cache each request
+# compiled the probe model again. A failed probe is not cached, so a device
+# that becomes usable later is still picked up. Device visibility is still
+# checked on every call in resolve_asr_device().
+_PROBED_DEVICES: set[str] = set()
+
+
 def _probe_openvino_device_runtime(device: str) -> None:
+    if str(device).upper() in _PROBED_DEVICES:
+        return
     try:
         import openvino as ov
         from openvino import op
@@ -91,6 +104,7 @@ def _probe_openvino_device_runtime(device: str) -> None:
 
     try:
         core.compile_model(probe_model, target)
+        _PROBED_DEVICES.add(target)
     except Exception as exc:
         message = str(exc)
         if target == "NPU" and "libopenvino_intel_npu_compiler_loader.so" in message:
@@ -194,6 +208,43 @@ def validate_asr_runtime_configuration(cfg: SimpleNamespace) -> None:
     )
 
 
+def validate_asr_preview_configuration(cfg: SimpleNamespace) -> None:
+    """Validate the optional ``models.asr.preview`` pool.
+
+    The preview pool exists to run a cheaper model of the SAME backend as the
+    final pool. A different ``provider`` is rejected rather than silently
+    mishandled: ``get_asr_model_path()`` resolves the model directory under
+    ``models.asr.provider``, and the startup export step only exports OpenVINO
+    IR, so a cross-provider preview would look for weights in a directory
+    nothing ever populated and fail at first use instead of at startup.
+
+    The preview device IS validated here, so an unavailable accelerator is
+    reported at startup rather than on the first preview request.
+
+    Args:
+        cfg: The root config namespace.
+
+    Raises:
+        ValueError: If ``preview.provider`` differs from ``models.asr.provider``.
+    """
+    from utils.asr_pool_config import POOL_PREVIEW, get_preview_override, resolve_pool_config
+
+    if get_preview_override() is None:
+        return
+
+    preview = resolve_pool_config(POOL_PREVIEW)
+    main_provider = str(getattr(cfg.models.asr, "provider", "")).lower()
+    if preview.provider.lower() != main_provider:
+        raise ValueError(
+            "models.asr.preview.provider must match models.asr.provider "
+            f"(got preview={preview.provider!r}, asr={getattr(cfg.models.asr, 'provider', None)!r}). "
+            "The preview pool shares the main provider's model directory and "
+            "export step; use a smaller model name or a different device instead."
+        )
+
+    resolve_asr_device(preview.provider, preview.name, preview.device)
+
+
 def validate_openvino_npu_runtime(config: SimpleNamespace) -> None:
     if not (_asr_uses_openvino_npu(config) or _sentiment_uses_openvino_npu(config)):
         return
@@ -276,6 +327,7 @@ def validate_diarization_device_configuration(cfg: SimpleNamespace) -> None:
 
 def validate_runtime_configuration(config: SimpleNamespace) -> None:
     validate_asr_runtime_configuration(config)
+    validate_asr_preview_configuration(config)
     validate_diarization_device_configuration(config)
 
     if _sentiment_uses_openvino_npu(config) and not _asr_uses_openvino_npu(config):

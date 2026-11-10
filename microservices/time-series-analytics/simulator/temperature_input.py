@@ -56,9 +56,9 @@ headers = {
 for i in range(1, 500):
     if i % 10 == 0:
         # Every 10th value: between 20 and 25 (inclusive)
-        value = random.randint(20, 25)
+        value = random.randint(20, 25)  # nosec B311 # synthetic temperature data, not security-sensitive randomness
     else:
-        value = random.randint(10, 50)
+        value = random.randint(10, 50)  # nosec B311 # synthetic temperature data, not security-sensitive randomness
  
     payload = {
         "topic": "point_data",
@@ -68,7 +68,7 @@ for i in range(1, 500):
     }
     
 
-    response = requests.post(url, json=payload, headers=headers)
+    response = requests.post(url, json=payload, headers=headers, timeout=30)
   
     print(f"Sent value: {value}")
     print(f"Status Code: {response.status_code}")

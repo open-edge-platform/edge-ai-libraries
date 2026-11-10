@@ -9,6 +9,9 @@ describes how to stream from them:
   (RTSP URL, encoding, resolution, frame rate) using the
   [`dlstreamer.onvif`](https://github.com/open-edge-platform/dlstreamer/tree/main/python/dlstreamer/onvif)
   library.
+- **GigE Vision cameras** – discovered with the Aravis `arv-tool-0.8` utility; vendor, model,
+  serial number and current acquisition settings (pixel format, resolution, frame rate) are
+  reported for each camera.
 
 ## Quick start
 
@@ -20,12 +23,12 @@ curl http://localhost:8090/api/v1/sensors
 
 ## API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/health` | Service health |
-| GET | `/api/v1/sensors` | List USB and ONVIF cameras |
-| GET | `/api/v1/sensors/{sensor_id}` | Get a single camera |
-| POST | `/api/v1/sensors/{sensor_id}/profiles` | Load ONVIF profiles using camera credentials |
+| Method | Path                                   | Description                                  |
+| ------ | -------------------------------------- | -------------------------------------------- |
+| GET    | `/api/v1/health`                       | Service health                               |
+| GET    | `/api/v1/sensors`                      | List USB, ONVIF and GigE Vision cameras      |
+| GET    | `/api/v1/sensors/{sensor_id}`          | Get a single camera                          |
+| POST   | `/api/v1/sensors/{sensor_id}/profiles` | Load ONVIF profiles using camera credentials |
 
 The interactive OpenAPI documentation is available at `http://<host>:8090/docs`.
 

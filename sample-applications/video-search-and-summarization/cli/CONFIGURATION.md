@@ -94,11 +94,14 @@ The backend exposes its configuration, including all supported audio models, def
 
 ### `audioModelOverride`
 - **Type**: `string`
-- **Default**: `"small.en"`
-- **Meaning**: Audio transcription model for speech-to-text. Values depend on the backend. Supported models include:
-  - `tiny.en`: "Tiny (English)". English only version of tiny whisper model. Significantly less accuracy, extremely fast inference.
-  - `small.en`: "Small (English)". English only version of small whisper Model. Good accuracy. Fast inference.
-  - `medium.en`: "Medium (English)". English only version of Medium whisper Model. Very good accuracy. Longer inference time.
+- **Default**: `"whisper-base"`
+- **Meaning**: Audio transcription (Whisper) model for speech-to-text. Supported models:
+  - `whisper-tiny`: Smallest and fastest, lowest accuracy.
+  - `whisper-base`: Default. Fast with reasonable accuracy.
+  - `whisper-small`: Better accuracy, slower inference.
+  - `whisper-medium`: Very good accuracy, longer inference time.
+  - `whisper-large`: Highest accuracy, heaviest and slowest.
+- **Note**: The 2026.x audio-analyzer serves a single model per instance, set at deploy time via `ASR_MODEL`; changing the model requires redeploying.
 - **Accuracy Impact**: Larger models or language-specific models improve transcription accuracy, especially in noisy videos.
 - **Performance Impact**: Larger STT models take longer and use more memory.
 - **Tuning Tips**: For short videos where speech matters, prefer higher-accuracy models. For large volumes, use streaming or lightweight models.

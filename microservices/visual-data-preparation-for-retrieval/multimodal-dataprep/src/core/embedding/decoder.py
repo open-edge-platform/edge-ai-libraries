@@ -23,7 +23,6 @@ from typing import Any, Dict, Generator, List, Optional, Protocol, Tuple, Union,
 
 import av
 import numpy as np
-from PIL import Image
 
 from src.common import Tracer, now_us
 from src.core.embedding.capture_clock import CaptureClock
@@ -157,12 +156,6 @@ class SharedMemoryPool:
 
     def free_blocks(self):
         return self.max_blocks - len(self.in_use)
-
-    def is_full(self):
-        return self.used_blocks() == self.max_blocks
-
-    def is_empty(self):
-        return self.used_blocks() == 0
 
     def stats(self):
         return {
@@ -403,14 +396,6 @@ class VideoFrameConfig:
             raise ValueError("`frame_interval` must be 1 when `keyframes_only` is True")
         if self.keyframes_only and self.frame_interval != 1:
             raise ValueError("`frame_interval` must be 1 when `keyframes_only` is True")
-
-    @property
-    def effective_workers(self) -> int:
-        """Return worker count, auto-detecting if not specified."""
-        if self.num_workers is not None:
-            return self.num_workers
-        return min(8, (os.cpu_count() or 4) * 2)
-
 
 def convert_and_store_frame(
     stream_id: int,
@@ -1166,89 +1151,3 @@ class VideoFrameExtractor:
 
         finally:
             logger.info("[DECODER MAIN] Frame extraction finished")
-
-
-def extract_batched_frames(
-    video_inputs: VideoInput | str | bytes | list[VideoInput | str | bytes],
-    frame_interval: int = 1,
-    batch_size: int | None = None,
-    keyframes_only: bool = False,
-    shm_pool: SharedMemoryPool | None = None,
-) -> Generator[List[Image.Image], None, None]:
-    """
-    Convenience function to extract frames from multiple video sources using threading.
-
-    Uses threading.Thread instead of multiprocessing for simpler implementation.
-    May have GIL limitations but avoids shared memory complexity.
-
-    Args:
-        video_inputs: List of VideoInput objects, file paths, RTSP URLs, or bytes.
-        frame_interval: Extract every Nth frame.
-        batch_size: Number of frames per batch.
-        keyframes_only: Whether to extract only keyframes.
-
-    Yields:
-        Batches of PIL.Image frames from all sources.
-    """
-    if batch_size is None:
-        batch_size = _video_config.VIDEO_EXTRACTION_BATCH_SIZE
-
-    config = VideoFrameConfig(
-        frame_interval=frame_interval,
-        batch_size=batch_size,
-        keyframes_only=keyframes_only,
-    )
-    if shm_pool is None:
-        # Create a default shared memory pool if not provided
-        shm_pool = SharedMemoryPool(
-            max_blocks=_video_config.VIDEO_SHM_MAX_BLOCKS,
-            block_size=_video_config.VIDEO_SHM_BLOCK_SIZE,
-        )  # Assuming max 1080p RGB frames
-
-    extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)
-    print(f"extractor metadata: {extractor.metadata_list}")
-    try:
-        for batch in extractor.decode_frames():
-
-            if isinstance(batch, tuple) and (batch[0] is INTERRUPT or batch[0] is DONE):
-                logger.info(
-                    f"Received signal {batch[0]} for stream {batch[1]}, stopping extraction."
-                )
-                break
-
-            batch_dict, _ = batch
-
-            batch_frame_pil = []
-
-            frames_metadata = (
-                batch_dict["frames"]
-                if isinstance(batch_dict, dict) and "frames" in batch_dict
-                else []
-            )
-
-            for frame_meta in frames_metadata:
-                shm = shared_memory.SharedMemory(name=frame_meta["shm"])
-                arr = Image.fromarray(
-                    np.ndarray(
-                        eval(frame_meta["shape"]),
-                        dtype=frame_meta["dtype"],
-                        buffer=shm.buf,
-                    ),
-                    mode="RGB",
-                )
-                logger.info(
-                    f"(frame_meta['stream_id']: {frame_meta['stream_id']}, frame_meta['frame_id']: {frame_meta['frame_id']}, arr.size: {arr.size}, arr.mode: {arr.mode})"
-                )
-                batch_frame_pil.append(arr)
-
-            yield batch_frame_pil
-
-            batch_frame_pil.clear()
-
-            for frame_meta in frames_metadata:
-                logger.info(
-                    f"Releasing shared memory {frame_meta['shm']} for frame {frame_meta['frame_id']} of stream {frame_meta['stream_id']}"
-                )
-                shm_pool.release(frame_meta["shm"])
-    finally:
-        shm_pool.shutdown()

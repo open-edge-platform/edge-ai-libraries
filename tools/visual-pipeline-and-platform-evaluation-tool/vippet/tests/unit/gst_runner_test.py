@@ -5,6 +5,7 @@ These tests focus on the Python control flow and error handling, using
 mocking to avoid depending on real GStreamer behavior where possible.
 """
 
+import json
 import unittest
 from typing import Any, Tuple
 from unittest import mock
@@ -855,6 +856,61 @@ class TestGstLogBridgeLatencyTracer(unittest.TestCase):
         joined = "\n".join(captured.output)
         self.assertNotIn("<some_tracer>", joined)
         self.assertIn("latency_tracer_pipeline_interval", joined)
+
+
+class TestAddPromptToMetaMessage(unittest.TestCase):
+    """``gvagenai`` meta JSON is enriched with the element's ``prompt``."""
+
+    def test_prompt_is_added_to_json(self) -> None:
+        obj = mock.MagicMock()
+        obj.get_property.return_value = "Are people riding? "
+        text = gst_runner._add_prompt_to_meta_message(
+            'Added meta message: {"result": "No"}', obj
+        )
+        self.assertTrue(text.startswith("Added meta message: "))
+        payload = json.loads(text[len("Added meta message: ") :])
+        self.assertEqual(payload, {"result": "No", "prompt": "Are people riding?"})
+
+    def test_text_unchanged_without_prompt_property(self) -> None:
+        obj = mock.MagicMock()
+        obj.get_property.side_effect = TypeError("no property")
+        text = 'Added meta message: {"result": "No"}'
+        self.assertEqual(gst_runner._add_prompt_to_meta_message(text, obj), text)
+
+    def test_text_unchanged_for_invalid_json(self) -> None:
+        obj = mock.MagicMock()
+        obj.get_property.return_value = "prompt"
+        text = "Added meta message: {not-json"
+        self.assertEqual(gst_runner._add_prompt_to_meta_message(text, obj), text)
+
+
+class TestLogPipelineEvent(unittest.TestCase):
+    """``vippet-event`` element messages are logged as one JSON line."""
+
+    def test_logs_structure_fields_and_element_name(self) -> None:
+        RealGst.init(None)
+        structure = RealGst.Structure.new_empty(gst_runner.PIPELINE_EVENT_STRUCTURE)
+        structure.set_value("source", "proximity-trigger")
+        structure.set_value("text", "person near bicycle")
+        structure.set_value("pts-seconds", 1.5)
+        src = mock.MagicMock()
+        src.get_name.return_value = "gvaproximitytrigger_py0"
+
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            gst_runner.log_pipeline_event(gst_runner.get_logger(), src, structure)
+
+        line = captured.records[0].getMessage()
+        self.assertTrue(line.startswith(gst_runner.PIPELINE_EVENT_MARKER))
+        payload = json.loads(line[len(gst_runner.PIPELINE_EVENT_MARKER) :])
+        self.assertEqual(
+            payload,
+            {
+                "source": "proximity-trigger",
+                "text": "person near bicycle",
+                "pts-seconds": 1.5,
+                "element": "gvaproximitytrigger_py0",
+            },
+        )
 
 
 if __name__ == "__main__":

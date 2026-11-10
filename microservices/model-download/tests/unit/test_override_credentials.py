@@ -5,17 +5,7 @@
 
 import base64
 import os
-import sys
-from unittest.mock import MagicMock
-
 import pytest
-
-# Mock geti_sdk before importing the plugin
-_geti_mock = MagicMock()
-sys.modules.setdefault("geti_sdk", _geti_mock)
-sys.modules.setdefault("geti_sdk.http_session", MagicMock())
-sys.modules.setdefault("geti_sdk.http_session.exception", MagicMock())
-sys.modules.setdefault("geti_sdk.rest_clients", MagicMock())
 
 from src.api.models import _decode_override_credentials
 from src.plugins.geti_plugin import GetiPlugin
@@ -38,17 +28,8 @@ class TestDecodeOverrideCredentials:
 
     def test_multiple_keys_decoded(self):
         host = base64.b64encode(b"https://geti.example.com").decode()
-        token = base64.b64encode(b"geti-token-123").decode()
-        ws = base64.b64encode(b"workspace-abc").decode()
-        result = _decode_override_credentials({
-            "GETI_HOST": host,
-            "GETI_TOKEN": token,
-            "GETI_WORKSPACE_ID": ws,
-        })
-        assert result == {
+        assert _decode_override_credentials({"GETI_HOST": host}) == {
             "GETI_HOST": "https://geti.example.com",
-            "GETI_TOKEN": "geti-token-123",
-            "GETI_WORKSPACE_ID": "workspace-abc",
         }
 
     def test_null_value_preserved(self):
@@ -81,57 +62,22 @@ class TestGetiGroupedKeyValidation:
     @pytest.fixture
     def plugin(self, monkeypatch):
         monkeypatch.setenv("GETI_HOST", "https://env-host.com")
-        monkeypatch.setenv("GETI_TOKEN", "env-token")
-        monkeypatch.setenv("GETI_WORKSPACE_ID", "env-ws")
         return GetiPlugin()
 
-    def test_all_geti_keys_provided_resolves(self, plugin):
-        result = plugin.resolve_config({
-            "GETI_HOST": "https://override-host.com",
-            "GETI_TOKEN": "override-token",
-            "GETI_WORKSPACE_ID": "override-ws",
-        })
+    def test_geti_host_override_resolves(self, plugin):
+        result = plugin.resolve_config({"GETI_HOST": "https://override-host.com"})
         assert result["GETI_HOST"] == "https://override-host.com"
-        assert result["GETI_TOKEN"] == "override-token"
-        assert result["GETI_WORKSPACE_ID"] == "override-ws"
 
-    def test_partial_geti_override_missing_token_rejected(self, plugin):
-        with pytest.raises(ValueError, match="GETI_TOKEN"):
-            plugin.resolve_config({
-                "GETI_HOST": "https://new-host.com",
-            })
-
-    def test_partial_geti_override_missing_host_rejected(self, plugin):
-        with pytest.raises(ValueError, match="GETI_HOST"):
-            plugin.resolve_config({
-                "GETI_TOKEN": "new-token",
-            })
-
-    def test_workspace_id_override_alone_succeeds(self, plugin):
-        """User can switch workspace without re-supplying host+token."""
+    def test_host_override_without_token_is_allowed(self, plugin):
+        """Geti 3.0 permits local deployments without a token."""
         result = plugin.resolve_config({
-            "GETI_WORKSPACE_ID": "new-ws",
+            "GETI_HOST": "https://local-host.com",
         })
-        assert result["GETI_WORKSPACE_ID"] == "new-ws"
-        # host and token fall back to env
-        assert result["GETI_HOST"] == "https://env-host.com"
-        assert result["GETI_TOKEN"] == "env-token"
-
-    def test_host_token_override_without_workspace_uses_env_workspace(self, plugin):
-        """Overriding host+token still uses env workspace_id (not grouped)."""
-        result = plugin.resolve_config({
-            "GETI_HOST": "https://new-host.com",
-            "GETI_TOKEN": "new-token",
-        })
-        assert result["GETI_HOST"] == "https://new-host.com"
-        assert result["GETI_TOKEN"] == "new-token"
-        assert result["GETI_WORKSPACE_ID"] == "env-ws"
+        assert result == {"GETI_HOST": "https://local-host.com"}
 
     def test_no_override_uses_env(self, plugin):
         result = plugin.resolve_config({})
         assert result["GETI_HOST"] == "https://env-host.com"
-        assert result["GETI_TOKEN"] == "env-token"
-        assert result["GETI_WORKSPACE_ID"] == "env-ws"
 
 
 # --- Unknown key rejection tests ---

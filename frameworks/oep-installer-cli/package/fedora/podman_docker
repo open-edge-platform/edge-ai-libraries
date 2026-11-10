@@ -1,0 +1,112 @@
+
+configure_podman_docker () {
+  docker_compose_plugin="https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)"
+  docker_compose_bin=/usr/local/bin/docker-compose
+}
+
+configure_docker_proxy () {
+  if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
+    if ensure_dnf_is_installed podman; then
+      ensure_sudo mkdir -p /etc/systemd/system/podman.socket.d
+      cat | ensure_sudo tee /etc/systemd/system/podman.socket.d/20-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+      ensure_sudo systemctl daemon-reload
+      ensure_sudo systemctl restart podman.socket
+    elif ensure_dnf_is_installed docker-ce; then
+      grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
+        ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+        ensure_sudo tee /etc/systemd/system/docker.service.d/99-oep-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+        ensure_sudo systemctl daemon-reload
+        ensure_sudo systemctl restart docker
+      )
+
+      local CONFIG_JSON="$HOME/.docker/config.json"
+      echo "Configure docker client proxies..."
+      mkdir -p "$(dirname "$CONFIG_JSON")"
+      python3 - "$CONFIG_JSON" <<'EOF'
+import json, os, sys
+p = sys.argv[1]
+cfg = json.load(open(p)) if os.path.exists(p) else {}
+cfg.setdefault("proxies", {})["default"] = {
+    "httpProxy":  os.environ.get("http_proxy",  os.environ.get("HTTP_PROXY", "")),
+    "httpsProxy": os.environ.get("https_proxy", os.environ.get("HTTPS_PROXY", "")),
+    "noProxy":    os.environ.get("no_proxy",    os.environ.get("NO_PROXY", "")),
+}
+json.dump(cfg, open(p, "w"), indent=2)
+EOF
+    fi
+  fi
+}
+
+fedora_30_group_podman_docker () {
+  echo "docker:"
+}
+
+fedora_30_install_podman_docker () {
+  configure_podman_docker "$@"
+  if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
+    echo "podman-docker is installed." >&2
+  elif ensure_dnf_is_installed docker-ce && [[ " $* " != *" --reinstall "* ]]; then 
+    ensure_rm "$docker_compose_bin"
+    ensure_dnf install -y docker-buildx-plugin docker-compose-plugin
+  elif ensure_dnf_is_installed podman && [[ " $* " != *" --reinstall "* ]]; then
+    ensure_dnf install -y podman-docker
+    [ -x "$docker_compose_bin" ] || {
+      ensure_fetch "$docker_compose_plugin" "$docker_compose_bin" && 
+      ensure_sudo chmod a+rx "$docker_compose_bin"
+    }
+  else
+    ensure_disk_size 800
+
+    # claim ownership
+    ensure_prop set installed/podman_docker/owned true
+    ensure_prop remove installed/docker_ce/owned
+
+    echo "Remove legacy installation"
+    fedora_30_remove_podman_docker "$@"
+
+    # create docker group
+    ensure_group_add $(fedora_30_group_podman_docker)
+
+    # install podman
+    ensure_dnf install -y podman podman-docker
+    ensure_fetch "$docker_compose_plugin" "$docker_compose_bin" && 
+    ensure_sudo chmod a+rx "$docker_compose_bin"
+
+    # setup rootful 
+    ensure_sudo mkdir -p /etc/systemd/system/podman.socket.d
+    cat | sudo tee /etc/systemd/system/podman.socket.d/10-socket.conf <<EOF
+[Socket]
+SocketMode=0660
+SocketGroup=docker
+EOF
+
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl enable --now podman.socket
+  fi
+  configure_docker_proxy
+}
+
+fedora_30_remove_podman_docker () {
+  configure_podman_docker "$@"
+  [ "$(ensure_prop get installed/podman_docker/owned)" = "true" ] || return 0
+
+  ensure_dnf autoremove -y docker docker-ce-cli docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine docker-selinux docker-engine-selinux podman podman-docker runc containerd.io docker-buildx-plugin docker-compose-plugin || true
+  ensure_rm /etc/systemd/system/podman.socket.d /etc/systemd/system/docker.service.d "$docker_compose_bin"
+  ensure_sudo systemctl daemon-reload || true
+}
+
+fedora_30_sbom_podman_docker () {
+  configure_podman_docker "$@"
+  ensure_sbom_format pkg-list podman podman-docker
+}
+

@@ -59,7 +59,7 @@ pull request adding `module/{{NAME}}/debian`.
    `_{{NAME}}` is the recommended way to ensure uniqueness.
 
 - **File location**: `module/{{NAME}}/debian` for debian specific functions or `module/{{NAME}}/linux` for distribution agnostic functions. The location of the functions does not
-  make a difference but at least a `module/{{NAME}}/<ID_LIKE>` file must exist for the OEP bootstrapper to recognize the module.  
+  make a difference but at least a `module/{{NAME}}/<OS_FAMILY>` file must exist for the OEP bootstrapper to recognize the module.  
 
 - **Functions to implement**:
    - Always implement `install`, `remove`, `start`, and `stop`. Follow `profile/README.md` and `module/README.md` for implementation requirements. 
