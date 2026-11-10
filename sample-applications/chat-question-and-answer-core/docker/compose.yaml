@@ -23,22 +23,22 @@ x-chatqna-core-common: &chatqna-core-common
     - "${MODEL_CONFIG_PATH:-/dev/null}:/tmp/model_config/config.yaml"
   group_add:
     - ${USER_GROUP_ID-1000}
+    # render group ID for ubuntu 20.04 host OS
+    - "109"
+    # render group ID for ubuntu 22.04 host OS
+    - "110"
+    # render group ID for ubuntu 24.04 host OS
+    - "992"
+    # render group ID for ubuntu 26.04 host OS
+    - "990"
 
 services:
-  nginx-default:
+  nginx-openvino:
     <<: *nginx-common
     profiles:
       - OPENVINO
     depends_on:
-      - chatqna-core-ov-cpu
-      - chatqna-core-ui
-
-  nginx-gpu:
-    <<: *nginx-common
-    profiles:
-      - OPENVINO-GPU
-    depends_on:
-      - chatqna-core-ov-gpu
+      - chatqna-core-openvino
       - chatqna-core-ui
 
   nginx-ollama:
@@ -49,27 +49,17 @@ services:
       - chatqna-core-ollama
       - chatqna-core-ui
 
-  chatqna-core-ov-cpu:
+  chatqna-core-openvino:
     <<: *chatqna-core-common
     profiles:
       - OPENVINO
-    container_name: chatqna-core-ov-cpu
-
-  chatqna-core-ov-gpu:
-    <<: *chatqna-core-common
-    profiles:
-      - OPENVINO-GPU
-    container_name: chatqna-core-ov-gpu
+    container_name: chatqna-core-openvino
     build:
       context: ../
       dockerfile: docker/Dockerfile
-      args:
-        USE_GPU: "true"
     devices:
       - /dev/dri:/dev/dri
-    group_add:
-      - ${RENDER_DEVICE_GID}
-      - ${USER_GROUP_ID-1000}
+      - "${NPU_DEVICE_PATH:-/dev/null}:${NPU_DEVICE_PATH:-/dev/null}"
 
   chatqna-core-ollama:
     <<: *chatqna-core-common

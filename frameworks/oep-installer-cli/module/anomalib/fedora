@@ -4,8 +4,8 @@ fedora_80_profile_anomalib () {
 }
 
 fedora_80_install_anomalib () {
-  configure_anomalib $*
-  if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
+  configure_anomalib "$@"
+  if verify_anomalib && ! ensure_parse_reinstall "$@"; then
     echo "Anomalib is installed." >&2
   else
     ensure_disk_size 15000
@@ -29,7 +29,7 @@ fedora_80_install_anomalib () {
 }
 
 fedora_80_remove_anomalib () {
-  configure_anomalib $*
+  configure_anomalib "$@"
   ensure_rm "$workspace" || true
   ensure_skills remove "${skills[@]}"
 }

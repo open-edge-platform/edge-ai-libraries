@@ -1,4 +1,3 @@
-
 debian_70_install_ffmpeg () {
   ensure_apt_install_package ffmpeg
 }

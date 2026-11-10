@@ -25,8 +25,8 @@ from internal_types import (
     InternalPipelineStreamSpec,
     InternalTestJobState,
 )
-from dlsps2_runner import Dlsps2PipelineRunner
-from pipeline_runner import LatencyTracerSample, PipelineEvent, PipelineRunner
+from dlsps2_runner import Dlsps2PipelineRunner, dlsps2_latency_configured
+from pipeline_runner import LatencyTracerSample, PipelineEvent
 from benchmark import Benchmark
 from managers.execution_coordinator import (
     ExecutionCoordinator,
@@ -40,13 +40,34 @@ from utils import slugify_text
 
 logger = logging.getLogger("tests_manager")
 
-# Selects the pipeline execution backend for single-stream performance
-# tests: "local" (default) spawns gst_runner.py as before; "dlsps2"
-# delegates to a running DLSPS 2.0 instance via Dlsps2PipelineRunner.
-# Density tests and multi-stream performance tests always use the local
-# runner -- see dlsps2_runner.py for why (no per-stream FPS breakdown on
-# DLSPS 2.0 for independent concurrent streams).
-_EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
+# Job detail added when a test asked for latency metrics that the server cannot
+# measure, so the run went ahead without them.
+LATENCY_NOT_COLLECTED_DETAIL = (
+    "Latency metrics were not collected: DLSPS 2.0 runs without the latency "
+    "tracer (see DLSPS2_GST_TRACERS in the user guide)"
+)
+
+
+def _latency_metrics_available(requested: bool, job_id: str) -> bool:
+    """Whether a test that asks for latency metrics can get them from DLSPS 2.0.
+
+    Every performance and density test runs on DLSPS 2.0. Latency comes from
+    the server's ``latency_tracer`` over OpenTelemetry, which is set up for the
+    whole server (see ``dlsps2_latency_configured``). Without that setup the
+    test runs without latency metrics and a warning is logged.
+    """
+    if not requested:
+        return False
+    if dlsps2_latency_configured():
+        return True
+    logger.warning(
+        "Test job %s asked for latency metrics, but DLSPS 2.0 does not export "
+        "them; running without. Set DLSPS2_GST_TRACERS (with DLSPS2_OTEL=true) "
+        "to enable the latency tracer.",
+        job_id,
+    )
+    return False
+
 
 METRICS_MANAGER_URL: str = os.environ.get(
     "METRICS_MANAGER_URL", "http://metrics-manager:9090"
@@ -253,9 +274,9 @@ class TestsManager:
         self.jobs: dict[
             str, InternalPerformanceJobStatus | InternalDensityJobStatus
         ] = {}
-        # Currently running PipelineRunner (local or dlsps2-backed) or
+        # Currently running Dlsps2PipelineRunner or
         # Benchmark jobs keyed by job id.
-        self.runners: dict[str, PipelineRunner | Dlsps2PipelineRunner | Benchmark] = {}
+        self.runners: dict[str, Dlsps2PipelineRunner | Benchmark] = {}
         # Active metrics SSE collectors keyed by job id.
         self._metrics_collectors: dict[str, _MetricsSSECollector] = {}
         # Final metrics payload (JSON text) keyed by job id.
@@ -534,36 +555,38 @@ class TestsManager:
 
     def _get_usb_camera_devices(self, pipeline_graph: Graph) -> list[str]:
         """
-        Get list of USB camera device paths from a pipeline graph.
+        Get list of exclusive (USB and GigE) camera devices from a pipeline graph.
 
         Args:
             pipeline_graph: Graph object containing pipeline nodes.
 
         Returns:
-            list[str]: List of USB camera device paths (e.g., ['/dev/video0']).
-                      Empty list if no USB cameras are found.
+            list[str]: List of camera devices (e.g., ['/dev/video0', 'gige://12345678']).
+                      Empty list if no USB or GigE cameras are found.
         """
         devices = []
         for node in pipeline_graph.nodes:
             if node.type == "v4l2src":
                 device = node.data.get("device", "/dev/video0")
                 devices.append(device)
+            elif node.type == "aravissrc":
+                devices.append(f"gige://{node.data.get('camera-name', '')}")
         return devices
 
     def _validate_usb_camera_for_performance(
         self, pipeline_performance_specs: list[InternalPipelinePerformanceSpec]
     ) -> None:
         """
-        Validate USB camera usage in performance tests.
+        Validate USB and GigE camera usage in performance tests.
 
-        Each USB camera device can only be used in a single pipeline with a single stream
+        Each camera device can only be used in a single pipeline with a single stream
         because the underlying hardware device can only be opened by one process at a time.
 
         Args:
             pipeline_performance_specs: List of InternalPipelinePerformanceSpec objects.
 
         Raises:
-            ValueError: If any USB camera device is used with multiple streams or in multiple pipelines.
+            ValueError: If any camera device is used with multiple streams or in multiple pipelines.
         """
         device_usage = {}
 
@@ -574,7 +597,7 @@ class TestsManager:
                     device_usage[device] = []
                 device_usage[device].append((spec.pipeline_name, spec.streams))
 
-        # Validate each USB camera device is used only once with one stream
+        # Validate each camera device is used only once with one stream
         errors = []
         for device, usages in device_usage.items():
             total_streams = sum(streams for _, streams in usages)
@@ -583,7 +606,7 @@ class TestsManager:
             # Each device can only be in one pipeline with one stream
             if len(usages) > 1 or total_streams > 1:
                 errors.append(
-                    f"USB camera device '{device}' can only be used in one pipeline with one stream. "
+                    f"Camera device '{device}' can only be used in one pipeline with one stream. "
                     f"Found in {len(usages)} pipeline(s) with total {total_streams} stream(s): "
                     f"{', '.join(pipeline_names)}"
                 )
@@ -595,17 +618,17 @@ class TestsManager:
         self, pipeline_density_specs: list[InternalPipelineDensitySpec]
     ) -> None:
         """
-        Validate that no pipeline uses USB camera in density tests.
+        Validate that no pipeline uses a USB or GigE camera in density tests.
 
-        Density tests are not compatible with USB cameras because they require
-        spawning multiple pipeline instances, but USB camera devices can only
+        Density tests are not compatible with USB and GigE cameras because they require
+        spawning multiple pipeline instances, but these camera devices can only
         be opened by one process at a time.
 
         Args:
             pipeline_density_specs: List of InternalPipelineDensitySpec objects.
 
         Raises:
-            ValueError: If any pipeline uses a USB camera source.
+            ValueError: If any pipeline uses a USB or GigE camera source.
         """
         pipelines_with_usb = []
 
@@ -618,10 +641,10 @@ class TestsManager:
 
         if pipelines_with_usb:
             raise ValueError(
-                f"USB camera input sources are not supported in density tests. "
-                f"USB camera devices can only be opened by one process at a time, "
+                f"USB and GigE camera input sources are not supported in density tests. "
+                f"These camera devices can only be opened by one process at a time, "
                 f"which is incompatible with density testing that spawns multiple pipeline instances. "
-                f"Pipelines with USB camera: {'; '.join(pipelines_with_usb)}"
+                f"Pipelines with camera: {'; '.join(pipelines_with_usb)}"
             )
 
     def _execute_performance_test(
@@ -635,7 +658,7 @@ class TestsManager:
         Execute the performance test in a background thread.
 
         The method builds the pipeline command using internal types, executes it
-        using :class:`PipelineRunner` and then updates the corresponding
+        using :class:`Dlsps2PipelineRunner` and then updates the corresponding
         :class:`InternalPerformanceJobStatus` accordingly.
 
         When a job is cancelled by the user:
@@ -644,7 +667,7 @@ class TestsManager:
         - If the pipeline exit code is non-zero, the job is marked FAILED.
 
         When the pipeline finishes without cancellation:
-        - Non-zero exit codes raise RuntimeError inside PipelineRunner,
+        - Failed runs raise RuntimeError inside the runner,
           which is caught by the except block below and marks the job FAILED.
         - Zero exit code means normal successful completion (COMPLETED).
 
@@ -751,34 +774,20 @@ class TestsManager:
                         )
 
             # Initialize the pipeline runner in normal mode with max_runtime
-            # from execution_config.
-            #
-            # Dlsps2PipelineRunner is only used when explicitly enabled via
-            # VIPPET_EXECUTION_BACKEND=dlsps2 AND the test is single-stream:
-            # DLSPS 2.0 cannot currently report a correct per-stream FPS
-            # breakdown for a launch string combining several independent
-            # streams (see dlsps2_runner.py), nor does it support
-            # latency_tracer metrics. Any other combination falls back to
-            # the local PipelineRunner.
-            use_dlsps2 = (
-                _EXECUTION_BACKEND == "dlsps2"
-                and total_streams == 1
-                and not internal_spec.execution_config.enable_latency_metrics
+            # from execution_config. Each stream runs as its own DLSPS 2.0
+            # instance; latency samples come from the DLSPS OpenTelemetry
+            # export to metrics-manager.
+            latency_requested = internal_spec.execution_config.enable_latency_metrics
+            enable_latency_metrics = _latency_metrics_available(
+                latency_requested, job_id
             )
-            if use_dlsps2:
-                runner = Dlsps2PipelineRunner(
-                    mode="normal",
-                    max_runtime=internal_spec.execution_config.max_runtime,
-                    job_id=job_id,
-                )
-            else:
-                runner = PipelineRunner(
-                    mode="normal",
-                    max_runtime=internal_spec.execution_config.max_runtime,
-                    enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
-                    job_id=job_id,
-                    on_event=lambda event: self._record_pipeline_event(job_id, event),
-                )
+            runner = Dlsps2PipelineRunner(
+                mode="normal",
+                max_runtime=internal_spec.execution_config.max_runtime,
+                enable_latency_metrics=enable_latency_metrics,
+                job_id=job_id,
+                on_event=lambda event: self._record_pipeline_event(job_id, event),
+            )
 
             # Store runner for this job so it can be cancelled via stop_job()
             with self._jobs_lock:
@@ -789,12 +798,14 @@ class TestsManager:
             # user-facing source/sink pairs we actually declared;
             # anything the tracer reports for internal bin sinks or
             # intermediate `splitmuxsink` elements is dropped.
-            # If exit_code != 0 and the run was not cancelled, PipelineRunner
-            # raises RuntimeError which is handled in the except block below.
+            # If the run fails without being cancelled, the runner raises
+            # RuntimeError which is handled in the except block below.
             result = runner.run(
                 pipeline_command=pipeline_command,
                 total_streams=total_streams,
                 allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
+                stream_commands=pipeline_cmd.stream_commands,
+                validation_stream_ids=set(pipeline_cmd.validation_stream_ids) or None,
             )
 
             # Collect actual video file lists from output directories after pipeline completes
@@ -830,10 +841,13 @@ class TestsManager:
                             job.state = InternalTestJobState.COMPLETED
                             job.end_time = int(time.time() * 1000)
                             job.details = ["Cancelled by user"]
+                            if latency_requested and not enable_latency_metrics:
+                                job.details.append(LATENCY_NOT_COLLECTED_DETAIL)
 
                             # Save result data even when cancelled with exit code 0
                             job.total_fps = result.total_fps
                             job.per_stream_fps = result.per_stream_fps
+                            job.min_stream_fps = result.min_stream_fps
                             job.total_streams = result.num_streams
                             job.video_output_paths = video_output_paths
                             # Record the last observed latency_tracer
@@ -844,8 +858,8 @@ class TestsManager:
                             )
                     else:
                         # Normal completion (exit_code is always 0 here because
-                        # non-zero exit without cancellation raises RuntimeError
-                        # in PipelineRunner)
+                        # a failure without cancellation raises RuntimeError
+                        # in the runner)
                         self.logger.info(
                             f"Performance test {job_id} completed successfully: "
                             f"exit_code={result.exit_code}, "
@@ -857,10 +871,13 @@ class TestsManager:
                         job.state = InternalTestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
                         job.details = ["Pipeline completed successfully"]
+                        if latency_requested and not enable_latency_metrics:
+                            job.details.append(LATENCY_NOT_COLLECTED_DETAIL)
 
                         # Update performance metrics
                         job.total_fps = result.total_fps
                         job.per_stream_fps = result.per_stream_fps
+                        job.min_stream_fps = result.min_stream_fps
                         job.total_streams = result.num_streams
                         job.video_output_paths = video_output_paths
                         # Record the last observed latency_tracer sample
@@ -985,9 +1002,13 @@ class TestsManager:
             )
 
             # Initialize Benchmark
+            latency_requested = internal_spec.execution_config.enable_latency_metrics
+            enable_latency_metrics = _latency_metrics_available(
+                latency_requested, job_id
+            )
             benchmark = Benchmark(
                 max_runtime=internal_spec.execution_config.max_runtime,
-                enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
+                enable_latency_metrics=enable_latency_metrics,
                 job_id=job_id,
             )
 
@@ -1032,9 +1053,12 @@ class TestsManager:
                         job.state = InternalTestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
                         job.details = ["Density test completed successfully"]
+                        if latency_requested and not enable_latency_metrics:
+                            job.details.append(LATENCY_NOT_COLLECTED_DETAIL)
 
                         job.total_fps = None
                         job.per_stream_fps = results.per_stream_fps
+                        job.min_stream_fps = results.min_stream_fps
                         job.streams_per_pipeline = results.streams_per_pipeline
                         job.total_streams = results.n_streams
                         job.video_output_paths = video_output_paths

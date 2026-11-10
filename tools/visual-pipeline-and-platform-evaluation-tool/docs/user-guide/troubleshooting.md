@@ -190,7 +190,7 @@ default configuration:
 
 If the `vippet-ui` service cannot be accessed in the browser, it may be caused by a port
 conflict on the host. If that is the case, restart the stack and access ViPPET using the new
-port, e.g., `http://localhost:8081`:
+port, e.g., `http://localhost:8082`:
 
 - In the Compose file (`compose.yml`), find the `vippet-ui` service and its `ports` section:
 
@@ -207,7 +207,7 @@ port, e.g., `http://localhost:8081`:
   services:
     vippet-ui:
       ports:
-        - "8081:80"
+        - "8082:80"
   ```
 
 ---
@@ -234,3 +234,64 @@ If you are able to discover network cameras but cannot authenticate to them, che
 - Ensure time synchronization between the ViPPET host and the cameras,
   as some ONVIF implementations require closely synchronized clocks for authentication.
 - Check for any specific ONVIF profiles or settings required by the cameras for authentication.
+
+---
+
+## 15. GigE Vision camera is discovered, but the pipeline receives no frames
+
+If a GigE Vision camera appears in the *Cameras* tab, but a pipeline that uses it fails or does not
+produce frames, check the following:
+
+- If validation fails with an unknown element (`aravissrc`), the server could not load the Aravis plugin
+  that ViPPET ships in the `vippet-gst-plugins` volume. Run
+  `docker exec dlstreamer-pipeline-server gst-inspect-1.0 aravissrc` and check
+  `docker logs dlstreamer-pipeline-server` for a `Failed to load plugin` warning. Rebuild the `vippet`
+  image if it predates the plugin, and make sure the server image uses the same Ubuntu 24.04 base as
+  `vippet` (see `DLSPS2_IMAGE` and `DLSPS2_BASE_IMAGE`).
+- Ensure that ViPPET was started with `make run GIGE=1`. Without host networking, the
+  `dlstreamer-pipeline-server` container cannot receive the UDP video stream (GVSP) sent by the camera.
+- Make sure that the camera is not streaming to another application. A GigE Vision camera can be
+  controlled by only one application at a time.
+- Check for firewall rules on the host that may block incoming UDP traffic from the camera.
+- Verify that the IP address shown in the *Cameras* tab matches the one used in the pipeline
+  (`gige://<IP address>`). If the camera IP address has changed, select the camera again in the
+  Pipeline Builder.
+- For high-resolution cameras, enable jumbo frames (for example, MTU 9000) on the network interface
+  connected to the camera to reduce packet loss.
+
+---
+
+## 16. Known limitations of pipeline execution on DL Streamer Pipeline Server 2.0
+
+Every pipeline runs on DL Streamer Pipeline Server 2.0 (the `dlstreamer-pipeline-server` container). See
+[Pipeline execution on DL Streamer Pipeline Server 2.0](./get-started/installation/build-from-source.md#pipeline-execution-on-dl-streamer-pipeline-server-20)
+for the setup. The following limitations apply:
+
+- **The Aravis plugin for GigE Vision cameras comes from the `vippet` image.** The server image does not
+  include `aravissrc`, so ViPPET ships the plugin and `libaravis` from its Ubuntu 24.04 packages in the
+  `vippet-gst-plugins` volume. It loads on a server image with the same base, which the default deployment
+  provides; with another server image (`DLSPS2_IMAGE`, `DLSPS2_BASE_IMAGE`), a GigE Vision pipeline can fail
+  validation with an unknown element (`aravissrc`).
+- **Error details of a failed run are short.** A failed run reports only the server's one-line status message
+  and the failing element. For the full GStreamer log, run `docker logs dlstreamer-pipeline-server`, or open a
+  shell in the server with `make shell-dlsps`.
+- **The latency tracer runs for every pipeline.** Tracers are process-wide, so the `latency_tracer` that
+  collects latency metrics also runs for tests that do not ask for them, and can lower their FPS. For FPS
+  measurements without the tracer, set `DLSPS2_GST_TRACERS=` (empty) before `make run`; tests that ask for
+  latency metrics then run without them, and the job details say so.
+- **The device list comes from the `vippet` container.** Available devices are detected by the OpenVINO™
+  runtime of the `vippet` container, not by the server. The list is correct as long as both containers have
+  the same devices, which the default deployment provides, and, for a server built from source, the same
+  DL Streamer base image.
+- **The pipeline optimizer runs in the `vippet` container, not on the server.** It does not see the custom
+  elements in `vippet/gst_plugins/`.
+- **ViPPET is the server's only client.** When the `vippet` container starts or stops, it stops every pipeline
+  still running on the server, including pipelines started on the server by other means.
+- **Stopping a run can take a few seconds.** If a run is stopped while the server is still validating it, the
+  server stops it only after the validation ends.
+- **Known issue: a VLM density test on CPU can make every later run fail.** The server runs all pipelines in
+  one shared worker process, and each CPU VLM stream needs several gigabytes of memory. A density test of a
+  VLM pipeline on CPU, such as Alerting VLM, can run that process out of memory, and every test, validation or
+  optimization started after it fails. The server also keeps part of the memory of every finished pipeline,
+  so its memory use grows over a long series of tests. Restart the server with
+  `docker restart dlstreamer-pipeline-server` when runs start failing, and between long series of tests.

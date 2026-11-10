@@ -1,0 +1,58 @@
+
+configure_edge_pack_kernel_image () {
+  cmdline=(xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192)
+  local kver="$(uname -r)" incompatibles=(7.0.0-14-generic)
+  case "$ID$VERSION_ID" in
+  ubuntu24.04|ubuntu26.04)
+    if [[ "$kver" = "7.0.0-"* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
+      version="$kver"
+    else
+      version="$(set -o pipefail;apt-cache depends linux-image-generic-hwe-$VERSION_ID 2> /dev/null | sed -n '/.*Depends: *linux-image-/{s///;p;q}' || echo 7.0.0-42-generic)"
+    fi
+    ;;
+  *)
+    echo "$ID $VERSION_ID not supported" >&2
+    return 1
+    ;;
+  esac
+  version="$(ensure_parse_value_option version --version="$version" "$@")"
+}
+
+debian_25_profile_edge_pack_kernel_image () {
+  echo "reboot"
+}
+
+debian_25_install_edge_pack_kernel_image () {
+  configure_edge_pack_kernel_image "$@"
+  if [[ "$(uname -r)" = "$version" ]]; then
+    ensure_apt_is_installed linux-headers-$version || {
+      ensure_apt update
+      ensure_apt install -y --no-install-recommends linux-headers-$version
+    }
+    echo "kernel $version is installed" >&2
+  else
+    echo "@@STEP Installing linux-image-$version" 
+    ensure_apt install linux-image-$version linux-headers-$version
+
+    # set grub default
+    [ -e /boot/vmlinuz-$version ] || {
+      local version1="$(apt policy linux-image-$version 2> /dev/null | grep -m1 Candidate: | cut -f2 -d: | cut -f1-3 -d. | tr -d ' ')-generic"
+      [ -e /boot/vmlinuz-$version1 ] && version="$version1" || {
+        echo "Unrecognized kernel version: $version" >&2
+        return 3
+      }
+    }
+    ensure_grub_set_default_entry "$version"
+    ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX "${cmdline[@]}"
+
+    # schedule reboot
+    configure_reboot
+  fi
+}
+
+debian_25_sbom_edge_pack_kernel_image () {
+  configure_edge_pack_kernel_image "$@"
+  ensure_sbom_format pkg-list linux-image-$version linux-headers-$version
+  ensure_sbom_format kernel-cmdline "${cmdline[@]}"
+}
+

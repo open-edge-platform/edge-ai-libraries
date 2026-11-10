@@ -73,7 +73,18 @@ def _probe_openvino_npu_runtime() -> None:
     _probe_openvino_device_runtime("NPU")
 
 
+# Devices whose probe compile has already succeeded in this process.
+# resolve_asr_device() runs on every Pipeline() construction, which includes
+# every realtime preview and commit, so without this cache each request
+# compiled the probe model again. A failed probe is not cached, so a device
+# that becomes usable later is still picked up. Device visibility is still
+# checked on every call in resolve_asr_device().
+_PROBED_DEVICES: set[str] = set()
+
+
 def _probe_openvino_device_runtime(device: str) -> None:
+    if str(device).upper() in _PROBED_DEVICES:
+        return
     try:
         import openvino as ov
         from openvino import op
@@ -93,6 +104,7 @@ def _probe_openvino_device_runtime(device: str) -> None:
 
     try:
         core.compile_model(probe_model, target)
+        _PROBED_DEVICES.add(target)
     except Exception as exc:
         message = str(exc)
         if target == "NPU" and "libopenvino_intel_npu_compiler_loader.so" in message:

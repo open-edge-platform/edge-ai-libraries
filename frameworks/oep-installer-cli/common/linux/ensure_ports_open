@@ -10,7 +10,7 @@ ensure_ports_open () {
   fi
 
   if command -v ss > /dev/null; then
-    local port out stopper
+    local port out stopper mname
     for port in $*; do
       out="$(ss -Hltunp "sport = :$port")"
       [ -n "$out" ] || continue

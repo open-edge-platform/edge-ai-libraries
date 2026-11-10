@@ -20,9 +20,17 @@ COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
 EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
 
-# Set DLSPS2=1 to run pipelines on a DLSPS 2.0 container (see compose.dlsps2.yml).
-DLSPS2 ?= 0
-DLSPS2_COMPOSE := $(if $(filter 1,$(DLSPS2)),-f compose.dlsps2.yml)
+# Pipelines run on DLSPS 2.0 (dlstreamer-pipeline-server in compose.yml), built from
+# microservices/dlstreamer-pipeline-server/dlsps2 by default. With DLSPS2_IMAGE set (e.g. a
+# published intel/dlstreamer-pipeline-server:<tag>), that image is used as is: `build`
+# skips the server, so it never overwrites the tag; `run` pulls it.
+BUILD_SERVICES := $(if $(DLSPS2_IMAGE),vippet vippet-ui sensor-manager)
+# DLSPS 2.0 image used by `run-prebuilt` unless DLSPS2_IMAGE is set.
+PREBUILT_DLSPS2_IMAGE ?= intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-2.0-rc1
+
+# Set GIGE=1 to run vippet with host networking for GigE Vision camera streaming (see compose.gige.yml).
+GIGE ?= 0
+GIGE_COMPOSE := $(if $(filter 1,$(GIGE)),-f compose.gige.yml)
 
 # Speed up `docker compose build` by skipping provenance/SBOM attestations
 # (saves ~hundreds of ms per build on warm cache, more on cold).
@@ -138,8 +146,8 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager); DLSPS2=1 adds DLSPS 2.0
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) build
+build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager, DLSPS 2.0 unless DLSPS2_IMAGE is set)
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) build $(BUILD_SERVICES)
 
 build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, sensor-manager)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
@@ -154,19 +162,20 @@ build-onvif-discovery: build-sensor-manager ## Deprecated alias of build-sensor-
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) up -d
+run: env-setup ## Run the docker compose services; GIGE=1 enables GigE camera streaming
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) up -d
 
-run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source
-	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && echo "Running published images tagged $$DOCKER_TAG" && \
-		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml pull vippet vippet-ui sensor-manager && \
-		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d --no-build
+run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main) and PREBUILT_DLSPS2_IMAGE; never builds from source; GIGE=1 enables GigE camera streaming
+	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && export DLSPS2_IMAGE="$${DLSPS2_IMAGE:-$(PREBUILT_DLSPS2_IMAGE)}" && \
+		echo "Running published images tagged $$DOCKER_TAG with $$DLSPS2_IMAGE" && \
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) pull vippet vippet-ui sensor-manager dlstreamer-pipeline-server && \
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) up -d --no-build
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
 
-run-dev: env-setup ## Run the docker compose services for development
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
+run-dev: env-setup ## Run the docker compose services for development; GIGE=1 enables GigE camera streaming
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) $(GIGE_COMPOSE) up -d
 
 build-experimental: env-setup ## Build core images for experimental timeseries setup
 	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
@@ -221,7 +230,7 @@ test-full: $(VENV_SENTINEL) ## Run full functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO vippet/tests/functional/
 
-test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full, PERF_ARGS="--dry-run ...")
+test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full|<result JSON or run dir>, PERF_ARGS="--dry-run ...")
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	PYTHONPATH=vippet/tests/performance PERF_CONFIG=$(or $(PERF_CONFIG),default) \
 		python -m perf_helpers.cli $(PERF_ARGS)
@@ -273,11 +282,11 @@ shell-metrics-manager: ## Open shell in metrics-manager container
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
-shell-dlsps: ## Open shell in DLSPS 2.0 container (started with DLSPS2=1)
+shell-dlsps: ## Open shell in DLSPS 2.0 container
 	$(MAKE) shell SERVICE=dlstreamer-pipeline-server
 
 stop: ## Stop the docker compose services
-	docker compose $(if $(DLSPS2_COMPOSE),-f $(COMPOSE_FILE) $(DLSPS2_COMPOSE)) down
+	docker compose down
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/videos/input shared/videos/video-generator

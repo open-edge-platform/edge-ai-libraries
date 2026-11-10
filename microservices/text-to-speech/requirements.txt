@@ -19,7 +19,11 @@ nncf==3.1.0
 optimum==2.3.0
 optimum-intel[openvino]==2.1.0
 
-transformers==5.3.0
+# Bumped from 5.3.0 to fix CVE-2026-5241 (resolved at 5.5.0). Cannot go
+# further to fix CVE-2026-9856 (needs >=5.10.0): optimum-intel==2.1.0 pins
+# transformers<5.6, and that ceiling hasn't moved in optimum-intel 2.2.0
+# either, so a newer transformers would conflict with the pinned dependency.
+transformers==5.5.4
 torch==2.11.0+cpu
 torchaudio==2.11.0+cpu
 

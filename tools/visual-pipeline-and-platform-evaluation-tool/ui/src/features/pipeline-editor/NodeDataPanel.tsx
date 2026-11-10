@@ -114,6 +114,12 @@ const NodeDataPanel = ({
               ? details["device_path"]
               : undefined;
           value = typeof devicePath === "string" ? devicePath : "";
+        } else if (camera.device_type === "GIGE") {
+          const ip =
+            details && typeof details === "object" && "ip" in details
+              ? details["ip"]
+              : undefined;
+          value = typeof ip === "string" && ip ? `gige://${ip}` : "";
         } else {
           // NETWORK camera
           const profiles =

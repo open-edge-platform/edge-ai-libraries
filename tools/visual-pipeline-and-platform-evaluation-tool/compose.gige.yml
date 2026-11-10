@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Optional overlay: runs the dlstreamer-pipeline-server service with host
+# networking so pipelines can stream from GigE Vision cameras (aravissrc). GigE
+# Vision (GVSP) cameras send video as UDP packets directly to the receiver's
+# address, which a container on a Docker bridge network cannot receive. Camera
+# discovery works without this overlay, because sensor-manager always uses host
+# networking.
+#
+# The DLSPS 2.0 image does not include the Aravis GStreamer plugin: the server
+# loads aravissrc from the vippet-gst-plugins volume, which the vippet image
+# fills (vippet/Dockerfile, aravis stage). See the user guide.
+#
+# Usage: make build run GIGE=1
+#   (or: docker compose -f compose.yml -f compose.$COMPOSE_PROFILES.yml -f compose.gige.yml up -d)
+#
+# Security note: with host networking the server's REST API listens on all host
+# interfaces, on DLSPS2_REST_SERVER_PORT. Without this overlay it is reachable
+# only from the compose network.
+services:
+  dlstreamer-pipeline-server:
+    network_mode: host
+    hostname: !reset null
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import os, urllib.request; urllib.request.urlopen('http://localhost:' + os.environ['REST_SERVER_PORT'] + '/pipelines/status', timeout=5)"]
+    environment:
+      # Bound directly on the host, so keep it off ports other services publish.
+      REST_SERVER_PORT: ${DLSPS2_REST_SERVER_PORT:-8081}
+      # The compose network DNS is not available on the host network; use the
+      # port published by metrics-manager instead.
+      OTEL_COLLECTOR_HOST: localhost
+
+  vippet:
+    environment:
+      DLSPS2_BASE_URL: http://host.docker.internal:${DLSPS2_REST_SERVER_PORT:-8081}
+      # Live-stream outputs are part of the pipeline strings vippet builds, and the
+      # server that runs them is on the host network: use mediamtx's published port.
+      LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-localhost}

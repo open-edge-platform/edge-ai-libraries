@@ -5,3 +5,9 @@ services:
       - /dev/dxg
     volumes:
       - /usr/lib/wsl:/usr/lib/wsl
+  dlstreamer-pipeline-server:
+    # Runs the pipelines, so it needs the same GPU access as vippet.
+    devices:
+      - /dev/dxg
+    volumes:
+      - /usr/lib/wsl:/usr/lib/wsl

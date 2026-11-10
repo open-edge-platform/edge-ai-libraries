@@ -123,15 +123,15 @@ spec:
               mountPath: /app/ov_models
               subPath: ovmodels
             - name: models-data
-              mountPath: /app/models/yolox
-              subPath: yoloxmodels
+              mountPath: /app/models/object-detection
+              subPath: detectionmodels
       {{- else }}
             - name: volume-data
               mountPath: /app/ov_models
               subPath: ovmodels
             - name: volume-data
-              mountPath: /app/models/yolox
-              subPath: yoloxmodels
+              mountPath: /app/models/object-detection
+              subPath: detectionmodels
       {{- end }}
             - name: volume-data
               mountPath: /tmp/dataprep

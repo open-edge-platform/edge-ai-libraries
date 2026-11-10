@@ -31,6 +31,8 @@ install_docker_via_apt_repo() {
   rm -f "$key_tmp"
 
   local codename arch
+  # Read the target host's distro metadata, not the runner's.
+  # shellcheck disable=SC1091
   codename="$(. /etc/os-release && printf '%s' "${UBUNTU_CODENAME:-$VERSION_CODENAME}")"
   arch="$(dpkg --print-architecture)"
   sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
@@ -69,6 +71,24 @@ to accept the risk and proceed without pinning)."
   assert_shell_script "$docker_tmp" "Docker install script"
   sudo sh "$docker_tmp" || { rm -f "$docker_tmp"; error "Docker install failed."; }
   rm -f "$docker_tmp"
+}
+
+# assert_proxy_env_well_formed -- a stray quote or whitespace in a proxy URL
+# (e.g. ALL_PROXY='http://host:1080"') is copied into the Docker daemon config
+# and every container, and makes agent HTTP clients refuse to start. Reports
+# only the variable name, since proxy URLs can embed credentials.
+assert_proxy_env_well_formed() {
+  local var value
+  for var in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+    value="${!var:-}"
+    [[ -n "$value" ]] || continue
+    case "$value" in
+      *[[:space:][:cntrl:]\"\']*)
+        error "\$${var} contains a quote, whitespace or control character, so it is not a valid proxy URL.
+Fix it (for example export ${var}=\"http://host:port\" with matching quotes, or unset it) and re-run.
+/etc/environment, ~/.bashrc and any script you sourced are the usual places it comes from." ;;
+    esac
+  done
 }
 
 # ensure_docker_daemon_proxy -- docker_proxy_env_args_into (openvino.sh,
@@ -113,7 +133,7 @@ ensure_docker_daemon_proxy() {
   local v
   for v in "$http_proxy_val" "$https_proxy_val" "$no_proxy_val"; do
     case "$v" in
-      *'"'* | *'\'* | *$'\n'*)
+      *'"'* | *\\* | *$'\n'*)
         warn "Skipping Docker daemon proxy setup: a proxy variable contains a quote, backslash, or newline."
         return 0 ;;
     esac
@@ -189,6 +209,8 @@ ensure_docker() {
     info "Docker is not installed."
     local distro_id=""
     if command_exists apt-get && [[ -r /etc/os-release ]]; then
+      # Read the target host's distro metadata, not the runner's.
+      # shellcheck disable=SC1091
       distro_id="$(. /etc/os-release && printf '%s' "$ID")"
     fi
     case "$distro_id" in
@@ -331,6 +353,9 @@ docker_proxy_env_args_into() {
   local -n _docker_proxy_target="$1"
   local var
   for var in HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy; do
-    [[ -n "${!var:-}" ]] && _docker_proxy_target+=(-e "${var}=${!var}")
+    # Not `[[ ]] && ...`: its status 1 for an unset last var would abort callers under set -e.
+    if [[ -n "${!var:-}" ]]; then
+      _docker_proxy_target+=(-e "${var}=${!var}")
+    fi
   done
 }

@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import ANY, patch, MagicMock
 
 from benchmark import BenchmarkResult
+from dlsps2_runner import Dlsps2PipelineRunner
 from graph import Graph
 from internal_types import (
     InternalDensityJobStatus,
@@ -21,6 +22,7 @@ from internal_types import (
 )
 from managers.execution_coordinator import ExecutionCoordinator
 from managers.tests_manager import (
+    LATENCY_NOT_COLLECTED_DETAIL,
     MAX_PIPELINE_EVENT_PROMPT_CHARS,
     MAX_PIPELINE_EVENT_TEXT_CHARS,
     MAX_PIPELINE_EVENTS_PER_JOB,
@@ -28,7 +30,7 @@ from managers.tests_manager import (
     TestsManager,
 )
 from managers.pipeline_manager import PipelineManager, PipelineCommand
-from pipeline_runner import PipelineEvent, PipelineRunner, PipelineResult
+from pipeline_runner import PipelineEvent, PipelineResult
 
 
 def create_simple_graph() -> Graph:
@@ -50,6 +52,19 @@ def create_usb_camera_graph(device: str = "/dev/video0") -> Graph:
         {
             "nodes": [
                 {"id": "0", "type": "v4l2src", "data": {"device": device}},
+                {"id": "1", "type": "fakesink", "data": {}},
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
+    )
+
+
+def create_gige_camera_graph(camera_name: str) -> Graph:
+    """Helper to create a pipeline Graph object with GigE camera source (aravissrc)."""
+    return Graph.from_dict(
+        {
+            "nodes": [
+                {"id": "0", "type": "aravissrc", "data": {"camera-name": camera_name}},
                 {"id": "1", "type": "fakesink", "data": {}},
             ],
             "edges": [{"id": "0", "source": "0", "target": "1"}],
@@ -480,7 +495,7 @@ class TestTestsManager(unittest.TestCase):
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
-        manager.runners[job_id] = PipelineRunner(mode="normal", max_runtime=0)
+        manager.runners[job_id] = Dlsps2PipelineRunner(mode="normal", max_runtime=0)
 
         success, message = manager.stop_job(job_id)
         self.assertTrue(success)
@@ -543,7 +558,7 @@ class TestTestsManager(unittest.TestCase):
             state=InternalTestJobState.COMPLETED,
         )
         manager.jobs[job_id] = job
-        manager.runners[job_id] = PipelineRunner(mode="normal", max_runtime=0)
+        manager.runners[job_id] = Dlsps2PipelineRunner(mode="normal", max_runtime=0)
 
         success, message = manager.stop_job(job_id)
         self.assertFalse(success)
@@ -584,7 +599,7 @@ class TestTestsManager(unittest.TestCase):
 
         with (
             patch.object(
-                PipelineRunner,
+                Dlsps2PipelineRunner,
                 "run",
                 return_value=PipelineResult(
                     total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
@@ -647,7 +662,7 @@ class TestTestsManager(unittest.TestCase):
 
         with (
             patch.object(
-                PipelineRunner,
+                Dlsps2PipelineRunner,
                 "run",
                 return_value=PipelineResult(
                     total_fps=300.0, per_stream_fps=100.0, num_streams=3, exit_code=0
@@ -718,7 +733,7 @@ class TestTestsManager(unittest.TestCase):
 
         with (
             patch.object(
-                PipelineRunner,
+                Dlsps2PipelineRunner,
                 "run",
                 return_value=PipelineResult(
                     total_fps=100.0,
@@ -781,7 +796,7 @@ class TestTestsManager(unittest.TestCase):
 
         with (
             patch.object(
-                PipelineRunner,
+                Dlsps2PipelineRunner,
                 "run",
                 return_value=PipelineResult(
                     total_fps=0.0,
@@ -1230,7 +1245,8 @@ class TestUSBCameraValidation(unittest.TestCase):
             manager._validate_no_usb_camera_for_density([spec])
         error_msg = str(context.exception)
         self.assertIn(
-            "USB camera input sources are not supported in density tests", error_msg
+            "USB and GigE camera input sources are not supported in density tests",
+            error_msg,
         )
         self.assertIn("/dev/video0", error_msg)
         self.assertIn("USB Camera Pipeline", error_msg)
@@ -1257,12 +1273,64 @@ class TestUSBCameraValidation(unittest.TestCase):
             manager._validate_no_usb_camera_for_density([spec1, spec2])
         error_msg = str(context.exception)
         self.assertIn(
-            "USB camera input sources are not supported in density tests", error_msg
+            "USB and GigE camera input sources are not supported in density tests",
+            error_msg,
         )
         self.assertIn("/dev/video0", error_msg)
         self.assertIn("/dev/video1", error_msg)
         self.assertIn("USB Camera Pipeline 1", error_msg)
         self.assertIn("USB Camera Pipeline 2", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_with_gige_camera_raises_error(self, mock_pipeline_manager_cls):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        manager = TestsManager()
+        spec = InternalPipelineDensitySpec(
+            pipeline_id="/pipelines/gige-test/variants/v1",
+            pipeline_name="GigE Camera Pipeline",
+            pipeline_graph=create_gige_camera_graph("12345678"),
+            stream_rate=100,
+        )
+        with self.assertRaises(ValueError) as context:
+            manager._validate_no_usb_camera_for_density([spec])
+        error_msg = str(context.exception)
+        self.assertIn("gige://12345678", error_msg)
+        self.assertIn("GigE Camera Pipeline", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_same_gige_camera_multiple_pipelines_raises_error(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        manager = TestsManager()
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=f"/pipelines/gige-test{i}/variants/v{i}",
+                pipeline_name=f"GigE Camera Pipeline {i}",
+                pipeline_graph=create_gige_camera_graph("12345678"),
+                streams=1,
+            )
+            for i in (1, 2)
+        ]
+        with self.assertRaises(ValueError) as context:
+            manager._validate_usb_camera_for_performance(specs)
+        error_msg = str(context.exception)
+        self.assertIn("gige://12345678", error_msg)
+        self.assertIn("can only be used in one pipeline with one stream", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_single_gige_camera_single_stream_succeeds(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        manager = TestsManager()
+        spec = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/gige-test/variants/v1",
+            pipeline_name="GigE Camera Pipeline",
+            pipeline_graph=create_gige_camera_graph("192.168.1.50"),
+            streams=1,
+        )
+        manager._validate_usb_camera_for_performance([spec])
 
     @patch("managers.tests_manager.PipelineManager")
     def test_density_without_usb_camera_succeeds(self, mock_pipeline_manager_cls):
@@ -1381,7 +1449,7 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         manager.jobs[job_id] = job
         with (
             patch.object(
-                PipelineRunner,
+                Dlsps2PipelineRunner,
                 "run",
                 return_value=PipelineResult(
                     total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
@@ -1409,7 +1477,7 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
         TestsManager._instance = None
         PipelineManager._instance = None
 
-    @patch("managers.tests_manager.PipelineRunner")
+    @patch("managers.tests_manager.Dlsps2PipelineRunner")
     @patch("managers.tests_manager.PipelineManager")
     def test_execute_performance_test_uses_max_runtime_from_config(
         self, mock_pipeline_manager_cls, mock_pipeline_runner_cls
@@ -1659,13 +1727,13 @@ class TestInlineGraphSupport(unittest.TestCase):
         manager.jobs[job_id] = job
         with (
             patch.object(
-                PipelineRunner,
+                Dlsps2PipelineRunner,
                 "run",
                 return_value=PipelineResult(
                     total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
                 ),
             ),
-            patch.object(PipelineRunner, "is_cancelled", return_value=False),
+            patch.object(Dlsps2PipelineRunner, "is_cancelled", return_value=False),
             patch(
                 "managers.tests_manager.collect_video_outputs_from_dirs",
                 return_value={},
@@ -1717,13 +1785,13 @@ class TestInlineGraphSupport(unittest.TestCase):
         manager.jobs[job_id] = job
         with (
             patch.object(
-                PipelineRunner,
+                Dlsps2PipelineRunner,
                 "run",
                 return_value=PipelineResult(
                     total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
                 ),
             ),
-            patch.object(PipelineRunner, "is_cancelled", return_value=False),
+            patch.object(Dlsps2PipelineRunner, "is_cancelled", return_value=False),
             patch(
                 "managers.tests_manager.collect_video_outputs_from_dirs",
                 return_value={},
@@ -1904,7 +1972,7 @@ class TestMetadataStreamUrlsInPerformanceJob(unittest.TestCase):
 
         with (
             patch.object(
-                PipelineRunner,
+                Dlsps2PipelineRunner,
                 "run",
                 return_value=PipelineResult(
                     total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
@@ -1971,7 +2039,7 @@ class TestMetadataStreamUrlsInPerformanceJob(unittest.TestCase):
 
         with (
             patch.object(
-                PipelineRunner,
+                Dlsps2PipelineRunner,
                 "run",
                 return_value=PipelineResult(
                     total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
@@ -2026,7 +2094,7 @@ class TestMetadataStreamUrlsInPerformanceJob(unittest.TestCase):
 
         with (
             patch.object(
-                PipelineRunner,
+                Dlsps2PipelineRunner,
                 "run",
                 return_value=PipelineResult(
                     total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
@@ -2071,6 +2139,177 @@ class TestMetadataStreamUrlsInPerformanceJob(unittest.TestCase):
         mock_metadata_manager_instance.stop_tailing.assert_called_once_with(job_id)
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, InternalTestJobState.FAILED)
+
+
+class TestDlsps2Backend(unittest.TestCase):
+    """Every performance and density test runs on DLSPS 2.0, one instance per stream."""
+
+    def setUp(self):
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def _performance_job(self, manager, enable_latency_metrics=False):
+        execution_config = create_internal_execution_config()
+        execution_config.enable_latency_metrics = enable_latency_metrics
+        internal_spec = create_internal_performance_test_spec(
+            pipeline_specs=[create_internal_performance_spec(streams=2)],
+            execution_config=execution_config,
+        )
+        job_id = "test-job-dlsps2"
+        manager.jobs[job_id] = InternalPerformanceJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+        return job_id, internal_spec
+
+    @patch("managers.tests_manager.collect_video_outputs_from_dirs", return_value={})
+    @patch("managers.tests_manager.PipelineManager")
+    def test_multi_stream_performance_runs_per_stream_instances(
+        self, mock_pipeline_manager_cls, _mock_collect
+    ):
+        stream_commands = {"s0": "fakesrc ! fakesink", "s1": "fakesrc ! fakesink"}
+        mock_pipeline_manager_cls.return_value.build_pipeline_command.return_value = (
+            PipelineCommand(
+                command="fakesrc ! fakesink fakesrc ! fakesink",
+                stream_commands=stream_commands,
+            )
+        )
+        manager = TestsManager()
+        job_id, internal_spec = self._performance_job(manager)
+
+        with patch.object(
+            Dlsps2PipelineRunner,
+            "run",
+            return_value=PipelineResult(
+                total_fps=50.0,
+                per_stream_fps=25.0,
+                num_streams=2,
+                stream_fps={"s0": 30.0, "s1": 20.0},
+            ),
+        ) as mock_dlsps2_run:
+            manager._execute_performance_test(job_id, internal_spec)
+
+        self.assertEqual(
+            mock_dlsps2_run.call_args.kwargs["stream_commands"], stream_commands
+        )
+        self.assertEqual(mock_dlsps2_run.call_args.kwargs["total_streams"], 2)
+        updated = manager.jobs[job_id]
+        self.assertEqual(updated.state, InternalTestJobState.COMPLETED)
+        self.assertEqual(updated.per_stream_fps, 25.0)
+        self.assertEqual(updated.min_stream_fps, 20.0)
+        self.assertEqual(updated.details, ["Pipeline completed successfully"])
+
+    @patch("managers.tests_manager.dlsps2_latency_configured", return_value=False)
+    @patch("managers.tests_manager.collect_video_outputs_from_dirs", return_value={})
+    @patch("managers.tests_manager.PipelineManager")
+    @patch("managers.tests_manager.Dlsps2PipelineRunner")
+    def test_latency_metrics_without_tracer_run_without_latency(
+        self, mock_runner_cls, mock_pipeline_manager_cls, _mock_collect, _mock_cfg
+    ):
+        mock_pipeline_manager_cls.return_value.build_pipeline_command.return_value = (
+            PipelineCommand(command="fakesrc ! fakesink")
+        )
+        mock_runner_cls.return_value.run.return_value = PipelineResult(
+            total_fps=10.0, num_streams=1
+        )
+        manager = TestsManager()
+        job_id, internal_spec = self._performance_job(
+            manager, enable_latency_metrics=True
+        )
+
+        with self.assertLogs("tests_manager", level="WARNING") as cm:
+            manager._execute_performance_test(job_id, internal_spec)
+
+        self.assertFalse(mock_runner_cls.call_args.kwargs["enable_latency_metrics"])
+        self.assertTrue(any("latency" in m for m in cm.output))
+        updated = manager.jobs[job_id]
+        self.assertEqual(updated.state, InternalTestJobState.COMPLETED)
+        self.assertEqual(
+            updated.details,
+            ["Pipeline completed successfully", LATENCY_NOT_COLLECTED_DETAIL],
+        )
+
+    @patch("managers.tests_manager.dlsps2_latency_configured", return_value=True)
+    @patch("managers.tests_manager.collect_video_outputs_from_dirs", return_value={})
+    @patch("managers.tests_manager.PipelineManager")
+    @patch("managers.tests_manager.Dlsps2PipelineRunner")
+    def test_latency_metrics_with_tracer_are_collected(
+        self, mock_runner_cls, mock_pipeline_manager_cls, _mock_collect, _mock_cfg
+    ):
+        mock_pipeline_manager_cls.return_value.build_pipeline_command.return_value = (
+            PipelineCommand(command="fakesrc ! fakesink")
+        )
+        mock_runner_cls.return_value.run.return_value = PipelineResult(
+            total_fps=10.0, num_streams=1
+        )
+        manager = TestsManager()
+        job_id, internal_spec = self._performance_job(
+            manager, enable_latency_metrics=True
+        )
+
+        manager._execute_performance_test(job_id, internal_spec)
+
+        self.assertTrue(mock_runner_cls.call_args.kwargs["enable_latency_metrics"])
+        self.assertIn(
+            "allowed_stream_ids", mock_runner_cls.return_value.run.call_args.kwargs
+        )
+        self.assertEqual(
+            manager.jobs[job_id].details, ["Pipeline completed successfully"]
+        )
+
+    @patch("managers.tests_manager.dlsps2_latency_configured")
+    @patch("managers.tests_manager.Benchmark")
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_latency_follows_the_server_setup(
+        self, _mock_pipeline_manager_cls, mock_benchmark_cls, mock_configured
+    ):
+        for configured in (False, True):
+            with self.subTest(configured=configured):
+                mock_configured.return_value = configured
+                kwargs, details = self._run_density_with_latency(mock_benchmark_cls)
+                self.assertEqual(kwargs["enable_latency_metrics"], configured)
+                self.assertNotIn("use_dlsps2", kwargs)
+                self.assertEqual(
+                    LATENCY_NOT_COLLECTED_DETAIL in details, not configured
+                )
+
+    def _run_density_with_latency(self, mock_benchmark_cls) -> tuple[dict, list]:
+        mock_benchmark_cls.return_value.runner.is_cancelled.return_value = False
+        mock_benchmark_cls.return_value.run.return_value = MagicMock(
+            n_streams=1,
+            streams_per_pipeline=[],
+            per_stream_fps=30.0,
+            min_stream_fps=30.0,
+            video_output_paths={},
+            latency_tracer_metrics=None,
+        )
+        manager = TestsManager()
+        internal_spec = create_internal_density_test_spec()
+        internal_spec.execution_config.enable_latency_metrics = True
+        job_id = "test-density-dlsps2-latency"
+        manager.jobs[job_id] = InternalDensityJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+
+        with (
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value={},
+            ),
+            self.assertNoLogs("tests_manager", level="ERROR"),
+        ):
+            manager._execute_density_test(job_id, internal_spec)
+
+        return mock_benchmark_cls.call_args.kwargs, manager.jobs[job_id].details
 
 
 if __name__ == "__main__":

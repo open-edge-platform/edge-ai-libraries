@@ -352,6 +352,7 @@ class CameraType(str, Enum):
     ## Values
     - `USB` - USB camera connected directly to the system
     - `NETWORK` - Network camera accessible via IP protocols
+    - `GIGE` - GigE Vision machine vision camera
 
     ### Example
     ```json
@@ -361,6 +362,7 @@ class CameraType(str, Enum):
 
     USB = "USB"
     NETWORK = "NETWORK"
+    GIGE = "GIGE"
 
 
 class HealthResponse(BaseModel):
@@ -1440,12 +1442,15 @@ class ExecutionConfig(BaseModel):
     enable_latency_metrics: bool = Field(
         default=False,
         description=(
-            "When true, activates the DLStreamer `latency_tracer` in "
-            "pipeline-only mode with a 1000 ms interval by setting "
-            "`GST_DEBUG=GST_TRACER:7` (appended if already set) and "
-            "`GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on "
-            "the GStreamer subprocess environment. When false (default), "
-            "neither environment variable is modified."
+            "When true, the job reports DLStreamer `latency_tracer` samples "
+            "per stream in `latency_tracer_metrics`. This flag does not "
+            "start the tracer: DL Streamer Pipeline Server runs it for every "
+            "pipeline when configured server-wide (`DLSPS2_GST_TRACERS` with "
+            "`post-metrics=true`, and `DLSPS2_OTEL=true`), and ViPPET only "
+            "reads the samples the server exports to metrics-manager. If the "
+            "server is not configured that way, the test runs without "
+            "latency metrics and the job's `details` say so. When false "
+            "(default), no latency samples are read."
         ),
     )
 
@@ -1815,11 +1820,10 @@ class LatencyMetrics(BaseModel):
     """
     **Last observed DLStreamer `latency_tracer` sample for a single stream.**
 
-    Each value is extracted from a single
-    `latency_tracer_pipeline_interval` line emitted by the
-    `latency_tracer` (one such line per stream per interval ~1000 ms).
-    Only the most recent sample per stream is kept; history is not
-    reported here.
+    Each value merges the `latency_tracer` windows of one stream over one
+    DL Streamer Pipeline Server export period (`DLSPS2_OTEL_INTERVAL_MS`,
+    1000 ms by default, so usually one tracer window). Only the most
+    recent sample per stream is kept; history is not reported here.
 
     All timing fields are in milliseconds. `fps` reported by the tracer
     is intentionally **not** included because FPS is already exposed on
@@ -1827,11 +1831,15 @@ class LatencyMetrics(BaseModel):
     `gvafpscounter`).
 
     ## Attributes
-    - `interval_ms` - Length of the measurement window, in milliseconds
-    - `avg_ms` - Average frame latency over the window, in milliseconds
+    - `interval_ms` - Total length of the tracer windows in the sample, in milliseconds
+    - `avg_ms` - Mean frame latency over the window, in milliseconds
     - `min_ms` - Minimum frame latency observed in the window, in milliseconds
     - `max_ms` - Maximum frame latency observed in the window, in milliseconds
-    - `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds
+    - `latency_ms` - **Deprecated.** Mean time between output frames in the window, in milliseconds (frame period, `1000 / fps`). It is **not** a frame latency; use `avg_ms` (mean) and `max_ms`
+
+    A frame's latency is the time from the moment the source element
+    outputs the frame to the moment the frame is pushed into the sink;
+    the sink's own work is excluded.
 
     ### Example
     ```json
@@ -1847,28 +1855,48 @@ class LatencyMetrics(BaseModel):
 
     interval_ms: float = Field(
         ...,
-        description="Length of the measurement window reported by the tracer, in ms.",
+        description=(
+            "Total length of the tracer windows merged into this sample, "
+            "in ms (about one export period)."
+        ),
         examples=[1000.25],
     )
     avg_ms: float = Field(
         ...,
-        description="Average frame latency over the window, in ms.",
+        description=(
+            "Mean per-frame latency over the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[364.31],
     )
     min_ms: float = Field(
         ...,
-        description="Minimum frame latency observed in the window, in ms.",
+        description=(
+            "Minimum per-frame latency in the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[0.004],
     )
     max_ms: float = Field(
         ...,
-        description="Maximum frame latency observed in the window, in ms.",
+        description=(
+            "Maximum per-frame latency in the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[529.26],
     )
     latency_ms: float = Field(
         ...,
-        description="Current end-to-end latency reported by the tracer, in ms.",
+        description=(
+            "Deprecated: mean time between output frames in the window, "
+            "in ms (frame period, = 1000 / fps). It is NOT a frame "
+            "latency - use `avg_ms` (mean) and `max_ms`."
+        ),
         examples=[21.28],
+        deprecated=True,
     )
 
 
@@ -1905,6 +1933,7 @@ class TestsJobStatus(BaseModel):
     - `details` - List of human-readable messages explaining why the job reached its current state. Cleared when the job transitions to a new state, then new entries are appended. Examples: ["Pipeline completed successfully"], ["Cancelled by user"], ["Cancelled by user", "Pipeline exited with non-zero exit code: 1"], ["Pipeline runtime error: ..."]
     - `total_fps` - Total FPS across all streams (may be null)
     - `per_stream_fps` - Average FPS per stream (may be null)
+    - `min_stream_fps` - FPS of the slowest stream (null when per-stream FPS is not available)
     - `total_streams` - Number of active streams (may be null)
     - `streams_per_pipeline` - List of pipeline IDs with stream counts (each entry contains: id (pipeline identifier: variant path or synthetic graph ID) and streams (number of streams for this pipeline))
     - `video_output_paths` - Mapping from pipeline id to list of output file paths (keys use the same id format as streams_per_pipeline entries)
@@ -1923,16 +1952,27 @@ class TestsJobStatus(BaseModel):
     total_streams: int | None
     streams_per_pipeline: list[PipelineStreamSpec] | None
     video_output_paths: dict[str, list[str]] | None
+    min_stream_fps: float | None = Field(
+        default=None,
+        description=(
+            "FPS of the slowest stream. A density test passes a stream count "
+            "only if this reaches `fps_floor`. `null` when no per-stream FPS "
+            "was measured; `per_stream_fps` is then the only measure."
+        ),
+        examples=[27.5],
+    )
     latency_tracer_metrics: dict[str, LatencyMetrics] | None = Field(
         default=None,
         description=(
             "Last observed DLStreamer `latency_tracer` sample per stream, "
             "keyed by `stream_id` (`{source_name}__{sink_name}`). `null` "
-            "when the job was executed with "
-            "`execution_config.enable_latency_metrics=false` (the tracer "
-            "was not started at all). An empty object `{}` means the "
-            "tracer was active but produced no samples — for example when "
-            "the pipeline exited before the first 1000 ms interval closed."
+            "when no latency samples were read: the job was executed with "
+            "`execution_config.enable_latency_metrics=false`, or latency "
+            "was requested but DL Streamer Pipeline Server runs without the "
+            "latency tracer (the job's `details` then say so). An empty "
+            "object `{}` means samples were read but none arrived — for "
+            "example when the pipeline stopped before the server's first "
+            "export."
         ),
     )
 
@@ -1946,7 +1986,7 @@ class PerformanceJobStatus(TestsJobStatus):
     carrying recent live pipeline events.
 
     ## Attributes
-    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
     - `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)
     - `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer
@@ -1972,7 +2012,7 @@ class DensityJobStatus(TestsJobStatus):
     live-streaming output mode (only disabled or file modes are allowed).
 
     ## Attributes
-    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     """
 
     pass
@@ -2155,6 +2195,96 @@ class ValidationJobSummary(BaseModel):
     request: PipelineValidation
 
 
+class CpuCoreType(str, Enum):
+    """
+    **Type of a logical CPU on an Intel processor.**
+
+    ## Values
+    - `P` - Performance core on a hybrid processor
+    - `E` - Efficient core on a hybrid processor
+    - `LPE` - Low-power efficient core on a hybrid processor
+    - `UNIFORM` - Core of a non-hybrid processor, where all cores are the same type
+
+    ### Example
+    ```json
+    "P"
+    ```
+    """
+
+    P = "P"
+    E = "E"
+    LPE = "LPE"
+    UNIFORM = "UNIFORM"
+
+
+class CpuTopologySource(str, Enum):
+    """
+    **Method used to determine the CPU core types.**
+
+    ## Values
+    - `sysfs_pmu` - Hybrid PMU CPU lists in Linux sysfs (`cpu_core`, `cpu_atom`, `cpu_lowpower`)
+    - `sysfs_cache` - Cache topology in Linux sysfs, used when the hybrid PMU lists are missing
+    - `uniform` - Non-hybrid processor; every core is `UNIFORM`
+
+    ### Example
+    ```json
+    "sysfs_pmu"
+    ```
+    """
+
+    SYSFS_PMU = "sysfs_pmu"
+    SYSFS_CACHE = "sysfs_cache"
+    UNIFORM = "uniform"
+
+
+class CpuCore(BaseModel):
+    """
+    **One online logical CPU and its core type.**
+
+    ## Attributes
+    - `cpu` - Logical CPU id, as used for CPU affinity (for example `taskset -c`)
+    - `core_type` - Core type of this CPU
+    - `core_id` - Lowest logical CPU id among its SMT siblings; hyper-threads of one physical core share it
+
+    ### Example
+    ```json
+    {"cpu": 0, "core_type": "P", "core_id": 0}
+    ```
+    """
+
+    cpu: int
+    core_type: CpuCoreType
+    core_id: int
+
+
+class CpuTopology(BaseModel):
+    """
+    **Core types of all online logical CPUs of the host.**
+
+    ## Attributes
+    - `is_hybrid` - True when the CPUs are classified into `P`, `E` or `LPE` types
+    - `source` - Method used to determine the core types
+    - `cores` - Online logical CPUs sorted by id
+
+    ### Example
+    ```json
+    {
+      "is_hybrid": true,
+      "source": "sysfs_pmu",
+      "cores": [
+        {"cpu": 0, "core_type": "P", "core_id": 0},
+        {"cpu": 6, "core_type": "E", "core_id": 6},
+        {"cpu": 14, "core_type": "LPE", "core_id": 14}
+      ]
+    }
+    ```
+    """
+
+    is_hybrid: bool
+    source: CpuTopologySource
+    cores: list[CpuCore]
+
+
 class Device(BaseModel):
     """
     **Hardware device description used by multiple APIs.**
@@ -2168,6 +2298,8 @@ class Device(BaseModel):
     - `device_type` - High level device type (INTEGRATED or DISCRETE)
     - `device_family` - Hardware family (CPU, GPU, NPU)
     - `gpu_id` - Optional GPU index when applicable; null for non-GPU devices
+    - `cpu_topology` - Core types of the host CPUs for the CPU device; null for other devices
+      or when they cannot be determined
 
     ### Example
     ```json
@@ -2176,7 +2308,8 @@ class Device(BaseModel):
       "full_device_name": "Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)",
       "device_type": "INTEGRATED",
       "device_family": "GPU",
-      "gpu_id": 0
+      "gpu_id": 0,
+      "cpu_topology": null
     }
     ```
     """
@@ -2186,6 +2319,7 @@ class Device(BaseModel):
     device_type: DeviceType
     device_family: DeviceFamily
     gpu_id: Optional[int]
+    cpu_topology: CpuTopology | None = None
 
 
 class ModelInstallStatus(str, Enum):
@@ -2235,6 +2369,26 @@ class ModelSource(str, Enum):
     PIPELINE_ZOO_MODELS = "pipeline-zoo-models"
     OMZ = "omz"
     CUSTOM = "custom"
+
+
+class ModelGated(str, Enum):
+    """
+    **Hugging Face gating mode of a model.**
+
+    ## Values
+    - `FALSE` - Not gated, anyone can download the model
+    - `AUTO` - Gated, access is granted automatically after accepting the license
+    - `MANUAL` - Gated, access must be approved manually by the model authors
+
+    ### Example
+    ```json
+    "auto"
+    ```
+    """
+
+    FALSE = "false"
+    AUTO = "auto"
+    MANUAL = "manual"
 
 
 class ModelDownloadJobState(str, Enum):
@@ -2328,6 +2482,8 @@ class Model(BaseModel):
     - `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation
     - `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.
     - `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)
+    - `link` - URL of the model page on its upstream hub (currently Hugging Face only), or null
+    - `gated` - Hugging Face gating mode (`false`, `auto`, `manual`), or null when unknown or not applicable
 
     ### Example
     ```json
@@ -2342,7 +2498,8 @@ class Model(BaseModel):
         {"name": "yolo11n_FP16", "display_name": "YOLO 11n 640x640 (FP16)", "precision": "FP16"}
       ],
       "used_by_pipelines": ["smart-nvr", "goods-detection"],
-      "unsupported_devices": null
+      "unsupported_devices": null,
+      "link": null
     }
     ```
     """
@@ -2393,6 +2550,20 @@ class Model(BaseModel):
         description=(
             "Comma-separated list of devices on which the model "
             "cannot run (e.g. 'NPU'), or null when no restrictions exist."
+        ),
+    )
+    link: Optional[str] = Field(
+        default=None,
+        description=(
+            "URL of the model page on its upstream hub (currently only "
+            "Hugging Face), or null when not available."
+        ),
+    )
+    gated: Optional[ModelGated] = Field(
+        default=None,
+        description=(
+            "Hugging Face gating mode, or null when unknown or not "
+            "applicable (non-Hugging Face models)."
         ),
     )
 
@@ -2452,6 +2623,7 @@ class ModelDownloadRequest(BaseModel):
     - `names` - List of supported-model names to install. Must be non-empty and unique.
     - `hub` - Optional upstream hub for names not in the catalog.
     - `category` - Required when `hub` is `huggingface`; ignored otherwise.
+    - `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.
 
     ### Example
     ```json
@@ -2479,6 +2651,13 @@ class ModelDownloadRequest(BaseModel):
         description=(
             "Model category, required when `hub` is `huggingface` (ignored "
             "for other hubs)."
+        ),
+    )
+    gated: ModelGated | None = Field(
+        default=None,
+        description=(
+            "Gating mode of the hub model, stored on the registered model "
+            "(null when unknown)."
         ),
     )
 
@@ -3268,18 +3447,59 @@ class NetworkCameraDetails(CameraDetails):
     best_profile: Optional["CameraProfileInfo"] = None
 
 
+class GigECapture(BaseModel):
+    """
+    **Capture configuration currently set on a GigE Vision camera.**
+
+    ## Attributes
+    - `pixel_format` - GenICam pixel format (e.g., "Mono8", "BayerRG8")
+    - `width` - Frame width in pixels
+    - `height` - Frame height in pixels
+    - `fps` - Acquisition frame rate
+    """
+
+    pixel_format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+
+
+class GigECameraDetails(CameraDetails):
+    """
+    **GigE Vision camera details.**
+
+    Identity fields may be missing when the camera could not be opened during
+    discovery (e.g. it is streaming to another application).
+
+    ## Attributes
+    - `ip` - IP address of the camera
+    - `vendor` - Camera vendor name (optional)
+    - `model` - Camera model name (optional)
+    - `serial` - Camera serial number (optional)
+    - `current_capture` - Capture configuration currently set on the camera (optional)
+    """
+
+    ip: str
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    current_capture: Optional[GigECapture] = None
+
+
 class Camera(BaseModel):
     """
-    **Camera device information supporting both USB and network cameras.**
+    **Camera device information supporting USB, network and GigE Vision cameras.**
 
     Common attributes apply to all camera types. Type-specific details are stored
-    in the details field which contains either USBCameraDetails or NetworkCameraDetails.
+    in the details field which contains USBCameraDetails, NetworkCameraDetails
+    or GigECameraDetails.
 
     ## Attributes
     - `device_id` - Unique identifier for the camera
     - `device_name` - Human-readable camera name
-    - `device_type` - Type of camera (USB or NETWORK)
-    - `details` - Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK)
+    - `device_type` - Type of camera (USB, NETWORK or GIGE)
+    - `details` - Type-specific camera details (USBCameraDetails for USB,
+      NetworkCameraDetails for NETWORK, GigECameraDetails for GIGE)
 
     ### Example (USB Camera)
     ```json
@@ -3329,12 +3549,33 @@ class Camera(BaseModel):
       }
     }
     ```
+
+    ### Example (GigE Vision Camera)
+    ```json
+    {
+      "device_id": "gige-camera-basler-12345678",
+      "device_name": "Basler acA1920-25gc",
+      "device_type": "GIGE",
+      "details": {
+        "ip": "192.168.1.50",
+        "vendor": "Basler",
+        "model": "acA1920-25gc",
+        "serial": "12345678",
+        "current_capture": {
+          "pixel_format": "BayerRG8",
+          "width": 1920,
+          "height": 1080,
+          "fps": 25.0
+        }
+      }
+    }
+    ```
     """
 
     device_id: str
     device_name: str
     device_type: CameraType
-    details: Union[USBCameraDetails, NetworkCameraDetails]
+    details: Union[USBCameraDetails, NetworkCameraDetails, GigECameraDetails]
 
 
 class CameraProfilesRequest(BaseModel):

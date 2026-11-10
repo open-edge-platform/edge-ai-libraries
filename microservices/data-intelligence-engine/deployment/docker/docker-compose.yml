@@ -1,0 +1,109 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# The engine service. Milvus is a separate file on the same network:
+#
+#   cd data-intelligence-engine/deployment/docker
+#   docker network create data-intelligence-network        # once
+#   docker compose -f docker-compose-milvus.yml up -d
+#   docker compose up -d --build
+#   curl localhost:16022/health
+#
+# Database connections are not configured here. The engine reads no connection
+# settings at startup; they are registered over HTTP and persisted in the
+# workspace. Register the bundled Milvus after the first startup, or register
+# another database instead:
+#
+#   curl -X POST localhost:16022/v1/databases \
+#     -H 'Content-Type: application/json' -d '{
+#       "id": "prod-milvus", "type": "vector",
+#       "backend": "milvus",
+#       "options": {"uri": "http://milvus-standalone:19530"}}'
+#   curl -X POST localhost:16022/v1/databases/prod-milvus/check
+
+name: ${ENGINE_COMPOSE_PROJECT:-data-intelligence-engine}
+
+# Inter-container traffic (milvus↔etcd/minio, engine↔milvus) must bypass any
+# HTTP(S) proxy the Docker daemon injects — otherwise gRPC dials to the service
+# hostnames are routed through the proxy and time out. Referenced as a pure value
+# in each service's environment below.
+x-no-proxy: &no_proxy_hosts "${ENGINE_NO_PROXY:-localhost,127.0.0.1,etcd,minio,milvus-standalone,engine,nebula-metad0,nebula-storaged0,nebula-graphd,172.16.0.0/12,192.168.0.0/16}"
+
+services:
+  engine:
+    container_name: ${ENGINE_CONTAINER_NAME:-data-intelligence-engine}
+    build:
+      # The engine package, two directories up. The build context has to be the
+      # package root: the Dockerfile copies the whole of it, so a context of
+      # `.` here sees neither the Dockerfile nor the source.
+      context: ../..
+      dockerfile: Dockerfile
+      # Retain layer-cache metadata in the image for subsequent builds.
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+        INSTALL_LIBREOFFICE: ${INSTALL_LIBREOFFICE:-true}
+      cache_from:
+        - ${ENGINE_IMAGE:-data-intelligence-engine:latest}
+    image: ${ENGINE_IMAGE:-data-intelligence-engine:latest}
+    environment:
+      ENGINE_HOST: ${ENGINE_HOST:-0.0.0.0}
+      ENGINE_PORT: ${ENGINE_CONTAINER_PORT:-16022}
+      ENGINE_LOG_LEVEL: ${ENGINE_LOG_LEVEL:-INFO}
+      ENGINE_WORKSPACE: ${ENGINE_WORKSPACE:-/workspace}
+      ENGINE_UPLOAD_DIR: ${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE:-/workspace}/uploads}
+      # Shared by document, video, image, speech, rerank, and layout models.
+      # Prepare all model artifacts here before starting the engine; no runtime downloads.
+      ENGINE_MODEL_ROOT_PATH: ${ENGINE_MODEL_ROOT_PATH:-${ENGINE_WORKSPACE:-/workspace}/models}
+      ENGINE_DOC_EMBEDDING_BACKEND: ${ENGINE_DOC_EMBEDDING_BACKEND:-local_openvino}
+      ENGINE_DOC_EMBEDDING_MODEL_ID: ${ENGINE_DOC_EMBEDDING_MODEL_ID:-gme-Qwen2-VL-2B-Instruct-OV}
+      ENGINE_DOC_EMBEDDING_DEVICE: ${ENGINE_DOC_EMBEDDING_DEVICE:-GPU}
+      ENGINE_DOC_EMBEDDING_API_BASE: ${ENGINE_DOC_EMBEDDING_API_BASE:-}
+      ENGINE_DOC_EMBEDDING_API_KEY: ${ENGINE_DOC_EMBEDDING_API_KEY:-unused}
+      ENGINE_VIDEO_EMBEDDING_BACKEND: ${ENGINE_VIDEO_EMBEDDING_BACKEND:-local_openvino}
+      ENGINE_VIDEO_EMBEDDING_MODEL_ID: ${ENGINE_VIDEO_EMBEDDING_MODEL_ID:-viclip-b-fp16}
+      ENGINE_VIDEO_EMBEDDING_DEVICE: ${ENGINE_VIDEO_EMBEDDING_DEVICE:-CPU}
+      ENGINE_IMAGE_EMBEDDING_BACKEND: ${ENGINE_IMAGE_EMBEDDING_BACKEND:-local_openvino}
+      ENGINE_IMAGE_EMBEDDING_MODEL_ID: ${ENGINE_IMAGE_EMBEDDING_MODEL_ID:-gme-Qwen2-VL-2B-Instruct-OV}
+      ENGINE_IMAGE_EMBEDDING_DEVICE: ${ENGINE_IMAGE_EMBEDDING_DEVICE:-CPU}
+      ENGINE_ASR_MODEL_ID: ${ENGINE_ASR_MODEL_ID:-whisper-small}
+      ENGINE_ASR_DEVICE: ${ENGINE_ASR_DEVICE:-CPU}
+      # Empty means auto-detect; only an unset variable takes the default.
+      ENGINE_ASR_LANGUAGE: ${ENGINE_ASR_LANGUAGE-zh}
+      ENGINE_ASR_ENABLED: ${ENGINE_ASR_ENABLED:-true}
+      ENGINE_VIDEO_SUMMARY_BASE_URL: ${ENGINE_VIDEO_SUMMARY_BASE_URL:-}
+      ENGINE_RERANK_BACKEND: ${ENGINE_RERANK_BACKEND:-local_openvino}
+      ENGINE_RERANK_MODEL_ID: ${ENGINE_RERANK_MODEL_ID:-Qwen3-VL-Reranker-2B-INT8-OV}
+      ENGINE_RERANK_DEVICE: ${ENGINE_RERANK_DEVICE:-GPU}
+      ENGINE_RERANK_API_BASE: ${ENGINE_RERANK_API_BASE:-}
+      ENGINE_RERANK_API_KEY: ${ENGINE_RERANK_API_KEY:-unused}
+      ENGINE_MEDIA_RERANK_BACKEND: ${ENGINE_MEDIA_RERANK_BACKEND:-local_openvino}
+      ENGINE_MEDIA_RERANK_MODEL_ID: ${ENGINE_MEDIA_RERANK_MODEL_ID:-Qwen3-VL-Reranker-2B-INT8-OV}
+      ENGINE_MEDIA_RERANK_DEVICE: ${ENGINE_MEDIA_RERANK_DEVICE:-GPU}
+      ENGINE_MEDIA_RERANK_DOC_WORKERS: ${ENGINE_MEDIA_RERANK_DOC_WORKERS:-8}
+      MEDIA_RERANK_VIDEO_MAX_FRAMES: ${MEDIA_RERANK_VIDEO_MAX_FRAMES:-8}
+      ENGINE_LAYOUT_DEVICE: ${ENGINE_LAYOUT_DEVICE:-CPU}
+      ENGINE_GRAPH_VIEW_LIMIT: ${ENGINE_GRAPH_VIEW_LIMIT:-1500}
+      no_proxy: *no_proxy_hosts
+      NO_PROXY: *no_proxy_hosts
+    ports:
+      - "${ENGINE_PORT:-16022}:${ENGINE_CONTAINER_PORT:-16022}"
+    volumes:
+      - ${ENGINE_WORKSPACE_PATH:-../../workspace}:${ENGINE_WORKSPACE:-/workspace}
+      # The extractor mounts this same directory for input/output file exchange.
+      - ${ENGINE_UPLOAD_PATH:-${ENGINE_WORKSPACE_PATH:-../../workspace}/uploads}:${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE:-/workspace}/uploads}
+    devices:
+      - "${ENGINE_GPU_DEVICE:-/dev/dri}:${ENGINE_GPU_DEVICE:-/dev/dri}"
+    group_add:
+      - "${VIDEOGROUPID:-44}"
+      - "${RENDERGROUPID:-992}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:$${ENGINE_PORT}/health"]
+      interval: ${ENGINE_HEALTHCHECK_INTERVAL:-10s}
+      start_period: ${ENGINE_HEALTHCHECK_START_PERIOD:-30s}
+      timeout: ${ENGINE_HEALTHCHECK_TIMEOUT:-5s}
+      retries: ${ENGINE_HEALTHCHECK_RETRIES:-10}
+
+networks:
+  default:
+    name: ${ENGINE_NETWORK:-data-intelligence-network}
+    external: true

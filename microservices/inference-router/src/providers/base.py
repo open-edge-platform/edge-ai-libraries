@@ -3,6 +3,7 @@
 
 """Abstract base class for provider adapters."""
 
+import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import AsyncIterator, List, Dict, Any, Optional
@@ -22,7 +23,14 @@ class ProviderMetadata:
 
     @classmethod
     def from_mapping(cls, metadata: Dict[str, Any]) -> "ProviderMetadata":
-        """Build provider metadata from a dictionary."""
+        """Build provider metadata from a dictionary.
+
+        The mapping is deep-copied: probes mutate the live metadata in place, and
+        sharing nested dicts (e.g. ``performance``) with the config would leak
+        probe output into ``RouterConfig`` — and from there into ``/v1/config``
+        and any runtime rebuilt from it.
+        """
+        metadata = copy.deepcopy(metadata)
         known_keys = {"labels", "cost", "performance", "capability"}
         labels = metadata.get("labels", [])
         capability = metadata.get("capability", {})
@@ -56,16 +64,24 @@ class ProviderMetadata:
 class ProviderAdapter(ABC):
     """Abstract base class for LLM provider adapters."""
 
-    def __init__(self, name: str, metadata: Optional[ProviderMetadata] = None):
+    def __init__(
+        self,
+        name: str,
+        metadata: Optional[ProviderMetadata] = None,
+        fallback: bool = False,
+    ):
         """
         Initialize the provider adapter.
 
         Args:
             name: Name identifier for this provider
             metadata: Routing metadata for this provider
+            fallback: Whether this provider is the routing fallback, selected
+                when the DecisionEngine policy matches no provider.
         """
         self.name = name
         self.metadata = metadata or ProviderMetadata()
+        self.fallback = fallback
 
     @abstractmethod
     async def chat(

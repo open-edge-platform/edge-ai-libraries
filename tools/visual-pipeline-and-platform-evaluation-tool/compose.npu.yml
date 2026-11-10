@@ -8,3 +8,10 @@ services:
     devices:
       - "/dev/dri:/dev/dri"
       - "/dev/accel:/dev/accel"
+  dlstreamer-pipeline-server:
+    # Runs the pipelines, so it needs the same NPU and GPU access as vippet.
+    group_add:
+      - ${RENDER_GROUP_ID}
+    devices:
+      - "/dev/dri:/dev/dri"
+      - "/dev/accel:/dev/accel"

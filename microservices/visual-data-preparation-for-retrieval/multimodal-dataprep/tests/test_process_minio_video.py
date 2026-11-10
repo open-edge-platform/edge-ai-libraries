@@ -26,16 +26,14 @@ def client(monkeypatch):
     )
     monkeypatch.setattr(
         process_ep,
-        "read_config",
-        lambda *_, **__: {
-            "videos_local_temp_dir": "/tmp/dataprep/videos",
-            "metadata_local_temp_dir": "/tmp/dataprep/metadata",
-        },
-    )
-    monkeypatch.setattr(
-        process_ep,
         "get_config",
-        lambda: {"frame_interval": 15, "enable_object_detection": True, "detection_confidence": 0.85},
+        lambda: {
+            "frame_interval": 15,
+            "enable_object_detection": True,
+            "detection_confidence": 0.85,
+            "videos_temp_dir": "/tmp/dataprep/videos",
+            "metadata_temp_dir": "/tmp/dataprep/metadata",
+        },
     )
     monkeypatch.setattr(process_ep, "sanitize_model", lambda model: model)
     monkeypatch.setattr(process_ep.settings, "ALLOW_DUPLICATE_UPLOADS", False)
