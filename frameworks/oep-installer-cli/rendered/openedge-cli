@@ -2096,7 +2096,7 @@ act_panelled_logs_askpass ()
 if [ -n "$ASKPASS_ENV" ]; then
   printf '%s\n' "$ASKPASS_ENV"
 elif [ -e /dev/tty ]; then
-  exec 8<>/dev/tty 2>/dev/null || exit 1
+  { exec 8<>/dev/tty; } 2>/dev/null || exit 1
   rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
   saved=$(stty -g <&8) || exit 1
   # restore tty and clear the prompt row (cleanup only)
@@ -10229,7 +10229,9 @@ ensure_sudo ()
     [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
     [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
     if [ -e /dev/tty ]; then
-        if : < /dev/tty 2> /dev/null; then
+        if { 
+            : < /dev/tty
+        } 2> /dev/null; then
             local ppid=$$;
             local pid="$(ensure_prop get pids/sudo/pid$ppid)";
             if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
