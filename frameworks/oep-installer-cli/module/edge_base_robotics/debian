@@ -2,17 +2,13 @@
 # --realtime uses the edge-pack route; the real-time package currently falls back
 # to the standard bundle until Intel publishes intel-edge-base-realtime.
 debian_90_profile_edge_base_robotics () {
+  echo "core_types system_inspection system_summary ros2 ros_openvino realsense"
   case "$1" in
   bootstrap) # all components
-    echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel ros2 ros_openvino realsense"
+    echo "edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel"
     ;;
   *)
-    echo "ros2 ros_openvino realsense"
-    if ensure_parse_option --realtime "$@" && [[ "$(uname -r)" = "7."* ]] && configure_edge_pack_kernel_image "$@"; then
-      echo "core_types system_inspection system_summary edge_pack_base_realtime edge_pack_npu"
-    else
-      echo "edge_base"
-    fi
+    configure_edge_pack_selection "edge_pack_base_realtime edge_pack_npu" "$@"
     ;;
   esac
 }
