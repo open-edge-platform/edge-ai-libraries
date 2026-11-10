@@ -133,7 +133,6 @@ const PerformanceTestPanel = ({
       setDisplayedEvents(events?.length ? events : []);
     } else if (wasRunning && !isRunning) {
       freezeSnapshot(resultOverrides);
-      // metadataStreamUrls is already empty here because it is gated on isRunning.
       const urls = Object.keys(metadataSourcesRef.current);
       setFrozenMetadata((prev) => {
         const hasLines = Object.values(metadataLines).some((l) => l.length > 0);
