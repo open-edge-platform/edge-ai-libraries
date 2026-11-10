@@ -68,6 +68,10 @@ void upsample_flow(const FlowField &coarse, FlowField &fine) {
   fine.allocate(fine.width, fine.height);
   const float sx = static_cast<float>(coarse.width) / static_cast<float>(fine.width);
   const float sy = static_cast<float>(coarse.height) / static_cast<float>(fine.height);
+  // Integer /2 pyramids are not always exact halves (e.g. 135→67); scale flow
+  // by the real dimension ratio instead of a hardcoded 2×.
+  const float flow_sx = static_cast<float>(fine.width) / static_cast<float>(coarse.width);
+  const float flow_sy = static_cast<float>(fine.height) / static_cast<float>(coarse.height);
   for (int y = 0; y < fine.height; ++y) {
     for (int x = 0; x < fine.width; ++x) {
       const float cx = (static_cast<float>(x) + 0.5f) * sx - 0.5f;
@@ -82,8 +86,8 @@ void upsample_flow(const FlowField &coarse, FlowField &fine) {
                       (1 - dx) * dy * coarse.dx(x0, y1) + dx * dy * coarse.dx(x1, y1);
       const float v = (1 - dx) * (1 - dy) * coarse.dy(x0, y0) + dx * (1 - dy) * coarse.dy(x1, y0) +
                       (1 - dx) * dy * coarse.dy(x0, y1) + dx * dy * coarse.dy(x1, y1);
-      fine.dx(x, y) = 2.0f * u;
-      fine.dy(x, y) = 2.0f * v;
+      fine.dx(x, y) = flow_sx * u;
+      fine.dy(x, y) = flow_sy * v;
     }
   }
 }
@@ -135,7 +139,12 @@ void estimate_level(const GrayImage &I0, const GrayImage &I1, FlowField &flow, C
 
       float u = flow.dx(cx, cy);
       float v = flow.dy(cx, cy);
-      constexpr float kMaxDisp = 32.0f;
+      // Cap search to a fraction of the level size so coarse aliased levels
+      // cannot lock onto wrap-around matches that explode after upsampling.
+      // Keep coarse-level search small in level pixels; upsampling amplifies
+      // errors by 2× per octave (deep Fast presets otherwise explode).
+      const float kMaxDisp = std::clamp(
+          0.15f * static_cast<float>(std::min(I0.width, I0.height)), 2.0f, 32.0f);
       constexpr float kMaxStep = 1.5f;
       u = std::clamp(u, -kMaxDisp, kMaxDisp);
       v = std::clamp(v, -kMaxDisp, kMaxDisp);
@@ -307,20 +316,48 @@ void CpuOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowFiel
   flow.allocate(prev.width, prev.height);
   cost.allocate(prev.width, prev.height);
 
+  // Clamp pyramid so the coarsest level is large enough for stable patch IS.
+  // Deep Fast (coarsest=5) on mid/large frames otherwise searches on tiny
+  // aliased levels and *2-upsamples garbage. Small CI frames keep a looser
+  // floor so Preset::Fast finest=2 still runs.
+  const int min_wh = std::min(prev.width, prev.height);
+  const int min_level_dim = (min_wh >= 720)   ? std::max(patch_size_ * 12, 96)
+                            : (min_wh >= 192) ? std::max(patch_size_ * 8, 64)
+                                              : (patch_size_ + 2);
+  int coarsest = coarsest_scale_;
+  int finest = std::min(finest_scale_, coarsest);
+  auto level_ok = [&](int scale) {
+    int w = prev.width;
+    int h = prev.height;
+    for (int i = 0; i < scale; ++i) {
+      w = std::max(1, w / 2);
+      h = std::max(1, h / 2);
+    }
+    return w >= min_level_dim && h >= min_level_dim;
+  };
+  while (coarsest > finest && !level_ok(coarsest))
+    --coarsest;
+  if (!level_ok(coarsest)) {
+    coarsest = 0;
+    finest = 0;
+  } else if (finest > coarsest) {
+    finest = coarsest;
+  }
+
   std::vector<GrayImage> pyr0;
   std::vector<GrayImage> pyr1;
   pyr0.push_back(to_float_image(prev));
   pyr1.push_back(to_float_image(next));
-  for (int s = 1; s <= coarsest_scale_; ++s) {
+  for (int s = 1; s <= coarsest; ++s) {
     pyr0.push_back(downsample2(pyr0.back()));
     pyr1.push_back(downsample2(pyr1.back()));
   }
 
   FlowField level_flow;
-  level_flow.allocate(pyr0[coarsest_scale_].width, pyr0[coarsest_scale_].height);
+  level_flow.allocate(pyr0[coarsest].width, pyr0[coarsest].height);
 
-  for (int scale = coarsest_scale_; scale >= finest_scale_; --scale) {
-    if (scale != coarsest_scale_) {
+  for (int scale = coarsest; scale >= finest; --scale) {
+    if (scale != coarsest) {
       FlowField up;
       up.width = pyr0[scale].width;
       up.height = pyr0[scale].height;
@@ -341,10 +378,10 @@ void CpuOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowFiel
                                10.0f, 1.0f);
     }
 
-    if (scale == finest_scale_) {
-      // Upsample to full-res when finest_scale > 0 (OpenCV multiplies by 1<<finest).
+    if (scale == finest) {
+      // Upsample to full-res when finest > 0 (OpenCV multiplies by 1<<finest).
       FlowField cur = std::move(level_flow);
-      for (int s = finest_scale_ - 1; s >= 0; --s) {
+      for (int s = finest - 1; s >= 0; --s) {
         FlowField up;
         up.width = pyr0[s].width;
         up.height = pyr0[s].height;
@@ -352,7 +389,7 @@ void CpuOpticalFlow::calc(const ImageView &prev, const ImageView &next, FlowFiel
         cur = std::move(up);
       }
       flow = std::move(cur);
-      if (finest_scale_ == 0) {
+      if (finest == 0) {
         cost = std::move(level_cost);
       } else {
         cost.allocate(flow.width, flow.height);
