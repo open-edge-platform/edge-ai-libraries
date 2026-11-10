@@ -450,7 +450,9 @@ class SupportedModelsManager:
         Returns:
             Optional[SupportedModel]: The matching SupportedModel instance if found, otherwise None.
         """
-        normalized_model_path = os.path.normpath(adapt_linux_path_for_windows(model_path))
+        normalized_model_path = os.path.normpath(
+            adapt_linux_path_for_windows(model_path)
+        )
         # Compare with trailing-slash stripped (pipeline descriptions may omit the slash).
         for model in self._models:
             if (

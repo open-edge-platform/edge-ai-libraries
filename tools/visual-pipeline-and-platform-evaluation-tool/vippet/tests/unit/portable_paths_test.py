@@ -139,8 +139,9 @@ class TestPortableProperties(unittest.TestCase):
 
     def test_null_output_uses_native_device(self):
         for native_device in ("/dev/null", "nul"):
-            with self.subTest(native_device=native_device), patch(
-                "graph.os.devnull", native_device
+            with (
+                self.subTest(native_device=native_device),
+                patch("graph.os.devnull", native_device),
             ):
                 graph = Graph.from_pipeline_description(
                     "gvametapublish file-path=/dev/null"
@@ -220,7 +221,9 @@ class TestLegacyResourceMapping(unittest.TestCase):
                 for suffix in ("", "/"):
                     with self.subTest(linux_root=linux_root, suffix=suffix):
                         self.assertEqual(
-                            adapt_linux_path_for_windows(f"{linux_root}/{relative}{suffix}"),
+                            adapt_linux_path_for_windows(
+                                f"{linux_root}/{relative}{suffix}"
+                            ),
                             str(Path(root) / relative),
                         )
 
