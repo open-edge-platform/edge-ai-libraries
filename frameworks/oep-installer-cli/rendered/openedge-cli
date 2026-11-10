@@ -2224,7 +2224,7 @@ act_validate_modules ()
 configure_agentic_predictive_maintenance_pipeline () 
 { 
     workspace="$(ensure_project_path)/agentic-predictive-maintenance-pipeline";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/metro-ai-suite.git;
     used_ports=(8080 8010 8554 8200 9091 9090);
     models=(Qwen/Qwen2.5-1.5B-Instruct microsoft/Phi-4-mini-instruct)
@@ -2241,7 +2241,7 @@ configure_agentic_predictive_maintenance_pipeline_device ()
 configure_agentic_smart_community () 
 { 
     workspace="$(ensure_project_path)/agentic-smart-community";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(3100 3101 41091 8192 8999);
     mlvu_workspace="$workspace/agentic-smart-community/.external/edge-ai-libraries";
@@ -2258,7 +2258,7 @@ configure_agentic_smart_community ()
 configure_anomalib () 
 { 
     workspace="$(ensure_project_path)/anomalib";
-    version=2.7.0;
+    version="$(ensure_parse_value_option version --version=2.7.0 "$@")";
     repository=https://github.com/open-edge-platform/anomalib.git;
     version_skills=release-2026.2.0;
     repository_skills=https://github.com/open-edge-platform/anomalib.git;
@@ -2314,7 +2314,7 @@ configure_cdi ()
 configure_deterministic_threat_detection () 
 { 
     workspace="$(ensure_project_path)/federal-and-aerospace-ai-suite";
-    version="main";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
     application="$workspace/deterministic-threat-detection"
 }
@@ -2353,13 +2353,13 @@ configure_dlstreamer ()
     list_file=/etc/apt/sources.list.d/intel-dlstreamer.list;
     repository=https://github.com/open-edge-platform/dlstreamer;
     workspace="$(ensure_project_path)/dlstreamer";
-    version="$(ensure_parse_value_option version --version=2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=2026.3.0 "$@")";
     od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
     od_model_proc=yolov5m-640_INT8/yolo-v5;
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
     allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium);
-    version_skills="release-${version%-rc*}";
+    version_skills="release-2026.2.0";
     repository_skills=https://github.com/open-edge-platform/skills.git;
     skills=(dlstreamer-coding-agent)
 }
@@ -2517,7 +2517,7 @@ configure_edge_pack_tsn ()
 configure_esq () 
 { 
     workspace="$(ensure_project_path)/esq";
-    version=main;
+    version="$(ensure_parse_value_option version --version=main "$@")";
     repository=https://github.com/open-edge-platform/edge-system-qualification.git
 }
 configure_esq_debugfs () 
@@ -2632,14 +2632,14 @@ configure_gpu_accel ()
 configure_handheld_multi_modal () 
 { 
     workspace="$(ensure_project_path)/handheld-multi-modal";
-    version=main;
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git;
     used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997)
 }
 configure_humanoid_imitation_learning () 
 { 
     workspace="$(ensure_project_path)/humanoid-imitation-learning";
-    version=main;
+    version="$(ensure_parse_value_option version --version=a90bbb9848a8be7502a1e49a26a675936acfeabe "$@")";
     repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git";
     container_dir="$workspace/samples/robotics/robotics-ai-suite-containers";
     humanoid_samples=(act-sample pi05-rtc-ov);
@@ -2650,7 +2650,7 @@ configure_humanoid_imitation_learning ()
 configure_image_based_video_search () 
 { 
     workspace="$(ensure_project_path)/image-based-video-search";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(443 80 8554)
 }
@@ -2762,13 +2762,13 @@ configure_libyang ()
 }
 configure_libze1 () 
 { 
-    version=1.32.0;
+    version="$(ensure_parse_value_option version --version=1.32.0 "$@")";
     libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb"
 }
 configure_live_video_alert_agent () 
 { 
     workspace="$(ensure_project_path)/live-video-alert-agent";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(9000 9090 8000 8001 8002 1883 9273);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh";
@@ -2799,7 +2799,7 @@ EOF
 configure_live_video_captioning () 
 { 
     workspace="$(ensure_project_path)/live-video-captioning";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(4173 8040 1883 9090 8889 9273 8556);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh";
@@ -2817,7 +2817,7 @@ configure_live_video_captioning_device ()
 configure_live_video_captioning_rag () 
 { 
     workspace="$(ensure_project_path)/live-video-captioning-rag";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(4173 4172 8040 1883 9090 8889 9273 8556);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh";
@@ -2837,7 +2837,7 @@ configure_live_video_captioning_rag_device ()
 configure_live_video_search () 
 { 
     workspace="$(ensure_project_path)/live-video-search";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(8080 3001 9998 4001 4002 5432 7890 6008 19530 55555 6016 9766 80 5000 8000 1883 6379 9777 6008 19530 9091 8554 9090 9273);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
@@ -2864,7 +2864,7 @@ EOF
 configure_loitering_detection () 
 { 
     workspace="$(ensure_project_path)/loitering-detection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(80 443 3478);
     wait_timeout=120
@@ -2872,7 +2872,7 @@ configure_loitering_detection ()
 configure_loss_prevention () 
 { 
     workspace="$(ensure_project_path)/loss-prevention";
-    version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4;
+    version="$(ensure_parse_value_option version --version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4 "$@")";
     repository="https://github.com/intel-retail/loss-prevention.git";
     used_ports=(4000 15672 5672 8002 4001)
 }
@@ -2949,14 +2949,14 @@ configure_loss_prevention_options ()
 }
 configure_mediamtx () 
 { 
-    version=1.12.2;
+    version="$(ensure_parse_value_option version --version=1.12.2 "$@")";
     repository="https://github.com/bluenviron/mediamtx/releases/download/v${version}/mediamtx_v${version}_linux_amd64.tar.gz";
     bin_path="/usr/local/bin"
 }
 configure_multi_modal_patient_monitoring () 
 { 
     workspace="$(ensure_project_path)/multi-modal-patient-monitoring";
-    version="$(ensure_parse_value_option version --version=4a9679b58090cd86d56d91e1e72cab462babfe31 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git;
     workspace_mdpnp="$workspace"/multi_modal_patient_monitoring/services/mdpnp/mdpnp;
     version_mdpnp=master;
@@ -2966,7 +2966,7 @@ configure_multi_modal_patient_monitoring ()
 configure_multimodal_weld_defect_detection () 
 { 
     workspace="$(ensure_project_path)/multimodal-weld-defect-detection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     tsam_config="configs/time-series-analytics-microservice/config.json";
     pipeline_config="configs/dlstreamer-pipeline-server/config.json";
@@ -2998,7 +2998,7 @@ configure_multimodal_weld_defect_detection_device ()
 configure_nicu_warmer () 
 { 
     workspace="$(ensure_project_path)/nicu-warmer";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git";
     models=("https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin" "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml" "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.bin?download=true person-detect-fp32.bin" "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.xml?download=true person-detect-fp32.xml" "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.bin?download=true latch-detect-fp32.bin" "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.xml?download=true latch-detect-fp32.xml" "https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5 models_rppg/mtts_can.hdf5" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.xml action-recognition-0001-encoder.xml" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.bin action-recognition-0001-encoder.bin" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.xml action-recognition-0001-decoder.xml" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.bin action-recognition-0001-decoder.bin");
     used_ports=(8080)
@@ -3013,7 +3013,7 @@ configure_nicu_warmer_device ()
 }
 configure_npu_accel () 
 { 
-    version=1.38.0;
+    version="$(ensure_parse_value_option version --version=1.38.0 "$@")";
     repository=https://api.github.com/repos/intel/linux-npu-driver;
     releases=https://github.com/intel/linux-npu-driver/releases;
     workspace="$(ensure_project_path)/npu"
@@ -3056,7 +3056,7 @@ configure_osrf_gazebo_ros2 ()
 configure_pallet_defect_detection () 
 { 
     workspace="$(ensure_project_path)/pallet-defect-detection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     used_ports=(80 443 8000 3478);
     wait_timeout=120
@@ -3064,7 +3064,7 @@ configure_pallet_defect_detection ()
 configure_pcb_anomaly_detection () 
 { 
     workspace="$(ensure_project_path)/pcb-anomaly-detection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     used_ports=(80 443 3478 8000)
 }
@@ -3072,7 +3072,7 @@ configure_pcm ()
 { 
     workspace="$(ensure_project_path)/pcm";
     repository="https://github.com/intel/pcm.git";
-    version=e534201d0fe6d6e3bc5fee54b229f215b976efbc
+    version="$(ensure_parse_value_option version --version=e534201d0fe6d6e3bc5fee54b229f215b976efbc "$@")"
 }
 configure_person_of_interest () 
 { 
@@ -3086,7 +3086,7 @@ configure_physical_ai_framework ()
     workspace="$(ensure_project_path)/physical-ai-framework";
     paif_venv="$workspace/.venv";
     paif_pkg="physicalai-train";
-    paif_version=0.2.0;
+    paif_version="$(ensure_parse_value_option version --version=0.2.0 "$@")";
     paif_device_file="$workspace/.device"
 }
 configure_physical_ai_framework_device () 
@@ -3107,7 +3107,7 @@ configure_physical_ai_framework_device ()
 configure_physical_ai_studio () 
 { 
     pais_pkg="physicalai-studio";
-    pais_version=0.2.0;
+    pais_version="$(ensure_parse_value_option version --version=0.3.0 "$@")";
     pais_bin="$HOME/.local/bin/physicalai-studio";
     pais_run_dir="$(ensure_project_path)/physical-ai-studio";
     pais_pid_file="$pais_run_dir/physicalai-studio.pid";
@@ -3140,7 +3140,7 @@ configure_physical_ai_studio_device ()
 configure_post_fusion () 
 { 
     workspace="$(ensure_project_path)/post-fusion";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/metro-ai-suite.git;
     inputs=2;
     pipeline=kitti/2C1L/localFusionPipeline;
@@ -3167,7 +3167,7 @@ configure_power_tuning ()
 configure_real_time_scene_understanding () 
 { 
     workspace="$(ensure_project_path)/real-time-scene-understanding";
-    version=d3fe53d32784013b97ee082ab06b57f60eb71593;
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(9100 32776)
 }
@@ -3289,17 +3289,17 @@ configure_ros_openvino ()
 configure_scenescape () 
 { 
     workspace="$(ensure_project_path)/scenescape";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/scenescape.git;
     used_ports=(443);
-    version_skills=release-2026.2.0;
+    version_skills=release-2026.3.0;
     repository_skills=https://github.com/open-edge-platform/skills.git;
     skills=(scenescape-setup)
 }
 configure_smart_intersection () 
 { 
     workspace="$(ensure_project_path)/smart-intersection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(443)
 }
@@ -3351,7 +3351,7 @@ configure_smart_kiosk_assistant_device ()
 configure_smart_nvr () 
 { 
     workspace="$(ensure_project_path)/smart-nvr";
-    version="$(ensure_parse_value_option version --version=b05301d7e027caf1953bad3811f65be2cb671b50 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(7860 8000 5000 6379 1884 443 1880 3000 8086 8554);
     export REGISTRY_URL="intel";
@@ -3363,7 +3363,7 @@ configure_smart_nvr ()
 configure_smart_parking () 
 { 
     workspace="$(ensure_project_path)/smart-parking";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(80 443 3478);
     wait_timeout=120
@@ -3371,7 +3371,7 @@ configure_smart_parking ()
 configure_smart_route_planning_agent () 
 { 
     workspace="$(ensure_project_path)/smart-route-planning-agent";
-    version="$(ensure_parse_value_option version --version=13c4deb6d933deecc79b801eb37dddac1bc78f6f "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(7864 8765);
     export VLM_MODEL_NAME=OpenVINO/Phi-3.5-vision-instruct-int8-ov;
@@ -3380,7 +3380,7 @@ configure_smart_route_planning_agent ()
 configure_smart_traffic_intersection_agent () 
 { 
     workspace="$(ensure_project_path)/smart-traffic-intersection-agent";
-    version="$(ensure_parse_value_option version --version=13c4deb6d933deecc79b801eb37dddac1bc78f6f "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(7860 8081 32776 32770 32771 32772 32773 32774 32775);
     export VLM_MODEL_NAME=OpenVINO/Phi-3.5-vision-instruct-int8-ov;
@@ -3406,7 +3406,7 @@ configure_stationary_robot_vision ()
 configure_surgical_instrument () 
 { 
     workspace="$(ensure_project_path)/surgical-instrument";
-    version="$(ensure_parse_value_option version --version=5bf04485b67cda526a1dbd8435141733e05fd61a "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git";
     polyp_model="models/yolo11n_polyp/best_openvino_model/best.xml"
 }
@@ -3455,7 +3455,7 @@ configure_uav_mission_compute_sdk ()
     source_path="$workspace/source";
     sdk_path="$source_path/uav-mission-compute-sdk";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
-    version="main";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
 }
 configure_uv () 
@@ -3470,7 +3470,7 @@ configure_v4l_utils ()
 configure_video_processing_for_nvr () 
 { 
     workspace="$(ensure_project_path)/video-processing-for-nvr";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     duration=45;
     export MODEL_DIR="$workspace"/models/modified_yolov8n;
@@ -3479,9 +3479,9 @@ configure_video_processing_for_nvr ()
 configure_video_search_and_summarization () 
 { 
     workspace="$(ensure_project_path)/video-search-and-summarization";
-    version="$(ensure_parse_value_option version --version=1c5fdc1f440e685c8f82322ec09b60b7320ea404 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/edge-ai-libraries.git";
-    version_skills=release-2026.2.0;
+    version_skills=release-2026.3.0;
     repository_skills="https://github.com/open-edge-platform/skills.git";
     skills=(vss-search-index vss-summarize-video);
     export APP_HOST_PORT=${APP_HOST_PORT:-12345};
@@ -3535,14 +3535,14 @@ configure_video_search_and_summarization_gated ()
 configure_vippet () 
 { 
     workspace="$(ensure_project_path)/vippet";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/edge-ai-libraries.git;
     used_ports=(80 7860 8000 9090 8554 8889)
 }
 configure_visual_search_question_and_answering () 
 { 
     workspace="$(ensure_project_path)/visual-search-question-and-answering";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(17580 19530 9764 9990 6008 9777);
     demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip";
@@ -3560,7 +3560,7 @@ configure_visual_search_question_and_answering ()
 configure_wind_turbine_anomaly_detection () 
 { 
     workspace="$(ensure_project_path)/wind-turbine-anomaly-detection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     nstreams=20;
     npoints=500;
@@ -4707,7 +4707,7 @@ debian_40_install_npu_accel ()
 }
 debian_40_install_pcm () 
 { 
-    configure_pcm;
+    configure_pcm "$@";
     if verify_pcm && ! ensure_parse_reinstall "$@"; then
         echo "pcm is installed." 1>&2;
     else
@@ -4919,7 +4919,7 @@ debian_40_remove_npu_accel ()
 }
 debian_40_remove_pcm () 
 { 
-    configure_pcm;
+    configure_pcm "$@";
     [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0;
     ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM /etc/modules-load.d/99-intel-pcm.conf
 }
@@ -5442,7 +5442,7 @@ debian_70_install_ffmpeg ()
 }
 debian_70_install_mediamtx () 
 { 
-    configure_mediamtx;
+    configure_mediamtx "$@";
     if [ -x "$bin_path/mediamtx" ] && [[ " $* " != *" --reinstall "* ]]; then
         echo "Mediamtx is installed." 1>&2;
     else
@@ -5669,7 +5669,7 @@ debian_85_group_uncrewed_aerial_vehicle_blueprint ()
 debian_85_install_esq () 
 { 
     configure_uv;
-    configure_esq;
+    configure_esq "$@";
     if uv tool list 2> /dev/null | grep -q -E "^esq " && ! ensure_parse_reinstall "$@"; then
         echo "Esq is installed." 1>&2;
     else
@@ -5736,7 +5736,7 @@ debian_85_profile_video_search_and_summarization ()
 debian_85_remove_esq () 
 { 
     configure_uv;
-    configure_esq;
+    configure_esq "$@";
     cd "$workspace" && esq clean --all || true;
     uv tool uninstall esq || true;
     ensure_rm "$workspace"
@@ -5750,7 +5750,7 @@ debian_85_remove_video_search_and_summarization ()
 debian_85_start_esq () 
 { 
     configure_uv;
-    configure_esq;
+    configure_esq "$@";
     cd "$workspace";
     esq clean --all;
     local cmdline_str=" $* ";
@@ -5869,7 +5869,7 @@ debian_90_install_deterministic_threat_detection ()
             ;;
         esac;
     done <<< "$installed";
-    configure_deterministic_threat_detection;
+    configure_deterministic_threat_detection "$@";
     if verify_deterministic_threat_detection && ! ensure_parse_reinstall "$@"; then
         echo "Deterministic Threat Detection source is already available." 1>&2;
     else
@@ -5955,7 +5955,7 @@ debian_90_install_handheld_multi_modal ()
         esac;
     done <<< "$installed";
     configure_handheld_multi_modal "$@";
-    if verify_handheld_multi_modal $* && ! ensure_parse_reinstall "$@"; then
+    if verify_handheld_multi_modal "$@" && ! ensure_parse_reinstall "$@"; then
         echo "handheld_multi_modal is installed." 1>&2;
     else
         ensure_disk_size 45000;
@@ -6148,7 +6148,7 @@ debian_90_install_loitering_detection ()
 }
 debian_90_install_loss_prevention () 
 { 
-    configure_loss_prevention;
+    configure_loss_prevention "$@";
     if verify_loss_prevention && ! ensure_parse_reinstall "$@"; then
         echo "Loss prevention is installed." 1>&2;
     else
@@ -6366,7 +6366,7 @@ debian_90_install_person_of_interest ()
 }
 debian_90_install_physical_ai_framework () 
 { 
-    configure_physical_ai_framework;
+    configure_physical_ai_framework "$@";
     configure_physical_ai_framework_device "$@";
     configure_uv;
     if verify_physical_ai_framework "$@" && ! ensure_parse_reinstall "$@"; then
@@ -6409,7 +6409,7 @@ EOF
 }
 debian_90_install_physical_ai_studio () 
 { 
-    configure_physical_ai_studio;
+    configure_physical_ai_studio "$@";
     configure_physical_ai_studio_device "$@";
     configure_uv;
     if verify_physical_ai_studio "$@" && ! ensure_parse_reinstall "$@"; then
@@ -6462,7 +6462,7 @@ EOF
 }
 debian_90_install_real_time_scene_understanding () 
 { 
-    configure_real_time_scene_understanding;
+    configure_real_time_scene_understanding "$@";
     if verify_real_time_scene_understanding && ! ensure_parse_reinstall "$@"; then
         echo "Live Video Captioning is installed." 1>&2;
     else
@@ -6726,7 +6726,7 @@ debian_90_install_take_away ()
 }
 debian_90_install_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     if verify_uav_mission_compute_sdk && ! ensure_parse_reinstall "$@"; then
         echo "uav_mission_compute_sdk is installed." 1>&2;
     else
@@ -7092,7 +7092,7 @@ debian_90_remove_autonomous_mobile_robot ()
 }
 debian_90_remove_deterministic_threat_detection () 
 { 
-    configure_deterministic_threat_detection;
+    configure_deterministic_threat_detection "$@";
     ensure_rm "$workspace"
 }
 debian_90_remove_digital_signage () 
@@ -7159,7 +7159,7 @@ debian_90_remove_loitering_detection ()
 }
 debian_90_remove_loss_prevention () 
 { 
-    configure_loss_prevention;
+    configure_loss_prevention "$@";
     debian_90_stop_loss_prevention "$@";
     ensure_rm "$workspace"
 }
@@ -7195,16 +7195,16 @@ debian_90_remove_person_of_interest ()
 }
 debian_90_remove_physical_ai_framework () 
 { 
-    configure_physical_ai_framework;
+    configure_physical_ai_framework "$@";
     ensure_rm "$workspace"
 }
 debian_90_remove_physical_ai_studio () 
 { 
-    configure_physical_ai_studio;
+    configure_physical_ai_studio "$@";
     configure_uv;
     debian_90_stop_physical_ai_studio "$@" || true;
     uv tool uninstall "$pais_pkg" > /dev/null 2>&1 || true;
-    ensure_rm "$pais_run_dir"
+    ensure_rm "$pais_run_dir" "$pais_bin"
 }
 debian_90_remove_post_fusion () 
 { 
@@ -7279,7 +7279,7 @@ debian_90_remove_take_away ()
 }
 debian_90_remove_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk)" ]; then
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 0;
@@ -7495,7 +7495,7 @@ debian_90_start_loitering_detection ()
 }
 debian_90_start_loss_prevention () 
 { 
-    configure_loss_prevention;
+    configure_loss_prevention "$@";
     ensure_ports_open start loss_prevention "${used_ports[@]}";
     cd "$workspace";
     local device1="$(ensure_parse_device "$@")";
@@ -7707,7 +7707,7 @@ debian_90_start_person_of_interest ()
 }
 debian_90_start_physical_ai_studio () 
 { 
-    configure_physical_ai_studio;
+    configure_physical_ai_studio "$@";
     ensure_ports_open start physical_ai_studio "${used_ports[@]}";
     if [ ! -x "$pais_bin" ]; then
         echo "Physical AI Studio is not installed. Run 'install physical_ai_studio' first." 1>&2;
@@ -7769,7 +7769,7 @@ debian_90_start_post_fusion ()
 }
 debian_90_start_real_time_scene_understanding () 
 { 
-    configure_real_time_scene_understanding;
+    configure_real_time_scene_understanding "$@";
     ensure_ports_open start real_time_scene_understanding "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}";
@@ -7917,7 +7917,7 @@ debian_90_start_take_away ()
 }
 debian_90_start_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     verify_uav_mission_compute_sdk || { 
         echo "uav_mission_compute_sdk is not installed or needs repair. Run install first." 1>&2;
         return 1
@@ -8150,7 +8150,7 @@ debian_90_stop_loitering_detection ()
 }
 debian_90_stop_loss_prevention () 
 { 
-    configure_loss_prevention;
+    configure_loss_prevention "$@";
     cd "$workspace" && { 
         pkill -f "python3 benchmark.py" || true;
         make down-lp || true;
@@ -8202,7 +8202,7 @@ debian_90_stop_person_of_interest ()
 }
 debian_90_stop_physical_ai_studio () 
 { 
-    configure_physical_ai_studio;
+    configure_physical_ai_studio "$@";
     [ -f "$pais_pid_file" ] || return 0;
     local pid;
     pid="$(cat "$pais_pid_file" 2> /dev/null)";
@@ -8224,7 +8224,7 @@ debian_90_stop_post_fusion ()
 }
 debian_90_stop_real_time_scene_understanding () 
 { 
-    configure_real_time_scene_understanding;
+    configure_real_time_scene_understanding "$@";
     cd "$workspace"/live-video-analysis/real-time-scene-understanding && { 
         docker compose -f compose.yaml down -v --remove-orphans
     } || true
@@ -8286,7 +8286,7 @@ debian_90_stop_take_away ()
 }
 debian_90_stop_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     verify_uav_mission_compute_sdk || { 
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 1
@@ -12324,13 +12324,13 @@ verify_person_of_interest ()
 }
 verify_physical_ai_framework () 
 { 
-    configure_physical_ai_framework;
+    configure_physical_ai_framework "$@";
     configure_physical_ai_framework_device "$@";
     [ -x "$paif_venv/bin/physicalai" ] && [ "$(cat "$paif_device_file" 2> /dev/null)" = "$paif_extra" ] && [ "$("$paif_venv/bin/python" -c "import importlib.metadata as m; print(m.version('$paif_pkg'))" 2> /dev/null)" = "$paif_version" ]
 }
 verify_physical_ai_studio () 
 { 
-    configure_physical_ai_studio;
+    configure_physical_ai_studio "$@";
     configure_physical_ai_studio_device "$@";
     configure_uv;
     [ -x "$pais_bin" ] && [ "$(cat "$pais_device_file" 2> /dev/null)" = "$pais_extra" ] && uv tool list 2> /dev/null | grep -q -E "^$pais_pkg v${pais_version//./\\.}( |$)"
