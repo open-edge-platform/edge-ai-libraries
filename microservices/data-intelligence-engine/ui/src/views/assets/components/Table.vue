@@ -46,9 +46,30 @@
         selectedRowKeys: selectedKeys,
         preserveSelectedRowKeys: true,
         onChange: handleSelectionChange,
+        getCheckboxProps,
       }"
-      :reset-key="`${assetType}:${searchName}`"
+      :reset-key="`${assetType}:${searchName}:${uploadVersion}`"
     >
+      <template #headerCell="{ column }">
+        <span v-if="column.key === 'status'" class="status-header">
+          {{ $t("console.status") }}
+          <a-tooltip placement="top" :trigger="['hover', 'focus']">
+            <template #title>
+              <div class="status-legend">
+                <div v-for="phase in ['materializing', 'text_ready', 'ready']" :key="phase" class="status-legend-item">
+                  <AssetStatus :value="phase" :show-description="false" legend />
+                  <span>{{ $t(`console.assetStatusHint.${phase}`) }}</span>
+                </div>
+              </div>
+            </template>
+            <InfoCircleOutlined
+              class="status-help"
+              tabindex="0"
+              :aria-label="$t('console.assetStatusHelp')"
+            />
+          </a-tooltip>
+        </span>
+      </template>
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'name'">
           <div class="asset-name">
@@ -99,7 +120,16 @@
           <span v-if="!record.asset_pool_ids.length" class="muted-wrap">—</span>
         </template>
         <template v-else-if="column.key === 'status'">
-          <StatusTag :value="record.materialization || 'unknown'" />
+          <AssetStatus
+            :value="record.materialization || 'unknown'"
+            :expired="record.progressExpired"
+            :show-description="
+              record.progressExpired ||
+              !['materializing', 'text_ready', 'ready'].includes(
+                record.materialization || 'unknown',
+              )
+            "
+          />
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
@@ -111,9 +141,11 @@
             >
               {{ $t("common.details") }}
             </a-button>
-            <a-button danger size="small" @click="handleDelete([record.id])">
-              {{ $t("common.delete") }}
-            </a-button>
+            <a-tooltip :title="record.pending ? $t('console.assetPendingHint') : undefined">
+              <a-button danger size="small" :disabled="record.pending" @click="handleDelete([record.id])">
+                {{ $t("common.delete") }}
+              </a-button>
+            </a-tooltip>
           </a-space>
         </template>
       </template>
@@ -129,29 +161,34 @@ import {
   DeleteOutlined,
   FileOutlined,
   FileTextOutlined,
+  InfoCircleOutlined,
   PictureOutlined,
   PlaySquareOutlined,
   SoundOutlined,
   UploadOutlined,
 } from "@ant-design/icons-vue";
 import { requestAssetDelete } from "@/api/console";
-import type { Asset, AssetPool } from "@/api/console/type";
+import type { AssetPool } from "@/api/console/type";
+import type { AssetRow } from "../AssetProgress";
 import StatusTag from "../../../components/StatusTag.vue";
+import AssetStatus from "./AssetStatus.vue";
 import getTableColumns from "../ColumnsList";
 import ConsoleTable from "../../../components/ConsoleTable.vue";
-import { getAssetKind } from "../AssetKind";
+import { getAssetKind } from "../AssetUtils";
 const props = defineProps<{
-  tableData: Asset[];
+  tableData: AssetRow[];
   poolData: AssetPool[];
   libraryName: string;
+  uploadVersion: number;
 }>();
-const emit = defineEmits<{ upload: []; search: []; view: [id: string] }>();
+const emit = defineEmits<{ upload: []; search: []; view: [id: string]; deleted: [ids: string[]] }>();
 const handleUpload = () => emit("upload");
 const handleView = (id: string) => emit("view", id);
 const { t } = useI18n();
 const assetType = ref("all");
 const searchName = ref("");
 const selectedKeys = ref<string[]>([]);
+const getCheckboxProps = (record: AssetRow) => ({ disabled: Boolean(record.pending) });
 const tableColumns = computed(() => getTableColumns(t));
 const poolNames = (ids: string[]) =>
   ids
@@ -179,6 +216,7 @@ const handleDelete = (ids: string[]) => {
     async onOk() {
       await requestAssetDelete(props.libraryName, { asset_ids: ids });
       selectedKeys.value = [];
+      emit("deleted", ids);
       emit("search");
     },
   });
@@ -187,7 +225,14 @@ watch(
   () => props.tableData,
   (data) => {
     selectedKeys.value = selectedKeys.value.filter((id) =>
-      data.some((item) => item.id === id),
+      data.some((item) => item.id === id && !item.pending),
+    );
+    watch(
+      () => props.uploadVersion,
+      () => {
+        assetType.value = "all";
+        searchName.value = "";
+      },
     );
   },
 );
@@ -199,6 +244,29 @@ watch(
   border-radius: 8px;
   :deep(.intel-card-body) {
     padding: 0;
+  }
+  .status-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-help {
+    color: var(--font-info-color);
+    cursor: help;
+  }
+  .status-legend {
+    max-width: 380px;
+  }
+  .status-legend-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 0;
+    line-height: 1.5;
+    > :first-child {
+      flex-shrink: 0;
+      min-width: 105px;
+    }
   }
 }
 .header-wrap {

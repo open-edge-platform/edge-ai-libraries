@@ -1,22 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Asset content: the bytes an asset is made of, in the source that holds them.
-
-An asset's content lives in a `Source` like anything else -- registered on the
-library, listed by the API, reached through a `databasehub` adapter. The only
-thing that distinguishes it from a pool's source is who points at it: an asset,
-not a pool. So there is no separate storage abstraction here, just the seam that
-turns (source, key) into bytes.
-
-Two key shapes, and the store stays dumb about which is which:
-
-- **blobs** -- immutable bytes, keyed by content: ``blobs/<sha256>``. Identical
-  bytes ingested twice land on one key, which is why a blob is never deleted
-  when one asset stops referring to it (another may still). Reclaim with a sweep
-  over live keys instead.
-- **documents** -- an asset's own record, keyed by identity:
-  ``assets/<asset_id>.json``. Re-extracting the same asset overwrites it.
-"""
 
 import hashlib
 import json
@@ -30,7 +13,7 @@ ASSET_PREFIX = "assets"
 
 
 def blob_key(data: bytes) -> str:
-    """The content-addressed key for these bytes."""
+    """The content-addressed key for these bytes; shared blobs are never deleted per asset."""
     return f"{BLOB_PREFIX}/{hashlib.sha256(data).hexdigest()}"
 
 
@@ -65,11 +48,7 @@ class ContentStore:
     def put_blob(
         self, source: Source, data: bytes, content_type: Optional[str] = None
     ) -> str:
-        """Store bytes under their content address and return the key.
-
-        Idempotent: the same bytes produce the same key, and a key that is
-        already present is not rewritten.
-        """
+        """Store bytes under their content address (idempotent) and return the key."""
         adapter, collection = self._bind(source)
         key = blob_key(data)
         adapter.ensure(collection)
