@@ -47,7 +47,7 @@ test("all SDK/version combinations retain their install and tutorial rules", () 
               VISUAL_AI_DEMO: "visual-ai-demo-kit.sh",
               UAV_MISSION_COMPUTE: "uav-mission-compute-sdk.sh",
             };
-            const path = version === "latest"
+            const path = version === "latest" || version === "2026.3.0-rc1"
               ? "edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/" + latestNames[sdk.value]
               : "edge-ai-suites/refs/heads/release-" + version + ".0/metro-ai-suite/metro-sdk-manager/scripts/" + releaseNames[sdk.value];
             if (rule.text !== "curl -fsS https://raw.githubusercontent.com/open-edge-platform/" + path + " | bash") return false;
@@ -58,7 +58,43 @@ test("all SDK/version combinations retain their install and tutorial rules", () 
     }
     return combinations;
   })()`, context);
-  assert.equal(result, 11);
+  assert.equal(result, 15);
+});
+
+test("SDK installers pin the 2026.3.0-rc1 component images", () => {
+  const expectedImages = {
+    "metro-vision-ai-sdk.sh": [
+      "openvino/model_server:2026.4.1",
+      "openvino/ubuntu24_dev:2026.4.1",
+      "intel/dlstreamer:2026.3.0-ubuntu24-rc1",
+      "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc1",
+      "intel/scenescape-manager:2026.3.0-rc1",
+      "intel/scenescape-controller:2026.3.0-rc1",
+      "intel/scenescape-autocalibration:2026.3.0-rc1",
+    ],
+    "metro-gen-ai-sdk.sh": [
+      "intel/audio-analyzer:2026.3.0-rc1",
+      "intel/document-ingestion:2026.3.0-rc1",
+      "intel/multimodal-embedding-serving:2026.3.0-rc1",
+      "intel/multimodal-dataprep:2026.3.0-rc1",
+      "intel/model-download:2026.3.0-rc1",
+      "intel/chatqna:core_2026.3.0-rc1",
+      "intel/chatqna-ui:core_2026.3.0-rc1",
+    ],
+    "metro-visual-ai-demo-kit.sh": [
+      "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc1",
+    ],
+    "uav-mission-compute-sdk.sh": [
+      "intel/metrics-manager:2026.3.0-rc1",
+    ],
+  };
+
+  for (const [installer, images] of Object.entries(expectedImages)) {
+    const source = readFileSync(join(__dirname, "../scripts", installer), "utf8");
+    for (const image of images) {
+      assert.ok(source.includes(image), `${installer} is missing ${image}`);
+    }
+  }
 });
 
 test("incompatible versions stay disabled and invalid shared selections are repaired", () => {
