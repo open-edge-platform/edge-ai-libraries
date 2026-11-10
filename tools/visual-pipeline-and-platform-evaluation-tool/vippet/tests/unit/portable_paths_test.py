@@ -15,7 +15,7 @@ from platform_paths import (
     IS_WINDOWS,
     LINUX_MODELS_PREFIX,
     LINUX_PUBLIC_MODEL_PROC_PREFIX,
-    resolve_linux_path,
+    adapt_linux_path_for_windows,
 )
 from graph import Graph, Node, _input_video_name_to_path, _build_chain
 from gst_properties import quote_property, unquote_property
@@ -26,22 +26,16 @@ from videos import VideosManager
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 PATH_DEFAULTS = {
-    "MODELS_PATH": ("models/output", "/models/output"),
-    "LABELS_PATH": ("labels", "/home/dlstreamer/dlstreamer/samples/labels"),
-    "SCRIPTS_PATH": ("scripts", "/scripts"),
-    "PUBLIC_MODEL_PROC_PATH": (
-        "model-proc/public",
-        LINUX_PUBLIC_MODEL_PROC_PREFIX,
-    ),
-    "UPLOADED_IMAGES_DIR": ("images/input/uploaded", "/images/input/uploaded"),
-    "AUTO_VIDEO_DIR": ("videos/input/auto", "/videos/input/auto"),
-    "UPLOADED_VIDEO_DIR": ("videos/input/uploaded", "/videos/input/uploaded"),
-    "OUTPUT_VIDEO_DIR": ("videos/output", "/videos/output"),
-    "DEFAULT_RECORDINGS_FILE": (
-        "videos/default_recordings.yaml",
-        "/videos/default_recordings.yaml",
-    ),
-    "METADATA_DIR": ("metadata", "/metadata"),
+    "MODELS_PATH": "/models/output",
+    "LABELS_PATH": "/home/dlstreamer/dlstreamer/samples/labels",
+    "SCRIPTS_PATH": "/scripts",
+    "PUBLIC_MODEL_PROC_PATH": LINUX_PUBLIC_MODEL_PROC_PREFIX,
+    "UPLOADED_IMAGES_DIR": "/images/input/uploaded",
+    "AUTO_VIDEO_DIR": "/videos/input/auto",
+    "UPLOADED_VIDEO_DIR": "/videos/input/uploaded",
+    "OUTPUT_VIDEO_DIR": "/videos/output",
+    "DEFAULT_RECORDINGS_FILE": "/videos/default_recordings.yaml",
+    "METADATA_DIR": "/metadata",
 }
 
 
@@ -78,15 +72,15 @@ class TestPortablePathDefaults(unittest.TestCase):
         )
         return json.loads(result.stdout)
 
-    def test_platform_defaults_and_unchanged_in_memory_database(self):
+    def test_fallback_paths_are_platform_independent(self):
         with tempfile.TemporaryDirectory(prefix="vippet data ") as root:
             for windows in (False, True):
                 config = self.read_config(windows, {}, root)
-                for key, (_, posix) in PATH_DEFAULTS.items():
+                for key, default_path in PATH_DEFAULTS.items():
                     expected = (
-                        posix
+                        default_path
                         if key in {"MODELS_PATH", "DEFAULT_RECORDINGS_FILE"}
-                        else os.path.normpath(posix)
+                        else os.path.normpath(default_path)
                     )
                     with self.subTest(windows=windows, key=key):
                         self.assertEqual(config[key], expected)
@@ -144,18 +138,26 @@ class TestPortableProperties(unittest.TestCase):
                     self.assertEqual(nodes[0].data["location"], path)
 
     def test_null_output_uses_native_device(self):
-        graph = Graph.from_pipeline_description("gvametapublish file-path=/dev/null")
-        self.assertEqual(graph.nodes[0].data["file-path"], os.devnull)
-        parts = []
-        _build_chain(
-            "0",
-            {"0": Node("0", "gvametapublish", {"file-path": "/dev/null"})},
-            {},
-            {},
-            set(),
-            parts,
-        )
-        self.assertIn(f"file-path={quote_property(os.devnull)}", " ".join(parts))
+        for native_device in ("/dev/null", "nul"):
+            with self.subTest(native_device=native_device), patch(
+                "graph.os.devnull", native_device
+            ):
+                graph = Graph.from_pipeline_description(
+                    "gvametapublish file-path=/dev/null"
+                )
+                self.assertEqual(graph.nodes[0].data["file-path"], "/dev/null")
+                parts = []
+                _build_chain(
+                    "0",
+                    {"0": Node("0", "gvametapublish", {"file-path": "/dev/null"})},
+                    {},
+                    {},
+                    set(),
+                    parts,
+                )
+                self.assertIn(
+                    f"file-path={quote_property(native_device)}", " ".join(parts)
+                )
 
     def test_ts_conversion_quotes_paths(self):
         with patch("videos.PipelineRunner") as runner:
@@ -184,7 +186,7 @@ class TestLegacyResourceMapping(unittest.TestCase):
                     ),
                 ):
                     self.assertEqual(
-                        resolve_linux_path(legacy),
+                        adapt_linux_path_for_windows(legacy),
                         str(Path(root) / "preproc.json") if windows else legacy,
                     )
                     for value in (
@@ -194,7 +196,7 @@ class TestLegacyResourceMapping(unittest.TestCase):
                     ):
                         with self.subTest(windows=windows, value=value):
                             self.assertEqual(
-                                resolve_linux_path(value),
+                                adapt_linux_path_for_windows(value),
                                 value,
                             )
 
@@ -218,7 +220,7 @@ class TestLegacyResourceMapping(unittest.TestCase):
                 for suffix in ("", "/"):
                     with self.subTest(linux_root=linux_root, suffix=suffix):
                         self.assertEqual(
-                            resolve_linux_path(f"{linux_root}/{relative}{suffix}"),
+                            adapt_linux_path_for_windows(f"{linux_root}/{relative}{suffix}"),
                             str(Path(root) / relative),
                         )
 
@@ -244,7 +246,7 @@ class TestLegacyResourceMapping(unittest.TestCase):
                 "model/../",
             ):
                 with self.subTest(suffix=suffix), self.assertRaises(ValueError):
-                    resolve_linux_path("/models/output/" + suffix)
+                    adapt_linux_path_for_windows("/models/output/" + suffix)
 
     def test_mapping_rejects_symlink_outside_configured_root(self):
         if IS_WINDOWS:
@@ -263,7 +265,7 @@ class TestLegacyResourceMapping(unittest.TestCase):
                 ),
                 self.assertRaises(ValueError),
             ):
-                resolve_linux_path("/models/output/link/model.xml")
+                adapt_linux_path_for_windows("/models/output/link/model.xml")
 
     def test_mapping_selects_matching_root_from_table(self):
         with (
@@ -284,7 +286,7 @@ class TestLegacyResourceMapping(unittest.TestCase):
             for linux_root, directory in mappings.items():
                 with self.subTest(linux_root=linux_root):
                     self.assertEqual(
-                        resolve_linux_path(linux_root + "/file.json"),
+                        adapt_linux_path_for_windows(linux_root + "/file.json"),
                         str(Path(directory) / "file.json"),
                     )
             for value in (
@@ -293,7 +295,7 @@ class TestLegacyResourceMapping(unittest.TestCase):
                 "/models/output_backup/file.xml",
             ):
                 with self.subTest(value=value):
-                    self.assertEqual(resolve_linux_path(value), value)
+                    self.assertEqual(adapt_linux_path_for_windows(value), value)
 
     def test_model_proc_mapping_does_not_change_stored_reference(self):
         legacy = LINUX_PUBLIC_MODEL_PROC_PREFIX + "/preproc.json"

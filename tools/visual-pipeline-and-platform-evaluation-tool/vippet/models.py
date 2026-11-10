@@ -10,7 +10,7 @@ from typing import Optional
 
 from platform_paths import (
     MODELS_PATH,
-    resolve_linux_path,
+    adapt_linux_path_for_windows,
 )
 
 # Main language model file that every OpenVINO GenAI model must contain.
@@ -87,7 +87,7 @@ class SupportedModel:
         self.default: bool = bool(default)
 
         self.model_path_full: str = os.path.join(MODELS_PATH, self.model_path)
-        resolved_model_path = resolve_linux_path(model_path)
+        resolved_model_path = adapt_linux_path_for_windows(model_path)
         if resolved_model_path != model_path:
             self.model_path_full = resolved_model_path
         # Set model_proc_full based on whether it's a full path or relative path
@@ -101,7 +101,7 @@ class SupportedModel:
         else:
             self.model_proc_full: str = ""
         if self.model_proc:
-            resolved_proc = resolve_linux_path(self.model_proc)
+            resolved_proc = adapt_linux_path_for_windows(self.model_proc)
             if resolved_proc != self.model_proc:
                 self.model_proc_full = resolved_proc
 
@@ -450,7 +450,7 @@ class SupportedModelsManager:
         Returns:
             Optional[SupportedModel]: The matching SupportedModel instance if found, otherwise None.
         """
-        normalized_model_path = os.path.normpath(resolve_linux_path(model_path))
+        normalized_model_path = os.path.normpath(adapt_linux_path_for_windows(model_path))
         # Compare with trailing-slash stripped (pipeline descriptions may omit the slash).
         for model in self._models:
             if (
@@ -494,7 +494,7 @@ class SupportedModelsManager:
 
         # Step 3: if model_proc_path is specified, find a variant with a matching proc filename
         if model_proc_path is not None and model_proc_path.strip():
-            model_proc_path = resolve_linux_path(model_proc_path)
+            model_proc_path = adapt_linux_path_for_windows(model_proc_path)
             for model in matching_models:
                 if model.model_proc_full and os.path.basename(
                     model.model_proc_full

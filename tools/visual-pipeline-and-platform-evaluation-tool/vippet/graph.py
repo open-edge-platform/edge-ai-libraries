@@ -494,10 +494,6 @@ class Graph:
 
             node_id += 1
 
-        for node in nodes:
-            if node.data.get("file-path") == "/dev/null":
-                node.data["file-path"] = os.devnull
-
         # Post-process models, video paths labels and module paths so stored
         # graphs reference display names / filenames instead of absolute paths.
         _model_path_to_display_name(nodes)

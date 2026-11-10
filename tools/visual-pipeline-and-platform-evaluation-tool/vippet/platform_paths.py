@@ -22,7 +22,7 @@ LINUX_PATH_MAPPINGS: dict[str, str] = {
 }
 
 
-def resolve_linux_path(value: str) -> str:
+def adapt_linux_path_for_windows(value: str) -> str:
     """Adapt stored Linux model and model-proc paths for native Windows.
 
     Pipeline descriptions and model definitions can contain absolute Linux paths
