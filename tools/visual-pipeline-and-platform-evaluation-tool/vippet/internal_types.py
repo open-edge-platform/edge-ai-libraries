@@ -1216,6 +1216,10 @@ class InternalSupportedModel:
             ``None`` when no automated download is wired up yet.
         description: Human-readable explanation of what the model
             detects/classifies. ``None`` when not provided in the YAML.
+        link: URL of the model page on its upstream hub (currently only
+            Hugging Face). ``None`` when not provided in the YAML.
+        gated: Hugging Face gating mode (``"false"``, ``"auto"`` or
+            ``"manual"``). ``None`` when unknown or not applicable.
     """
 
     name: str
@@ -1230,6 +1234,8 @@ class InternalSupportedModel:
     unsupported_devices: str | None = None
     download_request: dict[str, Any] | None = None
     description: str | None = None
+    link: str | None = None
+    gated: str | None = None
 
 
 @dataclass

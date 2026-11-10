@@ -2371,6 +2371,26 @@ class ModelSource(str, Enum):
     CUSTOM = "custom"
 
 
+class ModelGated(str, Enum):
+    """
+    **Hugging Face gating mode of a model.**
+
+    ## Values
+    - `FALSE` - Not gated, anyone can download the model
+    - `AUTO` - Gated, access is granted automatically after accepting the license
+    - `MANUAL` - Gated, access must be approved manually by the model authors
+
+    ### Example
+    ```json
+    "auto"
+    ```
+    """
+
+    FALSE = "false"
+    AUTO = "auto"
+    MANUAL = "manual"
+
+
 class ModelDownloadJobState(str, Enum):
     """
     **State of a model download job tracked by vippet-app.**
@@ -2462,6 +2482,8 @@ class Model(BaseModel):
     - `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation
     - `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.
     - `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)
+    - `link` - URL of the model page on its upstream hub (currently Hugging Face only), or null
+    - `gated` - Hugging Face gating mode (`false`, `auto`, `manual`), or null when unknown or not applicable
 
     ### Example
     ```json
@@ -2476,7 +2498,8 @@ class Model(BaseModel):
         {"name": "yolo11n_FP16", "display_name": "YOLO 11n 640x640 (FP16)", "precision": "FP16"}
       ],
       "used_by_pipelines": ["smart-nvr", "goods-detection"],
-      "unsupported_devices": null
+      "unsupported_devices": null,
+      "link": null
     }
     ```
     """
@@ -2527,6 +2550,20 @@ class Model(BaseModel):
         description=(
             "Comma-separated list of devices on which the model "
             "cannot run (e.g. 'NPU'), or null when no restrictions exist."
+        ),
+    )
+    link: Optional[str] = Field(
+        default=None,
+        description=(
+            "URL of the model page on its upstream hub (currently only "
+            "Hugging Face), or null when not available."
+        ),
+    )
+    gated: Optional[ModelGated] = Field(
+        default=None,
+        description=(
+            "Hugging Face gating mode, or null when unknown or not "
+            "applicable (non-Hugging Face models)."
         ),
     )
 
@@ -2586,6 +2623,7 @@ class ModelDownloadRequest(BaseModel):
     - `names` - List of supported-model names to install. Must be non-empty and unique.
     - `hub` - Optional upstream hub for names not in the catalog.
     - `category` - Required when `hub` is `huggingface`; ignored otherwise.
+    - `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.
 
     ### Example
     ```json
@@ -2613,6 +2651,13 @@ class ModelDownloadRequest(BaseModel):
         description=(
             "Model category, required when `hub` is `huggingface` (ignored "
             "for other hubs)."
+        ),
+    )
+    gated: ModelGated | None = Field(
+        default=None,
+        description=(
+            "Gating mode of the hub model, stored on the registered model "
+            "(null when unknown)."
         ),
     )
 
