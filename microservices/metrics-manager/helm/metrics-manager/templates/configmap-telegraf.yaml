@@ -1,4 +1,6 @@
-{{- if .Values.telegraf.config -}}
+{{/* SPDX-FileCopyrightText: (C) 2026 Intel Corporation */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if or .Values.telegraf.config (not .Values.hardware.telemetry.enabled) -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,5 +10,9 @@ metadata:
     {{- include "metrics-manager.labels" . | nindent 4 }}
 data:
   telegraf.conf: |-
+{{- if .Values.telegraf.config }}
 {{ .Values.telegraf.config | indent 4 }}
+{{- else }}
+{{ .Files.Get "files/telegraf-restricted.conf" | indent 4 }}
+{{- end }}
 {{- end }}

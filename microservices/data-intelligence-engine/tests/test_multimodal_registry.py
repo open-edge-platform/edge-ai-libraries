@@ -18,7 +18,8 @@ from core.multimodal import registry
 from tests.video_package import VIDEO_FAMILIES, video_package
 
 VIDEO_ID = "viclip-b-fp16"
-GME_ID = "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"
+GME_ID = "gme-Qwen2-VL-2B-Instruct-OV"
+RETIRED_GME_ID = "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"
 
 
 def _gme_dir(root, name="gme-Qwen2-VL-2B-Instruct-OV"):
@@ -26,6 +27,12 @@ def _gme_dir(root, name="gme-Qwen2-VL-2B-Instruct-OV"):
     path.mkdir(parents=True)
     (path / "gme_openvino_config.json").write_text(json.dumps({"precisions": {}}))
     return path
+
+
+@pytest.fixture(autouse=True)
+def _model_dir(tmp_path, monkeypatch):
+    """Frozen records are located by id under the model dir."""
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
 
 
 # --- recognition ----------------------------------------------------------------
@@ -54,6 +61,11 @@ def test_exact_video_identity_recognizes_a_model_that_is_not_on_disk(family, mod
 
 def test_a_gme_id_prefix_recognizes_a_model_that_is_not_on_disk():
     assert registry.lookup(GME_ID, None).name == "gme_qwen2vl"
+
+
+def test_the_old_huggingface_gme_id_is_no_longer_accepted():
+    with pytest.raises(ValueError, match="no longer accepted"):
+        registry.lookup(RETIRED_GME_ID, None)
 
 
 @pytest.mark.parametrize("model_id", [
@@ -85,7 +97,7 @@ def test_retired_xclip_ids_are_rejected_even_with_a_supported_package(tmp_path, 
 def test_retired_xclip_profiles_are_rejected_before_path_or_default_resolution(monkeypatch, record):
     monkeypatch.setattr(registry, "local_path", lambda *args: pytest.fail("must reject frozen identity first"))
     with pytest.raises(ValueError, match="Unsupported production video model"):
-        registry.load({**record, "path": "/not-read"}, {})
+        registry.load(record, {})
 
 
 @pytest.mark.parametrize("identity", ["directory", "config", "root-ir", "nested-ir"])
@@ -197,35 +209,47 @@ def test_explicit_roles_select_the_representation_before_the_default_model():
 
 
 @pytest.mark.parametrize("family", VIDEO_FAMILIES)
-def test_resolve_records_a_portable_path_for_a_model_in_the_model_dir(tmp_path, monkeypatch, family):
+def test_resolve_records_the_id_and_no_path_for_a_model_in_the_model_dir(tmp_path, monkeypatch, family):
     monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     path = video_package(tmp_path, family=family)
     resolved = registry.resolve({"asset_types": ["video"], "embedding_model": path.name})
 
     assert resolved.model.name == family
-    assert resolved.model_path == f"{family}-fp16"
+    assert resolved.record() == {
+        "name": family, "category": "video", "id": f"{family}-fp16",
+    }
 
 
-def test_frozen_profile_keeps_loading_an_absolute_path_outside_the_model_dir(tmp_path, monkeypatch):
+def test_frozen_profile_is_loaded_by_id_under_the_model_dir(tmp_path, monkeypatch):
     path = _gme_dir(tmp_path)
     model = registry.lookup(None, str(path))
     built = []
     monkeypatch.setattr(model.__class__, "is_ready", lambda self, path: True)
     monkeypatch.setattr(model.__class__, "build", lambda self, path, device, params: built.append(path))
 
-    registry.load({"name": "gme_qwen2vl", "path": str(path)}, {})
+    registry.load({"name": "gme_qwen2vl", "id": path.name}, {})
 
     assert built == [path]
 
 
 @pytest.mark.parametrize("family", VIDEO_FAMILIES)
-def test_resolve_by_id_with_asset_scope_derives_the_path_from_the_id(family):
+def test_resolve_by_id_with_asset_scope_records_the_id(family):
     model_id = f"{family}-fp16"
     resolved = registry.resolve({"asset_types": ["video"], "embedding_model": model_id})
 
     assert resolved.model.name == family
     assert resolved.model_id == model_id
-    assert resolved.model_path == model_id
+    assert "path" not in resolved.record()
+
+
+def test_a_frozen_record_without_an_id_is_refused():
+    with pytest.raises(ValueError, match="no model id"):
+        registry.load({"name": "viclip-b"}, {})
+
+
+def test_a_frozen_record_whose_id_is_not_in_the_model_dir_fails_as_unprepared():
+    with pytest.raises(FileNotFoundError, match="[Pp]repare"):
+        registry.load({"name": "viclip-b", "id": "viclip-b-fp16"}, {})
 
 
 def test_an_unrecognized_model_id_for_media_is_an_error_not_a_download(tmp_path, monkeypatch):
@@ -277,7 +301,7 @@ def test_prepared_local_variant_is_selected_by_id_under_model_root(tmp_path, mon
     resolved = registry.resolve({"asset_types": [scope], "embedding_model": path.name})
 
     assert resolved.model_id == path.name
-    assert resolved.model_path == path.name
+    assert "path" not in resolved.record()
     assert resolved.model.matches_dir(path)
     assert "precision" not in resolved.params
 
@@ -287,7 +311,7 @@ def test_source_precision_is_rejected_instead_of_ignored(value):
     with pytest.raises(ValueError, match="precision.*embedding_model"):
         registry.resolve({"asset_types": ["video"], "precision": value})
     with pytest.raises(ValueError, match="precision.*embedding_model"):
-        registry.load({"name": "viclip-b", "path": "not-read"}, {"precision": value})
+        registry.load({"name": "viclip-b", "id": "viclip-b-fp16"}, {"precision": value})
     assert "precision" not in registry.MODEL_PARAMS
 
 
@@ -487,17 +511,6 @@ def test_manifest_precision_must_match_the_directory_suffix(tmp_path, family):
         registry.load(_record(path, name=family), {})
 
 
-@pytest.mark.parametrize("family", VIDEO_FAMILIES)
-def test_frozen_id_precision_cannot_override_a_valid_independent_package(tmp_path, monkeypatch, family):
-    path = video_package(tmp_path, name="custom-video-package", family=family, precision="fp32")
-    model = registry.lookup(None, str(path))
-    monkeypatch.setattr(model.__class__, "build", lambda *args: pytest.fail("precision conflict must not compile"))
-
-    assert model.is_ready(path)
-    with pytest.raises(ValueError, match="Selected model ID precision conflicts"):
-        registry.load(_record(path, model_id=f"{family}-fp16", name=family), {})
-
-
 @pytest.mark.parametrize("family, other", [("viclip-b", "viclip-l"), ("viclip-l", "cosmos-224p"),
                                          ("cosmos-224p", "viclip-b")])
 def test_explicit_and_frozen_identity_cannot_silently_change_embedding_space(tmp_path, monkeypatch, family, other):
@@ -510,6 +523,7 @@ def test_explicit_and_frozen_identity_cannot_silently_change_embedding_space(tmp
     assert not model.is_ready(path)
     with pytest.raises(FileNotFoundError, match="mismatched video package"):
         registry.load(_record(path, name=family), {})
+    video_package(tmp_path, name=f"{other}-fp16", family=other)
     with pytest.raises(ValueError, match="Frozen model.*conflicts"):
         registry.load(_record(path, model_id=f"{other}-fp16", name=family), {})
 
@@ -559,7 +573,7 @@ def test_local_ir_only_variant_reports_missing_manifest_without_mutating_package
     resolved = registry.resolve({"asset_types": ["video"], "embedding_model": path.name})
 
     assert resolved.model.name == family
-    assert resolved.model_id == resolved.model_path == path.name
+    assert resolved.model_id == path.name
     assert not resolved.model.is_ready(path)
     with pytest.raises(FileNotFoundError, match="video_embedding.json"):
         registry.load(resolved.record(), resolved.params)
@@ -639,7 +653,7 @@ def test_gme_requires_a_prepared_package(tmp_path):
 
 
 def _record(path, model_id=None, name="viclip-b"):
-    return {"name": name, "id": model_id or f"{name}-fp16", "path": str(path)}
+    return {"name": name, "id": model_id or path.name}
 
 
 @pytest.mark.parametrize("family", VIDEO_FAMILIES)
@@ -685,7 +699,6 @@ def test_the_model_comes_from_the_record_not_todays_defaults(tmp_path, monkeypat
     existing source; the profile's record is what is loaded."""
     path = video_package(tmp_path, family=family)
     monkeypatch.setattr(config, "VIDEO_EMBEDDING_MODEL_ID", "viclip-l-fp32")
-    monkeypatch.setattr(config, "VIDEO_EMBEDDING_MODEL_PATH", "/somewhere/else")
     model = registry.lookup(None, str(path))
     built = []
     monkeypatch.setattr(

@@ -386,6 +386,8 @@ class ModelManager:
                         unsupported_devices=db_model.unsupported_devices,
                         download_request=db_model.download_request,
                         description=db_model.description,
+                        link=db_model.link,
+                        gated=db_model.gated,
                     )
                 )
 
@@ -508,6 +510,7 @@ class ModelManager:
         model_name: str,
         hub: str | None = None,
         category: InternalModelCategory | None = None,
+        gated: str | None = None,
     ) -> tuple[str | None, int, str]:
         """Start a download job for the given supported model.
 
@@ -516,6 +519,7 @@ class ModelManager:
         ``category`` is required for hubs that have no naming convention to
         derive it from (currently: ``huggingface``); it is ignored for
         ``ultralytics`` (derived from the name suffix instead).
+        ``gated`` is stored on the registered hub model as-is.
 
         Returns a tuple ``(job_id, http_status, message)`` where
         ``job_id`` is ``None`` for error responses. ``http_status`` is
@@ -535,7 +539,7 @@ class ModelManager:
             )
         if db_model is None:
             if hub is not None:
-                return self._start_hub_download(hub, model_name, category)
+                return self._start_hub_download(hub, model_name, category, gated)
             return None, 404, f"Model '{model_name}' is not supported"
 
         source = self._to_internal_source(db_model.hub)
@@ -603,6 +607,7 @@ class ModelManager:
         hub: str,
         name: str,
         category: InternalModelCategory | None,
+        gated: str | None = None,
     ) -> tuple[str | None, int, str]:
         """Start a download of a non-catalog model picked from a hub listing.
 
@@ -614,6 +619,9 @@ class ModelManager:
             name: Model name as returned by the hub listing.
             category: Required for ``huggingface`` (no naming convention to
                 derive it from); ignored for ``ultralytics``.
+            gated: Gating mode reported by the hub listing, persisted on
+                the registered model. ``None`` when the hub has no such
+                notion.
 
         Returns:
             tuple[str | None, int, str]: ``(job_id, http_status, message)``.
@@ -667,7 +675,7 @@ class ModelManager:
             self._jobs[job_id] = job
 
         def on_success(job_id: str, model_name: str) -> None:
-            finalize(job_id, model_name, resolved_category, download_request)
+            finalize(job_id, model_name, resolved_category, download_request, gated)
 
         threading.Thread(
             target=self._execute_remote_download,
@@ -684,6 +692,7 @@ class ModelManager:
         model_name: str,
         category: InternalModelCategory,
         download_request: dict[str, Any],
+        gated: str | None = None,
     ) -> None:
         """Register a freshly downloaded Ultralytics model in the DB."""
         variants = scan_ultralytics_variants(model_name)
@@ -702,6 +711,7 @@ class ModelManager:
             variants,
             InternalModelSource.ULTRALYTICS,
             ULTRALYTICS_SOURCE_DIR,
+            gated,
         )
 
     def _finalize_huggingface_install(
@@ -710,6 +720,7 @@ class ModelManager:
         model_name: str,
         category: InternalModelCategory,
         download_request: dict[str, Any],
+        gated: str | None = None,
     ) -> None:
         """Register a freshly downloaded HuggingFace hub model in the DB."""
         variant = scan_huggingface_variant(model_name, category)
@@ -728,6 +739,7 @@ class ModelManager:
             [variant],
             InternalModelSource.HUGGINGFACE,
             "huggingface",
+            gated,
         )
 
     def _persist_and_complete_hub_job(
@@ -739,12 +751,13 @@ class ModelManager:
         variants: list[tuple[str, str]],
         hub: InternalModelSource,
         source: str,
+        gated: str | None = None,
     ) -> None:
         """Persist a hub-installed model's variants and complete its job."""
         try:
             asyncio.run(
                 self._persist_hub_model(
-                    model_name, category, download_request, variants, hub, source
+                    model_name, category, download_request, variants, hub, source, gated
                 )
             )
         except Exception as exc:
@@ -779,6 +792,7 @@ class ModelManager:
         variants: list[tuple[str, str]],
         hub: InternalModelSource,
         source: str,
+        gated: str | None = None,
     ) -> None:
         """Insert a hub-installed model and its precisions into the DB."""
         from database import async_session_maker
@@ -798,6 +812,7 @@ class ModelManager:
                 source=source,
                 hub=hub.value,
                 unsupported_devices=None,
+                gated=gated,
                 is_custom=False,
                 install_status=InternalModelInstallStatus.INSTALLED.value,
                 installed_at=now,

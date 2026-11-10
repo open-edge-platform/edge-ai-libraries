@@ -5,6 +5,7 @@
     :title="$t('console.createPool')"
     width="640px"
     centered
+    wrap-class-name="create-pool-modal"
     :maskClosable="false"
     @cancel="handleClose"
   >
@@ -93,7 +94,10 @@ import type { FormInstance } from "ant-design-vue";
 import { requestAssetPoolCreate } from "@/api/console";
 import type { JsonObject, Library } from "@/api/console/type";
 import FormTooltip from "@/components/FormTooltip.vue";
-const props = defineProps<{ libraryData: Library; initialSources?: string[] }>();
+const props = defineProps<{
+  libraryData: Library;
+  initialSources?: string[];
+}>();
 const emit = defineEmits<{ close: []; search: []; created: [id: string] }>();
 const handleClose = () => emit("close");
 const { t } = useI18n();
@@ -157,6 +161,20 @@ const handleSubmit = async () => {
 };
 </script>
 <style scoped lang="less">
+:global(.create-pool-modal .intel-modal-content) {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+}
+:global(.create-pool-modal .intel-modal-body) {
+  min-height: 0;
+  overflow-y: auto;
+}
+:global(.create-pool-modal .intel-modal-header),
+:global(.create-pool-modal .intel-modal-footer) {
+  flex-shrink: 0;
+}
 .dialog-body {
   padding: 16px 0 4px;
 }

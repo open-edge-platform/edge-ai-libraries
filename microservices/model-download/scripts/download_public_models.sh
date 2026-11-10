@@ -347,7 +347,7 @@ from pathlib import Path
 archive_path, destination_path, project_root = sys.argv[1:]
 sys.path.insert(0, project_root)
 
-from src.utils.helper import validate_zip_contents_within_target
+from src.utils.zip_safety import validate_zip_contents_within_target
 
 destination_root = Path(destination_path).resolve()
 destination_root.mkdir(parents=True, exist_ok=True)

@@ -14,6 +14,7 @@ from api.dependencies.audio_jobs import get_audio_pipeline_job_manager
 from api.routes import voice
 from graph import Graph
 from internal_types import (
+    InternalDensityJobStatus,
     InternalModelDownloadJobState,
     InternalModelDownloadJobStatus,
     InternalModelDownloadJobSummary,
@@ -22,8 +23,10 @@ from internal_types import (
     InternalOptimizationJobState,
     InternalOptimizationJobSummary,
     InternalOptimizationType,
+    InternalPerformanceJobStatus,
     InternalPipelineRequestOptimize,
     InternalPipelineValidation,
+    InternalTestJobState,
     InternalValidationJobState,
     InternalValidationJobStatus,
     InternalValidationJobSummary,
@@ -756,6 +759,60 @@ class TestJobsAPI(unittest.TestCase):
         response = self.client.delete(f"/jobs/tests/density/{job_id}")
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.json(), {"message": "Unexpected error occurred"})
+
+    # ------------------------------------------------------------------
+    # /jobs/tests/{performance,density}/{job_id}/status
+    # ------------------------------------------------------------------
+
+    @patch("api.routes.jobs.TestsManager")
+    def test_density_job_status_reports_min_stream_fps(self, mock_tests_manager_cls):
+        mock_tests_manager_cls.return_value.get_job_status.return_value = (
+            InternalDensityJobStatus(
+                id="density-1",
+                request={},
+                state=InternalTestJobState.COMPLETED,
+                start_time=1000,
+                end_time=2000,
+                per_stream_fps=31.0,
+                min_stream_fps=30.2,
+                total_streams=4,
+            )
+        )
+
+        response = self.client.get("/jobs/tests/density/density-1/status")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["per_stream_fps"], 31.0)
+        self.assertEqual(data["min_stream_fps"], 30.2)
+
+    @patch("api.routes.jobs.TestsManager")
+    def test_performance_job_status_without_per_stream_fps_has_null_min(
+        self, mock_tests_manager_cls
+    ):
+        mock_tests_manager_cls.return_value.get_job_status.return_value = (
+            InternalPerformanceJobStatus(
+                id="perf-1",
+                request={},
+                state=InternalTestJobState.COMPLETED,
+                start_time=1000,
+                end_time=2000,
+                per_stream_fps=25.0,
+            )
+        )
+
+        response = self.client.get("/jobs/tests/performance/perf-1/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["min_stream_fps"])
+
+    @patch("api.routes.jobs.TestsManager")
+    def test_density_job_status_not_found(self, mock_tests_manager_cls):
+        mock_tests_manager_cls.return_value.get_job_status.return_value = None
+
+        response = self.client.get("/jobs/tests/density/missing/status")
+
+        self.assertEqual(response.status_code, 404)
 
     # ------------------------------------------------------------------
     # /jobs/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}

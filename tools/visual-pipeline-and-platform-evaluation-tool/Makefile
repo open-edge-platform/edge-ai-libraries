@@ -31,7 +31,7 @@ define base-compose
 endef
 
 define standard-compose
-	$(call base-compose,$(1),,$(if $(strip $(DLSPS2_COMPOSE) $(GIGE_COMPOSE)),compose_files+=($(DLSPS2_COMPOSE) $(GIGE_COMPOSE))))
+	$(call base-compose,$(1),,$(if $(strip $(GIGE_COMPOSE)),compose_files+=($(GIGE_COMPOSE))))
 endef
 
 define experimental-compose
@@ -41,9 +41,13 @@ define experimental-compose
 		esac)
 endef
 
-# Set DLSPS2=1 to run pipelines on a DLSPS 2.0 container (see compose.dlsps2.yml).
-DLSPS2 ?= 0
-DLSPS2_COMPOSE := $(if $(filter 1,$(DLSPS2)),-f compose.dlsps2.yml)
+# Pipelines run on DLSPS 2.0 (dlstreamer-pipeline-server in compose.yml), built from
+# microservices/dlstreamer-pipeline-server/dlsps2 by default. With DLSPS2_IMAGE set (e.g. a
+# published intel/dlstreamer-pipeline-server:<tag>), that image is used as is: `build`
+# skips the server, so it never overwrites the tag; `run` pulls it.
+BUILD_SERVICES := $(if $(DLSPS2_IMAGE),vippet vippet-ui sensor-manager)
+# DLSPS 2.0 image used by `run-prebuilt` unless DLSPS2_IMAGE is set.
+PREBUILT_DLSPS2_IMAGE ?= intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-2.0-rc1
 
 # Set GIGE=1 to run vippet with host networking for GigE Vision camera streaming (see compose.gige.yml).
 GIGE ?= 0
@@ -165,8 +169,8 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core, Voice, and sensor-manager images; DLSPS2=1 adds DLSPS 2.0; GIGE=1 enables GigE camera streaming
-	$(call standard-compose,build)
+build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager, DLSPS 2.0 unless DLSPS2_IMAGE is set)
+	$(call standard-compose,build $(BUILD_SERVICES))
 
 build-dev: env-setup ## Build core, Voice, and sensor-manager development images
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
@@ -181,12 +185,13 @@ build-onvif-discovery: build-sensor-manager ## Deprecated alias of build-sensor-
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run ViPPET core and Voice services; DLSPS2=1 uses DLSPS 2.0; GIGE=1 enables GigE camera streaming
+run: env-setup ## Run ViPPET core, Voice, sensor-manager, and DLSPS 2.0; GIGE=1 enables GigE camera streaming
 	$(call standard-compose,up -d)
 
-run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source; GIGE=1 enables GigE camera streaming
-	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && echo "Running published images tagged $$DOCKER_TAG" && \
-		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) pull vippet vippet-ui sensor-manager && \
+run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main) and PREBUILT_DLSPS2_IMAGE; never builds from source; GIGE=1 enables GigE camera streaming
+	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && export DLSPS2_IMAGE="$${DLSPS2_IMAGE:-$(PREBUILT_DLSPS2_IMAGE)}" && \
+		echo "Running published images tagged $$DOCKER_TAG with $$DLSPS2_IMAGE" && \
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) pull vippet vippet-ui sensor-manager dlstreamer-pipeline-server && \
 		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) up -d --no-build
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
@@ -300,10 +305,10 @@ shell-metrics-manager: ## Open shell in metrics-manager container
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
-shell-dlsps: ## Open shell in DLSPS 2.0 container (started with DLSPS2=1)
+shell-dlsps: ## Open shell in DLSPS 2.0 container
 	$(MAKE) shell SERVICE=dlstreamer-pipeline-server
 
-stop: ## Stop ViPPET core and Voice services, preserving named volumes
+stop: ## Stop ViPPET core, Voice, sensor-manager, and DLSPS 2.0, preserving named volumes
 	$(call standard-compose,down)
 
 clean: clean-model-download clean-models clean-output-videos clean-output-audio ## Clean all build artifacts

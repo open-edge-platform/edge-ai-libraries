@@ -63,6 +63,7 @@ export const DensityTests = () => {
   const [fpsFloor, setFpsFloor] = useState<number>(30);
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
+    min_stream_fps: number | null;
     total_streams: number | null;
     streams_per_pipeline: PipelineStreamSpec[] | null;
     video_output_paths: { [key: string]: string[] } | null;
@@ -133,6 +134,7 @@ export const DensityTests = () => {
 
       setTestResult({
         per_stream_fps: status.per_stream_fps,
+        min_stream_fps: status.min_stream_fps ?? null,
         total_streams: status.total_streams,
         streams_per_pipeline: status.streams_per_pipeline,
         video_output_paths: status.video_output_paths,
@@ -389,6 +391,12 @@ export const DensityTests = () => {
                 <span className="font-medium">Per Stream FPS:</span>{" "}
                 {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
               </p>
+              {testResult.min_stream_fps != null && (
+                <p className="text-status-fg">
+                  <span className="font-medium">Slowest Stream FPS:</span>{" "}
+                  {testResult.min_stream_fps.toFixed(2)}
+                </p>
+              )}
               <p className="text-status-fg">
                 <span className="font-medium">Total Streams:</span>{" "}
                 {testResult.total_streams ?? "N/A"}

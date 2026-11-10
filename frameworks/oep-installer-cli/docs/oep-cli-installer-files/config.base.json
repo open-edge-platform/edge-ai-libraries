@@ -13,7 +13,8 @@
     "label": "Operating System",
     "type": "single",
     "options": [
-      { "label": "Ubuntu 24.04", "value": "UBUNTU_24_04" }
+      { "label": "Ubuntu 24.04", "value": "UBUNTU_24_04" },
+      { "label": "Ubuntu 26.04", "value": "UBUNTU_26_04" }
     ]
   },
 

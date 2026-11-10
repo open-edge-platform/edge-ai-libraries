@@ -296,54 +296,6 @@ class MakeRoutingTest(unittest.TestCase):
                         [*expected_args, *commands[target]],
                     )
 
-    def test_dlsps2_overlay_for_standard_targets(self) -> None:
-        commands = {
-            "run": ["up", "-d"],
-            "stop": ["down"],
-            "build": ["build"],
-        }
-        with tempfile.TemporaryDirectory() as directory:
-            temporary = Path(directory)
-            docker = temporary / "docker"
-            docker.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
-            docker.chmod(0o700)
-            (temporary / ".env").write_text("COMPOSE_PROFILES=cpu\n")
-            for target, command in commands.items():
-                with self.subTest(target=target):
-                    result = subprocess.run(
-                        [
-                            "make",
-                            "--silent",
-                            "-f",
-                            str(ROOT / "Makefile"),
-                            "-o",
-                            "env-setup",
-                            target,
-                            "DLSPS2=1",
-                        ],
-                        cwd=temporary,
-                        env=dict(
-                            os.environ,
-                            PATH=f"{temporary}{os.pathsep}{os.environ['PATH']}",
-                        ),
-                        capture_output=True,
-                        text=True,
-                    )
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(
-                        result.stdout.splitlines(),
-                        [
-                            "compose",
-                            "-f",
-                            "compose.yml",
-                            "-f",
-                            "compose.cpu.yml",
-                            "-f",
-                            "compose.dlsps2.yml",
-                            *command,
-                        ],
-                    )
-
 
 if __name__ == "__main__":
     unittest.main()

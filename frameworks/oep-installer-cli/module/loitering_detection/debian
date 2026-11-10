@@ -24,7 +24,7 @@ debian_90_profile_loitering_detection () {
 
 debian_90_install_loitering_detection () {
   configure_loitering_detection "$@"
-  if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_loitering_detection && ! ensure_parse_reinstall "$@"; then
     echo "Loitering detection is installed." >&2
   else
     ensure_disk_size 10000
@@ -79,9 +79,10 @@ debian_90_start_loitering_detection () {
 
 debian_90_stop_loitering_detection () {
   configure_loitering_detection "$@"
-  cd "$workspace"/metro-vision-ai-app-recipe
-  ./sample_stop.sh || true
-  docker compose -f compose-without-scenescape.yml down -v --remove-orphans || true
+  cd "$workspace"/metro-vision-ai-app-recipe && {
+    ./sample_stop.sh || true
+    docker compose -f compose-without-scenescape.yml down -v --remove-orphans
+  } || true
 }
 
 debian_90_remove_loitering_detection () {

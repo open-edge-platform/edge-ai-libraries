@@ -293,6 +293,7 @@ def get_performance_statuses():
         "details": [],
         "total_fps": 480.0,
         "per_stream_fps": 30.0,
+        "min_stream_fps": 27.5,
         "total_streams": 16,
         "streams_per_pipeline": [
           {"id": "pipeline-1", "streams": 8},
@@ -369,6 +370,7 @@ def get_performance_job_status(job_id: str):
       "details": ["Pipeline completed successfully"],
       "total_fps": 480.0,
       "per_stream_fps": 30.0,
+      "min_stream_fps": 27.5,
       "total_streams": 16,
       "streams_per_pipeline": [
         {"id": "pipeline-1", "streams": 8},
@@ -759,6 +761,7 @@ def get_density_statuses():
         "details": [],
         "total_fps": null,
         "per_stream_fps": 28.5,
+        "min_stream_fps": 25.1,
         "total_streams": 32,
         "streams_per_pipeline": [
           {"id": "pipeline-1", "streams": 16},
@@ -1489,6 +1492,7 @@ def _performance_job_to_api_status(
         details=list(job.details),
         total_fps=job.total_fps,
         per_stream_fps=job.per_stream_fps,
+        min_stream_fps=job.min_stream_fps,
         total_streams=job.total_streams,
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,
@@ -1541,6 +1545,7 @@ def _density_job_to_api_status(
         details=list(job.details),
         total_fps=job.total_fps,
         per_stream_fps=job.per_stream_fps,
+        min_stream_fps=job.min_stream_fps,
         total_streams=job.total_streams,
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,

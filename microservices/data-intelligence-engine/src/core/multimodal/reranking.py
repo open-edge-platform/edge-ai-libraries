@@ -1,19 +1,12 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Unified cross-media reranking over authorized retrieval results.
-
-One model scores every media group's candidates together, so the merged list
-ranks globally by the final `score` (DEC-01). The local model is cached by
-identity. Inference is serialized because a single OpenVINO infer request and
-its processor cannot be used concurrently.
-"""
 
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 import logging
 
 import config
-from core.content import is_file_uri
+from core.content import ROLE_DOC_IMAGE, is_file_uri
 from core.file_asset_library import chunks_to_nodes, nodes_to_chunks
 from core.postprocessor import build_reranker
 from llama_index.core.schema import QueryBundle
@@ -27,22 +20,19 @@ def build_media_reranker(options, document_fn, top_n):
     selected = options.reranker_model if options else None
     model = selected.model_dump(exclude_none=True) if selected else {}
     backend = model.get("backend") or config.MEDIA_RERANK_BACKEND
-    if backend != "openvino_vl":
+    if backend != config.LOCAL_OPENVINO:
         raise ValueError(f"media reranking backend {backend!r} is unavailable")
-    model_id = model.get("model_id") or config.MEDIA_RERANK_MODEL_ID
-    model_path = model.get("model_path") or (
-        config.MEDIA_RERANK_MODEL_PATH
-        if model_id == config.MEDIA_RERANK_MODEL_ID
-        else model_id
-    )
-    device = model.get("device") or config.MEDIA_RERANK_DEVICE
     return build_reranker(
-        backend=backend, model_id=model_id, model_path=model_path, device=device,
+        backend=backend,
+        model_id=model.get("model_id") or config.MEDIA_RERANK_MODEL_ID,
+        device=model.get("device") or config.MEDIA_RERANK_DEVICE,
         top_n=top_n, document_fn=document_fn,
     )
 
 
 def _document(hit, target, library):
+    if target == "document" and hit.metadata.get("role") == ROLE_DOC_IMAGE:
+        target = "image"
     if target in ("audio", "document"):
         # The indexed unit is an ASR window; the transcript is already in text.
         if not hit.text.strip():
@@ -82,20 +72,8 @@ def _document(hit, target, library):
 
 
 def rerank_media(query, groups, options, top_k, *, strict=False):
-    """Score every group's candidates together and return the global top-k.
-
-    `groups` is a list of (target, candidates, library) triples. Unreadable
-    media is removed under the same asset-visibility rule as /v1/blob unless
-    `strict` requests an error for any unreadable candidate. Scores
-    are committed only after *all* retained candidates were scored: on any
-    failure this returns (None, "degraded") and the caller falls the whole
-    request back to the original per-media recall order, so ANN scores and
-    rerank scores never mix in one ranking.
-    """
-    # Loading a candidate's media (blob reads, video decode) outweighs the
-    # scoring itself and has no cross-candidate dependency, so load in
-    # parallel. pool.map keeps submission order, which is what document_fn's
-    # positional indexing below relies on.
+    """Score all (target, candidates, library) groups together; (None, "degraded") on any failure."""
+    # pool.map keeps submission order, which document_fn's positional indexing relies on.
     work = [
         (hit, target, library)
         for target, candidates, library in groups

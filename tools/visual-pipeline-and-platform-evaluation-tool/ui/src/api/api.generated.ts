@@ -1337,15 +1337,15 @@ export type PipelineStreamSpec = {
   streams_ids?: string[];
 };
 export type LatencyMetrics = {
-  /** Length of the measurement window reported by the tracer, in ms. */
+  /** Total length of the tracer windows merged into this sample, in ms (about one export period). */
   interval_ms: number;
-  /** Average frame latency over the window, in ms. */
+  /** Mean per-frame latency over the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   avg_ms: number;
-  /** Minimum frame latency observed in the window, in ms. */
+  /** Minimum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   min_ms: number;
-  /** Maximum frame latency observed in the window, in ms. */
+  /** Maximum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   max_ms: number;
-  /** Current end-to-end latency reported by the tracer, in ms. */
+  /** Deprecated: mean time between output frames in the window, in ms (frame period, = 1000 / fps). It is NOT a frame latency - use `avg_ms` (mean) and `max_ms`. */
   latency_ms: number;
 };
 export type PipelineEvent = {
@@ -1369,7 +1369,9 @@ export type PerformanceJobStatus = {
   video_output_paths: {
     [key: string]: string[];
   } | null;
-  /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples — for example when the pipeline exited before the first 1000 ms interval closed. */
+  /** FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure. */
+  min_stream_fps?: number | null;
+  /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when no latency samples were read: the job was executed with `execution_config.enable_latency_metrics=false`, or latency was requested but DL Streamer Pipeline Server runs without the latency tracer (the job's `details` then say so). An empty object `{}` means samples were read but none arrived — for example when the pipeline stopped before the server's first export. */
   latency_tracer_metrics?: {
     [key: string]: LatencyMetrics;
   } | null;
@@ -1401,7 +1403,9 @@ export type DensityJobStatus = {
   video_output_paths: {
     [key: string]: string[];
   } | null;
-  /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples — for example when the pipeline exited before the first 1000 ms interval closed. */
+  /** FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure. */
+  min_stream_fps?: number | null;
+  /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when no latency samples were read: the job was executed with `execution_config.enable_latency_metrics=false`, or latency was requested but DL Streamer Pipeline Server runs without the latency tracer (the job's `details` then say so). An empty object `{}` means samples were read but none arrived — for example when the pipeline stopped before the server's first export. */
   latency_tracer_metrics?: {
     [key: string]: LatencyMetrics;
   } | null;
@@ -1513,6 +1517,7 @@ export type ModelInstallStatus =
   | "not_installed"
   | "installing"
   | "failed";
+export type ModelGated = "false" | "auto" | "manual";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1544,6 +1549,10 @@ export type Model = {
   default?: boolean;
   /** Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist. */
   unsupported_devices?: string | null;
+  /** URL of the model page on its upstream hub (currently only Hugging Face), or null when not available. */
+  link?: string | null;
+  /** Hugging Face gating mode, or null when unknown or not applicable (non-Hugging Face models). */
+  gated?: ModelGated | null;
 };
 export type ModelHubListResponse = {
   hub: string;
@@ -1608,6 +1617,8 @@ export type ModelDownloadRequest = {
   hub?: ModelSource | null;
   /** Model category, required when `hub` is `huggingface` (ignored for other hubs). */
   category?: ModelCategory | null;
+  /** Gating mode of the hub model, stored on the registered model (null when unknown). */
+  gated?: ModelGated | null;
 };
 export type ModelStatusItem = {
   /** Internal model identifier. */
@@ -1755,7 +1766,7 @@ export type ExecutionConfig = {
   max_runtime?: number;
   /** Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints. */
   metadata_mode?: MetadataMode;
-  /** When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified. */
+  /** When true, the job reports DLStreamer `latency_tracer` samples per stream in `latency_tracer_metrics`. This flag does not start the tracer: DL Streamer Pipeline Server runs it for every pipeline when configured server-wide (`DLSPS2_GST_TRACERS` with `post-metrics=true`, and `DLSPS2_OTEL=true`), and ViPPET only reads the samples the server exports to metrics-manager. If the server is not configured that way, the test runs without latency metrics and the job's `details` say so. When false (default), no latency samples are read. */
   enable_latency_metrics?: boolean;
 };
 export type PerformanceTestSpec = {

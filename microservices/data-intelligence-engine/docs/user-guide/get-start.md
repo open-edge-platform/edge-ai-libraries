@@ -16,6 +16,12 @@ retrieve it.
   `http_proxy`/`https_proxy` and configure the Docker daemon's proxy. For users
   based in PRC, you might need to set `export HF_ENDPOINT=https://hf-mirror.com`.
 
+WMF/EMF pictures in DOCX/PPTX files are rendered with LibreOffice, which the
+Docker image includes. To build without it, export `INSTALL_LIBREOFFICE=false`
+before the first run (or before rebuilding the image); those pictures are then
+skipped and the rest of the file is still ingested. Native Debian/Ubuntu
+installations need `libreoffice-draw-nogui` and `fonts-dejavu-core`.
+
 If you are cloning from the larger monorepo and only need this service, you
 can use sparse checkout:
 
@@ -50,10 +56,13 @@ bash scripts/quickstart.sh --models "gme"
 Prepare the other models later with `scripts/prepare-models.sh` when you ingest
 PDFs, images, videos or audio.
 
-Run `bash scripts/quickstart.sh --help` for the other options. To stop and
-remove the services, keeping the data and models:
+The image is built only when it is missing, so after changing the engine source,
+rebuild it; the engine container is recreated from the new image. To stop and
+remove the services, keeping the data and models, use `--down`. Run
+`bash scripts/quickstart.sh --help` for the other options.
 
 ```bash
+bash scripts/quickstart.sh --build
 bash scripts/quickstart.sh --down
 ```
 
@@ -148,3 +157,5 @@ pool and rank). The same search is `POST /v1/retrieve`; the web console at
 - [How to prepare models](how-to-guides/how-to-prepare-models.md).
 - [User guide](user-guide.md) — concepts, configuration and troubleshooting.
 - [API reference](api.md).
+- [Skills for agent](../../skills/README.md) — let an OpenClaw agent query this
+  retrieval through the `knowledgebase` skill.
