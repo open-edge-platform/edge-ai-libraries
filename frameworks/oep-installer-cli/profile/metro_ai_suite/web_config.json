@@ -15,7 +15,7 @@
     { "label": "Loitering Detection", "value": "loitering_detection", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },
     { "label": "Smart Intersection", "value": "smart_intersection", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },
     { "label": "Smart Parking", "value": "smart_parking", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },
-    { "label": "Smart Route Planning Agent", "value": "smart_route_planning_agent", "startStop": true, "remove": true, "options": [] },
+    { "label": "Smart Route Planning Agent", "value": "smart_route_planning_agent", "startStop": true, "remove": true },
     { "label": "Smart Traffic Intersection Agent", "value": "smart_traffic_intersection_agent", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },
     { "label": "Video Search and Summarization", "value": "video_search_and_summarization", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },
     { "label": "Video Processing for NVR", "value": "video_processing_for_nvr", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },
