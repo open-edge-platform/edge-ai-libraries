@@ -355,6 +355,17 @@
           ]
         },
         {
+          "label": "Smart Route Planning Agent",
+          "value": "smart_route_planning_agent",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true
+        },
+        {
           "label": "Smart Traffic Intersection Agent",
           "value": "smart_traffic_intersection_agent",
           "supports": {
@@ -1190,6 +1201,10 @@
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html"
             },
             {
+              "text": "Smart Route Planning Agent",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-route-planning-agent/index.html"
+            },
+            {
               "text": "Smart Traffic Intersection Agent",
               "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-traffic-intersection-agent/index.html"
             },
@@ -1252,6 +1267,10 @@
             {
               "text": "Smart Parking",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html"
+            },
+            {
+              "text": "Smart Route Planning Agent",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-route-planning-agent/index.html"
             },
             {
               "text": "Smart Traffic Intersection Agent",
