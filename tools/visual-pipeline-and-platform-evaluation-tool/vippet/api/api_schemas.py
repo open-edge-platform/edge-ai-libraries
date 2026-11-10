@@ -406,7 +406,7 @@ class StatusResponse(BaseModel):
       "status": "ready",
       "message": null,
       "ready": true,
-      "version": "2026.2.0-rc2",
+      "version": "2026.3.0",
       "revision": "a1b2c3d"
     }
     ```

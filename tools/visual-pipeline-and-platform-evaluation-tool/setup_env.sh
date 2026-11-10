@@ -4,7 +4,7 @@
 # and writes COMPOSE_PROFILES, RENDER_GROUP_ID, DOCKER_TAG, PREBUILT_TAG, and GIT_REVISION
 # to the .env file. DOCKER_TAG and PREBUILT_TAG can be overridden from the environment.
 
-VERSION=2026.3.0-dev
+VERSION=2026.3.0-rc1
 # Published images run by `make run-prebuilt`: `latest` on main, the release version on a release branch.
 if [[ "$VERSION" == *-dev ]]; then DEFAULT_PREBUILT_TAG=latest; else DEFAULT_PREBUILT_TAG="$VERSION"; fi
 COMPOSE_PROFILES=""
