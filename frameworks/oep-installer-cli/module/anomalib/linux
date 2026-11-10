@@ -4,7 +4,7 @@ configure_anomalib () {
   version="$(ensure_parse_value_option version --version=2.7.0 "$@")"
   repository=https://github.com/open-edge-platform/anomalib.git
 
-  version_skills=release-2026.3.0
+  version_skills=release-2026.2.0
   repository_skills=https://github.com/open-edge-platform/anomalib.git
   skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }

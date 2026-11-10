@@ -19,7 +19,7 @@ configure_dlstreamer () {
   oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
   model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
 
-  version_skills="release-2026.3.0"
+  version_skills="release-2026.2.0"
   repository_skills=https://github.com/open-edge-platform/skills.git
   skills=(dlstreamer-coding-agent)
 }
