@@ -822,42 +822,42 @@
             "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
@@ -1495,7 +1495,7 @@
           "links": [
             {
               "text": "Deterministic Threat Detection",
-              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/release-2026.3.0/deterministic-threat-detection"
             }
           ]
         },
@@ -1507,7 +1507,7 @@
           "links": [
             {
               "text": "Deterministic Threat Detection",
-              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/release-2026.3.0/deterministic-threat-detection"
             }
           ]
         },
