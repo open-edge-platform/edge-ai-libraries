@@ -69,9 +69,12 @@ If any requested modality fails to search, the whole request returns HTTP 503. W
 
 With `postprocess`, media reranking uses a `Qwen3-VL` reranker model to jointly re-score candidate hits from the image, audio, and video channels, producing one global ranking that is comparable across media types. `retrieved_chunks` keeps the candidates and their recall scores; `chunks` contains the global best `postprocess.top_n` hits. On success, each final hit's `metadata.rank` is its global rank.
 
-Without an explicit `postprocess.reranker_model`, image/video/audio targets or
-non-document media hits select the media reranker automatically. It also scores
-document text in mixed results; document-only requests keep text reranking.
+Without an explicit `postprocess.reranker_model`, requests use the default
+reranker `ENGINE_RERANK_MODEL_ID` (`Qwen3-VL-Reranker-2B-INT8-OV`), which scores
+document text, document figures, images, video and audio transcripts together.
+If `ENGINE_RERANK_MODEL_ID` is set to a text reranker such as
+`BAAI/bge-reranker-large`, document-only requests use it, while image/video/audio
+targets or non-document media hits still select the media reranker.
 
 ```json
 {
@@ -120,8 +123,9 @@ Reranked hits carry their final reranker value in `chunks[].score`.
 
 | Environment variable              | Default                             |
 | --------------------------------- | ----------------------------------- |
-| `ENGINE_MEDIA_RERANK_BACKEND`   | `openvino_vl`                     |
-| `ENGINE_MEDIA_RERANK_MODEL_ID`  | `Qwen/Qwen3-VL-Reranker-2B-INT8`  |
+| `ENGINE_RERANK_MODEL_ID`        | `Qwen3-VL-Reranker-2B-INT8-OV`    |
+| `ENGINE_MEDIA_RERANK_BACKEND`   | `local_openvino`                  |
+| `ENGINE_MEDIA_RERANK_MODEL_ID`  | `Qwen3-VL-Reranker-2B-INT8-OV`    |
 | `ENGINE_MEDIA_RERANK_DEVICE`    | `GPU`                             |
 | `MEDIA_RERANK_VIDEO_MAX_FRAMES` | `8`                               |
 

@@ -10,6 +10,7 @@ export interface CanvasNode {
   kind: NodeKind;
   resourceType: string;
   status: string;
+  progressExpired?: boolean;
   validationStatus?: string;
   origin?: string;
   mediaType?: string;

@@ -168,7 +168,7 @@ def evaluate(name, args, items, path, metadata):
     for index, item in enumerate(items, 1):
         try:
             frames = sample_frames(item["media_path"], 8)
-            videos.append(model.embed_video(frames))
+            videos.append(model.get_video_embedding(frames))
         except Exception as exc:
             raise RuntimeError(f"{name}: video {index} ({item['media_path']}): {exc}") from exc
         if index % 25 == 0 or index == len(items):
@@ -182,7 +182,7 @@ def evaluate(name, args, items, path, metadata):
     phase = time.perf_counter()
     text_vectors = []
     for offset in range(0, len(texts), args.text_batch_size):
-        text_vectors.extend(model.embed_text(texts[offset:offset + args.text_batch_size]))
+        text_vectors.extend(model.get_text_embeddings(texts[offset:offset + args.text_batch_size]))
     text_vectors = normalized(text_vectors, len(texts), metadata["dimension"])
     text_seconds = time.perf_counter() - phase
     phase = time.perf_counter()

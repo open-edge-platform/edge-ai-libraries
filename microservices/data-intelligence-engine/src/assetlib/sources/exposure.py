@@ -1,23 +1,12 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""What a pool shows to retrieval, and the provenance each record carries.
-
-A pool is retrieved through its *serving* bindings only -- `AssetPool.serving`,
-recomputed whenever a binding changes state. A source that is preparing has
-half the pool at best, and a deprecated or disabled one is kept for its data,
-not for answering; neither is mixed into a pool's results.
-
-Every result also says which source produced it. With several models per pool
-that is the only way to tell an image hit from a video hit, and `source_id`
-used to be stamped with the *pool* id on the way out of the API.
-"""
+"""What a pool shows to retrieval, and the provenance each record carries."""
 
 from typing import Any, Iterable, Sequence
 
 from assetlib.sources.profile import now
 
-#: Metadata a record carries about where it came from. Kept out of what a
-#: model embeds or an LLM reads -- it describes the record, not its content.
+#: Provenance metadata, excluded from what a model embeds or an LLM reads.
 PROVENANCE_KEYS = ("source_id", "source_name", "profile_hash", "indexed_at")
 
 
@@ -32,11 +21,7 @@ def _metadata_of(result: Any):
 
 
 def stamp_results(results: Iterable[Any], source: Any) -> list:
-    """Name the source on each retrieved record, whatever it was indexed with.
-
-    Done at retrieval rather than trusted from the stored row, so records
-    written before rows carried provenance are attributed correctly too.
-    """
+    """Name the source on each retrieved record, overriding whatever the stored row carries."""
     stamped = []
     for result in results:
         _, metadata = _metadata_of(result)

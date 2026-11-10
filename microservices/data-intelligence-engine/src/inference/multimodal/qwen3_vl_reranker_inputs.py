@@ -1,10 +1,5 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Official Qwen3-VL Reranker prompt and processor inputs.
-
-Shared by the offline exporter and the OpenVINO runtime so their inputs match.
-This module does not import a model or run Hugging Face inference.
-"""
 
 import numpy as np
 
@@ -27,14 +22,7 @@ def pad_frames(frames, count):
 
 
 def pad_pair(values, positions, seq_len, pad_token_id):
-    """Left-pad a scored pair to one canonical sequence length.
-
-    The traced video graph compiles per concrete input shape on Intel GPU, so
-    every distinct query length used to trigger a 40-110s recompile. Padding to
-    a single bucket keeps one compiled graph; the export-side attention mask
-    keeps pad tokens out of attention, and rope positions are computed before
-    padding so real tokens keep their unpadded positions.
-    """
+    """Left-pad a scored pair to `seq_len` so one compiled graph serves all query lengths."""
     length = len(values["input_ids"][0])
     if length > seq_len:
         raise ValueError(f"pair is {length} tokens, beyond the {seq_len} bucket")
@@ -117,8 +105,7 @@ def encode(processor, query, document):
         video_metadata=video_metadata, truncation=False, padding=False,
         do_resize=False, **video_kwargs,
     )
-    # Keep special tokens and the last five answer-prefix tokens, as in the
-    # published scripts/qwen3_vl_reranker.py implementation.
+    # Truncation keeps special tokens and the last five answer-prefix tokens.
     ids = list(values["input_ids"][0])
     if len(ids) > 8192:
         special = set(processor.tokenizer.all_special_ids)
@@ -141,12 +128,7 @@ def encode(processor, query, document):
 
 
 def rope_position_ids(values, config):
-    """Compute Qwen3-VL's three-axis positions for one unpadded pair.
-
-    This mirrors Qwen3VLModel.get_rope_index in Transformers. Supplying these
-    positions to the exported graph avoids freezing query-dependent positions
-    while TorchScript traces the model's Python token loop.
-    """
+    """Qwen3-VL three-axis rope positions for one unpadded pair (as Qwen3VLModel.get_rope_index)."""
     tokens = np.asarray(values["input_ids"])[0].tolist()
     image_id = int(config["image_token_id"])
     video_id = int(config["video_token_id"])

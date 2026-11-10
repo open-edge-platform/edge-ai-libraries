@@ -457,9 +457,9 @@ def test_two_threads_captioning_one_asset_write_one_description(monkeypatch):
 def _scoped_source(*, caption=True, configuration=None, params=None):
     options = {
         "asset_types": ["mp4"],
-        "embedding_backend": "llamaindex_openvino",
+        "embedding_backend": config.LOCAL_OPENVINO,
         "embedding_model": (
-            "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct" if caption
+            "gme-Qwen2-VL-2B-Instruct-OV" if caption
             else "viclip-b-fp16"
         ),
     }

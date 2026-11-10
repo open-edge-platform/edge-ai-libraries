@@ -1,16 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Write the OKF bundle. Adapted from extract_okf.write_bundle/_write_concept/
-_write_index (L763-849), MINUS the links branch:
-  - frontmatter = {type, title, source_files} ONLY (no `links`);
-  - body = "# title" + one bullet per source summary;
-  - index.md = per-type concept catalog + a `## Source structure` folder TOC
-    (requirement d). The downstream parser skips index.md, so it is free-form.
-
-Type subdirs are derived from the type string via slug(type) (no ontology). Each
-type subdir is wiped before writing so a smaller re-run leaves no stale files.
-"""
 from __future__ import annotations
 
 import shutil
@@ -32,8 +22,7 @@ def _cid(c: Concept) -> str:
 
 
 def _relpath(from_cid: str, to_cid: str) -> str:
-    """Markdown link from one concept file to another, relative within the bundle
-    (matches extract_okf._relpath and the downstream parser's resolution)."""
+    """Markdown link path from one concept file to another, relative within the bundle."""
     depth = from_cid.count("/")
     return "../" * depth + to_cid + ".md"
 
@@ -42,14 +31,13 @@ def write_bundle(bundle: Path, concepts, tree: Tree | None = None) -> None:
     bundle = Path(bundle)
     concepts = list(concepts)
 
-    # wipe the type subdirs we're about to (re)write — stale-file safety.
+    # Wipe the type subdirs being rewritten so a smaller re-run leaves no stale files.
     for ctype in {c.type for c in concepts}:
         d = bundle / _type_dir(ctype)
         if d.exists():
             shutil.rmtree(d)
     bundle.mkdir(parents=True, exist_ok=True)
 
-    # resolve link target titles -> Concept, for writing body markdown links.
     by_norm: dict[str, Concept] = {norm_title(c.title): c for c in concepts}
 
     per_type: dict[str, list[Concept]] = defaultdict(list)
@@ -63,15 +51,12 @@ def write_bundle(bundle: Path, concepts, tree: Tree | None = None) -> None:
 def _write_concept(bundle: Path, c: Concept, by_norm: dict[str, Concept]) -> None:
     path = bundle / f"{_cid(c)}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    # yaml.safe_dump (not hand-built f-strings) so titles/paths with quotes or trailing
-    # backslashes round-trip through the same parser the loader uses. NO links key in
-    # frontmatter — edges live in the BODY as markdown links (the parser's source of truth).
+    # No `links` key in frontmatter: edges live in the body as markdown links.
     fm: dict = {"type": c.type, "title": c.title, "source_files": list(c.source_files)}
     fm_text = yaml.safe_dump(fm, allow_unicode=True, sort_keys=False, default_flow_style=False)
     lines = ["---", fm_text.rstrip("\n"), "---", "", f"# {c.title}", ""]
     for summ, rp in c.summaries:
         lines.append(f"- {summ} （来源：`{rp}`）")
-    # body relation links: resolve each target title to a surviving concept's cid.
     resolved = [(by_norm[norm_title(to)], rel) for to, rel in c.links
                 if norm_title(to) in by_norm]
     if resolved:
