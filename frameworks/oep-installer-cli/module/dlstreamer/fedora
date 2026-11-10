@@ -13,13 +13,13 @@ configure_dlstreamer () {
 )
   yum_repo_file="/etc/yum.repos.d/intel-dlstreamer.repo"
   workspace="$(ensure_project_path)/dlstreamer"
-  version="$(ensure_parse_value_option version --version=2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=2026.3.0 "$@")"
   od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8
   od_model_proc=yolov5m-640_INT8/yolo-v5
   oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
   model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
 
-  version_skills="release-${version%-rc*}"
+  version_skills="release-2026.2.0"
   repository_skills=https://github.com/open-edge-platform/skills.git
   skills=(dlstreamer-coding-agent)
 }
