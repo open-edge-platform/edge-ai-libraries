@@ -178,7 +178,6 @@ act_helper () {
           [ ${#rmods[*]} -gt 0 ] && echo "${rmods[*]}" || echo "${handles[0]#*_*_*_}" 
         ) || echo "$all_modules_str"
       )) _pair _h _m
-      echo "modules=${modules[*]}" >&2
       for handler in ${handles[*]}; do
         name1=${handler#*_*_*_}
         [[ " ${modules[*]} " = *" $name1 "* ]] || continue
