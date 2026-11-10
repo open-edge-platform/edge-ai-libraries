@@ -1,0 +1,37 @@
+#!/usr/bin/make -f
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_CFLAGS_MAINT_APPEND = -Wall
+export DEB_CXXFLAGS_MAINT_APPEND = -Wall
+
+%:
+	dh $@ --buildsystem=cmake --builddirectory=build-deb
+
+override_dh_auto_configure:
+	dh_auto_configure -- \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DOPTICALFLOW_ENABLE_CPU=ON \
+		-DOPTICALFLOW_ENABLE_OPENCL=ON \
+		-DOPTICALFLOW_ENABLE_SYCL=OFF \
+		-DOPTICALFLOW_BUILD_SHARED=ON \
+		-DOPTICALFLOW_BUILD_PYTHON=ON \
+		-DOPTICALFLOW_INSTALL_PYTHON=ON \
+		-DOPTICALFLOW_BUILD_SAMPLES=ON \
+		-DOPTICALFLOW_BUILD_TESTS=OFF \
+		-DOPTICALFLOW_BUILD_BENCHMARKS=OFF \
+		-DOPTICALFLOW_BUILD_OPENCV_ADAPTER=OFF \
+		-DOPTICALFLOW_ENABLE_OPENVINO=OFF
+
+override_dh_auto_install:
+	dh_auto_install
+	install -d debian/tmp/usr/share/optical-flow-sdk/samples
+	install -m 0644 samples/*.cpp \
+		debian/tmp/usr/share/optical-flow-sdk/samples/
+	install -d debian/tmp/usr/share/optical-flow-sdk/python-samples
+	install -m 0644 python/samples/*.py python/samples/README.md \
+		debian/tmp/usr/share/optical-flow-sdk/python-samples/
+
+override_dh_missing:
+	dh_missing --fail-missing

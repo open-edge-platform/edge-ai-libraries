@@ -21,7 +21,8 @@ namespace optical_flow_sdk {
 void opencl_set_va_display(void *va_display);
 void *opencl_va_display();
 
-// OpenCL DIS backend: device-resident pyramid + patch inverse search + densify.
+// Advanced OpenCL DIS path (primary GPU under Backend::Auto). Prefer
+// OpticalFlow unless you need calc_device / VA / DMA-BUF / warp_u8.
 class OpenCLOpticalFlow {
 public:
   explicit OpenCLOpticalFlow(Preset preset = Preset::Fast);

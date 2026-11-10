@@ -1,7 +1,8 @@
 # Intel Optical Flow SDK — Plan
 
-Status: **in progress** (P0–P2 exit met; **P3 coding exit met**; P3
-upstream PR + P4 leftovers open — §11.7). Decisions locked 2026-11-09.
+Status: **ship classical Fast at current quality** (P0–P2 exit met; **P3
+coding exit met**; dlstreamer upstream PR deferred; P4 polish open —
+§11.7). Decisions locked 2026-11-09.
 **Named HW gate is Series 2 iGPU only** (lab `labrat@10.91.82.130`,
 Core Ultra 7 255H / Arc Graphics; no Arc B580). OpenCL is the primary
 speed path; SYCL uses user-local `~/intel/oneapi`. Sintel/KITTI OpenCV
@@ -18,7 +19,7 @@ scaffold lives on dlstreamer `feat/gvaopticalflow`.
 | `Algorithm::{Dis,Farneback,SeaRaft}` | Done (CPU/OpenCL DIS + Farneback; SeaRaft via OpenVINO) |
 | CPU DIS-lite dense flow | Done (synthetic-shift tests pass) |
 | CPU / OpenCL Farneback dense flow | Done; OpenCV-aligned poly expand + UpdateMatrices/Flow (`docs/farneback.md`); soft vs OpenCV identity |
-| Host `calc` vs `calc_device` speed gap | **Documented + sample** — `docs/backend-selection.md`, `samples/calc_flow_opencl_device.cpp`; host ≈6–8×; ≥10× = `calc_device` |
+| Host `calc` vs `calc_device` speed gap | **Documented** — facade `OpticalFlow`/`Backend` first; `calc_device` = advanced escape hatch (`docs/backend-selection.md`) |
 | FRUC / warp demos | **P4 landed** — `warp_u8`, `fruc_opencl`, `fruc_video_opencl` @720p/1080p |
 | CPU / OpenCL `SparsePyrLK` (+ Python) | Done (OpenCL P2) |
 | Python `OpticalFlow` bindings | Done |
@@ -28,9 +29,9 @@ scaffold lives on dlstreamer `feat/gvaopticalflow`.
 | Samples: calc / stabilise / track points | Done |
 | Determinism + `calcBoth` consistency tests | Done |
 | Real OpenCL DIS kernels | **Done** (device pyramid + patch IS + densify; synthetic EPE ≈0) |
-| Real SYCL DIS kernels | **Landed** + `calc_device` / persistent workspace catch-up; OpenCL owns ≥10× |
+| Real SYCL DIS kernels | **Landed** + resident catch-up; OpenCL is primary under `Backend::Auto` |
 | OpenCV DIS disparity gate on Sintel/KITTI | **Diagnostic FAIL by design** (not a product gate; NVOFA is the quality bar — §8 / §11.6) |
-| ≥6× vs OpenCV CPU DIS-Fast + NVOFA-competitive Fl-all | **Active** — Fast resident ~6.1×@720p / ~5.7×@1080p; KITTI Fl-all ~42.3% vs NVOFA Fast ~34% (§11.5 / §11.7) |
+| ≥6× vs OpenCV CPU DIS-Fast + NVOFA-competitive Fl-all | **Shipped at current quality** — Fast resident ~6.1×@720p / ~5.7×@1080p; KITTI Fl-all ~42.3% vs NVOFA Fast ~34% (§11.5 / §11.7) |
 | OpenCL device-resident API (`calc_device`) | **Landed** (buffers stay on GPU; see §7 / §11.5) |
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
 | SEA-RAFT OpenVINO accuracy tier | **P2 PASS** — KITTI Fl-all **2.70%**; **iGPU ~15.7 FPS** @384×1248; presets/resolutions documented (`docs/sea_raft.md`) |
@@ -63,7 +64,7 @@ open-edge-platform/edge-ai-libraries
     ├── src/cpu/                    # DIS-lite, Farneback, PyrLK
     ├── src/opencl/                 # real DIS kernels (lab-validated)
     ├── src/sycl/                   # real DIS kernels (needs icpx / oneAPI)
-    ├── tests/ · benchmarks/ · samples/ · python/ · docs/
+    ├── tests/ · benchmarks/ · samples/ · python/ · docs/ · debian/
     │     # compare_opencv_dis + test_opencv_cpu_parity + opencl synthetic
 └── .github/workflows/optical-flow-sdk.yml   # CPU + OpenCV adapter; --strict compare
 ```
@@ -336,9 +337,9 @@ parity, do not block P1 on matching OpenCL wall times. The ≥10× vs OpenCV
 gate is measured on **OpenCL Fast**.
 
 **Device-resident API (OpenCL):** `OpenCLU8Image` / `OpenCLFlowBuffer` plus
-`OpenCLOpticalFlow::calc_device` keep frames and flow on the GPU. Host
-`calc` remains for convenience (includes H↔D). Pipeline / ≥10× work should
-prefer `calc_device` (optionally with H2D of new frames, never D2H of flow
+  `OpenCLOpticalFlow::calc_device` keep frames and flow on the GPU (advanced
+escape hatch). Default apps use `OpticalFlow` + `Backend`. Pipeline / speed-gate
+work should prefer `calc_device` (optionally with H2D of new frames, never D2H of flow
 until a host consumer needs it).
 
 Copy scaffolding from `sift-extractor` and the ORB-extractor SYCL
@@ -672,7 +673,8 @@ SEA-RAFT remains the path to **beat** NVOFA Fl-all (P2).
 **SYCL (secondary):** `calc_device` + persistent workspace landed
 (`microbench_sycl_resident`, 2026-11-10 under `ONEAPI_DEVICE_SELECTOR=opencl:gpu`):
 ~1.66 ms @720p (~7× vs OpenCV) / ~2.13 ms @1080p (~11×). Useful catch-up;
-**OpenCL resident remains the ≥10× @720p measurement vehicle.**
+**OpenCL resident remains the ≥6× @720p measurement vehicle** (under
+`Backend::OpenCL` / Auto); facade `OpticalFlow::calc` is the default app API.
 
 **oneAPI lab notes:** user-local `~/intel/oneapi` (compiler 2025.3 + UMF +
 `libhwloc`). `source setvars.sh` after `compiler/latest` symlink. Prefer
@@ -769,7 +771,9 @@ is faster; Fl-all is worse under our native-res harness.
 | dlstreamer `gvaopticalflow` upstream PR + monorepo pin | P3 deferred | Local `feat/gvaopticalflow` only; no PR yet |
 | Native DL Streamer `gvatrack` / `gvawatermark` plugins on lab | P3 optional | Standalone chain smoke **PASS** (`flow_full_chain.py`); install plugins for bit-identical element names |
 | Extra SEA-RAFT IR resolution/FPS benches | P4 optional | Preset notes already in `docs/sea_raft.md` |
-| DIS Fast speed under NVOFA-competitive quality | P4 active | Fast: deep pyr + mean-norm@finest + prop@finest + `stride=6`/`gd=8` + costw densify. **~6.1× / ~42.3%**. Brox RB-SOR landed but Fast-off (~39.7%@~3.2×); gap to NVOFA ~8pp → SEA-RAFT / heavier budget |
+| DIS Fast speed under NVOFA-competitive quality | **Shipped** | Fast: deep pyr + mean-norm@finest + prop@finest + `stride=6`/`gd=8` + costw densify. **~6.1× / ~42.3%**. Brox RB-SOR optional/Fast-off (~39.7%@~3.2×). Further Fl-all → SEA-RAFT / heavier budget |
+| Facade-first API docs + Farneback/PyrLK samples | P4 polish | **Done** — README/`docs/backend-selection.md` lead with `Backend`/`Algorithm`; C++ + Python samples |
+| Deb + wheel packaging | P4 polish | **Landed** — `debian/` (`liboptical-flow-sdk0`, `-dev`, `python3-optical-flow-sdk`), root `pyproject.toml` wheel, `scripts/build_{deb,wheel}.sh`, `docs/packaging.md` |
 | Tighten Farneback vs OpenCV numerical gates | Non-blocking | Soft honesty harness remains |
 | Classical DIS §8 pairwise/Fl-all vs OpenCV | Not a product gate | Honesty table only; compete with **NVOFA Fl-all**, SEA-RAFT owns beating NVOFA |
 | Stock Ubuntu media-driver upgrade on ARL lab | Ops | User-local 26.4.2 works; distro 24.1 iHD still broken |

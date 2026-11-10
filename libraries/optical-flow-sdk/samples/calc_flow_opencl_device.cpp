@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// Prefer OpenCLOpticalFlow::calc_device for GPU pipelines. Host OpticalFlow::calc
-// pays H↔D every frame (~6–8× vs OpenCV on Series 2); resident path clears ≥10×.
+// Advanced escape hatch: device-resident buffers for zero-copy pipelines.
+// Prefer OpticalFlow(Backend::Auto, ...) for normal apps (docs/backend-selection.md).
 
 #include "optical_flow_sdk/opencl_optical_flow.hpp"
 #include "optical_flow_sdk/version.hpp"

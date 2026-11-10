@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+// CPU-forced PyrLK. Prefer samples/track_points.cpp (Backend::Auto) for apps.
 #include "optical_flow_sdk/sparse_pyrlk.hpp"
 
 #include <algorithm>
@@ -38,7 +39,7 @@ int main() {
   optical_flow_sdk::SparsePyrLKOptions opts;
   opts.max_level = 2;
   opts.win_size = 15;
-  optical_flow_sdk::SparsePyrLK lk(opts);
+  optical_flow_sdk::SparsePyrLK lk(opts, optical_flow_sdk::Backend::Cpu);
   lk.calc({prev.data(), kW, kH, 0}, {next.data(), kW, kH, 0}, pts, tracked, status, err);
 
   for (std::size_t i = 0; i < pts.size(); ++i) {

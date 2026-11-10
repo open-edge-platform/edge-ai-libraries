@@ -10,8 +10,8 @@
 
 namespace optical_flow_sdk {
 
-// CPU is always available. SYCL/OpenCL are optional build-time backends.
-// Auto prefers OpenCL, then SYCL, then CPU (OpenCL is the primary GPU speed path).
+// App-facing backend dial for OpticalFlow / SparsePyrLK. CPU always available;
+// SYCL/OpenCL optional at build time. Auto → OpenCL, then SYCL, then CPU.
 enum class Backend {
   Auto = 0,
   Cpu = 1,

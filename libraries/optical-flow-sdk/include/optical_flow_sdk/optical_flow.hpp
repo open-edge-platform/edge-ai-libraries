@@ -9,8 +9,8 @@
 
 namespace optical_flow_sdk {
 
-// NVOFA-shaped dense optical-flow facade. Classical algorithms: DIS (default)
-// and Farneback. Slow preset may map to neural accuracy in a later phase.
+// Primary dense-flow facade. Pick Backend + Algorithm + Preset; OpenCL/SYCL
+// implementation types are advanced escape hatches (calc_device / VA import).
 class OpticalFlow {
 public:
   explicit OpticalFlow(Backend backend = Backend::Auto, Preset preset = Preset::Fast,

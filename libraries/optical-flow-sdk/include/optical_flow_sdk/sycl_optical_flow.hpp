@@ -15,7 +15,8 @@
 namespace optical_flow_sdk {
 
 // SYCL DIS backend: device-resident pyramid + patch inverse search + densify.
-// Secondary to OpenCL for ≥10× claims; calc_device closes the H↔D tax gap.
+// Advanced SYCL DIS path (secondary under Backend::Auto). Prefer OpticalFlow
+// unless you need USM-resident calc_device.
 class SyclOpticalFlow {
 public:
   explicit SyclOpticalFlow(Preset preset = Preset::Fast);

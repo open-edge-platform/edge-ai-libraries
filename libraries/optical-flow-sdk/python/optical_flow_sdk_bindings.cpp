@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace py = pybind11;
@@ -147,6 +148,15 @@ PYBIND11_MODULE(_native, module) {
   py::class_<optical_flow_sdk::SparsePyrLK>(module, "SparsePyrLK")
       .def(py::init<>())
       .def(py::init<optical_flow_sdk::SparsePyrLKOptions>(), py::arg("options"))
+      .def(py::init([](optical_flow_sdk::SparsePyrLKOptions options, const std::string &backend) {
+             return optical_flow_sdk::SparsePyrLK(std::move(options),
+                                                  optical_flow_sdk::backend_from_name(backend));
+           }),
+           py::arg("options"), py::arg("backend") = "auto")
+      .def_property_readonly("backend",
+                             [](const optical_flow_sdk::SparsePyrLK &self) {
+                               return optical_flow_sdk::backend_name(self.backend());
+                             })
       .def(
           "calc",
           [](const optical_flow_sdk::SparsePyrLK &self, const py::array &prev, const py::array &next,

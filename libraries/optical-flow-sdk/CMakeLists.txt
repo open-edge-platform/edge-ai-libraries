@@ -12,11 +12,14 @@ option(OPTICALFLOW_ENABLE_OPENCL "Build the OpenCL backend" OFF)
 option(OPTICALFLOW_BUILD_TESTS "Build optical-flow-sdk tests" ${BUILD_TESTING})
 option(OPTICALFLOW_BUILD_SAMPLES "Build native sample applications" ON)
 option(OPTICALFLOW_BUILD_PYTHON "Build Python bindings (requires pybind11)" OFF)
+option(OPTICALFLOW_BUILD_SHARED "Build shared liboptical_flow_sdk (deb / dynamic link)" OFF)
 option(OPTICALFLOW_BUILD_OPENCV_ADAPTER
   "Build thin OpenCV Mat adapters and OpenCV-based diagnostics" OFF)
 option(OPTICALFLOW_BUILD_BENCHMARKS "Build CPU microbench / OpenCV compare tools" ON)
 option(OPTICALFLOW_ENABLE_OPENVINO
   "Link OpenVINO for SEA-RAFT-S Slow accuracy tier (P2)" OFF)
+option(OPTICALFLOW_INSTALL_PYTHON
+  "Install Python package next to the C++ install prefix (deb / system)" OFF)
 
 if(NOT OPTICALFLOW_ENABLE_CPU AND NOT OPTICALFLOW_ENABLE_SYCL AND NOT OPTICALFLOW_ENABLE_OPENCL)
   message(FATAL_ERROR "At least one of OPTICALFLOW_ENABLE_CPU/SYCL/OPENCL must be ON")
@@ -83,7 +86,11 @@ if(OPTICALFLOW_ENABLE_SYCL)
   list(APPEND OPTICALFLOW_CORE_SOURCES src/sycl/sycl_optical_flow.cpp)
 endif()
 
-add_library(optical_flow_sdk ${OPTICALFLOW_CORE_SOURCES})
+if(OPTICALFLOW_BUILD_SHARED)
+  add_library(optical_flow_sdk SHARED ${OPTICALFLOW_CORE_SOURCES})
+else()
+  add_library(optical_flow_sdk STATIC ${OPTICALFLOW_CORE_SOURCES})
+endif()
 add_library(optical_flow_sdk::optical_flow_sdk ALIAS optical_flow_sdk)
 target_compile_features(optical_flow_sdk PUBLIC cxx_std_17)
 target_include_directories(optical_flow_sdk
@@ -96,6 +103,7 @@ set_target_properties(optical_flow_sdk PROPERTIES
   POSITION_INDEPENDENT_CODE ON
   VERSION ${PROJECT_VERSION}
   SOVERSION ${PROJECT_VERSION_MAJOR}
+  OUTPUT_NAME optical_flow_sdk
 )
 
 if(OPTICALFLOW_ENABLE_OPENCL)
@@ -217,8 +225,12 @@ endif()
 if(OPTICALFLOW_BUILD_SAMPLES AND OPTICALFLOW_ENABLE_CPU)
   add_executable(sample_calc_flow_cpu samples/calc_flow_cpu.cpp)
   target_link_libraries(sample_calc_flow_cpu PRIVATE optical_flow_sdk)
+  add_executable(sample_calc_flow_farneback samples/calc_flow_farneback.cpp)
+  target_link_libraries(sample_calc_flow_farneback PRIVATE optical_flow_sdk)
   add_executable(sample_stabilize_global_flow samples/stabilize_global_flow.cpp)
   target_link_libraries(sample_stabilize_global_flow PRIVATE optical_flow_sdk)
+  add_executable(sample_track_points samples/track_points.cpp)
+  target_link_libraries(sample_track_points PRIVATE optical_flow_sdk)
   add_executable(sample_track_points_cpu samples/track_points_cpu.cpp)
   target_link_libraries(sample_track_points_cpu PRIVATE optical_flow_sdk)
   add_executable(sample_warp_with_flow samples/warp_with_flow.cpp)
@@ -267,7 +279,16 @@ if(OPTICALFLOW_BUILD_BENCHMARKS AND OPTICALFLOW_ENABLE_SYCL)
 endif()
 
 if(OPTICALFLOW_BUILD_PYTHON)
-  find_package(pybind11 CONFIG REQUIRED)
+  find_package(pybind11 CONFIG QUIET)
+  if(NOT pybind11_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+      pybind11
+      GIT_REPOSITORY https://github.com/pybind/pybind11.git
+      GIT_TAG v2.13.6
+      GIT_SHALLOW TRUE)
+    FetchContent_MakeAvailable(pybind11)
+  endif()
   pybind11_add_module(optical_flow_sdk_py MODULE python/optical_flow_sdk_bindings.cpp)
   set_target_properties(optical_flow_sdk_py PROPERTIES
     OUTPUT_NAME _native
@@ -284,6 +305,20 @@ if(OPTICALFLOW_BUILD_PYTHON)
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${OPTICALFLOW_GENERATED_INCLUDE_DIR}
   )
+  # Wheel (SKBUILD) or deb/system install of the Python package.
+  if(OPTICALFLOW_INSTALL_PYTHON OR SKBUILD)
+    if(SKBUILD)
+      set(_OF_PY_DEST optical_flow_sdk)
+    else()
+      # Debian / prefix-relative (works with DESTDIR staging).
+      set(_OF_PY_DEST lib/python3/dist-packages/optical_flow_sdk)
+    endif()
+    install(TARGETS optical_flow_sdk_py
+      LIBRARY DESTINATION ${_OF_PY_DEST}
+      RUNTIME DESTINATION ${_OF_PY_DEST}
+      ARCHIVE DESTINATION ${_OF_PY_DEST})
+    install(FILES python/optical_flow_sdk/__init__.py DESTINATION ${_OF_PY_DEST})
+  endif()
 endif()
 
 include(CMakePackageConfigHelpers)

@@ -1,17 +1,25 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
+# Prefer the SDK-root pyproject.toml for wheels: `pip install ..` / `scripts/build_wheel.sh`.
 [build-system]
-requires = ["setuptools>=68", "wheel", "pybind11>=2.11"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core>=0.10", "pybind11>=2.11", "numpy"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "optical-flow-sdk"
 version = "0.1.0"
-description = "Intel Optical Flow SDK Python bindings"
-readme = "README.python.md"
+description = "Intel Optical Flow SDK Python bindings (use repository-root pyproject.toml)"
 requires-python = ">=3.9"
 license = { text = "Apache-2.0" }
-authors = [{ name = "Intel Corporation" }]
 
-[tool.setuptools.packages.find]
-include = ["optical_flow_sdk*"]
+[tool.scikit-build]
+cmake.source-dir = ".."
+wheel.packages = []
+cmake.args = [
+  "-DOPTICALFLOW_ENABLE_CPU=ON",
+  "-DOPTICALFLOW_BUILD_PYTHON=ON",
+  "-DOPTICALFLOW_BUILD_SHARED=OFF",
+  "-DOPTICALFLOW_BUILD_SAMPLES=OFF",
+  "-DOPTICALFLOW_BUILD_TESTS=OFF",
+  "-DOPTICALFLOW_BUILD_BENCHMARKS=OFF",
+]

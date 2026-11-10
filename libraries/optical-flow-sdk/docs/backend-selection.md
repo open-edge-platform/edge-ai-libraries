@@ -5,48 +5,63 @@ SPDX-License-Identifier: Apache-2.0
 
 # Backend selection
 
+Prefer the **facade APIs** and pick a `Backend` (and for dense flow, an
+`Algorithm`). Do **not** start from OpenCL/SYCL types unless you need
+device-resident buffers or VA/DMA-BUF import.
+
+## Primary API
+
+| Need | Class | Choice |
+|------|-------|--------|
+| Dense DIS / Farneback / SEA-RAFT | `OpticalFlow` | `Backend` + `Algorithm` + `Preset` |
+| Sparse PyrLK | `SparsePyrLK` | `Backend` (+ options) |
+
 `Backend::Auto` resolves in this order:
 
-1. OpenCL — if `OPTICALFLOW_ENABLE_OPENCL=ON` (primary GPU latency path)
+1. OpenCL — if `OPTICALFLOW_ENABLE_OPENCL=ON` (primary GPU path)
 2. SYCL — if `OPTICALFLOW_ENABLE_SYCL=ON` and the toolchain provides `-fsycl`
 3. CPU — if `OPTICALFLOW_ENABLE_CPU=ON` (default)
 
-OpenCL DIS is the primary device path. SYCL DIS is secondary but now mirrors
-the OpenCL **device-resident** shape (`calc_device` + persistent workspace).
-Lab gates in `PLAN.md` target Core Ultra Series 2 iGPU; ≥10× claims stay on
-**OpenCL** `calc_device`.
+```cpp
+#include "optical_flow_sdk/optical_flow.hpp"
 
-## `calc` vs `calc_device` (important)
+optical_flow_sdk::OpticalFlow of(optical_flow_sdk::Backend::Auto,
+                                 optical_flow_sdk::Preset::Fast,
+                                 optical_flow_sdk::Algorithm::Dis);
+optical_flow_sdk::FlowField flow;
+of.calc(prev, next, flow);  // resolved backend stays internal
+```
+
+Farneback / PyrLK samples: `samples/calc_flow_farneback.cpp`,
+`samples/track_points.cpp`.
+
+## Why OpenCL/SYCL types still exist
+
+`OpenCLOpticalFlow` / `SyclOpticalFlow` (and their buffer types) are
+**escape hatches** for zero-copy pipelines:
+
+- Keep frames and flow on device across many frames (`calc_device`)
+- VA / DMA-BUF import (`import_va_surface_luma`, …)
+- On-device warp / FRUC (`warp_u8`)
+
+They are not required for normal host apps. Host `OpticalFlow::calc` on a
+GPU backend already uploads/downloads for you (with an H↔D tax).
+
+## `calc` vs `calc_device` (advanced)
 
 | API | Copies | Use when |
 |-----|--------|----------|
-| `OpticalFlow::calc` / `*OpticalFlow::calc` | H→D frames + D→H flow | Quick host apps, tests, one-shot |
-| `OpenCLOpticalFlow::calc_device` | Keeps prev/next/flow on GPU | Pipelines, ≥10× claims, `gvaopticalflow` |
-| `SyclOpticalFlow::calc_device` | Keeps prev/next/flow in USM | SYCL pipelines; secondary speed path |
+| `OpticalFlow::calc` | H→D frames + D→H flow when GPU | Apps, tests, one-shot |
+| `OpenCLOpticalFlow::calc_device` / `SyclOpticalFlow::calc_device` | Buffers stay on device | Media pipelines, speed gates, `gvaopticalflow` |
 
-On Series 2 iGPU lab (OpenCL Fast DIS):
+On Series 2 iGPU (OpenCL DIS Fast, device-resident):
 
-- **OpenCL `calc_device` (resident):** ≥10× vs OpenCV CPU DIS-Fast @720p/1080p (met)
-- **Host `calc`:** typically ≈6–8× — H↔D tax; **do not** use for speed gates
-- **SYCL `calc_device`:** catch-up path (`microbench_sycl_resident`); OpenCL remains the gate
+- **Product speed gate:** ≥6× vs OpenCV CPU DIS-Fast @720p (met ~6.1×); ~5.7× @1080p
+- **Host `OpticalFlow::calc`:** typically slower than resident — H↔D tax
+- **SYCL `calc_device`:** catch-up path; OpenCL remains the primary GPU backend under `Auto`
 
-Prefer OpenCL:
-
-```cpp
-#include "optical_flow_sdk/opencl_optical_flow.hpp"
-
-optical_flow_sdk::OpenCLOpticalFlow of(optical_flow_sdk::Preset::Fast);
-auto prev = of.create_u8_image(w, h);
-auto next = of.create_u8_image(w, h);
-auto flow = of.create_flow_buffer(w, h);
-of.upload_u8(prev, prev_view);
-of.upload_u8(next, next_view);
-of.calc_device(prev, next, flow);   // flow stays on device
-```
-
-SYCL equivalent: `sycl_optical_flow.hpp` + `microbench_sycl_resident.cpp`.
-See also `samples/calc_flow_opencl_device.cpp` and
-`benchmarks/microbench_opencl_resident.cpp`.
+See `samples/calc_flow_opencl_device.cpp` and
+`benchmarks/microbench_opencl_resident.cpp` only when you need the escape hatch.
 
 Neural Slow accuracy: `Algorithm::SeaRaft` + `docs/sea_raft.md` (OpenVINO;
-not a Backend enum value).
+not a `Backend` value).
