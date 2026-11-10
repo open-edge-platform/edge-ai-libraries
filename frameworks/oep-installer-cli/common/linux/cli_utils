@@ -115,7 +115,6 @@ act_helper () {
 
   # resolve args
   set -- $(act_resolve_args $act_name "$@")
-  local implicit_mods=($(act_extract_modules $act_name "$@"))
 
   # scan for dependencies
   local handles=($(act_find_deps $act_name "$@" | tr ' ' '\n' | sort $sort_options))
@@ -169,9 +168,17 @@ act_helper () {
     export _INSTALLER_PANEL_ACTIVE=
     [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1
     {
-      local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && 
-        echo "${implicit_mods[*]}" || echo "${handles[*]#*_*_*_}"
+      local modules=($(
+        all_modules_str="${handles[*]#*_*_*_}"
+        [[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && (
+          local rmods=()
+          for m in $(act_extract_modules $act_name "$@"); do
+            [[ " $all_modules_str " != *" $m "* ]] || rmods+=("$m")
+          done
+          [ ${#rmods[*]} -gt 0 ] && echo "${rmods[*]}" || echo "${handles[0]#*_*_*_}" 
+        ) || echo "$all_modules_str"
       )) _pair _h _m
+      echo "modules=${modules[*]}" >&2
       for handler in ${handles[*]}; do
         name1=${handler#*_*_*_}
         [[ " ${modules[*]} " = *" $name1 "* ]] || continue
