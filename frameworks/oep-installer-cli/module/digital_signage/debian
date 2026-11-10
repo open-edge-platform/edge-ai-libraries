@@ -55,7 +55,7 @@ EOF
 
     echo "@@STEP Download models"
     make download_models
-    verify_diginal_signage
+    verify_digital_signage
   fi
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
