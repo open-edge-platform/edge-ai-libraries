@@ -599,12 +599,19 @@ __kernel void densify_from_patches(__global const float *patch_u, __global const
   const float v11 = patch_v[ay1 * n_gx + ax1];
   const float c11 = patch_c[ay1 * n_gx + ax1];
 
-  const float u = (1.0f - tx) * (1.0f - ty) * u00 + tx * (1.0f - ty) * u10 +
-                  (1.0f - tx) * ty * u01 + tx * ty * u11;
-  const float v = (1.0f - tx) * (1.0f - ty) * v00 + tx * (1.0f - ty) * v10 +
-                  (1.0f - tx) * ty * v01 + tx * ty * v11;
-  const float c = (1.0f - tx) * (1.0f - ty) * c00 + tx * (1.0f - ty) * c10 +
-                  (1.0f - tx) * ty * c01 + tx * ty * c11;
+  // Cost-weighted bilinear: prefer low-SSD patches (cuts outlier Fl-all cheaply).
+  const float a00 = (1.0f - tx) * (1.0f - ty);
+  const float a10 = tx * (1.0f - ty);
+  const float a01 = (1.0f - tx) * ty;
+  const float a11 = tx * ty;
+  const float w00 = a00 / (c00 * c00 + 1.0f);
+  const float w10 = a10 / (c10 * c10 + 1.0f);
+  const float w01 = a01 / (c01 * c01 + 1.0f);
+  const float w11 = a11 / (c11 * c11 + 1.0f);
+  const float wsum = w00 + w10 + w01 + w11 + 1.0e-6f;
+  const float u = (w00 * u00 + w10 * u10 + w01 * u01 + w11 * u11) / wsum;
+  const float v = (w00 * v00 + w10 * v10 + w01 * v01 + w11 * v11) / wsum;
+  const float c = (a00 * c00 + a10 * c10 + a01 * c01 + a11 * c11);
   const int out = (y * width + x) * 2;
   flow[out] = u;
   flow[out + 1] = v;

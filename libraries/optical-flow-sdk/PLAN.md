@@ -30,7 +30,7 @@ scaffold lives on dlstreamer `feat/gvaopticalflow`.
 | Real OpenCL DIS kernels | **Done** (device pyramid + patch IS + densify; synthetic EPE ≈0) |
 | Real SYCL DIS kernels | **Landed** + `calc_device` / persistent workspace catch-up; OpenCL owns ≥10× |
 | OpenCV DIS disparity gate on Sintel/KITTI | **Diagnostic FAIL by design** (not a product gate; NVOFA is the quality bar — §8 / §11.6) |
-| ≥6× vs OpenCV CPU DIS-Fast + NVOFA-competitive Fl-all | **Active** — Fast resident ~6×@720p / ~5.6×@1080p; KITTI Fl-all ~44.5% vs NVOFA Fast ~34% (§11.5 / §11.7) |
+| ≥6× vs OpenCV CPU DIS-Fast + NVOFA-competitive Fl-all | **Active** — Fast resident ~6.1×@720p / ~5.7×@1080p; KITTI Fl-all ~42.3% vs NVOFA Fast ~34% (§11.5 / §11.7) |
 | OpenCL device-resident API (`calc_device`) | **Landed** (buffers stay on GPU; see §7 / §11.5) |
 | Absolute FPS (≥60@720p / ≥30@1080p) | **Met** on Core Ultra 7 255H Arc Graphics OpenCL Fast |
 | SEA-RAFT OpenVINO accuracy tier | **P2 PASS** — KITTI Fl-all **2.70%**; **iGPU ~15.7 FPS** @384×1248; presets/resolutions documented (`docs/sea_raft.md`) |
@@ -627,19 +627,19 @@ is justified.
 **SDK OpenCL DIS Fast (primary; 2026-11-09 quality+speed retune):**
 
 Fast path: deep pyramid `coarsest=5`/`finest=2`, atomic-free centers +
-densify, prop+mean-norm **at finest only**, `patch_stride=6`, `gd=8`
-(coarse `gd/2`). **Product quality bar = measured NVOFA Fl-all**, not
-OpenCV drop-in (§8).
+**cost-weighted densify** `w∝a/(c²+1)`, prop+mean-norm **at finest only**,
+`patch_stride=6`, `gd=8` (coarse `gd/2`). **Product quality bar = measured
+NVOFA Fl-all**, not OpenCV drop-in (§8).
 
 **Device-resident OpenCL Fast (`microbench_opencl_resident`, warm):**
 
 | Res | resident_ms | FPS | vs OpenCV CPU DIS-Fast | pipeline H2D+kern (no D2H) |
 |-----|-------------|-----|------------------------|----------------------------|
-| 720p | **~1.95–2.0** | **~500** | **~6.0–6.1×** | **~5.2×** |
-| 1080p | **~4.3** | **~234** | **~5.6×** | **~5.0–5.1×** |
+| 720p | **~1.93–1.95** | **~510–517** | **~6.1–6.15×** | **~5.2–5.3×** |
+| 1080p | **~4.15–4.2** | **~238–241** | **~5.7–5.8×** | **~5.1–5.2×** |
 
 Absolute FPS gates (≥60@720p / ≥30@1080p) **met**. ≥6× **met @720p
-resident**; **~5.6× @1080p** (still improving). Host `calc` (full H↔D)
+resident**; **~5.7× @1080p** (still improving). Host `calc` (full H↔D)
 is convenience-only and slower.
 
 **KITTI Fl-all (same harness; primary = vs NVOFA):**
@@ -648,8 +648,13 @@ is convenience-only and slower.
 |--------|----------------|
 | NVOFA Fast (RTX 5060, measured) | **~34.1%** |
 | OpenCV DIS Fast | **~36–41%** (pair-count dependent) |
-| SDK OpenCL Fast (this retune, 50-pair) | **~44.5%** (~+10pp vs NVOFA Fast) |
+| SDK OpenCL Fast (costw densify, 50-pair) | **~42.3%** (~+8pp vs NVOFA Fast; was ~44.5% bilinear) |
 | SDK quality-max (stride4/gd16, no speed gate) | **~40%** @~1.8× — not the product Fast |
+
+**Matching/refine A/B (keep ≥6× @720p):** costw `1/(c²+1)` densify
+**kept** (−2.2pp Fl-all, speed held). Rejected under speed or quality:
+mid-prop / mean-all / dense median; softmin densify; sparse patch median;
+`prop=3` (~42.0% but ~5.7×); `gd=6+prop=3`; mean@finest+1 (~5.97×).
 
 SEA-RAFT remains the path to **beat** NVOFA Fl-all (P2).
 
@@ -754,7 +759,7 @@ is faster; Fl-all is worse under our native-res harness.
 | dlstreamer `gvaopticalflow` upstream PR + monorepo pin | P3 deferred | Local `feat/gvaopticalflow` only; no PR yet |
 | Native DL Streamer `gvatrack` / `gvawatermark` plugins on lab | P3 optional | Standalone chain smoke **PASS** (`flow_full_chain.py`); install plugins for bit-identical element names |
 | Extra SEA-RAFT IR resolution/FPS benches | P4 optional | Preset notes already in `docs/sea_raft.md` |
-| DIS Fast speed under NVOFA-competitive quality | P4 active | Fast retune: deep pyr + mean-norm@finest + prop@finest + `stride=6`/`gd=8`. Resident **~6× @720p** / **~5.6× @1080p**; KITTI Fl-all **~44.5%** (50-pair) vs NVOFA Fast **~34%** / OpenCV **~36%**. Quality-max (stride4/gd16) was ~40% Fl-all @~1.8× — product Fast favors ≥6× with ~+10pp vs NVOFA |
+| DIS Fast speed under NVOFA-competitive quality | P4 active | Fast: deep pyr + mean-norm@finest + prop@finest + `stride=6`/`gd=8` + costw densify `1/(c²+1)`. Resident **~6.1× @720p** / **~5.7× @1080p**; KITTI Fl-all **~42.3%** (50-pair) vs NVOFA Fast **~34%**. Gap ~8pp; heavier match/RB-var / SEA-RAFT for the rest |
 | Tighten Farneback vs OpenCV numerical gates | Non-blocking | Soft honesty harness remains |
 | Classical DIS §8 pairwise/Fl-all vs OpenCV | Not a product gate | Honesty table only; compete with **NVOFA Fl-all**, SEA-RAFT owns beating NVOFA |
 | Stock Ubuntu media-driver upgrade on ARL lab | Ops | User-local 26.4.2 works; distro 24.1 iHD still broken |

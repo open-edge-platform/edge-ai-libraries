@@ -641,12 +641,18 @@ void run_sycl_dis(sycl::queue &q, Workspace &ws, Preset preset, int patch_size, 
         const float u11 = patch_u[ay1 * n_gx + ax1];
         const float v11 = patch_v[ay1 * n_gx + ax1];
         const float c11 = patch_c[ay1 * n_gx + ax1];
-        const float u = (1.0f - tx) * (1.0f - ty) * u00 + tx * (1.0f - ty) * u10 +
-                        (1.0f - tx) * ty * u01 + tx * ty * u11;
-        const float v = (1.0f - tx) * (1.0f - ty) * v00 + tx * (1.0f - ty) * v10 +
-                        (1.0f - tx) * ty * v01 + tx * ty * v11;
-        const float c = (1.0f - tx) * (1.0f - ty) * c00 + tx * (1.0f - ty) * c10 +
-                        (1.0f - tx) * ty * c01 + tx * ty * c11;
+        const float a00 = (1.0f - tx) * (1.0f - ty);
+        const float a10 = tx * (1.0f - ty);
+        const float a01 = (1.0f - tx) * ty;
+        const float a11 = tx * ty;
+        const float w00 = a00 / (c00 * c00 + 1.0f);
+        const float w10 = a10 / (c10 * c10 + 1.0f);
+        const float w01 = a01 / (c01 * c01 + 1.0f);
+        const float w11 = a11 / (c11 * c11 + 1.0f);
+        const float wsum = w00 + w10 + w01 + w11 + 1.0e-6f;
+        const float u = (w00 * u00 + w10 * u10 + w01 * u01 + w11 * u11) / wsum;
+        const float v = (w00 * v00 + w10 * v10 + w01 * v01 + w11 * v11) / wsum;
+        const float c = a00 * c00 + a10 * c10 + a01 * c01 + a11 * c11;
         fout[(y * w + x) * 2] = u;
         fout[(y * w + x) * 2 + 1] = v;
         cout[y * w + x] = static_cast<std::uint8_t>(sycl::clamp(c, 0.0f, 255.0f));
