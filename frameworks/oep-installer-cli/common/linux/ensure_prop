@@ -18,7 +18,7 @@ ensure_prop () {
     ;;
   get)
     [ ! -r "$key_base/$key_path" ] || value="$(< "$key_base/$key_path")"
-    if [[ " $* " = *" --boolean "* ]]; then
+    if ensure_parse_option --boolean "$@"; then
       [[ " true yes t y a accept " = *" ${value,,} "* ]] && value="true" || value="false"
     fi
     printf '%s' "$value" 

@@ -44,7 +44,9 @@
       </a-tooltip>
       <a-tooltip
         placement="right"
-        :title="$t(collapsed ? 'common.expandSidebar' : 'common.collapseSidebar')"
+        :title="
+          $t(collapsed ? 'common.expandSidebar' : 'common.collapseSidebar')
+        "
       >
         <a-button
           class="sider-toggle"
@@ -148,19 +150,21 @@ const menuList = [
       height: 8px;
     }
     .menu-container {
-      :deep(.intel-menu-item) {
+      :deep(.intel-menu-item-group-list .intel-menu-item) {
         display: flex;
         align-items: center;
         justify-content: center;
         width: 44px;
         margin: 4px auto;
-        padding: 0;
+        padding-inline: 0;
       }
       :deep(.intel-menu-item .intel-menu-item-icon) {
         margin: 0;
         line-height: 1;
       }
-      :deep(.intel-menu-title-content) {
+      :deep(
+        .intel-menu-item-group-list .intel-menu-item .intel-menu-title-content
+      ) {
         display: none;
       }
       :deep(.intel-menu-item-group + .intel-menu-item-group) {

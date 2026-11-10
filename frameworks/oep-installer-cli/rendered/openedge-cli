@@ -300,42 +300,21 @@ act_helper ()
     shift;
     shift;
     act_validate_modules $act_name "$@" || return 3;
-    local explicit_mods="$(act_extract_modules $act_name "$@")";
-    local remove_all=0;
-    if [[ "$act_name" = "remove" && " $* " = *" --remove-all "* ]]; then
-        if [ -z "${explicit_mods// }" ]; then
-            remove_all=1;
-        else
-            echo -e "${yellow}--remove-all ignored: components specified ($explicit_mods)${reset}" 1>&2;
-        fi;
-    fi;
+    local explicit_mods=($(act_extract_modules $act_name "$@"));
+    local stop_remove_all=$(case "$act_name" in 
+    remove)
+        ensure_parse_option --remove-all "$@" && [ ${#explicit_mods[*]} -eq 0 ] && echo 1 || echo 0
+    ;;
+    stop)
+        ensure_parse_option --stop-all "$@" && [ ${#explicit_mods[*]} -eq 0 ] && echo 1 || echo 0
+    ;;
+    *)
+        echo 0
+    ;;
+esac);
     set -- $(act_resolve_args $act_name "$@");
-    local _act_args="$*";
-    local handles=($(act_find_deps $act_name "$@"));
-    if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ] && [ ${#handles[@]} -gt 0 ]; then
-        local _targets=() _top=0 _h _o _pair;
-        for _h in $(printf '%s\n' "${handles[@]}" | sort $sort_options);
-        do
-            _o=${_h#*_};
-            _o=${_o%%_*};
-            [ "$_top" -gt 0 ] || _top=$_o;
-            [ "$_o" -ge "$_top" ] || break;
-            _targets+=(${_h#*_*_*_});
-        done;
-        local -A _needed=();
-        for _pair in $(act_find_parents "${_targets[*]}" "$@");
-        do
-            _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}";
-        done;
-        if [ ${#_needed[@]} -gt 0 ]; then
-            for _h in ${!_needed[*]};
-            do
-                echo -e "${red}Cannot remove $_h: required by ${_needed[$_h]}${reset}" 1>&2;
-            done;
-            echo "Remove the dependent components in the same command, or use --remove-all." 1>&2;
-            return 3;
-        fi;
-    fi;
+    local implicit_mods=($(act_extract_modules $act_name "$@"));
+    local handles=($(act_find_deps $act_name "$@" | tr ' ' '\n' | sort $sort_options));
     if [ ${#handles[@]} -gt 0 ]; then
         if [ "$act_name" = "install" ]; then
             local -A licenses=() licenses_text=();
@@ -383,26 +362,35 @@ act_helper ()
         [ -z "$hp" ] || export http_proxy="$hp" HTTP_PROXY="$hp";
         [ -z "$sp" ] || export https_proxy="$sp" HTTPS_PROXY="$sp";
         [ -z "$np" ] || export no_proxy="${np%%,}" NO_PROXY="${np%%,}";
-        local rc=0 order=0;
+        local rc=0 name1;
         export _INSTALLER_PANEL_ACTIVE=;
         [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
         { 
-            for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options);
+            local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && echo "${implicit_mods[*]}" || echo "${handles[*]#*_*_*_}")) _pair _h _m;
+            for handler in ${handles[*]};
             do
-                local name1=${handler#*_*_*_};
-                if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ]; then
-                    local order1=${handler#*_};
-                    order1=${order1%%_*};
-                    [ "$order" -gt 0 ] || order=$order1;
-                    [ "$order1" -ge "$order" ] || break;
+                name1=${handler#*_*_*_};
+                [[ " ${modules[*]} " = *" $name1 "* ]] || continue;
+                if [ "$act_name" = "remove" ] && [ $stop_remove_all -eq 0 ]; then
+                    local -A _needed=();
+                    for _pair in $(act_find_parents "$name1" "$@");
+                    do
+                        [[ -v _act_cache_functions["remove_${_pair%%:*}"] ]] || continue;
+                        _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}";
+                    done;
+                    if [ ${#_needed[@]} -gt 0 ]; then
+                        echo "@@COMP $name1";
+                        for _h in ${!_needed[*]};
+                        do
+                            echo -e "${red}Required by ${_needed[$_h]}${reset}." 1>&2;
+                        done;
+                        echo "Remove the dependent components in the same command, or use --remove-all." 1>&2;
+                        echo "@@FAIL $name1";
+                        continue;
+                    fi;
                 fi;
                 local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${installer_family}_*_${act_name}_}" "$@")";
-                if { 
-                    [[ "$act_name" = "stop" && -z "${explicit_mods// }" ]] || [ "$remove_all" -eq 1 ]
-                } && [ -n "$(ensure_prop find "installed/$name1/apps/*")" ]; then
-                    invoke_args+=" --all-apps";
-                fi;
-                if [[ " $* " = *" --dry-run "* ]]; then
+                if ensure_parse_option --dry-run "$@"; then
                     echo "@@COMP $name1";
                     echo "Invoke $handler with $invoke_args";
                     echo "@@OK $name1";
@@ -413,18 +401,23 @@ act_helper ()
                     local rc1=0;
                     ( set -e;
                     $handler $invoke_args ) & wait $! || rc1=$?;
-                    if [[ " stop remove " = *" $act_name "* ]] && [ -z "$(ensure_prop find "started/$name1/apps/*")" ]; then
-                        ensure_prop remove started/$name1/;
-                    fi;
-                    if [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && [ -z "$(ensure_prop find "installed/$name1/apps/*")" ]; then
-                        ensure_prop remove installed/$name1/;
-                    fi;
+                    case "$act_name" in 
+                        stop)
+                            modules+=($(ensure_prop get started/$name1/stops));
+                            [ $rc1 -eq 0 ] && ensure_prop remove started/$name1/
+                        ;;
+                        remove)
+                            modules+=($(ensure_prop get installed/$name1/removes));
+                            ensure_prop remove started/$name1/;
+                            [ $rc1 -eq 0 ] && ensure_prop remove installed/$name1/
+                        ;;
+                    esac;
                     if [ $rc1 -eq 0 ]; then
                         echo "@@OK $name1";
                     else
                         echo "@@FAIL $name1";
                         rc=$rc1;
-                        [[ " $* " = *" --continue "* ]] || break;
+                        ensure_parse_option --continue "$@" || break;
                     fi;
                 fi;
             done
@@ -438,12 +431,14 @@ else
     tee -a "$LOG_FILE";
 fi) 2>&1;
         wait;
-        [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]] && ensure_prop set modules "$explicit_mods";
-        [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && ensure_prop remove modules;
+        ensure_parse_option --dry-run "$@" || { 
+            [ ${#explicit_mods[*]} -gt 0 ] && ensure_prop set modules "${explicit_mods[*]}";
+            [[ "$act_name" = "remove" && $stop_remove_all -eq 1 && $rc -eq 0 ]] && ensure_prop remove modules
+        };
         return $rc;
     else
         echo "Component not found" 1>&2;
-        [[ " $* " = *" --dry-run "* ]] || ensure_prop remove modules;
+        ensure_parse_option --dry-run "$@" || ensure_prop remove modules;
         return 3;
     fi
 }
@@ -2152,16 +2147,19 @@ act_resolve_args ()
     local act_name=$1;
     shift;
     local args=("$@") margs=(${*##-*});
-    if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
-        args+=($(ensure_prop find "started/*" | cut -f2 -d/ | uniq));
-    else
-        if [ "$act_name" = "remove" ] && [[ " $* " = *" --remove-all "* ]] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
-            args+=($(ensure_prop find "installed/*" | cut -f2 -d/ | uniq));
-        else
-            if [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
+    if [ -z "$(act_extract_modules $act_name "$@")" ]; then
+        case "$act_name" in 
+            remove)
+                ensure_parse_option --remove-all "$@" && args=($(ensure_prop find "installed/*" | cut -f2 -d/ | uniq) "${args[@]}") || args=($(ensure_prop get modules) "${args[@]}")
+            ;;
+            stop)
                 args=($(ensure_prop get modules) "${args[@]}");
-            fi;
-        fi;
+                ensure_parse_option --stop-all "$@" && args=($(ensure_prop find "started/*" | cut -f2 -d/ | uniq) "${args[@]}")
+            ;;
+            *)
+                args=($(ensure_prop get modules) "${args[@]}")
+            ;;
+        esac;
     fi;
     echo "${args[*]}"
 }
@@ -2280,7 +2278,7 @@ configure_autonomous_mobile_robot ()
         ;;
     esac;
     amr_sdk_pkg=ros-$ros_distro-robotics-sdk;
-    if [[ " $* " = *" --complete "* ]] || ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete; then
+    if ensure_parse_option --complete "$@" || ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete; then
         amr_sdk_pkg=ros-$ros_distro-robotics-sdk-complete;
     fi;
     amr_slam_pkgs=(ros-$ros_distro-collab-slam-lze ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-sse)
@@ -2309,7 +2307,7 @@ configure_cdi ()
 { 
     workspace="$(ensure_project_path)/cdi";
     repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
-    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    version=6adeb8ad778d8700b2f9773cbd438e10a718bf79;
     cdi_path="/opt/edge/scripts/cdi";
     docker_config="/etc/docker/daemon.json"
 }
@@ -2404,33 +2402,6 @@ configure_docker_ce ()
     apt_entry="deb [signed-by=$key_file] https://$repo_name/linux/$ID/ ${VERSION_CODENAME} stable";
     apt_file=/etc/apt/sources.list.d/docker.list
 }
-configure_edge_node_infrastructure_blueprint () 
-{ 
-    workspace="$(ensure_project_path)/edge_node_infrastructure_blueprint";
-    version=enib-packages-installer;
-    repository=https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git;
-    installed_deployment="$(cat "$workspace"/.oep-deployment 2> /dev/null || true)";
-    local k3s=0 m scoped;
-    [[ " $* " != *" --k3s "* ]] || k3s=1;
-    for m in ${_act_cache_names[*]:-};
-    do
-        [[ "$m" != edge_node_infrastructure_blueprint && " ${_act_args:-} " = *" --$m "* ]] || continue;
-        [[ " $(act_expand_modules install "$m" ${_act_args:-}) " = *" edge_node_infrastructure_blueprint "* ]] || continue;
-        scoped="$(act_extract_args install "$m" "" ${_act_args:-})";
-        [[ " ${scoped#* -- } " != *" --k3s "* ]] || k3s=1;
-    done;
-    deployment_conflict=0;
-    if [[ " ${_act_args:-} " = *" --docker "* ]]; then
-        deployment=docker;
-        [ $k3s -eq 0 ] || deployment_conflict=1;
-    else
-        if [ $k3s -eq 1 ]; then
-            deployment=k3s;
-        else
-            deployment=${installed_deployment:-docker};
-        fi;
-    fi
-}
 configure_edge_pack () 
 { 
     edge_pack_repo="apt.repos.intel.com";
@@ -2493,7 +2464,7 @@ configure_edge_pack_kernel_image ()
             if [[ "$kver" = "7.0.0-"* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
                 version="$kver";
             else
-                version=7.0.0-42-generic;
+                version="$(set -o pipefail; apt-cache depends linux-image-generic-hwe-$VERSION_ID 2> /dev/null | sed -n '/.*Depends: *linux-image-/{s///;p;q}' || echo 7.0.0-42-generic)";
             fi
         ;;
         *)
@@ -2527,6 +2498,16 @@ configure_edge_pack_npu ()
 { 
     configure_edge_pack "$@";
     version="1.0"
+}
+configure_edge_pack_selection () 
+{ 
+    local ep_list="$1";
+    shift;
+    if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
+        echo "$ep_list";
+    else
+        echo "gpu_accel npu_accel";
+    fi
 }
 configure_edge_pack_tsn () 
 { 
@@ -2662,8 +2643,7 @@ configure_humanoid_imitation_learning ()
     repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git";
     container_dir="$workspace/samples/robotics/robotics-ai-suite-containers";
     humanoid_samples=(act-sample pi05-rtc-ov);
-    humanoid_sample=act-sample;
-    [[ " $* " != *" pi05-rtc-ov "* && " $* " != *" --pi05-rtc-ov "* ]] || humanoid_sample=pi05-rtc-ov;
+    ( ensure_parse_option pi05-rtc-ov "$@" || ensure_parse_option --pi05-rtc-ov "$@" ) && humanoid_sample=pi05-rtc-ov || humanoid_sample=act-sample;
     humanoid_base_image=robotics-ai-suite:humanoid-imitation-learning-base;
     humanoid_sample_image=robotics-ai-suite:humanoid-imitation-learning-$humanoid_sample
 }
@@ -2677,14 +2657,14 @@ configure_image_based_video_search ()
 configure_intel_lpmd () 
 { 
     workspace="$(ensure_project_path)/intel-lpmd";
-    version=956df747e56aca1739b39bff8cff77e81758af9a;
+    version=9bf8b8de3ed11c301817814fef79b3161e6294b6;
     repository="https://github.com/intel/intel-lpmd.git"
 }
 configure_k3s_io () 
 { 
     workspace="$(ensure_project_path)/k3s_io";
     repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
-    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    version=6adeb8ad778d8700b2f9773cbd438e10a718bf79;
     install_sh_sha256=d75e014f2d2ab5d30a318efa5c326f3b0b7596f194afcff90fa7a7a91166d5f7
 }
 configure_kernel_module_essential () 
@@ -2892,7 +2872,7 @@ configure_loitering_detection ()
 configure_loss_prevention () 
 { 
     workspace="$(ensure_project_path)/loss-prevention";
-    version=1e960e399a4f82feca32dcd65b023f7a46d3ebf1;
+    version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4;
     repository="https://github.com/intel-retail/loss-prevention.git";
     used_ports=(4000 15672 5672 8002 4001)
 }
@@ -2902,31 +2882,31 @@ configure_loss_prevention_options ()
     shift;
     cd "$workspace";
     sed -i -e "s|^TARGET_DEVICE [?]= .*|TARGET_DEVICE ?= ${device^^}|" -e "s|^VLM_DEVICE [?]= .*|VLM_DEVICE ?= ${device^^}|" Makefile;
-    local camera_stream="$(grep -m1 -E '^CAMREA_STREAM [?]=' | cut -f2 -d= | tr -d ' ')";
-    local workload_dist="$(grep -m1 -E '^WORKLOAD_DIST [?]=' | cut -f2 -d= | tr -d ' ')";
-    local mode;
-    if [[ " $* " = *" --od "* ]]; then
-        mode="object detection $device";
+    local camera_stream="$(< .camera_stream)";
+    local workload_dist="$(< .workload_dist)";
+    local benchmark_mode="$(< .benchmark_mode)";
+    if ensure_parse_option --od "$@"; then
+        benchmark_mode="object detection $device";
         camera_stream="camera_to_workload_asc_object_detection.json";
         workload_dist="workload_to_pipeline_asc_object_detection_$device.json";
     else
-        if [[ " $* " = *" --oc "* ]]; then
-            mode="object classification $device";
+        if ensure_parse_option --oc "$@"; then
+            benchmark_mode="object classification $device";
             camera_stream="camera_to_workload_asc_object_detection_classification.json";
             workload_dist="workload_to_pipeline_asc_object_detection_classification_$device.json";
         else
-            if [[ " $* " = *" --age "* ]]; then
-                mode="age verification $device";
+            if ensure_parse_option --age "$@"; then
+                benchmark_mode="age verification $device";
                 camera_stream="camera_to_workload_asc_age_verification.json";
                 workload_dist="workload_to_pipeline_asc_age_verification_$device.json";
             else
-                if [[ " $* " = *" --lpvlm "* ]]; then
-                    mode="VLM gpu";
+                if ensure_parse_option --lpvlm "$@"; then
+                    benchmark_mode="VLM gpu";
                     camera_stream="camera_to_workload_vlm.json";
                     workload_dist="workload_to_pipeline_vlm.json";
                 else
-                    if [[ " $* " = *" --lp "* ]]; then
-                        mode="default ${device/npu/gpu-npu}";
+                    if ensure_parse_option --lp "$@"; then
+                        benchmark_mode="default ${device/npu/gpu-npu}";
                         camera_stream="camera_to_workload.json";
                         workload_dist="workload_to_pipeline_${device/npu/gpu-npu}.json";
                     fi;
@@ -2934,32 +2914,38 @@ configure_loss_prevention_options ()
             fi;
         fi;
     fi;
-    sed -i -e "s|^CAMERA_STREAM [?]= .*|CAMERA_STREAM ?= $camera_stream|" -e "s|^WORKLOAD_DIST [?]= .*|WORKLOAD_DIST ?= $workload_dist|" Makefile;
-    echo "@@STEP Download videos";
-    make download-sample-videos && { 
-        local v rc=0;
-        for v in $(grep '"fileSrc":' configs/$camera_stream | cut -f4 -d'"' | cut -f1 -d'|');
-        do
-            [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { 
-                echo "Failed to download video $v" 1>&2;
-                rc=1
-            };
-        done;
-        [ $rc -eq 0 ]
+    [ "$camera_stream" = "$(< .camera_stream)" ] || { 
+        echo "@@STEP Download videos";
+        make download-sample-videos CAMERA_STREAM="$camera_stream" && { 
+            local v rc=0;
+            for v in $(grep '"fileSrc":' configs/$camera_stream | cut -f4 -d'"' | cut -f1 -d'|');
+            do
+                [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { 
+                    echo "Failed to download video $v" 1>&2;
+                    rc=1
+                };
+            done;
+            [ $rc -eq 0 ]
+        }
     };
-    echo "@@STEP Download models";
-    make download-models && { 
-        local m rc=0;
-        for m in $(grep -E '"model":|"vlm_model":' configs/$workload_dist | cut -f4 -d'"');
-        do
-            [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { 
-                echo "Failed to download model $m" 1>&2;
-                rc=1
-            };
-        done;
-        [ $rc -eq 0 ]
+    [ "$workload_dist" = "$(< .workload_dist)" ] || { 
+        echo "@@STEP Download models";
+        make download-models WORKLOAD_DIST="$workload_dist" && { 
+            local m rc=0;
+            for m in $(grep -E '"model":|"vlm_model":' configs/$workload_dist | cut -f4 -d'"');
+            do
+                [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { 
+                    echo "Failed to download model $m" 1>&2;
+                    rc=1
+                };
+            done;
+            [ $rc -eq 0 ]
+        }
     };
-    echo "@@STEP Configured $mode"
+    echo "@@STEP Configured $benchmark_mode";
+    echo "$camera_stream" > .camera_stream;
+    echo "$workload_dist" > .workload_dist;
+    echo "$benchmark_mode" > .benchmark_mode
 }
 configure_mediamtx () 
 { 
@@ -3056,7 +3042,7 @@ configure_openvino ()
     apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main";
     apt_file=/etc/apt/sources.list.d/intel-openvino.list;
     workspace="$(ensure_project_path)/openvino";
-    version="$(ensure_parse_value_option version --version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1) "$@")";
+    version="$(ensure_parse_value_option version --version=$(ensure_parse_option dlstreamer "$@" && echo 2026.2.0 || echo 2026.4.1) "$@")";
     model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
 configure_osrf_gazebo_ros2 () 
@@ -3087,6 +3073,13 @@ configure_pcm ()
     workspace="$(ensure_project_path)/pcm";
     repository="https://github.com/intel/pcm.git";
     version=e534201d0fe6d6e3bc5fee54b229f215b976efbc
+}
+configure_person_of_interest () 
+{ 
+    workspace="$(ensure_project_path)/person-of-interest";
+    version="$(ensure_parse_value_option version --version=2c13aa5b0d0cfb349b96e6fd43dab834ee947fd3 "$@")";
+    repository="https://github.com/intel-retail/storewide-loss-prevention.git";
+    used_ports=(3000 8000 6379 8001 8189)
 }
 configure_physical_ai_framework () 
 { 
@@ -3168,7 +3161,7 @@ configure_power_tuning ()
 { 
     workspace="$(ensure_project_path)/power_tuning";
     repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
-    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    version=6adeb8ad778d8700b2f9773cbd438e10a718bf79;
     power_tuning_path="/opt/edge/developer/tools"
 }
 configure_real_time_scene_understanding () 
@@ -3201,9 +3194,20 @@ configure_realsense ()
     rs_key_file=/etc/apt/keyrings/librealsenseai.gpg;
     rs_list=/etc/apt/sources.list.d/librealsense.list;
     rs_deb_entry="deb [signed-by=$rs_key_file] https://$rs_repo_name/Debian/apt-repo $VERSION_CODENAME main";
+    rs_use_eci=true;
+    if [ "$ID" = ubuntu ] && [ "$VERSION_ID" = 26.04 ]; then
+        rs_use_eci=false;
+    fi;
+    rs_repo_files=("$rs_key_file" "$rs_list");
+    if [ "$rs_use_eci" = true ]; then
+        rs_repo_files=("$eci_key_file" "$eci_repo_list_file" "${rs_repo_files[@]}");
+    fi;
     rs_packages=(librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl);
+    if [ "$rs_use_eci" = false ]; then
+        rs_packages=(librealsense2 librealsense2-utils librealsense2-dev librealsense2-gl librealsense2-udev-rules);
+    fi;
     rs_ros_package=;
-    if [[ " $* " = *" ros2 "* || " $* " = *" edge_base_robotics "* ]]; then
+    if ensure_parse_option ros2 "$@" || ensure_parse_option edge_base_robotics "$@"; then
         case "$VERSION_CODENAME" in 
             jammy)
                 rs_ros_package=ros-humble-librealsense2
@@ -3364,12 +3368,21 @@ configure_smart_parking ()
     used_ports=(80 443 3478);
     wait_timeout=120
 }
+configure_smart_route_planning_agent () 
+{ 
+    workspace="$(ensure_project_path)/smart-route-planning-agent";
+    version="$(ensure_parse_value_option version --version=13c4deb6d933deecc79b801eb37dddac1bc78f6f "$@")";
+    repository="https://github.com/open-edge-platform/metro-ai-suite.git";
+    used_ports=(7864 8765);
+    export VLM_MODEL_NAME=OpenVINO/Phi-3.5-vision-instruct-int8-ov;
+    export REGISTRY=intel/
+}
 configure_smart_traffic_intersection_agent () 
 { 
     workspace="$(ensure_project_path)/smart-traffic-intersection-agent";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=13c4deb6d933deecc79b801eb37dddac1bc78f6f "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
-    used_ports=(32776 32770 32771 32772 32773 32774 32775);
+    used_ports=(7860 8081 32776 32770 32771 32772 32773 32774 32775);
     export VLM_MODEL_NAME=OpenVINO/Phi-3.5-vision-instruct-int8-ov;
     export REGISTRY=intel/
 }
@@ -3397,11 +3410,18 @@ configure_surgical_instrument ()
     repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git";
     polyp_model="models/yolo11n_polyp/best_openvino_model/best.xml"
 }
+configure_suspicious_activity_detection () 
+{ 
+    workspace="$(ensure_project_path)/suspicious-activity-detection";
+    version="$(ensure_parse_value_option version --version=2c13aa5b0d0cfb349b96e6fd43dab834ee947fd3 "$@")";
+    repository="https://github.com/intel-retail/storewide-loss-prevention.git";
+    used_ports=(7860 5432 8085 8082 8000 9000 8333 9333 8080 8002 8003)
+}
 configure_system_info () 
 { 
     workspace="$(ensure_project_path)/system_info";
     repository=https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git;
-    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    version=6adeb8ad778d8700b2f9773cbd438e10a718bf79;
     system_info_path=/opt/edge/developer/tools/system-info
 }
 configure_take_away () 
@@ -3428,6 +3448,15 @@ configure_time_confighub ()
     workspace="$(ensure_project_path)/time_confighub";
     repository="https://github.com/intel/time-confighub.git";
     version=tags/archive/main_20261106
+}
+configure_uav_mission_compute_sdk () 
+{ 
+    workspace="$(ensure_project_path)/uav-mission-compute-sdk-sdk";
+    source_path="$workspace/source";
+    sdk_path="$source_path/uav-mission-compute-sdk";
+    repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
+    version="main";
+    used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
 }
 configure_uv () 
 { 
@@ -3580,7 +3609,11 @@ debian_08_install_system_inspection ()
 }
 debian_08_profile_system_inspection () 
 { 
-    [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+    case "$1" in 
+        bootstrap | install)
+            echo "curl dmidecode pciutils"
+        ;;
+    esac
 }
 debian_10_install_gnupg () 
 { 
@@ -3948,39 +3981,6 @@ debian_30_install_golang ()
 { 
     ensure_apt_install_package golang
 }
-debian_30_install_intel_lpmd () 
-{ 
-    configure_intel_lpmd;
-    if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Intel-lpmd is installed" 1>&2;
-    else
-        echo "@@STEP Installing prerequisites";
-        ensure_apt update;
-        ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev;
-        echo "@@STEP Building intel-lpmd";
-        ensure_git_export "$workspace" "$version" "$repository";
-        cd "$workspace";
-        ./autogen.sh;
-        if [[ -z "$(pkg-config --variable=systemdsystemunitdir systemd 2> /dev/null)" ]]; then
-            echo "Failed to resolve systemd's systemdsystemunitdir (is the systemd-dev package installed?)." 1>&2;
-            return 3;
-        fi;
-        make;
-        ensure_sudo make install;
-        ensure_sudo mkdir -p /etc/systemd/system/intel_lpmd.service.d;
-        ensure_sudo tee /etc/systemd/system/intel_lpmd.service.d/override.conf > /dev/null <<-EOF
-[Unit]
-# Clear all Condition* directives from the upstream unit
-ConditionPathExists=
-ConditionVirtualization=
-EOF
-
-        ensure_sudo apt-get clean -y;
-        ensure_sudo systemctl daemon-reload;
-        ensure_sudo systemctl --root=/ enable intel_lpmd.service;
-        ensure_sudo systemctl start intel_lpmd.service;
-    fi
-}
 debian_30_install_kernel_module_essential () 
 { 
     configure_kernel_module_essential_debian;
@@ -4075,10 +4075,6 @@ debian_30_install_xpu_smi ()
 { 
     ensure_apt_install_package xpu-smi || printf "${red}xpu-smi not installed${reset}\n"
 }
-debian_30_profile_intel_lpmd () 
-{ 
-    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
-}
 debian_30_remove_autoconf () 
 { 
     ensure_apt_remove_package autoconf
@@ -4125,17 +4121,6 @@ debian_30_remove_git ()
 debian_30_remove_golang () 
 { 
     ensure_apt_remove_package golang
-}
-debian_30_remove_intel_lpmd () 
-{ 
-    [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0;
-    cd "$workspace" && { 
-        make clean
-    } || true;
-    ensure_sudo systemctl stop intel_lpmd.service || true;
-    ensure_sudo systemctl disable intel_lpmd.service || true;
-    ensure_rm /etc/systemd/system/intel_lpmd.service.d;
-    ensure_sudo systemctl daemon-reload || true
 }
 debian_30_remove_kernel_module_essential () 
 { 
@@ -4237,10 +4222,6 @@ debian_30_sbom_git ()
 debian_30_sbom_golang () 
 { 
     ensure_sbom_format pkg-list golang
-}
-debian_30_sbom_intel_lpmd () 
-{ 
-    ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
 }
 debian_30_sbom_kernel_module_essential () 
 { 
@@ -4347,10 +4328,63 @@ debian_31_remove_k3s_io ()
     ensure_rm "$workspace";
     ensure_prop remove installed/k3s_io/owned
 }
+debian_35_install_intel_lpmd () 
+{ 
+    configure_intel_lpmd;
+    if verify_intel_lpmd && ! ensure_parse_reinstall "$@"; then
+        echo "Intel-lpmd is installed" 1>&2;
+    else
+        echo "@@STEP Installing prerequisites";
+        ensure_apt update;
+        ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev;
+        configure_kernel_module_essential_debian "$@" || return $?;
+        echo "@@STEP Building intel-lpmd";
+        ensure_git_export "$workspace" "$version" "$repository";
+        cd "$workspace";
+        ./autogen.sh;
+        if [[ -z "$(pkg-config --variable=systemdsystemunitdir systemd 2> /dev/null)" ]]; then
+            echo "Failed to resolve systemd's systemdsystemunitdir (is the systemd-dev package installed?)." 1>&2;
+            return 3;
+        fi;
+        make;
+        ensure_sudo make install;
+        ensure_sudo mkdir -p /etc/systemd/system/intel_lpmd.service.d;
+        ensure_sudo tee /etc/systemd/system/intel_lpmd.service.d/override.conf > /dev/null <<-EOF
+[Unit]
+# Clear all Condition* directives from the upstream unit
+ConditionPathExists=
+ConditionVirtualization=
+EOF
+
+        ensure_sudo apt-get clean -y;
+        ensure_sudo systemctl daemon-reload;
+        ensure_sudo systemctl --root=/ enable intel_lpmd.service;
+        ensure_sudo systemctl start intel_lpmd.service;
+    fi
+}
+debian_35_profile_intel_lpmd () 
+{ 
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+}
+debian_35_remove_intel_lpmd () 
+{ 
+    [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0;
+    cd "$workspace" && { 
+        make clean
+    } || true;
+    ensure_sudo systemctl stop intel_lpmd.service || true;
+    ensure_sudo systemctl disable intel_lpmd.service || true;
+    ensure_rm /etc/systemd/system/intel_lpmd.service.d;
+    ensure_sudo systemctl daemon-reload || true
+}
+debian_35_sbom_intel_lpmd () 
+{ 
+    ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
+}
 debian_39_install_edge_pack () 
 { 
     configure_edge_pack "$@";
-    local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0);
+    local reinstall=$(ensure_parse_reinstall "$@" && echo 1 || echo 0);
     local reconfigured=0 p;
     for p in "${edge_pack_incompatible_files[@]}";
     do
@@ -4397,23 +4431,23 @@ debian_39_remove_edge_pack ()
 }
 debian_40_group_edge_pack_base_realtime () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_base_standard () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_graphics_core () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_graphics_display () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_graphics_sriov () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_npu () 
 { 
@@ -4421,7 +4455,7 @@ debian_40_group_edge_pack_npu ()
 }
 debian_40_group_gpu_accel () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_npu_accel () 
 { 
@@ -4429,7 +4463,7 @@ debian_40_group_npu_accel ()
 }
 debian_40_install_core_types () 
 { 
-    if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
+    if [ -e /etc/core-types ] && ! ensure_parse_reinstall "$@"; then
         echo "/etc/core-types exists." 1>&2;
     else
         ensure_prop set installed/core_types/owned true;
@@ -4442,7 +4476,7 @@ debian_40_install_core_types ()
 debian_40_install_edge_pack_base_realtime () 
 { 
     configure_edge_pack_base_realtime "$@";
-    if ensure_apt_is_installed intel-edge-base-realtime && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-base-realtime && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-base-realtime is installed." 1>&2;
     else
         local candidate;
@@ -4461,7 +4495,7 @@ debian_40_install_edge_pack_base_realtime ()
         fi;
         ensure_prop remove installed/edge_pack_base_realtime/fallback;
         ensure_prop set installed/edge_pack_base_realtime/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-realtime onevpl-tools || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" || true;
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
     fi;
@@ -4471,11 +4505,11 @@ debian_40_install_edge_pack_base_realtime ()
 debian_40_install_edge_pack_base_standard () 
 { 
     configure_edge_pack_base_standard "$@";
-    if ensure_apt_is_installed intel-edge-base-standard && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-base-standard && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-base-standard is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_base_standard/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-standard onevpl-tools || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" || true;
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
     fi;
@@ -4485,7 +4519,7 @@ debian_40_install_edge_pack_base_standard ()
 debian_40_install_edge_pack_compute_extra () 
 { 
     configure_edge_pack_compute_extra "$@";
-    if ensure_apt_is_installed intel-edge-compute-extra && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-compute-extra && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-compute-extra is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_compute_extra/owned true;
@@ -4497,7 +4531,7 @@ debian_40_install_edge_pack_compute_extra ()
 debian_40_install_edge_pack_graphics_core () 
 { 
     configure_edge_pack_graphics_core "$@";
-    if ensure_apt_is_installed intel-edge-graphics-core && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-graphics-core && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-graphics-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_core/owned true;
@@ -4511,7 +4545,7 @@ debian_40_install_edge_pack_graphics_core ()
 debian_40_install_edge_pack_graphics_display () 
 { 
     configure_edge_pack_graphics_display "$@";
-    if ensure_apt_is_installed intel-edge-graphics-display && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-graphics-display && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-graphics-display is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_display/owned true;
@@ -4525,7 +4559,7 @@ debian_40_install_edge_pack_graphics_display ()
 debian_40_install_edge_pack_graphics_sriov () 
 { 
     configure_edge_pack_graphics_sriov "$@";
-    if ensure_apt_is_installed intel-edge-graphics-sriov && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-graphics-sriov && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-graphics-sriov is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_sriov/owned true;
@@ -4539,19 +4573,21 @@ debian_40_install_edge_pack_graphics_sriov ()
 debian_40_install_edge_pack_ipu () 
 { 
     configure_edge_pack_ipu "$@";
-    if ensure_apt_is_installed intel-edge-ipu && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-ipu && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-ipu is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_ipu/owned true;
         ensure_apt purge --auto-remove -y intel-edge-ipu || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*" || true;
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*";
+        ensure_sudo modprobe -r intel-ipu7 || true;
+        ensure_sudo modprobe intel-ipu7 || true;
     fi
 }
 debian_40_install_edge_pack_manageability () 
 { 
     configure_edge_pack_manageability "$@";
-    if ensure_apt_is_installed intel-edge-manageability && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-manageability && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-manageability is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_manageability/owned true;
@@ -4563,18 +4599,18 @@ debian_40_install_edge_pack_manageability ()
 debian_40_install_edge_pack_media_core () 
 { 
     configure_edge_pack_media_core "$@";
-    if ensure_apt_is_installed intel-edge-media-core && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-media-core && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-media-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_core/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-core || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-core onevpl-tools || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')";
     fi
 }
 debian_40_install_edge_pack_npu () 
 { 
     configure_edge_pack_npu "$@";
-    if ensure_apt_is_installed intel-edge-npu && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-npu && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-npu is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_npu/owned true;
@@ -4588,7 +4624,7 @@ debian_40_install_edge_pack_npu ()
 debian_40_install_edge_pack_tsn () 
 { 
     configure_edge_pack_tsn "$@";
-    if ensure_apt_is_installed intel-edge-tsn && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-tsn && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-tsn is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_tsn/owned true;
@@ -4600,7 +4636,7 @@ debian_40_install_edge_pack_tsn ()
 debian_40_install_gpu_accel () 
 { 
     configure_gpu_accel "$@";
-    if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_gpu_accel && ! ensure_parse_reinstall "$@"; then
         echo "Gpu drivers are installed." 1>&2;
     else
         debian_40_remove_gpu_accel;
@@ -4646,7 +4682,7 @@ debian_40_install_lsb_release ()
 debian_40_install_npu_accel () 
 { 
     configure_npu_accel "$@";
-    if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_npu_accel && ! ensure_parse_reinstall "$@"; then
         echo "Npu drivers are installed." 1>&2;
     else
         ensure_prop set installed/npu_accel/owned true;
@@ -4672,7 +4708,7 @@ debian_40_install_npu_accel ()
 debian_40_install_pcm () 
 { 
     configure_pcm;
-    if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_pcm && ! ensure_parse_reinstall "$@"; then
         echo "pcm is installed." 1>&2;
     else
         ensure_prop set installed/pcm/owned true;
@@ -4694,21 +4730,6 @@ debian_40_install_pcm ()
         verify_pcm;
     fi
 }
-debian_40_install_power_tuning () 
-{ 
-    configure_power_tuning;
-    if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
-        echo "power_tuning is installed." 1>&2;
-    else
-        ensure_prop set installed/power_tuning/owned true;
-        echo "@@STEP Cloning repository";
-        ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning;
-        ensure_sudo mkdir -p "$power_tuning_path";
-        sed -i -e "s|^MODEL_PATH=.*|MODEL_PATH=$workspace/models|" -e "s|^GNU_VENV_DIR=.*|GNU_VENV_DIR=$workspace/.venv|" tools/power-tuning/openvino_stress.sh;
-        ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path";
-        verify_power_tuning;
-    fi
-}
 debian_40_install_software_properties_common () 
 { 
     ensure_apt_install_package software-properties-common
@@ -4716,7 +4737,7 @@ debian_40_install_software_properties_common ()
 debian_40_install_system_info () 
 { 
     configure_system_info;
-    if verify_system_info && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_system_info && ! ensure_parse_reinstall "$@"; then
         echo "System info script is installed." 1>&2;
     else
         ensure_git_export "$workspace" "$version" "$repository" tools/system-info || return $?;
@@ -4734,7 +4755,11 @@ debian_40_install_system_info ()
 }
 debian_40_profile_core_types () 
 { 
-    [ "$1" != "install" ] || echo "cpuid curl"
+    case "$1" in 
+        bootstrap | install)
+            echo "cpuid curl"
+        ;;
+    esac
 }
 debian_40_profile_edge_pack_base_realtime () 
 { 
@@ -4795,10 +4820,6 @@ debian_40_profile_npu_accel ()
 debian_40_profile_pcm () 
 { 
     echo "pkg_config git make cmake kernel_module_essential msr_tools"
-}
-debian_40_profile_power_tuning () 
-{ 
-    echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
 }
 debian_40_profile_system_info () 
 { 
@@ -4901,12 +4922,6 @@ debian_40_remove_pcm ()
     configure_pcm;
     [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0;
     ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM /etc/modules-load.d/99-intel-pcm.conf
-}
-debian_40_remove_power_tuning () 
-{ 
-    configure_power_tuning;
-    [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0;
-    ensure_rm "$power_tuning_path"
 }
 debian_40_remove_system_info () 
 { 
@@ -5030,6 +5045,21 @@ debian_45_install_pipx ()
 { 
     ensure_apt_install_package pipx
 }
+debian_45_install_power_tuning () 
+{ 
+    configure_power_tuning "$@";
+    if verify_power_tuning && ! ensure_parse_reinstall "$@"; then
+        echo "power_tuning is installed." 1>&2;
+    else
+        ensure_prop set installed/power_tuning/owned true;
+        echo "@@STEP Cloning repository";
+        ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning;
+        sed -i -e 's|^MODEL_PATH=.*|MODEL_PATH=/tmp/openvino-stress/models|' -e 's|^GNU_VENV_DIR=.*|GNU_VENV_DIR=/tmp/openvino-stress/venv|' "$workspace"/tools/power-tuning/openvino_stress.sh;
+        ensure_sudo mkdir -p "$power_tuning_path";
+        ensure_sudo cp -r "$workspace"/tools/power-tuning/* "$power_tuning_path";
+        verify_power_tuning;
+    fi
+}
 debian_45_install_qemu_system_x86 () 
 { 
     ensure_apt_install_package qemu-system-x86
@@ -5056,6 +5086,10 @@ debian_45_profile_pipx ()
 { 
     echo "python3_venv"
 }
+debian_45_profile_power_tuning () 
+{ 
+    echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
+}
 debian_45_remove_cloud_image_utils () 
 { 
     ensure_apt_remove_package cloud-image-utils
@@ -5067,6 +5101,12 @@ debian_45_remove_memtester ()
 debian_45_remove_ovmf () 
 { 
     ensure_apt_remove_package ovmf
+}
+debian_45_remove_power_tuning () 
+{ 
+    configure_power_tuning "$@";
+    [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0;
+    ensure_rm "$power_tuning_path" /tmp/openvino-stress
 }
 debian_45_remove_rt_tests () 
 { 
@@ -5111,7 +5151,7 @@ debian_45_sbom_ubuntu_server ()
 debian_50_install_ros2 () 
 { 
     configure_ros2;
-    if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_ros2 && ! ensure_parse_reinstall "$@"; then
         echo "ROS 2 $ros_distro is installed." 1>&2;
     else
         configure_ros2_apt_source || return 1;
@@ -5143,7 +5183,7 @@ debian_50_install_uv ()
 debian_50_profile_ros2 () 
 { 
     echo "curl gnupg git software_properties_common lsb_release";
-    [[ " $* " = *" --realtime "* ]] || echo "edge_base"
+    ensure_parse_option --realtime "$@" || echo "edge_base"
 }
 debian_50_profile_uv () 
 { 
@@ -5175,7 +5215,7 @@ debian_50_sbom_ros2 ()
 debian_55_install_cdi () 
 { 
     configure_cdi;
-    if verify_cdi && [[ " $* " = *" --reinstall "* ]]; then
+    if verify_cdi && ! ensure_parse_reinstall "$@"; then
         echo "CDI scripts are installed" 1>&2;
     else
         ensure_sudo mkdir -p "$cdi_path";
@@ -5210,8 +5250,19 @@ f.close()
 debian_55_install_realsense () 
 { 
     configure_realsense "$@";
+    if [ "$rs_use_eci" = false ]; then
+        echo "ECI and librealsense2-dkms are skipped on Ubuntu 26.04. Only userspace packages and udev rules are installed; camera streaming requires separate validation." 1>&2;
+        if [ -e "$eci_repo_list_file" ] || [ -L "$eci_repo_list_file" ]; then
+            if [ "$(ensure_prop get "installed/realsense/repositories/${eci_repo_list_file##*/}")" != true ]; then
+                echo "Cannot disable unowned ECI source $eci_repo_list_file. Review and disable it manually before retrying." 1>&2;
+                return 3;
+            fi;
+            ensure_rm "$eci_repo_list_file" || return $?;
+            ensure_prop remove "installed/realsense/repositories/${eci_repo_list_file##*/}";
+        fi;
+    fi;
     ensure_prop create installed/realsense/packages/;
-    if ensure_apt_is_installed "${rs_packages[@]}" && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed "${rs_packages[@]}" && ! ensure_parse_reinstall "$@"; then
         echo "RealSense packages are installed." 1>&2;
     else
         local package;
@@ -5224,14 +5275,16 @@ debian_55_install_realsense ()
         echo "@@STEP Configuring Apt";
         local repo_file;
         ensure_prop create installed/realsense/repositories/;
-        for repo_file in "$eci_key_file" "$eci_repo_list_file" "$rs_key_file" "$rs_list";
+        for repo_file in "${rs_repo_files[@]}";
         do
             if [ ! -e "$repo_file" ] && [ ! -L "$repo_file" ]; then
                 ensure_prop set "installed/realsense/repositories/${repo_file##*/}" true;
             fi;
         done;
-        ensure_apt_key "$eci_key_file" "$eci_key_url" --dearmor;
-        ensure_apt_source "$eci_repo_list_file" "$eci_repo_list";
+        if [ "$rs_use_eci" = true ]; then
+            ensure_apt_key "$eci_key_file" "$eci_key_url" --dearmor;
+            ensure_apt_source "$eci_repo_list_file" "$eci_repo_list";
+        fi;
         ensure_apt_key "$rs_key_file" "$rs_key_url" --dearmor;
         ensure_apt_source "$rs_list" "$rs_deb_entry";
         ensure_apt update -y;
@@ -5243,7 +5296,7 @@ debian_55_install_realsense ()
 debian_55_install_ros_openvino () 
 { 
     configure_ros_openvino;
-    if verify_ros_openvino && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_ros_openvino && ! ensure_parse_reinstall "$@"; then
         echo "ROS 2 OpenVINO toolkit is installed." 1>&2;
     else
         ensure_prop set installed/ros_openvino/owned true;
@@ -5280,7 +5333,7 @@ debian_55_profile_realsense ()
 debian_55_profile_ros_openvino () 
 { 
     echo "curl gnupg ros2 libze1 debconf_utils";
-    [[ " $* " = *" --realtime "* ]] || echo "edge_base"
+    ensure_parse_option --realtime "$@" || echo "edge_base"
 }
 debian_55_remove_cdi () 
 { 
@@ -5299,7 +5352,7 @@ debian_55_remove_realsense ()
 { 
     configure_realsense;
     local package owned_packages=();
-    for package in "${rs_packages[@]}" ros-humble-librealsense2 ros-jazzy-librealsense2;
+    for package in librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl librealsense2-udev-rules ros-humble-librealsense2 ros-jazzy-librealsense2;
     do
         if [ "$(ensure_prop get "installed/realsense/packages/$package")" = true ]; then
             owned_packages+=("$package");
@@ -5361,68 +5414,25 @@ debian_55_sbom_ros_openvino ()
     echo "---";
     ensure_sbom_format pkg-list curl gnupg
 }
-debian_60_install_edge_node_infrastructure_blueprint () 
-{ 
-    configure_edge_node_infrastructure_blueprint $*;
-    if [ $deployment_conflict -eq 1 ]; then
-        echo "Conflicting deployment models: select either --docker or --k3s." 1>&2;
-        return 1;
-    fi;
-    if [ "$deployment" = k3s ] && { 
-        [[ " $* " = *" handheld_multi_modal "* ]] || [ -d "$(ensure_project_path)/$installer_name/installed/handheld_multi_modal" ]
-    }; then
-        echo "The K3s deployment model is not yet supported with handheld_multi_modal (both use TCP port 6443)." 1>&2;
-        echo "Use the Docker deployment model (to switch: openedge-cli install edge_node_infrastructure_blueprint --reinstall --docker)." 1>&2;
-        return 1;
-    fi;
-    if [ -n "$installed_deployment" ] && [ "$installed_deployment" != "$deployment" ] && [[ " $* " != *" --reinstall "* ]]; then
-        echo "edge_node_infrastructure_blueprint is installed with $installed_deployment, but $deployment was requested." 1>&2;
-        echo "To switch, run: openedge-cli install edge_node_infrastructure_blueprint --reinstall --$deployment" 1>&2;
-        return 1;
-    fi;
-    if verify_edge_node_infrastructure_blueprint && [[ " $* " != *" --reinstall "* ]]; then
-        echo "edge_node_infrastructure_blueprint ($deployment) is installed." 1>&2;
-    else
-        [ "$deployment" = k3s ] || uninstall_k3s_edge_node_infrastructure_blueprint;
-        ensure_git_clone "$workspace" $version $repository;
-        cd "$workspace";
-        ensure_sudo make $deployment;
-        echo "$deployment" > "$workspace"/.oep-deployment;
-        installed_deployment=$deployment;
-        verify_edge_node_infrastructure_blueprint;
-    fi;
-    echo "@@HIGHLIGHT deployment model: $deployment";
-    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
-}
-debian_60_profile_edge_node_infrastructure_blueprint () 
-{ 
-    echo "git make curl docker_io"
-}
-debian_60_remove_edge_node_infrastructure_blueprint () 
-{ 
-    configure_edge_node_infrastructure_blueprint $*;
-    uninstall_k3s_edge_node_infrastructure_blueprint;
-    ensure_rm "$workspace"
-}
 debian_70_install_edge_pack_media_ffmpeg () 
 { 
     configure_edge_pack_media_ffmpeg "$@";
-    if ensure_apt_is_installed intel-edge-media-ffmpeg && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-media-ffmpeg && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-media-ffmpeg is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_ffmpeg/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg onevpl-tools || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*";
     fi
 }
 debian_70_install_edge_pack_media_gst () 
 { 
     configure_edge_pack_media_gst "$@";
-    if ensure_apt_is_installed intel-edge-media-gst && [[ " $* " != *" --reinstall "* ]]; then
+    if ensure_apt_is_installed intel-edge-media-gst && ! ensure_parse_reinstall "$@"; then
         echo "intel-edge-media-gst is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_gst/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-gst || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-gst onevpl-tools || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*";
     fi
 }
@@ -5447,7 +5457,7 @@ debian_70_install_nodejs ()
 debian_70_install_openvino () 
 { 
     configure_openvino "$@";
-    if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_openvino && ! ensure_parse_reinstall "$@"; then
         echo "openvino-${version} is installed." 1>&2;
     else
         ensure_disk_size 1500;
@@ -5468,7 +5478,7 @@ debian_70_install_openvino ()
 debian_70_install_time_confighub () 
 { 
     configure_time_confighub;
-    if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_pcm && ! ensure_parse_reinstall "$@"; then
         echo "Time-Confighub is installed." 1>&2;
     else
         configure_kernel_module_essential_debian "$@";
@@ -5494,7 +5504,7 @@ debian_70_profile_mediamtx ()
 debian_70_profile_openvino () 
 { 
     echo "curl gnupg python3_venv edge_base";
-    if [[ " $* " = *" --validate "* ]]; then
+    if ensure_parse_option --validate "$@" || [ "$1" = "bootstrap" ]; then
         echo "build_essential cmake";
     fi
 }
@@ -5569,7 +5579,7 @@ debian_70_sbom_openvino ()
 debian_75_install_dlstreamer () 
 { 
     configure_dlstreamer "$@";
-    if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_dlstreamer && ! ensure_parse_reinstall "$@"; then
         echo "dlstreamer-${version} is installed." 1>&2;
     else
         ensure_disk_size 15000;
@@ -5617,7 +5627,7 @@ debian_75_sbom_dlstreamer ()
 debian_80_install_anomalib () 
 { 
     configure_anomalib "$@";
-    if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_anomalib && ! ensure_parse_reinstall "$@"; then
         echo "Anomalib is installed." 1>&2;
     else
         ensure_disk_size 15000;
@@ -5644,11 +5654,23 @@ debian_80_remove_anomalib ()
     ensure_rm "$workspace";
     ensure_skills remove "${skills[@]}"
 }
+debian_85_group_handheld_blueprint () 
+{ 
+    echo "audio:29 video:44 render:992"
+}
+debian_85_group_mission_decision_support_blueprint () 
+{ 
+    echo "audio:29 video:44 render:992"
+}
+debian_85_group_uncrewed_aerial_vehicle_blueprint () 
+{ 
+    echo "audio:29 video:44 render:992"
+}
 debian_85_install_esq () 
 { 
     configure_uv;
     configure_esq;
-    if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
+    if uv tool list 2> /dev/null | grep -q -E "^esq " && ! ensure_parse_reinstall "$@"; then
         echo "Esq is installed." 1>&2;
     else
         ensure_disk_size 25000;
@@ -5677,7 +5699,7 @@ debian_85_install_uncrewed_aerial_vehicle_blueprint ()
 debian_85_install_video_search_and_summarization () 
 { 
     configure_video_search_and_summarization "$@";
-    if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_video_search_and_summarization && ! ensure_parse_reinstall "$@"; then
         echo "Video Search and Summarization is installed." 1>&2;
     else
         ensure_disk_size 8000;
@@ -5771,7 +5793,7 @@ debian_85_stop_video_search_and_summarization ()
 debian_90_install_agentic_predictive_maintenance_pipeline () 
 { 
     configure_agentic_predictive_maintenance_pipeline "$@";
-    if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_agentic_predictive_maintenance_pipeline && ! ensure_parse_reinstall "$@"; then
         echo "Agentic Predictive Maintenance Pipeline is installed." 1>&2;
     else
         ensure_disk_size 15000;
@@ -5794,7 +5816,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline ()
 debian_90_install_agentic_smart_community () 
 { 
     configure_agentic_smart_community "$@";
-    if verify_agentic_smart_community && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_agentic_smart_community && ! ensure_parse_reinstall "$@"; then
         echo "Agentic Smart Community is installed." 1>&2;
     else
         ensure_disk_size 2000;
@@ -5811,7 +5833,7 @@ debian_90_install_agentic_smart_community ()
 debian_90_install_autonomous_mobile_robot () 
 { 
     configure_autonomous_mobile_robot "$@";
-    if verify_autonomous_mobile_robot "$@" && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_autonomous_mobile_robot "$@" && ! ensure_parse_reinstall "$@"; then
         echo "Autonomous Mobile Robot is installed." 1>&2;
     else
         ensure_disk_size $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000);
@@ -5848,7 +5870,7 @@ debian_90_install_deterministic_threat_detection ()
         esac;
     done <<< "$installed";
     configure_deterministic_threat_detection;
-    if verify_deterministic_threat_detection && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_deterministic_threat_detection && ! ensure_parse_reinstall "$@"; then
         echo "Deterministic Threat Detection source is already available." 1>&2;
     else
         echo "@@STEP Downloading Deterministic Threat Detection";
@@ -5864,7 +5886,7 @@ debian_90_install_deterministic_threat_detection ()
 debian_90_install_digital_signage () 
 { 
     configure_digital_signage "$@";
-    if verify_digital_signage && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_digital_signage && ! ensure_parse_reinstall "$@"; then
         echo "Digital Signage is installed." 1>&2;
     else
         ensure_disk_size 25000;
@@ -5894,7 +5916,7 @@ EOF
 debian_90_install_dine_in () 
 { 
     configure_dine_in "$@";
-    if verify_dine_in && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_dine_in && ! ensure_parse_reinstall "$@"; then
         echo "Order accuracy is installed." 1>&2;
     else
         ensure_disk_size 45000;
@@ -5932,16 +5954,23 @@ debian_90_install_handheld_multi_modal ()
             ;;
         esac;
     done <<< "$installed";
-    configure_handheld_multi_modal;
-    if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
+    configure_handheld_multi_modal "$@";
+    if verify_handheld_multi_modal $* && ! ensure_parse_reinstall "$@"; then
         echo "handheld_multi_modal is installed." 1>&2;
     else
         ensure_disk_size 45000;
-        ensure_ports_open install handheld_multi_modal "${used_ports[@]}";
+        echo "@@STEP Removing conflicting app";
+        ensure_ports_open install handheld_multi_modal "${used_ports[@]}" || { 
+            docker rm -f handheld-multi-modal-model-downloader-1 || true;
+            ensure_ports_open install handheld_multi_modal "${used_ports[@]}"
+        };
+        echo "@@STEP Cloning repository";
         ensure_git_clone "$workspace" $version $repository handheld-multi-modal;
+        echo "@@STEP Setting up sample";
         cd "$workspace"/handheld-multi-modal;
         make setup;
         make prereq CONFIRM=yes;
+        echo "@@STEP Pulling images";
         docker compose -f compose/handheld-multi-modal.yaml -f compose/cameras.yaml -f config/devices.yaml pull --ignore-buildable;
         verify_handheld_multi_modal $*;
     fi;
@@ -5951,11 +5980,11 @@ debian_90_install_handheld_multi_modal ()
 debian_90_install_humanoid_imitation_learning () 
 { 
     configure_humanoid_imitation_learning "$@";
-    if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_humanoid_imitation_learning "$@" && ! ensure_parse_reinstall "$@"; then
         echo "Humanoid - Imitation Learning is installed." 1>&2;
     else
         ensure_disk_size 25000;
-        if ! verify_humanoid_imitation_learning_workspace || [[ " $* " = *" --reinstall "* ]]; then
+        if ! verify_humanoid_imitation_learning_workspace || ensure_parse_reinstall "$@"; then
             ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers;
             docker image rm -f "$humanoid_base_image" > /dev/null 2>&1 || true;
         fi;
@@ -5984,7 +6013,7 @@ debian_90_install_humanoid_imitation_learning ()
 debian_90_install_image_based_video_search () 
 { 
     configure_image_based_video_search "$@";
-    if verify_image_based_video_search && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_image_based_video_search && ! ensure_parse_reinstall "$@"; then
         echo "Video Search and Summarization is installed." 1>&2;
     else
         ensure_disk_size 8000;
@@ -6020,7 +6049,7 @@ EOF
 debian_90_install_live_video_alert_agent () 
 { 
     configure_live_video_alert_agent "$@";
-    if verify_live_video_alert_agent && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_live_video_alert_agent && ! ensure_parse_reinstall "$@"; then
         echo "Live Video Alert Agent is installed." 1>&2;
     else
         ensure_disk_size 15000;
@@ -6037,7 +6066,7 @@ debian_90_install_live_video_alert_agent ()
 debian_90_install_live_video_captioning () 
 { 
     configure_live_video_captioning "$@";
-    if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_live_video_captioning && ! ensure_parse_reinstall "$@"; then
         echo "Live Video Captioning is installed." 1>&2;
     else
         ensure_disk_size 10000;
@@ -6060,7 +6089,7 @@ debian_90_install_live_video_captioning ()
 debian_90_install_live_video_captioning_rag () 
 { 
     configure_live_video_captioning_rag "$@";
-    if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_live_video_captioning_rag && ! ensure_parse_reinstall "$@"; then
         echo "Live Video Captioning RAG is installed." 1>&2;
     else
         ensure_disk_size 20000;
@@ -6084,7 +6113,7 @@ debian_90_install_live_video_captioning_rag ()
 debian_90_install_live_video_search () 
 { 
     configure_live_video_search "$@";
-    if verify_live_video_search && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_live_video_search && ! ensure_parse_reinstall "$@"; then
         echo "Live Video Search is installed." 1>&2;
     else
         ensure_disk_size 25000;
@@ -6100,7 +6129,7 @@ debian_90_install_live_video_search ()
 debian_90_install_loitering_detection () 
 { 
     configure_loitering_detection "$@";
-    if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_loitering_detection && ! ensure_parse_reinstall "$@"; then
         echo "Loitering detection is installed." 1>&2;
     else
         ensure_disk_size 10000;
@@ -6120,14 +6149,18 @@ debian_90_install_loitering_detection ()
 debian_90_install_loss_prevention () 
 { 
     configure_loss_prevention;
-    if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_loss_prevention && ! ensure_parse_reinstall "$@"; then
         echo "Loss prevention is installed." 1>&2;
     else
         ensure_disk_size 15000;
         ensure_ports_open install loss_prevention "${used_ports[@]}";
         echo "@@STEP Clonging repository";
         ensure_git_clone "$workspace" $version $repository;
-        pushd "$workspace" > /dev/null;
+        cd "$workspace";
+        sed -i 's|^benchmark-stream-density: .*|benchmark-stream-density:|' Makefile;
+        sed -i 's|^benchmark: .*|benchmark:|' Makefile;
+        sed -i 's|^run-lp: .*|run-lp:|' Makefile;
+        touch .camera_stream .workload_dist .benchmark_mode;
         cat > src/.env <<EOF
 MINIO_ROOT_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 MINIO_ROOT_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
@@ -6135,18 +6168,6 @@ MINIO_API_HOST_PORT="4000"
 MINIO_CONSOLE_HOST_PORT="4001"
 RABBITMQ_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 RABBITMQ_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
-LP_IP="$(ensure_ip)"
-LP_BASE_DIR="$workspace"
-LLM_BASE_DIR="$workspace/microservices/vlm/ov-models"
-VLM_SERVICE_PORT="8000"
-LOW_LATENCY=1
-DROP_OLD_FRAMES=1
-MEDIAN_LATENCY=0
-USER_GROUP_ID=$(id -g)
-VIDEO_GROUP_ID=$(getent group video | cut -f3 -d:)
-RENDER_GROUP_ID=$(getent group render | cut -f3 -d:)
-LOCAL_UID=$(id -u)
-LOCAL_GID=$(id -g)
 EOF
 
         echo "@@STEP Building benchmark";
@@ -6162,16 +6183,16 @@ EOF
     local device=$(ensure_parse_device "$@");
     configure_loss_prevention_options "$device" "$@" --lp;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
-    echo "@@HIGHLIGHT $installer_name start --od";
-    echo "@@HIGHLIGHT $installer_name start --oc";
-    echo "@@HIGHLIGHT $installer_name start --age";
-    echo "@@HIGHLIGHT $installer_name start --lp";
-    echo "@@HIGHLIGHT $installer_name start --lpvlm"
+    echo "@@HIGHLIGHT $installer_name start --od [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --oc [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --age [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --lp [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --lpvlm [--benchmark]"
 }
 debian_90_install_multi_modal_patient_monitoring () 
 { 
     configure_multi_modal_patient_monitoring "$@";
-    if verify_multi_modal_patient_monitoring && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_multi_modal_patient_monitoring && ! ensure_parse_reinstall "$@"; then
         echo "Multi Modal Patient Monitoring is installed" 1>&2;
     else
         ensure_disk_size 50000;
@@ -6201,7 +6222,7 @@ debian_90_install_multi_modal_patient_monitoring ()
 debian_90_install_multimodal_weld_defect_detection () 
 { 
     configure_multimodal_weld_defect_detection "$@";
-    if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_multimodal_weld_defect_detection && ! ensure_parse_reinstall "$@"; then
         echo "Multimodal weld defect detection is installed." 1>&2;
     else
         ensure_disk_size 15000;
@@ -6228,7 +6249,7 @@ EOF
 debian_90_install_nicu_warmer () 
 { 
     configure_nicu_warmer "$@";
-    if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_nicu_warmer && ! ensure_parse_reinstall "$@"; then
         echo "NICU Warmer is installed." 1>&2;
     else
         ensure_disk_size 15000;
@@ -6258,7 +6279,7 @@ debian_90_install_nicu_warmer ()
 debian_90_install_pallet_defect_detection () 
 { 
     configure_pallet_defect_detection "$@";
-    if verify_pallet_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_pallet_defect_detection && ! ensure_parse_reinstall "$@"; then
         echo "Pallet defect detection is installed." 1>&2;
     else
         ensure_disk_size 10000;
@@ -6291,7 +6312,7 @@ EOF
 debian_90_install_pcb_anomaly_detection () 
 { 
     configure_pcb_anomaly_detection "$@";
-    if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_pcb_anomaly_detection && ! ensure_parse_reinstall "$@"; then
         echo "PCB anomaly detection is installed." 1>&2;
     else
         ensure_disk_size 10000;
@@ -6321,12 +6342,34 @@ EOF
     echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
+debian_90_install_person_of_interest () 
+{ 
+    configure_person_of_interest "$@";
+    if verify_person_of_interest && ! ensure_parse_reinstall "$@"; then
+        echo "Person of Interest is installed" 1>&2;
+    else
+        ensure_disk_size 15000;
+        ensure_ports_open install person_of_interest "${used_ports[@]}";
+        echo "@@STEP Cloning repository";
+        ensure_git_export "$workspace" "$version" "$repository" person-of-interest scenescape;
+        echo "@@STEP Downloading videos";
+        cd "$workspace"/person-of-interest;
+        sed -i 's|@curl |@curl -f |' Makefile;
+        make download-sample-video;
+        verify_person_of_interest;
+    fi;
+    local device="$(ensure_parse_device "$@")";
+    echo "$device" > "$workspace"/.input;
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
+    echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
+    echo "@@HIGHLIGHT $installer_name remove"
+}
 debian_90_install_physical_ai_framework () 
 { 
     configure_physical_ai_framework;
     configure_physical_ai_framework_device "$@";
     configure_uv;
-    if verify_physical_ai_framework "$@" && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_physical_ai_framework "$@" && ! ensure_parse_reinstall "$@"; then
         echo "Physical AI Framework is installed." 1>&2;
     else
         ensure_disk_size 15000;
@@ -6342,7 +6385,7 @@ debian_90_install_physical_ai_framework ()
             return 3
         };
         echo "$paif_extra" > "$paif_device_file";
-        if [[ " $* " = *" --validate "* ]]; then
+        if ensure_parse_option --validate "$@"; then
             "$paif_venv/bin/physicalai" --help > /dev/null;
             "$paif_venv/bin/python" - "$paif_extra" <<'EOF'
 import sys
@@ -6369,7 +6412,7 @@ debian_90_install_physical_ai_studio ()
     configure_physical_ai_studio;
     configure_physical_ai_studio_device "$@";
     configure_uv;
-    if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_physical_ai_studio "$@" && ! ensure_parse_reinstall "$@"; then
         echo "Physical AI Studio is installed." 1>&2;
     else
         ensure_disk_size 20000;
@@ -6394,7 +6437,7 @@ debian_90_install_physical_ai_studio ()
 debian_90_install_post_fusion () 
 { 
     configure_post_fusion "$@";
-    if verify_post_fusion && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_post_fusion && ! ensure_parse_reinstall "$@"; then
         echo "Sensor Fusion for Traffic Management - Post Fusion is installed." 1>&2;
     else
         ensure_disk_size 300;
@@ -6420,7 +6463,7 @@ EOF
 debian_90_install_real_time_scene_understanding () 
 { 
     configure_real_time_scene_understanding;
-    if verify_real_time_scene_understanding && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_real_time_scene_understanding && ! ensure_parse_reinstall "$@"; then
         echo "Live Video Captioning is installed." 1>&2;
     else
         ensure_disk_size 64000;
@@ -6444,7 +6487,7 @@ debian_90_install_real_time_scene_understanding ()
 debian_90_install_scenescape () 
 { 
     configure_scenescape "$@";
-    if verify_scenescape && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_scenescape && ! ensure_parse_reinstall "$@"; then
         echo "Scenescape is installed." 1>&2;
     else
         ensure_disk_size 300;
@@ -6462,7 +6505,7 @@ debian_90_install_scenescape ()
 debian_90_install_smart_intersection () 
 { 
     configure_smart_intersection "$@";
-    if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_smart_intersection && ! ensure_parse_reinstall "$@"; then
         echo "Smart intersection is installed." 1>&2;
     else
         ensure_disk_size 1500;
@@ -6483,7 +6526,7 @@ debian_90_install_smart_intersection ()
 debian_90_install_smart_kiosk_assistant () 
 { 
     configure_smart_kiosk_assistant "$@";
-    if verify_smart_kiosk_assistant && [[ " $* " = *" --reinstall "* ]]; then
+    if verify_smart_kiosk_assistant && ! ensure_parse_reinstall "$@"; then
         echo "Smart Kiosk Assistant is installed." 1>&2;
     else
         ensure_disk_size 300;
@@ -6511,7 +6554,7 @@ debian_90_install_smart_kiosk_assistant ()
 debian_90_install_smart_nvr () 
 { 
     configure_smart_nvr "$@";
-    if verify_smart_nvr && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_smart_nvr && ! ensure_parse_reinstall "$@"; then
         echo "Smart NVR is installed." 1>&2;
     else
         ensure_disk_size 3000;
@@ -6526,7 +6569,7 @@ debian_90_install_smart_nvr ()
 debian_90_install_smart_parking () 
 { 
     configure_smart_parking "$@";
-    if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_smart_parking && ! ensure_parse_reinstall "$@"; then
         echo "Smart parking is installed." 1>&2;
     else
         echo "@@STEP @@IF ^docker compose down @@THEN Stopping all apps";
@@ -6554,7 +6597,7 @@ debian_90_install_smart_parking ()
 debian_90_install_smart_traffic_intersection_agent () 
 { 
     configure_smart_traffic_intersection_agent "$@";
-    if verify_smart_traffic_intersection_agent && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_smart_traffic_intersection_agent && ! ensure_parse_reinstall "$@"; then
         echo "Smart Traffic Intersection Agent is installed." 1>&2;
     else
         ensure_disk_size 16000;
@@ -6562,6 +6605,8 @@ debian_90_install_smart_traffic_intersection_agent ()
         ensure_ports_open install smart_traffic_intersection_agent "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" smart-traffic-intersection-agent;
         cd "$workspace"/smart-traffic-intersection-agent;
+        sed -i "s|\"agent_backend_port\":.*|\"agent_backend_port\": \"${used_ports[1]}\"|" src/config/deployment_instance.json;
+        sed -i "s|\"agent_ui_port\":.*|\"agent_ui_port\": \"${used_ports[0]}\"|" src/config/deployment_instance.json;
         . ./setup.sh --setenv;
         touch docker/ri-compose.yaml;
         check_and_setup_dependencies;
@@ -6576,7 +6621,7 @@ debian_90_install_smart_traffic_intersection_agent ()
 debian_90_install_stationary_robot_vision () 
 { 
     configure_stationary_robot_vision;
-    if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_stationary_robot_vision && ! ensure_parse_reinstall "$@"; then
         echo "Stationary Robot Vision & Control is installed." 1>&2;
     else
         ensure_disk_size 15000;
@@ -6599,7 +6644,7 @@ debian_90_install_stationary_robot_vision ()
 debian_90_install_surgical_instrument () 
 { 
     configure_surgical_instrument "$@";
-    if verify_surgical_instrument && [[ " $* " = *" --reinstall "* ]]; then
+    if verify_surgical_instrument && ! ensure_parse_reinstall "$@"; then
         echo "Surgical Instrument is installed" 1>&2;
     else
         ensure_disk_size 70000;
@@ -6610,7 +6655,7 @@ debian_90_install_surgical_instrument ()
         verify_surgical_instrument;
     fi;
     cd "$workspace"/surgical-instrument;
-    if [ ! -e "$polyp_model" ] && [[ " $* " = *" --train "* ]]; then
+    if [ ! -e "$polyp_model" ] && ensure_parse_option --train "$@"; then
         make download-dataset;
         make prepare-dataset MAX_POS_PER_VIDEO=800;
         make backend-bootstrap;
@@ -6625,10 +6670,38 @@ debian_90_install_surgical_instrument ()
         echo "@@HIGHLIGHT $installer_name start|remove";
     fi
 }
+debian_90_install_suspicious_activity_detection () 
+{ 
+    configure_suspicious_activity_detection "$@";
+    if verify_suspicious_activity_detection && ! ensure_parse_reinstall "$@"; then
+        echo "Suspicious Activity Detection is installed" 1>&2;
+    else
+        ensure_disk_size 15000;
+        ensure_ports_open install suspicious_activity_detection "${used_ports[@]}";
+        echo "@@STEP Cloning repository";
+        ensure_git_export "$workspace" "$version" "$repository" suspicious-activity-detection scenescape .gitmodules;
+        local el_repo="$(sed -n '/submodule ["]edge-ai-libraries["]/,/\[/{/url *=/{p}}' "$workspace"/.gitmodules | cut -f2- -d= | tr -d ' ')";
+        local el_ver="$(sed -n '/submodule ["]edge-ai-libraries["]/,/\[/{/branch *=/{p}}' "$workspace"/.gitmodules | cut -f2- -d= | tr -d ' ')";
+        ensure_git_export "$workspace/edge-ai-libraries" "$el_ver" "$el_repo" microservices/behavioral-analysis;
+        echo "@@STEP Downloading videos";
+        cd "$workspace"/suspicious-activity-detection;
+        local use_case="$(ensure_parse_value_option usecase --usecase=retail "$@")";
+        make download-sample-data USE_CASE="$use_case";
+        echo "$use_case" > "$workspace"/.usecase;
+        echo "@@STEP Download models";
+        make download-models;
+        verify_suspicious_activity_detection;
+    fi;
+    local device="$(ensure_parse_device "$@")";
+    echo "$device" > "$workspace"/.input;
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
+    echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
+    echo "@@HIGHLIGHT $installer_name remove"
+}
 debian_90_install_take_away () 
 { 
     configure_take_away "$@";
-    if verify_take_away && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_take_away && ! ensure_parse_reinstall "$@"; then
         echo "Order accuracy Take Away is installed." 1>&2;
     else
         ensure_disk_size 10000;
@@ -6651,6 +6724,35 @@ debian_90_install_take_away ()
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
+debian_90_install_uav_mission_compute_sdk () 
+{ 
+    configure_uav_mission_compute_sdk;
+    if verify_uav_mission_compute_sdk && ! ensure_parse_reinstall "$@"; then
+        echo "uav_mission_compute_sdk is installed." 1>&2;
+    else
+        . /etc/os-release;
+        if [[ "$ID" != ubuntu || "$VERSION_ID" != 24.04 ]]; then
+            echo "UAV Mission Compute SDK requires Ubuntu 24.04." 1>&2;
+            return 3;
+        fi;
+        ensure_disk_size 20000 || return $?;
+        ensure_ram_size 16000000 || return $?;
+        uav_mission_compute_sdk_checkout || return $?;
+        local source_commit;
+        source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?;
+        cd "$sdk_path" || return $?;
+        make init || return $?;
+        sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
+        if [ ! -r "$sdk_path/Makefile" ] || [ ! -r "$sdk_path/.env" ] || [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" != "$source_commit" ]; then
+            echo "Mission Compute SDK initialization did not produce the expected source and .env." 1>&2;
+            return 1;
+        fi;
+        ensure_prop set installed/uav_mission_compute_sdk "$source_commit" || return $?;
+        verify_uav_mission_compute_sdk || return $?;
+    fi;
+    echo "@@HIGHLIGHT workspace: $sdk_path";
+    echo "@@HIGHLIGHT $installer_name start|stop|remove uav_mission_compute_sdk"
+}
 debian_90_install_uncrewed_aerial_vehicle_ground_station () 
 { 
     ground_station_install_uav_application uncrewed_aerial_vehicle_ground_station ground-station "$@"
@@ -6662,7 +6764,7 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics ()
 debian_90_install_video_processing_for_nvr () 
 { 
     configure_video_processing_for_nvr "$@";
-    if verify_video_processing_for_nvr && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_video_processing_for_nvr && ! ensure_parse_reinstall "$@"; then
         echo "Video Processing for NVR is already installed." 1>&2;
     else
         ensure_disk_size 300;
@@ -6709,7 +6811,7 @@ ov.save_model(ppp.build(), "modified_yolov8n/yolov8n.xml")
 debian_90_install_vippet () 
 { 
     configure_vippet "$@";
-    if verify_vippet && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_vippet && ! ensure_parse_reinstall "$@"; then
         echo "Vipet is installed." 1>&2;
     else
         ensure_ports_open install vippet "${used_ports[@]}";
@@ -6724,7 +6826,7 @@ debian_90_install_vippet ()
 debian_90_install_visual_search_question_and_answering () 
 { 
     configure_visual_search_question_and_answering "$@";
-    if verify_visual_search_question_and_answering && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_visual_search_question_and_answering && ! ensure_parse_reinstall "$@"; then
         echo "Visual search question and answering is installed." 1>&2;
     else
         ensure_disk_size 8000;
@@ -6751,7 +6853,7 @@ debian_90_install_visual_search_question_and_answering ()
 debian_90_install_wind_turbine_anomaly_detection () 
 { 
     configure_wind_turbine_anomaly_detection "$@";
-    if verify_wind_turbine_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_wind_turbine_anomaly_detection && ! ensure_parse_reinstall "$@"; then
         echo "Wind turbine anomaly detection is installed." 1>&2;
     else
         ensure_disk_size 64000;
@@ -6808,17 +6910,13 @@ debian_90_profile_dine_in ()
 }
 debian_90_profile_edge_base_robotics () 
 { 
+    echo "core_types system_inspection system_summary ros2 ros_openvino realsense";
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel ros2 ros_openvino realsense"
+            echo "edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel"
         ;;
         *)
-            echo "ros2 ros_openvino realsense";
-            if [[ " $* " = *" --realtime "* ]] && [[ "$(uname -r)" = "7."* ]] && configure_edge_pack_kernel_image "$@"; then
-                echo "core_types system_inspection system_summary edge_pack_base_realtime edge_pack_npu";
-            else
-                echo "edge_base";
-            fi
+            configure_edge_pack_selection "edge_pack_base_realtime edge_pack_npu" "$@"
         ;;
     esac
 }
@@ -6882,6 +6980,10 @@ debian_90_profile_pcb_anomaly_detection ()
 { 
     echo "git curl gawk edge_base docker_io"
 }
+debian_90_profile_person_of_interest () 
+{ 
+    echo "docker_io edge_base git make curl"
+}
 debian_90_profile_physical_ai_framework () 
 { 
     echo "git curl edge_base uv ffmpeg"
@@ -6930,9 +7032,17 @@ debian_90_profile_surgical_instrument ()
 { 
     echo "edge_base docker_io git make python3_venv gnupg wget"
 }
+debian_90_profile_suspicious_activity_detection () 
+{ 
+    echo "docker_io edge_base git make curl"
+}
 debian_90_profile_take_away () 
 { 
     echo "git curl gawk make python3_venv docker_io edge_base"
+}
+debian_90_profile_uav_mission_compute_sdk () 
+{ 
+    echo "docker_io edge_base git make"
 }
 debian_90_profile_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -7001,9 +7111,9 @@ debian_90_remove_geti ()
 }
 debian_90_remove_handheld_multi_modal () 
 { 
-    configure_handheld_multi_modal;
+    debian_90_stop_handheld_multi_modal "$@";
     local app_dir="$workspace"/handheld-multi-modal;
-    [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes );
+    [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes || true );
     ensure_rm "$workspace"
 }
 debian_90_remove_humanoid_imitation_learning () 
@@ -7076,6 +7186,11 @@ debian_90_remove_pallet_defect_detection ()
 debian_90_remove_pcb_anomaly_detection () 
 { 
     debian_90_stop_pcb_anomaly_detection;
+    ensure_rm "$workspace"
+}
+debian_90_remove_person_of_interest () 
+{ 
+    debian_90_stop_person_of_interest "$@";
     ensure_rm "$workspace"
 }
 debian_90_remove_physical_ai_framework () 
@@ -7152,10 +7267,32 @@ debian_90_remove_surgical_instrument ()
     configure_surgical_instrument "$@";
     ensure_rm "$workspace"
 }
+debian_90_remove_suspicious_activity_detection () 
+{ 
+    debian_90_stop_suspicious_activity_detection "$@";
+    ensure_rm "$workspace"
+}
 debian_90_remove_take_away () 
 { 
     debian_90_stop_take_away "$@";
     ensure_rm "$workspace"
+}
+debian_90_remove_uav_mission_compute_sdk () 
+{ 
+    configure_uav_mission_compute_sdk;
+    if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk)" ]; then
+        echo "uav_mission_compute_sdk is not installed." 1>&2;
+        return 0;
+    fi;
+    if [ ! -f "$sdk_path/Makefile" ]; then
+        echo "Mission Compute SDK source is missing; cannot stop its containers safely." 1>&2;
+        return 1;
+    fi;
+    cd "$sdk_path" || return $?;
+    make down || return $?;
+    ensure_prop remove started/uav_mission_compute_sdk/ || return $?;
+    ensure_rm "$workspace" || return $?;
+    ensure_prop remove installed/uav_mission_compute_sdk
 }
 debian_90_remove_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -7264,11 +7401,11 @@ debian_90_start_geti ()
 }
 debian_90_start_handheld_multi_modal () 
 { 
-    configure_handheld_multi_modal;
+    configure_handheld_multi_modal "$@";
     ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     cd "$workspace"/handheld-multi-modal;
     make up CONFIRM=yes;
-    echo "@@HIGHLIGHT URL: https://localhost:8443/ (trust config/tls/server.crt)";
+    echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)";
     echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 debian_90_start_image_based_video_search () 
@@ -7361,17 +7498,31 @@ debian_90_start_loss_prevention ()
     configure_loss_prevention;
     ensure_ports_open start loss_prevention "${used_ports[@]}";
     cd "$workspace";
-    local device1=$(ensure_parse_device "$@");
-    local device2=$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ');
-    [[ " $* " = *" --$device1 "* || " $* " = *" --${device1^^} "* ]] || device1="${device2,,}";
+    local device1="$(ensure_parse_device "$@")";
+    local device2="$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ')";
+    ensure_parse_option --"$device1" "$@" || ensure_parse_option --"${device1^^}" "$@" || device1="${device2,,}";
     configure_loss_prevention_options "$device1" "$@";
     make down-lp 2> /dev/null || true;
-    make -o build-benchmark -o download-sample-videos -o download-models benchmark-stream-density;
-    echo "@@HIGHLIGHT $installer_name start --od";
-    echo "@@HIGHLIGHT $installer_name start --oc";
-    echo "@@HIGHLIGHT $installer_name start --age";
-    echo "@@HIGHLIGHT $installer_name start --lp";
-    echo "@@HIGHLIGHT $installer_name start --lpvlm";
+    local camera_stream="$(< .camera_stream)" workload_dist="$(< .workload_dist)";
+    ensure_rm benchmark results;
+    if ensure_parse_option --benchmark "$@"; then
+        if [[ "$workload_dist" = *"vlm"* ]]; then
+            make benchmark CAMERA_STREAM="$camera_stream" WORKLOAD_DIST="$workload_dist";
+        else
+            make benchmark-stream-density CAMERA_STREAM="$camera_stream" WORKLOAD_DIST="$workload_dist" & local pid_b=$!;
+            while kill -0 $pid_b; do
+                sleep 1;
+                find benchmark -name stream_density.log -exec tail --pid=$pid_b -f {} \;;
+            done & wait;
+        fi;
+    else
+        make run-lp CAMERA_STREAM="$camera_stream" WORKLOAD_DIST="$workload_dist";
+    fi;
+    echo "@@HIGHLIGHT $installer_name start --od [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --oc [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --age [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --lp [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --lpvlm [--benchmark]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
 debian_90_start_multi_modal_patient_monitoring () 
@@ -7534,6 +7685,26 @@ debian_90_start_pcb_anomaly_detection ()
         done
     }
 }
+debian_90_start_person_of_interest () 
+{ 
+    configure_person_of_interest "$@";
+    ensure_ports_open start person_of_interest "${used_ports[@]}";
+    local device="$(ensure_parse_device "$@")";
+    [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)";
+    cd "$workspace"/person-of-interest;
+    export HOST_IP=$(ensure_ip);
+    export NO_PROXY="$NO_PROXY,web.scenescape.intel.com,$HOST_IP" no_proxy="$no_proxy,web.scenescape.intel.com,$HOST_IP";
+    make init DEVICE=all-${device}.env;
+    make up;
+    echo "@@HIGHLIGHT UI: http://$HOST_IP:${used_ports[0]}";
+    if [ -e docker/.env ]; then
+        local supass="$(grep -m1 '^SUPASS=' docker/.env 2> /dev/null | cut -d= -f2-)";
+        echo "@@HIGHLIGHT UI Auth: admin/$supass";
+    fi;
+    echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
+    echo "@@HIGHLIGHT $installer_name stop";
+    echo "@@HIGHLIGHT $installer_name remove"
+}
 debian_90_start_physical_ai_studio () 
 { 
     configure_physical_ai_studio;
@@ -7691,6 +7862,7 @@ debian_90_start_smart_traffic_intersection_agent ()
     export HUGGINGFACE_TOKEN="$HF_TOKEN";
     cd "$workspace"/smart-traffic-intersection-agent;
     . ./setup.sh --run;
+    echo "@@HIGHLIGHT UI: http://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -7710,6 +7882,27 @@ debian_90_start_surgical_instrument ()
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name remove"
 }
+debian_90_start_suspicious_activity_detection () 
+{ 
+    configure_suspicious_activity_detection "$@";
+    ensure_ports_open start suspicious_activity_detection "${used_ports[@]}";
+    local device="$(ensure_parse_device "$@")";
+    [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)";
+    cd "$workspace"/suspicious-activity-detection;
+    export HOST_IP=$(ensure_ip);
+    export NO_PROXY="$NO_PROXY,web.scenescape.intel.com,$HOST_IP" no_proxy="$no_proxy,web.scenescape.intel.com,$HOST_IP";
+    local use_case="$(< ../.usecase)";
+    make init DEVICE=all-${device}.env USE_CASE="$use_case";
+    make up DEVICE=all-${device}.env USE_CASE="$use_case";
+    echo "@@HIGHLIGHT UI: http://$HOST_IP:${used_ports[0]}";
+    if [ -e docker/.env ]; then
+        local supass="$(grep -m1 '^SUPASS=' docker/.env 2> /dev/null | cut -d= -f2-)";
+        echo "@@HIGHLIGHT UI Auth: admin/$supass";
+    fi;
+    echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
+    echo "@@HIGHLIGHT $installer_name stop";
+    echo "@@HIGHLIGHT $installer_name remove"
+}
 debian_90_start_take_away () 
 { 
     configure_take_away "$@";
@@ -7721,6 +7914,44 @@ debian_90_start_take_away ()
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+debian_90_start_uav_mission_compute_sdk () 
+{ 
+    configure_uav_mission_compute_sdk;
+    verify_uav_mission_compute_sdk || { 
+        echo "uav_mission_compute_sdk is not installed or needs repair. Run install first." 1>&2;
+        return 1
+    };
+    cd "$sdk_path" || return $?;
+    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
+    if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
+        ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?;
+    fi;
+    if make up-sim-camera; then
+        :;
+    else
+        local rc=$?;
+        make down || return $?;
+        return "$rc";
+    fi;
+    local attempt;
+    for ((attempt=0; attempt<24; attempt++))
+    do
+        if verify_uav_mission_compute_sdk_running; then
+            break;
+        fi;
+        sleep 5;
+    done;
+    if [ "$attempt" -eq 24 ]; then
+        echo "Mission Compute SDK simulation did not start all expected services. Inspect Docker Compose logs in $sdk_path." 1>&2;
+        make down || return $?;
+        return 1;
+    fi;
+    ensure_prop create started/uav_mission_compute_sdk/ports || return $?;
+    ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?;
+    echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras";
+    echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080";
+    echo "@@HIGHLIGHT $installer_name stop uav_mission_compute_sdk"
 }
 debian_90_start_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -7870,9 +8101,9 @@ debian_90_stop_geti ()
 }
 debian_90_stop_handheld_multi_modal () 
 { 
-    configure_handheld_multi_modal;
-    cd "$workspace"/handheld-multi-modal;
-    make stop
+    configure_handheld_multi_modal "$@";
+    docker rm -f handheld-multi-modal-model-downloader-1 || true;
+    cd "$workspace"/handheld-multi-modal && make stop || true
 }
 debian_90_stop_image_based_video_search () 
 { 
@@ -7912,17 +8143,18 @@ debian_90_stop_live_video_search ()
 debian_90_stop_loitering_detection () 
 { 
     configure_loitering_detection "$@";
-    cd "$workspace"/metro-vision-ai-app-recipe;
-    ./sample_stop.sh || true;
-    docker compose -f compose-without-scenescape.yml down -v --remove-orphans || true
+    cd "$workspace"/metro-vision-ai-app-recipe && { 
+        ./sample_stop.sh || true;
+        docker compose -f compose-without-scenescape.yml down -v --remove-orphans
+    } || true
 }
 debian_90_stop_loss_prevention () 
 { 
     configure_loss_prevention;
     cd "$workspace" && { 
+        pkill -f "python3 benchmark.py" || true;
         make down-lp || true;
-        cd src && docker compose down -v --remove-orphans || true;
-        pkill -f "python3 benchmark.py"
+        cd src && docker compose down -v --remove-orphans || true
     } || true
 }
 debian_90_stop_multi_modal_patient_monitoring () 
@@ -7958,6 +8190,14 @@ debian_90_stop_pcb_anomaly_detection ()
     cd "$workspace"/industrial-edge-insights-vision && { 
         ./sample_stop.sh || true;
         docker compose down -v --remove-orphans
+    } || true
+}
+debian_90_stop_person_of_interest () 
+{ 
+    configure_person_of_interest "$@";
+    cd "$workspace"/person-of-interest && { 
+        make down || true;
+        make clean-all
     } || true
 }
 debian_90_stop_physical_ai_studio () 
@@ -8031,10 +8271,29 @@ debian_90_stop_smart_traffic_intersection_agent ()
         . ./setup.sh --clean --keep-models
     } || true
 }
+debian_90_stop_suspicious_activity_detection () 
+{ 
+    configure_suspicious_activity_detection "$@";
+    cd "$workspace"/suspicious-activity-detection && { 
+        make down || true;
+        make clean-all
+    } || true
+}
 debian_90_stop_take_away () 
 { 
     configure_take_away "$@";
     cd "$workspace"/take-away && make clean || true
+}
+debian_90_stop_uav_mission_compute_sdk () 
+{ 
+    configure_uav_mission_compute_sdk;
+    verify_uav_mission_compute_sdk || { 
+        echo "uav_mission_compute_sdk is not installed." 1>&2;
+        return 1
+    };
+    cd "$sdk_path" || return $?;
+    make down || return $?;
+    ensure_prop remove started/uav_mission_compute_sdk/
 }
 debian_90_stop_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -8071,6 +8330,61 @@ debian_90_stop_wind_turbine_anomaly_detection ()
     configure_wind_turbine_anomaly_detection "$@";
     cd "$workspace"/industrial-edge-insights-time-series && make down || true
 }
+debian_95_install_smart_route_planning_agent () 
+{ 
+    configure_smart_route_planning_agent "$@";
+    if verify_smart_route_planning_agent && ! ensure_parse_reinstall "$@"; then
+        echo "Smart Route Planning Agent is installed." 1>&2;
+    else
+        ensure_disk_size 10000;
+        ensure_ports_open install smart_route_planning_agent "${used_ports[@]}";
+        ensure_git_export "$workspace" "$version" "$repository" smart-route-planning-agent;
+        set -x;
+        cd "$workspace"/smart-route-planning-agent;
+        cat > src/data/config.json <<EOF
+{
+    "api_endpoint": "/api/v1/traffic/current/ws?images=false",
+    "api_hosts": [
+        {
+            "host": "ws://localhost:8081"
+        }
+    ]
+}
+EOF
+
+        verify_smart_route_planning_agent;
+    fi;
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
+    echo "@@HIGHLIGHT $installer_name start";
+    echo "@@HIGHLIGHT $installer_name remove"
+}
+debian_95_profile_smart_route_planning_agent () 
+{ 
+    echo "docker_io git edge_base curl smart_traffic_intersection_agent"
+}
+debian_95_remove_smart_route_planning_agent () 
+{ 
+    debian_95_stop_smart_route_planning_agent "$@";
+    . ./setup.sh --clean --all || true;
+    ensure_rm "$workspace"
+}
+debian_95_start_smart_route_planning_agent () 
+{ 
+    configure_smart_route_planning_agent "$@";
+    ensure_ports_open start smart_route_planning_agent "${used_ports[@]}";
+    cd "$workspace"/smart-route-planning-agent;
+    . ./setup.sh --run;
+    echo "@@HIGHLIGHT http://$(ensure_ip):${used_ports[0]}";
+    echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+debian_95_stop_smart_route_planning_agent () 
+{ 
+    configure_smart_route_planning_agent "$@";
+    cd "$workspace"/smart-route-planning-agent && { 
+        . ./setup.sh --stop || true;
+        . ./setup.sh --clean --keep-models
+    } || true
+}
 debian_99_install_system_summary () 
 { 
     echo "@@REPORT SYSTEM SUMMARY";
@@ -8082,17 +8396,13 @@ debian_99_profile_computer_vision ()
 }
 debian_99_profile_edge_base () 
 { 
+    echo "core_types system_inspection system_summary";
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
+            echo "edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
         ;;
         *)
-            echo "core_types system_inspection system_summary";
-            if [[ " $* " = *" --edgepack "* ]] && configure_edge_pack_kernel_image "$@"; then
-                echo "edge_pack_base_standard edge_pack_npu";
-            else
-                echo "gpu_accel npu_accel";
-            fi
+            configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu" "$@"
         ;;
     esac
 }
@@ -8102,30 +8412,26 @@ debian_99_profile_federal_and_aerospace_ai_suite_handheld ()
 }
 debian_99_profile_federal_and_aerospace_ai_suite_mission_decision_support () 
 { 
-    [ "$1" = "start" ] || echo "mission_decision_support_blueprint deterministic_threat_detection"
+    [ "$1" = "start" ] || echo "mission_decision_support_blueprint deterministic_threat_detection uav_mission_compute_sdk"
 }
 debian_99_profile_federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle () 
 { 
-    [ "$1" = "start" ] || echo "uncrewed_aerial_vehicle_blueprint uncrewed_aerial_vehicle_ground_station uncrewed_aerial_vehicle_vision_analytics"
+    [ "$1" = "start" ] || echo "uncrewed_aerial_vehicle_blueprint uncrewed_aerial_vehicle_ground_station uncrewed_aerial_vehicle_vision_analytics deterministic_threat_detection"
 }
 debian_99_profile_handheld_blueprint () 
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
         ;;
         *)
             local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony);
-            if [[ " $* " = *" --k3s "* ]]; then
+            if ensure_parse_option --k3s "$@"; then
                 modules+=(k3s_io);
             else
                 modules+=(docker_io);
             fi;
-            if [[ " $* " = *" --edgepack "* ]] && configure_edge_pack_kernel_image "$@"; then
-                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn);
-            else
-                modules+=(gpu_accel npu_accel);
-            fi;
+            modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst" "$@"));
             echo "${modules[*]}"
         ;;
     esac
@@ -8149,7 +8455,7 @@ debian_99_profile_manufacturing_ai_suite ()
 debian_99_profile_metro_ai_suite () 
 { 
     [ "$1" = "start" ] || { 
-        local modules=(vippet smart_intersection smart_parking loitering_detection live_video_captioning live_video_captioning_rag live_video_search live_video_alert_agent video_search_and_summarization agentic_predictive_maintenance_pipeline agentic_smart_community smart_traffic_intersection_agent video_processing_for_nvr image_based_video_search);
+        local modules=(vippet smart_intersection smart_parking loitering_detection live_video_captioning live_video_captioning_rag live_video_search live_video_alert_agent video_search_and_summarization agentic_predictive_maintenance_pipeline agentic_smart_community smart_route_planning_agent smart_traffic_intersection_agent video_processing_for_nvr image_based_video_search);
         echo "${modules[*]}"
     }
 }
@@ -8157,27 +8463,23 @@ debian_99_profile_mission_decision_support_blueprint ()
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io ubuntu_server"
         ;;
         *)
-            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony);
-            if [[ " $* " = *" --k3s "* ]]; then
+            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony ubuntu_server);
+            if ensure_parse_option --k3s "$@"; then
                 modules+=(k3s_io);
             else
                 modules+=(docker_io);
             fi;
-            if [[ " $* " = *" --edgepack "* ]] && configure_edge_pack_kernel_image "$@"; then
-                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn);
-            else
-                modules+=(gpu_accel npu_accel);
-            fi;
+            modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst" "$@"));
             echo "${modules[*]}"
         ;;
     esac
 }
 debian_99_profile_retail_ai_suite () 
 { 
-    [ "$1" = "start" ] || echo "loss_prevention dine_in take_away smart_kiosk_assistant digital_signage"
+    [ "$1" = "start" ] || echo "loss_prevention dine_in take_away smart_kiosk_assistant digital_signage person_of_interest suspicious_activity_detection"
 }
 debian_99_profile_robotics_ai_suite () 
 { 
@@ -8192,20 +8494,16 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint ()
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn gpu_accel npu_accel power_tuning system_info docker_io k3s_io ubuntu_server"
+            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io ubuntu_server"
         ;;
         *)
             local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony ubuntu_server);
-            if [[ " $* " = *" --k3s "* ]]; then
+            if ensure_parse_option --k3s "$@"; then
                 modules+=(k3s_io);
             else
                 modules+=(docker_io);
             fi;
-            if [[ " $* " = *" --edgepack "* ]] && configure_edge_pack_kernel_image "$@"; then
-                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn);
-            else
-                modules+=(gpu_accel npu_accel);
-            fi;
+            modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst" "$@"));
             echo "${modules[*]}"
         ;;
     esac
@@ -9720,6 +10018,16 @@ ensure_parse_device ()
     [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
     echo $device
 }
+ensure_parse_option () 
+{ 
+    local option="$1";
+    shift;
+    [[ " $* " = *" $option "* ]]
+}
+ensure_parse_reinstall () 
+{ 
+    ensure_parse_option --reinstall "$@"
+}
 ensure_parse_value_option () 
 { 
     local key="$1";
@@ -9754,7 +10062,7 @@ ensure_ports_open ()
         ensure_prop set started/$name/ports "$*";
     fi;
     if command -v ss > /dev/null; then
-        local port out stopper;
+        local port out stopper mname;
         for port in $*;
         do
             out="$(ss -Hltunp "sport = :$port")";
@@ -9805,7 +10113,7 @@ ensure_prop ()
         ;;
         get)
             [ ! -r "$key_base/$key_path" ] || value="$(< "$key_base/$key_path")";
-            if [[ " $* " = *" --boolean "* ]]; then
+            if ensure_parse_option --boolean "$@"; then
                 [[ " true yes t y a accept " = *" ${value,,} "* ]] && value="true" || value="false";
             fi;
             printf '%s' "$value"
@@ -10022,7 +10330,7 @@ ground_station_configure_uav_application ()
     uav_module="$1";
     uav_app="$2";
     uav_repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
-    uav_commit="cebc4af2abda194c2c62055fb378c48ec4119783";
+    uav_commit="main";
     uav_workspace="$(ensure_project_path)/uav-mission-compute-sdk";
     uav_checkout="$uav_workspace/$uav_app";
     uav_dir="$uav_checkout/uav-$uav_app";
@@ -10092,7 +10400,7 @@ ground_station_configure_uav_application_source ()
 ground_station_install_uav_application () 
 { 
     ground_station_configure_uav_application "$1" "$2" || return $?;
-    if ground_station_verify_uav_application && [[ " $* " != *" --reinstall "* ]]; then
+    if ground_station_verify_uav_application && ! ensure_parse_reinstall "$@"; then
         echo "$uav_app is already installed.";
         return 0;
     fi;
@@ -10103,7 +10411,7 @@ ground_station_install_uav_application ()
         fi;
         python3 -c 'import ensurepip' || return $?;
     fi;
-    echo "@@STEP Fetching UAV source commit $uav_commit for $uav_app";
+    echo "@@STEP Fetching UAV source ref $uav_commit for $uav_app";
     ground_station_configure_uav_application_source || return $?;
     if [[ ! -f "$uav_dir/Makefile" || ! -f "$uav_dir/.env.example" ]]; then
         echo "Required UAV application source is missing: $uav_dir" 1>&2;
@@ -10113,6 +10421,7 @@ ground_station_install_uav_application ()
     cd "$uav_dir" || return $?;
     echo "Review $uav_dir/.env and upstream LAN bindings before starting the application.";
     make init || return $?;
+    sed -i -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?;
     if [ "$uav_app" = vision-analytics ]; then
         ground_station_configure_uav_application_models || return $?;
         make _check_certs || return $?;
@@ -10154,6 +10463,7 @@ ground_station_start_uav_application ()
     else
         read -r -a uav_ports <<< "$(ensure_prop get "started/$uav_module/ports")";
     fi;
+    sed -i -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?;
     if [ "$uav_app" = ground-station ]; then
         make up || return $?;
     else
@@ -10257,7 +10567,7 @@ ground_station_wait_for_uav_application ()
 install_geti () 
 { 
     configure_geti "$@";
-    if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_geti && ! ensure_parse_reinstall "$@"; then
         echo "Geti is installed." 1>&2;
     else
         ensure_disk_size 20000;
@@ -11136,7 +11446,7 @@ stop_geti ()
 }
 subcommand_install () 
 { 
-    if [[ " $* " = *" --help "* ]]; then
+    if ensure_parse_option --help "$@"; then
         echo "install options:";
         echo "  --dry-run       dry-run operations";
         echo "  --continue      ignore errors and proceed to the end";
@@ -11145,7 +11455,7 @@ subcommand_install ()
         echo;
         return 0;
     fi;
-    if [[ " $* " = *" --reinstall "* ]]; then
+    if ensure_parse_reinstall "$@"; then
         local all=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} " scoped=0 hit=0 a out=() bind=();
         for a in "$@";
         do
@@ -11271,7 +11581,7 @@ subcommand_list ()
             local module_name;
             for module_name in "${all_modules[@]}";
             do
-                [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
+                [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
                 local module_cmds=() mname cmd;
                 for cmd in ${all_cmds[*]};
                 do
@@ -11294,7 +11604,7 @@ subcommand_list ()
             for profiler in "${all_profiles[@]}";
             do
                 local profile_name=${profiler#*_*_*_};
-                [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
+                [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
                 [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
                 local profile_cmds=() mname1 mname2 cmd found;
                 for cmd in ${all_cmds[*]};
@@ -11338,20 +11648,19 @@ subcommand_list ()
 }
 subcommand_remove () 
 { 
-    if [[ " $* " = *" --help "* ]]; then
+    if ensure_parse_option --help "$@"; then
         echo "remove options:";
         echo "  --dry-run       dry-run operations";
-        echo "  --continue      ignore errors and proceed to the end";
         echo "  --remove-all    remove all previously installed components";
         echo "  --remove-me     remove $installer_name";
         echo;
         return 0;
     fi;
     local rc=0;
-    act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?;
-    if [[ " $* " = *" --remove-me "* ]]; then
+    act_helper "remove,Removal,Removing,Removed" "-r" "$@" --continue || rc=$?;
+    if ensure_parse_option --remove-me "$@"; then
         ensure_rm "$HOME/.local/bin/$installer_name" "$HOME/.local/share/bash-completion/completions/$installer_name" "$HOME/.agents/skills/$installer_name" && echo "$installer_name removed";
-        if [[ " $* " = *" --remove-all "* ]]; then
+        if ensure_parse_option --remove-all "$@"; then
             ensure_rm "$(ensure_project_path)";
             echo "$installer_name logs removed";
         else
@@ -11375,9 +11684,9 @@ subcommand_resume ()
 }
 subcommand_setup () 
 { 
-    [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(_act_levenshtein ground_station_configure_uav_application ground_station_configure_uav_application_models ground_station_configure_uav_application_ports ground_station_configure_uav_application_source ground_station_install_uav_application ground_station_remove_uav_application ground_station_start_uav_application ground_station_stop_uav_application ground_station_verify_uav_application ground_station_verify_uav_application_installed ground_station_verify_uav_application_manager ground_station_verify_uav_application_models ground_station_verify_uav_application_pipelines ground_station_verify_uav_application_services ground_station_wait_for_uav_application lifecycle_k3s_io system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint vision_analytics_configure_uav_application vision_analytics_configure_uav_application_models vision_analytics_configure_uav_application_ports vision_analytics_configure_uav_application_source vision_analytics_install_uav_application vision_analytics_remove_uav_application vision_analytics_start_uav_application vision_analytics_stop_uav_application vision_analytics_verify_uav_application vision_analytics_verify_uav_application_installed vision_analytics_verify_uav_application_manager vision_analytics_verify_uav_application_models vision_analytics_verify_uav_application_pipelines vision_analytics_verify_uav_application_services vision_analytics_wait_for_uav_application);
-    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW2RpZ2l0YWxfc2lnbmFnZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2Nocm9ueV09IiIgW2szc19pb109IiIgW3NvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFtyc3luY109IiIgW2xpbnV4X2ltYWdlXzYuMThfaW50ZWxdPSIiIFt2aXBwZXRdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2RldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbl09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3NdPSIiIFtncHVfYWNjZWxdPSIiIFtwY2JfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFtjbWFrZV09IiIgW2F1dG9tYWtlXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgW3Y0bF91dGlsc109IiIgW3N5c3RlbV9zdW1tYXJ5XT0iIiBbZ251cGddPSIiIFtvdm1mXT0iIiBbbnB1X2FjY2VsXT0iIiBbbG1fc2Vuc29yc109IiIgW2xpYmdsMV09IiIgW3N0cmVzc19uZ109IiIgW25vZGVqc109IiIgW2RvY2tlcl9jZV09IiIgW21lbXRlc3Rlcl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbZWRnZV9wYWNrX2lwdV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbc3RhdGlvbmFyeV9yb2JvdF92aXNpb25dPSIiIFtydF90ZXN0c109IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbcGlweF09IiIgW21lZGlhbXR4XT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbdXZdPSIiIFtzY2VuZXNjYXBlXT0iIiBbdWJ1bnR1X3NlcnZlcl09IiIgW21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF9ibHVlcHJpbnRdPSIiIFtlc3FdPSIiIFthdXRvbm9tb3VzX21vYmlsZV9yb2JvdF09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFtlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW2RpbmVfaW5dPSIiIFtkb2NrZXJfaW9dPSIiIFtwaHlzaWNhbF9haV9mcmFtZXdvcmtdPSIiIFtydXN0dXBdPSIiIFtyb3Nfb3BlbnZpbm9dPSIiIFtweXRob24zX3lhbWxdPSIiIFtsaWJ0YmIxMl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtwb3dlcl90dW5pbmddPSIiIFtwa2dfY29uZmlnXT0iIiBbaGFuZGhlbGRfYmx1ZXByaW50XT0iIiBbc21hcnRfbnZyXT0iIiBbZWRnZV9iYXNlX3JvYm90aWNzXT0iIiBbLS1kcnktcnVuXT0iIiBbcWVtdV91dGlsc109IiIgW2VkZ2VfcGFja19ncmFwaGljc19jb3JlXT0iIiBbbGliY2FwMl9iaW5dPSIiIFtnYXdrXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbbGliemUxXT0iIiBbZmZtcGVnXT0iIiBbdW56aXBdPSIiIFtwb3N0X2Z1c2lvbl09IiIgW2Rsc3RyZWFtZXJdPSIiIFthdXRvY29uZl09IiIgW3JvYm90aWNzX2FpX3N1aXRlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2dzdF09IiIgW2xpbnV4X2ltYWdlX2dlbmVyaWNfNy4wXT0iIiBbbGlicGNyZTJfZGV2XT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbcm9zMl09IiIgW2luZmVyZW5jaW5nXT0iIiBbd2dldF09IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW3N5c3RlbV9pbmZvXT0iIiBbaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFt4cHVfc21pXT0iIiBbY3B1aWRdPSIiIFtlZGdlX3BhY2tfY29tcHV0ZV9leHRyYV09IiIgW2xzYl9yZWxlYXNlXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2pxXT0iIiBbZGViY29uZl91dGlsc109IiIgW3BjaXV0aWxzXT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGlieWFuZ109IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVdPSIiIFtlZGdlX3BhY2tfa2VybmVsX2ltYWdlXT0iIiBbbXNyX3Rvb2xzXT0iIiBbY2RpXT0iIiBbYW5vbWFsaWJdPSIiIFtjdXJsXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRdPSIiIFtpbnRlbF9scG1kXT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtnb2xhbmddPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtsaW51eF90b29sc109IiIgW2VkZ2VfcGFja109IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3lxXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3FlbXVfc3lzdGVtX3g4Nl09IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgW3JlYWxzZW5zZV09IiIgW2VkZ2VfcGFja19tZWRpYV9jb3JlXT0iIiBbZWRnZV9ub2RlX2luZnJhc3RydWN0dXJlX2JsdWVwcmludF09IiIgW2VkZ2VfcGFja19ucHVdPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3Nfc3Jpb3ZdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICByZW1vdmUpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtkaWdpdGFsX3NpZ25hZ2VdPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2szc19pb109IiIgW2VkZ2VfcGFja19ncmFwaGljc19kaXNwbGF5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtyc3luY109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludF09IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2RldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbl09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3NdPSIiIFtncHVfYWNjZWxdPSIiIFtwY2JfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFtjbWFrZV09IiIgW2F1dG9tYWtlXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgW3Y0bF91dGlsc109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtsbV9zZW5zb3JzXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbbWVtdGVzdGVyXT0iIiBbLS1yZWluc3RhbGxdPSIiIFthZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmVdPSIiIFtlZGdlX3BhY2tfaXB1XT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbl09IiIgW3J0X3Rlc3RzXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgW21lZGlhbXR4XT0iIiBbZWRnZV9wYWNrX21lZGlhX2ZmbXBlZ109IiIgWy0tdmFsaWRhdGVdPSIiIFtpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlXT0iIiBbb3BlbnZpbm9dPSIiIFttYWtlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFt1dl09IiIgW3NjZW5lc2NhcGVdPSIiIFttaXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRfYmx1ZXByaW50XT0iIiBbZXNxXT0iIiBbYXV0b25vbW91c19tb2JpbGVfcm9ib3RdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbZG9ja2VyX2lvXT0iIiBbcGh5c2ljYWxfYWlfZnJhbWV3b3JrXT0iIiBbcnVzdHVwXT0iIiBbcm9zX29wZW52aW5vXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3Bvd2VyX3R1bmluZ109IiIgW3BrZ19jb25maWddPSIiIFtoYW5kaGVsZF9ibHVlcHJpbnRdPSIiIFtzbWFydF9udnJdPSIiIFtlZGdlX2Jhc2Vfcm9ib3RpY3NdPSIiIFstLWRyeS1ydW5dPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZV09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW2ZmbXBlZ109IiIgW3VuemlwXT0iIiBbcG9zdF9mdXNpb25dPSIiIFtkbHN0cmVhbWVyXT0iIiBbYXV0b2NvbmZdPSIiIFtyb2JvdGljc19haV9zdWl0ZV09IiIgW2VkZ2VfcGFja19tZWRpYV9nc3RdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtyb3MyXT0iIiBbaW5mZXJlbmNpbmddPSIiIFttZXRyb19haV9zdWl0ZV09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2dyb3VuZF9zdGF0aW9uXT0iIiBbZG1pZGVjb2RlXT0iIiBbbmljdV93YXJtZXJdPSIiIFtzeXN0ZW1faW5mb109IiIgW2h1bWFub2lkX2ltaXRhdGlvbl9sZWFybmluZ109IiIgW2tlcm5lbF9tb2R1bGVfZXNzZW50aWFsXT0iIiBbeHB1X3NtaV09IiIgW2NwdWlkXT0iIiBbZWRnZV9wYWNrX2NvbXB1dGVfZXh0cmFdPSIiIFtlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eV09IiIgW3N5c2JlbmNoXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbanFdPSIiIFtkZWJjb25mX3V0aWxzXT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGlieWFuZ109IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVdPSIiIFttc3JfdG9vbHNdPSIiIFtjZGldPSIiIFthbm9tYWxpYl09IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbaW50ZWxfbHBtZF09IiIgW211bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbZ29sYW5nXT0iIiBbY29yZV90eXBlc109IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbbGludXhfdG9vbHNdPSIiIFtlZGdlX3BhY2tdPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFt5cV09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiIFtyZWFsc2Vuc2VdPSIiIFtlZGdlX3BhY2tfbWVkaWFfY29yZV09IiIgW2VkZ2Vfbm9kZV9pbmZyYXN0cnVjdHVyZV9ibHVlcHJpbnRdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVzdW1lKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0YXJ0KQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbZGlnaXRhbF9zaWduYWdlXT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgWy0tdmFsaWRhdGVdPSIiIFtpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFtzY2VuZXNjYXBlXT0iIiBbZXNxXT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW2RpbmVfaW5dPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbc21hcnRfbnZyXT0iIiBbLS1kcnktcnVuXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbcG9zdF9mdXNpb25dPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0b3ApCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtkaWdpdGFsX3NpZ25hZ2VdPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtsb3NzX3ByZXZlbnRpb25dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbLS12YWxpZGF0ZV09IiIgW2ludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2VdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtzbWFydF9udnJdPSIiIFstLWRyeS1ydW5dPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGRdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtwb3N0X2Z1c2lvbl09IiIgW3JvYm90aWNzX2FpX3N1aXRlXT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW211bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nXT0iIiBbcmV0YWlsX2FpX3N1aXRlXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgKikKICAgIENPTVBSRVBMWT0oKQogICAgOzsKICBlc2FjCn0KY29tcGxldGUgLUYgX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uIG9wZW5lZGdlLWNsaQo=";
+    ensure_parse_option --help "$@" && return;
+    local installer_misc_functions=(_act_levenshtein ground_station_configure_uav_application ground_station_configure_uav_application_models ground_station_configure_uav_application_ports ground_station_configure_uav_application_source ground_station_install_uav_application ground_station_remove_uav_application ground_station_start_uav_application ground_station_stop_uav_application ground_station_verify_uav_application ground_station_verify_uav_application_installed ground_station_verify_uav_application_manager ground_station_verify_uav_application_models ground_station_verify_uav_application_pipelines ground_station_verify_uav_application_services ground_station_wait_for_uav_application lifecycle_k3s_io system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uav_mission_compute_sdk_checkout vision_analytics_configure_uav_application vision_analytics_configure_uav_application_models vision_analytics_configure_uav_application_ports vision_analytics_configure_uav_application_source vision_analytics_install_uav_application vision_analytics_remove_uav_application vision_analytics_start_uav_application vision_analytics_stop_uav_application vision_analytics_verify_uav_application vision_analytics_verify_uav_application_installed vision_analytics_verify_uav_application_manager vision_analytics_verify_uav_application_models vision_analytics_verify_uav_application_pipelines vision_analytics_verify_uav_application_services vision_analytics_wait_for_uav_application);
+    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW2RpZ2l0YWxfc2lnbmFnZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2Nocm9ueV09IiIgW2szc19pb109IiIgW3NvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFtyc3luY109IiIgW2xpbnV4X2ltYWdlXzYuMThfaW50ZWxdPSIiIFt2aXBwZXRdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2RldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbl09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3NdPSIiIFtncHVfYWNjZWxdPSIiIFtwY2JfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFtjbWFrZV09IiIgW2F1dG9tYWtlXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgW3Y0bF91dGlsc109IiIgW3N5c3RlbV9zdW1tYXJ5XT0iIiBbZ251cGddPSIiIFtvdm1mXT0iIiBbbnB1X2FjY2VsXT0iIiBbbG1fc2Vuc29yc109IiIgW2xpYmdsMV09IiIgW3N0cmVzc19uZ109IiIgW25vZGVqc109IiIgW2RvY2tlcl9jZV09IiIgW21lbXRlc3Rlcl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbZWRnZV9wYWNrX2lwdV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbc3RhdGlvbmFyeV9yb2JvdF92aXNpb25dPSIiIFtydF90ZXN0c109IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbcGlweF09IiIgW21lZGlhbXR4XT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbdXZdPSIiIFtzY2VuZXNjYXBlXT0iIiBbdWJ1bnR1X3NlcnZlcl09IiIgW21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF9ibHVlcHJpbnRdPSIiIFtlc3FdPSIiIFthdXRvbm9tb3VzX21vYmlsZV9yb2JvdF09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFtlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW2RpbmVfaW5dPSIiIFtkb2NrZXJfaW9dPSIiIFtwaHlzaWNhbF9haV9mcmFtZXdvcmtdPSIiIFtwZXJzb25fb2ZfaW50ZXJlc3RdPSIiIFtydXN0dXBdPSIiIFtyb3Nfb3BlbnZpbm9dPSIiIFtweXRob24zX3lhbWxdPSIiIFtsaWJ0YmIxMl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtwb3dlcl90dW5pbmddPSIiIFtwa2dfY29uZmlnXT0iIiBbaGFuZGhlbGRfYmx1ZXByaW50XT0iIiBbc21hcnRfbnZyXT0iIiBbZWRnZV9iYXNlX3JvYm90aWNzXT0iIiBbLS1kcnktcnVuXT0iIiBbcWVtdV91dGlsc109IiIgW2VkZ2VfcGFja19ncmFwaGljc19jb3JlXT0iIiBbbGliY2FwMl9iaW5dPSIiIFtnYXdrXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbbGliemUxXT0iIiBbZmZtcGVnXT0iIiBbdW56aXBdPSIiIFtwb3N0X2Z1c2lvbl09IiIgW2Rsc3RyZWFtZXJdPSIiIFt1YXZfbWlzc2lvbl9jb21wdXRlX3Nka109IiIgW2F1dG9jb25mXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbbGludXhfaW1hZ2VfZ2VuZXJpY183LjBdPSIiIFtsaWJwY3JlMl9kZXZdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtyb3MyXT0iIiBbaW5mZXJlbmNpbmddPSIiIFtzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbl09IiIgW3dnZXRdPSIiIFtzbWFydF9yb3V0ZV9wbGFubmluZ19hZ2VudF09IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW3N5c3RlbV9pbmZvXT0iIiBbaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFt4cHVfc21pXT0iIiBbY3B1aWRdPSIiIFtlZGdlX3BhY2tfY29tcHV0ZV9leHRyYV09IiIgW2xzYl9yZWxlYXNlXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2pxXT0iIiBbZGViY29uZl91dGlsc109IiIgW3BjaXV0aWxzXT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGlieWFuZ109IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVdPSIiIFtlZGdlX3BhY2tfa2VybmVsX2ltYWdlXT0iIiBbbXNyX3Rvb2xzXT0iIiBbY2RpXT0iIiBbYW5vbWFsaWJdPSIiIFtjdXJsXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRdPSIiIFtpbnRlbF9scG1kXT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtnb2xhbmddPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtsaW51eF90b29sc109IiIgW2VkZ2VfcGFja109IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3lxXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3FlbXVfc3lzdGVtX3g4Nl09IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgW3JlYWxzZW5zZV09IiIgW2VkZ2VfcGFja19tZWRpYV9jb3JlXT0iIiBbZWRnZV9wYWNrX25wdV09IiIgW2VkZ2VfcGFja19ncmFwaGljc19zcmlvdl09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlbW92ZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2xpdmVfdmlkZW9fY2FwdGlvbmluZ109IiIgW3Rha2VfYXdheV09IiIgW2RpZ2l0YWxfc2lnbmFnZV09IiIgW2VkZ2VfcGFja19iYXNlX3JlYWx0aW1lXT0iIiBbcGNtXT0iIiBbdGltZV9jb25maWdodWJdPSIiIFtidWlsZF9lc3NlbnRpYWxdPSIiIFtlZGdlX3BhY2tfdHNuXT0iIiBbazNzX2lvXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW3JzeW5jXT0iIiBbZ2V0aV09IiIgW3ZpcHBldF09IiIgW2Nsb3VkX2ltYWdlX3V0aWxzXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfYmx1ZXByaW50XT0iIiBbZ2l0XT0iIiBbZWRnZV9iYXNlXT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbb3ZtZl09IiIgW25wdV9hY2NlbF09IiIgW2xtX3NlbnNvcnNdPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFttZW10ZXN0ZXJdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2VkZ2VfcGFja19pcHVdPSIiIFtoZWFsdGhfYW5kX2xpZmVfc2NpZW5jZV9haV9zdWl0ZV09IiIgW3N0YXRpb25hcnlfcm9ib3RfdmlzaW9uXT0iIiBbcnRfdGVzdHNdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbbWVkaWFtdHhdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZmZtcGVnXT0iIiBbLS12YWxpZGF0ZV09IiIgW2ludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2VdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3V2XT0iIiBbc2NlbmVzY2FwZV09IiIgW21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF9ibHVlcHJpbnRdPSIiIFtlc3FdPSIiIFthdXRvbm9tb3VzX21vYmlsZV9yb2JvdF09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFtlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW2RpbmVfaW5dPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtkb2NrZXJfaW9dPSIiIFtwaHlzaWNhbF9haV9mcmFtZXdvcmtdPSIiIFtwZXJzb25fb2ZfaW50ZXJlc3RdPSIiIFtydXN0dXBdPSIiIFtyb3Nfb3BlbnZpbm9dPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbcG93ZXJfdHVuaW5nXT0iIiBbcGtnX2NvbmZpZ109IiIgW2hhbmRoZWxkX2JsdWVwcmludF09IiIgW3NtYXJ0X252cl09IiIgW2VkZ2VfYmFzZV9yb2JvdGljc109IiIgWy0tZHJ5LXJ1bl09IiIgW2VkZ2VfcGFja19ncmFwaGljc19jb3JlXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbZmZtcGVnXT0iIiBbdW56aXBdPSIiIFtwb3N0X2Z1c2lvbl09IiIgW2Rsc3RyZWFtZXJdPSIiIFt1YXZfbWlzc2lvbl9jb21wdXRlX3Nka109IiIgW2F1dG9jb25mXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbcm9zMl09IiIgW2luZmVyZW5jaW5nXT0iIiBbc3VzcGljaW91c19hY3Rpdml0eV9kZXRlY3Rpb25dPSIiIFtzbWFydF9yb3V0ZV9wbGFubmluZ19hZ2VudF09IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW3N5c3RlbV9pbmZvXT0iIiBbaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFt4cHVfc21pXT0iIiBbY3B1aWRdPSIiIFtlZGdlX3BhY2tfY29tcHV0ZV9leHRyYV09IiIgW2VkZ2VfcGFja19tYW5hZ2VhYmlsaXR5XT0iIiBbc3lzYmVuY2hdPSIiIFthZ2VudGljX3NtYXJ0X2NvbW11bml0eV09IiIgW3N1cmdpY2FsX2luc3RydW1lbnRdPSIiIFtqcV09IiIgW2RlYmNvbmZfdXRpbHNdPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaWJ5YW5nXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV09IiIgW21zcl90b29sc109IiIgW2NkaV09IiIgW2Fub21hbGliXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRdPSIiIFtpbnRlbF9scG1kXT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtnb2xhbmddPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtsaW51eF90b29sc109IiIgW2VkZ2VfcGFja109IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3lxXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgW3JlYWxzZW5zZV09IiIgW2VkZ2VfcGFja19tZWRpYV9jb3JlXT0iIiBbZWRnZV9wYWNrX25wdV09IiIgW2VkZ2VfcGFja19ncmFwaGljc19zcmlvdl09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlc3VtZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdGFydCkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2xpdmVfdmlkZW9fY2FwdGlvbmluZ109IiIgW3Rha2VfYXdheV09IiIgW2RpZ2l0YWxfc2lnbmFnZV09IiIgW3JlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nXT0iIiBbZ2V0aV09IiIgW3ZpcHBldF09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3NdPSIiIFtwY2JfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2xvaXRlcmluZ19kZXRlY3Rpb25dPSIiIFstLXZhbGlkYXRlXT0iIiBbaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbc2NlbmVzY2FwZV09IiIgW2VzcV09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbcGVyc29uX29mX2ludGVyZXN0XT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3NtYXJ0X252cl09IiIgWy0tZHJ5LXJ1bl09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW3Bvc3RfZnVzaW9uXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50XT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFtuaWN1X3dhcm1lcl09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbZGlnaXRhbF9zaWduYWdlXT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW21hbnVmYWN0dXJpbmdfYWlfc3VpdGVdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgWy0tdmFsaWRhdGVdPSIiIFtpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFtzY2VuZXNjYXBlXT0iIiBbZXNxXT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW2RpbmVfaW5dPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtwZXJzb25fb2ZfaW50ZXJlc3RdPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbc21hcnRfbnZyXT0iIiBbLS1kcnktcnVuXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbcG9zdF9mdXNpb25dPSIiIFt1YXZfbWlzc2lvbl9jb21wdXRlX3Nka109IiIgW3JvYm90aWNzX2FpX3N1aXRlXT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbc3VzcGljaW91c19hY3Rpdml0eV9kZXRlY3Rpb25dPSIiIFtzbWFydF9yb3V0ZV9wbGFubmluZ19hZ2VudF09IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFtuaWN1X3dhcm1lcl09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV09IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICAqKQogICAgQ09NUFJFUExZPSgpCiAgICA7OwogIGVzYWMKfQpjb21wbGV0ZSAtRiBfb3BlbmVkZ2VfY2xpX2NvbXBsZXRpb24gb3BlbmVkZ2UtY2xpCg==";
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
     { 
@@ -11411,7 +11720,7 @@ EOF
 }
 subcommand_start () 
 { 
-    if [[ " $* " = *" --help "* ]]; then
+    if ensure_parse_option --help "$@"; then
         echo "start options:";
         echo "  --dry-run       dry-run operations";
         echo "  --continue      ignore errors and proceed to the end";
@@ -11422,9 +11731,10 @@ subcommand_start ()
 }
 subcommand_stop () 
 { 
-    if [[ " $* " = *" --help "* ]]; then
+    if ensure_parse_option --help "$@"; then
         echo "stop options:";
         echo "  --dry-run       dry-run operations";
+        echo "  --stop-all      stop all previously started components";
         echo;
         return 0;
     fi;
@@ -11560,7 +11870,7 @@ system_scan_get_system_summary ()
 }
 test_anomalib () 
 { 
-    if [[ " $* " = *" --validate "* ]]; then
+    if ensure_parse_option --validate "$@"; then
         . "$workspace"/.venv/bin/activate;
         ensure_rm "$workspace"/test;
         mkdir -p "$workspace"/test;
@@ -11656,7 +11966,7 @@ test_anomalib_pipeline(dataset_path, sys.argv[1])
 }
 test_dlstreamer_pipeline () 
 { 
-    if [[ " $* " = *" --validate "* ]]; then
+    if ensure_parse_option --validate "$@"; then
         mkdir -p "$workspace";
         cd "$workspace";
         echo "@@STEP Downloading models";
@@ -11712,7 +12022,7 @@ test_dlstreamer_pipeline ()
 }
 test_openvino () 
 { 
-    if [[ " $* " = *" --validate "* ]]; then
+    if ensure_parse_option --validate "$@"; then
         [ -r "$workspace"/${model##*/} ] || { 
             mkdir -p "$workspace";
             echo "@@STEP Downloading ${model##*/}";
@@ -11747,22 +12057,33 @@ test_openvino ()
         [[ " ${validated[*]} " != *failed* ]] || return 3;
     fi
 }
-uninstall_k3s_edge_node_infrastructure_blueprint () 
+uav_mission_compute_sdk_checkout () 
 { 
-    [ "$installed_deployment" = k3s ] || return 0;
-    local script found=0 kubeconfig=0;
-    [ ! -f "$HOME"/.kube/config ] || ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME"/.kube/config || kubeconfig=1;
-    for script in /usr/local/bin/k3s-uninstall.sh /usr/local/bin/k3s-agent-uninstall.sh;
-    do
-        [ -x "$script" ] || continue;
-        found=1;
-        echo "Removing the K3s runtime ($script)...";
-        ensure_sudo "$script";
-    done;
-    [ $found -eq 1 ] || echo "K3s uninstall script not found; assuming K3s was already removed.";
-    [ $kubeconfig -eq 0 ] || rm -f "$HOME"/.kube/config;
-    rm -f "$workspace"/.oep-deployment;
-    installed_deployment=
+    if [[ -e "$source_path" || -L "$source_path" ]]; then
+        if [[ -L "$source_path" || ! -d "$source_path/.git" ]]; then
+            echo "Refusing incompatible SDK source destination: $source_path" 1>&2;
+            return 1;
+        fi;
+        local remote changes;
+        remote="$(git -C "$source_path" remote get-url origin)" || return $?;
+        changes="$(git -C "$source_path" status --porcelain --untracked-files=no)" || return $?;
+        if [[ "$remote" != "$repository" || -n "$changes" ]]; then
+            echo "Refusing to overwrite a different repository or tracked local changes at $source_path." 1>&2;
+            return 1;
+        fi;
+        if [ -n "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
+            echo "Stop uav_mission_compute_sdk before updating its source." 1>&2;
+            return 1;
+        fi;
+        git -C "$source_path" sparse-checkout init --cone || return $?;
+        git -C "$source_path" sparse-checkout set uav-mission-compute-sdk || return $?;
+    else
+        mkdir -p "$workspace";
+        git clone --filter=blob:none --no-checkout --depth 1 "$repository" "$source_path" || return $?;
+        git -C "$source_path" sparse-checkout init --cone || return $?;
+        git -C "$source_path" sparse-checkout set uav-mission-compute-sdk || return $?;
+    fi;
+    git -C "$source_path" fetch --depth 1 origin "$version" && git -C "$source_path" checkout --detach FETCH_HEAD || return $?
 }
 verify_agentic_predictive_maintenance_pipeline () 
 { 
@@ -11794,7 +12115,7 @@ verify_cdi ()
 }
 verify_deterministic_threat_detection () 
 { 
-    [ -r "$application/README.md" ] && [ -r "$application/docs/user-guide/get-started.md" ] && [ -r "$application/docs/user-guide/get-started-scenescape.md" ]
+    [ -r "$application/README.md" ] && [ -r "$application/docs/user-guide/get-started.md" ] && [ -r "$application/docs/user-guide/first-time-setup.md" ]
 }
 verify_digital_signage () 
 { 
@@ -11822,10 +12143,6 @@ verify_dine_in ()
 verify_dlstreamer () 
 { 
     ensure_apt_is_installed intel-dlstreamer=${version} || return 1
-}
-verify_edge_node_infrastructure_blueprint () 
-{ 
-    [ "$installed_deployment" = "$deployment" ]
 }
 verify_geti () 
 { 
@@ -11994,6 +12311,17 @@ verify_pcm ()
 { 
     [ -x /usr/local/sbin/pcm ]
 }
+verify_person_of_interest () 
+{ 
+    local v;
+    for v in Camera_01.mp4 Camera_02.mp4;
+    do
+        [ -e "$workspace/scenescape/sample_data/$v" ] || { 
+            echo "Missing $v" 1>&2;
+            return 1
+        };
+    done
+}
 verify_physical_ai_framework () 
 { 
     configure_physical_ai_framework;
@@ -12013,7 +12341,7 @@ verify_post_fusion ()
 }
 verify_power_tuning () 
 { 
-    [ -x /usr/local/sbin/pcm ]
+    [ -e "$power_tuning_path"/openvino_stress.sh ]
 }
 verify_real_time_scene_understanding () 
 { 
@@ -12106,6 +12434,10 @@ verify_smart_parking ()
         return 1
     }
 }
+verify_smart_route_planning_agent () 
+{ 
+    [ -e "$workspace"/smart-route-planning-agent/src/data/config.json ]
+}
 verify_smart_traffic_intersection_agent () 
 { 
     [ -d "$workspace"/smart-traffic-intersection-agent/deps/metro-vision ]
@@ -12121,6 +12453,24 @@ verify_surgical_instrument ()
         echo "Missing polyp_test.mp4" 1>&2;
         return 1
     }
+}
+verify_suspicious_activity_detection () 
+{ 
+    local v m;
+    for v in lp-camera1.mp4;
+    do
+        [ -e "$workspace/scenescape/sample_data/$v" ] || { 
+            echo "Missing $v" 1>&2;
+            return 1
+        };
+    done;
+    for m in vlm_models/Qwen/Qwen2.5-VL-7B-Instruct/openvino_language_model.bin yolo_models/yolo26n-pose/yolo26n-pose.bin reid_models/person-reidentification-retail-0277/FP16/person-reidentification-retail-0277.bin detect_models/yolov8s/FP16/yolov8s.bin;
+    do
+        [ -e "$workspace"/suspicious-activity-detection/models/$m ] || { 
+            echo "Missing ${m%%/*}" 1>&2;
+            return 1
+        };
+    done
 }
 verify_system_info () 
 { 
@@ -12140,6 +12490,22 @@ verify_take_away ()
 verify_time_confighub () 
 { 
     [ -e "$workspace" ] && [ -d /opt/tch ] && [ -x /usr/local/bin/tch ]
+}
+verify_uav_mission_compute_sdk () 
+{ 
+    local installed_commit;
+    installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk)" || return $?;
+    [ -r "$sdk_path/Makefile" ] && [ -r "$sdk_path/.env" ] && [ -n "$installed_commit" ] && [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" = "$installed_commit" ]
+}
+verify_uav_mission_compute_sdk_running () 
+{ 
+    local expected running service;
+    expected="$(docker compose --profile sim-camera --profile observability config --services)" || return $?;
+    running="$(docker compose --profile sim-camera --profile observability ps --status running --services)" || return $?;
+    [ -n "$expected" ] || return 1;
+    while IFS= read -r service; do
+        grep -Fxq -- "$service" <<< "$running" || return 1;
+    done <<< "$expected"
 }
 verify_video_processing_for_nvr () 
 { 
@@ -12188,7 +12554,7 @@ vision_analytics_configure_uav_application ()
     uav_module="$1";
     uav_app="$2";
     uav_repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
-    uav_commit="cebc4af2abda194c2c62055fb378c48ec4119783";
+    uav_commit="main";
     uav_workspace="$(ensure_project_path)/uav-mission-compute-sdk";
     uav_checkout="$uav_workspace/$uav_app";
     uav_dir="$uav_checkout/uav-$uav_app";
@@ -12258,7 +12624,7 @@ vision_analytics_configure_uav_application_source ()
 vision_analytics_install_uav_application () 
 { 
     vision_analytics_configure_uav_application "$1" "$2" || return $?;
-    if vision_analytics_verify_uav_application && [[ " $* " != *" --reinstall "* ]]; then
+    if vision_analytics_verify_uav_application && ! ensure_parse_reinstall "$@"; then
         echo "$uav_app is already installed.";
         return 0;
     fi;
@@ -12269,7 +12635,7 @@ vision_analytics_install_uav_application ()
         fi;
         python3 -c 'import ensurepip' || return $?;
     fi;
-    echo "@@STEP Fetching UAV source commit $uav_commit for $uav_app";
+    echo "@@STEP Fetching UAV source ref $uav_commit for $uav_app";
     vision_analytics_configure_uav_application_source || return $?;
     if [[ ! -f "$uav_dir/Makefile" || ! -f "$uav_dir/.env.example" ]]; then
         echo "Required UAV application source is missing: $uav_dir" 1>&2;
@@ -12279,6 +12645,7 @@ vision_analytics_install_uav_application ()
     cd "$uav_dir" || return $?;
     echo "Review $uav_dir/.env and upstream LAN bindings before starting the application.";
     make init || return $?;
+    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
     if [ "$uav_app" = vision-analytics ]; then
         vision_analytics_configure_uav_application_models || return $?;
         make _check_certs || return $?;
@@ -12320,6 +12687,7 @@ vision_analytics_start_uav_application ()
     else
         read -r -a uav_ports <<< "$(ensure_prop get "started/$uav_module/ports")";
     fi;
+    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
     if [ "$uav_app" = ground-station ]; then
         make up || return $?;
     else

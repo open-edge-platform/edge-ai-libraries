@@ -28,6 +28,7 @@ and clean them up; no sudo or real deployment is needed.
 ```bash
 set -o pipefail
 bash test/openshell-test.sh | tee openshell-offline.tap
+bash test/installer-runtime-test.sh | tee installer-runtime.tap
 ```
 
 The outer suite currently reports 77 cases. Three are wrapper cases that run
@@ -38,10 +39,11 @@ counts must not be added to the outer count as independent top-level results.
 
 | Scope | Command | Current cases |
 |---|---|---|
+| Installer bootstrap, profiles, failure guards, configuration publication and environment isolation | `bash test/installer-runtime-test.sh` | 27; see [runtime behavior coverage](README.md#installer-runtime-regression) |
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Agent model defaults | `node --test test/model-defaults-test.mjs` | 9; two require the Hermes image runtime |
+| Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
 accept a case-name filter. Use the focused suite to reproduce a Bash failure.
@@ -296,23 +298,37 @@ helper against temporary files, not an LLM.
 
 ### Hermes runtime-dependent cases
 
-The final two cases skip when the pinned Hermes runtime is unavailable at
-`/home/node/.local/bin/hermes`. The normal offline host/CI run therefore
-executes seven cases and reports two skips, not nine passes.
+The final two cases remain registered in every run with explicit skip reasons.
+The normal offline host/CI run executes seven cases and reports two image-required skips; it does not
+probe or invoke Hermes, even if it is installed. Explicit Hermes mode requires
+the pinned runtime at `/home/node/.local/bin/hermes` and fails if it is missing.
 
-To require these cases rather than permit a missing-runtime skip, run inside
-the prepared Hermes image environment:
+The separate automatic **Hermes image runtime gate** builds the production
+image and requires a complete, nonempty passing TAP report without failures or
+skips (currently nine cases). To reproduce it from the
+component directory (Docker and network access required for the build):
 
 ```bash
-HARNESS_TEST_REQUIRE_HERMES=1 node --test test/model-defaults-test.mjs
+set -euo pipefail
+docker build --build-arg HARNESS_AGENT=hermes -f openshell/Dockerfile -t harness-hermes-validation .
+docker run --rm --network none \
+  --cap-drop ALL --security-opt no-new-privileges \
+  --tmpfs /tmp:rw,nosuid,nodev,size=256m \
+  --mount "type=bind,source=$PWD/test/model-defaults-test.mjs,target=/opt/harness/model-defaults-test.mjs,readonly" \
+  --env HARNESS_TEST_REQUIRE_HERMES=1 \
+  --env HARNESS_TEST_MODEL_CONFIG=/opt/harness/model-config.mjs \
+  harness-hermes-validation \
+  node --test --test-reporter=tap /opt/harness/model-defaults-test.mjs \
+  | tee hermes-defaults.tap
+node test/tap-summary.mjs --require-no-skips hermes-defaults.tap
 ```
 
-The image must have Node, the pinned Hermes Python/YAML runtime, and the current
-test/helper files. `HARNESS_TEST_MODEL_CONFIG` can point to the current helper
-when it is mounted at a different location. See the
-[prepared-runner gate](README.md#opt-in-prepared-runner-gate) for the existing
-image-based execution path; do not run these as configuration changes in a
-user's active sandbox.
+The image supplies Node, the pinned Hermes Python/YAML runtime, real Hermes
+provider modules, and the current production helper. A host Python/PyYAML
+installation alone is not equivalent. Test configurations are temporary and no
+active sandbox is accessed. Build dependencies need network access; test
+execution does not. This does not replace the opt-in prepared-runner gate for
+live inference and lifecycle behavior.
 
 ## Interpretation and maintenance
 

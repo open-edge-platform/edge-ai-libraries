@@ -31,12 +31,7 @@ def relative_path(value: str) -> str:
 
 
 def shared_path(root: Path, relative: str) -> Path:
-    """Reject traversal and symlinked components, including in output parents.
-
-    Root is trusted deployment configuration. Request/response paths are relative
-    to it, so engine and extractor may mount the same directory at different
-    absolute locations.
-    """
+    """Resolve `relative` under the trusted `root`, rejecting traversal and symlinked components."""
     root = root.resolve()
     path = root
     for part in PurePosixPath(relative_path(relative)).parts:

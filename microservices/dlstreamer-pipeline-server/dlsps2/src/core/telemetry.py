@@ -41,7 +41,7 @@ _GAUGES = (
     ("fps_per_pipeline", "", "Average FPS of a pipeline instance, excluding warmup frames"),
     ("frame_fps_per_pipeline", "", "FPS of a pipeline instance over its latest measurement window"),
     ("frame_fps_window_seconds", "s", "Length of the window frame_fps_per_pipeline was measured over"),
-    ("pipeline_running", "", "1 while the pipeline instance is RUNNING, 0 once it is no longer running"),
+    ("pipeline_running", "", "1 while the pipeline instance is RUNNING or STOPPING, 0 once it is no longer running"),
     ("pipeline_start_timestamp_seconds", "s", "Unix time at which the pipeline instance started running"),
     ("pipeline_first_frame_timestamp_seconds", "s", "Unix time at which the pipeline instance received its first frame"),
     ("pipeline_end_timestamp_seconds", "s", "Unix time at which the pipeline instance stopped"),
@@ -64,7 +64,7 @@ def _observations_for(instance: "PipelineInstance") -> List[Observation]:
     attrs = {"pipeline_id": instance.instance_id}
 
     observations: List[Observation] = [
-        ("pipeline_running", 1.0 if instance.state == PipelineState.RUNNING else 0.0, attrs),
+        ("pipeline_running", 1.0 if instance.state in (PipelineState.RUNNING, PipelineState.STOPPING) else 0.0, attrs),
     ]
     # One read, so the values below always come from the same fps event.
     fps = instance.fps_sample

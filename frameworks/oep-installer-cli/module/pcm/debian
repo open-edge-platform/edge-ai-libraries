@@ -14,7 +14,7 @@ debian_40_profile_pcm () {
 
 debian_40_install_pcm () {
   configure_pcm
-  if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_pcm && ! ensure_parse_reinstall "$@"; then
     echo "pcm is installed." >&2
   else
     ensure_prop set installed/pcm/owned true

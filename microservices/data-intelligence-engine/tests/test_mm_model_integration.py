@@ -21,11 +21,11 @@ from core import embedding
 from core.multimodal import registry
 from core.multimodal import embeddings as media_embeddings
 from inference import gme_runtime, models
-from inference.multimodal.gme_qwen2vl import GmeQwen2VLEmbedding
+from inference.ov_adapter import MultimodalOVEmbedding
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GME_ID = "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"
+GME_ID = "gme-Qwen2-VL-2B-Instruct-OV"
 VICLIP_ID = "viclip-b-fp16"
 VICLIP_OFFICIAL_ID = "OpenGVLab/ViCLIP-B-16-hf"
 
@@ -96,10 +96,10 @@ def fake_runtime(monkeypatch):
     built = []
 
     class FakeRuntime:
-        def __init__(self, model_dir, device, precision, **options):
+        def __init__(self, model_dir, device, **options):
             self.model_dir = Path(model_dir)
             self.device = device
-            self.precision = precision
+            self.max_image_tokens = options.get("max_image_tokens", 1024)
             self.embedding_dim = 1536
             self.calls = []
             self.options = options
@@ -125,17 +125,23 @@ def fake_runtime(monkeypatch):
     return built
 
 
+def _media(package):
+    return media_embeddings.build_multimodal_embedding(
+        {"name": "gme_qwen2vl", "id": package.name}, {}
+    )
+
+
 @pytest.mark.parametrize("media_first", [False, True])
 def test_g13_main_and_registry_share_runtime_identity(tmp_path, monkeypatch, fake_runtime, media_first):
     package = _package(tmp_path / "package")
     alias = tmp_path / "alias"
     alias.symlink_to(package, target_is_directory=True)
     monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
-    record = {"name": "gme_qwen2vl", "id": GME_ID, "path": "alias"}
+    record = {"name": "gme_qwen2vl", "id": "alias"}
 
     def text_model():
         return embedding.build_embedding(
-            backend="native_openvino_gme", model_path=str(package), device="CPU"
+            backend=config.LOCAL_OPENVINO, model_id="package", device="CPU"
         )
 
     def media_model():
@@ -154,9 +160,9 @@ def test_g13_main_and_registry_share_runtime_identity(tmp_path, monkeypatch, fak
     assert text.get_query_embedding("query") == [0.6, 0.8]
     assert text.get_text_embedding("document") == [0.6, 0.8]
     assert text.get_fused_embeddings(["caption"], ["image"]) == [[0.6, 0.8]]
-    assert media.embed_text(["query"]) == [[0.6, 0.8]]
-    assert media.embed_documents(["transcript"]) == [[0.6, 0.8]]
-    assert media.embed_image(["image"]) == [[0.6, 0.8]]
+    assert media.get_query_embedding("query") == [0.6, 0.8]
+    assert media.get_text_embedding_batch(["transcript"]) == [[0.6, 0.8]]
+    assert media.get_image_embeddings(["image"]) == [[0.6, 0.8]]
     assert [call[2]["is_query"] for call in fake_runtime[0].calls] == [
         True, False, False, True, False, False
     ]
@@ -207,15 +213,15 @@ def test_separate_prepared_model_ids_use_separate_runtimes(tmp_path, monkeypatch
 
     assert adapters[0]._runtime is not adapters[1]._runtime
     assert [runtime.model_dir for runtime in fake_runtime] == [first, second]
-    assert [runtime.precision for runtime in fake_runtime] == ["int8", "int4"]
 
 
-def test_g13_runtime_cache_releases_after_both_adapters_are_dropped(tmp_path, fake_runtime):
+def test_g13_runtime_cache_releases_after_both_adapters_are_dropped(tmp_path, monkeypatch, fake_runtime):
     package = _package(tmp_path / "package")
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     text = embedding.build_embedding(
-        backend="native_openvino_gme", model_path=str(package), device="CPU"
+        backend=config.LOCAL_OPENVINO, model_id="package", device="CPU"
     )
-    media = GmeQwen2VLEmbedding(str(package))
+    media = _media(package)
     reference = weakref.ref(text._runtime)
     fake_runtime.clear()
     del text
@@ -253,11 +259,12 @@ def test_g13_runtime_serializes_preprocessing_not_just_infer_requests(monkeypatc
 
 def test_g13_media_adapter_rejects_incorrect_declared_width(tmp_path, monkeypatch, fake_runtime):
     package = _package(tmp_path / "package")
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     runtime = embedding.build_gme_runtime(str(package), "CPU")
     runtime.embedding_dim = 42
 
     with pytest.raises(ValueError, match="expected 1536"):
-        GmeQwen2VLEmbedding(str(package))
+        _media(package)
 
 
 def test_g15_embedding_cache_releases_unreferenced_models(monkeypatch):
@@ -280,7 +287,6 @@ def test_g15_no_obsolete_embedding_module_or_imports():
     assert not (ROOT / "src/core/embeddings.py").exists()
     for relative in (
         "core/embedding.py", "inference/models.py", "core/multimodal/registry.py",
-        "inference/multimodal/gme_qwen2vl.py",
     ):
         path = ROOT / "src" / relative
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -299,7 +305,7 @@ def test_g14_all_model_options_expose_each_package_once_as_embedding(tmp_path, m
     whisper.mkdir()
     (whisper / "config.json").write_text('{"model_type": "whisper"}')
     monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
-    monkeypatch.setattr(config, "EMBEDDING_BACKEND", "native_openvino_gme")
+    monkeypatch.setattr(config, "EMBEDDING_BACKEND", config.LOCAL_OPENVINO)
     options = models.all_model_options()
     names = {
         kind: [entry["name"] for entry in option["models"]]
@@ -311,7 +317,7 @@ def test_g14_all_model_options_expose_each_package_once_as_embedding(tmp_path, m
     assert models.MULTIMODAL not in options
     assert names[models.ASR] == ["whisper"]
     assert models.LAYOUT in options
-    assert options[models.ASR]["backends"] == ["openvino"]
+    assert options[models.ASR]["backends"] == [config.LOCAL_OPENVINO]
     assert all(entry["ready"] for entry in options[models.EMBEDDING]["models"])
     assert {
         entry["name"]: entry["supported_kinds"] for entry in options[models.EMBEDDING]["models"]
@@ -355,49 +361,60 @@ def test_g14_incomplete_gme_is_one_embedding_with_compatibility_view(tmp_path, m
 @pytest.mark.parametrize("model_id,asset_type", [
     (GME_ID, "image"), (VICLIP_ID, "video"), (VICLIP_OFFICIAL_ID, "video"),
 ])
-@pytest.mark.parametrize("backend", ["openvino", "llamaindex_openvino"])
-def test_g18_registry_accepts_alias_and_main_canonical_backend(prepared_video_root, model_id, asset_type, backend):
-    resolved = registry.resolve({
-        "asset_types": [asset_type], "embedding_model": model_id, "embedding_backend": backend,
-    })
+@pytest.mark.parametrize("backend", [None, config.LOCAL_OPENVINO])
+def test_g18_registry_accepts_prepared_models_on_local_openvino(prepared_video_root, model_id, asset_type, backend):
+    options = {"asset_types": [asset_type], "embedding_model": model_id}
+    if backend:
+        options["embedding_backend"] = backend
+    resolved = registry.resolve(options)
 
-    assert resolved.backend == "llamaindex_openvino"
+    assert resolved.backend == config.LOCAL_OPENVINO
     assert resolved.model_id == model_id
     assert resolved.params["asset_types"] == [asset_type]
     if asset_type == "video":
         assert resolved.model.name == "viclip-b"
-        assert resolved.model_path == model_id.rsplit("/", 1)[-1]
-        assert resolved.model.is_ready(prepared_video_root / resolved.model_path)
+        assert "path" not in resolved.record()
+        assert resolved.model.is_ready(prepared_video_root / model_id.rsplit("/", 1)[-1])
 
 
-def test_g18_registry_accepts_native_gme_for_image_assets():
+def test_g18_registry_accepts_gme_for_image_assets():
     resolved = registry.resolve({
         "asset_types": ["image"], "embedding_model": GME_ID,
-        "embedding_backend": "native_openvino_gme",
+        "embedding_backend": config.LOCAL_OPENVINO,
     })
 
-    assert resolved.backend == "native_openvino_gme"
+    assert resolved.backend == config.LOCAL_OPENVINO
     assert resolved.model.name == "gme_qwen2vl"
     assert resolved.params == {
         "asset_types": ["image"], "block_kinds": ["image"], "block_roles": ["image"],
     }
 
 
-def test_g18_registry_still_rejects_native_gme_for_viclip(prepared_video_root):
-    with pytest.raises(ValueError, match="runs on"):
+def test_g18_registry_rejects_the_retired_gme_checkpoint_id():
+    with pytest.raises(ValueError, match="no longer accepted"):
         registry.resolve({
-            "asset_types": ["video"], "embedding_model": VICLIP_ID,
-            "embedding_backend": "native_openvino_gme",
+            "asset_types": ["image"], "embedding_model": "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct",
         })
 
 
 @pytest.mark.parametrize("model_id,asset_type", [(GME_ID, "image"), (VICLIP_ID, "video")])
-@pytest.mark.parametrize("backend", ["openai_compatible", "openvino_genai"])
-def test_g18_registry_does_not_redesign_main_providers(prepared_video_root, model_id, asset_type, backend):
-    assert config.normalize_model_backend(backend) == backend
+def test_g18_media_models_do_not_run_on_a_remote_backend(prepared_video_root, model_id, asset_type):
     with pytest.raises(ValueError, match="runs on"):
         registry.resolve({
             "asset_types": [asset_type], "embedding_model": model_id,
+            "embedding_backend": config.REMOTE_OPENAI_COMPATIBLE,
+        })
+
+
+@pytest.mark.parametrize("backend", [
+    "openvino", "llamaindex_openvino", "native_openvino_gme", "openai_compatible", "openvino_genai",
+])
+def test_g18_retired_backend_names_are_rejected(prepared_video_root, backend):
+    with pytest.raises(ValueError, match="model backend must be one of"):
+        config.normalize_model_backend(backend)
+    with pytest.raises(ValueError):
+        registry.resolve({
+            "asset_types": ["video"], "embedding_model": VICLIP_ID,
             "embedding_backend": backend,
         })
 
@@ -419,7 +436,7 @@ def test_g16_asr_prompt_follows_language_and_tuning_is_constant(monkeypatch, tmp
         ENGINE_ASR_PROMPT="ignored", ENGINE_ASR_SEGMENT_SECONDS="999",
         ENGINE_SHORT_VIDEO_MAX_SECONDS="999", ENGINE_BACKFILL_BATCH_SIZE="999",
         ENGINE_VIDEO_SUMMARY_TASK="ignored", ENGINE_VIDEO_SUMMARY_TIMEOUT="999",
-        ENGINE_ASR_BACKEND="llamaindex_openvino",
+        ENGINE_ASR_BACKEND="ignored",
     )
 
     assert values["ASR_PROMPT"] == prompt
@@ -428,14 +445,14 @@ def test_g16_asr_prompt_follows_language_and_tuning_is_constant(monkeypatch, tmp
     assert values["BACKFILL_BATCH_SIZE"] == 32
     assert values["VIDEO_SUMMARY_TASK"] == "summary"
     assert values["VIDEO_SUMMARY_TIMEOUT"] == 300.0
-    assert values["ASR_BACKEND"] == "openvino"
+    assert values["ASR_BACKEND"] == values["LOCAL_OPENVINO"]
 
 
 def test_g16_multimodal_environment_defaults_and_overrides(monkeypatch, tmp_path):
     values = _config(
         monkeypatch, tmp_path,
-        ENGINE_VIDEO_EMBEDDING_BACKEND="openvino",
-        ENGINE_IMAGE_EMBEDDING_BACKEND="openvino",
+        ENGINE_VIDEO_EMBEDDING_BACKEND="local_openvino",
+        ENGINE_IMAGE_EMBEDDING_BACKEND="local_openvino",
         ENGINE_VIDEO_EMBEDDING_MODEL_ID="example/video",
         ENGINE_IMAGE_EMBEDDING_MODEL_ID="example/image",
         ENGINE_ASR_MODEL_ID="example/speech",
@@ -447,10 +464,13 @@ def test_g16_multimodal_environment_defaults_and_overrides(monkeypatch, tmp_path
         ENGINE_VIDEO_SUMMARY_BASE_URL="http://captions.internal",
     )
 
-    for prefix, leaf in (("VIDEO_EMBEDDING", "video"), ("IMAGE_EMBEDDING", "image"), ("ASR", "speech")):
-        assert values[f"{prefix}_MODEL_PATH"] == str(tmp_path / "shared-models" / leaf)
-    assert values["VIDEO_EMBEDDING_BACKEND"] == "llamaindex_openvino"
-    assert values["IMAGE_EMBEDDING_BACKEND"] == "llamaindex_openvino"
+    assert values["MODEL_DIR"] == str(tmp_path / "shared-models")
+    assert not any(name.endswith("_MODEL_PATH") for name in values)
+    assert values["VIDEO_EMBEDDING_MODEL_ID"] == "example/video"
+    assert values["IMAGE_EMBEDDING_MODEL_ID"] == "example/image"
+    assert values["ASR_MODEL_ID"] == "example/speech"
+    assert values["VIDEO_EMBEDDING_BACKEND"] == values["LOCAL_OPENVINO"]
+    assert values["IMAGE_EMBEDDING_BACKEND"] == values["LOCAL_OPENVINO"]
     assert values["VIDEO_EMBEDDING_DEVICE"] == "GPU"
     assert values["IMAGE_EMBEDDING_DEVICE"] == "GPU.0"
     assert values["ASR_DEVICE"] == "GPU"
@@ -463,12 +483,13 @@ def test_g16_empty_model_root_keeps_the_prepared_package_defaults(monkeypatch, t
         monkeypatch, tmp_path, ENGINE_MODEL_ROOT_PATH="",
     )
 
+    assert values["MODEL_DIR"] == str(tmp_path / "workspace/models")
     for prefix, leaf in (
         ("VIDEO_EMBEDDING", "viclip-b-fp16"),
         ("IMAGE_EMBEDDING", "gme-Qwen2-VL-2B-Instruct-OV"),
         ("ASR", "whisper-small"),
     ):
-        assert values[f"{prefix}_MODEL_PATH"] == str(tmp_path / "workspace/models" / leaf)
+        assert values[f"{prefix}_MODEL_ID"] == leaf
     assert values["ASR_LANGUAGE"] == "zh"
     assert values["ASR_ENABLED"] is True
 

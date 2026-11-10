@@ -396,7 +396,11 @@ phase_02_selfcheck() {
   check "install.sh announces the served model name after the endpoint is resolved" \
     bash -c "grep -q '^  announce_served_model_name\$' '$REPO_ROOT/scripts/install.sh'"
   check "install.sh's onboard command loads nvm before resolving the served model name" \
-    bash -c "grep -B8 '^    run_agent_onboard\$' '$REPO_ROOT/scripts/install.sh' | grep -q 'nvm use'"
+    bash -c "grep -B2 '^    run_agent_onboard\$' '$REPO_ROOT/scripts/install.sh' | grep -q 'ensure_node_on_path'"
+  check "install.sh's models command loads nvm before reading config.json" \
+    bash -c "awk '/^run_models_command\\(\\)/,/^}/' '$REPO_ROOT/scripts/install.sh' | grep -q 'ensure_node_on_path'"
+  check "ensure_node_on_path selects nvm's Node" \
+    bash -c "awk '/^ensure_node_on_path\\(\\)/,/^}/' '$REPO_ROOT/scripts/install.sh' | grep -q 'nvm use'"
 }
 
 phase_03_libunit() {
