@@ -11,7 +11,7 @@
     { "label": "Deterministic Threat Detection", "value": "deterministic_threat_detection", "remove": true }
   ],
   "install": {
-    "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+    "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
   },
   "getStarted": {
     "text": "Get Started",
