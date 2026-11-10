@@ -30,6 +30,7 @@ class StartPipelineRequest(BaseModel):
     validate_pipeline: Optional[bool] = Field(default=True, description="Whether to validate the pipeline before starting")
     cpu_cores: Optional[List[int]] = None  # CPU core indices to pin this pipeline to (e.g., [0, 1, 2])
     warmup_frames: Optional[int] = Field(default=0, description="Number of initial frames excluded from avg_fps; frame_fps is still reported during warmup")
+    fps_element: Optional[str] = Field(default=None, description="Name of the element whose input buffers are counted for FPS; defaults to the terminal sink")
     restart_config: Optional[RestartConfig] = None
 
     _check_cpu_cores = field_validator("cpu_cores")(_validate_cpu_cores)
@@ -82,6 +83,7 @@ class StartNamedPipelineRequest(BaseModel):
     parameters: Optional[dict[str, Any]] = None
     tags: Optional[dict[str, Any]] = None
     cpu_cores: Optional[List[int]] = None  # CPU core indices to pin this pipeline to (e.g., [0, 1, 2])
+    fps_element: Optional[str] = None  # Element whose input buffers are counted for FPS; defaults to the terminal sink
 
     _check_cpu_cores = field_validator("cpu_cores")(_validate_cpu_cores)
 
@@ -100,6 +102,7 @@ class PipelineStatusResponse(BaseModel):
     frame_interval: float  # Time window in seconds for last_fps (frame_fps) calculation
     start_time: Optional[float]  # Unix epoch when pipeline transitioned to RUNNING
     first_frame_time: Optional[float]  # Unix epoch when first frame was received
+    stop_time: Optional[float]  # Unix epoch when the run ended (set once torn down)
     elapsed_time: Optional[float]
     message: str
 

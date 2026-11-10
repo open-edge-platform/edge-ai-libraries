@@ -13,7 +13,7 @@ debian_40_group_edge_pack_base_standard () {
 
 debian_40_install_edge_pack_base_standard () {
   configure_edge_pack_base_standard "$@"
-  if ensure_apt_is_installed intel-edge-base-standard && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-base-standard && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-base-standard is installed." >&2
   else
     ensure_prop set installed/edge_pack_base_standard/owned true

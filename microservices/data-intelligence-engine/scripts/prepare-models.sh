@@ -323,7 +323,7 @@ for model in "${models[@]}"; do
 done
 command -v docker >/dev/null 2>&1 || die "docker is required"
 docker image inspect "$IMAGE" >/dev/null 2>&1 \
-  || die "image $IMAGE not found; build it first (quickstart.sh does, or: docker compose build in deployment/docker)"
+  || die "image $IMAGE not found; build it first with: quickstart.sh --build"
 
 # The containers write as UID 1000, the engine container's user.
 mkdir -p "$HF_MODEL_DIR" "$OV_MODEL_DIR"

@@ -175,16 +175,16 @@ import {
   requestAssetCreate,
   requestAssetUpload,
 } from "@/api/console";
-import type { Library, UploadResult } from "@/api/console/type";
+import type { IngestResult, Library, UploadResult } from "@/api/console/type";
 import { customNotification } from "@/utils/notification";
-import { readDroppedFiles } from "../Upload";
-import type { StagedFile } from "../Upload";
+import { readDroppedFiles } from "../AssetUtils";
+import type { StagedFile } from "../AssetUtils";
 const props = defineProps<{
   libraryData: Library;
   poolId?: string;
   files?: StagedFile[];
 }>();
-const emit = defineEmits<{ close: []; created: [ids: string[]] }>();
+const emit = defineEmits<{ close: []; created: [result: IngestResult] }>();
 const handleClose = () => emit("close");
 const handleClearFiles = () => {
   fileList.value = [];
@@ -310,7 +310,7 @@ const handleSubmit = async () => {
       t("common.success"),
       t("console.accepted", { count: data.asset_ids.length }),
     );
-    emit("created", data.asset_ids);
+    emit("created", data);
     emit("close");
   } finally {
     submitLoading.value = false;

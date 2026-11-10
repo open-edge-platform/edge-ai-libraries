@@ -28,6 +28,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl jq build-essential tesseract-ocr tesseract-ocr-chi-sim ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# libreoffice-draw-nogui: renders WMF/EMF pictures in Office files.
+ARG INSTALL_LIBREOFFICE=true
+RUN if [ "$INSTALL_LIBREOFFICE" = "true" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+        libreoffice-draw-nogui fonts-dejavu-core \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
+
 # Intel GPU user-space runtime (OpenCL ICD + Level Zero) so OpenVINO can enumerate
 # and run embedding/rerank on the Intel GPU. Without these, OpenVINO only sees CPU
 # even when /dev/dri is passed through. Mirrors EdgeCraftRAG's Dockerfile.server.

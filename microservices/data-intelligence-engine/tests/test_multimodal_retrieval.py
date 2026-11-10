@@ -7,6 +7,8 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+
+import config
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from llama_index.core.schema import NodeWithScore, TextNode
@@ -344,7 +346,7 @@ def test_media_rerank_orders_globally_across_targets(monkeypatch):
     assert [hit.score for hit in result.retrieved_chunks] == [0.9, 0.7, 0.8, 0.6]
 
 
-def test_media_model_defaults_are_independent_of_text(monkeypatch):
+def test_media_model_defaults_are_independent_of_text(monkeypatch, tmp_path):
     from core.multimodal import reranking as media_reranker
     from schemas import PostprocessOptions
 
@@ -355,18 +357,19 @@ def test_media_model_defaults_are_independent_of_text(monkeypatch):
 
     from inference import ov_adapter
     monkeypatch.setattr(ov_adapter, "OpenVINOVLReranking", Adapter)
-    monkeypatch.setattr(media_reranker.config, "MEDIA_RERANK_MODEL_ID", "Qwen/Qwen3-VL-Reranker-2B")
-    monkeypatch.setattr(media_reranker.config, "MEDIA_RERANK_MODEL_PATH", "/tmp/qwen-reranker-ov")
+    (tmp_path / "qwen-reranker-ov").mkdir()
+    monkeypatch.setattr(media_reranker.config, "MODEL_DIR", str(tmp_path))
+    monkeypatch.setattr(media_reranker.config, "MEDIA_RERANK_MODEL_ID", "qwen-reranker-ov")
     monkeypatch.setattr(media_reranker.config, "MEDIA_RERANK_DEVICE", "CPU")
     monkeypatch.setattr(media_reranker.config, "RERANK_MODEL_ID", "BAAI/bge-reranker-large")
     from core import postprocessor
     monkeypatch.setattr(postprocessor, "_VL_CACHE", {})
     media_reranker.build_media_reranker(PostprocessOptions(), lambda index, node: {}, 1)
-    assert seen == {"path": "/tmp/qwen-reranker-ov", "device": "CPU"}
+    assert seen == {"path": str((tmp_path / "qwen-reranker-ov").resolve()), "device": "CPU"}
 
 
 @pytest.mark.parametrize("device", ["CPU", "GPU", "GPU.0"])
-def test_media_reranker_device_override_reaches_scorer(monkeypatch, device):
+def test_media_reranker_device_override_reaches_scorer(monkeypatch, tmp_path, device):
     from core.multimodal import reranking
     from core import postprocessor
     from inference import ov_adapter
@@ -380,11 +383,14 @@ def test_media_reranker_device_override_reaches_scorer(monkeypatch, device):
 
     monkeypatch.setattr(ov_adapter, "OpenVINOVLReranking", Scorer)
     monkeypatch.setattr(postprocessor, "_VL_CACHE", {})
+    selected = tmp_path / "selected-qwen-vl"
+    selected.mkdir()
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     options = PostprocessOptions(reranker_model=RerankerModelIn(
-        backend="openvino_vl", device=device, model_path="/tmp/selected-qwen-vl",
+        backend=config.LOCAL_OPENVINO, device=device, model_id="selected-qwen-vl",
     ))
     reranking.build_media_reranker(options, lambda index, node: {}, 1)
-    assert seen == {"path": "/tmp/selected-qwen-vl", "device": device}
+    assert seen == {"path": str(selected), "device": device}
 
 
 def test_image_reranker_reads_authorized_bytes_and_preserves_recall_hit(monkeypatch):
@@ -557,12 +563,13 @@ def test_media_request_accepts_text_backend_for_transcript_and_rejects_bad_top_n
         seen.append(model.backend)
         return chunks[:top_n]
     monkeypatch.setattr(api, "postprocess_chunks", postprocess)
+    monkeypatch.setattr(api.config, "RERANK_MODEL_ID", "BAAI/bge-reranker-large")
     result = asyncio.run(api.retrieve(RetrieveRequest(
         query="find it", libraries=["test-library"], target_media=["audio"],
-        postprocess={"reranker_model": {"backend": "llamaindex_openvino"}},
+        postprocess={"reranker_model": {"backend": config.LOCAL_OPENVINO}},
     )))
     assert [hit.id for hit in result.chunks] == ["audio"]
-    assert seen == ["llamaindex_openvino"]
+    assert seen == [config.LOCAL_OPENVINO]
     with pytest.raises(HTTPException) as error:
         asyncio.run(api.retrieve(RetrieveRequest(
             query="find it", libraries=["test-library"],
@@ -591,8 +598,8 @@ def test_multiple_sources_are_searched_and_missing_target_is_rejected(monkeypatc
     result = asyncio.run(api.retrieve(RetrieveRequest(
         query="find it", libraries=["test-library"], target_media=["image"],
     )))
-    assert len(result.chunks) == 2
-    assert {hit.metadata["pool_id"] for hit in result.chunks} == {"image-pool", "second-image-pool"}
+    assert len(result.chunks) == 1
+    assert all(pool.projections[0].requests for pool in pools)
 
     with pytest.raises(HTTPException) as missing:
         asyncio.run(api.retrieve(RetrieveRequest(

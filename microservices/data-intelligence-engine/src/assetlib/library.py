@@ -1,36 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""AssetLibrary -- assets, the sources they are materialized into, and the pools.
-
-**One instance is one set of assets plus the machinery that keeps them
-materialized.** A library owns three registries and nothing domain-specific:
-
-- `sources`  -- where assets can be materialized: a collection in some database,
-                reached through a `databasehub` adapter. Passive: registering one
-                stores a locator, it does not move data.
-- `assets`   -- what the library holds. Each asset carries the `origin` it came
-                from, which is *not* a source: an origin is where an asset was
-                read from (a file, a request body), a source is where it is
-                written to.
-- `pools`    -- a set of asset ids, plus one projection per source, plus a record
-                of how far each of those sources has got. Ingesting adds to a
-                pool; `sync_asset_pool` is what actually materializes.
-
-Everything above is the same whatever the assets are, so it lives here. A
-subclass supplies only what the domain decides:
-
-- `build_projection`  -- which projection type a source of a given kind gets.
-- `asset_to_record` / `asset_from_record` -- how one asset is persisted.
-
-`data-intelligence-engine/src/core/file_asset_library.py:FileAssetLibrary` is the RAG
-specialization: its assets are llama-index `Document`s, its projections are
-vector and graph indexers, and it adds the file and chunk vocabulary on top.
-
-Postprocessing is deliberately absent. It operates on a result set, not on a
-library: a set merged from several libraries has to be reranked as a whole, so
-the stage belongs beside the results rather than being dispatched back through
-the projections that produced them.
-"""
 
 import gc
 import threading
@@ -101,7 +70,7 @@ def merge_counts(results: Iterable[Mapping[str, int]]) -> Dict[str, int]:
 class AssetLibrary(ABC, Generic[AssetT]):
     """A set of assets, the sources they go into, and the pools that pair them."""
 
-    #: Assets per write while a binding is preparing (assetlib/sources/backfill.py).
+    #: Assets per write while a binding is preparing.
     BACKFILL_BATCH_SIZE = 32
 
     def __init__(
@@ -117,10 +86,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         self.library_id = idx or str(uuid.uuid4())
         self.name = name
         self.description = description
-        # Which of this library's sources new content goes to. Empty until one
-        # is chosen -- from `content_database` below, or on first ingest. An
-        # asset records the source it was actually written to, so moving this
-        # pointer changes where the *next* asset goes and nothing else.
+        # Source new content goes to; empty until chosen or set on first ingest.
         self.default_content_source_id = ""
         if databasehub is None:
             from databasehub.manager import database_manager
@@ -132,18 +98,11 @@ class AssetLibrary(ABC, Generic[AssetT]):
         self._sources: Dict[str, Source] = {}
         self._content_store: Optional[ContentStore] = None
         self.source_reconciliation_errors: Dict[str, str] = {}
-        # One lock per pool, so two syncs of the same pool run one after the
-        # other (`sync_asset_pool`); `_sync_locks_guard` only protects the dict.
+        # Per-pool sync locks; `_sync_locks_guard` only protects the dict.
         self._sync_locks: Dict[str, threading.RLock] = {}
         self._sync_locks_guard = threading.Lock()
         if content_database:
-            # Named at creation, so the source exists from here on rather than
-            # being a promise recorded in a second field. Registering one is
-            # passive -- it stores a locator and dials nothing -- so this costs
-            # a dict entry and fails fast if the database is not registered.
             self.adopt_content_database(content_database)
-
-    # --- what a subclass must supply ------------------------------------------
 
     @abstractmethod
     def build_projection(
@@ -152,16 +111,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         """The projection a source of this kind is materialized through."""
 
     def describe_source(self, source: Source) -> dict:
-        """What this source embeds with, as its profile records it.
-
-        The generic answer is the source's own options, hashed. A subclass that
-        knows how its options resolve -- which defaults fill a missing model,
-        which keys only route -- overrides this to say so.
-
-        Only a source that produces retrievable records has one. A content
-        (object) source stores what assets are, not anything derived from them,
-        so there is nothing for a profile to describe.
-        """
+        """Embedding profile of a vector/graph source; empty for other kinds."""
         if source.source_type.lower() not in ("vector", "graph"):
             return {}
         configuration = dict(source.configuration)
@@ -180,15 +130,12 @@ class AssetLibrary(ABC, Generic[AssetT]):
     def asset_from_record(self, record: Mapping[str, Any]) -> AssetT:
         """One asset, restored."""
 
-    # --- identity -------------------------------------------------------------
-
     @property
     def idx(self) -> str:
-        """Alias for `library_id`, which is what the API has always called it."""
+        """Alias for `library_id`."""
         return self.library_id
 
     def matches(self, key: str) -> bool:
-        """Whether this library answers to `key` -- its name or its id."""
         return bool(key) and key in (self.name, self.idx)
 
     def update(
@@ -197,12 +144,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         content_database: Optional[str] = None,
         default_content_source_id: Optional[str] = None,
     ) -> None:
-        """Change the description, or where new content goes.
-
-        Repointing does not move the content already written, and does not need
-        to: every asset records the source it was written to and keeps reading
-        from it. What moves is where the next asset goes.
-        """
+        """Change the description, or where new content goes (existing content stays put)."""
         if description is not None:
             self.description = description
         if default_content_source_id:
@@ -210,11 +152,9 @@ class AssetLibrary(ABC, Generic[AssetT]):
         if content_database:
             self.adopt_content_database(content_database)
 
-    # --- sources --------------------------------------------------------------
-
     @property
     def sources(self) -> Mapping[str, Source]:
-        """Where assets can be materialized. Not where they came from."""
+        """Where assets can be materialized."""
         return MappingProxyType(self._sources)
 
     def add_source(self, source: Source) -> Source:
@@ -234,12 +174,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         enabled: bool = True,
         labels: Optional[Mapping[str, str]] = None,
     ) -> Source:
-        """Register a source. Its model and parameters are fixed from here on.
-
-        Without a `collection_name` one is derived from the library, the source
-        and the time, so creating a source per model or parameter change does
-        not mean inventing names.
-        """
+        """Register a source; its model and parameters are fixed from here on."""
         if not name:
             raise ValueError("A source needs a name")
         if "embedding_model_path" in (configuration or {}):
@@ -270,13 +205,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         return self.add_source(source) if register else source
 
     def update_source(self, source_id: str, **fields: Any) -> List[str]:
-        """Rename, relabel, or switch a source on or off.
-
-        Returns the pools that now have work to sync -- a source switched back
-        on has to catch up with whatever its pools took in while it was off.
-        Switching on rebuilds the projections first and changes nothing if any
-        of them cannot be built, so a failure leaves the source as it was.
-        """
+        """Rename, relabel, or switch a source on or off; returns pools needing a sync."""
         changes = updates.check_patch(fields)
         source = self.source_for(source_id)
         if "enabled" in changes and source.source_type == "object":
@@ -321,7 +250,6 @@ class AssetLibrary(ABC, Generic[AssetT]):
 
     @staticmethod
     def _carry_source_fields(asset_pool: AssetPool, updated: Source) -> None:
-        """Give a pool's copies of a source its new name, labels and switch."""
         for projection in asset_pool.projections:
             if projection.source.source_id == updated.source_id:
                 projection.source = replace(
@@ -350,13 +278,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
     def set_source_serving_state(
         self, asset_pool_id: str, source_id: str, serving_state: str
     ) -> List[str]:
-        """Stop or resume one pool binding without replacing another source.
-
-        Deprecation keeps its records and progress but releases its projection.
-        Resuming builds the frozen model first, leaving the binding untouched on
-        failure. A source behind the pool starts PREPARING, not serving stale
-        records. Pending CLI replacement intents must be resolved separately.
-        """
+        """Deprecate or resume one pool binding."""
         pool = self._require_asset_pool(asset_pool_id)
         source = self.source_for(source_id)
         status = pool.source_statuses.get(source_id)
@@ -388,7 +310,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
             (p for p in pool.projections if p.source.source_id == source_id), None
         )
         if projection is None:
-            # Build before mutating state/progress so a failed load is atomic.
+            # Build before mutating state so a failed load leaves it untouched.
             projection = self.build_projection(str(uuid.uuid4()), pool.name, source)
         state = (
             binding.SERVING if binding.is_caught_up(status, pool.revision)
@@ -406,8 +328,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
     def _apply_transitions(self, asset_pool: AssetPool, transitions) -> List[str]:
         frozen = state_machine.apply(asset_pool, transitions, self._sources)
         if frozen:
-            # A frozen binding's projection is gone; collecting now is what lets
-            # its model leave memory instead of waiting for the next cycle.
+            # Release the frozen projections' models from memory now.
             gc.collect()
         return frozen
 
@@ -415,21 +336,11 @@ class AssetLibrary(ABC, Generic[AssetT]):
         source = self._sources.pop(source_id, None)
         self.source_reconciliation_errors.pop(source_id, None)
         if source_id == self.default_content_source_id:
-            # Nothing to keep pointing at. The next ingest adopts a new default
-            # rather than the library staying broken.
             self.default_content_source_id = ""
         return source is not None
 
     def detach_source(self, source_id: str) -> bool:
-        """Remove a source a caller asked to detach, unless content needs it.
-
-        Detaching is otherwise free -- a source is a locator, and dropping it
-        deliberately leaves the collection alone. Content is the exception: an
-        asset holds the id of the source its bytes are in, and `source_for` is
-        how it reads them, so forgetting that source turns every asset in it
-        into one that raises when read. `remove_source` itself stays unguarded,
-        because reconciliation uses it to rebuild the registry.
-        """
+        """Remove a source from the library unless assets keep their content in it."""
         holders = self.assets_in_source(source_id)
         if holders:
             raise ValueError(
@@ -458,8 +369,6 @@ class AssetLibrary(ABC, Generic[AssetT]):
             if getattr(asset, "content_source_id", "") == source_id
         ]
 
-    # --- content --------------------------------------------------------------
-
     CONTENT_SOURCE_NAME = "content"
 
     @property
@@ -470,30 +379,12 @@ class AssetLibrary(ABC, Generic[AssetT]):
 
     @property
     def content_database(self) -> str:
-        """Which object database the default content source writes to, if any.
-
-        Derived, not stored. It was a field beside the source, which meant the
-        same fact in two places: a content source registered through
-        `POST /{library}/sources` stored content perfectly well while this
-        reported `""`, and `update` could name a database that held nothing.
-        """
+        """Which object database the default content source writes to, if any."""
         source = self._sources.get(self.default_content_source_id)
         return source.database_id if source is not None else ""
 
     def content_source(self, source_id: Optional[str] = None) -> Source:
-        """Where to put content: a named source, this library's default, or a
-        default adopted now.
-
-        `source_id` is a source, not a database, because that is what a place to
-        write is: a database plus a collection in it. A caller that named only a
-        database left the collection to be invented, and the invented answer was
-        silently ignored anyway -- this returned the existing content source
-        whatever it was passed.
-
-        Adopted on first use rather than at construction, so a library that
-        never stores content never acquires an object source -- and the source
-        shows up in `sources` exactly like any other, because that is what it is.
-        """
+        """Where to put content: a named source, the default, or a default adopted now."""
         if source_id:
             source = self.source_for(source_id)
             if source.source_type.lower() != "object":
@@ -523,8 +414,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         source = existing or self.create_source(
             name=self._content_source_name(),
             database_id=database_id,
-            # One container per library, so removing a library's content is one
-            # sweep and two libraries never share a key space.
+            # One container per library.
             collection_name=self.library_id,
         )
         self.default_content_source_id = source.source_id
@@ -537,12 +427,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         return source
 
     def _content_source_name(self) -> str:
-        """`content`, or `content-2`, `content-3`... once that name is taken.
-
-        Cosmetic. Nothing keys off it any more -- the default is a pointer, and
-        an asset names its own source -- but two sources called `content` would
-        be unreadable in `GET /{library}/sources`.
-        """
+        """`content`, or `content-2`, `content-3`... once that name is taken."""
         taken = {source.name for source in self._sources.values()}
         if self.CONTENT_SOURCE_NAME not in taken:
             return self.CONTENT_SOURCE_NAME
@@ -552,22 +437,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         return f"{self.CONTENT_SOURCE_NAME}-{suffix}"
 
     def resolve_content_database(self) -> str:
-        """Which object database to adopt when the library has not been told.
-
-        The sole registered object database if there is exactly one, and the
-        workspace's own store otherwise -- registered on demand, so the engine
-        is still connected to nothing until something needs it.
-
-        "One is registered so it must be the one you meant" is a fair inference;
-        "you have three, pick one" is not, so with several registered this does
-        *not* guess between them. It falls back to the workspace store, which is
-        not a guess at all: it is a directory the engine owns. Name a
-        `content_database` (or a `content_source_id` per ingest) to put content
-        in one of the others.
-
-        This used to be the literal string `"default-object"`, an id the engine
-        registered for itself at import time from the environment.
-        """
+        """The sole registered object database, else the workspace content store."""
         candidates = self._databasehub.databases_of_type("object")
         if len(candidates) == 1:
             return candidates[0].database_id
@@ -588,14 +458,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         self._sources[source.source_id] = source
 
     def reconcile_sources(self, sources: Sequence[Source]) -> None:
-        """Restore the source registry, reporting each failure on its own source.
-
-        A source is registered either way -- it is a passive locator, and the
-        library has to keep describing it so a save does not erase it. What
-        reconciling decides is whether it is *usable*, and the answer lands in
-        `source_reconciliation_errors`, which the API reports as
-        `reconciled: false` with the reason.
-        """
+        """Restore the source registry, recording per-source problems in `source_reconciliation_errors`."""
         self.source_reconciliation_errors = {}
         desired_ids = {source.source_id for source in sources}
         for source_id in list(self._sources):
@@ -608,7 +471,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
             self.remove_source(source.source_id)
             try:
                 self.add_source(source)
-            except Exception as error:  # noqa: BLE001 - reconcile the rest
+            except Exception as error:  # noqa: BLE001
                 self.source_reconciliation_errors[source.source_id] = str(error)
                 continue
             problem = self._source_problem(source)
@@ -616,12 +479,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 self.source_reconciliation_errors[source.source_id] = problem
 
     def _source_problem(self, source: Source) -> str:
-        """Why this source cannot currently be used, or "" if it can.
-
-        Checked at restore because the common reason -- the database it names is
-        not registered -- is invisible until something tries to write, and by
-        then the caller is an ingest that has already accepted an upload.
-        """
+        """Why this source cannot currently be used, or "" if it can."""
         if not source.database_id:
             return (
                 "This source has no database_id. It was written by a version "
@@ -630,7 +488,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
             )
         try:
             registration = self._databasehub.get_registration(source.database_id)
-        except Exception as error:  # noqa: BLE001 - the message is the report
+        except Exception as error:  # noqa: BLE001
             return str(error)
         if registration.database_type != source.source_type:
             return (
@@ -639,8 +497,6 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 "database"
             )
         return ""
-
-    # --- assets ---------------------------------------------------------------
 
     @property
     def assets(self) -> Mapping[str, AssetT]:
@@ -656,11 +512,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
             self._assets[asset.asset_id] = asset
 
     def forget_assets(self, asset_ids: Collection[str]) -> List[str]:
-        """Drop assets from the library and from every pool that referenced them.
-
-        Bookkeeping only: removing the materialized records is the caller's
-        business, since it is the one that knows how they were addressed.
-        """
+        """Drop assets from the library and its pools; materialized records are left to the caller."""
         removed = [
             asset_id
             for asset_id in dict.fromkeys(asset_ids)
@@ -673,8 +525,6 @@ class AssetLibrary(ABC, Generic[AssetT]):
         for asset_pool in self._asset_pools.values():
             asset_pool.forget_asset_ids(removed)
         return removed
-
-    # --- pools ----------------------------------------------------------------
 
     @property
     def asset_pools(self) -> Mapping[str, AssetPool]:
@@ -693,15 +543,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
     ) -> AssetPool:
         """Create a pool and the projection each of its sources needs.
 
-        `source_configurations` is optional: a pool with no sources is a valid,
-        useful state -- assets can be added to it and sources attached later
-        with `set_asset_pool_sources`, at which point whatever the pool already
-        holds is indexed into them.
-
-        `asset_ids` / `revision` / `source_statuses` / `tolerant` restore a pool
-        that was persisted (see `from_record`); a caller creating a fresh one
-        leaves them alone. Returns the pool; the other mutators return nothing,
-        since they change the pool in place.
+        `asset_ids` / `revision` / `source_statuses` / `tolerant` are only for restoring a persisted pool.
         """
         if not asset_pool_id:
             raise ValueError("An asset pool needs an id")
@@ -715,18 +557,12 @@ class AssetLibrary(ABC, Generic[AssetT]):
             metadata=dict(metadata or {}),
         )
         if source_statuses:
-            # Restored progress wins over the defaults set_projections would
-            # apply -- seeded first, because a restored binding's serving state
-            # decides whether it is given a projection at all (a frozen one is
-            # not, and does not load its model at startup).
+            # Seeded first: a restored serving state decides whether a projection is built.
             asset_pool.source_statuses = dict(source_statuses)
         unavailable = self._attach_sources(
             asset_pool, source_configurations, tolerant=tolerant
         )
         for source_id, (_, reason) in unavailable.items():
-            # ...but not over "this source has no projection". The restored
-            # status may well say `ready`, and it was, before the database it
-            # writes to stopped being registered.
             status = asset_pool.source_statuses.get(source_id)
             if status is not None:
                 status.mark_failed(reason)
@@ -758,11 +594,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         asset_pool.add_asset_ids(asset_ids, source_ids=affected)
 
     def _source_accepts_asset(self, source: Source, asset: AssetT) -> bool:
-        """Scope check without a projection, for frozen/unavailable bindings.
-
-        Generic sources conservatively accept everything. Domain libraries can
-        apply their asset filters without loading a model or contacting a backend.
-        """
+        """Scope check without a projection, for frozen/unavailable bindings."""
         return True
 
     def _affected_source_assets(
@@ -802,13 +634,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         asset_ids: Collection[str],
         source_ids: Optional[Collection[str]] = None,
     ) -> None:
-        """Their content was replaced: re-open them in every pool that holds them.
-
-        Asset ids are stable -- an asset is a file, and re-ingesting that file is
-        an update, not a new asset. So nothing is added to a pool and this is
-        what tells the sync there is work. `source_ids`, when given, limits
-        that work to those sources (`AssetPool.mark_assets_changed`).
-        """
+        """Mark replaced assets as pending in every pool holding them, optionally only for `source_ids`."""
         for asset_pool in self._asset_pools.values():
             held = set(asset_pool.asset_ids)
             changed = [asset_id for asset_id in asset_ids if asset_id in held]
@@ -823,23 +649,8 @@ class AssetLibrary(ABC, Generic[AssetT]):
     ) -> Dict[str, Tuple[Source, str]]:
         """Resolve the configurations and give `asset_pool` their projections.
 
-        Returns the sources it could not build a projection for, as
-        `{source_id: (source, reason)}` -- always empty unless `tolerant`.
-
-        Rolls back any source it registered along the way if a projection cannot
-        be built, so a failed call leaves no half-attached source behind. That
-        is right for a caller attaching a source *now*: it asked for something
-        impossible and should be told so.
-
-        `tolerant` is for restore, where it is wrong. A pool read back from the
-        workspace describes what the operator already set up, and a projection
-        may be unbuildable for reasons that have nothing to do with the record --
-        most obviously that its database is not registered yet, which after
-        connections became runtime state is the ordinary condition of a fresh
-        engine. Raising there would abort the whole library restore, and the
-        next save would then rewrite `asset_library.json` without it, destroying
-        the assets and pools that were only ever unreachable. So each source is
-        tried on its own and the ones that fail are kept as unavailable.
+        Returns `{source_id: (source, reason)}` for unbuildable projections, only
+        when `tolerant` (restore); otherwise rolls back created sources and raises.
         """
         source_configurations, replaces = updates.split_replaces(
             source_configurations
@@ -885,7 +696,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 projections.append(
                     self.build_projection(str(uuid.uuid4()), asset_pool.name, source)
                 )
-            except Exception as error:  # noqa: BLE001 - reported per source
+            except Exception as error:  # noqa: BLE001
                 if not tolerant:
                     for source_id in created_source_ids:
                         self.remove_source(source_id)
@@ -899,8 +710,6 @@ class AssetLibrary(ABC, Generic[AssetT]):
             frozen=frozen,
         )
         if tolerant:
-            # A restore: every binding is back as it was recorded, and nothing
-            # happened that should move one.
             return unavailable
         updates.drop_stale_replaces(asset_pool, attached_ids)
         for new, old in replaces.items():
@@ -922,15 +731,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
     def _already_indexed(
         self, asset_pool: AssetPool, projections: Sequence[Projection]
     ) -> Dict[str, Collection[str]]:
-        """Which of the pool's assets each newly attached source already holds.
-
-        An attached collection is not necessarily empty -- it may be one this
-        pool indexed into before, or one another pool already filled. Asking now
-        means a source that is already up to date is reported `ready` instead of
-        `pending`, and the sync that follows sends only what is genuinely
-        missing. Sources that were already attached are skipped: they keep their
-        own recorded progress, so there is nothing to ask about.
-        """
+        """Which of the pool's assets each newly attached source already holds."""
         if not asset_pool.asset_ids:
             return {}
         already: Dict[str, Collection[str]] = {}
@@ -940,8 +741,6 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 continue
             if not isinstance(projection, ChunkProjection):
                 continue
-            # Only what this source would accept: an asset it will never hold is
-            # not "missing" from it.
             wanted = [
                 asset_id
                 for asset_id in asset_pool.asset_ids
@@ -964,9 +763,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 if source_id:
                     source = self._sources.get(str(source_id))
                     if source is None and tolerant:
-                        # Restoring a pool whose source failed to reconcile. The
-                        # record still describes it, so rebuild it passively and
-                        # let `_attach_sources` file it as unavailable.
+                        # Unreconciled source on restore: rebuild it so it is kept as unavailable.
                         source = Source.from_record(configuration)
                     if source is None:
                         raise ValueError(f"Source {source_id!r} not found")
@@ -996,15 +793,8 @@ class AssetLibrary(ABC, Generic[AssetT]):
             raise
         return sources, created_source_ids
 
-    # --- sync -----------------------------------------------------------------
-
     def _sync_projection_order(self, asset_pool: AssetPool) -> Sequence[Projection]:
-        """The order to sync the pool's projections in.
-
-        Defaults to attachment order. A subclass that needs one source up to date
-        before another syncs (vector before graph, so a graph sync can resolve
-        OKF source chunks against already-written chunks) overrides this.
-        """
+        """The order to sync the pool's projections in; defaults to attachment order."""
         return asset_pool.projections
 
     def _prepare_projection_add(
@@ -1020,25 +810,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
     def sync_asset_pool(self, asset_pool_id: str) -> None:
         """Bring every projection in the pool up to the pool's current revision.
 
-        Slow: each `projection.add` embeds and writes to a backend. The pool is
-        therefore mutated in place as we go, and the revision and asset set are
-        read *once* up front -- so an ingest that lands mid-sync raises the
-        pool's revision above the one we are about to record, and the next sync
-        picks its assets up. An earlier version wrote a snapshot of the pool back
-        at the end, which silently reverted such an ingest and left the status
-        claiming `ready`, so those assets were never indexed at all.
-
-        Each projection sees only the assets it `accepts`, and a source with
-        nothing to do settles at `ready` for this revision rather than staying
-        pending.
-
-        Syncs of one pool are serialized. Two requests arriving together (say,
-        two `PUT .../sources`) each queue a background sync; run concurrently,
-        both would read the same assets as missing, both delete-then-add them,
-        and every text chunk would land twice under fresh record ids. Queued
-        behind the first, the second finds the pool at its revision and does
-        nothing -- or picks up only what was ingested meanwhile. Different pools
-        still sync in parallel.
+        Syncs of one pool are serialized to avoid duplicate writes; different pools run in parallel.
         """
         with self._sync_lock(asset_pool_id):
             self._sync_pass(self._require_asset_pool(asset_pool_id))
@@ -1049,7 +821,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
             return self._sync_locks.setdefault(asset_pool_id, threading.RLock())
 
     def _sync_pass(self, asset_pool: AssetPool) -> None:
-        """One pass of `sync_asset_pool` at the pool's current revision."""
+        """One pass of `sync_asset_pool`; ingests landing mid-sync are picked up next pass."""
         revision = asset_pool.revision
         pool_asset_ids = list(asset_pool.asset_ids)
         for projection in self._sync_projection_order(asset_pool):
@@ -1061,12 +833,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 continue
             if binding.is_frozen(self._sources.get(source_id, projection.source), status):
                 continue
-            # A pool may hold more than one source cares about -- a graph source
-            # extracting knowledge from the reports, a vector source indexing
-            # everything beside them. Everything below is computed against this
-            # source's own subset, `missing_ids` included: measuring progress
-            # against assets a source will never accept would leave it short of
-            # the revision forever and re-syncing on every pass.
+            # Progress is measured only against the assets this source accepts.
             asset_ids = [
                 asset_id
                 for asset_id in pool_asset_ids
@@ -1074,17 +841,12 @@ class AssetLibrary(ABC, Generic[AssetT]):
             ]
             indexed_ids = set(status.indexed_asset_ids) & set(asset_ids)
             if asset_ids and isinstance(projection, ChunkProjection):
-                # Ask the source what it actually holds, and believe it over the
-                # recorded set: that recovers a pool restored without progress,
-                # and re-indexes anything deleted from the collection behind our
-                # back. Bounded by the pool's asset count, so it is cheap enough
-                # to do every time -- it used to read every record instead.
+                # The backend's actual holdings take precedence over the recorded set.
                 try:
                     indexed_ids = set(projection.indexed_asset_ids(asset_ids))
                 except Exception:  # noqa: BLE001 - fall back to what we recorded
                     pass
-            # Except for assets whose content was replaced since: the source does
-            # hold records for them, and they are the wrong ones.
+            # Stale assets have records in the source, but outdated ones.
             indexed_ids -= set(status.stale_asset_ids)
             missing_ids = [
                 asset_id for asset_id in asset_ids if asset_id not in indexed_ids
@@ -1103,12 +865,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 if assets:
                     self._prepare_projection_add(asset_pool, projection, assets)
                 if assets and isinstance(projection, ChunkProjection):
-                    # Make the write idempotent. A retry re-materializes the same
-                    # assets into fresh record ids, so without this an add that
-                    # failed halfway leaves its records behind and the next
-                    # attempt duplicates them. A preparing binding has the whole
-                    # pool to write, so it goes a batch at a time and records
-                    # each one as it lands.
+                    # Idempotent write; a preparing binding is written in recorded batches.
                     backfill.add_in_batches(
                         projection,
                         assets,
@@ -1122,9 +879,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 if assets:
                     self._finish_projection_add(asset_pool, projection, assets)
             except Exception as error:  # noqa: BLE001 - reported on the source
-                # A streaming add may leave only some of an asset's chunks.
-                # Backend presence is not completion: retry these assets with
-                # delete-before-add, while keeping fully completed batches.
+                # Partially written assets are marked stale so the retry deletes them first.
                 if isinstance(projection, ChunkProjection):
                     status.mark_stale([
                         asset_id for asset_id in missing_ids
@@ -1132,9 +887,6 @@ class AssetLibrary(ABC, Generic[AssetT]):
                     ])
                 status.mark_failed(str(error))
                 continue
-            # What the source held already counts as indexed too. Recording
-            # only what this pass wrote left a pool whose collection another
-            # pool had filled at `ready` with nothing indexed.
             caught_up = status.pending_revision <= revision
             status.mark_ready(
                 asset_pool.revision if caught_up else revision,
@@ -1154,19 +906,13 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 and status.serving_state == binding.PREPARING
                 and not status.replaces
             ):
-                # Publish a first, complete vector backfill before dependent
-                # graph hooks select a serving text source. Settle only this
-                # binding: replacements must keep their old dependency until
-                # the final pool-wide settlement. The planner still checks the
-                # live revision and whether the source was frozen mid-sync.
+                # Serve a completed vector backfill before graph hooks pick a text source.
                 self._apply_transitions(
                     asset_pool,
                     state_machine.on_sync_result(
                         {source_id: state_machine.views(asset_pool, self._sources)[source_id]}
                     ),
                 )
-        # A binding that has just caught up may now serve, and finish the
-        # replacement it was attached for.
         self._apply_transitions(
             asset_pool,
             state_machine.on_sync_result(
@@ -1174,21 +920,12 @@ class AssetLibrary(ABC, Generic[AssetT]):
             ),
         )
 
-    # --- dispatch -------------------------------------------------------------
-
     def add_assets(
         self,
         assets: Sequence[AssetT],
         asset_pool_ids: Collection[str] = (),
     ) -> Mapping[str, Any]:
-        """Materialize each asset in every selected projection that accepts it.
-
-        `accepts` filters rather than gates. A batch of a report and a recording
-        used to be rejected outright by a source that could take only one of
-        them, so a mixed pool could not be written to at all; now each
-        projection is handed its own share and the batch fails only if no
-        projection wants any of it.
-        """
+        """Materialize each asset in every selected projection that accepts it."""
         selected = self._select_asset_pools(asset_pool_ids)
         shares = {
             id(projection): [
@@ -1238,12 +975,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         }
 
     def retrieve(self, requests: Mapping[str, Any]) -> Dict[str, Any]:
-        """Retrieve through each pool's *serving* sources, naming each result's.
-
-        A source that is still preparing, deprecated in the pool or disabled is
-        not asked (assetlib/sources/exposure.py). A pool whose only sources are
-        preparing therefore answers nothing yet, rather than half an answer.
-        """
+        """Retrieve through each pool's serving sources, stamping each result with its source."""
         results: Dict[str, Any] = {}
         for asset_pool_id, request in requests.items():
             asset_pool = self._require_asset_pool(asset_pool_id)
@@ -1256,8 +988,6 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 )
             ]
         return results
-
-    # --- selection ------------------------------------------------------------
 
     def _require_asset_pool(self, asset_pool_id: str) -> AssetPool:
         asset_pool = self._asset_pools.get(asset_pool_id)
@@ -1282,11 +1012,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         ]
 
     def chunk_projections(self) -> Dict[Any, ChunkProjection]:
-        """Every chunk projection in the library, one per distinct collection.
-
-        Keyed by collection so two pools pointing at the same one are not
-        counted twice.
-        """
+        """Every chunk projection in the library, keyed by (and deduplicated on) collection."""
         return {
             projection.collection: projection
             for asset_pool in self._asset_pools.values()
@@ -1299,13 +1025,10 @@ class AssetLibrary(ABC, Generic[AssetT]):
         self._asset_pools.clear()
         self._sources.clear()
         self.source_reconciliation_errors.clear()
-        # The sources are gone, so the default cannot keep naming one of them.
         self.default_content_source_id = ""
 
-    # --- persistence ----------------------------------------------------------
-
     def to_record(self) -> dict:
-        """This library as persisted. A subclass adds its own keys around this."""
+        """This library as persisted; subclasses add their own keys."""
         return {
             "idx": self.idx,
             "name": self.name,
@@ -1326,8 +1049,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
                         source_id: asdict(status)
                         for source_id, status in asset_pool.source_statuses.items()
                     },
-                    # Both, or a source whose database is currently
-                    # unregistered would be written out of existence.
+                    # Include unavailable and frozen sources so they are not lost on save.
                     "sources": [
                         projection.source.to_record()
                         for projection in asset_pool.projections
@@ -1352,9 +1074,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
             description=record.get("description"),
             idx=record.get("idx"),
             databasehub=databasehub,
-            # Not `content_database`: a legacy record's is migrated in `restore`,
-            # where it can be reconciled like any other source instead of
-            # raising here and costing the whole library.
+            # A legacy `content_database` is migrated in `restore`, not passed here.
         )
         library.restore(record)
         return library
@@ -1369,14 +1089,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
             record, sources
         )
         self.reconcile_sources(sources)
-        # After reconciliation, and pointing at the source as long as the
-        # library *has* it -- including one reconciled with an error, which is
-        # the ordinary state of a content source whose database is not
-        # registered yet. Clearing the pointer there would be the worse
-        # failure: the next ingest would adopt a different store and quietly
-        # move where content goes, instead of failing until the database it
-        # already names comes back. Only a source that could not be registered
-        # at all leaves this empty.
+        # Kept even if the source reconciled with an error, so content is never silently redirected.
         if default_content_source_id in self._sources:
             self.default_content_source_id = default_content_source_id
         self.register_assets(
@@ -1388,9 +1101,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         for asset_pool_record in self._asset_pool_records(record):
             configurations = tuple(asset_pool_record["_sources"])
             if "sources" in record:
-                # Modern records have an authoritative registry. Older buggy
-                # deletes left copies of a deleted locator in pool records;
-                # do not resurrect those ghosts when the workspace is restored.
+                # Skip pool entries for sources no longer in the registry.
                 declared = {source.source_id for source in sources}
                 configurations = tuple(
                     entry for entry in configurations
@@ -1412,19 +1123,12 @@ class AssetLibrary(ABC, Generic[AssetT]):
                         asset_pool_record.get("source_statuses") or {}
                     ).items()
                 },
-                # A restored pool describes what was already set up; a source it
-                # cannot currently project through is reported, not dropped.
                 tolerant=True,
             )
             updates.drop_stale_replaces(pool, tuple(pool.source_statuses))
 
     def _with_profile(self, source: Source) -> Source:
-        """A source written before profiles existed, given one now.
-
-        Best effort: its options may name something this engine cannot resolve
-        any more, and that is for reconciliation to report, not for a restore
-        to fail on.
-        """
+        """Give a profile-less source one, best effort."""
         if source.profile:
             return source
         try:
@@ -1435,25 +1139,10 @@ class AssetLibrary(ABC, Generic[AssetT]):
     def _content_source_records(
         self, record: Mapping[str, Any], sources: List[Source]
     ) -> Tuple[List[Source], str]:
-        """The sources to restore, and which of them new content should go to.
+        """The sources to restore, and the default content source id.
 
-        Four cases, in order:
-
-        1. the record names a default -- use it;
-        2. it does not, but a source is named `content` -- the shape written
-           before the default was a pointer, and the name was how it was found.
-           Every library that has ever ingested is here, and its assets already
-           name this source, so pointing at it changes nothing;
-        3. it records only a legacy `content_database`, and the library has no
-           object source at all -- a library created with a content database
-           that never ingested. Synthesize the source it would have got, and
-           return it to be reconciled with the rest, so a database that is no
-           longer registered reports `reconciled: false` instead of raising here
-           and costing the library its assets and pools;
-        4. nothing -- leave it empty; the first ingest adopts one.
-
-        The "no object source at all" guard on 3 is what stops a library whose
-        assets already point at a real content source from acquiring a second.
+        Resolved from `default_content_source_id`, else an object source named
+        `content`, else a source synthesized from a legacy `content_database`.
         """
         named = str(record.get("default_content_source_id") or "")
         if named:
@@ -1485,12 +1174,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
 
     @staticmethod
     def _asset_pool_records(record: Mapping[str, Any]) -> List[dict]:
-        """Pool records with their source list resolved, older shapes included.
-
-        Workspaces written before pools could hold several sources kept a single
-        `source`, or a list of `projection_ids` pointing into a top-level
-        `projections` list, and called the pools `asset_sets`.
-        """
+        """Pool records with `_sources` resolved, including legacy `source`/`projection_ids`/`asset_sets` shapes."""
         legacy_projections = {
             str(item["projection_id"]): item
             for item in record.get("projections") or []

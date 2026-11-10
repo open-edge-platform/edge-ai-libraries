@@ -4,6 +4,7 @@
 
 from dataclasses import replace
 
+import config
 from assetlib import Source
 from core.content import AUDIO, TEXT, VIDEO, ContentBlock
 from core.file_asset_library import describe_vector_source
@@ -90,7 +91,7 @@ def test_the_report_shows_which_source_takes_each_role():
 
 def test_a_preparing_source_does_not_count_as_covering():
     library = _RoutingLibrary()
-    _source(library, "text", embedding_backend="openvino", embedding_model="BAAI/bge-small-en-v1.5")
+    _source(library, "text", embedding_backend=config.LOCAL_OPENVINO, embedding_model="BAAI/bge-small-en-v1.5")
     library.create_asset_pool(asset_pool_id="pool", name="pool")
     ingest(library, "pool", "a")
     library.set_asset_pool_sources("pool", [{"source_id": "text"}])

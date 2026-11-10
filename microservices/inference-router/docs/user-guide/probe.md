@@ -55,6 +55,88 @@ Each rule is **either** a `regex` (for Prometheus/plain-text bodies) **or** a
   - json: stats.pending        # {"stats": {"pending": 7}} → {"pending": 7.0}
   ```
 
+#### How groups are counted
+
+The name and value are picked **by position**: second-to-last and last capture
+group. Every `( … )` counts, so:
+
+- A rule needs **at least two** capture groups. A pattern with none (e.g. a
+  metric line pasted verbatim) extracts nothing.
+- A group nested inside the name group becomes the name instead:
+  `vllm:(num_requests_(running|waiting))…` yields `running` / `waiting`.
+- A group inside the value pattern becomes the "value":
+  `([0-9.]+(e[+-]?\d+)?)` reads the exponent group, and the line is dropped.
+
+Use non-capturing groups `(?: … )` for anything that is neither the name nor
+the value: `vllm:(num_requests_(?:running|waiting))…` yields
+`num_requests_running` / `num_requests_waiting`.
+
+#### Field names are normalized
+
+A captured name is made safe as a single dotted-path segment, because routing
+reads probe values by dotted path (`performance.<name>`) and a `.` inside a
+name — common in labels such as `model_name="Qwen/Qwen3.6"` — would split it:
+
+1. Prometheus label blocks `{…}` are dropped.
+2. `.`, `:` and whitespace become `_`.
+3. Leading/trailing `_` are trimmed (an empty result becomes `value`).
+
+| captured name | published name |
+|---|---|
+| `num_requests_waiting` | `num_requests_waiting` |
+| `vllm:kv_cache_usage_perc` | `vllm_kv_cache_usage_perc` |
+| `vllm:request_success_total{engine="0",finished_reason="stop",…}` | `vllm_request_success_total` |
+
+The normalized name is used everywhere — metadata, the file sink's
+`aggregates`, and the window — so reference it (not the raw capture) in
+`strategy.yaml`. Capture the bare metric name (as in the examples above) to
+keep names readable.
+
+#### Several matches with the same name: the last one wins
+
+When more than one match produces the same (normalized) field name in one
+response, **only the last is kept**. Rules apply in the order listed and
+matches in response order, so a later rule overrides an earlier one. This bites
+on any metric with several label sets:
+
+```text
+vllm:request_success_total{engine="0",finished_reason="stop",model_name="…"} 911.0
+vllm:request_success_total{engine="0",finished_reason="length",model_name="…"} 66.0
+vllm:request_success_total{engine="0",finished_reason="repetition",model_name="…"} 0.0
+```
+
+`vllm:(request_success_total)\{[^}]*\}\s+([0-9.eE+-]+)` matches all three and
+publishes `request_success_total: 0.0` — the `repetition` line. The same
+happens with histogram buckets (one line per `le`) and with gauges on a
+multi-engine backend (one line per `engine`). Labels captured inside the name
+group don't help: normalization drops them, so the series still collide.
+
+The probe logs a warning once per field name when this happens — either
+`more than one match produced field …` or, for names that only became equal
+after normalization, `… both publish as field … after name normalization`.
+
+To read a **specific series**, pin its label in the regex so only one line
+matches:
+
+```yaml
+# finished_reason="stop" only → request_success_total: 911.0
+- regex: 'vllm:(request_success_total)\{[^}]*finished_reason="stop"[^}]*\}\s+([0-9.eE+-]+)'
+```
+
+To read **several series of one metric at once**, capture the distinguishing
+label value as the name; each value becomes its own field:
+
+```yaml
+# → stop: 911.0, length: 66.0, repetition: 0.0
+- regex: 'vllm:request_success_total\{[^}]*finished_reason="(\w+)"[^}]*\}\s+([0-9.eE+-]+)'
+```
+
+Two separate rules for the same metric (one per label) still publish the same
+name and collide; use the pattern above instead.
+
+> **Counters.** `*_total` metrics only ever grow, so a `mean` over the window
+> lags the current count. Use `aggregate: { method: latest }` for counters.
+
 ---
 
 ## Example 1 — add a performance probe in `config.yaml`
@@ -175,7 +257,9 @@ curl -s http://localhost:8000/v1/providers/local | jq '.settings.probes'
 
 Instead of hand-writing the whole `settings` block, you can fetch the provider's
 current config, splice the probe into `settings.probes`, and POST the result.
-Because a GET response round-trips as a POST payload, `jq` can do the merge:
+Because a GET response round-trips as a POST payload, `jq` can do the merge.
+(Posting the GET's `metadata` back is also fine: live probe values in it are not
+persisted, see [Reading live values](#reading-live-values-over-http--the-providers-api-not-v1config).)
 
 ```bash
 # 1. Define the probe to add.
@@ -246,8 +330,42 @@ tail -1 <workspace>/probes/local.perf.jsonl
 #  "aggregates": {"num_requests_waiting": 0.0, "kv_cache_usage_perc": 0.0}}
 ```
 
-There is no dedicated HTTP endpoint for reading probe values — routing consumes
-them via provider metadata, and the file sink is the durable history.
+### Reading live values over HTTP — the providers API, not `/v1/config`
+
+Read live probe values from the **providers API**. `GET /v1/providers` and
+`GET /v1/providers/{name}` return each running provider's `metadata` as routing
+sees it right now: the static metadata from `config.yaml` with the values the
+metadata sinks have published merged in.
+
+```bash
+curl -s http://localhost:8000/v1/providers/local | jq '.metadata.performance'
+# {"num_requests_waiting": 0.0, "kv_cache_usage_perc": 0.0}
+```
+
+`GET /v1/config` returns the **configuration only**: provider `metadata` there is
+exactly what `config.yaml` declares, and never includes probe output. Changing
+a probe's `extract` and restarting therefore leaves `/v1/config`'s
+`metadata.performance` unchanged; the probe's configuration change is visible
+under `settings.probes`, and its new values under the providers API.
+
+A few details of the live view:
+
+- Values appear after the probe's first successful tick (up to `interval`
+  seconds after start or after any config API change, which rebuilds the
+  runtime). Until then `metadata` shows only the static values.
+- A disabled provider has no running probes, so the providers API returns its
+  static metadata.
+- When the probe and `config.yaml` set the same key (e.g. a static
+  `performance.ttft_ms` seed that a probe also publishes), the live view shows
+  the probe's value.
+
+Probe output is never written to `config.yaml`. Posting a GET response back to
+`POST /v1/providers/{name}` — whole, or edited, as the UI's provider edit dialog
+does — is safe: values the provider's running probes published are dropped from
+the posted `metadata` before it is saved (a key that `config.yaml` also defines
+keeps its `config.yaml` value). So you can edit a probe's settings from the UI
+without freezing its current readings into the config. Hand-written metadata
+keys the probes don't publish are saved as sent.
 
 ---
 
@@ -255,8 +373,12 @@ them via provider metadata, and the file sink is the durable history.
 
 - Point `endpoint` at the **`/metrics`** URL; the bare provider `endpoint` is the
   chat `/v1` base and won't yield metrics.
-- Anchor a regex name group (`(num_requests_running)`) for one series; use a
-  wildcard (`(num_requests_\w+)`) to discover several from one pattern.
+- Anchor a regex name group (`(num_requests_running)`) for one metric; use a
+  wildcard (`(num_requests_\w+)`) to discover several from one pattern. If the
+  metric has several label sets, pin the label too — otherwise the last line
+  wins (see [same-name matches](#several-matches-with-the-same-name-the-last-one-wins)).
+- Check the router log for `only the last match is kept` warnings after adding
+  a probe: they mean a rule is silently discarding series.
 - A failed scrape never kills the probe — it increments a fail counter and the
   window keeps its last good values until the next successful tick.
 - Keep `interval` sane: it is scrape load on the backend, not free.

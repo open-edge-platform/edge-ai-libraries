@@ -39,7 +39,7 @@ dependencies = [
 	"docx2txt",
 	"matplotlib",
 	"llama-index-embeddings-openvino==0.7.0",
-	# The openai_compatible embedding provider (a remote /v1/embeddings endpoint).
+	# The remote_openai_compatible embedding backend (a remote /v1/embeddings endpoint).
 	"llama-index-embeddings-openai",
 	"llama-index-postprocessor-openvino-rerank==0.7.0",
 	"nncf==3.2.0",

@@ -470,6 +470,9 @@ SPDX-License-Identifier: Apache-2.0
 ./get-started/deploy-with-helm.md
 ./get-started/environment-variables.md
 ./get-started/custom-metrics.md
+Native metric migration <./get-started/native-metric-migration.md>
+Additional Collectors in Docker <./get-started/native-docker-collectors.md>
+./get-started/hardware-telemetry.md
 ./get-started/terminal-dashboard.md
 ./get-started/bare-metal-package.md
 ./get-started/testing.md

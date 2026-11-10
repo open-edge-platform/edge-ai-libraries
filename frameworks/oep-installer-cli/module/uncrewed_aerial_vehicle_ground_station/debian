@@ -98,7 +98,7 @@ ground_station_configure_uav_application_models () {
 
 ground_station_install_uav_application () {
   ground_station_configure_uav_application "$1" "$2" || return $?
-  if ground_station_verify_uav_application && [[ " $* " != *" --reinstall "* ]]; then
+  if ground_station_verify_uav_application && ! ensure_parse_reinstall "$@"; then
     echo "$uav_app is already installed."
     return 0
   fi
@@ -119,6 +119,9 @@ ground_station_install_uav_application () {
   cd "$uav_dir" || return $?
   echo "Review $uav_dir/.env and upstream LAN bindings before starting the application."
   make init || return $?
+  sed -i \
+    -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" \
+    -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?
   if [ "$uav_app" = vision-analytics ]; then
     ground_station_configure_uav_application_models || return $?
     make _check_certs || return $?
@@ -211,6 +214,9 @@ ground_station_start_uav_application () {
   else
     read -r -a uav_ports <<< "$(ensure_prop get "started/$uav_module/ports")"
   fi
+  sed -i \
+    -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" \
+    -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?
   if [ "$uav_app" = ground-station ]; then
     make up || return $?
   else
