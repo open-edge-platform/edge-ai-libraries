@@ -1290,11 +1290,9 @@ export type Device = {
   cpu_topology?: CpuTopology | null;
 };
 export type AudioJobState =
-  | "QUEUED"
   | "RUNNING"
   | "COMPLETED"
-  | "FAILED"
-  | "CANCELLED";
+  | "FAILED";
 export type AudioJobSummary = {
   id: string;
   pipeline_id: string;
@@ -1984,7 +1982,7 @@ export type AudioRecordingResponse = {
 };
 export type AudioPipelineJobStartResponse = {
   job_id: string;
-  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  status: "RUNNING" | "COMPLETED" | "FAILED";
 };
 export const {
   useGetHealthQuery,

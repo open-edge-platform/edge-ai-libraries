@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 type JsonDict = dict[str, Any]
 
 _NONEXISTENT_JOB_ID = f"does-not-exist-{uuid4().hex[:8]}"
-_TERMINAL_STATES = {"COMPLETED", "FAILED", "CANCELLED"}
+_TERMINAL_STATES = {"COMPLETED", "FAILED"}
 
 STT_PIPELINE_ID = "speech-to-text"
 TTS_PIPELINE_ID = "text-to-speech"
@@ -316,6 +316,7 @@ def test_stop_audio_job_cancels_job(http_client: requests.Session) -> None:
     )
     status = _wait_for_audio_job(http_client, job_id)
     if stop.status_code == 200:
-        assert status["state"] == "CANCELLED", (
-            f"Expected CANCELLED after successful stop, got {status['state']}"
+        assert status["state"] == "COMPLETED", (
+            f"Expected COMPLETED after successful stop, got {status['state']}"
         )
+        assert status.get("artifact_url") is None

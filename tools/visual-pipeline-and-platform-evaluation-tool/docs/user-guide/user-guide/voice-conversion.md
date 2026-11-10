@@ -288,12 +288,13 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
   **Audio pipeline run started**. It shows **Audio pipeline run completed** only
   after applying the transcript or downloading and applying the generated WAV.
   A failed run keeps its inline error and shows a persistent, dismissible
-  **Audio pipeline run failed** notification. A backend `CANCELLED` state shows
-  **Audio pipeline run cancelled** instead.
+  **Audio pipeline run failed** notification. A job stopped by the user
+  shows **Audio pipeline run cancelled** instead.
 - While a managed run is in progress, **Transcribe** and **Generate speech**
   become a **Stop** button, like the Vision pipeline Run/Stop button. Stop
   cancels the backend job (`DELETE /api/v1/jobs/audio/{job_id}`) and the UI shows
-  **Audio pipeline run cancelled** once the job reports `CANCELLED`. If the job
+  **Audio pipeline run cancelled** once the job reports `COMPLETED` without a
+  transcript or artifact. If the job
   has not been accepted yet, Stop aborts the pending request. The microphone
   **Cancel** button only stops local recording. Replaced requests and unmount
   cleanup discard stale terminal responses without showing lifecycle
@@ -339,11 +340,12 @@ removes them.
 - `GET /api/v1/jobs/audio/status` lists Audio job operational metadata without
   transcript content, Text to Speech input text, uploaded filenames, or local
   paths. Jobs are ordered oldest first, matching the Vision job list.
-- `GET /api/v1/jobs/audio/{job_id}/status` returns `state` (`QUEUED`,
-  `RUNNING`, `COMPLETED`, `FAILED`, or `CANCELLED`), selected variant metadata,
-  and, when available, the transcript or the public WAV `artifact_url`.
+- `GET /api/v1/jobs/audio/{job_id}/status` returns `state` (`RUNNING`,
+  `COMPLETED`, or `FAILED`), selected variant metadata,
+  and, when available, the transcript or the public WAV `artifact_url`. A job
+  stopped before it produced a result is `COMPLETED` without either.
 - `GET /api/v1/voice/jobs/{job_id}/artifact` returns a completed TTS WAV.
-- `DELETE /api/v1/jobs/audio/{job_id}` stops a `QUEUED` or `RUNNING` job: `200`
+- `DELETE /api/v1/jobs/audio/{job_id}` stops a `RUNNING` job: `200`
   when cancellation was requested, `404` for an unknown job, and `409` when the
   job has already finished.
 
@@ -388,7 +390,7 @@ curl --noproxy '*' -sS -X POST \
 ```
 
 Each start returns HTTP 202 with a `job_id`. Poll the job until its `state` is
-`COMPLETED`, `FAILED`, or `CANCELLED`. The run also appears under
+`COMPLETED` or `FAILED`. The run also appears under
 **Jobs > Audio**:
 
 ```bash

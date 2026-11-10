@@ -102,11 +102,9 @@ class TestJobState(str, Enum):
 
 
 class AudioJobState(str, Enum):
-    QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
 
 
 class BenchmarkTestCaseRunStatus(str, Enum):

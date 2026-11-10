@@ -39,28 +39,20 @@ class AudioInputTooLargeError(ValueError):
 
 
 class AudioPipelineJobStatus(str, Enum):
-    QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
 
 
 TERMINAL_STATUSES = {
     AudioPipelineJobStatus.COMPLETED,
     AudioPipelineJobStatus.FAILED,
-    AudioPipelineJobStatus.CANCELLED,
 }
 
 _ALLOWED_TRANSITIONS = {
-    AudioPipelineJobStatus.QUEUED: {
-        AudioPipelineJobStatus.RUNNING,
-        AudioPipelineJobStatus.CANCELLED,
-    },
     AudioPipelineJobStatus.RUNNING: {
         AudioPipelineJobStatus.COMPLETED,
         AudioPipelineJobStatus.FAILED,
-        AudioPipelineJobStatus.CANCELLED,
     },
 }
 
@@ -123,6 +115,7 @@ class AudioPipelineJobManager:
         self.synthesize = synthesize
         self._jobs: dict[str, AudioPipelineJob] = {}
         self._tasks: dict[str, asyncio.Task[None]] = {}
+        self._started_job_ids: set[str] = set()
         self._lock = asyncio.Lock()
         self._max_terminal_jobs = max_terminal_jobs
         self._input_directory_owner = tempfile.TemporaryDirectory(
@@ -187,7 +180,7 @@ class AudioPipelineJobManager:
             variant_name=variant.name,
             device=variant.device,
             operation=pipeline.operation,
-            status=AudioPipelineJobStatus.QUEUED,
+            status=AudioPipelineJobStatus.RUNNING,
             created_at=now,
             modified_at=now,
         )
@@ -279,7 +272,7 @@ class AudioPipelineJobManager:
                 job = self._jobs.get(job_id)
                 if job is None or job.status in TERMINAL_STATUSES:
                     return
-                self._transition_locked(job, AudioPipelineJobStatus.RUNNING)
+                self._started_job_ids.add(job_id)
                 device = job.device
 
             if pipeline.operation is AudioPipelineOperation.SPEECH_TO_TEXT:
@@ -321,10 +314,11 @@ class AudioPipelineJobManager:
                 )
             )
         except asyncio.CancelledError:
+            # A cancelled job without a result completes; it carries no transcript or artifact.
             async with self._lock:
                 job = self._jobs.get(job_id)
                 if job is not None and job.status not in TERMINAL_STATUSES:
-                    self._transition_locked(job, AudioPipelineJobStatus.CANCELLED)
+                    self._transition_locked(job, AudioPipelineJobStatus.COMPLETED)
                 cleanup_paths = self._prune_terminal_jobs_locked()
             await self._delete_artifacts(
                 cleanup_paths
@@ -359,6 +353,7 @@ class AudioPipelineJobManager:
                 )
             )
         finally:
+            self._started_job_ids.discard(job_id)
             await self._delete_staged_input(stt_input)
 
     async def _execute_stt(
@@ -523,17 +518,18 @@ class AudioPipelineJobManager:
                     f"(state: {job.status.value})."
                 )
             # A task that has not started would skip its own cleanup if cancelled.
-            was_queued = job.status is AudioPipelineJobStatus.QUEUED
-            self._transition_locked(job, AudioPipelineJobStatus.CANCELLED)
-            cleanup_paths = self._prune_terminal_jobs_locked()
+            was_started = job_id in self._started_job_ids
             task = self._tasks.get(job_id)
-            snapshot = replace(job)
+            if not was_started or task is None:
+                self._transition_locked(job, AudioPipelineJobStatus.COMPLETED)
+            cleanup_paths = self._prune_terminal_jobs_locked()
         await self._delete_artifacts(cleanup_paths)
         if task is not None:
-            if not was_queued:
+            if was_started:
                 task.cancel()
             await asyncio.gather(task, return_exceptions=True)
-        return snapshot
+        async with self._lock:
+            return replace(job)
 
     async def list_jobs(self) -> list[AudioPipelineJob]:
         async with self._lock:
@@ -561,7 +557,7 @@ class AudioPipelineJobManager:
             tasks = list(self._tasks.items())
             for job in self._jobs.values():
                 if job.status not in TERMINAL_STATUSES:
-                    self._transition_locked(job, AudioPipelineJobStatus.CANCELLED)
+                    self._transition_locked(job, AudioPipelineJobStatus.COMPLETED)
             cleanup_paths = self._prune_terminal_jobs_locked()
         await self._delete_artifacts(cleanup_paths)
         for _, task in tasks:

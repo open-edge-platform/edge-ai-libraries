@@ -164,7 +164,7 @@ class TestAudioJobsAPI(unittest.TestCase):
         self.assertEqual(response.json(), {"detail": "Audio pipeline job not found."})
 
     def test_voice_run_is_visible_through_audio_jobs(self) -> None:
-        job = self._make_audio_job(status=AudioPipelineJobStatus.QUEUED)
+        job = self._make_audio_job(status=AudioPipelineJobStatus.RUNNING)
         self.manager.start_job.return_value = job
         self.manager.list_jobs.return_value = [job]
 
@@ -182,7 +182,7 @@ class TestAudioJobsAPI(unittest.TestCase):
     def test_stop_audio_job_requests_cancellation(self) -> None:
         self.manager.cancel_job = AsyncMock(
             return_value=self._make_audio_job(
-                status=AudioPipelineJobStatus.CANCELLED, transcript=None
+                status=AudioPipelineJobStatus.COMPLETED, transcript=None
             )
         )
 

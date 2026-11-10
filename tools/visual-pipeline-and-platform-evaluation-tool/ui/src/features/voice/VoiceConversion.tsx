@@ -339,13 +339,16 @@ export function VoiceConversion() {
       );
       await checkResponse(response);
       const job = (await response.json()) as AudioJobStatus;
-      if (job.state === "COMPLETED") return job;
+      if (job.state === "COMPLETED") {
+        // A stopped job completes without a transcript or artifact.
+        if (job.transcript == null && !job.artifact_url)
+          throw new AudioPipelineCancelledError(
+            "Audio pipeline execution was cancelled.",
+          );
+        return job;
+      }
       if (job.state === "FAILED")
         throw new Error(job.error ?? "Audio pipeline execution failed.");
-      if (job.state === "CANCELLED")
-        throw new AudioPipelineCancelledError(
-          job.error ?? "Audio pipeline execution was cancelled.",
-        );
       await new Promise<void>((resolve, reject) => {
         const timeout = window.setTimeout(resolve, 500);
         controller.signal.addEventListener(

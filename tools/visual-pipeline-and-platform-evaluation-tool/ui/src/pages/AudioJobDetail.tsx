@@ -9,7 +9,7 @@ import { useGetAudioJobStatusQuery } from "@/api/api.generated";
 import { formatElapsedTimeMillis, formatTimestamp } from "@/lib/timeUtils";
 import { cn } from "@/lib/utils";
 
-const TERMINAL_STATES = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
+const TERMINAL_STATES = new Set(["COMPLETED", "FAILED"]);
 
 export const AudioJobDetail = () => {
   const { jobId } = useParams<{ jobId: string }>();
@@ -29,8 +29,7 @@ export const AudioJobDetail = () => {
     }
   }, [jobStatus]);
 
-  const active =
-    jobStatus?.state === "QUEUED" || jobStatus?.state === "RUNNING";
+  const active = jobStatus?.state === "RUNNING";
   const startedAt = jobStatus ? Date.parse(jobStatus.created_at) : 0;
   const endedAt = jobStatus
     ? active

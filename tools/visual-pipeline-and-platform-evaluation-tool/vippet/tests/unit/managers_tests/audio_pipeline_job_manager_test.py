@@ -434,7 +434,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
 
         cancelled = await self.manager.get_job(job.id)
         assert cancelled is not None
-        self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
+        self.assertEqual(cancelled.status, AudioPipelineJobStatus.COMPLETED)
         self.assertFalse(self.manager._input_directory.exists())
 
     async def test_shutdown_cancels_active_jobs_and_cleans_tasks(self) -> None:
@@ -459,7 +459,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
 
         cancelled = await self.manager.get_job(job.id)
         assert cancelled is not None
-        self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
+        self.assertEqual(cancelled.status, AudioPipelineJobStatus.COMPLETED)
         await self.manager.wait(job.id)
         self.assertEqual(self.manager._tasks, {})
 
@@ -487,13 +487,38 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
 
         cancelled = await self.manager.cancel_job(job.id)
 
-        self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
+        self.assertEqual(cancelled.status, AudioPipelineJobStatus.COMPLETED)
         self.assertTrue(interrupted.is_set())
         stored = await self.manager.get_job(job.id)
         assert stored is not None
-        self.assertEqual(stored.status, AudioPipelineJobStatus.CANCELLED)
+        self.assertEqual(stored.status, AudioPipelineJobStatus.COMPLETED)
         self.assertIsNone(stored.transcript)
         self.assertEqual(self.manager._tasks, {})
+
+    async def test_cancel_marks_job_failed_when_cancellation_raises(self) -> None:
+        started = asyncio.Event()
+
+        async def failing_on_cancel(*_args):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                raise RuntimeError("upstream cleanup failed") from None
+            return "unreachable", 0.0
+
+        self.manager.transcribe = failing_on_cancel
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        job = await self.manager.start_job(
+            "speech-to-text", "cpu", recording_input=RECORDING
+        )
+        await started.wait()
+
+        result = await self.manager.cancel_job(job.id)
+
+        self.assertEqual(result.status, AudioPipelineJobStatus.FAILED)
+        self.assertIsNone(result.transcript)
 
     async def test_cancels_running_tts_job_without_artifact(self) -> None:
         started = asyncio.Event()
@@ -514,7 +539,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
 
         cancelled = await self.manager.cancel_job(job.id)
 
-        self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
+        self.assertEqual(cancelled.status, AudioPipelineJobStatus.COMPLETED)
         self.assertIsNone(cancelled.artifact_path)
         self.assertFalse((Path(self.temp_dir.name) / f"{job.id}.wav").exists())
         self.assertEqual(list(Path(self.temp_dir.name).glob(".audio-job-*")), [])
@@ -548,7 +573,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(list(self.manager._input_directory.iterdir()), [])
 
-    async def test_cancels_queued_job_before_it_starts(self) -> None:
+    async def test_cancels_job_before_its_task_starts(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
             AudioPipelineOperation.SPEECH_TO_TEXT
         )
@@ -565,7 +590,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
 
         cancelled = await self.manager.cancel_job(job.id)
 
-        self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
+        self.assertEqual(cancelled.status, AudioPipelineJobStatus.COMPLETED)
         self.transcribe.assert_not_called()
         self.assertEqual(list(self.manager._input_directory.iterdir()), [])
 
