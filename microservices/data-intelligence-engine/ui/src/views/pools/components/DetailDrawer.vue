@@ -12,11 +12,7 @@
         <div class="pool-id">{{ drawerData.id }}</div>
         <StatusTag :value="drawerData.display_status" />
       </div>
-      <a-button
-        type="primary"
-        ghost
-        @click="handleRetrieve"
-      >
+      <a-button type="primary" ghost @click="handleRetrieve">
         <template #icon><SearchOutlined /></template>
         {{ $t("console.retrieve") }}
       </a-button>
@@ -91,7 +87,7 @@
             :placeholder="$t('console.pleaseSelect')"
             :options="
               assetList
-                .filter((item) => !drawerData.asset_ids.includes(item.id))
+                .filter((item) => !item.pending && !poolAssetIds.includes(item.id))
                 .map((item) => ({
                   value: item.id,
                   label: item.name || item.id,
@@ -106,7 +102,7 @@
           >
             {{ $t("console.addSelected") }}
           </a-button>
-          <a-button @click="handleUpload">
+          <a-button @click="handleUpload" type="primary" ghost>
             <template #icon><UploadOutlined /></template>
             {{ $t("console.upload") }}
           </a-button>
@@ -116,12 +112,19 @@
           :aria-busy="loading"
           :pagination="false"
           size="small"
+          class="asset-list"
         >
           <template #renderItem="{ item }">
             <a-list-item>
               <a-list-item-meta>
                 <template #avatar>
-                  <a-avatar shape="square"><FileTextOutlined /></a-avatar>
+                  <a-avatar shape="square"
+                    ><FileTextOutlined
+                      :style="{
+                        color: 'var(--color-primary-second)',
+                        fontSize: '16px',
+                      }"
+                  /></a-avatar>
                 </template>
                 <template #title>
                   {{
@@ -130,7 +133,11 @@
                 </template>
                 <template #description>{{ item }}</template>
               </a-list-item-meta>
-              <a-tag :bordered="false" color="success">
+              <AssetStatus
+                :value="assetList.find((asset) => asset.id === item)?.materialization || 'unknown'"
+                :expired="assetList.find((asset) => asset.id === item)?.progressExpired"
+              />
+              <a-tag v-if="drawerData.asset_ids.includes(item)" :bordered="false" color="success">
                 {{ $t("console.inPool") }}
               </a-tag>
             </a-list-item>
@@ -139,9 +146,11 @@
       </a-tab-pane>
       <a-tab-pane key="metadata" :tab="$t('console.metadata')">
         <JsonPretty
+          v-if="Object.keys(drawerData.metadata || {}).length"
           :data="drawerData.metadata"
           :theme="themeStore.theme === 'dark' ? 'dark' : 'light'"
         />
+        <a-empty v-else />
       </a-tab-pane>
     </a-tabs>
     <UploadDialog
@@ -154,10 +163,10 @@
     <template #footer>
       <div class="drawer-footer">
         <a-pagination
-          v-if="activeKey === 'assets' && drawerData.asset_ids.length > 10"
+          v-if="activeKey === 'assets' && poolAssetIds.length > 10"
           v-model:current="assetPage"
           v-model:pageSize="assetPageSize"
-          :total="drawerData.asset_ids.length"
+          :total="poolAssetIds.length"
           :show-total="(total) => $t('console.totalRecords', { count: total })"
           :page-size-options="['10', '20', '50', '100']"
           showSizeChanger
@@ -169,8 +178,9 @@
   </a-drawer>
 </template>
 <script lang="ts" setup name="DetailDrawer">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import {
   ApartmentOutlined,
   FileTextOutlined,
@@ -178,19 +188,18 @@ import {
   UploadOutlined,
 } from "@ant-design/icons-vue";
 import {
-  getAssetList,
   requestAssetPoolAssetsCreate,
   requestAssetPoolSourcesUpdate,
 } from "@/api/console";
-import type { Asset, AssetPool, Library } from "@/api/console/type";
+import type { AssetPool, IngestResult, Library } from "@/api/console/type";
 import { themeAppStore } from "@/store/theme";
 import JsonPretty from "vue-json-pretty";
 import "vue-json-pretty/lib/styles.css";
 import SourceBinding from "../../sources/components/SourceBinding.vue";
 import StatusTag from "../../../components/StatusTag.vue";
 import UploadDialog from "../../assets/components/UploadDialog.vue";
-import { collectAssets } from "../../assets/AssetList";
-import { useI18n } from "vue-i18n";
+import { getAssetProgress, syncAssetProgress } from "../../assets/AssetUtils";
+import AssetStatus from "../../assets/components/AssetStatus.vue";
 import FormTooltip from "@/components/FormTooltip.vue";
 import { customNotification } from "@/utils/notification";
 const props = defineProps<{ drawerData: AssetPool; libraryData: Library }>();
@@ -198,7 +207,7 @@ const emit = defineEmits<{ close: []; search: [] }>();
 const handleClose = () => emit("close");
 const handleRetrieve = () =>
   router.push({
-    path: "/console/retrieve",
+    path: "/retrieve",
     query: { pool: props.drawerData.id },
   });
 const handleUpload = () => {
@@ -214,40 +223,85 @@ const themeStore = themeAppStore();
 const drawerVisible = ref(true);
 const activeKey = ref("sources");
 const submitLoading = ref(false);
-const loading = ref(false);
 const uploadDialog = ref(false);
-const assetList = ref<Asset[]>([]);
+const loading = ref(true);
+const progress = getAssetProgress(props.libraryData.name);
+const assetList = computed(() => progress.rows);
+let timer: ReturnType<typeof setTimeout> | undefined;
+let disposed = false;
+let inFlight: Promise<void> | undefined;
+const queryAssetList = (showLoading = false): Promise<void> => {
+  if (!inFlight) {
+    if (showLoading) {
+      loading.value = true;
+      progress.resume();
+    }
+    inFlight = (async () => {
+      try {
+        await syncAssetProgress(
+          props.libraryData.name,
+          progress,
+          () => {
+            const message = t("console.incompleteAssetList");
+            customNotification("error", message, undefined);
+            return new Error(message);
+          },
+          () => { if (!disposed) emit("search"); },
+          () => !disposed,
+          showLoading,
+        );
+      } finally {
+        loading.value = false;
+        if (!disposed && progress.expire())
+          customNotification("warning", t("console.processing"), t("console.pollExpired"));
+      }
+    })().finally(() => { inFlight = undefined; });
+  }
+  return inFlight;
+};
+const poll = async () => {
+  try {
+    if (progress.trackedIds.length) await queryAssetList();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    if (!disposed) timer = setTimeout(poll, 3000);
+  }
+};
+onMounted(async () => {
+  try {
+    await queryAssetList(true);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    if (!disposed) timer = setTimeout(poll, 3000);
+  }
+});
+onUnmounted(() => {
+  disposed = true;
+  clearTimeout(timer);
+});
 const sourceIds = ref(
   props.drawerData.source_statuses.map((item) => item.source_id),
 );
 const assetIds = ref<string[]>([]);
 const assetPage = ref(1);
 const assetPageSize = ref(10);
-const assetPageData = computed(() => props.drawerData.asset_ids.slice(
-  (assetPage.value - 1) * assetPageSize.value,
-  assetPage.value * assetPageSize.value,
-));
+const poolAssetIds = computed(() => [...new Set([
+  ...assetList.value
+    .filter((asset) => asset.asset_pool_ids.includes(props.drawerData.id))
+    .map((asset) => asset.id),
+  ...props.drawerData.asset_ids,
+])]);
+const assetPageData = computed(() =>
+  poolAssetIds.value.slice(
+    (assetPage.value - 1) * assetPageSize.value,
+    assetPage.value * assetPageSize.value,
+  ),
+);
 const sourceList = computed(() =>
   props.libraryData.sources.filter((item) => item.type !== "object"),
 );
-const queryAssetList = async () => {
-  loading.value = true;
-  try {
-    assetList.value = await collectAssets(
-      (page) => getAssetList(props.libraryData.name, {
-        page_num: page,
-        page_size: 500,
-      }, page === 1),
-      () => {
-        const message = t("console.incompleteAssetList");
-        customNotification("error", message, undefined);
-        return new Error(message);
-      },
-    );
-  } finally {
-    loading.value = false;
-  }
-};
 const handleSaveSources = async () => {
   submitLoading.value = true;
   try {
@@ -275,16 +329,30 @@ const handleAddAssets = async () => {
     submitLoading.value = false;
   }
 };
-const handleUploaded = () => {
-  emit("search");
-  queryAssetList();
+const handleUploaded = async (result: IngestResult) => {
+  progress.accept(result);
+  activeKey.value = "assets";
+  assetPage.value = 1;
+  await queryAssetList();
 };
-onMounted(queryAssetList);
-watch(assetPageSize, () => { assetPage.value = 1; });
-watch(() => props.drawerData.id, () => { assetPage.value = 1; });
-watch(() => props.drawerData.asset_ids.length, (total) => {
-  assetPage.value = Math.min(assetPage.value, Math.max(1, Math.ceil(total / assetPageSize.value)));
+watch(assetPageSize, () => {
+  assetPage.value = 1;
 });
+watch(
+  () => props.drawerData.id,
+  () => {
+    assetPage.value = 1;
+  },
+);
+watch(
+  () => poolAssetIds.value.length,
+  (total) => {
+    assetPage.value = Math.min(
+      assetPage.value,
+      Math.max(1, Math.ceil(total / assetPageSize.value)),
+    );
+  },
+);
 </script>
 <style scoped lang="less">
 .detail-header {
@@ -345,13 +413,23 @@ watch(() => props.drawerData.asset_ids.length, (total) => {
 }
 .asset-actions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   margin: 16px 0;
   flex-wrap: wrap;
   .intel-select {
     flex: 1;
     min-width: 200px;
+  }
+}
+.asset-list {
+  :deep(.intel-list-item-meta) {
+    display: flex;
+    align-items: center;
+  }
+  :deep(.intel-list-item-meta-title) {
+    margin-top: 0;
+    margin-bottom: 4px;
   }
 }
 .drawer-footer {

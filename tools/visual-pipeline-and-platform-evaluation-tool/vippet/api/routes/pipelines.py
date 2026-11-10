@@ -205,7 +205,7 @@ def validate_pipeline(body: schemas.PipelineValidation):
     ## Operation
     1. Convert PipelineGraph to GStreamer launch string
     2. Extract validation parameters (e.g., `max-runtime`)
-    3. Create validation job and run `gst_runner.py` in background
+    3. Create validation job and run the pipeline on DLSPS 2.0 in background
     4. Return generated job ID
 
     ## Request Body

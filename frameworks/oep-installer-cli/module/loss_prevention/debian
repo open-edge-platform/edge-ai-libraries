@@ -1,7 +1,7 @@
 
 configure_loss_prevention () {
   workspace="$(ensure_project_path)/loss-prevention"
-  version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4
+  version="$(ensure_parse_value_option version --version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4 "$@")"
   repository="https://github.com/intel-retail/loss-prevention.git"
   used_ports=(4000 15672 5672 8002 4001)
 }
@@ -82,7 +82,7 @@ debian_90_profile_loss_prevention () {
 }
 
 debian_90_install_loss_prevention () {
-  configure_loss_prevention
+  configure_loss_prevention "$@"
 
   if verify_loss_prevention && ! ensure_parse_reinstall "$@"; then
     echo "Loss prevention is installed." >&2
@@ -140,7 +140,7 @@ EOF
 }
 
 debian_90_start_loss_prevention () {
-  configure_loss_prevention
+  configure_loss_prevention "$@"
   ensure_ports_open start loss_prevention "${used_ports[@]}"
 
   cd "$workspace"
@@ -178,7 +178,7 @@ debian_90_start_loss_prevention () {
 }
 
 debian_90_stop_loss_prevention () {
-  configure_loss_prevention
+  configure_loss_prevention "$@"
   cd "$workspace" && {
     pkill -f "python3 benchmark.py" || true
     make down-lp || true
@@ -187,7 +187,7 @@ debian_90_stop_loss_prevention () {
 }
 
 debian_90_remove_loss_prevention () {
-  configure_loss_prevention
+  configure_loss_prevention "$@"
   debian_90_stop_loss_prevention "$@"
   ensure_rm "$workspace"
 }

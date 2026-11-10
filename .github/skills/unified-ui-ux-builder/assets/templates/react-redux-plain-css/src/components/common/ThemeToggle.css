@@ -1,0 +1,13 @@
+/* SPDX-FileCopyrightText: (C) 2026 Intel Corporation */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+.theme-toggle {
+  border: 1px solid var(--control-border-color);
+  background: var(--control-background);
+  border-radius: var(--control-radius);
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}

@@ -81,11 +81,15 @@ To enable latency measurement for a pipeline run, set the **Enable latency metri
 
 ![Latency Enable](../../_assets/ViPPET-UI-Latency-Enable-light.png)
 
-When enabled, ViPPET configures GStreamer's built-in `latency_tracer` which samples the pipeline every
-1 000 ms and reports statistics for each interval.
+The `latency_tracer` itself is not started per test: DL Streamer Pipeline Server runs it for every pipeline, with
+a 1 000 ms window, when `DLSPS2_GST_TRACERS` enables it. With latency metrics enabled, ViPPET reads the samples
+the server exports to metrics-manager, one per stream for every export period (`DLSPS2_OTEL_INTERVAL_MS`, 1 s by
+default, so a sample usually holds one tracer window). If the server runs without the tracer, the test runs without
+latency metrics and the job details say so. See
+[Pipeline performance metrics](../../developer-guide/metrics/pipeline-performance.md) for the configuration.
 
 > [!NOTE]
-> Enabling latency metrics adds minimal overhead to the pipeline. The tracer operates passively —
+> The latency tracer adds minimal overhead to the pipeline. It operates passively —
 > it timestamps buffers at the source and measures arrival time at the sink without modifying the data path.
 
 ### Reading the latency chart
@@ -95,7 +99,7 @@ with three lines:
 
 | Metric            | Meaning                                                                                                                                             |
 |-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| **avg** (average) | Mean buffer latency during the 1-second reporting interval. This is the most representative value for overall pipeline responsiveness.              |
+| **avg** (average) | Mean buffer latency during the reporting interval. This is the most representative value for overall pipeline responsiveness.                       |
 | **min** (minimum) | Shortest buffer latency observed in the interval. Represents the best-case processing time.                                                         |
 | **max** (maximum) | Longest buffer latency observed in the interval. Spikes here indicate occasional stalls (e.g., model inference on a complex frame, I/O contention). |
 

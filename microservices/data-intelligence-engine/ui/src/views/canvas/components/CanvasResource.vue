@@ -6,7 +6,9 @@
     :style="{ '--resource-color': resourceCategories[node.kind].color }"
   >
     <div class="resource-heading">
-      <span class="resource-icon"><component :is="resourceCategories[node.kind].icon" /></span>
+      <span class="resource-icon"
+        ><component :is="resourceCategories[node.kind].icon"
+      /></span>
       <div class="resource-title">
         <strong :title="node.name">{{ node.name }}</strong>
       </div>
@@ -15,7 +17,8 @@
         :bordered="false"
         class="resource-type-tag"
         :title="node.content ? $t('console.defaultContent') : typeLabel"
-      >{{ typeLabel }}</a-tag>
+        >{{ typeLabel }}</a-tag
+      >
     </div>
     <template v-if="!compact">
       <div class="resource-meta">
@@ -33,7 +36,12 @@
         </span>
       </div>
       <div class="resource-status" :title="node.error">
-        <StatusTag :value="node.status" />
+        <AssetStatus
+          v-if="node.kind === 'asset'"
+          :value="node.status"
+          :expired="node.progressExpired"
+        />
+        <StatusTag v-else :value="node.status" />
         <StatusTag
           v-if="node.validationStatus && node.validationStatus !== node.status"
           :value="node.validationStatus"
@@ -54,6 +62,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import StatusTag from "../../../components/StatusTag.vue";
+import AssetStatus from "../../assets/components/AssetStatus.vue";
 import type { CanvasNode } from "../Type";
 import { resourceCategories } from "../ResourcePresentation";
 
@@ -64,9 +73,14 @@ const props = defineProps<{
 }>();
 const { t, te } = useI18n();
 const typeLabel = computed(() => {
-  const key = props.node.kind === "pool" ? "pools"
-    : props.node.kind === "source" ? `${props.node.resourceType}Source`
-    : props.node.resourceType === "asset" ? "assets" : props.node.resourceType;
+  const key =
+    props.node.kind === "pool"
+      ? "pools"
+      : props.node.kind === "source"
+        ? `${props.node.resourceType}Source`
+        : props.node.resourceType === "asset"
+          ? "assets"
+          : props.node.resourceType;
   return te(`console.${key}`) ? t(`console.${key}`) : props.node.resourceType;
 });
 </script>
@@ -82,7 +96,8 @@ const typeLabel = computed(() => {
   box-shadow: 0 2px 6px var(--bg-box-shadow);
   &.selected {
     border-color: var(--resource-color);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--resource-color) 16%, transparent);
+    box-shadow: 0 0 0 2px
+      color-mix(in srgb, var(--resource-color) 16%, transparent);
   }
   &.compact {
     padding: 0;
@@ -159,7 +174,7 @@ const typeLabel = computed(() => {
 }
 .resource-type-tag {
   flex-shrink: 0;
-  max-width: 64px;
+  max-width: 85px;
   margin: 0;
   padding: 0 4px;
   overflow: hidden;

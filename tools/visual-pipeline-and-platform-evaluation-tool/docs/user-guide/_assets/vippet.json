@@ -709,7 +709,7 @@
           "jobs"
         ],
         "summary": "List all performance test jobs",
-        "description": "**List statuses of all performance test jobs.**\n\n## Operation\n\nReads current state and metrics for every performance test job created via the performance test API.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of PerformanceJobStatus objects |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n- Zero or more jobs may be present\n\n### \u274c Failure\n- Internal errors \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job123\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 120000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": 480.0,\n    \"per_stream_fps\": 30.0,\n    \"total_streams\": 16,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 8},\n      {\"id\": \"pipeline-2\", \"streams\": 8}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n    }\n  }\n]\n```",
+        "description": "**List statuses of all performance test jobs.**\n\n## Operation\n\nReads current state and metrics for every performance test job created via the performance test API.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of PerformanceJobStatus objects |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n- Zero or more jobs may be present\n\n### \u274c Failure\n- Internal errors \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job123\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 120000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": 480.0,\n    \"per_stream_fps\": 30.0,\n    \"min_stream_fps\": 27.5,\n    \"total_streams\": 16,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 8},\n      {\"id\": \"pipeline-2\", \"streams\": 8}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n    }\n  }\n]\n```",
         "operationId": "get_performance_statuses",
         "responses": {
           "200": {
@@ -735,7 +735,7 @@
           "jobs"
         ],
         "summary": "Get performance test job status",
-        "description": "**Get detailed status of a single performance test job.**\n\n## Operation\n\nRetrieves current state, timings, FPS metrics, and output paths for a specific performance test job.\n\n## Path Parameters\n\n- `job_id`: Identifier of the performance job to inspect\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | PerformanceJobStatus with current state, timings, FPS and output paths |\n| 404  | Job with given id does not exist |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- Job with given id exists in TestsManager\n\n### \u274c Failure\n- Unknown job id \u2192 404\n- Unexpected job status type \u2192 500\n\n## Examples\n\nSuccess (200):\n```json\n{\n  \"id\": \"job123\",\n  \"start_time\": 1715000000000,\n  \"elapsed_time\": 60000,\n  \"state\": \"COMPLETED\",\n  \"details\": [\"Pipeline completed successfully\"],\n  \"total_fps\": 480.0,\n  \"per_stream_fps\": 30.0,\n  \"total_streams\": 16,\n  \"streams_per_pipeline\": [\n    {\"id\": \"pipeline-1\", \"streams\": 8},\n    {\"id\": \"pipeline-2\", \"streams\": 8}\n  ],\n  \"video_output_paths\": {\n    \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n  }\n}\n```\n\nError (404):\n```json\n{\n  \"message\": \"Performance job job123 not found\"\n}\n```\n\nError (500):\n```json\n{\n  \"message\": \"Unexpected job status type for job job123\"\n}\n```",
+        "description": "**Get detailed status of a single performance test job.**\n\n## Operation\n\nRetrieves current state, timings, FPS metrics, and output paths for a specific performance test job.\n\n## Path Parameters\n\n- `job_id`: Identifier of the performance job to inspect\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | PerformanceJobStatus with current state, timings, FPS and output paths |\n| 404  | Job with given id does not exist |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- Job with given id exists in TestsManager\n\n### \u274c Failure\n- Unknown job id \u2192 404\n- Unexpected job status type \u2192 500\n\n## Examples\n\nSuccess (200):\n```json\n{\n  \"id\": \"job123\",\n  \"start_time\": 1715000000000,\n  \"elapsed_time\": 60000,\n  \"state\": \"COMPLETED\",\n  \"details\": [\"Pipeline completed successfully\"],\n  \"total_fps\": 480.0,\n  \"per_stream_fps\": 30.0,\n  \"min_stream_fps\": 27.5,\n  \"total_streams\": 16,\n  \"streams_per_pipeline\": [\n    {\"id\": \"pipeline-1\", \"streams\": 8},\n    {\"id\": \"pipeline-2\", \"streams\": 8}\n  ],\n  \"video_output_paths\": {\n    \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n  }\n}\n```\n\nError (404):\n```json\n{\n  \"message\": \"Performance job job123 not found\"\n}\n```\n\nError (500):\n```json\n{\n  \"message\": \"Unexpected job status type for job job123\"\n}\n```",
         "operationId": "get_performance_job_status",
         "parameters": [
           {
@@ -1081,7 +1081,7 @@
           "jobs"
         ],
         "summary": "List all density test jobs",
-        "description": "**List statuses of all density test jobs.**\n\n## Operation\n\nReads current state and metrics for every density test job.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of DensityJobStatus objects |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job456\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 45000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": null,\n    \"per_stream_fps\": 28.5,\n    \"total_streams\": 32,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 16},\n      {\"id\": \"pipeline-2\", \"streams\": 16}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job456-p1-0.mp4\"]\n    }\n  }\n]\n```",
+        "description": "**List statuses of all density test jobs.**\n\n## Operation\n\nReads current state and metrics for every density test job.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of DensityJobStatus objects |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job456\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 45000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": null,\n    \"per_stream_fps\": 28.5,\n    \"min_stream_fps\": 25.1,\n    \"total_streams\": 32,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 16},\n      {\"id\": \"pipeline-2\", \"streams\": 16}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job456-p1-0.mp4\"]\n    }\n  }\n]\n```",
         "operationId": "get_density_statuses",
         "responses": {
           "200": {
@@ -2403,7 +2403,7 @@
           "pipelines"
         ],
         "summary": "Validate Pipeline",
-        "description": "**Start asynchronous validation job for a pipeline graph.**\n\n## Operation\n1. Convert PipelineGraph to GStreamer launch string\n2. Extract validation parameters (e.g., `max-runtime`)\n3. Create validation job and run `gst_runner.py` in background\n4. Return generated job ID\n\n## Request Body\n**`PipelineValidation`** with:\n- `pipeline_graph` *(required)* - Nodes and edges representation\n- `parameters` *(optional)* - Configuration dict, e.g., `{\"max-runtime\": 10}`\n  - **Note:** `max-runtime` must be > 0 for validation mode\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `ValidationJobResponse` with `job_id` |\n| 400 | `MessageResponse` - Invalid parameters (e.g., `max-runtime` < 1) |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Graph converts to valid launch string\n- Parameters pass ValidationManager checks\n- Background validation job started\n\n### \u274c Failure\n- Parameter validation error \u2192 400\n- Unexpected exception \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [\n      {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n      {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n      {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n    ],\n    \"edges\": [\n      {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n      {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n    ]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"val001\"\n}\n```\n\n### Error Response (400)\n```json\n{\n  \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n}\n```",
+        "description": "**Start asynchronous validation job for a pipeline graph.**\n\n## Operation\n1. Convert PipelineGraph to GStreamer launch string\n2. Extract validation parameters (e.g., `max-runtime`)\n3. Create validation job and run the pipeline on DLSPS 2.0 in background\n4. Return generated job ID\n\n## Request Body\n**`PipelineValidation`** with:\n- `pipeline_graph` *(required)* - Nodes and edges representation\n- `parameters` *(optional)* - Configuration dict, e.g., `{\"max-runtime\": 10}`\n  - **Note:** `max-runtime` must be > 0 for validation mode\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `ValidationJobResponse` with `job_id` |\n| 400 | `MessageResponse` - Invalid parameters (e.g., `max-runtime` < 1) |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Graph converts to valid launch string\n- Parameters pass ValidationManager checks\n- Background validation job started\n\n### \u274c Failure\n- Parameter validation error \u2192 400\n- Unexpected exception \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [\n      {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n      {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n      {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n    ],\n    \"edges\": [\n      {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n      {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n    ]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"val001\"\n}\n```\n\n### Error Response (400)\n```json\n{\n  \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n}\n```",
         "operationId": "validate_pipeline",
         "requestBody": {
           "content": {
@@ -5473,6 +5473,21 @@
             ],
             "title": "Video Output Paths"
           },
+          "min_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Stream Fps",
+            "description": "FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure.",
+            "examples": [
+              27.5
+            ]
+          },
           "latency_tracer_metrics": {
             "anyOf": [
               {
@@ -5486,7 +5501,7 @@
               }
             ],
             "title": "Latency Tracer Metrics",
-            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples \u2014 for example when the pipeline exited before the first 1000 ms interval closed."
+            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when no latency samples were read: the job was executed with `execution_config.enable_latency_metrics=false`, or latency was requested but DL Streamer Pipeline Server runs without the latency tracer (the job's `details` then say so). An empty object `{}` means samples were read but none arrived \u2014 for example when the pipeline stopped before the server's first export."
           }
         },
         "type": "object",
@@ -5503,7 +5518,7 @@
           "video_output_paths"
         ],
         "title": "DensityJobStatus",
-        "description": "**Status of a density test job.**\n\nInherits all fields from TestsJobStatus without changes.\nDoes not include live_stream_urls because density tests do not support\nlive-streaming output mode (only disabled or file modes are allowed).\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths"
+        "description": "**Status of a density test job.**\n\nInherits all fields from TestsJobStatus without changes.\nDoes not include live_stream_urls because density tests do not support\nlive-streaming output mode (only disabled or file modes are allowed).\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths"
       },
       "DensityJobSummary": {
         "properties": {
@@ -5704,7 +5719,7 @@
           "enable_latency_metrics": {
             "type": "boolean",
             "title": "Enable Latency Metrics",
-            "description": "When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified.",
+            "description": "When true, the job reports DLStreamer `latency_tracer` samples per stream in `latency_tracer_metrics`. This flag does not start the tracer: DL Streamer Pipeline Server runs it for every pipeline when configured server-wide (`DLSPS2_GST_TRACERS` with `post-metrics=true`, and `DLSPS2_OTEL=true`), and ViPPET only reads the samples the server exports to metrics-manager. If the server is not configured that way, the test runs without latency metrics and the job's `details` say so. When false (default), no latency samples are read.",
             "default": false
           }
         },
@@ -6074,7 +6089,7 @@
           "interval_ms": {
             "type": "number",
             "title": "Interval Ms",
-            "description": "Length of the measurement window reported by the tracer, in ms.",
+            "description": "Total length of the tracer windows merged into this sample, in ms (about one export period).",
             "examples": [
               1000.25
             ]
@@ -6082,7 +6097,7 @@
           "avg_ms": {
             "type": "number",
             "title": "Avg Ms",
-            "description": "Average frame latency over the window, in ms.",
+            "description": "Mean per-frame latency over the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded).",
             "examples": [
               364.31
             ]
@@ -6090,7 +6105,7 @@
           "min_ms": {
             "type": "number",
             "title": "Min Ms",
-            "description": "Minimum frame latency observed in the window, in ms.",
+            "description": "Minimum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded).",
             "examples": [
               0.004
             ]
@@ -6098,7 +6113,7 @@
           "max_ms": {
             "type": "number",
             "title": "Max Ms",
-            "description": "Maximum frame latency observed in the window, in ms.",
+            "description": "Maximum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded).",
             "examples": [
               529.26
             ]
@@ -6106,7 +6121,8 @@
           "latency_ms": {
             "type": "number",
             "title": "Latency Ms",
-            "description": "Current end-to-end latency reported by the tracer, in ms.",
+            "description": "Deprecated: mean time between output frames in the window, in ms (frame period, = 1000 / fps). It is NOT a frame latency - use `avg_ms` (mean) and `max_ms`.",
+            "deprecated": true,
             "examples": [
               21.28
             ]
@@ -6121,7 +6137,7 @@
           "latency_ms"
         ],
         "title": "LatencyMetrics",
-        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value is extracted from a single\n`latency_tracer_pipeline_interval` line emitted by the\n`latency_tracer` (one such line per stream per interval ~1000 ms).\nOnly the most recent sample per stream is kept; history is not\nreported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Length of the measurement window, in milliseconds\n- `avg_ms` - Average frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds\n\n### Example\n```json\n{\n  \"interval_ms\": 1000.25,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
+        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value merges the `latency_tracer` windows of one stream over one\nDL Streamer Pipeline Server export period (`DLSPS2_OTEL_INTERVAL_MS`,\n1000 ms by default, so usually one tracer window). Only the most\nrecent sample per stream is kept; history is not reported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Total length of the tracer windows in the sample, in milliseconds\n- `avg_ms` - Mean frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - **Deprecated.** Mean time between output frames in the window, in milliseconds (frame period, `1000 / fps`). It is **not** a frame latency; use `avg_ms` (mean) and `max_ms`\n\nA frame's latency is the time from the moment the source element\noutputs the frame to the moment the frame is pushed into the sink;\nthe sink's own work is excluded.\n\n### Example\n```json\n{\n  \"interval_ms\": 1000.25,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
       },
       "MessageResponse": {
         "properties": {
@@ -6228,6 +6244,29 @@
             ],
             "title": "Unsupported Devices",
             "description": "Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link",
+            "description": "URL of the model page on its upstream hub (currently only Hugging Face), or null when not available."
+          },
+          "gated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelGated"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hugging Face gating mode, or null when unknown or not applicable (non-Hugging Face models)."
           }
         },
         "type": "object",
@@ -6493,6 +6532,17 @@
               }
             ],
             "description": "Model category, required when `hub` is `huggingface` (ignored for other hubs)."
+          },
+          "gated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelGated"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Gating mode of the hub model, stored on the registered model (null when unknown)."
           }
         },
         "type": "object",
@@ -6500,7 +6550,17 @@
           "names"
         ],
         "title": "ModelDownloadRequest",
-        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\nWhen `hub` is set, names not found in the catalog are downloaded from\nthat hub (names as returned by `POST /models/list`) and registered in\nthe catalog together with every installed precision. Supported hubs:\n`ultralytics` (category derived from the name suffix) and\n`huggingface` (category must be provided via `category`, since\nHuggingFace repo ids have no fixed naming convention to derive it\nfrom).\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n- `hub` - Optional upstream hub for names not in the catalog.\n- `category` - Required when `hub` is `huggingface`; ignored otherwise.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\nWhen `hub` is set, names not found in the catalog are downloaded from\nthat hub (names as returned by `POST /models/list`) and registered in\nthe catalog together with every installed precision. Supported hubs:\n`ultralytics` (category derived from the name suffix) and\n`huggingface` (category must be provided via `category`, since\nHuggingFace repo ids have no fixed naming convention to derive it\nfrom).\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n- `hub` - Optional upstream hub for names not in the catalog.\n- `category` - Required when `hub` is `huggingface`; ignored otherwise.\n- `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+      },
+      "ModelGated": {
+        "type": "string",
+        "enum": [
+          "false",
+          "auto",
+          "manual"
+        ],
+        "title": "ModelGated",
+        "description": "**Hugging Face gating mode of a model.**\n\n## Values\n- `FALSE` - Not gated, anyone can download the model\n- `AUTO` - Gated, access is granted automatically after accepting the license\n- `MANUAL` - Gated, access must be approved manually by the model authors\n\n### Example\n```json\n\"auto\"\n```"
       },
       "ModelHubListRequest": {
         "properties": {
@@ -7051,6 +7111,21 @@
             ],
             "title": "Video Output Paths"
           },
+          "min_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Stream Fps",
+            "description": "FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure.",
+            "examples": [
+              27.5
+            ]
+          },
           "latency_tracer_metrics": {
             "anyOf": [
               {
@@ -7064,7 +7139,7 @@
               }
             ],
             "title": "Latency Tracer Metrics",
-            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples \u2014 for example when the pipeline exited before the first 1000 ms interval closed."
+            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when no latency samples were read: the job was executed with `execution_config.enable_latency_metrics=false`, or latency was requested but DL Streamer Pipeline Server runs without the latency tracer (the job's `details` then say so). An empty object `{}` means samples were read but none arrived \u2014 for example when the pipeline stopped before the server's first export."
           },
           "live_stream_urls": {
             "anyOf": [
@@ -7122,7 +7197,7 @@
           "metadata_stream_urls"
         ],
         "title": "PerformanceJobStatus",
-        "description": "**Status of a performance test job.**\n\nInherits all fields from TestsJobStatus and adds live_stream_urls and\nmetadata_stream_urls for live-streaming output mode support, plus events\ncarrying recent live pipeline events.\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths\n- `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)\n- `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)\n- `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer"
+        "description": "**Status of a performance test job.**\n\nInherits all fields from TestsJobStatus and adds live_stream_urls and\nmetadata_stream_urls for live-streaming output mode support, plus events\ncarrying recent live pipeline events.\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths\n- `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)\n- `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)\n- `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer"
       },
       "PerformanceJobSummary": {
         "properties": {

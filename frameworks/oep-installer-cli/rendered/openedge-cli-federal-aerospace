@@ -2232,7 +2232,7 @@ configure_cdi ()
 configure_deterministic_threat_detection () 
 { 
     workspace="$(ensure_project_path)/federal-and-aerospace-ai-suite";
-    version="main";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
     application="$workspace/deterministic-threat-detection"
 }
@@ -2362,7 +2362,7 @@ configure_gpu_accel ()
 configure_handheld_multi_modal () 
 { 
     workspace="$(ensure_project_path)/handheld-multi-modal";
-    version=main;
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git;
     used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997)
 }
@@ -2468,12 +2468,12 @@ configure_kernel_module_essential_debian ()
 }
 configure_libze1 () 
 { 
-    version=1.32.0;
+    version="$(ensure_parse_value_option version --version=1.32.0 "$@")";
     libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb"
 }
 configure_npu_accel () 
 { 
-    version=1.38.0;
+    version="$(ensure_parse_value_option version --version=1.38.0 "$@")";
     repository=https://api.github.com/repos/intel/linux-npu-driver;
     releases=https://github.com/intel/linux-npu-driver/releases;
     workspace="$(ensure_project_path)/npu"
@@ -2488,7 +2488,7 @@ configure_pcm ()
 { 
     workspace="$(ensure_project_path)/pcm";
     repository="https://github.com/intel/pcm.git";
-    version=e534201d0fe6d6e3bc5fee54b229f215b976efbc
+    version="$(ensure_parse_value_option version --version=e534201d0fe6d6e3bc5fee54b229f215b976efbc "$@")"
 }
 configure_power_tuning () 
 { 
@@ -2556,7 +2556,7 @@ configure_uav_mission_compute_sdk ()
     source_path="$workspace/source";
     sdk_path="$source_path/uav-mission-compute-sdk";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
-    version="main";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
 }
 configure_v4l_utils () 
@@ -3327,7 +3327,7 @@ debian_40_install_npu_accel ()
 }
 debian_40_install_pcm () 
 { 
-    configure_pcm;
+    configure_pcm "$@";
     if verify_pcm && ! ensure_parse_reinstall "$@"; then
         echo "pcm is installed." 1>&2;
     else
@@ -3466,7 +3466,7 @@ debian_40_remove_npu_accel ()
 }
 debian_40_remove_pcm () 
 { 
-    configure_pcm;
+    configure_pcm "$@";
     [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0;
     ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM /etc/modules-load.d/99-intel-pcm.conf
 }
@@ -3790,7 +3790,7 @@ debian_90_install_deterministic_threat_detection ()
             ;;
         esac;
     done <<< "$installed";
-    configure_deterministic_threat_detection;
+    configure_deterministic_threat_detection "$@";
     if verify_deterministic_threat_detection && ! ensure_parse_reinstall "$@"; then
         echo "Deterministic Threat Detection source is already available." 1>&2;
     else
@@ -3818,7 +3818,7 @@ debian_90_install_handheld_multi_modal ()
         esac;
     done <<< "$installed";
     configure_handheld_multi_modal "$@";
-    if verify_handheld_multi_modal $* && ! ensure_parse_reinstall "$@"; then
+    if verify_handheld_multi_modal "$@" && ! ensure_parse_reinstall "$@"; then
         echo "handheld_multi_modal is installed." 1>&2;
     else
         ensure_disk_size 45000;
@@ -3842,7 +3842,7 @@ debian_90_install_handheld_multi_modal ()
 }
 debian_90_install_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     if verify_uav_mission_compute_sdk && ! ensure_parse_reinstall "$@"; then
         echo "uav_mission_compute_sdk is installed." 1>&2;
     else
@@ -3906,7 +3906,7 @@ debian_90_profile_uncrewed_aerial_vehicle_vision_analytics ()
 }
 debian_90_remove_deterministic_threat_detection () 
 { 
-    configure_deterministic_threat_detection;
+    configure_deterministic_threat_detection "$@";
     ensure_rm "$workspace"
 }
 debian_90_remove_handheld_multi_modal () 
@@ -3918,7 +3918,7 @@ debian_90_remove_handheld_multi_modal ()
 }
 debian_90_remove_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk)" ]; then
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 0;
@@ -3952,7 +3952,7 @@ debian_90_start_handheld_multi_modal ()
 }
 debian_90_start_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     verify_uav_mission_compute_sdk || { 
         echo "uav_mission_compute_sdk is not installed or needs repair. Run install first." 1>&2;
         return 1
@@ -4004,7 +4004,7 @@ debian_90_stop_handheld_multi_modal ()
 }
 debian_90_stop_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     verify_uav_mission_compute_sdk || { 
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 1

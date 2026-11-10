@@ -39,9 +39,22 @@ def _mock_get_video_path(filename: str) -> str:
     return os.path.join("/tmp", filename)
 
 
+# Pipelines run on DLSPS 2.0, which these tests do not reach: encoder and
+# decoder selection reads this fixed element list instead.
+_DLSPS2_ELEMENTS = [
+    ("openh264", "openh264enc", "OpenH264 video encoder"),
+    ("videoparsersbad", "h264parse", "H.264 parser"),
+    ("libav", "avdec_h264", "libav H.264 decoder"),
+]
+_elements_patcher = patch(
+    "explore.GstInspector._get_dlsps2_elements", return_value=_DLSPS2_ELEMENTS
+)
+
+
 def setUpModule() -> None:
-    """Install the VideosManager patch before any test runs."""
+    """Install the VideosManager and element-list patches before any test runs."""
     global _videos_manager_patcher
+    _elements_patcher.start()
     mock_instance = MagicMock()
     mock_instance.get_video_filename.side_effect = _mock_get_video_filename
     mock_instance.get_video_path.side_effect = _mock_get_video_path
@@ -54,8 +67,9 @@ def setUpModule() -> None:
 
 
 def tearDownModule() -> None:
-    """Remove the VideosManager patch after the module's tests finish."""
+    """Remove the patches after the module's tests finish."""
     global _videos_manager_patcher
+    _elements_patcher.stop()
     if _videos_manager_patcher is not None:
         _videos_manager_patcher.stop()
         _videos_manager_patcher = None
