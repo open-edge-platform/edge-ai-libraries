@@ -303,16 +303,17 @@ act_helper ()
     local explicit_mods=($(act_extract_modules $act_name "$@"));
     local stop_remove_all=$(case "$act_name" in 
     remove)
-        ensure_parse_option --remove-all "$@" && ${#explicit_mods[*]} -eq 0 && echo 1 || echo 0
+        ensure_parse_option --remove-all "$@" && [ ${#explicit_mods[*]} -eq 0 ] && echo 1 || echo 0
     ;;
     stop)
-        ensure_parse_option --stop-all "$@" && ${#explicit_mods[*]} -eq 0 && echo 1 || echo 0
+        ensure_parse_option --stop-all "$@" && [ ${#explicit_mods[*]} -eq 0 ] && echo 1 || echo 0
     ;;
     *)
         echo 0
     ;;
 esac);
     set -- $(act_resolve_args $act_name "$@");
+    local implicit_mods=($(act_extract_modules $act_name "$@"));
     local handles=($(act_find_deps $act_name "$@" | tr ' ' '\n' | sort $sort_options));
     if [ ${#handles[@]} -gt 0 ]; then
         if [ "$act_name" = "install" ]; then
@@ -365,7 +366,7 @@ esac);
         export _INSTALLER_PANEL_ACTIVE=;
         [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
         { 
-            local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && echo "${handles[0]#*_*_*_}" || echo "${handles[*]#*_*_*_}")) _pair _h _m;
+            local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && echo "${implicit_mods[*]}" || echo "${handles[*]#*_*_*_}")) _pair _h _m;
             for handler in ${handles[*]};
             do
                 name1=${handler#*_*_*_};
@@ -374,6 +375,7 @@ esac);
                     local -A _needed=();
                     for _pair in $(act_find_parents "$name1" "$@");
                     do
+                        [[ -v _act_cache_functions["remove_${_pair%%:*}"] ]] || continue;
                         _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}";
                     done;
                     if [ ${#_needed[@]} -gt 0 ]; then
@@ -3605,17 +3607,13 @@ fedora_99_install_system_summary ()
 }
 fedora_99_profile_edge_base () 
 { 
+    echo "core_types system_inspection system_summary";
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
+            echo "edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
         ;;
         *)
-            echo "core_types system_inspection system_summary";
-            if ensure_parse_option --edgepack "$@" && [[ "$(uname -r)" = "7."* ]]; then
-                echo "edge_pack_base_standard edge_pack_npu";
-            else
-                echo "gpu_accel npu_accel";
-            fi
+            configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu" "$@"
         ;;
     esac
 }

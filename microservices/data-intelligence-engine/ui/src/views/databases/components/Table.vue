@@ -29,7 +29,24 @@
       row-key="id"
       :scroll="{ x: 1100 }"
       :reset-key="searchName"
+      :row-expandable="(record: Database) => record.in_use_by.length > 0"
+      :expanded-row-keys="expandedRowKeys"
+      :show-expand-column="false"
     >
+      <template #expandedRowRender="{ record }">
+        <div class="membership-details">
+          <div class="membership-list">
+            <a-tag
+              v-for="(name, index) in record.in_use_by"
+              :key="`${name}-${index}`"
+              :bordered="false"
+              class="membership-tag"
+            >
+              {{ name }}
+            </a-tag>
+          </div>
+        </div>
+      </template>
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'name'">
           <div class="database-name">
@@ -57,15 +74,27 @@
           />
         </template>
         <template v-else-if="column.key === 'inUseBy'">
-          <div v-if="record.in_use_by.length" class="membership-list">
-            <a-tag
-              v-for="name in record.in_use_by"
-              :key="name"
-              :bordered="false"
-              class="membership-tag"
+          <div v-if="record.in_use_by.length" class="membership-summary">
+            <a-tag :bordered="false">{{ record.in_use_by.length }}</a-tag>
+            <a-button
+              type="link"
+              size="small"
+              class="membership-view"
+              :aria-expanded="expandedRowKeys.includes(record.id)"
+              @click="toggleMembership(record.id)"
             >
-              {{ name }}
-            </a-tag>
+              <template #icon>
+                <UpOutlined v-if="expandedRowKeys.includes(record.id)" />
+                <EyeOutlined v-else />
+              </template>
+              {{
+                $t(
+                  expandedRowKeys.includes(record.id)
+                    ? "common.collapse"
+                    : "common.view",
+                )
+              }}
+            </a-button>
           </div>
           <span v-if="!record.in_use_by.length" class="muted-wrap">—</span>
         </template>
@@ -134,7 +163,9 @@ import { Modal } from "ant-design-vue";
 import {
   ApiOutlined,
   DatabaseOutlined,
+  EyeOutlined,
   PlusOutlined,
+  UpOutlined,
 } from "@ant-design/icons-vue";
 import { requestDatabaseDelete } from "@/api/console";
 import type { Database, DatabaseCheck } from "@/api/console/type";
@@ -162,6 +193,12 @@ const handleCheck = (id: string) => emit("check", id);
 const handleCheckAll = () => emit("check-all");
 const { t } = useI18n();
 const searchName = ref("");
+const expandedRowKeys = ref<string[]>([]);
+const toggleMembership = (id: string) => {
+  expandedRowKeys.value = expandedRowKeys.value.includes(id)
+    ? expandedRowKeys.value.filter((key) => key !== id)
+    : [...expandedRowKeys.value, id];
+};
 const tableColumns = computed(() => getTableColumns(t));
 const tableList = computed(() =>
   props.tableData.filter((item) =>
@@ -267,6 +304,22 @@ const handleDelete = (name: string) => {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+.membership-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  .intel-tag {
+    flex-shrink: 0;
+    margin: 0;
+  }
+  :deep(.membership-view) {
+    color: var(--color-primary-second);
+  }
+}
+.membership-details {
+  max-height: 240px;
+  overflow: auto;
 }
 .membership-tag {
   max-width: 100%;

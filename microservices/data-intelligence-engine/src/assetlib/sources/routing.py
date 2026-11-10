@@ -1,17 +1,5 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Which source handles which kind of content in a pool, as configured now.
-
-Routing is not configured in one place, and should not be: the extractor turns
-every file into typed blocks the same way, and each source's own filters
-(`block_kinds`, `block_roles`, `asset_types`) plus its model's supported
-roles decide what it takes. That keeps adding a model a matter of
-adding a source -- but it means "what happens to an image in this pool?" has to
-be answered by asking every source. This does the asking.
-
-What a source can take is the library specialization's question (`covers`,
-supplied by the caller); this module only tabulates the answers per binding.
-"""
 
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
@@ -24,11 +12,9 @@ def pool_routing(
     kinds: Sequence[str],
     covers: Callable[[Any, str], Optional[str]],
 ) -> Dict[str, Any]:
-    """`{routes: {kind: [...]}, uncovered: [...]}` for one pool.
+    """Which sources take each content kind in one pool, and which kinds no serving binding takes.
 
-    `covers(source, kind)` returns how a source embeds that kind of content
-    (for example "vector" or "caption"), or None if it does not take it. A kind
-    is *uncovered* when no serving binding takes it.
+    `covers(source, kind)` returns how a source embeds that kind (e.g. "vector"), or None.
     """
     routes: Dict[str, List[Dict[str, Any]]] = {kind: [] for kind in kinds}
     for source_id, status in pool.source_statuses.items():

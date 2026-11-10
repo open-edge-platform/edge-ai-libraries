@@ -385,9 +385,23 @@ shell's PATH yet — open a new terminal, or re-source your shell profile."
   printf "\n"
 }
 
+# nvm's node is not on PATH in a fresh shell; without it the node-based config.json lookups fail.
+ensure_node_on_path() {
+  set +u
+  ensure_nvm_loaded
+  if ! command_exists node && command_exists nvm; then
+    nvm use "$HARNESS_NODE_VERSION" --silent 2>/dev/null || nvm use default --silent 2>/dev/null || true
+  fi
+  set -u
+  return 0
+}
+
 run_models_command() {
   local verb="${1:-}" name="${2:-}"
   [[ -n "$verb" ]] || { usage; error "models requires a verb (list/remove)."; }
+  ensure_node_on_path
+  command_exists node \
+    || warn "Node.js was not found; results may be incomplete. Run ./startup.sh --skip-docker --skip-python to install it."
   case "$verb" in
     list) list_exported_models ;;
     remove) remove_exported_model "$name" ;;
@@ -515,13 +529,7 @@ run_installer_command() {
     exit 0
   fi
   if [[ "${positional[0]:-}" == "onboard" ]]; then
-    # nvm's node is not on PATH in a fresh shell; without it the registered-model lookup falls back to 'default'.
-    set +u
-    ensure_nvm_loaded
-    if ! command_exists node && command_exists nvm; then
-      nvm use "$HARNESS_NODE_VERSION" --silent 2>/dev/null || nvm use default --silent 2>/dev/null || true
-    fi
-    set -u
+    ensure_node_on_path
     run_agent_onboard
     exit 0
   fi

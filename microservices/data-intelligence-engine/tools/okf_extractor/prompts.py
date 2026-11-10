@@ -1,24 +1,15 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Render task-specific semantic instructions inside a fixed tool contract.
-
-Planning and operator overrides supply the seven instruction segments; the
-template owns tool argument shapes, fragment provenance and read/emit workflow.
-Missing/empty segments retain their generic defaults.
-"""
 from __future__ import annotations
 
 from pathlib import Path
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
-# Editable instruction segments — the human-in-the-loop knobs. Defaults are lifted
-# from the kernel's original hardcoded EXTRACT_SYSTEM / _CANON_PROMPT wording.
+# Editable instruction segments filled into the templates' `{KEY}` placeholders.
 DEFAULT_INSTRUCTIONS: dict[str, str] = {
-    # Soft type guidance injected by the web UI (sample->recommend->edit). Default empty:
-    # no suggested-type list, agent picks types freely (the template's {TYPE_HINTS} section
-    # is designed to read fine when this is blank). NOT enforced — free-text type is unchanged.
+    # Optional, non-enforced type guidance; empty lets the agent pick types freely.
     "TYPE_HINTS": "",
     "DOMAIN": (
         "You are an OKF (Open Knowledge Format) extraction agent working over a folder "
@@ -91,8 +82,7 @@ def render_extract_system(
     instructions: dict[str, str] | None = None,
     template_path: str | Path | None = None,
 ) -> str:
-    """Concept-extraction system prompt (task stage 2). Only instruction placeholders are filled here;
-    the tool contract is fixed in the template."""
+    """Concept-extraction system prompt with instruction placeholders filled."""
     return _fill_instructions(_load("extract.md", template_path), instructions)
 
 
@@ -102,7 +92,6 @@ def render_canonicalize(
     instructions: dict[str, str] | None = None,
     template_path: str | Path | None = None,
 ) -> str:
-    """Stage-2 per-type canonicalize prompt. Fills {MERGE_STANCE} plus the structural
-    injection points {TYPE} / {ENTITIES}."""
+    """Per-type canonicalize prompt with instructions, {TYPE} and {ENTITIES} filled."""
     text = _fill_instructions(_load("canonicalize.md", template_path), instructions)
     return text.replace("{TYPE}", ctype).replace("{ENTITIES}", entities_block)

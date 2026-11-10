@@ -1,6 +1,5 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Prepared Cosmos-Embed1-224p OpenVINO towers with official pixel preprocessing."""
 
 import numpy as np
 
@@ -8,13 +7,13 @@ from inference.multimodal.viclip_openvino import ViClipOpenVINOEmbedding
 
 
 class CosmosOpenVINOEmbedding(ViClipOpenVINOEmbedding):
-    """Reuse local tokenizer/OV execution, with Cosmos-specific package and pixels."""
+    """Cosmos-Embed1-224p OpenVINO towers with official pixel preprocessing."""
 
     PACKAGE_TYPES = {"cosmos-224p": ("cosmos", 256, 128, "bert")}
     MODEL_IDS = {"cosmos-224p": "nvidia/Cosmos-Embed1-224p"}
 
     def _pixels(self, frames):
-        # Torch is used only for CPU pixel processing, never model inference.
+        # Torch is used only for CPU pixel preprocessing.
         import torch
         from torchvision.transforms import InterpolationMode
         from torchvision.transforms.functional import resize

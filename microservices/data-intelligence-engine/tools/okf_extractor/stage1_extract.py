@@ -1,18 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Batched concept extraction, used inside the task pipeline's second stage.
-
-Spawns SHORT-LIVED extract-agent sessions until every file is covered. Never one giant
-session (that is how codex overflowed). The DRIVER pre-slices each session's batch
-deterministically — bounded by BOTH a token budget (cfg.read_input_budget()) AND a hard
-file-count cap (cfg.batch.max_files_per_batch) — so a session can never swallow dozens
-of tiny files and then under-extract. The agent is briefed on exactly that batch, reads
-those files, and emits write_concept per concept. Only the assigned batch leaves the
-`remaining` set — files are never silently dropped just because a session ran out of
-steps. Batches share ONLY the already-extracted concept-title list (a dedup hint), never
-source text. File order is preserved so subfolder groupings stay together in one batch.
-"""
 from __future__ import annotations
 
 from .agent import AgentCtx, ExtractionResponseError, run_agent
@@ -23,17 +11,13 @@ from .structure import FileInfo, Tree
 from .tools import build_tools
 from .ui import UI
 
-# adaptive fallback knobs (self-contained; not exposed in config for the POC)
-_SHRINK = 0.5          # multiply the batch read budget by this on overflow, then retry
-_BUDGET_FLOOR = 4000   # tokens; a strict single-file session fails rather than skipping it
-_MAX_ATTEMPTS = 6      # hard cap on retries per batch — guarantees forward progress, no spin
+_SHRINK = 0.5          # batch read budget multiplier on retry
+_BUDGET_FLOOR = 4000   # tokens
+_MAX_ATTEMPTS = 6      # retries per batch
 
 
 def _plan_batch(ordered: list[FileInfo], budget: int, max_files: int = 8) -> list[FileInfo]:
-    """Pick the next session's batch from the head of `ordered` (order preserved so
-    subfolders stay grouped), by estimated token size against `budget`. Always returns
-    at least one file (a single file bigger than the whole budget goes alone — the agent
-    reads it in offset chunks; the floor guard prevents an infinite retry)."""
+    """Take the next batch from the head of `ordered` within `budget`; always at least one file."""
     batch: list[FileInfo] = []
     total = 0
     for f in ordered:
@@ -70,7 +54,7 @@ def _batch_briefing(batch: list[FileInfo], seen_titles: list[str]) -> str:
 def _smaller_batch(
     remaining: list[FileInfo], batch: list[FileInfo], budget: int, floor: int,
 ) -> tuple[int, list[FileInfo]]:
-    """Reduce workload, not just a token limit that may still select all files."""
+    """Halve both the token budget and the file count of the next batch."""
     next_budget = max(floor, int(budget * _SHRINK))
     next_cap = max(1, len(batch) // 2)
     return next_budget, _plan_batch(remaining, next_budget, next_cap)
@@ -85,12 +69,7 @@ def extract(cfg, client, tree: Tree, ui: UI | None = None,
     all_concepts: list[Concept] = []
     session = 0
 
-    # ordered work-list (preserves folder grouping); we consume from its head.
-    # Optional batch.priority_globs (dataset-agnostic, default none): files matching these
-    # globs are moved to the FRONT so entity-profile / definition files (which carry the
-    # relations) are extracted before bulk record/log files. Without it, os.walk's
-    # alphabetical order can bury the profiles behind hundreds of records so their
-    # relations never enter an extraction session. Order within each partition preserved.
+    # Files matching batch.priority_globs are extracted first.
     remaining: list[FileInfo] = list(tree.files)
     prio_globs = cfg.batch.get("priority_globs") or []
     if prio_globs:
@@ -109,11 +88,8 @@ def extract(cfg, client, tree: Tree, ui: UI | None = None,
     ctx_window = int(cfg.llm["context_window"])
     reserve = int(cfg.batch["reserve_tokens"])
     cpt = float(cfg.batch["chars_per_token"])
-    # history soft-gate: leave the model room to still emit after we stop reading.
+    # Leave the model room to emit after reading stops.
     history_limit = ctx_window - reserve
-    # Render task-specific extraction instructions once, not again on session retries.
-    # `instructions` override (from the web UI's per-run edits) wins over config.yaml;
-    # blank segments still fall back to prompts.py defaults inside _fill_instructions.
     extract_system = render_extract_system(
         instructions if instructions is not None else cfg.instructions,
         template_path=cfg.prompt_path("extract"),
@@ -121,12 +97,10 @@ def extract(cfg, client, tree: Tree, ui: UI | None = None,
 
     while remaining:
         session += 1
-        budget = default_budget           # each batch starts at default; shrinks only on failure
+        budget = default_budget
         batch = _plan_batch(remaining, budget, max_files)
 
-        # Retire input only after complete reads and a natural model finish. A
-        # failed batch shrinks in file count too (8 -> 4 -> 2 -> 1); shrinking
-        # tokens alone can select the same eight small fragments repeatedly.
+        # Retire a batch only after complete reads and a natural finish; otherwise shrink and retry.
         attempt = 0
         while True:
             attempt += 1
@@ -178,15 +152,13 @@ def extract(cfg, client, tree: Tree, ui: UI | None = None,
                 break
             previous_size = len(batch)
             budget, batch = _smaller_batch(remaining, batch, budget, floor)
-            # Reuse the learned file cap for later sessions, instead of starting
-            # every remaining group with the same over-large workload again.
+            # Keep the reduced file cap for later sessions.
             max_files = min(max_files, len(batch))
             ui.warn(
                 f"batch incomplete ({detail}) — budget→{budget}, "
                 f"batch {previous_size}→{len(batch)} file(s), retrying"
             )
 
-        # the batch was read+extracted (or accepted best-effort at the floor): retire it.
         done = {f.rel_path for f in batch}
         remaining = [f for f in remaining if f.rel_path not in done]
 

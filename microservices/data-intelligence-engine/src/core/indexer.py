@@ -1,24 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Vector and graph projections, each owning the machinery it is built from.
-
-Both indexers *hold* their backing machinery rather than inheriting it: a
-`VectorIndexer` owns a LlamaIndex `VectorStoreIndex` plus the `VectorAdapter`
-for what an index cannot express, a `GraphIndexer` owns a `GraphAdapter` and
-nothing else. Subclassing the LlamaIndex indices used to expose their whole
-surface -- `insert`, `delete_ref_doc`, `refresh_ref_docs`, `as_query_engine` --
-alongside the projection contract, and every one of those bypassed the
-invariants this class exists to hold: the collection dimension check, the
-`version` bump, and the metadata the parser stamps on each node. What a
-projection promises is now exactly what it implements
-(`assetlib/contracts.py:Projection`).
-
-**Parsing happens here, from the asset's content blocks.** An asset is a file
-and its durable form is a `ContentStream`; how that becomes nodes depends on the
-embedding model and the chunk size, which are the projection's business and not
-the file's. Two vector sources at different chunk sizes therefore share one
-extraction and disagree only about chunking.
-"""
 
 import json
 from dataclasses import replace
@@ -68,15 +49,7 @@ from llama_index.core.schema import (
 from llama_index.core.vector_stores.types import MetadataFilters
 
 
-# SimpleDirectoryReader stamps every chunk with filesystem metadata (path, type,
-# size, ctime/mtime) and ingestion adds library/source ids. None of it describes
-# what the chunk *says*, yet MetadataMode.EMBED prepends it to the embedded text.
-# With a short-context embedder (e.g. bge-m3 at max_length=512) this header eats
-# the token budget and, being near-constant across chunks (ingest date, size,
-# library/source), pulls every mean-pooled vector toward a common direction --
-# collapsing inter-chunk discrimination and tanking recall. Keep file_name (a weak
-# topical signal, as the old EdgeCraftRAG baseline did) and drop the rest from the
-# embedding only; they stay in metadata for citation, filtering and deletion.
+# Near-constant file/ingest metadata dilutes embeddings; excluded from embed text only.
 EMBED_EXCLUDED_METADATA_KEYS = (
     *LAYOUT_METADATA_KEYS,
     "file_path",
@@ -91,47 +64,18 @@ EMBED_EXCLUDED_METADATA_KEYS = (
 
 
 def _has_content(asset: Any) -> bool:
-    """Whether the asset exposes content, *without* asking it for any.
-
-    `hasattr(asset, "content")` would read the property, and reading it fetches
-    the stream out of the object store -- so the cheap filter would become the
-    expensive thing it exists to avoid. Looking the descriptor up on the class
-    answers the same question and touches nothing.
-    """
+    # Checks the class descriptor: reading `asset.content` would fetch the stream.
     return hasattr(type(asset), "content") or "content" in getattr(
         asset, "__dict__", {}
     )
 
 
 def accepts_block(block: ContentBlock, configuration: Mapping[str, Any]) -> bool:
-    """Whether a projection configured this way should materialize this block.
-
-    `accepts_asset` decides which *files* a source takes; this decides which
-    *parts* of one it takes, and the two are not the same question. A pool now
-    holds several vector sources over the same assets -- text in one, clips in
-    another -- and without this they would each index everything, embedding a
-    caption twice and handing a video to a model that cannot see.
-
-    Whether a model can actually embed the block is the *projection's* question
-    (`MultimodalIndexer.covers`), not this one's: it depends on which model the
-    source was configured with, which only the projection knows.
-
-    Two filters, both of which must pass when set:
-
-    - `block_kinds` -- the block's kind (`text`, `image`, `video`, `audio`),
-      which is what a user chooses content by. A transcript also matches
-      `audio`, so `["audio"]` selects a recording's transcript, which is text;
-    - `block_roles` -- a block's `role` (`l2_transcript`, `l2_caption`, ...),
-      for a source that wants only some derived content. A block with no role
-      never matches.
-
-    How a block is processed -- a short clip or a long recording -- is not a
-    filter: the model decides that (`MultimodalIndexer.covers`).
-    """
+    """Whether a projection configured with `block_kinds`/`block_roles` should materialize this block."""
     kinds = configuration.get("block_kinds")
     if kinds:
         wanted = {str(entry).lower() for entry in kinds}
-        # A transcript is text, and to a user it is also the audio it was heard in.
+        # A transcript also matches the `audio` kind.
         selectable = (
             {block.kind, AUDIO} if role_of(block) == ROLE_L2_TRANSCRIPT else {block.kind}
         )
@@ -144,20 +88,9 @@ def accepts_block(block: ContentBlock, configuration: Mapping[str, Any]) -> bool
 
 
 def accepts_asset(asset: Any, configuration: Mapping[str, Any]) -> bool:
-    """Whether a projection configured this way should hold this asset.
+    """Whether a projection should hold this asset, decided without reading its content.
 
-    Two questions, and both are answered without reading the asset's content:
-    is it an asset at all, and did the source ask for only some kinds of file?
-    The second is what lets one pool mix documents and recordings -- a graph
-    source configured `{"asset_types": ["pdf", "docx"]}` receives only those,
-    while the vector source beside it takes everything.
-
-    Deciding from `origin` alone is deliberate. `sync_asset_pool` asks this of
-    every asset in the pool on every sync, so a filter that had to load each
-    content stream would cost about as much as indexing them.
-
-    An entry matches an extension (`"pdf"`), a full MIME type
-    (`"application/pdf"`), or the asset's kind (`"document"`, `"image"`, ...).
+    An `asset_types` entry matches an extension, a MIME type, or the asset kind.
     """
     if not (hasattr(asset, "asset_id") and _has_content(asset)):
         return False
@@ -187,12 +120,7 @@ def _truncate_text(text: str) -> str:
 
 
 class VectorIndexer:
-    """A vector projection: parse, embed, and store assets in one collection.
-
-    Owns the `VectorStoreIndex` that does the embedding and the searching, and
-    the `VectorAdapter` for everything the index cannot express -- enumerating
-    the collection, deleting by metadata, flushing what was written.
-    """
+    """A vector projection: parse, embed, and store assets in one collection."""
 
     kind = "vector"
 
@@ -209,9 +137,7 @@ class VectorIndexer:
         from core.node_parser import build_node_parser
 
         options = dict(configuration or {})
-        # Injected by the library, not part of a source's persisted configuration:
-        # a reader for a figure's pixels by media_key. Popped so it never lands in
-        # `self.configuration`, which is compared and reported as plain data.
+        # Runtime-injected blob reader; kept out of the persisted configuration.
         self._blob_reader = options.pop("blob_reader", None)
         self.projection_id = projection_id
         self.name = name
@@ -225,14 +151,9 @@ class VectorIndexer:
         embedding_model = options.get("embedding_model_instance") or build_embedding(
             backend=options.get("embedding_backend"),
             model_id=options.get("embedding_model"),
-            model_path=options.get("embedding_model_path"),
             device=options.get("embedding_device"),
             api_base=options.get("embedding_api_base"),
         )
-        # Kept so image nodes can be embedded through the embedding layer
-        # (`embed_media_nodes`), the same model that embeds text -- the indexer
-        # builds nodes and delegates what their vectors are, it does not compute
-        # them itself.
         self._embedding_model = embedding_model
         self._node_parser = build_node_parser(
             chunk_size=options.get("chunk_size"),
@@ -247,8 +168,6 @@ class VectorIndexer:
         except Exception:
             self.dimension = int(options.get("fallback_dimension") or 0)
         if self.collection.dimension <= 0:
-            # A source may be registered before its dimension is knowable; the
-            # embedding model settles it here.
             self.source = replace(
                 self.source,
                 location=VectorCollection(self.collection.name, self.dimension),
@@ -268,22 +187,12 @@ class VectorIndexer:
         return self.source.location
 
     def accepts(self, asset: Any) -> bool:
-        # OKF concepts have no chunks to embed; the graph source holds them.
         if getattr(asset, "asset_kind", "document") == "okf":
             return False
         return accepts_asset(asset, self.configuration)
 
     def add(self, assets: Sequence[Any]) -> Dict[str, int]:
-        """Materialize assets through the streaming embed pipeline.
-
-        Rather than building every node for every asset up front and embedding
-        the lot in one shot, a producer thread builds nodes block by block onto a
-        bounded queue and this thread (the single, GME-serial consumer)
-        micro-batches them -- embedding text and figures as they arrive and
-        inserting each batch (`core/materialize.py:streaming_materialize`). A huge
-        document therefore never holds all its nodes in memory at
-        once, and its early text is embedded without waiting for the rest.
-        """
+        """Materialize assets through the streaming embed pipeline."""
         from core.materialize import streaming_materialize
 
         self._validate_collection()
@@ -292,23 +201,7 @@ class VectorIndexer:
     # --- assets -> nodes ------------------------------------------------------
 
     def nodes_from(self, asset: Any) -> List[BaseNode]:
-        """One asset's content blocks as the nodes this collection will hold.
-
-        Blocks are parsed individually rather than joined, which is the whole
-        point of doing it here: every chunk keeps the page and bounding box of
-        the block it came from, so a retrieved chunk can be cited. Joining them
-        first -- which is what reading `asset.document` used to do -- destroyed
-        that, and destroyed the figures with it.
-
-        One consequence worth knowing: a chunk never spans two blocks, so a
-        page shorter than the chunk size stays a short chunk instead of being
-        merged with the next page.
-
-        This is the batch builder -- the whole asset at once, image vectors
-        precomputed, text left for `insert_nodes`. The streaming path
-        (`iter_node_items` + the consumer's `embed_items`) shares the same
-        per-block construction (`_block_nodes`) but defers every vector.
-        """
+        """One asset's content blocks as nodes; a chunk never spans two blocks."""
         stream = asset.content
         blocks = stream.ordered()
         base = {**dict(stream.metadata), "asset_id": asset.asset_id}
@@ -319,10 +212,7 @@ class VectorIndexer:
                 nodes.append(node)
                 if isinstance(node, ImageNode) and node.metadata.get("media_key"):
                     image_nodes.append(node)
-        # Image nodes cannot go through the text batch path, so the embedding
-        # layer precomputes their vectors now; text nodes are left for
-        # `insert_nodes` to embed. Delegated, not done here: computing a vector is
-        # the model's concern (`core/embedding.py:embed_media_nodes`).
+        # Image vectors are precomputed; text nodes are embedded by `insert_nodes`.
         from core.embedding import embed_media_nodes
 
         if image_nodes:
@@ -338,19 +228,12 @@ class VectorIndexer:
         self, stream: ContentStream, blocks: Sequence[ContentBlock], position: int,
         base: Mapping[str, Any],
     ) -> List[BaseNode]:
-        """The nodes one block becomes, unembedded: text chunks, a media node, or none.
-
-        The single place that turns a block into nodes, shared by the batch path
-        (`nodes_from`) and the streaming producer (`iter_node_items`) so the two
-        cannot drift. A binary block becomes at most one media node; a text block
-        becomes its chunks; an empty text block becomes nothing.
-        """
+        """The nodes one block becomes, unembedded: text chunks, a media node, or none."""
         block = blocks[position]
         if not accepts_block(block, self.configuration):
             return []
         if role_of(block) in MM_DERIVED_ROLES:
-            # Segments, captions, transcripts: derived by a multimodal
-            # pipeline, and embedded by a multimodal source only.
+            # Multimodal-derived blocks are embedded by a multimodal source only.
             return []
         if block.kind in BINARY_KINDS:
             node = self._media_node(stream, position, base)
@@ -364,17 +247,7 @@ class VectorIndexer:
     def iter_node_items(self, asset: Any, only_block_ids: Optional[Collection[str]] = None):
         """Stream one asset's nodes as `(node, modality, source_id)`, unembedded.
 
-        The streaming counterpart of `nodes_from`: it yields each node as it is
-        built so the producer thread can hand it to the consumer without holding
-        the whole asset's nodes in memory. `modality` tells the consumer how to
-        embed it -- `"fused"` for an image node whose pixels it must read back,
-        `"text"` otherwise; `source_id` is the content source those pixels live
-        in (`embed_media_nodes` reads a blob through it).
-
-        `only_block_ids` restricts which blocks produce nodes while still reading
-        the whole stream for context: the two-phase materializer embeds path-1 text
-        first, then comes back for only the path-2 blocks -- and a figure's
-        `surrounding_text` still sees the full stream around it (`_media_node`).
+        `only_block_ids` limits which blocks yield nodes; the full stream is still read for context.
         """
         stream = asset.content
         blocks = stream.ordered()
@@ -395,13 +268,7 @@ class VectorIndexer:
     def embed_items(self, items: Sequence[Any]) -> None:
         """Precompute each queued node's vector in place, batched by modality.
 
-        Text nodes embed as one batch through the same call `insert_nodes` would
-        use, so a precomputed vector is identical to the one it would otherwise
-        get. Image nodes read their pixels back and embed jointly, grouped by
-        content source (`embed_media_nodes`). A node whose vector cannot be
-        precomputed -- a text-only model, or unreadable pixels -- is left at
-        `embedding=None` for `insert_prepared` to embed from its text, the same
-        fallback `nodes_from` relies on.
+        Nodes that cannot be embedded here stay `embedding=None` and are embedded from text on insert.
         """
         from llama_index.core.schema import MetadataMode
 
@@ -425,12 +292,7 @@ class VectorIndexer:
             )
 
     def insert_prepared(self, nodes: Sequence[BaseNode]) -> int:
-        """Insert a batch whose vectors are already computed; count what was written.
-
-        `insert_nodes` embeds only the nodes still without a vector (the fallback
-        path), so a precomputed node is stored as-is. The adapter is not flushed
-        per batch -- `flush` seals the whole write once at the end.
-        """
+        """Insert a batch of precomputed nodes without flushing; return the count."""
         nodes = list(nodes)
         if nodes:
             self._index.insert_nodes(nodes)
@@ -438,12 +300,7 @@ class VectorIndexer:
         return len(nodes)
 
     def flush(self) -> None:
-        """Seal what the batches wrote, so a read through the adapter sees it.
-
-        Bumps `version` too: a `load` between the last batch and the seal would
-        otherwise cache a partial chunk list under the final version and keep
-        serving it (BM25, graph back-projection and OKF provenance all read it).
-        """
+        """Seal written batches; bumps `version` so no partial `load` cache survives."""
         self._adapter.flush(self.collection)
         self.version += 1
 
@@ -455,9 +312,6 @@ class VectorIndexer:
         )
         nodes = self._node_parser.run([document])
         for node in nodes:
-            # Coordinates and ids describe where a chunk is, not what it says;
-            # embedding them would pollute the vector with layout noise. They
-            # stay in the metadata for citation and for deletion by asset.
             node.excluded_embed_metadata_keys = list(EMBED_EXCLUDED_METADATA_KEYS)
             node.excluded_llm_metadata_keys = list(LAYOUT_METADATA_KEYS)
         return nodes
@@ -465,28 +319,14 @@ class VectorIndexer:
     def _media_node(
         self, stream: ContentStream, position: int, base: Mapping[str, Any]
     ) -> Optional[BaseNode]:
-        """A figure or a media file as one node, searchable by its caption.
+        """A figure or media file as one node, searchable by its caption.
 
-        The embedded text is the caption when the figure has one -- exactly the
-        reference text the POC pairs, with no surrounding prose appended. Only when
-        there is no caption does `surrounding_text` stand in, so an untitled figure
-        still carries some searchable text. `media_key` in the metadata says where
-        the bytes are for display; with a multimodal model the bytes are read back
-        and embedded jointly with that text.
-
-        A figure with neither a caption nor any surrounding text is kept only when
-        the model can embed its pixels: a text-only model has nothing to match on
-        and an unembeddable node would fail the collection dimension check, so the
-        node is dropped; a multimodal model (`FusedEmbedding`) embeds the bytes
-        themselves, so an untitled figure stays reachable by image similarity.
+        Surrounding text is used only when there is no caption; a node with neither
+        is kept only if the model can embed pixels.
         """
         block = stream.ordered()[position]
-        # The caption is the preferred text (POC parity); surrounding prose only
-        # fills in for a figure that has no caption at all.
         context = "" if block.caption else stream.surrounding_text(position, self._context_chars)
         if not (block.caption or context):
-            # The joint vector would be image-only here. Only a model that can
-            # actually embed pixels may keep it; a text-only model drops it.
             from core.embedding import FusedEmbedding
 
             if not (block.media_key and isinstance(self._embedding_model, FusedEmbedding)):
@@ -494,8 +334,6 @@ class VectorIndexer:
         metadata = {**base, **block.layout_metadata()}
         if context:
             metadata["surrounding_text"] = context
-        # An ImageNode so a multimodal reader downstream can tell a figure from
-        # a paragraph; anything else binary has no node type of its own.
         node_type = ImageNode if block.kind == IMAGE else TextNode
         node = node_type(
             id_=block.block_id,
@@ -512,12 +350,7 @@ class VectorIndexer:
     def materialize(
         self, request: VectorIngestRequest, documents_added: Optional[int] = None
     ) -> Dict[str, int]:
-        """Write nodes into the collection.
-
-        `documents_added` is what `add` reports, since it parsed the blocks
-        itself and knows how many assets they came from. A caller that hands in
-        `documents` directly is counted by those instead.
-        """
+        """Write nodes into the collection; `documents_added` overrides the document count."""
         self._validate_collection()
         nodes = list(request.nodes)
         if request.documents:
@@ -525,8 +358,6 @@ class VectorIndexer:
         if nodes:
             exposure.stamp_nodes(nodes, self.source)
             self._index.insert_nodes(nodes)
-            # The index wrote the rows; only the adapter can seal them, and
-            # `load`/`delete_by_metadata` below read through the adapter.
             self._adapter.flush(self.collection)
             self.version += 1
         return {
@@ -551,12 +382,7 @@ class VectorIndexer:
         return self._adapter.count_records(self.collection)
 
     def load(self) -> List[BaseNode]:
-        # Re-read from Milvus only when the collection changed. `version` bumps on
-        # every write/delete, so the cached list is exactly as fresh as the last
-        # materialization. Retrieval builds both BM25 and the graph arm's chunk
-        # back-projection from this list on every query, so caching it here is what
-        # keeps them from re-scanning the whole collection per query. Callers must
-        # treat the returned list as read-only.
+        # Cached until `version` changes; callers must treat the list as read-only.
         if self._load_cache is None or self._load_cache_version != self.version:
             self._load_cache = self._adapter.load_nodes(self.collection)
             self._load_cache_version = self.version
@@ -578,13 +404,7 @@ class VectorIndexer:
         return int(self._adapter.delete_by_metadata(collection, "cid", list(concept_ids)) or 0)
 
     def build_concept_index(self, okf_nodes):
-        """A vector index over OKF concepts, for the graph seeder.
-
-        Concept text is title+body (the seeder's semantic text), keyed by ``cid``
-        in metadata, in a sibling Milvus collection ``{chunk_collection}_concept``
-        -- matching edgecraftrag's separate concept collection. Returns None when
-        there is nothing to index.
-        """
+        """A vector index over OKF concepts in the sibling ``_concept`` collection, or None."""
         if not okf_nodes:
             return None
         collection = VectorCollection(
@@ -607,14 +427,7 @@ class VectorIndexer:
         return index
 
     def load_concept_index(self, concept_ids: Set[str]):
-        """Reuse existing vectors without embedding/inserting concepts.
-
-        The lightweight check assumes unchanged concept text and embedding
-        configuration; it validates the collection dimension and that every one
-        of `concept_ids` is there. Other concepts may be too: the collection
-        belongs to this vector source, and a source attached to several pools
-        holds all their concepts (graph search keeps to its own graph's seeds).
-        """
+        """Reuse existing concept vectors; requires every one of `concept_ids` to be present."""
         collection = VectorCollection(f"{self.collection.name}_concept", self.dimension)
         store = self._adapter.existing_concept_store(
             collection, concept_ids, exact=False
@@ -632,11 +445,7 @@ class VectorIndexer:
     # --- internals ------------------------------------------------------------
 
     def _retriever(self, top_k: int, filters: Optional[MetadataFilters] = None):
-        """Search the collection, not the index's partial local node cache.
-
-        With a text-storing backend, LlamaIndex caches only image/index nodes;
-        as_retriever would use those IDs as a filter and exclude stored text.
-        """
+        # as_retriever would filter by the index's partial local node cache.
         return VectorIndexRetriever(
             index=self._index, similarity_top_k=top_k, filters=filters
         )
@@ -650,21 +459,7 @@ class VectorIndexer:
 
 
 class MultimodalIndexer(VectorIndexer):
-    """A vector projection whose model can see.
-
-    `VectorIndexer` embeds a picture by embedding the words near it, because
-    its model only reads. That is the right fallback when there is no better
-    one, and it is why a standalone recording currently indexes as its own file
-    name. This subclass is the better one: the bytes go to a model that
-    produces a vector in a space a text query also lands in, so a clip is found
-    by what it shows rather than by what it was called.
-
-    Everything else is inherited deliberately -- the adapter, the dimension
-    check, the delete-then-write that makes a retry idempotent, the collection
-    bookkeeping. Both batch and streaming builders use this model's coverage
-    and media vectors; derived text is embedded on its document side, never
-    through the query adapter the base index holds.
-    """
+    """A vector projection that embeds media bytes with a multimodal model."""
 
     kind = "vector"
 
@@ -689,26 +484,14 @@ class MultimodalIndexer(VectorIndexer):
                     f"Source {source.name or source.source_id!r} records no "
                     "multimodal model; re-create it"
                 )
-            # Built from what the profile fixed at creation, not from the
-            # engine defaults as they are now.
             self._embedding = build_multimodal_embedding(record, options)
-        # The base class probes its text model for a width by embedding a word.
-        # Here the width is declared by the model card, and probing would mean
-        # a full inference -- seconds, for a constant -- every time a source is
-        # built. Passed through so `_validate_collection` still runs.
+        # Use the declared width to skip the base class's costly probe embedding.
         options.setdefault("fallback_dimension", self._embedding.dimension)
         options.setdefault("embedding_model_instance", _DeclaredWidth(self._embedding))
         super().__init__(projection_id, name, source, adapter, options)
 
     def covers(self, block: ContentBlock) -> bool:
-        """Whether this source's model can embed this block, as of now.
-
-        Derived from the model rather than read off the block, which records
-        only what the file is. A long recording is therefore uncovered by every
-        source today and becomes covered the moment one is configured with a
-        model that declares the role -- with nothing in the stored content to
-        rewrite.
-        """
+        """Whether this source's model supports the block's role and the block passes filters."""
         role = role_of(block)
         return (
             bool(role)
@@ -717,13 +500,7 @@ class MultimodalIndexer(VectorIndexer):
         )
 
     def nodes_from(self, asset: Any) -> List[BaseNode]:
-        """The blocks this source's model covers: media, and derived text.
-
-        A document's prose has no role and stays with a text source. Derived
-        text -- a clip's description, a transcript -- goes here when the model
-        embeds text into the same space as its media (GME), so a text query
-        finds the picture and what was said about it in one collection.
-        """
+        """The blocks this source's model covers: media, and derived text."""
         stream = asset.content
         base = {**dict(stream.metadata), "asset_id": asset.asset_id}
         nodes: List[BaseNode] = []
@@ -739,7 +516,7 @@ class MultimodalIndexer(VectorIndexer):
             if node is not None:
                 nodes.append(node)
         if texts:
-            vectors = self._embedding.embed_documents(
+            vectors = self._embedding.get_text_embedding_batch(
                 [text.get_content() for text in texts]
             )
             for text, vector in zip(texts, vectors):
@@ -748,14 +525,7 @@ class MultimodalIndexer(VectorIndexer):
         return nodes
 
     def iter_node_items(self, asset: Any, only_block_ids: Optional[Collection[str]] = None):
-        """Stream only covered blocks, with media vectors already attached.
-
-        A media node's vector comes from `_vector_for`, just as in the batch
-        builder, not from its display caption. Derived text is queued separately
-        so `embed_items` uses the model's corpus-side batch interface. The base
-        text/fused embedding path must never overwrite a media vector or send
-        derived content through `_DeclaredWidth`'s query tower.
-        """
+        """Stream only covered blocks, with media vectors already attached."""
         stream = asset.content
         base = {**dict(stream.metadata), "asset_id": asset.asset_id}
         source_id = getattr(asset, "content_source_id", None)
@@ -778,7 +548,7 @@ class MultimodalIndexer(VectorIndexer):
         """Embed derived text as corpus content; leave media vectors untouched."""
         nodes = [node for node, modality, _ in items if modality == "document"]
         if nodes:
-            vectors = self._embedding.embed_documents(
+            vectors = self._embedding.get_text_embedding_batch(
                 [node.get_content() for node in nodes]
             )
             for node, vector in zip(nodes, vectors):
@@ -787,21 +557,14 @@ class MultimodalIndexer(VectorIndexer):
     def _media_node(
         self, stream: ContentStream, position: int, base: Mapping[str, Any]
     ) -> Optional[BaseNode]:
-        """One media block as a node carrying its own vector.
-
-        The vector is attached here rather than left to the index, which only
-        embeds nodes whose `embedding` is still unset. That is what lets a
-        model this index knows nothing about decide the vector, while the index
-        keeps doing the writing, the deleting and the searching.
-        """
+        """One media block as a node carrying its own precomputed vector."""
         block = stream.ordered()[position]
         vector = self._vector_for(stream, block)
         if vector is None:
             return None
         metadata = {**base, **block.layout_metadata()}
         node_type = ImageNode if block.kind == IMAGE else TextNode
-        # The caption is kept as the node's text so a result is readable and
-        # citable; it is not what produced the vector.
+        # The caption is display text only; it did not produce the vector.
         node = node_type(id_=block.block_id, text=block.caption, metadata=metadata)
         node.embedding = vector
         node.excluded_embed_metadata_keys = list(LAYOUT_METADATA_KEYS)
@@ -821,7 +584,7 @@ class MultimodalIndexer(VectorIndexer):
             from PIL import Image  # noqa: PLC0415
 
             image = Image.open(BytesIO(asset.read_blob(block.media_key))).convert("RGB")
-            return self._embedding.embed_image([image])[0]
+            return self._embedding.get_image_embeddings([image])[0]
         if role in (ROLE_SHORT_VIDEO, ROLE_L1_SEGMENT):
             import os  # noqa: PLC0415
 
@@ -830,9 +593,7 @@ class MultimodalIndexer(VectorIndexer):
                 sampled = frame_utils.sample_frames(
                     path, getattr(self._embedding, "frames_per_clip", 8)
                 )
-            return self._embedding.embed_video(sampled)
-        # A role with no pipeline. `covers` normally keeps these out; reaching
-        # here means a block was written before the role existed.
+            return self._embedding.get_video_embedding(sampled)
         return None
 
     def _asset_of(self, stream: ContentStream) -> Any:
@@ -844,9 +605,7 @@ class MultimodalIndexer(VectorIndexer):
         return asset
 
     def add(self, assets: Sequence[Any]) -> Dict[str, int]:
-        # Both node builders hand `_vector_for` a stream, but reading a blob
-        # needs its asset. Keep the pairing until the streaming producer joins,
-        # then release it even if materialization failed.
+        # `_vector_for` needs the asset behind each stream to read blobs.
         self._assets_by_stream = {id(asset.content): asset for asset in assets}
         try:
             return super().add(assets)
@@ -857,14 +616,7 @@ class MultimodalIndexer(VectorIndexer):
 
 
 class _DeclaredWidth(BaseEmbedding):
-    """Stands in for an embedding model that the index must never call.
-
-    `VectorStoreIndex` requires one -- and requires it to be a real
-    `BaseEmbedding`, `resolve_embed_model` asserts the type rather than duck
-    typing it. Every node this projection produces arrives with its vector
-    already set, so the index has nothing to embed -- except a *query*, which
-    does go through the real model's text tower.
-    """
+    """A `BaseEmbedding` placeholder that only embeds queries; document vectors are precomputed."""
 
     _embedding: Any = PrivateAttr()
 
@@ -877,32 +629,18 @@ class _DeclaredWidth(BaseEmbedding):
         return "declared-width-multimodal"
 
     def _get_query_embedding(self, query: str) -> List[float]:
-        return self._embedding.embed_text([query])[0]
+        return self._embedding.get_query_embedding(query)
 
     async def _aget_query_embedding(self, query: str) -> List[float]:
         return self._get_query_embedding(query)
 
     def _get_text_embedding(self, text: str) -> List[float]:
-        # The base constructor catches this and uses the declared width. Any
-        # later call means a corpus node reached the index without its vector;
-        # failing is safer than silently encoding it as a query.
+        # The base constructor's width probe catches this and uses the declared width.
         raise NotImplementedError("Multimodal document vectors must be precomputed")
 
 
 class GraphIndexer:
-    """A graph projection: OKF bundles' concepts and links, stored as a graph.
-
-    Which assets it takes is its `Knowledge`'s formats (`asset_types`: ``okf``
-    by default, ``document`` via an external extractor). A bundle's concepts become vertices
-    and its links edges (`core/knowledge:Knowledge.build`), each concept
-    citing the document chunks it was drawn from -- chunks that live in the
-    pool's vector source. Documents themselves are not written here.
-
-    Everything goes through the `GraphAdapter`; there is no LlamaIndex graph
-    index involved, so none is constructed. Note the absence of `load` and
-    `delete_by_metadata`: a graph holds concepts, not chunks addressed by file,
-    so this is not a `ChunkProjection`.
-    """
+    """A graph projection: OKF bundles' concepts as vertices and links as edges."""
 
     kind = "graph"
 
@@ -919,12 +657,8 @@ class GraphIndexer:
         self.source = source
         self.configuration = dict(configuration or {})
         self._adapter = adapter
-        # Which formats this source builds from, and the extractor for
-        # documents, come from its `operator_options` (core/knowledge).
         self._knowledge = Knowledge(self.configuration)
-        # Ingest-only: the OKF concepts the library parsed and provenance-resolved
-        # for this add, keyed by asset id. Query state is read from Nebula/Milvus,
-        # not retained OKFNode objects.
+        # Ingest-only: parsed OKF concepts for the current add, keyed by asset id.
         self._okf_context = None
         self.version = 0
 
@@ -941,50 +675,34 @@ class GraphIndexer:
 
     @property
     def extraction_trigger(self):
-        """When this source extracts documents (`ExtractionTrigger`), or None
-        for a source that does not."""
+        """When this source extracts documents (`ExtractionTrigger`), or None."""
         extractor = self._knowledge.extractor
         return extractor.config.trigger if extractor is not None else None
 
     @property
     def okf_context(self):
-        """The OKF concepts the library parsed for this add, keyed by asset id,
-        or None when the batch has no OKF assets. See ``set_okf_context``."""
+        """Parsed OKF concepts for the current add, keyed by asset id, or None."""
         return self._okf_context
 
     def set_okf_context(self, context) -> None:
-        """Provide the pre-parsed, provenance-resolved OKF concepts for this add
-        as ``{asset_id: [OKFNode, ...]}`` (None when the batch has no OKF assets).
-
-        The library parses each bundle once -- the graph write here and the
-        concept vector index both read these, so a bundle is never parsed twice.
-        """
+        """Set pre-parsed OKF concepts for this add as ``{asset_id: [OKFNode, ...]}``."""
         self._okf_context = context
 
     def extract_documents(self, assets: Sequence[Any], output_dir: Path) -> List[Path]:
-        """Extract documents into an OKF bundle under `output_dir`; the library
-        ingests it as an `okf` asset of the pool."""
+        """Extract documents into an OKF bundle under `output_dir`."""
         return self._knowledge.extract(assets, output_dir)
 
     def add(self, assets: Sequence[Any]) -> Dict[str, int]:
         unsupported = [asset for asset in assets if not self.accepts(asset)]
         if unsupported:
             raise ValueError(f"Projection {self.projection_id!r} cannot accept assets")
-        # Documents add nothing here directly: syncing them only records that
-        # the source's extraction is out of date. An extraction job turns them
-        # into an OKF bundle asset (`extract_documents`), which a later sync
-        # builds like any other. The
-        # knowledge builds the batch's bundles (a concept two define is one
-        # vertex) from the concepts the library already parsed and
-        # provenance-resolved (`set_okf_context`); this indexer writes them.
+        # Documents are not written directly; only extracted OKF bundles are built.
         bundles = [asset for asset in assets if asset_format(asset) == OKF]
         graph = self._knowledge.build(bundles, self._okf_context)
         return self.materialize(GraphIngestRequest(**graph.as_request()))
 
     def remove(self, asset_ids: Collection[str]) -> Any:
-        # A bundle's vertices are keyed by concept id, not asset id, and another
-        # bundle may define the same concept; the library works out what goes
-        # and calls `delete_vertices` (see FileAssetLibrary.delete_assets).
+        # Vertices are keyed by concept id; the library calls `delete_vertices` instead.
         raise ValueError(f"Projection {self.projection_id!r} cannot remove assets by id")
 
     def delete_vertices(self, vertex_ids: Collection[str]) -> int:
@@ -995,13 +713,7 @@ class GraphIndexer:
         return deleted
 
     def drop_chunk_provenance(self, chunk_ids: Collection[str]) -> int:
-        """Take deleted document chunks out of every OKF concept's provenance.
-
-        A concept names the chunks it was drawn from (``source_chunk_ids``), and
-        graph retrieval refuses a graph that names chunks the vector source no
-        longer has. So when a document goes, the concepts citing it are
-        rewritten to cite what remains. Returns how many concepts changed.
-        """
+        """Remove deleted chunk ids from concepts' ``source_chunk_ids``; return how many changed."""
         dropped = set(chunk_ids)
         open_store = getattr(self._adapter, "existing_store", None)
         if not dropped or open_store is None:
@@ -1032,8 +744,7 @@ class GraphIndexer:
         return len(vertices)
 
     def materialize(self, request: GraphIngestRequest) -> Dict[str, int]:
-        """Write a built graph to this source's database: vertices first, so
-        every edge's endpoints exist when it lands."""
+        """Write a built graph: vertices first so every edge's endpoints exist."""
         if request.vertices:
             self._adapter.upsert_vertices(self.collection, request.vertices)
         if request.edges:

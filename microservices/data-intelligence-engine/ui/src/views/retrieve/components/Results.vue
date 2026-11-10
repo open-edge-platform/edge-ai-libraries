@@ -57,14 +57,26 @@
             size="small"
             danger
             :disabled="excludedIds?.includes(chunk.id)"
-            :aria-label="$t(excludedIds?.includes(chunk.id) ? 'console.excluded' : 'console.exclude')"
+            :aria-label="
+              $t(
+                excludedIds?.includes(chunk.id)
+                  ? 'console.excluded'
+                  : 'console.exclude',
+              )
+            "
             @click="handleExclude(chunk.id)"
           >
             <template #icon>
               <CheckOutlined v-if="excludedIds?.includes(chunk.id)" />
               <StopOutlined v-else />
             </template>
-            {{ $t(excludedIds?.includes(chunk.id) ? "console.excluded" : "console.exclude") }}
+            {{
+              $t(
+                excludedIds?.includes(chunk.id)
+                  ? "console.excluded"
+                  : "console.exclude",
+              )
+            }}
           </a-button>
         </div>
         <div
@@ -93,6 +105,7 @@
         <div
           class="result-text intel-markdown"
           v-html="renderMarkdown(chunk.text)"
+          @click="handleImageClick"
         ></div>
         <div
           v-if="conceptList.some((item) => item.chunkId === chunk.id)"
@@ -113,11 +126,19 @@
           </a-tag>
         </div>
       </article>
+      <a-image
+        :style="{ display: 'none' }"
+        :src="imageSrc"
+        :preview="{
+          visible: imageVisible,
+          onVisibleChange: handleImageVisible,
+        }"
+      />
     </div>
   </a-spin>
 </template>
 <script lang="ts" setup name="Results">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import {
   ExportOutlined,
   CheckOutlined,
@@ -152,6 +173,14 @@ const conceptList = computed(
 );
 const handleExclude = (id: string) => emit("exclude", id);
 const handleFocus = (focus: ConceptFocus) => emit("focus", focus);
+const imageSrc = ref("");
+const imageVisible = ref(false);
+const handleImageVisible = (visible: boolean) => (imageVisible.value = visible);
+const handleImageClick = (event: MouseEvent) => {
+  if (!(event.target instanceof HTMLImageElement)) return;
+  imageSrc.value = event.target.src;
+  imageVisible.value = true;
+};
 const renderMarkdown = (text: string) =>
   marked.parse(text, { renderer: CustomRenderer, async: false });
 const getMediaUrl = (chunk: Chunk) => {
@@ -216,12 +245,24 @@ const getMediaUrl = (chunk: Chunk) => {
   }
 }
 .result-text {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 13px;
-  line-height: 1.9;
   margin: 16px 0 0;
   color: var(--font-text-color);
+  :deep(img) {
+    width: auto;
+    max-width: 100%;
+    max-height: 220px;
+    object-fit: contain;
+  }
+  ul {
+    display: block;
+    list-style-type: disc;
+    margin-block-start: 0;
+    margin-block-end: 0;
+    padding-inline-start: 20px;
+    unicode-bidi: isolate;
+  }
 }
 .concept-wrap {
   display: flex;
@@ -248,6 +289,12 @@ const getMediaUrl = (chunk: Chunk) => {
 }
 .media-wrap {
   margin-top: 16px;
+  :deep(.intel-image-img) {
+    width: auto;
+    max-width: 100%;
+    max-height: 220px;
+    object-fit: contain;
+  }
   video,
   audio {
     max-width: 100%;

@@ -3,6 +3,10 @@
 cmake_minimum_required(VERSION 3.10)
 project(RTmotion VERSION 0.3.0 LANGUAGES CXX)
 
+# Ruckig's public headers require C++17, including when parsed by clang-tidy.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 # Default options:
 # - test subfolder
 # - plcopen_motion_deps.cmake

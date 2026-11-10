@@ -1,36 +1,26 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Which prepared local models are multimodal and what they can embed.
-
-A multimodal source is configured with the same fields as a text one --
-`embedding_backend` (the runtime), `embedding_model` (a prepared model ID under
-the shared model root), `embedding_device` -- and the same
-engine defaults pattern (`ENGINE_VIDEO_EMBEDDING_*`, `ENGINE_IMAGE_EMBEDDING_*`).
-The original asset scope and selected representation choose a compatible model
-at source creation. Explicit models are recognized here:
-
-- by exact video model **identity**, from its canonical or official model ID;
-- by the **directory** manifest (`video_embedding.json` for video,
-    `gme_openvino_config.json` for GME), including independently named packages;
-- else by a registered family's **id** prefix (GME).
-
-A model that is neither remains a document model unless media was requested;
-an incompatible model cannot silently turn a media source into a document one.
-
-Each entry also says what the model can embed (`supported_roles`, read off its
-class without loading it), which runtimes it runs on, which of its inputs are
-fixed by the model itself (eight frames per video clip). Missing models must be
-downloaded and exported outside the engine before they can be loaded.
-"""
+"""Which prepared local models are multimodal and what they can embed."""
 
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, Iterable, Mapping, Optional, Sequence
 
 import config
-from core.content import AUDIO, IMAGE, ROLE_L2_TRANSCRIPT, ROLE_LONG_VIDEO, ROLE_to_KIND, VIDEO
+from core.content import (
+    AUDIO,
+    IMAGE,
+    ROLE_DOC_IMAGE,
+    ROLE_IMAGE,
+    ROLE_L2_CAPTION,
+    ROLE_L2_TRANSCRIPT,
+    ROLE_L3_WIKI,
+    ROLE_LONG_VIDEO,
+    ROLE_to_KIND,
+    VIDEO,
+)
 from core.multimodal.routing import (
     DEFAULT_ROLES, asset_families, representation, validate_model_options, validate_options,
 )
@@ -46,7 +36,6 @@ def _category_defaults(category: str) -> Dict[str, str]:
     return {
         "backend": getattr(config, f"{prefix}_EMBEDDING_BACKEND"),
         "model_id": getattr(config, f"{prefix}_EMBEDDING_MODEL_ID"),
-        "model_path": getattr(config, f"{prefix}_EMBEDDING_MODEL_PATH"),
         "device": getattr(config, f"{prefix}_EMBEDDING_DEVICE"),
     }
 
@@ -58,13 +47,6 @@ class MultimodalModel:
     name: str
     category: str
     model_id_prefixes: Sequence[str]
-    # G18 transition only: main calls the OpenVINO provider llamaindex_openvino.
-    # Accept its canonical name without changing main's provider architecture.
-    backends: FrozenSet[str] = field(
-        default_factory=lambda: frozenset({"llamaindex_openvino"})
-    )
-
-    # --- what it is -------------------------------------------------------------
 
     def implementation(self):
         raise NotImplementedError
@@ -72,6 +54,10 @@ class MultimodalModel:
     @property
     def supported_roles(self) -> FrozenSet[str]:
         return frozenset(self.implementation().supported_roles)
+
+    @property
+    def runtime(self) -> str:
+        return self.implementation().RUNTIME
 
     @property
     def supported_asset_types(self) -> FrozenSet[str]:
@@ -85,8 +71,7 @@ class MultimodalModel:
     def supported_kinds(self) -> FrozenSet[str]:
         """The `block_kinds` a source with this model may ask for."""
         kinds = {ROLE_to_KIND[role] for role in self.supported_roles}
-        # No model embeds sound; one that embeds transcripts embeds a
-        # recording through what was said in it.
+        # A model that embeds transcripts covers audio through them.
         if ROLE_L2_TRANSCRIPT in self.supported_roles:
             kinds.add(AUDIO)
         return frozenset(kinds)
@@ -99,8 +84,6 @@ class MultimodalModel:
     def matches_dir(self, path: Path) -> bool:
         raise NotImplementedError
 
-    # --- checking prepared artifacts -------------------------------------------
-
     def is_ready(self, path: Path) -> bool:
         raise NotImplementedError
 
@@ -109,7 +92,7 @@ class MultimodalModel:
         return ""
 
     def fixed_params(self, path: Path) -> Dict[str, Any]:
-        """Inputs the model itself fixes. A source may state them, not change them."""
+        """Inputs the model itself fixes; a source may state them, not change them."""
         return {}
 
     def build(self, path: Path, device: str, params: Mapping[str, Any]):
@@ -161,12 +144,18 @@ class _Video(MultimodalModel):
 
 class _Gme(MultimodalModel):
     def implementation(self):
-        from inference.multimodal.gme_qwen2vl import GmeQwen2VLEmbedding
+        from inference.ov_adapter import MultimodalOVEmbedding
 
-        return GmeQwen2VLEmbedding
+        return MultimodalOVEmbedding
+
+    @property
+    def supported_roles(self) -> FrozenSet[str]:
+        return frozenset({
+            ROLE_IMAGE, ROLE_DOC_IMAGE, ROLE_L2_CAPTION, ROLE_L2_TRANSCRIPT, ROLE_L3_WIKI,
+        })
 
     def _package(self, path: Path) -> Optional[Path]:
-        from inference.multimodal.gme_qwen2vl import find_package
+        from inference.gme_runtime import find_package
 
         try:
             return find_package(str(path))
@@ -177,7 +166,7 @@ class _Gme(MultimodalModel):
         return self._package(path) is not None
 
     def is_ready(self, path: Path) -> bool:
-        from inference.multimodal.gme_qwen2vl import choose_precision
+        from inference.gme_runtime import choose_precision
 
         package = self._package(path)
         if package is None:
@@ -189,11 +178,19 @@ class _Gme(MultimodalModel):
         return True
 
     def build(self, path: Path, device: str, params: Mapping[str, Any]):
-        return self.implementation()(
-            model_path=str(path),
-            device=device,
-            max_image_tokens=params.get("max_image_tokens"),
+        from core.embedding import build_gme_runtime
+        from inference.gme_runtime import GME_DIMENSION
+        from inference.ov_adapter import MultimodalOVEmbedding
+
+        runtime = build_gme_runtime(
+            str(path), device, max_image_tokens=params.get("max_image_tokens")
         )
+        if runtime.embedding_dim != GME_DIMENSION:
+            raise ValueError(
+                f"GME package at {str(runtime.model_dir)!r} embeds at "
+                f"{runtime.embedding_dim}, expected {GME_DIMENSION}"
+            )
+        return MultimodalOVEmbedding(runtime, supported_roles=self.supported_roles)
 
 
 MODELS: Sequence[MultimodalModel] = (
@@ -206,14 +203,8 @@ MODELS: Sequence[MultimodalModel] = (
     _Video("cosmos-224p", VIDEO_CATEGORY, (
         "cosmos-224p", "nvidia/Cosmos-Embed1-224p", "Cosmos-Embed1-224p",
     )),
-    _Gme(
-        "gme_qwen2vl", IMAGE_CATEGORY, ("Alibaba-NLP/gme-",),
-        backends=frozenset({'llamaindex_openvino', 'native_openvino_gme'}),
-    ),
+    _Gme("gme_qwen2vl", IMAGE_CATEGORY, ("gme-Qwen2-VL",)),
 )
-
-
-# --- paths ----------------------------------------------------------------------
 
 
 def local_path(model_path: str) -> Path:
@@ -226,26 +217,25 @@ def local_path(model_path: str) -> Path:
     return Path(workspace_model_dir(model_path))
 
 
-def stored_path(path: Path) -> str:
-    """How a path is written into a profile: relative to the model dir if inside it."""
-    root = os.path.realpath(config.MODEL_DIR)
-    real = os.path.realpath(str(path))
-    if os.path.commonpath([real, root]) == root:
-        return os.path.relpath(real, root)
-    return str(path)
-
-
 def path_for_id(model_id: str) -> Path:
     """Where a model named only by its id is kept: `$MODEL_DIR/<name>`."""
     return Path(config.MODEL_DIR) / str(model_id).rstrip("/").split("/")[-1]
 
 
-# --- which model ----------------------------------------------------------------
-
-
 def _retired_video_id(model_id: Optional[str]) -> bool:
     name = str(model_id or "").rstrip("/").rsplit("/", 1)[-1].lower()
     return name.startswith(("xclip", "x-clip"))
+
+
+def _retired_gme_id(model_id: Optional[str]) -> bool:
+    return str(model_id or "").startswith("Alibaba-NLP/gme-")
+
+
+def _renamed_gme(detail: str) -> ValueError:
+    return ValueError(
+        f"GME model ID {detail} is no longer accepted. Use the prepared directory "
+        "name gme-Qwen2-VL-2B-Instruct-OV and recreate the source."
+    )
 
 
 def _unsupported_video(detail: str) -> ValueError:
@@ -258,11 +248,7 @@ def _unsupported_video(detail: str) -> ValueError:
 
 
 def is_video_package(path: Path) -> bool:
-    """Recognize video-only directories, including unsupported/incomplete ones.
-
-    Discovery must not offer a retired video tower as a generic text embedding
-    model, nor descend into its exported precision subdirectories.
-    """
+    """Recognize video-only directories, including unsupported/incomplete ones."""
     if (path / "video_embedding.json").exists():
         return True
     if _retired_video_id(path.name) or path.name.lower().startswith(("viclip", "cosmos")):
@@ -285,6 +271,8 @@ def is_video_package(path: Path) -> bool:
 def model_for_record(record: Mapping[str, Any]) -> MultimodalModel:
     """Validate frozen identity without resolving it against today's defaults."""
     name = record.get("name")
+    if _retired_gme_id(record.get("id")):
+        raise _renamed_gme(repr(record.get("id")))
     if _retired_video_id(name) or _retired_video_id(record.get("id")):
         raise _unsupported_video(repr(name))
     model = next((model for model in MODELS if model.name == name), None)
@@ -301,10 +289,11 @@ def model_for_record(record: Mapping[str, Any]) -> MultimodalModel:
 
 def lookup(model_id: Optional[str], model_path: Optional[str]) -> Optional[MultimodalModel]:
     """The multimodal model these name, or None for a text model."""
+    if _retired_gme_id(model_id):
+        raise _renamed_gme(repr(model_id))
     if _retired_video_id(model_id):
         raise _unsupported_video(repr(model_id))
-    # An explicit video identity wins over directory classification. Readiness
-    # later validates it; a model must never silently become another family.
+    # An explicit video identity wins over directory classification.
     expected = next((model for model in MODELS
                      if isinstance(model, _Video) and model.matches_id(model_id)), None)
     if expected is not None:
@@ -325,11 +314,11 @@ def lookup(model_id: Optional[str], model_path: Optional[str]) -> Optional[Multi
 
 def default_model(category: str) -> MultimodalModel:
     defaults = _category_defaults(category)
-    model = lookup(defaults["model_id"], defaults["model_path"])
+    model = lookup(defaults["model_id"], None)
     if model is None or model.category != category:
         raise ValueError(
-            f"The default {category} model ({defaults['model_id']!r} at "
-            f"{defaults['model_path']!r}) is not a multimodal model the engine knows"
+            f"The default {category} model ({defaults['model_id']!r}) "
+            "is not a multimodal model the engine knows"
         )
     return model
 
@@ -343,12 +332,10 @@ def default_for(asset_types: Iterable[str], block_roles=None) -> Optional[Multim
     if not families or families == {'document'}:
         return None
     _, roles = representation(options)
-    # Long video is an intentionally uncovered member of the default video
-    # representation, not a promise that video models can encode long recordings.
+    # Long video is not required of the default video model.
     needed = roles - {ROLE_LONG_VIDEO}
     for category in (VIDEO_CATEGORY, IMAGE_CATEGORY):
-        # A broken, unrelated category default must not prevent image/caption
-        # sources from being created (or vice versa).
+        # Skip uncovered categories so an unrelated broken default does not block creation.
         if not any(
             model.category == category and needed and needed <= model.supported_roles
             for model in MODELS
@@ -363,16 +350,12 @@ def default_for(asset_types: Iterable[str], block_roles=None) -> Optional[Multim
     )
 
 
-# --- resolving a source's model -------------------------------------------------
-
-
 @dataclass(frozen=True)
 class Resolved:
     """What a multimodal source embeds with, as fixed at creation."""
 
     model: MultimodalModel
     model_id: Optional[str]
-    model_path: str          # as stored: relative to the model dir when inside it
     backend: str
     params: Dict[str, Any]   # what the source stated
 
@@ -381,17 +364,11 @@ class Resolved:
             "name": self.model.name,
             "category": self.model.category,
             "id": self.model_id,
-            "path": self.model_path,
         }
 
 
 def resolve(options: Mapping[str, Any]) -> Optional[Resolved]:
-    """The multimodal model a source's options select, or None for a text source.
-
-    Same precedence as a text source: what the source says, else the engine's
-    `ENGINE_*_EMBEDDING_*` default for that kind of model. Nothing is downloaded
-    here; this runs when a source is created and readiness is checked when attached.
-    """
+    """The multimodal model a source's options (else engine defaults) select, or None for a text source."""
     model_id = options.get("embedding_model")
     validate_options(options)
     families = asset_families(options)
@@ -399,8 +376,6 @@ def resolve(options: Mapping[str, Any]) -> Optional[Resolved]:
     media_requested = bool(families & {IMAGE, VIDEO, AUDIO})
     if not media_requested and model is None:
         # Document/figure filters do not turn PDF sources into media sources.
-        # Unscoped media declarations were rejected above, independently of
-        # backend selection; the remaining options retain document defaults.
         return None
     routing, roles = representation(options)
     if not model_id:
@@ -418,17 +393,12 @@ def resolve(options: Mapping[str, Any]) -> Optional[Resolved]:
             f"{', '.join(sorted(unsupported_roles))} for the selected asset_types"
         )
     defaults = _category_defaults(model.category)
-    if model_id:
-        path = path_for_id(model_id)
-    else:
-        path = local_path(defaults["model_path"])
     backend = config.normalize_model_backend(
         str(options.get("embedding_backend") or defaults["backend"])
     )
-    if backend not in model.backends:
+    if backend != config.LOCAL_OPENVINO:
         raise ValueError(
-            f"Model {model.name!r} runs on {', '.join(sorted(model.backends))}, "
-            f"not {backend!r}"
+            f"Model {model.name!r} runs on {config.LOCAL_OPENVINO}, not {backend!r}"
         )
     unsupported = set(routing['block_kinds']) - set(model.supported_kinds)
     if unsupported:
@@ -439,25 +409,18 @@ def resolve(options: Mapping[str, Any]) -> Optional[Resolved]:
     return Resolved(
         model=model,
         model_id=model_id or defaults["model_id"],
-        model_path=stored_path(path),
         backend=backend,
         params={**{key: options[key] for key in MODEL_PARAMS if key in options}, **routing},
     )
 
 
 def load(record: Mapping[str, Any], options: Mapping[str, Any]):
-    """Validate local artifacts and build the model a source's profile recorded.
-
-    The model and its path come from the profile, so changing an engine default
-    later does not change what an existing source embeds with. The device does
-    not change what a vector means, so it follows the source, else the engine
-    default for that kind of model, as it is now.
-    """
+    """Validate local artifacts and build the model a source's profile recorded."""
     validate_model_options(options)
     model = model_for_record(record)
-    if not record.get("path"):
-        raise ValueError(f"Frozen {model.name} profile has no model path; recreate/replace the source")
-    path = local_path(str(record.get("path") or ""))
+    if not record.get("id"):
+        raise ValueError(f"Frozen {model.name} profile has no model id; recreate/replace the source")
+    path = local_path(str(record["id"]))
     if not model.is_ready(path):
         detail = model.preparation_problem(path)
         raise FileNotFoundError(
@@ -512,5 +475,4 @@ __all__ = [
     "lookup",
     "model_for_record",
     "resolve",
-    "stored_path",
 ]
