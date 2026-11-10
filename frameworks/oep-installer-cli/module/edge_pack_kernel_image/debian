@@ -3,18 +3,11 @@ configure_edge_pack_kernel_image () {
   cmdline=(xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192)
   local kver="$(uname -r)" incompatibles=(7.0.0-14-generic)
   case "$ID$VERSION_ID" in
-  ubuntu24.04)
+  ubuntu24.04|ubuntu26.04)
     if [[ "$kver" = "7.0.0-"* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
       version="$kver"
     else
-      version=7.0.0-31-generic
-    fi
-    ;;
-  ubuntu26.04)
-    if [[ "$kver" = "7.0.0-"* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
-      version="$kver"
-    else
-      version=7.0.0-30-generic
+      version="$(set -o pipefail;apt-cache depends linux-image-generic-hwe-$VERSION_ID 2> /dev/null | sed -n '/.*Depends: *linux-image-/{s///;p;q}' || echo 7.0.0-42-generic)"
     fi
     ;;
   *)

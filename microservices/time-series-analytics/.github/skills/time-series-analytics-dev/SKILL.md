@@ -2,8 +2,8 @@
 name: time-series-analytics-dev
 description: >
   Develop the Time Series Analytics microservice itself (FastAPI + Kapacitor)
-  — build and deploy it locally via Docker Compose or Helm, run the mocked
-  unit test suite (tests/run_tests.sh) and the slower Docker/Helm end-to-end
+  — build and deploy it locally via Docker Compose, run the mocked
+  unit test suite (tests/run_tests.sh) and the slower Docker end-to-end
   functional suite (tests-functional/), navigate and modify src/main.py
   (routes), src/classifier_startup.py (Kapacitor/UDF lifecycle), and
   src/opcua_alerts.py, and follow this service's release conventions
@@ -25,7 +25,7 @@ Run all commands from the microservice root.
 
 - Add, modify, or remove a REST route in `src/main.py`
 - Change Kapacitor/UDF lifecycle behavior in `src/classifier_startup.py`
-- Run or extend the unit test suite, or the Docker/Helm functional suite
+- Run or extend the unit test suite, or the Docker functional suite
 - Build the image from source, debug a running container, or tune GPU/core-pinning behavior
 - Cut a release: bump the version consistently across the files that track it
 
@@ -44,7 +44,7 @@ Sample problem-solving scenarios this skill handles end-to-end:
 |---|---|
 | [`references/source-map.md`](./references/source-map.md) | locating where a route, config field, or lifecycle step lives before editing |
 | [`references/testing.md`](./references/testing.md) | writing new tests, running a subset, or avoiding the import-time Kapacitor-startup trap |
-| [`references/build-and-deploy.md`](./references/build-and-deploy.md) | building the image, GPU/core-pinning setup, Helm deployment |
+| [`references/build-and-deploy.md`](./references/build-and-deploy.md) | building the image, GPU/core-pinning setup, Docker Compose deployment |
 | [`references/release-conventions.md`](./references/release-conventions.md) | bumping the version, updating CHANGELOG.md, touching Dockerfile build args |
 
 ## The one gotcha to know first
@@ -70,7 +70,7 @@ pip install -r requirements.txt -r tests/requirements.txt
 PYTHONPATH=./src pytest tests -k <name> -v  # fast iteration on one test
 ```
 
-Functional (slow — builds the image / stands up Helm):
+Functional (slow — builds the image / starts Docker containers):
 ```bash
 cd tests-functional && pip install -r requirements.txt
 pytest -q -vv --self-contained-html --html=./test_report/report.html .
@@ -95,8 +95,8 @@ pytest -q -vv --self-contained-html --html=./test_report/report.html .
 cd docker && docker compose build && docker compose up -d
 ```
 
-GPU driver setup, CPU core-pinning (`CORE_PINNING` env var), Helm chart
-values, and the `/dev/dri`-mount gotcha on GPU-less hosts:
+GPU driver setup, CPU core-pinning (`CORE_PINNING` env var), and the
+`/dev/dri`-mount gotcha on GPU-less hosts:
 [`references/build-and-deploy.md`](./references/build-and-deploy.md).
 
 ## Debug a running instance
@@ -117,5 +117,5 @@ values, and the `/dev/dri`-mount gotcha on GPU-less hosts:
 | The three UDF names (`config.json`'s `udfs.name`, `.py` filename, `.tick` filename, tick script's `@name()` node) must be identical | a mismatch fails silently at the pipeline level, not loudly — worth checking first when a "deployment succeeded but nothing happens" bug report comes in |
 | `kapacitord` runs as a subprocess *inside this same container*, not a sidecar | don't assume container-to-container networking semantics when tracing a startup failure |
 | Compose unconditionally mounts `/dev/dri` | fails container startup on hosts with no Intel iGPU — see `references/build-and-deploy.md` |
-| A version bump touches `docker/.env`, `helm/values.yaml`, and `README-dockerhub.md` together | see `references/release-conventions.md` — don't bump only one |
+| A version bump touches `docker/.env` and `README-dockerhub.md` together | see `references/release-conventions.md` — don't bump only one |
 | Every new source/config/doc file needs the SPDX header | matches the existing files' `Apache v2 license` / `Copyright (C) 2026 Intel Corporation` / `SPDX-License-Identifier: Apache-2.0` block |

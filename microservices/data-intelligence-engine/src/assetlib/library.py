@@ -293,7 +293,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
         if switched_on:
             for asset_pool in self._asset_pools.values():
                 status = asset_pool.source_statuses.get(source_id)
-                if status is None or status.serving_state == binding.DEPRECATED:
+                if status is None or status.serving_state == binding.DEGRADE:
                     continue
                 thawing[asset_pool.asset_pool_id] = self.build_projection(
                     str(uuid.uuid4()), asset_pool.name, updated
@@ -364,8 +364,8 @@ class AssetLibrary(ABC, Generic[AssetT]):
             raise updates.SourceRuleError("The source is not attached to this pool")
         if source.source_type == "object" or source_id == self.default_content_source_id:
             raise updates.SourceRuleError("A content source has no editable serving state")
-        if serving_state not in (binding.SERVING, binding.DEPRECATED):
-            raise updates.SourceRuleError("Choose SERVING or DEPRECATED")
+        if serving_state not in (binding.SERVING, binding.DEGRADE):
+            raise updates.SourceRuleError("Choose SERVING or DEGRADE")
         if serving_state == status.serving_state:
             return []
         if any(
@@ -376,9 +376,9 @@ class AssetLibrary(ABC, Generic[AssetT]):
             raise updates.SourceRuleError(
                 "This binding has a pending replacement; finish or cancel it with the CLI first"
             )
-        if serving_state == binding.DEPRECATED:
+        if serving_state == binding.DEGRADE:
             self._apply_transitions(pool, [state_machine.Transition(
-                source_id, binding.DEPRECATED, "manually deprecated"
+                source_id, binding.DEGRADE, "manually deprecated"
             )])
             pool.unavailable_sources.pop(source_id, None)
             return []
@@ -753,7 +753,49 @@ class AssetLibrary(ABC, Generic[AssetT]):
         missing = set(asset_ids) - set(self._assets)
         if missing:
             raise ValueError(f"Asset(s) not found: {', '.join(sorted(missing))}")
-        asset_pool.add_asset_ids(asset_ids)
+        added = set(asset_ids) - set(asset_pool.asset_ids)
+        affected = self._affected_source_assets(asset_pool, added)
+        asset_pool.add_asset_ids(asset_ids, source_ids=affected)
+
+    def _source_accepts_asset(self, source: Source, asset: AssetT) -> bool:
+        """Scope check without a projection, for frozen/unavailable bindings.
+
+        Generic sources conservatively accept everything. Domain libraries can
+        apply their asset filters without loading a model or contacting a backend.
+        """
+        return True
+
+    def _affected_source_assets(
+        self,
+        asset_pool: AssetPool,
+        asset_ids: Collection[str],
+        source_ids: Optional[Collection[str]] = None,
+    ) -> Dict[str, List[str]]:
+        projections = {p.source.source_id: p for p in asset_pool.projections}
+        affected = {}
+        for source_id in asset_pool.source_statuses:
+            if source_ids is not None and source_id not in source_ids:
+                continue
+            projection = projections.get(source_id)
+            source = (
+                self._sources.get(source_id)
+                or asset_pool.frozen_sources.get(source_id)
+                or asset_pool.unavailable_sources.get(source_id)
+            )
+            selected = []
+            for asset_id in asset_ids:
+                if asset_id not in self._assets:
+                    continue
+                asset = self._assets[asset_id]
+                accepts = (
+                    projection.accepts(asset) if projection is not None
+                    else source is None or self._source_accepts_asset(source, asset)
+                )
+                if accepts:
+                    selected.append(asset_id)
+            if selected:
+                affected[source_id] = selected
+        return affected
 
     def note_assets_changed(
         self,
@@ -768,7 +810,10 @@ class AssetLibrary(ABC, Generic[AssetT]):
         that work to those sources (`AssetPool.mark_assets_changed`).
         """
         for asset_pool in self._asset_pools.values():
-            asset_pool.mark_assets_changed(asset_ids, source_ids)
+            held = set(asset_pool.asset_ids)
+            changed = [asset_id for asset_id in asset_ids if asset_id in held]
+            affected = self._affected_source_assets(asset_pool, changed, source_ids)
+            asset_pool.mark_assets_changed(changed, source_asset_ids=affected)
 
     def _attach_sources(
         self,
@@ -831,7 +876,7 @@ class AssetLibrary(ABC, Generic[AssetT]):
             status = asset_pool.source_statuses.get(source.source_id)
             if source.source_id not in replaces and (
                 not registered.enabled
-                or (status is not None and status.serving_state == binding.DEPRECATED)
+                or (status is not None and status.serving_state == binding.DEGRADE)
             ):
                 # Kept, not built: no projection, so no writes and no model.
                 frozen[source.source_id] = registered
@@ -1010,7 +1055,9 @@ class AssetLibrary(ABC, Generic[AssetT]):
         for projection in self._sync_projection_order(asset_pool):
             source_id = projection.source.source_id
             status = asset_pool.source_statuses.get(source_id)
-            if status is None or status.indexed_revision >= revision:
+            if status is None or (
+                status.status == "ready" and status.indexed_revision >= revision
+            ):
                 continue
             if binding.is_frozen(self._sources.get(source_id, projection.source), status):
                 continue
@@ -1088,8 +1135,9 @@ class AssetLibrary(ABC, Generic[AssetT]):
             # What the source held already counts as indexed too. Recording
             # only what this pass wrote left a pool whose collection another
             # pool had filled at `ready` with nothing indexed.
+            caught_up = status.pending_revision <= revision
             status.mark_ready(
-                revision,
+                asset_pool.revision if caught_up else revision,
                 dict.fromkeys(
                     (
                         *status.indexed_asset_ids,
@@ -1097,8 +1145,10 @@ class AssetLibrary(ABC, Generic[AssetT]):
                         *missing_ids,
                     )
                 ),
-                clear_stale=asset_pool.revision == revision,
+                clear_stale=caught_up,
             )
+            if not caught_up:
+                status.mark_pending()
             if (
                 getattr(projection, "kind", "") == "vector"
                 and status.serving_state == binding.PREPARING

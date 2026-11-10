@@ -96,20 +96,30 @@ mcBOOL FbGearIn::getInGear()
   return in_gear_;
 }
 
+mcBOOL FbGearIn::isReadyForBufferedHandoff()
+{
+  // Keep command following independent of the feedback-based public output.
+  return in_gear_;
+}
+
+mcLREAL FbGearIn::getVelocity()
+{
+  // The execution node samples the live master target, not a queued snapshot.
+  return master_->toUserVel() * ratio_;
+}
+
 MC_ERROR_CODE FbGearIn::onRisingEdgeExecution()
 {
+  if (ratio_denominator_ == 0)
+    return mcErrorCodeGearRatioDenominatorSetZero;
   if (acceleration_ == 0 || deceleration_ == 0 || jerk_ == 0)
     return mcErrorCodeMotionLimitUnset;
 
-  /* change node buffer size to 3 in case of adding mcGearInMode and calling
-   * FbGearOut in the same cycle*/
-  axis_->setNodeQueueSize(3);
-
-  ratio_   = ratio_numerator_ / ratio_denominator_;
+  // Convert before division so fractional and negative ratios are preserved.
+  ratio_   = static_cast<mcLREAL>(ratio_numerator_) / ratio_denominator_;
   in_gear_ = mcFALSE;
   busy_ = active_ = mcTRUE;
-  /* set slave velocity */
-  velocity_    = master_->toUserVel() * ratio_;
+  // Retain aborting-only engagement; successors may be buffered after InGear.
   buffer_mode_ = mcAborting;
   axis_->addFBToQueue(this, mcGearInMode);
   axis_->setAxisState(mcSynchronizedMotion);
@@ -132,43 +142,36 @@ MC_ERROR_CODE FbGearIn::onExecution()
     return slave_->getAxisError();
   }
   /* check whether axis state of the slave is GearOut */
-  if (slave_->getAxisState() != mcSynchronizedMotion)
+  if (command_aborted_ == mcTRUE || error_ == mcTRUE ||
+      slave_->getAxisState() != mcSynchronizedMotion)
   {
     in_gear_ = mcFALSE;
     return mcErrorCodeGood;
   }
-  /* update slave velocity after previous node is done */
-  if (done_ == mcTRUE)
-  {
-    velocity_    = master_->toUserVel() * ratio_;
-    buffer_mode_ = mcAborting;
-    axis_->addFBToQueue(this, mcGearInMode);
-  }
-
-  busy_ = active_ = mcTRUE;
   // check inGear
-  in_gear_ = (abs(master_->toUserVel() * ratio_ - axis_->toUserVel()) <
-              in_gear_threshold_) ?
+  in_gear_ = (active_ == mcTRUE &&
+              fabs(getVelocity() - axis_->toUserVel()) < in_gear_threshold_) ?
                  mcTRUE :
                  mcFALSE;
   return mcErrorCodeGood;
 }
 
+MC_ERROR_CODE FbGearIn::onFallingEdgeExecution()
+{
+  // Execute falling does not stop gearing or defer axis-error detection.
+  return onExecution();
+}
+
 MC_ERROR_CODE FbGearIn::afterFallingEdgeExecution()
 {
-  if (slave_->getAxisState() == mcSynchronizedMotion)
-  {
-    in_gear_ = (abs(master_->toUserVel() * ratio_ - axis_->toUserVel()) <
-                in_gear_threshold_) ?
-                   mcTRUE :
-                   mcFALSE;
-    busy_ = active_ = mcTRUE;
-  }
-  else
-  {
-    in_gear_ = busy_ = active_ = mcFALSE;
-  }
-  return error_id_;
+  return onExecution();
+}
+
+void FbGearIn::onError(MC_ERROR_CODE error_code)
+{
+  FbAxisMotion::onError(error_code);
+  // Axis errors can arrive before the execution node publishes its status.
+  in_gear_ = active_ = done_ = command_aborted_ = mcFALSE;
 }
 
 }  // namespace RTmotion

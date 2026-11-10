@@ -31,6 +31,9 @@ ExecutionNode::ExecutionNode()
   , node_freq_(1000)
   , node_delta_time_(0.001)
   , node_active_time_(0)
+  , blend_replan_position_(NAN)
+  , blend_resume_position_(NAN)
+  , blend_resume_velocity_(0)
   , planner_()
   , planner_type_(mcOffLine)
 {
@@ -108,21 +111,25 @@ void ExecutionNode::copyMemberVar(const ExecutionNode& node)
     pos_tmp_         = node.pos_tmp_;
     vel_tmp_         = node.vel_tmp_;
     acc_tmp_         = node.acc_tmp_;
-    need_plan_        = node.need_plan_;
-    pos_done_factor_  = node.pos_done_factor_;
-    vel_done_factor_  = node.vel_done_factor_;
-    prev_pos_err_     = node.prev_pos_err_;
-    has_prev_pos_err_ = node.has_prev_pos_err_;
-    motion_mode_      = node.motion_mode_;
+    need_plan_       = node.need_plan_;
+    pos_done_factor_ = node.pos_done_factor_;
+    vel_done_factor_ = node.vel_done_factor_;
+    motion_mode_     = node.motion_mode_;
 
     override_factors_.vel           = node.override_factors_.vel;
     override_factors_.acc           = node.override_factors_.acc;
     override_factors_.jerk          = node.override_factors_.jerk;
     override_factors_.override_flag = node.override_factors_.override_flag;
 
-    node_freq_        = node.node_freq_;
-    node_delta_time_  = node.node_delta_time_;
-    node_active_time_ = node.node_active_time_;
+    node_freq_             = node.node_freq_;
+    node_delta_time_       = node.node_delta_time_;
+    node_active_time_      = node.node_active_time_;
+    gear_synchronized_     = node.gear_synchronized_;
+    stopping_on_error_     = node.stopping_on_error_;
+    last_master_ref_acc_   = node.last_master_ref_acc_;
+    blend_replan_position_ = node.blend_replan_position_;
+    blend_resume_position_ = node.blend_resume_position_;
+    blend_resume_velocity_ = node.blend_resume_velocity_;
 
     planner_      = node.planner_;
     planner_type_ = node.planner_type_;
@@ -179,30 +186,35 @@ void ExecutionNode::setFrequency(mcLREAL f)
 
 void ExecutionNode::reset()
 {
-  done_            = mcFALSE;
-  busy_            = mcFALSE;
-  active_          = mcFALSE;
-  command_aborted_ = mcFALSE;
-  error_           = mcFALSE;
-  error_id_        = mcErrorCodeGood;
+  // Reset motion state, retaining the axis-configured cycle time.
+  gear_synchronized_   = mcFALSE;
+  stopping_on_error_   = mcFALSE;
+  last_master_ref_acc_ = 0;
+  done_                = mcFALSE;
+  busy_                = mcFALSE;
+  active_              = mcFALSE;
+  command_aborted_     = mcFALSE;
+  error_               = mcFALSE;
+  error_id_            = mcErrorCodeGood;
 
-  start_pos_       = 0;
-  end_pos_         = 0;
-  start_vel_       = 0;
-  end_vel_         = 0;
-  start_acc_       = 0;
-  end_acc_         = 0;
-  duration_        = 1000000.0;
-  pos_cmd_         = 0;
-  vel_cmd_         = 0;
-  acc_cmd_         = 0;
-  pos_tmp_         = 0;
-  vel_tmp_         = 0;
-  acc_tmp_         = 0;
-  need_plan_       = mcFALSE;
-  motion_mode_     = mcNoMoveType;
-  node_freq_       = 1000;
-  node_delta_time_ = 0.001;
+  start_pos_             = 0;
+  end_pos_               = 0;
+  start_vel_             = 0;
+  end_vel_               = 0;
+  start_acc_             = 0;
+  end_acc_               = 0;
+  duration_              = 1000000.0;
+  pos_cmd_               = 0;
+  vel_cmd_               = 0;
+  acc_cmd_               = 0;
+  pos_tmp_               = 0;
+  vel_tmp_               = 0;
+  acc_tmp_               = 0;
+  need_plan_             = mcFALSE;
+  motion_mode_           = mcNoMoveType;
+  blend_replan_position_ = NAN;
+  blend_resume_position_ = NAN;
+  blend_resume_velocity_ = 0;
 
   fb_           = nullptr;
   position_     = 0;
@@ -323,6 +335,105 @@ void ExecutionNode::setVelocity(mcLREAL velocity)
   velocity_ = velocity;
 }
 
+void ExecutionNode::prepareBlendEntry(mcLREAL position, mcLREAL velocity,
+                                      mcLREAL acceleration)
+{
+  if (motion_mode_ == mcGearInPosMode)
+  {
+    // Keep the polynomial's displacement derivatives separate from axis state.
+    pos_cmd_ = pos_tmp_ = position;
+    vel_cmd_ = vel_tmp_ = velocity;
+    acc_cmd_ = acc_tmp_ = acceleration;
+    return;
+  }
+  setStartPos(position);
+  setStartVel(velocity);
+  setStartAcc(acceleration);
+
+  const mcLREAL velocity_delta = fabs(velocity) - fabs(velocity_);
+  if (planner_type_ != mcRuckig || isnan(end_pos_) || velocity_delta <= 0.0)
+    return;
+
+  // First decelerate to the commanded cruise velocity. Planning directly to
+  // the final target with a lower velocity limit can undershoot that velocity.
+  const mcLREAL ramp_velocity = acceleration_ * acceleration_ / jerk_;
+  const mcLREAL transition_duration =
+      velocity_delta >= ramp_velocity ?
+          velocity_delta / acceleration_ + acceleration_ / jerk_ :
+          2.0 * sqrt(velocity_delta / jerk_);
+  const mcLREAL cruise_velocity = copysign(fabs(velocity_), velocity);
+  const mcLREAL transition_distance =
+      (fabs(velocity) + fabs(cruise_velocity)) * 0.5 * transition_duration;
+  const mcLREAL direction = end_pos_ >= position ? 1.0 : -1.0;
+
+  blend_resume_position_ = end_pos_;
+  blend_resume_velocity_ = end_vel_;
+  velocity_              = fabs(velocity);
+  // Leave one command cycle after the theoretical transition distance so the
+  // temporary trajectory reaches a stable cruise velocity before resuming.
+  end_pos_ = position + direction * (transition_distance +
+                                     fabs(cruise_velocity) * node_delta_time_);
+  end_vel_ = cruise_velocity;
+}
+
+void ExecutionNode::scheduleBlendReplan(mcLREAL current_position,
+                                        mcLREAL current_velocity,
+                                        mcLREAL end_velocity)
+{
+  // Delay acceleration until the last jerk-limited transition that can reach
+  // the requested blend velocity at the existing endpoint.
+  const mcLREAL velocity_delta = fabs(end_velocity) - fabs(current_velocity);
+  const mcLREAL ramp_velocity  = acceleration_ * acceleration_ / jerk_;
+  const mcLREAL transition_duration =
+      velocity_delta >= ramp_velocity ?
+          velocity_delta / acceleration_ + acceleration_ / jerk_ :
+          2.0 * sqrt(velocity_delta / jerk_);
+  const mcLREAL transition_distance =
+      (fabs(current_velocity) + fabs(end_velocity)) * 0.5 * transition_duration;
+  const mcLREAL direction = end_pos_ >= current_position ? 1.0 : -1.0;
+  blend_replan_position_ =
+      end_pos_ -
+      direction * (transition_distance + fabs(end_velocity) * node_delta_time_);
+  end_vel_  = end_velocity;
+  velocity_ = std::max(velocity_, fabs(end_velocity));
+}
+
+void ExecutionNode::applyBlendReplanIfDue(mcLREAL position, mcLREAL velocity,
+                                          mcLREAL acceleration)
+{
+  if (!isnan(blend_resume_position_))
+  {
+    const bool entry_complete = start_pos_ <= end_pos_ ? position >= end_pos_ :
+                                                         position <= end_pos_;
+    if (entry_complete)
+    {
+      // Continue from the measured state to the original final target.
+      velocity_              = fabs(end_vel_);
+      end_pos_               = blend_resume_position_;
+      end_vel_               = blend_resume_velocity_;
+      blend_resume_position_ = NAN;
+      setStartPos(position);
+      setStartVel(velocity);
+      setStartAcc(acceleration);
+      setReplan();
+    }
+  }
+
+  if (isnan(blend_replan_position_))
+    return;
+  const bool position_reached = start_pos_ <= end_pos_ ?
+                                    position >= blend_replan_position_ :
+                                    position <= blend_replan_position_;
+  if (!position_reached)
+    return;
+  // Start the outgoing blend from the measured state at the deferred trigger.
+  blend_replan_position_ = NAN;
+  setStartPos(position);
+  setStartVel(velocity);
+  setStartAcc(acceleration);
+  setReplan();
+}
+
 void ExecutionNode::offsetFB(mcLREAL home_pos)
 {
   start_pos_ = pos_cmd_;
@@ -396,7 +507,12 @@ void ExecutionNode::getCommands(mcLREAL* pos_cmd, mcLREAL* vel_cmd,
     case mcSyncOutMode:
     case mcMoveVelocityMode: {
       vel_cmd_ = vel_tmp_;
-      pos_cmd_ += vel_tmp_ * node_delta_time_;
+      if ((motion_mode_ == mcMoveVelocityMode && done_ == mcFALSE) ||
+          motion_mode_ == mcStopMode ||
+          (motion_mode_ == mcGearInMode && fb_->isPositionCoupled() == mcTRUE))
+        pos_cmd_ = pos_tmp_;
+      else
+        pos_cmd_ += vel_tmp_ * node_delta_time_;
     }
     break;
     case mcHomingMode: {
@@ -417,6 +533,8 @@ void ExecutionNode::getCommands(mcLREAL* pos_cmd, mcLREAL* vel_cmd,
   }
   *pos_cmd = pos_cmd_;
   *vel_cmd = vel_cmd_;
+  if (motion_mode_ == mcGearInPosMode)
+    acc_cmd_ = acc_tmp_;
   *acc_cmd = acc_tmp_;
 }
 
@@ -438,6 +556,21 @@ mcBOOL ExecutionNode::isAborted()
 mcBOOL ExecutionNode::isError()
 {
   return error_;
+}
+
+mcBOOL ExecutionNode::isStoppingOnError() const
+{
+  return stopping_on_error_;
+}
+
+mcBOOL ExecutionNode::isGearSynchronized() const
+{
+  return motion_mode_ == mcGearInMode && gear_synchronized_ == mcTRUE &&
+                 active_ == mcTRUE && error_ == mcFALSE &&
+                 command_aborted_ == mcFALSE &&
+                 fb_->isReadyForBufferedHandoff() == mcTRUE ?
+             mcTRUE :
+             mcFALSE;
 }
 
 void ExecutionNode::onActive(MC_AXIS_STATES* current_state)
@@ -494,6 +627,131 @@ void ExecutionNode::onActive(MC_AXIS_STATES* current_state)
 
 void ExecutionNode::onExecution(mcLREAL master_ref_pos, mcLREAL master_ref_vel)
 {
+  if (stopping_on_error_ == mcTRUE)
+  {
+    runErrorStop();
+    return;
+  }
+  if (motion_mode_ == mcMoveVelocityMode || motion_mode_ == mcStopMode)
+  {
+    need_plan_                    = mcFALSE;
+    planner_type_                 = mcRuckig;
+    const mcLREAL target_velocity = end_vel_ * override_factors_.vel;
+    const bool reversing          = vel_cmd_ * target_velocity < 0;
+    const mcLREAL direction       = vel_cmd_ != 0 ? vel_cmd_ : target_velocity;
+    const mcLREAL acceleration    = acceleration_ * override_factors_.acc;
+    const mcLREAL deceleration    = motion_mode_ == mcStopMode ?
+                                        acceleration :
+                                        deceleration_ * override_factors_.acc;
+    const mcLREAL upper = direction >= 0 ? acceleration : deceleration;
+    const mcLREAL lower = direction >= 0 ? -deceleration : -acceleration;
+    // Brake to rest before swapping directional acceleration limits.
+    planner_.setCondition(pos_cmd_, NAN, vel_cmd_,
+                          reversing ? 0 : target_velocity, acc_tmp_, 0,
+                          duration_, target_velocity, upper,
+                          jerk_ * override_factors_.jerk, mcRuckig);
+    const MC_ERROR_CODE result = planner_.onVelocityTracking(
+        node_delta_time_, &pos_tmp_, &vel_tmp_, &acc_tmp_, lower);
+    if (result != mcErrorCodeGood)
+      onError(result);
+    else if (reversing && fabs(vel_tmp_) < 1e-12 && fabs(acc_tmp_) < 1e-12)
+      vel_tmp_ = acc_tmp_ = 0;
+    return;
+  }
+  if (motion_mode_ == mcGearInPosMode && fb_->isPositionCoupled() == mcTRUE)
+  {
+    // Acquisition and following are phases of the same command, not an abort.
+    motion_mode_ = mcGearInMode;
+  }
+  if (motion_mode_ == mcGearInMode)
+  {
+    if (fb_->isError() != mcFALSE)
+    {
+      onError(fb_->getErrorID());
+      return;
+    }
+    if (fb_->isPositionCoupled() == mcTRUE)
+    {
+      pos_tmp_           = fb_->getTargetPosition();
+      vel_tmp_           = fb_->getTargetVelocity();
+      acc_tmp_           = fb_->getTargetAcceleration();
+      gear_synchronized_ = mcTRUE;
+      fb_->syncStatus(done_, busy_, active_, command_aborted_, error_,
+                      error_id_);
+      return;
+    }
+    const mcLREAL target_velocity = fb_->getVelocity();
+    const mcLREAL following_acceleration =
+        (target_velocity - vel_cmd_) / node_delta_time_;
+    const mcLREAL target_acceleration =
+        (target_velocity - end_vel_) / node_delta_time_;
+    // A moving target needs a velocity/acceleration match, not equality with
+    // its previous sample. Check both entry jerk and the target's trend so a
+    // near-target ramp cannot be truncated into an acceleration spike.
+    const mcLREAL direction        = vel_cmd_ != 0 ? vel_cmd_ : target_velocity;
+    const mcLREAL max_acceleration = direction >= 0 ? acceleration_ :
+                                                      deceleration_;
+    const mcLREAL min_acceleration = direction >= 0 ? -deceleration_ :
+                                                      -acceleration_;
+    const bool reversing           = vel_cmd_ * target_velocity < 0;
+    const mcLREAL acceleration_step = jerk_ * node_delta_time_;
+    if (!reversing && following_acceleration <= max_acceleration &&
+        following_acceleration >= min_acceleration &&
+        fabs(following_acceleration - acc_tmp_) <= acceleration_step &&
+        fabs(following_acceleration - target_acceleration) <= acceleration_step)
+      gear_synchronized_ = mcTRUE;
+    if (gear_synchronized_ == mcTRUE)
+    {
+      // Engagement limits no longer shape the coupled velocity. Axis safety
+      // checks still apply; distance lost during engagement is not recovered.
+      acc_tmp_ = (target_velocity - vel_cmd_) / node_delta_time_;
+      vel_tmp_ = target_velocity;
+      fb_->syncStatus(done_, busy_, active_, command_aborted_, error_,
+                      error_id_);
+      return;
+    }
+    end_vel_ = velocity_ = target_velocity;
+    planner_type_        = mcRuckig;
+    need_plan_           = mcFALSE;
+    // Bound the requested terminal acceleration when the master exceeds the
+    // slave's engagement capability; the planner still preserves continuity.
+    // Finish braking at zero acceleration before swapping directional limits.
+    const mcLREAL ramp_velocity = reversing ? 0 : target_velocity;
+    const mcLREAL end_acceleration =
+        reversing || ramp_velocity == 0 ?
+            0 :
+            std::max(min_acceleration,
+                     std::min(target_acceleration, max_acceleration));
+    planner_.setCondition(pos_cmd_, NAN, vel_cmd_, ramp_velocity, acc_tmp_,
+                          end_acceleration, duration_, target_velocity,
+                          max_acceleration, jerk_, planner_type_);
+    const MC_ERROR_CODE result = planner_.onVelocityTracking(
+        node_delta_time_, &pos_tmp_, &vel_tmp_, &acc_tmp_, min_acceleration);
+    if (result != mcErrorCodeGood)
+      onError(result);
+    else
+    {
+      // Remove roundoff at the zero-speed reversal boundary.
+      if (reversing && fabs(vel_tmp_) < 1e-12 && fabs(acc_tmp_) < 1e-12)
+        vel_tmp_ = acc_tmp_ = 0;
+      fb_->syncStatus(done_, busy_, active_, command_aborted_, error_,
+                      error_id_);
+    }
+    return;
+  }
+  mcLREAL master_ref_acc = 0;
+  if (motion_mode_ == mcGearInPosMode)
+  {
+    if (fb_->isError() != mcFALSE)
+    {
+      startGearInPosErrorStop(fb_->getErrorID());
+      return;
+    }
+    // Sample at slave execution time, not from the previous FB cycle.
+    fb_->getMasterReference(master_ref_pos, master_ref_vel, master_ref_acc);
+    if (need_plan_ == mcTRUE)
+      last_master_ref_acc_ = master_ref_acc;
+  }
   node_active_time_ += node_delta_time_;
   // Replan trajectory
   if (need_plan_ == mcTRUE)
@@ -513,11 +771,14 @@ void ExecutionNode::onExecution(mcLREAL master_ref_pos, mcLREAL master_ref_vel)
         acceleration_ * override_factors_.acc, jerk_ * override_factors_.jerk);
     MC_ERROR_CODE res = planner_.onReplan();
     if (res)
+    {
+      if (motion_mode_ == mcGearInPosMode)
+      {
+        startGearInPosErrorStop(res);
+        return;
+      }
       onError(res);
-    // A new trajectory segment has started: forget the previous segment's
-    // position-error sign so checkMissionDone()'s crossing detection below
-    // does not fire on stale data.
-    has_prev_pos_err_ = false;
+    }
   }
 
   // Compute waypoint
@@ -531,9 +792,60 @@ void ExecutionNode::onExecution(mcLREAL master_ref_pos, mcLREAL master_ref_vel)
   DEBUG_PRINT("ExecutionNode::onExecution: pos: %f, vel: %f, acc: %f\n",
               pos_tmp_, vel_tmp_, acc_tmp_);
 
-  if ((planner_.getType() == mcPoly5 || planner_.getType() == mcLine) &&
-      (abs(vel_tmp_ * master_ref_vel) > velocity_ * 1.01 ||
-       abs(acc_tmp_ * master_ref_vel * master_ref_vel) > acceleration_ * 1.01))
+  if (motion_mode_ == mcGearInPosMode)
+  {
+    mcLREAL displacement_jerk =
+        planner_.getTrajectoryPoint(master_ref_pos)[mcJerkId];
+    if (master_ref_pos >= duration_)
+    {
+      // Extend the terminal tangent when a sample crosses the sync point.
+      pos_tmp_          = end_pos_ + end_vel_ * (master_ref_pos - duration_);
+      vel_tmp_          = end_vel_;
+      acc_tmp_          = end_acc_;
+      displacement_jerk = 0;
+    }
+    const mcLREAL master_jerk =
+        (master_ref_acc - last_master_ref_acc_) / node_delta_time_;
+    const mcLREAL slave_jerk =
+        displacement_jerk * master_ref_vel * master_ref_vel * master_ref_vel +
+        3 * acc_tmp_ * master_ref_vel * master_ref_acc + vel_tmp_ * master_jerk;
+    acc_tmp_ =
+        acc_tmp_ * master_ref_vel * master_ref_vel + vel_tmp_ * master_ref_acc;
+    vel_tmp_ *= master_ref_vel;
+    const mcLREAL acceleration_limit = vel_tmp_ * acc_tmp_ < 0 ? deceleration_ :
+                                                                 acceleration_;
+    const mcLREAL sampled_acceleration =
+        (vel_tmp_ - vel_cmd_) / node_delta_time_;
+    const mcLREAL sampled_limit =
+        vel_cmd_ * sampled_acceleration < 0 ? deceleration_ : acceleration_;
+    const mcLREAL sampled_jerk = (acc_tmp_ - acc_cmd_) / node_delta_time_;
+    // Leave enough velocity headroom to remove outward acceleration with
+    // bounded jerk if the following sample requires an error stop.
+    const mcLREAL outward_acceleration =
+        vel_tmp_ * acc_tmp_ > 0 ? fabs(acc_tmp_) : 0;
+    const mcLREAL braking_peak_velocity =
+        fabs(vel_tmp_) +
+        outward_acceleration * outward_acceleration / (2 * jerk_);
+    const mcLREAL tolerance = 1e-9;
+    if (!std::isfinite(pos_tmp_) || !std::isfinite(vel_tmp_) ||
+        !std::isfinite(acc_tmp_) || !std::isfinite(slave_jerk) ||
+        braking_peak_velocity > velocity_ + tolerance ||
+        fabs(acc_tmp_) > acceleration_limit + tolerance ||
+        fabs(sampled_acceleration) > sampled_limit + tolerance ||
+        fabs(slave_jerk) > jerk_ + tolerance ||
+        fabs(sampled_jerk) > jerk_ + tolerance)
+      error_id_ = mcErrorCodeSlaveExceedLimit;
+    if (error_id_ != mcErrorCodeGood)
+    {
+      startGearInPosErrorStop(error_id_);
+      return;
+    }
+    last_master_ref_acc_ = master_ref_acc;
+  }
+  else if ((planner_.getType() == mcPoly5 || planner_.getType() == mcLine) &&
+           (abs(vel_tmp_ * master_ref_vel) > velocity_ * 1.01 ||
+            abs(acc_tmp_ * master_ref_vel * master_ref_vel) >
+                acceleration_ * 1.01))
   {
     DEBUG_PRINT("Axis command exceed limitation. vel_cmd : %f, acc_cmd: %f, "
                 "v_max: %f, a_max: %f\n",
@@ -547,6 +859,53 @@ void ExecutionNode::onExecution(mcLREAL master_ref_pos, mcLREAL master_ref_vel)
     onError(error_id_);
   else
     fb_->syncStatus(done_, busy_, active_, command_aborted_, error_, error_id_);
+}
+
+void ExecutionNode::startGearInPosErrorStop(MC_ERROR_CODE error_code)
+{
+  stopping_on_error_ = mcTRUE;
+  error_             = mcTRUE;
+  error_id_          = error_code;
+  active_ = busy_ = mcTRUE;
+  done_ = command_aborted_ = mcFALSE;
+  need_plan_               = mcFALSE;
+  // Discard the rejected waypoint before computing this cycle's stop command.
+  pos_tmp_ = pos_cmd_;
+  vel_tmp_ = vel_cmd_;
+  acc_tmp_ = acc_cmd_;
+  runErrorStop();
+}
+
+void ExecutionNode::runErrorStop()
+{
+  planner_.setCondition(pos_cmd_, NAN, vel_cmd_, 0, acc_cmd_, 0, duration_,
+                        velocity_, deceleration_, jerk_, mcRuckig);
+  const MC_ERROR_CODE result = planner_.onVelocityTracking(
+      node_delta_time_, &pos_tmp_, &vel_tmp_, &acc_tmp_);
+  if (result != mcErrorCodeGood)
+  {
+    DEBUG_PRINT("GearInPos controlled stop failed: %d\n", result);
+    onError(result);
+    return;
+  }
+  if (fabs(vel_tmp_) < 1e-12 && fabs(acc_tmp_) < 1e-12)
+  {
+    vel_tmp_ = acc_tmp_ = 0;
+    done_               = mcTRUE;
+  }
+  // Error terminates the user's command; the node owns the stop internally.
+  fb_->syncStatus(mcFALSE, mcFALSE, mcFALSE, mcFALSE, mcTRUE, error_id_);
+}
+
+void ExecutionNode::rebaseErrorStop(mcLREAL position, mcLREAL velocity,
+                                    mcLREAL acceleration)
+{
+  pos_cmd_ = position;
+  vel_cmd_ = velocity;
+  acc_cmd_ = acceleration;
+  done_    = mcFALSE;
+  active_ = busy_ = mcTRUE;
+  runErrorStop();
 }
 
 void ExecutionNode::onDone(MC_AXIS_STATES* current_state)
@@ -563,8 +922,14 @@ void ExecutionNode::onDone(MC_AXIS_STATES* current_state)
     }
     break;
     case mcMoveVelocityMode:
+      // The ramp has finished; hold the exact target rather than feedback
+      // accepted within the completion tolerance.
+      vel_tmp_ = end_vel_ * override_factors_.vel;
+      acc_tmp_ = 0;
+      break;
     case mcSyncOutMode:
-      break;  // MoveVelocity will remain mcContinuousMotion state onDone.
+      break;  // GearOut keeps its captured velocity and continuous-motion
+              // state.
     case mcStopMode: {
       if (fb_->isEnabled() == mcTRUE)
         res = changeAxisStates(current_state, mcStopping);
@@ -590,6 +955,12 @@ void ExecutionNode::onDone(MC_AXIS_STATES* current_state)
 
 void ExecutionNode::onCommandAborted()
 {
+  // Done ends finite motions, but velocity-mode completion only ends the ramp.
+  if (done_ == mcTRUE && motion_mode_ != mcMoveVelocityMode &&
+      motion_mode_ != mcSyncOutMode &&
+      !(motion_mode_ == mcHomingMode && isnan(position_)))
+    return;
+
   command_aborted_ = mcTRUE;
   active_ = busy_ = done_ = error_ = mcFALSE;
   fb_->syncStatus(done_, busy_, active_, command_aborted_, error_, error_id_);
@@ -614,39 +985,33 @@ mcBOOL ExecutionNode::checkMissionDone(const mcLREAL axis_pos,
     case mcMoveAbsoluteMode:
     case mcMoveAdditiveMode:
     case mcMoveRelativeMode: {
-      mcLREAL pos_err = axis_pos - end_pos_;
-      // A fixed +/-0.0001 done-tolerance band can be crossed entirely within
-      // a single cycle whenever the per-cycle displacement (axis velocity x
-      // cycle time) exceeds the band width -- e.g. a blended end-velocity at
-      // any cycle rate, not just a specific one (a slower cycle rate only
-      // makes it more likely, since displacement per cycle is larger). Also
-      // treat the cycle in which the position error changes sign as done,
-      // since that is the exact cycle the target was passed in. Only for
-      // end_vel_ != 0 (continuation/blending): a full stop should never
-      // legitimately overshoot, so leave that path on the tolerance-only
-      // check.
-      bool crossed = end_vel_ != 0.0 && has_prev_pos_err_ &&
-                     (prev_pos_err_ * pos_err < 0.0);
-      if ((fabs(pos_err) <= pos_done_factor_ &&
-          fabs(axis_vel - end_vel_ * override_factors_.vel) <= vel_done_factor_) ||
-          crossed)
+      const bool position_reached =
+          start_pos_ <= end_pos_ ? axis_pos >= end_pos_ - pos_done_factor_ :
+                                   axis_pos <= end_pos_ + pos_done_factor_;
+      if (position_reached &&
+          fabs(axis_vel - end_vel_ * override_factors_.vel) <= vel_done_factor_)
         res = mcTRUE;
-      prev_pos_err_     = pos_err;
-      has_prev_pos_err_ = true;
       DEBUG_PRINT("ExecutionNode::checkMissionDone: \n"
                   "\tfabs(axis_pos - end_pos_): %f, pos_done_factor_: %f, \n"
                   "\tfabs(axis_vel - end_vel_): %f, vel_done_factor_: %f\n",
-                  fabs(pos_err), pos_done_factor_,
+                  fabs(axis_pos - end_pos_), pos_done_factor_,
                   fabs(axis_vel - end_vel_ * override_factors_.vel),
                   vel_done_factor_);
     }
     break;
     case mcHaltMode:
-    case mcStopMode:
-    case mcGearInMode:
-    case mcSyncOutMode:
-    case mcMoveVelocityMode: {
+    case mcSyncOutMode: {
       if (fabs(axis_vel - end_vel_ * override_factors_.vel) <= vel_done_factor_)
+        res = mcTRUE;
+    }
+    break;
+    case mcMoveVelocityMode:
+    case mcStopMode: {
+      // Feedback tolerance must not truncate the final jerk-limited samples.
+      if (need_plan_ == mcFALSE &&
+          fabs(vel_tmp_ - end_vel_ * override_factors_.vel) < 1e-12 &&
+          fabs(acc_tmp_) < 1e-12 &&
+          fabs(axis_vel - end_vel_ * override_factors_.vel) <= vel_done_factor_)
         res = mcTRUE;
     }
     break;

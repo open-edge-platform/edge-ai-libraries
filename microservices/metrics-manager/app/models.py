@@ -10,6 +10,7 @@ Supports multiple input formats compatible with OpenTelemetry and Telegraf:
 - OpenTelemetry metrics format
 """
 
+import math
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -20,6 +21,19 @@ from .logging_config import get_logger
 from .settings import get_settings
 
 _logger = get_logger("models")
+
+_SERIES_KEY_ESCAPES = str.maketrans({"\\": "\\\\", ",": "\\,", "=": "\\="})
+
+
+def metric_series_key(name: str, tags: dict[str, str] | None) -> str:
+    """Identify a series without confusing label content with key separators."""
+    if not tags:
+        return name
+    labels = ",".join(
+        f"{key.translate(_SERIES_KEY_ESCAPES)}={value.translate(_SERIES_KEY_ESCAPES)}"
+        for key, value in sorted(tags.items())
+    )
+    return f"{name}{{{labels}}}"
 
 
 class MetricType(StrEnum):
@@ -50,16 +64,12 @@ class Metric(BaseModel):
     fields: dict[str, int | float | str | bool] = Field(
         ..., min_length=1, description="Metric field values (at least one required)"
     )
-    tags: dict[str, str] | None = Field(
-        default_factory=dict, description="Metric tags/labels"
-    )
+    tags: dict[str, str] | None = Field(default_factory=dict, description="Metric tags/labels")
     timestamp: int | None = Field(
         default_factory=lambda: int(datetime.now(UTC).timestamp() * 1e9),
         description="Unix timestamp (seconds or nanoseconds)",
     )
-    metric_type: MetricType = Field(
-        default=MetricType.GAUGE, description="Type of metric"
-    )
+    metric_type: MetricType = Field(default=MetricType.GAUGE, description="Type of metric")
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -100,8 +110,7 @@ class Metric(BaseModel):
         meas = self._escape_measurement(self.name)
         if self.tags:
             tag_str = ",".join(
-                f"{self._escape_tag(k)}={self._escape_tag(v)}"
-                for k, v in sorted(self.tags.items())
+                f"{self._escape_tag(k)}={self._escape_tag(v)}" for k, v in sorted(self.tags.items())
             )
             measurement_part = f"{meas},{tag_str}"
         else:
@@ -132,11 +141,7 @@ class Metric(BaseModel):
         Returns:
             Dictionary in Telegraf JSON format
         """
-        ts = (
-            self.timestamp // int(1e9)
-            if self.timestamp
-            else int(datetime.now(UTC).timestamp())
-        )
+        ts = self.timestamp // int(1e9) if self.timestamp else int(datetime.now(UTC).timestamp())
         return {
             "name": self.name,
             "tags": self.tags or {},
@@ -201,11 +206,13 @@ class SimpleMetric(BaseModel):
 
     def to_metric(self) -> Metric:
         """Convert to full Metric object."""
-        return Metric(
-            name=self.name,
-            fields={"value": self.value},
-            tags=self.tags,
-            timestamp=self.timestamp,
+        return Metric.model_validate(
+            {
+                "name": self.name,
+                "fields": {"value": self.value},
+                "tags": self.tags,
+                "timestamp": self.timestamp,
+            }
         )
 
 
@@ -310,6 +317,100 @@ class InfluxLineProtocolInput(BaseModel):
             return None
 
 
+def _otlp_attribute_value(value: dict[str, Any]) -> str:
+    """Render an OTLP JSON ``AnyValue`` as a tag string, whatever its type."""
+    for key in ("stringValue", "intValue", "doubleValue"):
+        if key in value:
+            return str(value[key])
+    if "boolValue" in value:
+        return "true" if value["boolValue"] else "false"
+    return ""
+
+
+def _otlp_attributes(attributes: list[dict[str, Any]]) -> dict[str, str]:
+    return {
+        attr.get("key", ""): _otlp_attribute_value(attr.get("value", {})) for attr in attributes
+    }
+
+
+_OTLP_TEMPORALITY: dict[int | str, str] = {
+    1: "delta",
+    2: "cumulative",
+    "AGGREGATION_TEMPORALITY_DELTA": "delta",
+    "AGGREGATION_TEMPORALITY_CUMULATIVE": "cumulative",
+}
+
+
+def _otlp_temporality(value: Any) -> str | None:
+    """Map OTLP ``aggregationTemporality`` (enum number or name) to a tag value.
+
+    Returns None for UNSPECIFIED, a missing value or anything unrecognised.
+    """
+    if isinstance(value, bool) or not isinstance(value, int | str):
+        return None
+    return _OTLP_TEMPORALITY.get(value)
+
+
+def _otlp_int(value: Any) -> int:
+    """Parse an OTLP/JSON int64, which is encoded as a decimal string.
+
+    Plain JSON integers are accepted as well. Raises ``ValueError`` for
+    anything that is not an integer.
+    """
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, bool) or not isinstance(value, int | str):
+        raise ValueError(f"not an integer: {value!r}")
+    return int(value)
+
+
+def _otlp_finite_float(value: Any) -> float | None:
+    """Parse an OTLP/JSON double, returning None for NaN, infinities and overflow.
+
+    Line protocol has no representation for non-finite numbers. Raises
+    ``TypeError`` or ``ValueError`` for anything that is not a number.
+    """
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _otlp_histogram_fields(dp: dict[str, Any]) -> dict[str, int | float]:
+    """Summarise an OTLP histogram data point as count, sum, min, max and avg.
+
+    ``sum``, ``min`` and ``max`` are optional in the protocol and are only
+    reported when present and finite. Raises ``ValueError`` for a malformed point.
+    """
+    count = _otlp_int(dp.get("count", 0))
+    if count < 0:
+        raise ValueError(f"negative histogram count: {count}")
+    fields: dict[str, int | float] = {"count": count}
+    for key in ("sum", "min", "max"):
+        if dp.get(key) is not None:
+            number = _otlp_finite_float(dp[key])
+            if number is not None:
+                fields[key] = number
+    if "sum" in fields and count > 0:
+        fields["avg"] = fields["sum"] / count
+    return fields
+
+
+def _otlp_point_fields(
+    dp: dict[str, Any], metric_type: MetricType
+) -> dict[str, int | float | str | bool]:
+    """Turn an OTLP data point into Metric fields. Raises ``ValueError`` if malformed."""
+    as_double = dp.get("asDouble")
+    if as_double is not None:
+        return {"value": as_double}
+    if "asInt" in dp:
+        return {"value": _otlp_int(dp["asInt"])}
+    if metric_type == MetricType.HISTOGRAM:
+        return dict(_otlp_histogram_fields(dp))
+    return {"value": 0}
+
+
 class OpenTelemetryMetric(BaseModel):
     """
     OpenTelemetry-compatible metric format.
@@ -317,55 +418,65 @@ class OpenTelemetryMetric(BaseModel):
     Follows OTLP JSON format for metrics.
     """
 
-    resource_metrics: list[dict[str, Any]] = Field(
-        default_factory=list, alias="resourceMetrics"
-    )
+    resource_metrics: list[dict[str, Any]] = Field(default_factory=list, alias="resourceMetrics")
 
     def to_metrics(self) -> list[Metric]:
         """
         Convert OpenTelemetry format to internal Metric objects.
 
         This handles the OTLP JSON format and extracts individual metrics.
+        Gauge and sum points become a single ``value`` field. Histogram points
+        become ``count`` plus, when present, ``sum``, ``avg``, ``min`` and
+        ``max``; bucket counts are not kept. Sum and histogram points get a
+        ``temporality`` tag (``delta`` or ``cumulative``) when the metric
+        declares one. A malformed data point is skipped with a warning.
         """
         metrics = []
         for rm in self.resource_metrics:
-            resource_attrs = {}
-            if "resource" in rm and "attributes" in rm["resource"]:
-                for attr in rm["resource"]["attributes"]:
-                    resource_attrs[attr.get("key", "")] = str(
-                        attr.get("value", {}).get("stringValue", "")
-                    )
+            resource_attrs = _otlp_attributes(rm.get("resource", {}).get("attributes", []))
 
             for sm in rm.get("scopeMetrics", []):
                 for m in sm.get("metrics", []):
                     name = m.get("name", "unknown")
 
                     # Handle different metric types
-                    data_points = []
+                    data: dict[str, Any] = {}
+                    metric_type = MetricType.GAUGE
+                    temporality = None
                     if "gauge" in m:
-                        data_points = m["gauge"].get("dataPoints", [])
+                        data = m["gauge"]
                     elif "sum" in m:
-                        data_points = m["sum"].get("dataPoints", [])
+                        data = m["sum"]
+                        temporality = _otlp_temporality(data.get("aggregationTemporality"))
                     elif "histogram" in m:
-                        data_points = m["histogram"].get("dataPoints", [])
+                        data = m["histogram"]
+                        metric_type = MetricType.HISTOGRAM
+                        temporality = _otlp_temporality(data.get("aggregationTemporality"))
+                    data_points = data.get("dataPoints", [])
 
                     for dp in data_points:
-                        tags = dict(resource_attrs)
-                        for attr in dp.get("attributes", []):
-                            tags[attr.get("key", "")] = str(
-                                attr.get("value", {}).get("stringValue", "")
+                        try:
+                            fields = _otlp_point_fields(dp, metric_type)
+                        except (TypeError, ValueError) as exc:
+                            _logger.warning(
+                                "Skipping malformed OTLP data point",
+                                extra={"metric": name, "error": str(exc)[:200]},
                             )
+                            continue
 
-                        as_double = dp.get("asDouble")
-                        value = as_double if as_double is not None else dp.get("asInt", 0)
+                        tags = dict(resource_attrs)
+                        tags.update(_otlp_attributes(dp.get("attributes", [])))
+                        if temporality:
+                            tags["temporality"] = temporality
                         timestamp = dp.get("timeUnixNano")
 
                         metrics.append(
                             Metric(
                                 name=name,
-                                fields={"value": value},
+                                fields=fields,
                                 tags=tags,
                                 timestamp=timestamp,
+                                metric_type=metric_type,
                             )
                         )
 

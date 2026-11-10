@@ -39,10 +39,12 @@ Two scripts here set the engine up rather than call its API:
 
 | Script | What it does | Guide |
 |---|---|---|
-| `quickstart.sh` | Takes a clean host to a running engine: workspace, `.env`, image (built when missing or with `--build`), models (with `--model`/`--models`), Milvus, engine, `local-milvus` registration | [One-click start](../docs/get-start.md#one-click-start) |
-| `prepare-models.sh` | Downloads and converts the models (GME and bge-reranker-large by default) in throwaway engine containers | [Prepare models with one script](../docs/how-to-guides/how-to-prepare-models.md#prepare-models-with-one-script) |
+| `quickstart.sh` | Takes a clean host to a running engine: workspace, `.env`, image (built when missing or with `--build`), models (on the first run or with `--model`/`--models`), Milvus, engine, `local-milvus` registration; `--down` stops and removes the services and keeps the workspace | [Get Started](../docs/user-guide/get-start.md#step-1-deploy) |
+| `prepare-models.sh` | Downloads and converts the models (by default GME, bge-reranker-large, PP-DocLayoutV3, ViCLIP-B, Whisper and the Qwen3-VL INT8 media reranker) in throwaway engine containers | [Prepare models with one script](../docs/user-guide/how-to-guides/how-to-prepare-models.md#prepare-models-with-one-script) |
 
 Run either with `--help` for its options.
+
+Video models and export instructions are listed in [Model preparation](../docs/user-guide/how-to-guides/how-to-prepare-models.md#45-viclip-short-videos).
 
 ## Helpers
 
@@ -154,7 +156,7 @@ create/update JSON and asset references in add-assets JSON follow the same
 name-or-ID rule.
 
 `routing` is read-only. It shows which source takes each kind of content in the pool, and in which state, and lists the kinds that no serving source covers.
-For example, a pool with one text source (`primary`, `"block_kinds":["text"]`), one GME source for images, one for audio, and two X-CLIP sources for video. `video-xclip-fp16` (`"embedding_model":"xclip-base-patch16-zero-shot-fp16"`, a separately prepared package under the model root) has replaced `video-xclip`, and the old one is kept `DEPRECATED` for rollback. Sources select model IDs, not a `precision` option:
+For example, `video-viclip-l` serves video queries while `video-viclip-b` is kept `DEGRADE` for rollback:
 
 ```json
 {
@@ -167,8 +169,8 @@ For example, a pool with one text source (`primary`, `"block_kinds":["text"]`), 
       {"source_name": "image-gme",      "via": "vector",     "serving_state": "SERVING",    "effective_state": "SERVING"}
     ],
     "short_video": [
-      {"source_name": "video-xclip",      "via": "vector",     "serving_state": "DEPRECATED", "effective_state": "DEPRECATED"},
-      {"source_name": "video-xclip-fp16", "via": "vector",     "serving_state": "SERVING",    "effective_state": "SERVING"}
+      {"source_name": "video-viclip-b", "via": "vector",     "serving_state": "DEGRADE", "effective_state": "DEGRADE"},
+      {"source_name": "video-viclip-l", "via": "vector",     "serving_state": "SERVING",    "effective_state": "SERVING"}
     ],
     "long_video": [],
     "audio": [
@@ -233,7 +235,7 @@ same endpoint and validate its flat `retrieved_chunks` / `chunks` response:
 ```
 
 The media targets are searched independently; audio requires a serving
-transcript projection. See [text-to-media-retrieval.md](../docs/text-to-media-retrieval.md)
+transcript projection. See [text-to-media-retrieval.md](../docs/user-guide/text-to-media-retrieval.md)
 for request fields, response semantics, and test steps.
 
 For media reranking, add `--rerank` or send JSON with `postprocess`:
@@ -245,7 +247,7 @@ For media reranking, add `--rerank` or send JSON with `postprocess`:
 `top_k` sets candidate depth per serving source; `top_n` limits the final global
 result count after reranking. The model export, parity, machine review, annotation,
 and frozen evaluation commands live in
-[text-to-media-retrieval.md](../docs/text-to-media-retrieval.md#prepare-the-openvino-model)
+[text-to-media-retrieval.md](../docs/user-guide/text-to-media-retrieval.md#prepare-the-openvino-model)
 and use the Python tools in this directory.
 
 ```bash
@@ -284,7 +286,7 @@ shared IDs otherwise.
 Multiple vector sources are queried independently, each contributes up to
 `top_k` candidates, and the source result lists are interleaved round-robin
 rather than fused or globally sorted across embedding models.
-X-CLIP and GME scores are not calibrated to each other. To avoid one model's
+ViCLIP and GME scores are not calibrated to each other. To avoid one model's
 scores dominating, place those sources in separate pools and issue separate
 queries with `--pool` / `asset_pool_ids`; that field selects pools, not sources.
 Text vector/BM25/graph RRF within a pool retains the behavior described above.

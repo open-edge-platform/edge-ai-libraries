@@ -34,7 +34,7 @@ from src.core.embedding import (
 )
 from src.core.media import detect_media_kind
 from src.core.utils.common_utils import get_minio_client
-from src.core.utils.config_utils import read_config
+from src.core.utils.config_utils import get_config
 from src.core.utils.file_utils import resolve_under_ingest_root
 from src.core.utils.video_utils import get_video_from_minio
 
@@ -97,16 +97,12 @@ def process_stored_video(item: BatchItem) -> int:
     so a single job can mix images and videos. Raises on any failure so the
     engine can isolate it to this item.
     """
-    config = read_config(settings.CONFIG_FILEPATH, type="yaml")
-    if config is None:
-        raise Exception(Strings.config_error)
+    config = get_config()
 
     bucket_name = item.bucket_name
     video_id = item.video_id
 
-    metadata_root = pathlib.Path(
-        config.get("metadata_local_temp_dir", "/tmp/dataprep/metadata")
-    )
+    metadata_root = pathlib.Path(config["metadata_temp_dir"])
     request_id = f"{video_id}_{int(datetime.datetime.now().timestamp())}"
     metadata_temp_dir = metadata_root / request_id
     metadata_temp_dir.mkdir(parents=True, exist_ok=True)
@@ -140,7 +136,6 @@ def process_stored_video(item: BatchItem) -> int:
                     video_id=video_id,
                     filename=filename,
                     enable_object_detection=item.enable_object_detection,
-                    detection_confidence=item.detection_confidence,
                     tags=item.tags or [],
                     source_path=item.source_path,
                     custom_metadata=item.custom_metadata or {},
@@ -157,7 +152,6 @@ def process_stored_video(item: BatchItem) -> int:
                     metadata_temp_path=metadata_temp_dir,
                     frame_interval=item.frame_interval,
                     enable_object_detection=item.enable_object_detection,
-                    detection_confidence=item.detection_confidence,
                     tags=item.tags or [],
                     source_path=item.source_path,
                     custom_metadata=item.custom_metadata or {},

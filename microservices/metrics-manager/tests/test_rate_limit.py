@@ -6,7 +6,6 @@
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.rate_limit import RateLimiter, RateLimitMiddleware, TokenBucket, get_rate_limiter
@@ -76,6 +75,7 @@ class TestRateLimiter:
         limiter.buckets["1.1.1.1"].tokens = 0.0
         allowed, _ = limiter.is_allowed("2.2.2.2")
         assert allowed is True
+
 
 class TestRateLimitMiddleware:
     """Integration tests for RateLimitMiddleware via the FastAPI app."""

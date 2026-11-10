@@ -1,6 +1,6 @@
 
 test_openvino () {
-  if [[ " $* " = *" --validate "* ]]; then
+  if ensure_parse_option --validate "$@"; then
     [ -r "$workspace"/${model##*/} ] || {
       mkdir -p "$workspace"
       echo "@@STEP Downloading ${model##*/}"

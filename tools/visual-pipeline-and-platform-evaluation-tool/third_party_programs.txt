@@ -521,7 +521,7 @@ License-Identifier: MIT AND MPL-2.0   (1 package(s))
 
 License-Identifier: MIT-CMU   (1 package(s))
 
-  pillow 12.3.0
+  pillow 13.0.0
       Copyright © 1997-2011 by Secret Labs AB
       Copyright © 1995-2011 by Fredrik Lundh and contributors
       Copyright © 2010 by Jeffrey 'Alex' Clark and contributors

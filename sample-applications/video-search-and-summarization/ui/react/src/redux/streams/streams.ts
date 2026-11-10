@@ -36,7 +36,6 @@ export interface LiveStream {
   sensor_id?: string | null;
   frame_interval: number;
   enable_object_detection: boolean;
-  detection_confidence: number;
   tags: string[];
   stats: LiveStreamStats;
   last_error?: string | null;
@@ -66,7 +65,6 @@ export interface LiveStreamCreatePayload {
   sensor_id?: string;
   frame_interval?: number;
   enable_object_detection?: boolean;
-  detection_confidence?: number;
   tags?: string[];
   start?: boolean;
 }
@@ -77,7 +75,6 @@ export interface LiveStreamUpdatePayload {
   description?: string;
   frame_interval?: number;
   enable_object_detection?: boolean;
-  detection_confidence?: number;
   tags?: string[];
   state?: LiveStreamState.RUNNING | LiveStreamState.PAUSED;
 }
