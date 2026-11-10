@@ -1,6 +1,6 @@
 
 # set/get properties
-# set <key> <value> [--prompt "Donwload model (y/n)?"]
+# set <key> <value> [--prompt "Donwload model (y/n)?"] [--create]
 # get <key> [--boolean] # normalize value to true/false
 ensure_prop () {
   local op="$1" key_path="${2:?}" value="${3:-}"
@@ -37,6 +37,9 @@ ensure_prop () {
         act_panelled_logs_askpass "$askpass_helper" OEP_PROP_INPUT || { echo "ensure_prop: failed to create askpass helper" >&2; return 1; }
         value="$("$askpass_helper" "$prompt" | tr -d '\n')"
       } 9< "$rundir"
+    fi
+    if ensure_parse_option --create "$@"; then
+      mkdir -m 700 -p "$key_base/${key_path%/*}"
     fi
     ( umask 077; printf '%s' "$value" > "$key_base/$key_path" )
     ;;
