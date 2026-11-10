@@ -80,7 +80,7 @@ A few invariants worth knowing:
   sends every pipeline to DL Streamer Pipeline Server 2.0 over REST, one
   server instance per stream. Device detection and the DL Streamer pipeline
   optimizer still run in the `vippet` process.
-- `setup_env.sh` selects the Compose hardware profile (`cpu`, `gpu`, `npu`, `igpu-wsl`).
+- `setup_env.sh` selects the Compose hardware profile (`cpu`, `gpu`, `npu`, `gpu-wsl`).
   OpenVINO™ device detection (`device.py`) runs inside the backend at startup and
   determines the available inference devices and pipeline variants.
 - The model catalog (`vippet/models/*.yaml`, one file per model) is copied

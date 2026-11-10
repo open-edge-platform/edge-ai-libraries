@@ -97,10 +97,11 @@ text-to-speech conversions, without a chat, conversation history, or kiosk-core.
 `make build`, `make run`, and `make stop` include ViPPET, audio-analyzer, and
 text-to-speech using the detected hardware profile. Stopping preserves named
 volumes.
-Under WSL 2, the detected `igpu-wsl` profile enables GPU inference for ASR and
+Under WSL 2, the detected `gpu-wsl` profile enables GPU inference for ASR and
 the backend's GPU (WSL) pipeline variants. SpeechT5 TTS uses CPU because measured
 WSL latency is lower than on the iGPU. The profile also configures WSL device
-access for Metrics Manager and, in experimental mode, Time Series Analytics.
+access for Metrics Manager. Experimental Time Series Analytics still requires
+native `/dev/dri` access and a render group ID.
 See [WSL requirements](docs/user-guide/get-started/installation/system-requirements.md#windows-subsystem-for-linux-wsl)
 for prerequisites and GPU telemetry limitations.
 The [voice deployment guide](docs/user-guide/user-guide/voice-conversion.md)

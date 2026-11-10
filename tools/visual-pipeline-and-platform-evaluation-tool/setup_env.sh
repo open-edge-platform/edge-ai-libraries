@@ -38,7 +38,7 @@ if compgen -G "/dev/accel/accel*" > /dev/null; then
     COMPOSE_PROFILES="npu"
     RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 elif [ -c /dev/dxg ]; then
-    COMPOSE_PROFILES="igpu-wsl"
+    COMPOSE_PROFILES="gpu-wsl"
     RENDER_GROUP_ID=""
 elif compgen -G "/dev/dri/render*" > /dev/null; then
     # GPU device found, using GPU profile and render group

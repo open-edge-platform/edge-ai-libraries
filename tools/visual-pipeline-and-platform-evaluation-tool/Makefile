@@ -35,10 +35,7 @@ define standard-compose
 endef
 
 define experimental-compose
-	$(call base-compose,$(1),-f $(EXPERIMENTAL_COMPOSE_FILE),\
-		case "$${COMPOSE_PROFILES:-}" in \
-			(igpu-wsl) compose_files+=(-f compose.experimental.$$COMPOSE_PROFILES.yml) ;; \
-		esac)
+	$(call base-compose,$(1),-f $(EXPERIMENTAL_COMPOSE_FILE))
 endef
 
 # Pipelines run on DLSPS 2.0 (dlstreamer-pipeline-server in compose.yml), built from

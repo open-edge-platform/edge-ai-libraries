@@ -284,12 +284,10 @@ services:
     container_name: vippet-plugins
     restart: "no"
     network_mode: none
-    entrypoint: ["/bin/sh", "-c"]
+    entrypoint: [ "/bin/sh", "-c" ]
     command:
       - >-
-        find /plugins -mindepth 1 -delete &&
-        cp -R /home/dlstreamer/vippet/gst_plugins/. /plugins/ &&
-        find /plugins -name __pycache__ -type d -prune -exec rm -rf {} +
+        find /plugins -mindepth 1 -delete && cp -R /home/dlstreamer/vippet/gst_plugins/. /plugins/ && find /plugins -name __pycache__ -type d -prune -exec rm -rf {} +
     volumes:
       - vippet-gst-plugins:/plugins
 
@@ -315,7 +313,7 @@ services:
     restart: on-failure:5
     user: "1000:1000"
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/pipelines/status', timeout=5)"]
+      test: [ "CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/pipelines/status', timeout=5)" ]
       interval: 10s
       timeout: 5s
       retries: 5

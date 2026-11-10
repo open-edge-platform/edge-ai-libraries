@@ -168,7 +168,7 @@ the following settings from the detected ViPPET hardware profile:
 | `cpu`      | `compose.cpu.yml`      | CPU | CPU, FP16 |
 | `gpu`      | `compose.gpu.yml`      | GPU | GPU, FP16 |
 | `npu`      | `compose.npu.yml`      | NPU | GPU, FP16 |
-| `igpu-wsl` | `compose.igpu-wsl.yml` | GPU | CPU, FP16 |
+| `gpu-wsl`  | `compose.gpu-wsl.yml`  | GPU | CPU, FP16 |
 
 The GPU override gives both services `/dev/dri` and the host's numeric
 `RENDER_GROUP_ID` as a supplementary group. The NPU override gives
@@ -179,12 +179,11 @@ The host must have the corresponding device nodes and compatible drivers;
 the images must include the required OpenVINO runtimes. No privileged mode or
 extra Linux capabilities are enabled.
 
-The `igpu-wsl` override gives both voice services `/dev/dxg` and a read-only
+The `gpu-wsl` override gives the ASR service `/dev/dxg` and a read-only
 `/usr/lib/wsl` library mount. It does not require `/dev/dri` or `RENDER_GROUP_ID`.
 Use this profile inside WSL 2, not the native `gpu` override. ASR uses the iGPU,
-while SpeechT5 TTS uses CPU with its FP16 artifact. The `/dev/dxg` mapping
-remains on the TTS service as part of the shared WSL service configuration, but
-OpenVINO selects CPU for synthesis. Docker Compose 2.24.4 or newer is required
+while SpeechT5 TTS uses CPU with its FP16 artifact and does not need GPU device
+mapping. Docker Compose 2.24.4 or newer is required
 for the WSL override files.
 
 `setup_env.sh` detects `RENDER_GROUP_ID` for Make. When invoking Compose
@@ -203,7 +202,7 @@ COMPOSE_PROFILES=gpu docker compose -f compose.yml -f compose.gpu.yml \
 Direct WSL iGPU startup:
 
 ```bash
-COMPOSE_PROFILES=igpu-wsl docker compose -f compose.yml -f compose.igpu-wsl.yml \
+COMPOSE_PROFILES=gpu-wsl docker compose -f compose.yml -f compose.gpu-wsl.yml \
   up -d --no-build
 ```
 
@@ -218,13 +217,13 @@ COMPOSE_PROFILES=npu docker compose -f compose.yml -f compose.npu.yml \
 Export `VOICE_ASR_DEVICE` (`CPU`, `GPU`, or `NPU`) to set default ASR inference.
 The native GPU and NPU voice overrides also accept `VOICE_TTS_DEVICE` (`CPU` or
 `GPU`) and `VOICE_TTS_DTYPE`, which defaults to `fp16`. The bundled SpeechT5
-catalog installs only FP16. The CPU and `igpu-wsl` profiles use CPU/FP16.
+catalog installs only FP16. The CPU and `gpu-wsl` profiles use CPU/FP16.
 Device selection alone does not expose hardware: keep the
 corresponding Compose overrides. Each Audio pipeline run sends its variant's
 device, but it cannot add a missing container device mapping. SpeechT5 does not document NPU support, so the
 NPU profile defaults to GPU for TTS. For CPU inference on a native GPU or NPU
 host, export `VOICE_ASR_DEVICE=CPU VOICE_TTS_DEVICE=CPU VOICE_TTS_DTYPE=fp16`.
-The former `gpu-wsl` profile has been replaced by `igpu-wsl`. Run `make run`
+Run `make run`
 to regenerate the detected profile and recreate affected containers without
 deleting shared model artifacts or named cache volumes. For manual Compose commands, update
 both the profile and override filenames. Do not edit the generated `.env` file.

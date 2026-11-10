@@ -59,24 +59,26 @@ to a native Ubuntu installation - run all commands
 inside the Ubuntu 24.04 WSL distribution.
 
 `setup_env.sh` checks NPU devices first, then `/dev/dxg`, then native `/dev/dri/render*`
-nodes, and finally falls back to CPU. On WSL, `/dev/dxg` selects the `igpu-wsl`
+nodes, and finally falls back to CPU. On WSL, `/dev/dxg` selects the `gpu-wsl`
 Compose profile even when `/dev/dri/render*` also exists.
 
 The profile passes `/dev/dxg` and mounts `/usr/lib/wsl` read-only for the ViPPET backend,
-Metrics Manager, and Voice services through `compose.igpu-wsl.yml`. The experimental
-build/run/stop/clean targets also load
-`compose.experimental.igpu-wsl.yml` for Time Series Analytics. Native GPU device mappings
-are replaced rather than merged, so `/dev/dri` is not required by the WSL configuration.
+DLStreamer Pipeline Server, Metrics Manager, and ASR service through `compose.gpu-wsl.yml`.
+Metrics Manager's native GPU device mapping is replaced rather than merged, so
+`/dev/dri` is not required by the standard WSL configuration.
 Docker Compose 2.24.4 or newer is required for these `!override` declarations.
+
+Experimental Time Series Analytics uses `compose.experimental.yml` without a
+WSL-specific override. It still requires `/dev/dri` and a valid `RENDER_GROUP_ID`;
+`/dev/dxg` alone is not sufficient for that service.
 
 The Windows Intel graphics driver must support GPU compute under WSL, and `/dev/dxg`
 and `/usr/lib/wsl` must be available inside the WSL distribution. GPU telemetry from
 native Linux collectors such as qmassa may be unavailable under WSL; a missing GPU
 utilization chart does not prove that inference is running on CPU.
 
-The old `gpu-wsl` profile and override filename have been replaced by `igpu-wsl`.
 Run `make run` to regenerate `.env` and apply the detected profile. When invoking
-Compose directly, use `COMPOSE_PROFILES=igpu-wsl` and `compose.igpu-wsl.yml`.
+Compose directly, use `COMPOSE_PROFILES=gpu-wsl` and `compose.gpu-wsl.yml`.
 Do not edit `.env` manually. The runtime device is still `GPU`, and pipeline labels
 remain **GPU (WSL)**.
 

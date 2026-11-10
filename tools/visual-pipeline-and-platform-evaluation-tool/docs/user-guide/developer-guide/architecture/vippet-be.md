@@ -50,7 +50,7 @@ Device discovery (`vippet/device.py`) and the DL Streamer pipeline optimizer sti
 The backend ships as a container and is composed with sibling services (`vippet-ui`,
 `dlstreamer-pipeline-server`, `mediamtx`, `model-download`, `metrics-manager`, `sensor-manager`,
 `audio-analyzer`, and `text-to-speech`) via Docker Compose. Hardware capabilities are selected through
-`COMPOSE_PROFILES` (`cpu`, `gpu`, `npu`, `igpu-wsl`), which is auto-detected by `setup_env.sh`.
+`COMPOSE_PROFILES` (`cpu`, `gpu`, `npu`, `gpu-wsl`), which is auto-detected by `setup_env.sh`.
 The WSL profile exposes `/dev/dxg` and read-only `/usr/lib/wsl` libraries instead of native DRM devices.
 
 ### Developer Tooling

@@ -3,7 +3,7 @@
 
 services:
   vippet:
-    profiles: [ igpu-wsl ]
+    profiles: [ gpu-wsl ]
     devices:
       - /dev/dxg:/dev/dxg
     volumes:
