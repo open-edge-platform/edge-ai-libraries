@@ -28,13 +28,11 @@ mkdir -p "${HF_HOME}"
 export HF_ENDPOINT=${HF_ENDPOINT:-https://huggingface.co}
 
 export MODEL_SERVING_BACKEND=${MODEL_SERVING_BACKEND:-llm-scaler}
-export VLLM_IMAGE=${VLLM_IMAGE:-intel/llm-scaler-vllm:0.14.0-b8.3.2}
 
 # Model + context window. Qwen3.6-35B-A3B is a Mixture-of-Experts model
 # (35B total / 3B active) that serves both the VLM (captioning) and LLM
 # (aggregation) roles from a single endpoint.
 export LLM_MODEL=${LLM_MODEL:-Qwen/Qwen3.6-35B-A3B}
-export SERVED_MODEL_NAME=${SERVED_MODEL_NAME:-${LLM_MODEL}}
 export MAX_MODEL_LEN=${MAX_MODEL_LEN:-61440}  # 60k context; lower (e.g. 32768) to reduce RAM.
 
 # Device-memory budget for profiling and KV cache, not a whole-host RAM cap.
@@ -60,8 +58,8 @@ export USER_GROUP_ID="$(id -g "$USER")"
 # containers share `app-network`, so the microservice reaches it by service name.
 export VLM_BASE_URL=${VLM_BASE_URL:-http://model-serving:8000/v1}
 export LLM_BASE_URL=${LLM_BASE_URL:-http://model-serving:8000/v1}
-export VLM_MODEL_NAME=${VLM_MODEL_NAME:-${SERVED_MODEL_NAME}}
-export LLM_MODEL_NAME=${LLM_MODEL_NAME:-${SERVED_MODEL_NAME}}
+export VLM_MODEL_NAME=${VLM_MODEL_NAME:-${LLM_MODEL}}
+export LLM_MODEL_NAME=${LLM_MODEL_NAME:-${LLM_MODEL}}
 
 export MAX_CONCURRENT_REQUESTS=4
 export DEFAULT_MAX_TOKENS=512

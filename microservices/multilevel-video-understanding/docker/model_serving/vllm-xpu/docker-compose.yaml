@@ -4,7 +4,7 @@
 services:
   model-serving-vllm-xpu:
     container_name: model-serving-vllm-xpu
-    image: ${VLLM_IMAGE:-vllm/vllm-openai-xpu:v0.31.0}
+    image: vllm/vllm-openai-xpu:v0.31.0
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart: "${VLLM_RESTART_POLICY:-on-failure:2}"
     ports:
@@ -32,7 +32,6 @@ services:
       HF_HOME: /llm/.cache/huggingface
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
       MODEL_PATH: ${LLM_MODEL:-/models/Qwen3.8-27B-AWQ-INT4}
-      SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-${LLM_MODEL:-/models/Qwen3.8-27B-AWQ-INT4}}
       MAX_MODEL_LEN: ${MAX_MODEL_LEN:-10000}
       LOAD_QUANTIZATION: ${LOAD_QUANTIZATION:-compressed-tensors}
       TENSOR_PARALLEL_SIZE: ${TENSOR_PARALLEL_SIZE:-1}
