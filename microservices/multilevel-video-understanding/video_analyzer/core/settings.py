@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from typing import List
+from typing import List, Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     ## Model serving request settings
     MODEL_REQUEST_TIMEOUT: int = Field(300, env="MODEL_REQUEST_TIMEOUT")        # Seconds
     MODEL_MAX_RETRIES: int = Field(3, env="MODEL_MAX_RETRIES")
+    VLM_VIDEO_FORMAT: Literal["vllm", "ovms"] = Field(
+        "vllm",
+        description="Video request encoding: vllm JPEG sequence or ovms JPEG frame array.",
+    )
     
     # Inference parameters
     LLM_REMOVE_THINKING: bool = True
