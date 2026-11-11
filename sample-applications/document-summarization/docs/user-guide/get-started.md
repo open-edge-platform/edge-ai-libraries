@@ -46,7 +46,7 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
      # Clone the latest on mainline
      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
      # Alternatively, Clone a specific release branch
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
      ```
 
      > [!NOTE]
@@ -71,7 +71,7 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
 
      # Docker Image Registry Configuration
      export REGISTRY="intel/"
-     export TAG=latest
+     export TAG=2026.3.0-rc1
      ```
 
      To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.
