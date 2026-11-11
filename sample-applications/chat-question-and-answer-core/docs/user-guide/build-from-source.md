@@ -31,7 +31,7 @@ To build the Docker image for the `Chat Q&A Core` application, follow these step
      - Build image:
 
        ```bash
-       docker build -t chatqna:latest -f docker/Dockerfile .
+       docker build -t chatqna:core_2026.3.0-rc1 -f docker/Dockerfile .
        ```
 
        This build the image using OpenVINO toolkit and includes GPU and NPU driver installation by default.
@@ -41,7 +41,7 @@ To build the Docker image for the `Chat Q&A Core` application, follow these step
      - Build image (CPU-only inferencing):
 
         ```bash
-        docker build -t chatqna:latest -f docker/Dockerfile.ollama .
+        docker build -t chatqna:core_ollama_2026.3.0-rc1 -f docker/Dockerfile.ollama .
         ```
 
         This build the image with Ollama framework to support CPU-based inferencing. Currently, Ollama is enabled only for CPU-based inferencing in this sample application.
@@ -67,7 +67,7 @@ To build the Docker image for the `chatqna-ui` application, follow these steps:
 2. Build the Docker image using the provided `Dockerfile`:
 
    ```bash
-   docker build -t chatqna-ui:latest .
+   docker build -t chatqna-ui:core_2026.3.0-rc1 .
    ```
 
 3. Verify that the Docker image has been built successfully:

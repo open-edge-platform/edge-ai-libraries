@@ -11,52 +11,182 @@ verify_k3s_io () {
 }
 
 debian_31_profile_k3s_io () {
-  echo "git curl docker_io python3_yaml"
+  echo "git curl docker_io"
+}
+
+install_k3s_io_sriov () {
+  local config=/etc/cloud/config-file enabled
+  [ -f "$config" ] || return 0
+  if ! enabled="$(awk -F= '
+    /^[[:space:]]*enable_sriov[[:space:]]*=/ {
+      value = substr($0, index($0, "=") + 1)
+      sub(/[[:space:]]*#.*/, "", value)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      if (value ~ /^".*"$/ || value ~ /^\047.*\047$/)
+        value = substr(value, 2, length(value) - 2)
+      print tolower(value)
+      count++
+    }
+    END {
+      if (count > 1) exit 1
+      if (count == 0) print "false"
+    }
+  ' "$config")"; then
+    echo "Unable to read a unique enable_sriov setting from $config." >&2
+    return 1
+  fi
+  case "$enabled" in
+    false) return 0 ;;
+    true) ;;
+    *) echo "enable_sriov must be true or false in $config." >&2; return 1 ;;
+  esac
+
+  local pf=/sys/bus/pci/devices/0000:00:02.0 total current
+  if [ ! -r "$pf/sriov_totalvfs" ] || [ ! -r "$pf/sriov_numvfs" ]; then
+    echo "SR-IOV requested, but Intel iGPU VF controls are unavailable. Enable SR-IOV in the firmware and graphics driver first." >&2
+    return 1
+  fi
+  total="$(cat "$pf/sriov_totalvfs")"
+  current="$(cat "$pf/sriov_numvfs")"
+  if ! [[ "$total" =~ ^[1-9][0-9]*$ && "$current" =~ ^[0-9]+$ ]]; then
+    echo "SR-IOV requested, but the GPU reports invalid or unsupported VF counts." >&2
+    return 1
+  fi
+
+  local script=/opt/edge/scripts/container_setup_sriov.sh
+  local unit=/etc/systemd/system/intel-sriov-vf.service
+  local source="$workspace/infrastructure/installation-scripts"
+  if [ "$(ensure_prop get installed/k3s_io/sriov_owned)" != true ]; then
+    local load
+    if ! load="$(systemctl show -p LoadState --value intel-sriov-vf.service)"; then
+      echo "Unable to determine the existing SR-IOV service state." >&2
+      return 1
+    fi
+    if [ "$current" -ne 0 ] || [ -e "$script" ] || [ -L "$script" ] ||
+       [ -e "$unit" ] || [ -L "$unit" ] || [ "$load" != not-found ]; then
+      echo "Preserving pre-existing SR-IOV configuration; its owner must manage boot persistence."
+      return 0
+    fi
+    ensure_prop set installed/k3s_io/sriov_owned true
+  fi
+  echo "@@STEP Configuring Intel GPU SR-IOV"
+  ensure_sudo install -d -m 755 -o root -g root /opt/edge/scripts
+  ensure_sudo install -m 755 -o root -g root "$source/container_setup_sriov.sh" "$script"
+  # Keep the upstream boot ordering, but make setup errors fail the service.
+  sed 's|^ExecStart=/bin/bash |ExecStart=/bin/bash -e -o pipefail |' \
+    "$source/systemd/intel-sriov-vf.service" |
+    ensure_sudo install -m 644 -o root -g root /dev/stdin "$unit"
+  ensure_sudo systemctl daemon-reload
+  ensure_sudo systemctl enable intel-sriov-vf.service
+  ensure_sudo systemctl restart intel-sriov-vf.service
+  if [ "$(cat "$pf/sriov_numvfs")" -ne "$total" ]; then
+    echo "SR-IOV setup did not create the expected $total VFs; check journalctl -u intel-sriov-vf.service." >&2
+    return 1
+  fi
+  echo "@@HIGHLIGHT SR-IOV VFs are enabled and will be recreated at boot. A display-manager restart or reboot may be needed for display recovery."
+}
+
+remove_k3s_io_sriov () {
+  [ "$(ensure_prop get installed/k3s_io/sriov_owned)" = true ] || return 0
+  ensure_sudo systemctl disable --now intel-sriov-vf.service
+  ensure_sudo rm -f /etc/systemd/system/intel-sriov-vf.service \
+    /opt/edge/scripts/container_setup_sriov.sh
+  ensure_sudo systemctl daemon-reload
+  ensure_prop remove installed/k3s_io/sriov_owned
+  echo "SR-IOV boot setup removed. Active VFs are preserved until reboot."
 }
 
 debian_31_install_k3s_io () {
   configure_k3s_io "$@"
-  # Capture original configuration before upstream scripts can change it.
-  lifecycle_k3s_io prepare
 
   echo "@@STEP Clone repository"
   ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts
 
-  echo "@@STEP Disable docker download"
-  cd "$workspace"/infrastructure/installation-scripts
+  cd "$workspace"/infrastructure/installation-scripts || return 1
+  # Docker is already supplied by the module dependency.
   sed -i '/^DOCKER_STATIC_URL/,/^success "docker-compose saved"/{d}' download-resources.sh
 
   echo "@@STEP Downloading k3s resources"
-  cd "$workspace"/infrastructure/installation-scripts
-  mkdir -p resources/docker
   local k3s_binary="$PWD/resources/k3s/k3s"
   (
+    local name value
+    for name in HTTP_PROXY HTTPS_PROXY NO_PROXY; do
+      local lower="${name,,}"
+      value="${!lower:-${!name:-}}"
+      if [[ "$value" = *$'\n'* || "$value" = *$'\r'* ]]; then
+        echo "Invalid newline in $name; refusing to persist proxy configuration." >&2
+        exit 1
+      fi
+      export "$name=$value" "$lower=$value"
+    done
+    # Upstream persists these in its root-only k3s.service.env file.
+    local proxy_args=(
+      "CONTAINERD_HTTP_PROXY=$HTTP_PROXY"
+      "CONTAINERD_HTTPS_PROXY=$HTTPS_PROXY"
+      "CONTAINERD_NO_PROXY=$NO_PROXY"
+    )
     local kubectl_wrapper_dir
     kubectl_wrapper_dir="$(mktemp -d "${TMPDIR:-/tmp}/oep-k3s-kubectl.XXXXXX")"
     trap 'rm -rf -- "$kubectl_wrapper_dir"' EXIT
-    printf '%s\n' '#!/bin/sh' 'exec "'"$k3s_binary"'" kubectl "$@"' > "$kubectl_wrapper_dir/kubectl"
+    printf '#!/bin/bash\nexec %q kubectl "$@"\n' "$k3s_binary" > "$kubectl_wrapper_dir/kubectl"
     chmod 755 "$kubectl_wrapper_dir/kubectl"
     ensure_sudo env PATH="$kubectl_wrapper_dir:$PATH" \
-      K3S_INSTALL_SH_SHA256="$install_sh_sha256" ./download-resources.sh
+      K3S_INSTALL_SH_SHA256="$install_sh_sha256" SKIP_CDI_BUILD=1 \
+      SKIP_INTEL_PLUGINS=0 ./download-resources.sh
+
+    local manifest
+    for manifest in nfd nfd-node-feature-rules gpu-plugin npu-plugin; do
+      if [ ! -s "resources/intel-device-plugins/manifests/$manifest.yaml" ]; then
+        echo "Intel device-plugin manifest '$manifest.yaml' was not prepared; refusing to install K3s without the plugin resources." >&2
+        exit 1
+      fi
+      # The pinned upstream installer reads manifests beside the script.
+      ensure_sudo cp "resources/intel-device-plugins/manifests/$manifest.yaml" "$manifest.yaml"
+    done
+
+    echo "@@STEP Installing K3s"
+    install_k3s_io_sriov
+    ensure_prop set installed/k3s_io/owned true
+    ensure_sudo env "${proxy_args[@]}" K3S_MODE=server ./install-k3s.sh
+    ensure_sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+      "$k3s_binary" kubectl wait --for=condition=Ready nodes --all --timeout=300s
+
+    echo "@@STEP Installing Helm"
+    ensure_sudo ./install-helm.sh
+
+    echo "@@STEP Installing Intel device plugins"
+    ensure_sudo env PATH="$kubectl_wrapper_dir:$PATH" \
+      KUBECONFIG=/etc/rancher/k3s/k3s.yaml ./install-intel-device-plugins.sh
+    # Upstream reports pod-readiness timeouts as warnings; fail on incomplete rollouts.
+    ensure_sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+      "$k3s_binary" kubectl rollout status -n node-feature-discovery \
+      deployment/nfd-gc deployment/nfd-master daemonset/nfd-worker --timeout=180s
+    ensure_sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+      "$k3s_binary" kubectl rollout status -n intel-device-plugins \
+      daemonset/intel-gpu-plugin daemonset/intel-npu-plugin --timeout=180s
   )
 
-  local manifest
-  for manifest in nfd nfd-node-feature-rules gpu-plugin npu-plugin; do
-    if [ ! -s "$workspace/infrastructure/installation-scripts/resources/intel-device-plugins/manifests/$manifest.yaml" ]; then
-      echo "Intel device-plugin manifest '$manifest.yaml' was not prepared; refusing to install K3s without the plugin resources." 1>&2
-      return 1
-    fi
-  done
-
-  echo "@@STEP Installing and provisioning K3s"
-  lifecycle_k3s_io install
-  verify_k3s_io
+  if ! verify_k3s_io; then
+    echo "K3s is not installed or its service is not active." >&2
+    return 1
+  fi
   echo "@@HIGHLIGHT K3s, Helm and Intel device plugins are ready; no start command is required."
 }
 
 debian_31_remove_k3s_io () {
   configure_k3s_io
-  lifecycle_k3s_io remove
+  if [ "$(ensure_prop get installed/k3s_io/owned)" = "true" ]; then
+    if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
+      ensure_sudo /usr/local/bin/k3s-uninstall.sh
+    fi
+    if command -v k3s > /dev/null 2>&1; then
+      echo "K3s is still present; check /usr/local/bin/k3s-uninstall.sh before retrying removal. Installation record retained." >&2
+      return 1
+    fi
+  else
+    echo "No module-owned K3s installation; leaving the cluster unchanged."
+  fi
+  remove_k3s_io_sriov
   ensure_rm "$workspace"
   ensure_prop remove installed/k3s_io/owned
 }

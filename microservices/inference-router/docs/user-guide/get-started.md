@@ -141,7 +141,7 @@ Set a remote registry by exporting environment variables. The deploy then
 
 ```bash
 export REGISTRY="intel/"
-export TAG="latest"
+export TAG="2026.3.0"
 ```
 
 `REGISTRY` is a prefix — include the trailing `/` (e.g. `intel/` or

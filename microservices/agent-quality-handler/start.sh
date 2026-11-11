@@ -11,7 +11,7 @@ PROJECT_NAME="$(basename -- "${PROJECT_DIR}")"
 # Deployment configuration. Update these defaults for the target environment.
 # Values already present in the environment take precedence.
 : "${REGISTRY:=intel/}"
-: "${TAG:=latest}"
+: "${TAG:=2026.3.0-rc1}"
 
 : "${STORAGE_SERVICE_URL:=http://host.docker.internal:5001}"
 : "${STORAGE_CONNECT_TIMEOUT_SECONDS:=3}"
