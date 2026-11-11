@@ -6100,7 +6100,7 @@ debian_90_install_loitering_detection ()
         ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe;
         cd "$workspace/metro-vision-ai-app-recipe";
         sed -i 's|curl |curl -f |' loitering-detection/install.sh;
-        ./install.sh loitering-detection $(ensure_ip);
+        ./install.sh loitering-detection-ui $(ensure_ip);
         verify_loitering_detection;
     fi;
     local device=$(ensure_parse_device "$@");
@@ -7439,7 +7439,8 @@ debian_90_start_loitering_detection ()
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
-    docker compose -f compose-without-scenescape.yml up -d;
+    ensure_container_namespace start loitering_detection $(ensure_container_parse_names docker-compose.yml);
+    docker compose up -d;
     local start_time=$SECONDS elapsed;
     while true; do
         elapsed=$(( SECONDS - start_time ));
@@ -7593,6 +7594,7 @@ debian_90_start_pallet_defect_detection ()
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
+    ensure_container_namespace start pallet_defect_detection $(ensure_container_parse_names docker-compose.yml);
     docker compose up -d;
     local start_time=$SECONDS elapsed;
     while true; do
@@ -7629,6 +7631,7 @@ debian_90_start_pcb_anomaly_detection ()
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
+    ensure_container_namespace start pcb_anomaly_detection $(ensure_container_parse_names docker-compose.yml);
     docker compose up -d --wait;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]";
@@ -7761,6 +7764,7 @@ debian_90_start_smart_intersection ()
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device";
     cd "$workspace"/metro-vision-ai-app-recipe;
+    ensure_container_namespace start smart_intersection $(ensure_container_parse_names docker-compose.yml);
     export SUPASS=$(cat smart-intersection/src/secrets/supass);
     docker compose up -d;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}";
@@ -7797,6 +7801,7 @@ debian_90_start_smart_parking ()
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
+    ensure_container_namespace start smart_parking $(ensure_container_parse_names docker-compose.yml);
     docker compose up -d;
     local start_time=$SECONDS elapsed;
     while true; do
@@ -8108,7 +8113,7 @@ debian_90_stop_loitering_detection ()
     configure_loitering_detection "$@";
     cd "$workspace"/metro-vision-ai-app-recipe && { 
         ./sample_stop.sh || true;
-        docker compose -f compose-without-scenescape.yml down -v --remove-orphans
+        docker compose down -v --remove-orphans
     } || true
 }
 debian_90_stop_loss_prevention () 
@@ -8200,7 +8205,7 @@ debian_90_stop_scenescape ()
 debian_90_stop_smart_intersection () 
 { 
     configure_smart_intersection "$@";
-    cd "$workspace"/metro-vision-ai-app-recipe && docker compose -f compose-scenescape.yml down -v --remove-orphans || true
+    cd "$workspace"/metro-vision-ai-app-recipe && docker compose down -v --remove-orphans || true
 }
 debian_90_stop_smart_kiosk_assistant () 
 { 
@@ -8632,6 +8637,47 @@ widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0)
 for r in rows:
   print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
 ' "$sep"
+}
+ensure_container_namespace () 
+{ 
+    local act_name="${1:?}";
+    local name="${2:?}";
+    shift 2;
+    case "$act_name" in 
+        install)
+            ensure_prop set installed/$name/containers "$*"
+        ;;
+        start)
+            ensure_prop set started/$name/containers "$*"
+        ;;
+    esac;
+    local running_containers=" $(docker ps --format '{{.Name}}' | tr '\n' ' ') ";
+    local c stopper mname mpath;
+    for c in "$@";
+    do
+        [[ "$running_containers" = *" $c "* ]] || continue;
+        printf "${red}Container %s is in conflict${reset}\n" "$c" 1>&2;
+        for mpath in $(ensure_prop find "installed/*/containers") $(ensure_prop find "started/*/containers");
+        do
+            [[ " $(ensure_prop get "$mpath") " = *" $c "* ]] || continue;
+            mname="${mpath#*/}";
+            mname="${mname%/*}";
+            stopper="${_act_cache_functions[stop_$mname]:-}";
+            [ -n "$stopper" ] || continue;
+            printf "${red}Stopping $mname to release container %s${reset}\n" "$c" 1>&2;
+            ( set -e;
+            $stopper "$mname" -- ) 1>&2 || true;
+        done;
+        running_containers=" $(docker ps --format '{{.Name}}' | tr '\n' ' ') ";
+        [[ "$running_containers" = *" $c "* ]] || continue;
+        printf "${red}Container %s is occupied${reset}\n" "$c" 1>&2;
+        docker ps 1>&2;
+        return 3;
+    done
+}
+ensure_container_parse_names () 
+{ 
+    grep -F container_name: "$@" | grep -v '[${]' | cut -f2 -d: | tr '\n' ' '
 }
 ensure_disk_size () 
 { 

@@ -2454,6 +2454,47 @@ for r in rows:
   print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
 ' "$sep"
 }
+ensure_container_namespace () 
+{ 
+    local act_name="${1:?}";
+    local name="${2:?}";
+    shift 2;
+    case "$act_name" in 
+        install)
+            ensure_prop set installed/$name/containers "$*"
+        ;;
+        start)
+            ensure_prop set started/$name/containers "$*"
+        ;;
+    esac;
+    local running_containers=" $(docker ps --format '{{.Name}}' | tr '\n' ' ') ";
+    local c stopper mname mpath;
+    for c in "$@";
+    do
+        [[ "$running_containers" = *" $c "* ]] || continue;
+        printf "${red}Container %s is in conflict${reset}\n" "$c" 1>&2;
+        for mpath in $(ensure_prop find "installed/*/containers") $(ensure_prop find "started/*/containers");
+        do
+            [[ " $(ensure_prop get "$mpath") " = *" $c "* ]] || continue;
+            mname="${mpath#*/}";
+            mname="${mname%/*}";
+            stopper="${_act_cache_functions[stop_$mname]:-}";
+            [ -n "$stopper" ] || continue;
+            printf "${red}Stopping $mname to release container %s${reset}\n" "$c" 1>&2;
+            ( set -e;
+            $stopper "$mname" -- ) 1>&2 || true;
+        done;
+        running_containers=" $(docker ps --format '{{.Name}}' | tr '\n' ' ') ";
+        [[ "$running_containers" = *" $c "* ]] || continue;
+        printf "${red}Container %s is occupied${reset}\n" "$c" 1>&2;
+        docker ps 1>&2;
+        return 3;
+    done
+}
+ensure_container_parse_names () 
+{ 
+    grep -F container_name: "$@" | grep -v '[${]' | cut -f2 -d: | tr '\n' ' '
+}
 ensure_disk_size () 
 { 
     local disk_size=$1;
