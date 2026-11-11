@@ -3,7 +3,7 @@
 
 services:
   aqh-agent:
-    image: ${REGISTRY:-intel/}agent-quality-handler:${TAG:-latest}
+    image: ${REGISTRY:-intel/}agent-quality-handler:${TAG:-2026.3.0-rc1}
     container_name: aqh-agent
     hostname: aqh-agent
     build:
