@@ -21,7 +21,7 @@ This repository holds many projects. Use a sparse checkout to download only the
 
 ```bash
 git clone --no-checkout --filter=blob:none --single-branch \
-  --branch main \
+  --branch release-2026.3.0 \
   https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries
 git sparse-checkout set --cone microservices/stream-manager

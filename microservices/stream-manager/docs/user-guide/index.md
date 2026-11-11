@@ -5,10 +5,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/stream-manager">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/microservices/stream-manager">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/stream-manager/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/stream-manager/README.md">
      Readme
   </a>
 </div>

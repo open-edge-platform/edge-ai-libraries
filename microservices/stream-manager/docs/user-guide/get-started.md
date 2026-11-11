@@ -15,7 +15,7 @@ image `intel/stream-manager:2026.3.0-rc1`.
 ## Run the application
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/stream-manager/Makefile | make -f - docker-run
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.3.0/microservices/stream-manager/Makefile | make -f - docker-run
 ```
 
 This downloads the Makefile and runs it directly with `make`. It starts the
@@ -40,7 +40,7 @@ A healthy response looks like this:
 Stop and remove the running container:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/stream-manager/Makefile | make -f - docker-stop
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.3.0/microservices/stream-manager/Makefile | make -f - docker-stop
 ```
 
 > [!NOTE]
@@ -53,7 +53,7 @@ curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 Set `DATA_DIR` to store data in a host directory instead of the default Docker volume:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/stream-manager/Makefile | make -f - docker-run DATA_DIR=/path/to/data
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.3.0/microservices/stream-manager/Makefile | make -f - docker-run DATA_DIR=/path/to/data
 ```
 
 > [!CAUTION]
@@ -63,7 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 Set `CONFIG_FILE` to use your own configuration file:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/stream-manager/Makefile | make -f - docker-run CONFIG_FILE=/path/to/config.json
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.3.0/microservices/stream-manager/Makefile | make -f - docker-run CONFIG_FILE=/path/to/config.json
 ```
 
 You can use both options in the same command.
