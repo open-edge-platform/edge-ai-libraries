@@ -4,9 +4,6 @@ configure_scenescape () {
   version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository=https://github.com/open-edge-platform/scenescape.git
   used_ports=(443)
-
-  version_skills=release-2026.2.0
-  repository_skills=https://github.com/open-edge-platform/skills.git
   skills=(scenescape-setup)
 }
 
@@ -30,7 +27,8 @@ debian_90_install_scenescape () {
     ensure_git_export "$workspace" "$version" "$repository"
 
     echo "@@STEP Installing skills"
-    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
+    cd "$workspace"
+    ensure_skills add -- "${skills[@]/#/.github/skills/}"
 
     verify_scenescape
   fi
