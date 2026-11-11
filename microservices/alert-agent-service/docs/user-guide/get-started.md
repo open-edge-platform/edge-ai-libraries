@@ -31,7 +31,7 @@ See [System Requirements](./get-started/system-requirements.md) for full details
 Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace main with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
 
 ```bash
-git clone --filter=blob:none --sparse --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --filter=blob:none --sparse --branch release-2026.3.0 https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries/
 git sparse-checkout set microservices/alert-agent-service/
 cd microservices/alert-agent-service/
