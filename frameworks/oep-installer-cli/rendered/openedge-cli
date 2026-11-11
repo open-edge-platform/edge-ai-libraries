@@ -3298,7 +3298,7 @@ configure_scenescape ()
     version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/scenescape.git;
     used_ports=(443);
-    version_skills=release-2026.3.0;
+    version_skills=release-2026.2.0;
     repository_skills=https://github.com/open-edge-platform/skills.git;
     skills=(scenescape-setup)
 }
@@ -3503,8 +3503,6 @@ configure_video_search_and_summarization ()
     workspace="$(ensure_project_path)/video-search-and-summarization";
     version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/edge-ai-libraries.git";
-    version_skills=release-2026.3.0;
-    repository_skills="https://github.com/open-edge-platform/skills.git";
     skills=(vss-search-index vss-summarize-video);
     export APP_HOST_PORT=${APP_HOST_PORT:-12345};
     used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640);
@@ -3513,6 +3511,7 @@ configure_video_search_and_summarization ()
     export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct;
     export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en;
     export OD_MODEL_NAME=yolov8l-worldv2;
+    export ASR_MODEL=whisper-base;
     export TEXT_EMBEDDING_MODEL=QwenText/qwen3-embedding-0.6b;
     export OVMS_LLM_MODEL_NAME=meta-llama/Llama-3.2-3B-Instruct;
     export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false;
@@ -3529,6 +3528,7 @@ configure_video_search_and_summarization ()
     export VLM_COMPRESSION_WEIGHT_FORMAT=int4;
     export LLM_COMPRESSION_WEIGHT_FORMAT=int4;
     export SDK_USE_OPENVINO=true;
+    export DATAPREP_DETECTION_MODEL=OpenVINO/yolox_s-int8-ov;
     export DATAPREP_EMBEDDING_DEVICE=${device^^};
     export DATAPREP_DETECTION_DEVICE=${device^^};
     export MME_EMBEDDING_DEVICE=${device^^};
@@ -5716,6 +5716,7 @@ debian_85_install_video_search_and_summarization ()
     else
         ensure_disk_size 8000;
         ensure_ports_open install video_search_and_summarization "${used_ports[@]}";
+        ensure_container_namespace install video_search_and_summarization vss-model-download;
         echo "@@STEP Cloning repository";
         ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization;
         echo "@@STEP Configuring models";
@@ -5729,7 +5730,7 @@ debian_85_install_video_search_and_summarization ()
         sed -i 's|"Unified Summarization/Search UI is now available.*"|""|' .setup.sh;
         . ./.setup.sh --search-and-summary;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        ensure_skills add -- "${skills[@]/#/.github/skills/}";
         verify_video_search_and_summarization;
     fi;
     local device=$(ensure_parse_device "$@");
@@ -6535,8 +6536,7 @@ debian_90_install_smart_kiosk_assistant ()
         ensure_ports_open install smart_kiosk_assistant "${used_ports[@]}";
         ensure_git_clone "$workspace" "$version" "$repository";
         cd "$workspace"/smart-kiosk-assistant;
-        . .env.example;
-        used_models+=("$OVMS_MODEL_NAME");
+        used_models+=("$(grep -m1 ^OVMS_MODEL_NAME= .env.example | cut -f2 -d=)");
         ensure_hf_token "${used_models[@]}";
         sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env.example;
         sed -i "s|^RENDER_GID=.*|RENDER_GID=$(getent group render | cut -d: -f3 || echo 992)|" .env.example;
@@ -6586,7 +6586,7 @@ debian_90_install_smart_parking ()
         echo "@@STEP @@IF ^Download ([a-z0-9_]+.mp4)[.][.][.] @@THEN Downloading \\1";
         cd "$workspace/metro-vision-ai-app-recipe";
         sed -i 's|curl | curl -f |' smart-parking/install.sh;
-        ./install.sh smart-parking $(ensure_ip);
+        yes | ./install.sh smart-parking $(ensure_ip);
         verify_smart_parking;
     fi;
     local device=$(ensure_parse_device "$@");
@@ -6945,9 +6945,14 @@ EOF
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
+debian_90_license_smart_parking () 
+{ 
+    ensure_license_use_model YOLO11S;
+    echo "Model license: https://github.com/ultralytics/ultralytics/blob/main/LICENSE"
+}
 debian_90_license_uncrewed_aerial_vehicle_vision_analytics () 
 { 
-    ensure_license_use_model YOLO11s;
+    ensure_license_use_model YOLO11S;
     echo "Model license: https://github.com/ultralytics/ultralytics/blob/main/LICENSE";
     ensure_license_use_model InternVL2-1B;
     echo "Model terms: https://huggingface.co/OpenGVLab/InternVL2-1B"
@@ -8362,7 +8367,8 @@ debian_90_stop_loss_prevention ()
         pkill -f "python3 benchmark.py" || true;
         make down-lp || true;
         cd src && docker compose down -v --remove-orphans || true
-    } || true
+    } || true;
+    docker volume rm -f lp-mcp-data || true
 }
 debian_90_stop_multi_modal_patient_monitoring () 
 { 
@@ -8905,7 +8911,7 @@ ensure_container_namespace ()
             ensure_prop set started/$name/containers "$*"
         ;;
     esac;
-    local running_containers=" $(docker ps --format '{{.Name}}' | tr '\n' ' ') ";
+    local running_containers=" $(docker ps --format '{{.Names}}' | tr '\n' ' ') ";
     local c stopper mname mpath;
     for c in "$@";
     do
@@ -8922,7 +8928,7 @@ ensure_container_namespace ()
             ( set -e;
             $stopper "$mname" -- ) 1>&2 || true;
         done;
-        running_containers=" $(docker ps --format '{{.Name}}' | tr '\n' ' ') ";
+        running_containers=" $(docker ps --format '{{.Names}}' | tr '\n' ' ') ";
         [[ "$running_containers" = *" $c "* ]] || continue;
         printf "${red}Container %s is occupied${reset}\n" "$c" 1>&2;
         docker ps 1>&2;
@@ -10469,18 +10475,27 @@ ensure_skills ()
     case "$op" in 
         add)
             local version="${2:?}";
-            local repository="${3:?}";
-            shift 3;
-            local tmpdir p name;
-            ensure_tmpdir create tmpdir skills;
-            ensure_git_export "$tmpdir" "$version" "$repository" "$@";
             mkdir -p "$HOME"/.agents/skills;
-            for p in "$@";
-            do
-                ensure_rm "$HOME/.agents/skills/${p##*/}";
-                cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
-            done;
-            ensure_tmpdir destroy "$tmpdir"
+            if [ "$version" = "--" ]; then
+                shift 2;
+                for p in "$@";
+                do
+                    ensure_rm "$HOME/.agents/skills/${p##*/}";
+                    cp -r "$p" "$HOME"/.agents/skills/;
+                done;
+            else
+                local repository="${3:?}";
+                shift 3;
+                local tmpdir p name;
+                ensure_tmpdir create tmpdir skills;
+                ensure_git_export "$tmpdir" "$version" "$repository" "$@";
+                for p in "$@";
+                do
+                    ensure_rm "$HOME/.agents/skills/${p##*/}";
+                    cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
+                done;
+                ensure_tmpdir destroy "$tmpdir";
+            fi
         ;;
         remove)
             local names=("${@##*/}");
@@ -11752,7 +11767,7 @@ verify_pallet_defect_detection ()
         echo "warehouse.avi missing" 1>&2;
         return 1
     };
-    [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ] || { 
+    [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/model.bin ] || { 
         echo "model.bin missing" 1>&2;
         return 1
     }
