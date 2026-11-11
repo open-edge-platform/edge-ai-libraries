@@ -81,6 +81,7 @@ ov.save_model(ppp.build(), "modified_yolov8n/yolov8n.xml")
 debian_90_start_video_processing_for_nvr () {
   configure_video_processing_for_nvr "$@"
   debian_90_stop_video_processing_for_nvr "$@"
+  ensure_container_namespace start video_processing_for_nvr $(ensure_container_parse_names "$workspace"/video-processing-for-nvr/docker/*.yml)
 
   [ ! -r "$workspace"/.device ] || set -- "$@" --"$(< "$workspace"/.device)"
   local device=$(ensure_parse_device "$@")

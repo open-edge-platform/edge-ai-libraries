@@ -33,6 +33,7 @@ install_geti () {
 start_geti () {
   configure_geti "$@"
   ensure_ports_open start geti "${used_ports[@]}"
+  ensure_container_namespace start geti geti-app
 
   mkdir -p "$workspace"/geti-data
   docker run --rm --name geti-app -d \

@@ -80,6 +80,7 @@ EOF
 debian_90_start_multimodal_weld_defect_detection () {
   configure_multimodal_weld_defect_detection "$@"
   ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}"
+  ensure_container_namespace start multimodal_weld_defect_detection $(ensure_container_parse_names "$workspace"/industrial-edge-insights-multimodal/*.yml)
 
   local device="$(ensure_parse_device "$@")"
   [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device

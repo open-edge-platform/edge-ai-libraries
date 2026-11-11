@@ -77,6 +77,7 @@ EOF
 debian_90_start_image_based_video_search () {
   configure_image_based_video_search "$@"
   ensure_ports_open start image_based_video_search "${used_ports[@]}"
+  ensure_container_namespace start image_based_video_search $(ensure_container_parse_names "$workspace"/image-based-video-search/compose.yml)
 
   cd "$workspace"/image-based-video-search
   docker compose up -d

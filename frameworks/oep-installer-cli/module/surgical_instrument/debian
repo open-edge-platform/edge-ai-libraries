@@ -58,6 +58,7 @@ debian_90_install_surgical_instrument () {
  
 debian_90_start_surgical_instrument () {
   configure_surgical_instrument "$@"
+  ensure_container_namespace start surgical_instrument $(ensure_container_parse_names "$workspace"/surgical-instrument/docker/*.yaml)
 
   cd "$workspace"/surgical-instrument
 
