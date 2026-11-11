@@ -61,13 +61,13 @@ import {
   Eye,
   Film,
   Infinity as InfinityIcon,
+  Pin,
   Redo2,
   Save,
   SlidersHorizontal,
   Timer,
   Undo2,
 } from "lucide-react";
-import { CpuPinIcon } from "@/components/icons/CpuPinIcon.tsx";
 import { CpuCorePinningDialog } from "@/features/pipeline-editor/CpuCorePinningDialog.tsx";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { NavigationGuard } from "@/components/shared/NavigationGuard";
@@ -640,8 +640,6 @@ export const Pipelines = () => {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                {/* aria-disabled instead of disabled so the tooltip still
-                    opens on hover and can explain why it is unavailable. */}
                 <Button
                   onClick={() => !isSimpleMode && setCpuPinningDialogOpen(true)}
                   aria-disabled={isSimpleMode}
@@ -654,7 +652,7 @@ export const Pipelines = () => {
                       : undefined
                   }
                 >
-                  <CpuPinIcon
+                  <Pin
                     className={
                       !isSimpleMode && pinnedCpuCores.length > 0
                         ? "h-5 w-5 text-brand-accent"
@@ -1111,7 +1109,7 @@ export const Pipelines = () => {
           <CpuCorePinningDialog
             open={cpuPinningDialogOpen}
             onOpenChange={setCpuPinningDialogOpen}
-            selectedCores={pinnedCpuCores}
+            pinnedCores={pinnedCpuCores}
             onApply={setPinnedCpuCores}
           />
         )}

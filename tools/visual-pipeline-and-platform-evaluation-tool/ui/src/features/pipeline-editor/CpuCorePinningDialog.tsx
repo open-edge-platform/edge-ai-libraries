@@ -1,5 +1,3 @@
-// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
 import { useEffect, useMemo, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 
@@ -18,7 +16,6 @@ import { Separator } from "@/components/ui/separator";
 import { useAppSelector } from "@/store/hooks";
 import { selectCpuTopology } from "@/store/reducers/devices";
 
-/** Order the core groups are rendered in: fastest first, lowest power last. */
 const CORE_TYPE_ORDER: CpuCoreType[] = ["P", "E", "LPE", "UNIFORM"];
 
 const CORE_TYPE_LABELS: Record<CpuCoreType, string> = {
@@ -38,8 +35,8 @@ const CORE_TYPE_DESCRIPTIONS: Record<CpuCoreType, string> = {
 type CpuCorePinningDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Logical CPU ids the variant is currently pinned to. Empty means all cores. */
-  selectedCores: number[];
+  /** Empty means all cores. */
+  pinnedCores: number[];
   onApply: (cores: number[]) => void;
 };
 
@@ -70,17 +67,17 @@ const formatCoreList = (cores: number[]): string => {
 export const CpuCorePinningDialog = ({
   open,
   onOpenChange,
-  selectedCores,
+  pinnedCores,
   onApply,
 }: CpuCorePinningDialogProps) => {
   const topology = useAppSelector(selectCpuTopology);
-  const [draft, setDraft] = useState<number[]>(selectedCores);
+  const [draft, setDraft] = useState<number[]>(pinnedCores);
 
   useEffect(() => {
     if (open) {
-      setDraft(selectedCores);
+      setDraft(pinnedCores);
     }
-  }, [open, selectedCores]);
+  }, [open, pinnedCores]);
 
   const groups = useMemo(() => {
     const cores = topology?.cores ?? [];
@@ -213,7 +210,7 @@ export const CpuCorePinningDialog = ({
             </div>
 
             {isLpeOnlySelection && (
-              <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs">
+              <div className="flex items-start gap-2 border border-destructive/40 bg-destructive/10 p-2 text-xs">
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                 <span>
                   Only low-power efficient cores are selected. OpenVINO refuses
