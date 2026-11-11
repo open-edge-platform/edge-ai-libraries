@@ -6,14 +6,13 @@
 set -euo pipefail
 
 MODEL_PATH="${MODEL_PATH:-Qwen/Qwen3.6-35B-A3B}"
-SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-${MODEL_PATH}}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-61440}"
 LOAD_QUANTIZATION="${LOAD_QUANTIZATION:-fp8}"
 TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-1}"
 GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.8}"
 
-printf 'MODEL_PATH is %s\nSERVED_MODEL_NAME is %s\nMAX_MODEL_LEN is %s\nLOAD_QUANTIZATION is %s\nTENSOR_PARALLEL_SIZE is %s\nGPU_MEM_UTIL is %s\n' \
-    "${MODEL_PATH}" "${SERVED_MODEL_NAME}" "${MAX_MODEL_LEN}" \
+printf 'MODEL_PATH is %s\nMAX_MODEL_LEN is %s\nLOAD_QUANTIZATION is %s\nTENSOR_PARALLEL_SIZE is %s\nGPU_MEM_UTIL is %s\n' \
+    "${MODEL_PATH}" "${MAX_MODEL_LEN}" \
     "${LOAD_QUANTIZATION}" "${TENSOR_PARALLEL_SIZE}" "${GPU_MEM_UTIL}"
 
 lora_args=()
@@ -27,7 +26,7 @@ VLLM_WORKER_MULTIPROC_METHOD=spawn \
 exec vllm serve \
     --model "${MODEL_PATH}" \
     --dtype=half \
-    --served-model-name "${SERVED_MODEL_NAME}" \
+    --served-model-name "${MODEL_PATH}" \
     --enforce-eager \
     --port 8000 \
     --host 0.0.0.0 \

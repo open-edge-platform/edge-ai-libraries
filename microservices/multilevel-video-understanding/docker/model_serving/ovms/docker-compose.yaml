@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Experimental backend: real model/video inference is not yet validated.
-# Select MODEL_SERVING_BACKEND=ovms and VLM_VIDEO_FORMAT=ovms for the application.
+# Select MODEL_SERVING_BACKEND=ovms; the application derives its video encoding.
 # OVMS_SOURCE_MODEL must contain compatible OpenVINO VLM artifacts, not PyTorch weights.
-# The API model alias follows the application's SERVED_MODEL_NAME/LLM_MODEL defaults.
+# The API model name follows the application's LLM_MODEL default.
 # Set HOST_UID/HOST_GID to the host user's IDs. Create OVMS_MODEL_REPOSITORY
 # (default: ~/models/ovms) with write permission for that user before starting.
 
@@ -47,7 +47,7 @@ services:
       - --source_model
       - ${OVMS_SOURCE_MODEL:-OpenVINO/Qwen3.6-35B-A3B-int4-ov}
       - --model_name
-      - ${SERVED_MODEL_NAME:-${LLM_MODEL:-Qwen/Qwen3.6-35B-A3B}}
+      - ${LLM_MODEL:-Qwen/Qwen3.6-35B-A3B}
       - --model_repository_path
       - /models
       - --task

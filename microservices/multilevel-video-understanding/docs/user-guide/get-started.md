@@ -46,7 +46,7 @@ cd edge-ai-libraries/microservices/multilevel-video-understanding
 # Change to mirror endpoint if you are in China and want to use the mirror site for Hugging Face.
 export HF_ENDPOINT=https://hf-mirror.com
 
-export TAG=2026.2.0
+export TAG=2026.3.0
 source docker/set_env.sh
 ```
 
@@ -77,7 +77,7 @@ Provide the `multilevel-video-understanding` image in one of two ways:
 - **Option 2.** Download the prebuilt image from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
 
   ```bash
-  docker pull intel/multilevel-video-understanding:2026.2.0
+  docker pull intel/multilevel-video-understanding:2026.3.0
   ```
 
 > [!NOTE]
@@ -95,10 +95,8 @@ chmod +x ./setup_docker.sh
 
 Start **both** the on-device model serving and the microservice together. This is the default. Compose pulls `intel/llm-scaler-vllm:0.14.0-b8.3.2` automatically and names the container `model-serving-llm-scaler`. The microservice `depends_on` the serving being **healthy**, so on the first run Compose waits while the model downloads, loads, and profiles.
 
-The model endpoint binds to host loopback (`127.0.0.1`) by default and has no authentication. To expose it to other machines, set `VLLM_BIND_HOST` explicitly and provide authentication in front of it. The llm-scaler container runs as root to apply the video compatibility patch to its installed Python module; privileged mode is not required.
-
 ```bash
-export TAG=2026.2.0
+export TAG=2026.3.0
 source docker/set_env.sh
 ./setup_docker.sh            # or: ./setup_docker.sh --prod
 ```
@@ -112,7 +110,7 @@ If you already have an OpenAI-compatible serving running — a **warm local llm-
 export VLM_BASE_URL=http://<serving-host>:41091/v1
 export LLM_BASE_URL=http://<serving-host>:41091/v1
 
-export TAG=2026.2.0
+export TAG=2026.3.0
 source docker/set_env.sh
 ./setup_docker.sh --light
 ```
@@ -127,15 +125,15 @@ docker ps
 
 ```text
 CONTAINER ID   IMAGE                                          PORTS                                         NAMES
-a1b2c3d4e5f6   intel/llm-scaler-vllm:0.14.0-b8.3.2            127.0.0.1:41091->8000/tcp                     model-serving-llm-scaler
-6f00712bf4b6   intel/multilevel-video-understanding:2026.2.0    0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
+a1b2c3d4e5f6   intel/llm-scaler-vllm:0.14.0-b8.3.2            0.0.0.0:41091->8000/tcp                       model-serving-llm-scaler
+6f00712bf4b6   intel/multilevel-video-understanding:2026.3.0    0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   multilevel-video-understanding
 ```
 
 ```bash
 # Follow the model-serving startup (weights download + compile on first run):
 docker logs -f model-serving-llm-scaler  # ready when it serves /v1/models
 # Then the microservice:
-docker logs -f docker-multilevel-video-understanding-1
+docker logs -f multilevel-video-understanding
 ```
 
 ```text

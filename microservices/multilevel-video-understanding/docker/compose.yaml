@@ -19,6 +19,7 @@ services:
         https_proxy: ${https_proxy:-}
         no_proxy: ${no_proxy:-localhost,127.0.0.1,model-serving,multilevel-video-understanding}
     image: ${REGISTRY:-}multilevel-video-understanding:${TAG:-latest}
+    container_name: multilevel-video-understanding
     ports:
       - ${SERVICE_PORT:-8192}:8000
     networks:
@@ -44,11 +45,11 @@ services:
       - no_proxy=${no_proxy:-localhost,127.0.0.1,model-serving,multilevel-video-understanding}
       - DEBUG=${DEBUG:-false}
       # Both roles use the stable model-serving DNS name on app-network.
-      - VLM_MODEL_NAME=${VLM_MODEL_NAME:-${SERVED_MODEL_NAME:-${LLM_MODEL:-Qwen/Qwen3.6-35B-A3B}}}
+      - MODEL_SERVING_BACKEND=${MODEL_SERVING_BACKEND:-llm-scaler}
+      - VLM_MODEL_NAME=${VLM_MODEL_NAME:-${LLM_MODEL:-Qwen/Qwen3.6-35B-A3B}}
       - VLM_BASE_URL=${VLM_BASE_URL:-http://model-serving:8000/v1}
       - VLM_API_KEY=${VLM_API_KEY:-EMPTY}
-      - VLM_VIDEO_FORMAT=${VLM_VIDEO_FORMAT:-vllm}
-      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-${SERVED_MODEL_NAME:-${LLM_MODEL:-Qwen/Qwen3.6-35B-A3B}}}
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-${LLM_MODEL:-Qwen/Qwen3.6-35B-A3B}}
       - LLM_BASE_URL=${LLM_BASE_URL:-http://model-serving:8000/v1}
       - LLM_API_KEY=${LLM_API_KEY:-EMPTY}
       - MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS:-6}

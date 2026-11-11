@@ -160,7 +160,7 @@ if [ "$UP_CONTAINERS" = true ]; then
         $DOCKER_CMD up -d --no-deps multilevel-video-understanding
       elif [ "$USE_LOCAL_VLLM" = true ]; then
         echo "Local model-serving not healthy yet — starting the full stack instead."
-        echo "(model download, loading and profiling can take several minutes)"
+        echo "(model download, loading and profiling can take 30+ minutes)"
         $DOCKER_CMD up -d
       else
         echo "Warning: external serving not reachable at ${VLLM_HEALTH_URL}; starting multilevel only (it will retry at runtime)."
@@ -169,7 +169,7 @@ if [ "$UP_CONTAINERS" = true ]; then
     else
       # Default (end-to-end): bring up the bundled serving + microservice together.
       echo "Starting all services for $ENVIRONMENT environment..."
-      echo "(model download, loading and profiling can take several minutes)"
+      echo "(model download, loading and profiling can take 30+ minutes)"
       $DOCKER_CMD up -d
     fi
     echo "==== Setup complete! ===="
