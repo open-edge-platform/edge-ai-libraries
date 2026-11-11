@@ -73,6 +73,7 @@ debian_90_start_smart_parking () {
   [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device
 
   cd "$workspace"/metro-vision-ai-app-recipe
+  ensure_container_namespace start smart_parking $(ensure_container_parse_names docker-compose.yml)
   docker compose up -d
 
   local start_time=$SECONDS elapsed

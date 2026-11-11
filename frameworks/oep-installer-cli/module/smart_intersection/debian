@@ -78,6 +78,7 @@ debian_90_start_smart_intersection () {
   [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device"
 
   cd "$workspace"/metro-vision-ai-app-recipe
+  ensure_container_namespace start smart_intersection $(ensure_container_parse_names docker-compose.yml)
   export SUPASS=$(cat smart-intersection/src/secrets/supass)
   docker compose up -d 
 
@@ -89,7 +90,7 @@ debian_90_start_smart_intersection () {
 
 debian_90_stop_smart_intersection () {
   configure_smart_intersection "$@"
-  cd "$workspace"/metro-vision-ai-app-recipe && docker compose -f compose-scenescape.yml down -v --remove-orphans || true
+  cd "$workspace"/metro-vision-ai-app-recipe && docker compose down -v --remove-orphans || true
 }
 
 debian_90_remove_smart_intersection () {
