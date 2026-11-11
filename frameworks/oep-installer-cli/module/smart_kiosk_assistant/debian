@@ -64,8 +64,7 @@ debian_90_install_smart_kiosk_assistant () {
     cd "$workspace"/smart-kiosk-assistant
 
     # add ovms model
-    . .env.example
-    used_models+=("$OVMS_MODEL_NAME")
+    used_models+=("$(grep -m1 ^OVMS_MODEL_NAME= .env.example | cut -f2 -d=)")
 
     # add HF_TOKEN
     ensure_hf_token "${used_models[@]}"

@@ -5,7 +5,7 @@ configure_scenescape () {
   repository=https://github.com/open-edge-platform/scenescape.git
   used_ports=(443)
 
-  version_skills=release-2026.3.0
+  version_skills=release-2026.2.0
   repository_skills=https://github.com/open-edge-platform/skills.git
   skills=(scenescape-setup)
 }

@@ -52,7 +52,7 @@ debian_90_install_smart_parking () {
     echo "@@STEP @@IF ^Download ([a-z0-9_]+.mp4)[.][.][.] @@THEN Downloading \\1"
     cd "$workspace/metro-vision-ai-app-recipe"
     sed -i 's|curl | curl -f |' smart-parking/install.sh
-    ./install.sh smart-parking $(ensure_ip)
+    yes | ./install.sh smart-parking $(ensure_ip)
     verify_smart_parking
   fi
 
@@ -106,5 +106,10 @@ debian_90_stop_smart_parking () {
 debian_90_remove_smart_parking () {
   debian_90_stop_smart_parking "$@" || true
   ensure_rm "$workspace"
+}
+
+debian_90_license_smart_parking () {
+  ensure_license_use_model YOLO11S
+  echo "Model license: https://github.com/ultralytics/ultralytics/blob/main/LICENSE"
 }
 
