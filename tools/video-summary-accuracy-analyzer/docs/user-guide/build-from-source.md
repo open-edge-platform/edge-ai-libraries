@@ -17,7 +17,7 @@ Once all the images are built, you can proceed to start the service using the `d
 Clone the Edge AI Libraries repository and change to its root directory:
 
 ```bash
-git clone --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --branch release-2026.3.0 https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries/tools/video-summary-accuracy-analyzer
 ```
 
@@ -29,7 +29,7 @@ The `compose.yaml` file names the images as `${REGISTRY:-intel/}video-accuracy-e
 
 ```bash
 export REGISTRY="intel/"
-export TAG=latest
+export TAG=2026.3.0-rc1
 ```
 
 The `scripts/setup_env.sh` script also sets these defaults when they are not already defined.
@@ -57,7 +57,7 @@ To build the Docker image for the `video-accuracy-eval-ui` service, follow these
 1. Build the Docker image using the provided `Dockerfile`:
 
    ```bash
-   docker build -t "${REGISTRY:-intel/}video-accuracy-eval-ui:${TAG:-latest}" -f ui/docker/Dockerfile .
+   docker build -t "${REGISTRY:-intel/}video-accuracy-eval-ui:${TAG:-latest}" -f ui/docker/Dockerfile ui
    ```
 
 2. Verify that the Docker image has been built successfully:
