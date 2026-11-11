@@ -96,9 +96,9 @@ Performance benchmarks are marked `perf` and deselected by default; pass
 | Variable | Default | Meaning |
 |---|---|---|
 | `IMAGE_NAME` | `kv-quant-offload-vllm-xpu:latest` | Docker image tag to build/run. |
-| `MODEL_PATH` | `/models` | Host directory mounted read-only at `/models` in the container. |
-| `MODEL` | `Qwen3.5-9B` | Model path/name under `MODEL_PATH`, passed to vLLM as `/models/${MODEL}`. |
-| `SERVE` | same as `MODEL` | Served model name exposed by the OpenAI-compatible API. |
+| `MODEL_PATH` | `/models` | Host directory (not a model file) mounted read-only at `/models` in the container. Use a plain directory path without a trailing `/`. |
+| `MODEL` | `Qwen3.5-9B` | Model directory name under `MODEL_PATH`, passed to vLLM as `/models/${MODEL}`. Use the bare name, without a leading or trailing `/` and not an absolute path. |
+| `SERVE` | same as `MODEL` | Served model name exposed by the OpenAI-compatible API. Use the bare name, without `/`; clients must send exactly this value as `model`. |
 | `TP` | `1` | Tensor parallel size. |
 | `GPU_MEM_UTIL` | `0.8` | vLLM `--gpu-memory-utilization`. |
 | `MAX_MODEL_LEN` | `8192` | vLLM `--max-model-len`. |
@@ -127,6 +127,20 @@ Performance benchmarks are marked `perf` and deselected by default; pass
 | `FORCE_BUILD` | `0` | See [FORCE_BUILD](#force_build) below. |
 | `DOCKER_BUILD_OPTS` | (empty) | Extra args appended to the `docker build` invocation. |
 | `DOCKER_RUN_OPTS` | (empty) | Extra args appended to the `docker run` invocation. |
+
+#### `MODEL_PATH` / `MODEL` / `SERVE` format
+
+`MODEL_PATH` is mounted as `/models`, and the model is loaded from
+`/models/${MODEL}`. Do not add `/` to any of the three values: a leading `/`
+in `MODEL` produces `/models//...`, an absolute path in `MODEL` points to a
+non-existent location, and a `/` in `SERVE` changes the model name exposed
+by the API.
+
+For example, with the model stored in `/models/Qwen3.5-9B` on the host:
+
+```bash
+MODEL_PATH=/models MODEL=Qwen3.5-9B SERVE=Qwen3.5-9B bash integration/lmcache/vllm/vllm-start.sh
+```
 
 ### `FORCE_BUILD`
 
