@@ -68,6 +68,7 @@ debian_90_start_pallet_defect_detection () {
   [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device
 
   cd "$workspace"/industrial-edge-insights-vision
+  ensure_container_namespace start pallet_defect_detection $(ensure_container_parse_names docker-compose.yml)
   docker compose up -d
 
   local start_time=$SECONDS elapsed
