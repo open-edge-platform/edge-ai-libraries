@@ -36,7 +36,7 @@ debian_90_install_loitering_detection () {
     # setup
     cd "$workspace/metro-vision-ai-app-recipe"
     sed -i 's|curl |curl -f |' loitering-detection/install.sh
-    ./install.sh loitering-detection $(ensure_ip)
+    ./install.sh loitering-detection-ui $(ensure_ip)
     verify_loitering_detection
   fi
 
@@ -56,7 +56,8 @@ debian_90_start_loitering_detection () {
   [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device
 
   cd "$workspace"/metro-vision-ai-app-recipe
-  docker compose -f compose-without-scenescape.yml up -d
+  ensure_container_namespace start loitering_detection $(ensure_container_parse_names docker-compose.yml)
+  docker compose up -d
 
   local start_time=$SECONDS elapsed
   while true; do
@@ -81,7 +82,7 @@ debian_90_stop_loitering_detection () {
   configure_loitering_detection "$@"
   cd "$workspace"/metro-vision-ai-app-recipe && {
     ./sample_stop.sh || true
-    docker compose -f compose-without-scenescape.yml down -v --remove-orphans
+    docker compose down -v --remove-orphans
   } || true
 }
 

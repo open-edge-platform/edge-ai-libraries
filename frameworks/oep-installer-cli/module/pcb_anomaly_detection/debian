@@ -67,6 +67,7 @@ debian_90_start_pcb_anomaly_detection () {
   [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device
   
   cd "$workspace"/industrial-edge-insights-vision
+  ensure_container_namespace start pcb_anomaly_detection $(ensure_container_parse_names docker-compose.yml)
   docker compose up -d --wait
 
   echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
