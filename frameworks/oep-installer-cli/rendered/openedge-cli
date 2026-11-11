@@ -5781,6 +5781,7 @@ debian_85_start_video_search_and_summarization ()
 { 
     configure_video_search_and_summarization "$@";
     ensure_ports_open start video_search_and_summarization "${used_ports[@]}";
+    ensure_container_namespace start video_search_and_summarization $(ensure_container_parse_names "$workspace"/sample-applications/video-search-and-summarization/docker/*.yaml);
     configure_video_search_and_summarization_gated;
     cd "$workspace"/sample-applications/video-search-and-summarization;
     . ./setup.sh --search-and-summary;
@@ -7439,6 +7440,7 @@ debian_90_start_agentic_predictive_maintenance_pipeline ()
 { 
     configure_agentic_predictive_maintenance_pipeline "$@";
     ensure_ports_open start agentic_predictive_maintenance_pipeline "${used_ports[@]}";
+    ensure_container_namespace start agentic_predictive_maintenance_pipeline $(ensure_container_parse_names "$workspace"/agentic-predictive-maintenance-pipeline/docker/compose.*.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_agentic_predictive_maintenance_pipeline_device "${device^^}";
     cd "$workspace"/agentic-predictive-maintenance-pipeline;
@@ -7451,6 +7453,7 @@ debian_90_start_agentic_smart_community ()
 { 
     configure_agentic_smart_community "$@";
     ensure_ports_open start agentic_smart_community "${used_ports[@]}";
+    ensure_container_namespace start agentic_smart_community $(ensure_container_parse_names "$workspace"/agentic-smart-community/docker/compose.yaml);
     cd "$workspace"/agentic-smart-community;
     bash setup_docker.sh;
     echo "@@HIGHLIGHT UI: http://$(ensure_ip):${used_ports[0]}";
@@ -7462,6 +7465,7 @@ debian_90_start_digital_signage ()
 { 
     configure_digital_signage "$@";
     ensure_ports_open start digital_signage "${used_ports[@]}";
+    ensure_container_namespace start digital_signage $(ensure_container_parse_names "$workspace"/docker-compose.yml);
     cd "$workspace";
     make up;
     echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}";
@@ -7472,6 +7476,7 @@ debian_90_start_dine_in ()
 { 
     configure_dine_in "$@";
     ensure_ports_open start dine_in "${ports[@]}";
+    ensure_container_namespace start dine_in $(ensure_container_parse_names "$workspace"/dine-in/docker-compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}";
     cd "$workspace"/dine-in;
@@ -7497,6 +7502,7 @@ debian_90_start_image_based_video_search ()
 { 
     configure_image_based_video_search "$@";
     ensure_ports_open start image_based_video_search "${used_ports[@]}";
+    ensure_container_namespace start image_based_video_search $(ensure_container_parse_names "$workspace"/image-based-video-search/compose.yml);
     cd "$workspace"/image-based-video-search;
     docker compose up -d;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}";
@@ -7506,6 +7512,7 @@ debian_90_start_live_video_alert_agent ()
 { 
     configure_live_video_alert_agent "$@";
     ensure_ports_open start live_video_alert_agent "${used_ports[@]}";
+    ensure_container_namespace start live_video_alert_agent $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-alert-agent/docker/*.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_alert_agent_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-alert-agent;
@@ -7522,6 +7529,7 @@ debian_90_start_live_video_captioning ()
 { 
     configure_live_video_captioning "$@";
     ensure_ports_open start live_video_captioning "${used_ports[@]}";
+    ensure_container_namespace start live_video_captioning $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-captioning/compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-captioning;
@@ -7533,6 +7541,7 @@ debian_90_start_live_video_captioning_rag ()
 { 
     configure_live_video_captioning_rag "$@";
     ensure_ports_open start live_video_captioning_rag "${used_ports[@]}";
+    ensure_container_namespace start live_video_captioning_rag $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-captioning-rag/compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_rag_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-captioning-rag;
@@ -7544,6 +7553,7 @@ debian_90_start_live_video_search ()
 { 
     configure_live_video_search "$@";
     ensure_ports_open start live_video_search "${used_ports[@]}";
+    ensure_container_namespace start live_video_search $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-search/docker/*.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_search_device "$device";
     cd "$workspace"/live-video-analysis/live-video-search;
@@ -7558,10 +7568,10 @@ debian_90_start_loitering_detection ()
 { 
     configure_loitering_detection "$@";
     ensure_ports_open start loitering_detection "${used_ports[@]}";
+    ensure_container_namespace start loitering_detection $(ensure_container_parse_names "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
-    ensure_container_namespace start loitering_detection $(ensure_container_parse_names docker-compose.yml);
     docker compose up -d;
     local start_time=$SECONDS elapsed;
     while true; do
@@ -7583,6 +7593,7 @@ debian_90_start_loss_prevention ()
 { 
     configure_loss_prevention "$@";
     ensure_ports_open start loss_prevention "${used_ports[@]}";
+    ensure_container_namespace start loss_prevention $(ensure_container_parse_names "$workspace"/src/*.yml);
     cd "$workspace";
     local device1="$(ensure_parse_device "$@")";
     local device2="$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ')";
@@ -7615,6 +7626,7 @@ debian_90_start_multi_modal_patient_monitoring ()
 { 
     configure_multi_modal_patient_monitoring "$@";
     ensure_ports_open start multi_modal_patient_monitoring "${used_ports[@]}";
+    ensure_container_namespace start multi_modal_patient_monitoring $(ensure_container_parse_names "$workspace"/multi_modal_patient_monitoring/docker-compose.yaml);
     cd "$workspace"/multi_modal_patient_monitoring;
     local device="$(ensure_parse_device "$@")" d;
     [[ " ${*,,} " != *" --$device "* ]] || echo "${device^^}" > .device;
@@ -7632,6 +7644,7 @@ debian_90_start_multimodal_weld_defect_detection ()
 { 
     configure_multimodal_weld_defect_detection "$@";
     ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}";
+    ensure_container_namespace start multimodal_weld_defect_detection $(ensure_container_parse_names "$workspace"/industrial-edge-insights-multimodal/*.yml);
     local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device;
     cd "$workspace"/industrial-edge-insights-multimodal;
@@ -7701,6 +7714,7 @@ debian_90_start_nicu_warmer ()
 { 
     configure_nicu_warmer "$@";
     ensure_ports_open start nicu_warmer "${used_ports[@]}";
+    ensure_container_namespace start nicu_warmer $(ensure_container_parse_names "$workspace"/NICU-Warmer/docker-compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_nicu_warmer_device "$device";
     cd "$workspace"/NICU-Warmer;
@@ -7713,10 +7727,10 @@ debian_90_start_pallet_defect_detection ()
 { 
     configure_pallet_defect_detection "$@";
     ensure_ports_open start pallet_defect_detection "${used_ports[@]}";
+    ensure_container_namespace start pallet_defect_detection $(ensure_container_parse_names "$workspace"/industrial-edge-insights-vision/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
-    ensure_container_namespace start pallet_defect_detection $(ensure_container_parse_names docker-compose.yml);
     docker compose up -d;
     local start_time=$SECONDS elapsed;
     while true; do
@@ -7750,10 +7764,10 @@ debian_90_start_pcb_anomaly_detection ()
 { 
     configure_pcb_anomaly_detection "$@";
     ensure_ports_open start pcb_anomaly_detection "${used_ports[@]}";
+    ensure_container_namespace start pcb_anomaly_detection $(ensure_container_parse_names "$workspace"/industrial-edge-insights-vision/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
-    ensure_container_namespace start pcb_anomaly_detection $(ensure_container_parse_names docker-compose.yml);
     docker compose up -d --wait;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]";
@@ -7777,6 +7791,7 @@ debian_90_start_person_of_interest ()
 { 
     configure_person_of_interest "$@";
     ensure_ports_open start person_of_interest "${used_ports[@]}";
+    ensure_container_namespace start person_of_interest $(ensure_container_parse_names "$workspace"/person-of-interest/docker-compose*.yml);
     local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)";
     cd "$workspace"/person-of-interest;
@@ -7859,6 +7874,7 @@ debian_90_start_real_time_scene_understanding ()
 { 
     configure_real_time_scene_understanding "$@";
     ensure_ports_open start real_time_scene_understanding "${used_ports[@]}";
+    ensure_container_namespace start real_time_scene_understanding $(ensure_container_parse_names "$workspace"/live-video-analysis/real-time-scene-understanding/compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}";
     cd "$workspace"/live-video-analysis/real-time-scene-understanding;
@@ -7871,6 +7887,7 @@ debian_90_start_scenescape ()
 { 
     configure_scenescape "$@";
     ensure_ports_open start scenescape "${used_ports[@]}";
+    ensure_container_namespace start scenescape $(ensure_container_parse_names "$workspace"/sample_data/compose/compose.*.yml);
     cd "$workspace";
     export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5);
     make init-secrets;
@@ -7883,10 +7900,10 @@ debian_90_start_smart_intersection ()
 { 
     configure_smart_intersection "$@";
     ensure_ports_open start smart_intersection "${used_ports[@]}";
+    ensure_container_namespace start smart_intersection $(ensure_container_parse_names "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device";
     cd "$workspace"/metro-vision-ai-app-recipe;
-    ensure_container_namespace start smart_intersection $(ensure_container_parse_names docker-compose.yml);
     export SUPASS=$(cat smart-intersection/src/secrets/supass);
     docker compose up -d;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}";
@@ -7898,6 +7915,7 @@ debian_90_start_smart_kiosk_assistant ()
 { 
     configure_smart_kiosk_assistant "$@";
     ensure_ports_open start smart_kiosk_assistant "${used_ports[@]}";
+    ensure_container_namespace start smart_kiosk_assistant $(ensure_container_parse_names "$workspace"/smart-kiosk-assistant/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}";
     cd "$workspace"/smart-kiosk-assistant;
@@ -7911,6 +7929,7 @@ debian_90_start_smart_nvr ()
 { 
     configure_smart_nvr "$@";
     ensure_ports_open start smart_nvr "${used_ports[@]}";
+    ensure_container_namespace start smart_nvr $(ensure_container_parse_names "$workspace"/smart-nvr/docker/*.yaml);
     cd "$workspace"/smart-nvr;
     . setup.sh start;
     echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}";
@@ -7920,10 +7939,10 @@ debian_90_start_smart_parking ()
 { 
     configure_smart_parking "$@";
     ensure_ports_open start smart_parking "${used_ports[@]}";
+    ensure_container_namespace start smart_parking $(ensure_container_parse_names "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
-    ensure_container_namespace start smart_parking $(ensure_container_parse_names docker-compose.yml);
     docker compose up -d;
     local start_time=$SECONDS elapsed;
     while true; do
@@ -7945,6 +7964,7 @@ debian_90_start_smart_traffic_intersection_agent ()
 { 
     configure_smart_traffic_intersection_agent "$@";
     ensure_ports_open start smart_traffic_intersection_agent "${used_ports[@]}";
+    ensure_container_namespace start smart_traffic_intersection_agent $(ensure_container_parse_names "$workspace"/smart-traffic-intersection-agent/docker/*.yaml);
     [ ! -r "$workspace"/.device ] || set -- "$@" "$(< "$workspace"/.device)";
     local device=$(ensure_parse_device "$@");
     export VLM_TARGET_DEVICE=${device^^};
@@ -7959,6 +7979,7 @@ debian_90_start_smart_traffic_intersection_agent ()
 debian_90_start_surgical_instrument () 
 { 
     configure_surgical_instrument "$@";
+    ensure_container_namespace start surgical_instrument $(ensure_container_parse_names "$workspace"/surgical-instrument/docker/*.yaml);
     cd "$workspace"/surgical-instrument;
     if [ ! -e models/yolo11n_polyp/best_openvino_model/best.xml ]; then
         printf "${red}Missing yolo11n_polyp${reset}\n" 1>&2;
@@ -7976,6 +7997,7 @@ debian_90_start_suspicious_activity_detection ()
 { 
     configure_suspicious_activity_detection "$@";
     ensure_ports_open start suspicious_activity_detection "${used_ports[@]}";
+    ensure_container_namespace start suspicious_activity_detection $(ensure_container_parse_names "$workspace"/suspicious-activity-detection/docker/*.yaml);
     local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)";
     cd "$workspace"/suspicious-activity-detection;
@@ -7997,6 +8019,7 @@ debian_90_start_take_away ()
 { 
     configure_take_away "$@";
     ensure_ports_open start take_away "${used_ports[@]}";
+    ensure_container_namespace start take_away $(ensure_container_parse_names "$workspace"/take-away/docker-compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}";
     cd "$workspace"/take-away;
@@ -8145,6 +8168,7 @@ debian_90_start_video_processing_for_nvr ()
 { 
     configure_video_processing_for_nvr "$@";
     debian_90_stop_video_processing_for_nvr "$@";
+    ensure_container_namespace start video_processing_for_nvr $(ensure_container_parse_names "$workspace"/video-processing-for-nvr/docker/*.yml);
     [ ! -r "$workspace"/.device ] || set -- "$@" --"$(< "$workspace"/.device)";
     local device=$(ensure_parse_device "$@");
     echo "@@HIGHLIGHT $installer_name start [--gpu|--npu]";
@@ -8164,6 +8188,7 @@ debian_90_start_vippet ()
 { 
     configure_vippet "$@";
     ensure_ports_open start vippet "${used_ports[@]}";
+    ensure_container_namespace start vippet $(ensure_container_parse_names "$workspace"/tools/visual-pipeline-and-platform-evaluation-tool/compose*.yml);
     cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
     make run;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip)";
@@ -8173,6 +8198,7 @@ debian_90_start_visual_search_question_and_answering ()
 { 
     configure_visual_search_question_and_answering "$@";
     ensure_ports_open start visual_search_question_and_answering "${used_ports[@]}";
+    ensure_container_namespace start visual_search_question_and_answering $(ensure_container_parse_names "$workspace"/visual-search-question-and-answering/deployment/docker-compose/*.yaml);
     cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose;
     . ./env.sh;
     docker compose -f compose_milvus.yaml up -d;
@@ -8184,6 +8210,7 @@ debian_90_start_wind_turbine_anomaly_detection ()
 { 
     configure_wind_turbine_anomaly_detection "$@";
     ensure_ports_open start wind_turbine_anomaly_detection "${used_ports[@]}";
+    ensure_container_namespace start wind_turbine_anomaly_detection $(ensure_container_parse_names "$workspace"/industrial-edge-insights-time-series/docker-compose*.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device";
     cd "$workspace"/industrial-edge-insights-time-series;
@@ -8566,6 +8593,7 @@ debian_95_start_smart_route_planning_agent ()
 { 
     configure_smart_route_planning_agent "$@";
     ensure_ports_open start smart_route_planning_agent "${used_ports[@]}";
+    ensure_container_namespace start smart_route_planning_agent $(ensure_container_parse_names "$workspace"/smart-route-planning-agent/src/compose.yaml);
     cd "$workspace"/smart-route-planning-agent;
     . ./setup.sh --run;
     echo "@@HIGHLIGHT http://$(ensure_ip):${used_ports[0]}";
@@ -8903,7 +8931,7 @@ ensure_container_namespace ()
 }
 ensure_container_parse_names () 
 { 
-    grep -F container_name: "$@" | grep -v '[${]' | cut -f2 -d: | tr '\n' ' '
+    awk '/^  *container_name: /{print$NF}' "$@" | tr '\n' ' '
 }
 ensure_disk_size () 
 { 
@@ -10865,6 +10893,7 @@ start_geti ()
 { 
     configure_geti "$@";
     ensure_ports_open start geti "${used_ports[@]}";
+    ensure_container_namespace start geti geti-app;
     mkdir -p "$workspace"/geti-data;
     docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=${used_ports[0]} -p ${used_ports[0]}:${used_ports[0]} -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";

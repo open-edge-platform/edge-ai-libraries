@@ -2493,7 +2493,7 @@ ensure_container_namespace ()
 }
 ensure_container_parse_names () 
 { 
-    grep -F container_name: "$@" | grep -v '[${]' | cut -f2 -d: | tr '\n' ' '
+    awk '/^  *container_name: /{print$NF}' "$@" | tr '\n' ' '
 }
 ensure_disk_size () 
 { 
@@ -3729,6 +3729,7 @@ start_geti ()
 { 
     configure_geti "$@";
     ensure_ports_open start geti "${used_ports[@]}";
+    ensure_container_namespace start geti geti-app;
     mkdir -p "$workspace"/geti-data;
     docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=${used_ports[0]} -p ${used_ports[0]}:${used_ports[0]} -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";

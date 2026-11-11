@@ -4533,7 +4533,7 @@ ensure_container_namespace ()
 }
 ensure_container_parse_names () 
 { 
-    grep -F container_name: "$@" | grep -v '[${]' | cut -f2 -d: | tr '\n' ' '
+    awk '/^  *container_name: /{print$NF}' "$@" | tr '\n' ' '
 }
 ensure_disk_size () 
 { 
