@@ -120,6 +120,7 @@ debian_85_install_video_search_and_summarization () {
 debian_85_start_video_search_and_summarization () {
   configure_video_search_and_summarization "$@"
   ensure_ports_open start video_search_and_summarization "${used_ports[@]}"
+  ensure_container_namespace start video_search_and_summarization $(ensure_container_parse_names "$workspace"/sample-applications/video-search-and-summarization/docker/*.yaml)
 
   configure_video_search_and_summarization_gated
   cd "$workspace"/sample-applications/video-search-and-summarization

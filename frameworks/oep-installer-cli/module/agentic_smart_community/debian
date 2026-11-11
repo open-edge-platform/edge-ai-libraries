@@ -50,6 +50,7 @@ debian_90_install_agentic_smart_community () {
 debian_90_start_agentic_smart_community () {
   configure_agentic_smart_community "$@"
   ensure_ports_open start agentic_smart_community "${used_ports[@]}"
+  ensure_container_namespace start agentic_smart_community $(ensure_container_parse_names "$workspace"/agentic-smart-community/docker/compose.yaml)
 
   cd "$workspace"/agentic-smart-community
   bash setup_docker.sh

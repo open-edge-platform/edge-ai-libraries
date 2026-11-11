@@ -51,6 +51,7 @@ debian_90_install_smart_traffic_intersection_agent () {
 debian_90_start_smart_traffic_intersection_agent () {
   configure_smart_traffic_intersection_agent "$@"
   ensure_ports_open start smart_traffic_intersection_agent "${used_ports[@]}"
+  ensure_container_namespace start smart_traffic_intersection_agent $(ensure_container_parse_names "$workspace"/smart-traffic-intersection-agent/docker/*.yaml)
 
   [ ! -r "$workspace"/.device ] || set -- "$@" "$(< "$workspace"/.device)"
   local device=$(ensure_parse_device "$@")

@@ -51,6 +51,7 @@ EOF
 debian_95_start_smart_route_planning_agent () {
   configure_smart_route_planning_agent "$@"
   ensure_ports_open start smart_route_planning_agent "${used_ports[@]}"
+  ensure_container_namespace start smart_route_planning_agent $(ensure_container_parse_names "$workspace"/smart-route-planning-agent/src/compose.yaml)
 
   cd "$workspace"/smart-route-planning-agent
   . ./setup.sh --run

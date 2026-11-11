@@ -66,6 +66,7 @@ EOF
 debian_90_start_digital_signage () {
   configure_digital_signage "$@"
   ensure_ports_open start digital_signage "${used_ports[@]}"
+  ensure_container_namespace start digital_signage $(ensure_container_parse_names "$workspace"/docker-compose.yml)
 
   cd "$workspace"
   make up
