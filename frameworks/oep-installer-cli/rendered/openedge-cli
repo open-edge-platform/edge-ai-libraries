@@ -2859,6 +2859,7 @@ POSTGRES_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random |
 MQTT_USER=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MQTT_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32
+DATAPREP_DETECTION_MODEL=OpenVINO/yolox_s-int8-ov
 DATAPREP_EMBEDDING_DEVICE=${device^^}
 DATAPREP_DETECTION_DEVICE=${device^^}
 MME_EMBEDDING_DEVICE=${device^^}
