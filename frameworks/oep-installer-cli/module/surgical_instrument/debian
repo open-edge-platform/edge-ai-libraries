@@ -11,7 +11,7 @@ debian_90_profile_surgical_instrument () {
 }
 
 verify_surgical_instrument () {
-  [ -d "$workspace"/surgical-instrument/videos/polyp_test.mp4 ] || {
+  [ -e "$workspace"/surgical-instrument/videos/polyp_test.mp4 ] || {
     echo "Missing polyp_test.mp4" >&2
     return 1
   }
