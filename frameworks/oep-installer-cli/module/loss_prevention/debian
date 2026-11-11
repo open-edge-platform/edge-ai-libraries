@@ -185,6 +185,7 @@ debian_90_stop_loss_prevention () {
     make down-lp || true
     cd src && docker compose down -v --remove-orphans || true
   } || true
+  docker volume rm -f lp-mcp-data || true
 }
 
 debian_90_remove_loss_prevention () {
