@@ -12,8 +12,8 @@ import os
 import time
 from datetime import datetime, timezone
 
+import cv2
 import requests
-from moviepy import VideoFileClip
 
 
 def get_video_details(video_file_path):
@@ -28,14 +28,15 @@ def get_video_details(video_file_path):
     """
     file_size_mb = os.path.getsize(video_file_path) / (1024 * 1024)
 
-    clip = None
+    cap = cv2.VideoCapture(video_file_path)
     try:
-        clip = VideoFileClip(video_file_path)
-        duration = clip.duration
-        fps = clip.fps
+        if not cap.isOpened():
+            raise ValueError(f"Unable to open video file: {video_file_path}")
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        duration = frame_count / fps if fps > 0 else 0.0
     finally:
-        if clip is not None:
-            clip.close()
+        cap.release()
 
     return {
         "File_Size (MB)": round(file_size_mb, 2),
