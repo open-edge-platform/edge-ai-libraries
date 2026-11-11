@@ -80,7 +80,7 @@
       "expectations": [
         "Runs or describes running APP_ROOT=\"$(bash \"$SKILL_DIR/scripts/vss-bootstrap.sh\")\" from the vss-pipeline-config skill directory before citing or tuning VSS source files.",
         "States that an existing VSS checkout is detected by walking up from the current directory and inspecting the enclosing git repo, and is reused without re-cloning.",
-        "States that when no checkout is found, the bootstrap performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main.",
+        "States that when no checkout is found, the bootstrap performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from release-2026.3.0.",
         "Says to cd into the resolved APP_ROOT before running pipeline-config commands or inspecting source files.",
         "Mentions override variables VSS_REPO_URL, VSS_REPO_BRANCH, and VSS_CLONE_DIR for a fork, branch, or specific checkout directory."
       ]
@@ -89,13 +89,13 @@
       "id": 90,
       "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
       "prompt": "I'm getting choppy summaries on a warehouse forklift video — the chunks feel too coarse and I think we're missing quick movements between frames. Can you tune the frames-per-chunk and chunk duration so we catch more of these short events, and let me know if I should also turn on the audio transcript for this one?",
-      "expected_output": "Runs the bundled scripts/vss-bootstrap.sh unconditionally as a first step, even though the prompt never mentioned setup or cloning, using the enclosing git repo's remote to detect and reuse an existing VSS checkout or fork, or otherwise performing a shallow single-branch sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before tuning frames-per-chunk, chunk duration, or audio transcript settings.",
+      "expected_output": "Runs the bundled scripts/vss-bootstrap.sh unconditionally as a first step, even though the prompt never mentioned setup or cloning, using the enclosing git repo's remote to detect and reuse an existing VSS checkout or fork, or otherwise performing a shallow single-branch sparse checkout of sample-applications/video-search-and-summarization from release-2026.3.0, then cd's into the resolved app root before tuning frames-per-chunk, chunk duration, or audio transcript settings.",
       "files": [],
       "expectations": [
         "The answer runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) first, before doing any of the requested pipeline-tuning work, even though the prompt never asked about setup, location, or cloning.",
         "The bootstrap check determines whether the current location is already a valid VSS checkout by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) to see if it points at open-edge-platform/edge-ai-libraries or a fork of it, rather than merely checking for local marker files.",
         "If that remote check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the answer states it is reused as-is with NO re-clone performed.",
-        "If no valid checkout or matching remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from main.",
+        "If no valid checkout or matching remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from release-2026.3.0.",
         "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's real commands for tuning frames-per-chunk, chunk duration, or audio transcript."
       ]
     }

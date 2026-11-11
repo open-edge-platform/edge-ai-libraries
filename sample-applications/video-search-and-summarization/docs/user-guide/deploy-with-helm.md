@@ -27,17 +27,17 @@ There are 2 options to get the charts in your workspace:
 Use the following command to pull the Helm chart from Docker Hub:
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version <version-no>
+helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version 2026.3.0-rc1-helm
 ```
 
-Refer to the release notes for details on the latest version number to use for the sample application.
+Use chart version `2026.3.0-rc1-helm` for this release.
 
 ##### Step 2: Extract the `.tgz` File
 
 After pulling the chart, extract the `.tgz` file:
 
 ```bash
-tar -xvf video-search-and-summarization-<version-no>.tgz
+tar -xvf video-search-and-summarization-2026.3.0-rc1-helm.tgz
 ```
 
 This will create a directory named `video-search-and-summarization` containing the chart files. Navigate to the extracted directory to access the charts.
@@ -53,10 +53,7 @@ cd video-search-and-summarization
 Clone the repository containing the Helm chart:
 
 ```bash
-# Clone the latest on mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
 ```
 
 ##### Step 2: Change to the Chart Directory
@@ -82,6 +79,7 @@ Update or edit the values in YAML file as follows:
 | `global.registry` | Single-source image registry override for all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, multimodal-dataprep, multimodal-embedding-serving, vector-retriever). Leave empty to keep each subchart's own default. | `""` or `my-registry.example.com/vss/` |
 | `global.tag` | Single-source image tag override for the VSS service images above. Leave empty to keep each subchart's own default tag. | `""` or `2026.3.0-rc1` |
 | `global.pullPolicy` | Image pull policy override for the VSS service images above. Leave empty to keep each subchart's default (`IfNotPresent`). Set to `Always` to force a fresh pull on every pod start (e.g. when reusing a mutable tag). | `""`, `Always`, or `IfNotPresent` |
+| `global.modelDownload.image.repository` and `global.modelDownload.image.tag` | Model-download image for OVMS and video-ingestion init containers, independent of `global.registry` and `global.tag`. | `intel/model-download` and `2026.3.0-rc1` |
 | `global.metricsManager.enabled` | Deploy Metrics Manager and enable direct DataPrep metric publishing | `true` or `false` |
 | `global.keepPvc` | PVC gets deleted by default once helm is uninstalled. Set this to true to persist PVC (helps avoid delay due to model re-downloads when re-installing chart). | `true` or `false` |
 | `global.huggingfaceToken` | Your Hugging Face API token | `<your-huggingface-token>` |
@@ -133,7 +131,7 @@ Update or edit the values in YAML file as follows:
 | `multimodaldataprep.sdkPipeline.pipelineStallTimeoutS` | Fail a DataPrep video ingestion when no pipeline stage makes progress for this many seconds (for example a GPU hang). `0` disables the watchdog. | `300` (default) |
 | `videoingestion.odModelName` | Name of object detection model (generic YOLO id from the model-download ultralytics hub) used during video ingestion | `yolov8l` |
 | `metricsmanager.image.repository` | Metrics Manager image repository | `docker.io/intel/metrics-manager` |
-| `metricsmanager.image.tag` | Metrics Manager image tag | `2026.2.0` |
+| `metricsmanager.image.tag` | Metrics Manager image tag | `2026.3.0-rc1` |
 
 > **`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` override:** You do **not** need to put this in `user_values_override.yaml`. You can set it directly at install/upgrade time with `--set`, for example:
 >

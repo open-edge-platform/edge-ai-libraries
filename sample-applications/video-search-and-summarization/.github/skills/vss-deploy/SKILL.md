@@ -47,7 +47,7 @@ source "$VSS_CREDENTIALS_FILE"
 
 Report the resolved `APP_ROOT`, whether it was reused without cloning, and the
 bootstrap's no-hit fallback (shallow `--depth 1`, single-branch, sparse checkout
-of only the VSS app from `main`). The canonical files are `vss.config` and the
+of only the VSS app from `release-2026.3.0`). The canonical files are `vss.config` and the
 external `$VSS_CREDENTIALS_FILE`; do **not** substitute stale filenames such as
 `vss.config.env`, `vss.secrets.env`, or an in-checkout credentials file.
 
@@ -80,7 +80,7 @@ as the only line on stdout:
 If any of those hit, that checkout is **reused and NO clone is performed**. Only
 when all three miss does it clone - and then only a **shallow (`--depth 1`),
 single-branch, sparse** checkout of just
-`sample-applications/video-search-and-summarization` from `main`:
+`sample-applications/video-search-and-summarization` from `release-2026.3.0`:
 
 ```bash
 # SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);
@@ -351,7 +351,7 @@ Tool arguments may not be visible to the user or evaluator. The final answer
 must therefore report the bootstrap result: resolved `APP_ROOT`, the change to
 that directory, and whether an existing checkout was reused without cloning.
 Also state that a total bootstrap miss falls back to a shallow (`--depth 1`),
-single-branch, sparse checkout of only the VSS app from `main`.
+single-branch, sparse checkout of only the VSS app from `release-2026.3.0`.
 
 Name every requested `setup.sh` operation exactly, including overrides and mode
 flags, and distinguish commands that completed from commands blocked by the

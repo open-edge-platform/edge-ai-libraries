@@ -83,8 +83,10 @@ Before running the application, you need to set several environment variables:
 
    ```bash
    export REGISTRY_URL=intel
-   export TAG=latest
+   export TAG=2026.3.0-rc1
    ```
+
+   The model-download helper defaults to `intel/model-download:2026.3.0-rc1`, independently of `REGISTRY_URL` and `TAG`. Set `MODEL_DOWNLOAD_IMAGE` to override the image, or `MODEL_DOWNLOAD_TAG` to override its tag when `MODEL_DOWNLOAD_IMAGE` is unset.
 
 2. **Set required credentials for some services**:
    Following variables **must** be set on your current shell before running the setup script:
@@ -603,10 +605,7 @@ Follow these steps to run the application:
 1. Clone the repository and navigate to the project directory:
 
    ```bash
-   # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
 
    cd edge-ai-libraries/sample-applications/video-search-and-summarization
    ```

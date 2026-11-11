@@ -80,7 +80,7 @@
       "expectations": [
         "Runs or instructs running the bundled `scripts/vss-bootstrap.sh` before the smoke test to resolve `APP_ROOT`.",
         "States that the bootstrap reuses an existing VSS checkout when found and does not re-clone in that case.",
-        "States that when no checkout exists, the bootstrap performs a shallow, single-branch, sparse checkout limited to `sample-applications/video-search-and-summarization` from `main`.",
+        "States that when no checkout exists, the bootstrap performs a shallow, single-branch, sparse checkout limited to `sample-applications/video-search-and-summarization` from `release-2026.3.0`.",
         "Changes directory into the resolved app root with `cd \"$APP_ROOT\"` before running skill commands.",
         "Runs or recommends `./scripts/e2e_search.sh \"\" http://localhost:12345` and reports `Embedding response:`, `Search hits: N`, and the final PASS/FAIL line."
       ]
@@ -89,13 +89,13 @@
       "id": 90,
       "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
       "prompt": "I just deployed VSS in unified mode with `source setup.sh --summary-and-search` and the gateway looks healthy on the default port. Can you run an end-to-end smoke test to confirm both summarization and search actually work, and tell me PASS or FAIL with details if something's broken?",
-      "expected_output": "Before running the requested unified-mode smoke test, the answer unconditionally runs the bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at open-edge-platform/edge-ai-libraries (or a fork of it) and reuses that checkout if so, or otherwise performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main; it then cd's into the resolved app root before running the summary and search smoke checks.",
+      "expected_output": "Before running the requested unified-mode smoke test, the answer unconditionally runs the bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at open-edge-platform/edge-ai-libraries (or a fork of it) and reuses that checkout if so, or otherwise performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from release-2026.3.0; it then cd's into the resolved app root before running the summary and search smoke checks.",
       "files": [],
       "expectations": [
         "The answer runs the skill's bundled bootstrap helper (scripts/vss-bootstrap.sh) as a first step, before doing the requested smoke test, even though the prompt never asked about setup, location, or cloning.",
         "The bootstrap check is described as determining whether the current location is already a valid clone/checkout (or a fork) of the VSS project by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) to see if it points at open-edge-platform/edge-ai-libraries or a fork of it, not merely by checking for local marker files.",
         "If that check finds a valid existing checkout (own clone or a fork whose remote traces back to the official repo), the answer states it is reused and NO re-clone is performed.",
-        "If no valid checkout/remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from main.",
+        "If no valid checkout/remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from release-2026.3.0.",
         "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running the skill's real summary/search commands for the requested task."
       ]
     }

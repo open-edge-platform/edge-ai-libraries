@@ -81,7 +81,7 @@ section that the agent executes before anything else. The bootstrap:
 - **Clones only when needed.** If no VSS source is found (e.g. the skill is
   installed standalone in a central skills directory with no application code
   present), it performs a shallow, **single-branch**, **sparse** checkout of just
-  `sample-applications/video-search-and-summarization` from `main`, then `cd`s in.
+  `sample-applications/video-search-and-summarization` from `release-2026.3.0`, then `cd`s in.
 
 This means the skills work identically whether they live inside the VSS repo or in
 a centralized `~/.agents/skills/` install with no application code nearby.
@@ -91,7 +91,7 @@ Override the clone source with environment variables before running a skill:
 | Variable | Default | Purpose |
 |---|---|---|
 | `VSS_REPO_URL` | `https://github.com/open-edge-platform/edge-ai-libraries.git` | Repo to clone from |
-| `VSS_REPO_BRANCH` | `main` | Branch to fetch |
+| `VSS_REPO_BRANCH` | `release-2026.3.0` | Branch to fetch |
 | `VSS_CLONE_DIR` | `${XDG_CACHE_HOME:-$HOME/.cache}/vss-src/edge-ai-libraries` | Where the sparse checkout lands |
 | `VSS_FORCE_CLONE` | `0` | Set to `1` to skip detection and always clone |
 
