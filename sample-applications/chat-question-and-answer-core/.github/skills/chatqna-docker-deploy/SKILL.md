@@ -138,8 +138,8 @@ If prebuilt images are requested and the user did not provide tags, use the foll
 
 ```bash
 export REGISTRY="intel/"
-export BACKEND_TAG="core_2026.2.0-rc2"      # or core_gpu_2026.2.0-rc2 / core_ollama_2026.2.0-rc2
-export UI_TAG="core_2026.2.0-rc2"
+export BACKEND_TAG="core_2026.3.0-rc1"      # or core_ollama_2026.3.0-rc1
+export UI_TAG="core_2026.3.0-rc1"
 ```
 
 These variable names must match `docker/compose.yaml` exactly:
@@ -294,8 +294,8 @@ docker compose -f docker/compose.yaml down -v --remove-orphans
 - Prebuilt image tags request without tags:
   - must use these exact variable names (`REGISTRY`, `BACKEND_TAG`, `UI_TAG`) to set pinned defaults, not alternate names:
     - `export REGISTRY="intel/"`
-    - `export BACKEND_TAG="core_2026.2.0-rc2"` (or runtime-specific pinned backend tag)
-    - `export UI_TAG="core_2026.2.0-rc2"`
+    - `export BACKEND_TAG="core_2026.3.0-rc1"` (or runtime-specific pinned backend tag)
+    - `export UI_TAG="core_2026.3.0-rc1"`
   - do not use `latest` as the default when tags are omitted
   - use only `REGISTRY`, `BACKEND_TAG`, and `UI_TAG`; do not replace them with other variable names
   - if user provides registry/tags, they override these defaults
