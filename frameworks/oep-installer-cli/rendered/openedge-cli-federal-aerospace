@@ -341,7 +341,7 @@ esac);
                 do
                     echo "${licenses_text[$id1]}";
                     echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")";
-                done | ensure_license_gate $installer_name "$@";
+                done | ensure_license_gate "$@";
                 rc=$?;
                 if [ $rc -eq 1 ]; then
                     echo "License declined";
@@ -3980,10 +3980,8 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics ()
 }
 debian_90_license_uncrewed_aerial_vehicle_vision_analytics () 
 { 
-    ensure_license_use_model YOLO11S;
-    echo "Model license: https://github.com/ultralytics/ultralytics/blob/main/LICENSE";
-    ensure_license_use_model InternVL2-1B;
-    echo "Model terms: https://huggingface.co/OpenGVLab/InternVL2-1B"
+    ensure_license_use_model YOLO11S https://github.com/ultralytics/ultralytics/blob/main/LICENSE;
+    ensure_license_use_model InternVL2-1B 'https://huggingface.co/OpenGVLab/InternVL2-1B#license'
 }
 debian_90_profile_deterministic_threat_detection () 
 { 
@@ -4792,8 +4790,6 @@ ensure_ip ()
 }
 ensure_license_gate () 
 { 
-    local installer_name="${1:-openedge-cli}";
-    local history_dir="$(ensure_project_path)/$1/licenses";
     local py=$(cat <<'__LICENSE_GATE_PY__'
 import argparse, curses, hashlib, json, os, platform, re, sys, textwrap, time
 
@@ -5783,7 +5779,6 @@ class Gate(object):
 def main():
     ap = argparse.ArgumentParser(prog="license-gate", add_help=True)
     ap.add_argument("--accept-license", nargs="?", const="*", default=None)
-    ap.add_argument("--no-scroll-gate", action="store_true")
     ap.add_argument("--reset-license", "--reset-license", dest="relicense", action="store_true")
     args, _ = ap.parse_known_args()
 
@@ -5847,14 +5842,23 @@ except KeyboardInterrupt:
   sys.exit(EXIT_DECLINED)
 __LICENSE_GATE_PY__
 );
-    LICENSE_GATE_HISTORY_DIR="$history_dir" python3 -c "$py" "$@"
+    LICENSE_GATE_HISTORY_DIR="$(ensure_project_path)/${installer_name:?}/licenses" python3 -c "$py" "$@"
 }
 ensure_license_use_model () 
 { 
     local name="$1";
-    echo "@@LICENSE-ID ${name//[^A-Za-z0-9._-]/}";
-    echo "@@LICENSE-TITLE Download $name";
-    echo "By accepting, you agree to download and use the $name model in sample evaluation."
+    local url="$2";
+    cat <<EOF
+@@LICENSE-ID ${name//[^A-Za-z0-9._-]/}
+@@LICENSE-TITLE $name Model License
+
+The $name model is used in the sample application. The model is subject to its license as follows:
+
+  $url
+
+Disclaimer: by downloading and using this model, you confirm that you accept the license terms and agree to comply with any applicable model-use and privacy requirements.
+EOF
+
 }
 ensure_parse_device () 
 { 

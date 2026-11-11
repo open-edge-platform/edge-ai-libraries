@@ -341,7 +341,7 @@ esac);
                 do
                     echo "${licenses_text[$id1]}";
                     echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")";
-                done | ensure_license_gate $installer_name "$@";
+                done | ensure_license_gate "$@";
                 rc=$?;
                 if [ $rc -eq 1 ]; then
                     echo "License declined";
