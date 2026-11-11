@@ -21,7 +21,7 @@ Before you begin, ensure that you have the following prerequisites:
       # Clone the latest on mainline
       git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
       # Alternatively, Clone a specific release branch
-      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
       ```
 
       > [!NOTE]

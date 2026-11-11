@@ -62,7 +62,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    # Clone the latest on mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
    
    cd edge-ai-libraries/sample-applications/document-summarization
    ```
