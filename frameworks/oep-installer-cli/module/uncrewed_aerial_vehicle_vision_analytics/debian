@@ -28,10 +28,8 @@ debian_90_profile_uncrewed_aerial_vehicle_vision_analytics () {
 }
 
 debian_90_license_uncrewed_aerial_vehicle_vision_analytics () {
-  ensure_license_use_model YOLO11S
-  echo "Model license: https://github.com/ultralytics/ultralytics/blob/main/LICENSE"
-  ensure_license_use_model InternVL2-1B
-  echo "Model terms: https://huggingface.co/OpenGVLab/InternVL2-1B"
+  ensure_license_use_model YOLO11S https://github.com/ultralytics/ultralytics/blob/main/LICENSE
+  ensure_license_use_model InternVL2-1B 'https://huggingface.co/OpenGVLab/InternVL2-1B#license'
 }
 
 install_uncrewed_aerial_vehicle_vision_analytics_source () {
