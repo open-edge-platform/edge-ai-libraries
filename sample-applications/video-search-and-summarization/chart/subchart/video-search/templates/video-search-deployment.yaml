@@ -16,7 +16,7 @@ spec:
     spec:
       initContainers:
         - name: wait-for-vector-retriever
-          image: curlimages/curl:latest
+          image: curlimages/curl:8.23.0
           command: 
             - sh
             - -c

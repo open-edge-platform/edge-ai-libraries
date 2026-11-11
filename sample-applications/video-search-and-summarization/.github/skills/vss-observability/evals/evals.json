@@ -10,7 +10,7 @@
       "expectations": [
         "Mentions setting ENABLE_METRICS_MANAGER=true before sourcing setup.sh, with a supported mode such as source setup.sh --search or source setup.sh --summary --search.",
         "Names the optional compose overlay file docker/compose.metrics-manager.yaml.",
-        "Identifies the added service/container as metrics-manager and notes it uses docker.io/intel/metrics-manager:2026.2.0.",
+        "Identifies the added service/container as metrics-manager and notes it uses docker.io/intel/metrics-manager:2026.3.0-rc1.",
         "References the health and SSE routes through nginx and/or Prometheus output on port 9273.",
         "Explains that traces come from Pipeline Manager via OTLP_TRACE_URL with service name videoSummary, and that the overlay does not deploy an in-repo OTel collector or trace UI/backend."
       ]
@@ -89,13 +89,13 @@
       "id": 90,
       "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
       "prompt": "I ran a batch of videos through VSS summarization yesterday with tracing enabled, and I want to compare how long chunking, captioning, and final summarization each took across those runs. What's the best way to pull per-stage span durations out of my OTLP backend so I can see which stage is actually the bottleneck?",
-      "expected_output": "Before answering the trace-duration question, the response unconditionally runs the skill's bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at the official VSS repo or a fork of it and reuses that checkout if so, otherwise performs a shallow single-branch sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before pulling span durations.",
+      "expected_output": "Before answering the trace-duration question, the response unconditionally runs the skill's bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at the official VSS repo or a fork of it and reuses that checkout if so, otherwise performs a shallow single-branch sparse checkout of sample-applications/video-search-and-summarization from release-2026.3.0, then cd's into the resolved app root before pulling span durations.",
       "files": [],
       "expectations": [
         "The response runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as a first step before addressing the per-stage span-duration question, even though the prompt never asked about setup, location, or cloning.",
         "The bootstrap check determines whether the current location is already a valid VSS checkout by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) to see if it points at the official open-edge-platform/edge-ai-libraries repo or a fork of it, not merely by checking for local marker files or directory names.",
         "If that remote check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the response states it is reused as-is and NO re-clone is performed.",
-        "If no valid checkout or matching remote is found, the response performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the main branch, rather than a full-history/all-branches clone.",
+        "If no valid checkout or matching remote is found, the response performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the release-2026.3.0 branch, rather than a full-history/all-branches clone.",
         "The response changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's actual tracing/telemetry commands used to answer the span-duration question."
       ]
     }

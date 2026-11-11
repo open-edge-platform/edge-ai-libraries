@@ -71,7 +71,7 @@ VSS and the installer are both in the `edge-ai-libraries` repository. Clone
 the repository with only these two folders:
 
 ```bash
-git clone --filter=blob:none --sparse --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --filter=blob:none --sparse --branch release-2026.3.0 https://github.com/open-edge-platform/edge-ai-libraries.git
 git -C edge-ai-libraries sparse-checkout set \
   sample-applications/video-search-and-summarization \
   frameworks/agent-harness-install
@@ -86,7 +86,7 @@ Set the service credentials and the search models. Then start VSS:
 
 ```bash
 cd edge-ai-libraries/sample-applications/video-search-and-summarization
-export REGISTRY_URL=intel TAG=latest
+export REGISTRY_URL=intel TAG=2026.3.0-rc1
 export MINIO_ROOT_USER=<user> MINIO_ROOT_PASSWORD=<password>
 export POSTGRES_USER=<user> POSTGRES_PASSWORD=<password>
 export RABBITMQ_USER=<user> RABBITMQ_PASSWORD=<password>
