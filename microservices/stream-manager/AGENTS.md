@@ -199,7 +199,7 @@ Following is the guidelines regarding the directory structure of the documentati
 #### Get started Guide
 
 - This file `get-started.md` lives in `docs/user-guide` directory.
-- It tells you all possible details of setting up and using the application, like a simple user manual of an appliance. This does not include the building guidelines and assumes that application is present as an image in a public repository `intel/stream-manager:latest`. Use this information to instruct user to pull and use this image to run the application. Add details about overriding `config.json` and using volume mount or bind-mount for letting the application persist media and database files.
+- It tells you all possible details of setting up and using the application, like a simple user manual of an appliance. This does not include the building guidelines and assumes that application is present as an image in a public repository `intel/stream-manager:2026.3.0-rc1`. Use this information to instruct user to pull and use this image to run the application. Add details about overriding `config.json` and using volume mount or bind-mount for letting the application persist media and database files.
 
 #### API Reference Guide
 
