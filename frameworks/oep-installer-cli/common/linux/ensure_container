@@ -10,7 +10,7 @@ ensure_container_namespace () {
   start) ensure_prop set started/$name/containers "$*" ;;
   esac
 
-  local running_containers=" $(docker ps --format '{{.Name}}' | tr '\' ' ') "
+  local running_containers=" $(docker ps --format '{{.Name}}' | tr '\n' ' ') "
   local c stopper mname mpath
   for c in "$@"; do
     [[ "$running_containers" = *" $c "* ]] || continue
@@ -25,7 +25,7 @@ ensure_container_namespace () {
       ( set -e; $stopper "$mname" -- ) >&2 || true
     done
 
-    running_containers=" $(docker ps --format '{{.Name}}' | tr '\' ' ') "
+    running_containers=" $(docker ps --format '{{.Name}}' | tr '\n' ' ') "
     [[ "$running_containers" = *" $c "* ]] || continue
 
     printf "${red}Container %s is occupied${reset}\n" "$c" >&2
