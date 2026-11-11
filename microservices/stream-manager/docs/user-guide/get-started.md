@@ -4,7 +4,7 @@
 # Get Started
 
 This guide shows you how to run Stream Manager as a container. It uses the published
-image `intel/stream-manager:latest`.
+image `intel/stream-manager:2026.3.0-rc1`.
 
 ## Prerequisites
 

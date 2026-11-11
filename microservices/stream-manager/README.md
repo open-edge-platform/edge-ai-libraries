@@ -19,7 +19,7 @@ The simplest way to run Stream Manager is to pull and run its pre-built image.
 ```bash
 docker run --rm -d --name stream-manager -p 49173:8080 \
   -v stream-manager-data:/data \
-  intel/stream-manager:latest
+  intel/stream-manager:2026.3.0-rc1
 ```
 
 Once the command succeeds, you can access the API status and docs here:

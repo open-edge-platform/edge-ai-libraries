@@ -68,7 +68,7 @@ Use these options with `make docker-run`:
 
 | Option | Purpose | Default |
 | --- | --- | --- |
-| `IMAGE` | Container image name and tag. | `intel/stream-manager:latest` |
+| `IMAGE` | Container image name and tag. | `intel/stream-manager:2026.3.0-rc1` |
 | `CONFIG_FILE` | Host configuration file mounted at `/config.json` (read-only). | Empty (uses built-in defaults). |
 | `DATA_DIR` | Host directory mounted at `/data` instead of a Docker volume. | Empty (a default Docker volume is used). |
 | `CONTAINER_NAME` | Container name. | `stream-manager` |
