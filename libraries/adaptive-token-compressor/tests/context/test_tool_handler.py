@@ -168,7 +168,7 @@ class TestSimplifyError:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# web_search_strip + _clean_snippet (real Tavily fixture)
+# web_search_strip + _clean_snippet (Tavily-shaped fixture)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -187,7 +187,7 @@ class TestWebSearchStrip:
 
     def test_actually_shrinks(self, tavily_content):
         out = web_search_strip(tavily_content)
-        assert len(out) < len(tavily_content) * 0.6  # observed ~76% saving
+        assert len(out) < len(tavily_content) * 0.6  # conftest payload: ~73% saving
 
     def test_non_json_passthrough(self):
         assert web_search_strip("not json") == "not json"
