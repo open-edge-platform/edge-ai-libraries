@@ -25,7 +25,7 @@ docker compose version
 Clone the Edge AI Libraries repository and change to the analyzer directory:
 
 ```bash
-git clone --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --branch release-2026.3.0 https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries/tools/video-summary-accuracy-analyzer
 ```
 
@@ -48,7 +48,7 @@ The script creates the model cache and exports the values required by Docker Com
 | `USER_GROUP_ID` | Current user's primary group ID | Grants the backend container access to the mounted model cache. |
 | `APP_BACKEND_URL` | `http://video-accuracy-eval:9000/v1/eval` | Connects the dashboard to the backend service. |
 | `REGISTRY` | `intel/` | Docker Hub namespace used to pull the prebuilt images. |
-| `TAG` | `latest` | Image tag used to pull the prebuilt images. |
+| `TAG` | `2026.3.0-rc1` | Image tag used to pull the prebuilt images. |
 
 The Compose configuration also forwards the host's `http_proxy`, `https_proxy`, and `no_proxy` values when they are set.
 
@@ -56,7 +56,7 @@ To use a different registry or image tag, override the defaults before starting 
 
 ```bash
 export REGISTRY="intel/"
-export TAG=latest
+export TAG=2026.3.0-rc1
 ```
 
 ## Run the Application with Docker Compose
