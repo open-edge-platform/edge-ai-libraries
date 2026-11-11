@@ -1,5 +1,15 @@
 
-# version --version=2026.2.0
+# --reinstall "$@"
+ensure_parse_option () {
+  local option="$1"; shift
+  [[ " $* " = *" $option "* ]]
+}
+
+ensure_parse_reinstall () {
+  ensure_parse_option --reinstall "$@"
+}
+
+# version --version=2026.2.0 "$@"
 ensure_parse_value_option () {
   local key="$1"; shift
   local v v1 value=""
@@ -34,4 +44,5 @@ ensure_parse_device () {
   [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu"
   echo $device
 }
+
 

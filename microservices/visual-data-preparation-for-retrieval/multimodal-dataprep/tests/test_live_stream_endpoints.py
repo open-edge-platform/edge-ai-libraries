@@ -103,15 +103,21 @@ def test_create_accepts_processing_overrides(client):
         client,
         frame_interval=30,
         enable_object_detection=False,
-        detection_confidence=0.5,
         tags=["lobby"],
     )
     stream = response.json()["stream"]
     assert stream["frame_interval"] == 30
     assert stream["enable_object_detection"] is False
-    assert stream["detection_confidence"] == 0.5
+    assert "detection_confidence" not in stream
     assert stream["tags"] == ["lobby"]
 
+
+
+def test_create_ignores_removed_detection_confidence(client):
+    # Older clients may still send it; the service threshold applies instead.
+    response = _create(client, detection_confidence=0.5)
+    assert response.status_code == HTTPStatus.ACCEPTED
+    assert "detection_confidence" not in response.json()["stream"]
 
 def test_create_with_start_false_registers_paused(client):
     response = _create(client, start=False)
@@ -128,7 +134,7 @@ def test_create_rejects_non_rtsp_urls(client, url):
 
 @pytest.mark.parametrize(
     "field,value",
-    [("frame_interval", 0), ("frame_interval", 1000), ("detection_confidence", 5.0)],
+    [("frame_interval", 0), ("frame_interval", 1000)],
 )
 def test_create_validates_processing_parameters(client, field, value):
     response = _create(client, **{field: value})

@@ -16,7 +16,8 @@ SPDX-License-Identifier: Apache-2.0
 
 Natural-language search over the indexed video library. Call the documented API
 yourself and report only observed responses. Endpoints use the nginx `/manager`
-prefix.
+prefix. When the `vss_*` MCP tools are connected, they cover the same search,
+indexing, and camera work; this skill is the REST route.
 
 Set `HOST=http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}`.
 
@@ -107,7 +108,16 @@ A video is **not searchable until embeddings exist**. Trigger them after upload
 ```bash
 curl -s -X POST "$HOST/manager/videos/search-embeddings/<VIDEO_ID>" | jq .
 ```
-Wait for completion (re-check the video record) before querying.
+Wait for completion before querying: the video record's `searchEmbeddings`
+becomes `true` on success and `false` on failure (`null` = never requested;
+a `true` is never reset by a later failed run):
+```bash
+curl -s "$HOST/manager/videos/<VIDEO_ID>" | jq '.video.searchEmbeddings'
+```
+To index an already-uploaded video again as a separate video (for example to
+re-run it from scratch), copy it with `POST /manager/videos/<VIDEO_ID>/copy`,
+which returns a new `videoId`, then embed the copy. With
+`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false` that embedding returns `409`.
 
 ## 2b. Index a live RTSP camera (alternative to 1 + 2)
 
@@ -174,11 +184,29 @@ curl -s -X POST "$HOST/manager/search/query" \
   }' | jq -r '.results[].results[]
       | "score=\(.metadata.relevance_score)  clip=\(.metadata.segment_start)-\(.metadata.segment_end)s  seek=\(.metadata.seek_timestamp)s  video_id=\(.metadata.video_id)"'
 ```
-- `query` (required): natural language.
+- `query`: natural language. Required unless searching by image.
+- `image` / `imageUrl` (`--search`/`--dual` only, instead of `query`): search by
+  image. Upload once with `curl -F image=@q.jpg "$HOST/manager/search/images"`
+  (jpg/jpeg/png/webp, at most 2 MB), pass the returned `imageUrl` as
+  `"imageUrl"`, and delete it afterwards with
+  `DELETE /manager/search/images/<imageId>`. See
+  [`references/search-request.md`](./references/search-request.md).
 - `tags` (optional): comma-separated, intersected with the query.
 - `timeFilter` (optional): **either** relative (`value` + `unit` =
   `minutes|hours|days|weeks`) **or** absolute (`start`/`end` ISO-8601). See
   [`references/search-request.md`](./references/search-request.md).
+- `minPeakScore` (optional, 0..1): drop frames whose similarity is below it
+  **at retrieval**, so every returned clip's best frame scores at least this.
+  `0` = off; omitted = the deployment default `SEARCH_MIN_PEAK_SCORE` (0).
+  `GET /manager/search/config` returns `minPeakScoreDefault`. A high value can
+  return no results.
+
+Pipeline Manager adds `observedAt` (ISO-8601 UTC), `timeSource` and, for live
+hits, `streamId` to each result, next to `metadata`. `timeSource` is `live`
+(camera capture time) or `upload` (the video's upload time plus the frame
+offset, not the recording time). Sort by `observedAt` for a timeline, or group
+by `streamId`/`metadata.video_id` per camera or video; this only reorders the
+returned top results.
 
 Each clip's `metadata` carries `relevance_score` (0..1; top hit can be exactly
 `1`), `video_id`, `video_url`, `segment_start`/`segment_end`, `seek_timestamp`,
@@ -227,8 +255,12 @@ curl -s -X POST "$HOST/manager/search" -H 'Content-Type: application/json' \
   -d '{"query":"forklift"}' | jq .          # create a persistent query → queryId
 curl -s "$HOST/manager/search/<QUERY_ID>" | jq .          # fetch results
 curl -s -X POST "$HOST/manager/search/<QUERY_ID>/refetch" | jq .   # re-run
+curl -s -X POST --json '{"minPeakScore":0.25}' \
+  "$HOST/manager/search/<QUERY_ID>/refetch" | jq .   # re-run with a new saved threshold
 curl -s --request PATCH --json '{"watch":true}' \
   "$HOST/manager/search/<QUERY_ID>/watch" | jq .             # auto-refresh
+curl -s --request PATCH --json '{"watch":true,"minPeakScore":0.3}' \
+  "$HOST/manager/search/<QUERY_ID>/watch" | jq .   # auto-refresh, gated by score
 curl -s "$HOST/manager/search/watched" | jq .
 curl -s -X DELETE "$HOST/manager/search/<QUERY_ID>"
 ```

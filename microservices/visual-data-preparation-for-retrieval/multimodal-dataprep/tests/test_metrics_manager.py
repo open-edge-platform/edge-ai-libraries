@@ -144,7 +144,6 @@ def test_completed_telemetry_record_is_enqueued(mocker):
         frame_interval=15,
         tags=[],
         enable_object_detection=False,
-        detection_confidence=0.85,
         metadata_dict={},
         pipeline_result={"metrics": {"embed": {"throughput": 17.25}}},
     )

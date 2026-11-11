@@ -1,7 +1,7 @@
 
 configure_visual_search_question_and_answering () {
   workspace="$(ensure_project_path)/visual-search-question-and-answering"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(17580 19530 9764 9990 6008 9777)
   demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip"
@@ -37,7 +37,7 @@ debian_90_profile_visual_search_question_and_answering () {
 
 debian_90_install_visual_search_question_and_answering () {
   configure_visual_search_question_and_answering "$@"
-  if verify_visual_search_question_and_answering && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_visual_search_question_and_answering && ! ensure_parse_reinstall "$@"; then
     echo "Visual search question and answering is installed." >&2
   else
     # clone the repository
@@ -73,6 +73,7 @@ debian_90_install_visual_search_question_and_answering () {
 debian_90_start_visual_search_question_and_answering () {
   configure_visual_search_question_and_answering "$@"
   ensure_ports_open start visual_search_question_and_answering "${used_ports[@]}"
+  ensure_container_namespace start visual_search_question_and_answering $(ensure_container_parse_names "$workspace"/visual-search-question-and-answering/deployment/docker-compose/*.yaml)
 
   cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose
   . ./env.sh

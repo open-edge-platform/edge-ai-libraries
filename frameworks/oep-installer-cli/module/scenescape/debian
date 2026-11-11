@@ -1,7 +1,7 @@
 
 configure_scenescape () {
   workspace="$(ensure_project_path)/scenescape"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository=https://github.com/open-edge-platform/scenescape.git
   used_ports=(443)
 
@@ -20,7 +20,7 @@ debian_90_profile_scenescape () {
 
 debian_90_install_scenescape () {
   configure_scenescape "$@"
-  if verify_scenescape && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_scenescape && ! ensure_parse_reinstall "$@"; then
     echo "Scenescape is installed." >&2
   else
     ensure_disk_size 300
@@ -43,6 +43,7 @@ debian_90_install_scenescape () {
 debian_90_start_scenescape () {
   configure_scenescape "$@"
   ensure_ports_open start scenescape "${used_ports[@]}"
+  ensure_container_namespace start scenescape $(ensure_container_parse_names "$workspace"/sample_data/compose/compose.*.yml)
 
   cd "$workspace"
   export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5)

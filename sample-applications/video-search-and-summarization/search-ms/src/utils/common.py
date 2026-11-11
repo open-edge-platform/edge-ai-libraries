@@ -83,11 +83,17 @@ class Settings(BaseSettings):
     AGGREGATION_MAX_RESULTS: int = Field(default=20, env="AGGREGATION_MAX_RESULTS")
     AGGREGATION_INITIAL_K: int = Field(default=1000, env="AGGREGATION_INITIAL_K")
     AGGREGATION_ENABLED: bool = Field(default=True, env="AGGREGATION_ENABLED")
+    # Default minimum peak (frame) similarity for a query that does not send
+    # its own min_peak_score. Frames below it are dropped at retrieval, before
+    # aggregation and the top-N cut. 0 disables filtering.
+    SEARCH_MIN_PEAK_SCORE: float = Field(
+        default=0.0, ge=0.0, le=1.0, env="SEARCH_MIN_PEAK_SCORE"
+    )
     AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: float = Field(
         default=0.0, env="AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS"
     )
     # When enabled, the per-segment seek/thumbnail anchor prefers a FULL frame over a
-    # (higher-scoring) YOLOX object crop, provided a full frame exists whose relevance is
+    # (higher-scoring) object-detection crop, provided a full frame exists whose relevance is
     # within AGGREGATION_FULL_FRAME_SEEK_BAND (fraction of the segment peak). This only
     # changes which frame the UI seeks to / shows; segment ranking and scores are untouched.
     AGGREGATION_PREFER_FULL_FRAME_SEEK: bool = Field(

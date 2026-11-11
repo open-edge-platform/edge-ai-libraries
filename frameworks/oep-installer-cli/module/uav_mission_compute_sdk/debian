@@ -1,0 +1,159 @@
+
+configure_uav_mission_compute_sdk () {
+  workspace="$(ensure_project_path)/uav-mission-compute-sdk-sdk"
+  source_path="$workspace/source"
+  sdk_path="$source_path/uav-mission-compute-sdk"
+  repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
+  used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
+}
+
+verify_uav_mission_compute_sdk () {
+  local installed_commit
+  installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk)" || return $?
+  [ -r "$sdk_path/Makefile" ] &&
+    [ -r "$sdk_path/.env" ] &&
+    [ -n "$installed_commit" ] &&
+    [ "$(git -C "$source_path" rev-parse HEAD 2>/dev/null)" = "$installed_commit" ]
+}
+
+verify_uav_mission_compute_sdk_running () {
+  local expected running service
+  expected="$(docker compose --profile sim-camera --profile observability config --services)" || return $?
+  running="$(docker compose --profile sim-camera --profile observability ps --status running --services)" || return $?
+  [ -n "$expected" ] || return 1
+  while IFS= read -r service; do
+    grep -Fxq -- "$service" <<< "$running" || return 1
+  done <<< "$expected"
+}
+
+uav_mission_compute_sdk_checkout () {
+  if [[ -e "$source_path" || -L "$source_path" ]]; then
+    if [[ -L "$source_path" || ! -d "$source_path/.git" ]]; then
+      echo "Refusing incompatible SDK source destination: $source_path" >&2
+      return 1
+    fi
+
+    local remote changes
+    remote="$(git -C "$source_path" remote get-url origin)" || return $?
+    changes="$(git -C "$source_path" status --porcelain --untracked-files=no)" || return $?
+    if [[ "$remote" != "$repository" || -n "$changes" ]]; then
+      echo "Refusing to overwrite a different repository or tracked local changes at $source_path." >&2
+      return 1
+    fi
+    if [ -n "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
+      echo "Stop uav_mission_compute_sdk before updating its source." >&2
+      return 1
+    fi
+    git -C "$source_path" sparse-checkout init --cone || return $?
+    git -C "$source_path" sparse-checkout set uav-mission-compute-sdk || return $?
+  else
+    mkdir -p "$workspace"
+    git clone --filter=blob:none --no-checkout --depth 1 "$repository" "$source_path" || return $?
+    git -C "$source_path" sparse-checkout init --cone || return $?
+    git -C "$source_path" sparse-checkout set uav-mission-compute-sdk || return $?
+  fi
+
+  git -C "$source_path" fetch --depth 1 origin "$version" &&
+    git -C "$source_path" checkout --detach FETCH_HEAD || return $?
+}
+
+debian_90_profile_uav_mission_compute_sdk () {
+  echo "docker_io edge_base git make"
+}
+
+debian_90_install_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk "$@"
+  if verify_uav_mission_compute_sdk && ! ensure_parse_reinstall "$@"; then
+    echo "uav_mission_compute_sdk is installed." >&2
+  else
+    . /etc/os-release
+    if [[ "$ID" != ubuntu || "$VERSION_ID" != 24.04 ]]; then
+      echo "UAV Mission Compute SDK requires Ubuntu 24.04." >&2
+      return 3
+    fi
+    ensure_disk_size 20000 || return $?
+    ensure_ram_size 16000000 || return $?
+    uav_mission_compute_sdk_checkout || return $?
+    local source_commit
+    source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?
+    cd "$sdk_path" || return $?
+    make init || return $?
+    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
+    if [ ! -r "$sdk_path/Makefile" ] || [ ! -r "$sdk_path/.env" ] ||
+      [ "$(git -C "$source_path" rev-parse HEAD 2>/dev/null)" != "$source_commit" ]; then
+      echo "Mission Compute SDK initialization did not produce the expected source and .env." >&2
+      return 1
+    fi
+    ensure_prop set installed/uav_mission_compute_sdk "$source_commit" || return $?
+    verify_uav_mission_compute_sdk || return $?
+  fi
+
+  echo "@@HIGHLIGHT workspace: $sdk_path"
+  echo "@@HIGHLIGHT $installer_name start|stop|remove uav_mission_compute_sdk"
+}
+
+debian_90_start_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk "$@"
+  verify_uav_mission_compute_sdk || {
+    echo "uav_mission_compute_sdk is not installed or needs repair. Run install first." >&2
+    return 1
+  }
+  cd "$sdk_path" || return $?
+  sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
+  if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
+    ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?
+  fi
+  if make up-sim-camera; then
+    :
+  else
+    local rc=$?
+    make down || return $?
+    return "$rc"
+  fi
+  local attempt
+  for ((attempt=0; attempt<24; attempt++)); do
+    if verify_uav_mission_compute_sdk_running; then
+      break
+    fi
+    sleep 5
+  done
+  if [ "$attempt" -eq 24 ]; then
+    echo "Mission Compute SDK simulation did not start all expected services. Inspect Docker Compose logs in $sdk_path." >&2
+    make down || return $?
+    return 1
+  fi
+  ensure_prop create started/uav_mission_compute_sdk/ports || return $?
+  ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?
+  echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras"
+  echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080"
+  echo "@@HIGHLIGHT $installer_name stop uav_mission_compute_sdk"
+}
+
+debian_90_stop_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk "$@"
+  verify_uav_mission_compute_sdk || {
+    echo "uav_mission_compute_sdk is not installed." >&2
+    return 1
+  }
+  cd "$sdk_path" || return $?
+  make down || return $?
+  ensure_prop remove started/uav_mission_compute_sdk/
+}
+
+debian_90_remove_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk "$@"
+  if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk)" ]; then
+    echo "uav_mission_compute_sdk is not installed." >&2
+    return 0
+  fi
+  if [ ! -f "$sdk_path/Makefile" ]; then
+    echo "Mission Compute SDK source is missing; cannot stop its containers safely." >&2
+    return 1
+  fi
+  cd "$sdk_path" || return $?
+  make down || return $?
+  ensure_prop remove started/uav_mission_compute_sdk/ || return $?
+  ensure_rm "$workspace" || return $?
+  ensure_prop remove installed/uav_mission_compute_sdk
+}

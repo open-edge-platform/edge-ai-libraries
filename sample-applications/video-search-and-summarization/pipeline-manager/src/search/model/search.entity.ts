@@ -44,6 +44,10 @@ export class SearchEntity {
   @Column({ type: 'text', nullable: true })
   timeFilterEnd?: string | null;
 
+  // Minimum peak score this query searches with; null = deployment default.
+  @Column({ type: 'float', nullable: true })
+  minPeakScore?: number | null;
+
   @Column('jsonb', { nullable: true })
   results: SearchResult[];
 

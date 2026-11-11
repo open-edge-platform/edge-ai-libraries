@@ -24,45 +24,11 @@ class FrameExtractionModeEnum(str, Enum):
     hybrid = "hybrid"  # Both object detection crops and full frames
 
 
-class ObjectDetectionConfig(BaseModel):
-    """Configuration for object detection in frame extraction"""
-
-    enabled: bool = Field(default=False, description="Enable object detection for frame extraction")
-    confidence_threshold: float = Field(
-        default=0.85,
-        ge=0.0,
-        le=1.0,
-        description="Confidence threshold for object detection (0.0-1.0)",
-    )
-    max_detections_per_frame: int = Field(
-        default=10,
-        ge=1,
-        le=100,
-        description="Maximum number of object detections to extract per frame",
-    )
-    extraction_mode: FrameExtractionModeEnum = Field(
-        default=FrameExtractionModeEnum.time_based,
-        description="Frame extraction mode: time_based, object_detection, or hybrid",
-    )
-    crop_padding: int = Field(
-        default=10,
-        ge=0,
-        le=100,
-        description="Padding pixels around detected objects when creating crops",
-    )
-
-
 class DataPrepResponse(BaseModel):
     """Response model for API Responses from DataStore service"""
 
     status: StatusEnum = StatusEnum.success
     message: Optional[str] = None
-
-
-class DataPrepErrorResponse(DataPrepResponse):
-    """Response model for API Error Responses from DataStore service"""
-
-    status: StatusEnum = StatusEnum.error
 
 
 class HealthResponse(BaseModel):
@@ -76,6 +42,20 @@ class HealthResponse(BaseModel):
     embedding_client_error: Optional[str] = None
     detection_model: Optional[str] = None
     detection_device: Optional[str] = None
+    detection_classes: Annotated[
+        Optional[List[str]],
+        Field(
+            default=None,
+            description="Class filter applied to detections; null means all model classes.",
+        ),
+    ] = None
+    detection_status: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="Object detector state: 'disabled', 'ready' or 'not_loaded'.",
+        ),
+    ] = None
     vectordb_backend: Optional[str] = None
     vectordb_status: Optional[str] = None
     vectordb_error: Optional[str] = None
@@ -125,15 +105,6 @@ class VideoRequest(BaseModel):
         Field(
             description="Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)",
             json_schema_extra={"example": True},
-        ),
-    ] = None
-    detection_confidence: Annotated[
-        Optional[float],
-        Field(
-            ge=0.1,
-            le=1.0,
-            description="Confidence threshold for object detection (defaults to the service's configured threshold, 0.85 unless overridden)",
-            json_schema_extra={"example": 0.85},
         ),
     ] = None
     tags: Annotated[
@@ -217,15 +188,6 @@ class ImageIngestRequest(ImageIngestItem):
             description="Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden).",
         ),
     ] = None
-    detection_confidence: Annotated[
-        Optional[float],
-        Field(
-            default=None,
-            ge=0.1,
-            le=1.0,
-            description="Object detection confidence threshold (defaults to the service's configured threshold, 0.85 unless overridden).",
-        ),
-    ] = None
 
 
 class ImageBatchIngestRequest(BaseModel):
@@ -247,10 +209,6 @@ class ImageBatchIngestRequest(BaseModel):
         Field(
             default=None, description="Enable object detection and crop extraction for every image."
         ),
-    ] = None
-    detection_confidence: Annotated[
-        Optional[float],
-        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold."),
     ] = None
     tags: Annotated[
         Optional[List[str]],
@@ -285,8 +243,7 @@ class BatchProcessExistingRequest(BaseModel):
     Either provide an explicit list of ``items`` (per-video overrides), or a
     ``bucket_name`` selector (optionally narrowed by ``prefix``) to process every
     video found in that bucket. Selector-level ``frame_interval`` /
-    ``enable_object_detection`` / ``detection_confidence`` / ``tags`` apply to all
-    videos matched by the selector.
+    ``enable_object_detection`` / ``tags`` apply to all videos matched by the selector.
     """
 
     items: Annotated[
@@ -313,10 +270,6 @@ class BatchProcessExistingRequest(BaseModel):
     enable_object_detection: Annotated[
         Optional[bool],
         Field(default=None, description="Enable object detection and crop extraction."),
-    ] = None
-    detection_confidence: Annotated[
-        Optional[float],
-        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold."),
     ] = None
     tags: Annotated[
         Optional[List[str]],
@@ -360,10 +313,6 @@ class DirectoryIngestRequest(BaseModel):
     enable_object_detection: Annotated[
         Optional[bool],
         Field(default=None, description="Enable object detection and crop extraction."),
-    ] = None
-    detection_confidence: Annotated[
-        Optional[float],
-        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold."),
     ] = None
     tags: Annotated[
         Optional[List[str]],
@@ -462,13 +411,6 @@ class BucketVideoListResponse(DataPrepResponse):
     ]
 
 
-class FileListResponse(DataPrepResponse):
-    """Response model for list of video files present in storage server"""
-
-    bucket_name: str
-    files: Optional[List[str]]
-
-
 class VideoSummaryRequest(BaseModel):
     """Request model for text summary processing with video timestamp references"""
 
@@ -500,18 +442,6 @@ class VideoSummaryRequest(BaseModel):
     ]
 
 
-class TelemetryStageTiming(BaseModel):
-    """Represents the percentage contribution of a processing stage."""
-
-    name: str = Field(description="Stage label (extraction, detection, embedding, storage)")
-    seconds: float = Field(ge=0.0, description="Summed duration for the stage")
-    percent_of_total: float = Field(
-        ge=0.0,
-        le=100.0,
-        description="Percentage of overall pipeline wall time",
-    )
-
-
 class TelemetryBatchDetail(BaseModel):
     """Timing details for a single batch."""
 
@@ -534,18 +464,6 @@ class TelemetryCounts(BaseModel):
     frames_extracted: int = Field(ge=0)
     items_after_detection: int = Field(ge=0)
     embeddings_stored: int = Field(ge=0)
-
-
-class TelemetryThroughput(BaseModel):
-    """Derived throughput metrics."""
-
-    decode_throughput: float = Field(ge=0.0)
-    detect_throughput: float = Field(ge=0.0)
-    embeddings_throughput: float = Field(ge=0.0)
-    store_throughput: float = Field(ge=0.0)
-    embedding_infer_throughput: float = Field(ge=0.0)
-    pipeline_throughput: float = Field(ge=0.0)
-    pipeline_throughput_with_od: float = Field(ge=0.0)
 
 
 class TelemetryVideoMetadata(BaseModel):
@@ -675,10 +593,6 @@ class LiveStreamCreateRequest(BaseModel):
         Optional[bool],
         Field(default=None, description="Enable object detection and crop extraction."),
     ] = None
-    detection_confidence: Annotated[
-        Optional[float],
-        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold."),
-    ] = None
     tags: Annotated[
         Optional[List[str]],
         Field(
@@ -716,7 +630,6 @@ class LiveStreamUpdateRequest(BaseModel):
     description: Annotated[Optional[str], Field(default=None, max_length=1024)] = None
     frame_interval: Annotated[Optional[int], Field(default=None, ge=1, le=60)] = None
     enable_object_detection: Annotated[Optional[bool], Field(default=None)] = None
-    detection_confidence: Annotated[Optional[float], Field(default=None, ge=0.1, le=1.0)] = None
     tags: Annotated[
         Optional[List[str]],
         Field(default=None, description="Replaces the existing tag list when supplied."),
@@ -790,7 +703,6 @@ class LiveStreamInfo(BaseModel):
     ] = None
     frame_interval: int
     enable_object_detection: bool
-    detection_confidence: float
     tags: Annotated[List[str], Field(default_factory=list)]
     stats: Annotated[LiveStreamStats, Field(default_factory=LiveStreamStats)]
     last_error: Optional[str] = None

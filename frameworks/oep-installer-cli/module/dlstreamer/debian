@@ -13,7 +13,7 @@ configure_dlstreamer () {
   oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
   model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
   allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium)
-  version_skills="release-${version%-rc*}"
+  version_skills="release-2026.2.0"
   repository_skills=https://github.com/open-edge-platform/skills.git
   skills=(dlstreamer-coding-agent)
 }
@@ -29,7 +29,7 @@ verify_dlstreamer () {
 debian_75_install_dlstreamer () {
   configure_dlstreamer "$@"
   
-  if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_dlstreamer && ! ensure_parse_reinstall "$@"; then
     echo "dlstreamer-${version} is installed." >&2
   else
     ensure_disk_size 15000

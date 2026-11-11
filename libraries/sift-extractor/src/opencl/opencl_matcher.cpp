@@ -10,6 +10,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -66,6 +67,9 @@ void pack_descriptors(const std::vector<SiftFeature> &features,
 } // namespace
 
 struct OpenCLMatcher::Impl {
+  // Serializes match(): OpenCL queue/buffers/self-cache are not re-entrant, and
+  // Python bindings may release the GIL around match().
+  std::mutex mutex;
   cl_device_id device = nullptr;
   cl_context context = nullptr;
   cl_command_queue queue = nullptr;
@@ -160,6 +164,7 @@ OpenCLMatcher::~OpenCLMatcher() = default;
 std::vector<SiftMatchResult>
 OpenCLMatcher::match(const std::vector<SiftFeature> &query,
                      const std::vector<SiftFeature> &train) {
+  std::lock_guard<std::mutex> lock(impl_->mutex);
   if (query.empty())
     return {};
   if (train.empty()) {

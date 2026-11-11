@@ -1,37 +1,5 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Speech recognition: an audio file in, timed text segments out.
-
-Not an embedding model, and so not in the multimodal registry. What it produces
-is text -- `l2_transcript` blocks (`transcription.py`) -- and it is whichever
-source takes derived text (GME) that turns those into vectors. A recording is
-therefore found by what was *said* in it, through the same text tower a query
-goes through.
-
-Configured like every other model (`config.ASR_*`): a runtime, a Hugging Face
-id, a local path, a device. Only `openvino` is implemented. The path may hold
-prepared OpenVINO IR directly or under `<path>/openvino`. Download and export
-the model, processor, and tokenizer beforehand; this runtime never prepares it.
-
-Three things hold for every result:
-
-1. **Segments are in time order and carry their range**, in seconds, so a block
-   cut from them can say where in the recording it is.
-2. **Audio is decoded by ffmpeg**, to 16 kHz mono float32, which is what
-   Whisper's feature extractor expects. ffprobe is already required for video
-   durations; ffmpeg ships with it, so no audio library is added.
-3. **Long audio is cut here, not by Whisper's timestamps**, at two levels. A
-   *segment* -- one transcript block -- is at most `ENGINE_ASR_SEGMENT_SECONDS`
-   (default 30 s); within it, each *window* handed to the model is at most
-   30 s, which is what Whisper sees at once, and the windows' text is joined
-   back into the segment. Every cut ends at the quietest moment of the last few
-   seconds before the limit, so it rarely lands mid-word, and a segment's range
-   is exact. The pipeline's own timestamp mode was tried and rejected: on
-   unpunctuated Mandarin it emitted one "segment" for most of a recording and
-   looped on its text.
-
-The runtime is not thread-safe and one instance is shared, so calls are locked.
-"""
 
 import subprocess
 import threading
@@ -40,10 +8,10 @@ from pathlib import Path
 from typing import Any, Iterable, List, Optional, Tuple
 
 import config
+from inference.meta import RUNTIME_OV_OPTIMUM, InferenceMeta
 
 SAMPLE_RATE = 16000
-# Whisper sees 30 s at a time; a window never exceeds it. A segment (one
-# transcript block) is `config.ASR_SEGMENT_SECONDS` and may hold several.
+# Whisper's input length; a segment of `config.ASR_SEGMENT_SECONDS` may hold several windows.
 WINDOW_SECONDS = 30.0
 # How far back from a window's end to look for a quiet place to cut.
 _SEARCH_SECONDS = 5.0
@@ -60,7 +28,7 @@ class TranscriptionError(RuntimeError):
 
 @dataclass(frozen=True)
 class Segment:
-    """One stretch of recognized speech."""
+    """One stretch of recognized speech; times in seconds."""
 
     start_s: float
     end_s: float
@@ -104,11 +72,7 @@ def decode_audio(path: str) -> Any:
 def windows(
     audio: Any, sample_rate: int = SAMPLE_RATE, max_seconds: float = WINDOW_SECONDS
 ) -> List[Tuple[int, int]]:
-    """`(start, end)` sample ranges covering `audio`, each at most `max_seconds`.
-
-    A range that has to be cut is cut at the quietest frame of its last few
-    seconds rather than at exactly the limit.
-    """
+    """`(start, end)` sample ranges of at most `max_seconds`, cut at the quietest nearby frame."""
     import numpy as np  # noqa: PLC0415
 
     total = int(audio.size)
@@ -135,8 +99,11 @@ def windows(
     return ranges
 
 
-class WhisperOpenVINO:
-    """Whisper through optimum-intel, wrapped in the transformers ASR pipeline."""
+class WhisperOpenVINO(InferenceMeta):
+    """Whisper through optimum-intel and the transformers ASR pipeline; not thread-safe, so calls are locked."""
+
+    BACKEND = config.LOCAL_OPENVINO
+    RUNTIME = RUNTIME_OV_OPTIMUM
 
     def __init__(
         self,
@@ -175,9 +142,7 @@ class WhisperOpenVINO:
             tokenizer=processor.tokenizer,
             feature_extractor=processor.feature_extractor,
         )
-        # Text Whisper conditions on as if it had just heard it. Steers script
-        # and style -- simplified rather than traditional Chinese, punctuation
-        # -- and is not part of the output.
+        # Conditioning prompt that steers script and punctuation; not part of the output.
         self._prompt_ids = (
             processor.tokenizer.get_prompt_ids(prompt, return_tensors="pt")
             if prompt
@@ -242,15 +207,19 @@ def get_transcriber() -> WhisperOpenVINO:
     global _INSTANCE
     with _INSTANCE_LOCK:
         if _INSTANCE is None:
-            if config.ASR_BACKEND != "openvino":
+            if config.ASR_BACKEND == config.REMOTE_OPENAI_COMPATIBLE:
                 raise TranscriptionError(
-                    f"ENGINE_ASR_BACKEND={config.ASR_BACKEND!r} is not supported; "
-                    "speech recognition runs on openvino"
+                    "remote_openai_compatible speech recognition is not implemented"
+                )
+            if config.ASR_BACKEND != config.LOCAL_OPENVINO:
+                raise TranscriptionError(
+                    f"ASR backend {config.ASR_BACKEND!r} is not supported; "
+                    f"speech recognition runs on {config.LOCAL_OPENVINO}"
                 )
             from core.multimodal.registry import local_path  # noqa: PLC0415
 
             _INSTANCE = WhisperOpenVINO(
-                model_path=str(local_path(config.ASR_MODEL_PATH)),
+                model_path=str(local_path(config.ASR_MODEL_ID)),
                 model_id=config.ASR_MODEL_ID,
                 device=config.ASR_DEVICE,
                 language=config.ASR_LANGUAGE,

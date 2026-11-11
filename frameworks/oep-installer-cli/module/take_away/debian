@@ -38,7 +38,7 @@ debian_90_profile_take_away () {
 debian_90_install_take_away () {
   configure_take_away "$@"
 
-  if verify_take_away && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_take_away && ! ensure_parse_reinstall "$@"; then
     echo "Order accuracy Take Away is installed." >&2
   else 
     ensure_disk_size 10000
@@ -78,6 +78,7 @@ debian_90_install_take_away () {
 debian_90_start_take_away () {
   configure_take_away "$@"
   ensure_ports_open start take_away "${used_ports[@]}"
+  ensure_container_namespace start take_away $(ensure_container_parse_names "$workspace"/take-away/docker-compose.yaml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}"

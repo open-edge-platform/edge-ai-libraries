@@ -1426,6 +1426,7 @@ class TestJobLifecycle(unittest.TestCase):
         db_model, variants = asyncio.run(_check())
         self.assertEqual(db_model.category, "pose_estimation")
         self.assertEqual(db_model.hub, "ultralytics")
+        self.assertIsNone(db_model.gated)
         self.assertEqual(db_model.install_status, "installed")
         self.assertEqual(
             sorted((v.precision, v.model_path, v.installed) for v in variants),
@@ -1462,6 +1463,7 @@ class TestJobLifecycle(unittest.TestCase):
             name,
             InternalModelCategory.VISION_LANGUAGE_MODELS,
             {"hub": "huggingface", "name": name},
+            "auto",
         )
 
         self.assertEqual(job.state, InternalModelDownloadJobState.COMPLETED)
@@ -1482,6 +1484,7 @@ class TestJobLifecycle(unittest.TestCase):
         db_model, variants = asyncio.run(_check())
         self.assertEqual(db_model.category, "vision_language_models")
         self.assertEqual(db_model.hub, "huggingface")
+        self.assertEqual(db_model.gated, "auto")
         self.assertEqual(db_model.install_status, "installed")
         self.assertEqual(db_model.display_name, "gemma-4-E4B-it-int8-ov")
         self.assertEqual(len(variants), 1)

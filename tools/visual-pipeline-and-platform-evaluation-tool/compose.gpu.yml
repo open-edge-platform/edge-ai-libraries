@@ -7,3 +7,9 @@ services:
       - ${RENDER_GROUP_ID}
     devices:
       - "/dev/dri:/dev/dri"
+  dlstreamer-pipeline-server:
+    # Runs the pipelines, so it needs the same GPU access as vippet.
+    group_add:
+      - ${RENDER_GROUP_ID}
+    devices:
+      - "/dev/dri:/dev/dri"

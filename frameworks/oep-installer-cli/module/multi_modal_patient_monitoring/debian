@@ -1,7 +1,7 @@
 
 configure_multi_modal_patient_monitoring () {
   workspace="$(ensure_project_path)/multi-modal-patient-monitoring"
-  version="$(ensure_parse_value_option version --version=4a9679b58090cd86d56d91e1e72cab462babfe31 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository=https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git
 
   workspace_mdpnp="$workspace"/multi_modal_patient_monitoring/services/mdpnp/mdpnp
@@ -36,7 +36,7 @@ debian_90_profile_multi_modal_patient_monitoring () {
 
 debian_90_install_multi_modal_patient_monitoring () {
   configure_multi_modal_patient_monitoring "$@"
-  if verify_multi_modal_patient_monitoring && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_multi_modal_patient_monitoring && ! ensure_parse_reinstall "$@"; then
     echo "Multi Modal Patient Monitoring is installed" >&2
   else
     ensure_disk_size 50000
@@ -76,6 +76,7 @@ debian_90_install_multi_modal_patient_monitoring () {
 debian_90_start_multi_modal_patient_monitoring () {
   configure_multi_modal_patient_monitoring "$@"
   ensure_ports_open start multi_modal_patient_monitoring "${used_ports[@]}"
+  ensure_container_namespace start multi_modal_patient_monitoring $(ensure_container_parse_names "$workspace"/multi_modal_patient_monitoring/docker-compose.yaml)
 
   cd "$workspace"/multi_modal_patient_monitoring
 

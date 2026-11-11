@@ -1,7 +1,7 @@
 
 configure_anomalib () {
   workspace="$(ensure_project_path)/anomalib"
-  version=2.7.0
+  version="$(ensure_parse_value_option version --version=2.7.0 "$@")"
   repository=https://github.com/open-edge-platform/anomalib.git
 
   version_skills=release-2026.2.0
@@ -15,7 +15,7 @@ verify_anomalib () {
 }
 
 test_anomalib () {
-  if [[ " $* " = *" --validate "* ]]; then
+  if ensure_parse_option --validate "$@"; then
     . "$workspace"/.venv/bin/activate
     ensure_rm "$workspace"/test
     mkdir -p "$workspace"/test

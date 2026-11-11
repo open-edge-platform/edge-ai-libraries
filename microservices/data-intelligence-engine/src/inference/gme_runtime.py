@@ -1,21 +1,12 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""OpenVINO Runtime implementation of Alibaba-NLP/gme-Qwen2-VL-2B-Instruct.
-
-This module belongs to the Transformers 5.x runtime environment. It never imports the
-checkpoint's vendored ``gme_inference.py``; official PyTorch references are generated first
-in the separate Transformers 4.51.3 environment and then consumed as numpy artifacts.
-
-The exported package contains the learned computation in two OpenVINO IRs. This
-module deliberately retains Hugging Face's Qwen2-VL processor for tokenization
-and pixel preprocessing, which is necessary to exactly preserve GME's special
-tokens, dynamic image resizing, and image-token expansion.
-"""
+"""OpenVINO Runtime implementation of Alibaba-NLP/gme-Qwen2-VL-2B-Instruct."""
 from __future__ import annotations
 
 import base64
 import importlib
+import json
 import logging
 import math
 import sys
@@ -32,8 +23,6 @@ from PIL import Image
 
 
 class _Lazy:
-    """Keep package inspection and role discovery independent of OV/transformers."""
-
     def __init__(self, module: str, attribute: str = ""):
         self._module, self._attribute, self._target = module, attribute, None
 
@@ -57,19 +46,9 @@ IMAGE_FACTOR = 28
 MIN_PIXELS = 4 * 28 * 28
 MAX_PIXELS = 16384 * 28 * 28
 MAX_RATIO = 200
-# Official GME's get_fused_embeddings() default. Chunking only bounds peak memory;
-# it never changes a row, because rows are computed independently either way.
 DEFAULT_BATCH_SIZE = config.GME_BATCH_SIZE
-# OpenVINO virtual devices that select/combine real ones at compile time; never
-# listed in Core.available_devices, but a valid `device=` value. See
-# GmeOpenVINO._device_recognized.
+# OpenVINO meta-devices: valid `device=` values not listed in Core.available_devices.
 _META_DEVICE_PREFIXES = ("AUTO", "MULTI", "HETERO", "BATCH")
-# Mirrors official GME's DataLoader(num_workers=min(cpu_count//2, 8)) for image
-# loading (gme_inference.py's get_fused_embeddings). load_image() is I/O-bound
-# (network fetch for a URL, disk read for a path) plus a PIL resize, so loading a
-# batch through a thread pool -- rather than one image at a time -- matters most
-# when images is a list of URLs: sequential loading serializes every fetch's
-# round-trip latency.
 _IMAGE_LOAD_WORKERS = config.IMAGE_LOAD_WORKERS
 
 
@@ -79,27 +58,19 @@ def _as_list(value: str | Path | Image.Image | Sequence[str | Path | Image.Image
     if isinstance(value, (str, Path, Image.Image)):
         return [value]
     values = list(value)
-    # Official GME accepts a DataLoader for images. Its batches are normally
-    # lists (the official collate function is identity), so flatten those while
-    # keeping every actual image object/path as one sample.
+    # Flatten DataLoader-style batches of lists into individual samples.
     if values and all(isinstance(item, (list, tuple)) for item in values):
         return [item for batch in values for item in batch]
     return values
 
 
 def _loader_batch_size(value: object) -> int | None:
-    """Official GME takes its batch size from a DataLoader when given one."""
     size = getattr(value, "batch_size", None)
     return size if isinstance(size, int) and size > 0 else None
 
 
 class _Progress:
-    """Official GME wraps its encode loop in tqdm; mirror that without requiring it.
-
-    One deliberate difference from upstream: a bar is only drawn when the work is
-    actually split into several chunks. A one-chunk bar carries no information and
-    upstream only prints it because its loop is unconditional.
-    """
+    """Progress bar (tqdm if available) shown only when work spans several chunks."""
 
     def __init__(self, total: int, enabled: bool, description: str = "encode") -> None:
         self.bar = None
@@ -111,7 +82,7 @@ class _Progress:
         try:
             from tqdm.autonotebook import tqdm
         except ImportError:
-            return  # plain stderr counter below
+            return
         self.bar = tqdm(total=total, mininterval=1, miniters=10, desc=description)
 
     def update(self) -> None:
@@ -149,13 +120,9 @@ def _resize_for_gme(image: Image.Image) -> Image.Image:
         resized_height = math.ceil(height * scale / IMAGE_FACTOR) * IMAGE_FACTOR
         resized_width = math.ceil(width * scale / IMAGE_FACTOR) * IMAGE_FACTOR
     if not resized_height or not resized_width:
-        # Official divides by min(...) next and dies with ZeroDivisionError; say what
-        # happened instead. Nothing upstream can encode is rejected here.
         raise ValueError(f"image {width}x{height} is too extreme to resize: a side rounded to 0 pixels")
     if max(resized_height, resized_width) / min(resized_height, resized_width) > MAX_RATIO:
-        # Official warns and clamps the long side rather than failing, so an extreme
-        # banner stays encodable; rejecting it here would drop an input GME accepts.
-        # Clamping only shrinks, so the result is still a multiple of IMAGE_FACTOR.
+        # Clamp the long side; the result stays a multiple of IMAGE_FACTOR.
         logging.warning(
             "Absolute aspect ratio must be smaller than %s, got %s",
             MAX_RATIO, max(resized_height, resized_width) / min(resized_height, resized_width),
@@ -168,7 +135,7 @@ def _resize_for_gme(image: Image.Image) -> Image.Image:
 
 
 def load_image(value: str | Path | Image.Image) -> Image.Image:
-    """Load and resize an image exactly as the official GME inference helper."""
+    """Load an image from a PIL image, URL, file path or base64 data URI and resize it for GME."""
     if isinstance(value, Image.Image):
         image = value
     else:
@@ -187,13 +154,7 @@ def load_image(value: str | Path | Image.Image) -> Image.Image:
 
 
 def _load_images(values: list) -> list[Image.Image]:
-    """Load/resize a batch of images, preserving input order.
-
-    A single image skips the thread pool entirely -- there is nothing to overlap,
-    and creating one would be pure overhead. ThreadPoolExecutor.map already
-    returns results in submission order, so this needs no extra bookkeeping to
-    keep images aligned with their paired texts.
-    """
+    """Load/resize a batch of images in parallel, preserving input order."""
     if len(values) <= 1:
         return [load_image(value) for value in values]
     with ThreadPoolExecutor(max_workers=min(_IMAGE_LOAD_WORKERS, len(values))) as pool:
@@ -203,16 +164,9 @@ def _load_images(values: list) -> list[Image.Image]:
 def package_ir_files(
     model_dir: str | Path, config: dict, precision: str | None = None
 ) -> tuple[str, str, str]:
-    """``(precision, language_xml, visual_xml)`` a package directory resolves to.
-
-    Without an explicit ``precision`` the package's precision is whichever one it
-    actually ships: packages are often copied with a single precision's IRs while
-    their config still lists all three, so the config's ``default_precision`` is
-    only a tie-breaker when several are present. Packages that predate the
-    ``precisions`` map are single-precision fp32.
-    """
+    """Resolve ``(precision, language_xml, visual_xml)``, preferring the precision whose IRs are present."""
     precisions = config.get("precisions")
-    if not precisions:  # backward compatibility with older single-precision packages
+    if not precisions:
         return precision or "fp32", config["language_model"], config["visual_model"]
     if precision is None:
         model_dir = Path(model_dir)
@@ -245,38 +199,53 @@ def package_ir_files(
     return precision, precisions[precision]["language"], precisions[precision]["visual"]
 
 
+GME_DIMENSION = 1536
+PACKAGE_CONFIG = "gme_openvino_config.json"
+
+
+def find_package(model_path: str | Path) -> Path:
+    """Return the package at ``model_path`` or the single package directly inside it."""
+    root = Path(model_path)
+    if (root / PACKAGE_CONFIG).is_file():
+        return root
+    nested = (
+        [child for child in root.iterdir() if (child / PACKAGE_CONFIG).is_file()]
+        if root.is_dir() else []
+    )
+    if len(nested) == 1:
+        return nested[0]
+    raise FileNotFoundError(
+        f"No exported GME OpenVINO package at {str(model_path)!r} (looked for "
+        f"{PACKAGE_CONFIG}). Put the package under ENGINE_MODEL_ROOT_PATH, "
+        "and select its model ID with the source's embedding_model."
+    )
+
+
+def choose_precision(package: Path) -> str:
+    """The package's precision, requiring complete XML/weights pairs."""
+    metadata = json.loads((package / PACKAGE_CONFIG).read_text())
+    precision, language, visual = package_ir_files(package, metadata)
+    for name in (language, visual):
+        path = package / name
+        if not path.is_file() or not path.with_suffix(".bin").is_file():
+            raise FileNotFoundError(
+                f"GME precision {precision!r} is incomplete at {str(package)!r}: "
+                f"expected {path.name} and {path.with_suffix('.bin').name}"
+            )
+    return precision
+
+
 class _RequestPool:
-    """Run independent inference requests over one compiled model, in order.
-
-    A GME "batch" is N mutually independent samples, so it maps onto N infer
-    requests rather than one padded N-row tensor. That keeps every sample at its
-    own true sequence length (no padding compute, no dependence on what else
-    shares the batch) and lets the plugin overlap samples across streams.
-
-    Requests are created and driven explicitly rather than through
-    ``ov.AsyncInferQueue``. The queue was measured to return a *stale* output for a
-    later job -- a batch of two distinct images that happen to share a grid came
-    back with row 0's embedding duplicated into row 1, silently and only sometimes
-    (it depends on how the compiled model was used beforehand). Same-shaped feeds
-    are exactly the common case (two 448x448 images, two equal-length queries), so
-    this had to go. Explicit ``start_async`` + ``wait`` per slot is what the C++
-    runtime already does, and 07_validate_batch.py now pins both against distinct
-    same-shape samples.
-    """
+    """Run independent infer requests in order; avoids ``ov.AsyncInferQueue``, which can return stale outputs."""
 
     def __init__(self, compiled: CompiledModel) -> None:
         self.compiled = compiled
         self.size = max(1, int(compiled.get_property("OPTIMAL_NUMBER_OF_INFER_REQUESTS")))
         self._requests: list[InferRequest] = []
-        # `run` mutates the shared request slots (set_tensor/start_async on
-        # self._requests), so two threads calling it at once -- concurrent
-        # retrieve requests offloaded to the threadpool -- would clobber each
-        # other's in-flight tensors. Serialize a single pool's inference; the
-        # language and visual pools are separate instances, so they still overlap.
+        # Serializes `run`: concurrent callers would clobber the shared request slots.
         self._lock = threading.Lock()
 
     def _slots(self, count: int) -> list[InferRequest]:
-        """Reuse requests across calls; a request holds activations, so grow lazily."""
         while len(self._requests) < count:
             self._requests.append(self.compiled.create_infer_request())
         return self._requests[:count]
@@ -303,17 +272,15 @@ class _RequestPool:
         try:
             for job, feed in enumerate(feeds):
                 slot = job % len(slots)
-                harvest(slot)  # free the slot before overwriting its inputs
+                harvest(slot)
                 for name, value in feed.items():
-                    # Copy into an owned tensor: the request outlives this loop
-                    # iteration, and a shared view would alias the caller's array.
+                    # Owned tensor copy: a shared view would alias the caller's array.
                     slots[slot].set_tensor(name, ov.Tensor(np.ascontiguousarray(value)))
                 slots[slot].start_async()
                 in_flight[slot] = job
             for slot in list(in_flight):
                 harvest(slot)
         except BaseException:
-            # In-flight requests still reference tensors we are about to drop.
             for slot in in_flight:
                 slots[slot].wait()
             raise
@@ -324,55 +291,7 @@ class _RequestPool:
 
 
 class GmeOpenVINO:
-    """GME encoder backed entirely by OpenVINO Runtime neural computation.
-
-    This is *one* implementation of `inference.ov_adapter.OVEmbeddingRuntime` -- the
-    model-specific inference half. The llama-index adapter over it
-    (`inference.ov_adapter.MultimodalOVEmbedding`) is model-neutral and does not
-    know GME from any other VL embedding runtime; a second model is a second class
-    of this shape, not a change to the adapter or anything downstream.
-
-    One image per input is supported, matching the official model limitation.
-
-    The public API mirrors official ``GmeQwen2VL``: ``embed`` is the single-batch
-    primitive, ``get_text_embeddings`` / ``get_image_embeddings`` /
-    ``get_fused_embeddings`` chunk by ``batch_size`` (default 32, as upstream) with
-    an optional progress bar, and ``encode`` / ``encode_queries`` / ``encode_corpus``
-    are the sentence-transformers-style aliases.
-
-    Shared by the text/fused and standalone-media adapters. ``embed`` serializes
-    preprocessing as well as inference: the tokenizer/processor and request pools
-    belong to the runtime, so separate locks on the adapters would not protect
-    them from one another.
-
-    Batching works for any number of samples with no per-batch-size export:
-
-    * The visual IR is invoked once per image. Qwen2-VL's vision tower has no
-      batch dimension at all -- images become one concatenated patch sequence whose
-      attention is block-diagonal per image, and each image's rotary table lookup
-      depends only on its own grid -- so per-image invocation computes the same
-      function as feeding several ``image_grid_thw`` rows at once. Measured
-      bit-identical against a deliberately B=2-traced IR (max abs diff 0.0), and
-      cheaper: a shared sequence costs O((sum L)^2) masked attention instead of
-      O(sum L^2). Tracing also bakes the image count in (``rot_pos_emb`` loops over
-      the grid rows in Python), so a traced IR rejects a row count it was not
-      traced with -- per-image invocation is what makes any N work from one export.
-    * The language IR is driven by ``batch_mode``. ``"per_sample"`` invokes it once
-      per sample at that sample's true length, which makes a batch bit-identical to
-      the same items encoded one by one; ``"padded"`` sends one [B, S] call the way
-      the official model does, where rows shift slightly with batch composition.
-
-    Which one is faster is a property of the device, so ``batch_mode="auto"``
-    (the default) picks per measurement:
-
-    * CPU: one request already saturates every core, so a padded N-row call is no
-      faster than N sequential calls (measured 1.00x at N=4 and N=8). Per-sample
-      wins because it drops the padding work and, with ``streams``, overlaps
-      samples for ~1.9x.
-    * GPU: per-request submission overhead dominates short sequences, so folding
-      the batch into one call is 2.4x faster per embedding (22 ms vs 53 ms at
-      N=4) and extra streams do not recover it. Padded wins.
-    """
+    """GME encoder running on OpenVINO Runtime; one image per input."""
 
     def __init__(
         self,
@@ -389,53 +308,7 @@ class GmeOpenVINO:
         dynamic_quantization_threshold: int | None = None,
         visual_dynamic_quantization_threshold: int | None = None,
     ) -> None:
-        """precision: one of the keys in the package config's ``precisions`` map
-        (``fp32``/``int8``/``int4``); defaults to the one the package ships (see
-        ``package_ir_files``).
-        fp32_math: force f32 inference-precision hint (defaults to True only for the
-        fp32 weights, so the reference is reproduced exactly; quantized models use the
-        device default for best speed).
-        streams: execution streams per IR, trading single-sample latency for batch
-        throughput. ``1`` (default) gives one stream all cores -- lowest latency for
-        one sample. ``"auto"`` lets the plugin pick (4 on a 16-core CPU), or pass an
-        int to pin it; multi-sample calls then run ~1.9x faster while a lone sample
-        is ~1.3x slower and each extra stream costs ~0.2 GB. Output is unaffected.
-        batch_mode: how the language IR consumes a batch -- ``"per_sample"`` (one
-        request per sample, bit-identical to sequential), ``"padded"`` (one [B, S]
-        request, like the official model), or ``"auto"`` (default: per_sample on
-        CPU, padded on GPU, matching where each is faster).
-        cache_dir: enables OpenVINO's compiled-model cache (``ov.properties.cache_dir``)
-        so a second process with the same package/device/precision/streams loads a
-        cached blob instead of recompiling. ``None`` (default) disables it, matching
-        prior behavior. Recommended for GPU, where compiling the INT8 language IR from
-        scratch is tens of seconds; every short-lived CLI/benchmark process in this
-        project pays that cost from cold, so pointing them at one shared directory is
-        the single easiest latency win for anything that starts a fresh process.
-        min_image_tokens, max_image_tokens: override the package's Qwen2-VL processor
-        image-token bounds (default: the package's own values from
-        ``gme_openvino_config.json``). This is the single most effective image/fused
-        latency knob: attention cost grows with the visual token count (README S6.4-6.5),
-        so capping ``max_image_tokens`` trades resolution for latency. Unlike
-        ``max_length`` below, this needs no re-export -- both language and visual IRs
-        accept any sequence length.
-        max_length: override the package's tokenizer truncation length (default: the
-        package's own value, e.g. 1800). The language IR has a fully dynamic sequence
-        dimension, so this can be raised or lowered freely with no re-export --
-        unlike the C++ runtime, where it is baked into a tokenizer IR at export time.
-        dynamic_quantization_threshold: optional GPU activation-row threshold. Setting
-        it to 0 enables the plugin's long-context RMSNorm-to-DynamicQuantize fusion,
-        but also quantizes short rows that normally use the f16 pass-through. Use a
-        dedicated long-context instance; the default preserves short-query accuracy.
-        visual_dynamic_quantization_threshold: the corresponding visual-IR threshold.
-        Setting it to 0 enables visual MVN-to-DynamicQuantize fusion independently of
-        the language model, so text/query behavior remains unchanged. The fusion itself is
-        bit-exact (verified down to L=256 patch rows), but 0 also disables the same
-        short-row quantization bypass described above, and that part is only inert while
-        ``min_image_tokens >= 256`` keeps every image at ``L = 4K >= 1024`` rows -- which
-        the package default guarantees. Lowering ``min_image_tokens`` below 256 together
-        with this flag does change image/fused outputs. See docs/14 S14.3.2b.
-        Both thresholds are GPU-plugin properties: passing either to a non-GPU device
-        raises rather than being silently dropped."""
+        """streams: 1 favors latency, "auto" or N > 1 favors throughput; quantization thresholds are GPU-only."""
         self.model_dir = Path(model_dir)
         self._lock = threading.Lock()
         config_path = self.model_dir / "gme_openvino_config.json"
@@ -459,6 +332,7 @@ class GmeOpenVINO:
                 f"min_image_tokens={min_image_tokens} and max_image_tokens={max_image_tokens} "
                 "must both be positive with min_image_tokens <= max_image_tokens"
             )
+        self.max_image_tokens = max_image_tokens
         self.max_length = processor_config["max_length"] if max_length is None else max_length
         if self.max_length < 1:
             raise ValueError(f"max_length must be positive, got {self.max_length}")
@@ -471,7 +345,7 @@ class GmeOpenVINO:
         )
         padding_side = processor_config["padding_side"]
         if padding_side != "right":
-            # Per-sample slicing below assumes valid tokens come first.
+            # Per-sample slicing assumes valid tokens come first.
             raise ValueError(f"package must be right-padded, got padding_side={padding_side!r}")
         self.processor.tokenizer.padding_side = padding_side
         self.embedding_dim = int(self.config["embedding_dim"])
@@ -490,12 +364,7 @@ class GmeOpenVINO:
         compile_config.update(self._stream_config(streams))
         language_compile_config = dict(compile_config)
         visual_compile_config = dict(compile_config)
-        # GPU_DYNAMIC_QUANTIZATION_THRESHOLD only exists in the GPU plugin: the CPU plugin
-        # rejects it outright ("NotFound: Unsupported property"), so handing it over would
-        # turn an inapplicable tuning knob into a hard compile failure. Rejecting it here
-        # instead of dropping it silently keeps an explicitly requested knob from being
-        # ignored without the caller noticing. Callers that sweep several devices should
-        # pass the threshold only for the GPU ones (see 04_validate_python.py).
+        # GPU_DYNAMIC_QUANTIZATION_THRESHOLD is rejected by non-GPU plugins.
         for name, value in (("dynamic_quantization_threshold", dynamic_quantization_threshold),
                             ("visual_dynamic_quantization_threshold",
                              visual_dynamic_quantization_threshold)):
@@ -515,13 +384,7 @@ class GmeOpenVINO:
         self.streams = streams
         if batch_mode not in ("auto", "per_sample", "padded"):
             raise ValueError(f"batch_mode must be auto/per_sample/padded, got {batch_mode!r}")
-        # Per-sample drops padding work and overlaps across CPU streams; a padded
-        # call amortizes the GPU's per-submission overhead. See the class docstring.
-        # This is a name-based heuristic, not a query of what AUTO/MULTI/HETERO
-        # actually resolve to: only a device string that is (or starts with) "CPU"
-        # picks per_sample; anything else, including meta-devices that might select
-        # CPU underneath, defaults to padded. Pass batch_mode explicitly for those
-        # if the CPU-side behavior matters to you.
+        # per_sample is faster on CPU, padded on GPU; decided by device name only.
         self.batch_mode = (
             ("per_sample" if device.upper().startswith("CPU") else "padded")
             if batch_mode == "auto"
@@ -534,19 +397,7 @@ class GmeOpenVINO:
         self._no_images = np.empty((0, self.embedding_dim), dtype=np.float32)
 
     def _device_recognized(self, device: str) -> bool:
-        """True if `device` is a real device or a device OpenVINO otherwise accepts.
-
-        `core.available_devices` only lists concrete plugins with detected hardware
-        (e.g. ``["CPU", "GPU"]``), so a strict membership check rejects every legal
-        multi-device string: ``"AUTO"``, ``"AUTO:CPU"``, ``"MULTI:CPU,GPU"``,
-        ``"HETERO:GPU,CPU"``, ``"BATCH:GPU(4)"``, and a device index like
-        ``"GPU.0"``. All were verified here to `core.compile_model()` successfully
-        against this package's language IR. Rather than reimplement OpenVINO's
-        device-string grammar, this only recognizes the plain-device and
-        known-meta-device-prefix cases and otherwise defers to `compile_model`'s
-        own error -- good enough to catch the common typo (e.g. `"gpu"` lowercase)
-        without blocking a legitimate config this class has never been taught about.
-        """
+        """True for an available device, a meta-device (AUTO, MULTI, ...) or an indexed device like ``GPU.0``."""
         device_name = device.split(":", 1)[0]
         if device_name in self.core.available_devices:
             return True
@@ -558,15 +409,7 @@ class GmeOpenVINO:
 
     @staticmethod
     def _is_gpu_device(device: str) -> bool:
-        """True only for a plain GPU device string, e.g. ``"GPU"`` or ``"GPU.1"``.
-
-        Deliberately conservative and, like `batch_mode="auto"`, name-based rather than a
-        query of what a meta-device resolves to: ``"AUTO"`` may well pick the GPU, but the
-        property is forwarded to whichever plugin AUTO settles on, so treating it as GPU
-        would reintroduce exactly the CPU-plugin rejection this guards against. Anything
-        other than a plain GPU string must set the threshold on an explicit ``"GPU"``
-        instance instead.
-        """
+        """True only for a plain GPU device string, e.g. ``"GPU"`` or ``"GPU.1"`` (not meta-devices)."""
         return device.split(":", 1)[0].split(".", 1)[0].upper() == "GPU"
 
     @staticmethod
@@ -596,16 +439,6 @@ class GmeOpenVINO:
 
     @staticmethod
     def _instruction(instruction: str | None, is_query: bool) -> str:  # noqa: ARG004
-        """The system instruction for a prompt.
-
-        An explicit ``instruction`` is honoured on either side; without one the
-        default is used. ``is_query`` stays in the signature so a caller still
-        reads as query/document, but no longer suppresses a document-side
-        instruction -- the asymmetry now lives in what each caller passes (a query
-        may carry a task instruction, a document usually passes ``None`` and so
-        keeps the default). This is what lets the fused corpus path opt into a
-        dedicated instruction without disturbing the text path, which passes none.
-        """
         return instruction if instruction is not None else DEFAULT_INSTRUCTION
 
     def _language_embedding(
@@ -613,16 +446,10 @@ class GmeOpenVINO:
         inputs: dict[str, np.ndarray],
         image_embeds: list[np.ndarray] | None = None,
     ) -> np.ndarray:
-        """Decode the batch, per ``batch_mode``.
-
-        ``image_embeds`` holds each sample's visual tokens, or None for text-only.
-        """
+        """``image_embeds`` holds each sample's visual tokens, or None for text-only."""
         input_ids = inputs["input_ids"]
         attention_mask = inputs["attention_mask"]
         if self.batch_mode == "padded":
-            # One [B, S] call, exactly the official layout: every sample's visual
-            # tokens are concatenated and masked_scatter distributes them across the
-            # flattened batch, one image-pad slot per row.
             return self.language_pool.run([{
                 "input_ids": input_ids,
                 "attention_mask": attention_mask,
@@ -632,8 +459,6 @@ class GmeOpenVINO:
                 ),
             }])[0]
 
-        # Per-sample: trimming the right padding makes the result independent of the
-        # batch it was encoded in, and skips the decoder work the padding would cost.
         lengths = attention_mask.sum(axis=1).astype(np.int64)
         feeds = [
             {
@@ -672,9 +497,7 @@ class GmeOpenVINO:
             max_length=self.max_length,
             return_tensors="np",
         )
-        # The processor concatenates every image's patches into one array; split it
-        # back so each image becomes its own visual request. Block-diagonal vision
-        # attention makes this bit-identical to one multi-row call, and faster.
+        # Split the concatenated patches so each image is its own visual request.
         grid_thw = inputs["image_grid_thw"]
         bounds = np.concatenate([[0], np.cumsum(np.prod(grid_thw, axis=1, dtype=np.int64))])
         visual_feeds = [
@@ -704,16 +527,7 @@ class GmeOpenVINO:
         is_query: bool = True,
         instruction: str | None = None,
     ) -> np.ndarray:
-        """Encode exactly one batch, the way official GME's ``embed()`` does.
-
-        This is the primitive the chunked entry points call: no ``batch_size``, no
-        progress bar, one processor invocation for the whole list. Either argument
-        may be omitted, and ``images`` may be a list of ``None`` (official uses that
-        to mean text-only), but an image list must be all-images or all-``None`` --
-        upstream documents the same constraint ("all examples in the same batch are
-        consistent") and simply crashes on a mixed list, so raising is strictly
-        better while supporting the identical input surface.
-        """
+        """Encode one batch; ``images`` must be all images or all ``None`` (text-only)."""
         text_values = None if texts is None else list(texts)
         image_values = None if images is None else list(images)
         if image_values is not None and any(image is None for image in image_values):
@@ -722,7 +536,7 @@ class GmeOpenVINO:
                     "an image batch must be either all images or all None; official GME "
                     "requires every example in a batch to be consistent"
                 )
-            image_values = None  # official: `input_images = None` for a text-only batch
+            image_values = None
         prompt = self._instruction(instruction, is_query)
 
         if image_values is None:
@@ -734,9 +548,6 @@ class GmeOpenVINO:
         if text_values is None:
             text_values = [None] * len(image_values)
         elif len(text_values) > len(image_values):
-            # Official zips texts with images, so the shorter list wins. It relies on
-            # that for its trailing partial batch (`none_batch` is a full batch_size
-            # of None); keep the same rule instead of rejecting it.
             text_values = text_values[: len(image_values)]
         elif len(text_values) < len(image_values):
             raise ValueError(
@@ -754,12 +565,6 @@ class GmeOpenVINO:
         batch_size: int | None,
         show_progress_bar: bool,
     ) -> np.ndarray:
-        """Chunk into ``batch_size`` groups and concatenate, like official GME.
-
-        Chunking is a memory knob only. Each row is computed from its own sample, so
-        the concatenation of the chunks is the same array the single-chunk call
-        returns -- 07_validate_batch.py asserts that bit-exactly.
-        """
         count = len(images) if images is not None else len(texts or [])
         if not count:
             raise ValueError("nothing to encode: texts and images are both empty")
@@ -837,11 +642,7 @@ class GmeOpenVINO:
         batch_size: int | None = DEFAULT_BATCH_SIZE,
         show_progress_bar: bool = True,
     ) -> np.ndarray:
-        """Text encoding under the sentence-transformers/MTEB name.
-
-        ``prompt_name`` exists because MTEB passes it; official GME accepts and
-        ignores it too (GME selects its prompt with ``is_query``/``instruction``).
-        """
+        """Sentence-transformers/MTEB-style text encoding; ``prompt_name`` is ignored."""
         del prompt_name
         return self.get_text_embeddings(
             sentences,

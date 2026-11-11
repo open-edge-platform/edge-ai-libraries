@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Experimental backend: real model/video inference is not yet validated.
+# Select MODEL_SERVING_BACKEND=ovms; the application derives its video encoding.
+# OVMS_SOURCE_MODEL must contain compatible OpenVINO VLM artifacts, not PyTorch weights.
+# The API model name follows the application's LLM_MODEL default.
+# Set HOST_UID/HOST_GID to the host user's IDs. Create OVMS_MODEL_REPOSITORY
+# (default: ~/models/ovms) with write permission for that user before starting.
+
+services:
+  model-serving-ovms:
+    container_name: model-serving-ovms
+    image: openvino/model_server:latest-gpu
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "${OVMS_RESTART_POLICY:-on-failure:2}"
+    ports:
+      # The API is unauthenticated; keep host exposure on loopback.
+      - "${OVMS_BIND_HOST:-127.0.0.1}:${VLLM_SERVICE_PORT:-41091}:8000"
+    group_add:
+      - "${VIDEO_GROUP_ID:-1000}"
+      - "${RENDER_GROUP_ID:-1000}"
+    devices:
+      - /dev/dri:/dev/dri
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - type: bind
+        source: ${OVMS_MODEL_REPOSITORY:-${HOME}/models/ovms}
+        target: /models
+        read_only: false
+        bind:
+          create_host_path: false
+    environment:
+      no_proxy: ${no_proxy:-localhost,127.0.0.1,model-serving,multilevel-video-understanding}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp/.cache
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://huggingface.co}
+    # Preserve the image entrypoint and pass each option as a separate argument.
+    command:
+      - --rest_port
+      - "8000"
+      - --source_model
+      - ${OVMS_SOURCE_MODEL:-OpenVINO/Qwen3.6-35B-A3B-int4-ov}
+      - --model_name
+      - ${LLM_MODEL:-Qwen/Qwen3.6-35B-A3B}
+      - --model_repository_path
+      - /models
+      - --task
+      - text_generation
+      - --target_device
+      - ${OVMS_TARGET_DEVICE:-GPU}
+    networks:
+      app-network:
+        aliases:
+          - model-serving
+    healthcheck:
+      test: ["CMD", "curl", "--noproxy", "*", "-fsS", "http://localhost:8000/v1/models"]
+      start_period: 7200s
+      start_interval: 10s
+      interval: 5m
+      timeout: 5s
+      retries: 3
+
+networks:
+  app-network:
+    driver: bridge
+

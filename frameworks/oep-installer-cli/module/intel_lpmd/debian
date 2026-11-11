@@ -1,6 +1,7 @@
+
 configure_intel_lpmd () {
   workspace="$(ensure_project_path)/intel-lpmd"
-  version=956df747e56aca1739b39bff8cff77e81758af9a
+  version=9bf8b8de3ed11c301817814fef79b3161e6294b6
   repository="https://github.com/intel/intel-lpmd.git"
 }
 
@@ -11,18 +12,19 @@ verify_intel_lpmd () {
   }
 }
 
-debian_30_profile_intel_lpmd () {
-  echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+debian_35_profile_intel_lpmd () {
+  echo "kernel_module_essential linux_tools pkg_config autoconf automake git"
 }
 
-debian_30_install_intel_lpmd () {
+debian_35_install_intel_lpmd () {
   configure_intel_lpmd
-  if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_intel_lpmd && ! ensure_parse_reinstall "$@"; then
     echo "Intel-lpmd is installed" >&2
   else
     echo "@@STEP Installing prerequisites"
     ensure_apt update
     ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
+    configure_kernel_module_essential_debian "$@" || return $?
 
     echo "@@STEP Building intel-lpmd"
     ensure_git_export "$workspace" "$version" "$repository"
@@ -57,7 +59,7 @@ EOF
   fi
 }
 
-debian_30_remove_intel_lpmd () {
+debian_35_remove_intel_lpmd () {
   [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0
   cd "$workspace" && {
     make clean
@@ -68,6 +70,6 @@ debian_30_remove_intel_lpmd () {
   ensure_sudo systemctl daemon-reload || true
 }
 
-debian_30_sbom_intel_lpmd () {
+debian_35_sbom_intel_lpmd () {
   ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
 }

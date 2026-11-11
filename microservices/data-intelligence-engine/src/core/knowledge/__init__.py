@@ -1,13 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Knowledge for graph sources: formats, OKF bundles, and the external extractor.
-
-- `knowledge` -- `Knowledge` (extract assets to OKF bundles, build bundles into
-  a graph) and the `KnowledgeGraph` it builds.
-- `okf` -- parsing OKF bundles and resolving their provenance.
-- `extractor` -- the external service that turns documents into OKF bundles.
-- `extraction_jobs` -- background extraction jobs and their trigger scheduler.
-"""
 
 from core.knowledge.extractor import (
     EXTERNAL_EXTRACTOR,

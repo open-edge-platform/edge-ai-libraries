@@ -222,10 +222,6 @@ docker compose down -v
   $ cat /tmp/log/kapacitor/kapacitor.log | grep -i error
   ```
 
-## Other Deployment options
-
-- [How to Deploy with Helm](./get-started/deploy-with-helm.md): Guide for deploying the application on a k8s cluster using Helm.
-
 ## Supporting Resources
 
 - [Overview](./index.md)
@@ -236,7 +232,6 @@ docker compose down -v
 :hidden:
 
 ./get-started/system-requirements
-./get-started/deploy-with-helm
 
 :::
 

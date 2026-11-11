@@ -1,11 +1,11 @@
 
 debian_80_profile_anomalib () {
-  echo "python3_venv edge_base"
+  echo "python3_venv edge_base git"
 }
 
 debian_80_install_anomalib () {
   configure_anomalib "$@"
-  if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_anomalib && ! ensure_parse_reinstall "$@"; then
     echo "Anomalib is installed." >&2
   else
     ensure_disk_size 15000
