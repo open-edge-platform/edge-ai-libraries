@@ -15,6 +15,10 @@ verify_surgical_instrument () {
     echo "Missing polyp_test.mp4" >&2
     return 1
   }
+  [ -e "$workspace"/surgical-instrument/$polyp_model ] || {
+    echo "Missing yolo11n_polyp" >&2
+    return 1
+  }
 }
 
 debian_90_install_surgical_instrument () {
@@ -25,35 +29,25 @@ debian_90_install_surgical_instrument () {
   else
     ensure_disk_size 70000
     ensure_git_export "$workspace" "$version" "$repository" surgical-instrument
+    
+    # train models
     cd "$workspace"/surgical-instrument
+    make download-dataset
+    make prepare-dataset MAX_POS_PER_VIDEO=800
 
     # download video
     make backend-venv
     .venv-backend/bin/python scripts/create_endoscopy_video.py \
-        --images-dir datasets/REAL-Colon/raw/001-001_frames \
-        --output videos/polyp_test.mp4 \
-        --seconds 60 --fps 60 --width 1920 --height 1080
+      --images-dir datasets/REAL-Colon/raw/001-001_frames \
+      --output videos/polyp_test.mp4 \
+      --seconds 60 --fps 60 --width 1920 --height 1080
 
+    make backend-bootstrap
     verify_surgical_instrument
   fi
-    
-  # train models
-  cd "$workspace"/surgical-instrument
-  if [ ! -e "$polyp_model" ] && ensure_parse_option --train "$@"; then
-    make download-dataset
-    make prepare-dataset MAX_POS_PER_VIDEO=800
-    make backend-bootstrap
-  fi
 
-  if [ ! -e "$polyp_model" ]; then
-    printf "${red}polyp model is not available.${reset}\n" >&2
-    printf "$installer_name install --train to train a polyp model." >&2
-    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
-    echo "@@HIGHLIGHT $installer_name install --train"
-  else
-    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
-    echo "@@HIGHLIGHT $installer_name start|remove"
-  fi
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name start|remove"
 }
  
 debian_90_start_surgical_instrument () {
