@@ -57,7 +57,7 @@ debian_90_install_live_video_search () {
 debian_90_start_live_video_search () {
   configure_live_video_search "$@"
   ensure_ports_open start live_video_search "${used_ports[@]}"
-  ensure_container_namespace start live_video_search $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-search/docker/*.yaml)
+  ensure_container_namespace start live_video_search $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-search/docker/*.yaml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_search_device "$device"
@@ -80,7 +80,7 @@ debian_90_stop_live_video_search () {
     set +a
     . ./setup.sh --down || true
     . ./setup.sh --clean-data || true
-    docker volume rm docker_ov_models -f
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
   } || true
 }
 

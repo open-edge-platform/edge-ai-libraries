@@ -142,7 +142,7 @@ EOF
 debian_90_start_loss_prevention () {
   configure_loss_prevention "$@"
   ensure_ports_open start loss_prevention "${used_ports[@]}"
-  ensure_container_namespace start loss_prevention $(ensure_container_parse_names "$workspace"/src/*.yml)
+  ensure_container_namespace start loss_prevention $(ensure_container_parse_yaml "$workspace"/src/docker-compose*.yml)
 
   cd "$workspace"
   local device1="$(ensure_parse_device "$@")"
@@ -184,6 +184,7 @@ debian_90_stop_loss_prevention () {
     pkill -f "python3 benchmark.py" || true
     make down-lp || true
     cd src && docker compose down -v --remove-orphans || true
+    ensure_container_namespace start loss_prevention $(ensure_container_parse_yaml docker-compose*.yml)
   } || true
   docker volume rm -f lp-mcp-data || true
 }

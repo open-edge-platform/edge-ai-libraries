@@ -94,7 +94,7 @@ debian_90_install_smart_kiosk_assistant () {
 debian_90_start_smart_kiosk_assistant () {
   configure_smart_kiosk_assistant "$@"
   ensure_ports_open start smart_kiosk_assistant "${used_ports[@]}"
-  ensure_container_namespace start smart_kiosk_assistant $(ensure_container_parse_names "$workspace"/smart-kiosk-assistant/docker-compose.yml)
+  ensure_container_namespace start smart_kiosk_assistant $(ensure_container_parse_yaml "$workspace"/smart-kiosk-assistant/docker-compose.yml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}"
@@ -113,7 +113,7 @@ debian_90_stop_smart_kiosk_assistant () {
   cd "$workspace"/smart-kiosk-assistant && {
     make down || true
     make clean || true
-    docker volume rm -f smart-kiosk-assistant_identity_data
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
   } || true
 }
 

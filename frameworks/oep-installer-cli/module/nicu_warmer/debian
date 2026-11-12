@@ -88,7 +88,7 @@ debian_90_install_nicu_warmer () {
 debian_90_start_nicu_warmer () {
   configure_nicu_warmer "$@"
   ensure_ports_open start nicu_warmer "${used_ports[@]}"
-  ensure_container_namespace start nicu_warmer $(ensure_container_parse_names "$workspace"/NICU-Warmer/docker-compose.yaml)
+  ensure_container_namespace start nicu_warmer $(ensure_container_parse_yaml "$workspace"/NICU-Warmer/docker-compose.yaml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_nicu_warmer_device "$device"
@@ -105,8 +105,7 @@ debian_90_stop_nicu_warmer () {
   configure_nicu_warmer "$@"
   cd "$workspace"/NICU-Warmer && {
     make down || true
-    docker volume rm -f nicu-warmer_dlsps-shared || true
-    docker volume prune -f
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
   } || true
 }
 

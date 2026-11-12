@@ -341,7 +341,7 @@ esac);
                 do
                     echo "${licenses_text[$id1]}";
                     echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")";
-                done | ensure_license_gate $installer_name "$@";
+                done | ensure_license_gate "$@";
                 rc=$?;
                 if [ $rc -eq 1 ]; then
                     echo "License declined";
@@ -2265,8 +2265,6 @@ configure_anomalib ()
     workspace="$(ensure_project_path)/anomalib";
     version="$(ensure_parse_value_option version --version=2.7.0 "$@")";
     repository=https://github.com/open-edge-platform/anomalib.git;
-    version_skills=release-2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/anomalib.git;
     skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }
 configure_autonomous_mobile_robot () 
@@ -2356,17 +2354,15 @@ configure_dlstreamer ()
     key_file=/usr/share/keyrings/dls-archive-keyring.gpg;
     deb_entry="deb [signed-by=$key_file] https://$repo_name/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main";
     list_file=/etc/apt/sources.list.d/intel-dlstreamer.list;
-    repository=https://github.com/open-edge-platform/dlstreamer;
+    repository=https://github.com/open-edge-platform/dlstreamer.git;
     workspace="$(ensure_project_path)/dlstreamer";
     version="$(ensure_parse_value_option version --version=2026.2.0 "$@")";
+    skills=(dlstreamer-coding-agent);
     od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
     od_model_proc=yolov5m-640_INT8/yolo-v5;
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
-    allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium);
-    version_skills="release-2026.2.0";
-    repository_skills=https://github.com/open-edge-platform/skills.git;
-    skills=(dlstreamer-coding-agent)
+    allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium)
 }
 configure_docker () 
 { 
@@ -2618,10 +2614,10 @@ configure_esq_telemetry_mods ()
 configure_geti () 
 { 
     workspace="$(ensure_project_path)/geti";
-    version_skills=release-2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/skills.git;
+    version="$(ensure_parse_value_option version --version=3.3.0 "$@")";
+    repository=https://github.com/open-edge-platform/geti.git;
     skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model);
-    image_name=ghcr.io/open-edge-platform/geti-xpu;
+    image_name="ghcr.io/open-edge-platform/geti-xpu:${version}";
     used_ports=(8080)
 }
 configure_gpu_accel () 
@@ -3298,8 +3294,6 @@ configure_scenescape ()
     version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/scenescape.git;
     used_ports=(443);
-    version_skills=release-2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/skills.git;
     skills=(scenescape-setup)
 }
 configure_smart_intersection () 
@@ -3501,19 +3495,19 @@ configure_video_processing_for_nvr ()
 configure_video_search_and_summarization () 
 { 
     workspace="$(ensure_project_path)/video-search-and-summarization";
-    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
+    version="$(ensure_parse_value_option version --version=2026.3.0-rc1 "$@")";
     repository="https://github.com/open-edge-platform/edge-ai-libraries.git";
     skills=(vss-search-index vss-summarize-video);
     export APP_HOST_PORT=${APP_HOST_PORT:-12345};
     used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640);
     [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$workspace"/.device_from_install)";
     local device=$(ensure_parse_device "$@");
-    export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct;
+    export VLM_MODEL_NAME=OpenVINO/Qwen3.5-4B-int8-ov;
     export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en;
-    export OD_MODEL_NAME=yolov8l-worldv2;
+    export OD_MODEL_NAME=yolov8l;
     export ASR_MODEL=whisper-base;
     export TEXT_EMBEDDING_MODEL=QwenText/qwen3-embedding-0.6b;
-    export OVMS_LLM_MODEL_NAME=meta-llama/Llama-3.2-3B-Instruct;
+    export OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-4B-int8-ov;
     export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false;
     export MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32;
     export FRAME_INTERVAL=15;
@@ -3546,7 +3540,7 @@ configure_video_search_and_summarization ()
     export RABBITMQ_USER=$(cat /dev/random | tr -dc a-z | head -c 5);
     export RABBITMQ_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5);
     export REGISTRY_URL=intel;
-    export TAG=latest
+    export TAG="$version"
 }
 configure_video_search_and_summarization_gated () 
 { 
@@ -5613,7 +5607,7 @@ debian_75_install_dlstreamer ()
         ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version;
         ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        ensure_skills add "tags/v$version" "$repository" "${skills[@]/#/.github/skills/}";
         verify_dlstreamer;
         echo "intel-dlstreamer=$version installed successfully.";
     fi;
@@ -5646,23 +5640,7 @@ debian_75_sbom_dlstreamer ()
 }
 debian_80_install_anomalib () 
 { 
-    configure_anomalib "$@";
-    if verify_anomalib && ! ensure_parse_reinstall "$@"; then
-        echo "Anomalib is installed." 1>&2;
-    else
-        ensure_disk_size 15000;
-        echo "@@STEP Installing anomalib==${version}";
-        mkdir -p "$workspace";
-        cd "$workspace";
-        python3 -m venv .venv;
-        . .venv/bin/activate;
-        pip install "anomalib[openvino,cpu]==${version}";
-        echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
-        verify_anomalib;
-    fi;
-    test_anomalib "$@";
-    echo "@@HIGHLIGHT venv: $workspace/.venv"
+    install_anomalib "$@"
 }
 debian_80_profile_anomalib () 
 { 
@@ -5670,9 +5648,7 @@ debian_80_profile_anomalib ()
 }
 debian_80_remove_anomalib () 
 { 
-    configure_anomalib "$@";
-    ensure_rm "$workspace";
-    ensure_skills remove "${skills[@]}"
+    remove_anomalib "$@"
 }
 debian_85_group_handheld_blueprint () 
 { 
@@ -5724,9 +5700,9 @@ debian_85_install_video_search_and_summarization ()
     else
         ensure_disk_size 8000;
         ensure_ports_open install video_search_and_summarization "${used_ports[@]}";
-        ensure_container_namespace install video_search_and_summarization vss-model-download;
+        ensure_container_namespace install video_search_and_summarization name:vss-model-download;
         echo "@@STEP Cloning repository";
-        ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization;
+        ensure_git_export "$workspace" release-${version%-rc*} $repository sample-applications/video-search-and-summarization;
         echo "@@STEP Configuring models";
         configure_video_search_and_summarization_gated;
         echo "@@STEP Setting up VSS";
@@ -5734,7 +5710,7 @@ debian_85_install_video_search_and_summarization ()
         echo "@@STEP @@IF docker compose .* pull .* @@THEN Pulling images";
         cd "$workspace"/sample-applications/video-search-and-summarization;
         sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh;
-        sed 's|FINAL_ARG=.*|FINAL_ARG="pull --ignore-pull-failures"|' setup.sh > .setup.sh;
+        sed 's|FINAL_ARGS=.*|FINAL_ARGS=(pull --ignore-pull-failures)|' setup.sh > .setup.sh;
         sed -i 's|"Unified Summarization/Search UI is now available.*"|""|' .setup.sh;
         . ./.setup.sh --search-and-summary;
         echo "@@STEP Installing skills";
@@ -5790,7 +5766,7 @@ debian_85_start_video_search_and_summarization ()
 { 
     configure_video_search_and_summarization "$@";
     ensure_ports_open start video_search_and_summarization "${used_ports[@]}";
-    ensure_container_namespace start video_search_and_summarization $(ensure_container_parse_names "$workspace"/sample-applications/video-search-and-summarization/docker/*.yaml);
+    ensure_container_namespace start video_search_and_summarization $(ensure_container_parse_yaml "$workspace"/sample-applications/video-search-and-summarization/docker/*.yaml | sed 's|vol:|vol:docker_|g');
     configure_video_search_and_summarization_gated;
     cd "$workspace"/sample-applications/video-search-and-summarization;
     . ./setup.sh --search-and-summary;
@@ -5808,8 +5784,7 @@ debian_85_stop_video_search_and_summarization ()
     cd "$workspace"/sample-applications/video-search-and-summarization && { 
         . ./setup.sh --stop || true;
         . ./setup.sh --clean-data || true;
-        docker volume rm -f docker_ov-models || true;
-        docker volume rm -f docker_dataprep-yolox-models
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml | sed 's|vol:|vol:docker_|g')
     } || true
 }
 debian_90_install_agentic_predictive_maintenance_pipeline () 
@@ -6246,6 +6221,8 @@ INFLUXDB_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 INFLUXDB_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
 VISUALIZER_GRAFANA_USER=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 VISUALIZER_GRAFANA_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
+SEAWEEDFS_WEB_AUTH_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
+SEAWEEDFS_WEB_AUTH_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
 HOST_IP=$(ensure_ip)
 EOF
 
@@ -6506,7 +6483,8 @@ debian_90_install_scenescape ()
         echo "@@STEP Cloning git repository";
         ensure_git_export "$workspace" "$version" "$repository";
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        cd "$workspace";
+        ensure_skills add -- "${skills[@]/#/.github/skills/}";
         verify_scenescape;
     fi;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
@@ -6660,10 +6638,15 @@ debian_90_install_surgical_instrument ()
         ensure_disk_size 70000;
         ensure_git_export "$workspace" "$version" "$repository" surgical-instrument;
         cd "$workspace"/surgical-instrument;
+        echo "@@STEP Downloading dataset";
         make download-dataset;
+        echo "@@STEP Preparing dataset";
         make prepare-dataset MAX_POS_PER_VIDEO=800;
+        echo "@@STEP Creating venv";
         make backend-venv;
+        echo "@@STEP Generating polyp_test.mp4";
         .venv-backend/bin/python scripts/create_endoscopy_video.py --images-dir datasets/REAL-Colon/raw/001-001_frames --output videos/polyp_test.mp4 --seconds 60 --fps 60 --width 1920 --height 1080;
+        echo "@@STEP Bootstraping backend";
         make backend-bootstrap;
         verify_surgical_instrument;
     fi;
@@ -6945,15 +6928,12 @@ EOF
 }
 debian_90_license_smart_parking () 
 { 
-    ensure_license_use_model YOLO11S;
-    echo "Model license: https://github.com/ultralytics/ultralytics/blob/main/LICENSE"
+    ensure_license_use_model YOLO11S https://github.com/ultralytics/ultralytics/blob/main/LICENSE
 }
 debian_90_license_uncrewed_aerial_vehicle_vision_analytics () 
 { 
-    ensure_license_use_model YOLO11S;
-    echo "Model license: https://github.com/ultralytics/ultralytics/blob/main/LICENSE";
-    ensure_license_use_model InternVL2-1B;
-    echo "Model terms: https://huggingface.co/OpenGVLab/InternVL2-1B"
+    ensure_license_use_model YOLO11S https://github.com/ultralytics/ultralytics/blob/main/LICENSE;
+    ensure_license_use_model InternVL2-1B 'https://huggingface.co/OpenGVLab/InternVL2-1B#license'
 }
 debian_90_profile_agentic_predictive_maintenance_pipeline () 
 { 
@@ -7317,7 +7297,6 @@ debian_90_remove_smart_parking ()
 debian_90_remove_smart_traffic_intersection_agent () 
 { 
     debian_90_stop_smart_traffic_intersection_agent "$@";
-    . ./setup.sh --clean --all || true;
     ensure_rm "$workspace"
 }
 debian_90_remove_stationary_robot_vision () 
@@ -7443,7 +7422,7 @@ debian_90_start_agentic_predictive_maintenance_pipeline ()
 { 
     configure_agentic_predictive_maintenance_pipeline "$@";
     ensure_ports_open start agentic_predictive_maintenance_pipeline "${used_ports[@]}";
-    ensure_container_namespace start agentic_predictive_maintenance_pipeline $(ensure_container_parse_names "$workspace"/agentic-predictive-maintenance-pipeline/docker/compose.*.yaml);
+    ensure_container_namespace start agentic_predictive_maintenance_pipeline $(ensure_container_parse_yaml "$workspace"/agentic-predictive-maintenance-pipeline/docker/compose.*.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_agentic_predictive_maintenance_pipeline_device "${device^^}";
     cd "$workspace"/agentic-predictive-maintenance-pipeline;
@@ -7456,7 +7435,7 @@ debian_90_start_agentic_smart_community ()
 { 
     configure_agentic_smart_community "$@";
     ensure_ports_open start agentic_smart_community "${used_ports[@]}";
-    ensure_container_namespace start agentic_smart_community $(ensure_container_parse_names "$workspace"/agentic-smart-community/docker/compose.yaml);
+    ensure_container_namespace start agentic_smart_community $(ensure_container_parse_yaml "$workspace"/agentic-smart-community/docker/compose.yaml);
     cd "$workspace"/agentic-smart-community;
     bash setup_docker.sh;
     echo "@@HIGHLIGHT UI: http://$(ensure_ip):${used_ports[0]}";
@@ -7468,7 +7447,7 @@ debian_90_start_digital_signage ()
 { 
     configure_digital_signage "$@";
     ensure_ports_open start digital_signage "${used_ports[@]}";
-    ensure_container_namespace start digital_signage $(ensure_container_parse_names "$workspace"/docker-compose.yml);
+    ensure_container_namespace start digital_signage $(ensure_container_parse_yaml "$workspace"/docker-compose.yml);
     cd "$workspace";
     make up;
     echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}";
@@ -7479,7 +7458,7 @@ debian_90_start_dine_in ()
 { 
     configure_dine_in "$@";
     ensure_ports_open start dine_in "${ports[@]}";
-    ensure_container_namespace start dine_in $(ensure_container_parse_names "$workspace"/dine-in/docker-compose.yaml);
+    ensure_container_namespace start dine_in $(ensure_container_parse_yaml "$workspace"/dine-in/docker-compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}";
     cd "$workspace"/dine-in;
@@ -7505,7 +7484,7 @@ debian_90_start_image_based_video_search ()
 { 
     configure_image_based_video_search "$@";
     ensure_ports_open start image_based_video_search "${used_ports[@]}";
-    ensure_container_namespace start image_based_video_search $(ensure_container_parse_names "$workspace"/image-based-video-search/compose.yml);
+    ensure_container_namespace start image_based_video_search $(ensure_container_parse_yaml "$workspace"/image-based-video-search/compose.yml);
     cd "$workspace"/image-based-video-search;
     docker compose up -d;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}";
@@ -7515,7 +7494,7 @@ debian_90_start_live_video_alert_agent ()
 { 
     configure_live_video_alert_agent "$@";
     ensure_ports_open start live_video_alert_agent "${used_ports[@]}";
-    ensure_container_namespace start live_video_alert_agent $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-alert-agent/docker/*.yml);
+    ensure_container_namespace start live_video_alert_agent $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-alert-agent/docker/*.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_alert_agent_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-alert-agent;
@@ -7532,7 +7511,7 @@ debian_90_start_live_video_captioning ()
 { 
     configure_live_video_captioning "$@";
     ensure_ports_open start live_video_captioning "${used_ports[@]}";
-    ensure_container_namespace start live_video_captioning $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-captioning/compose.yaml);
+    ensure_container_namespace start live_video_captioning $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-captioning/compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-captioning;
@@ -7544,7 +7523,7 @@ debian_90_start_live_video_captioning_rag ()
 { 
     configure_live_video_captioning_rag "$@";
     ensure_ports_open start live_video_captioning_rag "${used_ports[@]}";
-    ensure_container_namespace start live_video_captioning_rag $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-captioning-rag/compose.yaml);
+    ensure_container_namespace start live_video_captioning_rag $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-captioning-rag/compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_rag_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-captioning-rag;
@@ -7556,7 +7535,7 @@ debian_90_start_live_video_search ()
 { 
     configure_live_video_search "$@";
     ensure_ports_open start live_video_search "${used_ports[@]}";
-    ensure_container_namespace start live_video_search $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-search/docker/*.yaml);
+    ensure_container_namespace start live_video_search $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-search/docker/*.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_search_device "$device";
     cd "$workspace"/live-video-analysis/live-video-search;
@@ -7571,7 +7550,7 @@ debian_90_start_loitering_detection ()
 { 
     configure_loitering_detection "$@";
     ensure_ports_open start loitering_detection "${used_ports[@]}";
-    ensure_container_namespace start loitering_detection $(ensure_container_parse_names "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
+    ensure_container_namespace start loitering_detection $(ensure_container_parse_yaml "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
@@ -7596,7 +7575,7 @@ debian_90_start_loss_prevention ()
 { 
     configure_loss_prevention "$@";
     ensure_ports_open start loss_prevention "${used_ports[@]}";
-    ensure_container_namespace start loss_prevention $(ensure_container_parse_names "$workspace"/src/*.yml);
+    ensure_container_namespace start loss_prevention $(ensure_container_parse_yaml "$workspace"/src/docker-compose*.yml);
     cd "$workspace";
     local device1="$(ensure_parse_device "$@")";
     local device2="$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ')";
@@ -7629,7 +7608,7 @@ debian_90_start_multi_modal_patient_monitoring ()
 { 
     configure_multi_modal_patient_monitoring "$@";
     ensure_ports_open start multi_modal_patient_monitoring "${used_ports[@]}";
-    ensure_container_namespace start multi_modal_patient_monitoring $(ensure_container_parse_names "$workspace"/multi_modal_patient_monitoring/docker-compose.yaml);
+    ensure_container_namespace start multi_modal_patient_monitoring $(ensure_container_parse_yaml "$workspace"/multi_modal_patient_monitoring/docker-compose.yaml);
     cd "$workspace"/multi_modal_patient_monitoring;
     local device="$(ensure_parse_device "$@")" d;
     [[ " ${*,,} " != *" --$device "* ]] || echo "${device^^}" > .device;
@@ -7647,7 +7626,7 @@ debian_90_start_multimodal_weld_defect_detection ()
 { 
     configure_multimodal_weld_defect_detection "$@";
     ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}";
-    ensure_container_namespace start multimodal_weld_defect_detection $(ensure_container_parse_names "$workspace"/industrial-edge-insights-multimodal/*.yml);
+    ensure_container_namespace start multimodal_weld_defect_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-multimodal/docker-compose*.yml);
     local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device;
     cd "$workspace"/industrial-edge-insights-multimodal;
@@ -7717,7 +7696,7 @@ debian_90_start_nicu_warmer ()
 { 
     configure_nicu_warmer "$@";
     ensure_ports_open start nicu_warmer "${used_ports[@]}";
-    ensure_container_namespace start nicu_warmer $(ensure_container_parse_names "$workspace"/NICU-Warmer/docker-compose.yaml);
+    ensure_container_namespace start nicu_warmer $(ensure_container_parse_yaml "$workspace"/NICU-Warmer/docker-compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_nicu_warmer_device "$device";
     cd "$workspace"/NICU-Warmer;
@@ -7730,7 +7709,7 @@ debian_90_start_pallet_defect_detection ()
 { 
     configure_pallet_defect_detection "$@";
     ensure_ports_open start pallet_defect_detection "${used_ports[@]}";
-    ensure_container_namespace start pallet_defect_detection $(ensure_container_parse_names "$workspace"/industrial-edge-insights-vision/docker-compose.yml);
+    ensure_container_namespace start pallet_defect_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-vision/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
@@ -7767,7 +7746,7 @@ debian_90_start_pcb_anomaly_detection ()
 { 
     configure_pcb_anomaly_detection "$@";
     ensure_ports_open start pcb_anomaly_detection "${used_ports[@]}";
-    ensure_container_namespace start pcb_anomaly_detection $(ensure_container_parse_names "$workspace"/industrial-edge-insights-vision/docker-compose.yml);
+    ensure_container_namespace start pcb_anomaly_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-vision/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
@@ -7794,7 +7773,7 @@ debian_90_start_person_of_interest ()
 { 
     configure_person_of_interest "$@";
     ensure_ports_open start person_of_interest "${used_ports[@]}";
-    ensure_container_namespace start person_of_interest $(ensure_container_parse_names "$workspace"/person-of-interest/docker-compose*.yml);
+    ensure_container_namespace start person_of_interest $(ensure_container_parse_yaml "$workspace"/person-of-interest/docker-compose*.yml);
     local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)";
     cd "$workspace"/person-of-interest;
@@ -7877,7 +7856,7 @@ debian_90_start_real_time_scene_understanding ()
 { 
     configure_real_time_scene_understanding "$@";
     ensure_ports_open start real_time_scene_understanding "${used_ports[@]}";
-    ensure_container_namespace start real_time_scene_understanding $(ensure_container_parse_names "$workspace"/live-video-analysis/real-time-scene-understanding/compose.yaml);
+    ensure_container_namespace start real_time_scene_understanding $(ensure_container_parse_yaml "$workspace"/live-video-analysis/real-time-scene-understanding/compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}";
     cd "$workspace"/live-video-analysis/real-time-scene-understanding;
@@ -7890,7 +7869,7 @@ debian_90_start_scenescape ()
 { 
     configure_scenescape "$@";
     ensure_ports_open start scenescape "${used_ports[@]}";
-    ensure_container_namespace start scenescape $(ensure_container_parse_names "$workspace"/sample_data/compose/compose.*.yml);
+    ensure_container_namespace start scenescape $(ensure_container_parse_yaml "$workspace"/sample_data/compose/compose.*.yml);
     cd "$workspace";
     export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5);
     make init-secrets;
@@ -7903,7 +7882,7 @@ debian_90_start_smart_intersection ()
 { 
     configure_smart_intersection "$@";
     ensure_ports_open start smart_intersection "${used_ports[@]}";
-    ensure_container_namespace start smart_intersection $(ensure_container_parse_names "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
+    ensure_container_namespace start smart_intersection $(ensure_container_parse_yaml "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device";
     cd "$workspace"/metro-vision-ai-app-recipe;
@@ -7918,7 +7897,7 @@ debian_90_start_smart_kiosk_assistant ()
 { 
     configure_smart_kiosk_assistant "$@";
     ensure_ports_open start smart_kiosk_assistant "${used_ports[@]}";
-    ensure_container_namespace start smart_kiosk_assistant $(ensure_container_parse_names "$workspace"/smart-kiosk-assistant/docker-compose.yml);
+    ensure_container_namespace start smart_kiosk_assistant $(ensure_container_parse_yaml "$workspace"/smart-kiosk-assistant/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}";
     cd "$workspace"/smart-kiosk-assistant;
@@ -7932,7 +7911,7 @@ debian_90_start_smart_nvr ()
 { 
     configure_smart_nvr "$@";
     ensure_ports_open start smart_nvr "${used_ports[@]}";
-    ensure_container_namespace start smart_nvr $(ensure_container_parse_names "$workspace"/smart-nvr/docker/*.yaml);
+    ensure_container_namespace start smart_nvr $(ensure_container_parse_yaml "$workspace"/smart-nvr/docker/*.yaml);
     cd "$workspace"/smart-nvr;
     . setup.sh start;
     echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}";
@@ -7942,7 +7921,7 @@ debian_90_start_smart_parking ()
 { 
     configure_smart_parking "$@";
     ensure_ports_open start smart_parking "${used_ports[@]}";
-    ensure_container_namespace start smart_parking $(ensure_container_parse_names "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
+    ensure_container_namespace start smart_parking $(ensure_container_parse_yaml "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
@@ -7958,7 +7937,8 @@ debian_90_start_smart_parking ()
         curl -k -s https://localhost/api/pipelines/status -H "accept: application/json" > /dev/null && break || sleep 5;
     done;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
-    echo "@@HIGHLIGHT Grafana AUTH: admin/admin";
+    echo "@@HIGHLIGHT UI AUTH $(cat smart-parking/src/secrets/nodered/nodered-admin-username):$(cat smart-parking/src/secrets/nodered/nodered-admin-password)";
+    echo "@@HIGHLIGHT Grafana AUTH admin:admin";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name stop|remove";
     ./sample_start.sh $(< ../.device) && ./sample_status.sh
@@ -7967,7 +7947,7 @@ debian_90_start_smart_traffic_intersection_agent ()
 { 
     configure_smart_traffic_intersection_agent "$@";
     ensure_ports_open start smart_traffic_intersection_agent "${used_ports[@]}";
-    ensure_container_namespace start smart_traffic_intersection_agent $(ensure_container_parse_names "$workspace"/smart-traffic-intersection-agent/docker/*.yaml);
+    ensure_container_namespace start smart_traffic_intersection_agent $(ensure_container_parse_yaml "$workspace"/smart-traffic-intersection-agent/docker/*.yaml);
     [ ! -r "$workspace"/.device ] || set -- "$@" "$(< "$workspace"/.device)";
     local device=$(ensure_parse_device "$@");
     export VLM_TARGET_DEVICE=${device^^};
@@ -7982,17 +7962,11 @@ debian_90_start_smart_traffic_intersection_agent ()
 debian_90_start_surgical_instrument () 
 { 
     configure_surgical_instrument "$@";
-    ensure_container_namespace start surgical_instrument $(ensure_container_parse_names "$workspace"/surgical-instrument/docker/*.yaml);
+    ensure_container_namespace start surgical_instrument $(ensure_container_parse_yaml "$workspace"/surgical-instrument/docker/*.yaml);
     cd "$workspace"/surgical-instrument;
-    if [ ! -e models/yolo11n_polyp/best_openvino_model/best.xml ]; then
-        printf "${red}Missing yolo11n_polyp${reset}\n" 1>&2;
-        printf "$installer_name install --train to train a polyp model\n" 1>&2;
-        echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
-        echo "@@HIGHLIGHT $installer_name install --train";
-        return 3;
-    fi;
     make doctor;
     make up LOWLATENCY=1 CAMERA_TRIGGER=vsync VSYNC_DIVISOR=2 SERIAL=1234567890;
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml);
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -8000,7 +7974,7 @@ debian_90_start_suspicious_activity_detection ()
 { 
     configure_suspicious_activity_detection "$@";
     ensure_ports_open start suspicious_activity_detection "${used_ports[@]}";
-    ensure_container_namespace start suspicious_activity_detection $(ensure_container_parse_names "$workspace"/suspicious-activity-detection/docker/*.yaml);
+    ensure_container_namespace start suspicious_activity_detection $(ensure_container_parse_yaml "$workspace"/suspicious-activity-detection/docker/*.yaml);
     local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)";
     cd "$workspace"/suspicious-activity-detection;
@@ -8022,7 +7996,7 @@ debian_90_start_take_away ()
 { 
     configure_take_away "$@";
     ensure_ports_open start take_away "${used_ports[@]}";
-    ensure_container_namespace start take_away $(ensure_container_parse_names "$workspace"/take-away/docker-compose.yaml);
+    ensure_container_namespace start take_away $(ensure_container_parse_yaml "$workspace"/take-away/docker-compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}";
     cd "$workspace"/take-away;
@@ -8171,7 +8145,7 @@ debian_90_start_video_processing_for_nvr ()
 { 
     configure_video_processing_for_nvr "$@";
     debian_90_stop_video_processing_for_nvr "$@";
-    ensure_container_namespace start video_processing_for_nvr $(ensure_container_parse_names "$workspace"/video-processing-for-nvr/docker/*.yml);
+    ensure_container_namespace start video_processing_for_nvr $(ensure_container_parse_yaml "$workspace"/video-processing-for-nvr/docker/*.yml);
     [ ! -r "$workspace"/.device ] || set -- "$@" --"$(< "$workspace"/.device)";
     local device=$(ensure_parse_device "$@");
     echo "@@HIGHLIGHT $installer_name start [--gpu|--npu]";
@@ -8191,7 +8165,7 @@ debian_90_start_vippet ()
 { 
     configure_vippet "$@";
     ensure_ports_open start vippet "${used_ports[@]}";
-    ensure_container_namespace start vippet $(ensure_container_parse_names "$workspace"/tools/visual-pipeline-and-platform-evaluation-tool/compose*.yml);
+    ensure_container_namespace start vippet $(ensure_container_parse_yaml "$workspace"/tools/visual-pipeline-and-platform-evaluation-tool/compose*.yml);
     cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
     make run;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip)";
@@ -8201,7 +8175,7 @@ debian_90_start_visual_search_question_and_answering ()
 { 
     configure_visual_search_question_and_answering "$@";
     ensure_ports_open start visual_search_question_and_answering "${used_ports[@]}";
-    ensure_container_namespace start visual_search_question_and_answering $(ensure_container_parse_names "$workspace"/visual-search-question-and-answering/deployment/docker-compose/*.yaml);
+    ensure_container_namespace start visual_search_question_and_answering $(ensure_container_parse_yaml "$workspace"/visual-search-question-and-answering/deployment/docker-compose/*.yaml);
     cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose;
     . ./env.sh;
     docker compose -f compose_milvus.yaml up -d;
@@ -8213,7 +8187,7 @@ debian_90_start_wind_turbine_anomaly_detection ()
 { 
     configure_wind_turbine_anomaly_detection "$@";
     ensure_ports_open start wind_turbine_anomaly_detection "${used_ports[@]}";
-    ensure_container_namespace start wind_turbine_anomaly_detection $(ensure_container_parse_names "$workspace"/industrial-edge-insights-time-series/docker-compose*.yml);
+    ensure_container_namespace start wind_turbine_anomaly_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-time-series/docker-compose*.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device";
     cd "$workspace"/industrial-edge-insights-time-series;
@@ -8285,25 +8259,32 @@ debian_90_stop_agentic_predictive_maintenance_pipeline ()
     cd "$workspace"/agentic-predictive-maintenance-pipeline && { 
         . ./setup.sh --stop || true;
         . ./setup.sh --clean-data || true;
-        docker volume prune -f
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/compose.*.yaml)
     } || true
 }
 debian_90_stop_agentic_smart_community () 
 { 
     configure_agentic_smart_community "$@";
-    cd "$workspace"/agentic-smart-community && bash setup_docker.sh --down || true
+    cd "$workspace"/agentic-smart-community && { 
+        bash setup_docker.sh --down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/compose.yaml)
+    } || true
 }
 debian_90_stop_digital_signage () 
 { 
     configure_digital_signage "$@";
     cd "$workspace" && { 
-        make down
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_dine_in () 
 { 
     configure_dine_in "$@";
-    cd "$workspace"/dine-in && make clean || true
+    cd "$workspace"/dine-in && { 
+        make clean || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
+    } || true
 }
 debian_90_stop_geti () 
 { 
@@ -8319,24 +8300,33 @@ debian_90_stop_image_based_video_search ()
 { 
     configure_image_based_video_search "$@";
     cd "$workspace"/image-based-video-search && { 
-        docker compose down -v --remove-orphans
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose.yml)
     } || true
 }
 debian_90_stop_live_video_alert_agent () 
 { 
     configure_live_video_alert_agent "$@";
-    cd "$workspace"/live-video-analysis/live-video-alert-agent && docker compose -f docker/docker-compose.yml -f docker/docker-compose.npu.yml down -v --remove-orphans || true
+    cd "$workspace"/live-video-analysis/live-video-alert-agent && { 
+        docker compose -f docker/docker-compose.yml -f docker/docker-compose.npu.yml down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yml)
+    } || true
 }
 debian_90_stop_live_video_captioning () 
 { 
     configure_live_video_captioning "$@";
-    cd "$workspace"/live-video-analysis/live-video-captioning;
-    docker compose -f compose.yaml down -v --remove-orphans
+    cd "$workspace"/live-video-analysis/live-video-captioning && { 
+        docker compose -f compose.yaml down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose.yaml)
+    } || true
 }
 debian_90_stop_live_video_captioning_rag () 
 { 
     configure_live_video_captioning_rag "$@";
-    cd "$workspace"/live-video-analysis/live-video-captioning-rag && docker compose -f compose.yaml down -v --remove-orphans || true
+    cd "$workspace"/live-video-analysis/live-video-captioning-rag && { 
+        docker compose -f compose.yaml down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose.yaml)
+    } || true
 }
 debian_90_stop_live_video_search () 
 { 
@@ -8347,7 +8337,7 @@ debian_90_stop_live_video_search ()
         set +a;
         . ./setup.sh --down || true;
         . ./setup.sh --clean-data || true;
-        docker volume rm docker_ov_models -f
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
     } || true
 }
 debian_90_stop_loitering_detection () 
@@ -8355,7 +8345,8 @@ debian_90_stop_loitering_detection ()
     configure_loitering_detection "$@";
     cd "$workspace"/metro-vision-ai-app-recipe && { 
         ./sample_stop.sh || true;
-        docker compose down -v --remove-orphans
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_loss_prevention () 
@@ -8364,27 +8355,33 @@ debian_90_stop_loss_prevention ()
     cd "$workspace" && { 
         pkill -f "python3 benchmark.py" || true;
         make down-lp || true;
-        cd src && docker compose down -v --remove-orphans || true
+        cd src && docker compose down -v --remove-orphans || true;
+        ensure_container_namespace start loss_prevention $(ensure_container_parse_yaml docker-compose*.yml)
     } || true;
     docker volume rm -f lp-mcp-data || true
 }
 debian_90_stop_multi_modal_patient_monitoring () 
 { 
     configure_multi_modal_patient_monitoring "$@";
-    cd "$workspace"/multi_modal_patient_monitoring && docker compose down -v --remove-orphans || true
+    cd "$workspace"/multi_modal_patient_monitoring && { 
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
+    } || true
 }
 debian_90_stop_multimodal_weld_defect_detection () 
 { 
     configure_multimodal_weld_defect_detection "$@";
-    cd "$workspace"/industrial-edge-insights-multimodal && make down || true
+    cd "$workspace"/industrial-edge-insights-multimodal && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
+    } || true
 }
 debian_90_stop_nicu_warmer () 
 { 
     configure_nicu_warmer "$@";
     cd "$workspace"/NICU-Warmer && { 
         make down || true;
-        docker volume rm -f nicu-warmer_dlsps-shared || true;
-        docker volume prune -f
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
     } || true
 }
 debian_90_stop_pallet_defect_detection () 
@@ -8392,7 +8389,8 @@ debian_90_stop_pallet_defect_detection ()
     configure_pallet_defect_detection "$@";
     cd "$workspace"/industrial-edge-insights-vision && { 
         ./sample_stop.sh || true;
-        docker compose down -v
+        docker compose down -v || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_pcb_anomaly_detection () 
@@ -8400,7 +8398,8 @@ debian_90_stop_pcb_anomaly_detection ()
     configure_pcb_anomaly_detection "$@";
     cd "$workspace"/industrial-edge-insights-vision && { 
         ./sample_stop.sh || true;
-        docker compose down -v --remove-orphans
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_person_of_interest () 
@@ -8408,7 +8407,8 @@ debian_90_stop_person_of_interest ()
     configure_person_of_interest "$@";
     cd "$workspace"/person-of-interest && { 
         make down || true;
-        make clean-all
+        make clean-all || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
     } || true
 }
 debian_90_stop_physical_ai_studio () 
@@ -8437,18 +8437,25 @@ debian_90_stop_real_time_scene_understanding ()
 { 
     configure_real_time_scene_understanding "$@";
     cd "$workspace"/live-video-analysis/real-time-scene-understanding && { 
-        docker compose -f compose.yaml down -v --remove-orphans
+        docker compose -f compose.yaml down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose.yaml)
     } || true
 }
 debian_90_stop_scenescape () 
 { 
     configure_scenescape "$@";
-    cd "$workspace" && make demo-close || true
+    cd "$workspace" && { 
+        make demo-close || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml sample_data/compose/compose.*.yml)
+    } || true
 }
 debian_90_stop_smart_intersection () 
 { 
     configure_smart_intersection "$@";
-    cd "$workspace"/metro-vision-ai-app-recipe && docker compose down -v --remove-orphans || true
+    cd "$workspace"/metro-vision-ai-app-recipe && { 
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
+    } || true
 }
 debian_90_stop_smart_kiosk_assistant () 
 { 
@@ -8456,14 +8463,15 @@ debian_90_stop_smart_kiosk_assistant ()
     cd "$workspace"/smart-kiosk-assistant && { 
         make down || true;
         make clean || true;
-        docker volume rm -f smart-kiosk-assistant_identity_data
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_smart_nvr () 
 { 
     configure_smart_nvr "$@";
     cd "$workspace"/smart-nvr && { 
-        . ./setup.sh stop
+        . ./setup.sh stop || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
     } || true
 }
 debian_90_stop_smart_parking () 
@@ -8471,7 +8479,8 @@ debian_90_stop_smart_parking ()
     configure_smart_parking "$@";
     cd "$workspace"/metro-vision-ai-app-recipe && { 
         ./sample_stop.sh || true;
-        docker compose down -v --remove-orphans
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_smart_traffic_intersection_agent () 
@@ -8479,7 +8488,8 @@ debian_90_stop_smart_traffic_intersection_agent ()
     configure_smart_traffic_intersection_agent "$@";
     cd "$workspace"/smart-traffic-intersection-agent && { 
         . ./setup.sh --stop || true;
-        . ./setup.sh --clean --keep-models
+        . ./setup.sh --clean --all || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
     } || true
 }
 debian_90_stop_suspicious_activity_detection () 
@@ -8487,13 +8497,17 @@ debian_90_stop_suspicious_activity_detection ()
     configure_suspicious_activity_detection "$@";
     cd "$workspace"/suspicious-activity-detection && { 
         make down || true;
-        make clean-all
+        make clean-all || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
     } || true
 }
 debian_90_stop_take_away () 
 { 
     configure_take_away "$@";
-    cd "$workspace"/take-away && make clean || true
+    cd "$workspace"/take-away && { 
+        make clean || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
+    } || true
 }
 debian_90_stop_uav_mission_compute_sdk () 
 { 
@@ -8533,27 +8547,34 @@ debian_90_stop_video_processing_for_nvr ()
     configure_video_processing_for_nvr "$@";
     cd "$workspace"/video-processing-for-nvr/docker && { 
         docker compose down -v --remove-orphans || true;
-        docker rm -f vpp-npu
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yml)
     } || true
 }
 debian_90_stop_vippet () 
 { 
     configure_vippet "$@";
-    cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" && make stop || true
+    cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" && { 
+        make stop || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose*.yml)
+    } || true
 }
 debian_90_stop_visual_search_question_and_answering () 
 { 
     configure_visual_search_question_and_answering "$@";
     cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && { 
         . ./env.sh || true;
-        docker compose -f compose_milvus.yaml down -v --remove-orphans
+        docker compose -f compose_milvus.yaml down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml *.yaml)
     } || true;
     docker volume rm -f ov-models || true
 }
 debian_90_stop_wind_turbine_anomaly_detection () 
 { 
     configure_wind_turbine_anomaly_detection "$@";
-    cd "$workspace"/industrial-edge-insights-time-series && make down || true
+    cd "$workspace"/industrial-edge-insights-time-series && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
+    } || true
 }
 debian_95_install_smart_route_planning_agent () 
 { 
@@ -8590,14 +8611,13 @@ debian_95_profile_smart_route_planning_agent ()
 debian_95_remove_smart_route_planning_agent () 
 { 
     debian_95_stop_smart_route_planning_agent "$@";
-    . ./setup.sh --clean --all || true;
     ensure_rm "$workspace"
 }
 debian_95_start_smart_route_planning_agent () 
 { 
     configure_smart_route_planning_agent "$@";
     ensure_ports_open start smart_route_planning_agent "${used_ports[@]}";
-    ensure_container_namespace start smart_route_planning_agent $(ensure_container_parse_names "$workspace"/smart-route-planning-agent/src/compose.yaml);
+    ensure_container_namespace start smart_route_planning_agent $(ensure_container_parse_yaml "$workspace"/smart-route-planning-agent/src/compose.yaml);
     cd "$workspace"/smart-route-planning-agent;
     . ./setup.sh --run;
     echo "@@HIGHLIGHT http://$(ensure_ip):${used_ports[0]}";
@@ -8608,7 +8628,8 @@ debian_95_stop_smart_route_planning_agent ()
     configure_smart_route_planning_agent "$@";
     cd "$workspace"/smart-route-planning-agent && { 
         . ./setup.sh --stop || true;
-        . ./setup.sh --clean --keep-models
+        . ./setup.sh --clean --all || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml src/compose.yaml)
     } || true
 }
 debian_99_install_system_summary () 
@@ -8896,6 +8917,24 @@ for r in rows:
   print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
 ' "$sep"
 }
+ensure_container_cleanup () 
+{ 
+    local c;
+    for c in "$@";
+    do
+        case "$c" in 
+            name:*)
+                docker container rm -v -f ${c#name:} 2> /dev/null || true
+            ;;
+            vol:*)
+                docker volume rm -f ${c#vol:} 2> /dev/null || true
+            ;;
+            net:*)
+                docker network rm -f ${c#net:} 2> /dev/null || true
+            ;;
+        esac;
+    done
+}
 ensure_container_namespace () 
 { 
     local act_name="${1:?}";
@@ -8909,12 +8948,12 @@ ensure_container_namespace ()
             ensure_prop set started/$name/containers "$*"
         ;;
     esac;
-    local running_containers=" $(docker ps --format '{{.Names}}' | tr '\n' ' ') ";
+    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
     local c stopper mname mpath;
     for c in "$@";
     do
-        [[ "$running_containers" = *" $c "* ]] || continue;
-        printf "${red}Container %s is in conflict${reset}\n" "$c" 1>&2;
+        [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
+        printf "${red}%s is in conflict${reset}\n" "$c" 1>&2;
         for mpath in $(ensure_prop find "installed/*/containers") $(ensure_prop find "started/*/containers");
         do
             [[ " $(ensure_prop get "$mpath") " = *" $c "* ]] || continue;
@@ -8926,16 +8965,56 @@ ensure_container_namespace ()
             ( set -e;
             $stopper "$mname" -- ) 1>&2 || true;
         done;
-        running_containers=" $(docker ps --format '{{.Names}}' | tr '\n' ' ') ";
-        [[ "$running_containers" = *" $c "* ]] || continue;
-        printf "${red}Container %s is occupied${reset}\n" "$c" 1>&2;
-        docker ps 1>&2;
+        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
+        [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
+        printf "${red}%s is occupied${reset}\n%s\n" "$c" "${container_resources[*]}" 1>&2;
         return 3;
     done
 }
-ensure_container_parse_names () 
+ensure_container_parse_yaml () 
 { 
-    awk '/^  *container_name: /{print$NF}' "$@" | tr '\n' ' '
+    python3 -c '
+import sys
+import yaml
+import re
+def default_val(s):
+  return re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*:-(\d+)\}").sub(r"\1",str(s))
+def host_port(p):
+  if isinstance(p, dict):
+    published=p.get("published")
+    if published in (None, ""): return []
+    port=default_val(published)
+  else:
+    spec,_,_=default_val(p).partition("/")
+    parts=spec.rsplit(":", 2)
+    if len(parts) < 2 or not parts[-2]: return []
+    port=parts[-2]
+  m=re.fullmatch(r"(\d+)",port)
+  if m: return [int(m.group(1))]
+  m=re.fullmatch(r"(\d+)-(\d+)",port)
+  if m: return [n for n in range(int(m.group(1)),int(m.group(2))+1)]
+  return []
+def entries(path):
+  with open(path) as f:
+    doc = yaml.safe_load(f) or {}
+  for svc in (doc.get("services") or {}).values():
+    if not isinstance(svc, dict): continue
+    if svc.get("container_name"): yield "name", svc["container_name"]
+    for p in svc.get("ports") or []:
+      for port in host_port(p):
+        yield "port",port
+  for section, label in (("networks", "net"), ("volumes", "vol")):
+    for key, cfg in (doc.get(section) or {}).items():
+      cfg = cfg or {}
+      if cfg.get("external"): continue
+      yield label, cfg.get("name", key)
+for path in sys.argv[1:]:
+  try:
+    for label, value in entries(path):
+      print(f"{label}:{value}")
+  except:
+    continue
+' "$@"
 }
 ensure_disk_size () 
 { 
@@ -9194,8 +9273,6 @@ ensure_ip ()
 }
 ensure_license_gate () 
 { 
-    local installer_name="${1:-openedge-cli}";
-    local history_dir="$(ensure_project_path)/$1/licenses";
     local py=$(cat <<'__LICENSE_GATE_PY__'
 import argparse, curses, hashlib, json, os, platform, re, sys, textwrap, time
 
@@ -10185,7 +10262,6 @@ class Gate(object):
 def main():
     ap = argparse.ArgumentParser(prog="license-gate", add_help=True)
     ap.add_argument("--accept-license", nargs="?", const="*", default=None)
-    ap.add_argument("--no-scroll-gate", action="store_true")
     ap.add_argument("--reset-license", "--reset-license", dest="relicense", action="store_true")
     args, _ = ap.parse_known_args()
 
@@ -10249,14 +10325,23 @@ except KeyboardInterrupt:
   sys.exit(EXIT_DECLINED)
 __LICENSE_GATE_PY__
 );
-    LICENSE_GATE_HISTORY_DIR="$history_dir" python3 -c "$py" "$@"
+    LICENSE_GATE_HISTORY_DIR="$(ensure_project_path)/${installer_name:?}/licenses" python3 -c "$py" "$@"
 }
 ensure_license_use_model () 
 { 
     local name="$1";
-    echo "@@LICENSE-ID ${name//[^A-Za-z0-9._-]/}";
-    echo "@@LICENSE-TITLE Download $name";
-    echo "By accepting, you agree to download and use the $name model in sample evaluation."
+    local url="$2";
+    cat <<EOF
+@@LICENSE-ID ${name//[^A-Za-z0-9._-]/}
+@@LICENSE-TITLE $name Model License
+
+The $name model is used in the sample application. The model is subject to its license as follows:
+
+  $url
+
+Disclaimer: by downloading and using this model, you confirm that you accept the license terms and agree to comply with any applicable model-use and privacy requirements.
+EOF
+
 }
 ensure_oneapi_ros_openvino () 
 { 
@@ -10325,19 +10410,26 @@ ensure_ports_open ()
     local act_name="${1:?}";
     local name="${2:?}";
     shift 2;
-    if [ "$act_name" = "start" ]; then
-        ensure_prop set started/$name/ports "$*";
-    fi;
+    case "$act_name" in 
+        install)
+            ensure_prop set installed/$name/ports "$*"
+        ;;
+        start)
+            ensure_prop set started/$name/ports "$*"
+        ;;
+    esac;
     if command -v ss > /dev/null; then
-        local port out stopper mname;
+        local port out stopper mname mpath;
         for port in $*;
         do
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
-            for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
+            for mpath in $(ensure_prop find "installed/*/ports") $(ensure_prop find "started/*/ports");
             do
-                [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
+                [[ " $(ensure_prop get $mpath) " = *" $port "* ]] || continue;
+                mname="${mpath#*/}";
+                mname="${mname%/*}";
                 stopper="${_act_cache_functions[stop_$mname]:-}";
                 [ -n "$stopper" ] || continue;
                 printf "${red}Stopping $mname to release port %s${reset}\n" "$port" 1>&2;
@@ -10606,6 +10698,26 @@ ensure_trap ()
         fi;
     done
 }
+install_anomalib () 
+{ 
+    configure_anomalib "$@";
+    if verify_anomalib && ! ensure_parse_reinstall "$@"; then
+        echo "Anomalib is installed." 1>&2;
+    else
+        ensure_disk_size 15000;
+        echo "@@STEP Installing anomalib=${version}";
+        mkdir -p "$workspace";
+        cd "$workspace";
+        python3 -m venv .venv;
+        . .venv/bin/activate;
+        pip install "anomalib[openvino,cpu]==${version}";
+        echo "@@STEP Installing skills";
+        ensure_skills add "tags/lib/v$version" "$repository" "${skills[@]/#/.agents/skills/}";
+        verify_anomalib;
+    fi;
+    test_anomalib "$@";
+    echo "@@HIGHLIGHT venv: $workspace/.venv"
+}
 install_geti () 
 { 
     configure_geti "$@";
@@ -10618,7 +10730,7 @@ install_geti ()
         echo "@@STEP Pulling image";
         docker pull $image_name;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        ensure_skills add "release/app-${version%.*}" "$repository" "${skills[@]/#/.agents/skills/}";
     fi
 }
 install_k3s_io_sriov () 
@@ -10833,6 +10945,11 @@ install_uncrewed_aerial_vehicle_vision_analytics_source ()
     fi;
     git -C "$workspace" fetch --depth 1 origin "$version" && git -C "$workspace" checkout --detach FETCH_HEAD || return $?;
     echo "UAV source commit: $(git -C "$workspace" rev-parse HEAD)"
+}
+remove_anomalib () 
+{ 
+    configure_anomalib "$@";
+    ensure_rm "$workspace" || true
 }
 remove_geti () 
 { 
@@ -12065,7 +12182,7 @@ verify_video_processing_for_nvr ()
 }
 verify_video_search_and_summarization () 
 { 
-    local files_to_check=(ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml ov_models/object-detection/ultralytics/public/yolov8l/FP16/yolov8l.xml ov_models/ovms/openvino_models/gpu/int4/meta-llama/Llama-3.2-3B-Instruct/openvino_model.xml ov_models/ovms/openvino_models/gpu/int4/Qwen/Qwen2.5-VL-3B-Instruct/openvino_config.json ov_models/ovms/openvino_models/gpu/int4/config_all.json ov_models/ovms/config.json);
+    local files_to_check=(ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.bin ov_models/object-detection/ultralytics/public/yolov8l/FP16/yolov8l.bin ov_models/ovms/openvino_models/gpu/int8/OpenVINO/Qwen3-4B-int8-ov/openvino_model.bin ov_models/ovms/openvino_models/gpu/int8/OpenVINO/Qwen3.5-4B-int8-ov/openvino_language_model.bin);
     for f in "${files_to_check[@]}";
     do
         [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || { 
