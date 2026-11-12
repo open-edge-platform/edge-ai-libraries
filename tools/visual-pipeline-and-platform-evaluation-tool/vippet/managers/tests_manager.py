@@ -1069,6 +1069,7 @@ class TestsManager:
                 execution_config=internal_spec.execution_config,
                 job_id=job_id,
                 staged_search=internal_spec.staged_search,
+                on_stage=lambda message: self._set_job_details(job_id, [message]),
             )
 
             # Collect actual video file lists from output directories after benchmark completes
@@ -1148,6 +1149,11 @@ class TestsManager:
                 job.end_time = int(time.time() * 1000)
                 job.details = [detail_message]
         self.logger.error(f"Test job {job_id} failed: {detail_message}")
+
+    def _set_job_details(self, job_id: str, details: list[str]) -> None:
+        with self._jobs_lock:
+            if job_id in self.jobs:
+                self.jobs[job_id].details = details
 
     def get_job_statuses_by_type(self, job_type: type[_T]) -> list[_T]:
         """

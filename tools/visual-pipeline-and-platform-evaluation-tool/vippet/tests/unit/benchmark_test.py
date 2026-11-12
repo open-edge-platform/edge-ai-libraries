@@ -16,6 +16,7 @@ from internal_types import (
     InternalOutputMode,
     InternalPipelineDensitySpec,
     InternalPipelineStreamSpec,
+    InternalStreamInfo,
 )
 from managers import benchmark_metrics as metrics
 from managers.pipeline_manager import PipelineCommand
@@ -1185,7 +1186,7 @@ class TestBenchmarkStagedSearch(unittest.TestCase):
             ),
         ]
 
-    def _run(self, max_gpu: int, max_cpu: int) -> BenchmarkResult:
+    def _run(self, max_gpu: int, max_cpu: int, on_stage=None) -> BenchmarkResult:
         """Run against a platform fitting ``max_gpu`` + ``max_cpu`` streams."""
 
         def fake_run(*_args, **_kwargs) -> PipelineResult:
@@ -1207,6 +1208,7 @@ class TestBenchmarkStagedSearch(unittest.TestCase):
                 execution_config=create_internal_execution_config(),
                 job_id="job-staged",
                 staged_search=True,
+                on_stage=on_stage,
             )
 
     def _searched_counts(self) -> list[tuple[int, int]]:
@@ -1227,6 +1229,22 @@ class TestBenchmarkStagedSearch(unittest.TestCase):
         self.assertEqual(counts[: len(stage_one)], stage_one)
         self.assertTrue(all(gpu == 10 for gpu, _ in stage_two))
 
+    def test_reports_the_start_of_each_stage(self):
+        messages: list[str] = []
+
+        self._run(max_gpu=10, max_cpu=3, on_stage=messages.append)
+
+        self.assertEqual(
+            messages,
+            [
+                "Stage 1/2: searching the maximum streams of "
+                "gpu (/pipelines/decode/variants/gpu)",
+                "Stage 2/2: searching the maximum streams of "
+                "cpu (/pipelines/decode/variants/cpu), "
+                "with stage 1 held at 10 streams",
+            ],
+        )
+
     def test_no_cpu_stream_fits_keeps_the_gpu_maximum(self):
         result = self._run(max_gpu=6, max_cpu=0)
 
@@ -1238,6 +1256,49 @@ class TestBenchmarkStagedSearch(unittest.TestCase):
 
         self.assertEqual([s.streams for s in result.streams_per_pipeline], [0, 4])
         self.assertTrue(all(gpu == 0 for gpu, cpu in self._searched_counts() if cpu))
+
+    def test_cpu_stage_is_judged_only_by_cpu_streams(self):
+        """GPU streams slowing down next to CPU streams do not stop the CPU stage."""
+
+        def build(run_specs, *_args):
+            streams = {
+                spec.pipeline_id: [
+                    InternalStreamInfo(source_name=f"src{p}_{i}", sink_name="sink")
+                    for i in range(spec.streams)
+                ]
+                for p, spec in enumerate(run_specs)
+            }
+            return PipelineCommand(command="", streams_per_pipeline=streams)
+
+        def fake_run(*_args, **_kwargs) -> PipelineResult:
+            run_specs = self.manager.build_pipeline_command.call_args[0][0]
+            gpu, cpu = (spec.streams for spec in run_specs)
+            gpu_fps = 20.0 if cpu or gpu > 10 else 40.0
+            cpu_fps = 40.0 if cpu <= 3 else 20.0
+            stream_fps = {f"src0_{i}__sink": gpu_fps for i in range(gpu)}
+            stream_fps |= {f"src1_{i}__sink": cpu_fps for i in range(cpu)}
+            total = sum(stream_fps.values())
+            return PipelineResult(
+                total_fps=total,
+                per_stream_fps=total / (gpu + cpu),
+                num_streams=gpu + cpu,
+                stream_fps=stream_fps,
+            )
+
+        self.manager.build_pipeline_command.side_effect = build
+        with (
+            patch("benchmark.PipelineManager", return_value=self.manager),
+            patch.object(self.benchmark.runner, "run", side_effect=fake_run),
+        ):
+            result = self.benchmark.run(
+                self.specs,
+                fps_floor=30,
+                execution_config=create_internal_execution_config(),
+                job_id="job-staged",
+                staged_search=True,
+            )
+
+        self.assertEqual([s.streams for s in result.streams_per_pipeline], [10, 3])
 
 
 class TestBenchmarkSlowestStream(unittest.TestCase):

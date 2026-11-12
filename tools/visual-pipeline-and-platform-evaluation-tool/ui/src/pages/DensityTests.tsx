@@ -264,9 +264,9 @@ export const DensityTests = () => {
             Two pipelines searched one after the other. The maximum number of
             stage 1 streams at the target FPS is found first. Then, with stage 1
             held at that maximum, the maximum number of stage 2 streams is
-            found. Use the Media Decode pipeline to find VDBox (GPU) streams
-            first and CPU streams second, with CPU streams pinned to the
-            selected cores.
+            found; only stage 2 streams must reach the target FPS. Use the Media
+            Decode pipeline to find VDBox (GPU) streams first and CPU streams
+            second, with CPU streams pinned to the selected cores.
           </p>
           <DensityStagedPipelineSelection
             pipelines={pipelines}
@@ -410,7 +410,7 @@ export const DensityTests = () => {
                 <div className="animate-pulse flex items-center gap-2">
                   <div className="h-2 w-2 bg-status-info-accent"></div>
                   <span className="text-xs text-status-fg">
-                    Running density test...
+                    {jobStatus.details?.[0] ?? "Running density test..."}
                   </span>
                 </div>
                 <MetricsDashboard

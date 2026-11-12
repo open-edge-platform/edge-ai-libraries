@@ -1647,7 +1647,7 @@ export type DensityTestSpec = {
   pipeline_density_specs: PipelineDensitySpec[];
   /** Execution configuration for output and runtime. */
   execution_config?: ExecutionConfig;
-  /** Search the maximum stream count one pipeline at a time, in list order: the first pipeline is searched alone, then held at its maximum while the next one is searched, and so on. Use it to find the maximum VDBox (GPU decode) streams first and then the CPU streams that still fit next to them. Requires at least two specs and no `streams`; `stream_rate` is ignored. */
+  /** Search the maximum stream count one pipeline at a time, in list order: the first pipeline is searched alone, then held at its maximum while the next one is searched, and so on. Each stage is judged only by the FPS of the streams of the pipeline it searches. Use it to find the maximum VDBox (GPU decode) streams first and then the CPU streams that still fit next to them. Requires at least two specs and no `streams`; `stream_rate` is ignored. */
   staged_search?: boolean;
 };
 export type VideoSource = "auto" | "uploaded";

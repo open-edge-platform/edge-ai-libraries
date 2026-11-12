@@ -6,6 +6,7 @@ based on configurable parameters and stream counts.
 
 import logging
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from dlsps2_runner import Dlsps2PipelineRunner
@@ -217,6 +218,7 @@ class Benchmark:
         execution_config: InternalExecutionConfig,
         job_id: str,
         staged_search: bool = False,
+        on_stage: Callable[[str], None] | None = None,
     ) -> BenchmarkResult:
         """
         Run the benchmark and return the best configuration.
@@ -226,7 +228,9 @@ class Benchmark:
         list order: each is searched while every earlier spec is held at
         the maximum found for it and every later spec runs no streams.
         This finds e.g. the maximum VDBox streams first and then the CPU
-        streams that still fit next to them. The result is the last stage
+        streams that still fit next to them. Each stage is judged only by
+        the FPS of the streams of the spec it searches; earlier specs run
+        as background load. The result is the last stage
         that met ``fps_floor``; a stage where not even one more stream fits
         keeps its spec at zero streams.
 
@@ -236,6 +240,7 @@ class Benchmark:
             execution_config: Output and runtime configuration.
             job_id: Unique job identifier used for generating output filenames.
             staged_search: Search the specs one at a time, in order.
+            on_stage: Called with a human-readable message when a stage starts.
 
         Returns:
             BenchmarkResult with the best stream configuration found.
@@ -258,15 +263,26 @@ class Benchmark:
                 )
                 for index, spec in enumerate(pipeline_density_specs)
             ]
-            self.logger.info(
-                "Staged search %d/%d: searching %s, held streams %s",
-                stage + 1,
-                len(pipeline_density_specs),
-                pipeline_density_specs[stage].pipeline_id,
-                held,
+            spec = pipeline_density_specs[stage]
+            name = (
+                spec.pipeline_id
+                if spec.pipeline_name == spec.pipeline_id
+                else f"{spec.pipeline_name} ({spec.pipeline_id})"
             )
+            message = (
+                f"Stage {stage + 1}/{len(pipeline_density_specs)}: "
+                f"searching the maximum streams of {name}"
+            )
+            if held:
+                message += ", with " + ", ".join(
+                    f"stage {index + 1} held at {streams} streams"
+                    for index, streams in enumerate(held)
+                )
+            self.logger.info("Staged search %s", message)
+            if on_stage:
+                on_stage(message)
             last, met_floor = self._search(
-                stage_specs, fps_floor, execution_config, job_id
+                stage_specs, fps_floor, execution_config, job_id, judged_index=stage
             )
             if met_floor:
                 best = last
@@ -286,6 +302,7 @@ class Benchmark:
         fps_floor: float,
         execution_config: InternalExecutionConfig,
         job_id: str,
+        judged_index: int | None = None,
     ) -> tuple[BenchmarkResult, bool]:
         """
         Search the best configuration and say whether it met ``fps_floor``.
@@ -315,6 +332,8 @@ class Benchmark:
             execution_config: InternalExecutionConfig for output and runtime.
                 Note: output_mode=live_stream is not supported for density tests.
             job_id: Unique job identifier used for generating output filenames.
+            judged_index: Judge only the streams of this spec instead of all
+                streams, when the runner reports per-stream FPS.
 
         Returns:
             BenchmarkResult with optimal stream configuration, and whether
@@ -439,15 +458,25 @@ class Benchmark:
             judged_fps = (
                 min_stream_fps if min_stream_fps is not None else per_stream_fps
             )
+            if judged_index is not None:
+                judged_spec = pipeline_density_specs[judged_index]
+                judged_values = [
+                    result.stream_fps[info.stream_id]
+                    for info in streams_by_pipeline.get(judged_spec.pipeline_id, [])
+                    if info.stream_id in result.stream_fps
+                ]
+                if judged_values:
+                    judged_fps = min(judged_values)
 
             self.logger.info(
-                "exit_code=%d, search_value=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, min_stream_fps=%s, exponential=%s, lower_bound=%d, higher_bound=%s, details=%s",
+                "exit_code=%d, search_value=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, min_stream_fps=%s, judged_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s, details=%s",
                 result.exit_code,
                 search_value,
                 n_streams,
                 total_fps,
                 per_stream_fps,
                 min_stream_fps,
+                judged_fps,
                 exponential,
                 lower_bound,
                 higher_bound,

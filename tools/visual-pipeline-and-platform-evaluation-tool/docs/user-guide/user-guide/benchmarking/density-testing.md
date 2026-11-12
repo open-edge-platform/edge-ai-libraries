@@ -64,7 +64,8 @@ The meaning of `search_value` depends on the mode:
   `fixed_streams + search_value`.
 - **Staged mode** — the algorithm runs once per pipeline, in list order. In stage *k*,
   `search_value` is the stream count of pipeline *k*; pipelines before it run at the
-  maximum found for them and pipelines after it run no streams. If not even one stream of
+  maximum found for them and pipelines after it run no streams. Only the streams of
+  pipeline *k* must meet `fps_floor`. If not even one stream of
   pipeline *k* meets `fps_floor`, it stays at `0` streams and the next stage starts.
 
 ### Stream Distribution
@@ -171,11 +172,12 @@ stage 2 streams that still fit next to it. While any iteration runs, the dashboa
 CPU usage per core, so you can see the pinned cores being loaded.
 
 > [!NOTE]
-> Every stream must meet `fps_floor`, including the stage 1 streams. Stage 1 ends right at
-> the limit of its engine, so CPU work that competes for shared resources (memory bandwidth,
-> SoC power budget, CPU time of the stage 1 streams) can leave no room for stage 2 streams.
-> Pinning the stage 1 pipeline away from the stage 2 cores with the test-wide CPU core
-> pinning (`execution_config.pinned_cpu_cores`) removes the CPU-time contention.
+> Each stage is judged only by the FPS of the streams of the pipeline it searches. In
+> stage 2 the stage 1 streams keep running at their maximum as background load, but they
+> do not have to stay at `fps_floor`: CPU work competes with them for shared resources
+> (memory bandwidth, SoC power budget), so they may slow down. Their FPS still counts in
+> the reported totals. To keep stage 1 streams off the stage 2 cores, pin them with the
+> test-wide CPU core pinning (`execution_config.pinned_cpu_cores`).
 
 API example:
 

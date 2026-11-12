@@ -920,6 +920,33 @@ class TestTestsManager(unittest.TestCase):
 
     @patch("managers.tests_manager.Benchmark")
     @patch("managers.tests_manager.PipelineManager")
+    def test_execute_density_test_shows_current_stage_in_details(
+        self, _mock_pipeline_manager_cls, mock_benchmark_cls
+    ):
+        manager = TestsManager()
+        job_id = "test-density-stage"
+        details_during_run: list[list[str]] = []
+
+        def fake_run(**kwargs):
+            kwargs["on_stage"]("Stage 2/2: searching cpu")
+            details_during_run.append(list(manager.jobs[job_id].details))
+            raise RuntimeError("stop")
+
+        mock_benchmark_cls.return_value.run.side_effect = fake_run
+        internal_spec = create_internal_density_test_spec()
+        manager.jobs[job_id] = InternalDensityJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+
+        manager._execute_density_test(job_id, internal_spec)
+
+        self.assertEqual(details_during_run, [["Stage 2/2: searching cpu"]])
+
+    @patch("managers.tests_manager.Benchmark")
+    @patch("managers.tests_manager.PipelineManager")
     def test_execute_density_test_cancelled_marks_failed(
         self, mock_pipeline_manager_cls, mock_benchmark_cls
     ):
