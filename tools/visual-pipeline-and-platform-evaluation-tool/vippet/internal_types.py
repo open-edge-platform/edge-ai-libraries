@@ -573,9 +573,10 @@ class InternalExecutionConfig:
         output_mode: Mode for pipeline output generation.
         max_runtime: Maximum runtime in seconds (0 = run until EOS).
         metadata_mode: Mode for metadata publishing via gvametapublish elements.
-        enable_latency_metrics: When True, the GStreamer subprocess runs with
-            the DLStreamer `latency_tracer` active in pipeline-only mode with
-            a 1000 ms interval. Defaults to False (tracer disabled).
+        enable_latency_metrics: When True, the job reads the latency samples
+            DLSPS 2.0 exports to metrics-manager, if the server runs the
+            DLStreamer `latency_tracer` (see ``dlsps2_latency_configured``).
+            Defaults to False (no latency samples read).
         pinned_cpu_cores: Logical CPU ids the pipeline is pinned to on
             DLSPS 2.0. Empty (default) means no pinning.
     """
