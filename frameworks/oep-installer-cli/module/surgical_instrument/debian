@@ -57,12 +57,13 @@ debian_90_install_surgical_instrument () {
  
 debian_90_start_surgical_instrument () {
   configure_surgical_instrument "$@"
-  ensure_container_namespace start surgical_instrument $(ensure_container_parse_names "$workspace"/surgical-instrument/docker/*.yaml)
+  ensure_container_namespace start surgical_instrument $(ensure_container_parse_yaml "$workspace"/surgical-instrument/docker/*.yaml)
 
   cd "$workspace"/surgical-instrument
   make doctor
   make up LOWLATENCY=1 CAMERA_TRIGGER=vsync VSYNC_DIVISOR=2 SERIAL=1234567890
 
+  ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -72,4 +73,3 @@ debian_90_remove_surgical_instrument () {
   ensure_rm "$workspace"
 }
 
- 

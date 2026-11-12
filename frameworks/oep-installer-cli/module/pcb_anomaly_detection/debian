@@ -62,7 +62,7 @@ EOF
 debian_90_start_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection "$@"
   ensure_ports_open start pcb_anomaly_detection "${used_ports[@]}"
-  ensure_container_namespace start pcb_anomaly_detection $(ensure_container_parse_names "$workspace"/industrial-edge-insights-vision/docker-compose.yml)
+  ensure_container_namespace start pcb_anomaly_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-vision/docker-compose.yml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device
@@ -92,7 +92,8 @@ debian_90_stop_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection "$@"
   cd "$workspace"/industrial-edge-insights-vision && {
     ./sample_stop.sh || true
-    docker compose down -v --remove-orphans
+    docker compose down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
   } || true
 }
 

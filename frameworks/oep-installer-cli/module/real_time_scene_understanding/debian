@@ -60,7 +60,7 @@ debian_90_install_real_time_scene_understanding () {
 debian_90_start_real_time_scene_understanding () {
   configure_real_time_scene_understanding "$@"
   ensure_ports_open start real_time_scene_understanding "${used_ports[@]}"
-  ensure_container_namespace start real_time_scene_understanding $(ensure_container_parse_names "$workspace"/live-video-analysis/real-time-scene-understanding/compose.yaml)
+  ensure_container_namespace start real_time_scene_understanding $(ensure_container_parse_yaml "$workspace"/live-video-analysis/real-time-scene-understanding/compose.yaml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}"
@@ -76,7 +76,8 @@ debian_90_start_real_time_scene_understanding () {
 debian_90_stop_real_time_scene_understanding () {
   configure_real_time_scene_understanding "$@"
   cd "$workspace"/live-video-analysis/real-time-scene-understanding && {
-    docker compose -f compose.yaml down -v --remove-orphans
+    docker compose -f compose.yaml down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml compose.yaml)
   } || true
 }
 

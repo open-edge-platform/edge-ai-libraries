@@ -76,7 +76,7 @@ debian_90_install_multi_modal_patient_monitoring () {
 debian_90_start_multi_modal_patient_monitoring () {
   configure_multi_modal_patient_monitoring "$@"
   ensure_ports_open start multi_modal_patient_monitoring "${used_ports[@]}"
-  ensure_container_namespace start multi_modal_patient_monitoring $(ensure_container_parse_names "$workspace"/multi_modal_patient_monitoring/docker-compose.yaml)
+  ensure_container_namespace start multi_modal_patient_monitoring $(ensure_container_parse_yaml "$workspace"/multi_modal_patient_monitoring/docker-compose.yaml)
 
   cd "$workspace"/multi_modal_patient_monitoring
 
@@ -97,7 +97,10 @@ debian_90_start_multi_modal_patient_monitoring () {
 
 debian_90_stop_multi_modal_patient_monitoring () {
   configure_multi_modal_patient_monitoring "$@"
-  cd "$workspace"/multi_modal_patient_monitoring && docker compose down -v --remove-orphans || true
+  cd "$workspace"/multi_modal_patient_monitoring && {
+    docker compose down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
+  } || true
 }
 
 debian_90_remove_multi_modal_patient_monitoring () {

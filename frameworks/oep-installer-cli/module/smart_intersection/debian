@@ -73,7 +73,7 @@ debian_90_install_smart_intersection () {
 debian_90_start_smart_intersection () {
   configure_smart_intersection "$@"
   ensure_ports_open start smart_intersection "${used_ports[@]}"
-  ensure_container_namespace start smart_intersection $(ensure_container_parse_names "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml)
+  ensure_container_namespace start smart_intersection $(ensure_container_parse_yaml "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device"
@@ -90,7 +90,10 @@ debian_90_start_smart_intersection () {
 
 debian_90_stop_smart_intersection () {
   configure_smart_intersection "$@"
-  cd "$workspace"/metro-vision-ai-app-recipe && docker compose down -v --remove-orphans || true
+  cd "$workspace"/metro-vision-ai-app-recipe && {
+    docker compose down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
+  } || true
 }
 
 debian_90_remove_smart_intersection () {
