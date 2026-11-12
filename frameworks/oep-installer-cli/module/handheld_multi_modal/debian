@@ -38,6 +38,7 @@ debian_90_install_handheld_multi_modal () {
   else
     ensure_disk_size 45000
     echo "@@STEP Removing conflicting app"
+    ensure_container_namespace install handheld_multi_modal name:handheld-multi-modal-model-downloader-1 || return $?
     ensure_ports_open install handheld_multi_modal "${used_ports[@]}" || {
       docker rm -f handheld-multi-modal-model-downloader-1 || true
       ensure_ports_open install handheld_multi_modal "${used_ports[@]}" 
@@ -64,6 +65,7 @@ debian_90_start_handheld_multi_modal () {
   configure_handheld_multi_modal "$@"
   ensure_ports_open start handheld_multi_modal "${used_ports[@]}"
   cd "$workspace"/handheld-multi-modal
+  ensure_container_namespace start handheld_multi_modal $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || return $?
   make up CONFIRM=yes
   echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)"
   echo "@@HIGHLIGHT $installer_name stop|remove"
@@ -72,11 +74,13 @@ debian_90_start_handheld_multi_modal () {
 debian_90_stop_handheld_multi_modal () {
   configure_handheld_multi_modal "$@"
   docker rm -f handheld-multi-modal-model-downloader-1 || true
-  cd "$workspace"/handheld-multi-modal && make stop || true
+  cd "$workspace"/handheld-multi-modal || return $?
+  make stop || return $?
+  ensure_container_cleanup $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml)
 }
 
 debian_90_remove_handheld_multi_modal () {
-  debian_90_stop_handheld_multi_modal "$@"
+  debian_90_stop_handheld_multi_modal "$@" || return $?
   local app_dir="$workspace"/handheld-multi-modal
   [ ! -d "$app_dir" ] || (cd "$app_dir" && make clean-all CONFIRM=yes || true)
   ensure_rm "$workspace"
