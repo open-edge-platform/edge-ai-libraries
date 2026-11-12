@@ -2468,7 +2468,8 @@ ensure_container_cleanup ()
                 docker network rm -f ${c#net:} 2> /dev/null || true
             ;;
         esac;
-    done
+    done;
+    docker volume prune -f || true
 }
 ensure_container_namespace () 
 { 
@@ -2512,6 +2513,7 @@ ensure_container_parse_yaml ()
 import sys
 import yaml
 import re
+project={"_":"","-":""}
 def default_val(s):
   return re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*:-(\d+)\}").sub(r"\1",str(s))
 def host_port(p):
@@ -2534,7 +2536,8 @@ def entries(path):
     doc = yaml.safe_load(f) or {}
   for svc in (doc.get("services") or {}).values():
     if not isinstance(svc, dict): continue
-    if svc.get("container_name"): yield "name", svc["container_name"]
+    if svc.get("container_name"): 
+      yield "name", "{}{}".format(project["-"],svc["container_name"])
     for p in svc.get("ports") or []:
       for port in host_port(p):
         yield "port",port
@@ -2542,11 +2545,14 @@ def entries(path):
     for key, cfg in (doc.get(section) or {}).items():
       cfg = cfg or {}
       if cfg.get("external"): continue
-      yield label, cfg.get("name", key)
+      yield label, "{}{}".format(project["_"],cfg.get("name", key))
 for path in sys.argv[1:]:
   try:
-    for label, value in entries(path):
-      print(f"{label}:{value}")
+    if path.startswith("--project="):
+      project={"-":f"{path[10:]}-","_":f"{path[10:]}_"}
+    else:
+      for label, value in entries(path):
+        print(f"{label}:{value}")
   except:
     continue
 ' "$@"
