@@ -834,21 +834,40 @@ class TestLoadThumbnailAsBase64(unittest.TestCase):
         decoded = base64.b64decode(base64_part)
         self.assertEqual(decoded, png_content)
 
-    def test_load_thumbnail_as_base64_with_base_path_absolute_path_unchanged(self):
-        # Test that absolute paths are not affected by base_path
+    def test_load_thumbnail_as_base64_rejects_absolute_path_outside_base_path(self):
         png_content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
         filepath = self._create_temp_file("test.png", png_content)
 
-        # Even with base_path, absolute path should work
         result = utils.load_thumbnail_as_base64(
             filepath, "test-pipeline", base_path="/some/other/path"
         )
 
-        assert result is not None  # Type narrowing for linter
-        self.assertTrue(result.startswith("data:image/png;base64,"))
-        base64_part = result.split(",", 1)[1]
-        decoded = base64.b64decode(base64_part)
-        self.assertEqual(decoded, png_content)
+        self.assertIsNone(result)
+
+    def test_load_thumbnail_as_base64_rejects_path_outside_base_path(self):
+        base_path = os.path.join(self.temp_dir, "pipelines")
+        os.makedirs(base_path)
+        filepath = self._create_temp_file(
+            "outside.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        )
+
+        result = utils.load_thumbnail_as_base64(
+            os.path.join("..", os.path.basename(filepath)),
+            "test-pipeline",
+            base_path=base_path,
+        )
+
+        self.assertIsNone(result)
+
+    def test_load_thumbnail_as_base64_rejects_oversized_file(self):
+        filepath = os.path.join(self.temp_dir, "oversized.png")
+        with open(filepath, "wb") as thumbnail:
+            thumbnail.write(b"\x89PNG")
+            thumbnail.truncate(utils.MAX_THUMBNAIL_BYTES + 1)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        self.assertIsNone(result)
 
     def test_load_thumbnail_as_base64_with_base_path_nonexistent_relative(self):
         # Test with relative path that doesn't exist under base_path

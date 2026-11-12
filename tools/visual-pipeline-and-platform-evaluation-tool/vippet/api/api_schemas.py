@@ -101,6 +101,12 @@ class TestJobState(str, Enum):
     FAILED = "FAILED"
 
 
+class AudioJobState(str, Enum):
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
 class BenchmarkTestCaseRunStatus(str, Enum):
     """Status of a benchmark test-case run."""
 
@@ -2046,6 +2052,27 @@ class DensityJobStatus(TestsJobStatus):
     """
 
     pass
+
+
+class AudioJobSummary(BaseModel):
+    id: str
+    pipeline_id: str
+    pipeline_name: str
+    operation: Literal["speech_to_text", "text_to_speech"]
+    variant_id: str
+    variant_name: str
+    device: Literal["CPU", "GPU", "NPU"]
+    state: AudioJobState
+    created_at: datetime
+    modified_at: datetime
+    service_round_trip_ms: float | None = None
+    artifact_available: bool
+    error: str | None = None
+
+
+class AudioJobStatus(AudioJobSummary):
+    transcript: str | None = None
+    artifact_url: str | None = None
 
 
 class PerformanceJobSummary(BaseModel):

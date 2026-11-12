@@ -5,6 +5,9 @@ ViPPET application specific services and foundational services, which provide pl
 
 ![ViPPET architecture](../_assets/VIPPET-architecture-2026.1.svg "vippet architecture")
 
+For the Voice integration, see [STT, TTS and metrics architecture](./voice-architecture.md)
+for C4 System Context, Container and Component diagrams and runtime flows.
+
 ## Application Specific Microservices
 
 Application-specific microservices implement ViPPET's end-user workflows. Together they provide the
@@ -33,6 +36,7 @@ including stream ingestion, model lifecycle management, and operational observab
 
 VIPPET UI <./architecture/vippet-ui>
 VIPPET Backend <./architecture/vippet-be>
+Voice: STT, TTS and Metrics <./voice-architecture>
 
 :::
 hide_directive-->
