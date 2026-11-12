@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: Speech to Text
+definition: >-
+  Transcribe a bundled sample recording with the Audio Analyzer service.
+type: audio
+operation: speech_to_text
+thumbnail: images/speech-to-text.png
+tags:
+  - Audio
+  - Speech Recognition
+  - Retail
+required_models:
+  - Whisper Base
+variants:
+  - name: CPU
+    device: CPU
+  - name: GPU
+    device: GPU
+  - name: NPU
+    device: NPU
+defaults:
+  audio: sample_male.wav
+  language: en

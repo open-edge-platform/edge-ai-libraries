@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import os
 import time
@@ -46,17 +49,18 @@ def _load_pipeline_with_map_location_fallback(
 class PyannoteDiarizer:
     def __init__(self, device: str = "cpu", hf_token: str | None = None):
         diar_cfg = config.models.diarization
-        pipeline_source = diar_cfg.name
         # Kiosk scenario: at most one customer + one staff member per chunk.
         # Constraining speaker count reduces phantom speakers on short/noisy audio.
         self.min_speakers = getattr(diar_cfg, "min_speakers", 1)
         self.max_speakers = getattr(diar_cfg, "max_speakers", 2)
 
-        # Prefer locally cached snapshot (offline-capable); fall back to HF Hub
         local_model_path = get_diarization_model_path()
-        local_config_path = os.path.join(local_model_path, "config.yaml")
-        if os.path.exists(local_config_path):
-            pipeline_source = local_config_path
+        pipeline_source = os.path.join(local_model_path, "config.local.yaml")
+        if not os.path.isfile(pipeline_source):
+            raise RuntimeError(
+                "Local diarization pipeline is missing. Run model-downloader provisioning "
+                "and Audio Analyzer startup preparation before loading diarization."
+            )
 
         # Allow all pyannote checkpoint globals required by torch >= 2.6
         with safe_globals([

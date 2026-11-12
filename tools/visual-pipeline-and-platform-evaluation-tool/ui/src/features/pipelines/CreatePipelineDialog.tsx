@@ -233,7 +233,7 @@ export const CreatePipelineDialog = ({
         setOpen(false);
         reset();
         toast.success("Pipeline created successfully");
-        navigate(`/pipelines/${response.id}/${variantName}`);
+        navigate(`/pipelines/vision/${response.id}/${variantName}`);
       }
     } catch (error) {
       if (isAsyncJobError(error)) {
@@ -283,7 +283,7 @@ export const CreatePipelineDialog = ({
         setSelectedTemplate(null);
         toast.success("Pipeline created successfully");
         const variantId = variants[0]?.id || "default";
-        navigate(`/pipelines/${response.id}/${variantId}`);
+        navigate(`/pipelines/vision/${response.id}/${variantId}`);
       }
     } catch (error) {
       handleApiError(error, "Failed to create pipeline from template");
