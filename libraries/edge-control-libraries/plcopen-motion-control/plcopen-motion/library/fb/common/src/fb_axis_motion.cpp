@@ -39,7 +39,14 @@ void FbAxisMotion::runCycle()
   if ((state_ == fbIdle || state_ == fbAfterFallingEdge) &&
       execute_ == mcTRUE)  // `Execute` rising edge
   {
-    MC_ERROR_CODE err = onRisingEdgeExecution();
+    MC_ERROR_CODE err;
+    if (axis_ && axis_->isStoppingOnError())
+    {
+      err = mcErrorCodeAxisStateViolation;
+      syncStatus(mcFALSE, mcFALSE, mcFALSE, mcFALSE, mcTRUE, err);
+    }
+    else
+      err = onRisingEdgeExecution();
     if (err)
       onError(err);
     else

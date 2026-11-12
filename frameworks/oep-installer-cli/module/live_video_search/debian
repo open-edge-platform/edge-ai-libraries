@@ -1,7 +1,7 @@
 
 configure_live_video_search () {
   workspace="$(ensure_project_path)/live-video-search"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(8080 3001 9998 4001 4002 5432 7890 6008 19530 55555 6016 9766 80 5000 8000 1883 6379 9777 6008 19530 9091 8554 9090 9273)
   get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
@@ -18,6 +18,7 @@ POSTGRES_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random |
 MQTT_USER=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MQTT_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32
+DATAPREP_DETECTION_MODEL=OpenVINO/yolox_s-int8-ov
 DATAPREP_EMBEDDING_DEVICE=${device^^}
 DATAPREP_DETECTION_DEVICE=${device^^}
 MME_EMBEDDING_DEVICE=${device^^}
@@ -56,6 +57,7 @@ debian_90_install_live_video_search () {
 debian_90_start_live_video_search () {
   configure_live_video_search "$@"
   ensure_ports_open start live_video_search "${used_ports[@]}"
+  ensure_container_namespace start live_video_search $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-search/docker/*.yaml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_search_device "$device"
@@ -78,7 +80,7 @@ debian_90_stop_live_video_search () {
     set +a
     . ./setup.sh --down || true
     . ./setup.sh --clean-data || true
-    docker volume rm docker_ov_models -f
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
   } || true
 }
 

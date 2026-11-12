@@ -32,8 +32,7 @@ def _projection_target(projection: Any) -> str:
     explicit = configuration.get("target_media")
     if explicit:
         return str(explicit)
-    # Multimodal sources bind their target through block_kinds: a source that
-    # takes exactly one media kind serves that target.
+    # A source taking exactly one media kind serves that target.
     kinds = {str(kind).lower() for kind in configuration.get("block_kinds") or ()}
     media = kinds & {"audio", "image", "video"}
     return media.pop() if len(media) == 1 else ""
@@ -42,11 +41,7 @@ def _projection_target(projection: Any) -> str:
 def targeted_projections(
     asset_library: Any, target: str, asset_pool_ids=(), *, pools=None,
 ) -> list[tuple[Any, Any]]:
-    """Return serving vector projections that can embed this target's units.
-
-    `asset_pool_ids` narrows the search to the named pools; empty means every
-    pool in the library.
-    """
+    """Serving vector projections that can embed this target's units; empty `asset_pool_ids` means all pools."""
     selected_pools = asset_library._select_asset_pools(asset_pool_ids) if pools is None else pools
     return [
         (pool, projection)

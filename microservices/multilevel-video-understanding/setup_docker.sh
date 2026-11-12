@@ -3,7 +3,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-set -e 
+set -euo pipefail
 
 # Multi-level Video Understanding Docker Setup Script
 
@@ -25,15 +25,16 @@ VLLM_SERVICE_PORT=${VLLM_SERVICE_PORT:-41091}
 # Decide whether we manage the bundled on-device serving or the user has pointed
 # the microservice at an external / remote OpenAI-compatible serving. This is
 # driven entirely by VLM_BASE_URL / LLM_BASE_URL (falling back to the bundled
-# default). Anything that is not the in-network `vllm-ipex-serving` is external.
-VLLM_ENDPOINT="${VLM_BASE_URL:-${LLM_BASE_URL:-http://vllm-ipex-serving:8000/v1}}"
+# default). The bundled backend is reachable through `model-serving`.
+VLLM_ENDPOINT="${VLM_BASE_URL:-${LLM_BASE_URL:-http://model-serving:8000/v1}}"
 case "$VLLM_ENDPOINT" in
-  *vllm-ipex-serving*) USE_LOCAL_VLLM=true ;;   # bundled service on app-network
-  *)                   USE_LOCAL_VLLM=false ;;  # external / remote serving
+  http://model-serving:8000/v1|http://model-serving:8000/v1/)
+    USE_LOCAL_VLLM=true ;;
+  *) USE_LOCAL_VLLM=false ;;
 esac
 
 # Host-reachable URL for the readiness probe. The in-network name
-# `vllm-ipex-serving` is not resolvable from the host, so probe the mapped port;
+# `model-serving` is not resolvable from the host, so probe the mapped port;
 # a remote endpoint is probed directly at its configured URL.
 if [ "$USE_LOCAL_VLLM" = true ]; then
   VLLM_HEALTH_URL="http://localhost:${VLLM_SERVICE_PORT}/v1/models"
@@ -53,7 +54,7 @@ show_help() {
   echo "Usage: $0 [options]"
   echo ""
   echo "Options:"
-  echo "  --prod                End-to-end: start all services (vllm-ipex-serving + multilevel-video-understanding)"
+  echo "  --prod                End-to-end: start all services (model-serving + multilevel-video-understanding)"
   echo "  --light               Reuse an existing serving at VLM_BASE_URL/LLM_BASE_URL if healthy; start multilevel only"
   echo "  --build               Build production Docker image only"
   echo "  --build-prod          Build and then run production Docker images"
@@ -118,9 +119,10 @@ done
 
 echo "==== Multi-level Video Understanding Docker Setup ===="
 
-export PROJECT_NAME=${PROJECT_NAME}
+export PROJECT_NAME=${PROJECT_NAME:-}
 
 # If REGISTRY_URL is set, ensure it ends with a trailing slash
+REGISTRY_URL=${REGISTRY_URL:-}
 [[ -n "$REGISTRY_URL" ]] && REGISTRY_URL="${REGISTRY_URL%/}/"
 
 # If PROJECT_NAME is set, ensure it ends with a trailing slash
@@ -157,8 +159,8 @@ if [ "$UP_CONTAINERS" = true ]; then
         echo "Model serving already healthy at ${VLLM_HEALTH_URL} — starting multilevel-video-understanding only."
         $DOCKER_CMD up -d --no-deps multilevel-video-understanding
       elif [ "$USE_LOCAL_VLLM" = true ]; then
-        echo "Local vllm-ipex-serving not healthy yet — starting the full stack instead."
-        echo "(first run pulls/compiles the model — this can take 3-20+ min)"
+        echo "Local model-serving not healthy yet — starting the full stack instead."
+        echo "(model download, loading and profiling can take 30+ minutes)"
         $DOCKER_CMD up -d
       else
         echo "Warning: external serving not reachable at ${VLLM_HEALTH_URL}; starting multilevel only (it will retry at runtime)."
@@ -167,7 +169,7 @@ if [ "$UP_CONTAINERS" = true ]; then
     else
       # Default (end-to-end): bring up the bundled serving + microservice together.
       echo "Starting all services for $ENVIRONMENT environment..."
-      echo "(first run pulls/compiles the model in vllm-ipex-serving — this can take 3-20+ min)"
+      echo "(model download, loading and profiling can take 30+ minutes)"
       $DOCKER_CMD up -d
     fi
     echo "==== Setup complete! ===="

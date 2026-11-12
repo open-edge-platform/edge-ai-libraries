@@ -66,6 +66,7 @@ def start_named_pipeline(
         version=version,
         request=request.model_dump(exclude_none=True),
         cpu_cores=request.cpu_cores,
+        fps_element=request.fps_element,
     )
 
 
@@ -143,6 +144,7 @@ async def run_pipeline(request: StartPipelineRequest):
         validate=request.validate_pipeline,
         cpu_cores=request.cpu_cores,
         warmup_frames=request.warmup_frames,
+        fps_element=request.fps_element,
         restart_config=request.restart_config.model_dump(exclude_none=True) if request.restart_config else None,
     )
     return {"instance_id": instance_id}
@@ -174,7 +176,7 @@ async def get_pipeline_status(instance_id: str = Path(..., description="Pipeline
 
 @router.delete("/{instance_id}", response_model=StopPipelineResponse)
 async def stop_pipeline(instance_id: str = Path(..., description="Pipeline instance identifier")):
-    """Stop a running pipeline instance."""
+    """Stop a queued, running, or restarting pipeline instance. ABORTED is reported once teardown completes."""
     manager = _get_manager()
     instance = manager.get(instance_id)
     if not instance:
@@ -183,7 +185,7 @@ async def stop_pipeline(instance_id: str = Path(..., description="Pipeline insta
     if not stopped:
         raise HTTPException(
             status_code=409,
-            detail=f"Instance {instance_id!r} is not running (state: {instance.state.value})",
+            detail=f"Instance {instance_id!r} cannot be stopped (state: {instance.state.value})",
         )
     return {"instance_id": instance_id}
 

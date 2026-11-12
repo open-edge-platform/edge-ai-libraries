@@ -1,6 +1,6 @@
 configure_humanoid_imitation_learning () {
   workspace="$(ensure_project_path)/humanoid-imitation-learning"
-  version=main
+  version="$(ensure_parse_value_option version --version=a90bbb9848a8be7502a1e49a26a675936acfeabe "$@")"
   repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git"
   container_dir="$workspace/samples/robotics/robotics-ai-suite-containers"
   humanoid_samples=(act-sample pi05-rtc-ov)

@@ -353,6 +353,9 @@ docker_proxy_env_args_into() {
   local -n _docker_proxy_target="$1"
   local var
   for var in HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy; do
-    [[ -n "${!var:-}" ]] && _docker_proxy_target+=(-e "${var}=${!var}")
+    # Not `[[ ]] && ...`: its status 1 for an unset last var would abort callers under set -e.
+    if [[ -n "${!var:-}" ]]; then
+      _docker_proxy_target+=(-e "${var}=${!var}")
+    fi
   done
 }

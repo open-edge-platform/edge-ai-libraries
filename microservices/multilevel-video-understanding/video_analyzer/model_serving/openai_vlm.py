@@ -34,6 +34,7 @@ class VLM(LLM):
         **kwargs
     ):
         super().__init__(**kwargs)
+        self.video_format = settings.VLM_VIDEO_FORMAT
 
         # Determine if we're using Kimi or Qwen based on model name
         self.individual_frames_in_prompt = "kimi" in self.model_name.lower() or individual_frames_in_prompt
@@ -58,8 +59,11 @@ class VLM(LLM):
         if not frames:
             return "Error: Empty frame input"
 
-        # Prepare messages based on model type
-        if self.individual_frames_in_prompt:
+        # An explicit video format takes priority over model-name heuristics.
+        if self.video_format == "ovms":
+            msgs = self._prepare_ovms_format(frames, content)
+            logger.debug("Using OVMS video frame array format for API request")
+        elif self.individual_frames_in_prompt:
             msgs = self._prepare_individual_frames_format(frames, content)
             logger.debug("Using individual frames format for API request")
         else:
@@ -97,8 +101,11 @@ class VLM(LLM):
         if not frames:
             return "Error: Empty frame input"
 
-        # Prepare messages based on model type
-        if self.individual_frames_in_prompt:
+        # An explicit video format takes priority over model-name heuristics.
+        if self.video_format == "ovms":
+            msgs = self._prepare_ovms_format(frames, content)
+            logger.debug("Using OVMS video frame array format for API request")
+        elif self.individual_frames_in_prompt:
             msgs = self._prepare_individual_frames_format(frames, content)
             logger.debug("Using individual frames format for API request")
         else:
@@ -216,6 +223,59 @@ class VLM(LLM):
         
         # Message
         return [{"role": "user", "content": content}]
+
+    def _prepare_ovms_format(self, frames: List[Image.Image], content: str|List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Encode each video as an ordered array of JPEG data URIs for OVMS.
+
+        Args:
+            frames: Between 1 and 1024 equally sized frames with equal channel counts.
+            content: Text or content parts; embedded JPEG video sequences are adapted too.
+
+        Returns:
+            User message with array-valued video URLs and unchanged image/text parts.
+
+        Raises:
+            ValueError: Frame dimensions, frame count, or video encoding is invalid.
+        """
+        if not 1 <= len(frames) <= 1024:
+            raise ValueError("OVMS video input requires between 1 and 1024 frames")
+        first_frame = frames[0]
+        if any(
+            frame.size != first_frame.size
+            or len(frame.getbands()) != len(first_frame.getbands())
+            for frame in frames
+        ):
+            raise ValueError("OVMS video frames must have equal dimensions and channel counts")
+
+        # Copy the list because the shared builder appends the extracted video.
+        prompt = content if isinstance(content, str) else list(content)
+        messages = self._prepare_qwen_format(frames, prompt)
+        parts = messages[0]["content"]
+        for index, part in enumerate(parts):
+            if part.get("type") != "video_url":
+                continue
+            video = part["video_url"]
+            url = video["url"]
+            if isinstance(url, str) and url.lower().startswith("data:video/jpeg;base64,"):
+                encoded_frames = url.split(",", 1)[1].split(",")
+                frame_urls = [f"data:image/jpeg;base64,{frame}" for frame in encoded_frames]
+            elif isinstance(url, list):
+                frame_urls = list(url)
+            else:
+                raise ValueError("OVMS video input requires a JPEG sequence or JPEG frame array")
+
+            if not 1 <= len(frame_urls) <= 1024:
+                raise ValueError("OVMS video input requires between 1 and 1024 frames")
+            prefix = "data:image/jpeg;base64,"
+            if any(
+                not isinstance(frame, str)
+                or not frame.lower().startswith(prefix)
+                or not frame[len(prefix):]
+                for frame in frame_urls
+            ):
+                raise ValueError("OVMS video frames must be nonempty JPEG data URIs")
+            parts[index] = {**part, "video_url": {**video, "url": frame_urls}}
+        return messages
 
     def _prepare_individual_frames_format(self, frames: List[Image.Image], content: str|List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

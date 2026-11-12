@@ -5,6 +5,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
 > [!NOTE]
 > Model Download replaces Model Registry, which will be deprecated soon. See [Migrate from Model Registry to Model Download](./get-started/migration.md) for the migration guidelines.
 
+
 ## Features
 
 - Downloads models from Hugging Face, Ollama, Geti software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS hubs
@@ -98,7 +99,7 @@ down                   Stop the services
 | `--build`                | Builds the Docker image before running                                                                                                        |
 | `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions                      |
 | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                                                                         |
-| `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,pipeline-zoo-models,remote-url,omz,geti,hls`) or `all` to enable all available plugins |
+| `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,modelscope,ollama,openvino,ultralytics,pipeline-zoo-models,remote-url,omz,geti,hls`) or `all` to enable all available plugins |
 | `--ovms-release-tag <tag>` | Set OVMS release tag (e.g., `v2025.4.1`) (default: `v2025.4.1`)                                                                             |
 | `--help`                 | Shows this help message                                                                                                                       |
 
@@ -230,7 +231,7 @@ Each listing response includes pagination fields alongside `items`: `count` (ite
 Call `GET /api/v1/plugins` to see which plugins support listing and which `listing_filter_fields` each plugin accepts. Hugging Face supports `author`, `search`, and `tags`. The `author` filter is the repository namespace and accepts a user, owner, or organization name (for example, `microsoft` or `meta-llama`); `tags` filters by Hugging Face tags (library, language, task, license, and so on). Each returned Hugging Face item also includes `license`, `gated` (`false`, `"auto"`, or `"manual"`), and `requires_token` (true when the model is gated and needs an HF token to download). Ultralytics and Pipeline Zoo Models support `search`. Geti™ supports `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, and `variant_id`.
 
 > **Name format by hub (`models[].name`):**
-> `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name.
+> `huggingface`, `modelscope`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name.
 > `ultralytics`: single name, comma-separated names, or `all`.
 > `pipeline-zoo-models`: single name, comma-separated names, or `all`.
 > `omz`: single name or comma-separated names (`all` is not supported).

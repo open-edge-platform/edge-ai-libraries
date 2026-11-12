@@ -3,7 +3,6 @@ import type { ModelOptions } from "../../api/console/type";
 
 export interface RerankerOverrides {
   model_id?: string;
-  model_path?: string;
   backend?: string;
 }
 
@@ -11,10 +10,20 @@ export const findRerankerModel = (
   options: ModelOptions | undefined,
   model: RerankerOverrides,
 ) => options?.models.find((item) =>
-  model.model_path
-    ? item.path === model.model_path || item.name === model.model_path
-    : item.name === model.model_id,
+  item.name === model.model_id,
 );
+
+export const isMediaReranker = (
+  options: ModelOptions | undefined,
+  model: RerankerOverrides,
+  media: boolean,
+) =>
+  !!findRerankerModel(options, model)?.media ||
+  (!!model.model_id && model.model_id === options?.media_model_id) ||
+  (!model.model_id &&
+    (media ||
+      options?.model_id === options?.media_model_id ||
+      !!findRerankerModel(options, { model_id: options?.model_id })?.media));
 
 export const inferRerankerBackend = (
   options: ModelOptions | undefined,
@@ -22,8 +31,6 @@ export const inferRerankerBackend = (
   media: boolean,
 ) =>
   model.backend ||
-  findRerankerModel(options, model)?.backend ||
-  ((model.model_id && model.model_id === options?.media_model_id) ||
-  (!model.model_id && media)
-    ? options?.media_backend || "openvino_vl"
+  (isMediaReranker(options, model, media)
+    ? options?.media_backend
     : options?.backend);

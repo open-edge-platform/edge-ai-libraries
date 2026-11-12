@@ -91,7 +91,7 @@ docker run --rm --user "$(id -u):$(id -g)" \
   -e HOME=/home/dlstreamer \
   -e http_proxy -e https_proxy -e no_proxy \
   -v "${PWD}:/home/dlstreamer/" \
-  intel/dlstreamer:2026.2.0-ubuntu24 \
+  intel/dlstreamer:2026.3.0-ubuntu24-rc1 \
   bash -c "export MODELS_PATH=/home/dlstreamer && /opt/intel/dlstreamer/samples/download_public_models.sh yolov10s"
 ```
 
@@ -254,8 +254,8 @@ The existing OpenCV display code is unchanged.
 
 ```bash
 docker build --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy \
-  -t metro-vision-inference:2026.4.0 - <<'EOF'
-FROM openvino/ubuntu24_dev:2026.4.0
+  -t metro-vision-inference:2026.4.1 - <<'EOF'
+FROM openvino/ubuntu24_dev:2026.4.1
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 libglib2.0-0 libsm6 libice6 libxext6 libxrender1 \
@@ -285,7 +285,7 @@ docker run -it --rm \
   --env http_proxy=$http_proxy \
   --env https_proxy=$https_proxy \
   --env no_proxy=$no_proxy \
-  metro-vision-inference:2026.4.0
+  metro-vision-inference:2026.4.1
 ```
 
 ```bash
@@ -317,7 +317,7 @@ docker run -it --rm \
   --env http_proxy=$http_proxy \
   --env https_proxy=$https_proxy \
   --env no_proxy=$no_proxy \
-  metro-vision-inference:2026.4.0
+  metro-vision-inference:2026.4.1
 ```
 
 ```bash

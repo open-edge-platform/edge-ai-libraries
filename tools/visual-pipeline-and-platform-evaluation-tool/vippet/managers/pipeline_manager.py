@@ -65,6 +65,11 @@ class PipelineCommand:
             these are the values external tracers (e.g. DLStreamer
             ``latency_tracer``) will report, so they act as the
             correlation key between tracer rows and streams.
+        stream_commands: One self-contained launch string per stream,
+            keyed by ``stream_id`` in the same order as
+            :attr:`all_stream_ids`. ``command`` is these strings joined
+            with spaces; a runner that starts every stream as its own
+            pipeline uses this map instead.
     """
 
     command: str
@@ -74,6 +79,7 @@ class PipelineCommand:
     streams_per_pipeline: dict[str, list[InternalStreamInfo]] = field(
         default_factory=dict
     )
+    stream_commands: dict[str, str] = field(default_factory=dict)
 
     @property
     def all_stream_ids(self) -> list[str]:
@@ -93,6 +99,19 @@ class PipelineCommand:
             info.stream_id
             for infos in self.streams_per_pipeline.values()
             for info in infos
+        ]
+
+    @property
+    def validation_stream_ids(self) -> list[str]:
+        """
+        Return the first ``stream_id`` of every pipeline.
+
+        Stream 0 carries the pipeline's main output; every other stream of
+        the pipeline repeats it without the output, so validating stream 0
+        validates them all.
+        """
+        return [
+            infos[0].stream_id for infos in self.streams_per_pipeline.values() if infos
         ]
 
 
@@ -433,6 +452,10 @@ class PipelineManager:
         for config_path in PipelineLoader.list():
             config = PipelineLoader.config(config_path)
 
+            # Audio pipelines have no GStreamer graph; AudioPipelineManager owns them.
+            if config.get("type") == "audio":
+                continue
+
             pipeline_name = config.get("name", "").strip()
             if not pipeline_name:
                 raise ValueError(
@@ -621,6 +644,7 @@ class PipelineManager:
         # computed `InternalStreamInfo.stream_id` property and used as a
         # key in the job's `latency_tracer_metrics` map.
         streams_per_pipeline: dict[str, list[InternalStreamInfo]] = {}
+        stream_commands: dict[str, str] = {}
 
         # Determine if we need looping behavior based on max_runtime
         # Looping is only supported for disabled and live_stream modes
@@ -769,12 +793,11 @@ class PipelineManager:
                 # names. These names are exactly what the GStreamer
                 # subprocess sees, and therefore exactly what external
                 # tracers (latency_tracer) will report back to us.
-                streams_per_pipeline.setdefault(pipeline_id, []).append(
-                    InternalStreamInfo(
-                        source_name=final_source_name,
-                        sink_name=final_sink_name,
-                    )
+                stream_info = InternalStreamInfo(
+                    source_name=final_source_name,
+                    sink_name=final_sink_name,
                 )
+                streams_per_pipeline.setdefault(pipeline_id, []).append(stream_info)
 
                 unique_pipeline_str = graph_instance.to_pipeline_description()
 
@@ -812,6 +835,7 @@ class PipelineManager:
                         )
 
                 pipeline_parts.append(unique_pipeline_str)
+                stream_commands[stream_info.stream_id] = unique_pipeline_str
 
         return PipelineCommand(
             command=" ".join(pipeline_parts),
@@ -819,6 +843,7 @@ class PipelineManager:
             live_stream_urls=live_stream_urls,
             metadata_file_paths=metadata_file_paths,
             streams_per_pipeline=streams_per_pipeline,
+            stream_commands=stream_commands,
         )
 
     def add_variant(

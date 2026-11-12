@@ -1,7 +1,7 @@
 
 configure_multimodal_weld_defect_detection () {
   workspace="$(ensure_project_path)/multimodal-weld-defect-detection"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
   tsam_config="configs/time-series-analytics-microservice/config.json"
   pipeline_config="configs/dlstreamer-pipeline-server/config.json"
@@ -63,6 +63,8 @@ INFLUXDB_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 INFLUXDB_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
 VISUALIZER_GRAFANA_USER=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 VISUALIZER_GRAFANA_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
+SEAWEEDFS_WEB_AUTH_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
+SEAWEEDFS_WEB_AUTH_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
 HOST_IP=$(ensure_ip)
 EOF
 
@@ -80,6 +82,7 @@ EOF
 debian_90_start_multimodal_weld_defect_detection () {
   configure_multimodal_weld_defect_detection "$@"
   ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}"
+  ensure_container_namespace start multimodal_weld_defect_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-multimodal/docker-compose*.yml)
 
   local device="$(ensure_parse_device "$@")"
   [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device
@@ -153,7 +156,10 @@ END {
 
 debian_90_stop_multimodal_weld_defect_detection () {
   configure_multimodal_weld_defect_detection "$@"
-  cd "$workspace"/industrial-edge-insights-multimodal && make down || true
+  cd "$workspace"/industrial-edge-insights-multimodal && {
+    make down || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
+  } || true
 }
 
 debian_90_remove_multimodal_weld_defect_detection () {
