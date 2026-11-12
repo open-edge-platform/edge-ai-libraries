@@ -74,13 +74,14 @@ debian_90_start_handheld_multi_modal () {
 debian_90_stop_handheld_multi_modal () {
   configure_handheld_multi_modal "$@"
   docker rm -f handheld-multi-modal-model-downloader-1 || true
-  cd "$workspace"/handheld-multi-modal || return $?
-  make stop || return $?
-  ensure_container_cleanup $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml)
+  cd "$workspace"/handheld-multi-modal && {
+    make stop || true
+    ensure_container_cleanup $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true
+  } || true
 }
 
 debian_90_remove_handheld_multi_modal () {
-  debian_90_stop_handheld_multi_modal "$@" || return $?
+  debian_90_stop_handheld_multi_modal "$@" || true
   local app_dir="$workspace"/handheld-multi-modal
   [ ! -d "$app_dir" ] || (cd "$app_dir" && make clean-all CONFIRM=yes || true)
   ensure_rm "$workspace"
