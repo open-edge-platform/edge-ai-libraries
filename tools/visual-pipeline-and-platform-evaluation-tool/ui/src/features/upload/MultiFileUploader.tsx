@@ -819,8 +819,7 @@ export const MultiFileUploader = ({
                       errors={
                         (
                           errors.fields as
-                            | Record<string, { message?: string }>
-                            | undefined
+                            Record<string, { message?: string }> | undefined
                         )?.[field.name]
                           ? [
                               (

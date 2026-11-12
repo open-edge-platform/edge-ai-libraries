@@ -80,8 +80,9 @@ A few invariants worth knowing:
   sends every pipeline to DL Streamer Pipeline Server 2.0 over REST, one
   server instance per stream. Device detection and the DL Streamer pipeline
   optimizer still run in the `vippet` process.
-- OpenVINO™ device detection (`device.py`) happens at startup and drives
-  which hardware profile (`cpu`, `gpu`, `npu`) is selected at compose time.
+- `setup_env.sh` selects the Compose hardware profile (`cpu`, `gpu`, `npu`, `gpu-wsl`).
+  OpenVINO™ device detection (`device.py`) runs inside the backend at startup and
+  determines the available inference devices and pipeline variants.
 - The model catalog (`vippet/models/*.yaml`, one file per model) is copied
   into the image at build time, not runtime-mounted. `db_seed.py` syncs it
   into the `models`/`model_variants` DB tables at startup, insert-only:
@@ -92,16 +93,16 @@ A few invariants worth knowing:
 
 ## Tech stack
 
-| Layer            | Technology                                          |
-| ---------------- | --------------------------------------------------- |
-| Language         | Python 3.12                                         |
-| Web framework    | FastAPI + uvicorn                                   |
-| Validation       | Pydantic v2                                         |
-| AI inference     | OpenVINO™ 2025.x, DL Streamer 2026.x, GStreamer 1.0 |
-| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol      |
-| Containerization | Docker Compose (profiles: `cpu`, `gpu`, `npu`)      |
-| Lint / type      | ruff, pyright (strict)                              |
-| Tests            | unittest + coverage (unit), pytest (functional)     |
+| Layer            | Technology                                           |
+| ---------------- | ---------------------------------------------------- |
+| Language         | Python 3.12                                          |
+| Web framework    | FastAPI + uvicorn                                    |
+| Validation       | Pydantic v2                                          |
+| AI inference     | OpenVINO™ 2025.x, DL Streamer 2026.x, GStreamer 1.0  |
+| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol       |
+| Containerization | Docker Compose                                       |
+| Lint / type      | ruff, pyright (strict)                               |
+| Tests            | unittest + coverage (unit), pytest (functional)      |
 
 ## Local development loop
 
