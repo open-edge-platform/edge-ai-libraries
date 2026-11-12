@@ -1,6 +1,6 @@
 configure_physical_ai_studio () {
   pais_pkg="physicalai-studio"
-  pais_version=0.2.0
+  pais_version="$(ensure_parse_value_option version --version=0.3.0 "$@")"
   pais_bin="$HOME/.local/bin/physicalai-studio"
   pais_run_dir="$(ensure_project_path)/physical-ai-studio"
   pais_pid_file="$pais_run_dir/physicalai-studio.pid"
@@ -31,7 +31,7 @@ debian_90_profile_physical_ai_studio () {
 }
 
 verify_physical_ai_studio () {
-  configure_physical_ai_studio
+  configure_physical_ai_studio "$@"
   configure_physical_ai_studio_device "$@"
   configure_uv
   [ -x "$pais_bin" ] && \
@@ -40,7 +40,7 @@ verify_physical_ai_studio () {
 }
 
 debian_90_install_physical_ai_studio () {
-  configure_physical_ai_studio
+  configure_physical_ai_studio "$@"
   configure_physical_ai_studio_device "$@"
   configure_uv
 
@@ -73,7 +73,7 @@ debian_90_install_physical_ai_studio () {
 }
 
 debian_90_start_physical_ai_studio () {
-  configure_physical_ai_studio
+  configure_physical_ai_studio "$@"
   ensure_ports_open start physical_ai_studio "${used_ports[@]}"
 
   if [ ! -x "$pais_bin" ]; then
@@ -117,7 +117,7 @@ debian_90_start_physical_ai_studio () {
 }
 
 debian_90_stop_physical_ai_studio () {
-  configure_physical_ai_studio
+  configure_physical_ai_studio "$@"
   [ -f "$pais_pid_file" ] || return 0
 
   local pid
@@ -135,9 +135,9 @@ debian_90_stop_physical_ai_studio () {
 }
 
 debian_90_remove_physical_ai_studio () {
-  configure_physical_ai_studio
+  configure_physical_ai_studio "$@"
   configure_uv
   debian_90_stop_physical_ai_studio "$@" || true
   uv tool uninstall "$pais_pkg" > /dev/null 2>&1 || true
-  ensure_rm "$pais_run_dir"
+  ensure_rm "$pais_run_dir" "$pais_bin"
 }

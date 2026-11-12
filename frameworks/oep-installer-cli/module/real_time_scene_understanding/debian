@@ -1,7 +1,7 @@
 
 configure_real_time_scene_understanding () {
   workspace="$(ensure_project_path)/real-time-scene-understanding"
-  version=d3fe53d32784013b97ee082ab06b57f60eb71593
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(9100 32776)
 }
@@ -27,7 +27,7 @@ debian_90_profile_real_time_scene_understanding () {
 }
 
 debian_90_install_real_time_scene_understanding () {
-  configure_real_time_scene_understanding
+  configure_real_time_scene_understanding "$@"
   if verify_real_time_scene_understanding && ! ensure_parse_reinstall "$@"; then
     echo "Live Video Captioning is installed." >&2
   else
@@ -58,8 +58,9 @@ debian_90_install_real_time_scene_understanding () {
 }
 
 debian_90_start_real_time_scene_understanding () {
-  configure_real_time_scene_understanding
+  configure_real_time_scene_understanding "$@"
   ensure_ports_open start real_time_scene_understanding "${used_ports[@]}"
+  ensure_container_namespace start real_time_scene_understanding $(ensure_container_parse_yaml "$workspace"/live-video-analysis/real-time-scene-understanding/compose.yaml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}"
@@ -73,9 +74,10 @@ debian_90_start_real_time_scene_understanding () {
 }
 
 debian_90_stop_real_time_scene_understanding () {
-  configure_real_time_scene_understanding
+  configure_real_time_scene_understanding "$@"
   cd "$workspace"/live-video-analysis/real-time-scene-understanding && {
-    docker compose -f compose.yaml down -v --remove-orphans
+    docker compose -f compose.yaml down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml compose.yaml)
   } || true
 }
 

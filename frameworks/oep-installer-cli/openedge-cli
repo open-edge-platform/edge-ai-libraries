@@ -70,7 +70,7 @@ main () {
         _rc=$?
       else
         # save args for resume
-        ensure_prop set command "$*"
+        ensure_prop set command "$*" --create
 
         # critical group permissions
         local -A _groups=()

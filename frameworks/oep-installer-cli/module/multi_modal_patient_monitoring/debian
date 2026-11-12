@@ -1,7 +1,7 @@
 
 configure_multi_modal_patient_monitoring () {
   workspace="$(ensure_project_path)/multi-modal-patient-monitoring"
-  version="$(ensure_parse_value_option version --version=4a9679b58090cd86d56d91e1e72cab462babfe31 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository=https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git
 
   workspace_mdpnp="$workspace"/multi_modal_patient_monitoring/services/mdpnp/mdpnp
@@ -76,6 +76,7 @@ debian_90_install_multi_modal_patient_monitoring () {
 debian_90_start_multi_modal_patient_monitoring () {
   configure_multi_modal_patient_monitoring "$@"
   ensure_ports_open start multi_modal_patient_monitoring "${used_ports[@]}"
+  ensure_container_namespace start multi_modal_patient_monitoring $(ensure_container_parse_yaml "$workspace"/multi_modal_patient_monitoring/docker-compose.yaml)
 
   cd "$workspace"/multi_modal_patient_monitoring
 
@@ -96,7 +97,10 @@ debian_90_start_multi_modal_patient_monitoring () {
 
 debian_90_stop_multi_modal_patient_monitoring () {
   configure_multi_modal_patient_monitoring "$@"
-  cd "$workspace"/multi_modal_patient_monitoring && docker compose down -v --remove-orphans || true
+  cd "$workspace"/multi_modal_patient_monitoring && {
+    docker compose down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
+  } || true
 }
 
 debian_90_remove_multi_modal_patient_monitoring () {

@@ -67,6 +67,7 @@ debian_90_install_dine_in () {
 debian_90_start_dine_in () {
   configure_dine_in "$@"
   ensure_ports_open start dine_in "${ports[@]}"
+  ensure_container_namespace start dine_in $(ensure_container_parse_yaml "$workspace"/dine-in/docker-compose.yaml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}"
@@ -81,7 +82,10 @@ debian_90_start_dine_in () {
 
 debian_90_stop_dine_in () {
   configure_dine_in "$@"
-  cd "$workspace"/dine-in && make clean || true
+  cd "$workspace"/dine-in && {
+    make clean || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
+  } || true
 }
 
 debian_90_remove_dine_in () {
