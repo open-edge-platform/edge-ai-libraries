@@ -3049,7 +3049,7 @@ ensure_sbom_format ()
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url | cli-sha256)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -3972,6 +3972,7 @@ subcommand_list ()
             if [[ "/$0" = *"/rendered/"* ]]; then
                 local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
                 ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
+                ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')";
             fi;
         fi;
         ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
