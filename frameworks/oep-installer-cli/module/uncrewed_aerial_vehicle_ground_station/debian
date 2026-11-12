@@ -110,7 +110,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
   sed -i \
     -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" \
     -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?
-  ensure_container_namespace start uncrewed_aerial_vehicle_ground_station $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || return $?
+  ensure_container_namespace start uncrewed_aerial_vehicle_ground_station $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
   make up || return $?
   local attempt ready=0
   for ((attempt=0; attempt<24; attempt++)); do

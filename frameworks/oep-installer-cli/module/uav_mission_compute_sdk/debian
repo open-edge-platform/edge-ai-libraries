@@ -104,7 +104,7 @@ debian_90_start_uav_mission_compute_sdk () {
   if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
     ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?
   fi
-  ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || return $?
+  ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || true
   if make up-sim-camera; then
     :
   else
