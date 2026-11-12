@@ -1,3 +1,4 @@
+
 configure_uncrewed_aerial_vehicle_ground_station () {
   repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
   version="release-2026.3.0"
@@ -109,6 +110,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
   sed -i \
     -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" \
     -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?
+  ensure_container_namespace start uncrewed_aerial_vehicle_ground_station $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || return $?
   make up || return $?
   local attempt ready=0
   for ((attempt=0; attempt<24; attempt++)); do
@@ -133,6 +135,7 @@ debian_90_stop_uncrewed_aerial_vehicle_ground_station () {
   fi
   cd "$app_dir" || return $?
   docker compose "${compose_files[@]}" down || return $?
+  ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || return $?
   ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/
 }
 
@@ -144,6 +147,7 @@ debian_90_remove_uncrewed_aerial_vehicle_ground_station () {
   fi
   cd "$app_dir" || return $?
   docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?
+  ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || return $?
   ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || return $?
   ensure_rm "$workspace" || return $?
   ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/
