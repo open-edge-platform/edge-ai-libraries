@@ -10,9 +10,28 @@ from src.plugins.modelscope_plugin import ModelScopePlugin
 
 def test_modelscope_handles_only_its_hub():
     plugin = ModelScopePlugin()
+    assert plugin.__doc__ == "Download ModelScope snapshots into the shared model repository."
     assert plugin.can_handle("iic/example", "ModelScope")
     assert not plugin.can_handle("iic/example", "huggingface")
     assert plugin.plugin_supported_hubs() == ["modelscope"]
+
+
+def test_modelscope_plugin_metadata(test_client):
+    plugin = ModelScopePlugin()
+    with patch("src.api.main.plugin_registry") as registry:
+        registry.plugins = {"downloader": {"modelscope": plugin}}
+        registry.hub_is_available.return_value = (True, None)
+        response = test_client.get("/api/v1/plugins")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_count"] == 1
+    assert data["available_count"] == 1
+    metadata = data["available_plugins"]["downloader"][0]
+    assert metadata["name"] == "modelscope"
+    assert metadata["description"] == plugin.__doc__
+    assert metadata["hub_config_keys"] == []
+    assert metadata["available"] is True
 
 
 def test_download_preserves_revision_and_registers_directory(tmp_path):

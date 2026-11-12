@@ -14,6 +14,8 @@ _MODEL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*\Z
 
 
 class ModelScopePlugin(ModelDownloadPlugin):
+    """Download ModelScope snapshots into the shared model repository."""
+
     @property
     def plugin_name(self) -> str:
         return "modelscope"
