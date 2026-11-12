@@ -1,4 +1,4 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createSelector, createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { RootState } from "@/store";
 
@@ -160,6 +160,20 @@ export const selectCpuMetric = (state: RootState) =>
 
 export const selectMemoryMetric = (state: RootState) =>
   findMetric(state.metrics.metrics, "mem_used_percent")?.value;
+
+/** Busy percent of every logical CPU (Telegraf `cpu0`, `cpu1`, ...). */
+export const selectPerCoreCpuUsage = createSelector(
+  [selectMetrics],
+  (metrics) =>
+    filterMetrics(metrics, "cpu_usage_idle", (l) =>
+      /^cpu\d+$/.test(l.cpu ?? ""),
+    )
+      .map((m) => ({
+        cpu: Number(m.labels.cpu.slice(3)),
+        usage: Math.min(100, Math.max(0, 100 - m.value)),
+      }))
+      .sort((a, b) => a.cpu - b.cpu),
+);
 
 export const selectCpuMetrics = (state: RootState) => {
   const userMetric = findMetric(

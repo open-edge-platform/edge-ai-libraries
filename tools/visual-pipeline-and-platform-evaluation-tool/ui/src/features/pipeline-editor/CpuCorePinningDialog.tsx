@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAppSelector } from "@/store/hooks";
 import { selectCpuTopology } from "@/store/reducers/devices";
+import { formatCoreList } from "@/features/pipeline-editor/cpuCores";
 
 const CORE_TYPE_ORDER: CpuCoreType[] = ["P", "E", "LPE", "UNIFORM"];
 
@@ -38,30 +39,9 @@ type CpuCorePinningDialogProps = {
   /** Empty means all cores. */
   pinnedCores: number[];
   onApply: (cores: number[]) => void;
-};
-
-const formatCoreList = (cores: number[]): string => {
-  if (cores.length === 0) {
-    return "";
-  }
-
-  const sorted = [...cores].sort((a, b) => a - b);
-  const ranges: string[] = [];
-  let start = sorted[0];
-  let previous = sorted[0];
-
-  for (const cpu of sorted.slice(1)) {
-    if (cpu === previous + 1) {
-      previous = cpu;
-      continue;
-    }
-    ranges.push(start === previous ? `${start}` : `${start}-${previous}`);
-    start = cpu;
-    previous = cpu;
-  }
-  ranges.push(start === previous ? `${start}` : `${start}-${previous}`);
-
-  return ranges.join(",");
+  description?: string;
+  /** Media-only pipelines run fine on LPE cores alone; inference does not. */
+  allowLpeOnly?: boolean;
 };
 
 export const CpuCorePinningDialog = ({
@@ -69,6 +49,8 @@ export const CpuCorePinningDialog = ({
   onOpenChange,
   pinnedCores,
   onApply,
+  description = "Select the logical CPU cores this pipeline variant may run on. With no cores selected the pipeline runs on all cores.",
+  allowLpeOnly = false,
 }: CpuCorePinningDialogProps) => {
   const topology = useAppSelector(selectCpuTopology);
   const [draft, setDraft] = useState<number[]>(pinnedCores);
@@ -144,10 +126,7 @@ export const CpuCorePinningDialog = ({
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>CPU core pinning</DialogTitle>
-          <DialogDescription>
-            Select the logical CPU cores this pipeline variant may run on. With
-            no cores selected the pipeline runs on all cores.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         {hasTopology ? (
@@ -214,8 +193,10 @@ export const CpuCorePinningDialog = ({
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                 <span>
                   Only low-power efficient cores are selected. OpenVINO refuses
-                  to run inference when no P or E core is available. Add at
-                  least one P or E core to continue.
+                  to run inference when no P or E core is available.{" "}
+                  {allowLpeOnly
+                    ? "Media-only pipelines are not affected."
+                    : "Add at least one P or E core to continue."}
                 </span>
               </div>
             )}
@@ -246,7 +227,7 @@ export const CpuCorePinningDialog = ({
           </Button>
           <Button
             onClick={handleApply}
-            disabled={!hasTopology || isLpeOnlySelection}
+            disabled={!hasTopology || (isLpeOnlySelection && !allowLpeOnly)}
           >
             Apply
           </Button>

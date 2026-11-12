@@ -17,6 +17,7 @@ Before running the test, configure the following settings:
 |----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
 | **Pipeline**               | Select a pipeline variant to test                                                                                                             |
 | **Streams**                | Number of parallel streams (copies of the pipeline) to run simultaneously                                                                     |
+| **CPU cores per stream**   | Optional. Each stream of the pipeline is pinned to one of the selected cores in round-robin order (`stream_cpu_cores` in the API)             |
 | **Output mode**            | `disabled` — no output saved; `file` — save output videos to disk; `live_stream` — stream via RTSP                                            |
 | **Max runtime**            | Maximum execution time in seconds (0 = run until end of video source)                                                                         |
 | **Metadata mode**          | `disabled` — no metadata; `file` — save inference metadata to disk                                                                            |
@@ -31,6 +32,7 @@ Once all settings are configured, click *Run performance test*.
 While the test runs, the dashboard displays real-time metrics:
 
 - **System metrics** — CPU, GPU, NPU utilization, memory usage, and power consumption
+- **CPU usage per core** — busy percentage of every logical CPU, grouped by core type (P, E, LPE)
 - **Pipeline metrics** — Total FPS and Per Stream FPS
 - **Latency metrics** — Average, minimum, and maximum buffer latency per reporting interval
   (when [latency metrics](#latency-metrics) are enabled)
@@ -67,6 +69,11 @@ if *Save output* was enabled.
 > Multi-pipeline tests are useful for understanding how different workloads compete for hardware
 > resources. For example, you can test a detection pipeline alongside a classification pipeline to see
 > how GPU utilization is shared.
+
+> [!TIP]
+> To check any mix of GPU (VDBox) and CPU decode streams, add the **Media Decode** pipeline twice:
+> the **GPU** variant and the **CPU** variant with **CPU cores per stream** set, then watch the
+> per-core CPU usage while the test runs.
 
 ## Latency metrics
 

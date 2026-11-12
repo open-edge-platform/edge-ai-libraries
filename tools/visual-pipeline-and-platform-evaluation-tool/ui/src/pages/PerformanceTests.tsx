@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Square, X } from "lucide-react";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
+import { StreamCpuCoresButton } from "@/features/pipeline-tests/StreamCpuCoresButton.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import {
@@ -54,6 +55,7 @@ interface PipelineSelection {
   pipelineId: string;
   variantId: string;
   streams: number;
+  streamCpuCores: number[];
   isRemoving?: boolean;
   isNew?: boolean;
 }
@@ -139,6 +141,7 @@ export const PerformanceTests = () => {
           pipelineId: firstPipeline.id,
           variantId: firstVariant.id,
           streams: 8,
+          streamCpuCores: [],
           isNew: false,
         },
       ]);
@@ -155,6 +158,7 @@ export const PerformanceTests = () => {
           pipelineId: firstPipeline.id,
           variantId: firstVariant.id,
           streams: 8,
+          streamCpuCores: [],
           isNew: true,
         },
       ]);
@@ -214,6 +218,14 @@ export const PerformanceTests = () => {
     );
   };
 
+  const handleStreamCpuCoresChange = (index: number, cores: number[]) => {
+    setPipelineSelections((prev) =>
+      prev.map((sel, idx) =>
+        idx === index ? { ...sel, streamCpuCores: cores } : sel,
+      ),
+    );
+  };
+
   const handleRunTest = async () => {
     setTestResult(null);
     setErrorMessage(null);
@@ -248,6 +260,7 @@ export const PerformanceTests = () => {
               variant_id: selection.variantId,
             },
             streams: selection.streams,
+            stream_cpu_cores: selection.streamCpuCores,
           })),
         },
       });
@@ -389,6 +402,19 @@ export const PerformanceTests = () => {
                       onChange={(val) => handleStreamsChange(index, val)}
                       min={1}
                       max={64}
+                      disabled={isRunning}
+                    />
+                  </div>
+
+                  <div className="w-40">
+                    <label className="block text-sm font-medium mb-1">
+                      CPU cores per stream
+                    </label>
+                    <StreamCpuCoresButton
+                      cores={selection.streamCpuCores}
+                      onChange={(cores) =>
+                        handleStreamCpuCoresChange(index, cores)
+                      }
                       disabled={isRunning}
                     />
                   </div>

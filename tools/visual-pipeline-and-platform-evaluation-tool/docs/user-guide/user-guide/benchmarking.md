@@ -9,10 +9,12 @@ ViPPET provides two benchmarking modes for evaluating AI inference pipeline perf
   - **Classic mode** — All pipelines share a single search variable (total stream count) distributed
     according to per-pipeline `stream_rate` ratios.
   - **Mixed mode** — Exactly two pipelines: one is pinned to a fixed stream count, the other is
-    incremented by the same algorithm. See
+    incremented by the same algorithm.
+  - **Staged mode** — Pipelines are searched one after the other, each held at its maximum while
+    the next one is searched (for example GPU/VDBox decode first, then CPU decode). See
     [Stream Density Testing](./benchmarking/density-testing.md) for details.
 
-  Both modes share a common execution configuration and report results through the same job management system.
+  All modes share a common execution configuration and report results through the same job management system.
 
 - **Benchmark Suites** - Run prepared suites containing set of performance tests of predefined pipelines.
 

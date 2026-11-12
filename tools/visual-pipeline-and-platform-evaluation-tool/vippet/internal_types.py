@@ -373,12 +373,16 @@ class InternalPipelinePerformanceSpec:
             For GraphInline: same as pipeline_id.
         pipeline_graph: Resolved pipeline graph for execution as Graph object.
         streams: Number of parallel streams for this pipeline.
+        stream_cpu_cores: Logical CPU ids the streams of this pipeline are
+            spread over, one core per stream in round-robin order. Empty
+            means the test-wide ``pinned_cpu_cores`` applies.
     """
 
     pipeline_id: str
     pipeline_name: str
     pipeline_graph: Graph
     streams: int
+    stream_cpu_cores: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -405,6 +409,9 @@ class InternalPipelineDensitySpec:
             the other pipeline is incremented by the benchmark algorithm.
             ``None`` means the spec participates in classic density mode
             (or, in mixed mode, is the pipeline that gets incremented).
+        stream_cpu_cores: Logical CPU ids the streams of this pipeline are
+            spread over, one core per stream in round-robin order. Empty
+            means the test-wide ``pinned_cpu_cores`` applies.
     """
 
     pipeline_id: str
@@ -412,6 +419,7 @@ class InternalPipelineDensitySpec:
     pipeline_graph: Graph
     stream_rate: int
     streams: int | None = None
+    stream_cpu_cores: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -620,12 +628,15 @@ class InternalDensityTestSpec:
             mixed-density mode).
         execution_config: Execution configuration for output and runtime.
         original_request: Original API request as serialized dict for summary endpoint.
+        staged_search: Search the specs one at a time in list order, each
+            held at its maximum while the next one is searched.
     """
 
     fps_floor: int
     pipeline_density_specs: List[InternalPipelineDensitySpec]
     execution_config: InternalExecutionConfig
     original_request: Dict[str, Any]
+    staged_search: bool = False
 
 
 @dataclass

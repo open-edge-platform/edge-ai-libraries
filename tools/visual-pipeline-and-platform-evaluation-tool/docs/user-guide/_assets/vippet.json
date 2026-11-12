@@ -2066,7 +2066,7 @@
           "models"
         ],
         "summary": "Start one or more model download jobs",
-        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n- **`category`** *(optional)* - Required when `hub` is `huggingface`.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
+        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n- **`category`** *(optional)* - Required when `hub` is `huggingface`.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
         "operationId": "start_model_download",
         "requestBody": {
           "content": {
@@ -5596,6 +5596,15 @@
                 "output_mode": "disabled"
               }
             ]
+          },
+          "staged_search": {
+            "type": "boolean",
+            "title": "Staged Search",
+            "description": "Search the maximum stream count one pipeline at a time, in list order: the first pipeline is searched alone, then held at its maximum while the next one is searched, and so on. Use it to find the maximum VDBox (GPU decode) streams first and then the CPU streams that still fit next to them. Requires at least two specs and no `streams`; `stream_rate` is ignored.",
+            "default": false,
+            "examples": [
+              true
+            ]
           }
         },
         "type": "object",
@@ -6286,7 +6295,7 @@
           "install_status"
         ],
         "title": "Model",
-        "description": "**Description of a single supported model exposed by the models API.**\n\nLists every model known to vippet-app: both entries from the model\ncatalog (`vippet/models/*.yaml`, seeded into the DB at startup) and\nuser-uploaded models. Use `install_status` to know if the model is\nready to use, and `used_by_pipelines` to know whether installing it is\nrecommended (non-empty list means at least one predefined pipeline\nreferences it).\n\nThe `variants` array enumerates every selectable (precision,\nmodel-proc) combination \u2014 used by the pipeline builder to populate\nthe model dropdown. The install page collapses them under a single\n`display_name` and shows the unique precisions only.\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human-readable model name suitable for UI\n- `category` - Logical model category (`image_classification`, `object_detection`, `image_segmentation`, `pose_estimation`, `vision_language_models`, `large_language_models`, `automatic_speech_recognition`, `text_to_speech`) or null when unknown\n- `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)\n- `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)\n- `variants` - Selectable variants of this model (one per precision and optional model-proc)\n- `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation\n- `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.\n- `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"display_name\": \"YOLO 11n 640x640\",\n  \"category\": \"object_detection\",\n  \"source\": \"ultralytics\",\n  \"install_status\": \"installed\",\n  \"variants\": [\n    {\"name\": \"yolo11n_INT8\", \"display_name\": \"YOLO 11n 640x640 (INT8)\", \"precision\": \"INT8\"},\n    {\"name\": \"yolo11n_FP16\", \"display_name\": \"YOLO 11n 640x640 (FP16)\", \"precision\": \"FP16\"}\n  ],\n  \"used_by_pipelines\": [\"smart-nvr\", \"goods-detection\"],\n  \"unsupported_devices\": null\n}\n```"
+        "description": "**Description of a single supported model exposed by the models API.**\n\nLists every model known to vippet-app: both entries from the model\ncatalog (`vippet/models/*.yaml`, seeded into the DB at startup) and\nuser-uploaded models. Use `install_status` to know if the model is\nready to use, and `used_by_pipelines` to know whether installing it is\nrecommended (non-empty list means at least one predefined pipeline\nreferences it).\n\nThe `variants` array enumerates every selectable (precision,\nmodel-proc) combination \u2014 used by the pipeline builder to populate\nthe model dropdown. The install page collapses them under a single\n`display_name` and shows the unique precisions only.\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human-readable model name suitable for UI\n- `category` - Logical model category (`image_classification`, `object_detection`, `image_segmentation`, `pose_estimation`, `vision_language_models`, `large_language_models`, `automatic_speech_recognition`, `text_to_speech`) or null when unknown\n- `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)\n- `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)\n- `variants` - Selectable variants of this model (one per precision and optional model-proc)\n- `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation\n- `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.\n- `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)\n- `link` - URL of the model page on its upstream hub (currently Hugging Face only), or null\n- `gated` - Hugging Face gating mode (`false`, `auto`, `manual`), or null when unknown or not applicable\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"display_name\": \"YOLO 11n 640x640\",\n  \"category\": \"object_detection\",\n  \"source\": \"ultralytics\",\n  \"install_status\": \"installed\",\n  \"variants\": [\n    {\"name\": \"yolo11n_INT8\", \"display_name\": \"YOLO 11n 640x640 (INT8)\", \"precision\": \"INT8\"},\n    {\"name\": \"yolo11n_FP16\", \"display_name\": \"YOLO 11n 640x640 (FP16)\", \"precision\": \"FP16\"}\n  ],\n  \"used_by_pipelines\": [\"smart-nvr\", \"goods-detection\"],\n  \"unsupported_devices\": null,\n  \"link\": null\n}\n```"
       },
       "ModelCategory": {
         "type": "string",
@@ -7469,6 +7478,22 @@
             "examples": [
               4
             ]
+          },
+          "stream_cpu_cores": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Stream Cpu Cores",
+            "description": "Logical CPU ids (as reported by `GET /devices` in `cpu_topology.cores[].cpu`) the streams of this pipeline are spread over: one core per stream in round-robin order, like running each stream under `taskset -c <core>`. Takes precedence over `execution_config.pinned_cpu_cores` for the streams of this pipeline. Empty (default) keeps the test-wide setting.",
+            "examples": [
+              [
+                12,
+                13,
+                14,
+                15
+              ]
+            ]
           }
         },
         "type": "object",
@@ -7708,6 +7733,22 @@
               1,
               4,
               16
+            ]
+          },
+          "stream_cpu_cores": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Stream Cpu Cores",
+            "description": "Logical CPU ids (as reported by `GET /devices` in `cpu_topology.cores[].cpu`) the streams of this pipeline are spread over: one core per stream in round-robin order, like running each stream under `taskset -c <core>`. Takes precedence over `execution_config.pinned_cpu_cores` for the streams of this pipeline. Empty (default) keeps the test-wide setting.",
+            "examples": [
+              [
+                12,
+                13,
+                14,
+                15
+              ]
             ]
           }
         },

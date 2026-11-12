@@ -558,7 +558,10 @@ class TestsManager:
             )
 
     @staticmethod
-    def _validate_pinned_cpu_cores(pinned_cpu_cores: list[int]) -> None:
+    def _validate_pinned_cpu_cores(
+        pinned_cpu_cores: list[int],
+        field_name: str = "execution_config.pinned_cpu_cores",
+    ) -> None:
         """
         Validate that every requested logical CPU id is usable by this service.
 
@@ -568,6 +571,7 @@ class TestsManager:
 
         Args:
             pinned_cpu_cores: Logical CPU ids requested by the client.
+            field_name: Request field named in the error message.
 
         Raises:
             ValueError: If any requested CPU id is not available.
@@ -579,7 +583,7 @@ class TestsManager:
         unavailable = sorted(set(pinned_cpu_cores) - available)
         if unavailable:
             raise ValueError(
-                f"Invalid execution_config: pinned_cpu_cores contains CPU ids "
+                f"Invalid {field_name}: contains CPU ids "
                 f"that are not available to this service: {unavailable}. "
                 f"Available CPU ids: {sorted(available)}."
             )
@@ -720,6 +724,10 @@ class TestsManager:
             self._validate_execution_config(
                 internal_spec.execution_config, is_density_test=False
             )
+            for spec in internal_spec.pipeline_performance_specs:
+                self._validate_pinned_cpu_cores(
+                    spec.stream_cpu_cores, "stream_cpu_cores"
+                )
 
             # Validate USB camera usage for performance tests
             self._validate_usb_camera_for_performance(
@@ -838,6 +846,7 @@ class TestsManager:
                 allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
                 stream_commands=pipeline_cmd.stream_commands,
                 validation_stream_ids=set(pipeline_cmd.validation_stream_ids) or None,
+                stream_cpu_cores=pipeline_cmd.stream_cpu_cores,
             )
 
             # Collect actual video file lists from output directories after pipeline completes
@@ -1027,6 +1036,10 @@ class TestsManager:
             self._validate_execution_config(
                 internal_spec.execution_config, is_density_test=True
             )
+            for spec in internal_spec.pipeline_density_specs:
+                self._validate_pinned_cpu_cores(
+                    spec.stream_cpu_cores, "stream_cpu_cores"
+                )
 
             # Validate that no pipeline uses USB camera for density tests
             self._validate_no_usb_camera_for_density(
@@ -1055,6 +1068,7 @@ class TestsManager:
                 fps_floor=internal_spec.fps_floor,
                 execution_config=internal_spec.execution_config,
                 job_id=job_id,
+                staged_search=internal_spec.staged_search,
             )
 
             # Collect actual video file lists from output directories after benchmark completes

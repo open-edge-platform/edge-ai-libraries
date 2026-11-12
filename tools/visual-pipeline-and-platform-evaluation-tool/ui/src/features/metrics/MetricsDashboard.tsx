@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Clock, Cpu, Gauge, Gpu } from "lucide-react";
 import { useTheme } from "next-themes";
 import { MetricCard } from "@/features/metrics/MetricCard.tsx";
+import { CpuCoreUsage } from "@/features/metrics/CpuCoreUsage.tsx";
 import {
   CHART_MAX_DATA_POINTS,
   CpuFrequencyChart,
@@ -399,6 +400,8 @@ export const MetricsDashboard = ({
           />
         )}
       </div>
+
+      {!isSummary && !useDemoStyles && <CpuCoreUsage />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FrameRateChart

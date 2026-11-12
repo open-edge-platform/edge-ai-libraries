@@ -11,6 +11,7 @@ All functions are side-effect free and operate on already parsed metric events
 import json
 import logging
 import statistics
+from collections.abc import Callable
 
 logger = logging.getLogger("benchmark_metrics")
 
@@ -95,7 +96,9 @@ def _extract_metric_field_value(metric: dict, field_key: str) -> float | None:
     return None
 
 
-def _collect_metric_values_for_event(event: dict, metric_name: str) -> list[float]:
+def _collect_metric_values_for_event(
+    event: dict, metric_name: str, include: Callable[[dict], bool] | None = None
+) -> list[float]:
     """Collect every numeric sample for ``metric_name`` within a single event (step)."""
     metrics = event.get("metrics")
     if not isinstance(metrics, list):
@@ -105,6 +108,8 @@ def _collect_metric_values_for_event(event: dict, metric_name: str) -> list[floa
     for metric in metrics:
         if not isinstance(metric, dict) or metric.get("name") != metric_name:
             continue
+        if include is not None and not include(metric):
+            continue
 
         value = _extract_metric_field_value(metric, metric_name)
         if value is not None:
@@ -113,13 +118,17 @@ def _collect_metric_values_for_event(event: dict, metric_name: str) -> list[floa
     return values
 
 
-def _collect_metric_values(parsed_metrics: list[dict], metric_name: str) -> list[float]:
+def _collect_metric_values(
+    parsed_metrics: list[dict],
+    metric_name: str,
+    include: Callable[[dict], bool] | None = None,
+) -> list[float]:
     """Collect every numeric sample for ``metric_name`` across all events."""
     values: list[float] = []
     for event in parsed_metrics:
         if not isinstance(event, dict):
             continue
-        values.extend(_collect_metric_values_for_event(event, metric_name))
+        values.extend(_collect_metric_values_for_event(event, metric_name, include))
 
     return values
 
@@ -198,8 +207,16 @@ def _iter_engine_samples(parsed_metrics: list[dict]):
 
 
 def cpu_usage(parsed_metrics: list[dict]) -> float | None:
-    """Average CPU utilization (percent)."""
-    return average_metric(parsed_metrics, _CPU_METRIC)
+    """Average CPU utilization (percent) of the whole CPU, not of single cores."""
+
+    def is_total(metric: dict) -> bool:
+        labels = metric.get("labels")
+        cpu = labels.get("cpu") if isinstance(labels, dict) else None
+        return cpu is None or cpu == "cpu-total"
+
+    return _mean_of_trimmed(
+        _collect_metric_values(parsed_metrics, _CPU_METRIC, is_total)
+    )
 
 
 def memory_usage(parsed_metrics: list[dict]) -> float | None:

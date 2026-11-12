@@ -1,6 +1,6 @@
 import type { Pipeline, PipelineDensitySpec } from "@/api/api.generated";
 
-export type DensityMode = "classic" | "mixed";
+export type DensityMode = "classic" | "mixed" | "staged";
 
 export interface ClassicPipelineSelection {
   pipelineId: string;
@@ -15,7 +15,13 @@ export interface MixedPipelineSelection {
   variantId: string;
 }
 
+export interface StagedPipelineSelection extends MixedPipelineSelection {
+  streamCpuCores: number[];
+}
+
 export const DEFAULT_MIXED_STREAMS = 1;
+
+const STAGED_DEFAULT_PIPELINE = "Media Decode";
 
 export const distributeStreamRates = <T extends { stream_rate: number }>(
   selections: T[],
@@ -107,4 +113,55 @@ export const buildMixedDensitySpecs = (
   selections.map((selection, index) => ({
     pipeline: toVariantReference(selection),
     ...(index === 0 ? { streams } : {}),
+  }));
+
+/**
+ * Defaults to the Media Decode pipeline: its GPU (VDBox) variant searched
+ * first, then its CPU variant next to the VDBox maximum.
+ */
+export const createStagedSelections = (
+  pipelines: Pipeline[],
+): StagedPipelineSelection[] => {
+  const decode = pipelines.find((p) => p.name === STAGED_DEFAULT_PIPELINE);
+  if (decode) {
+    const variantId = (name: string, fallback: number) =>
+      (
+        decode.variants.find((v) => v.name === name) ??
+        decode.variants[fallback]
+      )?.id ?? "";
+    return [
+      {
+        pipelineId: decode.id,
+        variantId: variantId("GPU", 0),
+        streamCpuCores: [],
+      },
+      {
+        pipelineId: decode.id,
+        variantId: variantId("CPU", 0),
+        streamCpuCores: [],
+      },
+    ];
+  }
+  return createMixedSelections(pipelines).map((selection) => ({
+    ...selection,
+    streamCpuCores: [],
+  }));
+};
+
+export const isStagedSelectionValid = (
+  selections: StagedPipelineSelection[],
+): boolean =>
+  selections.length >= 2 &&
+  selections.every(
+    (selection) => selection.pipelineId && selection.variantId,
+  ) &&
+  new Set(selections.map((s) => `${s.pipelineId}/${s.variantId}`)).size ===
+    selections.length;
+
+export const buildStagedDensitySpecs = (
+  selections: StagedPipelineSelection[],
+): PipelineDensitySpec[] =>
+  selections.map((selection) => ({
+    pipeline: toVariantReference(selection),
+    stream_cpu_cores: selection.streamCpuCores,
   }));

@@ -1841,7 +1841,9 @@ class Graph:
         that has a device attribute.
 
         If no decodebin3 node exists, falls back to scanning all gva* nodes
-        in order.
+        in order. A pipeline without any gva* device (e.g. media-only decode)
+        targets the GPU when a decodebin3 is directly followed by
+        ``video/x-raw(memory:VAMemory)`` caps.
 
         Returns:
             Device name as written on the element ("CPU", "GPU", "GPU.1", "NPU"),
@@ -1885,6 +1887,12 @@ class Graph:
         for node in self.nodes:
             if node.type.startswith("gva") and "device" in node.data:
                 return node.data["device"].upper()
+
+        for db_id in decodebin3_ids:
+            for next_id in edges_from.get(db_id, []):
+                next_node = nodes_by_id.get(next_id)
+                if next_node is not None and "memory:VAMemory" in next_node.type:
+                    return "GPU"
 
         return "CPU"
 
@@ -2233,15 +2241,24 @@ class Graph:
                     nodes_to_insert_list.append(converter_node)
                     caps_source_id = converter_node_id
 
-                # Output caps node after decoder (or after converter if present)
+                # Output caps node after decoder (or after converter if present),
+                # unless the same caps already follow decodebin3: gst-launch
+                # cannot parse two caps in a row.
+                nodes_by_id = {node.id: node for node in modified_graph.nodes}
+                caps_already_follow = [
+                    nodes_by_id[edge.target].type
+                    for edge in modified_graph.edges
+                    if edge.source == db_node_id and edge.target in nodes_by_id
+                ] == [output_caps_type]
                 caps_node_id = str(next_id)
                 next_id += 1
-                caps_node = Node(
-                    id=caps_node_id,
-                    type=output_caps_type,
-                    data={NODE_KIND_KEY: NODE_KIND_CAPS},
-                )
-                nodes_to_insert_list.append(caps_node)
+                if not caps_already_follow:
+                    caps_node = Node(
+                        id=caps_node_id,
+                        type=output_caps_type,
+                        data={NODE_KIND_KEY: NODE_KIND_CAPS},
+                    )
+                    nodes_to_insert_list.append(caps_node)
 
                 # Edges: parsebin → decoder → [converter] → caps → (original target)
                 # We need to know the original outgoing edge from decodebin3
@@ -2270,12 +2287,14 @@ class Graph:
                 # Edge from caps source (decoder or converter) to caps
                 edge_to_caps_id = str(next_id)
                 next_id += 1
-                edge_to_caps = Edge(
-                    id=edge_to_caps_id,
-                    source=caps_source_id,
-                    target=caps_node_id,
-                )
-                edges_to_add_list.append(edge_to_caps)
+                if not caps_already_follow:
+                    edges_to_add_list.append(
+                        Edge(
+                            id=edge_to_caps_id,
+                            source=caps_source_id,
+                            target=caps_node_id,
+                        )
+                    )
 
                 replacements.append(
                     (

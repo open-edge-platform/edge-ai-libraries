@@ -1598,6 +1598,8 @@ export type PipelinePerformanceSpec = {
       } & VariantReference);
   /** Number of parallel streams for this pipeline. */
   streams?: number;
+  /** Logical CPU ids (as reported by `GET /devices` in `cpu_topology.cores[].cpu`) the streams of this pipeline are spread over: one core per stream in round-robin order, like running each stream under `taskset -c <core>`. Takes precedence over `execution_config.pinned_cpu_cores` for the streams of this pipeline. Empty (default) keeps the test-wide setting. */
+  stream_cpu_cores?: number[];
 };
 export type OutputMode = "disabled" | "file" | "live_stream";
 export type MetadataMode = "disabled" | "file";
@@ -1635,6 +1637,8 @@ export type PipelineDensitySpec = {
   stream_rate?: number;
   /** Fixed input stream count for this pipeline. When set on exactly one of two specs, the request switches to mixed-density mode: this pipeline is pinned to 'streams' and the other pipeline is incremented by the benchmark algorithm. Leave unset for classic density mode. */
   streams?: number | null;
+  /** Logical CPU ids (as reported by `GET /devices` in `cpu_topology.cores[].cpu`) the streams of this pipeline are spread over: one core per stream in round-robin order, like running each stream under `taskset -c <core>`. Takes precedence over `execution_config.pinned_cpu_cores` for the streams of this pipeline. Empty (default) keeps the test-wide setting. */
+  stream_cpu_cores?: number[];
 };
 export type DensityTestSpec = {
   /** Minimum acceptable FPS per stream. */
@@ -1643,6 +1647,8 @@ export type DensityTestSpec = {
   pipeline_density_specs: PipelineDensitySpec[];
   /** Execution configuration for output and runtime. */
   execution_config?: ExecutionConfig;
+  /** Search the maximum stream count one pipeline at a time, in list order: the first pipeline is searched alone, then held at its maximum while the next one is searched, and so on. Use it to find the maximum VDBox (GPU decode) streams first and then the CPU streams that still fit next to them. Requires at least two specs and no `streams`; `stream_rate` is ignored. */
+  staged_search?: boolean;
 };
 export type VideoSource = "auto" | "uploaded";
 export type Video = {
