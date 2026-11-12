@@ -203,9 +203,10 @@ debian_90_stop_uncrewed_aerial_vehicle_vision_analytics () {
     echo "uncrewed_aerial_vehicle_vision_analytics is not installed." >&2
     return 1
   fi
-  cd "$app_dir" || return $?
-  docker compose "${compose_files[@]}" down || return $?
-  ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || return $?
+  cd "$app_dir" && {
+    docker compose "${compose_files[@]}" down || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+  } || true
   ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/
 }
 
@@ -215,10 +216,11 @@ debian_90_remove_uncrewed_aerial_vehicle_vision_analytics () {
     echo "uncrewed_aerial_vehicle_vision_analytics is not installed." >&2
     return 1
   fi
-  cd "$app_dir" || return $?
-  docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?
-  ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || return $?
-  ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || return $?
+  cd "$app_dir" && {
+    docker compose "${compose_files[@]}" down --volumes --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+  } || true
+  ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || true
   ensure_rm "$workspace" || return $?
   ensure_prop remove installed/uncrewed_aerial_vehicle_vision_analytics/
 }
