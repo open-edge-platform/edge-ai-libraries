@@ -60,6 +60,12 @@ import SourceNode, { SourceNodeWidth } from "./custom/SourceNode.tsx";
 import ProximityTriggerNode, {
   ProximityTriggerNodeWidth,
 } from "./custom/ProximityTriggerNode.tsx";
+import SscapeTimestampCaptureNode, {
+  SscapeTimestampCaptureNodeWidth,
+} from "./custom/SscapeTimestampCaptureNode.tsx";
+import SscapePostInferenceDataPublishNode, {
+  SscapePostInferenceDataPublishNodeWidth,
+} from "./custom/SscapePostInferenceDataPublishNode.tsx";
 
 export const nodeTypes = {
   filesrc: FileSrcNode,
@@ -103,6 +109,8 @@ export const nodeTypes = {
   "tsam-output": TsamOutputNode,
   source: SourceNode,
   gvaproximitytrigger_py: ProximityTriggerNode,
+  sscape_timestamp_capture: SscapeTimestampCaptureNode,
+  sscape_post_inference_data_publish: SscapePostInferenceDataPublishNode,
   jpegenc: JpegEncNode,
 };
 
@@ -125,6 +133,8 @@ export const nodeWidths: Record<string, number> = {
   splitmuxsink: SplitMuxSinkNodeWidth,
   source: SourceNodeWidth,
   gvaproximitytrigger_py: ProximityTriggerNodeWidth,
+  sscape_timestamp_capture: SscapeTimestampCaptureNodeWidth,
+  sscape_post_inference_data_publish: SscapePostInferenceDataPublishNodeWidth,
 };
 
 export const defaultNodeWidth = 220;

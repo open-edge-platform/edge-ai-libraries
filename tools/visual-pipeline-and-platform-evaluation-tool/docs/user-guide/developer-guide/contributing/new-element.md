@@ -65,7 +65,7 @@ configured on the `vippet` service in `compose.yml`:
 
 | Variable                         | Default                                                    | Meaning                                                                                                              |
 |----------------------------------|------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | `*src,urisourcebin,gva*,*sink,source,videoscale`           | Comma-separated wildcard patterns. An element is a candidate for the Simple view only if its type matches one entry. |
+| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | `*src,urisourcebin,gva*,*sink,source,videoscale,sscape_*`  | Comma-separated wildcard patterns. An element is a candidate for the Simple view only if its type matches one entry. |
 | `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` | Comma-separated wildcard patterns. Matches are removed from the Simple view even if they also match the visible set. |
 
 Evaluation order is **VISIBLE first, then INVISIBLE exclusions**. Caps nodes
@@ -75,7 +75,8 @@ When introducing a new element (typically by writing a new pipeline that
 references it):
 
 - If the element is a meaningful, user-facing step (a new source family,
-  a new inference element following the `gva*` naming, a new sink...) it
+  a new inference element following the `gva*` naming, a new SceneScape
+  element following the `sscape_*` naming, a new sink...) it
   will appear in the Simple view automatically thanks to the default
   patterns.
 - If the element is purely technical plumbing (a new converter, a new
@@ -83,7 +84,7 @@ references it):
   view, add it to `SIMPLE_VIEW_INVISIBLE_ELEMENTS` in `compose.yml`.
 - If your element name does not match any of the existing patterns
   (for example it is not `*src` / `gva*` / `*sink` / `urisourcebin` /
-  `source` / `videoscale`) and should be exposed, extend `SIMPLE_VIEW_VISIBLE_ELEMENTS`
+  `source` / `videoscale` / `sscape_*`) and should be exposed, extend `SIMPLE_VIEW_VISIBLE_ELEMENTS`
   accordingly. Keep the patterns broad and named, not pipeline-specific.
 
 Any change to these variables must also be documented in the README and

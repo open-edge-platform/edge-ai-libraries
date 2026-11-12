@@ -74,7 +74,7 @@ model_proc_manager = get_public_model_proc_manager()
 # All other elements (including caps nodes) will be hidden and their edges reconnected.
 SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
     "SIMPLE_VIEW_VISIBLE_ELEMENTS",
-    "*src,urisourcebin,gva*,*sink,source,videoscale,tsam-udf",
+    "*src,urisourcebin,gva*,*sink,source,videoscale,tsam-udf,sscape_*",
 )
 
 # Configuration for Simple View: comma-separated regex patterns for invisible elements.

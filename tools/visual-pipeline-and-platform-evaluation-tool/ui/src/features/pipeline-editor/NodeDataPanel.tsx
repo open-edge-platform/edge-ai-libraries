@@ -28,6 +28,8 @@ import { tsamOutputConfig } from "@/features/pipeline-editor/nodes/TsamOutputNod
 import { tsamUdfConfig } from "@/features/pipeline-editor/nodes/TsamUdfNode.config.ts";
 import { sourceNodeConfig } from "./nodes/custom/SourceNode.config.ts";
 import { proximityTriggerConfig } from "./nodes/custom/ProximityTriggerNode.config.ts";
+import { sscapeTimestampCaptureConfig } from "./nodes/custom/SscapeTimestampCaptureNode.config.ts";
+import { sscapePostInferenceDataPublishConfig } from "./nodes/custom/SscapePostInferenceDataPublishNode.config.ts";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -369,6 +371,10 @@ const NodeDataPanel = ({
         return sourceNodeConfig;
       case "gvaproximitytrigger_py":
         return proximityTriggerConfig;
+      case "sscape_timestamp_capture":
+        return sscapeTimestampCaptureConfig;
+      case "sscape_post_inference_data_publish":
+        return sscapePostInferenceDataPublishConfig;
       case "multifilesink":
         return multiFileSinkConfig;
       case "filesink":
