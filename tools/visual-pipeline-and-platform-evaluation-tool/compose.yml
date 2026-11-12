@@ -23,6 +23,8 @@ x-vippet: &vippet
     start_interval: 1s
   restart: unless-stopped
   depends_on:
+    dlstreamer-pipeline-server:
+      condition: service_healthy
     mediamtx:
       condition: service_started
     model-download:
@@ -32,7 +34,6 @@ x-vippet: &vippet
   environment:
     GST_DEBUG: "1"
     APP_LOG_LEVEL: INFO
-    RUNNER_LOG_LEVEL: INFO
     WEB_SERVER_LOG_LEVEL: WARNING
     MODELS_PATH: /models/output
     # Image-set uploads. Image sets are extracted into per-set
@@ -64,6 +65,14 @@ x-vippet: &vippet
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
     RTSPSRC_DEFAULT_LATENCY_MS: ${RTSPSRC_DEFAULT_LATENCY_MS:-100}
     METRICS_MANAGER_URL: ${METRICS_MANAGER_URL:-http://metrics-manager:9090}
+    # DLSPS 2.0 (dlstreamer-pipeline-server) runs every pipeline vippet builds.
+    DLSPS2_BASE_URL: ${DLSPS2_BASE_URL:-http://dlstreamer-pipeline-server:8080}
+    DLSPS2_VERIFY_TLS: "false"
+    # vippet checks these to know whether the server exports latency, and waits
+    # up to one export interval for the server's final export after a run.
+    DLSPS2_OTEL: ${DLSPS2_OTEL:-true}
+    DLSPS2_GST_TRACERS: ${DLSPS2_GST_TRACERS-latency_tracer(flags=pipeline,interval=1000,post-metrics=true)}
+    DLSPS2_OTEL_INTERVAL_MS: ${DLSPS2_OTEL_INTERVAL_MS:-1000}
     # Collect DLStreamer latency tracer samples for benchmark test cases.
     # Set to "false" to run benchmark suites without the tracer.
     BENCHMARK_ENABLE_LATENCY_METRICS: ${BENCHMARK_ENABLE_LATENCY_METRICS:-true}
@@ -79,7 +88,7 @@ x-vippet: &vippet
     DB_ECHO: "false"
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
-    no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download,host.docker.internal"
+    no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download,host.docker.internal,dlstreamer-pipeline-server"
   extra_hosts:
     - "host.docker.internal:host-gateway"
   device_cgroup_rules:
@@ -126,7 +135,7 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:latest
+    image: docker.io/intel/model-download:2026.3.0-rc1
     pull_policy: daily
     container_name: model-download
     ports:
@@ -178,6 +187,102 @@ services:
     container_name: vippet
     ports:
       - "7860:7860"
+  # One-shot: copies the custom GStreamer elements shipped in the vippet image
+  # (vippet/gst_plugins/) into the vippet-gst-plugins volume, which the server
+  # loads. The copy always matches the vippet image in use, also for published
+  # images, and replaces the volume's contents so removed elements do not linger.
+  # It uses the image vippet builds or `make run-prebuilt` pulls, so it is never
+  # pulled. A named volume rather than a host folder, so that only Docker can
+  # write the code the server loads.
+  vippet-plugins:
+    image: docker.io/intel/vippet-app:${DOCKER_TAG}
+    pull_policy: never
+    container_name: vippet-plugins
+    restart: "no"
+    network_mode: none
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        find /plugins -mindepth 1 -delete &&
+        cp -R /home/dlstreamer/vippet/gst_plugins/. /plugins/ &&
+        find /plugins -name __pycache__ -type d -prune -exec rm -rf {} +
+    volumes:
+      - vippet-gst-plugins:/plugins
+
+  dlstreamer-pipeline-server:
+    # Runs every pipeline vippet builds: validation, performance and density
+    # tests (one instance per stream), benchmarks and the TS conversion of videos.
+    # Devices and groups for the active device profile come from compose.<profile>.yml.
+    image: ${DLSPS2_IMAGE:-dlstreamer-pipeline-server:2.0-local}
+    hostname: dlstreamer-pipeline-server
+    container_name: dlstreamer-pipeline-server
+    build:
+      context: ../../microservices/dlstreamer-pipeline-server/dlsps2
+      dockerfile: docker/Dockerfile
+      pull: true
+      args:
+        # Keep in sync with vippet/Dockerfile so both backends run the same DLStreamer.
+        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-${DLSTREAMER_IMAGE:-intel/dlstreamer:2026.3.0-ubuntu24-rc1}}
+        UID: ${DLSPS2_UID:-1000}
+        USER: ${DLSPS2_USER:-pipeline-server}
+        http_proxy:
+        https_proxy:
+        no_proxy:
+    restart: on-failure:5
+    user: "1000:1000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/pipelines/status', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    environment:
+      REST_SERVER_PORT: 8080
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
+      WEB_SERVER_LOG_LEVEL: ${WEB_SERVER_LOG_LEVEL:-WARNING}
+      GST_DEBUG: "1"
+      # Custom elements shipped with VIPPET (vippet/gst_plugins/: Python elements
+      # and the Aravis plugin), copied by vippet-plugins; the server's run.sh
+      # appends this to GST_PLUGIN_PATH.
+      ADDITIONAL_GST_PLUGIN_PATH: /opt/vippet/gst_plugins
+      # The server's per-instance metrics (OTLP/JSON into metrics-manager). VIPPET
+      # reads the latency and VLM series of its own instances from metrics-manager;
+      # its live "fps" metric is pushed by vippet.
+      ENABLE_OPEN_TELEMETRY: ${DLSPS2_OTEL:-true}
+      # latency_tracer for latency metrics. Tracers are process-wide, so latency is
+      # measured for every pipeline the server runs, including tests that do not ask
+      # for it. Set DLSPS2_GST_TRACERS= (empty) to run without the tracer.
+      GST_TRACERS: ${DLSPS2_GST_TRACERS-latency_tracer(flags=pipeline,interval=1000,post-metrics=true)}
+      OTEL_COLLECTOR_HOST: metrics-manager
+      OTEL_COLLECTOR_PORT: "9090"
+      OTEL_COLLECTOR_PATH: /api/v1/metrics/otlp
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/json
+      OTEL_EXPORT_INTERVAL_MILLIS: ${DLSPS2_OTEL_INTERVAL_MS:-1000}
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager"
+      HTTP_PROXY: ${http_proxy}
+      HTTPS_PROXY: ${https_proxy}
+      NO_PROXY: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager"
+    tmpfs:
+      - /tmp
+      - /var/tmp
+    volumes:
+      - ./shared/videos/:/videos
+      - ./shared/models/:/models
+      - ./shared/images/:/images
+      - ./shared/metadata/:/metadata
+      - vippet-gst-plugins:/opt/vippet/gst_plugins:ro
+      # gvapython modules (resources.py SCRIPTS_PATH), referenced by absolute path.
+      - ./shared/scripts/:/scripts:ro
+      # USB cameras (v4l2src), with the same access as vippet had.
+      - "/dev:/dev"
+    device_cgroup_rules:
+      - 'c 189:* rmw'
+      - 'a 189:* rwm'
+    depends_on:
+      vippet-plugins:
+        condition: service_completed_successfully
   metrics-manager:
     image: docker.io/intel/metrics-manager:2026.3.0-rc1
     pull_policy: daily
@@ -221,10 +326,12 @@ services:
       - MTX_WEBRTCADDRESS=:8889
       - MTX_RTSPADDRESS=:8554
       - MTX_WEBRTCADDITIONALHOSTS=${HOST_IPS}
+      - MTX_WEBRTCLOCALTCPADDRESS=:8189
     ports:
       - "8554:8554"     # RTSP
       - "8889:8889"     # WebRTC signaling/HTTP
       - "8189:8189/udp" # WebRTC/ICE UDP
+      - "8189:8189/tcp"
     restart: unless-stopped
   sensor-manager:
     image: docker.io/intel/sensor-manager:${DOCKER_TAG}
@@ -287,4 +394,5 @@ services:
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
 
-volumes: {}
+volumes:
+  vippet-gst-plugins:

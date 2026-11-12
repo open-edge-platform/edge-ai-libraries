@@ -86,38 +86,93 @@ Hugging Face Hub.
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
 
-## Optional: run pipelines on DL Streamer Pipeline Server 2.0 (experimental)
+## Pipeline execution on DL Streamer Pipeline Server 2.0
 
-By default, pipelines run inside the `vippet` container. To run them on a separate
+Every pipeline runs on a
 [DL Streamer Pipeline Server 2.0](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/dlsps2/README.md)
-container instead, add `DLSPS2=1`:
+container, the `dlstreamer-pipeline-server` service. The server runs:
+
+- pipeline validation;
+- performance and density tests and benchmarks, with every stream as its own server instance, so the job
+  status also reports the slowest stream's FPS, and a density test counts a stream count as passing only if
+  its slowest stream reaches the FPS floor;
+- the conversion of videos to `.ts` for looping.
+
+`make build` builds the server image from `microservices/dlstreamer-pipeline-server/dlsps2` in the same
+repository, on the same DL Streamer base image as `vippet` unless `DLSPS2_BASE_IMAGE` is set. The server gets
+the same devices as `vippet`. The
+one-shot `vippet-plugins` service copies the custom elements in `vippet/gst_plugins/` from the `vippet` image
+into the `vippet-gst-plugins` Docker volume, from where the server loads them. `vippet` reads the list of available GStreamer
+elements from the server, so the decoders and encoders it picks are those of the server.
+
+To use a published server image instead of building one, set `DLSPS2_IMAGE` to one of the
+`-2.0` tags on [Docker Hub](https://hub.docker.com/r/intel/dlstreamer-pipeline-server/tags).
+`make build` then skips the server, and `make run` pulls the image:
 
 ```bash
-make build run DLSPS2=1
-make stop DLSPS2=1
+export DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-2.0-rc1
+make build run
 ```
 
-This builds the server image from `microservices/dlstreamer-pipeline-server/dlsps2` in the
-same repository, gives it the same devices as `vippet`, and sets
-`VIPPET_EXECUTION_BACKEND=dlsps2`. Current limitations:
+`make run-prebuilt` also pulls the server image: `DLSPS2_IMAGE` if it is set, otherwise
+`PREBUILT_DLSPS2_IMAGE` from the `Makefile`.
 
-- Only pipeline validation and single-stream performance tests run on the server. Density
-  tests, multi-stream performance tests and tests with latency metrics still run inside
-  `vippet`.
-- A pipeline that finishes in less than about one second reports 0 FPS.
+The server's REST API is not published on the host: `vippet` reaches it over the compose network. To query it,
+run e.g. `docker exec vippet curl -s http://dlstreamer-pipeline-server:8080/pipelines/status`. Use
+`docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to open a shell in it.
 
-The server is not part of `compose.yml`, so `docker compose logs` does not show it. Use
-`docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to
-open a shell in it.
+### Latency and VLM metrics
+
+The server exports its own per-instance metrics over OpenTelemetry to `metrics-manager` (`DLSPS2_OTEL`,
+default `true`). `DLSPS2_OTEL_INTERVAL_MS` sets the export interval (default `1000`). `vippet` reads the
+latency and VLM series of its own instances from `metrics-manager` and republishes them under the job. Each
+republished sample aggregates one export period: the latency windows of that period, or the mean over its
+`gvagenai` requests. After a run, `vippet` waits for the server's final export, for at most
+`DLSPS2_OTEL_INTERVAL_MS` plus two seconds. The live FPS chart in the UI comes from `vippet`, not from
+these exports.
+
+VLM metrics need `metrics=true` on `gvagenai`. `vippet` adds `post-metrics=true` to such an element when the
+server's `gvagenai` has that property, as reported by the server's `GET /elements/gvagenai`. Otherwise, or
+when `metrics-manager` cannot store histograms, a performance test reports the means over every request since
+the element started, read from the answers that `gvagenai` writes.
+
+Latency metrics need the `latency_tracer`, which is on by default with `DLSPS2_OTEL=true` and:
+
+```bash
+DLSPS2_GST_TRACERS='latency_tracer(flags=pipeline,interval=1000,post-metrics=true)'
+```
+
+Tracers apply to every pipeline the server runs, so the tracer also runs for tests that do not ask for latency
+metrics. To run without it, for example for FPS measurements, set it empty:
+
+```bash
+export DLSPS2_GST_TRACERS=
+make run
+```
+
+Without the tracer, a test that asks for latency metrics runs without them: `vippet` logs a warning and the
+job details say so. The tracer must support `post-metrics`; with an older DL Streamer no samples arrive, and
+`vippet` logs a warning.
+
+See [Known limitations of pipeline execution on DL Streamer Pipeline Server 2.0](../../troubleshooting.md#16-known-limitations-of-pipeline-execution-on-dl-streamer-pipeline-server-20).
 
 ## Optional: stream from GigE Vision cameras
 
-To use GigE Vision cameras as pipeline input, run the `vippet` container with host networking
-by adding `GIGE=1`:
+The DL Streamer Pipeline Server 2.0 image does not include the Aravis GStreamer plugin (`aravissrc`), so
+the `vippet` image ships it with the custom elements in `vippet/gst_plugins/`, and the server loads it from the
+`vippet-gst-plugins` volume. See
+[Known limitations](../../troubleshooting.md#16-known-limitations-of-pipeline-execution-on-dl-streamer-pipeline-server-20).
+
+The `GIGE=1` flag runs the `dlstreamer-pipeline-server` container with host networking, which GigE Vision
+streaming needs:
 
 ```bash
 make build run GIGE=1
 ```
+
+With host networking, the server's REST API listens on all host interfaces, on `DLSPS2_REST_SERVER_PORT`
+(default `8081`), without authentication. Use `GIGE=1` only on a trusted network, or block that port in the host
+firewall.
 
 See [GigE Vision Cameras](../../user-guide/input-management/cameras.md#gige-vision-cameras)
 for details.

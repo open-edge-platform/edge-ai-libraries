@@ -1,0 +1,106 @@
+
+# start smart_parking [resources]
+ensure_container_namespace () {
+  local act_name="${1:?}"
+  local name="${2:?}"
+  shift 2
+
+  case "$act_name" in
+  install) ensure_prop set installed/$name/containers "$*" ;;
+  start) ensure_prop set started/$name/containers "$*" ;;
+  esac
+
+  local container_resources=(
+    $(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/')
+    $(docker network ls --format '{{.Name}}' | sed 's/^/net:/')
+    $(docker volume ls --format '{{.Name}}'  | sed 's/^/vol:/')
+    $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}')
+  )
+  local c stopper mname mpath
+  for c in "$@"; do
+    [[ " ${container_resources[*]} " = *" $c "* ]] || continue
+
+    printf "${red}%s is in conflict${reset}\n" "$c" >&2
+    for mpath in $(ensure_prop find "installed/*/containers") $(ensure_prop find "started/*/containers"); do
+      [[ " $(ensure_prop get "$mpath") " = *" $c "* ]] || continue
+      mname="${mpath#*/}"; mname="${mname%/*}"
+      stopper="${_act_cache_functions[stop_$mname]:-}"
+      [ -n "$stopper" ] || continue
+      printf "${red}Stopping $mname to release container %s${reset}\n" "$c" >&2
+      ( set -e; $stopper "$mname" -- ) >&2 || true
+    done
+
+    container_resources=(
+      $(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/')
+      $(docker network ls --format '{{.Name}}' | sed 's/^/net:/')
+      $(docker volume ls --format '{{.Name}}'  | sed 's/^/vol:/')
+      $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}')
+    )
+    [[ " ${container_resources[*]} " = *" $c "* ]] || continue
+
+    printf "${red}%s is occupied${reset}\n%s\n" "$c" "${container_resources[*]}" >&2
+    return 3
+  done
+}
+
+# [yaml files]
+ensure_container_parse_yaml () {
+  python3 -c '
+import sys
+import yaml
+import re
+def default_val(s):
+  return re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*:-(\d+)\}").sub(r"\1",str(s))
+def host_port(p):
+  if isinstance(p, dict):
+    published=p.get("published")
+    if published in (None, ""): return []
+    port=default_val(published)
+  else:
+    spec,_,_=default_val(p).partition("/")
+    parts=spec.rsplit(":", 2)
+    if len(parts) < 2 or not parts[-2]: return []
+    port=parts[-2]
+  m=re.fullmatch(r"(\d+)",port)
+  if m: return [int(m.group(1))]
+  m=re.fullmatch(r"(\d+)-(\d+)",port)
+  if m: return [n for n in range(int(m.group(1)),int(m.group(2))+1)]
+  return []
+def entries(path):
+  with open(path) as f:
+    doc = yaml.safe_load(f) or {}
+  for svc in (doc.get("services") or {}).values():
+    if not isinstance(svc, dict): continue
+    if svc.get("container_name"): yield "name", svc["container_name"]
+    for p in svc.get("ports") or []:
+      for port in host_port(p):
+        yield "port",port
+  for section, label in (("networks", "net"), ("volumes", "vol")):
+    for key, cfg in (doc.get(section) or {}).items():
+      cfg = cfg or {}
+      if cfg.get("external"): continue
+      yield label, cfg.get("name", key)
+for path in sys.argv[1:]:
+  try:
+    for label, value in entries(path):
+      print(f"{label}:{value}")
+  except:
+    continue
+' "$@"
+}
+
+# [resources]
+ensure_container_cleanup () {
+  local c
+  for c in "$@"; do
+    case "$c" in
+    name:*)
+      docker container rm -v -f ${c#name:} 2> /dev/null || true;;
+    vol:*)
+      docker volume rm -f ${c#vol:} 2> /dev/null || true;;
+    net:*)
+      docker network rm -f ${c#net:} 2> /dev/null || true;;
+    esac
+  done
+}
+

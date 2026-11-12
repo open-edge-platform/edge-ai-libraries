@@ -4,7 +4,7 @@ configure_uav_mission_compute_sdk () {
   source_path="$workspace/source"
   sdk_path="$source_path/uav-mission-compute-sdk"
   repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
-  version="main"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
 }
 
@@ -63,8 +63,8 @@ debian_90_profile_uav_mission_compute_sdk () {
 }
 
 debian_90_install_uav_mission_compute_sdk () {
-  configure_uav_mission_compute_sdk
-  if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
+  configure_uav_mission_compute_sdk "$@"
+  if verify_uav_mission_compute_sdk && ! ensure_parse_reinstall "$@"; then
     echo "uav_mission_compute_sdk is installed." >&2
   else
     . /etc/os-release
@@ -79,6 +79,7 @@ debian_90_install_uav_mission_compute_sdk () {
     source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?
     cd "$sdk_path" || return $?
     make init || return $?
+    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
     if [ ! -r "$sdk_path/Makefile" ] || [ ! -r "$sdk_path/.env" ] ||
       [ "$(git -C "$source_path" rev-parse HEAD 2>/dev/null)" != "$source_commit" ]; then
       echo "Mission Compute SDK initialization did not produce the expected source and .env." >&2
@@ -93,12 +94,13 @@ debian_90_install_uav_mission_compute_sdk () {
 }
 
 debian_90_start_uav_mission_compute_sdk () {
-  configure_uav_mission_compute_sdk
+  configure_uav_mission_compute_sdk "$@"
   verify_uav_mission_compute_sdk || {
     echo "uav_mission_compute_sdk is not installed or needs repair. Run install first." >&2
     return 1
   }
   cd "$sdk_path" || return $?
+  sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
   if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
     ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?
   fi
@@ -124,12 +126,12 @@ debian_90_start_uav_mission_compute_sdk () {
   ensure_prop create started/uav_mission_compute_sdk/ports || return $?
   ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?
   echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras"
-  echo "@@HIGHLIGHT UAV REST API: http://localhost:8080"
+  echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080"
   echo "@@HIGHLIGHT $installer_name stop uav_mission_compute_sdk"
 }
 
 debian_90_stop_uav_mission_compute_sdk () {
-  configure_uav_mission_compute_sdk
+  configure_uav_mission_compute_sdk "$@"
   verify_uav_mission_compute_sdk || {
     echo "uav_mission_compute_sdk is not installed." >&2
     return 1
@@ -140,7 +142,7 @@ debian_90_stop_uav_mission_compute_sdk () {
 }
 
 debian_90_remove_uav_mission_compute_sdk () {
-  configure_uav_mission_compute_sdk
+  configure_uav_mission_compute_sdk "$@"
   if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk)" ]; then
     echo "uav_mission_compute_sdk is not installed." >&2
     return 0

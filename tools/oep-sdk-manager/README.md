@@ -43,6 +43,7 @@ Pinned container image versions and their base operating systems are unchanged.
 
 The `latest` selection downloads the renamed installers from the `main` branch of
 `edge-ai-libraries/tools/oep-sdk-manager/scripts/`.
+The 2026.3.0-rc1 selection uses these current installers, pinned to the 2026.3.0 RC1 component images.
 The 2026.1 and 2026.2 selections use the original installer filenames in
 `edge-ai-suites/metro-ai-suite/metro-sdk-manager/scripts/` on
 `release-2026.1.0` and `release-2026.2.0`, respectively.

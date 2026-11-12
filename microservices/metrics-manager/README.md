@@ -147,14 +147,13 @@ docker run -d \
 
 ### On Kubernetes (Helm)
 
-The existing Helm chart is published at the same OCI repository, distinguished
-by the `-helm` tag suffix. The chart remains at its upstream version; the native
-Docker migration described here does not update its deployment configuration.
+The chart targets native Metrics Manager 2026.3.0 and uses the `-helm` suffix
+for its OCI package version. Until release publication, validate the local chart
+with an explicitly selected RC image:
 
 ```bash
-helm install metrics-manager \
-  oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
+helm install metrics-manager ./helm/metrics-manager \
+  --set image.tag=2026.3.0-rc1 \
   --namespace observability --create-namespace
 ```
 
@@ -275,7 +274,7 @@ docker push intel/metrics-manager:2026.3.0-extended-rc1
    `app/settings.py`, `app/logging_config.py` and current documentation examples.
    Preserve historical release entries and third-party versions. Check your
    local `.env` for an intentional `TAG` override; it is not rewritten for you.
-   For 2026.3.0, Helm is outside this work's scope. Do not use the legacy
+   Do not use the legacy
    `make bump` target for this change: it references old documentation paths
    and does not update every current mirror. Helm packaging reads its version
    from `Chart.yaml`, independently of the application `VERSION`.
@@ -315,7 +314,7 @@ read at a different time:
 third-party pins. Run it with the repository's Python test environment.
 `TAG` still overrides Compose image tags/build arguments, and `SERVICE_VERSION`
 still overrides the reported service version at runtime. Setting one does not
-automatically set the other. Helm metadata is unchanged in this work.
+automatically set the other. Validate and update Helm metadata separately.
 
 ### Verify
 

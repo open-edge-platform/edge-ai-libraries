@@ -1,12 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Retrievers and the factory an asset library builds them with.
 
-`build_retriever` turns request configuration into retrieval over one vector
-projection.
-
-"""
-
+import threading
 from collections import defaultdict
 from itertools import zip_longest
 from typing import Any, Dict, List, Optional, Set
@@ -18,16 +13,16 @@ from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.core.retrievers.fusion_retriever import FUSION_MODES
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryBundle, MetadataMode
+from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 from llama_index.core.vector_stores.utils import metadata_dict_to_node, node_to_metadata_dict
 
+from core import materialize
 from core.indexer import MultimodalIndexer
 
 RETRIEVER_TYPES = ("rrf", "vectorsimilarity", "bm25", "graph", "auto_merge")
 
 
 def _bm25_tokenize(text: str) -> List[str]:
-    # Tokenizer is set in config.BM25_TOKENIZER: jieba for Chinese,
-    # whitespace (Unicode \w+) for space-delimited / multilingual corpora.
     if config.BM25_TOKENIZER == "whitespace":
         import re
 
@@ -43,13 +38,7 @@ def _bm25_tokenize(text: str) -> List[str]:
 
 
 class SimpleBM25Retriever(BaseRetriever):
-    """Mirror of edgecraftrag's SimpleBM25Retriever: bm25s index over
-    jieba-tokenized chunk text (MetadataMode.NONE), queried with jieba.
-
-    Uses the same scoring calls and node serialization as the old engine,
-    without depending on BM25Retriever.from_defaults preprocessing. Matching
-    results still requires identical input chunks and tokenizer/bm25s versions.
-    """
+    """A bm25s index over tokenized chunk text (MetadataMode.NONE)."""
 
     def __init__(self, nodes: List[BaseNode], top_k: int):
         super().__init__()
@@ -80,14 +69,10 @@ def hydrate_nodes(projection) -> List[BaseNode]:
     return projection.load()
 
 
-# BM25 retriever per projection, keyed by (projection, version, top_k). Building
-# the index tokenizes every chunk, so it is rebuilt only when the collection
-# changed (`version` bump) or top_k moved -- never per query.
+# Keyed by (projection, version, top_k, filter_key); rebuilt only when the collection version changes.
 _bm25_cache: Dict[tuple, Any] = {}
 
-# Graph snapshots are materialized from Nebula only after the graph source has
-# completed a pool sync. The graph projection's version changes on every graph
-# write, so a later successful sync naturally selects a newly built snapshot.
+# Graph snapshots keyed by graph/vector projection versions and pool.
 _graph_cache: Dict[tuple, Any] = {}
 
 
@@ -152,7 +137,7 @@ class _RRFArm(BaseRetriever):
 
 
 class RRFRetriever(QueryFusionRetriever):
-    """Shared fusion matching the old FusionRetriever, not hash-based RRF."""
+    """Reciprocal-rank fusion over the arms' own rankings."""
 
     def __init__(self, *args, rrf_k: float = 60, **kwargs):
         super().__init__(*args, **kwargs)
@@ -176,12 +161,7 @@ class RRFRetriever(QueryFusionRetriever):
 
 
 def build_retriever(projection, retriever_type: str, top_k: int, filters=None, node_filter=None, filter_key=None):
-    """A single-algorithm retriever over one vector projection.
-
-    Returns None when the type cannot be served by an empty collection (BM25
-    indexes the chunk set eagerly, so there is nothing to build from).
-    RRF and graph retrieval require pool context; use build_pool_retriever.
-    """
+    """A single-algorithm retriever over one vector projection; None for an empty BM25 collection."""
     if retriever_type in ("rrf", "graph"):
         raise ValueError(
             f"Retriever type '{retriever_type}' requires pool context; "
@@ -215,6 +195,31 @@ class GraphSearchArmRetriever(BaseRetriever):
         return self._graph_search.retrieve(query_bundle.query_str)
 
 
+def pool_asset_scope(asset_pool) -> Optional[frozenset]:
+    asset_ids = getattr(asset_pool, "asset_ids", None)
+    if asset_ids is None:
+        return None
+    ingesting = materialize.ingesting_asset_ids(getattr(asset_pool, "asset_pool_id", None))
+    return frozenset(asset_ids) | ingesting
+
+
+def _scoped_vector_filters(filters, scope):
+    if scope is None:
+        return filters
+    in_pool = MetadataFilter(key="asset_id", value=sorted(scope), operator=FilterOperator.IN)
+    if filters is None:
+        return MetadataFilters(filters=[in_pool])
+    return MetadataFilters(filters=[filters, in_pool])
+
+
+def _scoped_node_filter(node_filter, scope):
+    if scope is None:
+        return node_filter
+    if node_filter is None:
+        return lambda node: (node.metadata or {}).get("asset_id") in scope
+    return lambda node: (node.metadata or {}).get("asset_id") in scope and node_filter(node)
+
+
 def _serving_projections(asset_pool):
     """Snapshot serving projections; disabled sources never answer a query."""
     return tuple(
@@ -236,11 +241,7 @@ def _projection_of_kind(asset_pool, kind: str):
 
 
 def _build_graph_arm(asset_library, asset_pool, graph, vector, top_k):
-    """Open persisted Nebula/Milvus data; never parse or re-embed OKF files.
-
-    A graph space and concept collection must describe the same concept set.
-    Validate on construction rather than reuse unchecked post-sync handles.
-    """
+    """A graph arm over persisted Nebula/Milvus data, validated against the vector chunks."""
     from core.graph_search import (
         GraphSearchRetriever,
         InMemoryConceptGraphBackend,
@@ -256,10 +257,9 @@ def _build_graph_arm(asset_library, asset_pool, graph, vector, top_k):
             )
     pool_id = getattr(asset_pool, "asset_pool_id", None)
     cache_key = (graph.projection_id, graph.version, vector.projection_id, vector.version, pool_id)
-    backend = _graph_cache.get(cache_key)
+    backend, concept_indexer = _graph_cache.get(cache_key, (None, None))
     if backend is None:
-        # A graph source attached to several pools keeps their concepts in one
-        # space; this pool walks only the concepts its own OKF bundles define.
+        # A graph space may be shared by several pools; restrict to this pool's concepts.
         scope_of = getattr(asset_library, "pool_concept_scope", None)
         scope = scope_of(pool_id) if scope_of is not None and pool_id is not None else None
         open_store = getattr(graph._adapter, "existing_store", None)
@@ -283,9 +283,11 @@ def _build_graph_arm(asset_library, asset_pool, graph, vector, top_k):
         backend = InMemoryConceptGraphBackend.from_persisted(persisted_backend)
         if scope is not None:
             backend = backend.restricted_to(concept_ids)
-        _graph_cache[cache_key] = backend
-    concept_ids = backend.concept_ids()
-    concept_indexer = vector.load_concept_index(concept_ids)
+        concept_indexer = vector.load_concept_index(backend.concept_ids())
+        for key in list(_graph_cache):
+            if (key[0], key[2], key[4]) == (cache_key[0], cache_key[2], cache_key[4]):
+                _graph_cache.pop(key, None)
+        _graph_cache[cache_key] = (backend, concept_indexer)
     chunk_nodes = vector.load()
     search = GraphSearchRetriever(
         chunk_nodes=chunk_nodes,
@@ -297,12 +299,7 @@ def _build_graph_arm(asset_library, asset_pool, graph, vector, top_k):
 
 
 class PoolVectorRetriever(BaseRetriever):
-    """Interleave source results without comparing their score scales.
-
-    Scores are deliberately left in each retriever's own scale (D3). Identical
-    block ids from different sources remain separate attributable hits. Copy
-    nodes before stamping them: BM25 and graph nodes may come from shared caches.
-    """
+    """Interleave per-source results, each left in its own score scale."""
 
     def __init__(self, retrievers, top_k: int):
         super().__init__()
@@ -322,10 +319,7 @@ class PoolVectorRetriever(BaseRetriever):
         ])
 
     def _handle_recursive_retrieval(self, query_bundle, nodes):
-        # Each arm's public retrieve already resolved recursive nodes and
-        # deduplicated within that source. BaseRetriever's second, node-id-only
-        # pass would discard hits from other sources. Keep stable block ids and
-        # the inherited public method's callbacks/instrumentation instead.
+        # Arms already resolved recursion; a node-id-only pass would drop same-id hits from other sources.
         return nodes
 
     async def _ahandle_recursive_retrieval(self, query_bundle, nodes):
@@ -347,14 +341,7 @@ def build_pool_retriever(
     asset_library, asset_pool, retriever_type: str, top_k: int,
     selected_vectors=None, vector_filters=None, node_filter=None, filter_key=None,
 ):
-    """Query selected serving vector sources without cross-source score truncation.
-
-    Only the first serving text projection owns the graph's chunk provenance.
-    It keeps main's vector/BM25/graph flow (plain vectors for RRF without graph);
-    additional text projections use plain vectors, including in graph/RRF mode.
-    Multimodal projections always use ordinary vector similarity. There is no
-    fusion or score normalization between models, including text vs media.
-    """
+    """Query the selected serving vector sources; only the first text source gets graph/BM25/RRF arms."""
     if retriever_type not in RETRIEVER_TYPES:
         raise ValueError(f"Retriever type '{retriever_type}' is not supported")
     if retriever_type == "auto_merge":
@@ -362,6 +349,13 @@ def build_pool_retriever(
             "auto_merge is unavailable for externally backed projections; "
             "use vectorsimilarity, bm25, or pool-level rrf"
         )
+    scope = pool_asset_scope(asset_pool)
+    if scope is not None:
+        if not scope:
+            return None
+        vector_filters = _scoped_vector_filters(vector_filters, scope)
+        node_filter = _scoped_node_filter(node_filter, scope)
+        filter_key = (filter_key, scope)
     projections = _serving_projections(asset_pool)
     vectors = [p for p in projections if p.kind == "vector"]
     if selected_vectors is not None:
@@ -374,8 +368,7 @@ def build_pool_retriever(
         and (getattr(p.source, "profile", None) or {}).get("encoder_kind") != "multimodal"
     ]
     graph_vector = text_vectors[0] if text_vectors else None
-    # TODO: design explicit graph/vector binding and provenance migration when
-    # replacing the first text source. Never repair/rebind provenance on query.
+    # TODO: explicit graph/vector binding and provenance migration when replacing the first text source.
     if retriever_type == "graph":
         if graph is None or not text_vectors:
             raise ValueError("Graph retrieval requires both graph and vector sources")
@@ -413,12 +406,7 @@ def _fused_pool_retriever(
     asset_library, asset_pool, top_k: int, vector, graph,
     vector_filters=None, node_filter=None, filter_key=None,
 ):
-    """An RRF-fused retriever over the pool's vector, graph, and BM25 arms.
-
-    Both projections come from build_pool_retriever's single serving snapshot;
-    do not read serving again while constructing the arms. Arm order is the
-    fusion's tie-break order for equal RRF scores.
-    """
+    """An RRF-fused retriever over vector, graph, and BM25 arms; arm order breaks score ties."""
     for projection in (vector, graph):
         source_id = projection.source.source_id
         sync_status = asset_pool.source_statuses.get(source_id)
@@ -453,11 +441,7 @@ def _fused_pool_retriever(
 
 
 def graph_search_of(retriever):
-    """The `GraphSearchRetriever` inside a pool retriever, or None.
-
-    `graph` returns the graph arm itself; `rrf` wraps it as one of its fused arms.
-    Other types (and `rrf` on a pool without a graph source) have none.
-    """
+    """The `GraphSearchRetriever` inside a pool retriever, or None."""
     if isinstance(retriever, GraphSearchArmRetriever):
         return retriever._graph_search
     if isinstance(retriever, ScopedRetriever):
@@ -476,23 +460,46 @@ def graph_search_of(retriever):
     return None
 
 
-# Drawn graphs per (projection, version, limit). Unlike `_graph_cache` this is
-# not validated against the vector source's chunks -- it is only for display, and
-# must not stand in for the checked backend retrieval uses.
+_warm_requests: Dict[str, Optional[tuple]] = {}
+_warm_lock = threading.Lock()
+
+
+def warm_graph_arm(asset_library, asset_pool) -> None:
+    pool_id = getattr(asset_pool, "asset_pool_id", None)
+    if pool_id is None or _projection_of_kind(asset_pool, "graph") is None:
+        return
+    with _warm_lock:
+        running = pool_id in _warm_requests
+        _warm_requests[pool_id] = (asset_library, asset_pool)
+    if running:
+        return
+    try:
+        threading.Thread(target=_warm_graph_loop, args=(pool_id,), daemon=True).start()
+    except Exception:  # noqa: BLE001
+        with _warm_lock:
+            _warm_requests.pop(pool_id, None)
+
+
+def _warm_graph_loop(pool_id: str) -> None:
+    while True:
+        with _warm_lock:
+            request = _warm_requests[pool_id]
+            if request is None:
+                del _warm_requests[pool_id]
+                return
+            _warm_requests[pool_id] = None
+        try:
+            build_pool_retriever(*request, "graph", config.RETRIEVE_TOP_K)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+# Display-only graph views, not validated against vector chunks; never use for retrieval.
 _graph_view_cache: Dict[tuple, Dict[str, Any]] = {}
 
 
 def pool_concept_graph(asset_pool, limit: int, concept_ids: Optional[Set[str]] = None) -> Dict[str, Any]:
-    """The pool's persisted concept graph as ``{nodes, edges, total, truncated}``.
-
-    `concept_ids` limits it to the pool's own concepts: a graph source attached
-    to several pools holds all of theirs in one space.
-
-    These are the vertices graph retrieval walks: OKF concepts and the links
-    between them. Structural vertices (assets, figures) are not part of the walk
-    and are left out. With more than `limit` concepts, the best-connected ones
-    are kept so the drawing shows the graph's backbone.
-    """
+    """The pool's concept graph as ``{nodes, edges, total, truncated}``, keeping the `limit` best-connected."""
     from core.graph_search import NebulaConceptGraphBackend
 
     graph = _projection_of_kind(asset_pool, "graph")

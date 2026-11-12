@@ -314,6 +314,52 @@ terminal across single-, two- and three-column layouts. Verify that the terminal
 is restored after quitting or interrupting the process. A one-frame rendering
 does not test keyboard interaction or accumulated history.
 
+## Helm migration tests
+
+The Helm regressions use the real Helm CLI and parse the rendered Kubernetes
+objects. With Helm and Make on `PATH` in the project test environment, run:
+
+```bash
+pytest -q tests/test_helm_chart.py tests/test_versions.py
+helm lint ./helm/metrics-manager --strict
+```
+
+Coverage includes restricted/native configuration, collector environment
+compatibility, rejection of removed values, Deployment/DaemonSet rendering,
+AppArmor before/after Kubernetes 1.30, host device opt-ins, custom ports and
+forwarding URLs, read-only ConfigMaps, rollout checksums, ServiceMonitor namespace
+selection, and rendering the packaged chart. Helm-dependent tests are skipped
+when the CLI is unavailable; skipped checks are not validation evidence.
+
+Before cluster installation, run the chosen RC image with the rendered restricted
+configuration, UID/GID 10001, a read-only root filesystem, dropped capabilities
+and writable `/tmp` and custom-metrics volumes. Check API health, native CPU/memory
+metrics, tagged API-to-Telegraf-to-Prometheus forwarding, changed ports, read-only
+drop-ins and graceful shutdown.
+
+Container checks do not exercise Kubernetes admission, scheduling, PVC binding,
+Service routing or an actual Helm upgrade. Validate those on an approved cluster,
+including old-values migration and the explicit hardware profile on supported
+nodes. Do not modify a shared cluster or its security policy solely to run tests.
+
+For the upgrade scenario, install the actual 2026.2.0 chart and image with a PVC,
+then write a marker into the custom-metrics directory. Confirm that an upgrade
+with `--reuse-values` reports the removed-option migration error even when the
+stored defaults lack new hardware fields. Upgrade with `--reset-values` and
+migrated overrides, then verify the PVC UID, marker contents and native metrics.
+Also test a restricted DaemonSet and custom main configuration. After uninstall,
+wait for dependent pods to disappear before checking resource cleanup; Helm
+returning successfully does not by itself prove garbage collection is complete.
+
+Restricted runtime tests require AppArmor support in the node's container
+runtime, not just on the physical host. Containerized Kind nodes may lack that
+support. Use a suitable cluster or an isolated VM with its own kernel rather than
+disabling AppArmor to pass the tests. Verify the running application has an
+enforced AppArmor profile, seccomp filtering, no effective capabilities,
+`NoNewPrivs`, UID 10001 and a read-only root filesystem.
+
+See the [Helm deployment guide](./deploy-with-helm.md).
+
 ## Release validation scope
 
 Build both image variants with explicit `INSTALL_OPENVINO` values and distinct

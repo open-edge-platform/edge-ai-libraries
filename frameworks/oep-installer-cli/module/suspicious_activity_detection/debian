@@ -1,0 +1,101 @@
+
+configure_suspicious_activity_detection () {
+  workspace="$(ensure_project_path)/suspicious-activity-detection"
+  version="$(ensure_parse_value_option version --version=2c13aa5b0d0cfb349b96e6fd43dab834ee947fd3 "$@")"
+  repository="https://github.com/intel-retail/storewide-loss-prevention.git"
+  used_ports=(7860 5432 8085 8082 8000 9000 8333 9333 8080 8002 8003)
+}
+
+verify_suspicious_activity_detection () {
+  local v m
+  for v in lp-camera1.mp4; do
+    [ -e "$workspace/scenescape/sample_data/$v" ] || {
+      echo "Missing $v" >&2
+      return 1
+    }
+  done
+  for m in vlm_models/Qwen/Qwen2.5-VL-7B-Instruct/openvino_language_model.bin yolo_models/yolo26n-pose/yolo26n-pose.bin reid_models/person-reidentification-retail-0277/FP16/person-reidentification-retail-0277.bin detect_models/yolov8s/FP16/yolov8s.bin; do
+    [ -e "$workspace"/suspicious-activity-detection/models/$m ] || {
+      echo "Missing ${m%%/*}" >&2
+      return 1
+    }
+  done
+}
+
+debian_90_profile_suspicious_activity_detection () {
+  echo "docker_io edge_base git make curl"
+}
+
+debian_90_install_suspicious_activity_detection () {
+  configure_suspicious_activity_detection "$@"
+  if verify_suspicious_activity_detection && ! ensure_parse_reinstall "$@"; then
+    echo "Suspicious Activity Detection is installed" >&2
+  else
+    ensure_disk_size 15000
+    ensure_ports_open install suspicious_activity_detection "${used_ports[@]}"
+
+    echo "@@STEP Cloning repository"
+    ensure_git_export "$workspace" "$version" "$repository" suspicious-activity-detection scenescape .gitmodules
+    local el_repo="$(sed -n '/submodule ["]edge-ai-libraries["]/,/\[/{/url *=/{p}}' "$workspace"/.gitmodules | cut -f2- -d= | tr -d ' ')"
+    local el_ver="$(sed -n '/submodule ["]edge-ai-libraries["]/,/\[/{/branch *=/{p}}' "$workspace"/.gitmodules | cut -f2- -d= | tr -d ' ')"
+    ensure_git_export "$workspace/edge-ai-libraries" "$el_ver" "$el_repo" microservices/behavioral-analysis
+
+    echo "@@STEP Downloading videos"
+    cd "$workspace"/suspicious-activity-detection
+    local use_case="$(ensure_parse_value_option usecase --usecase=retail "$@")"
+    make download-sample-data USE_CASE="$use_case"
+    echo "$use_case" > "$workspace"/.usecase
+
+    echo "@@STEP Download models"
+    make download-models
+
+    verify_suspicious_activity_detection
+  fi
+
+  local device="$(ensure_parse_device "$@")"
+  echo "$device" > "$workspace"/.input
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_suspicious_activity_detection () {
+  configure_suspicious_activity_detection "$@"
+  ensure_ports_open start suspicious_activity_detection "${used_ports[@]}"
+  ensure_container_namespace start suspicious_activity_detection $(ensure_container_parse_yaml "$workspace"/suspicious-activity-detection/docker/*.yaml)
+
+  local device="$(ensure_parse_device "$@")"
+  [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)"
+
+  cd "$workspace"/suspicious-activity-detection
+  export HOST_IP=$(ensure_ip)
+  export NO_PROXY="$NO_PROXY,web.scenescape.intel.com,$HOST_IP" no_proxy="$no_proxy,web.scenescape.intel.com,$HOST_IP"
+  local use_case="$(< ../.usecase)"
+  make init DEVICE=all-${device}.env USE_CASE="$use_case"
+  make up DEVICE=all-${device}.env USE_CASE="$use_case"
+
+  echo "@@HIGHLIGHT UI: http://$HOST_IP:${used_ports[0]}"
+  if [ -e docker/.env ]; then
+    local supass="$(grep -m1 '^SUPASS=' docker/.env 2>/dev/null | cut -d= -f2-)"
+    echo "@@HIGHLIGHT UI Auth: admin/$supass"
+  fi
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_stop_suspicious_activity_detection () {
+  configure_suspicious_activity_detection "$@"
+  cd "$workspace"/suspicious-activity-detection && {
+    make down || true
+    make clean-all || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
+  } || true
+}
+
+debian_90_remove_suspicious_activity_detection () {
+  debian_90_stop_suspicious_activity_detection "$@"
+  ensure_rm "$workspace"
+}
+

@@ -1,0 +1,76 @@
+
+configure_smart_route_planning_agent () {
+  workspace="$(ensure_project_path)/smart-route-planning-agent"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(7864 8765)
+
+  export VLM_MODEL_NAME=OpenVINO/Phi-3.5-vision-instruct-int8-ov
+  export REGISTRY=intel/
+}
+
+verify_smart_route_planning_agent () {
+  [ -e "$workspace"/smart-route-planning-agent/src/data/config.json ]
+}
+
+debian_95_profile_smart_route_planning_agent () {
+  echo "docker_io git edge_base curl smart_traffic_intersection_agent"
+}
+
+debian_95_install_smart_route_planning_agent () {
+  configure_smart_route_planning_agent "$@"
+
+  if verify_smart_route_planning_agent && ! ensure_parse_reinstall "$@"; then
+    echo "Smart Route Planning Agent is installed." >&2
+  else
+    ensure_disk_size 10000
+    ensure_ports_open install smart_route_planning_agent "${used_ports[@]}"
+
+    ensure_git_export "$workspace" "$version" "$repository" smart-route-planning-agent
+    
+    set -x
+    cd "$workspace"/smart-route-planning-agent
+    cat > src/data/config.json <<EOF
+{
+    "api_endpoint": "/api/v1/traffic/current/ws?images=false",
+    "api_hosts": [
+        {
+            "host": "ws://localhost:8081"
+        }
+    ]
+}
+EOF
+    verify_smart_route_planning_agent
+  fi
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name start"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_95_start_smart_route_planning_agent () {
+  configure_smart_route_planning_agent "$@"
+  ensure_ports_open start smart_route_planning_agent "${used_ports[@]}"
+  ensure_container_namespace start smart_route_planning_agent $(ensure_container_parse_yaml "$workspace"/smart-route-planning-agent/src/compose.yaml)
+
+  cd "$workspace"/smart-route-planning-agent
+  . ./setup.sh --run
+
+  echo "@@HIGHLIGHT http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_95_stop_smart_route_planning_agent () {
+  configure_smart_route_planning_agent "$@"
+  cd "$workspace"/smart-route-planning-agent && {
+    . ./setup.sh --stop || true
+    . ./setup.sh --clean --all || true
+    ensure_container_cleanup $(ensure_container_parse_yaml src/compose.yaml)
+  } || true
+}
+
+debian_95_remove_smart_route_planning_agent () {
+  debian_95_stop_smart_route_planning_agent "$@"
+  ensure_rm "$workspace" 
+}
+ 

@@ -13,7 +13,7 @@ debian_40_group_edge_pack_npu () {
 
 debian_40_install_edge_pack_npu () {
   configure_edge_pack_npu "$@"
-  if ensure_apt_is_installed intel-edge-npu && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-npu && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-npu is installed." >&2
   else
     ensure_prop set installed/edge_pack_npu/owned true

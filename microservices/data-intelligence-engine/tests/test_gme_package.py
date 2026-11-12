@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from inference.multimodal.gme_qwen2vl import choose_precision, find_package
+from inference.gme_runtime import choose_precision, find_package
 
 PRECISIONS = {
     name: {"language": f"gme_language_{name}.xml", "visual": f"gme_visual_{name}.xml"}

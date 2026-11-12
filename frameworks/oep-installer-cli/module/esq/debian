@@ -1,7 +1,7 @@
 
 configure_esq () {
   workspace="$(ensure_project_path)/esq"
-  version=main
+  version="$(ensure_parse_value_option version --version=main "$@")"
   repository=https://github.com/open-edge-platform/edge-system-qualification.git
 }
 
@@ -11,9 +11,9 @@ debian_85_profile_esq () {
 
 debian_85_install_esq () {
   configure_uv
-  configure_esq
+  configure_esq "$@"
 
-  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
+  if uv tool list 2> /dev/null | grep -q -E "^esq " && ! ensure_parse_reinstall "$@"; then
     echo "Esq is installed." >&2
   else
     ensure_disk_size 25000
@@ -34,7 +34,7 @@ debian_85_install_esq () {
 
 debian_85_start_esq () {
   configure_uv
-  configure_esq
+  configure_esq "$@"
 
   cd "$workspace" 
   esq clean --all
@@ -60,7 +60,7 @@ debian_85_stop_esq () {
 
 debian_85_remove_esq () {
   configure_uv
-  configure_esq
+  configure_esq "$@"
   cd "$workspace" && esq clean --all || true
   uv tool uninstall esq || true
   ensure_rm "$workspace"
