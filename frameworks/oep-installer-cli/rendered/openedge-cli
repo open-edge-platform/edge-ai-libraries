@@ -300,42 +300,21 @@ act_helper ()
     shift;
     shift;
     act_validate_modules $act_name "$@" || return 3;
-    local explicit_mods="$(act_extract_modules $act_name "$@")";
-    local remove_all=0;
-    if [ "$act_name" = "remove" ] && ensure_parse_option --remove-all "$@"; then
-        if [ -z "${explicit_mods// }" ]; then
-            remove_all=1;
-        else
-            echo -e "${yellow}--remove-all ignored: components specified ($explicit_mods)${reset}" 1>&2;
-        fi;
-    fi;
+    local explicit_mods=($(act_extract_modules $act_name "$@"));
+    local stop_remove_all=$(case "$act_name" in 
+    remove)
+        ensure_parse_option --remove-all "$@" && [ ${#explicit_mods[*]} -eq 0 ] && echo 1 || echo 0
+    ;;
+    stop)
+        ensure_parse_option --stop-all "$@" && [ ${#explicit_mods[*]} -eq 0 ] && echo 1 || echo 0
+    ;;
+    *)
+        echo 0
+    ;;
+esac);
     set -- $(act_resolve_args $act_name "$@");
-    local _act_args="$*";
-    local handles=($(act_find_deps $act_name "$@"));
-    if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ] && [ ${#handles[@]} -gt 0 ]; then
-        local _targets=() _top=0 _h _o _pair;
-        for _h in $(printf '%s\n' "${handles[@]}" | sort $sort_options);
-        do
-            _o=${_h#*_};
-            _o=${_o%%_*};
-            [ "$_top" -gt 0 ] || _top=$_o;
-            [ "$_o" -ge "$_top" ] || break;
-            _targets+=(${_h#*_*_*_});
-        done;
-        local -A _needed=();
-        for _pair in $(act_find_parents "${_targets[*]}" "$@");
-        do
-            _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}";
-        done;
-        if [ ${#_needed[@]} -gt 0 ]; then
-            for _h in ${!_needed[*]};
-            do
-                echo -e "${red}Cannot remove $_h: required by ${_needed[$_h]}${reset}" 1>&2;
-            done;
-            echo "Remove the dependent components in the same command, or use --remove-all." 1>&2;
-            return 3;
-        fi;
-    fi;
+    local implicit_mods=($(act_extract_modules $act_name "$@"));
+    local handles=($(act_find_deps $act_name "$@" | tr ' ' '\n' | sort $sort_options));
     if [ ${#handles[@]} -gt 0 ]; then
         if [ "$act_name" = "install" ]; then
             local -A licenses=() licenses_text=();
@@ -383,25 +362,34 @@ act_helper ()
         [ -z "$hp" ] || export http_proxy="$hp" HTTP_PROXY="$hp";
         [ -z "$sp" ] || export https_proxy="$sp" HTTPS_PROXY="$sp";
         [ -z "$np" ] || export no_proxy="${np%%,}" NO_PROXY="${np%%,}";
-        local rc=0 order=0;
+        local rc=0 name1;
         export _INSTALLER_PANEL_ACTIVE=;
         [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
         { 
-            for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options);
+            local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && echo "${implicit_mods[*]}" || echo "${handles[*]#*_*_*_}")) _pair _h _m;
+            for handler in ${handles[*]};
             do
-                local name1=${handler#*_*_*_};
-                if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ]; then
-                    local order1=${handler#*_};
-                    order1=${order1%%_*};
-                    [ "$order" -gt 0 ] || order=$order1;
-                    [ "$order1" -ge "$order" ] || break;
+                name1=${handler#*_*_*_};
+                [[ " ${modules[*]} " = *" $name1 "* ]] || continue;
+                if [ "$act_name" = "remove" ] && [ $stop_remove_all -eq 0 ]; then
+                    local -A _needed=();
+                    for _pair in $(act_find_parents "$name1" "$@");
+                    do
+                        [[ -v _act_cache_functions["remove_${_pair%%:*}"] ]] || continue;
+                        _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}";
+                    done;
+                    if [ ${#_needed[@]} -gt 0 ]; then
+                        echo "@@COMP $name1";
+                        for _h in ${!_needed[*]};
+                        do
+                            echo -e "${red}Required by ${_needed[$_h]}${reset}." 1>&2;
+                        done;
+                        echo "Remove the dependent components in the same command, or use --remove-all." 1>&2;
+                        echo "@@FAIL $name1";
+                        continue;
+                    fi;
                 fi;
                 local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${installer_family}_*_${act_name}_}" "$@")";
-                if { 
-                    [[ "$act_name" = "stop" && -z "${explicit_mods// }" ]] || [ "$remove_all" -eq 1 ]
-                } && [ -n "$(ensure_prop find "installed/$name1/apps/*")" ]; then
-                    invoke_args+=" --all-apps";
-                fi;
                 if ensure_parse_option --dry-run "$@"; then
                     echo "@@COMP $name1";
                     echo "Invoke $handler with $invoke_args";
@@ -413,12 +401,17 @@ act_helper ()
                     local rc1=0;
                     ( set -e;
                     $handler $invoke_args ) & wait $! || rc1=$?;
-                    if [[ " stop remove " = *" $act_name "* ]] && [ -z "$(ensure_prop find "started/$name1/apps/*")" ]; then
-                        ensure_prop remove started/$name1/;
-                    fi;
-                    if [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && [ -z "$(ensure_prop find "installed/$name1/apps/*")" ]; then
-                        ensure_prop remove installed/$name1/;
-                    fi;
+                    case "$act_name" in 
+                        stop)
+                            modules+=($(ensure_prop get started/$name1/stops));
+                            [ $rc1 -eq 0 ] && ensure_prop remove started/$name1/
+                        ;;
+                        remove)
+                            modules+=($(ensure_prop get installed/$name1/removes));
+                            ensure_prop remove started/$name1/;
+                            [ $rc1 -eq 0 ] && ensure_prop remove installed/$name1/
+                        ;;
+                    esac;
                     if [ $rc1 -eq 0 ]; then
                         echo "@@OK $name1";
                     else
@@ -439,8 +432,8 @@ else
 fi) 2>&1;
         wait;
         ensure_parse_option --dry-run "$@" || { 
-            [ -n "${explicit_mods// }" ] && ensure_prop set modules "$explicit_mods";
-            [[ $remove_all -eq 1 && $rc -eq 0 ]] && ensure_prop remove modules
+            [ ${#explicit_mods[*]} -gt 0 ] && ensure_prop set modules "${explicit_mods[*]}";
+            [[ "$act_name" = "remove" && $stop_remove_all -eq 1 && $rc -eq 0 ]] && ensure_prop remove modules
         };
         return $rc;
     else
@@ -2154,16 +2147,19 @@ act_resolve_args ()
     local act_name=$1;
     shift;
     local args=("$@") margs=(${*##-*});
-    if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
-        args+=($(ensure_prop find "started/*" | cut -f2 -d/ | uniq));
-    else
-        if [ "$act_name" = "remove" ] && ensure_parse_option --remove-all "$@" && [ -z "$(act_extract_modules $act_name "$@")" ]; then
-            args+=($(ensure_prop find "installed/*" | cut -f2 -d/ | uniq));
-        else
-            if [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
+    if [ -z "$(act_extract_modules $act_name "$@")" ]; then
+        case "$act_name" in 
+            remove)
+                ensure_parse_option --remove-all "$@" && args=($(ensure_prop find "installed/*" | cut -f2 -d/ | uniq) "${args[@]}") || args=($(ensure_prop get modules) "${args[@]}")
+            ;;
+            stop)
                 args=($(ensure_prop get modules) "${args[@]}");
-            fi;
-        fi;
+                ensure_parse_option --stop-all "$@" && args=($(ensure_prop find "started/*" | cut -f2 -d/ | uniq) "${args[@]}")
+            ;;
+            *)
+                args=($(ensure_prop get modules) "${args[@]}")
+            ;;
+        esac;
     fi;
     echo "${args[*]}"
 }
@@ -2502,6 +2498,16 @@ configure_edge_pack_npu ()
 { 
     configure_edge_pack "$@";
     version="1.0"
+}
+configure_edge_pack_selection () 
+{ 
+    local ep_list="$1";
+    shift;
+    if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
+        echo "$ep_list";
+    else
+        echo "gpu_accel npu_accel";
+    fi
 }
 configure_edge_pack_tsn () 
 { 
@@ -2866,7 +2872,7 @@ configure_loitering_detection ()
 configure_loss_prevention () 
 { 
     workspace="$(ensure_project_path)/loss-prevention";
-    version=1e960e399a4f82feca32dcd65b023f7a46d3ebf1;
+    version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4;
     repository="https://github.com/intel-retail/loss-prevention.git";
     used_ports=(4000 15672 5672 8002 4001)
 }
@@ -2876,31 +2882,31 @@ configure_loss_prevention_options ()
     shift;
     cd "$workspace";
     sed -i -e "s|^TARGET_DEVICE [?]= .*|TARGET_DEVICE ?= ${device^^}|" -e "s|^VLM_DEVICE [?]= .*|VLM_DEVICE ?= ${device^^}|" Makefile;
-    local camera_stream="$(grep -m1 -E '^CAMREA_STREAM [?]=' | cut -f2 -d= | tr -d ' ')";
-    local workload_dist="$(grep -m1 -E '^WORKLOAD_DIST [?]=' | cut -f2 -d= | tr -d ' ')";
-    local mode;
+    local camera_stream="$(< .camera_stream)";
+    local workload_dist="$(< .workload_dist)";
+    local benchmark_mode="$(< .benchmark_mode)";
     if ensure_parse_option --od "$@"; then
-        mode="object detection $device";
+        benchmark_mode="object detection $device";
         camera_stream="camera_to_workload_asc_object_detection.json";
         workload_dist="workload_to_pipeline_asc_object_detection_$device.json";
     else
         if ensure_parse_option --oc "$@"; then
-            mode="object classification $device";
+            benchmark_mode="object classification $device";
             camera_stream="camera_to_workload_asc_object_detection_classification.json";
             workload_dist="workload_to_pipeline_asc_object_detection_classification_$device.json";
         else
             if ensure_parse_option --age "$@"; then
-                mode="age verification $device";
+                benchmark_mode="age verification $device";
                 camera_stream="camera_to_workload_asc_age_verification.json";
                 workload_dist="workload_to_pipeline_asc_age_verification_$device.json";
             else
                 if ensure_parse_option --lpvlm "$@"; then
-                    mode="VLM gpu";
+                    benchmark_mode="VLM gpu";
                     camera_stream="camera_to_workload_vlm.json";
                     workload_dist="workload_to_pipeline_vlm.json";
                 else
                     if ensure_parse_option --lp "$@"; then
-                        mode="default ${device/npu/gpu-npu}";
+                        benchmark_mode="default ${device/npu/gpu-npu}";
                         camera_stream="camera_to_workload.json";
                         workload_dist="workload_to_pipeline_${device/npu/gpu-npu}.json";
                     fi;
@@ -2908,32 +2914,38 @@ configure_loss_prevention_options ()
             fi;
         fi;
     fi;
-    sed -i -e "s|^CAMERA_STREAM [?]= .*|CAMERA_STREAM ?= $camera_stream|" -e "s|^WORKLOAD_DIST [?]= .*|WORKLOAD_DIST ?= $workload_dist|" Makefile;
-    echo "@@STEP Download videos";
-    make download-sample-videos && { 
-        local v rc=0;
-        for v in $(grep '"fileSrc":' configs/$camera_stream | cut -f4 -d'"' | cut -f1 -d'|');
-        do
-            [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { 
-                echo "Failed to download video $v" 1>&2;
-                rc=1
-            };
-        done;
-        [ $rc -eq 0 ]
+    [ "$camera_stream" = "$(< .camera_stream)" ] || { 
+        echo "@@STEP Download videos";
+        make download-sample-videos CAMERA_STREAM="$camera_stream" && { 
+            local v rc=0;
+            for v in $(grep '"fileSrc":' configs/$camera_stream | cut -f4 -d'"' | cut -f1 -d'|');
+            do
+                [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { 
+                    echo "Failed to download video $v" 1>&2;
+                    rc=1
+                };
+            done;
+            [ $rc -eq 0 ]
+        }
     };
-    echo "@@STEP Download models";
-    make download-models && { 
-        local m rc=0;
-        for m in $(grep -E '"model":|"vlm_model":' configs/$workload_dist | cut -f4 -d'"');
-        do
-            [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { 
-                echo "Failed to download model $m" 1>&2;
-                rc=1
-            };
-        done;
-        [ $rc -eq 0 ]
+    [ "$workload_dist" = "$(< .workload_dist)" ] || { 
+        echo "@@STEP Download models";
+        make download-models WORKLOAD_DIST="$workload_dist" && { 
+            local m rc=0;
+            for m in $(grep -E '"model":|"vlm_model":' configs/$workload_dist | cut -f4 -d'"');
+            do
+                [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { 
+                    echo "Failed to download model $m" 1>&2;
+                    rc=1
+                };
+            done;
+            [ $rc -eq 0 ]
+        }
     };
-    echo "@@STEP Configured $mode"
+    echo "@@STEP Configured $benchmark_mode";
+    echo "$camera_stream" > .camera_stream;
+    echo "$workload_dist" > .workload_dist;
+    echo "$benchmark_mode" > .benchmark_mode
 }
 configure_mediamtx () 
 { 
@@ -5942,16 +5954,23 @@ debian_90_install_handheld_multi_modal ()
             ;;
         esac;
     done <<< "$installed";
-    configure_handheld_multi_modal;
+    configure_handheld_multi_modal "$@";
     if verify_handheld_multi_modal $* && ! ensure_parse_reinstall "$@"; then
         echo "handheld_multi_modal is installed." 1>&2;
     else
         ensure_disk_size 45000;
-        ensure_ports_open install handheld_multi_modal "${used_ports[@]}";
+        echo "@@STEP Removing conflicting app";
+        ensure_ports_open install handheld_multi_modal "${used_ports[@]}" || { 
+            docker rm -f handheld-multi-modal-model-downloader-1 || true;
+            ensure_ports_open install handheld_multi_modal "${used_ports[@]}"
+        };
+        echo "@@STEP Cloning repository";
         ensure_git_clone "$workspace" $version $repository handheld-multi-modal;
+        echo "@@STEP Setting up sample";
         cd "$workspace"/handheld-multi-modal;
         make setup;
         make prereq CONFIRM=yes;
+        echo "@@STEP Pulling images";
         docker compose -f compose/handheld-multi-modal.yaml -f compose/cameras.yaml -f config/devices.yaml pull --ignore-buildable;
         verify_handheld_multi_modal $*;
     fi;
@@ -6137,7 +6156,11 @@ debian_90_install_loss_prevention ()
         ensure_ports_open install loss_prevention "${used_ports[@]}";
         echo "@@STEP Clonging repository";
         ensure_git_clone "$workspace" $version $repository;
-        pushd "$workspace" > /dev/null;
+        cd "$workspace";
+        sed -i 's|^benchmark-stream-density: .*|benchmark-stream-density:|' Makefile;
+        sed -i 's|^benchmark: .*|benchmark:|' Makefile;
+        sed -i 's|^run-lp: .*|run-lp:|' Makefile;
+        touch .camera_stream .workload_dist .benchmark_mode;
         cat > src/.env <<EOF
 MINIO_ROOT_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 MINIO_ROOT_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
@@ -6145,18 +6168,6 @@ MINIO_API_HOST_PORT="4000"
 MINIO_CONSOLE_HOST_PORT="4001"
 RABBITMQ_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 RABBITMQ_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
-LP_IP="$(ensure_ip)"
-LP_BASE_DIR="$workspace"
-LLM_BASE_DIR="$workspace/microservices/vlm/ov-models"
-VLM_SERVICE_PORT="8000"
-LOW_LATENCY=1
-DROP_OLD_FRAMES=1
-MEDIAN_LATENCY=0
-USER_GROUP_ID=$(id -g)
-VIDEO_GROUP_ID=$(getent group video | cut -f3 -d:)
-RENDER_GROUP_ID=$(getent group render | cut -f3 -d:)
-LOCAL_UID=$(id -u)
-LOCAL_GID=$(id -g)
 EOF
 
         echo "@@STEP Building benchmark";
@@ -6172,11 +6183,11 @@ EOF
     local device=$(ensure_parse_device "$@");
     configure_loss_prevention_options "$device" "$@" --lp;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
-    echo "@@HIGHLIGHT $installer_name start --od";
-    echo "@@HIGHLIGHT $installer_name start --oc";
-    echo "@@HIGHLIGHT $installer_name start --age";
-    echo "@@HIGHLIGHT $installer_name start --lp";
-    echo "@@HIGHLIGHT $installer_name start --lpvlm"
+    echo "@@HIGHLIGHT $installer_name start --od [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --oc [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --age [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --lp [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --lpvlm [--benchmark]"
 }
 debian_90_install_multi_modal_patient_monitoring () 
 { 
@@ -6899,17 +6910,13 @@ debian_90_profile_dine_in ()
 }
 debian_90_profile_edge_base_robotics () 
 { 
+    echo "core_types system_inspection system_summary ros2 ros_openvino realsense";
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel ros2 ros_openvino realsense"
+            echo "edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel"
         ;;
         *)
-            echo "ros2 ros_openvino realsense";
-            if ensure_parse_option --realtime "$@" && [[ "$(uname -r)" = "7."* ]] && configure_edge_pack_kernel_image "$@"; then
-                echo "core_types system_inspection system_summary edge_pack_base_realtime edge_pack_npu";
-            else
-                echo "edge_base";
-            fi
+            configure_edge_pack_selection "edge_pack_base_realtime edge_pack_npu" "$@"
         ;;
     esac
 }
@@ -7104,9 +7111,9 @@ debian_90_remove_geti ()
 }
 debian_90_remove_handheld_multi_modal () 
 { 
-    configure_handheld_multi_modal;
+    debian_90_stop_handheld_multi_modal "$@";
     local app_dir="$workspace"/handheld-multi-modal;
-    [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes );
+    [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes || true );
     ensure_rm "$workspace"
 }
 debian_90_remove_humanoid_imitation_learning () 
@@ -7394,7 +7401,7 @@ debian_90_start_geti ()
 }
 debian_90_start_handheld_multi_modal () 
 { 
-    configure_handheld_multi_modal;
+    configure_handheld_multi_modal "$@";
     ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     cd "$workspace"/handheld-multi-modal;
     make up CONFIRM=yes;
@@ -7496,12 +7503,26 @@ debian_90_start_loss_prevention ()
     ensure_parse_option --"$device1" "$@" || ensure_parse_option --"${device1^^}" "$@" || device1="${device2,,}";
     configure_loss_prevention_options "$device1" "$@";
     make down-lp 2> /dev/null || true;
-    make -o build-benchmark -o download-sample-videos -o download-models benchmark-stream-density;
-    echo "@@HIGHLIGHT $installer_name start --od";
-    echo "@@HIGHLIGHT $installer_name start --oc";
-    echo "@@HIGHLIGHT $installer_name start --age";
-    echo "@@HIGHLIGHT $installer_name start --lp";
-    echo "@@HIGHLIGHT $installer_name start --lpvlm";
+    local camera_stream="$(< .camera_stream)" workload_dist="$(< .workload_dist)";
+    ensure_rm benchmark results;
+    if ensure_parse_option --benchmark "$@"; then
+        if [[ "$workload_dist" = *"vlm"* ]]; then
+            make benchmark CAMERA_STREAM="$camera_stream" WORKLOAD_DIST="$workload_dist";
+        else
+            make benchmark-stream-density CAMERA_STREAM="$camera_stream" WORKLOAD_DIST="$workload_dist" & local pid_b=$!;
+            while kill -0 $pid_b; do
+                sleep 1;
+                find benchmark -name stream_density.log -exec tail --pid=$pid_b -f {} \;;
+            done & wait;
+        fi;
+    else
+        make run-lp CAMERA_STREAM="$camera_stream" WORKLOAD_DIST="$workload_dist";
+    fi;
+    echo "@@HIGHLIGHT $installer_name start --od [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --oc [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --age [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --lp [--benchmark]";
+    echo "@@HIGHLIGHT $installer_name start --lpvlm [--benchmark]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
 debian_90_start_multi_modal_patient_monitoring () 
@@ -8080,9 +8101,9 @@ debian_90_stop_geti ()
 }
 debian_90_stop_handheld_multi_modal () 
 { 
-    configure_handheld_multi_modal;
-    cd "$workspace"/handheld-multi-modal;
-    make stop
+    configure_handheld_multi_modal "$@";
+    docker rm -f handheld-multi-modal-model-downloader-1 || true;
+    cd "$workspace"/handheld-multi-modal && make stop || true
 }
 debian_90_stop_image_based_video_search () 
 { 
@@ -8122,17 +8143,18 @@ debian_90_stop_live_video_search ()
 debian_90_stop_loitering_detection () 
 { 
     configure_loitering_detection "$@";
-    cd "$workspace"/metro-vision-ai-app-recipe;
-    ./sample_stop.sh || true;
-    docker compose -f compose-without-scenescape.yml down -v --remove-orphans || true
+    cd "$workspace"/metro-vision-ai-app-recipe && { 
+        ./sample_stop.sh || true;
+        docker compose -f compose-without-scenescape.yml down -v --remove-orphans
+    } || true
 }
 debian_90_stop_loss_prevention () 
 { 
     configure_loss_prevention;
     cd "$workspace" && { 
+        pkill -f "python3 benchmark.py" || true;
         make down-lp || true;
-        cd src && docker compose down -v --remove-orphans || true;
-        pkill -f "python3 benchmark.py"
+        cd src && docker compose down -v --remove-orphans || true
     } || true
 }
 debian_90_stop_multi_modal_patient_monitoring () 
@@ -8380,11 +8402,7 @@ debian_99_profile_edge_base ()
             echo "edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
         ;;
         *)
-            if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-                echo "edge_pack_base_standard edge_pack_npu";
-            else
-                echo "gpu_accel npu_accel";
-            fi
+            configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu" "$@"
         ;;
     esac
 }
@@ -8413,11 +8431,7 @@ debian_99_profile_handheld_blueprint ()
             else
                 modules+=(docker_io);
             fi;
-            if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst);
-            else
-                modules+=(gpu_accel npu_accel);
-            fi;
+            modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst" "$@"));
             echo "${modules[*]}"
         ;;
     esac
@@ -8458,11 +8472,7 @@ debian_99_profile_mission_decision_support_blueprint ()
             else
                 modules+=(docker_io);
             fi;
-            if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst);
-            else
-                modules+=(gpu_accel npu_accel);
-            fi;
+            modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst" "$@"));
             echo "${modules[*]}"
         ;;
     esac
@@ -8493,11 +8503,7 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint ()
             else
                 modules+=(docker_io);
             fi;
-            if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst);
-            else
-                modules+=(gpu_accel npu_accel);
-            fi;
+            modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst" "$@"));
             echo "${modules[*]}"
         ;;
     esac
@@ -10056,7 +10062,7 @@ ensure_ports_open ()
         ensure_prop set started/$name/ports "$*";
     fi;
     if command -v ss > /dev/null; then
-        local port out stopper;
+        local port out stopper mname;
         for port in $*;
         do
             out="$(ss -Hltunp "sport = :$port")";
@@ -11645,14 +11651,13 @@ subcommand_remove ()
     if ensure_parse_option --help "$@"; then
         echo "remove options:";
         echo "  --dry-run       dry-run operations";
-        echo "  --continue      ignore errors and proceed to the end";
         echo "  --remove-all    remove all previously installed components";
         echo "  --remove-me     remove $installer_name";
         echo;
         return 0;
     fi;
     local rc=0;
-    act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?;
+    act_helper "remove,Removal,Removing,Removed" "-r" "$@" --continue || rc=$?;
     if ensure_parse_option --remove-me "$@"; then
         ensure_rm "$HOME/.local/bin/$installer_name" "$HOME/.local/share/bash-completion/completions/$installer_name" "$HOME/.agents/skills/$installer_name" && echo "$installer_name removed";
         if ensure_parse_option --remove-all "$@"; then
@@ -11729,6 +11734,7 @@ subcommand_stop ()
     if ensure_parse_option --help "$@"; then
         echo "stop options:";
         echo "  --dry-run       dry-run operations";
+        echo "  --stop-all      stop all previously started components";
         echo;
         return 0;
     fi;

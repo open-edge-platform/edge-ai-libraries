@@ -11,11 +11,7 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint () {
     else
       modules+=(docker_io)
     fi
-    if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-      modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst)
-    else
-      modules+=(gpu_accel npu_accel)
-    fi
+    modules+=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst" "$@"))
     echo "${modules[*]}"
     ;;
   esac

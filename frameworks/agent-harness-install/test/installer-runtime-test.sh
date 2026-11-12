@@ -266,6 +266,56 @@ SH
   [[ -z "$(find "$TMPDIR" -mindepth 1 -print -quit)" ]]
 }
 
+proxy_env_args_without_no_proxy() {
+  fixture
+  unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy
+  HTTP_PROXY=http://proxy.invalid:3128 HTTPS_PROXY=http://proxy.invalid:3128
+  local -a args=()
+  docker_proxy_env_args_into args
+  [[ "${args[*]}" == '-e HTTP_PROXY=http://proxy.invalid:3128 -e HTTPS_PROXY=http://proxy.invalid:3128' ]]
+  unset HTTP_PROXY HTTPS_PROXY
+  args=()
+  docker_proxy_env_args_into args
+  [[ "${#args[@]}" == 0 ]]
+}
+
+ovms_models_readable_by_other_uid() {
+  fixture
+  mkdir -p "$HARNESS_MODELS_DIR/org/model"
+  printf '{}' >"$HARNESS_MODELS_DIR/org/model/generation_config.json"
+  chmod 700 "$HARNESS_MODELS_DIR" "$HARNESS_MODELS_DIR/org" "$HARNESS_MODELS_DIR/org/model"
+  chmod 600 "$HARNESS_MODELS_DIR/org/model/generation_config.json"
+  # Filesystems that ignore chmod (e.g. NTFS under Git Bash) cannot exercise this.
+  [[ "$(stat -c %a "$HARNESS_MODELS_DIR")" == 700 ]] || return 0
+  ensure_ovms_models_readable
+  [[ "$(stat -c %a "$HARNESS_MODELS_DIR")" == 705 ]]
+  [[ "$(stat -c %a "$HARNESS_MODELS_DIR/org/model")" == 705 ]]
+  [[ "$(stat -c %a "$HARNESS_MODELS_DIR/org/model/generation_config.json")" == 604 ]]
+  rm -rf -- "$HARNESS_MODELS_DIR"
+  ensure_ovms_models_readable
+}
+
+ovms_models_readable_skips_home() {
+  fixture
+  HARNESS_MODELS_DIR="$HOME"
+  printf 'secret' >"$HOME/secret"
+  chmod 600 "$HOME/secret"
+  [[ "$(stat -c %a "$HOME/secret")" == 600 ]] || return 0
+  ensure_ovms_models_readable 2>/dev/null
+  [[ "$(stat -c %a "$HOME/secret")" == 600 ]]
+}
+
+node_loaded_from_nvm_for_models() {
+  fixture
+  NVM_DIR="$HOME/nvm"
+  mkdir -p "$NVM_DIR/bin"
+  printf '#!/bin/sh\n' >"$NVM_DIR/bin/node"
+  chmod +x "$NVM_DIR/bin/node"
+  printf 'export PATH="%s/bin:$PATH"\n' "$NVM_DIR" >"$NVM_DIR/nvm.sh"
+  ensure_node_on_path
+  [[ "$(command -v node)" == "$NVM_DIR/bin/node" ]]
+}
+
 unregistered_model_listing() {
   fixture
   local registry="$HOME/registry.json"
@@ -278,6 +328,10 @@ unregistered_model_listing() {
 }
 
 printf 'TAP version 13\n'
+run_case 'proxy env args do not abort under set -e when no_proxy is unset' proxy_env_args_without_no_proxy
+run_case 'OVMS model files are made readable by the container uid and a missing dir is tolerated' ovms_models_readable_by_other_uid
+run_case 'OVMS permission fix refuses a models dir that is the home directory' ovms_models_readable_skips_home
+run_case 'models commands load nvm Node into PATH' node_loaded_from_nvm_for_models
 run_case 'generated Bash PATH expands in the future shell and remains idempotent' profile_deferred_path
 run_case 'nvm sources a runtime fixture and tolerates its absence' nvm_runtime_source
 run_case 'bootstrap subshell cleans temporary clone after successful payload' bootstrap_cleanup 0
