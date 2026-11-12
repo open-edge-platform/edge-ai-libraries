@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+/build*/
+/dist/
+/.venv-wheel/
+**/_native*.so
+**/__pycache__/
+*.pyc
+.nvofa-*
+/Benchmark.md
+/PLAN.md
+/benchmarks/results/
+debian/files
+debian/*.substvars
+debian/.debhelper/
+debian/tmp/
+debian/liboptical-flow-sdk*/
+debian/python3-optical-flow-sdk/

@@ -247,6 +247,12 @@ Python) APIs for feature extraction and related primitives on Intel CPUs/GPUs.
   Suited to image registration, localization, reconstruction, inspection,
   and retrieval.
 
+- [Optical Flow SDK](./libraries/optical-flow-sdk)
+
+  Dense optical flow and sparse PyrLK for Intel CPUs and GPUs, with a
+  NVOFA-shaped C++/Python API (presets, cost, `calcBoth`). See
+  `libraries/optical-flow-sdk` and `libraries/optical-flow-sdk/benchmarks/README.md`.
+
 ### Robotics Libraries
 
 Optimized libraries for robotic perception, localization, mapping,
