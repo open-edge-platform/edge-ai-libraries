@@ -2231,8 +2231,6 @@ configure_anomalib ()
     workspace="$(ensure_project_path)/anomalib";
     version="$(ensure_parse_value_option version --version=2.7.0 "$@")";
     repository=https://github.com/open-edge-platform/anomalib.git;
-    version_skills=release-2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/anomalib.git;
     skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }
 configure_docker_ce () 
@@ -2292,10 +2290,10 @@ EOF
 configure_geti () 
 { 
     workspace="$(ensure_project_path)/geti";
-    version_skills=release-2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/skills.git;
+    version="$(ensure_parse_value_option version --version=3.3.0 "$@")";
+    repository=https://github.com/open-edge-platform/geti.git;
     skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model);
-    image_name=ghcr.io/open-edge-platform/geti-xpu;
+    image_name="ghcr.io/open-edge-platform/geti-xpu:${version}";
     used_ports=(8080)
 }
 configure_kernel_module_essential () 
@@ -2454,6 +2452,24 @@ for r in rows:
   print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
 ' "$sep"
 }
+ensure_container_cleanup () 
+{ 
+    local c;
+    for c in "$@";
+    do
+        case "$c" in 
+            name:*)
+                docker container rm -v -f ${c#name:} 2> /dev/null || true
+            ;;
+            vol:*)
+                docker volume rm -f ${c#vol:} 2> /dev/null || true
+            ;;
+            net:*)
+                docker network rm -f ${c#net:} 2> /dev/null || true
+            ;;
+        esac;
+    done
+}
 ensure_container_namespace () 
 { 
     local act_name="${1:?}";
@@ -2467,12 +2483,12 @@ ensure_container_namespace ()
             ensure_prop set started/$name/containers "$*"
         ;;
     esac;
-    local running_containers=" $(docker ps --format '{{.Names}}' | tr '\n' ' ') ";
+    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
     local c stopper mname mpath;
     for c in "$@";
     do
-        [[ "$running_containers" = *" $c "* ]] || continue;
-        printf "${red}Container %s is in conflict${reset}\n" "$c" 1>&2;
+        [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
+        printf "${red}%s is in conflict${reset}\n" "$c" 1>&2;
         for mpath in $(ensure_prop find "installed/*/containers") $(ensure_prop find "started/*/containers");
         do
             [[ " $(ensure_prop get "$mpath") " = *" $c "* ]] || continue;
@@ -2484,16 +2500,56 @@ ensure_container_namespace ()
             ( set -e;
             $stopper "$mname" -- ) 1>&2 || true;
         done;
-        running_containers=" $(docker ps --format '{{.Names}}' | tr '\n' ' ') ";
-        [[ "$running_containers" = *" $c "* ]] || continue;
-        printf "${red}Container %s is occupied${reset}\n" "$c" 1>&2;
-        docker ps 1>&2;
+        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
+        [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
+        printf "${red}%s is occupied${reset}\n%s\n" "$c" "${container_resources[*]}" 1>&2;
         return 3;
     done
 }
-ensure_container_parse_names () 
+ensure_container_parse_yaml () 
 { 
-    awk '/^  *container_name: /{print$NF}' "$@" | tr '\n' ' '
+    python3 -c '
+import sys
+import yaml
+import re
+def default_val(s):
+  return re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*:-(\d+)\}").sub(r"\1",str(s))
+def host_port(p):
+  if isinstance(p, dict):
+    published=p.get("published")
+    if published in (None, ""): return []
+    port=default_val(published)
+  else:
+    spec,_,_=default_val(p).partition("/")
+    parts=spec.rsplit(":", 2)
+    if len(parts) < 2 or not parts[-2]: return []
+    port=parts[-2]
+  m=re.fullmatch(r"(\d+)",port)
+  if m: return [int(m.group(1))]
+  m=re.fullmatch(r"(\d+)-(\d+)",port)
+  if m: return [n for n in range(int(m.group(1)),int(m.group(2))+1)]
+  return []
+def entries(path):
+  with open(path) as f:
+    doc = yaml.safe_load(f) or {}
+  for svc in (doc.get("services") or {}).values():
+    if not isinstance(svc, dict): continue
+    if svc.get("container_name"): yield "name", svc["container_name"]
+    for p in svc.get("ports") or []:
+      for port in host_port(p):
+        yield "port",port
+  for section, label in (("networks", "net"), ("volumes", "vol")):
+    for key, cfg in (doc.get(section) or {}).items():
+      cfg = cfg or {}
+      if cfg.get("external"): continue
+      yield label, cfg.get("name", key)
+for path in sys.argv[1:]:
+  try:
+    for label, value in entries(path):
+      print(f"{label}:{value}")
+  except:
+    continue
+' "$@"
 }
 ensure_disk_size () 
 { 
@@ -2816,19 +2872,26 @@ ensure_ports_open ()
     local act_name="${1:?}";
     local name="${2:?}";
     shift 2;
-    if [ "$act_name" = "start" ]; then
-        ensure_prop set started/$name/ports "$*";
-    fi;
+    case "$act_name" in 
+        install)
+            ensure_prop set installed/$name/ports "$*"
+        ;;
+        start)
+            ensure_prop set started/$name/ports "$*"
+        ;;
+    esac;
     if command -v ss > /dev/null; then
-        local port out stopper mname;
+        local port out stopper mname mpath;
         for port in $*;
         do
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
-            for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
+            for mpath in $(ensure_prop find "installed/*/ports") $(ensure_prop find "started/*/ports");
             do
-                [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
+                [[ " $(ensure_prop get $mpath) " = *" $port "* ]] || continue;
+                mname="${mpath#*/}";
+                mname="${mname%/*}";
                 stopper="${_act_cache_functions[stop_$mname]:-}";
                 [ -n "$stopper" ] || continue;
                 printf "${red}Stopping $mname to release port %s${reset}\n" "$port" 1>&2;
@@ -3552,23 +3615,7 @@ fedora_70_sbom_openvino ()
 }
 fedora_80_install_anomalib () 
 { 
-    configure_anomalib "$@";
-    if verify_anomalib && ! ensure_parse_reinstall "$@"; then
-        echo "Anomalib is installed." 1>&2;
-    else
-        ensure_disk_size 15000;
-        echo "@@STEP Installing anomalib=${version}";
-        mkdir -p "$workspace";
-        cd "$workspace";
-        python3 -m venv .venv;
-        . .venv/bin/activate;
-        pip install "anomalib[openvino,cpu]==${version}";
-        echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
-        verify_anomalib;
-    fi;
-    test_anomalib "$@";
-    echo "@@HIGHLIGHT venv: $workspace/.venv"
+    install_anomalib "$@"
 }
 fedora_80_profile_anomalib () 
 { 
@@ -3576,9 +3623,7 @@ fedora_80_profile_anomalib ()
 }
 fedora_80_remove_anomalib () 
 { 
-    configure_anomalib "$@";
-    ensure_rm "$workspace" || true;
-    ensure_skills remove "${skills[@]}"
+    remove_anomalib "$@"
 }
 fedora_90_install_geti () 
 { 
@@ -3622,6 +3667,26 @@ fedora_99_profile_system_summary ()
     [ "$1" != "bootstrap" ] || echo "system_inspection curl dmidecode pciutils";
     [ "$1" != "install" ] || echo "curl dmidecode pciutils"
 }
+install_anomalib () 
+{ 
+    configure_anomalib "$@";
+    if verify_anomalib && ! ensure_parse_reinstall "$@"; then
+        echo "Anomalib is installed." 1>&2;
+    else
+        ensure_disk_size 15000;
+        echo "@@STEP Installing anomalib=${version}";
+        mkdir -p "$workspace";
+        cd "$workspace";
+        python3 -m venv .venv;
+        . .venv/bin/activate;
+        pip install "anomalib[openvino,cpu]==${version}";
+        echo "@@STEP Installing skills";
+        ensure_skills add "tags/lib/v$version" "$repository" "${skills[@]/#/.agents/skills/}";
+        verify_anomalib;
+    fi;
+    test_anomalib "$@";
+    echo "@@HIGHLIGHT venv: $workspace/.venv"
+}
 install_geti () 
 { 
     configure_geti "$@";
@@ -3634,7 +3699,7 @@ install_geti ()
         echo "@@STEP Pulling image";
         docker pull $image_name;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        ensure_skills add "release/app-${version%.*}" "$repository" "${skills[@]/#/.agents/skills/}";
     fi
 }
 install_reboot () 
@@ -3726,6 +3791,11 @@ install_system_inspection ()
     done;
     echo "----------------------------------------------------------------";
     [ "$net_pass" = "$ok" ] ) | ensure_columns
+}
+remove_anomalib () 
+{ 
+    configure_anomalib "$@";
+    ensure_rm "$workspace" || true
 }
 remove_geti () 
 { 
