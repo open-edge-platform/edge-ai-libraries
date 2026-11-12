@@ -256,6 +256,7 @@ class Dlsps2RunnerTestBase(unittest.TestCase):
         fake: "_FakeDlsps2 | _FakeStreamSet",
         total_streams: int = 1,
         stream_commands: dict[str, str] | None = None,
+        stream_cpu_cores: dict[str, list[int]] | None = None,
     ):
         with (
             patch.object(runner, "_client", side_effect=fake.client),
@@ -265,6 +266,7 @@ class Dlsps2RunnerTestBase(unittest.TestCase):
                 PIPELINE,
                 total_streams=total_streams,
                 stream_commands=stream_commands,
+                stream_cpu_cores=stream_cpu_cores,
             )
 
 
@@ -293,6 +295,13 @@ class TestDlsps2RunnerInit(unittest.TestCase):
         self.assertFalse(runner.is_cancelled())
         runner.cancel()
         self.assertTrue(runner.is_cancelled())
+
+    def test_pinned_cpu_cores_are_deduplicated_and_sorted(self):
+        runner = Dlsps2PipelineRunner(pinned_cpu_cores=[4, 0, 4, 2])
+        self.assertEqual(runner.pinned_cpu_cores, [0, 2, 4])
+
+    def test_default_is_no_pinning(self):
+        self.assertEqual(Dlsps2PipelineRunner().pinned_cpu_cores, [])
 
 
 class TestDlsps2RunnerValidation(Dlsps2RunnerTestBase):
@@ -666,6 +675,33 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
             [{"pipeline": PIPELINE, "validate_pipeline": False}],
         )
         self.assertEqual(result.total_fps, 10.0)
+
+    def test_pinned_cpu_cores_are_sent_with_every_instance(self):
+        fake = _FakeStreamSet([[{"state": "COMPLETED", "avg_fps": 10.0}]])
+
+        self._run(self._runner(validate_pipelines=False, pinned_cpu_cores=[3, 1]), fake)
+
+        self.assertEqual(
+            [json.loads(p.content) for p in fake.calls("POST")],
+            [{"pipeline": PIPELINE, "validate_pipeline": False, "cpu_cores": [1, 3]}],
+        )
+
+    def test_stream_cpu_cores_override_the_test_wide_cores(self):
+        done = {"state": "COMPLETED", "avg_fps": 10.0}
+        fake = _FakeStreamSet([[done, done]])
+
+        self._run(
+            self._runner(validate_pipelines=False, pinned_cpu_cores=[0, 1]),
+            fake,
+            total_streams=2,
+            stream_commands=self.STREAMS,
+            stream_cpu_cores={"a": [12]},
+        )
+
+        self.assertEqual(
+            [json.loads(p.content).get("cpu_cores") for p in fake.calls("POST")],
+            [[12], [0, 1]],
+        )
 
     def test_invalid_launch_string_raises_before_any_instance_starts(self):
         fake = _FakeStreamSet(

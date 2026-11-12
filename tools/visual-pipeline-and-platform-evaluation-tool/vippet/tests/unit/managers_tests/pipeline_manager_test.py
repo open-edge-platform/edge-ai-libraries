@@ -563,6 +563,53 @@ class TestPipelineManager(unittest.TestCase):
                 if other_id != stream_id:
                     self.assertNotIn(f"name={other_id.split('__')[0]}", command)
 
+    def test_build_pipeline_command_spreads_streams_over_stream_cpu_cores(self):
+        manager = PipelineManager()
+        manager.pipelines = []
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {"name": "source"}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
+        )
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/decode/variants/gpu",
+                pipeline_name="decode",
+                pipeline_graph=graph,
+                streams=2,
+            ),
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/decode/variants/cpu",
+                pipeline_name="decode",
+                pipeline_graph=graph,
+                streams=5,
+                stream_cpu_cores=[12, 13],
+            ),
+        ]
+
+        pipeline_cmd = manager.build_pipeline_command(
+            specs, create_internal_execution_config(), self.job_id
+        )
+
+        cpu_stream_ids = [
+            info.stream_id
+            for info in pipeline_cmd.streams_per_pipeline[
+                "/pipelines/decode/variants/cpu"
+            ]
+        ]
+        self.assertEqual(
+            pipeline_cmd.stream_cpu_cores,
+            dict(zip(cpu_stream_ids, [[12], [13], [12], [13], [12]])),
+        )
+
     def test_update_pipeline_description_and_name(self):
         manager = PipelineManager()
         manager.pipelines = []

@@ -6,7 +6,7 @@ based on configurable parameters and stream counts.
 
 import logging
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from dlsps2_runner import Dlsps2PipelineRunner
 from internal_types import (
@@ -116,6 +116,7 @@ class Benchmark:
         max_runtime: float = 0,
         enable_latency_metrics: bool = False,
         job_id: str | None = None,
+        pinned_cpu_cores: list[int] | None = None,
     ):
         self.best_result = None
         # Every stream runs as its own DLSPS 2.0 instance, which reports
@@ -128,6 +129,7 @@ class Benchmark:
             max_runtime=max_runtime,
             enable_latency_metrics=enable_latency_metrics,
             job_id=job_id,
+            pinned_cpu_cores=pinned_cpu_cores,
         )
         self.logger = logging.getLogger(__name__)
 
@@ -214,9 +216,79 @@ class Benchmark:
         fps_floor: float,
         execution_config: InternalExecutionConfig,
         job_id: str,
+        staged_search: bool = False,
     ) -> BenchmarkResult:
         """
         Run the benchmark and return the best configuration.
+
+        Without ``staged_search`` this is a single search, see
+        :meth:`_search`. With it, the specs are searched one at a time in
+        list order: each is searched while every earlier spec is held at
+        the maximum found for it and every later spec runs no streams.
+        This finds e.g. the maximum VDBox streams first and then the CPU
+        streams that still fit next to them. The result is the last stage
+        that met ``fps_floor``; a stage where not even one more stream fits
+        keeps its spec at zero streams.
+
+        Args:
+            pipeline_density_specs: Resolved pipeline specs.
+            fps_floor: Minimum FPS threshold per stream.
+            execution_config: Output and runtime configuration.
+            job_id: Unique job identifier used for generating output filenames.
+            staged_search: Search the specs one at a time, in order.
+
+        Returns:
+            BenchmarkResult with the best stream configuration found.
+        """
+        if not staged_search:
+            return self._search(
+                pipeline_density_specs, fps_floor, execution_config, job_id
+            )[0]
+
+        held: list[int] = []
+        best: BenchmarkResult | None = None
+        last: BenchmarkResult | None = None
+        for stage in range(len(pipeline_density_specs)):
+            stage_specs = [
+                replace(
+                    spec,
+                    streams=(
+                        held[index] if index < stage else None if index == stage else 0
+                    ),
+                )
+                for index, spec in enumerate(pipeline_density_specs)
+            ]
+            self.logger.info(
+                "Staged search %d/%d: searching %s, held streams %s",
+                stage + 1,
+                len(pipeline_density_specs),
+                pipeline_density_specs[stage].pipeline_id,
+                held,
+            )
+            last, met_floor = self._search(
+                stage_specs, fps_floor, execution_config, job_id
+            )
+            if met_floor:
+                best = last
+                held.append(last.streams_per_pipeline[stage].streams)
+            else:
+                held.append(0)
+            if self.runner.is_cancelled():
+                break
+
+        if last is None:
+            raise ValueError("Staged search needs at least one pipeline spec.")
+        return best or last
+
+    def _search(
+        self,
+        pipeline_density_specs: list[InternalPipelineDensitySpec],
+        fps_floor: float,
+        execution_config: InternalExecutionConfig,
+        job_id: str,
+    ) -> tuple[BenchmarkResult, bool]:
+        """
+        Search the best configuration and say whether it met ``fps_floor``.
 
         Supports two density modes, selected automatically from the
         contents of ``pipeline_density_specs``:
@@ -245,7 +317,9 @@ class Benchmark:
             job_id: Unique job identifier used for generating output filenames.
 
         Returns:
-            BenchmarkResult with optimal stream configuration. The streams_per_pipeline
+            BenchmarkResult with optimal stream configuration, and whether
+            it met ``fps_floor`` (``False`` when it is the fallback to the
+            last attempt). The streams_per_pipeline
             field contains InternalPipelineStreamSpec with pipeline IDs already resolved
             in internal specs.
 
@@ -305,6 +379,7 @@ class Benchmark:
                     pipeline_name=spec.pipeline_name,
                     pipeline_graph=spec.pipeline_graph,
                     streams=streams,
+                    stream_cpu_cores=spec.stream_cpu_cores,
                 )
                 for spec, streams in zip(
                     pipeline_density_specs, streams_per_pipeline_counts
@@ -344,6 +419,7 @@ class Benchmark:
                 allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
                 stream_commands=pipeline_cmd.stream_commands,
                 validation_stream_ids=set(pipeline_cmd.validation_stream_ids) or None,
+                stream_cpu_cores=pipeline_cmd.stream_cpu_cores,
             )
 
             # Check for cancellation
@@ -471,7 +547,7 @@ class Benchmark:
                 min_stream_fps=min_stream_fps,
             )
 
-        return bm_result
+        return bm_result, best_config.n_streams > 0
 
     def _snapshot_best(
         self,

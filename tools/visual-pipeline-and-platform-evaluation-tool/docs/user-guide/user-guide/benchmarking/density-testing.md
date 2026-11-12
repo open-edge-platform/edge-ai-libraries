@@ -10,13 +10,14 @@ at my required FPS floor?`
 
 ## Density Modes
 
-Density testing supports two modes. The mode is selected automatically from the request
-shape — no API version change is required.
+Density testing supports three modes. Classic and mixed modes are selected automatically
+from the request shape; staged mode is selected with `staged_search: true`.
 
 | Mode        | When to use it                                                                                              | Search variable                                                                                       |
 |-------------|-------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
 | **Classic** | One or more pipelines tested together; you want the platform's total stream capacity for a workload mix.    | Total stream count, distributed across pipelines using their per-pipeline `stream_rate` ratios.       |
 | **Mixed**   | Exactly two pipelines; one pipeline has a fixed input stream count, the other one is grown by the search.   | Stream count of the *incremented* pipeline only. The *fixed* pipeline keeps its `streams` value.      |
+| **Staged**  | Two or more pipelines searched one after the other, e.g. GPU (VDBox) decode first, then CPU decode.         | Stream count of the pipeline of the current stage; earlier pipelines are held at their maximum.       |
 
 Mode selection is driven by the new optional `streams` field on each pipeline spec:
 
@@ -24,8 +25,10 @@ Mode selection is driven by the new optional `streams` field on each pipeline sp
 - If **exactly one** of **two** specs sets `streams`, the request runs in **mixed mode**.
 - Any other combination (one spec with `streams`, three specs, both with `streams`, etc.)
   is rejected with HTTP 400.
+- With `staged_search: true` the request runs in **staged mode**. It needs at least two
+  specs and none of them may set `streams`.
 
-Both modes use the same exponential-growth + binary-search algorithm and the same pass/fail
+All modes use the same exponential-growth + binary-search algorithm and the same pass/fail
 criterion (`fps_floor`). Only the meaning of the search variable differs.
 
 ## Density Testing Algorithm
@@ -59,6 +62,10 @@ The meaning of `search_value` depends on the mode:
 - **Mixed mode** — `search_value` is the stream count of the *incremented* pipeline only.
   The *fixed* pipeline keeps its `streams` value on every iteration; total stream count is
   `fixed_streams + search_value`.
+- **Staged mode** — the algorithm runs once per pipeline, in list order. In stage *k*,
+  `search_value` is the stream count of pipeline *k*; pipelines before it run at the
+  maximum found for them and pipelines after it run no streams. If not even one stream of
+  pipeline *k* meets `fps_floor`, it stays at `0` streams and the next stage starts.
 
 ### Stream Distribution
 
@@ -142,6 +149,50 @@ to find out how many streams of a second pipeline the platform can run on top of
 
 <!-- //TODO: Add screenshot of the Density tab configured in mixed mode
      (one pipeline with a fixed Streams value, one without). -->
+
+#### Staged mode configuration
+
+Use staged mode to fill one engine first and then find out how much of a second engine
+still fits next to it. The built-in **Media Decode** pipeline is made for this: its
+**GPU** variant decodes on the GPU media engine (VDBox) through `decodebin3`, and its
+**CPU** variant decodes in software with `avdec_h264`.
+
+1. Open the **Density** tab and select **Staged**.
+1. **Stage 1** — select **Media Decode** / **GPU**. Its maximum stream count is searched alone.
+1. **Stage 2** — select **Media Decode** / **CPU**. Its maximum stream count is searched
+   while stage 1 runs at its maximum.
+1. Optionally, set **CPU cores per stream** for the CPU pipeline. Each stream is pinned to
+   one of the selected cores in round-robin order, like running every `gst-launch-1.0`
+   process under `taskset -c <core>`. With 4 cores and 8 streams, every core runs 2 streams.
+1. Set **FPS Floor** and **Max runtime** as in classic mode.
+
+The result lists the stream count of every pipeline: the stage 1 maximum and the number of
+stage 2 streams that still fit next to it. While any iteration runs, the dashboard shows
+CPU usage per core, so you can see the pinned cores being loaded.
+
+> [!NOTE]
+> Every stream must meet `fps_floor`, including the stage 1 streams. Stage 1 ends right at
+> the limit of its engine, so CPU work that competes for shared resources (memory bandwidth,
+> SoC power budget, CPU time of the stage 1 streams) can leave no room for stage 2 streams.
+> Pinning the stage 1 pipeline away from the stage 2 cores with the test-wide CPU core
+> pinning (`execution_config.pinned_cpu_cores`) removes the CPU-time contention.
+
+API example:
+
+```json
+{
+  "fps_floor": 30,
+  "staged_search": true,
+  "pipeline_density_specs": [
+    {"pipeline": {"source": "variant", "pipeline_id": "media-decode", "variant_id": "gpu"}},
+    {
+      "pipeline": {"source": "variant", "pipeline_id": "media-decode", "variant_id": "cpu"},
+      "stream_cpu_cores": [12, 13, 14, 15]
+    }
+  ],
+  "execution_config": {"output_mode": "disabled", "max_runtime": 10}
+}
+```
 
 ### Step 2: Running the Test
 

@@ -524,7 +524,11 @@ class TestsManager:
         Raises:
             ValueError: If output_mode=file is combined with max_runtime>0.
             ValueError: If output_mode=live_stream is used for density tests.
+            ValueError: If pinned_cpu_cores references a CPU this service
+                cannot run on.
         """
+        self._validate_pinned_cpu_cores(execution_config.pinned_cpu_cores)
+
         if (
             execution_config.output_mode == InternalOutputMode.FILE
             and execution_config.max_runtime > 0
@@ -551,6 +555,37 @@ class TestsManager:
             raise ValueError(
                 "Density tests do not support metadata output. "
                 "Set metadata_mode to 'disabled' for density tests."
+            )
+
+    @staticmethod
+    def _validate_pinned_cpu_cores(
+        pinned_cpu_cores: list[int],
+        field_name: str = "execution_config.pinned_cpu_cores",
+    ) -> None:
+        """
+        Validate that every requested logical CPU id is usable by this service.
+
+        The check uses the affinity mask of the ViPPET process, which already
+        reflects any cgroup/cpuset restriction applied to the container.
+        DLSPS 2.0 would reject such ids too, but only after the job started.
+
+        Args:
+            pinned_cpu_cores: Logical CPU ids requested by the client.
+            field_name: Request field named in the error message.
+
+        Raises:
+            ValueError: If any requested CPU id is not available.
+        """
+        if not pinned_cpu_cores:
+            return
+
+        available = os.sched_getaffinity(0)
+        unavailable = sorted(set(pinned_cpu_cores) - available)
+        if unavailable:
+            raise ValueError(
+                f"Invalid {field_name}: contains CPU ids "
+                f"that are not available to this service: {unavailable}. "
+                f"Available CPU ids: {sorted(available)}."
             )
 
     def _get_usb_camera_devices(self, pipeline_graph: Graph) -> list[str]:
@@ -689,6 +724,10 @@ class TestsManager:
             self._validate_execution_config(
                 internal_spec.execution_config, is_density_test=False
             )
+            for spec in internal_spec.pipeline_performance_specs:
+                self._validate_pinned_cpu_cores(
+                    spec.stream_cpu_cores, "stream_cpu_cores"
+                )
 
             # Validate USB camera usage for performance tests
             self._validate_usb_camera_for_performance(
@@ -787,6 +826,7 @@ class TestsManager:
                 enable_latency_metrics=enable_latency_metrics,
                 job_id=job_id,
                 on_event=lambda event: self._record_pipeline_event(job_id, event),
+                pinned_cpu_cores=internal_spec.execution_config.pinned_cpu_cores,
             )
 
             # Store runner for this job so it can be cancelled via stop_job()
@@ -806,6 +846,7 @@ class TestsManager:
                 allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
                 stream_commands=pipeline_cmd.stream_commands,
                 validation_stream_ids=set(pipeline_cmd.validation_stream_ids) or None,
+                stream_cpu_cores=pipeline_cmd.stream_cpu_cores,
             )
 
             # Collect actual video file lists from output directories after pipeline completes
@@ -995,6 +1036,10 @@ class TestsManager:
             self._validate_execution_config(
                 internal_spec.execution_config, is_density_test=True
             )
+            for spec in internal_spec.pipeline_density_specs:
+                self._validate_pinned_cpu_cores(
+                    spec.stream_cpu_cores, "stream_cpu_cores"
+                )
 
             # Validate that no pipeline uses USB camera for density tests
             self._validate_no_usb_camera_for_density(
@@ -1010,6 +1055,7 @@ class TestsManager:
                 max_runtime=internal_spec.execution_config.max_runtime,
                 enable_latency_metrics=enable_latency_metrics,
                 job_id=job_id,
+                pinned_cpu_cores=internal_spec.execution_config.pinned_cpu_cores,
             )
 
             # Store benchmark runner for this job so that a future extension could cancel it.
@@ -1022,6 +1068,7 @@ class TestsManager:
                 fps_floor=internal_spec.fps_floor,
                 execution_config=internal_spec.execution_config,
                 job_id=job_id,
+                staged_search=internal_spec.staged_search,
             )
 
             # Collect actual video file lists from output directories after benchmark completes

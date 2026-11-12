@@ -8151,5 +8151,54 @@ class TestGigECameraSource(unittest.TestCase):
         )
 
 
+class TestGetTargetDeviceMediaOnly(unittest.TestCase):
+    """Media-only pipelines have no gva* device to take the target from."""
+
+    def test_decodebin3_followed_by_va_memory_targets_gpu(self):
+        graph = Graph.from_pipeline_description(
+            "filesrc location=/videos/input/people.mp4 ! decodebin3 ! "
+            "video/x-raw(memory:VAMemory) ! queue ! fakesink"
+        )
+        self.assertEqual(graph.get_target_device(), "GPU")
+
+    def test_decodebin3_with_system_memory_targets_cpu(self):
+        graph = Graph.from_pipeline_description(
+            "filesrc location=/videos/input/people.mp4 ! decodebin3 ! "
+            "video/x-raw ! queue ! fakesink"
+        )
+        self.assertEqual(graph.get_target_device(), "CPU")
+
+    def test_gva_device_takes_precedence_over_va_memory_caps(self):
+        graph = Graph.from_pipeline_description(
+            "filesrc location=/videos/input/people.mp4 ! decodebin3 ! "
+            "video/x-raw(memory:VAMemory) ! gvadetect device=NPU ! fakesink"
+        )
+        self.assertEqual(graph.get_target_device(), "NPU")
+
+    @patch("graph.VideoDecoder.select_decoder", return_value="vah264dec")
+    def test_replacement_keeps_a_single_caps_after_the_decoder(self, _select):
+        graph = Graph.from_pipeline_description(
+            "filesrc location=/videos/input/people.mp4 ! decodebin3 ! "
+            "video/x-raw(memory:VAMemory) ! queue ! fakesink"
+        )
+
+        result = graph.apply_decodebin3_replacement("h264", "GPU")
+
+        by_id = {node.id: node.type for node in result.nodes}
+        self.assertEqual(
+            sorted((by_id[e.source], by_id[e.target]) for e in result.edges),
+            sorted(
+                [
+                    ("filesrc", "parsebin"),
+                    ("parsebin", "vah264dec"),
+                    ("vah264dec", "video/x-raw(memory:VAMemory)"),
+                    ("video/x-raw(memory:VAMemory)", "queue"),
+                    ("queue", "fakesink"),
+                ]
+            ),
+        )
+        self.assertEqual(list(by_id.values()).count("video/x-raw(memory:VAMemory)"), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,7 @@ modes:
   ``fakesink`` so the check leaves no files or streams behind (see
   :func:`validation_launch_string`). Every stream then runs as its own
   instance (``POST /pipelines`` per stream with ``validate_pipeline=false``,
-  all in the unpinned worker),
+  in the unpinned worker unless the stream has ``cpu_cores``),
   so the instances start together. ``GET /pipelines/{id}/status`` is polled
   for each stream's ``frame_fps`` and ``frame_interval``; every instance is
   stopped with
@@ -437,6 +437,7 @@ class Dlsps2PipelineRunner:
         base_url: Optional[str] = None,
         validate_pipelines: bool = True,
         on_event: Optional[Callable[[PipelineEvent], None]] = None,
+        pinned_cpu_cores: Optional[list[int]] = None,
     ):
         """Initialize the runner.
 
@@ -462,6 +463,9 @@ class Dlsps2PipelineRunner:
                 pipeline that writes a file, since the check would run it
                 once more before the real run.
             on_event: Called with each live pipeline event of a normal run.
+            pinned_cpu_cores: Logical CPU ids every started instance is
+                pinned to, sent as ``cpu_cores`` in ``POST /pipelines``.
+                ``None`` or empty runs unpinned.
 
         With ``enable_latency_metrics`` the latency samples are read from
         metrics-manager; see the module docstring for the server setup and
@@ -483,6 +487,7 @@ class Dlsps2PipelineRunner:
         self.base_url = (base_url or DLSPS2_BASE_URL).rstrip("/")
         self.validate_pipelines = validate_pipelines
         self.on_event = on_event
+        self.pinned_cpu_cores = sorted(set(pinned_cpu_cores or []))
         self.cancelled = False
         self.logger = logger
         # Launch strings DLSPS 2.0 already accepted, reused across density iterations.
@@ -525,6 +530,7 @@ class Dlsps2PipelineRunner:
         allowed_stream_ids: "set[str] | None" = None,
         stream_commands: dict[str, str] | None = None,
         validation_stream_ids: "set[str] | None" = None,
+        stream_cpu_cores: dict[str, list[int]] | None = None,
     ) -> PipelineResult:
         """Run a pipeline against DLSPS 2.0 and return a `PipelineResult`.
 
@@ -545,6 +551,8 @@ class Dlsps2PipelineRunner:
                 string is validated before the run, one per pipeline
                 (``PipelineCommand.validation_stream_ids``); the other streams
                 of a pipeline repeat it. ``None`` validates every stream.
+            stream_cpu_cores: Normal mode only. CPU cores per ``stream_id``,
+                sent instead of ``pinned_cpu_cores`` for that stream.
 
         Returns:
             PipelineResult with ``exit_code``/``stderr`` (validation mode) or
@@ -567,7 +575,7 @@ class Dlsps2PipelineRunner:
                 )
             stream_commands = {"stream": pipeline_command}
         return self._run_streams(
-            stream_commands, allowed_stream_ids, validation_stream_ids
+            stream_commands, allowed_stream_ids, validation_stream_ids, stream_cpu_cores
         )
 
     # ------------------------------------------------------------------
@@ -613,14 +621,16 @@ class Dlsps2PipelineRunner:
         client: httpx.Client,
         pipeline_command: str,
         validate_pipeline: bool = True,
+        cpu_cores: list[int] | None = None,
     ) -> str:
-        response = client.post(
-            f"{self.base_url}/pipelines",
-            json={
-                "pipeline": pipeline_command,
-                "validate_pipeline": validate_pipeline,
-            },
-        )
+        body: dict[str, object] = {
+            "pipeline": pipeline_command,
+            "validate_pipeline": validate_pipeline,
+        }
+        cores = cpu_cores or self.pinned_cpu_cores
+        if cores:
+            body["cpu_cores"] = cores
+        response = client.post(f"{self.base_url}/pipelines", json=body)
         response.raise_for_status()
         return response.json()["instance_id"]
 
@@ -1230,6 +1240,7 @@ class Dlsps2PipelineRunner:
         stream_commands: dict[str, str],
         allowed_stream_ids: "set[str] | None" = None,
         validation_stream_ids: "set[str] | None" = None,
+        stream_cpu_cores: dict[str, list[int]] | None = None,
     ) -> PipelineResult:
         """Run every stream as its own DLSPS 2.0 instance and measure each one.
 
@@ -1238,7 +1249,9 @@ class Dlsps2PipelineRunner:
         first, with their writing elements swapped out (see
         :func:`validation_launch_string` and :meth:`_validate_new`), so
         validation writes no files and publishes nothing. The instances then
-        skip DLSPS's own per-instance validation and start together. All instances go to the unpinned worker. The run lasts
+        skip DLSPS's own per-instance validation and start together, each
+        pinned to its ``stream_cpu_cores`` entry, else to ``pinned_cpu_cores``,
+        else unpinned. The run lasts
         ``max_runtime`` seconds from the moment every stream reports a
         ``first_frame_time`` (``0``: until every instance ends on its own),
         or until :meth:`cancel`. Every instance is stopped before returning;
@@ -1318,7 +1331,10 @@ class Dlsps2PipelineRunner:
                             break
                         try:
                             instances[stream_id] = self._start(
-                                client, command, validate_pipeline=False
+                                client,
+                                command,
+                                validate_pipeline=False,
+                                cpu_cores=(stream_cpu_cores or {}).get(stream_id),
                             )
                         except httpx.HTTPError as exc:
                             raise RuntimeError(
@@ -1468,10 +1484,7 @@ class Dlsps2PipelineRunner:
                 fallback += 1
 
         total_fps = sum(stream_fps.values())
-        details = (
-            f"DLSPS 2.0: {len(instances)} instance(s) in the unpinned worker, "
-            "fps over the common window"
-        )
+        details = f"DLSPS 2.0: {len(instances)} instance(s), fps over the common window"
         if fallback:
             details += f"; final avg_fps used for {fallback} stream(s)"
         return PipelineResult(

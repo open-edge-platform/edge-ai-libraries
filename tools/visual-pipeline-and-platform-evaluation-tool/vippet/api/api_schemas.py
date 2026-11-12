@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
 
 from enum import Enum
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _HUB_MODEL_NAME_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
@@ -933,6 +933,23 @@ class PipelineStreamSpec(BaseModel):
     )
 
 
+_STREAM_CPU_CORES_DESCRIPTION = (
+    "Logical CPU ids (as reported by `GET /devices` in "
+    "`cpu_topology.cores[].cpu`) the streams of this pipeline are spread "
+    "over: one core per stream in round-robin order, like running each "
+    "stream under `taskset -c <core>`. Takes precedence over "
+    "`execution_config.pinned_cpu_cores` for the streams of this pipeline. "
+    "Empty (default) keeps the test-wide setting."
+)
+
+
+def _normalize_cpu_ids(cpus: List[int], field_name: str) -> List[int]:
+    """De-duplicate, sort and reject negative logical CPU ids."""
+    if any(cpu < 0 for cpu in cpus):
+        raise ValueError(f"{field_name} must not contain negative CPU ids.")
+    return sorted(set(cpus))
+
+
 class PipelinePerformanceSpec(BaseModel):
     """
     **Per-pipeline configuration for performance and density tests.**
@@ -983,6 +1000,16 @@ class PipelinePerformanceSpec(BaseModel):
         description="Number of parallel streams for this pipeline.",
         examples=[1, 4, 16],
     )
+    stream_cpu_cores: List[int] = Field(
+        default_factory=list,
+        description=_STREAM_CPU_CORES_DESCRIPTION,
+        examples=[[12, 13, 14, 15]],
+    )
+
+    @field_validator("stream_cpu_cores")
+    @classmethod
+    def _normalize_stream_cpu_cores(cls, cpus: List[int]) -> List[int]:
+        return _normalize_cpu_ids(cpus, "stream_cpu_cores")
 
 
 class PipelineDensitySpec(BaseModel):
@@ -1082,6 +1109,16 @@ class PipelineDensitySpec(BaseModel):
         ),
         examples=[4],
     )
+    stream_cpu_cores: List[int] = Field(
+        default_factory=list,
+        description=_STREAM_CPU_CORES_DESCRIPTION,
+        examples=[[12, 13, 14, 15]],
+    )
+
+    @field_validator("stream_cpu_cores")
+    @classmethod
+    def _normalize_stream_cpu_cores(cls, cpus: List[int]) -> List[int]:
+        return _normalize_cpu_ids(cpus, "stream_cpu_cores")
 
 
 class Pipeline(BaseModel):
@@ -1390,6 +1427,9 @@ class ExecutionConfig(BaseModel):
     - `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:
       - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)
       - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints
+    - `pinned_cpu_cores` - Logical CPU ids (as reported by `GET /devices` in `cpu_topology.cores[].cpu`)
+      the GStreamer subprocess is restricted to. Empty list (default) means no pinning — the
+      pipeline may use every CPU available to the service.
 
     ### Example (disabled output, no runtime limit)
     ```json
@@ -1424,6 +1464,15 @@ class ExecutionConfig(BaseModel):
     }
     ```
 
+    ### Example (pinned to the first four logical CPUs)
+    ```json
+    {
+      "output_mode": "disabled",
+      "max_runtime": 0,
+      "pinned_cpu_cores": [0, 1, 2, 3]
+    }
+    ```
+
     """
 
     output_mode: OutputMode = Field(
@@ -1453,6 +1502,22 @@ class ExecutionConfig(BaseModel):
             "(default), no latency samples are read."
         ),
     )
+    pinned_cpu_cores: List[int] = Field(
+        default_factory=list,
+        description=(
+            "Logical CPU ids the pipeline is pinned to, as "
+            "reported by `GET /devices` in `cpu_topology.cores[].cpu`. An "
+            "empty list (default) disables pinning and lets the pipeline run "
+            "on every CPU available to the service. Ids are de-duplicated and "
+            "sorted; ids the service itself cannot run on are rejected."
+        ),
+    )
+
+    @field_validator("pinned_cpu_cores")
+    @classmethod
+    def _normalize_pinned_cpu_cores(cls, cpus: List[int]) -> List[int]:
+        """De-duplicate, sort and reject negative logical CPU ids."""
+        return _normalize_cpu_ids(cpus, "pinned_cpu_cores")
 
 
 class PerformanceTestSpec(BaseModel):
@@ -1630,6 +1695,18 @@ class DensityTestSpec(BaseModel):
         examples=[
             {"output_mode": "disabled", "max_runtime": 0, "metadata_mode": "disabled"}
         ],
+    )
+    staged_search: bool = Field(
+        default=False,
+        description=(
+            "Search the maximum stream count one pipeline at a time, in list "
+            "order: the first pipeline is searched alone, then held at its "
+            "maximum while the next one is searched, and so on. Use it to find "
+            "the maximum VDBox (GPU decode) streams first and then the CPU "
+            "streams that still fit next to them. Requires at least two specs "
+            "and no `streams`; `stream_rate` is ignored."
+        ),
+        examples=[True],
     )
 
 

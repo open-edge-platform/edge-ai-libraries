@@ -74,6 +74,7 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
       - `output_mode`: disabled (default), file, or live_stream
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
       - `metadata_mode`: disabled (default) or file
+      - `pinned_cpu_cores`: logical CPU ids to pin the pipeline to (empty = no pinning)
 
     ## Response Codes
 
@@ -258,6 +259,7 @@ def run_density_test(body: schemas.DensityTestSpec):
       - `output_mode`: disabled (default) or file (live_stream not supported)
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
       - `metadata_mode`: must be disabled (metadata output not supported)
+      - `pinned_cpu_cores`: logical CPU ids to pin the pipeline to (empty = no pinning)
 
     ## Response Codes
 
@@ -561,6 +563,7 @@ def _convert_execution_config(
         max_runtime=config.max_runtime,
         metadata_mode=_convert_metadata_mode(config.metadata_mode),
         enable_latency_metrics=config.enable_latency_metrics,
+        pinned_cpu_cores=list(config.pinned_cpu_cores),
     )
 
 
@@ -746,7 +749,16 @@ def _convert_density_test_spec(
     # specs and exactly one of them with `streams` set; `stream_rate` is
     # ignored.
     mixed_mode = any(s.streams is not None for s in spec.pipeline_density_specs)
-    if mixed_mode:
+    if spec.staged_search:
+        if len(spec.pipeline_density_specs) < 2:
+            raise ValueError(
+                "Staged search requires at least two pipeline_density_specs."
+            )
+        if mixed_mode:
+            raise ValueError(
+                "Staged search searches every pipeline, so no spec may set 'streams'."
+            )
+    elif mixed_mode:
         if len(spec.pipeline_density_specs) != 2:
             raise ValueError(
                 "Mixed-density mode requires exactly two pipeline_density_specs."
@@ -767,6 +779,7 @@ def _convert_density_test_spec(
 
     for pipeline_spec in spec.pipeline_density_specs:
         internal_spec = _convert_pipeline_density_spec(pipeline_spec, PipelineManager())
+        internal_spec.stream_cpu_cores = list(pipeline_spec.stream_cpu_cores)
 
         # Check for duplicate pipeline_id
         if internal_spec.pipeline_id in seen_pipeline_ids:
@@ -786,6 +799,7 @@ def _convert_density_test_spec(
         pipeline_density_specs=internal_specs,
         execution_config=_convert_execution_config(spec.execution_config),
         original_request=original_request_dict,
+        staged_search=spec.staged_search,
     )
 
 
@@ -826,6 +840,7 @@ def _convert_performance_test_spec(
         internal_spec = _convert_pipeline_performance_spec(
             pipeline_spec, PipelineManager()
         )
+        internal_spec.stream_cpu_cores = list(pipeline_spec.stream_cpu_cores)
 
         # Check for duplicate pipeline_id
         if internal_spec.pipeline_id in seen_pipeline_ids:

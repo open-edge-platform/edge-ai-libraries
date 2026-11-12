@@ -70,6 +70,9 @@ class PipelineCommand:
             :attr:`all_stream_ids`. ``command`` is these strings joined
             with spaces; a runner that starts every stream as its own
             pipeline uses this map instead.
+        stream_cpu_cores: CPU cores per ``stream_id`` for the streams of
+            pipelines with ``stream_cpu_cores``: one core each, assigned
+            round-robin in stream order. Other streams are absent.
     """
 
     command: str
@@ -80,6 +83,7 @@ class PipelineCommand:
         default_factory=dict
     )
     stream_commands: dict[str, str] = field(default_factory=dict)
+    stream_cpu_cores: dict[str, list[int]] = field(default_factory=dict)
 
     @property
     def all_stream_ids(self) -> list[str]:
@@ -641,6 +645,7 @@ class PipelineManager:
         # key in the job's `latency_tracer_metrics` map.
         streams_per_pipeline: dict[str, list[InternalStreamInfo]] = {}
         stream_commands: dict[str, str] = {}
+        stream_cpu_cores: dict[str, list[int]] = {}
 
         # Determine if we need looping behavior based on max_runtime
         # Looping is only supported for disabled and live_stream modes
@@ -832,6 +837,10 @@ class PipelineManager:
 
                 pipeline_parts.append(unique_pipeline_str)
                 stream_commands[stream_info.stream_id] = unique_pipeline_str
+                if spec.stream_cpu_cores:
+                    stream_cpu_cores[stream_info.stream_id] = [
+                        spec.stream_cpu_cores[stream_index % len(spec.stream_cpu_cores)]
+                    ]
 
         return PipelineCommand(
             command=" ".join(pipeline_parts),
@@ -840,6 +849,7 @@ class PipelineManager:
             metadata_file_paths=metadata_file_paths,
             streams_per_pipeline=streams_per_pipeline,
             stream_commands=stream_commands,
+            stream_cpu_cores=stream_cpu_cores,
         )
 
     def add_variant(

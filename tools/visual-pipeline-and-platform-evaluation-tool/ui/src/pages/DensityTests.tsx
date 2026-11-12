@@ -13,17 +13,22 @@ import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
 import { DensityClassicPipelineSelection } from "@/features/pipeline-tests/DensityClassicPipelineSelection.tsx";
 import { DensityMixedPipelineSelection } from "@/features/pipeline-tests/DensityMixedPipelineSelection.tsx";
+import { DensityStagedPipelineSelection } from "@/features/pipeline-tests/DensityStagedPipelineSelection.tsx";
 import {
   buildClassicDensitySpecs,
   buildMixedDensitySpecs,
+  buildStagedDensitySpecs,
   createClassicSelections,
   createMixedSelections,
+  createStagedSelections,
   DEFAULT_MIXED_STREAMS,
   isClassicSelectionValid,
   isMixedSelectionValid,
+  isStagedSelectionValid,
   type ClassicPipelineSelection,
   type DensityMode,
   type MixedPipelineSelection,
+  type StagedPipelineSelection,
 } from "@/features/pipeline-tests/densitySelection.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
@@ -60,6 +65,9 @@ export const DensityTests = () => {
     MixedPipelineSelection[]
   >([]);
   const [mixedStreams, setMixedStreams] = useState(DEFAULT_MIXED_STREAMS);
+  const [stagedSelections, setStagedSelections] = useState<
+    StagedPipelineSelection[]
+  >([]);
   const [fpsFloor, setFpsFloor] = useState<number>(30);
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
@@ -105,11 +113,20 @@ export const DensityTests = () => {
     }
   }, [pipelines, mixedSelections.length]);
 
-  const isMixedMode = mode === "mixed";
+  useEffect(() => {
+    if (pipelines.length > 0 && stagedSelections.length === 0) {
+      setStagedSelections(createStagedSelections(pipelines));
+    }
+  }, [pipelines, stagedSelections.length]);
 
-  const canRunTest = isMixedMode
-    ? isMixedSelectionValid(mixedSelections, mixedStreams)
-    : isClassicSelectionValid(classicSelections);
+  const isMixedMode = mode === "mixed";
+  const isStagedMode = mode === "staged";
+
+  const canRunTest = isStagedMode
+    ? isStagedSelectionValid(stagedSelections)
+    : isMixedMode
+      ? isMixedSelectionValid(mixedSelections, mixedStreams)
+      : isClassicSelectionValid(classicSelections);
 
   const handleRunTest = async () => {
     if (!canRunTest) return;
@@ -126,9 +143,12 @@ export const DensityTests = () => {
             enable_latency_metrics: latencyMetricsEnabled,
           },
           fps_floor: fpsFloor,
-          pipeline_density_specs: isMixedMode
-            ? buildMixedDensitySpecs(mixedSelections, mixedStreams)
-            : buildClassicDensitySpecs(classicSelections),
+          pipeline_density_specs: isStagedMode
+            ? buildStagedDensitySpecs(stagedSelections)
+            : isMixedMode
+              ? buildMixedDensitySpecs(mixedSelections, mixedStreams)
+              : buildClassicDensitySpecs(classicSelections),
+          staged_search: isStagedMode,
         },
       });
 
@@ -205,6 +225,9 @@ export const DensityTests = () => {
           <TabsTrigger value="mixed" disabled={isRunning}>
             Mixed
           </TabsTrigger>
+          <TabsTrigger value="staged" disabled={isRunning}>
+            Staged
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="classic">
@@ -232,6 +255,23 @@ export const DensityTests = () => {
             onSelectionsChange={setMixedSelections}
             streams={mixedStreams}
             onStreamsChange={setMixedStreams}
+            disabled={isRunning}
+          />
+        </TabsContent>
+
+        <TabsContent value="staged">
+          <p className="text-sm text-muted-foreground mb-3">
+            Two pipelines searched one after the other. The maximum number of
+            stage 1 streams at the target FPS is found first. Then, with stage 1
+            held at that maximum, the maximum number of stage 2 streams is
+            found. Use the Media Decode pipeline to find VDBox (GPU) streams
+            first and CPU streams second, with CPU streams pinned to the
+            selected cores.
+          </p>
+          <DensityStagedPipelineSelection
+            pipelines={pipelines}
+            selections={stagedSelections}
+            onSelectionsChange={setStagedSelections}
             disabled={isRunning}
           />
         </TabsContent>

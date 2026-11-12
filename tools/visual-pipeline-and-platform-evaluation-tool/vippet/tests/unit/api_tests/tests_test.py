@@ -2275,6 +2275,94 @@ class TestTestsAPI(unittest.TestCase):
 
     @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_staged_search_passes_order_and_stream_cores(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.side_effect = lambda pid: (
+            create_mock_pipeline(pid, f"Pipeline {pid}")
+        )
+        mock_pipeline_manager.get_variant_by_ids.side_effect = lambda pid, vid: (
+            create_mock_variant(vid)
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-staged-job"
+        mock_tests_manager_cls.return_value = mock_tests_manager
+
+        request_body = {
+            "fps_floor": 30,
+            "staged_search": True,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "media-decode",
+                        "variant_id": "variant-gpu",
+                    },
+                },
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "media-decode",
+                        "variant_id": "variant-cpu",
+                    },
+                    "stream_cpu_cores": [13, 12, 13],
+                },
+            ],
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        self.assertEqual(response.status_code, 202)
+        spec = mock_tests_manager.test_density.call_args[0][0]
+        self.assertTrue(spec.staged_search)
+        self.assertEqual(
+            [s.pipeline_id for s in spec.pipeline_density_specs],
+            [
+                "/pipelines/media-decode/variants/variant-gpu",
+                "/pipelines/media-decode/variants/variant-cpu",
+            ],
+        )
+        self.assertEqual(
+            [s.stream_cpu_cores for s in spec.pipeline_density_specs], [[], [12, 13]]
+        )
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_staged_search_rejects_fixed_streams(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        request_body = {
+            "fps_floor": 30,
+            "staged_search": True,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "a",
+                        "variant_id": "gpu",
+                    },
+                    "streams": 4,
+                },
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "a",
+                        "variant_id": "cpu",
+                    },
+                },
+            ],
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Staged search", response.json()["message"])
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
     def test_run_density_test_mixed_mode_with_one_spec_returns_400(
         self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
