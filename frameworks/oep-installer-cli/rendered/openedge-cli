@@ -5946,6 +5946,7 @@ debian_90_install_handheld_multi_modal ()
     else
         ensure_disk_size 45000;
         echo "@@STEP Removing conflicting app";
+        ensure_container_namespace install handheld_multi_modal name:handheld-multi-modal-model-downloader-1 || true;
         ensure_ports_open install handheld_multi_modal "${used_ports[@]}" || { 
             docker rm -f handheld-multi-modal-model-downloader-1 || true;
             ensure_ports_open install handheld_multi_modal "${used_ports[@]}"
@@ -6793,6 +6794,7 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics ()
         make model ACCEPT_LICENSE=y || return $?;
     fi;
     if ! compgen -G "$caption/*.xml" > /dev/null || ! compgen -G "$caption/*.bin" > /dev/null; then
+        ensure_container_namespace install uncrewed_aerial_vehicle_vision_analytics "name:${MODEL_DOWNLOAD_EPHEMERAL_CONTAINER_NAME:-model-download-ephemeral}" || true;
         make vlm-model VLM_DEVICE=GPU ACCEPT_LICENSE=y || return $?;
     fi;
     if ! verify_uncrewed_aerial_vehicle_vision_analytics_models; then
@@ -7162,7 +7164,7 @@ debian_90_remove_geti ()
 }
 debian_90_remove_handheld_multi_modal () 
 { 
-    debian_90_stop_handheld_multi_modal "$@";
+    debian_90_stop_handheld_multi_modal "$@" || true;
     local app_dir="$workspace"/handheld-multi-modal;
     [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes || true );
     ensure_rm "$workspace"
@@ -7338,9 +7340,11 @@ debian_90_remove_uav_mission_compute_sdk ()
         echo "Mission Compute SDK source is missing; cannot stop its containers safely." 1>&2;
         return 1;
     fi;
-    cd "$sdk_path" || return $?;
-    make down || return $?;
-    ensure_prop remove started/uav_mission_compute_sdk/ || return $?;
+    cd "$sdk_path" && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+    } || true;
+    ensure_prop remove started/uav_mission_compute_sdk/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uav_mission_compute_sdk
 }
@@ -7351,9 +7355,11 @@ debian_90_remove_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?;
-    ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
+    } || true;
+    ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/
 }
@@ -7364,9 +7370,11 @@ debian_90_remove_uncrewed_aerial_vehicle_vision_analytics ()
         echo "uncrewed_aerial_vehicle_vision_analytics is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?;
-    ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+    } || true;
+    ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uncrewed_aerial_vehicle_vision_analytics/
 }
@@ -7476,6 +7484,7 @@ debian_90_start_handheld_multi_modal ()
     configure_handheld_multi_modal "$@";
     ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     cd "$workspace"/handheld-multi-modal;
+    ensure_container_namespace start handheld_multi_modal $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true;
     make up CONFIRM=yes;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)";
     echo "@@HIGHLIGHT $installer_name stop|remove"
@@ -8017,6 +8026,7 @@ debian_90_start_uav_mission_compute_sdk ()
     if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
         ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?;
     fi;
+    ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || true;
     if make up-sim-camera; then
         :;
     else
@@ -8067,6 +8077,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
         read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_ground_station/ports)";
     fi;
     sed -i -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?;
+    ensure_container_namespace start uncrewed_aerial_vehicle_ground_station $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true;
     make up || return $?;
     local attempt ready=0;
     for ((attempt=0; attempt<24; attempt++))
@@ -8110,6 +8121,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
         read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)";
     fi;
     sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
+    ensure_container_namespace start uncrewed_aerial_vehicle_vision_analytics $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true;
     make pymav-up || return $?;
     local check attempt ready;
     for check in services pipelines;
@@ -8294,7 +8306,10 @@ debian_90_stop_handheld_multi_modal ()
 { 
     configure_handheld_multi_modal "$@";
     docker rm -f handheld-multi-modal-model-downloader-1 || true;
-    cd "$workspace"/handheld-multi-modal && make stop || true
+    cd "$workspace"/handheld-multi-modal && { 
+        make stop || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true
+    } || true
 }
 debian_90_stop_image_based_video_search () 
 { 
@@ -8516,8 +8531,10 @@ debian_90_stop_uav_mission_compute_sdk ()
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 1
     };
-    cd "$sdk_path" || return $?;
-    make down || return $?;
+    cd "$sdk_path" && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+    } || true;
     ensure_prop remove started/uav_mission_compute_sdk/
 }
 debian_90_stop_uncrewed_aerial_vehicle_ground_station () 
@@ -8527,8 +8544,10 @@ debian_90_stop_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
+    } || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/
 }
 debian_90_stop_uncrewed_aerial_vehicle_vision_analytics () 
@@ -8538,8 +8557,10 @@ debian_90_stop_uncrewed_aerial_vehicle_vision_analytics ()
         echo "uncrewed_aerial_vehicle_vision_analytics is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+    } || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/
 }
 debian_90_stop_video_processing_for_nvr () 
