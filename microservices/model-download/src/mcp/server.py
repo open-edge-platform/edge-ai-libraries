@@ -189,7 +189,7 @@ async def download_model(
 
     Args:
         name: Model identifier (e.g. 'meta-llama/Llama-3.2-1B', 'yolov8n').
-        hub: Source hub — one of huggingface, ollama, ultralytics, geti,
+        hub: Source hub — one of huggingface, modelscope, ollama, ultralytics, geti,
              pipeline-zoo-models, hls, remote-url, omz.
         download_path: Destination path relative to MODELS_DIR (or absolute).
                        Defaults to MODELS_DIR root when empty.

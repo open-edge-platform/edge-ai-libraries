@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Build From Source
 
 This page covers building the Audio Analyzer microservice from source.
@@ -83,8 +86,22 @@ python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+```
+
+A standalone process downloads the configured models into its `models/`
+directory on first start (set `HF_TOKEN` for gated diarization models, and
+install `requirements-cjk.txt` for FunASR). From the same `audio-analyzer/`
+directory:
+
+```bash
+mkdir -p models
 python main.py
 ```
+
+To source snapshots from a shared Model Download service instead, set
+`AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` and point `models_base_path` at the storage
+that service writes to. Native OpenAI Whisper and optional sentiment retain
+their direct-download setup.
 
 ## Verifying the Build
 
