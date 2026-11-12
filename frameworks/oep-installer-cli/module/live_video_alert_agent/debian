@@ -61,7 +61,7 @@ debian_90_install_live_video_alert_agent () {
 debian_90_start_live_video_alert_agent () {
   configure_live_video_alert_agent "$@"
   ensure_ports_open start live_video_alert_agent "${used_ports[@]}"
-  ensure_container_namespace start live_video_alert_agent $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-alert-agent/docker/*.yml)
+  ensure_container_namespace start live_video_alert_agent $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-alert-agent/docker/*.yml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_alert_agent_device "${device^^}"
@@ -80,7 +80,10 @@ debian_90_start_live_video_alert_agent () {
 
 debian_90_stop_live_video_alert_agent () {
   configure_live_video_alert_agent "$@"
-  cd "$workspace"/live-video-analysis/live-video-alert-agent && docker compose -f docker/docker-compose.yml -f docker/docker-compose.npu.yml down -v --remove-orphans || true
+  cd "$workspace"/live-video-analysis/live-video-alert-agent && {
+    docker compose -f docker/docker-compose.yml -f docker/docker-compose.npu.yml down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yml)
+  } || true
 }
 
 debian_90_remove_live_video_alert_agent () {

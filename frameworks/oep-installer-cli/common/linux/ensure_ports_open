@@ -5,19 +5,21 @@ ensure_ports_open () {
   local name="${2:?}"
   shift 2
 
-  if [ "$act_name" = "start" ]; then
-    ensure_prop set started/$name/ports "$*"
-  fi
+  case "$act_name" in
+  install) ensure_prop set installed/$name/ports "$*";;
+  start) ensure_prop set started/$name/ports "$*";;
+  esac
 
   if command -v ss > /dev/null; then
-    local port out stopper mname
+    local port out stopper mname mpath
     for port in $*; do
       out="$(ss -Hltunp "sport = :$port")"
       [ -n "$out" ] || continue
 
       printf "${red}Port %s is occupied${reset}\n" "$port" >&2
-      for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/); do
-        [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue
+      for mpath in $(ensure_prop find "installed/*/ports") $(ensure_prop find "started/*/ports"); do
+        [[ " $(ensure_prop get $mpath) " = *" $port "* ]] || continue
+        mname="${mpath#*/}"; mname="${mname%/*}"
         stopper="${_act_cache_functions[stop_$mname]:-}"
         [ -n "$stopper" ] || continue
         printf "${red}Stopping $mname to release port %s${reset}\n" "$port" >&2

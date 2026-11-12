@@ -59,7 +59,7 @@ debian_90_install_live_video_captioning () {
 debian_90_start_live_video_captioning () {
   configure_live_video_captioning "$@"
   ensure_ports_open start live_video_captioning "${used_ports[@]}"
-  ensure_container_namespace start live_video_captioning $(ensure_container_parse_names "$workspace"/live-video-analysis/live-video-captioning/compose.yaml)
+  ensure_container_namespace start live_video_captioning $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-captioning/compose.yaml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_device "${device^^}"
@@ -73,8 +73,10 @@ debian_90_start_live_video_captioning () {
 
 debian_90_stop_live_video_captioning () {
   configure_live_video_captioning "$@"
-  cd "$workspace"/live-video-analysis/live-video-captioning
-  docker compose -f compose.yaml down -v --remove-orphans
+  cd "$workspace"/live-video-analysis/live-video-captioning && {
+    docker compose -f compose.yaml down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml compose.yaml)
+  } || true
 }
 
 debian_90_remove_live_video_captioning () {

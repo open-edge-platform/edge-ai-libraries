@@ -73,7 +73,7 @@ debian_90_install_visual_search_question_and_answering () {
 debian_90_start_visual_search_question_and_answering () {
   configure_visual_search_question_and_answering "$@"
   ensure_ports_open start visual_search_question_and_answering "${used_ports[@]}"
-  ensure_container_namespace start visual_search_question_and_answering $(ensure_container_parse_names "$workspace"/visual-search-question-and-answering/deployment/docker-compose/*.yaml)
+  ensure_container_namespace start visual_search_question_and_answering $(ensure_container_parse_yaml "$workspace"/visual-search-question-and-answering/deployment/docker-compose/*.yaml)
 
   cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose
   . ./env.sh
@@ -88,7 +88,8 @@ debian_90_stop_visual_search_question_and_answering () {
   configure_visual_search_question_and_answering "$@"
   cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && {
     . ./env.sh || true
-    docker compose -f compose_milvus.yaml down -v --remove-orphans
+    docker compose -f compose_milvus.yaml down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml *.yaml)
   } || true
   docker volume rm -f ov-models || true
 }

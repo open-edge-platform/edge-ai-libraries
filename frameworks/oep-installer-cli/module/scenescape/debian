@@ -41,7 +41,7 @@ debian_90_install_scenescape () {
 debian_90_start_scenescape () {
   configure_scenescape "$@"
   ensure_ports_open start scenescape "${used_ports[@]}"
-  ensure_container_namespace start scenescape $(ensure_container_parse_names "$workspace"/sample_data/compose/compose.*.yml)
+  ensure_container_namespace start scenescape $(ensure_container_parse_yaml "$workspace"/sample_data/compose/compose.*.yml)
 
   cd "$workspace"
   export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5)
@@ -55,7 +55,10 @@ debian_90_start_scenescape () {
 
 debian_90_stop_scenescape () {
   configure_scenescape "$@"
-  cd "$workspace" && make demo-close || true
+  cd "$workspace" && {
+    make demo-close || true
+    ensure_container_cleanup $(ensure_container_parse_yaml sample_data/compose/compose.*.yml)
+  } || true
 }
 
 debian_90_remove_scenescape () {

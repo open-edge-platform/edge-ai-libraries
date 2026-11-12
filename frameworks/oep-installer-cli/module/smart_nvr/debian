@@ -41,7 +41,7 @@ debian_90_install_smart_nvr () {
 debian_90_start_smart_nvr () {
   configure_smart_nvr "$@"
   ensure_ports_open start smart_nvr "${used_ports[@]}"
-  ensure_container_namespace start smart_nvr $(ensure_container_parse_names "$workspace"/smart-nvr/docker/*.yaml)
+  ensure_container_namespace start smart_nvr $(ensure_container_parse_yaml "$workspace"/smart-nvr/docker/*.yaml)
 
   cd "$workspace"/smart-nvr
   . setup.sh start
@@ -53,7 +53,8 @@ debian_90_start_smart_nvr () {
 debian_90_stop_smart_nvr () {
   configure_smart_nvr "$@"
   cd "$workspace"/smart-nvr && {
-    . ./setup.sh stop
+    . ./setup.sh stop || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
   } || true
 }
 
