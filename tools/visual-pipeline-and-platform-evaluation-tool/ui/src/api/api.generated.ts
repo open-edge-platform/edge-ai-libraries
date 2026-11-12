@@ -1610,6 +1610,8 @@ export type ExecutionConfig = {
   metadata_mode?: MetadataMode;
   /** When true, the job reports DLStreamer `latency_tracer` samples per stream in `latency_tracer_metrics`. This flag does not start the tracer: DL Streamer Pipeline Server runs it for every pipeline when configured server-wide (`DLSPS2_GST_TRACERS` with `post-metrics=true`, and `DLSPS2_OTEL=true`), and ViPPET only reads the samples the server exports to metrics-manager. If the server is not configured that way, the test runs without latency metrics and the job's `details` say so. When false (default), no latency samples are read. */
   enable_latency_metrics?: boolean;
+  /** Logical CPU ids the pipeline is pinned to, as reported by `GET /devices` in `cpu_topology.cores[].cpu`. An empty list (default) disables pinning and lets the pipeline run on every CPU available to the service. Ids are de-duplicated and sorted; ids the service itself cannot run on are rejected. */
+  pinned_cpu_cores?: number[];
 };
 export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */

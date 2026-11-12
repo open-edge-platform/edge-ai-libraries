@@ -294,6 +294,13 @@ class TestDlsps2RunnerInit(unittest.TestCase):
         runner.cancel()
         self.assertTrue(runner.is_cancelled())
 
+    def test_pinned_cpu_cores_are_deduplicated_and_sorted(self):
+        runner = Dlsps2PipelineRunner(pinned_cpu_cores=[4, 0, 4, 2])
+        self.assertEqual(runner.pinned_cpu_cores, [0, 2, 4])
+
+    def test_default_is_no_pinning(self):
+        self.assertEqual(Dlsps2PipelineRunner().pinned_cpu_cores, [])
+
 
 class TestDlsps2RunnerValidation(Dlsps2RunnerTestBase):
     def _runner(self, **kwargs) -> Dlsps2PipelineRunner:
@@ -666,6 +673,16 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
             [{"pipeline": PIPELINE, "validate_pipeline": False}],
         )
         self.assertEqual(result.total_fps, 10.0)
+
+    def test_pinned_cpu_cores_are_sent_with_every_instance(self):
+        fake = _FakeStreamSet([[{"state": "COMPLETED", "avg_fps": 10.0}]])
+
+        self._run(self._runner(validate_pipelines=False, pinned_cpu_cores=[3, 1]), fake)
+
+        self.assertEqual(
+            [json.loads(p.content) for p in fake.calls("POST")],
+            [{"pipeline": PIPELINE, "validate_pipeline": False, "cpu_cores": [1, 3]}],
+        )
 
     def test_invalid_launch_string_raises_before_any_instance_starts(self):
         fake = _FakeStreamSet(

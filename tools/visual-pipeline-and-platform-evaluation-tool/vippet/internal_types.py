@@ -577,12 +577,15 @@ class InternalExecutionConfig:
             DLSPS 2.0 exports to metrics-manager, if the server runs the
             DLStreamer `latency_tracer` (see ``dlsps2_latency_configured``).
             Defaults to False (no latency samples read).
+        pinned_cpu_cores: Logical CPU ids the pipeline is pinned to on
+            DLSPS 2.0. Empty (default) means no pinning.
     """
 
     output_mode: InternalOutputMode
     max_runtime: float
     metadata_mode: InternalMetadataMode
     enable_latency_metrics: bool = False
+    pinned_cpu_cores: List[int] = field(default_factory=list)
 
 
 @dataclass

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
 
 from enum import Enum
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _HUB_MODEL_NAME_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
@@ -1390,6 +1390,9 @@ class ExecutionConfig(BaseModel):
     - `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:
       - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)
       - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints
+    - `pinned_cpu_cores` - Logical CPU ids (as reported by `GET /devices` in `cpu_topology.cores[].cpu`)
+      the GStreamer subprocess is restricted to. Empty list (default) means no pinning — the
+      pipeline may use every CPU available to the service.
 
     ### Example (disabled output, no runtime limit)
     ```json
@@ -1424,6 +1427,15 @@ class ExecutionConfig(BaseModel):
     }
     ```
 
+    ### Example (pinned to the first four logical CPUs)
+    ```json
+    {
+      "output_mode": "disabled",
+      "max_runtime": 0,
+      "pinned_cpu_cores": [0, 1, 2, 3]
+    }
+    ```
+
     """
 
     output_mode: OutputMode = Field(
@@ -1453,6 +1465,24 @@ class ExecutionConfig(BaseModel):
             "(default), no latency samples are read."
         ),
     )
+    pinned_cpu_cores: List[int] = Field(
+        default_factory=list,
+        description=(
+            "Logical CPU ids the pipeline is pinned to, as "
+            "reported by `GET /devices` in `cpu_topology.cores[].cpu`. An "
+            "empty list (default) disables pinning and lets the pipeline run "
+            "on every CPU available to the service. Ids are de-duplicated and "
+            "sorted; ids the service itself cannot run on are rejected."
+        ),
+    )
+
+    @field_validator("pinned_cpu_cores")
+    @classmethod
+    def _normalize_pinned_cpu_cores(cls, cpus: List[int]) -> List[int]:
+        """De-duplicate, sort and reject negative logical CPU ids."""
+        if any(cpu < 0 for cpu in cpus):
+            raise ValueError("pinned_cpu_cores must not contain negative CPU ids.")
+        return sorted(set(cpus))
 
 
 class PerformanceTestSpec(BaseModel):
