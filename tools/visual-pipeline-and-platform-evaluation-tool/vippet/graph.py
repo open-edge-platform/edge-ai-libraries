@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import copy
 import logging
 import os
@@ -7,6 +10,7 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
+from gst_properties import quote_property, unquote_property
 from typing import Optional
 
 from models import SupportedModelsManager
@@ -3872,7 +3876,7 @@ def _parse_caps_segment(segment: str) -> tuple[str, dict[str, str]] | None:
 
 
 def _tokenize(element: str) -> Iterator[_Token]:
-    """
+    r"""
     Tokenize a non-caps pipeline segment into TYPE/PROPERTY/TEE_END tokens.
 
     This tokenizer is only used for segments that were NOT recognized as caps
@@ -3899,14 +3903,27 @@ def _tokenize(element: str) -> Iterator[_Token]:
         - MISMATCH: Unrecognized token (caller should raise error)
         - SKIP: Whitespace (filtered out, never yielded)
 
-    Example:
+    Examples:
         Input: "filesrc location=/tmp/foo.mp4"
         Output: [Token(TYPE, "filesrc"), Token(PROPERTY, "location=/tmp/foo.mp4")]
+
+        Windows path with forward slashes and spaces:
+        Input: filesrc location="C:/video files/clip.mp4"
+        Output: TYPE(filesrc), PROPERTY(location="C:/video files/clip.mp4")
+
+        Windows path with escaped backslashes and spaces:
+        Input: filesrc location="C:\\video files\\clip.mp4"
+        Output: TYPE(filesrc), PROPERTY(location="C:\\video files\\clip.mp4")
+
+        Quoted values remain serialized in PROPERTY tokens; decoding is handled
+        by _add_property_to_last_node(). These examples are individual segments,
+        not complete pipelines; '!' in property values is not supported by the
+        preceding pipeline split.
     """
     token_specification = [
         # Property in key=value format, with support for quoted values containing spaces
         # Matches: key=value, key="quoted value", key='quoted value'
-        ("PROPERTY", r'\S+\s*=\s*(?:"[^"]*"|\'[^\']*\'|\S+)'),
+        ("PROPERTY", r"""[^\s=]+\s*=\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+)"""),
         # End of tee branch: "t." where t is the tee name
         ("TEE_END", r"\S+\.(?:\s|\Z)"),
         # Type of element (catch-all for non-property tokens)
@@ -4105,6 +4122,8 @@ def _add_property_to_last_node(nodes: list[Node], token: _Token) -> None:
     The property format is assumed to be "key=value" with optional spaces
     around the '='. No additional validation is done here; invalid properties
     should be filtered earlier during tokenization or caps parsing.
+    The caps property retains its serialized quoting because _build_chain
+    writes it verbatim; other properties are unquoted for in-memory use.
 
     Args:
         nodes: List of nodes (the last node will receive the property)
@@ -4126,7 +4145,7 @@ def _add_property_to_last_node(nodes: list[Node], token: _Token) -> None:
         return
 
     key, value = re.split(r"\s*=\s*", token.value, maxsplit=1)
-    nodes[-1].data[key] = value
+    nodes[-1].data[key] = value if key == "caps" else unquote_property(value)
     logger.debug(f"Added property to node {nodes[-1].id}: {key}={value}")
 
 
@@ -4230,7 +4249,16 @@ def _build_chain(
                 # declared in NODE_MODEL_SPECS for this node type (e.g. ``model-path``
                 # for ``gvagenai``). All other keys pass through unchanged.
                 output_key = spec.model_key if key == "model" else key
-                result_parts.append(f"{output_key}={value}")
+                if output_key == "file-path" and value == "/dev/null":
+                    value = os.devnull
+                if node.type == "gvatrack" and output_key == "deepsort-trck-cfg":
+                    # Normalize tracker configurations stored with surrounding syntax quotes.
+                    value = unquote_property(value)
+                # Caps properties may already contain GStreamer quoting syntax.
+                serialized = (
+                    str(value) if output_key == "caps" else quote_property(value)
+                )
+                result_parts.append(f"{output_key}={serialized}")
 
         targets = edges_from.get(current_id, [])
         if not targets:
@@ -4570,7 +4598,7 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
             # location patterns like ``/images/input/uploaded/.../foo_%02d.jpg``)
             # bypass the video-name → path mapping; they are taken
             # as-is by GStreamer.
-            if name.startswith("/"):
+            if os.path.isabs(name):
                 logger.debug(f"Leaving absolute {node.type} {key} unchanged: {name}")
                 continue
 
