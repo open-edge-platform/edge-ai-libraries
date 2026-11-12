@@ -66,22 +66,6 @@ curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 
 ## Advanced Options
 
-### Application-driven one-shot provisioning
-
-The container entrypoint also accepts
-`--plugins <list> --ephemeral --command <executable> [arguments...]`.
-It prepares the selected plugin environments, then executes the command directly
-(without shell evaluation or launching the REST server). The container exits with
-the command's exit status. Use only trusted commands and read-only mounts for
-application provisioning code/configuration; keep artifacts on persistent storage.
-Put `--plugins` before `--ephemeral`, since all following arguments belong to
-the one-shot command.
-
-Applications can use this mode to run their own provisioning logic against the
-service's model submission/job machinery in a one-shot container and exit before
-inference starts.
-Existing `--ephemeral --model-name ... --hub ...` behavior is unchanged.
-
 ### Model Parameters
 
 | Argument | Description | Required |
