@@ -1,3 +1,4 @@
+
 configure_uncrewed_aerial_vehicle_vision_analytics () {
   repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
   version="release-2026.3.0"
@@ -86,6 +87,7 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics () {
     make model ACCEPT_LICENSE=y || return $?
   fi
   if ! compgen -G "$caption/*.xml" >/dev/null || ! compgen -G "$caption/*.bin" >/dev/null; then
+    ensure_container_namespace install uncrewed_aerial_vehicle_vision_analytics "name:${MODEL_DOWNLOAD_EPHEMERAL_CONTAINER_NAME:-model-download-ephemeral}" || true
     make vlm-model VLM_DEVICE=GPU ACCEPT_LICENSE=y || return $?
   fi
   if ! verify_uncrewed_aerial_vehicle_vision_analytics_models; then
@@ -166,6 +168,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
     read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)"
   fi
   sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
+  ensure_container_namespace start uncrewed_aerial_vehicle_vision_analytics $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
   make pymav-up || return $?
   local check attempt ready
   for check in services pipelines; do
@@ -200,8 +203,10 @@ debian_90_stop_uncrewed_aerial_vehicle_vision_analytics () {
     echo "uncrewed_aerial_vehicle_vision_analytics is not installed." >&2
     return 1
   fi
-  cd "$app_dir" || return $?
-  docker compose "${compose_files[@]}" down || return $?
+  cd "$app_dir" && {
+    docker compose "${compose_files[@]}" down || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+  } || true
   ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/
 }
 
@@ -211,9 +216,11 @@ debian_90_remove_uncrewed_aerial_vehicle_vision_analytics () {
     echo "uncrewed_aerial_vehicle_vision_analytics is not installed." >&2
     return 1
   fi
-  cd "$app_dir" || return $?
-  docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?
-  ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || return $?
+  cd "$app_dir" && {
+    docker compose "${compose_files[@]}" down --volumes --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+  } || true
+  ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || true
   ensure_rm "$workspace" || return $?
   ensure_prop remove installed/uncrewed_aerial_vehicle_vision_analytics/
 }

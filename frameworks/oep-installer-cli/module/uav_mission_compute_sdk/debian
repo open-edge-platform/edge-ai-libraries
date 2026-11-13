@@ -104,6 +104,7 @@ debian_90_start_uav_mission_compute_sdk () {
   if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
     ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?
   fi
+  ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || true
   if make up-sim-camera; then
     :
   else
@@ -136,8 +137,10 @@ debian_90_stop_uav_mission_compute_sdk () {
     echo "uav_mission_compute_sdk is not installed." >&2
     return 1
   }
-  cd "$sdk_path" || return $?
-  make down || return $?
+  cd "$sdk_path" && {
+    make down || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+  } || true
   ensure_prop remove started/uav_mission_compute_sdk/
 }
 
@@ -151,9 +154,11 @@ debian_90_remove_uav_mission_compute_sdk () {
     echo "Mission Compute SDK source is missing; cannot stop its containers safely." >&2
     return 1
   fi
-  cd "$sdk_path" || return $?
-  make down || return $?
-  ensure_prop remove started/uav_mission_compute_sdk/ || return $?
+  cd "$sdk_path" && {
+    make down || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+  } || true
+  ensure_prop remove started/uav_mission_compute_sdk/ || true
   ensure_rm "$workspace" || return $?
   ensure_prop remove installed/uav_mission_compute_sdk
 }

@@ -10,7 +10,7 @@ import threading
 import pytest
 from fastapi.testclient import TestClient
 
-from src.exceptions import RoutingError
+from src.exceptions import ProviderError, RoutingError
 from src.observability import InMemoryTelemetry
 from ._api_contract_support import (
     RouterStub,
@@ -162,36 +162,71 @@ def test_non_streaming_internal_error_returns_http_500_with_request_id() -> None
     assert detail.endswith(")")
 
 
-def test_streaming_routing_error_returns_sse_error_chunk_and_done() -> None:
-    client = make_test_client(
-        router=RouterStub(stream_setup_exception=RoutingError("Unknown model: 'bad-model'")),
-        telemetry=InMemoryTelemetry(),
+def test_streaming_routing_error_returns_http_400() -> None:
+    router = RouterStub(stream_setup_exception=RoutingError("Unknown model: 'bad-model'"))
+    client = make_test_client(router=router, telemetry=InMemoryTelemetry())
+
+    response = client.post(
+        "/v1/chat/completions", json=chat_payload(model="bad-model", stream=True)
     )
 
-    with client.stream("POST", "/v1/chat/completions", json=chat_payload(stream=True)) as response:
-        assert response.status_code == 200
-        events, done = read_sse_events(response)
-
-    assert done == "data: [DONE]"
-    chunk = events[0]
-    assert chunk["id"].startswith("chatcmpl-")
-    assert chunk["model"] == "error"
-    assert chunk["choices"][0]["delta"]["content"] == "[ERROR] Routing failed"
-    assert chunk["choices"][0]["finish_reason"] == "error"
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Unknown model: 'bad-model'"}
+    assert not response.headers["content-type"].startswith("text/event-stream")
 
 
-def test_streaming_internal_error_returns_sse_error_chunk_and_done() -> None:
+@pytest.mark.parametrize(
+    ("upstream_status", "expected_status"),
+    [(400, 400), (None, 502), (503, 502)],
+)
+def test_streaming_provider_setup_error_matches_non_streaming_status(
+    upstream_status: int | None, expected_status: int
+) -> None:
+    err = ProviderError("upstream rejected", status_code=upstream_status)
+    stream_client = make_test_client(
+        router=RouterStub(stream_setup_exception=err), telemetry=InMemoryTelemetry()
+    )
+    plain_client = make_test_client(
+        router=RouterStub(chat_exception=err), telemetry=InMemoryTelemetry()
+    )
+
+    stream_response = stream_client.post(
+        "/v1/chat/completions", json=chat_payload(stream=True)
+    )
+    plain_response = plain_client.post("/v1/chat/completions", json=chat_payload())
+
+    assert stream_response.status_code == expected_status
+    assert plain_response.status_code == expected_status
+
+
+def test_streaming_internal_setup_error_returns_http_500_with_request_id() -> None:
     client = make_test_client(
         router=RouterStub(stream_setup_exception=RuntimeError("stream backend exploded")),
         telemetry=InMemoryTelemetry(),
     )
 
+    response = client.post("/v1/chat/completions", json=chat_payload(stream=True))
+
+    assert response.status_code == 500
+    detail = response.json()["detail"]
+    assert detail.startswith("Inference error (request_id=chatcmpl-")
+    assert detail.endswith(")")
+
+
+def test_streaming_mid_stream_error_returns_sse_error_chunk_and_done() -> None:
+    # Once the stream has started the 200 is already committed, so failures
+    # are still reported in-band.
+    client = make_test_client(
+        router=RouterStub(stream_iteration_exception=RuntimeError("backend died mid-stream")),
+        telemetry=InMemoryTelemetry(),
+    )
+
     with client.stream("POST", "/v1/chat/completions", json=chat_payload(stream=True)) as response:
         assert response.status_code == 200
         events, done = read_sse_events(response)
 
     assert done == "data: [DONE]"
-    chunk = events[0]
+    chunk = events[-1]
     assert chunk["id"].startswith("chatcmpl-")
     assert chunk["model"] == "error"
     assert chunk["choices"][0]["delta"]["content"] == "[ERROR] Internal server error"

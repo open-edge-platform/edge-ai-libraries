@@ -5,8 +5,7 @@ import {
 } from "@/features/metrics/charts";
 
 interface GpuFrequencyChartProps
-  extends DashboardChartCommonProps,
-    DashboardSummarySectionProps {
+  extends DashboardChartCommonProps, DashboardSummarySectionProps {
   data: Array<{ timestamp: number; frequency: number }>;
   yAxisMax: number;
   selectedGpu: number;

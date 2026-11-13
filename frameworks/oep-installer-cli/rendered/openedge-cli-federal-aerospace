@@ -2306,7 +2306,7 @@ configure_edge_pack_kernel_image ()
     local kver="$(uname -r)" incompatibles=(7.0.0-14-generic);
     case "$ID$VERSION_ID" in 
         ubuntu24.04 | ubuntu26.04)
-            if [[ "$kver" = "7.0.0-"* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
+            if [[ "$kver" = "7.0."* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
                 version="$kver";
             else
                 version="$(set -o pipefail; apt-cache depends linux-image-generic-hwe-$VERSION_ID 2> /dev/null | sed -n '/.*Depends: *linux-image-/{s///;p;q}' || echo 7.0.0-42-generic)";
@@ -2475,6 +2475,15 @@ configure_libze1 ()
 { 
     version="$(ensure_parse_value_option version --version=1.32.0 "$@")";
     libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb"
+}
+configure_linux_tools () 
+{ 
+    install_pkgs=(linux-tools-common "linux-tools-$(uname -r)");
+    case "$ID$VERSION_ID" in 
+        ubuntu26.04)
+            install_pkgs+=(linux-perf bpftool)
+        ;;
+    esac
 }
 configure_npu_accel () 
 { 
@@ -2849,13 +2858,13 @@ debian_30_install_kernel_module_essential ()
 }
 debian_30_install_linux_tools () 
 { 
-    local name="linux-tools-$(uname -r)";
-    if ensure_apt_is_installed $name; then
-        echo "$name is installed." 1>&2;
+    configure_linux_tools "$@";
+    if ensure_apt_is_installed ${install_pkgs[*]}; then
+        echo "linux-tools is installed." 1>&2;
     else
         ensure_prop set installed/linux_tools/owned true;
         ensure_apt update;
-        ensure_apt install --no-install-recommends -y linux-tools-common $name || ensure_apt install --no-install-recommends -y --no-install-recommends linux-tools-common linux-tools-generic;
+        ensure_apt install --no-install-recommends -y ${install_pkgs[*]};
     fi
 }
 debian_30_install_lm_sensors () 
@@ -2945,9 +2954,9 @@ debian_30_remove_kernel_module_essential ()
 }
 debian_30_remove_linux_tools () 
 { 
-    local name="linux-tools-$(uname -r)";
+    configure_linux_tools "$@";
     [ "$(ensure_prop get installed/linux_tools/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y $name || true
+    ensure_apt purge --autoremove -y ${install_pkgs[*]} || true
 }
 debian_30_remove_lm_sensors () 
 { 
@@ -3014,7 +3023,8 @@ debian_30_sbom_kernel_module_essential ()
 }
 debian_30_sbom_linux_tools () 
 { 
-    ensure_sbom_format pkg-list linux-tools-common linux-tools-$(uname -r)
+    configure_linux_tools "$@";
+    ensure_sbom_format pkg-list ${install_pkgs[*]}
 }
 debian_30_sbom_lm_sensors () 
 { 
@@ -3858,6 +3868,7 @@ debian_90_install_handheld_multi_modal ()
     else
         ensure_disk_size 45000;
         echo "@@STEP Removing conflicting app";
+        ensure_container_namespace install handheld_multi_modal name:handheld-multi-modal-model-downloader-1 || true;
         ensure_ports_open install handheld_multi_modal "${used_ports[@]}" || { 
             docker rm -f handheld-multi-modal-model-downloader-1 || true;
             ensure_ports_open install handheld_multi_modal "${used_ports[@]}"
@@ -3961,6 +3972,7 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics ()
         make model ACCEPT_LICENSE=y || return $?;
     fi;
     if ! compgen -G "$caption/*.xml" > /dev/null || ! compgen -G "$caption/*.bin" > /dev/null; then
+        ensure_container_namespace install uncrewed_aerial_vehicle_vision_analytics "name:${MODEL_DOWNLOAD_EPHEMERAL_CONTAINER_NAME:-model-download-ephemeral}" || true;
         make vlm-model VLM_DEVICE=GPU ACCEPT_LICENSE=y || return $?;
     fi;
     if ! verify_uncrewed_aerial_vehicle_vision_analytics_models; then
@@ -4010,7 +4022,7 @@ debian_90_remove_deterministic_threat_detection ()
 }
 debian_90_remove_handheld_multi_modal () 
 { 
-    debian_90_stop_handheld_multi_modal "$@";
+    debian_90_stop_handheld_multi_modal "$@" || true;
     local app_dir="$workspace"/handheld-multi-modal;
     [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes || true );
     ensure_rm "$workspace"
@@ -4026,9 +4038,11 @@ debian_90_remove_uav_mission_compute_sdk ()
         echo "Mission Compute SDK source is missing; cannot stop its containers safely." 1>&2;
         return 1;
     fi;
-    cd "$sdk_path" || return $?;
-    make down || return $?;
-    ensure_prop remove started/uav_mission_compute_sdk/ || return $?;
+    cd "$sdk_path" && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+    } || true;
+    ensure_prop remove started/uav_mission_compute_sdk/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uav_mission_compute_sdk
 }
@@ -4039,9 +4053,11 @@ debian_90_remove_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?;
-    ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
+    } || true;
+    ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/
 }
@@ -4052,9 +4068,11 @@ debian_90_remove_uncrewed_aerial_vehicle_vision_analytics ()
         echo "uncrewed_aerial_vehicle_vision_analytics is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?;
-    ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+    } || true;
+    ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uncrewed_aerial_vehicle_vision_analytics/
 }
@@ -4063,6 +4081,7 @@ debian_90_start_handheld_multi_modal ()
     configure_handheld_multi_modal "$@";
     ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     cd "$workspace"/handheld-multi-modal;
+    ensure_container_namespace start handheld_multi_modal $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true;
     make up CONFIRM=yes;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)";
     echo "@@HIGHLIGHT $installer_name stop|remove"
@@ -4079,6 +4098,7 @@ debian_90_start_uav_mission_compute_sdk ()
     if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
         ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?;
     fi;
+    ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || true;
     if make up-sim-camera; then
         :;
     else
@@ -4129,6 +4149,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
         read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_ground_station/ports)";
     fi;
     sed -i -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?;
+    ensure_container_namespace start uncrewed_aerial_vehicle_ground_station $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true;
     make up || return $?;
     local attempt ready=0;
     for ((attempt=0; attempt<24; attempt++))
@@ -4172,6 +4193,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
         read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)";
     fi;
     sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
+    ensure_container_namespace start uncrewed_aerial_vehicle_vision_analytics $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true;
     make pymav-up || return $?;
     local check attempt ready;
     for check in services pipelines;
@@ -4207,7 +4229,10 @@ debian_90_stop_handheld_multi_modal ()
 { 
     configure_handheld_multi_modal "$@";
     docker rm -f handheld-multi-modal-model-downloader-1 || true;
-    cd "$workspace"/handheld-multi-modal && make stop || true
+    cd "$workspace"/handheld-multi-modal && { 
+        make stop || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true
+    } || true
 }
 debian_90_stop_uav_mission_compute_sdk () 
 { 
@@ -4216,8 +4241,10 @@ debian_90_stop_uav_mission_compute_sdk ()
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 1
     };
-    cd "$sdk_path" || return $?;
-    make down || return $?;
+    cd "$sdk_path" && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+    } || true;
     ensure_prop remove started/uav_mission_compute_sdk/
 }
 debian_90_stop_uncrewed_aerial_vehicle_ground_station () 
@@ -4227,8 +4254,10 @@ debian_90_stop_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
+    } || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/
 }
 debian_90_stop_uncrewed_aerial_vehicle_vision_analytics () 
@@ -4238,8 +4267,10 @@ debian_90_stop_uncrewed_aerial_vehicle_vision_analytics ()
         echo "uncrewed_aerial_vehicle_vision_analytics is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+    } || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/
 }
 debian_99_install_system_summary () 
@@ -4508,7 +4539,8 @@ ensure_container_cleanup ()
                 docker network rm -f ${c#net:} 2> /dev/null || true
             ;;
         esac;
-    done
+    done;
+    docker volume prune -f || true
 }
 ensure_container_namespace () 
 { 
@@ -4548,48 +4580,84 @@ ensure_container_namespace ()
 }
 ensure_container_parse_yaml () 
 { 
-    python3 -c '
-import sys
-import yaml
-import re
-def default_val(s):
-  return re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*:-(\d+)\}").sub(r"\1",str(s))
-def host_port(p):
+    python3 - "$@" <<'EOF'
+import os, re, sys, yaml
+def _any(loader, node):  # tolerate Compose !reset / !override tags
+  if isinstance(node, yaml.MappingNode):  return loader.construct_mapping(node, deep=True)
+  if isinstance(node, yaml.SequenceNode): return loader.construct_sequence(node, deep=True)
+  return loader.construct_scalar(node)
+for tag in ("!reset", "!override"):
+  yaml.SafeLoader.add_constructor(tag, _any)
+INNER = re.compile(r"\$\{([A-Za-z_]\w*)(?:(:?)([-?+])([^${}]*))?\}")
+def resolve(v):
+  if v is None: return None
+  s = str(v).replace("$$", "\0")
+  while (m := INNER.search(s)):
+    if m.group(3) != "-": return None
+    s = s[:m.start()] + m.group(4) + s[m.end():]
+  if re.search(r"\$[A-Za-z_]", s): return None
+  return s.replace("\0", "$")
+def normalize(n):
+  return re.sub(r"[^a-z0-9_-]", "", n.lower()).lstrip("_-")
+def host_ports(p):
+  if isinstance(p, int): return []                    # container-only port
   if isinstance(p, dict):
-    published=p.get("published")
-    if published in (None, ""): return []
-    port=default_val(published)
+    port = resolve(p.get("published"))
   else:
-    spec,_,_=default_val(p).partition("/")
-    parts=spec.rsplit(":", 2)
-    if len(parts) < 2 or not parts[-2]: return []
-    port=parts[-2]
-  m=re.fullmatch(r"(\d+)",port)
-  if m: return [int(m.group(1))]
-  m=re.fullmatch(r"(\d+)-(\d+)",port)
-  if m: return [n for n in range(int(m.group(1)),int(m.group(2))+1)]
-  return []
-def entries(path):
+    s = resolve(p)
+    if s is None: return []
+    s = s.partition("/")[0]
+    if s.startswith("["): s = s.partition("]:")[2]  # [::1]:8080:80
+    parts = s.rsplit(":", 2)
+    port = parts[-2] if len(parts) >= 2 else None
+  m = re.fullmatch(r"(\d+)(?:-(\d+))?", port or "")
+  if not m: return []
+  lo = int(m.group(1))
+  return range(lo, int(m.group(2) or lo) + 1)
+cli_project, paths = None, []
+for a in sys.argv[1:]:
+  if a.startswith("--project="): cli_project = a.split("=", 1)[1]
+  else: paths.append(a)
+services, networks, volumes, file_name = {}, {}, {}, None
+for path in paths:
   with open(path) as f:
-    doc = yaml.safe_load(f) or {}
-  for svc in (doc.get("services") or {}).values():
-    if not isinstance(svc, dict): continue
-    if svc.get("container_name"): yield "name", svc["container_name"]
-    for p in svc.get("ports") or []:
-      for port in host_port(p):
-        yield "port",port
-  for section, label in (("networks", "net"), ("volumes", "vol")):
-    for key, cfg in (doc.get(section) or {}).items():
-      cfg = cfg or {}
-      if cfg.get("external"): continue
-      yield label, cfg.get("name", key)
-for path in sys.argv[1:]:
-  try:
-    for label, value in entries(path):
-      print(f"{label}:{value}")
-  except:
-    continue
-' "$@"
+    d = yaml.safe_load(f) or {}
+  file_name = d.get("name") or file_name
+  for n, s in (d.get("services") or {}).items():
+    if not isinstance(s, dict): continue
+    m = services.setdefault(n, {"ports": []})
+    for k in ("container_name", "network_mode", "networks", "scale", "deploy"):
+      if k in s: m[k] = s[k]
+    m["ports"] += s.get("ports") or []
+  for sec, tgt in (("networks", networks), ("volumes", volumes)):
+    for k, c in (d.get(sec) or {}).items():
+      tgt.setdefault(k, {}).update(c or {})
+proj = resolve(cli_project or file_name) or os.path.basename(os.path.dirname(os.path.abspath(paths[0])))
+proj = normalize(proj)
+seen = set()
+def out(kind, v):
+  if v is not None and (kind, v) not in seen:
+    seen.add((kind, v)); print(f"{kind}:{v}")
+needs_default = False
+for n, s in services.items():
+  if s.get("container_name"):
+    out("name", resolve(s["container_name"]))
+  else:
+    r = resolve(s.get("scale") or (s.get("deploy") or {}).get("replicas") or 1)
+    for i in range(1, (int(r) if str(r).isdigit() else 1) + 1):
+      out("name", f"{proj}-{n}-{i}")
+  if "network_mode" not in s and not s.get("networks"):
+    needs_default = True
+  for p in s["ports"]:
+    for port in host_ports(p):
+      out("port", port)
+if needs_default: networks.setdefault("default", {})
+for kind, table in (("net", networks), ("vol", volumes)):
+  for k, c in table.items():
+    if c.get("external"): continue                  # never ours to clean up
+    out(kind, resolve(c["name"]) if c.get("name") else f"{proj}_{k}")
+EOF
+
 }
 ensure_disk_size () 
 { 
@@ -6109,7 +6177,7 @@ ensure_sbom_format ()
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url | cli-sha256)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -6611,6 +6679,7 @@ subcommand_list ()
             if [[ "/$0" = *"/rendered/"* ]]; then
                 local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
                 ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
+                ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')";
             fi;
         fi;
         ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
