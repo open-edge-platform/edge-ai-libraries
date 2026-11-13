@@ -3,10 +3,10 @@ configure_edge_pack_base_realtime () {
   configure_edge_pack "$@"
   version="$(ensure_parse_value_option version "$@")"
   [ -n "$version" ] || {
-    case "$ID$VERSION_ID" in
-    ubuntu26.04) version="1.0";;
+    case "$ID$VERSION_ID$(uname -r)" in
+    ubuntu26.04*realtime*) version="1.0";;
     *)
-      echo "Unsupported platform $ID $VERSION_ID" >&2
+      echo "Unsupported realtime platform $ID $VERSION_ID kernel $(uname -r)" >&2
       echo "Fallback to edge_pack_base_standard" >&2
       return 3;;
     esac
