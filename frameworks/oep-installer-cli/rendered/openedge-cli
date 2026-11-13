@@ -6868,8 +6868,7 @@ debian_90_install_vippet ()
         ensure_ports_open install vippet "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool;
         cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
-        make build-onvif-discovery;
-        docker compose -f compose.yml pull --ignore-buildable;
+        make env-setup;
     fi;
     echo "@@HIGHLIGHT $installer_name start";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -8179,8 +8178,8 @@ debian_90_start_vippet ()
     ensure_ports_open start vippet "${used_ports[@]}";
     ensure_container_namespace start vippet $(ensure_container_parse_yaml "$workspace"/tools/visual-pipeline-and-platform-evaluation-tool/compose*.yml);
     cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
-    make run;
-    echo "@@HIGHLIGHT URL: http://$(ensure_ip)";
+    make run-prebuilt;
+    echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 debian_90_start_visual_search_question_and_answering () 
