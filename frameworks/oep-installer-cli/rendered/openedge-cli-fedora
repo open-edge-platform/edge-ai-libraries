@@ -70,7 +70,7 @@ main () {
         _rc=$?
       else
         # save args for resume
-        ensure_prop set command "$*"
+        ensure_prop set command "$*" --create
 
         # critical group permissions
         local -A _groups=()
@@ -313,7 +313,6 @@ act_helper ()
     ;;
 esac);
     set -- $(act_resolve_args $act_name "$@");
-    local implicit_mods=($(act_extract_modules $act_name "$@"));
     local handles=($(act_find_deps $act_name "$@" | tr ' ' '\n' | sort $sort_options));
     if [ ${#handles[@]} -gt 0 ]; then
         if [ "$act_name" = "install" ]; then
@@ -342,7 +341,7 @@ esac);
                 do
                     echo "${licenses_text[$id1]}";
                     echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")";
-                done | ensure_license_gate $installer_name "$@";
+                done | ensure_license_gate "$@";
                 rc=$?;
                 if [ $rc -eq 1 ]; then
                     echo "License declined";
@@ -366,7 +365,13 @@ esac);
         export _INSTALLER_PANEL_ACTIVE=;
         [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
         { 
-            local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && echo "${implicit_mods[*]}" || echo "${handles[*]#*_*_*_}")) _pair _h _m;
+            local modules=($(all_modules_str="${handles[*]#*_*_*_}"
+[[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && ( local rmods=()
+for m in $(act_extract_modules $act_name "$@");
+do
+    [[ " $all_modules_str " != *" $m "* ]] || rmods+=("$m");
+done
+[ ${#rmods[*]} -gt 0 ] && echo "${rmods[*]}" || echo "${handles[0]#*_*_*_}" ) || echo "$all_modules_str")) _pair _h _m;
             for handler in ${handles[*]};
             do
                 name1=${handler#*_*_*_};
@@ -2096,7 +2101,7 @@ act_panelled_logs_askpass ()
 if [ -n "$ASKPASS_ENV" ]; then
   printf '%s\n' "$ASKPASS_ENV"
 elif [ -e /dev/tty ]; then
-  exec 8<>/dev/tty 2>/dev/null || exit 1
+  { exec 8<>/dev/tty; } 2>/dev/null || exit 1
   rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
   saved=$(stty -g <&8) || exit 1
   # restore tty and clear the prompt row (cleanup only)
@@ -2224,27 +2229,9 @@ act_validate_modules ()
 configure_anomalib () 
 { 
     workspace="$(ensure_project_path)/anomalib";
-    version=2.7.0;
+    version="$(ensure_parse_value_option version --version=2.7.0 "$@")";
     repository=https://github.com/open-edge-platform/anomalib.git;
-    version_skills=release-2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/anomalib.git;
     skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
-}
-configure_dlstreamer () 
-{ 
-    repo_name="yum.repos.intel.com";
-    key_url="https://$repo_name/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg";
-    yum_repo_conf=("[DLStreamer]" "name=Intel(R) DLStreamer" "baseurl=https://$repo_name/edgeai/dlstreamer" "enabled=1" "gpgcheck=1" "repo_gpgcheck=1" "gpgkey=$key_url");
-    yum_repo_file="/etc/yum.repos.d/intel-dlstreamer.repo";
-    workspace="$(ensure_project_path)/dlstreamer";
-    version="$(ensure_parse_value_option version --version=2026.2.0 "$@")";
-    od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
-    od_model_proc=yolov5m-640_INT8/yolo-v5;
-    oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
-    model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
-    version_skills="release-${version%-rc*}";
-    repository_skills=https://github.com/open-edge-platform/skills.git;
-    skills=(dlstreamer-coding-agent)
 }
 configure_docker_ce () 
 { 
@@ -2303,10 +2290,10 @@ EOF
 configure_geti () 
 { 
     workspace="$(ensure_project_path)/geti";
-    version_skills=release-2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/skills.git;
+    version="$(ensure_parse_value_option version --version=3.3.0 "$@")";
+    repository=https://github.com/open-edge-platform/geti.git;
     skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model);
-    image_name=ghcr.io/open-edge-platform/geti-xpu;
+    image_name="ghcr.io/open-edge-platform/geti-xpu:${version}";
     used_ports=(8080)
 }
 configure_kernel_module_essential () 
@@ -2464,6 +2451,142 @@ widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0)
 for r in rows:
   print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
 ' "$sep"
+}
+ensure_container_cleanup () 
+{ 
+    local c;
+    for c in "$@";
+    do
+        case "$c" in 
+            name:*)
+                docker container rm -v -f ${c#name:} 2> /dev/null || true
+            ;;
+            vol:*)
+                docker volume rm -f ${c#vol:} 2> /dev/null || true
+            ;;
+            net:*)
+                docker network rm -f ${c#net:} 2> /dev/null || true
+            ;;
+        esac;
+    done;
+    docker volume prune -f || true
+}
+ensure_container_namespace () 
+{ 
+    local act_name="${1:?}";
+    local name="${2:?}";
+    shift 2;
+    case "$act_name" in 
+        install)
+            ensure_prop set installed/$name/containers "$*"
+        ;;
+        start)
+            ensure_prop set started/$name/containers "$*"
+        ;;
+    esac;
+    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
+    local c stopper mname mpath;
+    for c in "$@";
+    do
+        [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
+        printf "${red}%s is in conflict${reset}\n" "$c" 1>&2;
+        for mpath in $(ensure_prop find "installed/*/containers") $(ensure_prop find "started/*/containers");
+        do
+            [[ " $(ensure_prop get "$mpath") " = *" $c "* ]] || continue;
+            mname="${mpath#*/}";
+            mname="${mname%/*}";
+            stopper="${_act_cache_functions[stop_$mname]:-}";
+            [ -n "$stopper" ] || continue;
+            printf "${red}Stopping $mname to release container %s${reset}\n" "$c" 1>&2;
+            ( set -e;
+            $stopper "$mname" -- ) 1>&2 || true;
+        done;
+        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
+        [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
+        printf "${red}%s is occupied${reset}\n%s\n" "$c" "${container_resources[*]}" 1>&2;
+        return 3;
+    done
+}
+ensure_container_parse_yaml () 
+{ 
+    python3 - "$@" <<'EOF'
+import os, re, sys, yaml
+def _any(loader, node):  # tolerate Compose !reset / !override tags
+  if isinstance(node, yaml.MappingNode):  return loader.construct_mapping(node, deep=True)
+  if isinstance(node, yaml.SequenceNode): return loader.construct_sequence(node, deep=True)
+  return loader.construct_scalar(node)
+for tag in ("!reset", "!override"):
+  yaml.SafeLoader.add_constructor(tag, _any)
+INNER = re.compile(r"\$\{([A-Za-z_]\w*)(?:(:?)([-?+])([^${}]*))?\}")
+def resolve(v):
+  if v is None: return None
+  s = str(v).replace("$$", "\0")
+  while (m := INNER.search(s)):
+    if m.group(3) != "-": return None
+    s = s[:m.start()] + m.group(4) + s[m.end():]
+  if re.search(r"\$[A-Za-z_]", s): return None
+  return s.replace("\0", "$")
+def normalize(n):
+  return re.sub(r"[^a-z0-9_-]", "", n.lower()).lstrip("_-")
+def host_ports(p):
+  if isinstance(p, int): return []                    # container-only port
+  if isinstance(p, dict):
+    port = resolve(p.get("published"))
+  else:
+    s = resolve(p)
+    if s is None: return []
+    s = s.partition("/")[0]
+    if s.startswith("["): s = s.partition("]:")[2]  # [::1]:8080:80
+    parts = s.rsplit(":", 2)
+    port = parts[-2] if len(parts) >= 2 else None
+  m = re.fullmatch(r"(\d+)(?:-(\d+))?", port or "")
+  if not m: return []
+  lo = int(m.group(1))
+  return range(lo, int(m.group(2) or lo) + 1)
+cli_project, paths = None, []
+for a in sys.argv[1:]:
+  if a.startswith("--project="): cli_project = a.split("=", 1)[1]
+  else: paths.append(a)
+services, networks, volumes, file_name = {}, {}, {}, None
+for path in paths:
+  with open(path) as f:
+    d = yaml.safe_load(f) or {}
+  file_name = d.get("name") or file_name
+  for n, s in (d.get("services") or {}).items():
+    if not isinstance(s, dict): continue
+    m = services.setdefault(n, {"ports": []})
+    for k in ("container_name", "network_mode", "networks", "scale", "deploy"):
+      if k in s: m[k] = s[k]
+    m["ports"] += s.get("ports") or []
+  for sec, tgt in (("networks", networks), ("volumes", volumes)):
+    for k, c in (d.get(sec) or {}).items():
+      tgt.setdefault(k, {}).update(c or {})
+proj = resolve(cli_project or file_name) or os.path.basename(os.path.dirname(os.path.abspath(paths[0])))
+proj = normalize(proj)
+seen = set()
+def out(kind, v):
+  if v is not None and (kind, v) not in seen:
+    seen.add((kind, v)); print(f"{kind}:{v}")
+needs_default = False
+for n, s in services.items():
+  if s.get("container_name"):
+    out("name", resolve(s["container_name"]))
+  else:
+    r = resolve(s.get("scale") or (s.get("deploy") or {}).get("replicas") or 1)
+    for i in range(1, (int(r) if str(r).isdigit() else 1) + 1):
+      out("name", f"{proj}-{n}-{i}")
+  if "network_mode" not in s and not s.get("networks"):
+    needs_default = True
+  for p in s["ports"]:
+    for port in host_ports(p):
+      out("port", port)
+if needs_default: networks.setdefault("default", {})
+for kind, table in (("net", networks), ("vol", volumes)):
+  for k, c in table.items():
+    if c.get("external"): continue                  # never ours to clean up
+    out(kind, resolve(c["name"]) if c.get("name") else f"{proj}_{k}")
+EOF
+
 }
 ensure_disk_size () 
 { 
@@ -2786,19 +2909,26 @@ ensure_ports_open ()
     local act_name="${1:?}";
     local name="${2:?}";
     shift 2;
-    if [ "$act_name" = "start" ]; then
-        ensure_prop set started/$name/ports "$*";
-    fi;
+    case "$act_name" in 
+        install)
+            ensure_prop set installed/$name/ports "$*"
+        ;;
+        start)
+            ensure_prop set started/$name/ports "$*"
+        ;;
+    esac;
     if command -v ss > /dev/null; then
-        local port out stopper mname;
+        local port out stopper mname mpath;
         for port in $*;
         do
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
-            for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
+            for mpath in $(ensure_prop find "installed/*/ports") $(ensure_prop find "started/*/ports");
             do
-                [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
+                [[ " $(ensure_prop get $mpath) " = *" $port "* ]] || continue;
+                mname="${mpath#*/}";
+                mname="${mname%/*}";
                 stopper="${_act_cache_functions[stop_$mname]:-}";
                 [ -n "$stopper" ] || continue;
                 printf "${red}Stopping $mname to release port %s${reset}\n" "$port" 1>&2;
@@ -2821,26 +2951,27 @@ ensure_project_path ()
 }
 ensure_prop () 
 { 
-    local op="$1" key_path="${2:?}" value="${3:-}";
+    local op="$1" key_rpath="${2:?}" value="${3:-}";
     local key_base="$(ensure_project_path)/${installer_name:?}";
+    local key_path="$key_base/$key_rpath";
     case "$op" in 
         find)
-            ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
+            ( cd "$key_base" && find . -ipath "./$key_rpath" -print 2> /dev/null | cut -f2- -d/ )
         ;;
         create)
-            mkdir -m 700 -p "$key_base/${key_path%/*}"
+            mkdir -m 700 -p "${key_path%/*}"
         ;;
         remove)
-            if [ -f "$key_base/$key_path" ]; then
-                rm -f "$key_base/$key_path";
+            if [ -f "$key_path" ]; then
+                rm -f "$key_path";
             else
-                if [[ "$key_path" = */ && -d "$key_base/${key_path%/}" ]]; then
-                    rm -rf "$key_base/${key_path%/}";
+                if [[ "$key_rpath" = */ && -d "${key_path%/}" ]]; then
+                    rm -rf "${key_path%/}";
                 fi;
             fi
         ;;
         get)
-            [ ! -r "$key_base/$key_path" ] || value="$(< "$key_base/$key_path")";
+            [ ! -r "$key_path" ] || value="$(< "$key_path")";
             if ensure_parse_option --boolean "$@"; then
                 [[ " true yes t y a accept " = *" ${value,,} "* ]] && value="true" || value="false";
             fi;
@@ -2866,8 +2997,11 @@ ensure_prop ()
                     value="$("$askpass_helper" "$prompt" | tr -d '\n')"
                 } 9< "$rundir";
             fi;
+            if ensure_parse_option --create "$@"; then
+                mkdir -m 700 -p "${key_path%/*}";
+            fi;
             ( umask 077;
-            printf '%s' "$value" > "$key_base/$key_path" )
+            printf '%s' "$value" > "$key_path" )
         ;;
     esac
 }
@@ -2915,7 +3049,7 @@ ensure_sbom_format ()
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url | cli-sha256)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -2930,18 +3064,27 @@ ensure_skills ()
     case "$op" in 
         add)
             local version="${2:?}";
-            local repository="${3:?}";
-            shift 3;
-            local tmpdir p name;
-            ensure_tmpdir create tmpdir skills;
-            ensure_git_export "$tmpdir" "$version" "$repository" "$@";
             mkdir -p "$HOME"/.agents/skills;
-            for p in "$@";
-            do
-                ensure_rm "$HOME/.agents/skills/${p##*/}";
-                cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
-            done;
-            ensure_tmpdir destroy "$tmpdir"
+            if [ "$version" = "--" ]; then
+                shift 2;
+                for p in "$@";
+                do
+                    ensure_rm "$HOME/.agents/skills/${p##*/}";
+                    cp -r "$p" "$HOME"/.agents/skills/;
+                done;
+            else
+                local repository="${3:?}";
+                shift 3;
+                local tmpdir p name;
+                ensure_tmpdir create tmpdir skills;
+                ensure_git_export "$tmpdir" "$version" "$repository" "$@";
+                for p in "$@";
+                do
+                    ensure_rm "$HOME/.agents/skills/${p##*/}";
+                    cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
+                done;
+                ensure_tmpdir destroy "$tmpdir";
+            fi
         ;;
         remove)
             local names=("${@##*/}");
@@ -2957,7 +3100,9 @@ ensure_sudo ()
     [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
     [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
     if [ -e /dev/tty ]; then
-        if : < /dev/tty 2> /dev/null; then
+        if { 
+            : < /dev/tty
+        } 2> /dev/null; then
             local ppid=$$;
             local pid="$(ensure_prop get pids/sudo/pid$ppid)";
             if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
@@ -2973,8 +3118,7 @@ ensure_sudo ()
                     sleep 60;
                 done;
                 ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
-                ensure_prop create pids/sudo/pid$ppid;
-                ensure_prop set pids/sudo/pid$ppid "$pid";
+                ensure_prop set pids/sudo/pid$ppid "$pid" --create;
                 disown $pid;
             fi;
         fi;
@@ -3506,69 +3650,9 @@ fedora_70_sbom_openvino ()
     ensure_sbom_format yum-repo-file "$yum_repo_file";
     ensure_sbom_format pkg-list "openvino-$version"
 }
-fedora_75_install_dlstreamer () 
-{ 
-    configure_dlstreamer "$@";
-    if verify_dlstreamer && ! ensure_parse_reinstall "$@"; then
-        echo "dlstreamer-${version} is installed." 1>&2;
-    else
-        ensure_disk_size 15000;
-        ensure_prop set installed/dlstreamer/owned true;
-        echo "@@STEP Removing intel-dlstreamer";
-        fedora_75_remove_dlstreamer "$@";
-        echo "@@STEP Installing intel-dlstreamer=$version";
-        printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file";
-        ensure_dnf install -y intel-dlstreamer=$version;
-        echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
-        verify_dlstreamer;
-        echo "intel-dlstreamer=$version installed successfully.";
-    fi;
-    test_dlstreamer_pipeline "$@";
-    echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh";
-    echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples";
-    echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
-}
-fedora_75_profile_dlstreamer () 
-{ 
-    echo "openvino"
-}
-fedora_75_remove_dlstreamer () 
-{ 
-    configure_dlstreamer "$@";
-    [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
-    ensure_dnf autoremove -y $(dnf list --installed | grep openvino | awk '{print$1}') || true;
-    ensure_rm "$workspace" || true;
-    ensure_skills remove "${skills[@]}"
-}
-fedora_75_sbom_dlstreamer () 
-{ 
-    configure_dlstreamer "$@";
-    ensure_sbom_format repo-name "$repo_name";
-    ensure_sbom_format gpg-key "$key_url";
-    ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
-    ensure_sbom_format yum-repo-file "$yum_repo_file";
-    ensure_sbom_format pkg-list "intel-dlstreamer=$version*"
-}
 fedora_80_install_anomalib () 
 { 
-    configure_anomalib "$@";
-    if verify_anomalib && ! ensure_parse_reinstall "$@"; then
-        echo "Anomalib is installed." 1>&2;
-    else
-        ensure_disk_size 15000;
-        echo "@@STEP Installing anomalib=${version}";
-        mkdir -p "$workspace";
-        cd "$workspace";
-        python3 -m venv .venv;
-        . .venv/bin/activate;
-        pip install "anomalib[openvino,cpu]==${version}";
-        echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
-        verify_anomalib;
-    fi;
-    test_anomalib "$@";
-    echo "@@HIGHLIGHT venv: $workspace/.venv"
+    install_anomalib "$@"
 }
 fedora_80_profile_anomalib () 
 { 
@@ -3576,9 +3660,7 @@ fedora_80_profile_anomalib ()
 }
 fedora_80_remove_anomalib () 
 { 
-    configure_anomalib "$@";
-    ensure_rm "$workspace" || true;
-    ensure_skills remove "${skills[@]}"
+    remove_anomalib "$@"
 }
 fedora_90_install_geti () 
 { 
@@ -3622,6 +3704,26 @@ fedora_99_profile_system_summary ()
     [ "$1" != "bootstrap" ] || echo "system_inspection curl dmidecode pciutils";
     [ "$1" != "install" ] || echo "curl dmidecode pciutils"
 }
+install_anomalib () 
+{ 
+    configure_anomalib "$@";
+    if verify_anomalib && ! ensure_parse_reinstall "$@"; then
+        echo "Anomalib is installed." 1>&2;
+    else
+        ensure_disk_size 15000;
+        echo "@@STEP Installing anomalib=${version}";
+        mkdir -p "$workspace";
+        cd "$workspace";
+        python3 -m venv .venv;
+        . .venv/bin/activate;
+        pip install "anomalib[openvino,cpu]==${version}";
+        echo "@@STEP Installing skills";
+        ensure_skills add "tags/lib/v$version" "$repository" "${skills[@]/#/.agents/skills/}";
+        verify_anomalib;
+    fi;
+    test_anomalib "$@";
+    echo "@@HIGHLIGHT venv: $workspace/.venv"
+}
 install_geti () 
 { 
     configure_geti "$@";
@@ -3634,7 +3736,7 @@ install_geti ()
         echo "@@STEP Pulling image";
         docker pull $image_name;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        ensure_skills add "release/app-${version%.*}" "$repository" "${skills[@]/#/.agents/skills/}";
     fi
 }
 install_reboot () 
@@ -3727,6 +3829,11 @@ install_system_inspection ()
     echo "----------------------------------------------------------------";
     [ "$net_pass" = "$ok" ] ) | ensure_columns
 }
+remove_anomalib () 
+{ 
+    configure_anomalib "$@";
+    ensure_rm "$workspace" || true
+}
 remove_geti () 
 { 
     stop_geti "$@";
@@ -3738,6 +3845,7 @@ start_geti ()
 { 
     configure_geti "$@";
     ensure_ports_open start geti "${used_ports[@]}";
+    ensure_container_namespace start geti geti-app;
     mkdir -p "$workspace"/geti-data;
     docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=${used_ports[0]} -p ${used_ports[0]}:${used_ports[0]} -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
@@ -3796,19 +3904,23 @@ subcommand_list ()
 { 
     local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
     local module_region_list=" ${_act_cache_modules[*]/#/--} ";
-    local k v args=() mods=() cli_version="" sbom=0 margs=0;
+    local k v args=() mods=() cli_version="" sbom=0 margs=0 tc=0;
     for v in "$@";
     do
         case "$v" in 
             --help)
                 echo "list options:";
                 echo "  --cli-version <v>  save cli version in the SBOM header";
+                echo "  --test-coverage    show test coverage subset";
                 echo "  --sbom             show component SBOM items";
                 echo;
                 return 0
             ;;
             --sbom)
                 sbom=1
+            ;;
+            --test-coverage)
+                tc=1
             ;;
             --cli-version=*)
                 cli_version="${v#*=}"
@@ -3864,6 +3976,7 @@ subcommand_list ()
             if [[ "/$0" = *"/rendered/"* ]]; then
                 local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
                 ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
+                ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')";
             fi;
         fi;
         ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
@@ -3878,77 +3991,179 @@ subcommand_list ()
             echo "---";
         done;
     else
-        local all_cmds=(${_act_cache_cmds[*]});
-        local profile_lines=() module_lines=();
-        local -A module_act_cache=();
-        local all_modules=(${_act_cache_modules[*]});
-        if [ ${#all_modules[@]} -gt 0 ]; then
-            local module_name;
-            for module_name in "${all_modules[@]}";
+        if [ $tc -eq 1 ]; then
+            if declare -F configure_edge_pack_kernel_image > /dev/null; then
+                configure_edge_pack_kernel_image $(act_extract_args install edge_pack_kernel_image "" "$@") > /dev/null 2>&1 || true;
+                set -- "$@" --edge_pack_kernel_image --version="$version";
+            fi;
+            local -A closure=() size=() target=() covered=();
+            local c h m candidates=();
+            for c in "${mods[@]}";
             do
-                [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
-                local module_cmds=() mname cmd;
-                for cmd in ${all_cmds[*]};
+                local comps=();
+                for h in $(act_find_deps install "$c" $(act_extract_args install "$c" "" "$@"));
                 do
-                    for mname in $(act_expand_modules $cmd $module_name "$@");
-                    do
-                        if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-                            module_cmds+=($cmd);
-                            break;
-                        fi;
-                    done;
+                    comps+=("${h#${installer_family}_*_install_}");
                 done;
-                module_act_cache[$module_name]="${module_cmds[*]}";
-                module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
-            done;
-        fi;
-        act_get prefix profile_;
-        local all_profiles=(${_act_reply[*]});
-        if [ ${#all_profiles[@]} -gt 0 ]; then
-            local profiler;
-            for profiler in "${all_profiles[@]}";
-            do
-                local profile_name=${profiler#*_*_*_};
-                [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
-                [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
-                local profile_cmds=() mname1 mname2 cmd found;
-                for cmd in ${all_cmds[*]};
+                [ ${#comps[@]} -gt 0 ] || continue;
+                closure[$c]=" ${comps[*]} ";
+                size[$c]=${#comps[@]};
+                candidates+=("$c");
+                for m in "${comps[@]}";
                 do
-                    for mname1 in $($profiler $cmd "$@");
+                    target[$m]=1;
+                done;
+            done;
+            if [ ${#target[@]} -eq 0 ]; then
+                echo "No installable components" 1>&2;
+                return 3;
+            fi;
+            local picked=() best best_gain best_size gain left=${#target[@]};
+            while [ $left -gt 0 ]; do
+                best="" best_gain=0 best_size=0;
+                for c in $(printf '%s\n' "${candidates[@]}" | LC_ALL=C.UTF-8 sort);
+                do
+                    [[ " ${picked[*]} " != *" $c "* ]] || continue;
+                    gain=0;
+                    for m in ${closure[$c]};
                     do
-                        if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-                            profile_cmds+=($cmd);
-                            break;
-                        fi;
-                        found=0;
-                        for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                        [ -n "${covered[$m]:-}" ] || gain=$((gain+1));
+                    done;
+                    if [ $gain -gt $best_gain ] || { 
+                        [ $gain -eq $best_gain ] && [ $gain -gt 0 ] && [ ${size[$c]} -lt $best_size ]
+                    }; then
+                        best=$c best_gain=$gain best_size=${size[$c]};
+                    fi;
+                done;
+                [ -n "$best" ] || break;
+                picked+=("$best");
+                for m in ${closure[$best]};
+                do
+                    [ -n "${covered[$m]:-}" ] || { 
+                        covered[$m]=1;
+                        left=$((left-1))
+                    };
+                done;
+            done;
+            local -A cnt=();
+            for c in "${picked[@]}";
+            do
+                for m in ${closure[$c]};
+                do
+                    cnt[$m]=$(( ${cnt[$m]:-0} + 1 ));
+                done;
+            done;
+            local final=() redundant;
+            for c in $(for c in "${picked[@]}";
+do
+    echo "${size[$c]} $c";
+done | sort -rn | cut -f2 -d' ');
+            do
+                redundant=1;
+                for m in ${closure[$c]};
+                do
+                    [ ${cnt[$m]} -gt 1 ] || { 
+                        redundant=0;
+                        break
+                    };
+                done;
+                if [ $redundant -eq 1 ]; then
+                    for m in ${closure[$c]};
+                    do
+                        cnt[$m]=$(( cnt[$m] - 1 ));
+                    done;
+                else
+                    final+=("$c");
+                fi;
+            done;
+            local -A shown=();
+            { 
+                for c in "${final[@]}";
+                do
+                    local adds=();
+                    for m in ${closure[$c]};
+                    do
+                        [ -n "${shown[$m]:-}" ] || { 
+                            shown[$m]=1;
+                            adds+=("$m")
+                        };
+                    done;
+                    printf "|%s|+%d|[%s]\n" "$c" ${#adds[@]} "${adds[*]}";
+                done
+            } | ensure_columns;
+        else
+            local all_cmds=(${_act_cache_cmds[*]});
+            local profile_lines=() module_lines=();
+            local -A module_act_cache=();
+            local all_modules=(${_act_cache_modules[*]});
+            if [ ${#all_modules[@]} -gt 0 ]; then
+                local module_name;
+                for module_name in "${all_modules[@]}";
+                do
+                    [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
+                    local module_cmds=() mname cmd;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname in $(act_expand_modules $cmd $module_name "$@");
                         do
-                            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-                                found=1;
+                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                                module_cmds+=($cmd);
                                 break;
                             fi;
                         done;
-                        if [ $found -eq 1 ]; then
-                            profile_cmds+=($cmd);
-                            break;
-                        fi;
                     done;
+                    module_act_cache[$module_name]="${module_cmds[*]}";
+                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
                 done;
-                profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
-            done;
-        fi;
-        { 
-            if [ ${#profile_lines[@]} -gt 0 ]; then
-                printf "List of Profiles:\n";
-                printf "%s\n" "${profile_lines[@]}" | sort;
-                printf "\n";
             fi;
-            if [ ${#module_lines[@]} -gt 0 ]; then
-                printf "List of Components:\n";
-                printf "%s\n" "${module_lines[@]}" | sort;
-                printf "\n";
-            fi
-        } | ensure_columns;
+            act_get prefix profile_;
+            local all_profiles=(${_act_reply[*]});
+            if [ ${#all_profiles[@]} -gt 0 ]; then
+                local profiler;
+                for profiler in "${all_profiles[@]}";
+                do
+                    local profile_name=${profiler#*_*_*_};
+                    [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
+                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                    local profile_cmds=() mname1 mname2 cmd found;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname1 in $($profiler $cmd "$@");
+                        do
+                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                            found=0;
+                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                            do
+                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                    found=1;
+                                    break;
+                                fi;
+                            done;
+                            if [ $found -eq 1 ]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
+                    done;
+                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+                done;
+            fi;
+            { 
+                if [ ${#profile_lines[@]} -gt 0 ]; then
+                    printf "List of Profiles:\n";
+                    printf "%s\n" "${profile_lines[@]}" | sort;
+                    printf "\n";
+                fi;
+                if [ ${#module_lines[@]} -gt 0 ]; then
+                    printf "List of Components:\n";
+                    printf "%s\n" "${module_lines[@]}" | sort;
+                    printf "\n";
+                fi
+            } | ensure_columns;
+        fi;
     fi
 }
 subcommand_remove () 
@@ -3990,8 +4205,8 @@ subcommand_resume ()
 subcommand_setup () 
 { 
     ensure_parse_option --help "$@" && return;
-    local installer_misc_functions=(_act_levenshtein system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino);
-    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtjaHJvbnldPSIiIFtnZXRpXT0iIiBbcnN5bmNdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtwY3JlMl9kZXZlbF09IiIgW2NtYWtlXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFstLXJlaW5zdGFsbF09IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbcGlweF09IiIgWy0tdmFsaWRhdGVdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFt1dl09IiIgW3B5dGhvbjNfcGlwXT0iIiBbLS1kcnktcnVuXT0iIiBbZ2F3a109IiIgW3VuemlwXT0iIiBbZGxzdHJlYW1lcl09IiIgW3dnZXRdPSIiIFtnbnVwZzJdPSIiIFtkbWlkZWNvZGVdPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW2pxXT0iIiBbcGNpdXRpbHNdPSIiIFthbm9tYWxpYl09IiIgW3BvZG1hbl9kb2NrZXJdPSIiIFtjdXJsXT0iIiBbLS1jb250aW51ZV09IiIgW2djY109IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlbW92ZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW3JzeW5jXT0iIiBbZ2V0aV09IiIgW2dpdF09IiIgW2NtYWtlXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbLS1yZWluc3RhbGxdPSIiIFtwaXB4XT0iIiBbLS12YWxpZGF0ZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3V2XT0iIiBbLS1kcnktcnVuXT0iIiBbdW56aXBdPSIiIFtkbHN0cmVhbWVyXT0iIiBbZG1pZGVjb2RlXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFtqcV09IiIgW2Fub21hbGliXT0iIiBbcG9kbWFuX2RvY2tlcl09IiIgWy0tY29udGludWVdPSIiIFtnY2NdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICByZXN1bWUpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFstLXJlaW5zdGFsbF09IiIgWy0tdmFsaWRhdGVdPSIiIFstLWRyeS1ydW5dPSIiIFstLWNvbnRpbnVlXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgc3RhcnQpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtnZXRpXT0iIiBbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0b3ApCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtnZXRpXT0iIiBbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
+    local installer_misc_functions=(_act_levenshtein system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_openvino);
+    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtjaHJvbnldPSIiIFtnZXRpXT0iIiBbcnN5bmNdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtwY3JlMl9kZXZlbF09IiIgW2NtYWtlXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFstLXJlaW5zdGFsbF09IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbcGlweF09IiIgWy0tdmFsaWRhdGVdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFt1dl09IiIgW3B5dGhvbjNfcGlwXT0iIiBbLS1kcnktcnVuXT0iIiBbZ2F3a109IiIgW3VuemlwXT0iIiBbd2dldF09IiIgW2dudXBnMl09IiIgW2RtaWRlY29kZV09IiIgW2tlcm5lbF9tb2R1bGVfZXNzZW50aWFsXT0iIiBbanFdPSIiIFtwY2l1dGlsc109IiIgW2Fub21hbGliXT0iIiBbcG9kbWFuX2RvY2tlcl09IiIgW2N1cmxdPSIiIFstLWNvbnRpbnVlXT0iIiBbZ2NjXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVtb3ZlKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbcnN5bmNdPSIiIFtnZXRpXT0iIiBbZ2l0XT0iIiBbY21ha2VdPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFstLXJlaW5zdGFsbF09IiIgW3BpcHhdPSIiIFstLXZhbGlkYXRlXT0iIiBbb3BlbnZpbm9dPSIiIFttYWtlXT0iIiBbdXZdPSIiIFstLWRyeS1ydW5dPSIiIFt1bnppcF09IiIgW2RtaWRlY29kZV09IiIgW2tlcm5lbF9tb2R1bGVfZXNzZW50aWFsXT0iIiBbanFdPSIiIFthbm9tYWxpYl09IiIgW3BvZG1hbl9kb2NrZXJdPSIiIFstLWNvbnRpbnVlXT0iIiBbZ2NjXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVzdW1lKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0YXJ0KQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbZ2V0aV09IiIgWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbZ2V0aV09IiIgWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICAqKQogICAgQ09NUFJFUExZPSgpCiAgICA7OwogIGVzYWMKfQpjb21wbGV0ZSAtRiBfb3BlbmVkZ2VfY2xpX2NvbXBsZXRpb24gb3BlbmVkZ2UtY2xpCg==";
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
     { 
@@ -4269,62 +4484,6 @@ test_anomalib_pipeline(dataset_path, sys.argv[1])
         [[ "${validated[*]}" != *failed* ]] || return 3;
     fi
 }
-test_dlstreamer_pipeline () 
-{ 
-    if ensure_parse_option --validate "$@"; then
-        mkdir -p "$workspace";
-        cd "$workspace";
-        echo "@@STEP Downloading models";
-        { 
-            mkdir -p models/${od_model%/*};
-            [ -e models/$od_model.bin ] || ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin || { 
-                echo "Failed to download $models/$od_model.bin" 1>&2;
-                return 3
-            };
-            [ -e models/$od_model.xml ] || ensure_fetch $model_repo/storage/$od_model.xml models/$od_model.xml || { 
-                echo "Failed to download models/$od_model.xml" 1>&2;
-                return 3
-            };
-            [ -e models/$od_model.json ] || ensure_fetch $model_repo/storage/${od_model_proc}.json models/$od_model.json || { 
-                echo "Failed to download models/$od_model.json" 1>&2;
-                return 3
-            }
-        };
-        { 
-            mkdir -p models/${oc_model%/*};
-            [ -e models/$oc_model.bin ] || ensure_fetch $model_repo/storage/$oc_model.bin models/$oc_model.bin || { 
-                echo "Failed to download models/$oc_model.bin" 1>&2;
-                return 3
-            };
-            [ -e models/$oc_model.xml ] || ensure_fetch $model_repo/storage/$oc_model.xml models/$oc_model.xml || { 
-                echo "Failed to download models/$oc_model.xml" 1>&2;
-                return 3
-            }
-        };
-        . /opt/intel/dlstreamer/scripts/setup_dls_env.sh || return 3;
-        local validated=();
-        local -A device_map=([CPU]=/proc/cpuinfo [GPU]=/dev/dri/renderD128 [NPU]=/dev/accel/accel0);
-        for device in ${!device_map[*]};
-        do
-            [ -e ${device_map[$device]} ] || continue;
-            echo "@@STEP Validating on $device";
-            echo "Validating $od_model and $oc_model on device $device...";
-            ( set -o pipefail;
-            gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! gvainference model=models/$oc_model.xml device=$device ! gvafpscounter ! fakesink sync=false | ( info=0;
-            while IFS= read -r line; do
-                echo "$line";
-                case "$line" in 
-                    *"FpsCounter(last"*"sec): total="*)
-                        info=1
-                    ;;
-                esac;
-            done;
-            [ $info -eq 1 ] || exit 3 ) ) && validated+=("$device ok") || validated+=("$device failed");
-        done;
-        echo "@@HIGHLIGHT Validation: ${validated[*]}";
-        [[ " ${validated[*]} " != *failed* ]] || return 3;
-    fi
-}
 test_openvino () 
 { 
     if ensure_parse_option --validate "$@"; then
@@ -4366,10 +4525,6 @@ verify_anomalib ()
 { 
     [ -r "$workspace"/.venv/bin/activate ] || return 1;
     . "$workspace"/.venv/bin/activate && python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
-}
-verify_dlstreamer () 
-{ 
-    ensure_dnf_is_installed intel-dlstreamer=${version}
 }
 verify_geti () 
 { 
