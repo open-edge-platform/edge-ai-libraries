@@ -49,9 +49,8 @@ class GStreamerRtspServer():
         self._mainloop = None
         self._mount_points = self._server.get_mount_points()
         self._streams = {}
+        self._factories = {}
         self._thread = None
-        self._factory = GStreamerRtspFactory(self)
-        self._factory.set_shared(True)
 
     def check_if_path_exists(self, rtsp_path):
         if rtsp_path in self._streams:
@@ -65,15 +64,26 @@ class GStreamerRtspServer():
         caps, overlay settings and encoding to mount at `rtsp_path`.
         """
         self._streams[rtsp_path] = stream
-        self._mount_points.add_factory(rtsp_path, self._factory)
+        # One factory per stream. A shared factory caches its media by path, and a media outlives its pipeline until
+        # its RTSP session times out (60 s by default), so a pipeline restarted on the same path was handed the old
+        # media, which nothing feeds any more: DESCRIBE/PLAY succeed but no video arrives.
+        factory = GStreamerRtspFactory(self)
+        factory.set_shared(True)
+        factory.set_eos_shutdown(True)      # drop the media as soon as its pipeline ends
+        self._factories[rtsp_path] = factory
+        self._mount_points.add_factory(rtsp_path, factory)
         url = "rtsp:://<host ip>:{}{}".format(self._port, rtsp_path)
         self._logger.info("Created RTSP Stream for instance {} at {}".format(identifier, url))
 
-    def remove_stream(self, rtsp_path):
+    def remove_stream(self, rtsp_path, owner=None):
+        """Unregister `rtsp_path`. With `owner`, only if that destination still owns the stream: a pipeline that
+        stopped can release its path before it has finished tearing down, and a new pipeline may already own it."""
         self._logger.debug(
             "Removing RTSP Stream: {}".format(rtsp_path))
-        if rtsp_path in self._streams:
+        stream = self._streams.get(rtsp_path)
+        if stream is not None and (owner is None or stream.source is owner):
             self._mount_points.remove_factory(rtsp_path)
+            self._factories.pop(rtsp_path, None)
             del self._streams[rtsp_path]
 
     def get_source(self, rtsp_path):
@@ -102,7 +112,7 @@ class GStreamerRtspServer():
             self._logger.info("Stopping Gstreamer RTSP Server")
             for rtsp_path in list(self._streams):
                 self.remove_stream(rtsp_path)
-            self._factory = None
+            self._factories = None
             self._streams = None
             if self._mainloop:
                 self._mainloop.quit()

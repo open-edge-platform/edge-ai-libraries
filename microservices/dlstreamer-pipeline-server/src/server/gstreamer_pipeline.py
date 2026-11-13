@@ -191,6 +191,9 @@ class GStreamerPipeline(Pipeline):
                            " State to {next_state}".format(id=self.identifier,
                                                            next_state=new_state.name))
         if self.pipeline:
+            for destination in self._app_destinations:
+                if isinstance(destination, GStreamerRtspDestination):
+                    destination.release()
             bus = self.pipeline.get_bus()
             if self._bus_connection_id:
                 bus.remove_signal_watch()
