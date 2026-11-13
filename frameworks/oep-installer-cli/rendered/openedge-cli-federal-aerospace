@@ -6456,7 +6456,9 @@ install_system_inspection ()
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2;
     net_pass=$ok;
     net_access="$(system_scan_check_network_access)";
-    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}";
+    [[ "$net_access" = *reachable* ]] || { 
+        [[ "$net_access" = *skewed* ]] && net_pass="${nok/MSG/Check DateTime}" || net_pass="${nok/MSG/Check Proxies}"
+    };
     echo -e "Network|$net_access|$net_pass";
     [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2;
     echo;
@@ -7064,7 +7066,7 @@ system_scan_check_network_access ()
     for url in "${check_urls[@]}";
     do
         curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { 
-            echo "$url by $(id -un)";
+            [[ "$url" = https://* ]] && curl -k -fsSL --connect-timeout 10 $url > /dev/null && echo "Clock skewed" || echo "$url by $(id -un)";
             return 0
         };
     done;
