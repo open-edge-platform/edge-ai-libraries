@@ -1,6 +1,8 @@
 
 configure_edge_pack_kernel_image () {
   cmdline=(xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192)
+  version="$(ensure_parse_value_option version "$@")"
+  [ -z "$version" ] || return 0
   local kver="$(uname -r)" incompatibles=(7.0.0-14-generic)
   case "$ID$VERSION_ID" in
   ubuntu24.04|ubuntu26.04)
@@ -15,7 +17,6 @@ configure_edge_pack_kernel_image () {
     return 1
     ;;
   esac
-  version="$(ensure_parse_value_option version --version="$version" "$@")"
 }
 
 debian_25_profile_edge_pack_kernel_image () {
