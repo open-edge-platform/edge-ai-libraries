@@ -1,20 +1,29 @@
+
+configure_linux_tools () {
+  install_pkgs=(linux-tools-common "linux-tools-$(uname -r)")
+  case "$ID$VERSION_ID" in
+  ubuntu26.04) install_pkgs+=(linux-perf bpftool);;
+  esac
+}
+
 debian_30_install_linux_tools () {
-  local name="linux-tools-$(uname -r)"
-  if ensure_apt_is_installed $name; then
-    echo "$name is installed." >&2
+  configure_linux_tools "$@"
+  if ensure_apt_is_installed ${install_pkgs[*]}; then
+    echo "linux-tools is installed." >&2
   else
     ensure_prop set installed/linux_tools/owned true
     ensure_apt update
-    ensure_apt install --no-install-recommends -y linux-tools-common $name || ensure_apt install --no-install-recommends -y --no-install-recommends linux-tools-common linux-tools-generic
+    ensure_apt install --no-install-recommends -y ${install_pkgs[*]}
   fi
 }
 
 debian_30_remove_linux_tools () {
-  local name="linux-tools-$(uname -r)"
+  configure_linux_tools "$@"
   [ "$(ensure_prop get installed/linux_tools/owned)" = "true" ] || return 0
-  ensure_apt autoremove -y $name || true
+  ensure_apt purge --autoremove -y ${install_pkgs[*]} || true
 }
 
 debian_30_sbom_linux_tools () {
-  ensure_sbom_format pkg-list linux-tools-common linux-tools-$(uname -r)
+  configure_linux_tools "$@"
+  ensure_sbom_format pkg-list ${install_pkgs[*]}
 }
