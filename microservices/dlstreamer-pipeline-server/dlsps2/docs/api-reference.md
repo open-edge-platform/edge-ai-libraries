@@ -56,6 +56,8 @@ authoritative schema for the version you are running:
 - Status responses include new fields:
   - `frame_fps`: Current (instantaneous) frames per second.
   - `frame_interval`: Time window in seconds for the `frame_fps` measurement.
+  - `frame_count` and `frame_count_time`: Frames counted since the first frame,
+    and the Unix epoch time of that count.
   - `first_frame_time`: Unix epoch time when the first frame was received.
   - They do not include `avg_pipeline_latency`, which 2.0 does not track yet.
 - Automatic pipeline restart on error or EOS is new. Pass `restart_config` in the
@@ -190,7 +192,7 @@ string exactly as submitted.
 | `validate_pipeline` | boolean | No | `true` | Whether to validate the pipeline before starting. Set to `false` to skip validation. |
 | `cpu_cores` | array[int] | No | - | CPU core indices to pin this pipeline to (e.g., `[0, 1, 2]`). |
 | `warmup_frames` | integer | No | `0` | Number of initial frames excluded from `avg_fps`. `frame_fps` is still reported during warmup. |
-| `fps_element` | string | No | - | Name of the element whose input buffers are counted for `frame_fps` and `avg_fps` (e.g., `detect`). Defaults to the terminal sink. If the name is not in the pipeline, the instance moves to `ERROR`. |
+| `fps_element` | string | No | - | Name of the element whose input buffers are counted for `frame_fps`, `avg_fps` and `frame_count` (e.g., `detect`). Defaults to the terminal sink. If the name is not in the pipeline, the instance moves to `ERROR`. |
 | `restart_config` | [RestartConfig](#restartconfig) | No | - | Configuration for automatic pipeline restart on error or EOS. |
 
 ```json
@@ -293,6 +295,8 @@ completed, errored, and aborted instances.
     "avg_fps": 29.87,
     "frame_fps": 30.02,
     "frame_interval": 1.023,
+    "frame_count": 1243,
+    "frame_count_time": 1791366042.081,
     "start_time": 1791366000.123,
     "first_frame_time": 1791366000.456,
     "elapsed_time": 42.51,
@@ -304,6 +308,8 @@ completed, errored, and aborted instances.
     "avg_fps": 0.0,
     "frame_fps": 0.0,
     "frame_interval": 0.0,
+    "frame_count": 0,
+    "frame_count_time": null,
     "start_time": null,
     "first_frame_time": null,
     "elapsed_time": null,
@@ -344,6 +350,8 @@ Example for an instance started with `POST /pipelines/{name}/{version}`:
   "avg_fps": 29.87,
   "frame_fps": 30.02,
   "frame_interval": 1.023,
+  "frame_count": 1243,
+  "frame_count_time": 1791366042.081,
   "start_time": 1791366000.123,
   "first_frame_time": 1791366000.456,
   "elapsed_time": 42.51,
@@ -410,6 +418,8 @@ configuration or request data.
   "avg_fps": 29.91,
   "frame_fps": 0.0,
   "frame_interval": 0.0,
+  "frame_count": 1786,
+  "frame_count_time": 1791366060.161,
   "start_time": 1791366000.123,
   "first_frame_time": 1791366000.456,
   "elapsed_time": 60.04,
@@ -651,6 +661,8 @@ curl http://localhost:8080/devices
 | `avg_fps` | number | Average frames per second over the frames received after the first `warmup_frames` frames, measured from the first counted frame. `0.0` until warmup completes. |
 | `frame_fps` | number | Current (instantaneous) frames per second. |
 | `frame_interval` | number | Time window in seconds for the current `frame_fps` measurement. |
+| `frame_count` | integer | Frames counted since the first frame, warmup frames included. Updated about every second, also when no frames arrive, and once more when the instance stops. The FPS between two status reads is the difference of `frame_count` divided by the difference of `frame_count_time`; unlike `frame_fps`, it includes the seconds in which no frames arrive. Starts again from `0` when the instance restarts. |
+| `frame_count_time` | number or null | Unix epoch time in seconds when `frame_count` was read. `null` until the first frame arrives. |
 | `start_time` | number or null | Unix epoch start time in seconds. `null` until the instance is running. |
 | `first_frame_time` | number or null | Unix epoch time when the first frame was received. `null` until the first frame arrives. |
 | `elapsed_time` | number or null | Seconds the instance has been running, or ran in total if it has stopped. `null` until it starts. |
