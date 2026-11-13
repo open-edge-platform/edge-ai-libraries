@@ -279,10 +279,6 @@ for the setup. The following limitations apply:
   collects latency metrics also runs for tests that do not ask for them, and can lower their FPS. For FPS
   measurements without the tracer, set `DLSPS2_GST_TRACERS=` (empty) before `make run`; tests that ask for
   latency metrics then run without them, and the job details say so.
-- **The device list comes from the `vippet` container.** Available devices are detected by the OpenVINO™
-  runtime of the `vippet` container, not by the server. The list is correct as long as both containers have
-  the same devices, which the default deployment provides, and, for a server built from source, the same
-  DL Streamer base image.
 - **The pipeline optimizer runs in the `vippet` container, not on the server.** It does not see the custom
   elements in `vippet/gst_plugins/`.
 - **ViPPET is the server's only client.** When the `vippet` container starts or stops, it stops every pipeline
