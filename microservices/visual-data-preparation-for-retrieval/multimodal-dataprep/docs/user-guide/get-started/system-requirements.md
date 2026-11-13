@@ -13,20 +13,20 @@ here does not provide separate requirements.
 **Operating Systems**:
 
 - As per sample application documentation:
-  - [Video Search and Summarization System Requirements](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/get-started/system-requirements.html#operating-systems-used-for-validation)
-  - [Visual Search and Q&A System Requirements](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/visual-search-question-and-answering/get-started/system-requirements.html#supported-platforms)
+  - [Video Search and Summarization System Requirements](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/video-search-and-summarization/get-started/system-requirements.html#operating-systems-used-for-validation)
+  - [Visual Search and Q&A System Requirements](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-suites/visual-search-question-and-answering/get-started/system-requirements.html#supported-platforms)
 
 **Hardware Platforms**:
 
 - As per sample application documentation:
-  - [Video Search and Summarization System Requirements](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/get-started/system-requirements.html#hardware-platforms-used-for-validation)
-  - [Visual Search and Q&A System Requirements](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/visual-search-question-and-answering/get-started/system-requirements.html#supported-platforms)
+  - [Video Search and Summarization System Requirements](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/video-search-and-summarization/get-started/system-requirements.html#hardware-platforms-used-for-validation)
+  - [Visual Search and Q&A System Requirements](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-suites/visual-search-question-and-answering/get-started/system-requirements.html#supported-platforms)
 
 ## Minimum Requirements
 
 - As per sample application documentation:
-  - [Video Search and Summarization System Requirements](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/get-started/system-requirements.html#minimum-configuration)
-  - [Visual Search and Q&A System Requirements](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/visual-search-question-and-answering/get-started/system-requirements.html#minimum-requirements)
+  - [Video Search and Summarization System Requirements](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/video-search-and-summarization/get-started/system-requirements.html#minimum-configuration)
+  - [Visual Search and Q&A System Requirements](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-suites/visual-search-question-and-answering/get-started/system-requirements.html#minimum-requirements)
 
 ## Software Requirements
 

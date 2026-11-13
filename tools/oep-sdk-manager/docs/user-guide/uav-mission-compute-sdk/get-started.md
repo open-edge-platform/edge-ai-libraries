@@ -128,7 +128,7 @@ After installation completes:
 
 - [OpenVINO](https://docs.openvino.ai/2026/get-started.html)
   \- Intel's cross-platform inference optimization toolkit
-- [Edge AI Libraries](https://docs.openedgeplatform.intel.com/dev/ai-libraries.html)
+- [Edge AI Libraries](https://docs.openedgeplatform.intel.com/2026.3/ai-libraries.html)
   \- Comprehensive development toolkit documentation and API references
 - [Federal and Aerospace AI Suite](https://github.com/open-edge-platform/federal-and-aerospace-ai-suite)
   \- Application suite source and documentation
