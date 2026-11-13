@@ -1028,6 +1028,7 @@ export const Pipelines = () => {
                     <PerformanceTestPanel
                       isRunning={jobStatus?.state === "RUNNING"}
                       completedVideoPath={completedVideoPath}
+                      metadataStreamUrls={jobStatus?.metadata_stream_urls}
                       livePreviewEnabled={livePreviewEnabled}
                       videoOutputEnabled={videoOutputEnabled}
                       enableLatencyMetrics={latencyMetricsEnabled}
