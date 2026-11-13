@@ -6,8 +6,8 @@
 # Known Limitations
 
 For sandbox setup, architecture and lifecycle guidance, see
-[Agent Sandboxing](../agentic-ai-security/agent-sandboxing.md), part of
-[Agentic AI Security](../agentic-ai-security/README.md).
+[Agent Sandboxing](./agentic-ai-security/agent-sandboxing.md), part of
+[Agentic AI Security](./agentic-ai-security.md).
 
 - The OpenShell integration currently targets Linux with Docker, OpenShell
   0.1.5 and OpenClaw/Hermes. Each agent has one independently owned
@@ -67,7 +67,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   configure the provider manually with the command the warning prints.
   OpenClaw is installed via `npm install -g openclaw` rather than its own
   `curl | bash` installer intentionally — that installer exists for people
-  who don't want to manage Node.js themselves, but agent-harness-install
+  who do not want to manage Node.js themselves, but Agent Harness Installer
   deliberately manages Node.js (via nvm) itself, consistently across all
   three agents; using OpenClaw's own
   installer too would mean two separate, possibly-conflicting Node.js
@@ -75,7 +75,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   environments that already manage Node.js.
 - "Hermes" installs via its own official installer (curl | bash), not npm —
   this installer downloads and runs it unattended (`--skip-setup --non-interactive`).
-  Nous Research doesn't publish a checksum for it, and the
+  Nous Research does not publish a checksum for it, and the
   `hermes-agent.nousresearch.com` URL always serves the latest script, so
   this installer instead fetches `scripts/install.sh` from a pinned
   `NousResearch/hermes-agent` commit (the `v0.22.2` tag), verifies its
@@ -90,7 +90,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   release), verifies its SHA-256 and installs that exact dcode version.
   Override with `DEEPAGENTS_CODE_VERSION`, or use a different installer via
   `DCODE_INSTALL_URL` plus `DCODE_INSTALL_SHA256` (or
-  `HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1`). It's wired to OVMS by writing
+  `HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1`). It is wired to OVMS by writing
   a `[models.providers.openai]` block into `~/.deepagents/config.toml`
   (dcode's own "Compatible APIs" mechanism) inside `BEGIN`/`END` markers, so
   a re-run replaces only that block and leaves any other provider config
@@ -101,12 +101,12 @@ For sandbox setup, architecture and lifecycle guidance, see
   `export HARNESS_DCODE_API_KEY=not-needed` (any non-empty value; the local
   endpoint ignores it) or it fails with `MissingCredentialsError`. Behind a
   corporate proxy, dcode's local LangGraph health check is also sent through
-  the proxy and rejected (`Server did not become healthy within 60s (last
-  status: 403)`), because many HTTP clients ignore `localhost` and CIDR
-  entries in `no_proxy` for `127.0.0.1`. Run it without the proxy variables:
+  the proxy and rejected (`Server did not become healthy within 60s (last status: 403)`),
+  because many HTTP clients ignore `localhost` and CIDR entries in `no_proxy` for `127.0.0.1`.
+  Run it without the proxy variables:
   `env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY dcode ...`.
 - Intel's Core Ultra iGPU/Arc lineup has no fixed appliance concept, so
-  there's no dual-node pairing/reboot-resume receipt handling.
+  there is no dual-node pairing/reboot-resume receipt handling.
 - Model export (`optimum-cli export openvino`) is CPU/host-bound and can be
   slow for large models.
 - OVMS runs as the fixed UID 5000 and must read the models directory. After
@@ -131,7 +131,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   hosts that need them:
   - `export-model-py` — the original host-venv-based exporter: fetches and
     pins OVMS's `export_model.py`/`requirements.txt` from GitHub, runs them
-    in a Python venv. Kept for hosts that can't/won't run the conversion
+    in a Python venv. Kept for hosts that cannot or will not run the conversion
     step inside Docker.
   - `model-download` — runs edge-ai-libraries' Model Download microservice
     as a one-shot ephemeral container (`get_model.sh`) instead. Newer and
@@ -175,7 +175,7 @@ For sandbox setup, architecture and lifecycle guidance, see
     flags (the matching `HARNESS_MODEL_*` environment variables work too) —
     see microservices/model-download/docs/user-guide/get-started.md in
     edge-ai-libraries for the full parameter reference per hub. Other
-    exporters ignore the options that don't apply to them and say so
+    exporters ignore the options that do not apply to them and say so
     (`--model-precision` also applies to the default `docker-pull`
     and the `export-model-py` exporters, except for pre-converted
     `OpenVINO/*` models, which are already quantized;
@@ -243,7 +243,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   (`HARNESS_BACKEND_NETWORK`, default `agent-harness-install-backend`) so
   IR can reach OVMS by container name on OVMS's internal port — IR runs in
   its own container and cannot reach OVMS via the install host's
-  loopback/advertised address or a host-published port that's bound
+  loopback/advertised address or a host-published port that is bound
   loopback-only by default (`resolve_bind_host`). Both containers are
   recreated (not just restarted) on host-mode installs when they
   already exist, so a container from an older version of this installer
@@ -293,7 +293,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   the external endpoint serves.
 - Docker, Node.js/npm, and Python (venv + PyYAML) are installed/verified by
   `./startup.sh`, which `./install.sh` now runs automatically as its first
-  step (see [Get Started](get-started.md)) -- there's still only one
+  step (see [Get Started](./get-started.md)) — there is still only one
   script to run. `test/full-flow-test.sh` and `test/smoke-test.sh` also
   call it explicitly up front (so an early prerequisite failure is
   reported before the long per-agent install loop, not buried inside it);

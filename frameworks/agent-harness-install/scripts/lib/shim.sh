@@ -25,7 +25,7 @@ ensure_local_bin_in_profile() {
   [[ -n "$profile" ]] || return 0
   # The older marker text is still recognised so profiles written before the
   # rename aren't given a second PATH block.
-  if [[ -f "$profile" ]] && grep -qE '# (agent-harness-install|Agent Harness Install) PATH setup' "$profile" 2>/dev/null; then
+  if [[ -f "$profile" ]] && grep -qE '# (agent-harness-install|Agent Harness Installer) PATH setup' "$profile" 2>/dev/null; then
     return 0
   fi
   shell_name="$(basename "${SHELL:-bash}")"

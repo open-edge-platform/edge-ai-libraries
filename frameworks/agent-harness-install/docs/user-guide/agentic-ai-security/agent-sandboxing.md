@@ -8,7 +8,7 @@
 ## Introduction
 
 Sandboxing separates an agent's tool execution from the host environment and
-limits the files and network endpoints available to it. Agent Harness Install
+limits the files and network endpoints available to it. Agent Harness Installer
 provides this capability through OpenShell for OpenClaw, Hermes and Deep Agents
 Code. This integration targets OpenShell 0.1.5 on Linux with Docker; host mode remains
 the default.
@@ -18,7 +18,7 @@ The `--runtime` option is not mandatory. Interactive installation offers
 uses host mode unless `--runtime openshell` or `HARNESS_RUNTIME=openshell` is
 set. The commands below select OpenShell explicitly for reproducible setup.
 
-This is one layer of [Agentic AI Security](README.md), not prompt protection or
+This is one layer of [Agentic AI Security](../agentic-ai-security.md), not prompt protection or
 PII masking. A sandbox can still perform unwanted actions within its permitted
 workspace and allowed services. Review tool effects, protect credentials and
 grant only the access needed for a task.
@@ -118,8 +118,8 @@ vary with the host kernel. Desktop/computer-use workflows are not enabled.
 machine the checksum-pinned upstream installer provisions the CLI and local
 gateway. Existing gateways must already be configured and authenticated.
 
-See [Get Started](../user-guide/get-started.md) for general installer
-prerequisites. Run the commands below from the Agent Harness Install component
+See [Get Started](../get-started.md) for general installer
+prerequisites. Run the commands below from the Agent Harness Installer component
 directory.
 
 ## Getting started
@@ -130,8 +130,8 @@ The installer supplies sandbox policies, inference-provider configuration and
 agent-specific model configuration as a functional starting point. No initial
 policy authoring is required, but the prerequisites above still apply.
 
-- **Filesystem policy:** OpenClaw uses the [base agent policy](../../openshell/policy.yaml).
-  Hermes and Deep Agents Code use the [interactive policy](../../openshell/interactive-policy.yaml),
+- **Filesystem policy:** OpenClaw uses the [base agent policy](../../../openshell/policy.yaml).
+  Hermes and Deep Agents Code use the [interactive policy](../../../openshell/interactive-policy.yaml),
   which also permits sandbox-local pseudo-terminal devices for their terminal
   interfaces. The policies allow writes to the sandbox home, `/sandbox`, `/tmp`
   and `/dev/null`; they do not mount the host home or Docker socket.
@@ -240,7 +240,7 @@ sandbox: its static boundary case checks workspace read/write plus allowed and
 denied network requests; its dynamic-policy case checks that a live network
 rule changes the request result without breaking filesystem access, and that
 removing the rule restores network access. See the
-[live integration test catalogue](../../test/integration-tests.md#test-cases).
+[live integration test catalogue](../../../test/integration-tests.md#individual-cases-and-objectives).
 
 ### Install a sandboxed agent
 
@@ -383,8 +383,8 @@ uses loopback/tunnel access and does not require an OpenClaw token. A Hermes
 "Gateway Status: Off" indication refers to its messaging gateway, not a failed
 browser dashboard. Stop all three commands when finished.
 
-Hermes and Deep Agents Code use [an interactive policy](../../openshell/interactive-policy.yaml)
-matching the [base agent policy](../../openshell/policy.yaml) except for writable
+Hermes and Deep Agents Code use [an interactive policy](../../../openshell/interactive-policy.yaml)
+matching the [base agent policy](../../../openshell/policy.yaml) except for writable
 `/dev/ptmx` and `/dev/pts`. These sandbox-local pseudo-terminal devices are
 needed by their terminal interfaces; OpenClaw's policy is unchanged. This does
 not grant host filesystem, Docker socket or additional network access. Existing
@@ -428,7 +428,7 @@ New OpenShell images generate a responsiveness-oriented baseline for the exact
 served model `Qwen3.5-9B-int8-ov`:
 
 | Setting | OpenClaw | Hermes | Deep Agents Code |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Context budget | `contextWindow: 65536` | `model.context_length: 65536` | Agent default; no additional context override |
 | Reply cap | Catalog and model params `maxTokens: 4096` | Custom-provider `extra_body.max_tokens: 4096` | Managed provider `max_tokens: 4096` |
 | Sampling | Model params `temperature: 0.2` | Custom-provider `extra_body.temperature: 0.2` | Managed provider `temperature: 0.2` |
@@ -461,7 +461,7 @@ Tool-use acceptance requires independently verifying generated files/content.
 The 0.5B quickstart model is not a validated multi-step tool-use baseline.
 
 | Symptom | Check |
-|---|---|
+| --- | --- |
 | LLM responds but web search or browsing fails | External tools need explicit egress policy and service configuration; IR only supplies inference routing |
 | Hermes dashboard opens but its terminal cannot allocate a PTY | Use the Hermes-specific policy; older sandboxes need backed-up recreation |
 | OpenClaw SQLite temporary-storage errors | Current startup exports a private mode-700 `SQLITE_TMPDIR` before any Node process; older images need the updated startup |
@@ -469,7 +469,7 @@ The 0.5B quickstart model is not a validated multi-step tool-use baseline.
 
 Offline regression tests: `bash test/openshell-test.sh`. Agent-image build and
 real sandbox tests require Docker, the pinned gateway and a running shared IR.
-See [OpenShell quality gates](../../test/README.md) for automated test cases,
+See [OpenShell quality gates](../../../test/README.md) for automated test cases,
 TAP reports, opt-in lifecycle tests and CI runner setup. PTY allocation tests
 are not automated browser chat acceptance tests.
 
@@ -482,10 +482,10 @@ pre-existing installation is preserved. An external inference backend is never
 removed. If the same state directory records a host-installed agent, full
 uninstall removes that agent too.
 
-Use the [uninstall guide](../user-guide/uninstall.md#openshell-profiles) for
+Use the [uninstall guide](../get-started/uninstall.md#openshell-profiles) for
 full/scoped commands, ownership safeguards, retained prerequisites and the
 `--keep-models` option. Stop separately launched forwarding and SSH processes
 after uninstall.
 
-See [Known Limitations](../user-guide/known-limitations.md) for remaining
+See [Known Limitations](../known-limitations.md) for remaining
 runtime, model, network and migration restrictions.
