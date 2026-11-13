@@ -32,7 +32,7 @@ Before starting, ensure the following:
 
 For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
-[Install Guide Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
+[Install Guide Ubuntu](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
 
 > [!NOTE]
 > The same steps apply to Ubuntu 24.04 running under WSL 2 on Windows - run all commands

@@ -76,11 +76,11 @@ Additionally, make sure the created path matches with the `HOST_DATA_PATH` varia
 
    > [!IMPORTANT]
    > You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
-   > See [Supported Models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) for Multimodal Embedding Serving for available options.
+   > See [Supported Models](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) for Multimodal Embedding Serving for available options.
 
    > [!NOTE]
    > `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
-   > 
+   >
    > ```bash
    > unset HF_ENDPOINT
    > ```
@@ -197,8 +197,8 @@ This falls back to the default Hugging Face endpoint, which is typically the rig
 ## Learn More
 
 - Check the [API reference](./api-reference.md)
-- The visual data preparation microservice usually pairs with a retriever microservice. For more information, check the retriever's [Get Started guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/vector-retriever-milvus/get-started.html)
-- This microservice depends on the [Multimodal Embedding Service](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/get-started.html) for embedding extraction.
+- The visual data preparation microservice usually pairs with a retriever microservice. For more information, check the retriever's [Get Started guide](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/vector-retriever-milvus/get-started.html)
+- This microservice depends on the [Multimodal Embedding Service](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/multimodal-embedding-serving/get-started.html) for embedding extraction.
 
 <!--hide_directive
 :::{toctree}

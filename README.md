@@ -420,4 +420,4 @@ for demonstration and reference purposes only.
 Certain features, such as authentication, TLS termination, and external access controls are
 assumed to be covered at the infrastructure level.
 For more information, refer to
-[Notes on Usage](https://docs.openedgeplatform.intel.com/dev/OEP-articles/notes-on-usage.html).
+[Notes on Usage](https://docs.openedgeplatform.intel.com/2026.3/OEP-articles/notes-on-usage.html).

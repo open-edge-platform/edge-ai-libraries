@@ -61,7 +61,7 @@ To verify the effect of `batch-size`, you can monitor the memory utilization of 
 container using the `docker stats` command. As the `batch-size` increases, the memory
 utilization also increases due to the additional frames being processed in a single batch.
 Note that the exact statistics may vary based on the underlying hardware and system/pipeline
-configuration, but the performance is expected to be similar to [DL Streamer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/performance_guide.html#multi-stream-pipelines-with-single-ai-stage).
+configuration, but the performance is expected to be similar to [DL Streamer](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/performance_guide.html#multi-stream-pipelines-with-single-ai-stage).
 
 - docker stats with batch-size as 1, no of streams as 4:
 

@@ -84,9 +84,9 @@ dynamically defined by the calling application.
 
 > [!NOTE]
 > The model used in the above pipeline is an example of how it can be used from
-> [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
+> [here](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/supported_models.html).
 > Refer to the documentation for DL Streamer on how to download any given model for your
-> usage [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
+> usage [here](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
 
 #### Source Abstraction
 
@@ -104,9 +104,9 @@ The GStreamer element is chosen based on the `type` specified in the source sect
 
 > [!NOTE]
 > The model used in the above pipeline is an example of how it can be used from the
-> list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
+> list of [supported models](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/supported_models.html).
 > Refer to the documentation for DL Streamer on how to download any given model for your
-> usage [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
+> usage [here](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
 
 **Sample audio pipeline**:
 
@@ -121,9 +121,9 @@ The GStreamer element is chosen based on the `type` specified in the source sect
 
 > [!NOTE]
 > The model used in the above pipeline is an example of how it can be used from the
-> list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
+> list of [supported models](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/supported_models.html).
 > Refer to the documentation for DL Streamer on how to download any given model for
-> your usage [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
+> your usage [here](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
 
 
 |    Source    |    GStreamer Element     |      Source section of curl request       |        Source pipeline snippet     | Remarks |
@@ -255,7 +255,7 @@ targets the same hardware device and video format.
 #### More Information
 
 For more information and examples of media analytics pipelines created
-with DL Streamer please see the [tutorial](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/tutorial.html).
+with DL Streamer please see the [tutorial](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/tutorial.html).
 
 ## Pipeline Parameters
 
@@ -772,12 +772,12 @@ If such a file exists, the Pipeline Server automatically looks for this file in 
 
 > [!NOTE]
 > This DL Streamer functionality is **deprecated**.
-> For more details on model proc and labels see [Model Proc File](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_proc_file.html).
+> For more details on model proc and labels see [Model Proc File](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/model_proc_file.html).
 
 #### Deep Learning Streamer (DL Streamer)
 
 For more information on DL Streamer `model-proc` files and samples for common models, see the
-DL Streamer [documentation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/how_to_create_model_proc_file.html).
+DL Streamer [documentation](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/how_to_create_model_proc_file.html).
 and [samples](https://github.com/open-edge-platform/dlstreamer/tree/main/samples).
 
 #### FFmpeg Video Analytics
@@ -804,7 +804,7 @@ The hierarchical directory structure is made up of four levels:
 Here is a sample directory listing for the `yolo-v3-tf` model:
 
 > [!NOTE]
-> The model in this example is taken from the list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
+> The model in this example is taken from the list of [supported models](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/supported_models.html).
 
 ```
 models/

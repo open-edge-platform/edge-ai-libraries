@@ -8,10 +8,10 @@ SPDX-License-Identifier: Apache-2.0
 The **OEP CLI Installer** (`openedge-cli`) is a modular, self-contained shell
 script that discovers, bootstraps, and installs Open Edge Platform components on
 your edge system. The OEP installer can install individual components (libraries, SDKs, samples etc)
-as well as virtual groups (**profiles**). 
+as well as virtual groups (**profiles**).
 
 <p align="center">
-  <a href="https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html">
+  <a href="https://docs.openedgeplatform.intel.com/2026.3/OEP-articles/oep-cli-installer/index.html">
     <img src="https://img.shields.io/badge/Launch%20Web%20UI-0068B5?style=for-the-badge&labelColor=0068B5" alt="Launch the OEP CLI Installer Web UI" />
   </a>
 </p>
@@ -23,7 +23,7 @@ marketing segments. The table lists the profiles:
 
 | Profile | Description |
 | ------- | ------ |
-| `computer_vision` | Computer-vision pipelines, models, and runtimes | 
+| `computer_vision` | Computer-vision pipelines, models, and runtimes |
 | `federal_and_aerospace_ai_suite_handheld` | Federal and Aerospace handheld platform, application, and deterministic threat detection |
 | `federal_and_aerospace_ai_suite_mission_decision_support` | Federal and Aerospace mission decision support blueprint and deterministic threat detection |
 | `federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle` | Federal and Aerospace uncrewed aerial vehicle platform and applications |
@@ -33,11 +33,11 @@ marketing segments. The table lists the profiles:
 | `retail_ai_suite` | Retail buying-process monitoring |
 | `robotics_ai_suite` | Robotics and Physical AI workflows |
 
-> See [`modules`](module) or [`packages`](package) for the list of available modules.   
+> See [`modules`](module) or [`packages`](package) for the list of available modules.
 
 ## Installation
 
-For simplicity, the OEP installer is presented as a single self-contained shell script (located at [`rendered/openedge-cli`](rendered/openedge-cli)) that can be downloaded and then run in a shell environment. 
+For simplicity, the OEP installer is presented as a single self-contained shell script (located at [`rendered/openedge-cli`](rendered/openedge-cli)) that can be downloaded and then run in a shell environment.
 
 - install components from a profile, or
 ```bash
@@ -51,7 +51,7 @@ curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 
 <hr>
 
-> Prefer a guided experience? **[Open the OEP CLI Installer Web UI »](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)**
+> Prefer a guided experience? **[Open the OEP CLI Installer Web UI »](https://docs.openedgeplatform.intel.com/2026.3/OEP-articles/oep-cli-installer/index.html)**
 > to pick one profile and one or more of its modules and copy the exact install command.
 
 <hr>
@@ -84,7 +84,7 @@ Remove a profile or a component:
 openedge-cli remove video_conferencing
 ```
 
-> Unlike installation where dependency items are installed automatically, the OEP installer removes a component without touching any dependency items. For example, the OEP installer does not uninstall GPU and NPU drivers upon a sample removal operation. You have to invoke the OEP installer explicitly to remove the GPU and NPU drivers. Use `remove --remove-all` to force removing all installed components.    
+> Unlike installation where dependency items are installed automatically, the OEP installer removes a component without touching any dependency items. For example, the OEP installer does not uninstall GPU and NPU drivers upon a sample removal operation. You have to invoke the OEP installer explicitly to remove the GPU and NPU drivers. Use `remove --remove-all` to force removing all installed components.
 
 ## Advanced Usage
 
@@ -119,9 +119,9 @@ To specify component specific options, insert a `--<component-name>` tag:
 ```bash
 openedge-cli install smart_parking smart_intersection --smart_parking --gpu
 ```
-where `--gpu` applies to the smart_parking component.  
+where `--gpu` applies to the smart_parking component.
 
-> Omit `--<component-name>` if there is only a single component or the specified options apply to all components.  
+> Omit `--<component-name>` if there is only a single component or the specified options apply to all components.
 
 The Federal and Aerospace profiles provide handheld, uncrewed aerial vehicle, and
 mission decision support blueprints, applications, and deterministic threat detection:
@@ -164,16 +164,16 @@ openedge-cli list openvino                 # list supported subcommands of speci
 openedge-cli list --sbom computer_vision   # list installed system-level components
 ```
 
-> The `sbom` listing is limited to system-level installation only. 
+> The `sbom` listing is limited to system-level installation only.
 
-### Installation Locations 
+### Installation Locations
 
 The OEP installer installs the specified components under the following locations:
-- Any component workspace files under `~/.local/open-edge-platform/<component-name>`.  
-- Installation logs under `~/.local/open-edge-platform/openedge-cli/*.logs`.  
-- A replica of the OEP installer under `~/.local/bin`.  
-- A bash auto-completion script under `~/.local/share/bash-completion`.  
-- A `SKILL.md` under `~/.agents/skills/openedge-cli/SKILL.md`.    
+- Any component workspace files under `~/.local/open-edge-platform/<component-name>`.
+- Installation logs under `~/.local/open-edge-platform/openedge-cli/*.logs`.
+- A replica of the OEP installer under `~/.local/bin`.
+- A bash auto-completion script under `~/.local/share/bash-completion`.
+- A `SKILL.md` under `~/.agents/skills/openedge-cli/SKILL.md`.
 
 ### Bootstrapping
 
@@ -205,7 +205,7 @@ For bootstrapping with different modules/profiles, use the commands below:
   -o rendered/openedge-cli-federal-aerospace
 ```
 
-> Let `rendered/openedge-cli` be a reserved location for the full installer. If you generate a partial installer, save it other than `rendered/openedge-cli`. 
+> Let `rendered/openedge-cli` be a reserved location for the full installer. If you generate a partial installer, save it other than `rendered/openedge-cli`.
 
 > **Automated rendering.** You normally do not need to run `bootstrap` by hand. A GitHub
 > Actions workflow ([`oep-cli-render-on-merge.yml`](../../.github/workflows/oep-cli-render-on-merge.yml))
@@ -217,7 +217,7 @@ For bootstrapping with different modules/profiles, use the commands below:
 
 ### Web UI Configuration
 
-The [OEP CLI Installer Web UI](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)
+The [OEP CLI Installer Web UI](https://docs.openedgeplatform.intel.com/2026.3/OEP-articles/oep-cli-installer/index.html)
 is driven by `docs/oep-cli-installer-files/config.json`, which is **generated**
 from decentralized, per-profile sources — you edit a small
 `profile/<name>/web_config.json` fragment next to each profile instead of one large
@@ -239,11 +239,11 @@ for the fragment format and the step-by-step guide to adding a new profile.
 
 ### Credentials
 
-During installer operations, if credentials are required, the installer will prompt for sudo password. 
+During installer operations, if credentials are required, the installer will prompt for sudo password.
 You can avoid the password prompt by providing a `SUDO_PASSWORD` environment variable, a `SUDO_ASKPASS`
-helper, or grant passwordless access. 
+helper, or grant passwordless access.
 
-Other credentials may be required such as `HF_TOKEN` during a gated model download.  
+Other credentials may be required such as `HF_TOKEN` during a gated model download.
 
 ### AI-assisted Module Generation
 

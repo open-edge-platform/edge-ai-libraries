@@ -19,7 +19,7 @@ efficiently.
   access the host `/dev/dri` render nodes required for GPU acceleration.
 - For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DL Streamer installation
 script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in
-[DL Streamer Install Guide - Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
+[DL Streamer Install Guide - Ubuntu](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
 
 ## Network Requirements
 
