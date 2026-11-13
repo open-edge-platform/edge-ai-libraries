@@ -1,5 +1,5 @@
 
-debian_90_profile_edge_base_robotics () {
+debian_99_profile_edge_base_robotics () {
   echo "core_types system_inspection system_summary ros2 ros_openvino realsense"
   case "$1" in
   bootstrap) # all components
