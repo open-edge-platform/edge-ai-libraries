@@ -2766,6 +2766,15 @@ configure_libze1 ()
     version="$(ensure_parse_value_option version --version=1.32.0 "$@")";
     libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb"
 }
+configure_linux_tools () 
+{ 
+    install_pkgs=(linux-tools-common "linux-tools-$(uname -r)");
+    case "$ID$VERSION_ID" in 
+        ubuntu26.04)
+            install_pkgs+=(linux-perf bpftool)
+        ;;
+    esac
+}
 configure_live_video_alert_agent () 
 { 
     workspace="$(ensure_project_path)/live-video-alert-agent";
@@ -3978,13 +3987,13 @@ debian_30_install_libpcre2_dev ()
 }
 debian_30_install_linux_tools () 
 { 
-    local name="linux-tools-$(uname -r)";
-    if ensure_apt_is_installed $name; then
-        echo "$name is installed." 1>&2;
+    configure_linux_tools "$@";
+    if ensure_apt_is_installed ${install_pkgs[*]}; then
+        echo "linux-tools is installed." 1>&2;
     else
         ensure_prop set installed/linux_tools/owned true;
         ensure_apt update;
-        ensure_apt install --no-install-recommends -y linux-tools-common $name || ensure_apt install --no-install-recommends -y --no-install-recommends linux-tools-common linux-tools-generic;
+        ensure_apt install --no-install-recommends -y ${install_pkgs[*]};
     fi
 }
 debian_30_install_lm_sensors () 
@@ -4112,9 +4121,9 @@ debian_30_remove_kernel_module_essential ()
 }
 debian_30_remove_linux_tools () 
 { 
-    local name="linux-tools-$(uname -r)";
+    configure_linux_tools "$@";
     [ "$(ensure_prop get installed/linux_tools/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y $name || true
+    ensure_apt purge --autoremove -y ${install_pkgs[*]} || true
 }
 debian_30_remove_lm_sensors () 
 { 
@@ -4211,7 +4220,8 @@ debian_30_sbom_libpcre2_dev ()
 }
 debian_30_sbom_linux_tools () 
 { 
-    ensure_sbom_format pkg-list linux-tools-common linux-tools-$(uname -r)
+    configure_linux_tools "$@";
+    ensure_sbom_format pkg-list ${install_pkgs[*]}
 }
 debian_30_sbom_lm_sensors () 
 { 
