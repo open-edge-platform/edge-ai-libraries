@@ -85,6 +85,37 @@ class GStreamerRtspServer():
             self._mount_points.remove_factory(rtsp_path)
             self._factories.pop(rtsp_path, None)
             del self._streams[rtsp_path]
+            self._close_clients(rtsp_path)
+
+    def _close_clients(self, rtsp_path):
+        """Close the connections of the clients that are playing `rtsp_path`.
+
+        A client keeps its RTSP session open after the stream ended, and a relay that keeps it alive (MediaMTX does)
+        never learns that no video arrives any more: it stays "ready" on the dead session and never pulls the
+        restarted stream. Closing the connection makes the client reconnect to whatever is mounted at the path.
+        """
+        keep = GstRtspServer.RTSPFilterResult.KEEP
+        remove = GstRtspServer.RTSPFilterResult.REMOVE
+
+        def plays_path(client):
+            found = []
+
+            def check_session(_client, session):
+                def check_media(_session, session_media):
+                    if session_media.matches(rtsp_path):
+                        found.append(True)
+                    return keep
+
+                session.filter(check_media)
+                return keep
+
+            client.session_filter(check_session)
+            return bool(found)
+
+        try:
+            self._server.client_filter(lambda _server, client: remove if plays_path(client) else keep)
+        except Exception as exc:    # pylint: disable=broad-except
+            self._logger.warning("Could not close the RTSP clients of {}: {}".format(rtsp_path, exc))
 
     def get_source(self, rtsp_path):
         if rtsp_path in self._streams:
