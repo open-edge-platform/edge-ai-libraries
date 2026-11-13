@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-service-sdk"
+version = "0.2.0"
+description = "Shared contract library for Central QSR Agent services: event envelope, durable log, delivery fan-out, policy gate, telemetry, and MCP scaffolding."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+# Pick one MCP server backend. Both speak the same MCP protocol on the wire.
+mcp = ["mcp>=1.2.0"]                  # official Anthropic MCP SDK
+fastmcp = ["fastmcp>=2.0.0"]           # standalone FastMCP 2.x (gofastmcp.com)
+
+[tool.setuptools.packages.find]
+where = ["src"]
