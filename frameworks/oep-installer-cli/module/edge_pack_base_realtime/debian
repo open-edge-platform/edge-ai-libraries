@@ -7,6 +7,7 @@ configure_edge_pack_base_realtime () {
     ubuntu26.04) version="1.0";;
     *)
       echo "Unsupported platform $ID $VERSION_ID" >&2
+      echo "Fallback to edge_pack_base_standard" >&2
       return 3;;
     esac
   }
