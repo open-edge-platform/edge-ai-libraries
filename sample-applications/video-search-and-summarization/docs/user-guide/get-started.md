@@ -170,7 +170,7 @@ Before running the application, you need to set several environment variables:
       ```
 
       > [!NOTE]
-      > Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model names.
+      > Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model names.
 
 4. **Configure summarization to use audio transcript (Summary and Dual UI mode):**
 
@@ -407,7 +407,7 @@ Before running the application, you need to set several environment variables:
     - Intel Arc Pro B-series GPU (e.g., Intel Arc Pro B60, B65, B70)
     - Intel GPU drivers installed on host
     - User in `video` and `render` groups
-    - Minimum 16GB GPU memory for the default `bfloat16` configuration. 
+    - Minimum 16GB GPU memory for the default `bfloat16` configuration.
 
     > [!TIP]
     > **GPUs with less than 16 GB (for example Intel Arc B580, 12 GB):** the default `bfloat16` configuration will fail to start with `No available memory for the cache blocks`. Use the FP8 checkpoint, which halves the weight footprint, and cap the image size:
@@ -485,7 +485,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 | vLLM-only GPU/XPU (**EXPERIMENTAL**) | vLLM-hosted VLM on Intel Arc Pro B-series GPU | Same vLLM-hosted VLM on Intel Arc Pro B-series GPU | `ENABLE_VLLM_GPU=true` | VLM: `Qwen/Qwen3-VL-4B-Instruct` | **EXPERIMENTAL**: All-vLLM mode with Intel Arc Pro B-series GPU/XPU acceleration. Early-stage feature. |
 
 > [!NOTE]
-> 
+>
 > 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk.
 > 2) Final Summary is a method of summarization where it summarizes the whole video.
 > 3) Mixed OVMS+vLLM deployments are not supported in the compose setup. Choose either OVMS-only, vLLM-CPU-only, or vLLM-GPU-only for summarization.
@@ -518,7 +518,7 @@ All OVMS examples use pre-converted `OpenVINO/` models, which are pulled as-is w
 | Split CPU/NPU (Detection) | In-process embedding in `multimodal-dataprep` on CPU | Detection on NPU | `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection to NPU while keeping embedding on CPU. |
 
 > [!NOTE]
-> 
+>
 > 1) These options apply to modes where search is enabled: `--search`, `--summary --search`, and `--summary-and-search`.
 > 2) Each component device defaults to `CPU` and is set independently — there is no "baseline" device.
 > 3) Embedding for indexing runs **in-process** in `multimodal-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`; object detection follows `DATAPREP_DETECTION_DEVICE`.
@@ -546,20 +546,20 @@ source setup.sh --search
 ```
 
 > [!NOTE]
-> 
+>
 > - For **both** backends, `video-search` delegates the raw vector search to the always-on `vector-retriever` microservice and never talks to a vector database directly. `VECTORDB_BACKEND` selects the backend-baked `vector-retriever` image (`vector-retriever-${VECTORDB_BACKEND}`, via the `RETRIEVER_BACKEND` build arg). The frame-to-video aggregation still runs in `video-search`, so search results are identical in shape across backends.
 > - `setup.sh` applies exactly one vector-DB overlay, so only the selected backend's containers start. `VECTORDB_BACKEND=vdms` (default) adds `docker/compose.search.vdms.yaml`, which starts `vdms-vector-db`; `VECTORDB_BACKEND=milvus` adds `docker/compose.search.milvus.yaml`, which starts a Milvus standalone stack (`milvus-etcd` + `milvus-standalone`) and no VDMS container. `multimodal-dataprep` writes embeddings to the selected backend and the matching `vector-retriever` image reads them back.
 > - The similarity metric/index (`VDB_METRIC_TYPE=IP`, `VDB_INDEX_TYPE=FLAT`) is shared between `multimodal-dataprep` and `vector-retriever` and must match on both — the defaults already align.
 
 > [!IMPORTANT]
 > **Important — clean the data when switching backends:** embeddings live only in the vector database, but uploaded videos and their metadata live in MinIO and the Pipeline Manager's PostgreSQL database, which are shared across backends. Switching `VECTORDB_BACKEND` without clearing them leaves the previously ingested videos visible in the UI while the new backend holds no embeddings for them, so search returns nothing for those videos. Always wipe the user data first:
-> 
+>
 > ```bash
 > source setup.sh --clean-data
 > export VECTORDB_BACKEND=milvus   # or vdms
 > source setup.sh --search
 > ```
-> 
+>
 > `--clean-data` stops the stack and removes the MinIO, PostgreSQL, dataprep, VDMS and Milvus data volumes. Model-cache volumes are preserved, so no models are re-downloaded. Alternatively, re-ingest every video after the switch instead of cleaning.
 
 ## Using Edge Microvisor Toolkit
@@ -777,12 +777,12 @@ Follow these steps to run the application:
 
 > [!NOTE]
 > Offloading models to different devices (e.g., VLM on GPU and LLM on NPU) is only supported with the OVMS backend. The vLLM backend runs a single model on a single device.
-> 
+>
 > **⚠️ NPU Support is Experimental:** Only the final-summary LLM can run on NPU, and it must be a text-only, NPU-optimized `-cw-` model. The VLM is not supported on NPU: NPU vision-language pipelines accept only one image per request, while VSS sends several frames per chunk. Run the VLM on CPU or GPU.
 
 > [!NOTE]
 > To bring down a running deployment before re-running with different options, run:
-> 
+>
 > ```bash
 > source setup.sh --stop    # or, `source setup.sh --down`
 > ```

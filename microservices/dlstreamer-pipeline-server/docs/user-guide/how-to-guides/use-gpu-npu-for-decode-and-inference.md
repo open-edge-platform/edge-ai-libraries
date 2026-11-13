@@ -27,11 +27,11 @@ Gstreamer has a variety of hardware specific encoders and decoders elements such
 
 Additionally, you can also enforce zero-copy of buffers using GStreamer capabilities to the pipeline by adding `video/x-raw(memory: VAMemory)` for Intel GPUs (integrated and discrete) or NPU devices.
 
-Read the DL Streamer documentation on [GPU Device Selection](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/gpu_device_selection.html) for more information.
+Read the DL Streamer documentation on [GPU Device Selection](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/gpu_device_selection.html) for more information.
 
 ### GPU/NPU specific element properties
 
-DL Streamer inference elements also provide properties such as `pre-process-backend=va-surface-sharing` or `pre-process-backend=va`and `device=GPU` or `device=NPU` to pre-process and infer on GPU/NPU. Read the DL Streamer documentation on [Model pre- and post-processing](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html#model-pre-and-post-processing) for more details.
+DL Streamer inference elements also provide properties such as `pre-process-backend=va-surface-sharing` or `pre-process-backend=va`and `device=GPU` or `device=NPU` to pre-process and infer on GPU/NPU. Read the DL Streamer documentation on [Model pre- and post-processing](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html#model-pre-and-post-processing) for more details.
 
 ## Tutorial on how to use GPU/NPU specific pipelines
 
@@ -93,4 +93,4 @@ We need to volume mount the sample config file into dlstreamer-pipeline-server s
 
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
-- To perform decode and inference on CPU, see [this document](./use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, see the [Performance Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/performance_guide.html).
+- To perform decode and inference on CPU, see [this document](./use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, see the [Performance Guide](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/performance_guide.html).

@@ -9,7 +9,7 @@ DL Streamer Pipeline Server supports publishing frames to S3 compatible storage.
 
 ## Storing annotated or unannotated data
 
-Depending upon the pipeline configured, it can store both annotated and unannotated frames. This is determined by whether the pipeline string has a `gvawatermark` element present or not. To learn more about the element, see the [`gvawatermark` reference](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/elements/gvawatermark.html).
+Depending upon the pipeline configured, it can store both annotated and unannotated frames. This is determined by whether the pipeline string has a `gvawatermark` element present or not. To learn more about the element, see the [`gvawatermark` reference](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/elements/gvawatermark.html).
 
 ## S3_write configuration
 
