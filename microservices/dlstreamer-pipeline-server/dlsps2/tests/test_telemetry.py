@@ -22,7 +22,7 @@ class _FakeManager:
         self.metric_listener = None
 
     def list_running(self):
-        return [i for i in self.instances if i.state == PipelineState.RUNNING]
+        return [i for i in self.instances if i.state in (PipelineState.RUNNING, PipelineState.STOPPING)]
 
     def set_finished_listener(self, listener):
         self.finished_listener = listener
@@ -160,6 +160,13 @@ class TestCollect:
         inst = _instance(avg_fps=10.0)
         inst.state = PipelineState.COMPLETED
         assert PipelineMetrics(_FakeManager([inst]), 30.0).collect() == []
+
+    def test_stopping_instance_still_reports_running(self):
+        inst = _instance(avg_fps=10.0)
+        inst.state = PipelineState.STOPPING
+        metrics = _by_name(PipelineMetrics(_FakeManager([inst]), 30.0).collect())
+
+        assert metrics["pipeline_running"][0] == 1.0
 
 
 class TestFinishedRetention:

@@ -228,6 +228,9 @@ def scan_huggingface_variant(
     )
 
 
+DownloadRequest = dict[str, Any]
+
+
 def _precision_is_complete(category: str | None, model_path: str) -> bool:
     """Return True only when the model files at *model_path* are complete.
 
@@ -383,6 +386,8 @@ class ModelManager:
                         unsupported_devices=db_model.unsupported_devices,
                         download_request=db_model.download_request,
                         description=db_model.description,
+                        link=db_model.link,
+                        gated=db_model.gated,
                     )
                 )
 
@@ -505,6 +510,7 @@ class ModelManager:
         model_name: str,
         hub: str | None = None,
         category: InternalModelCategory | None = None,
+        gated: str | None = None,
     ) -> tuple[str | None, int, str]:
         """Start a download job for the given supported model.
 
@@ -513,6 +519,7 @@ class ModelManager:
         ``category`` is required for hubs that have no naming convention to
         derive it from (currently: ``huggingface``); it is ignored for
         ``ultralytics`` (derived from the name suffix instead).
+        ``gated`` is stored on the registered hub model as-is.
 
         Returns a tuple ``(job_id, http_status, message)`` where
         ``job_id`` is ``None`` for error responses. ``http_status`` is
@@ -532,7 +539,7 @@ class ModelManager:
             )
         if db_model is None:
             if hub is not None:
-                return self._start_hub_download(hub, model_name, category)
+                return self._start_hub_download(hub, model_name, category, gated)
             return None, 404, f"Model '{model_name}' is not supported"
 
         source = self._to_internal_source(db_model.hub)
@@ -600,6 +607,7 @@ class ModelManager:
         hub: str,
         name: str,
         category: InternalModelCategory | None,
+        gated: str | None = None,
     ) -> tuple[str | None, int, str]:
         """Start a download of a non-catalog model picked from a hub listing.
 
@@ -611,6 +619,9 @@ class ModelManager:
             name: Model name as returned by the hub listing.
             category: Required for ``huggingface`` (no naming convention to
                 derive it from); ignored for ``ultralytics``.
+            gated: Gating mode reported by the hub listing, persisted on
+                the registered model. ``None`` when the hub has no such
+                notion.
 
         Returns:
             tuple[str | None, int, str]: ``(job_id, http_status, message)``.
@@ -664,7 +675,7 @@ class ModelManager:
             self._jobs[job_id] = job
 
         def on_success(job_id: str, model_name: str) -> None:
-            finalize(job_id, model_name, resolved_category, download_request)
+            finalize(job_id, model_name, resolved_category, download_request, gated)
 
         threading.Thread(
             target=self._execute_remote_download,
@@ -681,6 +692,7 @@ class ModelManager:
         model_name: str,
         category: InternalModelCategory,
         download_request: dict[str, Any],
+        gated: str | None = None,
     ) -> None:
         """Register a freshly downloaded Ultralytics model in the DB."""
         variants = scan_ultralytics_variants(model_name)
@@ -699,6 +711,7 @@ class ModelManager:
             variants,
             InternalModelSource.ULTRALYTICS,
             ULTRALYTICS_SOURCE_DIR,
+            gated,
         )
 
     def _finalize_huggingface_install(
@@ -707,6 +720,7 @@ class ModelManager:
         model_name: str,
         category: InternalModelCategory,
         download_request: dict[str, Any],
+        gated: str | None = None,
     ) -> None:
         """Register a freshly downloaded HuggingFace hub model in the DB."""
         variant = scan_huggingface_variant(model_name, category)
@@ -725,6 +739,7 @@ class ModelManager:
             [variant],
             InternalModelSource.HUGGINGFACE,
             "huggingface",
+            gated,
         )
 
     def _persist_and_complete_hub_job(
@@ -736,12 +751,13 @@ class ModelManager:
         variants: list[tuple[str, str]],
         hub: InternalModelSource,
         source: str,
+        gated: str | None = None,
     ) -> None:
         """Persist a hub-installed model's variants and complete its job."""
         try:
             asyncio.run(
                 self._persist_hub_model(
-                    model_name, category, download_request, variants, hub, source
+                    model_name, category, download_request, variants, hub, source, gated
                 )
             )
         except Exception as exc:
@@ -776,6 +792,7 @@ class ModelManager:
         variants: list[tuple[str, str]],
         hub: InternalModelSource,
         source: str,
+        gated: str | None = None,
     ) -> None:
         """Insert a hub-installed model and its precisions into the DB."""
         from database import async_session_maker
@@ -795,6 +812,7 @@ class ModelManager:
                 source=source,
                 hub=hub.value,
                 unsupported_devices=None,
+                gated=gated,
                 is_custom=False,
                 install_status=InternalModelInstallStatus.INSTALLED.value,
                 installed_at=now,
@@ -831,7 +849,7 @@ class ModelManager:
         self,
         job_id: str,
         model_name: str,
-        download_request: dict[str, Any],
+        download_request: DownloadRequest,
         on_success: Callable[[str, str], None] | None = None,
     ) -> None:
         """Run a download via the model-download microservice.
@@ -839,7 +857,7 @@ class ModelManager:
         ``on_success`` replaces :meth:`_finalize_success` when given.
         """
         try:
-            download_path = self._resolve_download_path()
+            download_path = "."
             url = f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/download"
             body = {"models": [download_request]}
 
@@ -855,57 +873,50 @@ class ModelManager:
                 response.raise_for_status()
                 payload = response.json()
 
-            external_ids: list[str] = list(payload.get("job_ids") or [])
-            if not external_ids:
-                self._fail_job(job_id, "model-download returned no job ids")
+            external_ids = payload.get("job_ids")
+            if (
+                not isinstance(external_ids, list)
+                or len(external_ids) != 1
+                or not isinstance(external_ids[0], str)
+                or not external_ids[0]
+            ):
+                self._fail_job(
+                    job_id, "model-download did not return exactly one job id"
+                )
                 return
+            external_id = external_ids[0]
 
             with self._jobs_lock:
                 job = self._jobs.get(job_id)
                 if job is not None:
-                    job.external_job_ids = list(external_ids)
+                    job.external_job_id = external_id
                     job.progress_message = payload.get("status")
 
-            # Poll until every external job reports completed/failed.
             deadline = time.monotonic() + DOWNLOAD_TIMEOUT_S
             with httpx.Client(timeout=HTTP_REQUEST_TIMEOUT_S) as client:
                 while time.monotonic() < deadline:
-                    statuses = []
-                    for ext_id in external_ids:
-                        r = client.get(
-                            f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/jobs/{ext_id}"
-                        )
-                        if r.status_code == 404:
-                            statuses.append(("failed", f"job {ext_id} not found"))
-                            continue
-                        r.raise_for_status()
-                        data = r.json()
-                        statuses.append(
-                            (
-                                data.get("status", "processing"),
-                                data.get("error"),
-                            )
-                        )
-
-                    progress = ", ".join(s for s, _ in statuses)
+                    response = client.get(
+                        f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/jobs/{external_id}"
+                    )
+                    if response.status_code == 404:
+                        self._fail_job(job_id, f"job {external_id} not found")
+                        return
+                    response.raise_for_status()
+                    data = response.json()
+                    status = data.get("status", "processing")
                     with self._jobs_lock:
                         job = self._jobs.get(job_id)
                         if job is not None:
-                            job.progress_message = progress
+                            job.progress_message = status
 
-                    if all(s in ("completed", "failed") for s, _ in statuses):
-                        if all(s == "completed" for s, _ in statuses):
-                            (on_success or self._finalize_success)(job_id, model_name)
-                            return
-                        # At least one failed and none is still processing —
-                        # aggregate every failure reason into a single message
-                        # so callers see all root causes at once.
-                        errors = [
-                            err or "model-download reported a failed job"
-                            for s, err in statuses
-                            if s == "failed"
-                        ]
-                        self._fail_job(job_id, "; ".join(errors))
+                    if status == "completed":
+                        (on_success or self._finalize_success)(job_id, model_name)
+                        return
+                    if status == "failed":
+                        self._fail_job(
+                            job_id,
+                            data.get("error") or "model-download reported a failed job",
+                        )
                         return
 
                     time.sleep(DOWNLOAD_POLL_INTERVAL_S)
@@ -929,20 +940,6 @@ class ModelManager:
                 exc_info=True,
             )
             self._fail_job(job_id, f"Unexpected error: {exc}")
-
-    @staticmethod
-    def _resolve_download_path() -> str:
-        """Pick the ``download_path`` query value passed to model-download.
-
-        We always pass ``.`` (i.e. the MODELS_PATH root). The model-download
-        plugins themselves prepend their own ``<hub>/`` subdirectory to
-        ``output_dir`` (e.g. ``ultralytics/``, ``huggingface/``), and the
-        download scripts they invoke further nest the files under
-        ``<source>/<model_name>/<precision>/...``. Model catalog entries'
-        ``model_path`` entries must therefore include the full
-        ``<hub>/<source>/<model_name>/<precision>/<file>`` prefix.
-        """
-        return "."
 
     # ------------------------------------------------------------------
     # Job state transitions
@@ -1062,30 +1059,31 @@ class ModelManager:
             )
 
             now = datetime.now(timezone.utc)
-            any_installed = False
+            variant_results: list[bool] = []
             model_path: str | None = None
             for variant in variants:
                 full_path = os.path.join(MODELS_PATH, variant.model_path)
                 is_installed = _precision_is_complete(db_model.category, full_path)
                 variant.installed = is_installed
                 variant.installed_at = now if is_installed else None
+                variant_results.append(is_installed)
                 if is_installed:
-                    any_installed = True
                     if model_path is None:
                         model_path = full_path
 
+            installation_complete = any(variant_results)
             db_model.install_status = (
                 InternalModelInstallStatus.INSTALLED.value
-                if any_installed
+                if installation_complete
                 else InternalModelInstallStatus.NOT_INSTALLED.value
             )
-            db_model.installed_at = now if any_installed else None
+            db_model.installed_at = now if installation_complete else None
             await session.commit()
 
-        if any_installed:
+        if installation_complete:
             await SupportedModelsManager().reload_async()
 
-        return any_installed, model_path
+        return installation_complete, model_path if installation_complete else None
 
     # ------------------------------------------------------------------
     # Public: upload

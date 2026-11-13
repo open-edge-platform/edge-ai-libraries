@@ -203,8 +203,6 @@ License-Identifier: BSD-3-Clause   (22 package(s))
       Copyright (C) 2002-2017 Free Software Foundation, Inc.
   protobuf 7.36.0
       Copyright 2008 Google Inc. All rights reserved.
-  psutil 7.2.2
-      Copyright (c) 2009, Jay Loden, Dave Daeschler, Giampaolo Rodola
   python-dotenv 1.2.3
       Copyright (c) 2014, Saurabh Kumar (python-dotenv), 2013, Ted Tieken (django-dotenv-rw),
         2013, Jacob Kaplan-Moss (django-dotenv)

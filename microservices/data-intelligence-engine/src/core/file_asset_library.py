@@ -1,34 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""The file-and-chunk specialization of an asset library.
 
-**An asset is one file** -- a text document, a PDF, a spreadsheet, an image, a
-recording. Not one of the pieces a loader split it out of, and not a modality:
-whatever the file holds is normalized into one `ContentStream` of typed blocks,
-and it is the projection's job to turn those blocks into whatever its backend
-stores. So there is one asset class here, not one per file type.
-
-Everything generic about holding assets, registering sources, and keeping pools
-materialized lives in `data-intelligence-engine/src/assetlib/library.py:AssetLibrary`. What is left
-here is only what RAG decides:
-
-- **the asset** -- `FileAsset`: where the file came from, and where its
-  normalized content is stored,
-- **the projections** -- a vector source becomes a `VectorIndexer`, a graph
-  source a `GraphIndexer` (`PROJECTION_TYPES`),
-- **assets** -- listing and deletion of stored content and its projections
-  asset registry, addressed by file name rather than by asset id,
-- **chunks** -- the counts the API reports, and the node/chunk conversion the
-  retrieval endpoints speak.
-
-There is no active/inactive state. An asset library is identified by name or id
-on every call; which libraries a chat retrieves from is the caller's decision.
-
-`postprocess_chunks` at the bottom is the postprocessing stage, and it is a
-module function rather than a method on purpose: it reranks a result set that
-may have been merged from several asset libraries, so no single one owns it.
-"""
-
+import gc
 import hashlib
 import json
 import mimetypes
@@ -54,7 +27,7 @@ from typing import (
 )
 
 import config
-from assetlib.content import asset_key
+from assetlib.content import BLOB_PREFIX, asset_key
 from assetlib.contracts import ChunkProjection, Source
 from assetlib.library import AssetLibrary, collection_name
 from assetlib.pool import SourceSyncStatus
@@ -122,21 +95,14 @@ def _is_multimodal(configuration: Mapping[str, Any]) -> bool:
     return describe_vector_source(configuration)["encoder_kind"] == "multimodal"
 
 
-#: Options that choose which blocks a source takes rather than how it embeds
-#: them. Part of a profile all the same: two sources that take different
-#: blocks hold different records.
+#: Options that choose which blocks a source takes; part of its profile.
 _ROUTING_OPTIONS = ("asset_types", "block_kinds", "block_roles")
 
 
 def describe_vector_source(configuration: Mapping[str, Any]) -> dict:
-    """The profile of a vector source, with engine defaults filled in.
-
-    Defaults are resolved here, at creation, because that is when they decide
-    the vectors: a source created while `ENGINE_DOC_EMBEDDING_MODEL_ID` named one
-    model keeps saying so after the variable changes. A multimodal source's
-    model and its path are also what it is built from later (`build_projection`).
-    """
+    """The profile of a vector source, with engine defaults resolved at creation."""
     import config
+    from core.embedding import embedding_is_fused, embedding_runtime
     from core.multimodal import registry
     from core.multimodal.routing import asset_families, string_list, validate_options
 
@@ -154,33 +120,14 @@ def describe_vector_source(configuration: Mapping[str, Any]) -> dict:
     )
     families = asset_families(configuration)
     media_scope = bool(families & {IMAGE, VIDEO, AUDIO})
-    # This backend is main's document/fused path, even if its model directory
-    # also identifies a registry model. It must keep the text indexer contract.
-    # An explicit text-capable model ID also inherits the text backend. Keep
-    # media-only models (ViCLIP) on their registry runtime when no
-    # backend was requested, just like bare video/image/audio category defaults.
-    native_text = not media_scope and backend == "native_openvino_gme" and bool(
-        configuration.get("embedding_backend")
+    # Text source unless it asks for media blocks or its explicit model embeds only media.
+    text_source = not media_scope and not (
+        set(configuration.get("block_kinds") or ()) & {AUDIO, VIDEO}
     )
-    if not media_scope and backend == "native_openvino_gme" and not native_text and (
-        configuration.get("embedding_model")
-    ):
-        model = registry.lookup(
-            configuration.get("embedding_model"), None
-        )
-        native_text = model is None or TEXT in model.supported_kinds
-    if native_text:
-        model = registry.lookup(
-            configuration.get('embedding_model'), None
-        )
-        # A document adapter is not a way to bypass media source validation.
-        if model is not None and TEXT not in model.supported_kinds:
-            native_text = False
-        if set(configuration.get('block_kinds') or ()) & {AUDIO, VIDEO}:
-            native_text = False
-    resolved = (
-        None if native_text else registry.resolve(configuration)
-    )
+    if text_source and backend == config.LOCAL_OPENVINO and configuration.get("embedding_model"):
+        model = registry.lookup(configuration["embedding_model"], None)
+        text_source = model is None or TEXT in model.supported_kinds
+    resolved = None if text_source else registry.resolve(configuration)
     if resolved is not None:
         return build_profile(
             "multimodal",
@@ -188,14 +135,12 @@ def describe_vector_source(configuration: Mapping[str, Any]) -> dict:
             model=resolved.model_id,
             params={**routing, **resolved.params},
             multimodal_model=resolved.record(),
+            runtime=resolved.model.runtime,
             device=configuration.get("embedding_device"),
             supported_roles=sorted(resolved.model.supported_roles),
             supported_asset_types=sorted(resolved.model.supported_asset_types),
         )
     model_id = configuration.get("embedding_model") or config.EMBEDDING_MODEL_ID
-    model_path = (
-        config.EMBEDDING_MODEL_PATH if model_id == config.EMBEDDING_MODEL_ID else model_id
-    )
     return build_profile(
         "text",
         backend=backend,
@@ -211,55 +156,29 @@ def describe_vector_source(configuration: Mapping[str, Any]) -> dict:
             },
             **routing,
         },
+        runtime=embedding_runtime(backend, model_id),
+        fused=embedding_is_fused(backend, model_id),
         device=configuration.get("embedding_device") or config.EMBEDDING_DEVICE,
         model_id=model_id,
-        model_path=model_path,
     )
 
 
 @dataclass
 class FileAsset:
-    """One ingested file: where it came from, and where its content lives.
-
-    The content is **not** held here. `content_source_id` names a registered
-    `Source` -- a filesystem or object-store location like any other source --
-    and `content_key` names the record within it. The stream is read on demand
-    and cached, so a library with a large corpus neither serializes every
-    file into `asset_library.json` on every save nor keeps the whole corpus
-    resident in memory.
-
-    `origin` is provenance and nothing more: a URI saying where the file was
-    *read from*. It used to be a `Source` with no adapter -- an object that
-    looked like a place you could reach but was not one.
-
-    There is deliberately no `.document` here any more. It was a derived
-    llama-index `Document` holding every block's text joined into one string,
-    and it existed only so `VectorIndexer` did not have to change when the
-    content stream landed. It cost more than it saved: joining the blocks threw
-    away the page and bounding box each one carried, so no chunk could be cited
-    to a page, and it dropped figures entirely -- which made the figure-as-image
-    -node case impossible to express and turned a media file into an empty
-    document that silently produced no chunks. Projections read `content` and
-    build their own nodes (`data-intelligence-engine/src/core/indexer.py`).
-    """
+    """One ingested file: its provenance `origin` and the content source/key holding its stream."""
 
     asset_id: str
     origin: str = ""
     content_source_id: str = ""
     content_key: str = ""
-    #: What the file is, in the words a source's `asset_types` selects by: "okf"
-    #: for a concept bundle (provenance-only), else its family -- "document",
-    #: "image", "video" or "audio". Only "okf" is kept as given; see `__post_init__`.
+    #: "okf" for a concept bundle, else the file family ("document", "image", "video", "audio").
     asset_kind: str = DOCUMENT
-    # Neither is persisted: `loader` is bound by the library, `cached` is the
-    # stream once read (or the one it was created with).
+    # Not persisted: `loader` is bound by the library, `cached` is the stream once read.
     loader: Optional[Callable[[], ContentStream]] = field(
         default=None, repr=False, compare=False
     )
     cached: Optional[ContentStream] = field(default=None, repr=False, compare=False)
-    # Reads one blob out of the same content source. Bound alongside `loader`,
-    # and for the same reason: a projection that embeds a picture is handed
-    # assets, not the library, so the way to its bytes has to travel with it.
+    # Reads one blob out of the same content source; bound by the library.
     blob_reader: Optional[Callable[[str], bytes]] = field(
         default=None, repr=False, compare=False
     )
@@ -298,18 +217,11 @@ class FileAsset:
 
     @contextmanager
     def media_path(self, media_key: str, suffix: str = ".mp4") -> Iterator[str]:
-        """A local path the decoders can open for what a media block points at.
-
-        A standalone media file is the asset itself, so its key is the file and
-        the path is handed straight over: nothing is read, copied or written.
-        Only a blob in the content store has to be put on disk first, because
-        OpenCV and ffprobe take a seekable path and not bytes; that temporary
-        file is removed when the block exits.
-        """
+        """A local path for a media block; stored blobs go to a temp file removed on exit."""
         if is_file_uri(media_key):
             yield self._origin_file(media_key)
             return
-        from core.multimodal import frames  # noqa: PLC0415 - decoders are optional
+        from core.multimodal import frames  # noqa: PLC0415
 
         path = frames.materialize(self.read_blob(media_key), suffix)
         try:
@@ -334,19 +246,12 @@ class FileAsset:
 
     @property
     def media_type(self) -> str:
-        """The file's MIME type, guessed from its name.
-
-        Derived from `origin`, so asking costs nothing -- which matters because
-        `Projection.accepts` is asked of every asset on every sync, and loading
-        the content stream to answer would cost as much as indexing it.
-        """
+        """The file's MIME type, guessed from its name without loading content."""
         return mimetypes.guess_type(_path_of(self.origin))[0] or ""
 
     @property
     def extension(self) -> str:
         return os.path.splitext(_path_of(self.origin))[1].lower().lstrip(".")
-
-    # --- persistence ----------------------------------------------------------
 
     def to_record(self) -> dict:
         record = {
@@ -355,15 +260,13 @@ class FileAsset:
             "asset_kind": self.asset_kind,
         }
         if self.asset_kind == "okf":
-            # An OKF bundle is provenance-only: its concepts are parsed from the
-            # directory on disk, not stored as a content stream.
+            # OKF bundles are provenance-only: concepts are parsed from disk.
             return record
         if self.content_source_id and self.content_key:
             record["content_source_id"] = self.content_source_id
             record["content_key"] = self.content_key
         else:
-            # No content source yet -- an asset restored from an older workspace
-            # and not re-ingested since. Keep it inline rather than lose it.
+            # No content source: keep the content inline.
             record["content"] = self.content.to_record()
         return record
 
@@ -384,7 +287,7 @@ class FileAsset:
         if "content" in record:
             asset.cached = ContentStream.from_record(record["content"])
         elif "document" in record:
-            # Older workspaces persisted the llama-index document inline.
+            # Legacy record with an inline llama-index document.
             asset.cached = ContentStream.from_document_record(record["document"])
         return asset
 
@@ -407,25 +310,12 @@ def _path_of(origin: str) -> str:
 
 
 def asset_id_for(origin: str) -> str:
-    """A stable id for the thing this origin names.
-
-    **An asset is one file, or one object a user would recognize as a thing** --
-    not one of the pieces a loader happened to split it into. So its id comes
-    from where it came from, and re-ingesting the same file updates that asset
-    rather than creating a second one. Deriving the id from the loader's
-    document id instead, as this used to, made every re-ingest a fresh asset and
-    left the previous version's chunks in the collection with nothing pointing
-    at them.
-    """
+    """A stable id derived from the origin, so re-ingesting a file updates the same asset."""
     return hashlib.sha256(origin.encode("utf-8")).hexdigest()[:32]
 
 
 def _origin_uri(record: Mapping[str, Any]) -> str:
-    """The provenance URI, however this record spelled it.
-
-    It was a full `Source` record under `origin`, and before that under
-    `source`; both carried the path in `collection`.
-    """
+    """The provenance URI, also accepting legacy `Source`-shaped `origin`/`source` records."""
     origin = record.get("origin")
     if isinstance(origin, str):
         return origin
@@ -438,11 +328,9 @@ def _origin_uri(record: Mapping[str, Any]) -> str:
     return ""
 
 
-#: Folder, inside a library's upload area, holding the OKF bundles graph sources
-#: extracted from documents (one stable folder per pool and source).
+#: Folder in a library's upload area holding OKF bundles extracted from documents.
 EXTRACTED_DIRECTORY = "okf-extracted"
-#: What the routing report asks about: one representative block per role a
-#: pool can hold, plus a document's prose (which has none).
+#: One representative block per role (plus plain text) for the routing report.
 ROUTING_KINDS = {
     "text": ContentBlock("routing", kind=TEXT, text="-"),
     **{
@@ -465,8 +353,7 @@ ROUTING_KINDS = {
 class FileAssetLibrary(AssetLibrary[FileAsset]):
     """An asset library whose assets are documents and whose records are chunks."""
 
-    # Only these source types have a projection; a pool over a sql or object
-    # source is a bad request, not an internal error.
+    # Only these source types have a projection.
     PROJECTION_TYPES = {
         "vector": (VectorIndexer, VectorCollection, VectorAdapter),
         "graph": (GraphIndexer, GraphCollection, GraphAdapter),
@@ -490,29 +377,19 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         )
         # Ingested file name -> the path it was read from.
         self.file_map: Dict[str, str] = {}
-        # Graph sources turning documents into OKF, off the sync path.
         self.extraction_jobs = ExtractionJobs(
             self._run_extraction_job, on_finished=self._save_after_extraction
         )
-        # An unchanged sync must not extend an auto job's quiet period or request
-        # another run while it is already extracting. Track document changes,
-        # not pool revisions (which also move for generated/uploaded OKF assets).
+        # (pool, source) -> (status, document-change count) last used to request an auto extraction.
         self._auto_extraction_revisions: Dict[
             Tuple[str, str], Tuple[SourceSyncStatus, int]
         ] = {}
         # (pool, source) -> the cron minute a `schedule` trigger last fired for.
         self._schedule_fired: Dict[Tuple[str, str], datetime] = {}
 
-    # --- what the library asks of a specialization ----------------------------
-
     def create_source(self, name, database_id, collection_name="", configuration=None,
                       register=True, **options):
-        """As the base class, but a graph source's knowledge settings are checked
-        first: its formats (`asset_types`) and, for ``document``, the external
-        extractor's access parameters; a vector source's `asset_types` must each
-        match something ingest accepts. A bad source is refused here rather than
-        failing at its first sync. Other keywords (`enabled`, `labels`...) pass
-        through unchanged."""
+        """As the base class, but validates graph knowledge settings and vector `asset_types` first."""
         from core.multimodal.routing import validate_asset_types
 
         source = super().create_source(
@@ -597,29 +474,19 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             validate_source(source)
         configuration = effective_configuration(source)
         if source_type == "vector":
-            # So a multimodal projection can read a figure's pixels back by
-            # media_key when it precomputes the fused vector. Not persisted:
-            # VectorIndexer pops it out of its configuration.
+            # Not persisted: VectorIndexer pops it out of its configuration.
             configuration["blob_reader"] = self.blob_reader()
-        # A multimodal source is still a vector source: same type, same adapter,
-        # same collection, and it is only the model that differs. So the choice
-        # is a configured model rather than a source type of its own -- which
-        # also means a pool can hold several of them at different widths.
         profile = source.profile or self.describe_source(source)
         if source_type == "vector" and profile.get("encoder_kind") == "multimodal":
             indexer_type = MultimodalIndexer
             configuration['embedding_backend'] = profile.get('backend')
         elif source_type == "vector":
-            # Build from the same frozen options that describe stored vectors,
-            # not today's defaults. Older profiles only recorded `model` (an id
-            # or path); keep its recorded identity for the missing half.
+            # Build from the profile's frozen options; profiles without `model_id` fall back to `model`.
             for option, value in (
                 ("embedding_backend", profile.get("backend")),
                 ("embedding_device", profile.get("device")),
                 ("embedding_model", profile.get("model_id")
                  or configuration.get("embedding_model") or profile.get("model")),
-                ("embedding_model_path", profile.get("model_path")
-                 or profile.get("model")),
             ):
                 if value is not None:
                     configuration[option] = value
@@ -632,12 +499,8 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             configuration=configuration,
         )
 
-    # --- sync coordination ----------------------------------------------------
-
     def _sync_projection_order(self, asset_pool):
-        # Vector first, so a graph sync can resolve OKF source chunks against
-        # chunks already written to Milvus (edgecraftrag relied on two separate
-        # uploads for the same ordering).
+        # Vector first, so a graph sync can resolve OKF source chunks against written chunks.
         return sorted(
             asset_pool.projections,
             key=lambda projection: 0 if getattr(projection, "kind", "") == "vector" else 1,
@@ -656,11 +519,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         )
 
     def _okf_source_root(self, asset_pool) -> Optional[Path]:
-        """The common path of the pool's normal document files, or None.
-
-        Mirrors edgecraftrag's ``os.path.commonpath(file_paths)`` fallback-to-parent.
-        Inline (``inline:``) assets have no filesystem path and are skipped.
-        """
+        """The common directory of the pool's file-backed document assets, or None."""
         paths = []
         for asset_id in asset_pool.asset_ids:
             asset = self._assets.get(asset_id)
@@ -686,9 +545,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         if projection.extracts_documents and any(
             getattr(asset, "asset_kind", "document") != "okf" for asset in assets
         ):
-            # Documents changed. Extracting is an LLM pass over the whole corpus,
-            # so it is a job of its own (`request_extraction`), not part of
-            # syncing: this only records that the generated bundle is behind.
+            # Extraction runs as a separate job; only mark the generated bundle outdated.
             status = asset_pool.source_statuses.get(projection.source.source_id)
             if status is not None:
                 status.note_extraction_input_changed()
@@ -697,29 +554,20 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         )
 
     def _generated_bundle_path(self, asset_pool, projection) -> Path:
-        """Where a graph source's extracted bundle lives: a stable folder in the
-        library's upload area, so its asset id survives re-extraction."""
+        """Stable folder for a graph source's extracted bundle, so its asset id survives re-extraction."""
+        return self._generated_bundle_dir(asset_pool, projection.source)
+
+    def _generated_bundle_dir(self, asset_pool, source) -> Path:
         import config
 
         def slug(value: str) -> str:
             return re.sub(r"[^0-9A-Za-z_-]+", "-", value).strip("-") or "x"
 
-        source = projection.source
         name = f"{slug(asset_pool.asset_pool_id)}-{slug(source.name or 'graph')}-{source.source_id[:8]}"
         return Path(config.UPLOAD_DIR) / self.idx / EXTRACTED_DIRECTORY / name
 
     def _extract_documents_to_okf_asset(self, asset_pool, projection, vector, documents):
-        """Turn `documents` into an OKF bundle and ingest it as an `okf` asset.
-
-        The extractor service writes the bundle into the shared upload area;
-        once its provenance checks out against the pool's chunks it replaces the
-        source's previous bundle in a stable folder and is registered (or
-        updated) as an asset of this pool -- visible like an uploaded bundle,
-        and built into the graph by the next sync. Concepts the previous
-        bundle had and this one lacks are retired from the graph and the
-        concept index. A failed request or an invalid bundle changes nothing.
-        Returns the bundle asset and its concepts.
-        """
+        """Extract `documents` into an OKF bundle, ingest it as a pool asset; return (asset, concepts)."""
         from core.knowledge.okf import parse_okf_bundle
 
         target = self._generated_bundle_path(asset_pool, projection)
@@ -760,19 +608,20 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             self.note_assets_changed([asset.asset_id])
         obsolete = sorted(previous_ids - {node.cid for node in concepts})
         if obsolete:
-            # Re-extraction can drop or rename concepts; upserting alone would
-            # leave the old vertices and seed vectors searchable.
+            # Retire concepts dropped by re-extraction from the graph and concept index.
             projection.delete_vertices(obsolete)
             vector.remove_concepts(obsolete)
         return asset, concepts
 
-    # --- extraction jobs --------------------------------------------------------
-
     def sync_asset_pool(self, asset_pool_id: str, auto_extract: bool = True) -> None:
-        """As the base class; then queue extraction for each `auto` graph source
-        whose generated bundle the sync found out of date, once changes settle
-        (its `debounce_seconds`). Only a new document change resets that wait."""
+        """As the base class; then queue debounced extraction for outdated `auto` graph sources."""
         super().sync_asset_pool(asset_pool_id)
+        from core.retrievers import warm_graph_arm
+
+        try:
+            warm_graph_arm(self, self._require_asset_pool(asset_pool_id))
+        except Exception:  # noqa: BLE001
+            pass
         if not auto_extract:
             return
         asset_pool = self._require_asset_pool(asset_pool_id)
@@ -799,9 +648,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                 )
 
     def run_scheduled_extractions(self, now: datetime) -> List[ExtractionJob]:
-        """Queue extraction for `schedule` graph sources whose cron minute is
-        `now` (in their time zone) and whose bundle is out of date. Called by
-        `ExtractionScheduler` more than once a minute; each minute fires once."""
+        """Queue extraction for outdated `schedule` graph sources whose cron matches `now`; each minute fires once."""
         from zoneinfo import ZoneInfo
 
         fired = self._schedule_fired
@@ -818,8 +665,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                     continue
                 fired[key] = minute
                 status = asset_pool.source_statuses.get(source_id)
-                # A job still running from an earlier minute is not followed
-                # up: changes it missed keep the source outdated for the next.
+                # Skip while a job is running; missed changes keep the source outdated.
                 busy = self.extraction_jobs.active(self.idx, asset_pool.asset_pool_id, source_id)
                 if status is not None and status.extraction_outdated and busy is None:
                     job, _ = self.extraction_jobs.request(
@@ -831,10 +677,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
     def request_extraction(
         self, asset_pool_id: str, source_id: Optional[str] = None, force: bool = False,
     ) -> Tuple[ExtractionJob, bool]:
-        """Queue extraction of a pool's documents for one graph source (the
-        pool's only extracting one when `source_id` is omitted). Returns the job
-        and whether it is new; an active job for the same pair is returned
-        instead of starting a second one."""
+        """Queue extraction for one graph source; returns (job, is_new), reusing an active job."""
         asset_pool = self._require_asset_pool(asset_pool_id)
         projection = self._extracting_projection(asset_pool, source_id)
         return self.extraction_jobs.request(
@@ -842,12 +685,9 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         )
 
     def run_extraction(self, asset_pool_id: str, source_id: str, force: bool = False) -> Dict[str, Any]:
-        """Extract the pool's documents for one graph source, publish the bundle
-        as a pool asset and build it. Skipped when nothing changed since the
-        last extraction, unless `force`."""
+        """Extract the pool's documents for one graph source and publish the bundle; skipped if up to date unless `force`."""
         asset_pool = self._require_asset_pool(asset_pool_id)
-        # Index the documents first: the bundle's provenance resolves to their
-        # chunks. This also records any change the extraction should cover.
+        # Index documents first: the bundle's provenance resolves to their chunks.
         self.sync_asset_pool(asset_pool_id, auto_extract=False)
         projection = self._extracting_projection(asset_pool, source_id)
         status = asset_pool.source_statuses[source_id]
@@ -877,7 +717,6 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         return self.run_extraction(job.asset_pool_id, job.source_id, job.force)
 
     def _save_after_extraction(self, job: ExtractionJob) -> None:
-        """Persist the published bundle and statuses (a job ends off-request)."""
         from core.manager import registry
 
         if registry.get(self.idx) is self:
@@ -907,8 +746,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         )
 
     def _extraction_documents(self, asset_pool, projection) -> List[Any]:
-        """The whole current corpus, so task instructions and entity identities
-        do not depend on which documents changed."""
+        """The pool's whole current document corpus accepted by `projection`."""
         return [
             self._assets[asset_id] for asset_id in list(asset_pool.asset_ids)
             if getattr(self._assets[asset_id], "asset_kind", "document") != "okf"
@@ -958,9 +796,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         }
 
     def concept_origins(self, asset_pool_id: str) -> Dict[str, str]:
-        """Which kind of OKF bundle in the pool defines each concept id:
-        ``uploaded``, ``generated``, or ``both`` (an uploaded override).
-        Read from the bundles on disk; one that cannot be read is skipped."""
+        """Concept id -> ``uploaded``, ``generated`` or ``both``; unreadable bundles are skipped."""
         from core.knowledge.okf import parse_okf_bundle
 
         asset_pool = self._require_asset_pool(asset_pool_id)
@@ -980,11 +816,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         return origins
 
     def _is_generated_bundle(self, asset) -> bool:
-        """Whether an `okf` asset is a bundle the engine published for one of
-        its pools. Known by where it lives -- a graph source's generated folder
-        (`_generated_bundle_path`) -- not by carrying a task.json: a copy of an
-        engine bundle uploaded elsewhere is the user's, and its manifest names
-        documents of another pool."""
+        """Whether an `okf` asset lives in one of its pools' generated bundle folders."""
         if getattr(asset, "asset_kind", "") != "okf":
             return False
         return any(
@@ -994,11 +826,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         )
 
     def _uploaded_task_bundle_concepts(self, bundle: Path, sources, documents, vector) -> List[Any]:
-        """An uploaded copy of an engine bundle: its task paths name documents
-        by a task-local folder (`<id>/02_theft.md`), so match them to this
-        pool's documents by file name where that is unique. A concept keeps
-        whatever resolves -- like any uploaded bundle, it is not dropped for
-        citing a document the pool does not have."""
+        """Concepts of an uploaded engine bundle, matching task source paths to pool documents by unique file name."""
         from core.knowledge.okf import parse_okf_bundle
 
         by_name: Dict[str, List[str]] = {}
@@ -1023,13 +851,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         return concepts
 
     def pool_concept_scope(self, asset_pool_id: str) -> Optional[Set[str]]:
-        """The concepts a pool's graph view and graph retrieval keep to, or None
-        for all of its graph source's.
-
-        A graph source attached to several pools writes all their concepts into
-        one space; each pool then sees only those its own OKF bundles define.
-        A graph source of one pool needs no filter (and keeps working for a
-        pool whose bundles cannot be read back)."""
+        """Concepts the pool's graph is restricted to when its graph source is shared; None if not shared."""
         asset_pool = self._require_asset_pool(asset_pool_id)
         graphs = {p.source.source_id for p in asset_pool.projections if isinstance(p, GraphIndexer)}
         shared = any(
@@ -1040,8 +862,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
 
     @staticmethod
     def _task_sources(bundle: Path) -> Optional[Dict[str, str]]:
-        """A generated bundle's task manifest as ``{source path: asset id}``,
-        or None for a bundle authored outside the engine."""
+        """A generated bundle's task manifest as ``{source path: asset id}``, or None if absent."""
         manifest = bundle / "task.json"
         if not manifest.is_file():
             return None
@@ -1049,13 +870,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         return {item["path"]: item["asset_id"] for item in data["sources"]}
 
     def _generated_concepts(self, bundle: Path, documents, vector) -> List[Any]:
-        """Parse a generated bundle and resolve its provenance by asset id.
-
-        Concepts cite task source paths, mapped to document asset ids by the
-        task manifest. Citations of documents no longer in the pool are dropped
-        (a concept left with none is dropped too), so a deleted document is
-        never reintroduced from an older bundle.
-        """
+        """Parse a generated bundle and resolve provenance by asset id, dropping citations of removed documents."""
         from core.knowledge.okf import parse_okf_bundle, resolve_task_source_chunk_ids
 
         sources = self._task_sources(bundle)
@@ -1075,18 +890,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         return concepts
 
     def _resolve_okf_concepts(self, asset_pool, projection, vector):
-        """Parse and provenance-resolve every OKF bundle in the pool, once.
-
-        Returns ``{asset_id: [OKFNode, ...]}`` for all OKF assets the graph
-        projection accepts. The graph write (one bundle per batch asset) and the
-        concept vector index (the union of every bundle) both read these, so a
-        bundle is parsed exactly once per sync rather than once for each.
-
-        ``source_chunk_ids`` resolve against the chunks the vector projection has
-        already written (vector syncs first). With no document files in the pool
-        there is nothing to resolve against, so a concept that names
-        ``source_files`` is an error -- the same contract edgecraftrag enforced.
-        """
+        """``{asset_id: [OKFNode, ...]}`` for every accepted OKF bundle in the pool, provenance-resolved."""
         from core.knowledge.okf import parse_okf_bundle, resolve_source_chunk_ids
 
         concepts_by_asset: Dict[str, List[Any]] = {}
@@ -1105,7 +909,6 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             ):
                 bundle = Path(_path_of(asset.origin))
                 if self._is_generated_bundle(asset):
-                    # Extracted by the engine: provenance by document asset id.
                     concepts_by_asset[asset_id] = self._generated_concepts(bundle, documents, vector)
                     generated.append(asset_id)
                 elif self._task_sources(bundle) is not None:
@@ -1128,15 +931,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
 
     @staticmethod
     def _layer_concepts(concepts_by_asset: Dict[str, List[Any]], generated: Sequence[str]):
-        """Uploaded bundles take precedence over generated ones, per concept.
-
-        A concept both define (same id) is written as the uploaded version --
-        its type, title, summaries and body -- plus the relations and chunk
-        citations only the generated one has. Every bundle defining it carries
-        that same merged node, so which bundle a sync writes first, and whether
-        it writes them together, no longer decides the vertex or the concept
-        vector. Among uploaded bundles the first in the pool wins, as before.
-        """
+        """Per concept, the uploaded version wins, plus links and chunk ids only generated bundles have."""
         uploaded: Dict[str, Any] = {}
         for asset_id, nodes in concepts_by_asset.items():
             if asset_id not in generated:
@@ -1170,9 +965,6 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         concepts_by_asset = projection.okf_context
         if not concepts_by_asset:
             return
-        # Build concept vectors during ingestion only, covering every OKF asset in
-        # the pool (deduped by cid), reusing the parse `_prepare_projection_add`
-        # did. Retrieval reads persisted concepts and provenance from Nebula.
         concepts = list(
             {
                 node.cid: node
@@ -1184,8 +976,6 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         if vector is None:
             raise ValueError("OKF graph indexing requires a vector source in the asset pool")
         if not concepts:
-            # Nothing to index -- and checking the index for no concepts would
-            # report it missing.
             projection.set_okf_context(None)
             return
         # Propagate errors so sync_asset_pool marks the graph source failed.
@@ -1194,15 +984,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         projection.set_okf_context(None)
 
     def routing(self, asset_pool_id: str) -> dict:
-        """Which source takes each kind of content in a pool, and how.
-
-        `via` is `vector` for a model that embeds the content itself, `caption`
-        for a text model embedding a media block's caption, `text` for prose,
-        `graph` for a knowledge-graph source, `transcript` for a model that
-        embeds a recording through its speech transcript. File scopes exclude
-        impossible roles, but this summary cannot express extension/MIME-specific
-        acceptance; actual indexing always checks the individual file too.
-        """
+        """Which source takes each kind of content in a pool, and how (`vector`, `caption`, `text`, `graph`, `transcript`)."""
         return source_routing.pool_routing(
             self._require_asset_pool(asset_pool_id),
             self._sources,
@@ -1217,8 +999,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
 
         options = effective_configuration(source)
         families = asset_families(options)
-        # A report has no actual file, but can exclude impossible parent types:
-        # an image-only source cannot hold a PDF's doc_image block, for example.
+        # Exclude roles impossible for the source's asset families.
         if families and families <= {IMAGE, VIDEO, AUDIO}:
             possible = set().union(*(ASSET_ROLES[family] for family in families))
             if kind not in possible:
@@ -1226,8 +1007,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         elif families == {DOCUMENT} and kind not in ("text", ROLE_DOC_IMAGE):
             return None
         if kind == ROLE_AUDIO and source.source_type == "vector":
-            # No model embeds the sound; a recording is covered by whoever
-            # embeds its transcript.
+            # Audio is covered by whichever source embeds its transcript.
             profile = source.profile or self.describe_source(source)
             if profile.get("encoder_kind") == "multimodal" and self._covers(
                 source, ROLE_L2_TRANSCRIPT
@@ -1249,15 +1029,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         return "text" if block.kind == TEXT else "caption"
 
     def retrieve(self, requests: Mapping[str, Any]) -> Dict[str, Any]:
-        """As the library retrieves, with each media hit shown by its description.
-
-        A clip's node keeps the caption it was written with -- its file name,
-        since the description arrives minutes later and rewriting the node
-        would mean re-encoding the clip for the same vector. The description is
-        read from the content stream here instead, so a result always shows the
-        latest one and nothing is re-embedded. Display only: the node's vector
-        is untouched.
-        """
+        """As the library retrieves, with each media hit's text replaced by its latest description."""
         results = super().retrieve(requests)
         for scored in (result for found in results.values() for result in found):
             self._show_description(getattr(scored, "node", scored))
@@ -1272,7 +1044,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             return
         try:
             stream = asset.content
-        except Exception:  # noqa: BLE001 - a missing record must not fail retrieval
+        except Exception:  # noqa: BLE001
             return
         for block in stream.blocks:
             if (
@@ -1291,24 +1063,13 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         self._bind_content(asset)
         return asset
 
-    # --- content --------------------------------------------------------------
-
     def create_asset(
         self,
         origin: str,
         stream: ContentStream,
         source_id: Optional[str] = None,
     ) -> FileAsset:
-        """Store a file's normalized content and return the asset that points at it.
-
-        Content is written here, at ingest, and not on the way to disk in
-        `to_record` -- so saving the library stays a small, quick write under the
-        registry lock however large the corpus is.
-
-        `source_id` names the object source to write to; without it the content
-        goes to the library's default. Assets in one library may therefore live
-        in different stores, which is why each one records where it went.
-        """
+        """Store a file's normalized content (in `source_id` or the default store) and return its asset."""
         source = self.content_source(source_id)
         key = asset_key(stream.asset_id)
         self.content_store.put_record(source, key, stream.to_record())
@@ -1324,27 +1085,13 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         return asset
 
     def create_okf_asset(self, origin: str) -> FileAsset:
-        """An OKF bundle asset: provenance-only, its concepts parsed from disk.
-
-        The graph projection reads the bundle directory from `origin` at sync
-        time; there is no content stream to store. An empty stream is kept in
-        memory so `asset.content` never raises on paths that touch it.
-        """
+        """An OKF bundle asset: provenance-only, its concepts parsed from disk."""
         asset = FileAsset(asset_id=asset_id_for(origin), origin=origin, asset_kind="okf")
         asset.cached = ContentStream(asset_id=asset.asset_id, blocks=[])
         return asset
 
     def _discard_moved_content(self, asset: FileAsset) -> None:
-        """Drop the previous record of an asset that has just moved store.
-
-        Asset ids are stable, so re-ingesting a file into a different source
-        leaves the old record behind with nothing pointing at it -- and a
-        document record is keyed by identity (`assets/<asset_id>.json`), so
-        nothing else can be referring to it either. Best effort: the new content
-        is already written, and failing the ingest over an unreachable old store
-        would be the wrong trade. Blobs are left for the sweep they are designed
-        for -- they are content-addressed, so another asset may share them.
-        """
+        """Best-effort drop of the old record of an asset that moved store; shared blobs are left to the sweep."""
         previous = self._assets.get(asset.asset_id)
         if previous is None or not previous.content_source_id:
             return
@@ -1355,18 +1102,11 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             return
         try:
             self.content_store.delete(source, previous.content_key)
-        except Exception:  # noqa: BLE001 - an orphan record is not worth failing on
+        except Exception:  # noqa: BLE001
             pass
 
     def blob_writer(self, source_id: Optional[str] = None):
-        """A callable that puts bytes in one of this library's content sources.
-
-        Handed to the extractor so a figure's pixels are stored *before* the
-        content record that names them is written -- a record can then never
-        point at a blob that does not exist, however the ingest ends. Blobs are
-        content-addressed, so an ingest that dies after writing them leaves
-        unreferenced bytes to be swept, not a broken asset.
-        """
+        """A callable that puts bytes in one of this library's content sources."""
         source = self.content_source(source_id)
 
         def put_blob(data: bytes, content_type: Optional[str] = None) -> str:
@@ -1375,38 +1115,22 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         return put_blob
 
     def blob_reader(self):
-        """A callable that reads bytes back from this library's content sources.
-
-        Symmetric to `blob_writer` and injected into a vector projection: with a
-        multimodal embedding model the projection reads a figure's pixels by
-        `media_key` to embed image and caption jointly. The asset's own content
-        source is passed per call, because assets in one library may live in
-        different stores -- and a blob was written to the same source its content
-        record went to (`create_asset`), which is `asset.content_source_id`.
-        """
+        """A callable that reads bytes back from this library's content sources."""
 
         def read_blob(media_key: str, source_id: Optional[str] = None) -> bytes:
             if is_file_uri(media_key):
-                # Never treat a caller's URI as permission to open that path.
-                # Only an exact binary-block reference in a registered asset
-                # grants access, constrained by the requested content/source.
+                # Only a path referenced by a registered asset's block may be opened.
                 return self._referenced_media_asset(media_key, source_id).read_blob(media_key)
             source = self._sources.get(source_id) if source_id else None
             if source is not None and source.source_type != "object":
-                # Retrieved source_id identifies the projection, not the object
-                # store. Resolve its asset before choosing the content source.
+                # A projection source_id: resolve the asset to find its content source.
                 return self._referenced_media_asset(media_key, source_id).read_blob(media_key)
             return self.content_store.get_blob(self.content_source(source_id), media_key)
 
         return read_blob
 
     def blob_file_path(self, media_key: str, source_id: Optional[str] = None) -> str:
-        """Resolve a local blob for streaming, only after reference authorization.
-
-        Reuse the byte reader's exact asset/block/source checks without loading
-        the file's bytes. Callers doing async I/O must offload this lookup, since
-        an asset's content record may need to be loaded from its store.
-        """
+        """Authorized local path of a `file://` blob; blocking, so async callers must offload it."""
         if not is_file_uri(media_key):
             raise ValueError("media key is not a file:// key")
         asset = self._referenced_media_asset(media_key, source_id)
@@ -1415,13 +1139,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
     def _referenced_media_asset(
         self, media_key: str, source_id: Optional[str] = None
     ) -> FileAsset:
-        """Find an exact registered media reference within the requested source.
-
-        An object source constrains where the content lives. A projection source
-        constrains pool membership and its asset/block filters. In particular,
-        merely living next to a registered file (or sharing its origin URI)
-        does not make a path readable.
-        """
+        """The registered asset with a binary block referencing `media_key`, within the requested source."""
         from core.multimodal.routing import effective_configuration
 
         source = self._sources.get(source_id) if source_id else None
@@ -1447,7 +1165,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                     continue
             try:
                 blocks = asset.content.blocks
-            except Exception:  # noqa: BLE001 - unreadable assets grant no access
+            except Exception:  # noqa: BLE001
                 continue
             if any(
                 block.kind in BINARY_KINDS
@@ -1463,7 +1181,6 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         raise FileNotFoundError("media key is not referenced by a registered asset in this source")
 
     def _bind_content(self, asset: FileAsset) -> None:
-        """Teach the asset how to read its stream and its blobs, if it has any."""
         if not (asset.content_source_id and asset.content_key):
             return
 
@@ -1480,30 +1197,18 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         asset.bind(load)
         asset.bind_blobs(read_blob)
 
-    # --- counts ---------------------------------------------------------------
-
     @property
     def document_count(self) -> int:
-        """Exactly `asset_count`, kept because the API schema still reports it.
-
-        One asset is one file, so there is nothing for this to count separately.
-        Derived rather than tallied, so it cannot drift from the truth.
-        """
         return self.asset_count
 
     @property
     def chunk_count(self) -> int:
-        """Chunks across every distinct collection this asset library projects to.
-
-        Asked of the backend rather than tallied as ingests go by: the tally was
-        never incremented on the way in, so it reported 0 forever. A backend that
-        cannot answer contributes 0 rather than failing the request.
-        """
+        """Chunks across every distinct collection; unreachable backends count as 0."""
         total = 0
         for projection in self.chunk_projections().values():
             try:
                 total += projection.count()
-            except Exception:  # noqa: BLE001 - reporting must not fail
+            except Exception:  # noqa: BLE001
                 continue
         return total
 
@@ -1522,10 +1227,8 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
     def _safe_count(projection: ChunkProjection) -> int:
         try:
             return projection.count()
-        except Exception:  # noqa: BLE001 - reporting must not fail
+        except Exception:  # noqa: BLE001
             return 0
-
-    # --- assets ---------------------------------------------------------------
 
     def list_assets(self, page_num: int = 1, page_size: int = 20) -> AssetPage:
         """One stable page of stored file and inline-text assets."""
@@ -1580,6 +1283,17 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         if missing:
             raise ValueError(f"Asset(s) not found: {', '.join(missing)}")
         assets = [self._assets[asset_id] for asset_id in requested]
+        generated_bundles = [
+            f"{asset.file_name!r} ({asset.asset_id})" for asset in assets if self._is_generated_bundle(asset)
+        ]
+        if generated_bundles:
+            raise ValueError(
+                "Generated OKF bundle(s) cannot be deleted directly: "
+                + ", ".join(generated_bundles)
+                + ". The engine owns them: to remove one, delete the documents it was extracted "
+                "from (it goes once its pool has no documents left) or delete its asset pool; "
+                "to refresh it, run the pool's extraction again"
+            )
         relevant_pools = [
             asset_pool
             for asset_pool in self._asset_pools.values()
@@ -1587,14 +1301,15 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         ]
 
         unavailable = {
-            source_id
+            source_id: source
             for asset_pool in relevant_pools
-            for source_id in asset_pool.unavailable_sources
+            for source_id, source in asset_pool.unavailable_sources.items()
         }
         if unavailable:
             raise ValueError(
                 "Cannot delete assets while source(s) are unavailable: "
-                + ", ".join(sorted(unavailable))
+                + self._source_labels(unavailable)
+                + ". " + self.UNAVAILABLE_HINT
             )
 
         projections = {
@@ -1602,10 +1317,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             for asset_pool in relevant_pools
             for projection in asset_pool.projections
         }
-        # Graph sources cannot remove by asset id (see `_graph_removal_plan`), so
-        # what each one must lose is worked out now, while the assets' content
-        # and bundles can still be read -- and before anything is mutated, so a
-        # plan that cannot be made refuses the delete rather than half-doing it.
+        # Plan graph removals before mutating anything, while content and bundles are still readable.
         graph_plans = []
         planned = set()
         for asset_pool in relevant_pools:
@@ -1625,12 +1337,11 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                 if plan["vertices"] and type(adapter).delete_vertices is GraphAdapter.delete_vertices:
                     raise ValueError(
                         "Cannot delete assets from source(s) without removal support: "
-                        + graph.source.source_id
+                        + self._source_label(graph.source.source_id, graph.source)
+                        + ". " + self.NO_REMOVAL_HINT
                     )
                 graph_plans.append(plan)
-        # Frozen bindings hold data but no projection; their rows go too, or a
-        # rollback would bring deleted assets back. A source frozen in one pool
-        # and live in another is already covered by its projection.
+        # Frozen bindings must lose the rows too, or a rollback would restore them.
         frozen_sources = {
             source_id: source
             for asset_pool in relevant_pools
@@ -1638,7 +1349,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             if source_id not in projections
         }
         unsupported = {
-            source_id
+            source_id: source
             for source_id, source in frozen_sources.items()
             if source.source_type != "vector"
             and any(accepts_asset(asset, source.configuration) for asset in assets)
@@ -1646,32 +1357,34 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         if unsupported:
             raise ValueError(
                 "Cannot delete assets from source(s) without removal support: "
-                + ", ".join(sorted(unsupported))
+                + self._source_labels(unsupported)
+                + ". " + self.FROZEN_HINT
             )
-        # Reach every frozen source's database now, before anything is deleted,
-        # so an unregistered one fails the request instead of half of it.
+        # Fail before deleting anything if a frozen source's database is unregistered.
         for source in frozen_sources.values():
             self._databasehub.get_adapter(source.database_id)
 
-        # A standalone media file is the asset, so deleting the asset takes the
-        # file with it -- but only a file the engine itself holds. A path the
-        # caller supplied is theirs, and is left alone and reported.
+        # Only media files the engine holds are deleted; caller-supplied paths are kept.
         owned_files, kept_files = self._media_files_of(assets)
 
         content_records = []
+        blob_candidates = {}
         for asset in assets:
             if not asset.content_source_id or not asset.content_key:
                 continue
             source = self._sources.get(asset.content_source_id)
             if source is None:
                 raise ValueError(
-                    f"Asset {asset.asset_id!r} content source is not registered"
+                    f"Asset {asset.asset_id!r} content source is not registered: its content is in "
+                    f"source {asset.content_source_id!r}, which is missing from this library's "
+                    "saved configuration. Restore that source entry in the workspace "
+                    "configuration and restart the engine, then retry the delete"
                 )
             content_records.append((source, asset.content_key))
+            for key in self._blob_keys_of(asset):
+                blob_candidates.setdefault((source.database_id, source.location, key), source)
 
-        # A vector source loses every deleted asset, not only those its filter
-        # takes now: an unscoped text source used to take pictures and
-        # recordings too. Removing an id a collection does not hold is a no-op.
+        # Remove every deleted asset from each vector source regardless of its current filter.
         materializations_removed = 0
         for projection in projections.values():
             if isinstance(projection, GraphIndexer):
@@ -1706,8 +1419,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         )
         self.forget_assets(requested)
         if uploaded_bundles_removed:
-            # Concepts an uploaded bundle overrode fall back to the generated
-            # version: rebuild the generated bundles it shared pools with.
+            # Overridden concepts fall back to the generated version: rebuild those bundles.
             for pool in relevant_pools:
                 for projection in self._extracting_projections(pool):
                     generated_id = asset_id_for(file_origin(str(
@@ -1725,16 +1437,11 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                 for projection in extracting:
                     status = pool.source_statuses.get(projection.source.source_id)
                     if not live_documents:
-                        # Nothing left to extract from: the generated bundle goes
-                        # too (its concepts were removed with the documents above).
                         self._remove_generated_bundle(pool, projection)
                         if status is not None:
                             status.extraction_done = status.extraction_changes
                         continue
-                    # The corpus changed: the generated bundle is out of date
-                    # until re-extracted (its source's trigger decides when).
-                    # Meanwhile rebuild it, so its concepts stop citing the
-                    # deleted documents.
+                    # Mark outdated and rebuild so concepts stop citing deleted documents.
                     if status is not None:
                         status.note_extraction_input_changed()
                     generated_id = asset_id_for(file_origin(str(
@@ -1747,10 +1454,22 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             for name, path in self.file_map.items()
             if file_origin(path) not in removed_origins and path not in removed_origins
         }
+        self._delete_unreferenced_blobs(blob_candidates)
         files_removed = []
         for path in owned_files:
             try:
                 os.unlink(path)
+                files_removed.append(path)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                kept_files.append(path)
+        for path in self._uploaded_originals(assets, owned_files):
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.unlink(path)
                 files_removed.append(path)
             except FileNotFoundError:
                 pass
@@ -1764,16 +1483,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         }
 
     def _graph_removal_plan(self, graph, vector, assets, requested) -> Optional[dict]:
-        """What deleting `assets` takes out of one graph source, or None.
-
-        - An OKF bundle wrote its concepts, keyed by concept id rather than by
-          asset. They are read back from the bundle on disk, and any concept a
-          remaining bundle in this source also defines is kept.
-                - Generated concepts supported only by deleted documents are removed;
-                    a concept supported by a surviving document/manual bundle stays.
-                    Surviving concepts drop the deleted chunk ids afterwards
-                    (`drop_chunk_provenance`).
-        """
+        """Vertices, concepts and chunk ids that deleting `assets` removes from one graph source, or None."""
         from core.knowledge.okf import parse_okf_bundle
 
         documents = [a for a in assets if getattr(a, "asset_kind", "document") != "okf"]
@@ -1788,13 +1498,14 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                     concepts.extend(node.cid for node in parse_okf_bundle(Path(_path_of(asset.origin))))
                 except (OSError, ValueError) as error:
                     raise ValueError(
-                        f"Cannot delete OKF asset {asset.asset_id!r}: its bundle cannot be read "
-                        f"to tell which concepts it wrote ({error})"
+                        f"Cannot delete OKF asset {asset.file_name!r} ({asset.asset_id}): its bundle "
+                        f"cannot be read to tell which concepts it wrote ({error}). Restore the bundle "
+                        f"folder at {_path_of(asset.origin)!r}, or remove graph source "
+                        f"{self._source_label(graph.source.source_id, graph.source)} from the asset "
+                        "pool's sources (its concepts stay in the graph database), then retry"
                     ) from error
         if graph.extracts_documents:
-            # Generated bundles are pool assets; a concept in one whose live
-            # support is only the deleted documents goes now, the rest stay
-            # until the corpus is re-extracted on the next sync.
+            # Remove generated concepts supported only by the deleted documents.
             for pool in self._asset_pools.values():
                 if not any(p.source.source_id == graph.source.source_id for p in pool.projections):
                     continue
@@ -1815,7 +1526,13 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                             else:
                                 kept.add(node.cid)
                     except (OSError, ValueError, KeyError) as error:
-                        raise ValueError(f"Cannot delete assets: generated OKF bundle cannot be read ({error})") from error
+                        raise ValueError(
+                            f"Cannot delete assets: the generated OKF bundle of asset pool "
+                            f"{pool.asset_pool_id!r} cannot be read ({error}). Run the pool's extraction "
+                            f"again to rebuild it (folder {str(bundle)!r}), or remove graph source "
+                            f"{self._source_label(graph.source.source_id, graph.source)} from the pool's "
+                            "sources, then retry"
+                        ) from error
         if concepts:
             for other in self._assets.values():
                 if other.asset_id in removing or getattr(other, "asset_kind", "") != "okf":
@@ -1829,8 +1546,6 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                 other_bundle = Path(_path_of(other.origin))
                 try:
                     if self._is_generated_bundle(other):
-                        # Generated: its concepts' support was weighed per
-                        # document above, so it does not keep them wholesale.
                         continue
                     kept.update(node.cid for node in parse_okf_bundle(other_bundle))
                 except (OSError, ValueError, KeyError):
@@ -1854,12 +1569,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
 
     @staticmethod
     def _media_files_of(assets: Sequence["FileAsset"]) -> tuple:
-        """The local files these assets point at, split into engine-owned and not.
-
-        Owned means inside the upload directory, which is where files are staged
-        for ingest. Resolved through symlinks first, so a link planted in there
-        cannot make a file elsewhere look like the engine's.
-        """
+        """The assets' local media files split into (inside the upload dir, elsewhere), symlinks resolved."""
         import config  # noqa: PLC0415
 
         uploads = os.path.realpath(config.UPLOAD_DIR)
@@ -1868,7 +1578,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         for asset in assets:
             try:
                 keys = asset.content.media_keys()
-            except Exception:  # noqa: BLE001 - a missing record must not block deleting
+            except Exception:  # noqa: BLE001
                 continue
             for key in keys:
                 if not is_file_uri(key):
@@ -1878,7 +1588,391 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                 (owned if inside else kept).append(path)
         return owned, kept
 
-    # --- reporting ------------------------------------------------------------
+    UNAVAILABLE_HINT = (
+        "Their database is not registered or cannot be reached: register or reconnect it on the "
+        "Database connections page, or remove the source from the asset pool's sources, then retry"
+    )
+    NO_REMOVAL_HINT = (
+        "This graph backend cannot delete vertices: remove the source from the asset pool's "
+        "sources first (its data stays in the database), then retry"
+    )
+    FROZEN_HINT = (
+        "It is stopped or disabled in the asset pool, and its records can only be removed while "
+        "it serves: start serving it again or enable it, or remove it from the asset pool's "
+        "sources (its data stays in the database), then retry"
+    )
+
+    def _source_label(self, source_id: str, source: Any = None) -> str:
+        source = source or self._sources.get(source_id)
+        name = getattr(source, "name", "") or ""
+        return f"{name!r} ({source_id})" if name and name != source_id else repr(source_id)
+
+    def _source_labels(self, sources: Mapping[str, Any]) -> str:
+        return ", ".join(
+            self._source_label(source_id, source) for source_id, source in sorted(sources.items())
+        )
+
+    @staticmethod
+    def _syncing_message(asset_pool_id: str, target: str) -> str:
+        return (
+            f"Asset pool {asset_pool_id!r} is syncing its sources. Wait until every source of the "
+            f"pool shows ready or failed, then delete the {target} again"
+        )
+
+    @staticmethod
+    def _extracting_message(asset_pool_id: str, target: str) -> str:
+        return (
+            f"Asset pool {asset_pool_id!r} has a running OKF extraction, which cannot be cancelled "
+            f"mid-run. Wait for it to finish (see the pool's extraction status), then delete the "
+            f"{target} again"
+        )
+
+    @staticmethod
+    def _blob_keys_of(asset) -> List[str]:
+        try:
+            keys = asset.content.media_keys()
+        except Exception:  # noqa: BLE001
+            return []
+        return [key for key in keys if key.startswith(f"{BLOB_PREFIX}/")]
+
+    def _sharing_libraries(self) -> List["FileAssetLibrary"]:
+        from core.manager import registry
+
+        return [self, *(library for library in registry.list() if library is not self)]
+
+    def _delete_unreferenced_blobs(self, candidates: Mapping[tuple, Source]) -> List[str]:
+        from core import materialize
+
+        if not candidates or materialize.ingest_active():
+            return []
+        stores = {(database_id, location) for database_id, location, _ in candidates}
+        referenced = set()
+        for library in self._sharing_libraries():
+            for asset in list(library.assets.values()):
+                source = library.sources.get(asset.content_source_id)
+                if source is None or (source.database_id, source.location) not in stores:
+                    continue
+                try:
+                    stream = asset.cached
+                    if stream is None and asset.content_key:
+                        stream = ContentStream.from_record(
+                            library.content_store.get_record(source, asset.content_key)
+                        )
+                    keys = stream.media_keys() if stream is not None else []
+                except Exception:  # noqa: BLE001
+                    return []
+                referenced.update((source.database_id, source.location, key) for key in keys)
+        removed = []
+        for candidate, source in candidates.items():
+            if candidate in referenced:
+                continue
+            try:
+                self.content_store.delete(source, candidate[2])
+                removed.append(candidate[2])
+            except Exception:  # noqa: BLE001
+                pass
+        return removed
+
+    def _uploaded_originals(self, assets: Sequence["FileAsset"], handled: Sequence[str]) -> List[str]:
+        seen = set(handled)
+        candidates = {}
+        for asset in assets:
+            if asset.origin.startswith("file://"):
+                path = os.path.realpath(_path_of(asset.origin))
+                if path not in seen:
+                    candidates.setdefault(path, asset.origin)
+        if not candidates:
+            return []
+        root = os.path.realpath(os.path.join(config.UPLOAD_DIR, self.library_id))
+        generated_root = os.path.join(root, EXTRACTED_DIRECTORY)
+        others = {
+            asset.origin
+            for library in self._sharing_libraries()
+            for asset in library.assets.values()
+        }
+        return [
+            path for path, origin in candidates.items()
+            if origin not in others
+            and path != root
+            and os.path.commonpath([path, root]) == root
+            and os.path.commonpath([path, generated_root]) != generated_root
+        ]
+
+    def _okf_bundles_in(self, asset_pool, accepts: Callable[[Any], bool]) -> List["FileAsset"]:
+        return [
+            self._assets[asset_id]
+            for asset_id in asset_pool.asset_ids
+            if asset_id in self._assets
+            and getattr(self._assets[asset_id], "asset_kind", "") == "okf"
+            and accepts(self._assets[asset_id])
+        ]
+
+    @staticmethod
+    def _bundle_concept_ids(asset) -> Set[str]:
+        from core.knowledge.okf import parse_okf_bundle
+
+        return {node.cid for node in parse_okf_bundle(Path(_path_of(asset.origin)))}
+
+    def _concepts_defined_elsewhere(
+        self, asset_pool_id: str, source_id: str, accepts: Callable[[Any], bool]
+    ) -> Optional[Set[str]]:
+        kept: Set[str] = set()
+        for other in self._asset_pools.values():
+            if other.asset_pool_id == asset_pool_id or source_id not in other.source_statuses:
+                continue
+            for bundle in self._okf_bundles_in(other, accepts):
+                try:
+                    kept |= self._bundle_concept_ids(bundle)
+                except (OSError, ValueError, KeyError):
+                    return None
+        return kept
+
+    def _pool_removal_plan(self, asset_pool) -> Dict[str, Any]:
+        pool_id = asset_pool.asset_pool_id
+        others = {
+            other.asset_pool_id: (set(other.asset_ids), set(other.source_statuses))
+            for other in self._asset_pools.values()
+            if other.asset_pool_id != pool_id
+        }
+
+        def exclusive(source_id: str) -> List[str]:
+            return [
+                asset_id for asset_id in asset_pool.asset_ids
+                if asset_id in self._assets and not any(
+                    asset_id in held and source_id in bound for held, bound in others.values()
+                )
+            ]
+
+        def accept_all(asset) -> bool:
+            return True
+
+        def concepts_here(accepts, strict: bool = True) -> Optional[Set[str]]:
+            found: Set[str] = set()
+            for bundle in self._okf_bundles_in(asset_pool, accepts):
+                try:
+                    found |= self._bundle_concept_ids(bundle)
+                except (OSError, ValueError, KeyError) as error:
+                    if not strict:
+                        return None
+                    raise ValueError(
+                        f"Cannot delete asset pool {pool_id!r}: OKF bundle {bundle.file_name!r} "
+                        f"({bundle.asset_id}) cannot be read to tell which concepts it wrote ({error}). "
+                        f"Restore the bundle folder at {_path_of(bundle.origin)!r}, or remove the graph "
+                        "source from the pool's sources first (its concepts stay in the graph "
+                        "database), then delete the pool again"
+                    ) from error
+            return found
+
+        text_vector = next(
+            (p for p in asset_pool.projections
+             if getattr(p, "kind", "") == "vector" and not isinstance(p, MultimodalIndexer)),
+            None,
+        )
+        vectors, graphs, concept_vectors, frozen = [], [], [], []
+        for projection in asset_pool.projections:
+            source_id = projection.source.source_id
+            if isinstance(projection, GraphIndexer):
+                vertices = concepts_here(projection.accepts)
+                if vertices:
+                    kept = self._concepts_defined_elsewhere(pool_id, source_id, projection.accepts)
+                    vertices = sorted(vertices - kept) if kept is not None else []
+                adapter = getattr(projection, "_adapter", None)
+                if vertices and type(adapter).delete_vertices is GraphAdapter.delete_vertices:
+                    raise ValueError(
+                        f"Cannot delete asset pool {pool_id!r} from source(s) without removal support: "
+                        + self._source_label(source_id, projection.source)
+                        + ". " + self.NO_REMOVAL_HINT
+                    )
+                chunk_ids: List[str] = []
+                if text_vector is not None:
+                    gone = {
+                        asset_id for asset_id in exclusive(text_vector.source.source_id)
+                        if getattr(self._assets[asset_id], "asset_kind", "document") != "okf"
+                    }
+                    if gone:
+                        chunk_ids = [
+                            node.node_id for node in text_vector.load()
+                            if (getattr(node, "metadata", None) or {}).get("asset_id") in gone
+                        ]
+                if vertices or chunk_ids:
+                    graphs.append((projection, vertices, chunk_ids))
+                continue
+            ids = exclusive(source_id)
+            if ids:
+                vectors.append((projection, ids))
+            if hasattr(projection, "remove_concepts") and not isinstance(projection, MultimodalIndexer):
+                concepts = concepts_here(accept_all, strict=False)
+                if concepts:
+                    kept = self._concepts_defined_elsewhere(pool_id, source_id, accept_all)
+                    if kept is not None and concepts - kept:
+                        concept_vectors.append((projection, sorted(concepts - kept)))
+        for source_id, source in asset_pool.frozen_sources.items():
+            ids = [
+                asset_id for asset_id in exclusive(source_id)
+                if source.source_type == "vector"
+                or self._source_accepts_asset(source, self._assets[asset_id])
+            ]
+            if not ids:
+                continue
+            if source.source_type != "vector":
+                raise ValueError(
+                    f"Cannot delete asset pool {pool_id!r} from source(s) without removal support: "
+                    + self._source_label(source_id, source)
+                    + ". " + self.FROZEN_HINT
+                )
+            self._databasehub.get_adapter(source.database_id)
+            frozen.append((source_id, source, ids))
+        unavailable = {
+            source_id: source
+            for source_id, source in asset_pool.unavailable_sources.items()
+            if any(
+                self._source_accepts_asset(source, self._assets[asset_id])
+                for asset_id in exclusive(source_id)
+            )
+        }
+        if unavailable:
+            raise ValueError(
+                f"Cannot delete asset pool {pool_id!r} while source(s) are unavailable: "
+                + self._source_labels(unavailable)
+                + ". " + self.UNAVAILABLE_HINT
+            )
+        graph_sources = [p.source for p in asset_pool.projections if isinstance(p, GraphIndexer)]
+        graph_sources += [
+            source for source in (*asset_pool.frozen_sources.values(), *asset_pool.unavailable_sources.values())
+            if source.source_type == "graph"
+        ]
+        return {
+            "vectors": vectors, "graphs": graphs, "concept_vectors": concept_vectors,
+            "frozen": frozen, "generated": [self._generated_bundle_dir(asset_pool, s) for s in graph_sources],
+        }
+
+    def delete_asset_pool(self, asset_pool_id: str) -> Dict[str, Any]:
+        from core import materialize
+
+        asset_pool = self._require_asset_pool(asset_pool_id)
+        lock = self._sync_lock(asset_pool_id)
+        if not lock.acquire(blocking=False):
+            raise ValueError(self._syncing_message(asset_pool_id, "pool"))
+        try:
+            if materialize.ingest_active(self.idx, asset_pool_id):
+                raise ValueError(
+                    f"Asset pool {asset_pool_id!r} is ingesting assets. Wait until they show ready "
+                    "or failed in the asset list, then delete the pool again"
+                )
+            if self.extraction_jobs.running_for_pool(self.idx, asset_pool_id):
+                raise ValueError(self._extracting_message(asset_pool_id, "pool"))
+            plan = self._pool_removal_plan(asset_pool)
+            self.extraction_jobs.cancel_pool(self.idx, asset_pool_id)
+
+            removed = 0
+            for projection, ids in plan["vectors"]:
+                removed += int(projection.remove(ids) or 0)
+            concepts_removed = 0
+            for graph, vertices, chunk_ids in plan["graphs"]:
+                if vertices:
+                    concepts_removed += int(graph.delete_vertices(vertices) or 0)
+                if chunk_ids:
+                    graph.drop_chunk_provenance(chunk_ids)
+            for vector, concepts in plan["concept_vectors"]:
+                vector.remove_concepts(concepts)
+            for source_id, source, ids in plan["frozen"]:
+                removed += sum(
+                    frozen_bindings.delete_assets(self._databasehub, {source_id: source}, ids).values()
+                )
+            bundles_removed = []
+            for target in plan["generated"]:
+                generated_id = asset_id_for(file_origin(str(target)))
+                if any(
+                    generated_id in other.asset_ids
+                    for other in self._asset_pools.values()
+                    if other.asset_pool_id != asset_pool_id
+                ):
+                    continue
+                if generated_id in self._assets:
+                    self.forget_assets([generated_id])
+                    bundles_removed.append(generated_id)
+                shutil.rmtree(target, ignore_errors=True)
+
+            self._auto_extraction_revisions = {
+                key: value for key, value in self._auto_extraction_revisions.items() if key[0] != asset_pool_id
+            }
+            self._schedule_fired = {
+                key: value for key, value in self._schedule_fired.items() if key[0] != asset_pool_id
+            }
+            self.remove_asset_pool(asset_pool_id)
+            with self._sync_locks_guard:
+                self._sync_locks.pop(asset_pool_id, None)
+        finally:
+            lock.release()
+        gc.collect()
+        return {
+            "asset_pool_id": asset_pool_id,
+            "materializations_removed": removed,
+            "concepts_removed": concepts_removed,
+            "generated_bundles_removed": bundles_removed,
+        }
+
+    def delete_all(self) -> Dict[str, Any]:
+        from core import materialize
+
+        if materialize.ingest_active(self.idx):
+            raise ValueError(
+                f"Asset library {self.name!r} is ingesting assets. Wait until they show ready or "
+                "failed in the asset list, then delete the library again"
+            )
+        locks = []
+        try:
+            for asset_pool_id in list(self._asset_pools):
+                lock = self._sync_lock(asset_pool_id)
+                if not lock.acquire(blocking=False):
+                    raise ValueError(self._syncing_message(asset_pool_id, "library"))
+                locks.append(lock)
+                if self.extraction_jobs.running_for_pool(self.idx, asset_pool_id):
+                    raise ValueError(self._extracting_message(asset_pool_id, "library"))
+            deletable = [
+                asset_id for asset_id, asset in self._assets.items()
+                if not self._is_generated_bundle(asset)
+            ]
+            try:
+                result = self.delete_assets(deletable) if deletable else {
+                    "removed": [], "materializations_removed": 0, "files_removed": [], "files_kept": [],
+                }
+                for asset_pool_id in list(self._asset_pools):
+                    self.delete_asset_pool(asset_pool_id)
+                if self._assets:
+                    self.delete_assets(list(self._assets))
+            except ValueError as error:
+                raise ValueError(f"Cannot delete asset library {self.name!r}: {error}") from error
+        finally:
+            for lock in locks:
+                lock.release()
+        self._clear_own_content()
+        self.clear()
+        self.file_map = {}
+        uploads = os.path.realpath(config.UPLOAD_DIR)
+        folder = os.path.realpath(os.path.join(uploads, self.library_id))
+        if os.path.dirname(folder) == uploads:
+            shutil.rmtree(folder, ignore_errors=True)
+        return result
+
+    def _clear_own_content(self) -> None:
+        shared = {
+            (source.database_id, source.location)
+            for library in self._sharing_libraries() if library is not self
+            for source in library.sources.values()
+            if source.source_type.lower() == "object"
+        }
+        for source in list(self._sources.values()):
+            if (
+                source.source_type.lower() != "object"
+                or collection_name(source.location) != self.library_id
+                or (source.database_id, source.location) in shared
+            ):
+                continue
+            try:
+                self._databasehub.get_object_adapter(source.database_id).clear(source.location)
+            except Exception:  # noqa: BLE001
+                pass
 
     def to_out(self) -> AssetLibraryOut:
         return AssetLibraryOut(
@@ -1952,15 +2046,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             ],
         )
 
-    # --- persistence ----------------------------------------------------------
-
     def to_record(self) -> dict:
-        """This asset library as persisted in the workspace.
-
-        The chunks already live in Milvus, and the counts are derived from them,
-        so what has to be written down is identity, sources, assets, pools, and
-        which files were ingested.
-        """
         return {**super().to_record(), "file_map": dict(self.file_map)}
 
     def restore(self, record: Mapping[str, Any]) -> None:
@@ -1968,21 +2054,12 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         self.file_map = dict(record.get("file_map") or {})
 
 
-# --- chunks <-> nodes ---------------------------------------------------------
-
-
 def nodes_to_chunks(
     nodes: List[NodeWithScore],
     library: Optional[str] = None,
     pool_id: Optional[str] = None,
 ) -> List[RetrievedChunk]:
-    """Retrieved nodes as the chunks the API returns, stamped with their pool.
-
-    `source_id` is left as the node carries it -- the source that produced the
-    record, stamped by the library or pool retriever. It used to be overwritten with the
-    pool id, which made results from different models in one pool
-    indistinguishable.
-    """
+    """Retrieved nodes as the chunks the API returns, stamped with their library and pool."""
     chunks = []
     for scored in nodes:
         node = scored.node
@@ -2023,11 +2100,7 @@ def postprocess_chunks(
     media_libraries=None,
     options=None,
 ) -> Optional[List[RetrievedChunk]]:
-    """Run the postprocessing stage over any chunk set, whoever retrieved it.
-
-    Each chunk keeps the asset library metadata it already carries, so a merged
-    result set stays attributable.
-    """
+    """Run the postprocessing stage over any chunk set, possibly merged from several libraries."""
     if media_libraries is not None:
         from core.multimodal.reranking import rerank_media
 

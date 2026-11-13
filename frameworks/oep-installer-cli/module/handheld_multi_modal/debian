@@ -1,7 +1,7 @@
 
 configure_handheld_multi_modal () {
   workspace="$(ensure_project_path)/handheld-multi-modal"
-  version=main
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git
   used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997)
 }
@@ -33,11 +33,12 @@ debian_90_install_handheld_multi_modal () {
   done <<< "$installed"
 
   configure_handheld_multi_modal "$@"
-  if verify_handheld_multi_modal $* && ! ensure_parse_reinstall "$@"; then
+  if verify_handheld_multi_modal "$@" && ! ensure_parse_reinstall "$@"; then
     echo "handheld_multi_modal is installed." >&2
   else
     ensure_disk_size 45000
     echo "@@STEP Removing conflicting app"
+    ensure_container_namespace install handheld_multi_modal name:handheld-multi-modal-model-downloader-1 || true
     ensure_ports_open install handheld_multi_modal "${used_ports[@]}" || {
       docker rm -f handheld-multi-modal-model-downloader-1 || true
       ensure_ports_open install handheld_multi_modal "${used_ports[@]}" 
@@ -64,6 +65,7 @@ debian_90_start_handheld_multi_modal () {
   configure_handheld_multi_modal "$@"
   ensure_ports_open start handheld_multi_modal "${used_ports[@]}"
   cd "$workspace"/handheld-multi-modal
+  ensure_container_namespace start handheld_multi_modal $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true
   make up CONFIRM=yes
   echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)"
   echo "@@HIGHLIGHT $installer_name stop|remove"
@@ -72,11 +74,14 @@ debian_90_start_handheld_multi_modal () {
 debian_90_stop_handheld_multi_modal () {
   configure_handheld_multi_modal "$@"
   docker rm -f handheld-multi-modal-model-downloader-1 || true
-  cd "$workspace"/handheld-multi-modal && make stop || true
+  cd "$workspace"/handheld-multi-modal && {
+    make stop || true
+    ensure_container_cleanup $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true
+  } || true
 }
 
 debian_90_remove_handheld_multi_modal () {
-  debian_90_stop_handheld_multi_modal "$@"
+  debian_90_stop_handheld_multi_modal "$@" || true
   local app_dir="$workspace"/handheld-multi-modal
   [ ! -d "$app_dir" ] || (cd "$app_dir" && make clean-all CONFIRM=yes || true)
   ensure_rm "$workspace"

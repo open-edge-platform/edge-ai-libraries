@@ -138,7 +138,7 @@ services:
   # DL Streamer Pipeline Server 2.0 - Video Analytics Engine
   # ===========================================================================
   dlstreamer-pipeline-server:
-    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE:-dlsps2.0-7}
+    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE:-dlsps2.0}
     hostname: dlstreamer-pipeline-server
     container_name: dlsps2-pipeline-server
     build:

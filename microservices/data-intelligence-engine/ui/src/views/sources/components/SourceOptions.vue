@@ -4,46 +4,78 @@
     <a-form-item>
       <template #label>
         {{ $t("console.contentTypes") }}
-        <FormTooltip :title="$t('console.vectorHint') + ' ' + $t(`console.${mode}EmbeddingHint`)" />
+        <a-tooltip placement="top" arrow-point-at-center>
+          <template #title>
+            <ul class="content-rules">
+              <li>{{ $t("console.vectorRuleDocumentMedia") }}</li>
+              <li>{{ $t("console.vectorRuleVideo") }}</li>
+            </ul>
+          </template>
+          <InfoCircleOutlined class="content-rules-icon" />
+        </a-tooltip>
       </template>
       <a-checkbox-group
-        v-model:value="form.vectorTypes"
+        :value="form.vectorTypes"
         :options="
-          ['document', 'image', 'video', 'audio'].map((value) => ({
+          ['document', 'audio', 'image', 'video'].map((value) => ({
             value,
             label: $t(`console.${value}`),
           }))
         "
+        @change="handleVectorTypesChange"
       />
     </a-form-item>
     <div class="console-form-row">
       <a-form-item>
         <template #label>
           {{ $t("console.backend") }}
-          <FormTooltip :title="$t(mode === 'document' ? 'console.documentBackendHint' : 'console.mediaBackendHint')" />
+          <FormTooltip
+            :title="
+              $t(
+                mode === 'document'
+                  ? 'console.documentBackendHint'
+                  : 'console.mediaBackendHint',
+              )
+            "
+          />
         </template>
         <a-select
           v-model:value="vector.backend"
           :placeholder="$t('console.pleaseSelect')"
           :options="[
-            { value: '', label: $t('console.engineDefault') },
+            { value: '', label: engineDefaultLabel('backend') },
             ...backends.map((value) => ({ value, label: value })),
           ]"
+          @change="handleBackendChange"
         />
       </a-form-item>
-      <a-form-item>
+      <a-form-item :required="modelRequired">
         <template #label>
           {{ $t("console.modelId") }}
           <FormTooltip :title="$t('console.embeddingModelHint')" />
         </template>
         <a-auto-complete
+          v-if="remote"
           v-model:value="vector.model"
-          :options="catalog?.models.map((model) => ({ value: model.name }))"
-          :placeholder="catalog?.model_id || 'BAAI/bge-m3'"
+          :disabled="!vector.backend"
+          :options="remoteModels"
+          :placeholder="
+            vector.backend
+              ? $t('console.pleaseSelect')
+              : engineDefaultLabel('model_id')
+          "
+        />
+        <a-select
+          v-else
+          :value="selectValue"
+          :options="modelOptions"
+          :disabled="choice.status === 'none'"
+          :placeholder="modelPlaceholder"
+          @update:value="(value?: string) => (vector.model = value ?? '')"
         />
       </a-form-item>
     </div>
-    <a-form-item v-if="vector.backend === 'openai_compatible'">
+    <a-form-item v-if="vector.backend === 'remote_openai_compatible'">
       <template #label>
         {{ $t("console.apiBase") }}
         <FormTooltip :title="$t('console.embeddingApiHint')" />
@@ -60,10 +92,11 @@
       </template>
       <a-select
         v-model:value="vector.device"
+        :loading="devicesLoading"
         :placeholder="$t('console.pleaseSelect')"
         :options="[
-          { value: '', label: $t('console.engineDefault') },
-          ...['CPU', 'GPU', 'GPU.0', 'AUTO'].map((value) => ({
+          { value: '', label: engineDefaultLabel('device') },
+          ...deviceList.map((value) => ({
             value,
             label: value,
           })),
@@ -122,9 +155,7 @@
             :precision="0"
           />
         </a-form-item>
-        <a-form-item
-          v-else-if="vector.backend !== 'openai_compatible'"
-        >
+        <a-form-item v-else-if="vector.backend !== 'remote_openai_compatible'">
           <template #label>
             {{ $t("console.maxImageTokens") }}
             <FormTooltip :title="$t('console.maxImageTokensHint')" />
@@ -143,7 +174,11 @@
     <a-form-item>
       <template #label>
         {{ $t("console.contentTypes") }}
-        <FormTooltip :title="$t('console.graphHint') + ' ' + $t('console.documentExtractionHint')" />
+        <FormTooltip
+          :title="
+            $t('console.graphHint') + ' ' + $t('console.documentExtractionHint')
+          "
+        />
       </template>
       <a-checkbox-group
         v-model:value="form.graphTypes"
@@ -161,7 +196,10 @@
           {{ $t("console.extractorUrl") }}
           <FormTooltip :title="$t('console.extractorUrlHint')" />
         </template>
-        <a-input v-model:value="form.extractorUrl" placeholder="http://okf-extractor:8080" />
+        <a-input
+          v-model:value="form.extractorUrl"
+          placeholder="http://okf-extractor:8080"
+        />
       </a-form-item>
       <div class="console-form-row">
         <a-form-item>
@@ -169,14 +207,22 @@
             {{ $t("console.apiKey") }}
             <FormTooltip :title="$t('console.extractorApiKeyHint')" />
           </template>
-          <a-input-password v-model:value="form.apiKey" autocomplete="off" placeholder="sk-..." />
+          <a-input-password
+            v-model:value="form.apiKey"
+            autocomplete="off"
+            placeholder="sk-..."
+          />
         </a-form-item>
         <a-form-item>
           <template #label>
             {{ $t("console.timeout") }}
             <FormTooltip :title="$t('console.extractorTimeoutHint')" />
           </template>
-          <a-input-number v-model:value="form.timeout" :min="1" placeholder="3600" />
+          <a-input-number
+            v-model:value="form.timeout"
+            :min="1"
+            placeholder="3600"
+          />
         </a-form-item>
         <a-form-item>
           <template #label>
@@ -194,14 +240,17 @@
             "
           />
         </a-form-item>
-        <a-form-item
-          v-if="form.trigger === 'auto'"
-        >
+        <a-form-item v-if="form.trigger === 'auto'">
           <template #label>
             {{ $t("console.debounce") }}
             <FormTooltip :title="$t('console.debounceHint')" />
           </template>
-          <a-input-number v-model:value="form.debounce" :min="0" :max="86400" placeholder="15" />
+          <a-input-number
+            v-model:value="form.debounce"
+            :min="0"
+            :max="86400"
+            placeholder="15"
+          />
         </a-form-item>
       </div>
       <div v-if="form.trigger === 'schedule'" class="console-form-row">
@@ -225,29 +274,39 @@
           {{ $t("console.language") }}
           <FormTooltip :title="$t('console.extractionTaskHint')" />
         </template>
-        <a-input v-model:value="form.language" :maxlength="100" placeholder="en, zh, English" />
+        <a-input
+          v-model:value="form.language"
+          :maxlength="100"
+          placeholder="en, zh, English"
+        />
       </a-form-item>
       <a-form-item>
         <template #label>
           {{ $t("console.goal") }}
           <FormTooltip :title="$t('console.extractionTaskHint')" />
         </template>
-        <a-textarea v-model:value="form.goal" :rows="3" :maxlength="8000" :placeholder="$t('console.extractionGoalExample')" />
+        <a-textarea
+          v-model:value="form.goal"
+          :rows="3"
+          :maxlength="8000"
+          :placeholder="$t('console.extractionGoalExample')"
+        />
       </a-form-item>
       <a-collapse ghost>
         <a-collapse-panel
           key="instructions"
           :header="$t('console.instructions')"
         >
-          <a-form-item
-            v-for="key in instructionKeys"
-            :key="key"
-          >
+          <a-form-item v-for="key in instructionKeys" :key="key">
             <template #label>
               {{ $t(`console.${key}`) }}
               <FormTooltip :title="$t(`console.${key}Hint`)" />
             </template>
-            <a-textarea v-model:value="form.instructions[key]" :rows="2" :placeholder="$t(`console.${key}Example`)" />
+            <a-textarea
+              v-model:value="form.instructions[key]"
+              :rows="2"
+              :placeholder="$t(`console.${key}Example`)"
+            />
           </a-form-item>
         </a-collapse-panel>
       </a-collapse>
@@ -267,33 +326,136 @@
   />
 </template>
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import FormTooltip from "@/components/FormTooltip.vue";
+import { getModelDevices } from "@/api/console";
 import type { ModelOptions } from "@/api/console/type";
 import { instructionKeys, vectorMode } from "../SourceOptions";
+import {
+  REMOTE_BACKEND,
+  backendChoices,
+  effectiveBackend,
+  embeddingChoice,
+  inheritedDefault,
+} from "../embeddingModels";
+import { useI18n } from "vue-i18n";
+import { InfoCircleOutlined } from "@ant-design/icons-vue";
 import type { SourceOptionsForm } from "../SourceOptions";
 const props = defineProps<{
   type: string;
   modelData: Record<string, ModelOptions>;
 }>();
+const { t } = useI18n();
 const form = defineModel<SourceOptionsForm>({ required: true });
+const handleBackendChange = () => {
+  vector.value.model = "";
+};
+const engineDefaultLabel = (field: "backend" | "device" | "model_id") => {
+  const value = inheritedDefault(
+    props.modelData.embedding,
+    form.value.vectorTypes,
+    field,
+  );
+  return value
+    ? `${t("console.engineDefault")} (${value})`
+    : t("console.engineDefault");
+};
+const choice = computed(() =>
+  embeddingChoice(props.modelData.embedding, form.value.vectorTypes),
+);
+const remote = computed(
+  () =>
+    effectiveBackend(
+      props.modelData.embedding,
+      form.value.vectorTypes,
+      vector.value.backend,
+    ) === REMOTE_BACKEND,
+);
+const modelRequired = computed(() =>
+  remote.value ? !!vector.value.backend : choice.value.status === "differ",
+);
+const modelOptions = computed(() => [
+  ...(choice.value.status === "default"
+    ? [
+        {
+          value: "",
+          label: t("console.defaultModelOption", {
+            model: choice.value.defaultModel,
+          }),
+        },
+      ]
+    : []),
+  ...choice.value.candidates
+    .filter((name) => name !== choice.value.defaultModel)
+    .map((name) => ({ value: name, label: name })),
+]);
+const selectValue = computed(() =>
+  vector.value.model || (choice.value.status === "default" ? "" : undefined),
+);
+const modelPlaceholder = computed(() =>
+  choice.value.status === "none"
+    ? t("console.noCommonModel")
+    : choice.value.status === "differ"
+      ? t("console.defaultModelsDiffer")
+      : t("console.pleaseSelect"),
+);
+const remoteModels = computed(() =>
+  (props.modelData.embedding?.models || [])
+    .filter((model) => /^https?:/i.test(model.path || ""))
+    .map((model) => ({ value: model.name })),
+);
+// Documents and media, and video and anything else, cannot share a source:
+// the type just ticked wins and displaces the ones it cannot be combined with.
+const handleVectorTypesChange = (values: Array<string | number | boolean>) => {
+  const selected = values.map(String);
+  const added = selected.find((value) => !form.value.vectorTypes.includes(value));
+  form.value.vectorTypes =
+    added === "video" || added === "document"
+      ? [added]
+      : added
+        ? selected.filter((value) => value !== "document" && value !== "video")
+        : selected;
+};
+const deviceList = ref<string[]>([]);
+const devicesLoading = ref(false);
+
 const mode = computed(() => vectorMode(form.value.vectorTypes));
 const vector = computed(() => form.value.vectors[mode.value]);
-const catalog = computed(
-  () => props.modelData[mode.value === "document" ? "embedding" : "multimodal"],
+const backends = computed(() => backendChoices(form.value.vectorTypes));
+// A model chosen for one set of content types may not fit another.
+watch(
+  () => [...form.value.vectorTypes],
+  () => {
+    const model = vector.value.model;
+    if (model && !remote.value && !choice.value.candidates.includes(model))
+      vector.value.model = "";
+  },
 );
-const backends = computed(() =>
-  mode.value === "document"
-    ? [
-        "llamaindex_openvino",
-        "openvino_genai",
-        "openai_compatible",
-        "native_openvino_gme",
-      ]
-    : ["llamaindex_openvino"],
-);
+
+const queryModelDevices = async () => {
+  devicesLoading.value = true;
+  try {
+    deviceList.value = await getModelDevices();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    devicesLoading.value = false;
+  }
+};
+onMounted(async () => {
+  queryModelDevices();
+});
 </script>
 <style scoped lang="less">
+.content-rules {
+  margin: 0;
+  padding-inline-start: 16px;
+}
+.content-rules-icon {
+  margin-inline-start: 6px;
+  font-size: 14px;
+  color: var(--font-text-color);
+}
 .console-form-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

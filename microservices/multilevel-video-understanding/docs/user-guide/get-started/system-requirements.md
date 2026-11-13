@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # System Requirements
 
 This page provides detailed hardware, software, and platform requirements to help you set up and run the microservice efficiently.
@@ -19,7 +22,7 @@ Two platforms have been validated:
 
 - Intel® Core™ Ultra processor with integrated GPU (validated on Panther Lake, PTL 358H), sharing system RAM
 - Validated kernel: `7.0.0-38-generic`
-- At least **64 GB RAM** — default deployment target for `Qwen3.5-35B-A3B` (FP8, 60k context)
+- At least **64 GB RAM** — default deployment target for `Qwen3.6-35B-A3B` (FP8, 60k context); verify peak memory use for your workload
 - At least **32 GB swap** — so the model load and KV cache can spill under peak memory pressure
 - At least 128 GB disk space (model weights + Hugging Face cache)
 
