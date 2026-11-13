@@ -14,7 +14,7 @@ configure_edge_pack_base_realtime () {
 
 debian_41_profile_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@" 2> /dev/null && 
-    echo "edge_pack" || echo "edge_pack edge_pack_base_standard"
+    echo "edge_pack" || echo "edge_pack_base_standard"
 }
 
 debian_41_group_edge_pack_base_realtime () {
