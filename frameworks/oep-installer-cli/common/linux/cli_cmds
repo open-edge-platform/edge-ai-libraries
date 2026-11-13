@@ -100,8 +100,8 @@ subcommand_list () {
     --help)
       echo "list options:"
       echo "  --cli-version <v>  save cli version in the SBOM header"
-      echo "  --sbom             show component SBOM items"
       echo "  --test-coverage    show test coverage subset"
+      echo "  --sbom             show component SBOM items"
       echo
       return 0
       ;;
