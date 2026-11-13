@@ -1,10 +1,10 @@
 
 configure_geti () {
   workspace="$(ensure_project_path)/geti"
-  version_skills=release-2026.2.0
-  repository_skills=https://github.com/open-edge-platform/skills.git
+  version="$(ensure_parse_value_option version --version=3.3.0 "$@")"
+  repository=https://github.com/open-edge-platform/geti.git
   skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model)
-  image_name=ghcr.io/open-edge-platform/geti-xpu
+  image_name="ghcr.io/open-edge-platform/geti-xpu:${version}"
   used_ports=(8080)
 }
 
@@ -26,13 +26,14 @@ install_geti () {
     docker pull $image_name
 
     echo "@@STEP Installing skills"
-    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
+    ensure_skills add "release/app-${version%.*}" "$repository" "${skills[@]/#/.agents/skills/}"
   fi
 }
 
 start_geti () {
   configure_geti "$@"
   ensure_ports_open start geti "${used_ports[@]}"
+  ensure_container_namespace start geti geti-app
 
   mkdir -p "$workspace"/geti-data
   docker run --rm --name geti-app -d \

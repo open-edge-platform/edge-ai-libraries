@@ -78,6 +78,7 @@ debian_90_install_take_away () {
 debian_90_start_take_away () {
   configure_take_away "$@"
   ensure_ports_open start take_away "${used_ports[@]}"
+  ensure_container_namespace start take_away $(ensure_container_parse_yaml "$workspace"/take-away/docker-compose.yaml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}"
@@ -92,7 +93,10 @@ debian_90_start_take_away () {
 
 debian_90_stop_take_away () {
   configure_take_away "$@"
-  cd "$workspace"/take-away && make clean || true
+  cd "$workspace"/take-away && {
+    make clean || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
+  } || true
 }
 
 debian_90_remove_take_away () {

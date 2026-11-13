@@ -50,6 +50,7 @@ debian_90_install_person_of_interest () {
 debian_90_start_person_of_interest () {
   configure_person_of_interest "$@"
   ensure_ports_open start person_of_interest "${used_ports[@]}"
+  ensure_container_namespace start person_of_interest $(ensure_container_parse_yaml "$workspace"/person-of-interest/docker-compose*.yml)
 
   local device="$(ensure_parse_device "$@")"
   [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)"
@@ -74,7 +75,8 @@ debian_90_stop_person_of_interest () {
   configure_person_of_interest "$@"
   cd "$workspace"/person-of-interest && {
     make down || true
-    make clean-all
+    make clean-all || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
   } || true
 }
 
