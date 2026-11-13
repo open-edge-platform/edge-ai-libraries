@@ -18,7 +18,7 @@ metadata:
   tags: "agents openvino inference-router installer intel-gpu"
 ---
 
-# Agent Harness Install
+# Agent Harness Installer
 
 `./install.sh` prepares an Intel Linux host, starts an inference backend, installs one agent, and wires the agent to the backend. The agent only ever talks to the Inference Router (default `http://127.0.0.1:8010/v1`), never directly to the model server.
 
@@ -28,7 +28,7 @@ metadata:
 - The user wants to reuse an existing OpenAI-compatible server (Ollama, vLLM, an internal gateway) behind the Router.
 - The user needs to check health, re-run onboarding, list or remove models, register an MCP endpoint, or uninstall.
 
-Do not use this skill to install Intel GPU drivers or the compute runtime (it only detects them), or to configure the agents beyond the endpoint wiring. Questions about writing tools, skills or prompts for an agent are out of scope. Do not answer them with installer commands, including `mcp register`. It covers the default `--runtime host`. For the OpenShell sandbox runtime, point the user to the [Agent Sandboxing guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/agentic-ai-security/agent-sandboxing.md).
+Do not use this skill to install Intel GPU drivers or the compute runtime (it only detects them), or to configure the agents beyond the endpoint wiring. Questions about writing tools, skills or prompts for an agent are out of scope. Do not answer them with installer commands, including `mcp register`. It covers the default `--runtime host`. For the OpenShell sandbox runtime, point the user to the [Agent Sandboxing guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/user-guide/agentic-ai-security/agent-sandboxing.md).
 
 ## Instructions
 
@@ -127,7 +127,7 @@ Third-party installers are fetched over HTTPS and checked against a built-in SHA
 ## References
 
 - [Get Started](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/user-guide/get-started.md): full option list, model hubs, command reference.
-- [Running Without a Checkout](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/user-guide/running-without-a-checkout.md): the standalone bootstrap path.
+- [Running Without a Checkout](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/user-guide/get-started/run-without-a-checkout.md): the standalone bootstrap path.
 - [Known Limitations](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/user-guide/known-limitations.md): exporters, pinned installers, proxy caveats.
-- [Uninstall](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/user-guide/uninstall.md): what is and is not removed.
+- [Uninstall](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/user-guide/get-started/uninstall.md): what is and is not removed.
 - Run `./install.sh --help` for every flag and `HARNESS_*` variable.

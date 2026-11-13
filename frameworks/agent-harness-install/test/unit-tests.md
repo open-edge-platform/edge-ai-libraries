@@ -17,7 +17,7 @@ live operation succeeds.
 
 ## Prerequisites and execution
 
-Run from the Agent Harness Install component directory on Linux, using Bash,
+Run from the Agent Harness Installer component directory on Linux, using Bash,
 Node.js 24 (CI uses 24.21.0) and standard utilities including curl, GNU timeout,
 flock and stat. No running Docker daemon, OpenShell gateway, GPU, model download
 or external network is required. The tests create temporary HOME/state fixtures
