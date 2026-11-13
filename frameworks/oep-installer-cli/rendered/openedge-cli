@@ -8381,7 +8381,7 @@ debian_90_stop_loss_prevention ()
         pkill -f "python3 benchmark.py" || true;
         make down-lp || true;
         cd src && docker compose down -v --remove-orphans || true;
-        ensure_container_namespace start loss_prevention $(ensure_container_parse_yaml docker-compose*.yml)
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
     } || true;
     docker volume rm -f lp-mcp-data || true
 }
