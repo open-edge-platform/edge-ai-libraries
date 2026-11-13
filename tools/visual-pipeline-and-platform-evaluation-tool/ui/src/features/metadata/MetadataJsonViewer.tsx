@@ -191,7 +191,9 @@ export const MetadataJsonViewer = ({
     return (
       <div className="min-h-[100px] flex items-center justify-center border bg-muted/20 p-3">
         <p className="text-sm text-muted-foreground">
-          Waiting for JSON entries...
+          {stale
+            ? "No JSON entries produced for this stream"
+            : "Waiting for JSON entries..."}
         </p>
       </div>
     );
