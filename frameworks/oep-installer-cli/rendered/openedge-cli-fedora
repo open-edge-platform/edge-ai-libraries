@@ -3904,19 +3904,23 @@ subcommand_list ()
 { 
     local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
     local module_region_list=" ${_act_cache_modules[*]/#/--} ";
-    local k v args=() mods=() cli_version="" sbom=0 margs=0;
+    local k v args=() mods=() cli_version="" sbom=0 margs=0 tc=0;
     for v in "$@";
     do
         case "$v" in 
             --help)
                 echo "list options:";
                 echo "  --cli-version <v>  save cli version in the SBOM header";
+                echo "  --test-coverage    show test coverage subset";
                 echo "  --sbom             show component SBOM items";
                 echo;
                 return 0
             ;;
             --sbom)
                 sbom=1
+            ;;
+            --test-coverage)
+                tc=1
             ;;
             --cli-version=*)
                 cli_version="${v#*=}"
@@ -3987,77 +3991,179 @@ subcommand_list ()
             echo "---";
         done;
     else
-        local all_cmds=(${_act_cache_cmds[*]});
-        local profile_lines=() module_lines=();
-        local -A module_act_cache=();
-        local all_modules=(${_act_cache_modules[*]});
-        if [ ${#all_modules[@]} -gt 0 ]; then
-            local module_name;
-            for module_name in "${all_modules[@]}";
+        if [ $tc -eq 1 ]; then
+            if declare -F configure_edge_pack_kernel_image > /dev/null; then
+                configure_edge_pack_kernel_image $(act_extract_args install edge_pack_kernel_image "" "$@") > /dev/null 2>&1 || true;
+                set -- "$@" --edge_pack_kernel_image --version="$version";
+            fi;
+            local -A closure=() size=() target=() covered=();
+            local c h m candidates=();
+            for c in "${mods[@]}";
             do
-                [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
-                local module_cmds=() mname cmd;
-                for cmd in ${all_cmds[*]};
+                local comps=();
+                for h in $(act_find_deps install "$c" $(act_extract_args install "$c" "" "$@"));
                 do
-                    for mname in $(act_expand_modules $cmd $module_name "$@");
-                    do
-                        if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-                            module_cmds+=($cmd);
-                            break;
-                        fi;
-                    done;
+                    comps+=("${h#${installer_family}_*_install_}");
                 done;
-                module_act_cache[$module_name]="${module_cmds[*]}";
-                module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
-            done;
-        fi;
-        act_get prefix profile_;
-        local all_profiles=(${_act_reply[*]});
-        if [ ${#all_profiles[@]} -gt 0 ]; then
-            local profiler;
-            for profiler in "${all_profiles[@]}";
-            do
-                local profile_name=${profiler#*_*_*_};
-                [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
-                [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
-                local profile_cmds=() mname1 mname2 cmd found;
-                for cmd in ${all_cmds[*]};
+                [ ${#comps[@]} -gt 0 ] || continue;
+                closure[$c]=" ${comps[*]} ";
+                size[$c]=${#comps[@]};
+                candidates+=("$c");
+                for m in "${comps[@]}";
                 do
-                    for mname1 in $($profiler $cmd "$@");
+                    target[$m]=1;
+                done;
+            done;
+            if [ ${#target[@]} -eq 0 ]; then
+                echo "No installable components" 1>&2;
+                return 3;
+            fi;
+            local picked=() best best_gain best_size gain left=${#target[@]};
+            while [ $left -gt 0 ]; do
+                best="" best_gain=0 best_size=0;
+                for c in $(printf '%s\n' "${candidates[@]}" | LC_ALL=C.UTF-8 sort);
+                do
+                    [[ " ${picked[*]} " != *" $c "* ]] || continue;
+                    gain=0;
+                    for m in ${closure[$c]};
                     do
-                        if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-                            profile_cmds+=($cmd);
-                            break;
-                        fi;
-                        found=0;
-                        for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                        [ -n "${covered[$m]:-}" ] || gain=$((gain+1));
+                    done;
+                    if [ $gain -gt $best_gain ] || { 
+                        [ $gain -eq $best_gain ] && [ $gain -gt 0 ] && [ ${size[$c]} -lt $best_size ]
+                    }; then
+                        best=$c best_gain=$gain best_size=${size[$c]};
+                    fi;
+                done;
+                [ -n "$best" ] || break;
+                picked+=("$best");
+                for m in ${closure[$best]};
+                do
+                    [ -n "${covered[$m]:-}" ] || { 
+                        covered[$m]=1;
+                        left=$((left-1))
+                    };
+                done;
+            done;
+            local -A cnt=();
+            for c in "${picked[@]}";
+            do
+                for m in ${closure[$c]};
+                do
+                    cnt[$m]=$(( ${cnt[$m]:-0} + 1 ));
+                done;
+            done;
+            local final=() redundant;
+            for c in $(for c in "${picked[@]}";
+do
+    echo "${size[$c]} $c";
+done | sort -rn | cut -f2 -d' ');
+            do
+                redundant=1;
+                for m in ${closure[$c]};
+                do
+                    [ ${cnt[$m]} -gt 1 ] || { 
+                        redundant=0;
+                        break
+                    };
+                done;
+                if [ $redundant -eq 1 ]; then
+                    for m in ${closure[$c]};
+                    do
+                        cnt[$m]=$(( cnt[$m] - 1 ));
+                    done;
+                else
+                    final+=("$c");
+                fi;
+            done;
+            local -A shown=();
+            { 
+                for c in "${final[@]}";
+                do
+                    local adds=();
+                    for m in ${closure[$c]};
+                    do
+                        [ -n "${shown[$m]:-}" ] || { 
+                            shown[$m]=1;
+                            adds+=("$m")
+                        };
+                    done;
+                    printf "|%s|+%d|[%s]\n" "$c" ${#adds[@]} "${adds[*]}";
+                done
+            } | ensure_columns;
+        else
+            local all_cmds=(${_act_cache_cmds[*]});
+            local profile_lines=() module_lines=();
+            local -A module_act_cache=();
+            local all_modules=(${_act_cache_modules[*]});
+            if [ ${#all_modules[@]} -gt 0 ]; then
+                local module_name;
+                for module_name in "${all_modules[@]}";
+                do
+                    [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
+                    local module_cmds=() mname cmd;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname in $(act_expand_modules $cmd $module_name "$@");
                         do
-                            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-                                found=1;
+                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                                module_cmds+=($cmd);
                                 break;
                             fi;
                         done;
-                        if [ $found -eq 1 ]; then
-                            profile_cmds+=($cmd);
-                            break;
-                        fi;
                     done;
+                    module_act_cache[$module_name]="${module_cmds[*]}";
+                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
                 done;
-                profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
-            done;
-        fi;
-        { 
-            if [ ${#profile_lines[@]} -gt 0 ]; then
-                printf "List of Profiles:\n";
-                printf "%s\n" "${profile_lines[@]}" | sort;
-                printf "\n";
             fi;
-            if [ ${#module_lines[@]} -gt 0 ]; then
-                printf "List of Components:\n";
-                printf "%s\n" "${module_lines[@]}" | sort;
-                printf "\n";
-            fi
-        } | ensure_columns;
+            act_get prefix profile_;
+            local all_profiles=(${_act_reply[*]});
+            if [ ${#all_profiles[@]} -gt 0 ]; then
+                local profiler;
+                for profiler in "${all_profiles[@]}";
+                do
+                    local profile_name=${profiler#*_*_*_};
+                    [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
+                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                    local profile_cmds=() mname1 mname2 cmd found;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname1 in $($profiler $cmd "$@");
+                        do
+                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                            found=0;
+                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                            do
+                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                    found=1;
+                                    break;
+                                fi;
+                            done;
+                            if [ $found -eq 1 ]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
+                    done;
+                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+                done;
+            fi;
+            { 
+                if [ ${#profile_lines[@]} -gt 0 ]; then
+                    printf "List of Profiles:\n";
+                    printf "%s\n" "${profile_lines[@]}" | sort;
+                    printf "\n";
+                fi;
+                if [ ${#module_lines[@]} -gt 0 ]; then
+                    printf "List of Components:\n";
+                    printf "%s\n" "${module_lines[@]}" | sort;
+                    printf "\n";
+                fi
+            } | ensure_columns;
+        fi;
     fi
 }
 subcommand_remove () 
