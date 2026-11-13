@@ -6,7 +6,12 @@ debian_90_profile_edge_base_robotics () {
     echo "edge_pack_base_realtime edge_pack_npu edge_base gpu_accel npu_accel"
     ;;
   *)
-    local selected=($(configure_edge_pack_selection "edge_pack_base_realtime edge_pack_npu" "$@"))
+    local selected;
+    if ensure_parse_option --realtime "$@"; then
+      selected=($(configure_edge_pack_selection "edge_pack_base_realtime edge_pack_npu" "$@"))
+    else
+      selected=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu" "$@"))
+    fi
     [[ "${selected[*]}" != *gpu_accel* ]] || selected+=(edge_base)
     echo "${selected[*]}"
     ;;
