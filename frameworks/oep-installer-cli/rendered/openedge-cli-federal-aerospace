@@ -271,7 +271,7 @@ act_get ()
             done
         ;;
         init)
-            declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_));
+            declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(bootstrap|resume|list|setup)$' | cut -f2- -d_));
             declare -g _act_cache_modules=($(declare -F | grep -E " ${installer_family}_[0-9]+_($(IFS='|'; echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'));
             declare -gA _act_cache_functions=();
             local f rest;
@@ -6005,14 +6005,20 @@ EOF
 }
 ensure_parse_device () 
 { 
-    local device="cpu";
-    local args_uc=" ${*^^} ";
-    [ ! -e /dev/accel/accel0 ] || device="npu";
-    [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
-    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
-    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    echo $device
+    local devices=($(ensure_parse_value_option devices --devices=cpu,gpu,npu "$@" | tr ',' ' '));
+    local device="";
+    ! ensure_parse_option cpu "${devices[@]}" || device=cpu;
+    [ ! -e /dev/accel/accel0 ] || ! ensure_parse_option npu "${devices[@]}" || device="npu";
+    [ ! -e /dev/dri/renderD128 ] || ! ensure_parse_option gpu "${devices[@]}" || device="gpu";
+    [ -n "$device" ] || { 
+        echo "No acceptable device device" 1>&2;
+        return 3
+    };
+    for d in "${devices[@]}";
+    do
+        ! ensure_parse_option --$d "${@,,}" || device="$d";
+    done;
+    echo "$device"
 }
 ensure_parse_option () 
 { 
@@ -6654,6 +6660,24 @@ subcommand_list ()
             --cli-version)
 
             ;;
+            --auto-completion | --auto-completion=*)
+                local data="Y21kcyBpbnN0YWxsIHJlbW92ZSBzdGFydCBzdG9wCm5hbWVzIGN1cmwgZG1pZGVjb2RlIHBjaXV0aWxzIHN5c3RlbV9pbnNwZWN0aW9uIGdudXBnIGNwdWlkIGdhd2sganEga21vZCBsaWJ0YmIxMiBsaWJ6ZTEgeXEgZWRnZV9wYWNrX2tlcm5lbF9pbWFnZSByZWJvb3QgYXV0b2NvbmYgYXV0b21ha2UgY2hyb255IGNtYWtlIGRvY2tlcl9pbyBnaXQgZ29sYW5nIGtlcm5lbF9tb2R1bGVfZXNzZW50aWFsIGxpbnV4X3Rvb2xzIGxtX3NlbnNvcnMgbWFrZSBtc3JfdG9vbHMgcGtnX2NvbmZpZyBweXRob24zX3ZlbnYgc3RyZXNzX25nIHN5c2JlbmNoIHY0bF91dGlscyBrM3NfaW8gaW50ZWxfbHBtZCBlZGdlX3BhY2sgY29yZV90eXBlcyBlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZCBlZGdlX3BhY2tfaXB1IGVkZ2VfcGFja19tYW5hZ2VhYmlsaXR5IGVkZ2VfcGFja19ucHUgZWRnZV9wYWNrX3RzbiBncHVfYWNjZWwgbnB1X2FjY2VsIHBjbSBzeXN0ZW1faW5mbyBwb3dlcl90dW5pbmcgdWJ1bnR1X3NlcnZlciBjZGkgcmVhbHNlbnNlIGVkZ2VfcGFja19tZWRpYV9mZm1wZWcgZWRnZV9wYWNrX21lZGlhX2dzdCBoYW5kaGVsZF9ibHVlcHJpbnQgbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnQgZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uIGhhbmRoZWxkX211bHRpX21vZGFsIHVhdl9taXNzaW9uX2NvbXB1dGVfc2RrIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2dyb3VuZF9zdGF0aW9uIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3Mgc3lzdGVtX3N1bW1hcnkgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fZGVjaXNpb25fc3VwcG9ydCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGQgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlIGVkZ2VfYmFzZQpmbGFncyBpbnN0YWxsIC0tY29udGludWUgLS1kcnktcnVuIC0tcmVpbnN0YWxsIC0tdmFsaWRhdGUKc3RhdGUgaW5zdGFsbCAtCm1vZCBpbnN0YWxsIHJlYm9vdAptb2QgaW5zdGFsbCBwY20gQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgcHl0aG9uM192ZW52Cm1vZCBpbnN0YWxsIGVkZ2VfcGFja190c24gLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgY2hyb255Cm1vZCBpbnN0YWxsIGszc19pbwptb2QgaW5zdGFsbCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgaW5zdGFsbCBnaXQKbW9kIGluc3RhbGwgZWRnZV9iYXNlIEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwga21vZAptb2QgaW5zdGFsbCBncHVfYWNjZWwgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgY21ha2UKbW9kIGluc3RhbGwgYXV0b21ha2UKbW9kIGluc3RhbGwgdjRsX3V0aWxzCm1vZCBpbnN0YWxsIHN5c3RlbV9zdW1tYXJ5Cm1vZCBpbnN0YWxsIGdudXBnCm1vZCBpbnN0YWxsIG5wdV9hY2NlbCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBsbV9zZW5zb3JzCm1vZCBpbnN0YWxsIHN0cmVzc19uZwptb2QgaW5zdGFsbCBlZGdlX3BhY2tfaXB1IC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIHN5c3RlbV9pbnNwZWN0aW9uCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19tZWRpYV9mZm1wZWcgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgbWFrZQptb2QgaW5zdGFsbCB1YnVudHVfc2VydmVyCm1vZCBpbnN0YWxsIG1pc3Npb25fZGVjaXNpb25fc3VwcG9ydF9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgaW5zdGFsbCBlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZCAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBkb2NrZXJfaW8KbW9kIGluc3RhbGwgbGlidGJiMTIKbW9kIGluc3RhbGwgcG93ZXJfdHVuaW5nIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIHBrZ19jb25maWcKbW9kIGluc3RhbGwgaGFuZGhlbGRfYmx1ZXByaW50IEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXZlcnNpb24gLS1rM3MKbW9kIGluc3RhbGwgZ2F3awptb2QgaW5zdGFsbCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGQgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbGliemUxIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVhdl9taXNzaW9uX2NvbXB1dGVfc2RrIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGF1dG9jb25mCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19tZWRpYV9nc3QgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24gLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgZG1pZGVjb2RlCm1vZCBpbnN0YWxsIHN5c3RlbV9pbmZvIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGtlcm5lbF9tb2R1bGVfZXNzZW50aWFsCm1vZCBpbnN0YWxsIGNwdWlkCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19tYW5hZ2VhYmlsaXR5IC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIHN5c2JlbmNoCm1vZCBpbnN0YWxsIGpxCm1vZCBpbnN0YWxsIHBjaXV0aWxzCm1vZCBpbnN0YWxsIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBlZGdlX3BhY2tfa2VybmVsX2ltYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBpbnN0YWxsIG1zcl90b29scwptb2QgaW5zdGFsbCBjZGkgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgY3VybAptb2QgaW5zdGFsbCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGludGVsX2xwbWQgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgZ29sYW5nCm1vZCBpbnN0YWxsIGNvcmVfdHlwZXMgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgaGFuZGhlbGRfbXVsdGlfbW9kYWwgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbGludXhfdG9vbHMKbW9kIGluc3RhbGwgZWRnZV9wYWNrIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIHlxCm1vZCBpbnN0YWxsIHJlYWxzZW5zZSAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbnB1IC0tcmVpbnN0YWxsCmZsYWdzIHJlbW92ZSAtLWRyeS1ydW4gLS1yZW1vdmUtYWxsIC0tcmVtb3ZlLW1lCnN0YXRlIHJlbW92ZSBpbnN0YWxsZWQKbW9kIHJlbW92ZSBwY20gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBlZGdlX3BhY2tfdHNuCm1vZCByZW1vdmUgazNzX2lvCm1vZCByZW1vdmUgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfYmx1ZXByaW50IEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXZlcnNpb24gLS1rM3MKbW9kIHJlbW92ZSBnaXQKbW9kIHJlbW92ZSBlZGdlX2Jhc2UgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGRldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MKbW9kIHJlbW92ZSBncHVfYWNjZWwKbW9kIHJlbW92ZSBjbWFrZQptb2QgcmVtb3ZlIGF1dG9tYWtlCm1vZCByZW1vdmUgdjRsX3V0aWxzCm1vZCByZW1vdmUgbnB1X2FjY2VsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbG1fc2Vuc29ycwptb2QgcmVtb3ZlIHN0cmVzc19uZwptb2QgcmVtb3ZlIGVkZ2VfcGFja19pcHUKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWVkaWFfZmZtcGVnCm1vZCByZW1vdmUgbWFrZQptb2QgcmVtb3ZlIG1pc3Npb25fZGVjaXNpb25fc3VwcG9ydF9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgcmVtb3ZlIGVkZ2VfcGFja19iYXNlX3N0YW5kYXJkCm1vZCByZW1vdmUgZG9ja2VyX2lvCm1vZCByZW1vdmUgcG93ZXJfdHVuaW5nCm1vZCByZW1vdmUgcGtnX2NvbmZpZwptb2QgcmVtb3ZlIGhhbmRoZWxkX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCByZW1vdmUgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdWF2X21pc3Npb25fY29tcHV0ZV9zZGsgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBhdXRvY29uZgptb2QgcmVtb3ZlIGVkZ2VfcGFja19tZWRpYV9nc3QKbW9kIHJlbW92ZSB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbgptb2QgcmVtb3ZlIGRtaWRlY29kZQptb2QgcmVtb3ZlIHN5c3RlbV9pbmZvCm1vZCByZW1vdmUga2VybmVsX21vZHVsZV9lc3NlbnRpYWwKbW9kIHJlbW92ZSBjcHVpZAptb2QgcmVtb3ZlIGVkZ2VfcGFja19tYW5hZ2VhYmlsaXR5Cm1vZCByZW1vdmUgc3lzYmVuY2gKbW9kIHJlbW92ZSBqcQptb2QgcmVtb3ZlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIG1zcl90b29scwptb2QgcmVtb3ZlIGNkaQptb2QgcmVtb3ZlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBpbnRlbF9scG1kCm1vZCByZW1vdmUgZ29sYW5nCm1vZCByZW1vdmUgY29yZV90eXBlcwptb2QgcmVtb3ZlIGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbGludXhfdG9vbHMKbW9kIHJlbW92ZSBlZGdlX3BhY2sKbW9kIHJlbW92ZSB5cQptb2QgcmVtb3ZlIHJlYWxzZW5zZQptb2QgcmVtb3ZlIGVkZ2VfcGFja19ucHUKZmxhZ3Mgc3RhcnQgLS1jb250aW51ZSAtLWRyeS1ydW4Kc3RhdGUgc3RhcnQgaW5zdGFsbGVkCm1vZCBzdGFydCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzCm1vZCBzdGFydCB1YXZfbWlzc2lvbl9jb21wdXRlX3NkayBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24KbW9kIHN0YXJ0IGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCmZsYWdzIHN0b3AgLS1kcnktcnVuIC0tc3RvcC1hbGwKc3RhdGUgc3RvcCBzdGFydGVkCm1vZCBzdG9wIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MKbW9kIHN0b3AgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHVhdl9taXNzaW9uX2NvbXB1dGVfc2RrIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2dyb3VuZF9zdGF0aW9uCm1vZCBzdG9wIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZQptb2Qgc3RvcCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCg==" cmd state;
+                [[ $data != @@* ]] || { 
+                    echo "Completion data not rendered; run bootstrap" 1>&2;
+                    return 3
+                };
+                data="$(base64 -d <<< "$data")";
+                cmd=${v#--auto-completion};
+                cmd=${cmd#=};
+                if [ -z "$cmd" ]; then
+                    grep -E '^(cmds|names)( |$)' <<< "$data";
+                else
+                    awk -v c="$cmd" '$1 != "cmds" && $1 != "names" && $2 == c { $2 = ""; sub(/  /, " "); sub(/ $/, ""); print }' <<< "$data";
+                    state=$(awk -v c="$cmd" '$1 == "state" && $2 == c { print $3 }' <<< "$data");
+                    [[ $state == installed || $state == started ]] && echo active $(ensure_prop find "$state/*" | cut -f2 -d/ | sort -u);
+                fi;
+                return 0
+            ;;
             *)
                 if [ $margs -eq 1 ]; then
                     args+=("$v");
@@ -6932,7 +6956,6 @@ subcommand_setup ()
 { 
     ensure_parse_option --help "$@" && return;
     local installer_misc_functions=(_act_levenshtein system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary uav_mission_compute_sdk_checkout);
-    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtwY21dPSIiIFtweXRob24zX3ZlbnZdPSIiIFtlZGdlX3BhY2tfdHNuXT0iIiBbY2hyb255XT0iIiBbazNzX2lvXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfYmx1ZXByaW50XT0iIiBbZ2l0XT0iIiBbZWRnZV9iYXNlXT0iIiBbZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgW2ttb2RdPSIiIFtncHVfYWNjZWxdPSIiIFtjbWFrZV09IiIgW2F1dG9tYWtlXT0iIiBbdjRsX3V0aWxzXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtnbnVwZ109IiIgW25wdV9hY2NlbF09IiIgW2xtX3NlbnNvcnNdPSIiIFtzdHJlc3NfbmddPSIiIFstLXJlaW5zdGFsbF09IiIgW2VkZ2VfcGFja19pcHVdPSIiIFtzeXN0ZW1faW5zcGVjdGlvbl09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbbWFrZV09IiIgW3VidW50dV9zZXJ2ZXJdPSIiIFttaXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRfYmx1ZXByaW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFtkb2NrZXJfaW9dPSIiIFtsaWJ0YmIxMl09IiIgW3Bvd2VyX3R1bmluZ109IiIgW3BrZ19jb25maWddPSIiIFtoYW5kaGVsZF9ibHVlcHJpbnRdPSIiIFstLWRyeS1ydW5dPSIiIFtnYXdrXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbbGliemUxXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFthdXRvY29uZl09IiIgW2VkZ2VfcGFja19tZWRpYV9nc3RdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW2RtaWRlY29kZV09IiIgW3N5c3RlbV9pbmZvXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFtjcHVpZF09IiIgW2VkZ2VfcGFja19tYW5hZ2VhYmlsaXR5XT0iIiBbc3lzYmVuY2hdPSIiIFtqcV09IiIgW3BjaXV0aWxzXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbZWRnZV9wYWNrX2tlcm5lbF9pbWFnZV09IiIgW21zcl90b29sc109IiIgW2NkaV09IiIgW2N1cmxdPSIiIFstLWNvbnRpbnVlXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF09IiIgW2ludGVsX2xwbWRdPSIiIFtnb2xhbmddPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtsaW51eF90b29sc109IiIgW2VkZ2VfcGFja109IiIgW3lxXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX25wdV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlbW92ZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW3BjbV09IiIgW2VkZ2VfcGFja190c25dPSIiIFtrM3NfaW9dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb25dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzXT0iIiBbZ3B1X2FjY2VsXT0iIiBbY21ha2VdPSIiIFthdXRvbWFrZV09IiIgW3Y0bF91dGlsc109IiIgW25wdV9hY2NlbF09IiIgW2xtX3NlbnNvcnNdPSIiIFtzdHJlc3NfbmddPSIiIFstLXJlaW5zdGFsbF09IiIgW2VkZ2VfcGFja19pcHVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZmZtcGVnXT0iIiBbLS12YWxpZGF0ZV09IiIgW21ha2VdPSIiIFttaXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRfYmx1ZXByaW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFtkb2NrZXJfaW9dPSIiIFtwb3dlcl90dW5pbmddPSIiIFtwa2dfY29uZmlnXT0iIiBbaGFuZGhlbGRfYmx1ZXByaW50XT0iIiBbLS1kcnktcnVuXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFthdXRvY29uZl09IiIgW2VkZ2VfcGFja19tZWRpYV9nc3RdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW2RtaWRlY29kZV09IiIgW3N5c3RlbV9pbmZvXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFtjcHVpZF09IiIgW2VkZ2VfcGFja19tYW5hZ2VhYmlsaXR5XT0iIiBbc3lzYmVuY2hdPSIiIFtqcV09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV09IiIgW21zcl90b29sc109IiIgW2NkaV09IiIgWy0tY29udGludWVdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbaW50ZWxfbHBtZF09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbeXFdPSIiIFtyZWFsc2Vuc2VdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVzdW1lKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0YXJ0KQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFstLWNvbnRpbnVlXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVdPSIiIFstLWNvbnRpbnVlXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgKikKICAgIENPTVBSRVBMWT0oKQogICAgOzsKICBlc2FjCn0KY29tcGxldGUgLUYgX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uIG9wZW5lZGdlLWNsaQo=";
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
     { 
@@ -6950,8 +6973,122 @@ EOF
     chmod a+rx "$installer_bin";
     echo "Installer reconstructed at ${installer_bin/#"$HOME"/"~"}";
     local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name";
+    local cname=${installer_name//-/_};
     mkdir -p "$(dirname "$completion_script")";
-    base64 -d > "$completion_script" <<< "$installer_completion_text" || { 
+    sed -e "s/_openedge_cli_/_${cname}_/g" -e "s/@@NAME@@/$installer_name/g" > "$completion_script" <<'EOS' || 
+#!/bin/bash
+# logic is static; data is read (never evaluated) from "<bin> list --auto-completion[=cmd]"
+_openedge_cli_completion () {
+  local cur=$2 prev=${COMP_WORDS[COMP_CWORD-1]} bin cmd flags="" state="" kind rest i w s sec="" dev_used=0
+  local -a f picked=() sugg=() tmp=() out=() names=() active=()
+  local -A mods=() opts=() used=() valopt=() seen=()
+  COMPREPLY=()
+
+  bin=$(type -P "${COMP_WORDS[0]}") || return 0
+  cmd=${COMP_WORDS[1]}
+
+  # first word, or list: only cmds/names are needed
+  if (( COMP_CWORD == 1 )) || [ "$cmd" = list ]; then
+    local cmds="" all_names=""
+    while read -r kind rest; do
+      [[ $kind =~ ^[a-z]+$ && $rest =~ ^[A-Za-z0-9_@:=.,\ -]*$ ]] || continue
+      case "$kind" in
+      cmds)  cmds=$rest ;;
+      names) all_names=$rest ;;
+      esac
+    done < <("$bin" list --auto-completion 2>/dev/null)
+
+    if (( COMP_CWORD == 1 )); then
+      COMPREPLY=($(compgen -W "$cmds list setup resume --help" -- "$cur"))
+      return
+    fi
+    [ "$prev" = --cli-version ] && return
+    for ((i=2;i<COMP_CWORD;i++)); do used[${COMP_WORDS[i]}]=1; done
+    for s in --sbom --test-coverage --cli-version $all_names; do
+      [[ -v used[$s] ]] || out+=("$s")
+    done
+    COMPREPLY=($(compgen -W "${out[*]}" -- "$cur"))
+    return
+  fi
+
+  # per-command data in one call
+  [[ $cmd =~ ^[a-z_]+$ ]] || return 0
+  while read -r kind rest; do
+    [[ $kind =~ ^[a-z]+$ && $rest =~ ^[A-Za-z0-9_@:=.,\ -]*$ ]] || continue
+    read -r -a f <<< "$rest"
+    case "$kind" in
+    flags)  flags=$rest ;;
+    state)  state=${f[0]:-} ;;
+    active) active=("${f[@]}") ;;
+    mod)    [ ${#f[@]} -ge 1 ] && { mods[${f[0]}]=1; opts[${f[0]}]="${f[*]:1}"; } ;;
+    esac
+  done < <("$bin" list --auto-completion="$cmd" 2>/dev/null)
+  [ ${#mods[@]} -gt 0 ] || [ -n "$flags" ] || return 0
+
+  # options that take a value (--key <value> or --key=<value>)
+  for s in ${opts[*]}; do [[ $s == @value:* ]] && valopt[${s#@value:}]=1; done
+
+  # cursor on the value: let the user type it
+  [[ -n $prev && -v valopt[$prev] ]] && return
+  [[ $cur == "=" || $prev == "=" ]] && return
+
+  # walk words already typed
+  for ((i=2;i<COMP_CWORD;i++)); do
+    w=${COMP_WORDS[i]}
+    [[ -z $w || $w == "=" ]] && continue
+    if [[ ${COMP_WORDS[i+1]:-} == "=" ]]; then used[$w]=1; i=$((i+2)); continue; fi
+    [[ -v valopt[${COMP_WORDS[i-1]}] ]] && continue
+    used[$w]=1
+    if [[ $w == --?* && -v mods[${w#--}] ]]; then
+      sec=${w#--}
+    elif [[ -z $sec && -v mods[$w] ]]; then
+      picked+=("$w")
+    fi
+  done
+
+  # component names: all (install) or installed/started (start/stop/remove)
+  if [[ $state == installed || $state == started ]]; then
+    for s in "${active[@]}"; do [[ -v mods[$s] ]] && names+=("$s"); done
+  else
+    names=(${!mods[*]})
+  fi
+
+  # candidates
+  if [ -n "$sec" ]; then
+    sugg=(${opts[$sec]:-} "${picked[@]/#/--}")
+  else
+    sugg=($flags "${names[@]}" "${picked[@]/#/--}")
+    for w in "${picked[@]}"; do
+      for s in ${opts[$w]:-}; do
+        [[ -v valopt[$s] ]] || sugg+=("$s")
+      done
+    done
+  fi
+
+  # expand placeholders; offer only devices present on this host
+  for s in "${sugg[@]}"; do
+    case "$s" in
+    @value:*)    ;;
+    @device:gpu) [ -e /dev/dri/renderD128 ] && tmp+=(--gpu) ;;
+    @device:npu) [ -e /dev/accel/accel0 ]   && tmp+=(--npu) ;;
+    @device:cpu) tmp+=(--cpu) ;;
+    *)           tmp+=("$s") ;;
+    esac
+  done
+
+  # filter: already used, mutually exclusive devices, duplicates
+  [[ -v used[--cpu] || -v used[--gpu] || -v used[--npu] ]] && dev_used=1
+  for s in "${tmp[@]}"; do
+    [[ -v used[$s] || -v seen[$s] ]] && continue
+    [[ $dev_used -eq 1 && $s =~ ^--(cpu|gpu|npu)$ ]] && continue
+    seen[$s]=1
+    out+=("$s")
+  done
+  COMPREPLY=($(compgen -W "${out[*]}" -- "$cur"))
+}
+complete -F _openedge_cli_completion @@NAME@@
+EOS
+ { 
         echo "Failed to write to $completion_script" 1>&2;
         return 1
     };
