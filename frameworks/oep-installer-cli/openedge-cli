@@ -346,7 +346,7 @@ subcommand_bootstrap () {
 #!/bin/bash
 _${installer_name//-/_}_completion () {
   if (( COMP_CWORD == 1 )); then
-    COMPREPLY=(\$(compgen -W "${all_cmds[*]} list setup --help" -- "\$2"))
+    COMPREPLY=(\$(compgen -W "${all_cmds[*]} resume list setup --help" -- "\$2"))
     return
   fi
 
@@ -355,24 +355,28 @@ $(
     # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
     act_get prefix profile_
     local all_profilers=(${_act_reply[*]})
-    local cmd dcmd profiler pname mname found
+    local cmd profiler pname mname found f
+    local -a flags
     local -A all_comps
     for cmd in ${all_cmds[*]}; do
+      # per-command options, matching what each subcommand_* actually parses
+      case "$cmd" in
+      (install) flags=(--continue --dry-run --reinstall --validate) ;;
+      (start)   flags=(--continue --dry-run) ;;
+      (stop)    flags=(--dry-run --stop-all) ;;
+      (remove)  flags=(--dry-run --remove-all --remove-me) ;;
+      (*)       flags=(--continue --dry-run) ;;
+      esac
       all_comps=()
-      all_comps["--continue"]=""
-      all_comps["--dry-run"]=""
-      all_comps["--reinstall"]=""
-      all_comps["--validate"]=""
-      # sbom handlers are sparse; resolve its dependency graph as if it were install
-      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
-      act_get prefix ${dcmd}_
+      for f in "${flags[@]}"; do all_comps[$f]=""; done
+      act_get prefix ${cmd}_
       local all_modules=(${_act_reply[*]#*_*_*_})
       for profiler in ${all_profilers[*]}; do
         pname=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
         found=0
-        for mname in $(act_expand_modules $dcmd $pname); do
-          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
+        for mname in $(act_expand_modules $cmd $pname); do
+          if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
             found=1
             break
           fi
@@ -388,6 +392,18 @@ $(
       echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
       echo "    ;;"
     done
+
+    # list: every component/profile name plus list-specific options
+    all_comps=()
+    for f in --sbom --test-coverage --cli-version ${_act_cache_names[*]}; do
+      all_comps[$f]=""
+    done
+    echo "  list)"
+    echo "    if [ \"\${COMP_WORDS[COMP_CWORD-1]}\" = --cli-version ]; then COMPREPLY=(); return; fi"
+    echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
+    echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
+    echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
+    echo "    ;;"
     :
 )
   *)
