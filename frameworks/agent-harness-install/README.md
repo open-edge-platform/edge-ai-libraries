@@ -244,7 +244,7 @@ flowchart TD
 ```
 startup.sh                    prerequisite setup: installs/verifies curl/git, Docker, Node.js/npm, Python -- run automatically by install.sh, or standalone
 install.sh                   thin bootstrap (delegates to scripts/install.sh, or self-clones)
-uninstall.sh                  removes the Inference Router, OVMS, the installed agent, and state dir
+uninstall.sh                  removes the Inference Router, OVMS, the installed agent, and state dir (models too, unless --keep-models)
 scripts/install.sh            payload: install flow + status/onboard/models/mcp/skill subcommands
 scripts/lib/colors.sh         logging/spinner helpers
 scripts/lib/state.sh          state dir, symlink-safe path assertions, atomic writes
