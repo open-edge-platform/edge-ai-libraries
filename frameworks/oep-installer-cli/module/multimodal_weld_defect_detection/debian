@@ -63,7 +63,7 @@ INFLUXDB_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 INFLUXDB_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
 VISUALIZER_GRAFANA_USER=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 VISUALIZER_GRAFANA_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
-SEAWEEDFS_WEB_AUTH_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
+SEAWEEDFS_WEB_AUTH_USER=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 SEAWEEDFS_WEB_AUTH_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
 HOST_IP=$(ensure_ip)
 EOF
