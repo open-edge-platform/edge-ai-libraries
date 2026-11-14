@@ -341,7 +341,12 @@ subcommand_list () {
 }
 
 subcommand_setup () {
-  ensure_parse_option --help "$@" && return
+  if ensure_parse_option --help "$@"; then
+    echo "setup options:"
+    echo "  none"
+    echo
+    return 0
+  fi
 
   local installer_misc_functions=(@@INSTALLER_MISC_FUNCTIONS@@)
   local installer_skill_text="@@INSTALLER_SKILL_TEXT@@"
@@ -495,6 +500,13 @@ EOS
 }
 
 subcommand_resume () {
+  if ensure_parse_option --help "$@"; then
+     echo "resume options:"
+     echo "  none"
+     echo
+     return 0
+  fi
+
   local args=($(ensure_prop get command))
   [[ ${#args[*]} -gt 0 ]] || {
     echo "Nothing to resume" >&2
