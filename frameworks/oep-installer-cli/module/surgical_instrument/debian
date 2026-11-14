@@ -27,19 +27,19 @@ debian_90_install_surgical_instrument () {
   if verify_surgical_instrument && ! ensure_parse_reinstall "$@"; then
     echo "Surgical Instrument is installed" >&2
   else
-    ensure_disk_size 70000
+    ensure_disk_size 75000
     ensure_git_export "$workspace" "$version" "$repository" surgical-instrument
     
     # train models
     cd "$workspace"/surgical-instrument
     echo "@@STEP Downloading dataset"
     make download-dataset
+    echo "@@STEP Creating venv"
+    make backend-venv
     echo "@@STEP Preparing dataset"
     make prepare-dataset MAX_POS_PER_VIDEO=800
 
     # download video
-    echo "@@STEP Creating venv"
-    make backend-venv
     echo "@@STEP Generating polyp_test.mp4"
     .venv-backend/bin/python scripts/create_endoscopy_video.py \
       --images-dir datasets/REAL-Colon/raw/001-001_frames \
