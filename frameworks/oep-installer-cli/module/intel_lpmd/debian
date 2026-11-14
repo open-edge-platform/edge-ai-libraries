@@ -13,7 +13,7 @@ verify_intel_lpmd () {
 }
 
 debian_35_profile_intel_lpmd () {
-  echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+  echo "kernel_module_essential linux_tools pkg_config autoconf automake make git gawk"
 }
 
 debian_35_install_intel_lpmd () {

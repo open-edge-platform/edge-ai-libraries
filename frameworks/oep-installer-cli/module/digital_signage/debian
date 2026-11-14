@@ -1,7 +1,7 @@
 
 configure_digital_signage () {
   workspace="$(ensure_project_path)/digital-signage"
-  version="$(ensure_parse_value_option version --version=e7f233673950bc2ab8c5caf47efeb6067c15c836 "$@")"
+  version="$(ensure_parse_value_option version --version=0325809a172bf47865ce9727a5187780880ee3d1 "$@")"
   repository="https://github.com/intel-retail/digital-signage.git"
   used_ports=(5000 8000 3478)
 }
@@ -26,7 +26,7 @@ verify_digital_signage () {
 }
 
 debian_90_profile_digital_signage () {
-  echo "edge_base docker_io git curl make"
+  echo "edge_base docker_io git curl make python3_venv"
 }
 
 debian_90_install_digital_signage () {
@@ -55,7 +55,7 @@ EOF
 
     echo "@@STEP Download models"
     make download_models
-    verify_diginal_signage
+    verify_digital_signage
   fi
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -66,6 +66,7 @@ EOF
 debian_90_start_digital_signage () {
   configure_digital_signage "$@"
   ensure_ports_open start digital_signage "${used_ports[@]}"
+  ensure_container_namespace start digital_signage $(ensure_container_parse_yaml "$workspace"/docker-compose.yml)
 
   cd "$workspace"
   make up
@@ -78,7 +79,8 @@ debian_90_start_digital_signage () {
 debian_90_stop_digital_signage () {
   configure_digital_signage "$@"
   cd "$workspace" && {
-    make down
+    make down || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
   } || true
 }
 

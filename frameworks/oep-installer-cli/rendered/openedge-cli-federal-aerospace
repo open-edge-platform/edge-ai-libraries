@@ -70,7 +70,7 @@ main () {
         _rc=$?
       else
         # save args for resume
-        ensure_prop set command "$*"
+        ensure_prop set command "$*" --create
 
         # critical group permissions
         local -A _groups=()
@@ -313,7 +313,6 @@ act_helper ()
     ;;
 esac);
     set -- $(act_resolve_args $act_name "$@");
-    local implicit_mods=($(act_extract_modules $act_name "$@"));
     local handles=($(act_find_deps $act_name "$@" | tr ' ' '\n' | sort $sort_options));
     if [ ${#handles[@]} -gt 0 ]; then
         if [ "$act_name" = "install" ]; then
@@ -342,7 +341,7 @@ esac);
                 do
                     echo "${licenses_text[$id1]}";
                     echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")";
-                done | ensure_license_gate $installer_name "$@";
+                done | ensure_license_gate "$@";
                 rc=$?;
                 if [ $rc -eq 1 ]; then
                     echo "License declined";
@@ -366,7 +365,13 @@ esac);
         export _INSTALLER_PANEL_ACTIVE=;
         [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
         { 
-            local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && echo "${implicit_mods[*]}" || echo "${handles[*]#*_*_*_}")) _pair _h _m;
+            local modules=($(all_modules_str="${handles[*]#*_*_*_}"
+[[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && ( local rmods=()
+for m in $(act_extract_modules $act_name "$@");
+do
+    [[ " $all_modules_str " != *" $m "* ]] || rmods+=("$m");
+done
+[ ${#rmods[*]} -gt 0 ] && echo "${rmods[*]}" || echo "${handles[0]#*_*_*_}" ) || echo "$all_modules_str")) _pair _h _m;
             for handler in ${handles[*]};
             do
                 name1=${handler#*_*_*_};
@@ -2096,7 +2101,7 @@ act_panelled_logs_askpass ()
 if [ -n "$ASKPASS_ENV" ]; then
   printf '%s\n' "$ASKPASS_ENV"
 elif [ -e /dev/tty ]; then
-  exec 8<>/dev/tty 2>/dev/null || exit 1
+  { exec 8<>/dev/tty; } 2>/dev/null || exit 1
   rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
   saved=$(stty -g <&8) || exit 1
   # restore tty and clear the prompt row (cleanup only)
@@ -2232,7 +2237,7 @@ configure_cdi ()
 configure_deterministic_threat_detection () 
 { 
     workspace="$(ensure_project_path)/federal-and-aerospace-ai-suite";
-    version="main";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
     application="$workspace/deterministic-threat-detection"
 }
@@ -2298,10 +2303,12 @@ configure_edge_pack_ipu ()
 configure_edge_pack_kernel_image () 
 { 
     cmdline=(xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192);
+    version="$(ensure_parse_value_option version "$@")";
+    [ -z "$version" ] || return 0;
     local kver="$(uname -r)" incompatibles=(7.0.0-14-generic);
     case "$ID$VERSION_ID" in 
         ubuntu24.04 | ubuntu26.04)
-            if [[ "$kver" = "7.0.0-"* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
+            if [[ "$kver" = "7.0."* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
                 version="$kver";
             else
                 version="$(set -o pipefail; apt-cache depends linux-image-generic-hwe-$VERSION_ID 2> /dev/null | sed -n '/.*Depends: *linux-image-/{s///;p;q}' || echo 7.0.0-42-generic)";
@@ -2311,8 +2318,7 @@ configure_edge_pack_kernel_image ()
             echo "$ID $VERSION_ID not supported" 1>&2;
             return 1
         ;;
-    esac;
-    version="$(ensure_parse_value_option version --version="$version" "$@")"
+    esac
 }
 configure_edge_pack_manageability () 
 { 
@@ -2362,7 +2368,7 @@ configure_gpu_accel ()
 configure_handheld_multi_modal () 
 { 
     workspace="$(ensure_project_path)/handheld-multi-modal";
-    version=main;
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git;
     used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997)
 }
@@ -2468,12 +2474,21 @@ configure_kernel_module_essential_debian ()
 }
 configure_libze1 () 
 { 
-    version=1.32.0;
+    version="$(ensure_parse_value_option version --version=1.32.0 "$@")";
     libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb"
+}
+configure_linux_tools () 
+{ 
+    install_pkgs=(linux-tools-common "linux-tools-$(uname -r)");
+    case "$ID$VERSION_ID" in 
+        ubuntu26.04)
+            install_pkgs+=(linux-perf bpftool)
+        ;;
+    esac
 }
 configure_npu_accel () 
 { 
-    version=1.38.0;
+    version="$(ensure_parse_value_option version --version=1.38.0 "$@")";
     repository=https://api.github.com/repos/intel/linux-npu-driver;
     releases=https://github.com/intel/linux-npu-driver/releases;
     workspace="$(ensure_project_path)/npu"
@@ -2488,7 +2503,7 @@ configure_pcm ()
 { 
     workspace="$(ensure_project_path)/pcm";
     repository="https://github.com/intel/pcm.git";
-    version=e534201d0fe6d6e3bc5fee54b229f215b976efbc
+    version="$(ensure_parse_value_option version --version=e534201d0fe6d6e3bc5fee54b229f215b976efbc "$@")"
 }
 configure_power_tuning () 
 { 
@@ -2556,7 +2571,7 @@ configure_uav_mission_compute_sdk ()
     source_path="$workspace/source";
     sdk_path="$source_path/uav-mission-compute-sdk";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
-    version="main";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
 }
 configure_uncrewed_aerial_vehicle_ground_station () 
@@ -2844,13 +2859,13 @@ debian_30_install_kernel_module_essential ()
 }
 debian_30_install_linux_tools () 
 { 
-    local name="linux-tools-$(uname -r)";
-    if ensure_apt_is_installed $name; then
-        echo "$name is installed." 1>&2;
+    configure_linux_tools "$@";
+    if ensure_apt_is_installed ${install_pkgs[*]}; then
+        echo "linux-tools is installed." 1>&2;
     else
         ensure_prop set installed/linux_tools/owned true;
         ensure_apt update;
-        ensure_apt install --no-install-recommends -y linux-tools-common $name || ensure_apt install --no-install-recommends -y --no-install-recommends linux-tools-common linux-tools-generic;
+        ensure_apt install --no-install-recommends -y ${install_pkgs[*]};
     fi
 }
 debian_30_install_lm_sensors () 
@@ -2940,9 +2955,9 @@ debian_30_remove_kernel_module_essential ()
 }
 debian_30_remove_linux_tools () 
 { 
-    local name="linux-tools-$(uname -r)";
+    configure_linux_tools "$@";
     [ "$(ensure_prop get installed/linux_tools/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y $name || true
+    ensure_apt purge --autoremove -y ${install_pkgs[*]} || true
 }
 debian_30_remove_lm_sensors () 
 { 
@@ -3009,7 +3024,8 @@ debian_30_sbom_kernel_module_essential ()
 }
 debian_30_sbom_linux_tools () 
 { 
-    ensure_sbom_format pkg-list linux-tools-common linux-tools-$(uname -r)
+    configure_linux_tools "$@";
+    ensure_sbom_format pkg-list ${install_pkgs[*]}
 }
 debian_30_sbom_lm_sensors () 
 { 
@@ -3156,7 +3172,7 @@ EOF
 }
 debian_35_profile_intel_lpmd () 
 { 
-    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake git"
 }
 debian_35_remove_intel_lpmd () 
 { 
@@ -3368,7 +3384,7 @@ debian_40_install_npu_accel ()
 }
 debian_40_install_pcm () 
 { 
-    configure_pcm;
+    configure_pcm "$@";
     if verify_pcm && ! ensure_parse_reinstall "$@"; then
         echo "pcm is installed." 1>&2;
     else
@@ -3507,7 +3523,7 @@ debian_40_remove_npu_accel ()
 }
 debian_40_remove_pcm () 
 { 
-    configure_pcm;
+    configure_pcm "$@";
     [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0;
     ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM /etc/modules-load.d/99-intel-pcm.conf
 }
@@ -3848,11 +3864,12 @@ debian_90_install_handheld_multi_modal ()
         esac;
     done <<< "$installed";
     configure_handheld_multi_modal "$@";
-    if verify_handheld_multi_modal $* && ! ensure_parse_reinstall "$@"; then
+    if verify_handheld_multi_modal "$@" && ! ensure_parse_reinstall "$@"; then
         echo "handheld_multi_modal is installed." 1>&2;
     else
         ensure_disk_size 45000;
         echo "@@STEP Removing conflicting app";
+        ensure_container_namespace install handheld_multi_modal name:handheld-multi-modal-model-downloader-1 || true;
         ensure_ports_open install handheld_multi_modal "${used_ports[@]}" || { 
             docker rm -f handheld-multi-modal-model-downloader-1 || true;
             ensure_ports_open install handheld_multi_modal "${used_ports[@]}"
@@ -3872,7 +3889,7 @@ debian_90_install_handheld_multi_modal ()
 }
 debian_90_install_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     if verify_uav_mission_compute_sdk && ! ensure_parse_reinstall "$@"; then
         echo "uav_mission_compute_sdk is installed." 1>&2;
     else
@@ -3893,7 +3910,7 @@ debian_90_install_uav_mission_compute_sdk ()
             echo "Mission Compute SDK initialization did not produce the expected source and .env." 1>&2;
             return 1;
         fi;
-        ensure_prop set installed/uav_mission_compute_sdk "$source_commit" || return $?;
+        ensure_prop set installed/uav_mission_compute_sdk/commit "$source_commit" || return $?;
         verify_uav_mission_compute_sdk || return $?;
     fi;
     echo "@@HIGHLIGHT workspace: $sdk_path";
@@ -3956,6 +3973,7 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics ()
         make model ACCEPT_LICENSE=y || return $?;
     fi;
     if ! compgen -G "$caption/*.xml" > /dev/null || ! compgen -G "$caption/*.bin" > /dev/null; then
+        ensure_container_namespace install uncrewed_aerial_vehicle_vision_analytics "name:${MODEL_DOWNLOAD_EPHEMERAL_CONTAINER_NAME:-model-download-ephemeral}" || true;
         make vlm-model VLM_DEVICE=GPU ACCEPT_LICENSE=y || return $?;
     fi;
     if ! verify_uncrewed_aerial_vehicle_vision_analytics_models; then
@@ -3975,10 +3993,8 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics ()
 }
 debian_90_license_uncrewed_aerial_vehicle_vision_analytics () 
 { 
-    ensure_license_use_model YOLO11s;
-    echo "Model license: https://github.com/ultralytics/ultralytics/blob/main/LICENSE";
-    ensure_license_use_model InternVL2-1B;
-    echo "Model terms: https://huggingface.co/OpenGVLab/InternVL2-1B"
+    ensure_license_use_model YOLO11S https://github.com/ultralytics/ultralytics/blob/main/LICENSE;
+    ensure_license_use_model InternVL2-1B 'https://huggingface.co/OpenGVLab/InternVL2-1B#license'
 }
 debian_90_profile_deterministic_threat_detection () 
 { 
@@ -4002,20 +4018,20 @@ debian_90_profile_uncrewed_aerial_vehicle_vision_analytics ()
 }
 debian_90_remove_deterministic_threat_detection () 
 { 
-    configure_deterministic_threat_detection;
+    configure_deterministic_threat_detection "$@";
     ensure_rm "$workspace"
 }
 debian_90_remove_handheld_multi_modal () 
 { 
-    debian_90_stop_handheld_multi_modal "$@";
+    debian_90_stop_handheld_multi_modal "$@" || true;
     local app_dir="$workspace"/handheld-multi-modal;
     [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes || true );
     ensure_rm "$workspace"
 }
 debian_90_remove_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
-    if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk)" ]; then
+    configure_uav_mission_compute_sdk "$@";
+    if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk/commit)" ]; then
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 0;
     fi;
@@ -4023,11 +4039,11 @@ debian_90_remove_uav_mission_compute_sdk ()
         echo "Mission Compute SDK source is missing; cannot stop its containers safely." 1>&2;
         return 1;
     fi;
-    cd "$sdk_path" || return $?;
-    make down || return $?;
-    ensure_prop remove started/uav_mission_compute_sdk/ || return $?;
-    ensure_rm "$workspace" || return $?;
-    ensure_prop remove installed/uav_mission_compute_sdk
+    cd "$sdk_path" && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+    } || true;
+    ensure_rm "$workspace" || return $?
 }
 debian_90_remove_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -4036,9 +4052,11 @@ debian_90_remove_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?;
-    ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
+    } || true;
+    ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/
 }
@@ -4049,9 +4067,11 @@ debian_90_remove_uncrewed_aerial_vehicle_vision_analytics ()
         echo "uncrewed_aerial_vehicle_vision_analytics is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?;
-    ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+    } || true;
+    ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uncrewed_aerial_vehicle_vision_analytics/
 }
@@ -4060,13 +4080,14 @@ debian_90_start_handheld_multi_modal ()
     configure_handheld_multi_modal "$@";
     ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     cd "$workspace"/handheld-multi-modal;
+    ensure_container_namespace start handheld_multi_modal $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true;
     make up CONFIRM=yes;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)";
     echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 debian_90_start_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     verify_uav_mission_compute_sdk || { 
         echo "uav_mission_compute_sdk is not installed or needs repair. Run install first." 1>&2;
         return 1
@@ -4076,6 +4097,7 @@ debian_90_start_uav_mission_compute_sdk ()
     if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
         ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?;
     fi;
+    ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || true;
     if make up-sim-camera; then
         :;
     else
@@ -4096,7 +4118,6 @@ debian_90_start_uav_mission_compute_sdk ()
         make down || return $?;
         return 1;
     fi;
-    ensure_prop create started/uav_mission_compute_sdk/ports || return $?;
     ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?;
     echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras";
     echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080";
@@ -4126,6 +4147,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
         read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_ground_station/ports)";
     fi;
     sed -i -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?;
+    ensure_container_namespace start uncrewed_aerial_vehicle_ground_station $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true;
     make up || return $?;
     local attempt ready=0;
     for ((attempt=0; attempt<24; attempt++))
@@ -4169,6 +4191,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
         read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)";
     fi;
     sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
+    ensure_container_namespace start uncrewed_aerial_vehicle_vision_analytics $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true;
     make pymav-up || return $?;
     local check attempt ready;
     for check in services pipelines;
@@ -4204,18 +4227,22 @@ debian_90_stop_handheld_multi_modal ()
 { 
     configure_handheld_multi_modal "$@";
     docker rm -f handheld-multi-modal-model-downloader-1 || true;
-    cd "$workspace"/handheld-multi-modal && make stop || true
+    cd "$workspace"/handheld-multi-modal && { 
+        make stop || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true
+    } || true
 }
 debian_90_stop_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     verify_uav_mission_compute_sdk || { 
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 1
     };
-    cd "$sdk_path" || return $?;
-    make down || return $?;
-    ensure_prop remove started/uav_mission_compute_sdk/
+    cd "$sdk_path" && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+    } || true
 }
 debian_90_stop_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -4224,8 +4251,10 @@ debian_90_stop_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
+    } || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/
 }
 debian_90_stop_uncrewed_aerial_vehicle_vision_analytics () 
@@ -4235,8 +4264,10 @@ debian_90_stop_uncrewed_aerial_vehicle_vision_analytics ()
         echo "uncrewed_aerial_vehicle_vision_analytics is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+    } || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/
 }
 debian_99_install_system_summary () 
@@ -4488,6 +4519,146 @@ widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0)
 for r in rows:
   print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
 ' "$sep"
+}
+ensure_container_cleanup () 
+{ 
+    local c;
+    for c in "$@";
+    do
+        case "$c" in 
+            name:*)
+                echo "Cleaning up $c..." 1>&2;
+                docker container rm -v -f ${c#name:} > /dev/null || true
+            ;;
+            vol:*)
+                echo "Cleaning up $c..." 1>&2;
+                docker volume rm -f ${c#vol:} > /dev/null || true
+            ;;
+            net:*)
+                echo "Cleaning up $c..." 1>&2;
+                docker network rm -f ${c#net:} > /dev/null || true
+            ;;
+        esac;
+    done;
+    echo "Cleaning up anonymous volumes..." 1>&2;
+    docker volume prune -f > /dev/null || true
+}
+ensure_container_namespace () 
+{ 
+    local act_name="${1:?}";
+    local name="${2:?}";
+    shift 2;
+    case "$act_name" in 
+        install)
+            ensure_prop set installed/$name/containers "$*"
+        ;;
+        start)
+            ensure_prop set started/$name/containers "$*"
+        ;;
+    esac;
+    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
+    local c stopper mname mpath;
+    for c in "$@";
+    do
+        [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
+        printf "${red}%s is in conflict${reset}\n" "$c" 1>&2;
+        for mpath in $(ensure_prop find "installed/*/containers") $(ensure_prop find "started/*/containers");
+        do
+            [[ " $(ensure_prop get "$mpath") " = *" $c "* ]] || continue;
+            mname="${mpath#*/}";
+            mname="${mname%/*}";
+            stopper="${_act_cache_functions[stop_$mname]:-}";
+            [ -n "$stopper" ] || continue;
+            printf "${red}Stopping $mname to release container %s${reset}\n" "$c" 1>&2;
+            ( set -e;
+            $stopper "$mname" -- ) 1>&2 || true;
+        done;
+        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
+        [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
+        printf "${red}%s is occupied${reset}\n%s\n" "$c" "${container_resources[*]}" 1>&2;
+        return 3;
+    done
+}
+ensure_container_parse_yaml () 
+{ 
+    python3 - "$@" <<'EOF'
+import os, re, sys, yaml
+def _any(loader, node):  # tolerate Compose !reset / !override tags
+  if isinstance(node, yaml.MappingNode):  return loader.construct_mapping(node, deep=True)
+  if isinstance(node, yaml.SequenceNode): return loader.construct_sequence(node, deep=True)
+  return loader.construct_scalar(node)
+for tag in ("!reset", "!override"):
+  yaml.SafeLoader.add_constructor(tag, _any)
+INNER = re.compile(r"\$\{([A-Za-z_]\w*)(?:(:?)([-?+])([^${}]*))?\}")
+def resolve(v):
+  if v is None: return None
+  s = str(v).replace("$$", "\0")
+  while (m := INNER.search(s)):
+    if m.group(3) != "-": return None
+    s = s[:m.start()] + m.group(4) + s[m.end():]
+  if re.search(r"\$[A-Za-z_]", s): return None
+  return s.replace("\0", "$")
+def normalize(n):
+  return re.sub(r"[^a-z0-9_-]", "", n.lower()).lstrip("_-")
+def host_ports(p):
+  if isinstance(p, int): return []                    # container-only port
+  if isinstance(p, dict):
+    port = resolve(p.get("published"))
+  else:
+    s = resolve(p)
+    if s is None: return []
+    s = s.partition("/")[0]
+    if s.startswith("["): s = s.partition("]:")[2]  # [::1]:8080:80
+    parts = s.rsplit(":", 2)
+    port = parts[-2] if len(parts) >= 2 else None
+  m = re.fullmatch(r"(\d+)(?:-(\d+))?", port or "")
+  if not m: return []
+  lo = int(m.group(1))
+  return range(lo, int(m.group(2) or lo) + 1)
+cli_project, paths = None, []
+for a in sys.argv[1:]:
+  if a.startswith("--project="): cli_project = a.split("=", 1)[1]
+  else: paths.append(a)
+services, networks, volumes, file_name = {}, {}, {}, None
+for path in paths:
+  with open(path) as f:
+    d = yaml.safe_load(f) or {}
+  file_name = d.get("name") or file_name
+  for n, s in (d.get("services") or {}).items():
+    if not isinstance(s, dict): continue
+    m = services.setdefault(n, {"ports": []})
+    for k in ("container_name", "network_mode", "networks", "scale", "deploy"):
+      if k in s: m[k] = s[k]
+    m["ports"] += s.get("ports") or []
+  for sec, tgt in (("networks", networks), ("volumes", volumes)):
+    for k, c in (d.get(sec) or {}).items():
+      tgt.setdefault(k, {}).update(c or {})
+proj = resolve(cli_project or file_name) or os.path.basename(os.path.dirname(os.path.abspath(paths[0])))
+proj = normalize(proj)
+seen = set()
+def out(kind, v):
+  if v is not None and (kind, v) not in seen:
+    seen.add((kind, v)); print(f"{kind}:{v}")
+needs_default = False
+for n, s in services.items():
+  if s.get("container_name"):
+    out("name", resolve(s["container_name"]))
+  else:
+    r = resolve(s.get("scale") or (s.get("deploy") or {}).get("replicas") or 1)
+    for i in range(1, (int(r) if str(r).isdigit() else 1) + 1):
+      out("name", f"{proj}-{n}-{i}")
+  if "network_mode" not in s and not s.get("networks"):
+    needs_default = True
+  for p in s["ports"]:
+    for port in host_ports(p):
+      out("port", port)
+if needs_default: networks.setdefault("default", {})
+for kind, table in (("net", networks), ("vol", volumes)):
+  for k, c in table.items():
+    if c.get("external"): continue                  # never ours to clean up
+    out(kind, resolve(c["name"]) if c.get("name") else f"{proj}_{k}")
+EOF
+
 }
 ensure_disk_size () 
 { 
@@ -4746,8 +4917,6 @@ ensure_ip ()
 }
 ensure_license_gate () 
 { 
-    local installer_name="${1:-openedge-cli}";
-    local history_dir="$(ensure_project_path)/$1/licenses";
     local py=$(cat <<'__LICENSE_GATE_PY__'
 import argparse, curses, hashlib, json, os, platform, re, sys, textwrap, time
 
@@ -5737,7 +5906,6 @@ class Gate(object):
 def main():
     ap = argparse.ArgumentParser(prog="license-gate", add_help=True)
     ap.add_argument("--accept-license", nargs="?", const="*", default=None)
-    ap.add_argument("--no-scroll-gate", action="store_true")
     ap.add_argument("--reset-license", "--reset-license", dest="relicense", action="store_true")
     args, _ = ap.parse_known_args()
 
@@ -5801,14 +5969,23 @@ except KeyboardInterrupt:
   sys.exit(EXIT_DECLINED)
 __LICENSE_GATE_PY__
 );
-    LICENSE_GATE_HISTORY_DIR="$history_dir" python3 -c "$py" "$@"
+    LICENSE_GATE_HISTORY_DIR="$(ensure_project_path)/${installer_name:?}/licenses" python3 -c "$py" "$@"
 }
 ensure_license_use_model () 
 { 
     local name="$1";
-    echo "@@LICENSE-ID ${name//[^A-Za-z0-9._-]/}";
-    echo "@@LICENSE-TITLE Download $name";
-    echo "By accepting, you agree to download and use the $name model in sample evaluation."
+    local url="$2";
+    cat <<EOF
+@@LICENSE-ID ${name//[^A-Za-z0-9._-]/}
+@@LICENSE-TITLE $name Model License
+
+The $name model is used in the sample application. The model is subject to its license as follows:
+
+  $url
+
+Disclaimer: by downloading and using this model, you confirm that you accept the license terms and agree to comply with any applicable model-use and privacy requirements.
+EOF
+
 }
 ensure_parse_device () 
 { 
@@ -5861,19 +6038,26 @@ ensure_ports_open ()
     local act_name="${1:?}";
     local name="${2:?}";
     shift 2;
-    if [ "$act_name" = "start" ]; then
-        ensure_prop set started/$name/ports "$*";
-    fi;
+    case "$act_name" in 
+        install)
+            ensure_prop set installed/$name/ports "$*"
+        ;;
+        start)
+            ensure_prop set started/$name/ports "$*"
+        ;;
+    esac;
     if command -v ss > /dev/null; then
-        local port out stopper mname;
+        local port out stopper mname mpath;
         for port in $*;
         do
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
-            for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
+            for mpath in $(ensure_prop find "installed/*/ports") $(ensure_prop find "started/*/ports");
             do
-                [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
+                [[ " $(ensure_prop get $mpath) " = *" $port "* ]] || continue;
+                mname="${mpath#*/}";
+                mname="${mname%/*}";
                 stopper="${_act_cache_functions[stop_$mname]:-}";
                 [ -n "$stopper" ] || continue;
                 printf "${red}Stopping $mname to release port %s${reset}\n" "$port" 1>&2;
@@ -5896,26 +6080,27 @@ ensure_project_path ()
 }
 ensure_prop () 
 { 
-    local op="$1" key_path="${2:?}" value="${3:-}";
+    local op="$1" key_rpath="${2:?}" value="${3:-}";
     local key_base="$(ensure_project_path)/${installer_name:?}";
+    local key_path="$key_base/$key_rpath";
     case "$op" in 
         find)
-            ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
+            ( cd "$key_base" && find . -ipath "./$key_rpath" -print 2> /dev/null | cut -f2- -d/ )
         ;;
         create)
-            mkdir -m 700 -p "$key_base/${key_path%/*}"
+            mkdir -m 700 -p "${key_path%/*}"
         ;;
         remove)
-            if [ -f "$key_base/$key_path" ]; then
-                rm -f "$key_base/$key_path";
+            if [ -f "$key_path" ]; then
+                rm -f "$key_path";
             else
-                if [[ "$key_path" = */ && -d "$key_base/${key_path%/}" ]]; then
-                    rm -rf "$key_base/${key_path%/}";
+                if [[ "$key_rpath" = */ && -d "${key_path%/}" ]]; then
+                    rm -rf "${key_path%/}";
                 fi;
             fi
         ;;
         get)
-            [ ! -r "$key_base/$key_path" ] || value="$(< "$key_base/$key_path")";
+            [ ! -r "$key_path" ] || value="$(< "$key_path")";
             if ensure_parse_option --boolean "$@"; then
                 [[ " true yes t y a accept " = *" ${value,,} "* ]] && value="true" || value="false";
             fi;
@@ -5941,8 +6126,11 @@ ensure_prop ()
                     value="$("$askpass_helper" "$prompt" | tr -d '\n')"
                 } 9< "$rundir";
             fi;
+            if ensure_parse_option --create "$@"; then
+                mkdir -m 700 -p "${key_path%/*}";
+            fi;
             ( umask 077;
-            printf '%s' "$value" > "$key_base/$key_path" )
+            printf '%s' "$value" > "$key_path" )
         ;;
     esac
 }
@@ -5990,7 +6178,7 @@ ensure_sbom_format ()
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url | cli-sha256)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -6005,18 +6193,27 @@ ensure_skills ()
     case "$op" in 
         add)
             local version="${2:?}";
-            local repository="${3:?}";
-            shift 3;
-            local tmpdir p name;
-            ensure_tmpdir create tmpdir skills;
-            ensure_git_export "$tmpdir" "$version" "$repository" "$@";
             mkdir -p "$HOME"/.agents/skills;
-            for p in "$@";
-            do
-                ensure_rm "$HOME/.agents/skills/${p##*/}";
-                cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
-            done;
-            ensure_tmpdir destroy "$tmpdir"
+            if [ "$version" = "--" ]; then
+                shift 2;
+                for p in "$@";
+                do
+                    ensure_rm "$HOME/.agents/skills/${p##*/}";
+                    cp -r "$p" "$HOME"/.agents/skills/;
+                done;
+            else
+                local repository="${3:?}";
+                shift 3;
+                local tmpdir p name;
+                ensure_tmpdir create tmpdir skills;
+                ensure_git_export "$tmpdir" "$version" "$repository" "$@";
+                for p in "$@";
+                do
+                    ensure_rm "$HOME/.agents/skills/${p##*/}";
+                    cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
+                done;
+                ensure_tmpdir destroy "$tmpdir";
+            fi
         ;;
         remove)
             local names=("${@##*/}");
@@ -6032,7 +6229,9 @@ ensure_sudo ()
     [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
     [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
     if [ -e /dev/tty ]; then
-        if : < /dev/tty 2> /dev/null; then
+        if { 
+            : < /dev/tty
+        } 2> /dev/null; then
             local ppid=$$;
             local pid="$(ensure_prop get pids/sudo/pid$ppid)";
             if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
@@ -6048,8 +6247,7 @@ ensure_sudo ()
                     sleep 60;
                 done;
                 ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
-                ensure_prop create pids/sudo/pid$ppid;
-                ensure_prop set pids/sudo/pid$ppid "$pid";
+                ensure_prop set pids/sudo/pid$ppid "$pid" --create;
                 disown $pid;
             fi;
         fi;
@@ -6258,7 +6456,9 @@ install_system_inspection ()
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2;
     net_pass=$ok;
     net_access="$(system_scan_check_network_access)";
-    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}";
+    [[ "$net_access" = *reachable* ]] || { 
+        [[ "$net_access" = *skewed* ]] && net_pass="${nok/MSG/Check DateTime}" || net_pass="${nok/MSG/Check Proxies}"
+    };
     echo -e "Network|$net_access|$net_pass";
     [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2;
     echo;
@@ -6414,19 +6614,23 @@ subcommand_list ()
 { 
     local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
     local module_region_list=" ${_act_cache_modules[*]/#/--} ";
-    local k v args=() mods=() cli_version="" sbom=0 margs=0;
+    local k v args=() mods=() cli_version="" sbom=0 margs=0 tc=0;
     for v in "$@";
     do
         case "$v" in 
             --help)
                 echo "list options:";
                 echo "  --cli-version <v>  save cli version in the SBOM header";
+                echo "  --test-coverage    show test coverage subset";
                 echo "  --sbom             show component SBOM items";
                 echo;
                 return 0
             ;;
             --sbom)
                 sbom=1
+            ;;
+            --test-coverage)
+                tc=1
             ;;
             --cli-version=*)
                 cli_version="${v#*=}"
@@ -6482,6 +6686,7 @@ subcommand_list ()
             if [[ "/$0" = *"/rendered/"* ]]; then
                 local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
                 ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
+                ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')";
             fi;
         fi;
         ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
@@ -6496,77 +6701,179 @@ subcommand_list ()
             echo "---";
         done;
     else
-        local all_cmds=(${_act_cache_cmds[*]});
-        local profile_lines=() module_lines=();
-        local -A module_act_cache=();
-        local all_modules=(${_act_cache_modules[*]});
-        if [ ${#all_modules[@]} -gt 0 ]; then
-            local module_name;
-            for module_name in "${all_modules[@]}";
+        if [ $tc -eq 1 ]; then
+            if declare -F configure_edge_pack_kernel_image > /dev/null; then
+                configure_edge_pack_kernel_image $(act_extract_args install edge_pack_kernel_image "" "$@") > /dev/null 2>&1 || true;
+                set -- "$@" --edge_pack_kernel_image --version="$version";
+            fi;
+            local -A closure=() size=() target=() covered=();
+            local c h m candidates=();
+            for c in "${mods[@]}";
             do
-                [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
-                local module_cmds=() mname cmd;
-                for cmd in ${all_cmds[*]};
+                local comps=();
+                for h in $(act_find_deps install "$c" $(act_extract_args install "$c" "" "$@"));
                 do
-                    for mname in $(act_expand_modules $cmd $module_name "$@");
-                    do
-                        if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-                            module_cmds+=($cmd);
-                            break;
-                        fi;
-                    done;
+                    comps+=("${h#${installer_family}_*_install_}");
                 done;
-                module_act_cache[$module_name]="${module_cmds[*]}";
-                module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
-            done;
-        fi;
-        act_get prefix profile_;
-        local all_profiles=(${_act_reply[*]});
-        if [ ${#all_profiles[@]} -gt 0 ]; then
-            local profiler;
-            for profiler in "${all_profiles[@]}";
-            do
-                local profile_name=${profiler#*_*_*_};
-                [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
-                [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
-                local profile_cmds=() mname1 mname2 cmd found;
-                for cmd in ${all_cmds[*]};
+                [ ${#comps[@]} -gt 0 ] || continue;
+                closure[$c]=" ${comps[*]} ";
+                size[$c]=${#comps[@]};
+                candidates+=("$c");
+                for m in "${comps[@]}";
                 do
-                    for mname1 in $($profiler $cmd "$@");
+                    target[$m]=1;
+                done;
+            done;
+            if [ ${#target[@]} -eq 0 ]; then
+                echo "No installable components" 1>&2;
+                return 3;
+            fi;
+            local picked=() best best_gain best_size gain left=${#target[@]};
+            while [ $left -gt 0 ]; do
+                best="" best_gain=0 best_size=0;
+                for c in $(printf '%s\n' "${candidates[@]}" | LC_ALL=C.UTF-8 sort);
+                do
+                    [[ " ${picked[*]} " != *" $c "* ]] || continue;
+                    gain=0;
+                    for m in ${closure[$c]};
                     do
-                        if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-                            profile_cmds+=($cmd);
-                            break;
-                        fi;
-                        found=0;
-                        for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                        [ -n "${covered[$m]:-}" ] || gain=$((gain+1));
+                    done;
+                    if [ $gain -gt $best_gain ] || { 
+                        [ $gain -eq $best_gain ] && [ $gain -gt 0 ] && [ ${size[$c]} -lt $best_size ]
+                    }; then
+                        best=$c best_gain=$gain best_size=${size[$c]};
+                    fi;
+                done;
+                [ -n "$best" ] || break;
+                picked+=("$best");
+                for m in ${closure[$best]};
+                do
+                    [ -n "${covered[$m]:-}" ] || { 
+                        covered[$m]=1;
+                        left=$((left-1))
+                    };
+                done;
+            done;
+            local -A cnt=();
+            for c in "${picked[@]}";
+            do
+                for m in ${closure[$c]};
+                do
+                    cnt[$m]=$(( ${cnt[$m]:-0} + 1 ));
+                done;
+            done;
+            local final=() redundant;
+            for c in $(for c in "${picked[@]}";
+do
+    echo "${size[$c]} $c";
+done | sort -rn | cut -f2 -d' ');
+            do
+                redundant=1;
+                for m in ${closure[$c]};
+                do
+                    [ ${cnt[$m]} -gt 1 ] || { 
+                        redundant=0;
+                        break
+                    };
+                done;
+                if [ $redundant -eq 1 ]; then
+                    for m in ${closure[$c]};
+                    do
+                        cnt[$m]=$(( cnt[$m] - 1 ));
+                    done;
+                else
+                    final+=("$c");
+                fi;
+            done;
+            local -A shown=();
+            { 
+                for c in "${final[@]}";
+                do
+                    local adds=();
+                    for m in ${closure[$c]};
+                    do
+                        [ -n "${shown[$m]:-}" ] || { 
+                            shown[$m]=1;
+                            adds+=("$m")
+                        };
+                    done;
+                    printf "|%s|+%d|[%s]\n" "$c" ${#adds[@]} "${adds[*]}";
+                done
+            } | ensure_columns;
+        else
+            local all_cmds=(${_act_cache_cmds[*]});
+            local profile_lines=() module_lines=();
+            local -A module_act_cache=();
+            local all_modules=(${_act_cache_modules[*]});
+            if [ ${#all_modules[@]} -gt 0 ]; then
+                local module_name;
+                for module_name in "${all_modules[@]}";
+                do
+                    [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
+                    local module_cmds=() mname cmd;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname in $(act_expand_modules $cmd $module_name "$@");
                         do
-                            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-                                found=1;
+                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                                module_cmds+=($cmd);
                                 break;
                             fi;
                         done;
-                        if [ $found -eq 1 ]; then
-                            profile_cmds+=($cmd);
-                            break;
-                        fi;
                     done;
+                    module_act_cache[$module_name]="${module_cmds[*]}";
+                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
                 done;
-                profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
-            done;
-        fi;
-        { 
-            if [ ${#profile_lines[@]} -gt 0 ]; then
-                printf "List of Profiles:\n";
-                printf "%s\n" "${profile_lines[@]}" | sort;
-                printf "\n";
             fi;
-            if [ ${#module_lines[@]} -gt 0 ]; then
-                printf "List of Components:\n";
-                printf "%s\n" "${module_lines[@]}" | sort;
-                printf "\n";
-            fi
-        } | ensure_columns;
+            act_get prefix profile_;
+            local all_profiles=(${_act_reply[*]});
+            if [ ${#all_profiles[@]} -gt 0 ]; then
+                local profiler;
+                for profiler in "${all_profiles[@]}";
+                do
+                    local profile_name=${profiler#*_*_*_};
+                    [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
+                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                    local profile_cmds=() mname1 mname2 cmd found;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname1 in $($profiler $cmd "$@");
+                        do
+                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                            found=0;
+                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                            do
+                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                    found=1;
+                                    break;
+                                fi;
+                            done;
+                            if [ $found -eq 1 ]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
+                    done;
+                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+                done;
+            fi;
+            { 
+                if [ ${#profile_lines[@]} -gt 0 ]; then
+                    printf "List of Profiles:\n";
+                    printf "%s\n" "${profile_lines[@]}" | sort;
+                    printf "\n";
+                fi;
+                if [ ${#module_lines[@]} -gt 0 ]; then
+                    printf "List of Components:\n";
+                    printf "%s\n" "${module_lines[@]}" | sort;
+                    printf "\n";
+                fi
+            } | ensure_columns;
+        fi;
     fi
 }
 subcommand_remove () 
@@ -6759,7 +7066,7 @@ system_scan_check_network_access ()
     for url in "${check_urls[@]}";
     do
         curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { 
-            echo "$url by $(id -un)";
+            [[ "$url" = https://* ]] && curl -k -fsSL --connect-timeout 10 $url > /dev/null && echo "Clock skewed" || echo "$url by $(id -un)";
             return 0
         };
     done;
@@ -6882,7 +7189,7 @@ verify_system_info ()
 verify_uav_mission_compute_sdk () 
 { 
     local installed_commit;
-    installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk)" || return $?;
+    installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk/commit)" || return $?;
     [ -r "$sdk_path/Makefile" ] && [ -r "$sdk_path/.env" ] && [ -n "$installed_commit" ] && [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" = "$installed_commit" ]
 }
 verify_uav_mission_compute_sdk_running () 

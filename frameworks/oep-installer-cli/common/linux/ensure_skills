@@ -1,5 +1,6 @@
 
 # add version repository skillpath ...
+# add -- skillpath ...  # local skills
 # remove skillname ...
 ensure_skills () {
   local op="$1"
@@ -7,18 +8,25 @@ ensure_skills () {
   case "$op" in
   add)
     local version="${2:?}"
-    local repository="${3:?}"
-    shift 3
-
-    local tmpdir p name
-    ensure_tmpdir create tmpdir skills
-    ensure_git_export "$tmpdir" "$version" "$repository" "$@"
     mkdir -p "$HOME"/.agents/skills
-    for p in "$@"; do
-      ensure_rm "$HOME/.agents/skills/${p##*/}"
-      cp -r "$tmpdir/$p" "$HOME"/.agents/skills
-    done
-    ensure_tmpdir destroy "$tmpdir"
+    if [ "$version" = "--" ]; then
+      shift 2
+      for p in "$@"; do
+        ensure_rm "$HOME/.agents/skills/${p##*/}"
+        cp -r "$p" "$HOME"/.agents/skills/
+      done
+    else
+      local repository="${3:?}"
+      shift 3
+      local tmpdir p name
+      ensure_tmpdir create tmpdir skills
+      ensure_git_export "$tmpdir" "$version" "$repository" "$@"
+      for p in "$@"; do
+        ensure_rm "$HOME/.agents/skills/${p##*/}"
+        cp -r "$tmpdir/$p" "$HOME"/.agents/skills
+      done
+      ensure_tmpdir destroy "$tmpdir"
+    fi
     ;;
   remove)
     local names=("${@##*/}")

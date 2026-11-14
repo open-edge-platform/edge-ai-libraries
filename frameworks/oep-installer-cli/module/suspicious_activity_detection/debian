@@ -23,7 +23,7 @@ verify_suspicious_activity_detection () {
 }
 
 debian_90_profile_suspicious_activity_detection () {
-  echo "docker_io edge_base git make curl"
+  echo "docker_io edge_base git make curl python3_venv"
 }
 
 debian_90_install_suspicious_activity_detection () {
@@ -63,6 +63,7 @@ debian_90_install_suspicious_activity_detection () {
 debian_90_start_suspicious_activity_detection () {
   configure_suspicious_activity_detection "$@"
   ensure_ports_open start suspicious_activity_detection "${used_ports[@]}"
+  ensure_container_namespace start suspicious_activity_detection $(ensure_container_parse_yaml "$workspace"/suspicious-activity-detection/docker/*.yaml)
 
   local device="$(ensure_parse_device "$@")"
   [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)"
@@ -88,7 +89,8 @@ debian_90_stop_suspicious_activity_detection () {
   configure_suspicious_activity_detection "$@"
   cd "$workspace"/suspicious-activity-detection && {
     make down || true
-    make clean-all
+    make clean-all || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
   } || true
 }
 

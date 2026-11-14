@@ -47,10 +47,46 @@ export const handleAsyncJobError = (
 };
 
 export const handleApiError = (error: unknown, title: string) => {
-  const errorMessage = isApiError(error) ? error.data.message : "Unknown error";
+  const errorMessage = getErrorMessage(error, "Unknown error");
   toast.error(title, {
     description: errorMessage,
   });
 
   return errorMessage;
+};
+
+export const getErrorMessage = (
+  error: unknown,
+  defaultMessage: string = "Unknown error",
+): string => {
+  if (error == null) return defaultMessage;
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message || defaultMessage;
+  if (isApiError(error)) return error.data.message || defaultMessage;
+
+  if (typeof error === "object") {
+    if ("message" in error && typeof error.message === "string") {
+      return error.message || defaultMessage;
+    }
+
+    if ("detail" in error) {
+      const detail = error.detail;
+      if (typeof detail === "string") return detail || defaultMessage;
+      if (Array.isArray(detail)) {
+        return formatErrorMessage(detail, defaultMessage);
+      }
+    }
+
+    if ("data" in error && typeof error.data === "string") {
+      return error.data || defaultMessage;
+    }
+
+    try {
+      return JSON.stringify(error) ?? defaultMessage;
+    } catch {
+      return defaultMessage;
+    }
+  }
+
+  return String(error) || defaultMessage;
 };

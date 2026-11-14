@@ -577,12 +577,15 @@ class InternalExecutionConfig:
             DLSPS 2.0 exports to metrics-manager, if the server runs the
             DLStreamer `latency_tracer` (see ``dlsps2_latency_configured``).
             Defaults to False (no latency samples read).
+        pinned_cpu_cores: Logical CPU ids the pipeline is pinned to on
+            DLSPS 2.0. Empty (default) means no pinning.
     """
 
     output_mode: InternalOutputMode
     max_runtime: float
     metadata_mode: InternalMetadataMode
     enable_latency_metrics: bool = False
+    pinned_cpu_cores: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -1194,7 +1197,7 @@ class InternalSupportedModel:
     Attributes:
         name: Unique internal identifier of the model.
         display_name: Human-readable name shown in the UI.
-        category: Model category (classification/detection/genai).
+        category: Model category (classification/detection/genai/voice).
         source: Origin hub of the model (huggingface, ultralytics, ...).
         precisions: Internal precision records (with filesystem paths)
             used by the install-status / registry logic. **Not exposed
@@ -1211,9 +1214,9 @@ class InternalSupportedModel:
         unsupported_devices: Comma-separated string of devices on which
             the model cannot run (e.g. "NPU"). ``None`` when no
             restrictions exist.
-        download_request: Body fragment (or full body) to POST to the
-            model-download microservice in order to install this model.
-            ``None`` when no automated download is wired up yet.
+        download_request: Body fragment to POST to the model-download
+            microservice in order to install this model. ``None`` when no
+            automated download is wired up yet.
         description: Human-readable explanation of what the model
             detects/classifies. ``None`` when not provided in the YAML.
         link: URL of the model page on its upstream hub (currently only
@@ -1285,7 +1288,7 @@ class InternalModelDownloadJobStatus:
     Internal state of a single model download job.
 
     Mirrors the optimization/validation job pattern: no cancellation, jobs
-    live in memory only. ``external_job_ids`` is kept internal and is not
+    live in memory only. ``external_job_id`` is kept internal and is not
     exposed by the API.
 
     Attributes:
@@ -1301,8 +1304,8 @@ class InternalModelDownloadJobStatus:
             (or by the local OMZ downloader).
         model_path: Absolute filesystem path to the installed model,
             populated only when the job completes successfully.
-        external_job_ids: Job ids returned by the model-download
-            microservice; not exposed via the API (internal only).
+        external_job_id: Job id returned by the model-download microservice;
+            not exposed via the API (internal only).
     """
 
     id: str
@@ -1314,7 +1317,7 @@ class InternalModelDownloadJobStatus:
     details: list[str] = field(default_factory=list)
     progress_message: str | None = None
     model_path: str | None = None
-    external_job_ids: list[str] = field(default_factory=list)
+    external_job_id: str | None = None
 
 
 @dataclass

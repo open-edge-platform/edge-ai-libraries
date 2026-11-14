@@ -53,8 +53,8 @@ services:
       - no_proxy=${no_proxy:-}
     restart: unless-stopped
     healthcheck:
-      # Probe the address the router actually binds to (IR_BIND_HOST). In UI
-      # mode deploy_docker.sh binds it to the host LAN IP so the UI can reach it.
+      # Probe the address the router actually binds to (IR_BIND_HOST): loopback
+      # by default, or the interface the operator exported.
       test:
         [
           "CMD",

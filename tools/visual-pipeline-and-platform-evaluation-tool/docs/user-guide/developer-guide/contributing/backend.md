@@ -53,7 +53,7 @@ vippet/
 ├── benchmark.py          # Density benchmarking
 ├── video_encoder.py      # Encoding / live-streaming sub-pipelines
 ├── video_decoder.py      # Decoder selection / caps building
-├── device.py             # OpenVINO device detection (CPU/GPU/NPU)
+├── device.py             # Device list (CPU/GPU/NPU) from DLSPS 2.0
 ├── cpu_topology.py       # CPU core types (P/E/LPE) from Linux sysfs
 ├── videos.py             # Input/output video management
 ├── images.py             # Image set management
@@ -78,10 +78,12 @@ A few invariants worth knowing:
   the container context (`PYTHONPATH=/app`). Tests run inside the same image.
 - GStreamer pipelines are **not** executed in-process. `dlsps2_runner.py`
   sends every pipeline to DL Streamer Pipeline Server 2.0 over REST, one
-  server instance per stream. Device detection and the DL Streamer pipeline
-  optimizer still run in the `vippet` process.
-- OpenVINO™ device detection (`device.py`) happens at startup and drives
-  which hardware profile (`cpu`, `gpu`, `npu`) is selected at compose time.
+  server instance per stream. The DL Streamer pipeline optimizer still runs
+  in the `vippet` process.
+- `setup_env.sh` selects the Compose hardware profile (`cpu`, `gpu`, `npu`, `gpu-wsl`).
+  `device.py` reads the available inference devices from the server's
+  `GET /devices` on first use and caches them; they determine the devices
+  listed by the API and the pipeline variants loaded at startup.
 - The model catalog (`vippet/models/*.yaml`, one file per model) is copied
   into the image at build time, not runtime-mounted. `db_seed.py` syncs it
   into the `models`/`model_variants` DB tables at startup, insert-only:
@@ -92,16 +94,16 @@ A few invariants worth knowing:
 
 ## Tech stack
 
-| Layer            | Technology                                          |
-| ---------------- | --------------------------------------------------- |
-| Language         | Python 3.12                                         |
-| Web framework    | FastAPI + uvicorn                                   |
-| Validation       | Pydantic v2                                         |
-| AI inference     | OpenVINO™ 2025.x, DL Streamer 2026.x, GStreamer 1.0 |
-| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol      |
-| Containerization | Docker Compose (profiles: `cpu`, `gpu`, `npu`)      |
-| Lint / type      | ruff, pyright (strict)                              |
-| Tests            | unittest + coverage (unit), pytest (functional)     |
+| Layer            | Technology                                           |
+| ---------------- | ---------------------------------------------------- |
+| Language         | Python 3.12                                          |
+| Web framework    | FastAPI + uvicorn                                    |
+| Validation       | Pydantic v2                                          |
+| AI inference     | OpenVINO™ 2025.x, DL Streamer 2026.x, GStreamer 1.0  |
+| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol       |
+| Containerization | Docker Compose                                       |
+| Lint / type      | ruff, pyright (strict)                               |
+| Tests            | unittest + coverage (unit), pytest (functional)      |
 
 ## Local development loop
 

@@ -43,14 +43,16 @@ Latency and VLM metrics come from the server's OpenTelemetry export to `metrics-
 folder and read back by `vippet/pipeline_events.py`. `vippet/pipeline_runner.py` holds the result types shared
 by both modules.
 
-Device discovery (`vippet/device.py`) and the DL Streamer pipeline optimizer still run in the backend process.
+The device list (`vippet/device.py`) is read from the server's `GET /devices`, so it shows the devices pipelines
+actually run on. The DL Streamer pipeline optimizer still runs in the backend process.
 
 ### Docker Compose with Hardware Profiles
 
 The backend ships as a container and is composed with sibling services (`vippet-ui`,
-`dlstreamer-pipeline-server`, `mediamtx`, `model-download`, `metrics-manager`, `sensor-manager`) via Docker
-Compose. Hardware capabilities are selected through
-`COMPOSE_PROFILES` (`cpu`, `gpu`, `npu`), which is auto-detected by `setup_env.sh`.
+`dlstreamer-pipeline-server`, `mediamtx`, `model-download`, `metrics-manager`, `sensor-manager`,
+`audio-analyzer`, and `text-to-speech`) via Docker Compose. Hardware capabilities are selected through
+`COMPOSE_PROFILES` (`cpu`, `gpu`, `npu`, `gpu-wsl`), which is auto-detected by `setup_env.sh`.
+The WSL profile exposes `/dev/dxg` and read-only `/usr/lib/wsl` libraries instead of native DRM devices.
 
 ### Developer Tooling
 

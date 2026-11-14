@@ -4,13 +4,13 @@ configure_uav_mission_compute_sdk () {
   source_path="$workspace/source"
   sdk_path="$source_path/uav-mission-compute-sdk"
   repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
-  version="main"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
 }
 
 verify_uav_mission_compute_sdk () {
   local installed_commit
-  installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk)" || return $?
+  installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk/commit)" || return $?
   [ -r "$sdk_path/Makefile" ] &&
     [ -r "$sdk_path/.env" ] &&
     [ -n "$installed_commit" ] &&
@@ -63,7 +63,7 @@ debian_90_profile_uav_mission_compute_sdk () {
 }
 
 debian_90_install_uav_mission_compute_sdk () {
-  configure_uav_mission_compute_sdk
+  configure_uav_mission_compute_sdk "$@"
   if verify_uav_mission_compute_sdk && ! ensure_parse_reinstall "$@"; then
     echo "uav_mission_compute_sdk is installed." >&2
   else
@@ -85,7 +85,7 @@ debian_90_install_uav_mission_compute_sdk () {
       echo "Mission Compute SDK initialization did not produce the expected source and .env." >&2
       return 1
     fi
-    ensure_prop set installed/uav_mission_compute_sdk "$source_commit" || return $?
+    ensure_prop set installed/uav_mission_compute_sdk/commit "$source_commit" || return $?
     verify_uav_mission_compute_sdk || return $?
   fi
 
@@ -94,7 +94,7 @@ debian_90_install_uav_mission_compute_sdk () {
 }
 
 debian_90_start_uav_mission_compute_sdk () {
-  configure_uav_mission_compute_sdk
+  configure_uav_mission_compute_sdk "$@"
   verify_uav_mission_compute_sdk || {
     echo "uav_mission_compute_sdk is not installed or needs repair. Run install first." >&2
     return 1
@@ -104,6 +104,7 @@ debian_90_start_uav_mission_compute_sdk () {
   if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
     ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?
   fi
+  ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || true
   if make up-sim-camera; then
     :
   else
@@ -123,7 +124,6 @@ debian_90_start_uav_mission_compute_sdk () {
     make down || return $?
     return 1
   fi
-  ensure_prop create started/uav_mission_compute_sdk/ports || return $?
   ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?
   echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras"
   echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080"
@@ -131,19 +131,20 @@ debian_90_start_uav_mission_compute_sdk () {
 }
 
 debian_90_stop_uav_mission_compute_sdk () {
-  configure_uav_mission_compute_sdk
+  configure_uav_mission_compute_sdk "$@"
   verify_uav_mission_compute_sdk || {
     echo "uav_mission_compute_sdk is not installed." >&2
     return 1
   }
-  cd "$sdk_path" || return $?
-  make down || return $?
-  ensure_prop remove started/uav_mission_compute_sdk/
+  cd "$sdk_path" && {
+    make down || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+  } || true
 }
 
 debian_90_remove_uav_mission_compute_sdk () {
-  configure_uav_mission_compute_sdk
-  if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk)" ]; then
+  configure_uav_mission_compute_sdk "$@"
+  if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk/commit)" ]; then
     echo "uav_mission_compute_sdk is not installed." >&2
     return 0
   fi
@@ -151,9 +152,9 @@ debian_90_remove_uav_mission_compute_sdk () {
     echo "Mission Compute SDK source is missing; cannot stop its containers safely." >&2
     return 1
   fi
-  cd "$sdk_path" || return $?
-  make down || return $?
-  ensure_prop remove started/uav_mission_compute_sdk/ || return $?
+  cd "$sdk_path" && {
+    make down || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+  } || true
   ensure_rm "$workspace" || return $?
-  ensure_prop remove installed/uav_mission_compute_sdk
 }

@@ -524,7 +524,11 @@ class TestsManager:
         Raises:
             ValueError: If output_mode=file is combined with max_runtime>0.
             ValueError: If output_mode=live_stream is used for density tests.
+            ValueError: If pinned_cpu_cores references a CPU this service
+                cannot run on.
         """
+        self._validate_pinned_cpu_cores(execution_config.pinned_cpu_cores)
+
         if (
             execution_config.output_mode == InternalOutputMode.FILE
             and execution_config.max_runtime > 0
@@ -551,6 +555,33 @@ class TestsManager:
             raise ValueError(
                 "Density tests do not support metadata output. "
                 "Set metadata_mode to 'disabled' for density tests."
+            )
+
+    @staticmethod
+    def _validate_pinned_cpu_cores(pinned_cpu_cores: list[int]) -> None:
+        """
+        Validate that every requested logical CPU id is usable by this service.
+
+        The check uses the affinity mask of the ViPPET process, which already
+        reflects any cgroup/cpuset restriction applied to the container.
+        DLSPS 2.0 would reject such ids too, but only after the job started.
+
+        Args:
+            pinned_cpu_cores: Logical CPU ids requested by the client.
+
+        Raises:
+            ValueError: If any requested CPU id is not available.
+        """
+        if not pinned_cpu_cores:
+            return
+
+        available = os.sched_getaffinity(0)
+        unavailable = sorted(set(pinned_cpu_cores) - available)
+        if unavailable:
+            raise ValueError(
+                f"Invalid execution_config: pinned_cpu_cores contains CPU ids "
+                f"that are not available to this service: {unavailable}. "
+                f"Available CPU ids: {sorted(available)}."
             )
 
     def _get_usb_camera_devices(self, pipeline_graph: Graph) -> list[str]:
@@ -787,6 +818,7 @@ class TestsManager:
                 enable_latency_metrics=enable_latency_metrics,
                 job_id=job_id,
                 on_event=lambda event: self._record_pipeline_event(job_id, event),
+                pinned_cpu_cores=internal_spec.execution_config.pinned_cpu_cores,
             )
 
             # Store runner for this job so it can be cancelled via stop_job()
@@ -1010,6 +1042,7 @@ class TestsManager:
                 max_runtime=internal_spec.execution_config.max_runtime,
                 enable_latency_metrics=enable_latency_metrics,
                 job_id=job_id,
+                pinned_cpu_cores=internal_spec.execution_config.pinned_cpu_cores,
             )
 
             # Store benchmark runner for this job so that a future extension could cancel it.

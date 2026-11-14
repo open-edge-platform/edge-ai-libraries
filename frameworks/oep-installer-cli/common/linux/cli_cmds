@@ -94,18 +94,22 @@ subcommand_stop () {
 subcommand_list () {
   local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} "
   local module_region_list=" ${_act_cache_modules[*]/#/--} "
-  local k v args=() mods=() cli_version="" sbom=0 margs=0
+  local k v args=() mods=() cli_version="" sbom=0 margs=0 tc=0
   for v in "$@"; do
     case "$v" in
     --help)
       echo "list options:"
       echo "  --cli-version <v>  save cli version in the SBOM header"
+      echo "  --test-coverage    show test coverage subset"
       echo "  --sbom             show component SBOM items"
       echo
       return 0
       ;;
     --sbom)
       sbom=1
+      ;;
+    --test-coverage)
+      tc=1
       ;;
     --cli-version=*)
       cli_version="${v#*=}" 
@@ -156,6 +160,7 @@ subcommand_list () {
       if [[ "/$0" = *"/rendered/"* ]]; then
         local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')"
         ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}"
+        ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')"
       fi
     fi
     ensure_sbom_format install-cmdline $installer_name install "${args[@]}"
@@ -170,7 +175,86 @@ subcommand_list () {
       echo "---"
     done
 
+  elif [ $tc -eq 1 ]; then
+
+    # warm up
+    if declare -F configure_edge_pack_kernel_image > /dev/null; then
+      configure_edge_pack_kernel_image $(act_extract_args install edge_pack_kernel_image "" "$@") > /dev/null 2>&1 || true
+      set -- "$@" --edge_pack_kernel_image --version="$version"
+    fi
+
+    local -A closure=() size=() target=() covered=()
+    local c h m candidates=()
+  
+    # closure of each candidate
+    for c in "${mods[@]}"; do
+      local comps=()
+      for h in $(act_find_deps install "$c" $(act_extract_args install "$c" "" "$@")); do
+        comps+=("${h#${installer_family}_*_install_}")
+      done
+      [ ${#comps[@]} -gt 0 ] || continue
+      closure[$c]=" ${comps[*]} "
+      size[$c]=${#comps[@]}
+      candidates+=("$c")
+      for m in "${comps[@]}"; do target[$m]=1; done
+    done
+  
+    if [ ${#target[@]} -eq 0 ]; then
+      echo "No installable components" >&2
+      return 3
+    fi
+  
+    # greedy set cover
+    local picked=() best best_gain best_size gain left=${#target[@]}
+    while [ $left -gt 0 ]; do
+      best="" best_gain=0 best_size=0
+      for c in $(printf '%s\n' "${candidates[@]}" | LC_ALL=C.UTF-8 sort); do
+        [[ " ${picked[*]} " != *" $c "* ]] || continue
+        gain=0
+        for m in ${closure[$c]}; do
+          [ -n "${covered[$m]:-}" ] || gain=$((gain+1))
+        done
+        if [ $gain -gt $best_gain ] || { [ $gain -eq $best_gain ] && [ $gain -gt 0 ] && [ ${size[$c]} -lt $best_size ]; }; then
+          best=$c best_gain=$gain best_size=${size[$c]}
+        fi
+      done
+      [ -n "$best" ] || break
+      picked+=("$best")
+      for m in ${closure[$best]}; do
+        [ -n "${covered[$m]:-}" ] || { covered[$m]=1; left=$((left-1)); }
+      done
+    done
+  
+    # prune redundant picks (largest first)
+    local -A cnt=()
+    for c in "${picked[@]}"; do
+      for m in ${closure[$c]}; do cnt[$m]=$(( ${cnt[$m]:-0} + 1 )); done
+    done
+    local final=() redundant
+    for c in $(for c in "${picked[@]}"; do echo "${size[$c]} $c"; done | sort -rn | cut -f2 -d' '); do
+      redundant=1
+      for m in ${closure[$c]}; do [ ${cnt[$m]} -gt 1 ] || { redundant=0; break; }; done
+      if [ $redundant -eq 1 ]; then
+        for m in ${closure[$c]}; do cnt[$m]=$(( cnt[$m] - 1 )); done
+      else
+        final+=("$c")
+      fi
+    done
+  
+    # report
+    local -A shown=()
+    {
+      for c in "${final[@]}"; do
+        local adds=()
+        for m in ${closure[$c]}; do
+          [ -n "${shown[$m]:-}" ] || { shown[$m]=1; adds+=("$m"); }
+        done
+        printf "|%s|+%d|[%s]\n" "$c" ${#adds[@]} "${adds[*]}"
+      done
+    } | ensure_columns
+
   else
+
     local all_cmds=(${_act_cache_cmds[*]})
     local profile_lines=() module_lines=()
 

@@ -70,7 +70,7 @@ main () {
         _rc=$?
       else
         # save args for resume
-        ensure_prop set command "$*"
+        ensure_prop set command "$*" --create
 
         # critical group permissions
         local -A _groups=()
@@ -313,7 +313,6 @@ act_helper ()
     ;;
 esac);
     set -- $(act_resolve_args $act_name "$@");
-    local implicit_mods=($(act_extract_modules $act_name "$@"));
     local handles=($(act_find_deps $act_name "$@" | tr ' ' '\n' | sort $sort_options));
     if [ ${#handles[@]} -gt 0 ]; then
         if [ "$act_name" = "install" ]; then
@@ -342,7 +341,7 @@ esac);
                 do
                     echo "${licenses_text[$id1]}";
                     echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")";
-                done | ensure_license_gate $installer_name "$@";
+                done | ensure_license_gate "$@";
                 rc=$?;
                 if [ $rc -eq 1 ]; then
                     echo "License declined";
@@ -366,7 +365,13 @@ esac);
         export _INSTALLER_PANEL_ACTIVE=;
         [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
         { 
-            local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && echo "${implicit_mods[*]}" || echo "${handles[*]#*_*_*_}")) _pair _h _m;
+            local modules=($(all_modules_str="${handles[*]#*_*_*_}"
+[[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && ( local rmods=()
+for m in $(act_extract_modules $act_name "$@");
+do
+    [[ " $all_modules_str " != *" $m "* ]] || rmods+=("$m");
+done
+[ ${#rmods[*]} -gt 0 ] && echo "${rmods[*]}" || echo "${handles[0]#*_*_*_}" ) || echo "$all_modules_str")) _pair _h _m;
             for handler in ${handles[*]};
             do
                 name1=${handler#*_*_*_};
@@ -2096,7 +2101,7 @@ act_panelled_logs_askpass ()
 if [ -n "$ASKPASS_ENV" ]; then
   printf '%s\n' "$ASKPASS_ENV"
 elif [ -e /dev/tty ]; then
-  exec 8<>/dev/tty 2>/dev/null || exit 1
+  { exec 8<>/dev/tty; } 2>/dev/null || exit 1
   rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
   saved=$(stty -g <&8) || exit 1
   # restore tty and clear the prompt row (cleanup only)
@@ -2224,7 +2229,7 @@ act_validate_modules ()
 configure_agentic_predictive_maintenance_pipeline () 
 { 
     workspace="$(ensure_project_path)/agentic-predictive-maintenance-pipeline";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/metro-ai-suite.git;
     used_ports=(8080 8010 8554 8200 9091 9090);
     models=(Qwen/Qwen2.5-1.5B-Instruct microsoft/Phi-4-mini-instruct)
@@ -2241,7 +2246,7 @@ configure_agentic_predictive_maintenance_pipeline_device ()
 configure_agentic_smart_community () 
 { 
     workspace="$(ensure_project_path)/agentic-smart-community";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(3100 3101 41091 8192 8999);
     mlvu_workspace="$workspace/agentic-smart-community/.external/edge-ai-libraries";
@@ -2258,10 +2263,8 @@ configure_agentic_smart_community ()
 configure_anomalib () 
 { 
     workspace="$(ensure_project_path)/anomalib";
-    version=2.7.0;
+    version="$(ensure_parse_value_option version --version=2.7.0 "$@")";
     repository=https://github.com/open-edge-platform/anomalib.git;
-    version_skills=release-2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/anomalib.git;
     skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }
 configure_autonomous_mobile_robot () 
@@ -2314,14 +2317,14 @@ configure_cdi ()
 configure_deterministic_threat_detection () 
 { 
     workspace="$(ensure_project_path)/federal-and-aerospace-ai-suite";
-    version="main";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
     application="$workspace/deterministic-threat-detection"
 }
 configure_digital_signage () 
 { 
     workspace="$(ensure_project_path)/digital-signage";
-    version="$(ensure_parse_value_option version --version=e7f233673950bc2ab8c5caf47efeb6067c15c836 "$@")";
+    version="$(ensure_parse_value_option version --version=0325809a172bf47865ce9727a5187780880ee3d1 "$@")";
     repository="https://github.com/intel-retail/digital-signage.git";
     used_ports=(5000 8000 3478)
 }
@@ -2351,17 +2354,15 @@ configure_dlstreamer ()
     key_file=/usr/share/keyrings/dls-archive-keyring.gpg;
     deb_entry="deb [signed-by=$key_file] https://$repo_name/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main";
     list_file=/etc/apt/sources.list.d/intel-dlstreamer.list;
-    repository=https://github.com/open-edge-platform/dlstreamer;
+    repository=https://github.com/open-edge-platform/dlstreamer.git;
     workspace="$(ensure_project_path)/dlstreamer";
     version="$(ensure_parse_value_option version --version=2026.2.0 "$@")";
+    skills=(dlstreamer-coding-agent);
     od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
     od_model_proc=yolov5m-640_INT8/yolo-v5;
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
-    allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium);
-    version_skills="release-${version%-rc*}";
-    repository_skills=https://github.com/open-edge-platform/skills.git;
-    skills=(dlstreamer-coding-agent)
+    allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium)
 }
 configure_docker () 
 { 
@@ -2458,10 +2459,12 @@ configure_edge_pack_ipu ()
 configure_edge_pack_kernel_image () 
 { 
     cmdline=(xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192);
+    version="$(ensure_parse_value_option version "$@")";
+    [ -z "$version" ] || return 0;
     local kver="$(uname -r)" incompatibles=(7.0.0-14-generic);
     case "$ID$VERSION_ID" in 
         ubuntu24.04 | ubuntu26.04)
-            if [[ "$kver" = "7.0.0-"* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
+            if [[ "$kver" = "7.0."* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
                 version="$kver";
             else
                 version="$(set -o pipefail; apt-cache depends linux-image-generic-hwe-$VERSION_ID 2> /dev/null | sed -n '/.*Depends: *linux-image-/{s///;p;q}' || echo 7.0.0-42-generic)";
@@ -2471,8 +2474,7 @@ configure_edge_pack_kernel_image ()
             echo "$ID $VERSION_ID not supported" 1>&2;
             return 1
         ;;
-    esac;
-    version="$(ensure_parse_value_option version --version="$version" "$@")"
+    esac
 }
 configure_edge_pack_manageability () 
 { 
@@ -2517,7 +2519,7 @@ configure_edge_pack_tsn ()
 configure_esq () 
 { 
     workspace="$(ensure_project_path)/esq";
-    version=main;
+    version="$(ensure_parse_value_option version --version=main "$@")";
     repository=https://github.com/open-edge-platform/edge-system-qualification.git
 }
 configure_esq_debugfs () 
@@ -2613,10 +2615,10 @@ configure_esq_telemetry_mods ()
 configure_geti () 
 { 
     workspace="$(ensure_project_path)/geti";
-    version_skills=release-2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/skills.git;
+    version="$(ensure_parse_value_option version --version=3.3.0 "$@")";
+    repository=https://github.com/open-edge-platform/geti.git;
     skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model);
-    image_name=ghcr.io/open-edge-platform/geti-xpu;
+    image_name="ghcr.io/open-edge-platform/geti-xpu:${version}";
     used_ports=(8080)
 }
 configure_gpu_accel () 
@@ -2632,14 +2634,14 @@ configure_gpu_accel ()
 configure_handheld_multi_modal () 
 { 
     workspace="$(ensure_project_path)/handheld-multi-modal";
-    version=main;
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git;
     used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997)
 }
 configure_humanoid_imitation_learning () 
 { 
     workspace="$(ensure_project_path)/humanoid-imitation-learning";
-    version=main;
+    version="$(ensure_parse_value_option version --version=a90bbb9848a8be7502a1e49a26a675936acfeabe "$@")";
     repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git";
     container_dir="$workspace/samples/robotics/robotics-ai-suite-containers";
     humanoid_samples=(act-sample pi05-rtc-ov);
@@ -2650,7 +2652,7 @@ configure_humanoid_imitation_learning ()
 configure_image_based_video_search () 
 { 
     workspace="$(ensure_project_path)/image-based-video-search";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(443 80 8554)
 }
@@ -2762,13 +2764,22 @@ configure_libyang ()
 }
 configure_libze1 () 
 { 
-    version=1.32.0;
+    version="$(ensure_parse_value_option version --version=1.32.0 "$@")";
     libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb"
+}
+configure_linux_tools () 
+{ 
+    install_pkgs=(linux-tools-common "linux-tools-$(uname -r)");
+    case "$ID$VERSION_ID" in 
+        ubuntu26.04)
+            install_pkgs+=(linux-perf bpftool)
+        ;;
+    esac
 }
 configure_live_video_alert_agent () 
 { 
     workspace="$(ensure_project_path)/live-video-alert-agent";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(9000 9090 8000 8001 8002 1883 9273);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh";
@@ -2799,7 +2810,7 @@ EOF
 configure_live_video_captioning () 
 { 
     workspace="$(ensure_project_path)/live-video-captioning";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(4173 8040 1883 9090 8889 9273 8556);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh";
@@ -2817,7 +2828,7 @@ configure_live_video_captioning_device ()
 configure_live_video_captioning_rag () 
 { 
     workspace="$(ensure_project_path)/live-video-captioning-rag";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(4173 4172 8040 1883 9090 8889 9273 8556);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh";
@@ -2837,7 +2848,7 @@ configure_live_video_captioning_rag_device ()
 configure_live_video_search () 
 { 
     workspace="$(ensure_project_path)/live-video-search";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(8080 3001 9998 4001 4002 5432 7890 6008 19530 55555 6016 9766 80 5000 8000 1883 6379 9777 6008 19530 9091 8554 9090 9273);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
@@ -2854,6 +2865,7 @@ POSTGRES_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random |
 MQTT_USER=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MQTT_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32
+DATAPREP_DETECTION_MODEL=OpenVINO/yolox_s-int8-ov
 DATAPREP_EMBEDDING_DEVICE=${device^^}
 DATAPREP_DETECTION_DEVICE=${device^^}
 MME_EMBEDDING_DEVICE=${device^^}
@@ -2864,7 +2876,7 @@ EOF
 configure_loitering_detection () 
 { 
     workspace="$(ensure_project_path)/loitering-detection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(80 443 3478);
     wait_timeout=120
@@ -2872,7 +2884,7 @@ configure_loitering_detection ()
 configure_loss_prevention () 
 { 
     workspace="$(ensure_project_path)/loss-prevention";
-    version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4;
+    version="$(ensure_parse_value_option version --version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4 "$@")";
     repository="https://github.com/intel-retail/loss-prevention.git";
     used_ports=(4000 15672 5672 8002 4001)
 }
@@ -2949,14 +2961,14 @@ configure_loss_prevention_options ()
 }
 configure_mediamtx () 
 { 
-    version=1.12.2;
+    version="$(ensure_parse_value_option version --version=1.12.2 "$@")";
     repository="https://github.com/bluenviron/mediamtx/releases/download/v${version}/mediamtx_v${version}_linux_amd64.tar.gz";
     bin_path="/usr/local/bin"
 }
 configure_multi_modal_patient_monitoring () 
 { 
     workspace="$(ensure_project_path)/multi-modal-patient-monitoring";
-    version="$(ensure_parse_value_option version --version=4a9679b58090cd86d56d91e1e72cab462babfe31 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git;
     workspace_mdpnp="$workspace"/multi_modal_patient_monitoring/services/mdpnp/mdpnp;
     version_mdpnp=master;
@@ -2966,7 +2978,7 @@ configure_multi_modal_patient_monitoring ()
 configure_multimodal_weld_defect_detection () 
 { 
     workspace="$(ensure_project_path)/multimodal-weld-defect-detection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     tsam_config="configs/time-series-analytics-microservice/config.json";
     pipeline_config="configs/dlstreamer-pipeline-server/config.json";
@@ -2998,7 +3010,7 @@ configure_multimodal_weld_defect_detection_device ()
 configure_nicu_warmer () 
 { 
     workspace="$(ensure_project_path)/nicu-warmer";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git";
     models=("https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin" "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml" "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.bin?download=true person-detect-fp32.bin" "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.xml?download=true person-detect-fp32.xml" "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.bin?download=true latch-detect-fp32.bin" "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.xml?download=true latch-detect-fp32.xml" "https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5 models_rppg/mtts_can.hdf5" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.xml action-recognition-0001-encoder.xml" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.bin action-recognition-0001-encoder.bin" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.xml action-recognition-0001-decoder.xml" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.bin action-recognition-0001-decoder.bin");
     used_ports=(8080)
@@ -3013,7 +3025,7 @@ configure_nicu_warmer_device ()
 }
 configure_npu_accel () 
 { 
-    version=1.38.0;
+    version="$(ensure_parse_value_option version --version=1.38.0 "$@")";
     repository=https://api.github.com/repos/intel/linux-npu-driver;
     releases=https://github.com/intel/linux-npu-driver/releases;
     workspace="$(ensure_project_path)/npu"
@@ -3056,7 +3068,7 @@ configure_osrf_gazebo_ros2 ()
 configure_pallet_defect_detection () 
 { 
     workspace="$(ensure_project_path)/pallet-defect-detection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     used_ports=(80 443 8000 3478);
     wait_timeout=120
@@ -3064,7 +3076,7 @@ configure_pallet_defect_detection ()
 configure_pcb_anomaly_detection () 
 { 
     workspace="$(ensure_project_path)/pcb-anomaly-detection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     used_ports=(80 443 3478 8000)
 }
@@ -3072,7 +3084,7 @@ configure_pcm ()
 { 
     workspace="$(ensure_project_path)/pcm";
     repository="https://github.com/intel/pcm.git";
-    version=e534201d0fe6d6e3bc5fee54b229f215b976efbc
+    version="$(ensure_parse_value_option version --version=e534201d0fe6d6e3bc5fee54b229f215b976efbc "$@")"
 }
 configure_person_of_interest () 
 { 
@@ -3086,7 +3098,7 @@ configure_physical_ai_framework ()
     workspace="$(ensure_project_path)/physical-ai-framework";
     paif_venv="$workspace/.venv";
     paif_pkg="physicalai-train";
-    paif_version=0.2.0;
+    paif_version="$(ensure_parse_value_option version --version=0.2.0 "$@")";
     paif_device_file="$workspace/.device"
 }
 configure_physical_ai_framework_device () 
@@ -3107,7 +3119,7 @@ configure_physical_ai_framework_device ()
 configure_physical_ai_studio () 
 { 
     pais_pkg="physicalai-studio";
-    pais_version=0.2.0;
+    pais_version="$(ensure_parse_value_option version --version=0.3.0 "$@")";
     pais_bin="$HOME/.local/bin/physicalai-studio";
     pais_run_dir="$(ensure_project_path)/physical-ai-studio";
     pais_pid_file="$pais_run_dir/physicalai-studio.pid";
@@ -3140,7 +3152,7 @@ configure_physical_ai_studio_device ()
 configure_post_fusion () 
 { 
     workspace="$(ensure_project_path)/post-fusion";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/metro-ai-suite.git;
     inputs=2;
     pipeline=kitti/2C1L/localFusionPipeline;
@@ -3167,7 +3179,7 @@ configure_power_tuning ()
 configure_real_time_scene_understanding () 
 { 
     workspace="$(ensure_project_path)/real-time-scene-understanding";
-    version=d3fe53d32784013b97ee082ab06b57f60eb71593;
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(9100 32776)
 }
@@ -3289,17 +3301,15 @@ configure_ros_openvino ()
 configure_scenescape () 
 { 
     workspace="$(ensure_project_path)/scenescape";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/scenescape.git;
     used_ports=(443);
-    version_skills=release-2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/skills.git;
     skills=(scenescape-setup)
 }
 configure_smart_intersection () 
 { 
     workspace="$(ensure_project_path)/smart-intersection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(443)
 }
@@ -3351,7 +3361,7 @@ configure_smart_kiosk_assistant_device ()
 configure_smart_nvr () 
 { 
     workspace="$(ensure_project_path)/smart-nvr";
-    version="$(ensure_parse_value_option version --version=b05301d7e027caf1953bad3811f65be2cb671b50 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(7860 8000 5000 6379 1884 443 1880 3000 8086 8554);
     export REGISTRY_URL="intel";
@@ -3363,7 +3373,7 @@ configure_smart_nvr ()
 configure_smart_parking () 
 { 
     workspace="$(ensure_project_path)/smart-parking";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(80 443 3478);
     wait_timeout=120
@@ -3371,7 +3381,7 @@ configure_smart_parking ()
 configure_smart_route_planning_agent () 
 { 
     workspace="$(ensure_project_path)/smart-route-planning-agent";
-    version="$(ensure_parse_value_option version --version=13c4deb6d933deecc79b801eb37dddac1bc78f6f "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(7864 8765);
     export VLM_MODEL_NAME=OpenVINO/Phi-3.5-vision-instruct-int8-ov;
@@ -3380,7 +3390,7 @@ configure_smart_route_planning_agent ()
 configure_smart_traffic_intersection_agent () 
 { 
     workspace="$(ensure_project_path)/smart-traffic-intersection-agent";
-    version="$(ensure_parse_value_option version --version=13c4deb6d933deecc79b801eb37dddac1bc78f6f "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(7860 8081 32776 32770 32771 32772 32773 32774 32775);
     export VLM_MODEL_NAME=OpenVINO/Phi-3.5-vision-instruct-int8-ov;
@@ -3406,7 +3416,7 @@ configure_stationary_robot_vision ()
 configure_surgical_instrument () 
 { 
     workspace="$(ensure_project_path)/surgical-instrument";
-    version="$(ensure_parse_value_option version --version=5bf04485b67cda526a1dbd8435141733e05fd61a "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git";
     polyp_model="models/yolo11n_polyp/best_openvino_model/best.xml"
 }
@@ -3455,7 +3465,7 @@ configure_uav_mission_compute_sdk ()
     source_path="$workspace/source";
     sdk_path="$source_path/uav-mission-compute-sdk";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
-    version="main";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
 }
 configure_uncrewed_aerial_vehicle_ground_station () 
@@ -3486,7 +3496,7 @@ configure_v4l_utils ()
 configure_video_processing_for_nvr () 
 { 
     workspace="$(ensure_project_path)/video-processing-for-nvr";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     duration=45;
     export MODEL_DIR="$workspace"/models/modified_yolov8n;
@@ -3495,20 +3505,19 @@ configure_video_processing_for_nvr ()
 configure_video_search_and_summarization () 
 { 
     workspace="$(ensure_project_path)/video-search-and-summarization";
-    version="$(ensure_parse_value_option version --version=1c5fdc1f440e685c8f82322ec09b60b7320ea404 "$@")";
+    version="$(ensure_parse_value_option version --version=2026.3.0-rc1 "$@")";
     repository="https://github.com/open-edge-platform/edge-ai-libraries.git";
-    version_skills=release-2026.2.0;
-    repository_skills="https://github.com/open-edge-platform/skills.git";
     skills=(vss-search-index vss-summarize-video);
     export APP_HOST_PORT=${APP_HOST_PORT:-12345};
     used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640);
     [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$workspace"/.device_from_install)";
     local device=$(ensure_parse_device "$@");
-    export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct;
+    export VLM_MODEL_NAME=OpenVINO/Qwen3.5-4B-int8-ov;
     export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en;
-    export OD_MODEL_NAME=yolov8l-worldv2;
+    export OD_MODEL_NAME=yolov8l;
+    export ASR_MODEL=whisper-base;
     export TEXT_EMBEDDING_MODEL=QwenText/qwen3-embedding-0.6b;
-    export OVMS_LLM_MODEL_NAME=meta-llama/Llama-3.2-3B-Instruct;
+    export OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-4B-int8-ov;
     export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false;
     export MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32;
     export FRAME_INTERVAL=15;
@@ -3523,6 +3532,7 @@ configure_video_search_and_summarization ()
     export VLM_COMPRESSION_WEIGHT_FORMAT=int4;
     export LLM_COMPRESSION_WEIGHT_FORMAT=int4;
     export SDK_USE_OPENVINO=true;
+    export DATAPREP_DETECTION_MODEL=OpenVINO/yolox_s-int8-ov;
     export DATAPREP_EMBEDDING_DEVICE=${device^^};
     export DATAPREP_DETECTION_DEVICE=${device^^};
     export MME_EMBEDDING_DEVICE=${device^^};
@@ -3540,7 +3550,7 @@ configure_video_search_and_summarization ()
     export RABBITMQ_USER=$(cat /dev/random | tr -dc a-z | head -c 5);
     export RABBITMQ_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5);
     export REGISTRY_URL=intel;
-    export TAG=latest
+    export TAG="$version"
 }
 configure_video_search_and_summarization_gated () 
 { 
@@ -3551,14 +3561,14 @@ configure_video_search_and_summarization_gated ()
 configure_vippet () 
 { 
     workspace="$(ensure_project_path)/vippet";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/edge-ai-libraries.git;
     used_ports=(80 7860 8000 9090 8554 8889)
 }
 configure_visual_search_question_and_answering () 
 { 
     workspace="$(ensure_project_path)/visual-search-question-and-answering";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(17580 19530 9764 9990 6008 9777);
     demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip";
@@ -3576,7 +3586,7 @@ configure_visual_search_question_and_answering ()
 configure_wind_turbine_anomaly_detection () 
 { 
     workspace="$(ensure_project_path)/wind-turbine-anomaly-detection";
-    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     nstreams=20;
     npoints=500;
@@ -3789,40 +3799,7 @@ debian_25_install_edge_pack_kernel_image ()
         configure_reboot;
     fi
 }
-debian_25_install_linux_image_6.18_intel () 
-{ 
-    if [[ "$(uname -r)" = "6.18-intel" ]]; then
-        echo "kernel 6.18-intel is installed" 1>&2;
-    else
-        echo "@@STEP Installing linux-image-6.18-intel";
-        ensure_apt install linux-image-6.18-intel;
-        ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192;
-        ensure_grub_set_default_entry 6.18-intel;
-        configure_reboot;
-    fi
-}
-debian_25_install_linux_image_generic_7.0 () 
-{ 
-    if [[ "$(uname -r)" = 7.0.* ]]; then
-        echo "kernel 7.0 is installed" 1>&2;
-    else
-        echo "@@STEP Installing linux-image-generic-7.0";
-        ensure_apt install linux-image-generic-7.0;
-        local pkgver="$(apt policy linux-image-generic-7.0 2> /dev/null | grep -m1 Candidate: | cut -f2 -d: | cut -f1-3 -d. | tr -d ' ')-generic";
-        ensure_grub_set_default_entry $pkgver;
-        ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192;
-        configure_reboot;
-    fi
-}
 debian_25_profile_edge_pack_kernel_image () 
-{ 
-    echo "reboot"
-}
-debian_25_profile_linux_image_6.18_intel () 
-{ 
-    [[ "$(uname -r)" = "6.18-intel" ]] || echo "reboot"
-}
-debian_25_profile_linux_image_generic_7.0 () 
 { 
     echo "reboot"
 }
@@ -3831,16 +3808,6 @@ debian_25_sbom_edge_pack_kernel_image ()
     configure_edge_pack_kernel_image "$@";
     ensure_sbom_format pkg-list linux-image-$version linux-headers-$version;
     ensure_sbom_format kernel-cmdline "${cmdline[@]}"
-}
-debian_25_sbom_linux_image_6.18_intel () 
-{ 
-    ensure_sbom_format pkg-list linux-image-6.18-intel;
-    ensure_sbom_format kernel-cmdline xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
-}
-debian_25_sbom_linux_image_generic_7.0 () 
-{ 
-    ensure_sbom_format pkg-list linux-image-generic-7.0;
-    ensure_sbom_format kernel-cmdline xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
 }
 debian_29_install_reboot () 
 { 
@@ -4021,13 +3988,13 @@ debian_30_install_libpcre2_dev ()
 }
 debian_30_install_linux_tools () 
 { 
-    local name="linux-tools-$(uname -r)";
-    if ensure_apt_is_installed $name; then
-        echo "$name is installed." 1>&2;
+    configure_linux_tools "$@";
+    if ensure_apt_is_installed ${install_pkgs[*]}; then
+        echo "linux-tools is installed." 1>&2;
     else
         ensure_prop set installed/linux_tools/owned true;
         ensure_apt update;
-        ensure_apt install --no-install-recommends -y linux-tools-common $name || ensure_apt install --no-install-recommends -y --no-install-recommends linux-tools-common linux-tools-generic;
+        ensure_apt install --no-install-recommends -y ${install_pkgs[*]};
     fi
 }
 debian_30_install_lm_sensors () 
@@ -4045,6 +4012,10 @@ debian_30_install_msr_tools ()
 debian_30_install_pkg_config () 
 { 
     ensure_apt_install_package pkg-config
+}
+debian_30_install_python3_dev () 
+{ 
+    ensure_apt_install_package python3-dev
 }
 debian_30_install_python3_venv () 
 { 
@@ -4151,9 +4122,9 @@ debian_30_remove_kernel_module_essential ()
 }
 debian_30_remove_linux_tools () 
 { 
-    local name="linux-tools-$(uname -r)";
+    configure_linux_tools "$@";
     [ "$(ensure_prop get installed/linux_tools/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y $name || true
+    ensure_apt purge --autoremove -y ${install_pkgs[*]} || true
 }
 debian_30_remove_lm_sensors () 
 { 
@@ -4250,7 +4221,8 @@ debian_30_sbom_libpcre2_dev ()
 }
 debian_30_sbom_linux_tools () 
 { 
-    ensure_sbom_format pkg-list linux-tools-common linux-tools-$(uname -r)
+    configure_linux_tools "$@";
+    ensure_sbom_format pkg-list ${install_pkgs[*]}
 }
 debian_30_sbom_lm_sensors () 
 { 
@@ -4267,6 +4239,10 @@ debian_30_sbom_msr_tools ()
 debian_30_sbom_pkg_config () 
 { 
     ensure_sbom_format pkg-list pkg-config
+}
+debian_30_sbom_python3_dev () 
+{ 
+    ensure_sbom_format pkg-list python3-dev
 }
 debian_30_sbom_python3_venv () 
 { 
@@ -4413,7 +4389,7 @@ EOF
 }
 debian_35_profile_intel_lpmd () 
 { 
-    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake git"
 }
 debian_35_remove_intel_lpmd () 
 { 
@@ -4756,7 +4732,7 @@ debian_40_install_npu_accel ()
 }
 debian_40_install_pcm () 
 { 
-    configure_pcm;
+    configure_pcm "$@";
     if verify_pcm && ! ensure_parse_reinstall "$@"; then
         echo "pcm is installed." 1>&2;
     else
@@ -4968,7 +4944,7 @@ debian_40_remove_npu_accel ()
 }
 debian_40_remove_pcm () 
 { 
-    configure_pcm;
+    configure_pcm "$@";
     [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0;
     ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM /etc/modules-load.d/99-intel-pcm.conf
 }
@@ -5491,7 +5467,7 @@ debian_70_install_ffmpeg ()
 }
 debian_70_install_mediamtx () 
 { 
-    configure_mediamtx;
+    configure_mediamtx "$@";
     if [ -x "$bin_path/mediamtx" ] && [[ " $* " != *" --reinstall "* ]]; then
         echo "Mediamtx is installed." 1>&2;
     else
@@ -5559,7 +5535,7 @@ debian_70_profile_openvino ()
 }
 debian_70_profile_time_confighub () 
 { 
-    echo "libyang git cmake make kernel_module_essential python3_venv"
+    echo "libyang git cmake make kernel_module_essential python3_dev python3_venv"
 }
 debian_70_remove_edge_pack_media_ffmpeg () 
 { 
@@ -5642,7 +5618,7 @@ debian_75_install_dlstreamer ()
         ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version;
         ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        ensure_skills add "tags/v$version" "$repository" "${skills[@]/#/.github/skills/}";
         verify_dlstreamer;
         echo "intel-dlstreamer=$version installed successfully.";
     fi;
@@ -5675,33 +5651,15 @@ debian_75_sbom_dlstreamer ()
 }
 debian_80_install_anomalib () 
 { 
-    configure_anomalib "$@";
-    if verify_anomalib && ! ensure_parse_reinstall "$@"; then
-        echo "Anomalib is installed." 1>&2;
-    else
-        ensure_disk_size 15000;
-        echo "@@STEP Installing anomalib==${version}";
-        mkdir -p "$workspace";
-        cd "$workspace";
-        python3 -m venv .venv;
-        . .venv/bin/activate;
-        pip install "anomalib[openvino,cpu]==${version}";
-        echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
-        verify_anomalib;
-    fi;
-    test_anomalib "$@";
-    echo "@@HIGHLIGHT venv: $workspace/.venv"
+    install_anomalib "$@"
 }
 debian_80_profile_anomalib () 
 { 
-    echo "python3_venv edge_base"
+    echo "python3_venv edge_base git"
 }
 debian_80_remove_anomalib () 
 { 
-    configure_anomalib "$@";
-    ensure_rm "$workspace";
-    ensure_skills remove "${skills[@]}"
+    remove_anomalib "$@"
 }
 debian_85_group_handheld_blueprint () 
 { 
@@ -5718,7 +5676,7 @@ debian_85_group_uncrewed_aerial_vehicle_blueprint ()
 debian_85_install_esq () 
 { 
     configure_uv;
-    configure_esq;
+    configure_esq "$@";
     if uv tool list 2> /dev/null | grep -q -E "^esq " && ! ensure_parse_reinstall "$@"; then
         echo "Esq is installed." 1>&2;
     else
@@ -5753,8 +5711,9 @@ debian_85_install_video_search_and_summarization ()
     else
         ensure_disk_size 8000;
         ensure_ports_open install video_search_and_summarization "${used_ports[@]}";
+        ensure_container_namespace install video_search_and_summarization name:vss-model-download;
         echo "@@STEP Cloning repository";
-        ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization;
+        ensure_git_export "$workspace" release-${version%-rc*} $repository sample-applications/video-search-and-summarization;
         echo "@@STEP Configuring models";
         configure_video_search_and_summarization_gated;
         echo "@@STEP Setting up VSS";
@@ -5762,11 +5721,11 @@ debian_85_install_video_search_and_summarization ()
         echo "@@STEP @@IF docker compose .* pull .* @@THEN Pulling images";
         cd "$workspace"/sample-applications/video-search-and-summarization;
         sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh;
-        sed 's|FINAL_ARG=.*|FINAL_ARG="pull --ignore-pull-failures"|' setup.sh > .setup.sh;
+        sed 's|FINAL_ARGS=.*|FINAL_ARGS=(pull --ignore-pull-failures)|' setup.sh > .setup.sh;
         sed -i 's|"Unified Summarization/Search UI is now available.*"|""|' .setup.sh;
         . ./.setup.sh --search-and-summary;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        ensure_skills add -- "${skills[@]/#/.github/skills/}";
         verify_video_search_and_summarization;
     fi;
     local device=$(ensure_parse_device "$@");
@@ -5785,7 +5744,7 @@ debian_85_profile_video_search_and_summarization ()
 debian_85_remove_esq () 
 { 
     configure_uv;
-    configure_esq;
+    configure_esq "$@";
     cd "$workspace" && esq clean --all || true;
     uv tool uninstall esq || true;
     ensure_rm "$workspace"
@@ -5799,7 +5758,7 @@ debian_85_remove_video_search_and_summarization ()
 debian_85_start_esq () 
 { 
     configure_uv;
-    configure_esq;
+    configure_esq "$@";
     cd "$workspace";
     esq clean --all;
     local cmdline_str=" $* ";
@@ -5818,6 +5777,7 @@ debian_85_start_video_search_and_summarization ()
 { 
     configure_video_search_and_summarization "$@";
     ensure_ports_open start video_search_and_summarization "${used_ports[@]}";
+    ensure_container_namespace start video_search_and_summarization $(ensure_container_parse_yaml "$workspace"/sample-applications/video-search-and-summarization/docker/*.yaml);
     configure_video_search_and_summarization_gated;
     cd "$workspace"/sample-applications/video-search-and-summarization;
     . ./setup.sh --search-and-summary;
@@ -5835,8 +5795,7 @@ debian_85_stop_video_search_and_summarization ()
     cd "$workspace"/sample-applications/video-search-and-summarization && { 
         . ./setup.sh --stop || true;
         . ./setup.sh --clean-data || true;
-        docker volume rm -f docker_ov-models || true;
-        docker volume rm -f docker_dataprep-yolox-models
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
     } || true
 }
 debian_90_install_agentic_predictive_maintenance_pipeline () 
@@ -5945,7 +5904,7 @@ EOF
         make build;
         echo "@@STEP Download models";
         make download_models;
-        verify_diginal_signage;
+        verify_digital_signage;
     fi;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove";
@@ -5993,11 +5952,12 @@ debian_90_install_handheld_multi_modal ()
         esac;
     done <<< "$installed";
     configure_handheld_multi_modal "$@";
-    if verify_handheld_multi_modal $* && ! ensure_parse_reinstall "$@"; then
+    if verify_handheld_multi_modal "$@" && ! ensure_parse_reinstall "$@"; then
         echo "handheld_multi_modal is installed." 1>&2;
     else
         ensure_disk_size 45000;
         echo "@@STEP Removing conflicting app";
+        ensure_container_namespace install handheld_multi_modal name:handheld-multi-modal-model-downloader-1 || true;
         ensure_ports_open install handheld_multi_modal "${used_ports[@]}" || { 
             docker rm -f handheld-multi-modal-model-downloader-1 || true;
             ensure_ports_open install handheld_multi_modal "${used_ports[@]}"
@@ -6175,7 +6135,7 @@ debian_90_install_loitering_detection ()
         ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe;
         cd "$workspace/metro-vision-ai-app-recipe";
         sed -i 's|curl |curl -f |' loitering-detection/install.sh;
-        ./install.sh loitering-detection $(ensure_ip);
+        ./install.sh loitering-detection-ui $(ensure_ip);
         verify_loitering_detection;
     fi;
     local device=$(ensure_parse_device "$@");
@@ -6186,7 +6146,7 @@ debian_90_install_loitering_detection ()
 }
 debian_90_install_loss_prevention () 
 { 
-    configure_loss_prevention;
+    configure_loss_prevention "$@";
     if verify_loss_prevention && ! ensure_parse_reinstall "$@"; then
         echo "Loss prevention is installed." 1>&2;
     else
@@ -6273,6 +6233,8 @@ INFLUXDB_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 INFLUXDB_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
 VISUALIZER_GRAFANA_USER=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 VISUALIZER_GRAFANA_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
+SEAWEEDFS_WEB_AUTH_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
+SEAWEEDFS_WEB_AUTH_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
 HOST_IP=$(ensure_ip)
 EOF
 
@@ -6404,7 +6366,7 @@ debian_90_install_person_of_interest ()
 }
 debian_90_install_physical_ai_framework () 
 { 
-    configure_physical_ai_framework;
+    configure_physical_ai_framework "$@";
     configure_physical_ai_framework_device "$@";
     configure_uv;
     if verify_physical_ai_framework "$@" && ! ensure_parse_reinstall "$@"; then
@@ -6447,7 +6409,7 @@ EOF
 }
 debian_90_install_physical_ai_studio () 
 { 
-    configure_physical_ai_studio;
+    configure_physical_ai_studio "$@";
     configure_physical_ai_studio_device "$@";
     configure_uv;
     if verify_physical_ai_studio "$@" && ! ensure_parse_reinstall "$@"; then
@@ -6500,7 +6462,7 @@ EOF
 }
 debian_90_install_real_time_scene_understanding () 
 { 
-    configure_real_time_scene_understanding;
+    configure_real_time_scene_understanding "$@";
     if verify_real_time_scene_understanding && ! ensure_parse_reinstall "$@"; then
         echo "Live Video Captioning is installed." 1>&2;
     else
@@ -6533,7 +6495,8 @@ debian_90_install_scenescape ()
         echo "@@STEP Cloning git repository";
         ensure_git_export "$workspace" "$version" "$repository";
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        cd "$workspace";
+        ensure_skills add -- "${skills[@]/#/.github/skills/}";
         verify_scenescape;
     fi;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
@@ -6571,8 +6534,7 @@ debian_90_install_smart_kiosk_assistant ()
         ensure_ports_open install smart_kiosk_assistant "${used_ports[@]}";
         ensure_git_clone "$workspace" "$version" "$repository";
         cd "$workspace"/smart-kiosk-assistant;
-        . .env.example;
-        used_models+=("$OVMS_MODEL_NAME");
+        used_models+=("$(grep -m1 ^OVMS_MODEL_NAME= .env.example | cut -f2 -d=)");
         ensure_hf_token "${used_models[@]}";
         sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env.example;
         sed -i "s|^RENDER_GID=.*|RENDER_GID=$(getent group render | cut -d: -f3 || echo 992)|" .env.example;
@@ -6622,7 +6584,7 @@ debian_90_install_smart_parking ()
         echo "@@STEP @@IF ^Download ([a-z0-9_]+.mp4)[.][.][.] @@THEN Downloading \\1";
         cd "$workspace/metro-vision-ai-app-recipe";
         sed -i 's|curl | curl -f |' smart-parking/install.sh;
-        ./install.sh smart-parking $(ensure_ip);
+        yes | ./install.sh smart-parking $(ensure_ip);
         verify_smart_parking;
     fi;
     local device=$(ensure_parse_device "$@");
@@ -6688,25 +6650,20 @@ debian_90_install_surgical_instrument ()
         ensure_disk_size 70000;
         ensure_git_export "$workspace" "$version" "$repository" surgical-instrument;
         cd "$workspace"/surgical-instrument;
+        echo "@@STEP Downloading dataset";
+        make download-dataset;
+        echo "@@STEP Preparing dataset";
+        make prepare-dataset MAX_POS_PER_VIDEO=800;
+        echo "@@STEP Creating venv";
         make backend-venv;
+        echo "@@STEP Generating polyp_test.mp4";
         .venv-backend/bin/python scripts/create_endoscopy_video.py --images-dir datasets/REAL-Colon/raw/001-001_frames --output videos/polyp_test.mp4 --seconds 60 --fps 60 --width 1920 --height 1080;
+        echo "@@STEP Bootstraping backend";
+        make backend-bootstrap;
         verify_surgical_instrument;
     fi;
-    cd "$workspace"/surgical-instrument;
-    if [ ! -e "$polyp_model" ] && ensure_parse_option --train "$@"; then
-        make download-dataset;
-        make prepare-dataset MAX_POS_PER_VIDEO=800;
-        make backend-bootstrap;
-    fi;
-    if [ ! -e "$polyp_model" ]; then
-        printf "${red}polyp model is not available.${reset}\n" 1>&2;
-        printf "$installer_name install --train to train a polyp model." 1>&2;
-        echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
-        echo "@@HIGHLIGHT $installer_name install --train";
-    else
-        echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
-        echo "@@HIGHLIGHT $installer_name start|remove";
-    fi
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
+    echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_suspicious_activity_detection () 
 { 
@@ -6764,7 +6721,7 @@ debian_90_install_take_away ()
 }
 debian_90_install_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     if verify_uav_mission_compute_sdk && ! ensure_parse_reinstall "$@"; then
         echo "uav_mission_compute_sdk is installed." 1>&2;
     else
@@ -6785,7 +6742,7 @@ debian_90_install_uav_mission_compute_sdk ()
             echo "Mission Compute SDK initialization did not produce the expected source and .env." 1>&2;
             return 1;
         fi;
-        ensure_prop set installed/uav_mission_compute_sdk "$source_commit" || return $?;
+        ensure_prop set installed/uav_mission_compute_sdk/commit "$source_commit" || return $?;
         verify_uav_mission_compute_sdk || return $?;
     fi;
     echo "@@HIGHLIGHT workspace: $sdk_path";
@@ -6848,6 +6805,7 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics ()
         make model ACCEPT_LICENSE=y || return $?;
     fi;
     if ! compgen -G "$caption/*.xml" > /dev/null || ! compgen -G "$caption/*.bin" > /dev/null; then
+        ensure_container_namespace install uncrewed_aerial_vehicle_vision_analytics "name:${MODEL_DOWNLOAD_EPHEMERAL_CONTAINER_NAME:-model-download-ephemeral}" || true;
         make vlm-model VLM_DEVICE=GPU ACCEPT_LICENSE=y || return $?;
     fi;
     if ! verify_uncrewed_aerial_vehicle_vision_analytics_models; then
@@ -6921,8 +6879,7 @@ debian_90_install_vippet ()
         ensure_ports_open install vippet "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool;
         cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
-        make build-onvif-discovery;
-        docker compose -f compose.yml pull --ignore-buildable;
+        make env-setup;
     fi;
     echo "@@HIGHLIGHT $installer_name start";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -6981,12 +6938,14 @@ EOF
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
+debian_90_license_smart_parking () 
+{ 
+    ensure_license_use_model YOLO11S https://github.com/ultralytics/ultralytics/blob/main/LICENSE
+}
 debian_90_license_uncrewed_aerial_vehicle_vision_analytics () 
 { 
-    ensure_license_use_model YOLO11s;
-    echo "Model license: https://github.com/ultralytics/ultralytics/blob/main/LICENSE";
-    ensure_license_use_model InternVL2-1B;
-    echo "Model terms: https://huggingface.co/OpenGVLab/InternVL2-1B"
+    ensure_license_use_model YOLO11S https://github.com/ultralytics/ultralytics/blob/main/LICENSE;
+    ensure_license_use_model InternVL2-1B 'https://huggingface.co/OpenGVLab/InternVL2-1B#license'
 }
 debian_90_profile_agentic_predictive_maintenance_pipeline () 
 { 
@@ -7006,7 +6965,7 @@ debian_90_profile_deterministic_threat_detection ()
 }
 debian_90_profile_digital_signage () 
 { 
-    echo "edge_base docker_io git curl make"
+    echo "edge_base docker_io git curl make python3_venv"
 }
 debian_90_profile_dine_in () 
 { 
@@ -7114,7 +7073,7 @@ debian_90_profile_smart_intersection ()
 }
 debian_90_profile_smart_kiosk_assistant () 
 { 
-    echo "docker_io make edge_base python3_venv"
+    echo "docker_io make edge_base python3_venv git"
 }
 debian_90_profile_smart_nvr () 
 { 
@@ -7138,7 +7097,7 @@ debian_90_profile_surgical_instrument ()
 }
 debian_90_profile_suspicious_activity_detection () 
 { 
-    echo "docker_io edge_base git make curl"
+    echo "docker_io edge_base git make curl python3_venv"
 }
 debian_90_profile_take_away () 
 { 
@@ -7196,7 +7155,7 @@ debian_90_remove_autonomous_mobile_robot ()
 }
 debian_90_remove_deterministic_threat_detection () 
 { 
-    configure_deterministic_threat_detection;
+    configure_deterministic_threat_detection "$@";
     ensure_rm "$workspace"
 }
 debian_90_remove_digital_signage () 
@@ -7215,7 +7174,7 @@ debian_90_remove_geti ()
 }
 debian_90_remove_handheld_multi_modal () 
 { 
-    debian_90_stop_handheld_multi_modal "$@";
+    debian_90_stop_handheld_multi_modal "$@" || true;
     local app_dir="$workspace"/handheld-multi-modal;
     [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes || true );
     ensure_rm "$workspace"
@@ -7263,7 +7222,7 @@ debian_90_remove_loitering_detection ()
 }
 debian_90_remove_loss_prevention () 
 { 
-    configure_loss_prevention;
+    configure_loss_prevention "$@";
     debian_90_stop_loss_prevention "$@";
     ensure_rm "$workspace"
 }
@@ -7299,16 +7258,16 @@ debian_90_remove_person_of_interest ()
 }
 debian_90_remove_physical_ai_framework () 
 { 
-    configure_physical_ai_framework;
+    configure_physical_ai_framework "$@";
     ensure_rm "$workspace"
 }
 debian_90_remove_physical_ai_studio () 
 { 
-    configure_physical_ai_studio;
+    configure_physical_ai_studio "$@";
     configure_uv;
     debian_90_stop_physical_ai_studio "$@" || true;
     uv tool uninstall "$pais_pkg" > /dev/null 2>&1 || true;
-    ensure_rm "$pais_run_dir"
+    ensure_rm "$pais_run_dir" "$pais_bin"
 }
 debian_90_remove_post_fusion () 
 { 
@@ -7350,7 +7309,6 @@ debian_90_remove_smart_parking ()
 debian_90_remove_smart_traffic_intersection_agent () 
 { 
     debian_90_stop_smart_traffic_intersection_agent "$@";
-    . ./setup.sh --clean --all || true;
     ensure_rm "$workspace"
 }
 debian_90_remove_stationary_robot_vision () 
@@ -7383,8 +7341,8 @@ debian_90_remove_take_away ()
 }
 debian_90_remove_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
-    if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk)" ]; then
+    configure_uav_mission_compute_sdk "$@";
+    if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk/commit)" ]; then
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 0;
     fi;
@@ -7392,11 +7350,11 @@ debian_90_remove_uav_mission_compute_sdk ()
         echo "Mission Compute SDK source is missing; cannot stop its containers safely." 1>&2;
         return 1;
     fi;
-    cd "$sdk_path" || return $?;
-    make down || return $?;
-    ensure_prop remove started/uav_mission_compute_sdk/ || return $?;
-    ensure_rm "$workspace" || return $?;
-    ensure_prop remove installed/uav_mission_compute_sdk
+    cd "$sdk_path" && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+    } || true;
+    ensure_rm "$workspace" || return $?
 }
 debian_90_remove_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -7405,9 +7363,11 @@ debian_90_remove_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?;
-    ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
+    } || true;
+    ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/
 }
@@ -7418,9 +7378,11 @@ debian_90_remove_uncrewed_aerial_vehicle_vision_analytics ()
         echo "uncrewed_aerial_vehicle_vision_analytics is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down --volumes --remove-orphans || return $?;
-    ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+    } || true;
+    ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uncrewed_aerial_vehicle_vision_analytics/
 }
@@ -7476,6 +7438,7 @@ debian_90_start_agentic_predictive_maintenance_pipeline ()
 { 
     configure_agentic_predictive_maintenance_pipeline "$@";
     ensure_ports_open start agentic_predictive_maintenance_pipeline "${used_ports[@]}";
+    ensure_container_namespace start agentic_predictive_maintenance_pipeline $(ensure_container_parse_yaml "$workspace"/agentic-predictive-maintenance-pipeline/docker/compose.*.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_agentic_predictive_maintenance_pipeline_device "${device^^}";
     cd "$workspace"/agentic-predictive-maintenance-pipeline;
@@ -7488,6 +7451,7 @@ debian_90_start_agentic_smart_community ()
 { 
     configure_agentic_smart_community "$@";
     ensure_ports_open start agentic_smart_community "${used_ports[@]}";
+    ensure_container_namespace start agentic_smart_community $(ensure_container_parse_yaml "$workspace"/agentic-smart-community/docker/compose.yaml);
     cd "$workspace"/agentic-smart-community;
     bash setup_docker.sh;
     echo "@@HIGHLIGHT UI: http://$(ensure_ip):${used_ports[0]}";
@@ -7499,6 +7463,7 @@ debian_90_start_digital_signage ()
 { 
     configure_digital_signage "$@";
     ensure_ports_open start digital_signage "${used_ports[@]}";
+    ensure_container_namespace start digital_signage $(ensure_container_parse_yaml "$workspace"/docker-compose.yml);
     cd "$workspace";
     make up;
     echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}";
@@ -7509,6 +7474,7 @@ debian_90_start_dine_in ()
 { 
     configure_dine_in "$@";
     ensure_ports_open start dine_in "${ports[@]}";
+    ensure_container_namespace start dine_in $(ensure_container_parse_yaml "$workspace"/dine-in/docker-compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}";
     cd "$workspace"/dine-in;
@@ -7526,6 +7492,7 @@ debian_90_start_handheld_multi_modal ()
     configure_handheld_multi_modal "$@";
     ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     cd "$workspace"/handheld-multi-modal;
+    ensure_container_namespace start handheld_multi_modal $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true;
     make up CONFIRM=yes;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)";
     echo "@@HIGHLIGHT $installer_name stop|remove"
@@ -7534,6 +7501,7 @@ debian_90_start_image_based_video_search ()
 { 
     configure_image_based_video_search "$@";
     ensure_ports_open start image_based_video_search "${used_ports[@]}";
+    ensure_container_namespace start image_based_video_search $(ensure_container_parse_yaml "$workspace"/image-based-video-search/compose.yml);
     cd "$workspace"/image-based-video-search;
     docker compose up -d;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}";
@@ -7543,6 +7511,7 @@ debian_90_start_live_video_alert_agent ()
 { 
     configure_live_video_alert_agent "$@";
     ensure_ports_open start live_video_alert_agent "${used_ports[@]}";
+    ensure_container_namespace start live_video_alert_agent $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-alert-agent/docker/*.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_alert_agent_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-alert-agent;
@@ -7559,6 +7528,7 @@ debian_90_start_live_video_captioning ()
 { 
     configure_live_video_captioning "$@";
     ensure_ports_open start live_video_captioning "${used_ports[@]}";
+    ensure_container_namespace start live_video_captioning $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-captioning/compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-captioning;
@@ -7570,6 +7540,7 @@ debian_90_start_live_video_captioning_rag ()
 { 
     configure_live_video_captioning_rag "$@";
     ensure_ports_open start live_video_captioning_rag "${used_ports[@]}";
+    ensure_container_namespace start live_video_captioning_rag $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-captioning-rag/compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_rag_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-captioning-rag;
@@ -7581,6 +7552,7 @@ debian_90_start_live_video_search ()
 { 
     configure_live_video_search "$@";
     ensure_ports_open start live_video_search "${used_ports[@]}";
+    ensure_container_namespace start live_video_search $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-search/docker/*.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_search_device "$device";
     cd "$workspace"/live-video-analysis/live-video-search;
@@ -7595,10 +7567,11 @@ debian_90_start_loitering_detection ()
 { 
     configure_loitering_detection "$@";
     ensure_ports_open start loitering_detection "${used_ports[@]}";
+    ensure_container_namespace start loitering_detection $(ensure_container_parse_yaml "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
-    docker compose -f compose-without-scenescape.yml up -d;
+    docker compose up -d;
     local start_time=$SECONDS elapsed;
     while true; do
         elapsed=$(( SECONDS - start_time ));
@@ -7617,8 +7590,9 @@ debian_90_start_loitering_detection ()
 }
 debian_90_start_loss_prevention () 
 { 
-    configure_loss_prevention;
+    configure_loss_prevention "$@";
     ensure_ports_open start loss_prevention "${used_ports[@]}";
+    ensure_container_namespace start loss_prevention $(ensure_container_parse_yaml "$workspace"/src/docker-compose*.yml);
     cd "$workspace";
     local device1="$(ensure_parse_device "$@")";
     local device2="$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ')";
@@ -7651,6 +7625,7 @@ debian_90_start_multi_modal_patient_monitoring ()
 { 
     configure_multi_modal_patient_monitoring "$@";
     ensure_ports_open start multi_modal_patient_monitoring "${used_ports[@]}";
+    ensure_container_namespace start multi_modal_patient_monitoring $(ensure_container_parse_yaml "$workspace"/multi_modal_patient_monitoring/docker-compose.yaml);
     cd "$workspace"/multi_modal_patient_monitoring;
     local device="$(ensure_parse_device "$@")" d;
     [[ " ${*,,} " != *" --$device "* ]] || echo "${device^^}" > .device;
@@ -7668,6 +7643,7 @@ debian_90_start_multimodal_weld_defect_detection ()
 { 
     configure_multimodal_weld_defect_detection "$@";
     ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}";
+    ensure_container_namespace start multimodal_weld_defect_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-multimodal/docker-compose*.yml);
     local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device;
     cd "$workspace"/industrial-edge-insights-multimodal;
@@ -7737,6 +7713,7 @@ debian_90_start_nicu_warmer ()
 { 
     configure_nicu_warmer "$@";
     ensure_ports_open start nicu_warmer "${used_ports[@]}";
+    ensure_container_namespace start nicu_warmer $(ensure_container_parse_yaml "$workspace"/NICU-Warmer/docker-compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_nicu_warmer_device "$device";
     cd "$workspace"/NICU-Warmer;
@@ -7749,6 +7726,7 @@ debian_90_start_pallet_defect_detection ()
 { 
     configure_pallet_defect_detection "$@";
     ensure_ports_open start pallet_defect_detection "${used_ports[@]}";
+    ensure_container_namespace start pallet_defect_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-vision/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
@@ -7785,6 +7763,7 @@ debian_90_start_pcb_anomaly_detection ()
 { 
     configure_pcb_anomaly_detection "$@";
     ensure_ports_open start pcb_anomaly_detection "${used_ports[@]}";
+    ensure_container_namespace start pcb_anomaly_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-vision/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
@@ -7811,6 +7790,7 @@ debian_90_start_person_of_interest ()
 { 
     configure_person_of_interest "$@";
     ensure_ports_open start person_of_interest "${used_ports[@]}";
+    ensure_container_namespace start person_of_interest $(ensure_container_parse_yaml "$workspace"/person-of-interest/docker-compose*.yml);
     local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)";
     cd "$workspace"/person-of-interest;
@@ -7829,7 +7809,7 @@ debian_90_start_person_of_interest ()
 }
 debian_90_start_physical_ai_studio () 
 { 
-    configure_physical_ai_studio;
+    configure_physical_ai_studio "$@";
     ensure_ports_open start physical_ai_studio "${used_ports[@]}";
     if [ ! -x "$pais_bin" ]; then
         echo "Physical AI Studio is not installed. Run 'install physical_ai_studio' first." 1>&2;
@@ -7891,8 +7871,9 @@ debian_90_start_post_fusion ()
 }
 debian_90_start_real_time_scene_understanding () 
 { 
-    configure_real_time_scene_understanding;
+    configure_real_time_scene_understanding "$@";
     ensure_ports_open start real_time_scene_understanding "${used_ports[@]}";
+    ensure_container_namespace start real_time_scene_understanding $(ensure_container_parse_yaml "$workspace"/live-video-analysis/real-time-scene-understanding/compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}";
     cd "$workspace"/live-video-analysis/real-time-scene-understanding;
@@ -7905,6 +7886,7 @@ debian_90_start_scenescape ()
 { 
     configure_scenescape "$@";
     ensure_ports_open start scenescape "${used_ports[@]}";
+    ensure_container_namespace start scenescape $(ensure_container_parse_yaml "$workspace"/sample_data/compose/compose.*.yml);
     cd "$workspace";
     export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5);
     make init-secrets;
@@ -7917,6 +7899,7 @@ debian_90_start_smart_intersection ()
 { 
     configure_smart_intersection "$@";
     ensure_ports_open start smart_intersection "${used_ports[@]}";
+    ensure_container_namespace start smart_intersection $(ensure_container_parse_yaml "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device";
     cd "$workspace"/metro-vision-ai-app-recipe;
@@ -7931,6 +7914,7 @@ debian_90_start_smart_kiosk_assistant ()
 { 
     configure_smart_kiosk_assistant "$@";
     ensure_ports_open start smart_kiosk_assistant "${used_ports[@]}";
+    ensure_container_namespace start smart_kiosk_assistant $(ensure_container_parse_yaml "$workspace"/smart-kiosk-assistant/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}";
     cd "$workspace"/smart-kiosk-assistant;
@@ -7944,6 +7928,7 @@ debian_90_start_smart_nvr ()
 { 
     configure_smart_nvr "$@";
     ensure_ports_open start smart_nvr "${used_ports[@]}";
+    ensure_container_namespace start smart_nvr $(ensure_container_parse_yaml "$workspace"/smart-nvr/docker/*.yaml);
     cd "$workspace"/smart-nvr;
     . setup.sh start;
     echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}";
@@ -7953,6 +7938,7 @@ debian_90_start_smart_parking ()
 { 
     configure_smart_parking "$@";
     ensure_ports_open start smart_parking "${used_ports[@]}";
+    ensure_container_namespace start smart_parking $(ensure_container_parse_yaml "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
@@ -7968,7 +7954,8 @@ debian_90_start_smart_parking ()
         curl -k -s https://localhost/api/pipelines/status -H "accept: application/json" > /dev/null && break || sleep 5;
     done;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
-    echo "@@HIGHLIGHT Grafana AUTH: admin/admin";
+    echo "@@HIGHLIGHT UI AUTH $(cat smart-parking/src/secrets/nodered/nodered-admin-username):$(cat smart-parking/src/secrets/nodered/nodered-admin-password)";
+    echo "@@HIGHLIGHT Grafana AUTH admin:admin";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name stop|remove";
     ./sample_start.sh $(< ../.device) && ./sample_status.sh
@@ -7977,6 +7964,7 @@ debian_90_start_smart_traffic_intersection_agent ()
 { 
     configure_smart_traffic_intersection_agent "$@";
     ensure_ports_open start smart_traffic_intersection_agent "${used_ports[@]}";
+    ensure_container_namespace start smart_traffic_intersection_agent $(ensure_container_parse_yaml "$workspace"/smart-traffic-intersection-agent/docker/*.yaml);
     [ ! -r "$workspace"/.device ] || set -- "$@" "$(< "$workspace"/.device)";
     local device=$(ensure_parse_device "$@");
     export VLM_TARGET_DEVICE=${device^^};
@@ -7991,16 +7979,11 @@ debian_90_start_smart_traffic_intersection_agent ()
 debian_90_start_surgical_instrument () 
 { 
     configure_surgical_instrument "$@";
+    ensure_container_namespace start surgical_instrument $(ensure_container_parse_yaml "$workspace"/surgical-instrument/docker/*.yaml);
     cd "$workspace"/surgical-instrument;
-    if [ ! -e models/yolo11n_polyp/best_openvino_model/best.xml ]; then
-        printf "${red}Missing yolo11n_polyp${reset}\n" 1>&2;
-        printf "$installer_name install --train to train a polyp model\n" 1>&2;
-        echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
-        echo "@@HIGHLIGHT $installer_name install --train";
-        return 3;
-    fi;
     make doctor;
     make up LOWLATENCY=1 CAMERA_TRIGGER=vsync VSYNC_DIVISOR=2 SERIAL=1234567890;
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml);
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -8008,6 +7991,7 @@ debian_90_start_suspicious_activity_detection ()
 { 
     configure_suspicious_activity_detection "$@";
     ensure_ports_open start suspicious_activity_detection "${used_ports[@]}";
+    ensure_container_namespace start suspicious_activity_detection $(ensure_container_parse_yaml "$workspace"/suspicious-activity-detection/docker/*.yaml);
     local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)";
     cd "$workspace"/suspicious-activity-detection;
@@ -8029,6 +8013,7 @@ debian_90_start_take_away ()
 { 
     configure_take_away "$@";
     ensure_ports_open start take_away "${used_ports[@]}";
+    ensure_container_namespace start take_away $(ensure_container_parse_yaml "$workspace"/take-away/docker-compose.yaml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}";
     cd "$workspace"/take-away;
@@ -8039,7 +8024,7 @@ debian_90_start_take_away ()
 }
 debian_90_start_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     verify_uav_mission_compute_sdk || { 
         echo "uav_mission_compute_sdk is not installed or needs repair. Run install first." 1>&2;
         return 1
@@ -8049,6 +8034,7 @@ debian_90_start_uav_mission_compute_sdk ()
     if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
         ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?;
     fi;
+    ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || true;
     if make up-sim-camera; then
         :;
     else
@@ -8069,7 +8055,6 @@ debian_90_start_uav_mission_compute_sdk ()
         make down || return $?;
         return 1;
     fi;
-    ensure_prop create started/uav_mission_compute_sdk/ports || return $?;
     ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?;
     echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras";
     echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080";
@@ -8099,6 +8084,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
         read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_ground_station/ports)";
     fi;
     sed -i -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?;
+    ensure_container_namespace start uncrewed_aerial_vehicle_ground_station $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true;
     make up || return $?;
     local attempt ready=0;
     for ((attempt=0; attempt<24; attempt++))
@@ -8142,6 +8128,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
         read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)";
     fi;
     sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
+    ensure_container_namespace start uncrewed_aerial_vehicle_vision_analytics $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true;
     make pymav-up || return $?;
     local check attempt ready;
     for check in services pipelines;
@@ -8177,6 +8164,7 @@ debian_90_start_video_processing_for_nvr ()
 { 
     configure_video_processing_for_nvr "$@";
     debian_90_stop_video_processing_for_nvr "$@";
+    ensure_container_namespace start video_processing_for_nvr $(ensure_container_parse_yaml "$workspace"/video-processing-for-nvr/docker/*.yml);
     [ ! -r "$workspace"/.device ] || set -- "$@" --"$(< "$workspace"/.device)";
     local device=$(ensure_parse_device "$@");
     echo "@@HIGHLIGHT $installer_name start [--gpu|--npu]";
@@ -8196,15 +8184,17 @@ debian_90_start_vippet ()
 { 
     configure_vippet "$@";
     ensure_ports_open start vippet "${used_ports[@]}";
+    ensure_container_namespace start vippet $(ensure_container_parse_yaml "$workspace"/tools/visual-pipeline-and-platform-evaluation-tool/compose*.yml);
     cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
-    make run;
-    echo "@@HIGHLIGHT URL: http://$(ensure_ip)";
+    make run-prebuilt;
+    echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 debian_90_start_visual_search_question_and_answering () 
 { 
     configure_visual_search_question_and_answering "$@";
     ensure_ports_open start visual_search_question_and_answering "${used_ports[@]}";
+    ensure_container_namespace start visual_search_question_and_answering $(ensure_container_parse_yaml "$workspace"/visual-search-question-and-answering/deployment/docker-compose/*.yaml);
     cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose;
     . ./env.sh;
     docker compose -f compose_milvus.yaml up -d;
@@ -8216,6 +8206,7 @@ debian_90_start_wind_turbine_anomaly_detection ()
 { 
     configure_wind_turbine_anomaly_detection "$@";
     ensure_ports_open start wind_turbine_anomaly_detection "${used_ports[@]}";
+    ensure_container_namespace start wind_turbine_anomaly_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-time-series/docker-compose*.yml);
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device";
     cd "$workspace"/industrial-edge-insights-time-series;
@@ -8287,25 +8278,32 @@ debian_90_stop_agentic_predictive_maintenance_pipeline ()
     cd "$workspace"/agentic-predictive-maintenance-pipeline && { 
         . ./setup.sh --stop || true;
         . ./setup.sh --clean-data || true;
-        docker volume prune -f
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/compose.*.yaml)
     } || true
 }
 debian_90_stop_agentic_smart_community () 
 { 
     configure_agentic_smart_community "$@";
-    cd "$workspace"/agentic-smart-community && bash setup_docker.sh --down || true
+    cd "$workspace"/agentic-smart-community && { 
+        bash setup_docker.sh --down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/compose.yaml)
+    } || true
 }
 debian_90_stop_digital_signage () 
 { 
     configure_digital_signage "$@";
     cd "$workspace" && { 
-        make down
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_dine_in () 
 { 
     configure_dine_in "$@";
-    cd "$workspace"/dine-in && make clean || true
+    cd "$workspace"/dine-in && { 
+        make clean || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
+    } || true
 }
 debian_90_stop_geti () 
 { 
@@ -8315,30 +8313,42 @@ debian_90_stop_handheld_multi_modal ()
 { 
     configure_handheld_multi_modal "$@";
     docker rm -f handheld-multi-modal-model-downloader-1 || true;
-    cd "$workspace"/handheld-multi-modal && make stop || true
+    cd "$workspace"/handheld-multi-modal && { 
+        make stop || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true
+    } || true
 }
 debian_90_stop_image_based_video_search () 
 { 
     configure_image_based_video_search "$@";
     cd "$workspace"/image-based-video-search && { 
-        docker compose down -v --remove-orphans
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose.yml)
     } || true
 }
 debian_90_stop_live_video_alert_agent () 
 { 
     configure_live_video_alert_agent "$@";
-    cd "$workspace"/live-video-analysis/live-video-alert-agent && docker compose -f docker/docker-compose.yml -f docker/docker-compose.npu.yml down -v --remove-orphans || true
+    cd "$workspace"/live-video-analysis/live-video-alert-agent && { 
+        docker compose -f docker/docker-compose.yml -f docker/docker-compose.npu.yml down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yml)
+    } || true
 }
 debian_90_stop_live_video_captioning () 
 { 
     configure_live_video_captioning "$@";
-    cd "$workspace"/live-video-analysis/live-video-captioning;
-    docker compose -f compose.yaml down -v --remove-orphans
+    cd "$workspace"/live-video-analysis/live-video-captioning && { 
+        docker compose -f compose.yaml down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose.yaml)
+    } || true
 }
 debian_90_stop_live_video_captioning_rag () 
 { 
     configure_live_video_captioning_rag "$@";
-    cd "$workspace"/live-video-analysis/live-video-captioning-rag && docker compose -f compose.yaml down -v --remove-orphans || true
+    cd "$workspace"/live-video-analysis/live-video-captioning-rag && { 
+        docker compose -f compose.yaml down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose.yaml)
+    } || true
 }
 debian_90_stop_live_video_search () 
 { 
@@ -8349,7 +8359,7 @@ debian_90_stop_live_video_search ()
         set +a;
         . ./setup.sh --down || true;
         . ./setup.sh --clean-data || true;
-        docker volume rm docker_ov_models -f
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
     } || true
 }
 debian_90_stop_loitering_detection () 
@@ -8357,35 +8367,43 @@ debian_90_stop_loitering_detection ()
     configure_loitering_detection "$@";
     cd "$workspace"/metro-vision-ai-app-recipe && { 
         ./sample_stop.sh || true;
-        docker compose -f compose-without-scenescape.yml down -v --remove-orphans
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_loss_prevention () 
 { 
-    configure_loss_prevention;
+    configure_loss_prevention "$@";
     cd "$workspace" && { 
         pkill -f "python3 benchmark.py" || true;
         make down-lp || true;
-        cd src && docker compose down -v --remove-orphans || true
-    } || true
+        cd src && docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
+    } || true;
+    docker volume rm -f lp-mcp-data || true
 }
 debian_90_stop_multi_modal_patient_monitoring () 
 { 
     configure_multi_modal_patient_monitoring "$@";
-    cd "$workspace"/multi_modal_patient_monitoring && docker compose down -v --remove-orphans || true
+    cd "$workspace"/multi_modal_patient_monitoring && { 
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
+    } || true
 }
 debian_90_stop_multimodal_weld_defect_detection () 
 { 
     configure_multimodal_weld_defect_detection "$@";
-    cd "$workspace"/industrial-edge-insights-multimodal && make down || true
+    cd "$workspace"/industrial-edge-insights-multimodal && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
+    } || true
 }
 debian_90_stop_nicu_warmer () 
 { 
     configure_nicu_warmer "$@";
     cd "$workspace"/NICU-Warmer && { 
         make down || true;
-        docker volume rm -f nicu-warmer_dlsps-shared || true;
-        docker volume prune -f
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
     } || true
 }
 debian_90_stop_pallet_defect_detection () 
@@ -8393,7 +8411,8 @@ debian_90_stop_pallet_defect_detection ()
     configure_pallet_defect_detection "$@";
     cd "$workspace"/industrial-edge-insights-vision && { 
         ./sample_stop.sh || true;
-        docker compose down -v
+        docker compose down -v || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_pcb_anomaly_detection () 
@@ -8401,7 +8420,8 @@ debian_90_stop_pcb_anomaly_detection ()
     configure_pcb_anomaly_detection "$@";
     cd "$workspace"/industrial-edge-insights-vision && { 
         ./sample_stop.sh || true;
-        docker compose down -v --remove-orphans
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_person_of_interest () 
@@ -8409,12 +8429,13 @@ debian_90_stop_person_of_interest ()
     configure_person_of_interest "$@";
     cd "$workspace"/person-of-interest && { 
         make down || true;
-        make clean-all
+        make clean-all || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
     } || true
 }
 debian_90_stop_physical_ai_studio () 
 { 
-    configure_physical_ai_studio;
+    configure_physical_ai_studio "$@";
     [ -f "$pais_pid_file" ] || return 0;
     local pid;
     pid="$(cat "$pais_pid_file" 2> /dev/null)";
@@ -8436,20 +8457,27 @@ debian_90_stop_post_fusion ()
 }
 debian_90_stop_real_time_scene_understanding () 
 { 
-    configure_real_time_scene_understanding;
+    configure_real_time_scene_understanding "$@";
     cd "$workspace"/live-video-analysis/real-time-scene-understanding && { 
-        docker compose -f compose.yaml down -v --remove-orphans
+        docker compose -f compose.yaml down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose.yaml)
     } || true
 }
 debian_90_stop_scenescape () 
 { 
     configure_scenescape "$@";
-    cd "$workspace" && make demo-close || true
+    cd "$workspace" && { 
+        make demo-close || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml sample_data/compose/compose.*.yml)
+    } || true
 }
 debian_90_stop_smart_intersection () 
 { 
     configure_smart_intersection "$@";
-    cd "$workspace"/metro-vision-ai-app-recipe && docker compose -f compose-scenescape.yml down -v --remove-orphans || true
+    cd "$workspace"/metro-vision-ai-app-recipe && { 
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
+    } || true
 }
 debian_90_stop_smart_kiosk_assistant () 
 { 
@@ -8457,14 +8485,15 @@ debian_90_stop_smart_kiosk_assistant ()
     cd "$workspace"/smart-kiosk-assistant && { 
         make down || true;
         make clean || true;
-        docker volume rm -f smart-kiosk-assistant_identity_data
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_smart_nvr () 
 { 
     configure_smart_nvr "$@";
     cd "$workspace"/smart-nvr && { 
-        . ./setup.sh stop
+        . ./setup.sh stop || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
     } || true
 }
 debian_90_stop_smart_parking () 
@@ -8472,7 +8501,8 @@ debian_90_stop_smart_parking ()
     configure_smart_parking "$@";
     cd "$workspace"/metro-vision-ai-app-recipe && { 
         ./sample_stop.sh || true;
-        docker compose down -v --remove-orphans
+        docker compose down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
     } || true
 }
 debian_90_stop_smart_traffic_intersection_agent () 
@@ -8480,7 +8510,8 @@ debian_90_stop_smart_traffic_intersection_agent ()
     configure_smart_traffic_intersection_agent "$@";
     cd "$workspace"/smart-traffic-intersection-agent && { 
         . ./setup.sh --stop || true;
-        . ./setup.sh --clean --keep-models
+        . ./setup.sh --clean --all || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
     } || true
 }
 debian_90_stop_suspicious_activity_detection () 
@@ -8488,24 +8519,29 @@ debian_90_stop_suspicious_activity_detection ()
     configure_suspicious_activity_detection "$@";
     cd "$workspace"/suspicious-activity-detection && { 
         make down || true;
-        make clean-all
+        make clean-all || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
     } || true
 }
 debian_90_stop_take_away () 
 { 
     configure_take_away "$@";
-    cd "$workspace"/take-away && make clean || true
+    cd "$workspace"/take-away && { 
+        make clean || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yaml)
+    } || true
 }
 debian_90_stop_uav_mission_compute_sdk () 
 { 
-    configure_uav_mission_compute_sdk;
+    configure_uav_mission_compute_sdk "$@";
     verify_uav_mission_compute_sdk || { 
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 1
     };
-    cd "$sdk_path" || return $?;
-    make down || return $?;
-    ensure_prop remove started/uav_mission_compute_sdk/
+    cd "$sdk_path" && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
+    } || true
 }
 debian_90_stop_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -8514,8 +8550,10 @@ debian_90_stop_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
+    } || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/
 }
 debian_90_stop_uncrewed_aerial_vehicle_vision_analytics () 
@@ -8525,8 +8563,10 @@ debian_90_stop_uncrewed_aerial_vehicle_vision_analytics ()
         echo "uncrewed_aerial_vehicle_vision_analytics is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    docker compose "${compose_files[@]}" down || return $?;
+    cd "$app_dir" && { 
+        docker compose "${compose_files[@]}" down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
+    } || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/
 }
 debian_90_stop_video_processing_for_nvr () 
@@ -8534,27 +8574,34 @@ debian_90_stop_video_processing_for_nvr ()
     configure_video_processing_for_nvr "$@";
     cd "$workspace"/video-processing-for-nvr/docker && { 
         docker compose down -v --remove-orphans || true;
-        docker rm -f vpp-npu
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yml)
     } || true
 }
 debian_90_stop_vippet () 
 { 
     configure_vippet "$@";
-    cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" && make stop || true
+    cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" && { 
+        make stop || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml compose*.yml)
+    } || true
 }
 debian_90_stop_visual_search_question_and_answering () 
 { 
     configure_visual_search_question_and_answering "$@";
     cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && { 
         . ./env.sh || true;
-        docker compose -f compose_milvus.yaml down -v --remove-orphans
+        docker compose -f compose_milvus.yaml down -v --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml *.yaml)
     } || true;
     docker volume rm -f ov-models || true
 }
 debian_90_stop_wind_turbine_anomaly_detection () 
 { 
     configure_wind_turbine_anomaly_detection "$@";
-    cd "$workspace"/industrial-edge-insights-time-series && make down || true
+    cd "$workspace"/industrial-edge-insights-time-series && { 
+        make down || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
+    } || true
 }
 debian_95_install_smart_route_planning_agent () 
 { 
@@ -8591,13 +8638,13 @@ debian_95_profile_smart_route_planning_agent ()
 debian_95_remove_smart_route_planning_agent () 
 { 
     debian_95_stop_smart_route_planning_agent "$@";
-    . ./setup.sh --clean --all || true;
     ensure_rm "$workspace"
 }
 debian_95_start_smart_route_planning_agent () 
 { 
     configure_smart_route_planning_agent "$@";
     ensure_ports_open start smart_route_planning_agent "${used_ports[@]}";
+    ensure_container_namespace start smart_route_planning_agent $(ensure_container_parse_yaml "$workspace"/smart-route-planning-agent/src/compose.yaml);
     cd "$workspace"/smart-route-planning-agent;
     . ./setup.sh --run;
     echo "@@HIGHLIGHT http://$(ensure_ip):${used_ports[0]}";
@@ -8608,7 +8655,8 @@ debian_95_stop_smart_route_planning_agent ()
     configure_smart_route_planning_agent "$@";
     cd "$workspace"/smart-route-planning-agent && { 
         . ./setup.sh --stop || true;
-        . ./setup.sh --clean --keep-models
+        . ./setup.sh --clean --all || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml src/compose.yaml)
     } || true
 }
 debian_99_install_system_summary () 
@@ -8896,6 +8944,146 @@ for r in rows:
   print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
 ' "$sep"
 }
+ensure_container_cleanup () 
+{ 
+    local c;
+    for c in "$@";
+    do
+        case "$c" in 
+            name:*)
+                echo "Cleaning up $c..." 1>&2;
+                docker container rm -v -f ${c#name:} > /dev/null || true
+            ;;
+            vol:*)
+                echo "Cleaning up $c..." 1>&2;
+                docker volume rm -f ${c#vol:} > /dev/null || true
+            ;;
+            net:*)
+                echo "Cleaning up $c..." 1>&2;
+                docker network rm -f ${c#net:} > /dev/null || true
+            ;;
+        esac;
+    done;
+    echo "Cleaning up anonymous volumes..." 1>&2;
+    docker volume prune -f > /dev/null || true
+}
+ensure_container_namespace () 
+{ 
+    local act_name="${1:?}";
+    local name="${2:?}";
+    shift 2;
+    case "$act_name" in 
+        install)
+            ensure_prop set installed/$name/containers "$*"
+        ;;
+        start)
+            ensure_prop set started/$name/containers "$*"
+        ;;
+    esac;
+    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
+    local c stopper mname mpath;
+    for c in "$@";
+    do
+        [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
+        printf "${red}%s is in conflict${reset}\n" "$c" 1>&2;
+        for mpath in $(ensure_prop find "installed/*/containers") $(ensure_prop find "started/*/containers");
+        do
+            [[ " $(ensure_prop get "$mpath") " = *" $c "* ]] || continue;
+            mname="${mpath#*/}";
+            mname="${mname%/*}";
+            stopper="${_act_cache_functions[stop_$mname]:-}";
+            [ -n "$stopper" ] || continue;
+            printf "${red}Stopping $mname to release container %s${reset}\n" "$c" 1>&2;
+            ( set -e;
+            $stopper "$mname" -- ) 1>&2 || true;
+        done;
+        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
+        [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
+        printf "${red}%s is occupied${reset}\n%s\n" "$c" "${container_resources[*]}" 1>&2;
+        return 3;
+    done
+}
+ensure_container_parse_yaml () 
+{ 
+    python3 - "$@" <<'EOF'
+import os, re, sys, yaml
+def _any(loader, node):  # tolerate Compose !reset / !override tags
+  if isinstance(node, yaml.MappingNode):  return loader.construct_mapping(node, deep=True)
+  if isinstance(node, yaml.SequenceNode): return loader.construct_sequence(node, deep=True)
+  return loader.construct_scalar(node)
+for tag in ("!reset", "!override"):
+  yaml.SafeLoader.add_constructor(tag, _any)
+INNER = re.compile(r"\$\{([A-Za-z_]\w*)(?:(:?)([-?+])([^${}]*))?\}")
+def resolve(v):
+  if v is None: return None
+  s = str(v).replace("$$", "\0")
+  while (m := INNER.search(s)):
+    if m.group(3) != "-": return None
+    s = s[:m.start()] + m.group(4) + s[m.end():]
+  if re.search(r"\$[A-Za-z_]", s): return None
+  return s.replace("\0", "$")
+def normalize(n):
+  return re.sub(r"[^a-z0-9_-]", "", n.lower()).lstrip("_-")
+def host_ports(p):
+  if isinstance(p, int): return []                    # container-only port
+  if isinstance(p, dict):
+    port = resolve(p.get("published"))
+  else:
+    s = resolve(p)
+    if s is None: return []
+    s = s.partition("/")[0]
+    if s.startswith("["): s = s.partition("]:")[2]  # [::1]:8080:80
+    parts = s.rsplit(":", 2)
+    port = parts[-2] if len(parts) >= 2 else None
+  m = re.fullmatch(r"(\d+)(?:-(\d+))?", port or "")
+  if not m: return []
+  lo = int(m.group(1))
+  return range(lo, int(m.group(2) or lo) + 1)
+cli_project, paths = None, []
+for a in sys.argv[1:]:
+  if a.startswith("--project="): cli_project = a.split("=", 1)[1]
+  else: paths.append(a)
+services, networks, volumes, file_name = {}, {}, {}, None
+for path in paths:
+  with open(path) as f:
+    d = yaml.safe_load(f) or {}
+  file_name = d.get("name") or file_name
+  for n, s in (d.get("services") or {}).items():
+    if not isinstance(s, dict): continue
+    m = services.setdefault(n, {"ports": []})
+    for k in ("container_name", "network_mode", "networks", "scale", "deploy"):
+      if k in s: m[k] = s[k]
+    m["ports"] += s.get("ports") or []
+  for sec, tgt in (("networks", networks), ("volumes", volumes)):
+    for k, c in (d.get(sec) or {}).items():
+      tgt.setdefault(k, {}).update(c or {})
+proj = resolve(cli_project or file_name) or os.path.basename(os.path.dirname(os.path.abspath(paths[0])))
+proj = normalize(proj)
+seen = set()
+def out(kind, v):
+  if v is not None and (kind, v) not in seen:
+    seen.add((kind, v)); print(f"{kind}:{v}")
+needs_default = False
+for n, s in services.items():
+  if s.get("container_name"):
+    out("name", resolve(s["container_name"]))
+  else:
+    r = resolve(s.get("scale") or (s.get("deploy") or {}).get("replicas") or 1)
+    for i in range(1, (int(r) if str(r).isdigit() else 1) + 1):
+      out("name", f"{proj}-{n}-{i}")
+  if "network_mode" not in s and not s.get("networks"):
+    needs_default = True
+  for p in s["ports"]:
+    for port in host_ports(p):
+      out("port", port)
+if needs_default: networks.setdefault("default", {})
+for kind, table in (("net", networks), ("vol", volumes)):
+  for k, c in table.items():
+    if c.get("external"): continue                  # never ours to clean up
+    out(kind, resolve(c["name"]) if c.get("name") else f"{proj}_{k}")
+EOF
+
+}
 ensure_disk_size () 
 { 
     local disk_size=$1;
@@ -9153,8 +9341,6 @@ ensure_ip ()
 }
 ensure_license_gate () 
 { 
-    local installer_name="${1:-openedge-cli}";
-    local history_dir="$(ensure_project_path)/$1/licenses";
     local py=$(cat <<'__LICENSE_GATE_PY__'
 import argparse, curses, hashlib, json, os, platform, re, sys, textwrap, time
 
@@ -10144,7 +10330,6 @@ class Gate(object):
 def main():
     ap = argparse.ArgumentParser(prog="license-gate", add_help=True)
     ap.add_argument("--accept-license", nargs="?", const="*", default=None)
-    ap.add_argument("--no-scroll-gate", action="store_true")
     ap.add_argument("--reset-license", "--reset-license", dest="relicense", action="store_true")
     args, _ = ap.parse_known_args()
 
@@ -10208,14 +10393,23 @@ except KeyboardInterrupt:
   sys.exit(EXIT_DECLINED)
 __LICENSE_GATE_PY__
 );
-    LICENSE_GATE_HISTORY_DIR="$history_dir" python3 -c "$py" "$@"
+    LICENSE_GATE_HISTORY_DIR="$(ensure_project_path)/${installer_name:?}/licenses" python3 -c "$py" "$@"
 }
 ensure_license_use_model () 
 { 
     local name="$1";
-    echo "@@LICENSE-ID ${name//[^A-Za-z0-9._-]/}";
-    echo "@@LICENSE-TITLE Download $name";
-    echo "By accepting, you agree to download and use the $name model in sample evaluation."
+    local url="$2";
+    cat <<EOF
+@@LICENSE-ID ${name//[^A-Za-z0-9._-]/}
+@@LICENSE-TITLE $name Model License
+
+The $name model is used in the sample application. The model is subject to its license as follows:
+
+  $url
+
+Disclaimer: by downloading and using this model, you confirm that you accept the license terms and agree to comply with any applicable model-use and privacy requirements.
+EOF
+
 }
 ensure_oneapi_ros_openvino () 
 { 
@@ -10284,19 +10478,26 @@ ensure_ports_open ()
     local act_name="${1:?}";
     local name="${2:?}";
     shift 2;
-    if [ "$act_name" = "start" ]; then
-        ensure_prop set started/$name/ports "$*";
-    fi;
+    case "$act_name" in 
+        install)
+            ensure_prop set installed/$name/ports "$*"
+        ;;
+        start)
+            ensure_prop set started/$name/ports "$*"
+        ;;
+    esac;
     if command -v ss > /dev/null; then
-        local port out stopper mname;
+        local port out stopper mname mpath;
         for port in $*;
         do
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
-            for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
+            for mpath in $(ensure_prop find "installed/*/ports") $(ensure_prop find "started/*/ports");
             do
-                [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
+                [[ " $(ensure_prop get $mpath) " = *" $port "* ]] || continue;
+                mname="${mpath#*/}";
+                mname="${mname%/*}";
                 stopper="${_act_cache_functions[stop_$mname]:-}";
                 [ -n "$stopper" ] || continue;
                 printf "${red}Stopping $mname to release port %s${reset}\n" "$port" 1>&2;
@@ -10319,26 +10520,27 @@ ensure_project_path ()
 }
 ensure_prop () 
 { 
-    local op="$1" key_path="${2:?}" value="${3:-}";
+    local op="$1" key_rpath="${2:?}" value="${3:-}";
     local key_base="$(ensure_project_path)/${installer_name:?}";
+    local key_path="$key_base/$key_rpath";
     case "$op" in 
         find)
-            ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
+            ( cd "$key_base" && find . -ipath "./$key_rpath" -print 2> /dev/null | cut -f2- -d/ )
         ;;
         create)
-            mkdir -m 700 -p "$key_base/${key_path%/*}"
+            mkdir -m 700 -p "${key_path%/*}"
         ;;
         remove)
-            if [ -f "$key_base/$key_path" ]; then
-                rm -f "$key_base/$key_path";
+            if [ -f "$key_path" ]; then
+                rm -f "$key_path";
             else
-                if [[ "$key_path" = */ && -d "$key_base/${key_path%/}" ]]; then
-                    rm -rf "$key_base/${key_path%/}";
+                if [[ "$key_rpath" = */ && -d "${key_path%/}" ]]; then
+                    rm -rf "${key_path%/}";
                 fi;
             fi
         ;;
         get)
-            [ ! -r "$key_base/$key_path" ] || value="$(< "$key_base/$key_path")";
+            [ ! -r "$key_path" ] || value="$(< "$key_path")";
             if ensure_parse_option --boolean "$@"; then
                 [[ " true yes t y a accept " = *" ${value,,} "* ]] && value="true" || value="false";
             fi;
@@ -10364,8 +10566,11 @@ ensure_prop ()
                     value="$("$askpass_helper" "$prompt" | tr -d '\n')"
                 } 9< "$rundir";
             fi;
+            if ensure_parse_option --create "$@"; then
+                mkdir -m 700 -p "${key_path%/*}";
+            fi;
             ( umask 077;
-            printf '%s' "$value" > "$key_base/$key_path" )
+            printf '%s' "$value" > "$key_path" )
         ;;
     esac
 }
@@ -10413,7 +10618,7 @@ ensure_sbom_format ()
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url | cli-sha256)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -10428,18 +10633,27 @@ ensure_skills ()
     case "$op" in 
         add)
             local version="${2:?}";
-            local repository="${3:?}";
-            shift 3;
-            local tmpdir p name;
-            ensure_tmpdir create tmpdir skills;
-            ensure_git_export "$tmpdir" "$version" "$repository" "$@";
             mkdir -p "$HOME"/.agents/skills;
-            for p in "$@";
-            do
-                ensure_rm "$HOME/.agents/skills/${p##*/}";
-                cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
-            done;
-            ensure_tmpdir destroy "$tmpdir"
+            if [ "$version" = "--" ]; then
+                shift 2;
+                for p in "$@";
+                do
+                    ensure_rm "$HOME/.agents/skills/${p##*/}";
+                    cp -r "$p" "$HOME"/.agents/skills/;
+                done;
+            else
+                local repository="${3:?}";
+                shift 3;
+                local tmpdir p name;
+                ensure_tmpdir create tmpdir skills;
+                ensure_git_export "$tmpdir" "$version" "$repository" "$@";
+                for p in "$@";
+                do
+                    ensure_rm "$HOME/.agents/skills/${p##*/}";
+                    cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
+                done;
+                ensure_tmpdir destroy "$tmpdir";
+            fi
         ;;
         remove)
             local names=("${@##*/}");
@@ -10455,7 +10669,9 @@ ensure_sudo ()
     [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
     [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
     if [ -e /dev/tty ]; then
-        if : < /dev/tty 2> /dev/null; then
+        if { 
+            : < /dev/tty
+        } 2> /dev/null; then
             local ppid=$$;
             local pid="$(ensure_prop get pids/sudo/pid$ppid)";
             if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
@@ -10471,8 +10687,7 @@ ensure_sudo ()
                     sleep 60;
                 done;
                 ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
-                ensure_prop create pids/sudo/pid$ppid;
-                ensure_prop set pids/sudo/pid$ppid "$pid";
+                ensure_prop set pids/sudo/pid$ppid "$pid" --create;
                 disown $pid;
             fi;
         fi;
@@ -10551,6 +10766,26 @@ ensure_trap ()
         fi;
     done
 }
+install_anomalib () 
+{ 
+    configure_anomalib "$@";
+    if verify_anomalib && ! ensure_parse_reinstall "$@"; then
+        echo "Anomalib is installed." 1>&2;
+    else
+        ensure_disk_size 15000;
+        echo "@@STEP Installing anomalib=${version}";
+        mkdir -p "$workspace";
+        cd "$workspace";
+        python3 -m venv .venv;
+        . .venv/bin/activate;
+        pip install "anomalib[openvino,cpu]==${version}";
+        echo "@@STEP Installing skills";
+        ensure_skills add "tags/lib/v$version" "$repository" "${skills[@]/#/.agents/skills/}";
+        verify_anomalib;
+    fi;
+    test_anomalib "$@";
+    echo "@@HIGHLIGHT venv: $workspace/.venv"
+}
 install_geti () 
 { 
     configure_geti "$@";
@@ -10563,7 +10798,7 @@ install_geti ()
         echo "@@STEP Pulling image";
         docker pull $image_name;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        ensure_skills add "release/app-${version%.*}" "$repository" "${skills[@]/#/.agents/skills/}";
     fi
 }
 install_k3s_io_sriov () 
@@ -10696,7 +10931,9 @@ install_system_inspection ()
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2;
     net_pass=$ok;
     net_access="$(system_scan_check_network_access)";
-    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}";
+    [[ "$net_access" = *reachable* ]] || { 
+        [[ "$net_access" = *skewed* ]] && net_pass="${nok/MSG/Check DateTime}" || net_pass="${nok/MSG/Check Proxies}"
+    };
     echo -e "Network|$net_access|$net_pass";
     [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2;
     echo;
@@ -10779,6 +11016,11 @@ install_uncrewed_aerial_vehicle_vision_analytics_source ()
     git -C "$workspace" fetch --depth 1 origin "$version" && git -C "$workspace" checkout --detach FETCH_HEAD || return $?;
     echo "UAV source commit: $(git -C "$workspace" rev-parse HEAD)"
 }
+remove_anomalib () 
+{ 
+    configure_anomalib "$@";
+    ensure_rm "$workspace" || true
+}
 remove_geti () 
 { 
     stop_geti "$@";
@@ -10851,6 +11093,7 @@ start_geti ()
 { 
     configure_geti "$@";
     ensure_ports_open start geti "${used_ports[@]}";
+    ensure_container_namespace start geti geti-app;
     mkdir -p "$workspace"/geti-data;
     docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=${used_ports[0]} -p ${used_ports[0]}:${used_ports[0]} -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
@@ -10909,19 +11152,23 @@ subcommand_list ()
 { 
     local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
     local module_region_list=" ${_act_cache_modules[*]/#/--} ";
-    local k v args=() mods=() cli_version="" sbom=0 margs=0;
+    local k v args=() mods=() cli_version="" sbom=0 margs=0 tc=0;
     for v in "$@";
     do
         case "$v" in 
             --help)
                 echo "list options:";
                 echo "  --cli-version <v>  save cli version in the SBOM header";
+                echo "  --test-coverage    show test coverage subset";
                 echo "  --sbom             show component SBOM items";
                 echo;
                 return 0
             ;;
             --sbom)
                 sbom=1
+            ;;
+            --test-coverage)
+                tc=1
             ;;
             --cli-version=*)
                 cli_version="${v#*=}"
@@ -10977,6 +11224,7 @@ subcommand_list ()
             if [[ "/$0" = *"/rendered/"* ]]; then
                 local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
                 ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
+                ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')";
             fi;
         fi;
         ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
@@ -10991,77 +11239,179 @@ subcommand_list ()
             echo "---";
         done;
     else
-        local all_cmds=(${_act_cache_cmds[*]});
-        local profile_lines=() module_lines=();
-        local -A module_act_cache=();
-        local all_modules=(${_act_cache_modules[*]});
-        if [ ${#all_modules[@]} -gt 0 ]; then
-            local module_name;
-            for module_name in "${all_modules[@]}";
+        if [ $tc -eq 1 ]; then
+            if declare -F configure_edge_pack_kernel_image > /dev/null; then
+                configure_edge_pack_kernel_image $(act_extract_args install edge_pack_kernel_image "" "$@") > /dev/null 2>&1 || true;
+                set -- "$@" --edge_pack_kernel_image --version="$version";
+            fi;
+            local -A closure=() size=() target=() covered=();
+            local c h m candidates=();
+            for c in "${mods[@]}";
             do
-                [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
-                local module_cmds=() mname cmd;
-                for cmd in ${all_cmds[*]};
+                local comps=();
+                for h in $(act_find_deps install "$c" $(act_extract_args install "$c" "" "$@"));
                 do
-                    for mname in $(act_expand_modules $cmd $module_name "$@");
-                    do
-                        if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-                            module_cmds+=($cmd);
-                            break;
-                        fi;
-                    done;
+                    comps+=("${h#${installer_family}_*_install_}");
                 done;
-                module_act_cache[$module_name]="${module_cmds[*]}";
-                module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
-            done;
-        fi;
-        act_get prefix profile_;
-        local all_profiles=(${_act_reply[*]});
-        if [ ${#all_profiles[@]} -gt 0 ]; then
-            local profiler;
-            for profiler in "${all_profiles[@]}";
-            do
-                local profile_name=${profiler#*_*_*_};
-                [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
-                [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
-                local profile_cmds=() mname1 mname2 cmd found;
-                for cmd in ${all_cmds[*]};
+                [ ${#comps[@]} -gt 0 ] || continue;
+                closure[$c]=" ${comps[*]} ";
+                size[$c]=${#comps[@]};
+                candidates+=("$c");
+                for m in "${comps[@]}";
                 do
-                    for mname1 in $($profiler $cmd "$@");
+                    target[$m]=1;
+                done;
+            done;
+            if [ ${#target[@]} -eq 0 ]; then
+                echo "No installable components" 1>&2;
+                return 3;
+            fi;
+            local picked=() best best_gain best_size gain left=${#target[@]};
+            while [ $left -gt 0 ]; do
+                best="" best_gain=0 best_size=0;
+                for c in $(printf '%s\n' "${candidates[@]}" | LC_ALL=C.UTF-8 sort);
+                do
+                    [[ " ${picked[*]} " != *" $c "* ]] || continue;
+                    gain=0;
+                    for m in ${closure[$c]};
                     do
-                        if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-                            profile_cmds+=($cmd);
-                            break;
-                        fi;
-                        found=0;
-                        for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                        [ -n "${covered[$m]:-}" ] || gain=$((gain+1));
+                    done;
+                    if [ $gain -gt $best_gain ] || { 
+                        [ $gain -eq $best_gain ] && [ $gain -gt 0 ] && [ ${size[$c]} -lt $best_size ]
+                    }; then
+                        best=$c best_gain=$gain best_size=${size[$c]};
+                    fi;
+                done;
+                [ -n "$best" ] || break;
+                picked+=("$best");
+                for m in ${closure[$best]};
+                do
+                    [ -n "${covered[$m]:-}" ] || { 
+                        covered[$m]=1;
+                        left=$((left-1))
+                    };
+                done;
+            done;
+            local -A cnt=();
+            for c in "${picked[@]}";
+            do
+                for m in ${closure[$c]};
+                do
+                    cnt[$m]=$(( ${cnt[$m]:-0} + 1 ));
+                done;
+            done;
+            local final=() redundant;
+            for c in $(for c in "${picked[@]}";
+do
+    echo "${size[$c]} $c";
+done | sort -rn | cut -f2 -d' ');
+            do
+                redundant=1;
+                for m in ${closure[$c]};
+                do
+                    [ ${cnt[$m]} -gt 1 ] || { 
+                        redundant=0;
+                        break
+                    };
+                done;
+                if [ $redundant -eq 1 ]; then
+                    for m in ${closure[$c]};
+                    do
+                        cnt[$m]=$(( cnt[$m] - 1 ));
+                    done;
+                else
+                    final+=("$c");
+                fi;
+            done;
+            local -A shown=();
+            { 
+                for c in "${final[@]}";
+                do
+                    local adds=();
+                    for m in ${closure[$c]};
+                    do
+                        [ -n "${shown[$m]:-}" ] || { 
+                            shown[$m]=1;
+                            adds+=("$m")
+                        };
+                    done;
+                    printf "|%s|+%d|[%s]\n" "$c" ${#adds[@]} "${adds[*]}";
+                done
+            } | ensure_columns;
+        else
+            local all_cmds=(${_act_cache_cmds[*]});
+            local profile_lines=() module_lines=();
+            local -A module_act_cache=();
+            local all_modules=(${_act_cache_modules[*]});
+            if [ ${#all_modules[@]} -gt 0 ]; then
+                local module_name;
+                for module_name in "${all_modules[@]}";
+                do
+                    [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
+                    local module_cmds=() mname cmd;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname in $(act_expand_modules $cmd $module_name "$@");
                         do
-                            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-                                found=1;
+                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                                module_cmds+=($cmd);
                                 break;
                             fi;
                         done;
-                        if [ $found -eq 1 ]; then
-                            profile_cmds+=($cmd);
-                            break;
-                        fi;
                     done;
+                    module_act_cache[$module_name]="${module_cmds[*]}";
+                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
                 done;
-                profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
-            done;
-        fi;
-        { 
-            if [ ${#profile_lines[@]} -gt 0 ]; then
-                printf "List of Profiles:\n";
-                printf "%s\n" "${profile_lines[@]}" | sort;
-                printf "\n";
             fi;
-            if [ ${#module_lines[@]} -gt 0 ]; then
-                printf "List of Components:\n";
-                printf "%s\n" "${module_lines[@]}" | sort;
-                printf "\n";
-            fi
-        } | ensure_columns;
+            act_get prefix profile_;
+            local all_profiles=(${_act_reply[*]});
+            if [ ${#all_profiles[@]} -gt 0 ]; then
+                local profiler;
+                for profiler in "${all_profiles[@]}";
+                do
+                    local profile_name=${profiler#*_*_*_};
+                    [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
+                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                    local profile_cmds=() mname1 mname2 cmd found;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname1 in $($profiler $cmd "$@");
+                        do
+                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                            found=0;
+                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                            do
+                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                    found=1;
+                                    break;
+                                fi;
+                            done;
+                            if [ $found -eq 1 ]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
+                    done;
+                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+                done;
+            fi;
+            { 
+                if [ ${#profile_lines[@]} -gt 0 ]; then
+                    printf "List of Profiles:\n";
+                    printf "%s\n" "${profile_lines[@]}" | sort;
+                    printf "\n";
+                fi;
+                if [ ${#module_lines[@]} -gt 0 ]; then
+                    printf "List of Components:\n";
+                    printf "%s\n" "${module_lines[@]}" | sort;
+                    printf "\n";
+                fi
+            } | ensure_columns;
+        fi;
     fi
 }
 subcommand_remove () 
@@ -11104,7 +11454,7 @@ subcommand_setup ()
 { 
     ensure_parse_option --help "$@" && return;
     local installer_misc_functions=(_act_levenshtein system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uav_mission_compute_sdk_checkout);
-    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW2RpZ2l0YWxfc2lnbmFnZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2Nocm9ueV09IiIgW2szc19pb109IiIgW3NvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFtyc3luY109IiIgW2xpbnV4X2ltYWdlXzYuMThfaW50ZWxdPSIiIFt2aXBwZXRdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2RldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbl09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3NdPSIiIFtncHVfYWNjZWxdPSIiIFtwY2JfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFtjbWFrZV09IiIgW2F1dG9tYWtlXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgW3Y0bF91dGlsc109IiIgW3N5c3RlbV9zdW1tYXJ5XT0iIiBbZ251cGddPSIiIFtvdm1mXT0iIiBbbnB1X2FjY2VsXT0iIiBbbG1fc2Vuc29yc109IiIgW2xpYmdsMV09IiIgW3N0cmVzc19uZ109IiIgW25vZGVqc109IiIgW2RvY2tlcl9jZV09IiIgW21lbXRlc3Rlcl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbZWRnZV9wYWNrX2lwdV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbc3RhdGlvbmFyeV9yb2JvdF92aXNpb25dPSIiIFtydF90ZXN0c109IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbcGlweF09IiIgW21lZGlhbXR4XT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbdXZdPSIiIFtzY2VuZXNjYXBlXT0iIiBbdWJ1bnR1X3NlcnZlcl09IiIgW21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF9ibHVlcHJpbnRdPSIiIFtlc3FdPSIiIFthdXRvbm9tb3VzX21vYmlsZV9yb2JvdF09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFtlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW2RpbmVfaW5dPSIiIFtkb2NrZXJfaW9dPSIiIFtwaHlzaWNhbF9haV9mcmFtZXdvcmtdPSIiIFtwZXJzb25fb2ZfaW50ZXJlc3RdPSIiIFtydXN0dXBdPSIiIFtyb3Nfb3BlbnZpbm9dPSIiIFtweXRob24zX3lhbWxdPSIiIFtsaWJ0YmIxMl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtwb3dlcl90dW5pbmddPSIiIFtwa2dfY29uZmlnXT0iIiBbaGFuZGhlbGRfYmx1ZXByaW50XT0iIiBbc21hcnRfbnZyXT0iIiBbZWRnZV9iYXNlX3JvYm90aWNzXT0iIiBbLS1kcnktcnVuXT0iIiBbcWVtdV91dGlsc109IiIgW2VkZ2VfcGFja19ncmFwaGljc19jb3JlXT0iIiBbbGliY2FwMl9iaW5dPSIiIFtnYXdrXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbbGliemUxXT0iIiBbZmZtcGVnXT0iIiBbdW56aXBdPSIiIFtwb3N0X2Z1c2lvbl09IiIgW2Rsc3RyZWFtZXJdPSIiIFt1YXZfbWlzc2lvbl9jb21wdXRlX3Nka109IiIgW2F1dG9jb25mXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbbGludXhfaW1hZ2VfZ2VuZXJpY183LjBdPSIiIFtsaWJwY3JlMl9kZXZdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtyb3MyXT0iIiBbaW5mZXJlbmNpbmddPSIiIFtzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbl09IiIgW3dnZXRdPSIiIFtzbWFydF9yb3V0ZV9wbGFubmluZ19hZ2VudF09IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW3N5c3RlbV9pbmZvXT0iIiBbaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFt4cHVfc21pXT0iIiBbY3B1aWRdPSIiIFtlZGdlX3BhY2tfY29tcHV0ZV9leHRyYV09IiIgW2xzYl9yZWxlYXNlXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2pxXT0iIiBbZGViY29uZl91dGlsc109IiIgW3BjaXV0aWxzXT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGlieWFuZ109IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVdPSIiIFtlZGdlX3BhY2tfa2VybmVsX2ltYWdlXT0iIiBbbXNyX3Rvb2xzXT0iIiBbY2RpXT0iIiBbYW5vbWFsaWJdPSIiIFtjdXJsXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRdPSIiIFtpbnRlbF9scG1kXT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtnb2xhbmddPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtsaW51eF90b29sc109IiIgW2VkZ2VfcGFja109IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3lxXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3FlbXVfc3lzdGVtX3g4Nl09IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgW3JlYWxzZW5zZV09IiIgW2VkZ2VfcGFja19tZWRpYV9jb3JlXT0iIiBbZWRnZV9wYWNrX25wdV09IiIgW2VkZ2VfcGFja19ncmFwaGljc19zcmlvdl09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlbW92ZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2xpdmVfdmlkZW9fY2FwdGlvbmluZ109IiIgW3Rha2VfYXdheV09IiIgW2RpZ2l0YWxfc2lnbmFnZV09IiIgW2VkZ2VfcGFja19iYXNlX3JlYWx0aW1lXT0iIiBbcGNtXT0iIiBbdGltZV9jb25maWdodWJdPSIiIFtidWlsZF9lc3NlbnRpYWxdPSIiIFtlZGdlX3BhY2tfdHNuXT0iIiBbazNzX2lvXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW3JzeW5jXT0iIiBbZ2V0aV09IiIgW3ZpcHBldF09IiIgW2Nsb3VkX2ltYWdlX3V0aWxzXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfYmx1ZXByaW50XT0iIiBbZ2l0XT0iIiBbZWRnZV9iYXNlXT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbb3ZtZl09IiIgW25wdV9hY2NlbF09IiIgW2xtX3NlbnNvcnNdPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFttZW10ZXN0ZXJdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2VkZ2VfcGFja19pcHVdPSIiIFtoZWFsdGhfYW5kX2xpZmVfc2NpZW5jZV9haV9zdWl0ZV09IiIgW3N0YXRpb25hcnlfcm9ib3RfdmlzaW9uXT0iIiBbcnRfdGVzdHNdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbbWVkaWFtdHhdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZmZtcGVnXT0iIiBbLS12YWxpZGF0ZV09IiIgW2ludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2VdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3V2XT0iIiBbc2NlbmVzY2FwZV09IiIgW21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF9ibHVlcHJpbnRdPSIiIFtlc3FdPSIiIFthdXRvbm9tb3VzX21vYmlsZV9yb2JvdF09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFtlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW2RpbmVfaW5dPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtkb2NrZXJfaW9dPSIiIFtwaHlzaWNhbF9haV9mcmFtZXdvcmtdPSIiIFtwZXJzb25fb2ZfaW50ZXJlc3RdPSIiIFtydXN0dXBdPSIiIFtyb3Nfb3BlbnZpbm9dPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbcG93ZXJfdHVuaW5nXT0iIiBbcGtnX2NvbmZpZ109IiIgW2hhbmRoZWxkX2JsdWVwcmludF09IiIgW3NtYXJ0X252cl09IiIgW2VkZ2VfYmFzZV9yb2JvdGljc109IiIgWy0tZHJ5LXJ1bl09IiIgW2VkZ2VfcGFja19ncmFwaGljc19jb3JlXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbZmZtcGVnXT0iIiBbdW56aXBdPSIiIFtwb3N0X2Z1c2lvbl09IiIgW2Rsc3RyZWFtZXJdPSIiIFt1YXZfbWlzc2lvbl9jb21wdXRlX3Nka109IiIgW2F1dG9jb25mXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbcm9zMl09IiIgW2luZmVyZW5jaW5nXT0iIiBbc3VzcGljaW91c19hY3Rpdml0eV9kZXRlY3Rpb25dPSIiIFtzbWFydF9yb3V0ZV9wbGFubmluZ19hZ2VudF09IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW3N5c3RlbV9pbmZvXT0iIiBbaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFt4cHVfc21pXT0iIiBbY3B1aWRdPSIiIFtlZGdlX3BhY2tfY29tcHV0ZV9leHRyYV09IiIgW2VkZ2VfcGFja19tYW5hZ2VhYmlsaXR5XT0iIiBbc3lzYmVuY2hdPSIiIFthZ2VudGljX3NtYXJ0X2NvbW11bml0eV09IiIgW3N1cmdpY2FsX2luc3RydW1lbnRdPSIiIFtqcV09IiIgW2RlYmNvbmZfdXRpbHNdPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaWJ5YW5nXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV09IiIgW21zcl90b29sc109IiIgW2NkaV09IiIgW2Fub21hbGliXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRdPSIiIFtpbnRlbF9scG1kXT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtnb2xhbmddPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtsaW51eF90b29sc109IiIgW2VkZ2VfcGFja109IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3lxXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgW3JlYWxzZW5zZV09IiIgW2VkZ2VfcGFja19tZWRpYV9jb3JlXT0iIiBbZWRnZV9wYWNrX25wdV09IiIgW2VkZ2VfcGFja19ncmFwaGljc19zcmlvdl09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlc3VtZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdGFydCkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2xpdmVfdmlkZW9fY2FwdGlvbmluZ109IiIgW3Rha2VfYXdheV09IiIgW2RpZ2l0YWxfc2lnbmFnZV09IiIgW3JlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nXT0iIiBbZ2V0aV09IiIgW3ZpcHBldF09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3NdPSIiIFtwY2JfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2xvaXRlcmluZ19kZXRlY3Rpb25dPSIiIFstLXZhbGlkYXRlXT0iIiBbaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbc2NlbmVzY2FwZV09IiIgW2VzcV09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbcGVyc29uX29mX2ludGVyZXN0XT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3NtYXJ0X252cl09IiIgWy0tZHJ5LXJ1bl09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW3Bvc3RfZnVzaW9uXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50XT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFtuaWN1X3dhcm1lcl09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbZGlnaXRhbF9zaWduYWdlXT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW21hbnVmYWN0dXJpbmdfYWlfc3VpdGVdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgWy0tdmFsaWRhdGVdPSIiIFtpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFtzY2VuZXNjYXBlXT0iIiBbZXNxXT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW2RpbmVfaW5dPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtwZXJzb25fb2ZfaW50ZXJlc3RdPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbc21hcnRfbnZyXT0iIiBbLS1kcnktcnVuXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbcG9zdF9mdXNpb25dPSIiIFt1YXZfbWlzc2lvbl9jb21wdXRlX3Nka109IiIgW3JvYm90aWNzX2FpX3N1aXRlXT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbc3VzcGljaW91c19hY3Rpdml0eV9kZXRlY3Rpb25dPSIiIFtzbWFydF9yb3V0ZV9wbGFubmluZ19hZ2VudF09IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb25dPSIiIFtuaWN1X3dhcm1lcl09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV09IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICAqKQogICAgQ09NUFJFUExZPSgpCiAgICA7OwogIGVzYWMKfQpjb21wbGV0ZSAtRiBfb3BlbmVkZ2VfY2xpX2NvbXBsZXRpb24gb3BlbmVkZ2UtY2xpCg==";
+    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW2RpZ2l0YWxfc2lnbmFnZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2Nocm9ueV09IiIgW2szc19pb109IiIgW3NvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFtyc3luY109IiIgW3ZpcHBldF09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludF09IiIgW2Nsb3VkX2ltYWdlX3V0aWxzXT0iIiBbZ2l0XT0iIiBbZWRnZV9iYXNlXT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtnbnVwZ109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtsbV9zZW5zb3JzXT0iIiBbbGliZ2wxXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbbWVtdGVzdGVyXT0iIiBbLS1yZWluc3RhbGxdPSIiIFthZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmVdPSIiIFtlZGdlX3BhY2tfaXB1XT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbl09IiIgW3J0X3Rlc3RzXT0iIiBbc3lzdGVtX2luc3BlY3Rpb25dPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtwaXB4XT0iIiBbbWVkaWFtdHhdPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbZWRnZV9wYWNrX21lZGlhX2ZmbXBlZ109IiIgWy0tdmFsaWRhdGVdPSIiIFtpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlXT0iIiBbb3BlbnZpbm9dPSIiIFttYWtlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFt1dl09IiIgW3NjZW5lc2NhcGVdPSIiIFt1YnVudHVfc2VydmVyXT0iIiBbbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludF09IiIgW2VzcV09IiIgW2F1dG9ub21vdXNfbW9iaWxlX3JvYm90XT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW2VkZ2VfcGFja19iYXNlX3N0YW5kYXJkXT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbZGluZV9pbl09IiIgW2RvY2tlcl9pb109IiIgW3BoeXNpY2FsX2FpX2ZyYW1ld29ya109IiIgW3BlcnNvbl9vZl9pbnRlcmVzdF09IiIgW3J1c3R1cF09IiIgW3Jvc19vcGVudmlub109IiIgW3B5dGhvbjNfeWFtbF09IiIgW2xpYnRiYjEyXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3Bvd2VyX3R1bmluZ109IiIgW3B5dGhvbjNfZGV2XT0iIiBbcGtnX2NvbmZpZ109IiIgW2hhbmRoZWxkX2JsdWVwcmludF09IiIgW3NtYXJ0X252cl09IiIgW2VkZ2VfYmFzZV9yb2JvdGljc109IiIgWy0tZHJ5LXJ1bl09IiIgW3FlbXVfdXRpbHNdPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZV09IiIgW2xpYmNhcDJfYmluXT0iIiBbZ2F3a109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW2xpYnplMV09IiIgW2ZmbXBlZ109IiIgW3VuemlwXT0iIiBbcG9zdF9mdXNpb25dPSIiIFtkbHN0cmVhbWVyXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFthdXRvY29uZl09IiIgW3JvYm90aWNzX2FpX3N1aXRlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2dzdF09IiIgW2xpYnBjcmUyX2Rldl09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW3JvczJdPSIiIFtpbmZlcmVuY2luZ109IiIgW3N1c3BpY2lvdXNfYWN0aXZpdHlfZGV0ZWN0aW9uXT0iIiBbd2dldF09IiIgW3NtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50XT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW2RtaWRlY29kZV09IiIgW25pY3Vfd2FybWVyXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmddPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW3hwdV9zbWldPSIiIFtjcHVpZF09IiIgW2VkZ2VfcGFja19jb21wdXRlX2V4dHJhXT0iIiBbbHNiX3JlbGVhc2VdPSIiIFtlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eV09IiIgW3N5c2JlbmNoXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbanFdPSIiIFtkZWJjb25mX3V0aWxzXT0iIiBbcGNpdXRpbHNdPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaWJ5YW5nXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV09IiIgW2VkZ2VfcGFja19rZXJuZWxfaW1hZ2VdPSIiIFttc3JfdG9vbHNdPSIiIFtjZGldPSIiIFthbm9tYWxpYl09IiIgW2N1cmxdPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF09IiIgW2ludGVsX2xwbWRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbeXFdPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nXT0iIiBbcWVtdV9zeXN0ZW1feDg2XT0iIiBbcmV0YWlsX2FpX3N1aXRlXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2NvcmVdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVtb3ZlKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbZGlnaXRhbF9zaWduYWdlXT0iIiBbZWRnZV9wYWNrX2Jhc2VfcmVhbHRpbWVdPSIiIFtwY21dPSIiIFt0aW1lX2NvbmZpZ2h1Yl09IiIgW2J1aWxkX2Vzc2VudGlhbF09IiIgW2VkZ2VfcGFja190c25dPSIiIFtrM3NfaW9dPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheV09IiIgW3JlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nXT0iIiBbcnN5bmNdPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbY2xvdWRfaW1hZ2VfdXRpbHNdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtsb3NzX3ByZXZlbnRpb25dPSIiIFtkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb25dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzXT0iIiBbZ3B1X2FjY2VsXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbY21ha2VdPSIiIFthdXRvbWFrZV09IiIgW21hbnVmYWN0dXJpbmdfYWlfc3VpdGVdPSIiIFt2NGxfdXRpbHNdPSIiIFtvdm1mXT0iIiBbbnB1X2FjY2VsXT0iIiBbbG1fc2Vuc29yc109IiIgW3N0cmVzc19uZ109IiIgW25vZGVqc109IiIgW2RvY2tlcl9jZV09IiIgW21lbXRlc3Rlcl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbZWRnZV9wYWNrX2lwdV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbc3RhdGlvbmFyeV9yb2JvdF92aXNpb25dPSIiIFtydF90ZXN0c109IiIgW2NvbXB1dGVyX3Zpc2lvbl09IiIgW2xvaXRlcmluZ19kZXRlY3Rpb25dPSIiIFttZWRpYW10eF09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbdXZdPSIiIFtzY2VuZXNjYXBlXT0iIiBbbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludF09IiIgW2VzcV09IiIgW2F1dG9ub21vdXNfbW9iaWxlX3JvYm90XT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW2VkZ2VfcGFja19iYXNlX3N0YW5kYXJkXT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW2RvY2tlcl9pb109IiIgW3BoeXNpY2FsX2FpX2ZyYW1ld29ya109IiIgW3BlcnNvbl9vZl9pbnRlcmVzdF09IiIgW3J1c3R1cF09IiIgW3Jvc19vcGVudmlub109IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtwb3dlcl90dW5pbmddPSIiIFtwa2dfY29uZmlnXT0iIiBbaGFuZGhlbGRfYmx1ZXByaW50XT0iIiBbc21hcnRfbnZyXT0iIiBbZWRnZV9iYXNlX3JvYm90aWNzXT0iIiBbLS1kcnktcnVuXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmVdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGRdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtmZm1wZWddPSIiIFt1bnppcF09IiIgW3Bvc3RfZnVzaW9uXT0iIiBbZGxzdHJlYW1lcl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbYXV0b2NvbmZdPSIiIFtyb2JvdGljc19haV9zdWl0ZV09IiIgW2VkZ2VfcGFja19tZWRpYV9nc3RdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtyb3MyXT0iIiBbaW5mZXJlbmNpbmddPSIiIFtzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50XT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW2RtaWRlY29kZV09IiIgW25pY3Vfd2FybWVyXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmddPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW3hwdV9zbWldPSIiIFtjcHVpZF09IiIgW2VkZ2VfcGFja19jb21wdXRlX2V4dHJhXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2pxXT0iIiBbZGViY29uZl91dGlsc109IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpYnlhbmddPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbbXNyX3Rvb2xzXT0iIiBbY2RpXT0iIiBbYW5vbWFsaWJdPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF09IiIgW2ludGVsX2xwbWRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbeXFdPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nXT0iIiBbcmV0YWlsX2FpX3N1aXRlXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2NvcmVdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVzdW1lKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0YXJ0KQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbZGlnaXRhbF9zaWduYWdlXT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgWy0tdmFsaWRhdGVdPSIiIFtpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFtzY2VuZXNjYXBlXT0iIiBbZXNxXT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW2RpbmVfaW5dPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtwZXJzb25fb2ZfaW50ZXJlc3RdPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbc21hcnRfbnZyXT0iIiBbLS1kcnktcnVuXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbcG9zdF9mdXNpb25dPSIiIFt1YXZfbWlzc2lvbl9jb21wdXRlX3Nka109IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW3N1c3BpY2lvdXNfYWN0aXZpdHlfZGV0ZWN0aW9uXT0iIiBbc21hcnRfcm91dGVfcGxhbm5pbmdfYWdlbnRdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0b3ApCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtkaWdpdGFsX3NpZ25hZ2VdPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtsb3NzX3ByZXZlbnRpb25dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbLS12YWxpZGF0ZV09IiIgW2ludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2VdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW3BlcnNvbl9vZl9pbnRlcmVzdF09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtzbWFydF9udnJdPSIiIFstLWRyeS1ydW5dPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGRdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtwb3N0X2Z1c2lvbl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50XT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
     { 
@@ -11254,7 +11604,7 @@ system_scan_check_network_access ()
     for url in "${check_urls[@]}";
     do
         curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { 
-            echo "$url by $(id -un)";
+            [[ "$url" = https://* ]] && curl -k -fsSL --connect-timeout 10 $url > /dev/null && echo "Clock skewed" || echo "$url by $(id -un)";
             return 0
         };
     done;
@@ -11709,7 +12059,7 @@ verify_pallet_defect_detection ()
         echo "warehouse.avi missing" 1>&2;
         return 1
     };
-    [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ] || { 
+    [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/model.bin ] || { 
         echo "model.bin missing" 1>&2;
         return 1
     }
@@ -11742,13 +12092,13 @@ verify_person_of_interest ()
 }
 verify_physical_ai_framework () 
 { 
-    configure_physical_ai_framework;
+    configure_physical_ai_framework "$@";
     configure_physical_ai_framework_device "$@";
     [ -x "$paif_venv/bin/physicalai" ] && [ "$(cat "$paif_device_file" 2> /dev/null)" = "$paif_extra" ] && [ "$("$paif_venv/bin/python" -c "import importlib.metadata as m; print(m.version('$paif_pkg'))" 2> /dev/null)" = "$paif_version" ]
 }
 verify_physical_ai_studio () 
 { 
-    configure_physical_ai_studio;
+    configure_physical_ai_studio "$@";
     configure_physical_ai_studio_device "$@";
     configure_uv;
     [ -x "$pais_bin" ] && [ "$(cat "$pais_device_file" 2> /dev/null)" = "$pais_extra" ] && uv tool list 2> /dev/null | grep -q -E "^$pais_pkg v${pais_version//./\\.}( |$)"
@@ -11870,6 +12220,10 @@ verify_surgical_instrument ()
     [ -e "$workspace"/surgical-instrument/videos/polyp_test.mp4 ] || { 
         echo "Missing polyp_test.mp4" 1>&2;
         return 1
+    };
+    [ -e "$workspace"/surgical-instrument/$polyp_model ] || { 
+        echo "Missing yolo11n_polyp" 1>&2;
+        return 1
     }
 }
 verify_suspicious_activity_detection () 
@@ -11912,7 +12266,7 @@ verify_time_confighub ()
 verify_uav_mission_compute_sdk () 
 { 
     local installed_commit;
-    installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk)" || return $?;
+    installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk/commit)" || return $?;
     [ -r "$sdk_path/Makefile" ] && [ -r "$sdk_path/.env" ] && [ -n "$installed_commit" ] && [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" = "$installed_commit" ]
 }
 verify_uav_mission_compute_sdk_running () 
@@ -12005,7 +12359,7 @@ verify_video_processing_for_nvr ()
 }
 verify_video_search_and_summarization () 
 { 
-    local files_to_check=(ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml ov_models/object-detection/ultralytics/public/yolov8l/FP16/yolov8l.xml ov_models/ovms/openvino_models/gpu/int4/meta-llama/Llama-3.2-3B-Instruct/openvino_model.xml ov_models/ovms/openvino_models/gpu/int4/Qwen/Qwen2.5-VL-3B-Instruct/openvino_config.json ov_models/ovms/openvino_models/gpu/int4/config_all.json ov_models/ovms/config.json);
+    local files_to_check=(ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.bin ov_models/object-detection/ultralytics/public/yolov8l/FP16/yolov8l.bin ov_models/ovms/openvino_models/gpu/int8/OpenVINO/Qwen3-4B-int8-ov/openvino_model.bin ov_models/ovms/openvino_models/gpu/int8/OpenVINO/Qwen3.5-4B-int8-ov/openvino_language_model.bin);
     for f in "${files_to_check[@]}";
     do
         [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || { 
