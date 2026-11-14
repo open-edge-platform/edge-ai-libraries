@@ -200,7 +200,7 @@ async def download_model(
         revision: Optional model revision / tag / branch.
         override_credentials: Optional per-request credential overrides for
             the target plugin's connection keys (e.g. HF_TOKEN, or
-            GETI_HOST/GETI_TOKEN/GETI_WORKSPACE_ID). Each value must be
+            GETI_HOST). Each value must be
             Base64-encoded (e.g. echo -n 'token' | base64) — they are decoded
             server-side and take precedence over the service's environment
             variables for this request only. Never stored or logged.
