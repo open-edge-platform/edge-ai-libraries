@@ -1,0 +1,7 @@
+debian_15_install_kmod () {
+  ensure_apt_install_package kmod
+}
+
+debian_15_sbom_kmod () {
+  ensure_sbom_format pkg-list kmod
+}
