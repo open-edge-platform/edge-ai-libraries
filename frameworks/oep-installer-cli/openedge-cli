@@ -340,83 +340,222 @@ subcommand_bootstrap () {
 
       # render bash completion once
       act_get init > /dev/null
+      local cname=${installer_name//-/_}
+
+      # ---- build time: collect the options a function (and its callees) parses ----
+      # emits: --flag, @value:--key (takes a value), @device:<cpu|gpu|npu>
+      _render_scan_opts () {
+        local -A seen=() o=()
+        local q=("$@") i=0 fn body t d
+        while [ $i -lt ${#q[@]} ]; do
+          fn=${q[$i]}; i=$((i+1))
+          [[ -n $fn && -z ${seen[$fn]:-} ]] || continue
+          seen[$fn]=1
+          body="$(declare -f "$fn")" || continue
+          # boolean options: ensure_parse_option --x
+          for t in $(grep -oE 'ensure_parse_option +"?--[A-Za-z0-9_-]+' <<< "$body" | grep -oE -- '--[A-Za-z0-9_-]+'); do
+            o[$t]=1
+          done
+          # value options: only the first argument is the key
+          for t in $(grep -oE 'ensure_parse_value_option +"?[A-Za-z0-9_-]+' <<< "$body" | awk '{print $2}' | tr -d '"'); do
+            o[--$t]=1
+            o[@value:--$t]=1
+          done
+          grep -q ensure_parse_reinstall <<< "$body" && o[--reinstall]=1
+          # device selection: ensure_parse_device [--devices=a,b] "$@"
+          while read -r t; do
+            [ -n "$t" ] || continue
+            if [[ $t == *--devices=* ]]; then t=${t#*--devices=}; else t=cpu,gpu,npu; fi
+            for d in ${t//,/ }; do o[@device:$d]=1; done
+          done < <(grep -oE 'ensure_parse_device( +--devices=[a-z,]+)?' <<< "$body")
+          # follow calls into component helpers (skip shared framework helpers)
+          for t in $(grep -oE '\b[A-Za-z_][A-Za-z0-9_]*\b' <<< "$body" | sort -u); do
+            [[ -v _render_known[$t] ]] || continue
+            case "$t" in (ensure_*|act_*|subcommand_*|main|_render_*) continue ;; esac
+            q+=("$t")
+          done
+        done
+        echo "${!o[*]}"
+      }
+
+      # ---- build time: emit one case per command ----
+      _render_completion_cases () {
+        local f
+        declare -gA _render_known=()
+        for f in $(declare -F | cut -f3 -d' '); do _render_known[$f]=1; done
+
+        act_get prefix profile_
+        local all_profilers=(${_act_reply[*]})
+        local cmd dcmd profiler pname mname flags state
+        local -a fns all_modules
+        local -A mods opts
+        for cmd in ${_act_cache_cmds[*]}; do
+          # per-command flags; state = ensure_prop key listing valid targets ("" = all)
+          case "$cmd" in
+          (install) flags="--continue --dry-run --reinstall --validate"; state="" ;;
+          (start)   flags="--continue --dry-run";                         state=installed ;;
+          (stop)    flags="--dry-run --stop-all";                         state=started ;;
+          (remove)  flags="--dry-run --remove-all --remove-me";           state=installed ;;
+          (*)       flags="--continue --dry-run";                         state="" ;;
+          esac
+          mods=(); opts=()
+          # sbom handlers are sparse; resolve as if install
+          dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
+
+          act_get prefix ${dcmd}_
+          all_modules=(${_act_reply[*]#*_*_*_})
+          for mname in "${all_modules[@]}"; do
+            mods[$mname]=1
+            opts[$mname]="$(_render_scan_opts "${_act_cache_functions[${dcmd}_$mname]:-}" "${_act_cache_functions[profile_$mname]:-}")"
+          done
+
+          # profiles: offered if any expanded component handles this command;
+          # options merge the profile's own plus those of its expanded components
+          for profiler in "${all_profilers[@]}"; do
+            pname=${profiler#*_*_*_}
+            [[ -v mods[$pname] ]] && continue
+            fns=()
+            for mname in $(act_expand_modules $dcmd $pname); do
+              [[ -v _act_cache_functions[${dcmd}_$mname] ]] && fns+=("${_act_cache_functions[${dcmd}_$mname]}")
+            done
+            [ ${#fns[@]} -gt 0 ] || continue
+            mods[$pname]=1
+            opts[$pname]="$(_render_scan_opts "$profiler" "${fns[@]}")"
+          done
+
+          printf '  %s)\n' "$cmd"
+          printf '    local flags=%q state=%q\n' "$flags" "$state"
+          printf '    %s\n' "$(declare -p mods | sed 's/^declare -A /local -A /')"
+          printf '    %s\n' "$(declare -p opts | sed 's/^declare -A /local -A /')"
+          printf '    _%s_complete_args "$@"\n' "$cname"
+          printf '    ;;\n'
+        done
+
+        # list: names plus list-specific options
+        local -A all_comps=()
+        for f in --sbom --test-coverage --cli-version ${_act_cache_names[*]}; do all_comps[$f]=""; done
+        printf '  list)\n'
+        printf '    if [ "${COMP_WORDS[COMP_CWORD-1]}" = --cli-version ]; then COMPREPLY=(); return; fi\n'
+        printf '    %s\n' "$(declare -p all_comps | sed 's/^declare -A /local -A /')"
+        printf '    for ((i=2;i<COMP_CWORD;i++)); do unset "all_comps[${COMP_WORDS[$i]}]"; done\n'
+        printf '    COMPREPLY=($(compgen -W "${!all_comps[*]}" -- "$2"))\n'
+        printf '    ;;\n'
+      }
+
+      # ---- runtime helper, emitted verbatim (quoted heredoc: no escaping) ----
+      # caller scope provides: flags, state (strings), mods (assoc name->1), opts (assoc name->tokens)
+      completion_helper="$(cat <<'EOS'
+_openedge_cli_complete_args () {
+  local cur=$2 prev=${COMP_WORDS[COMP_CWORD-1]} i w s d sec="" dev_used=0
+  local -a picked=() sugg=() tmp=() out=() names=()
+  local -A used=() valopt=() seen=()
+
+  # options that take a value (--key <value> or --key=<value>)
+  for s in ${opts[*]}; do [[ $s == @value:* ]] && valopt[${s#@value:}]=1; done
+
+  # cursor on the value: let the user type it
+  [[ -n $prev && -v valopt[$prev] ]] && { COMPREPLY=(); return; }
+  [[ $cur == "=" || $prev == "=" ]] && { COMPREPLY=(); return; }
+
+  # walk words already typed
+  for ((i=2;i<COMP_CWORD;i++)); do
+    w=${COMP_WORDS[i]}
+    [[ -z $w || $w == "=" ]] && continue
+    # --key=value is split by bash into: --key = value
+    if [[ ${COMP_WORDS[i+1]:-} == "=" ]]; then used[$w]=1; i=$((i+2)); continue; fi
+    # value of --key <value>
+    [[ -v valopt[${COMP_WORDS[i-1]}] ]] && continue
+    used[$w]=1
+    if [[ $w == --?* && -v mods[${w#--}] ]]; then
+      sec=${w#--}                                   # per-component section
+    elif [[ -z $sec && -v mods[$w] ]]; then
+      picked+=("$w")                                # bare component name
+    fi
+  done
+
+  # component names: all (install) or from state (start/remove: installed, stop: started)
+  if [ -n "${state:-}" ]; then
+    local installer_name=openedge-cli   # required by ensure_prop
+    for d in $(_openedge_cli_ensure_prop find "$state/*" | cut -f2 -d/ | sort -u); do
+      [[ -v mods[$d] ]] && names+=("$d")
+    done
+  else
+    names=(${!mods[*]})
+  fi
+
+  # candidates
+  if [ -n "$sec" ]; then
+    sugg=(${opts[$sec]:-} "${picked[@]/#/--}")
+  else
+    sugg=($flags "${names[@]}" "${picked[@]/#/--}")
+    # before any --<component> marker: no value options (--key <v> only works inside a section)
+    for w in "${picked[@]}"; do
+      for s in ${opts[$w]:-}; do
+        [[ -v valopt[$s] ]] || sugg+=("$s")
+      done
+    done
+  fi
+
+  # expand placeholders; offer only devices present on this host
+  for s in "${sugg[@]}"; do
+    case "$s" in
+    @value:*)    ;;
+    @device:gpu) [ -e /dev/dri/renderD128 ] && tmp+=(--gpu) ;;
+    @device:npu) [ -e /dev/accel/accel0 ]   && tmp+=(--npu) ;;
+    @device:cpu) tmp+=(--cpu) ;;
+    *)           tmp+=("$s") ;;
+    esac
+  done
+
+  # filter: already used, mutually exclusive devices, duplicates
+  [[ -v used[--cpu] || -v used[--gpu] || -v used[--npu] ]] && dev_used=1
+  for s in "${tmp[@]}"; do
+    [[ -v used[$s] || -v seen[$s] ]] && continue
+    [[ $dev_used -eq 1 && $s =~ ^--(cpu|gpu|npu)$ ]] && continue
+    seen[$s]=1
+    out+=("$s")
+  done
+  COMPREPLY=($(compgen -W "${out[*]}" -- "$cur"))
+}
+EOS
+)"
+      completion_helper="${completion_helper//_openedge_cli_/_${cname}_}"
+      completion_helper="${completion_helper//installer_name=openedge-cli/installer_name=$installer_name}"
+
+      local completion_cases
+      completion_cases="$(_render_completion_cases)" || { echo "Failed to render completion cases" 1>&2; exit 3; }
+
       completion_plain="$(
-        all_cmds=(${_act_cache_cmds[*]})
         cat <<EOF
 #!/bin/bash
-_${installer_name//-/_}_completion () {
+$(declare -f ensure_project_path ensure_prop | sed -E "s/\b(ensure_project_path|ensure_prop)\b/_${cname}_\1/g")
+
+$completion_helper
+
+_${cname}_completion () {
   if (( COMP_CWORD == 1 )); then
-    COMPREPLY=(\$(compgen -W "${all_cmds[*]} resume list setup --help" -- "\$2"))
+    COMPREPLY=(\$(compgen -W "${_act_cache_cmds[*]} list setup resume --help" -- "\$2"))
     return
   fi
 
   case "\${COMP_WORDS[1]}" in
-$(
-    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
-    act_get prefix profile_
-    local all_profilers=(${_act_reply[*]})
-    local cmd profiler pname mname found f
-    local -a flags
-    local -A all_comps
-    for cmd in ${all_cmds[*]}; do
-      # per-command options, matching what each subcommand_* actually parses
-      case "$cmd" in
-      (install) flags=(--continue --dry-run --reinstall --validate) ;;
-      (start)   flags=(--continue --dry-run) ;;
-      (stop)    flags=(--dry-run --stop-all) ;;
-      (remove)  flags=(--dry-run --remove-all --remove-me) ;;
-      (*)       flags=(--continue --dry-run) ;;
-      esac
-      all_comps=()
-      for f in "${flags[@]}"; do all_comps[$f]=""; done
-      act_get prefix ${cmd}_
-      local all_modules=(${_act_reply[*]#*_*_*_})
-      for profiler in ${all_profilers[*]}; do
-        pname=${profiler#*_*_*_}
-        [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
-        found=0
-        for mname in $(act_expand_modules $cmd $pname); do
-          if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-            found=1
-            break
-          fi
-        done
-        [ $found -eq 0 ] || all_comps[$pname]=""
-      done
-      for mname in ${all_modules[*]}; do
-        all_comps[$mname]=""
-      done
-      echo "  $cmd)"
-      echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-      echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
-      echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
-      echo "    ;;"
-    done
-
-    # list: every component/profile name plus list-specific options
-    all_comps=()
-    for f in --sbom --test-coverage --cli-version ${_act_cache_names[*]}; do
-      all_comps[$f]=""
-    done
-    echo "  list)"
-    echo "    if [ \"\${COMP_WORDS[COMP_CWORD-1]}\" = --cli-version ]; then COMPREPLY=(); return; fi"
-    echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-    echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
-    echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
-    echo "    ;;"
-    :
-)
+$completion_cases
   *)
     COMPREPLY=()
     ;;
   esac
 }
-complete -F _${installer_name//-/_}_completion $installer_name
+complete -F _${cname}_completion $installer_name
 EOF
       )" || { echo "Failed to render bash completion" 1>&2; exit 3; }
+
+      # build-time helpers must not leak into the rendered installer
+      unset -f _render_scan_opts _render_completion_cases
+      unset _render_known completion_cases
+
       bash -n <<< "$completion_plain" > /dev/null || { echo "Rendered bash completion has syntax errors" 1>&2; exit 3; }
       completion_text="$(base64 <<< "$completion_plain" | tr -d '\n')"
-      unset completion_plain
+      unset completion_plain completion_helper
 
       funcs="$(declare -f)"
       funcs="${funcs/"@@INSTALLER_MISC_FUNCTIONS@@"/"${misc_funcs[*]}"}"
