@@ -5535,7 +5535,7 @@ debian_70_profile_openvino ()
 }
 debian_70_profile_time_confighub () 
 { 
-    echo "libyang git cmake make kernel_module_essential python3_dev"
+    echo "libyang git cmake make kernel_module_essential python3_dev python3_venv"
 }
 debian_70_remove_edge_pack_media_ffmpeg () 
 { 
@@ -6742,7 +6742,7 @@ debian_90_install_uav_mission_compute_sdk ()
             echo "Mission Compute SDK initialization did not produce the expected source and .env." 1>&2;
             return 1;
         fi;
-        ensure_prop set installed/uav_mission_compute_sdk "$source_commit" || return $?;
+        ensure_prop set installed/uav_mission_compute_sdk/commit "$source_commit" || return $?;
         verify_uav_mission_compute_sdk || return $?;
     fi;
     echo "@@HIGHLIGHT workspace: $sdk_path";
@@ -7097,7 +7097,7 @@ debian_90_profile_surgical_instrument ()
 }
 debian_90_profile_suspicious_activity_detection () 
 { 
-    echo "docker_io edge_base git make curl"
+    echo "docker_io edge_base git make curl python3_venv"
 }
 debian_90_profile_take_away () 
 { 
@@ -7342,7 +7342,7 @@ debian_90_remove_take_away ()
 debian_90_remove_uav_mission_compute_sdk () 
 { 
     configure_uav_mission_compute_sdk "$@";
-    if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk)" ]; then
+    if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk/commit)" ]; then
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 0;
     fi;
@@ -7354,9 +7354,7 @@ debian_90_remove_uav_mission_compute_sdk ()
         make down || true;
         ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
     } || true;
-    ensure_prop remove started/uav_mission_compute_sdk/ || true;
-    ensure_rm "$workspace" || return $?;
-    ensure_prop remove installed/uav_mission_compute_sdk
+    ensure_rm "$workspace" || return $?
 }
 debian_90_remove_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -8057,7 +8055,6 @@ debian_90_start_uav_mission_compute_sdk ()
         make down || return $?;
         return 1;
     fi;
-    ensure_prop create started/uav_mission_compute_sdk/ports || return $?;
     ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?;
     echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras";
     echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080";
@@ -8544,8 +8541,7 @@ debian_90_stop_uav_mission_compute_sdk ()
     cd "$sdk_path" && { 
         make down || true;
         ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
-    } || true;
-    ensure_prop remove started/uav_mission_compute_sdk/
+    } || true
 }
 debian_90_stop_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -12270,7 +12266,7 @@ verify_time_confighub ()
 verify_uav_mission_compute_sdk () 
 { 
     local installed_commit;
-    installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk)" || return $?;
+    installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk/commit)" || return $?;
     [ -r "$sdk_path/Makefile" ] && [ -r "$sdk_path/.env" ] && [ -n "$installed_commit" ] && [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" = "$installed_commit" ]
 }
 verify_uav_mission_compute_sdk_running () 
