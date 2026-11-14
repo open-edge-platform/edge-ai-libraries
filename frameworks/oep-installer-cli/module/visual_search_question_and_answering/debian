@@ -10,6 +10,7 @@ configure_visual_search_question_and_answering () {
   export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
   export DOCKER_VOLUME_DIRECTORY="$workspace"
   export HOST_DATA_PATH="$workspace"/data
+  export HF_ENDPOINT="${HF_ENDPOINT:-https://huggingface.co}"
   export REGISTRY=intel/
   export TAG=latest
 
@@ -41,7 +42,7 @@ debian_90_install_visual_search_question_and_answering () {
     echo "Visual search question and answering is installed." >&2
   else
     # clone the repository
-    ensure_disk_size 8000
+    ensure_disk_size 50000
     ensure_ports_open install visual_search_question_and_answering "${used_ports[@]}"
     ensure_git_export "$workspace" $version $repository visual-search-question-and-answering
 
@@ -77,7 +78,7 @@ debian_90_start_visual_search_question_and_answering () {
 
   cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose
   . ./env.sh
-  docker compose -f compose_milvus.yaml up -d 
+  docker compose -f compose_milvus.yaml up -d --timeout=300
   
   echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT $installer_name stop|remove"

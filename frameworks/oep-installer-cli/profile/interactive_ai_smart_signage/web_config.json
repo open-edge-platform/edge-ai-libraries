@@ -14,12 +14,12 @@
   ],
   "getStarted": {
     "text": "Get Started",
-    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-retail.html"
+    "link": "https://docs.openedgeplatform.intel.com/2026.3/ai-suite-retail.html"
   },
   "resources": [
     {
       "text": "Digital Signage",
-      "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
+      "url": "https://docs.openedgeplatform.intel.com/2026.3/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
     }
   ]
 }
