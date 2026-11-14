@@ -129,14 +129,21 @@ ensure_container_cleanup () {
   local c
   for c in "$@"; do
     case "$c" in
-    name:*)
-      docker container rm -v -f ${c#name:} 2> /dev/null || true;;
+    name:*) 
+      echo "Cleaning up $c..." >&2
+      docker container rm -v -f ${c#name:} > /dev/null || true
+      ;;
     vol:*)
-      docker volume rm -f ${c#vol:} 2> /dev/null || true;;
+      echo "Cleaning up $c..." >&2
+      docker volume rm -f ${c#vol:} > /dev/null || true
+      ;;
     net:*)
-      docker network rm -f ${c#net:} 2> /dev/null || true;;
+      echo "Cleaning up $c..." >&2
+      docker network rm -f ${c#net:} > /dev/null || true
+      ;;
     esac
   done
-  docker volume prune -f || true
+  echo "Cleaning up anonymous volumes..." >&2
+  docker volume prune -f > /dev/null || true
 }
 
