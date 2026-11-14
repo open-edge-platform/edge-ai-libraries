@@ -191,7 +191,7 @@ system_scan_check_pci_device () {
   local lspci_out="$(lspci -v -n -d $deviceid || true)"
   local subsystem="$(echo "$lspci_out" | grep -m1 Subsystem: | cut -f2- -d: | sed 's|^ ||g' || true)"
   if [ -n "$subsystem" ]; then
-    local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true || true)"
+    local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true)"
     local driver="$(echo "$lspci_out" | awk '/Kernel driver in use:/{print$NF}' || true)"
     local driver_str=""
     if [ -n "$driver" ]; then
