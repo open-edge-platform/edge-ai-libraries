@@ -71,7 +71,7 @@ EOF
     verify_multimodal_weld_defect_detection
   fi
 
-  local device=$(ensure_parse_device "$@")
+  local device=$(ensure_parse_device --devices=cpu,gpu "$@")
   configure_multimodal_weld_defect_detection_device "$device"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -84,7 +84,7 @@ debian_90_start_multimodal_weld_defect_detection () {
   ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}"
   ensure_container_namespace start multimodal_weld_defect_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-multimodal/docker-compose*.yml)
 
-  local device="$(ensure_parse_device "$@")"
+  local device="$(ensure_parse_device --devices=cpu,gpu "$@")"
   [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device
 
   cd "$workspace"/industrial-edge-insights-multimodal
