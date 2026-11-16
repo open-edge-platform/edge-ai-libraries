@@ -1,6 +1,6 @@
 # Get Tensor Vector Data
 
-DL Streamer Pipeline Server supports extracting tensor data (as Python lists) from pipeline models by making use of DL Streamer's `add-tensor-data=true` property for `gvametaconvert` element. Depending upon how gva elements are stacked and whether inference is done on entire frame or on ROIs (Region Of Interest), the metadata json is structured accordingly. Tensor outputs are vector representation of the frame/roi. It can be used by reference applications for various use cases such as image comparison, image description, image classification using custom model, etc. To learn more about the element, including its properties, read [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/elements/gvametaconvert.html).
+DL Streamer Pipeline Server supports extracting tensor data (as Python lists) from pipeline models by making use of DL Streamer's `add-tensor-data=true` property for `gvametaconvert` element. Depending upon how gva elements are stacked and whether inference is done on entire frame or on ROIs (Region Of Interest), the metadata json is structured accordingly. Tensor outputs are vector representation of the frame/roi. It can be used by reference applications for various use cases such as image comparison, image description, image classification using custom model, etc. To learn more about the element, including its properties, read [here](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/elements/gvametaconvert.html).
 
 Follow the below steps to publish tensor vector data along with other metadata via MQTT
 
@@ -15,8 +15,8 @@ Follow the below steps to publish tensor vector data along with other metadata v
 2. Update pipeline present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json` with the pipeline below (edit the path to model XML and proc JSON to your needs):
 
    > [!NOTE]
-   > The model used in the below pipeline is from the list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
-   > Refer to the DL Streamer [model preparation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html) documentation on how to download it for your usage.
+   > The model used in the below pipeline is from the list of [supported models](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/supported_models.html).
+   > Refer to the DL Streamer [model preparation](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html) documentation on how to download it for your usage.
 
    ```sh
    "pipeline": "{auto_source} ! decodebin ! gvadetect model=/home/pipeline-server/omz/intel/person-vehicle-bike-detection-2004/FP32/person-vehicle-bike-detection-2004.xml model-proc=/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/person-vehicle-bike-detection-2004.json ! queue ! gvainference model=/home/pipeline-server/resources/models/classification/resnet50/FP16/resnet-50-pytorch.xml inference-region=1 ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvametapublish ! appsink name=destination ",
