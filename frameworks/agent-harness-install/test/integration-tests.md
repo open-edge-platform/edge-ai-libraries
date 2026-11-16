@@ -114,7 +114,7 @@ run in the CI reporting-regression step; they do not run live integration in CI.
 
 ### Direct live-suite execution
 
-1. Check out the reviewed revision and enter the Agent Harness Install component
+1. Check out the reviewed revision and enter the Agent Harness Installer component
    directory. Run under the account that can access Docker and the gateway.
 2. Run the offline gate first:
 
