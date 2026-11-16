@@ -3215,6 +3215,10 @@ fedora_05_install_dmidecode ()
 { 
     ensure_dnf_install_package dmidecode
 }
+fedora_05_install_kmod () 
+{ 
+    ensure_dnf_install_package kmod
+}
 fedora_05_install_pciutils () 
 { 
     ensure_dnf_install_package pciutils
@@ -3231,6 +3235,10 @@ fedora_05_sbom_dmidecode ()
 { 
     ensure_sbom_format pkg-list dmidecode
 }
+fedora_05_sbom_kmod () 
+{ 
+    ensure_sbom_format pkg-list kmod
+}
 fedora_05_sbom_pciutils () 
 { 
     ensure_sbom_format pkg-list pciutils
@@ -3243,7 +3251,7 @@ fedora_08_profile_system_inspection ()
 { 
     case "$1" in 
         bootstrap | install)
-            echo "curl dmidecode pciutils"
+            echo "curl dmidecode pciutils kmod"
         ;;
     esac
 }
@@ -3818,7 +3826,7 @@ install_system_inspection ()
     [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}";
     echo -e "CPU|$cpuinst_info|$pass";
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass";
-    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ');
+    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ' || true);
     do
         pass=$ok;
         accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")";
@@ -3828,7 +3836,7 @@ install_system_inspection ()
             [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2;
         fi;
     done;
-    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ');
+    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ' || true);
     do
         pass=$ok;
         accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")";
@@ -3941,7 +3949,7 @@ subcommand_list ()
 
             ;;
             --auto-completion | --auto-completion=*)
-                local data="Y21kcyBpbnN0YWxsIHJlbW92ZSBzdGFydCBzdG9wCm5hbWVzIGN1cmwgZG1pZGVjb2RlIHBjaXV0aWxzIHN5c3RlbV9pbnNwZWN0aW9uIGdudXBnMiB3Z2V0IGdhd2sganEgdW56aXAgcmVib290IGNocm9ueSBjbWFrZSBkb2NrZXJfY2UgZ2NjIGdpdCBrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbCBtYWtlIHBjcmUyX2RldmVsIHBvZG1hbl9kb2NrZXIgcnN5bmMgc3RyZXNzX25nIHB5dGhvbjNfcGlwIHBpcHggdXYgbm9kZWpzIG9wZW52aW5vIGFub21hbGliIGdldGkgc3lzdGVtX3N1bW1hcnkgZWRnZV9iYXNlCmZsYWdzIGluc3RhbGwgLS1jb250aW51ZSAtLWRyeS1ydW4gLS1yZWluc3RhbGwgLS12YWxpZGF0ZQpzdGF0ZSBpbnN0YWxsIC0KbW9kIGluc3RhbGwgcmVib290Cm1vZCBpbnN0YWxsIGNocm9ueQptb2QgaW5zdGFsbCBnZXRpIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHJzeW5jCm1vZCBpbnN0YWxsIGdpdAptb2QgaW5zdGFsbCBlZGdlX2Jhc2UKbW9kIGluc3RhbGwgcGNyZTJfZGV2ZWwKbW9kIGluc3RhbGwgY21ha2UKbW9kIGluc3RhbGwgc3lzdGVtX3N1bW1hcnkKbW9kIGluc3RhbGwgc3RyZXNzX25nCm1vZCBpbnN0YWxsIG5vZGVqcwptb2QgaW5zdGFsbCBkb2NrZXJfY2UKbW9kIGluc3RhbGwgc3lzdGVtX2luc3BlY3Rpb24KbW9kIGluc3RhbGwgcGlweAptb2QgaW5zdGFsbCBvcGVudmlubyBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbiAtLXZhbGlkYXRlCm1vZCBpbnN0YWxsIG1ha2UKbW9kIGluc3RhbGwgdXYKbW9kIGluc3RhbGwgcHl0aG9uM19waXAKbW9kIGluc3RhbGwgZ2F3awptb2QgaW5zdGFsbCB1bnppcAptb2QgaW5zdGFsbCB3Z2V0Cm1vZCBpbnN0YWxsIGdudXBnMgptb2QgaW5zdGFsbCBkbWlkZWNvZGUKbW9kIGluc3RhbGwga2VybmVsX21vZHVsZV9lc3NlbnRpYWwKbW9kIGluc3RhbGwganEKbW9kIGluc3RhbGwgcGNpdXRpbHMKbW9kIGluc3RhbGwgYW5vbWFsaWIgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24gLS12YWxpZGF0ZQptb2QgaW5zdGFsbCBwb2RtYW5fZG9ja2VyCm1vZCBpbnN0YWxsIGN1cmwKbW9kIGluc3RhbGwgZ2NjCmZsYWdzIHJlbW92ZSAtLWRyeS1ydW4gLS1yZW1vdmUtYWxsIC0tcmVtb3ZlLW1lCnN0YXRlIHJlbW92ZSBpbnN0YWxsZWQKbW9kIHJlbW92ZSByc3luYwptb2QgcmVtb3ZlIGdldGkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBnaXQKbW9kIHJlbW92ZSBjbWFrZQptb2QgcmVtb3ZlIHN0cmVzc19uZwptb2QgcmVtb3ZlIG5vZGVqcwptb2QgcmVtb3ZlIGRvY2tlcl9jZQptb2QgcmVtb3ZlIHBpcHgKbW9kIHJlbW92ZSBvcGVudmlubyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbiAtLXZhbGlkYXRlCm1vZCByZW1vdmUgbWFrZQptb2QgcmVtb3ZlIHV2Cm1vZCByZW1vdmUgdW56aXAKbW9kIHJlbW92ZSBkbWlkZWNvZGUKbW9kIHJlbW92ZSBrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbAptb2QgcmVtb3ZlIGpxCm1vZCByZW1vdmUgYW5vbWFsaWIgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBwb2RtYW5fZG9ja2VyCm1vZCByZW1vdmUgZ2NjCmZsYWdzIHN0YXJ0IC0tY29udGludWUgLS1kcnktcnVuCnN0YXRlIHN0YXJ0IGluc3RhbGxlZAptb2Qgc3RhcnQgZ2V0aSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgpmbGFncyBzdG9wIC0tZHJ5LXJ1biAtLXN0b3AtYWxsCnN0YXRlIHN0b3Agc3RhcnRlZAptb2Qgc3RvcCBnZXRpIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCg==" cmd state;
+                local data="Y21kcyBpbnN0YWxsIHJlbW92ZSBzdGFydCBzdG9wCm5hbWVzIGN1cmwgZG1pZGVjb2RlIGttb2QgcGNpdXRpbHMgc3lzdGVtX2luc3BlY3Rpb24gZ251cGcyIHdnZXQgZ2F3ayBqcSB1bnppcCByZWJvb3QgY2hyb255IGNtYWtlIGRvY2tlcl9jZSBnY2MgZ2l0IGtlcm5lbF9tb2R1bGVfZXNzZW50aWFsIG1ha2UgcGNyZTJfZGV2ZWwgcG9kbWFuX2RvY2tlciByc3luYyBzdHJlc3NfbmcgcHl0aG9uM19waXAgcGlweCB1diBub2RlanMgb3BlbnZpbm8gYW5vbWFsaWIgZ2V0aSBzeXN0ZW1fc3VtbWFyeSBlZGdlX2Jhc2UKZmxhZ3MgaW5zdGFsbCAtLWNvbnRpbnVlIC0tZHJ5LXJ1biAtLXJlaW5zdGFsbCAtLXZhbGlkYXRlCnN0YXRlIGluc3RhbGwgLQptb2QgaW5zdGFsbCByZWJvb3QKbW9kIGluc3RhbGwgY2hyb255Cm1vZCBpbnN0YWxsIGdldGkgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgcnN5bmMKbW9kIGluc3RhbGwgZ2l0Cm1vZCBpbnN0YWxsIGVkZ2VfYmFzZQptb2QgaW5zdGFsbCBwY3JlMl9kZXZlbAptb2QgaW5zdGFsbCBrbW9kCm1vZCBpbnN0YWxsIGNtYWtlCm1vZCBpbnN0YWxsIHN5c3RlbV9zdW1tYXJ5Cm1vZCBpbnN0YWxsIHN0cmVzc19uZwptb2QgaW5zdGFsbCBub2RlanMKbW9kIGluc3RhbGwgZG9ja2VyX2NlCm1vZCBpbnN0YWxsIHN5c3RlbV9pbnNwZWN0aW9uCm1vZCBpbnN0YWxsIHBpcHgKbW9kIGluc3RhbGwgb3BlbnZpbm8gQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24gLS12YWxpZGF0ZQptb2QgaW5zdGFsbCBtYWtlCm1vZCBpbnN0YWxsIHV2Cm1vZCBpbnN0YWxsIHB5dGhvbjNfcGlwCm1vZCBpbnN0YWxsIGdhd2sKbW9kIGluc3RhbGwgdW56aXAKbW9kIGluc3RhbGwgd2dldAptb2QgaW5zdGFsbCBnbnVwZzIKbW9kIGluc3RhbGwgZG1pZGVjb2RlCm1vZCBpbnN0YWxsIGtlcm5lbF9tb2R1bGVfZXNzZW50aWFsCm1vZCBpbnN0YWxsIGpxCm1vZCBpbnN0YWxsIHBjaXV0aWxzCm1vZCBpbnN0YWxsIGFub21hbGliIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uIC0tdmFsaWRhdGUKbW9kIGluc3RhbGwgcG9kbWFuX2RvY2tlcgptb2QgaW5zdGFsbCBjdXJsCm1vZCBpbnN0YWxsIGdjYwpmbGFncyByZW1vdmUgLS1kcnktcnVuIC0tcmVtb3ZlLWFsbCAtLXJlbW92ZS1tZQpzdGF0ZSByZW1vdmUgaW5zdGFsbGVkCm1vZCByZW1vdmUgcnN5bmMKbW9kIHJlbW92ZSBnZXRpIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZ2l0Cm1vZCByZW1vdmUgY21ha2UKbW9kIHJlbW92ZSBzdHJlc3NfbmcKbW9kIHJlbW92ZSBub2RlanMKbW9kIHJlbW92ZSBkb2NrZXJfY2UKbW9kIHJlbW92ZSBwaXB4Cm1vZCByZW1vdmUgb3BlbnZpbm8gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24gLS12YWxpZGF0ZQptb2QgcmVtb3ZlIG1ha2UKbW9kIHJlbW92ZSB1dgptb2QgcmVtb3ZlIHVuemlwCm1vZCByZW1vdmUgZG1pZGVjb2RlCm1vZCByZW1vdmUga2VybmVsX21vZHVsZV9lc3NlbnRpYWwKbW9kIHJlbW92ZSBqcQptb2QgcmVtb3ZlIGFub21hbGliIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgcG9kbWFuX2RvY2tlcgptb2QgcmVtb3ZlIGdjYwpmbGFncyBzdGFydCAtLWNvbnRpbnVlIC0tZHJ5LXJ1bgpzdGF0ZSBzdGFydCBpbnN0YWxsZWQKbW9kIHN0YXJ0IGdldGkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KZmxhZ3Mgc3RvcCAtLWRyeS1ydW4gLS1zdG9wLWFsbApzdGF0ZSBzdG9wIHN0YXJ0ZWQKbW9kIHN0b3AgZ2V0aSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgo=" cmd state;
                 [[ $data != @@* ]] || { 
                     echo "Completion data not rendered; run bootstrap" 1>&2;
                     return 3
@@ -4434,8 +4442,8 @@ system_scan_check_cpu_instructions ()
 }
 system_scan_check_docker () 
 { 
-    local docker_ver=$(docker version 2> /dev/null | awk '/Version:/{print$NF;exit}' || true);
-    local compose_ver=$(docker compose version 2> /dev/null | awk '{print$NF}' || true);
+    local docker_ver="$(docker version 2> /dev/null | awk '/Version:/{print$NF;exit}' || true)";
+    local compose_ver="$(docker compose version 2> /dev/null | awk '{print$NF}' || true)";
     [ -z "$compose_ver" ] || docker_ver="$docker_ver + Compose $compose_ver";
     echo "$docker_ver"
 }
@@ -4464,7 +4472,7 @@ system_scan_check_membank ()
       if (in_dev && size !~ /No Module Installed/ && size !~ /Unknown/ && size != "") {
         print size " | Locator: " loc " | Bank: " bank
       }
-    }');
+    }') || true;
     local total_slots=$(echo "$dmi_out" | grep -c "^\s*Locator:" || true);
     local populated_count=${#installed_modules[@]};
     if [[ ${populated_count} -eq 0 ]]; then
@@ -4520,7 +4528,7 @@ system_scan_check_pci_device ()
 { 
     local deviceid=${1,,};
     local default_name="$2";
-    local lspci_out="$(lspci -v -n -d $deviceid)";
+    local lspci_out="$(lspci -v -n -d $deviceid || true)";
     local subsystem="$(echo "$lspci_out" | grep -m1 Subsystem: | cut -f2- -d: | sed 's|^ ||g' || true)";
     if [ -n "$subsystem" ]; then
         local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true)";
@@ -4535,9 +4543,9 @@ system_scan_check_pci_device ()
 }
 system_scan_get_system_summary () 
 { 
-    local cpuinfo="$(grep -m1 "model name" /proc/cpuinfo | cut -f2 -d: | sed 's|^ ||g')";
-    local coreinfo="$(grep "processor" /proc/cpuinfo | wc -l) cores";
-    local meminfo="$(grep -m1 "MemTotal:" /proc/meminfo | cut -f2 -d: | tr -d ' ')";
+    local cpuinfo="$(grep -m1 "model name" /proc/cpuinfo | cut -f2 -d: | sed 's|^ ||g' || echo Unknown)";
+    local coreinfo="$(grep "processor" /proc/cpuinfo | wc -l || echo 1) cores";
+    local meminfo="$(grep -m1 "MemTotal:" /proc/meminfo | cut -f2 -d: | tr -d ' ' || echo 0)";
     [[ "$meminfo" != *kB ]] || meminfo="$(( ${meminfo%kB} / 1024 / 1024 ))GB";
     [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1024 ))GB";
     echo "$cpuinfo · $coreinfo · $meminfo RAM"
