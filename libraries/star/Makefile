@@ -56,7 +56,7 @@ clean: ## Tear down the running containers and remove orphans
 	NPU_RENDER_GID=0 docker compose --profile npu down --remove-orphans
 
 pull-model: dirs ## Downloads yolov8m and change it to OpenVINO format.
-	python3 -m venv .venv
+	python3.10 -m venv .venv
 	.venv/bin/pip install -r requirements.txt
 	mkdir -p "$(MODEL_DIR)"
 	curl -fL "$(YOLO_MODEL_URL)" -o "$(MODEL_DIR)/$(YOLO_MODEL_NAME).pt"
