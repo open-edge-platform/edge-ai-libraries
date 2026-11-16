@@ -325,7 +325,8 @@ compressor = ToolCompressor(
 | `tool_descriptions_mode` | Literal | `"dynamic"` | `"static"` (default descriptions) or `"dynamic"` (extract from messages) |
 | `placement` | Literal | `"schema"` | Where the predicted tool schema is placed. See **Placement modes** below. |
 | `accumulate` | bool | `True` | Union the predicted tool set per conversation (append-only, never removed/reordered) so each turn's tool block is a strict prefix-extension of the previous turn's — keeping the prefix cache stable while still admitting tools that only emerge in later turns. Required by `user_inline_delta`. |
-| `accumulate_max_conversations` | int | `1024` | Per-conversation LRU capacity; converted to an integer and clamped to at least 1 |
+| `accumulate_max_conversations` | int | `1024` | Per-conversation LRU capacity for accumulated predictions, automatic resident bindings and inline-carrier state; converted to an integer and clamped to at least 1 |
+| `resident_tools` | list[str] \| Literal["auto"] \| None | `"auto"` | Only used by `user_inline_delta`: choose the first valid function tool when a conversation first provides usable tools, then keep that name resident for subsequent requests. `None` / `[]` disables residency; a name list pins matching request tools instead. All valid values are ignored in `schema` and other placements. |
 
 The constructor checks supported modes, score range, positive `top_k` and timeout,
 and incompatible parameter combinations with `ConfigError`.
