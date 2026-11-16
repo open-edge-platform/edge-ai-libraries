@@ -25,7 +25,7 @@ verify_uncrewed_aerial_vehicle_vision_analytics () {
 }
 
 debian_90_profile_uncrewed_aerial_vehicle_vision_analytics () {
-  echo "docker_io git curl make v4l_utils edge_base python3_venv"
+  echo "docker_io git curl make v4l_utils edge_base python3_venv gawk"
 }
 
 debian_90_license_uncrewed_aerial_vehicle_vision_analytics () {

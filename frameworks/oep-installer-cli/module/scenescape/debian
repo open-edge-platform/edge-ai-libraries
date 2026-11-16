@@ -57,13 +57,13 @@ debian_90_stop_scenescape () {
   configure_scenescape "$@"
   cd "$workspace" && {
     make demo-close || true
+    make clean-all || true
     ensure_container_cleanup $(ensure_container_parse_yaml sample_data/compose/compose.*.yml)
   } || true
 }
 
 debian_90_remove_scenescape () {
   debian_90_stop_scenescape "$@"
-  cd "$workspace" && make clean-all || true
   ensure_rm "$workspace" || true
   ensure_skills remove "${skills[@]}"
 }

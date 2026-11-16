@@ -24,7 +24,7 @@ verify_npu_accel_packages () {
 }
 
 debian_40_profile_npu_accel () {
-  echo "libtbb12 jq libze1"
+  echo "libtbb12 jq libze1 kmod"
 }
 
 debian_40_group_npu_accel () {

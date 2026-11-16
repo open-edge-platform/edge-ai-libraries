@@ -1,0 +1,42 @@
+configure_xpu_smi () {
+  repo_name="repositories.intel.com"
+  key_url="https://$repo_name/gpu/intel-graphics.key"
+  key_file="/usr/share/keyrings/intel-graphics.gpg"
+  apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified"
+  apt_file="/etc/apt/sources.list.d/intel-graphics.list"
+}
+
+debian_30_install_xpu_smi () {
+  configure_xpu_smi "$@"
+
+  if ensure_apt_is_installed xpu-smi; then
+    echo "xpu-smi is installed." >&2
+  else
+    ensure_prop set installed/xpu_smi/owned true
+
+    # product key & list 
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $apt_file "$apt_entry"
+
+    # apt update
+    ensure_apt update -y
+
+    # install the package
+    ensure_apt install -y --no-install-recommends xpu-smi
+  fi
+}
+
+debian_30_remove_xpu_smi () {
+  [ "$(ensure_prop get installed/xpu_smi/owned)" = "true" ] || return 0
+  ensure_apt purge --auto-remove -y xpu-smi
+}
+
+debian_30_sbom_xpu_smi () {
+  configure_xpu_smi "$@"
+  ensure_sbom_format repo-name "$repo_name"
+  ensure_sbom_format apt-source "$apt_entry"
+  ensure_sbom_format apt-list-file "$apt_file"
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format key-file "$key_file"
+  ensure_sbom_format pkg-list xpu-smi
+}

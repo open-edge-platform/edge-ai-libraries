@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 # OpenShell quality gates
 
 For user-facing setup and security boundaries, see the
-[Agent Sandboxing guide](../docs/agentic-ai-security/agent-sandboxing.md).
+[Agent Sandboxing guide](../docs/user-guide/agentic-ai-security/agent-sandboxing.md).
 
 Both suites emit TAP 13 reports and return a nonzero exit status on failure.
 No test requires a GitHub token. Live inference uses the prepared runner's
@@ -40,7 +40,7 @@ merge blockers under this policy unless separately required by administrators.
 Existing required checks must not be removed automatically.
 
 | Decision | Required outcomes |
-|---|---|
+| --- | --- |
 | Relevant changes | Static analysis must succeed (ShellCheck and production `node --check`) |
 | Unrelated changes | Static analysis must be skipped |
 | Failed/cancelled detection, missing/invalid decision, or unexpected job outcome | Fail the final gate |
@@ -129,7 +129,7 @@ Git fixture and command doubles. It never invokes real Docker, sudo, OpenShell,
 downloads or agent installation.
 
 | Behavior | Runtime evidence |
-|---|---|
+| --- | --- |
 | Bootstrap cleanup | Real standalone bootstrap with a local repository; temporary clone removed on payload success and failure; failure status retained |
 | Deferred shell expansion | Generated Bash profile expands the new shell's PATH, not the writer's; repeated setup is idempotent |
 | Runtime sourcing | Real Bash sources a disposable nvm fixture; absent nvm is tolerated |
@@ -182,7 +182,7 @@ Missing or incomplete evidence is never reported as a pass. Syntax checks are
 reported separately and are not counted as test cases.
 
 | Area | Automated assertions |
-|---|---|
+| --- | --- |
 | OpenClaw startup | Private SQLite temp directory exported before Node starts, real on-disk FTS5 initialization, inherited SQLite temp path replaced, mode 700, config/token/database preservation across restart, fail-fast directory creation and permissions |
 | Runtime selection | Host default, supported agents, invalid runtime and unsupported agent rejection |
 | Persisted state | Separate agent paths, valid profile loading, missing/malformed/wrong-agent/invalid-owner/newline/symlink rejection |
@@ -258,7 +258,7 @@ Optional settings: `HARNESS_OPENSHELL_GATEWAY`, `HARNESS_IR_CONTAINER`,
 The IR and denied direct-OVMS ports must differ.
 
 | Area | Automated assertions |
-|---|---|
+| --- | --- |
 | Prerequisites | Gateway health, exact model discovery and loopback-only IR publication |
 | Installation | All three agent images build, sandboxes become Ready, native inference checks pass |
 | Local-model defaults | Disposable network-isolated built Hermes image must run all defaults cases, including native YAML and provider request mapping (no runtime-dependent skips) |
