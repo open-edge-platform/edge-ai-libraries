@@ -920,6 +920,7 @@ export_model_via_hf_snapshot() {
   revision_desc="${HARNESS_HF_MODEL_REVISION:-main}"
   if [[ -f "${out_dir}/graph.pbtxt" ]]; then
     info "Model '${model_name}' is already downloaded."
+    ensure_chat_end_token_stops "$out_dir"
     ensure_ovms_config
     with_state_lock ovms-config _add_model_config_entry_locked \
       "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$model_name" \
@@ -969,6 +970,7 @@ IR + an OVMS MediaPipe graph. Use
 HARNESS_OVMS_EXPORTER=docker-pull or export-model-py to convert a plain
 (non-OpenVINO-IR) HF model instead."
   fi
+  ensure_chat_end_token_stops "$out_dir"
   if with_state_lock ovms-config _add_model_config_entry_locked \
       "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$model_name"; then
     ok "Downloaded ${hf_model_id} -> ${out_dir} (registered with OVMS)"

@@ -218,9 +218,9 @@ are fixture-driven, not live OVMS or GPU tests.
 | `backend_response network` | Backend-network mismatch | Reject incompatible IR/OVMS networking. |
 | `backend_response unready` | Model not ready | Reject an unready managed model. |
 | `router_proxy` | Proxy bypass lists | Preserve both bypass lists and add the managed backend hostname. |
-| `cached_snapshot` | Cached snapshot registration | Register Qwen idempotently and write the managed IR route. |
-| `snapshot_download cpu` | CPU graph-generation path | Invoke native OVMS graph generation before registration. |
-| `snapshot_download gpu` | GPU graph-generation path | Invoke the GPU graph-generation path before registration. |
+| `cached_snapshot` | Cached snapshot registration | Repair missing tokenizer EOS while preserving existing stop IDs and unrelated configuration; remain idempotent and write the managed IR route. |
+| `snapshot_download cpu` | CPU graph-generation path | Invoke native OVMS graph generation and repair tokenizer EOS before registration. |
+| `snapshot_download gpu` | GPU graph-generation path | Invoke the GPU graph-generation path and repair tokenizer EOS before registration. |
 | `snapshot_download failure` | Graph generation fails | Retain downloaded weights and report failure. |
 | `snapshot_download no-graph` | Success without graph output | Reject incomplete graph generation despite a successful command exit. |
 | `cli_install` | Full installation CLI | Provision inference before the sandbox and reuse it on rerun. |

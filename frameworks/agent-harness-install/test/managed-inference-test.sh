@@ -307,12 +307,29 @@ router_proxy() {
   grep -Fxq "$HARNESS_BACKEND_NETWORK" "$ACTIONS"
   grep -Fxq "127.0.0.1:$HARNESS_IR_PORT:8000" "$ACTIONS"
 }
+snapshot_stop_fixture() {
+  local dir="$1"
+  printf '{"eos_token":"<|im_end|>"}\n' >"$dir/tokenizer_config.json"
+  printf '{"added_tokens":[{"id":248046,"content":"<|im_end|>"}]}\n' >"$dir/tokenizer.json"
+  printf '{"eos_token_id":248044,"use_cache":true}\n' >"$dir/generation_config.json"
+}
+assert_snapshot_stops() {
+  command python3 - "$1/generation_config.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as stream:
+    config = json.load(stream)
+assert isinstance(config["eos_token_id"], list), config
+assert set(config["eos_token_id"]) == {248044, 248046}, config
+assert config["use_cache"] is True, config
+PY
+}
 cached_snapshot() {
   fixture
   openshell_apply_model_defaults
   HARNESS_IR_WORKSPACE_DIR="$(harness_state_root)/inference-router/workspace"
   mkdir -p "$HARNESS_MODELS_DIR/Qwen3.5-9B-int8-ov"
   printf 'cached model graph\n' >"$HARNESS_MODELS_DIR/Qwen3.5-9B-int8-ov/graph.pbtxt"
+  snapshot_stop_fixture "$HARNESS_MODELS_DIR/Qwen3.5-9B-int8-ov"
   ensure_openvino_model_server() { printf 'OVMS start\n' >>"$ACTIONS"; }
   wait_for_ovms_model_ready() { [[ "$1" == Qwen3.5-9B-int8-ov ]]; }
   ensure_inference_router() {
@@ -320,7 +337,11 @@ cached_snapshot() {
     write_inference_router_config "$1"
   }
   ensure_inference_backend
+  assert_snapshot_stops "$HARNESS_MODELS_DIR/Qwen3.5-9B-int8-ov"
+  local repaired
+  repaired="$(cat "$HARNESS_MODELS_DIR/Qwen3.5-9B-int8-ov/generation_config.json")"
   ensure_inference_backend
+  [[ "$(cat "$HARNESS_MODELS_DIR/Qwen3.5-9B-int8-ov/generation_config.json")" == "$repaired" ]]
   ovms_is_managed
   [[ "$(ovms_sole_registered_model_name)" == Qwen3.5-9B-int8-ov ]]
   grep -Fq "http://$HARNESS_OVMS_CONTAINER:8000/v3" "$HARNESS_IR_WORKSPACE_DIR/config.yaml"
@@ -337,10 +358,15 @@ snapshot_download() {
   spin() { shift; "$@"; }
   pip() { :; }
   python3() {
+    if [[ "$1" == -c ]]; then
+      command python3 "$@"
+      return
+    fi
     [[ "$1" == - && "$2" == OpenVINO/Qwen3.5-9B-int8-ov ]]
     mkdir -p "$3"
     printf '{"model_type":"qwen3_5"}' >"$3/config.json"
     printf 'downloaded weights\n' >"$3/openvino_language_model.bin"
+    snapshot_stop_fixture "$3"
   }
   intel_gpu_docker_device_args() {
     if [[ "$kind" == gpu ]]; then printf '%s' '--device /dev/dri'; fi
@@ -361,6 +387,7 @@ snapshot_download() {
     [[ ! -f "$out_dir/graph.pbtxt" ]]
   else
     export_model_via_hf_snapshot "$HARNESS_HF_MODEL"
+    assert_snapshot_stops "$out_dir"
     [[ "$(ovms_sole_registered_model_name)" == Qwen3.5-9B-int8-ov ]]
     grep -Fxq -- --configure "$ACTIONS"
     grep -Fxq -- text_generation "$ACTIONS"
