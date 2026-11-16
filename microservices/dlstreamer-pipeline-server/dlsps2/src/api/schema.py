@@ -248,6 +248,14 @@ class OptimizeResponse(BaseModel):
     job_id: str
 
 
+class PreprocessRequest(BaseModel):
+    pipeline: str
+
+
+class PreprocessResponse(BaseModel):
+    processed_pipeline: str
+
+
 class OptimizeStatusResponse(BaseModel):
     job_id: str
     state: str  # One of: RUNNING, COMPLETED, CANCELLED, ERROR
