@@ -95,8 +95,8 @@ Hugging Face Hub.
 ### Windows
 
 > [!IMPORTANT]
-> Install Git, Python and DLStreamer. 
-> Make sure that all applications are available in `PATH` environment variable. 
+> Install Git, Python and DLStreamer.
+> Make sure that all applications are available in `PATH` environment variable.
 > Following steps will start only backend API.
 
 1. Clone the repository:
