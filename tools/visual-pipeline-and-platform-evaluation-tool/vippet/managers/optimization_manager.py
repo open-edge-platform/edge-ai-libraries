@@ -243,6 +243,7 @@ class OptimizationManager:
         The method:
 
         * uses the variant's pipeline graphs (already as Graph objects),
+        * validates the RTSP URLs of rtspsrc nodes,
         * converts the pipeline graph to a GStreamer pipeline string,
         * creates a new :class:`InternalOptimizationJobStatus` with RUNNING state,
         * spawns a background thread that executes the optimization.
@@ -257,7 +258,12 @@ class OptimizationManager:
 
         Returns:
             str: Unique job identifier for tracking the optimization.
+
+        Raises:
+            ValueError: If an rtspsrc node has a missing or invalid location.
         """
+        variant.pipeline_graph.validate_rtsp_sources()
+
         job_id = self._generate_job_id()
         execution_lease = ExecutionCoordinator().acquire(
             job_id=job_id,
