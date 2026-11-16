@@ -1,11 +1,11 @@
 ### Introduction
 
-Profiles are virtual groups of installer components. The profile filenames use this pattern: `<profile-name>/<OS_LIKE>`, where `<OS_LIKE>` is the OS family identifier obtained from `/etc/os-release`, 
-and the profile name should contain no space or special character except `_`.  
+Profiles are virtual groups of installer components. The profile filenames use this pattern: `<profile-name>/<OS_LIKE>`, where `<OS_LIKE>` is the OS family identifier obtained from `/etc/os-release`,
+and the profile name should contain no space or special character except `_`.
 
 ### Develop a Profile
 
-A profile specifies the list of required components in a single shell function: `<OS_LIKE>_<order>_profile_<name>`, where `<order>` specifies the installation order. Since profiles are virtual groups, they always use order `99` to install the latest. 
+A profile specifies the list of required components in a single shell function: `<OS_LIKE>_<order>_profile_<name>`, where `<order>` specifies the installation order. Since profiles are virtual groups, they always use order `99` to install the latest.
 
 A profile can be as simple as follows:
 
@@ -14,7 +14,7 @@ debian_99_profile_metro_ai_suites () {
   echo "smart_parking smart_intersection loitering_detection"
 }
 ```
-where each component is listed at the output.  
+where each component is listed at the output.
 
 In the above sample, if we want to specify that the components can install/remove togeher but not start/stop together, we can make it conditioned on the installer subcommand:
 
@@ -27,13 +27,13 @@ debian_99_profile_metro_ai_suites () {
   esac
 }
 ```
-where the `_profile_` function arguments are as follows: `<subcommand> [global options] [list of components] -- [component specific options]`.  
+where the `_profile_` function arguments are as follows: `<subcommand> [global options] [list of components] -- [component specific options]`.
 
-> If your profile function returns different list of components based on component options, you need to additionally return a superset of all components when the subcommand is `bootstrap`, critical to include all components that the profile depends on. See [`edge_base`](../module/edge_base/debian) for an example.    
+> If your profile function returns different list of components based on component options, you need to additionally return a superset of all components when the subcommand is `bootstrap`, critical to include all components that the profile depends on. See [`edge_base`](../module/edge_base/debian) for an example.
 
 ### Web UI configuration
 
-The [OEP CLI Installer Web UI](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)
+The [OEP CLI Installer Web UI](https://docs.openedgeplatform.intel.com/2026.3/OEP-articles/oep-cli-installer/index.html)
 lets users pick a profile and module and copy the exact install command. Its
 data is **decentralized per profile** so you edit configuration next to your
 profile instead of one large shared file.

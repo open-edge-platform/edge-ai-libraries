@@ -77,19 +77,19 @@ http://localhost:8102
 
 ### Technical Documentation
 
-- [Chat Q&A Core](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer-core/index.html)
+- [Chat Q&A Core](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/chat-question-and-answer-core/index.html)
   \- Lightweight, single-container conversational Q&A (RAG) application
-- [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/get-started.html)
+- [Audio Analyzer](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/audio-analyzer/get-started.html)
   \- Comprehensive documentation for multimodal audio processing capabilities
-- [Document Ingestion - pgvector](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/pgvector/get-started.html)
+- [Document Ingestion - pgvector](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/pgvector/get-started.html)
   \- Vector database integration and document processing workflows
-- [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html)
+- [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/multimodal-embedding-serving/index.html)
   \- Embedding generation service architecture and API documentation
-- [Multimodal Data Preparation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-data-preparation/index.html)
+- [Multimodal Data Preparation](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/multimodal-data-preparation/index.html)
   \- Multimodal data ingestion and preparation workflows for retrieval
-- [Edge AI Libraries](https://docs.openedgeplatform.intel.com/dev/ai-libraries.html)
+- [Edge AI Libraries](https://docs.openedgeplatform.intel.com/2026.3/ai-libraries.html)
   \- Complete development toolkit documentation and microservice API references
-- [Metro AI Suite](https://docs.openedgeplatform.intel.com/dev/ai-suite-metro.html)
+- [Metro AI Suite](https://docs.openedgeplatform.intel.com/2026.3/ai-suite-metro.html)
   \- Comprehensive application suite documentation with Gen AI implementation examples
 
 ### Support Channels

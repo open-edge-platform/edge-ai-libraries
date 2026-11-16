@@ -17,9 +17,10 @@ efficiently.
 - OS: Ubuntu 24.04.1 LTS (native installation, or as a WSL 2 distribution on Windows).
 - Docker Engine version 20.10 or higher. Docker Desktop is not supported on Linux, because its virtual machine cannot
   access the host `/dev/dri` render nodes required for GPU acceleration.
+- Docker Compose version 2.34.0 or newer.
 - For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DL Streamer installation
 script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in
-[DL Streamer Install Guide - Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
+[DL Streamer Install Guide - Ubuntu](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
 
 ## Network Requirements
 
@@ -66,8 +67,6 @@ The profile passes `/dev/dxg` and mounts `/usr/lib/wsl` read-only for the ViPPET
 DLStreamer Pipeline Server, Metrics Manager, and ASR service through `compose.gpu-wsl.yml`.
 Metrics Manager's native GPU device mapping is replaced rather than merged, so
 `/dev/dri` is not required by the standard WSL configuration.
-Docker Compose 2.24.4 or newer is required for these `!override` declarations.
-
 Experimental Time Series Analytics uses `compose.experimental.yml` without a
 WSL-specific override. It still requires `/dev/dri` and a valid `RENDER_GROUP_ID`;
 `/dev/dxg` alone is not sufficient for that service.
