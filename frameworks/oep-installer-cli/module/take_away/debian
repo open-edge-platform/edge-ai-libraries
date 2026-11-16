@@ -1,7 +1,7 @@
 
 configure_take_away () {
   workspace="$(ensure_project_path)/take-away"
-  version="$(ensure_parse_value_option version --version=65d1959a5b3ac268370220e972f5c97efee21d48 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/intel-retail/order-accuracy.git"
   used_ports=(7860 8000 8080 8001 9000 9001 8010)
 }
