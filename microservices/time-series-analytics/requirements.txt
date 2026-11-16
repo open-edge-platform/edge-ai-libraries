@@ -8,6 +8,6 @@ influxdb==5.3.2
 tomlkit==0.15.2
 protobuf==7.36.2
 dpctl==0.23.0
-python-multipart==0.0.32
+python-multipart==0.0.33
 setuptools==84.2.1
 packaging==26.3
