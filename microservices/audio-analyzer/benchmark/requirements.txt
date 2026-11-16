@@ -1,0 +1,19 @@
+# Audio Analyzer benchmark dependencies.
+# Non-pip prerequisites: Python >= 3.9; ffprobe (FFmpeg) to report input audio duration;
+# Docker CLI to read the served model's tokenizer from the running container and to run the
+# --privileged Metrics Manager container (free host ports 9091 and 9274) for resource
+# utilization monitoring (omit only when always running with --no-resource-util).
+
+# Required: async load generator (HTTP multipart upload + SSE)
+aiohttp>=3.8
+
+# Required: output token counting with the served model's tokenizer.json
+tokenizers
+
+# Required: resource utilization monitor (resource_utilization.py)
+requests
+matplotlib
+
+# Realtime benchmark (bench_realtime.py) uses aiohttp's WebSocket client, numpy (server VAD
+# replay) and ffmpeg (converts any input file to PCM16 mono 16 kHz).
+numpy
