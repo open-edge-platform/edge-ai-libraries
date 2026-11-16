@@ -1,0 +1,36 @@
+name: star
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'libraries/star/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and Test 
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Build image
+        working-directory: libraries/star
+        run: |
+          make pull-model image
+      - name: Fetch sample images
+        working-directory: libraries/star
+        run: python3 tests/sample_data/fetch_sample_data.py --count 10 --source picsum --output-dir tests/fixtures/sample_images
+      - name: Build tests image
+        working-directory: libraries/star
+        run: make tests-image
+      - name: Run tests
+        working-directory: libraries/star
+        run: make tests-run
+ 

@@ -1,0 +1,116 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=Metrics Manager GPU telemetry source (qmassa)
+Documentation=file:///usr/share/doc/metrics-manager/README.md
+After=systemd-tmpfiles-setup.service
+# Without the msr module the GPU power and temperature readings are silently
+# absent rather than reported as an error, so the package loads it at boot.
+After=systemd-modules-load.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/metrics-manager/metrics-manager.env
+
+# qmassa blocks on opening the FIFO until mm-plugin-gpu, running under
+# Telegraf, opens the read end. That is deliberate: it costs nothing while
+# waiting and needs no ordering between the two services.
+ExecStart=/usr/libexec/metrics-manager/qmassa \
+    --ms-interval $QMASSA_INTERVAL_MS \
+    --no-tui \
+    --to-json /run/metrics-manager/qmassa.fifo
+
+Restart=on-failure
+RestartSec=5s
+
+# --- Why this runs as root --------------------------------------------------
+#
+# GPU power and package temperature come from model-specific registers, read
+# either through perf events or through /dev/cpu/*/msr. qmassa gates both on
+# the effective user id being zero:
+#
+#     if unsafe { libc::geteuid() } != 0 { return false; }   qmlib/src/msr.rs
+#
+# so no capability substitutes for being root. Granting CAP_SYS_RAWIO,
+# CAP_DAC_OVERRIDE or CAP_DAC_READ_SEARCH to a non-root user was measured to
+# leave the power and temperature arrays empty even though the MSR device
+# opened successfully for both read and write.
+#
+# This is the only service in the package that runs as root. It reads hardware
+# counters and process metadata and writes one FIFO; it exposes no listening
+# API. The filesystem, device, syscall and network restrictions below still
+# matter because its capabilities permit access beyond GPU telemetry.
+#
+# Being root is necessary but not sufficient: the bounding set still has to
+# retain the capability that opening the MSR device needs. An empty
+# CapabilityBoundingSet was measured to produce empty power and temperature
+# arrays even as uid 0, because uid 0 confers capabilities only up to that
+# bound. CAP_SYS_RAWIO alone was enough here; CAP_PERFMON alone was not, which
+# shows this host reads the registers through the device node rather than
+# through perf events. CAP_PERFMON is kept for the perf path, which is what
+# qmassa tries first and what a host with no msr module has to fall back on.
+# CAP_SYS_PTRACE passes the procfs ptrace check; CAP_DAC_READ_SEARCH permits
+# opening other users' /proc/<pid>/fdinfo files under the restricted bounding set.
+SupplementaryGroups=metrics-manager
+CapabilityBoundingSet=CAP_SYS_RAWIO CAP_PERFMON CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+NoNewPrivileges=true
+#
+# The runtime directory belongs to the service user with mode 0750.
+# SupplementaryGroups grants ordinary group access to it independently of
+# CAP_DAC_READ_SEARCH, which is retained for cross-user procfs reads and can
+# also bypass read/search permission checks elsewhere.
+
+# --- Filesystem -------------------------------------------------------------
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/run/metrics-manager
+
+# PrivateDevices is deliberately not set: it would replace /dev with a minimal
+# private instance, hiding /dev/cpu/*/msr and /dev/dri and removing exactly the
+# telemetry this service exists to collect. The device policy below is the
+# narrower alternative.
+DevicePolicy=closed
+# The name has to match /proc/devices, which calls this driver "cpu/msr" and
+# not "msr". The shorter spelling matches nothing, and a rule that matches
+# nothing under DevicePolicy=closed is indistinguishable from omitting it: the
+# power and temperature arrays come back empty.
+DeviceAllow=char-cpu/msr r
+# Every DRM node, rather than a list of them.
+#
+# Which nodes exist depends on the machine: this one has card1 and renderD128,
+# a machine with a discrete GPU alongside the integrated one has more, and the
+# numbering is not fixed. Enumerating them would silently hide whichever device
+# happened to fall outside the list, which is exactly the failure this policy
+# makes hard to notice. "drm" is the class name in /proc/devices, covering
+# i915 and xe alike.
+DeviceAllow=char-drm r
+
+# --- Kernel and namespaces --------------------------------------------------
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+# ProtectProc is left at its default because qmassa reads cross-user fdinfo.
+# ProtectProc=invisible hides other users' processes, not all other processes;
+# CAP_SYS_PTRACE can bypass that restriction, so it would not isolate this
+# service from those processes with the current capability set.
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+# perf_event_open is listed explicitly because it is not part of
+# @system-service, and it is how the RAPL energy counters are read before the
+# MSR fallback is tried.
+SystemCallFilter=@system-service perf_event_open
+SystemCallErrorNumber=EPERM
+
+# The service talks to no network. AF_NETLINK remains because libudev uses it
+# to enumerate the graphics devices.
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Prepared ViCLIP-B/L dual encoders. No downloads or checkpoint code at runtime."""
+"""OpenVINO ViCLIP-B/L video and text encoders loaded from prepared packages."""
 
 import html
 import json
@@ -9,10 +9,15 @@ import threading
 
 import numpy as np
 
+import config
 from core.content import ROLE_L1_SEGMENT, ROLE_SHORT_VIDEO
+from inference.meta import RUNTIME_OV_CORE, InferenceMeta
 
 
-class ViClipOpenVINOEmbedding:
+class ViClipOpenVINOEmbedding(InferenceMeta):
+    BACKEND = config.LOCAL_OPENVINO
+    RUNTIME = RUNTIME_OV_CORE
+    SUPPORT_MULTIMODAL = True
     supported_roles = frozenset({ROLE_SHORT_VIDEO, ROLE_L1_SEGMENT})
     PACKAGE_TYPES = {
         "viclip-b": ("viclip", 512, 32, "clip_bpe"),
@@ -94,7 +99,7 @@ class ViClipOpenVINOEmbedding:
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_path, local_files_only=True, use_fast=False, trust_remote_code=False)
         self._lock = threading.RLock()
-        # Precision is part of the selected package, never a deployment override.
+        # Precision comes from the package manifest.
         hint = "f16" if self.precision == "fp16" else "f32"
         self.execution_precision = hint
         core = ov.Core()
@@ -119,7 +124,13 @@ class ViClipOpenVINOEmbedding:
             raise ValueError("Invalid OpenVINO embedding: nonfinite or zero vector")
         return values / norms
 
-    def embed_text(self, texts):
+    def get_query_embedding(self, text):
+        return self.get_text_embeddings([text])[0]
+
+    def get_text_embedding_batch(self, texts):
+        return self.get_text_embeddings(texts)
+
+    def get_text_embeddings(self, texts):
         texts = list(texts)
         if not texts:
             return []
@@ -145,10 +156,10 @@ class ViClipOpenVINOEmbedding:
         pixels /= np.array([.229, .224, .225], dtype=np.float32)[None, :, None, None]
         return np.ascontiguousarray(pixels[None], dtype=np.float32)
 
-    def embed_image(self, images):
+    def get_image_embeddings(self, images):
         raise NotImplementedError(f"{self.name} embeds video clips, not still images; use an image source")
 
-    def embed_video(self, frames):
+    def get_video_embedding(self, frames):
         from core.multimodal.frames import pad_to
 
         frames = pad_to(list(frames), self.frames_per_clip)

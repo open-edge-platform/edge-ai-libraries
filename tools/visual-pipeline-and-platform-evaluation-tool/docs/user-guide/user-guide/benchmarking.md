@@ -38,7 +38,7 @@ For detailed instructions, see:
 ## Workflow overview
 
 1. **Configure** — Select pipelines, set stream counts or density parameters, and choose output options.
-1. **Run** — Start the test; ViPPET creates a job and begins executing pipelines as subprocesses.
+1. **Run** — Start the test; ViPPET creates a job and runs the pipelines on DL Streamer Pipeline Server 2.0.
 1. **Monitor** — Real-time system metrics (CPU, GPU, NPU, memory, power) and pipeline metrics (FPS)
    are displayed in the dashboard while the job runs.
 1. **Review results** — When the job completes, view final FPS and output videos in the job detail view.

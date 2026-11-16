@@ -1,12 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Object storage on the local filesystem.
-
-The default object backend, and the first real implementation of
-`ObjectAdapter`. A bucket is a directory under `root`, a key is a path beneath
-it. No server, no credentials -- so the stack stores asset content end to end
-with nothing configured, the same reasoning as defaulting embeddings to `hash`.
-"""
 
 import os
 import shutil
@@ -27,8 +20,6 @@ class FilesystemObjectAdapter(ObjectAdapter):
             raise ValueError("The filesystem object backend needs a 'root' directory")
         self._root = os.path.abspath(str(root))
 
-    # --- paths ----------------------------------------------------------------
-
     def _bucket_dir(self, collection: ObjectCollection) -> str:
         if not collection.bucket:
             raise ValueError("An object collection needs a bucket")
@@ -42,18 +33,11 @@ class FilesystemObjectAdapter(ObjectAdapter):
 
     @staticmethod
     def _resolve(base: str, relative: str) -> str:
-        """Join, and refuse anything that escapes `base`.
-
-        Keys reach here from persisted records and, indirectly, from callers, so
-        a `..` in one must not be able to read or overwrite a file outside the
-        configured root.
-        """
+        """Join, and refuse anything that escapes `base`."""
         candidate = os.path.abspath(os.path.join(base, relative))
         if candidate != base and not candidate.startswith(base + os.sep):
             raise ValueError(f"Object key escapes its bucket: {relative!r}")
         return candidate
-
-    # --- contract -------------------------------------------------------------
 
     def ensure(self, collection: ObjectCollection) -> None:
         os.makedirs(self._bucket_dir(collection), exist_ok=True)
@@ -137,16 +121,10 @@ class FilesystemObjectAdapter(ObjectAdapter):
         shutil.rmtree(target, ignore_errors=True)
 
     def ping(self) -> None:
-        """The root has to exist and be writable, or nothing can be stored.
-
-        Created if it is missing, which is the same thing `ensure` does per
-        bucket -- checking a store you cannot write to is not much of a check,
-        and a root that cannot be created is exactly what an operator wants to
-        hear about at registration time rather than at first ingest.
-        """
+        """Create the root if missing and check it is writable."""
         os.makedirs(self._root, exist_ok=True)
         if not os.access(self._root, os.W_OK | os.X_OK):
             raise PermissionError(f"Object root {self._root!r} is not writable")
 
     def close(self) -> None:
-        """Nothing to release: the filesystem holds no connection."""
+        ...

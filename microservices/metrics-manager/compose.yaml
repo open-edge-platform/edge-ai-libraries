@@ -7,9 +7,11 @@
 #
 # This compose file provides flexible deployment options:
 #
-# 1. Full stack (service + collector in one container)
-# 2. Service-only (connect external collector)
-# 3. With custom Telegraf configuration
+# Two runtime variants share the same image, collectors and mounts:
+# - metrics-manager: default bridge networking
+# - metrics-manager-host-nic: opt-in host-nic-telemetry profile, host networking
+# Select one service explicitly; enabling a profile does not stop the default.
+# The separate test profile is for development, not a deployment variant.
 #
 # Usage:
 #   docker compose up              # Start full stack
@@ -20,18 +22,18 @@
 
 name: ${PROJECT_NAME:-metrics-manager}
 
-services:
+x-runtime:
   # ---------------------------------------------------------------------------
   # Metrics Manager - Main service container
   # ---------------------------------------------------------------------------
-  metrics-manager:
-    image: ${REGISTRY:-}metrics-manager:${TAG:-2026.2.0}
+  metrics-manager: &metrics-manager
+    image: ${REGISTRY:-}metrics-manager:${TAG:-2026.3.0}
     build:
       context: .
       dockerfile: Dockerfile
       args:
         # Image version label (matches the tag, sourced from ./VERSION)
-        VERSION: ${TAG:-2026.2.0}
+        VERSION: ${TAG:-2026.3.0}
         # Pass proxy settings to Docker build
         http_proxy: ${http_proxy:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
@@ -40,43 +42,49 @@ services:
         no_proxy: ${no_proxy:-}
         NO_PROXY: ${NO_PROXY:-}
         INSTALL_OPENVINO: ${INSTALL_OPENVINO:-false}
-    container_name: metrics-manager
     user: ${CONTAINER_USER:-0:0}
 
     # Environment configuration
-    environment:
+    environment: &runtime-environment
       # Proxy settings
-      - no_proxy=localhost,127.0.0.1,${no_proxy:-}
-      - NO_PROXY=localhost,127.0.0.1,${NO_PROXY:-}
-      - http_proxy=${http_proxy:-}
-      - HTTP_PROXY=${HTTP_PROXY:-}
-      - https_proxy=${https_proxy:-}
-      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      no_proxy: localhost,127.0.0.1,${no_proxy:-}
+      NO_PROXY: localhost,127.0.0.1,${NO_PROXY:-}
+      http_proxy: ${http_proxy:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      https_proxy: ${https_proxy:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
 
       # Service configuration (internal ports are fixed)
-      - METRICS_PORT=9090
-      - TELEGRAF_PORT=9273
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      METRICS_PORT: "9090"
+      TELEGRAF_PORT: "9273"
+      TELEGRAF_HTTP_PORT: "8186"
+      TELEGRAF_HTTP_ENDPOINT: http://localhost:8186/write
+      PROMETHEUS_TELEGRAF_ENDPOINT: http://localhost:9273
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
 
-      # Stable host label for Telegraf, qmassa_reader and npu_reader.
+      # Stable host label for Telegraf and the `mm-plugin-*` collectors.
       # When unset all three fall back to the kernel hostname; set it to a
       # fixed value (e.g. an asset tag) to keep Grafana dashboards stable
       # across reboots where the kernel hostname may change.
-      - METRICS_MANAGER_HOSTNAME=${METRICS_MANAGER_HOSTNAME:-}
+      METRICS_MANAGER_HOSTNAME: ${METRICS_MANAGER_HOSTNAME:-}
 
       # Metrics configuration
-      - CUSTOM_METRICS_DIR=/app/custom-metrics
-      - TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
-      - METRICS_RETENTION_SECONDS=${METRICS_RETENTION_SECONDS:-300}
-      - MAX_METRICS_BATCH_SIZE=${MAX_METRICS_BATCH_SIZE:-1000}
-      - HARDWARE_TELEMETRY_ENABLED=${HARDWARE_TELEMETRY_ENABLED:-true}
-
-    # Port mappings (external:internal - internal ports are fixed)
-    ports:
-      - "${HOST_METRICS_PORT:-9090}:9090"      # Metrics Manager API
-      - "${HOST_TELEGRAF_PORT:-9273}:9273"     # Telegraf Prometheus
-      - "${HOST_TELEGRAF_HTTP_PORT:-8186}:8186" # Telegraf HTTP listener
+      CUSTOM_METRICS_DIR: /app/custom-metrics
+      TELEGRAF_CONFIG_PATH: /etc/telegraf/telegraf.conf
+      METRICS_RETENTION_SECONDS: ${METRICS_RETENTION_SECONDS:-300}
+      MAX_METRICS_BATCH_SIZE: ${MAX_METRICS_BATCH_SIZE:-1000}
+      HARDWARE_TELEMETRY_ENABLED: ${HARDWARE_TELEMETRY_ENABLED-true}
+      ENABLE_RAPL: ${ENABLE_RAPL-false}
+      ENABLE_POWERSTAT_EXTRA: ${ENABLE_POWERSTAT_EXTRA-false}
+      ENABLE_TURBOSTAT: ${ENABLE_TURBOSTAT-false}
+      ENABLE_TEMPERATURE: ${ENABLE_TEMPERATURE-false}
+      ENABLE_INTERRUPTS: ${ENABLE_INTERRUPTS-false}
+      ENABLE_NETWORK: ${ENABLE_NETWORK-false}
+      ENABLE_NETWORK_VIRTUAL: ${ENABLE_NETWORK_VIRTUAL-false}
+      ENABLE_STORAGE: ${ENABLE_STORAGE-false}
+      TURBOSTAT_BIN: ${TURBOSTAT_BIN-/usr/local/bin/turbostat}
+      TURBOSTAT_INTERVAL: ${TURBOSTAT_INTERVAL-5}
 
     # Device access for system metrics
     privileged: ${PRIVILEGED:-true}
@@ -110,7 +118,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=3)",
+          "import os, urllib.request; urllib.request.urlopen('http://localhost:' + os.environ['METRICS_PORT'] + '/health', timeout=3)",
         ]
       interval: 5s
       timeout: 3s
@@ -120,21 +128,45 @@ services:
     # Restart policy
     restart: unless-stopped
 
-    # Networking
+services:
+  metrics-manager:
+    <<: *metrics-manager
+    container_name: metrics-manager
+    # Bridge ports remain fixed inside the container.
+    ports:
+      - "${HOST_METRICS_PORT:-9090}:9090"
+      - "${HOST_TELEGRAF_PORT:-9273}:9273"
+      - "${HOST_TELEGRAF_HTTP_PORT:-8186}:8186"
     networks:
       - metric-network
+
+  metrics-manager-host-nic:
+    <<: *metrics-manager
+    container_name: metrics-manager-host-nic
+    profiles:
+      - host-nic-telemetry
+    network_mode: host
+    # No ports/networks: these listeners bind directly on the host.
+    environment:
+      <<: *runtime-environment
+      METRICS_PORT: ${HOST_METRICS_PORT-9090}
+      TELEGRAF_PORT: ${HOST_TELEGRAF_PORT-9273}
+      TELEGRAF_HTTP_PORT: ${HOST_TELEGRAF_HTTP_PORT-8186}
+      TELEGRAF_HTTP_ENDPOINT: http://localhost:${HOST_TELEGRAF_HTTP_PORT-8186}/write
+      PROMETHEUS_TELEGRAF_ENDPOINT: http://localhost:${HOST_TELEGRAF_PORT-9273}
+      ENABLE_NETWORK: ${ENABLE_NETWORK-true}
 
   # ---------------------------------------------------------------------------
   # Metrics Manager Tests - runs pytest and exits
   # ---------------------------------------------------------------------------
   metrics-manager-test:
-    image: ${REGISTRY:-}metrics-manager-test:${TAG:-2026.2.0}
+    image: ${REGISTRY:-}metrics-manager-test:${TAG:-2026.3.0}
     build:
       context: .
       dockerfile: Dockerfile
       target: test
       args:
-        VERSION: ${TAG:-2026.2.0}
+        VERSION: ${TAG:-2026.3.0}
         http_proxy: ${http_proxy:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
         https_proxy: ${https_proxy:-}

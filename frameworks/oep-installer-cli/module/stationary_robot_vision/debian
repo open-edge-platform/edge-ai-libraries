@@ -25,7 +25,7 @@ verify_stationary_robot_vision () {
 debian_90_install_stationary_robot_vision () {
   configure_stationary_robot_vision
 
-  if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_stationary_robot_vision && ! ensure_parse_reinstall "$@"; then
     echo "Stationary Robot Vision & Control is installed." >&2
   else
     ensure_disk_size 15000

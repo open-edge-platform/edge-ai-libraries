@@ -5,7 +5,12 @@
       <div class="header-wrap">
         <div class="title-wrap">
           <NodeIndexOutlined />
-          <button type="button" class="library-title" :title="$t('console.details')" @click="handleLibraryDetails">
+          <button
+            type="button"
+            class="library-title"
+            :title="$t('console.details')"
+            @click="handleLibraryDetails"
+          >
             {{ libraryData.name }}
             <EyeOutlined />
           </button>
@@ -69,7 +74,9 @@
       <template v-if="selectedNode">
         <div class="detail-title">
           <CanvasResource :node="selectedNode" />
-          <a-typography-text copyable class="resource-id">{{ selectedNode.id }}</a-typography-text>
+          <a-typography-text copyable class="resource-id">{{
+            selectedNode.id
+          }}</a-typography-text>
         </div>
         <template v-if="selectedAsset">
           <a-descriptions :column="1" bordered size="small">
@@ -88,15 +95,20 @@
             </a-descriptions-item>
             <a-descriptions-item :label="$t('console.contentSource')">
               {{
-                libraryData.sources.find((source) => source.id === selectedAsset?.content_source_id)?.name ||
-                selectedAsset.content_source_id || "—"
+                libraryData.sources.find(
+                  (source) => source.id === selectedAsset?.content_source_id,
+                )?.name ||
+                selectedAsset.content_source_id ||
+                "—"
               }}
             </a-descriptions-item>
             <a-descriptions-item :label="$t('console.pools')">
               <a-tag v-for="pool in selectedAssetPools" :key="pool.id">
                 {{ pool.name }}
               </a-tag>
-              <span v-if="!selectedAssetPools.length">{{ $t("console.none") }}</span>
+              <span v-if="!selectedAssetPools.length">{{
+                $t("console.none")
+              }}</span>
             </a-descriptions-item>
           </a-descriptions>
           <div v-if="availablePools.length" class="association-wrap">
@@ -107,14 +119,29 @@
                 showSearch
                 optionFilterProp="label"
                 :placeholder="$t('console.pleaseSelect')"
-                :options="availablePools.map((pool) => ({ value: pool.id, label: pool.name }))"
+                :options="
+                  availablePools.map((pool) => ({
+                    value: pool.id,
+                    label: pool.name,
+                  }))
+                "
               />
-              <a-button :loading="submitLoading" :disabled="!relatedPoolId" @click="handleConnect(selectedKey, `pool:${relatedPoolId}`)">
+              <a-button
+                :loading="submitLoading"
+                :disabled="!relatedPoolId"
+                @click="handleConnect(selectedKey, `pool:${relatedPoolId}`)"
+              >
                 {{ $t("console.add") }}
               </a-button>
             </div>
           </div>
-          <a-button danger class="detail-action" @click="handleDeleteAsset">
+          <a-button
+            danger
+            class="detail-action"
+            :disabled="selectedAsset.pending"
+            :title="selectedAsset.pending ? $t('console.assetPendingHint') : undefined"
+            @click="handleDeleteAsset"
+          >
             {{ $t("common.delete") }}
           </a-button>
         </template>
@@ -127,7 +154,10 @@
               />
             </a-col>
             <a-col :span="8">
-              <a-statistic :title="$t('console.sources')" :value="selectedPool.source_statuses.length" />
+              <a-statistic
+                :title="$t('console.sources')"
+                :value="selectedPool.source_statuses.length"
+              />
             </a-col>
             <a-col :span="8">
               <a-statistic
@@ -144,7 +174,12 @@
             :binding="binding"
             removable
             @search="handleSearch"
-            @detach="handleDetach({ from: `pool:${selectedPool.id}`, to: `source:${binding.source_id}` })"
+            @detach="
+              handleDetach({
+                from: `pool:${selectedPool.id}`,
+                to: `source:${binding.source_id}`,
+              })
+            "
           />
           <div v-if="availableSources.length" class="association-wrap">
             <h4>{{ $t("console.attachSource") }}</h4>
@@ -154,27 +189,45 @@
                 showSearch
                 optionFilterProp="label"
                 :placeholder="$t('console.pleaseSelect')"
-                :options="availableSources.map((source) => ({ value: source.id, label: `${source.name} (${source.type})` }))"
+                :options="
+                  availableSources.map((source) => ({
+                    value: source.id,
+                    label: `${source.name} (${source.type})`,
+                  }))
+                "
               />
-              <a-button :loading="submitLoading" :disabled="!relatedSourceId" @click="handleConnect(selectedKey, `source:${relatedSourceId}`)">
+              <a-button
+                :loading="submitLoading"
+                :disabled="!relatedSourceId"
+                @click="handleConnect(selectedKey, `source:${relatedSourceId}`)"
+              >
                 {{ $t("console.add") }}
               </a-button>
             </div>
           </div>
           <a-collapse ghost class="pool-information">
-            <a-collapse-panel key="assets" :header="`${$t('console.poolAssets')} (${selectedPool.asset_ids.length})`">
+            <a-collapse-panel
+              key="assets"
+              :header="`${$t('console.poolAssets')} (${selectedPool.asset_ids.length})`"
+            >
               <a-list :data-source="selectedPool.asset_ids" size="small">
                 <template #renderItem="{ item }">
                   <a-list-item>
                     <a @click="handleSelect(`asset:${item}`)">
-                      {{ assetList.find((asset) => asset.id === item)?.name || item }}
+                      {{
+                        assetList.find((asset) => asset.id === item)?.name ||
+                        item
+                      }}
                     </a>
                   </a-list-item>
                 </template>
               </a-list>
             </a-collapse-panel>
             <a-collapse-panel key="metadata" :header="$t('console.metadata')">
-              <JsonPretty :data="selectedPool.metadata" :theme="themeStore.theme === 'dark' ? 'dark' : 'light'" />
+              <JsonPretty
+                :data="selectedPool.metadata"
+                :theme="themeStore.theme === 'dark' ? 'dark' : 'light'"
+              />
             </a-collapse-panel>
           </a-collapse>
           <div v-if="availableAssets.length" class="association-wrap">
@@ -185,9 +238,18 @@
                 showSearch
                 optionFilterProp="label"
                 :placeholder="$t('console.pleaseSelect')"
-                :options="availableAssets.map((asset) => ({ value: asset.id, label: asset.name || asset.id }))"
+                :options="
+                  availableAssets.map((asset) => ({
+                    value: asset.id,
+                    label: asset.name || asset.id,
+                  }))
+                "
               />
-              <a-button :loading="submitLoading" :disabled="!relatedAssetId" @click="handleConnect(`asset:${relatedAssetId}`, selectedKey)">
+              <a-button
+                :loading="submitLoading"
+                :disabled="!relatedAssetId"
+                @click="handleConnect(`asset:${relatedAssetId}`, selectedKey)"
+              >
                 {{ $t("console.add") }}
               </a-button>
             </div>
@@ -204,9 +266,7 @@
             <a-button @click="handleUpload(selectedPool.id)">
               {{ $t("console.upload") }}
             </a-button>
-            <a-button
-              @click="handleRetrieve(selectedPool.id)"
-            >
+            <a-button @click="handleRetrieve(selectedPool.id)">
               {{ $t("console.retrieve") }}
             </a-button>
             <a-button danger @click="handleDeletePool">
@@ -217,7 +277,11 @@
         <template v-else-if="selectedSource">
           <a-descriptions :column="1" bordered size="small">
             <a-descriptions-item :label="$t('console.type')">
-              {{ $te(`console.${selectedSource.type}Source`) ? $t(`console.${selectedSource.type}Source`) : selectedSource.type }}
+              {{
+                $te(`console.${selectedSource.type}Source`)
+                  ? $t(`console.${selectedSource.type}Source`)
+                  : selectedSource.type
+              }}
             </a-descriptions-item>
             <a-descriptions-item :label="$t('console.database')">
               {{ selectedSource.database_id }}
@@ -226,12 +290,25 @@
               {{ selectedSource.collection_name }}
             </a-descriptions-item>
             <a-descriptions-item :label="$t('console.status')">
-              {{ $t(selectedSource.enabled ? "console.enabled" : "console.DISABLED") }}
+              {{
+                $t(
+                  selectedSource.enabled
+                    ? "console.enabled"
+                    : "console.DISABLED",
+                )
+              }}
             </a-descriptions-item>
             <a-descriptions-item :label="$t('console.validation')">
-              <StatusTag :value="selectedSource.reconciled ? 'reconciled' : 'unreconciled'" />
+              <StatusTag
+                :value="
+                  selectedSource.reconciled ? 'reconciled' : 'unreconciled'
+                "
+              />
             </a-descriptions-item>
-            <a-descriptions-item v-if="selectedNode.content" :label="$t('console.role')">
+            <a-descriptions-item
+              v-if="selectedNode.content"
+              :label="$t('console.role')"
+            >
               {{ $t("console.defaultContent") }}
             </a-descriptions-item>
           </a-descriptions>
@@ -252,7 +329,9 @@
           </div>
           <h4>{{ $t("console.inUseBy") }}</h4>
           <template v-if="selectedNode.content">
-            <a-tag v-for="pool in libraryData.asset_pools" :key="pool.id">{{ pool.name }}</a-tag>
+            <a-tag v-for="pool in libraryData.asset_pools" :key="pool.id">{{
+              pool.name
+            }}</a-tag>
             <p class="section-hint">{{ $t("console.contentLink") }}</p>
           </template>
           <template v-else>
@@ -264,11 +343,21 @@
                 :binding="entry.binding"
                 removable
                 @search="handleSearch"
-                @detach="handleDetach({ from: `pool:${entry.pool.id}`, to: selectedKey })"
+                @detach="
+                  handleDetach({
+                    from: `pool:${entry.pool.id}`,
+                    to: selectedKey,
+                  })
+                "
               />
             </div>
-            <p v-if="!selectedSourceBindings.length" class="section-hint">{{ $t("console.none") }}</p>
-            <div v-if="availablePools.length && selectedSource.type !== 'object'" class="association-wrap">
+            <p v-if="!selectedSourceBindings.length" class="section-hint">
+              {{ $t("console.none") }}
+            </p>
+            <div
+              v-if="availablePools.length && selectedSource.type !== 'object'"
+              class="association-wrap"
+            >
               <h4>{{ $t("console.addToPool") }}</h4>
               <div class="association-controls">
                 <a-select
@@ -276,9 +365,18 @@
                   showSearch
                   optionFilterProp="label"
                   :placeholder="$t('console.pleaseSelect')"
-                  :options="availablePools.map((pool) => ({ value: pool.id, label: pool.name }))"
+                  :options="
+                    availablePools.map((pool) => ({
+                      value: pool.id,
+                      label: pool.name,
+                    }))
+                  "
                 />
-                <a-button :loading="submitLoading" :disabled="!relatedPoolId" @click="handleConnect(`pool:${relatedPoolId}`, selectedKey)">
+                <a-button
+                  :loading="submitLoading"
+                  :disabled="!relatedPoolId"
+                  @click="handleConnect(`pool:${relatedPoolId}`, selectedKey)"
+                >
                   {{ $t("console.add") }}
                 </a-button>
               </div>
@@ -293,9 +391,7 @@
           <a-button @click="handleShowLinked">
             {{ $t("console.showLinked") }}
           </a-button>
-          <a-button
-            @click="handleRemoveNode"
-          >
+          <a-button @click="handleRemoveNode">
             {{ $t("console.removeCanvas") }}
           </a-button>
         </a-space>
@@ -332,30 +428,57 @@
         <template v-else>
           <p class="section-hint">{{ $t("console.detachHint") }}</p>
           <a-button danger :loading="submitLoading" @click="handleDetach()">
-          {{ $t("console.detach") }}
+            {{ $t("console.detach") }}
           </a-button>
         </template>
       </template>
       <template v-else>
         <h3>{{ libraryData.name }}</h3>
         <a-descriptions :column="1" bordered size="small">
-          <a-descriptions-item :label="$t('console.description')">{{ libraryData.description || $t("console.noDescription") }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.assets')">{{ libraryData.asset_count }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.documents')">{{ libraryData.document_count }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.chunks')">{{ libraryData.chunk_count }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.pools')">{{ libraryData.asset_pools.length }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.sources')">{{ libraryData.sources.length }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.contentDatabase')">{{ libraryData.content_database || "—" }}</a-descriptions-item>
+          <a-descriptions-item :label="$t('console.description')">{{
+            libraryData.description || $t("console.noDescription")
+          }}</a-descriptions-item>
+          <a-descriptions-item :label="$t('console.assets')">{{
+            libraryData.asset_count
+          }}</a-descriptions-item>
+          <a-descriptions-item :label="$t('console.documents')">{{
+            libraryData.document_count
+          }}</a-descriptions-item>
+          <a-descriptions-item :label="$t('console.chunks')">{{
+            libraryData.chunk_count
+          }}</a-descriptions-item>
+          <a-descriptions-item :label="$t('console.pools')">{{
+            libraryData.asset_pools.length
+          }}</a-descriptions-item>
+          <a-descriptions-item :label="$t('console.sources')">{{
+            libraryData.sources.length
+          }}</a-descriptions-item>
+          <a-descriptions-item :label="$t('console.contentDatabase')">{{
+            libraryData.content_database || "—"
+          }}</a-descriptions-item>
         </a-descriptions>
-        <p class="section-hint detail-notice">{{ $t("console.canvasInteractionHint") }}</p>
-        <a-button type="primary" @click="handleRetrieve()">{{ $t("console.retrieve") }}</a-button>
+        <p class="section-hint detail-notice">
+          {{ $t("console.canvasInteractionHint") }}
+        </p>
+        <a-button type="primary" @click="handleRetrieve()">{{
+          $t("console.retrieve")
+        }}</a-button>
       </template>
-      <template #footer><span class="section-hint">{{ $t("console.canvasKeyboardHint") }}</span></template>
+      <template #footer
+        ><span class="section-hint">{{
+          $t("console.canvasKeyboardHint")
+        }}</span></template
+      >
     </a-drawer>
     <CreatePoolDialog
       v-if="createPool"
       :library-data="libraryData"
-      :initial-sources="creationTarget?.kind === 'source' && creationTarget.resourceType !== 'object' ? [creationTarget.id] : []"
+      :initial-sources="
+        creationTarget?.kind === 'source' &&
+        creationTarget.resourceType !== 'object'
+          ? [creationTarget.id]
+          : []
+      "
       @close="handleCreatePoolClose"
       @search="handleSearch"
       @created="handlePoolCreated"
@@ -388,14 +511,13 @@ import {
   NodeIndexOutlined,
 } from "@ant-design/icons-vue";
 import {
-  getAssetList,
   requestAssetDelete,
   requestAssetPoolAssetsCreate,
   requestAssetPoolDelete,
   requestAssetPoolSourcesUpdate,
   requestSourceDelete,
 } from "@/api/console";
-import type { Asset, Source } from "@/api/console/type";
+import type { IngestResult, Source } from "@/api/console/type";
 import { customNotification } from "@/utils/notification";
 import { themeAppStore } from "@/store/theme";
 import JsonPretty from "vue-json-pretty";
@@ -409,9 +531,8 @@ import CanvasResource from "./components/CanvasResource.vue";
 import CreatePoolDialog from "../pools/components/CreateDialog.vue";
 import CreateSourceDialog from "../sources/components/CreateDialog.vue";
 import UploadDialog from "../assets/components/UploadDialog.vue";
-import { readDroppedFiles } from "../assets/Upload";
-import { collectAssets } from "../assets/AssetList";
-import type { StagedFile } from "../assets/Upload";
+import { getAssetProgress, readDroppedFiles, syncAssetProgress } from "../assets/AssetUtils";
+import type { StagedFile } from "../assets/AssetUtils";
 import SourceBinding from "../sources/components/SourceBinding.vue";
 import StatusTag from "../../components/StatusTag.vue";
 const props = defineProps<ConsolePageProps>();
@@ -427,9 +548,9 @@ const handleUploadClose = () => {
   uploadDialog.value = false;
 };
 const handleManagePool = (id: string) =>
-  router.push({ path: "/console/pools", query: { pool: id } });
+  router.push({ path: "/pools", query: { pool: id } });
 const handleRetrieve = (pool?: string) =>
-  router.push({ path: "/console/retrieve", query: pool ? { pool } : {} });
+  router.push({ path: "/retrieve", query: pool ? { pool } : {} });
 const handleShowLinked = () => boardRef.value?.showLinked(selectedKey.value);
 const handleRemoveNode = () => {
   boardRef.value?.removeNode(selectedKey.value);
@@ -446,13 +567,68 @@ const createSource = ref(false);
 const uploadDialog = ref(false);
 const uploadPool = ref<string>();
 const uploadFiles = ref<StagedFile[]>([]);
-const assetList = ref<Asset[]>([]);
+const progress = getAssetProgress(props.libraryData!.name);
+const assetList = computed(() => progress.rows);
+const trackedIds = computed(() => progress.trackedIds);
+let timer: ReturnType<typeof setTimeout> | undefined;
+let disposed = false;
+let inFlight: Promise<void> | undefined;
+const queryAssetList = (showLoading = false): Promise<void> => {
+  if (!inFlight) {
+    if (showLoading) {
+      loading.value = true;
+      progress.resume();
+    }
+    inFlight = (async () => {
+      try {
+        await syncAssetProgress(
+          props.libraryData!.name,
+          progress,
+          () => {
+            const message = t("console.incompleteAssetList");
+            customNotification("error", message, undefined);
+            return new Error(message);
+          },
+          () => { if (!disposed) emit("refresh"); },
+          () => !disposed,
+          showLoading,
+        );
+      } finally {
+        loading.value = false;
+        if (!disposed && progress.expire())
+          customNotification("warning", t("console.processing"), t("console.pollExpired"));
+      }
+    })().finally(() => { inFlight = undefined; });
+  }
+  return inFlight;
+};
+const poll = async () => {
+  try {
+    if (trackedIds.value.length) await queryAssetList();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    if (!disposed) timer = setTimeout(poll, 3000);
+  }
+};
+onMounted(async () => {
+  try {
+    await queryAssetList(true);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    if (!disposed) timer = setTimeout(poll, 3000);
+  }
+});
+onUnmounted(() => {
+  disposed = true;
+  clearTimeout(timer);
+});
 const resourceCounts = computed(() => ({
   asset: assetList.value.length,
   pool: props.libraryData?.asset_pools.length || 0,
   source: props.libraryData?.sources.length || 0,
 }));
-const trackedIds = ref<string[]>([]);
 const selectedKey = ref("");
 const selectedEdge = ref<CanvasEdge>();
 const detailsVisible = ref(false);
@@ -462,13 +638,13 @@ const relatedAssetId = ref<string>();
 const creationPosition = ref<Position>();
 const creationTarget = ref<CanvasNode>();
 const pendingSelection = ref("");
-const nodeList = computed<CanvasNode[]>(() => props.libraryData
-  ? buildCanvasNodes(props.libraryData, assetList.value, trackedIds.value)
-  : [],
+const nodeList = computed<CanvasNode[]>(() =>
+  props.libraryData
+    ? buildCanvasNodes(props.libraryData, assetList.value, trackedIds.value)
+    : [],
 );
-const edgeList = computed<CanvasEdge[]>(() => props.libraryData
-  ? buildCanvasEdges(props.libraryData)
-  : [],
+const edgeList = computed<CanvasEdge[]>(() =>
+  props.libraryData ? buildCanvasEdges(props.libraryData) : [],
 );
 const selectedNode = computed(() =>
   nodeList.value.find((node) => node.key === selectedKey.value),
@@ -486,70 +662,59 @@ const selectedSource = computed(() =>
     (item) => `source:${item.id}` === selectedKey.value,
   ),
 );
-const selectedAssetPools = computed(() =>
-  props.libraryData?.asset_pools.filter((pool) => selectedAsset.value && pool.asset_ids.includes(selectedAsset.value.id)) || [],
+const selectedAssetPools = computed(
+  () =>
+    props.libraryData?.asset_pools.filter(
+      (pool) =>
+        selectedAsset.value && pool.asset_ids.includes(selectedAsset.value.id),
+    ) || [],
 );
 const selectedSourceBindings = computed(() =>
   (props.libraryData?.asset_pools || []).flatMap((pool) =>
-    pool.source_statuses.filter((binding) => binding.source_id === selectedSource.value?.id).map((binding) => ({ pool, binding })),
+    pool.source_statuses
+      .filter((binding) => binding.source_id === selectedSource.value?.id)
+      .map((binding) => ({ pool, binding })),
   ),
 );
-const availablePools = computed(() =>
-  props.libraryData?.asset_pools.filter((pool) =>
-    selectedAsset.value ? !pool.asset_ids.includes(selectedAsset.value.id)
-      : selectedSource.value && !pool.source_statuses.some((binding) => binding.source_id === selectedSource.value?.id),
-  ) || [],
+const availablePools = computed(
+  () =>
+    props.libraryData?.asset_pools.filter((pool) =>
+      selectedAsset.value
+        ? !selectedAsset.value.pending && !pool.asset_ids.includes(selectedAsset.value.id)
+        : selectedSource.value &&
+          !pool.source_statuses.some(
+            (binding) => binding.source_id === selectedSource.value?.id,
+          ),
+    ) || [],
 );
-const availableSources = computed(() =>
-  props.libraryData?.sources.filter((source) =>
-    source.type !== "object" && source.id !== props.libraryData?.default_content_source_id &&
-    selectedPool.value && !selectedPool.value.source_statuses.some((binding) => binding.source_id === source.id),
-  ) || [],
+const availableSources = computed(
+  () =>
+    props.libraryData?.sources.filter(
+      (source) =>
+        source.type !== "object" &&
+        source.id !== props.libraryData?.default_content_source_id &&
+        selectedPool.value &&
+        !selectedPool.value.source_statuses.some(
+          (binding) => binding.source_id === source.id,
+        ),
+    ) || [],
 );
 const availableAssets = computed(() =>
-  assetList.value.filter((asset) => selectedPool.value && !selectedPool.value.asset_ids.includes(asset.id)),
+  assetList.value.filter(
+    (asset) =>
+      !asset.pending && selectedPool.value && !selectedPool.value.asset_ids.includes(asset.id),
+  ),
 );
 const selectedEdgePool = computed(() =>
-  props.libraryData?.asset_pools.find((pool) => `pool:${pool.id}` === selectedEdge.value?.from),
+  props.libraryData?.asset_pools.find(
+    (pool) => `pool:${pool.id}` === selectedEdge.value?.from,
+  ),
 );
 const selectedEdgeBinding = computed(() =>
-  selectedEdgePool.value?.source_statuses.find((binding) => `source:${binding.source_id}` === selectedEdge.value?.to),
+  selectedEdgePool.value?.source_statuses.find(
+    (binding) => `source:${binding.source_id}` === selectedEdge.value?.to,
+  ),
 );
-let timer: ReturnType<typeof setTimeout>;
-let disposed = false;
-let watchStarted = 0;
-const queryAssetList = async (showLoading = false) => {
-  const assets = await collectAssets(
-    (page) => getAssetList(props.libraryData!.name, {
-      page_num: page,
-      page_size: 500,
-    }, showLoading && page === 1),
-    () => {
-      const message = t("console.incompleteAssetList");
-      customNotification("error", message, undefined);
-      return new Error(message);
-    },
-  );
-  if (disposed) return;
-  assetList.value = assets;
-  trackedIds.value = trackedIds.value.filter((id) => {
-    const asset = assets.find((item) => item.id === id);
-    return (
-      !asset ||
-      (asset.materialization !== null && asset.materialization !== "ready")
-    );
-  });
-  for (const asset of assets) {
-    if (
-      asset.materialization &&
-      asset.materialization !== "ready" &&
-      !trackedIds.value.includes(asset.id)
-    ) {
-      trackedIds.value.push(asset.id);
-    }
-  }
-  if (trackedIds.value.length && !watchStarted) watchStarted = Date.now();
-};
 const handleSelect = (key: string) => {
   selectedKey.value = key;
   selectedEdge.value = undefined;
@@ -579,6 +744,10 @@ const handleConnect = async (from: string, to: string) => {
     customNotification("warning", t("common.prompt"), t("console.invalidLink"));
     return;
   }
+  if (item.kind === "asset" && assetList.value.find((asset) => asset.id === item.id)?.pending) {
+    customNotification("info", t("common.prompt"), t("console.assetPendingHint"));
+    return;
+  }
   const data = props.libraryData!.asset_pools.find(
     (value) => value.id === pool.id,
   )!;
@@ -591,10 +760,10 @@ const handleConnect = async (from: string, to: string) => {
     return;
   }
   if (
-    item.kind === "source" &&
-    props.libraryData!.sources.find((source) => source.id === item.id)?.type ===
-      "object"
-    || item.content
+    (item.kind === "source" &&
+      props.libraryData!.sources.find((source) => source.id === item.id)
+        ?.type === "object") ||
+    item.content
   ) {
     customNotification("info", t("common.prompt"), t("console.contentLink"));
     return;
@@ -602,22 +771,16 @@ const handleConnect = async (from: string, to: string) => {
   submitLoading.value = true;
   try {
     if (item.kind === "asset")
-      await requestAssetPoolAssetsCreate(
-        props.libraryData!.name,
-        pool.id,
-        { asset_ids: [item.id] },
-      );
+      await requestAssetPoolAssetsCreate(props.libraryData!.name, pool.id, {
+        asset_ids: [item.id],
+      });
     else
-      await requestAssetPoolSourcesUpdate(
-        props.libraryData!.name,
-        pool.id,
-        {
-          sources: [
-            ...data.source_statuses.map((status) => status.source_id),
-            item.id,
-          ],
-        },
-      );
+      await requestAssetPoolSourcesUpdate(props.libraryData!.name, pool.id, {
+        sources: [
+          ...data.source_statuses.map((status) => status.source_id),
+          item.id,
+        ],
+      });
     boardRef.value?.placeNodes([pool.key, item.key]);
     emit("refresh");
     await queryAssetList();
@@ -627,8 +790,20 @@ const handleConnect = async (from: string, to: string) => {
 };
 const handleDetach = (edge = selectedEdge.value) => {
   if (!edge) return;
-  if (edge.content || edge.to === `source:${props.libraryData!.default_content_source_id}` || edge.from.startsWith("asset:")) {
-    customNotification("info", t("common.prompt"), t(edge.from.startsWith("asset:") ? "console.assetLink" : "console.contentLink"));
+  if (
+    edge.content ||
+    edge.to === `source:${props.libraryData!.default_content_source_id}` ||
+    edge.from.startsWith("asset:")
+  ) {
+    customNotification(
+      "info",
+      t("common.prompt"),
+      t(
+        edge.from.startsWith("asset:")
+          ? "console.assetLink"
+          : "console.contentLink",
+      ),
+    );
     return;
   }
   const pool = props.libraryData!.asset_pools.find(
@@ -653,12 +828,14 @@ const handleDetach = (edge = selectedEdge.value) => {
     async onOk() {
       submitLoading.value = true;
       try {
-        await requestAssetPoolSourcesUpdate(
-          props.libraryData!.name,
-          pool.id,
-          { sources },
-        );
-        if (selectedEdge.value?.from === edge.from && selectedEdge.value?.to === edge.to) handleDeselect();
+        await requestAssetPoolSourcesUpdate(props.libraryData!.name, pool.id, {
+          sources,
+        });
+        if (
+          selectedEdge.value?.from === edge.from &&
+          selectedEdge.value?.to === edge.to
+        )
+          handleDeselect();
         emit("refresh");
       } finally {
         submitLoading.value = false;
@@ -672,10 +849,15 @@ const handleUpload = (pool?: string, position?: Position) => {
   uploadFiles.value = [];
   uploadDialog.value = true;
 };
-const handleCreate = (kind: NodeKind, position?: Position, target?: CanvasNode) => {
+const handleCreate = (
+  kind: NodeKind,
+  position?: Position,
+  target?: CanvasNode,
+) => {
   creationPosition.value = position;
   creationTarget.value = target;
-  if (kind === "asset") handleUpload(target?.kind === "pool" ? target.id : undefined, position);
+  if (kind === "asset")
+    handleUpload(target?.kind === "pool" ? target.id : undefined, position);
   else if (kind === "pool") createPool.value = true;
   else createSource.value = true;
 };
@@ -684,7 +866,9 @@ const handlePoolCreated = async (id: string) => {
   boardRef.value?.placeNodes([`pool:${id}`], creationPosition.value);
   pendingSelection.value = `pool:${id}`;
   if (target?.kind === "asset") {
-    await requestAssetPoolAssetsCreate(props.libraryData!.name, id, { asset_ids: [target.id] });
+    await requestAssetPoolAssetsCreate(props.libraryData!.name, id, {
+      asset_ids: [target.id],
+    });
     emit("refresh");
   }
 };
@@ -697,14 +881,23 @@ const handleSourceCreated = async (id: string, source: Source) => {
       customNotification("info", t("common.prompt"), t("console.contentHint"));
       return;
     }
-    const pool = props.libraryData!.asset_pools.find((item) => item.id === target.id)!;
+    const pool = props.libraryData!.asset_pools.find(
+      (item) => item.id === target.id,
+    )!;
     await requestAssetPoolSourcesUpdate(props.libraryData!.name, pool.id, {
-      sources: [...pool.source_statuses.map((binding) => binding.source_id), id],
+      sources: [
+        ...pool.source_statuses.map((binding) => binding.source_id),
+        id,
+      ],
     });
     emit("refresh");
   }
 };
-const handleDroppedFiles = async (data: DataTransfer, target?: CanvasNode, position?: Position) => {
+const handleDroppedFiles = async (
+  data: DataTransfer,
+  target?: CanvasNode,
+  position?: Position,
+) => {
   creationPosition.value = position;
   try {
     uploadFiles.value = await readDroppedFiles(data);
@@ -718,10 +911,13 @@ const handleDroppedFiles = async (data: DataTransfer, target?: CanvasNode, posit
     );
   }
 };
-const handleUploaded = async (ids: string[]) => {
-  trackedIds.value.push(...ids);
-  watchStarted = Date.now();
-  boardRef.value?.placeNodes(ids.map((id) => `asset:${id}`), creationPosition.value);
+const handleUploaded = async (result: IngestResult) => {
+  const ids = result.asset_ids;
+  progress.accept(result);
+  boardRef.value?.placeNodes(
+    ids.map((id) => `asset:${id}`),
+    creationPosition.value,
+  );
   if (ids.length === 1) pendingSelection.value = `asset:${ids[0]}`;
   await queryAssetList();
   emit("refresh");
@@ -738,7 +934,7 @@ const handleDeleteAsset = () =>
       });
       boardRef.value?.removeNode(selectedKey.value);
       handleDeselect();
-      trackedIds.value = trackedIds.value.filter((value) => value !== id);
+      progress.remove([id]);
       await queryAssetList();
       emit("refresh");
     },
@@ -773,54 +969,32 @@ const handleDeleteSource = () =>
       emit("refresh");
     },
   });
-const queryIngestStatus = async () => {
-  if (trackedIds.value.length) {
-    try {
-      await queryAssetList();
-      emit("refresh");
-    } catch (error) {
-      console.error(error);
-    }
-    if (Date.now() - watchStarted > 600000) {
-      trackedIds.value = [];
-      customNotification(
-        "warning",
-        t("console.processing"),
-        t("console.pollExpired"),
-      );
-    }
-  }
-  if (!disposed) timer = setTimeout(queryIngestStatus, 3000);
-};
-onMounted(async () => {
-  loading.value = true;
-  try {
-    await queryAssetList(true);
-  } finally {
-    loading.value = false;
-  }
-  if (!disposed) timer = setTimeout(queryIngestStatus, 3000);
-});
-onUnmounted(() => {
-  disposed = true;
-  clearTimeout(timer);
-});
 watch(selectedKey, () => {
   relatedPoolId.value = undefined;
   relatedSourceId.value = undefined;
   relatedAssetId.value = undefined;
 });
 watch(nodeList, (nodes) => {
-  if (pendingSelection.value && nodes.some((node) => node.key === pendingSelection.value)) {
+  if (
+    pendingSelection.value &&
+    nodes.some((node) => node.key === pendingSelection.value)
+  ) {
     handleSelect(pendingSelection.value);
     pendingSelection.value = "";
-  } else if (selectedKey.value && !nodes.some((node) => node.key === selectedKey.value)) {
+  } else if (
+    selectedKey.value &&
+    !nodes.some((node) => node.key === selectedKey.value)
+  ) {
     handleDeselect();
   }
 });
 watch(edgeList, (edges) => {
   if (selectedEdge.value) {
-    selectedEdge.value = edges.find((edge) => edge.from === selectedEdge.value?.from && edge.to === selectedEdge.value?.to);
+    selectedEdge.value = edges.find(
+      (edge) =>
+        edge.from === selectedEdge.value?.from &&
+        edge.to === selectedEdge.value?.to,
+    );
     if (!selectedEdge.value) detailsVisible.value = false;
   }
 });
@@ -889,7 +1063,11 @@ watch(edgeList, (edges) => {
   align-items: center;
   gap: 5px;
   white-space: nowrap;
-  background: color-mix(in srgb, var(--resource-color) 7%, var(--bg-content-color));
+  background: color-mix(
+    in srgb,
+    var(--resource-color) 7%,
+    var(--bg-content-color)
+  );
   color: var(--font-text-color);
   > .anticon {
     color: var(--resource-color);

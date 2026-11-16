@@ -49,6 +49,9 @@ class TestOnBufferProbe:
         mock_inst = MagicMock()
         mock_inst.frame_count = 0
         mock_inst.total_frame_count = 0
+        mock_inst.frames_after_warmup = 0
+        mock_inst.warmup_frames = 0
+        mock_inst.first_frame_sent = True
         mock_inst.frame_count_lock = threading.Lock()
 
         result = GstWorker._on_buffer_probe(None, None, mock_inst)
@@ -64,6 +67,9 @@ class TestOnBufferProbe:
         mock_inst = MagicMock()
         mock_inst.frame_count = 0
         mock_inst.total_frame_count = 0
+        mock_inst.frames_after_warmup = 0
+        mock_inst.warmup_frames = 0
+        mock_inst.first_frame_sent = True
         mock_inst.frame_count_lock = threading.Lock()
 
         for _ in range(10):
@@ -161,6 +167,8 @@ class TestPollFps:
             pipeline=MagicMock(),
             frame_count=frame_count,
             total_frame_count=total_frame_count,
+            frames_after_warmup=total_frame_count,
+            warmup_frame_time=now - total_elapsed,
             start_time=now - total_elapsed,
             last_poll_time=now - window_elapsed,
         )
@@ -238,6 +246,8 @@ class TestTeardownFlushesFinalFps:
             pipeline=MagicMock(),
             frame_count=5,
             total_frame_count=5,
+            frames_after_warmup=5,
+            warmup_frame_time=now - 0.2,
             start_time=now - 0.2,
             last_poll_time=now - 0.2,
         )
@@ -265,6 +275,31 @@ class TestTeardownFlushesFinalFps:
             worker._teardown("inst")
 
         fps_source.destroy.assert_called_once()
+
+
+class TestStopUnknownInstance:
+    """Stop for an instance that never registered must still report "stopped"."""
+
+    def test_emits_stopped_for_unknown_instance(self):
+        worker = GstWorker()
+        with patch("core.gst_worker._emit") as mock_emit:
+            worker.stop("never-started")
+
+        mock_emit.assert_called_once_with({"instance_id": "never-started", "event": "stopped"})
+
+
+class TestFailedStartReportsStopped:
+    """A start that fails before registering a pipeline must still end with "stopped"."""
+
+    def test_parse_failure_emits_error_then_stopped(self):
+        worker = GstWorker()
+        with patch("core.gst_worker.Gst.parse_launch", side_effect=RuntimeError("boom")), \
+                patch("core.gst_worker._emit") as mock_emit:
+            worker.start("bad-start", "fakesrc ! fakesink")
+
+        events = [call.args[0] for call in mock_emit.call_args_list]
+        assert [e["event"] for e in events] == ["error", "stopped"]
+        assert all(e["instance_id"] == "bad-start" for e in events)
 
 
 class _FakeStructure:

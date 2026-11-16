@@ -287,7 +287,7 @@ def _unavailable(pool, *, text=False, configuration=None, enabled=True, state="S
     source = SimpleNamespace(
         source_id="broken", name="broken-image", enabled=enabled,
         configuration=configuration or {},
-        profile={"encoder_kind": "text", "backend": "native_openvino_gme"} if text else {
+        profile={"encoder_kind": "text", "fused": True} if text else {
             "encoder_kind": "multimodal", "supported_roles": [ROLE_IMAGE],
         },
     )
@@ -366,9 +366,9 @@ def test_audio_keeps_transcript_dependency_even_beside_a_text_fused_source(trans
 def _video_source(*, caption, configuration=None, params=None):
     options = {
         "asset_types": ["mp4"],
-        "embedding_backend": "llamaindex_openvino",
+        "embedding_backend": config.LOCAL_OPENVINO,
         "embedding_model": (
-            "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct" if caption
+            "gme-Qwen2-VL-2B-Instruct-OV" if caption
             else "viclip-b-fp16"
         ),
     }
@@ -436,11 +436,10 @@ def video_coverage_case(monkeypatch):
 def test_video_original_and_caption_defaults_select_distinct_models_and_collections(monkeypatch):
     for category, model in (
         ("VIDEO", "viclip-b-fp16"),
-        ("IMAGE", "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"),
+        ("IMAGE", "gme-Qwen2-VL-2B-Instruct-OV"),
     ):
         monkeypatch.setattr(config, f"{category}_EMBEDDING_MODEL_ID", model)
-        monkeypatch.setattr(config, f"{category}_EMBEDDING_MODEL_PATH", f"/not-read/{category}")
-        monkeypatch.setattr(config, f"{category}_EMBEDDING_BACKEND", "llamaindex_openvino")
+        monkeypatch.setattr(config, f"{category}_EMBEDDING_BACKEND", config.LOCAL_OPENVINO)
     original = _video_source(caption=False)
     caption = _video_source(caption=True)
     # No explicit model is needed for either representation at source creation.

@@ -38,6 +38,13 @@ Notes on what it does with Docker:
 
 ## What it does
 
+> **Models are downloaded by the installer.** You do not download or place a
+> model beforehand: `--model` makes the installer fetch it into
+> `~/.agent-harness-install/models` and register it with OVMS. The
+> model download size is large, and `./uninstall.sh` deletes the models by default; pass
+> `--keep-models` to retain the models and avoid re-downloading them on the
+> next install (see [Uninstall](uninstall.md)).
+
 1. **Host prep** — runs `startup.sh` (curl/git, Docker, Node.js, Python),
    then an Intel GPU check (PCI vendor `8086`, `i915`/`xe` driver,
    `/dev/dri` render nodes, Level-Zero/OpenCL compute runtime readiness --

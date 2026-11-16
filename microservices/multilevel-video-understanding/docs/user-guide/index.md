@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Multi-level Video Understanding Microservice
 
 <!--hide_directive
@@ -77,7 +80,7 @@ The following models are validated by the service:
 | -------------------- | ------------------------------------ | ----------------------- | --------- |
 | Qwen/Qwen3.5-35B-A3B | Multimodal (serves VLM + LLM roles)  | ~35B total / ~3B active | [link](https://huggingface.co/Qwen/Qwen3.5-35B-A3B) |
 
-For the on-device deployment a single `Qwen3.5-35B-A3B` endpoint fills both the VLM and LLM roles. Any OpenAI-compatible serving is supported, so separate VLM and LLM models can still be configured via `VLM_BASE_URL` / `LLM_BASE_URL`.
+The on-device deployment defaults to a single `Qwen/Qwen3.6-35B-A3B` endpoint for both the VLM and LLM roles. This default is separate from the validated-model record above. Any OpenAI-compatible serving is supported, so separate VLM and LLM models can still be configured via `VLM_BASE_URL` / `LLM_BASE_URL`.
 
 ## Supporting Resources
 

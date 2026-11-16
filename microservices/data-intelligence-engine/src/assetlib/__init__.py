@@ -1,11 +1,6 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Asset libraries: assets, the sources they are materialized into, and pools.
-
-`AssetLibrary` is the concept and the working implementation. A domain
-specializes it by saying what its assets are and which projection a source gets
--- see `data-intelligence-engine/src/core/file_asset_library.py:FileAssetLibrary`.
-"""
+"""Asset libraries: assets, the sources they are materialized into, and pools."""
 
 from assetlib.contracts import (
     Asset,

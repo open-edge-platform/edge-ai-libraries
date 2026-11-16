@@ -1176,6 +1176,19 @@ class TestToolCompressorUserInlineDelta:
         for tdef in self.ALL:
             assert json.dumps(tdef) in joined
 
+    def test_same_offset_resend_appends_not_replaces(self):
+        # A re-sent request at the same boundary (e.g. client retry) that
+        # selects a NEW tool must append a second delta carrier. Replacing the
+        # first would drop "exec": it is already in the union, so it is never
+        # re-sent as a delta and would vanish from the prompt for good.
+        comp = self._build([["exec"], ["exec", "process"]])
+        comp.compress(_convo(0, self.ALL))
+        result = comp.compress(_convo(0, self.ALL))   # same offset, re-sent
+        assert result.metrics.details["inline_carrier_count"] == 2
+        joined = " ".join(self._carriers(result.messages))
+        assert json.dumps(_tool("exec")) in joined
+        assert json.dumps(_tool("process")) in joined
+
     def test_does_not_mutate_ctx_messages(self):
         comp = self._build([["exec"]])
         ctx = _convo(0, self.ALL)

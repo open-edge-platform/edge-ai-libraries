@@ -1,11 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Asset scope and representation policy, independent of model loading.
-
-Selectors retain their precision (``mp4`` is not widened to all video). Only
-model selection uses their coarse asset family. Effective filters are frozen
-in the source profile, not recomputed when a source is restored.
-"""
+"""Asset scope and representation policy for sources, independent of model loading."""
 
 import mimetypes
 from typing import Any, Mapping
@@ -45,13 +40,8 @@ def asset_families(options: Mapping[str, Any]) -> set[str]:
 
 
 def validate_asset_types(options: Mapping[str, Any]) -> None:
-    """Refuse a vector source's `asset_types` entry that no asset can match.
-
-    Each entry is a family, an extension or a MIME type of something ingest
-    accepts. Anything else -- a typo, or ``okf``, which a vector source never
-    takes -- used to be read as a document type and quietly match no file.
-    """
-    from core.extractor import is_supported  # noqa: PLC0415 - loads the readers
+    """Refuse a vector source's `asset_types` entry that no asset can match."""
+    from core.extractor import is_supported  # noqa: PLC0415
 
     unknown = []
     for value in string_list(options, 'asset_types'):
@@ -81,12 +71,7 @@ def require_asset_types(options: Mapping[str, Any]) -> set[str]:
 
 
 def representation(options: Mapping[str, Any]) -> tuple[dict, set[str]]:
-    """Effective routing and roles used to choose a model at source creation.
-
-    Explicit roles select a representation *before* selecting its encoder. An
-    empty role filter keeps the asset's default model choice but imposes no role
-    restriction. Empty kind filters likewise remain explicit overrides.
-    """
+    """Effective routing and roles used to choose a model at source creation."""
     families = require_asset_types(options)
     roles = set(string_list(options, 'block_roles'))
     unknown = roles - MM_ROLES
@@ -124,13 +109,7 @@ def representation(options: Mapping[str, Any]) -> tuple[dict, set[str]]:
 
 
 def effective_configuration(source: Any) -> dict:
-    """User options plus frozen defaults, without consulting today's defaults.
-
-    A text vector source with no `asset_types` takes documents. That is a fixed
-    rule rather than a configurable default, so applying it here, to sources
-    created before it, cannot drift: unscoped, they used to take every file and
-    embed pictures and recordings as though they were text.
-    """
+    """User options plus frozen profile params; an unscoped text vector source takes documents."""
     options = {
         **dict(getattr(source, 'configuration', {}) or {}),
         **dict((getattr(source, 'profile', {}) or {}).get('params') or {}),
@@ -145,11 +124,7 @@ def effective_configuration(source: Any) -> dict:
 
 
 def validate_model_options(options: Mapping[str, Any]) -> None:
-    """Public model selection is an ID, not a path or weight override.
-
-    Call on persisted source options, never the private projection configuration
-    whose model path is injected from a frozen profile.
-    """
+    """Reject path/precision overrides in persisted source options; models are selected by ID."""
     for key in ('embedding_model_path', 'precision'):
         if key in options:
             raise ValueError(
@@ -159,11 +134,7 @@ def validate_model_options(options: Mapping[str, Any]) -> None:
 
 
 def validate_source(source: Any) -> None:
-    """Validate a frozen source's routing without resolving a model/default.
-
-    In particular, a legacy media profile cannot supply a missing user asset
-    declaration. Reconciliation must keep that record, but refuse to execute it.
-    """
+    """Validate a frozen source's routing without resolving a model/default."""
     raw = dict(source.configuration or {})
     options = effective_configuration(source)
     validate_model_options(raw)
@@ -186,8 +157,7 @@ def validate_options(options: Mapping[str, Any]) -> None:
         string_list(options, key)
     kinds = set(string_list(options, 'block_kinds'))
     roles = set(string_list(options, 'block_roles'))
-    # A document source can legitimately select prose and PDF figures. Pure
-    # media/derived representations must not bypass the required media scope.
+    # Media/derived selections without asset_types require a media scope.
     if not asset_families(options) and (
         kinds & {AUDIO, VIDEO}
         or (IMAGE in kinds and 'text' not in kinds)

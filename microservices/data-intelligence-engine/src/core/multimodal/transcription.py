@@ -1,27 +1,5 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""The background half of ingesting a recording: writing down what was said.
-
-An audio file has nothing a model can embed directly -- no embedding model in
-the engine takes sound -- so on its own it is found only by its file name. What
-makes it searchable is its speech, as text: `l2_transcript` blocks, which a
-source whose model embeds derived text (GME) puts in the same space as a text
-query. A text source does not take them (`VectorIndexer.nodes_from`).
-
-The job has the shape of `captioning.py`, for the same reasons -- it takes far
-longer than a request should, and it must be **safe to run twice**:
-
-- **Block ids are domain coordinates**, `<asset_id>:transcript:<n>`, one per
-  stretch of speech in time order. A rerun replaces every one of them rather
-  than adding a second transcript beside the first.
-- **State lives on the content stream**, in `transcript_status`.
-- **The stream is re-read inside the asset's lock** (shared with captioning,
-  so two jobs on one asset cannot interleave their writes) immediately before
-  merging, so an ingest that landed while the model ran is not reverted.
-
-Each block carries `t_start_ms` / `t_end_ms`, so a retrieved passage says where
-in the recording it was said.
-"""
 
 import os
 import time
@@ -48,12 +26,10 @@ from core.multimodal.captioning import (
     reload_stream,
 )
 
-#: Media roles whose speech is transcribed. A short clip's soundtrack is not
-#: yet: its description comes from the video summary service.
+#: Media roles whose speech is transcribed.
 TRANSCRIBED_ROLES = frozenset({ROLE_AUDIO})
 
 
-#: Why an untranscribed recording will stay that way.
 ASR_DISABLED = "speech recognition is disabled (ENGINE_ASR_ENABLED=false)"
 
 
@@ -63,7 +39,6 @@ class Transcriber(Protocol):
 
 
 def transcript_block_prefix(asset_id: str) -> str:
-    """What every transcript block of this asset's id starts with."""
     return f"{asset_id}:transcript:"
 
 
@@ -80,7 +55,7 @@ def _media_block(stream: ContentStream) -> Optional[ContentBlock]:
 
 
 def transcript_status(stream: ContentStream) -> Dict[str, Any]:
-    """What the transcription job has made of this asset so far."""
+    """Transcription status, error, timestamp and segment count for this asset."""
     block = media_block(stream)
     role = role_of(block) if block else ""
     status = str(stream.metadata.get("transcript_status") or "")
@@ -106,12 +81,7 @@ def transcribe_asset(
     transcriber: Optional[Transcriber] = None,
     now: Optional[float] = None,
 ) -> str:
-    """Transcribe this asset's recording and fold the text into its stream.
-
-    Returns the resulting status. Idempotent: an asset already transcribed, or
-    one with nothing to transcribe, is left alone. The model is loaded on the
-    first call that needs it, not at import.
-    """
+    """Transcribe this asset's recording into its stream (idempotent) and return the status."""
     asset = library.assets.get(asset_id)
     if asset is None or not config.ASR_ENABLED:
         return STATUS_SKIPPED
@@ -132,7 +102,7 @@ def transcribe_asset(
             suffix = os.path.splitext(stream.metadata.get("file_name") or "")[1] or ".wav"
             with asset.media_path(block.media_key, suffix) as path:
                 segments = list(transcriber.transcribe(path))
-        except Exception as error:  # noqa: BLE001 - reported on the asset, not raised
+        except Exception as error:  # noqa: BLE001
             return _record(
                 library, asset, stream, STATUS_FAILED,
                 f"{type(error).__name__}: {error}", now,
@@ -148,10 +118,7 @@ def _merge_transcript(
     segments: Sequence[Any],
     source_block_id: str,
 ) -> List[ContentBlock]:
-    """Put the transcript in the stream, replacing any earlier one.
-
-    Returns the blocks this changed: the new transcript and the one it replaced.
-    """
+    """Replace the stream's transcript blocks; return both replaced and added blocks."""
     prefix = transcript_block_prefix(asset_id)
     replaced = [block for block in stream.blocks if block.block_id.startswith(prefix)]
     kept: List[ContentBlock] = [
@@ -190,7 +157,7 @@ def _record(
     now: Optional[float],
     changed: Sequence[ContentBlock] = (),
 ) -> str:
-    """Persist the stream, and on success let the sources that take `changed` know."""
+    """Persist the stream and, on success, notify sources of `changed` blocks."""
     stream.metadata["transcript_status"] = status
     stream.metadata["transcript_updated_at"] = now if now is not None else time.time()
     if error:

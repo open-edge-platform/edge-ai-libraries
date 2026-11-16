@@ -9,7 +9,7 @@ const getTableColumns = (
   { title: t("console.name"), key: "name", dataIndex: "name", width: 300 },
   { title: t("console.kind"), key: "kind", dataIndex: "kind", width: 140 },
   { title: t("console.pools"), key: "pools", width: 180 },
-  { title: t("console.status"), key: "status", width: 160 },
+  { title: t("console.status"), key: "status", width: 160, fixed: "right" },
   { title: t("console.actions"), key: "actions", width: 190, fixed: "right" },
 ];
 export default getTableColumns;

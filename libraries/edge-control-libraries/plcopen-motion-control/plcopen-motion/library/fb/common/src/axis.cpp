@@ -10,6 +10,7 @@
 
 #include <fb/common/include/axis.hpp>
 #include <algorithm>
+#include <cmath>
 #include <fb/common/include/logging.hpp>
 
 namespace RTmotion
@@ -63,7 +64,7 @@ Axis::Axis()
   , axis_in_simulation_(mcFALSE)
   , axis_has_warning_(mcFALSE)
 {
-  delta_time_                          = 0.001;
+  frequency_                           = 1000;
   axis_override_factors_.vel           = 1;
   axis_override_factors_.acc           = 1;
   axis_override_factors_.jerk          = 1;
@@ -97,7 +98,7 @@ Axis::Axis()
 #endif
 }
 
-Axis::Axis(const Axis& axis)
+Axis::Axis(const Axis& axis) : Axis()
 {
   *this = axis;
 }
@@ -106,6 +107,11 @@ Axis& Axis::operator=(const Axis& other)
 {
   if (this != &other)
   {
+    if (frequency_ != other.frequency_ && !isIdleForClockChange())
+    {
+      INFO_PRINT("Axis::operator=: cannot change frequency during motion.\n");
+      return *this;
+    }
     axis_id_                  = other.axis_id_;
     axis_pos_                 = other.axis_pos_;
     axis_vel_                 = other.axis_vel_;
@@ -131,8 +137,10 @@ Axis& Axis::operator=(const Axis& other)
 
     config_ = other.config_;
 
-    stamp_      = other.stamp_;
-    delta_time_ = other.delta_time_;
+    stamp_     = other.stamp_;
+    frequency_ = other.frequency_;
+    for (auto& node : node_buffer_)
+      node.setFrequency(frequency_);
 
     power_on_        = other.power_on_;
     power_status_    = other.power_status_;
@@ -206,18 +214,40 @@ void Axis::setAxisConfig(AxisConfig* config)
 {
   if (!config)
   {
-    printf("Axis::setAxisConfig: config input is null pointer.\n");
+    INFO_PRINT("Axis::setAxisConfig: config input is null pointer.\n");
+    return;
+  }
+  if (!std::isfinite(config->frequency_) || config->frequency_ <= 0 ||
+      !std::isfinite(1 / config->frequency_))
+  {
+    INFO_PRINT("Axis::setAxisConfig: frequency must have a finite positive "
+               "value and timestep.\n");
+    return;
+  }
+  if (config->frequency_ != frequency_ && !isIdleForClockChange())
+  {
+    INFO_PRINT("Axis::setAxisConfig: cannot change frequency during motion.\n");
     return;
   }
 
-  config_ = config;
+  config_    = config;
+  frequency_ = config->frequency_;
+  for (auto& node : node_buffer_)
+    node.setFrequency(frequency_);
+}
 
-  if (config_->frequency_ != 0)
-  {
-    delta_time_ = 1 / config_->frequency_;
-    for (size_t i = 0; i < node_num_; i++)
-      node_buffer_[i].setFrequency(config_->frequency_);
-  }
+bool Axis::isIdleForClockChange()
+{
+  const mcLREAL velocity_tolerance = config_ ? config_->factor_.vel_ : 0;
+  const mcLREAL feedback_tolerance =
+      velocity_tolerance +
+      (config_ ? frequency_ / config_->encoder_count_per_unit_ : 0);
+  return (axis_state_ == mcStandstill || axis_state_ == mcDisabled ||
+          axis_state_ == mcErrorStop) &&
+         motion_kernel_.getQueuedMotions().empty() &&
+         axis_superimposed_enable_ == mcFALSE &&
+         fabs(axis_vel_cmd_) <= velocity_tolerance &&
+         fabs(axis_vel_) <= feedback_tolerance;
 }
 
 void Axis::setNodeQueueSize(mcUSINT size)
@@ -240,10 +270,13 @@ void Axis::runCycle()
   if (statusHealthy() == mcTRUE)
   {
     // Motion kernel update
-    motion_kernel_.runCycle(master_ref_pos_, master_ref_vel_,
-                            axis_pos_ - axis_sup_pos_cmd_,
-                            axis_vel_cmd_ - axis_sup_vel_cmd_, axis_acc_cmd_,
-                            &axis_state_, axis_override_factors_);
+    motion_kernel_.runCycle(
+        master_ref_pos_, master_ref_vel_, axis_pos_ - axis_sup_pos_cmd_,
+        axis_vel_cmd_ - axis_sup_vel_cmd_, axis_acc_cmd_, &axis_state_,
+        axis_override_factors_, axis_superimposed_enable_);
+
+    if (motion_kernel_.isStoppingOnError())
+      axis_superimposed_enable_ = mcFALSE;
 
     // Sync motion kernel results to axis
     syncMotionKernelResultsToAxis();
@@ -256,13 +289,13 @@ void Axis::runCycle()
   }
 
   // Servo updates
-  servo_->runCycle(config_->frequency_);
+  servo_->runCycle(frequency_);
 
   // Sync servo status to axis
   statusSync();
 
   // Update time stamps
-  stamp_ += delta_time_;
+  stamp_ += getDeltaTime();
   count_++;
 
   if (add_fb_ == mcTRUE)
@@ -294,13 +327,13 @@ void Axis::runCycle(double pos, double vel)
   }
 
   // Servo updates
-  servo_->runCycle(config_->frequency_);
+  servo_->runCycle(frequency_);
 
   // Sync servo status to axis
   statusSync();
 
   // Update time stamps
-  stamp_ += delta_time_;
+  stamp_ += getDeltaTime();
   count_++;
 
   if (add_fb_ == mcTRUE)
@@ -398,17 +431,44 @@ mcDINT Axis::toEncoderUnit(mcLREAL x)
   return (mcDINT)fixOverFlow(x * config_->encoder_count_per_unit_);
 }
 
+bool Axis::isStoppingOnError() const
+{
+  return motion_kernel_.isStoppingOnError();
+}
+
 void Axis::addFBToQueue(FbAxisNode* fb, MC_MOTION_MODE mode)
 {
-  add_fb_ = mcTRUE;
-  it_     = nullptr;
-  for (size_t i = 0; i < node_num_; i++)
+  if (isStoppingOnError())
   {
-    if (node_buffer_[i].taken_ == mcFALSE)
+    fb->syncStatus(mcFALSE, mcFALSE, mcFALSE, mcFALSE, mcTRUE,
+                   mcErrorCodeAxisStateViolation);
+    return;
+  }
+  add_fb_                   = mcTRUE;
+  const auto find_free_node = [this]() -> ExecutionNode* {
+    for (size_t i = 0; i < node_num_; i++)
     {
-      it_ = node_buffer_ + i;
-      break;
+      if (node_buffer_[i].taken_ == mcFALSE)
+        return node_buffer_ + i;
     }
+    return nullptr;
+  };
+  it_                              = find_free_node();
+  mcLREAL additive_reference       = NAN;
+  bool preserve_additive_reference = false;
+
+  if (!it_ && fb->getBufferMode() == mcAborting)
+  {
+    // Reclaiming a full queue must not change MoveAdditive's reference target.
+    const auto& queued = motion_kernel_.getQueuedMotions();
+    if (mode == mcMoveAdditiveMode && !queued.empty())
+    {
+      additive_reference          = queued.back()->getEndPos();
+      preserve_additive_reference = true;
+    }
+    // An aborting command can reuse the slots released by the motions it ends.
+    motion_kernel_.setAllFBsAborted();
+    it_ = find_free_node();
   }
 
   if (!it_)
@@ -438,10 +498,14 @@ void Axis::addFBToQueue(FbAxisNode* fb, MC_MOTION_MODE mode)
                             fb->getJerk(), fb->getBufferMode(), mcRuckig);
       break;
     case mcMoveVelocityMode:
+    case mcStopMode:
+      (*it_).setBasicParams(fb, mode, NAN, fb->getVelocity(),
+                            fb->getAcceleration(), fb->getDeceleration(),
+                            fb->getJerk(), fb->getBufferMode(), mcRuckig);
+      break;
     case mcGearInMode:
     case mcSyncOutMode:
     case mcHaltMode:
-    case mcStopMode:
       (*it_).setBasicParams(fb, mode, NAN, fb->getVelocity(),
                             fb->getAcceleration(), fb->getDeceleration(),
                             fb->getJerk(), fb->getBufferMode(), mcOffLine);
@@ -499,6 +563,8 @@ void Axis::addFBToQueue(FbAxisNode* fb, MC_MOTION_MODE mode)
 
   motion_kernel_.addFBToQueue(it_, getPosCmd(), toUserVelCmd(), toUserAccCmd(),
                               fb->getTargetAcceleration());
+  if (preserve_additive_reference)
+    it_->setTerminateCondition(additive_reference);
 }
 
 mcBOOL Axis::statusHealthy()
@@ -506,7 +572,15 @@ mcBOOL Axis::statusHealthy()
   // Check axis error and power status
   if (axis_error_ || power_status_ == mcFALSE)
   {
+    motion_kernel_.abortCurSupMoveFB();
     motion_kernel_.setAllFBsAborted();
+    axis_superimposed_enable_ = mcFALSE;
+    axis_sup_pos_cmd_ = axis_sup_vel_cmd_ = axis_sup_acc_cmd_ = 0.0;
+    axis_sup_move_covered_pos_ = axis_sup_move_total_covered_pos_ = 0.0;
+    // An empty kernel leaves cached commands untouched. Do not restore the
+    // interrupted trajectory's derivatives when power or health returns.
+    axis_underlying_vel_cmd_ = axis_underlying_acc_cmd_ = 0.0;
+    axis_vel_cmd_ = axis_acc_cmd_ = 0.0;
     DEBUG_PRINT("Axis::statusHealthy axis_error_: 0x%X\n", axis_error_);
     return mcFALSE;
   }
@@ -629,8 +703,8 @@ void Axis::powerProcess()
 mcBOOL Axis::cmdsProcessing()
 {
   // Check motion direction and limits
-  mcLREAL vel_cmd = (axis_pos_cmd_ - axis_pos_) * config_->frequency_;
-  mcLREAL acc_cmd = (axis_vel_cmd_ - axis_vel_) * config_->frequency_;
+  mcLREAL vel_cmd = (axis_pos_cmd_ - axis_pos_) * frequency_;
+  mcLREAL acc_cmd = (axis_vel_cmd_ - axis_vel_) * frequency_;
   DEBUG_PRINT("Axis::cmdsProcessing: axis_pos_ %f, axis_vel_ %f\n", axis_pos_,
               axis_vel_);
   DEBUG_PRINT("Axis::cmdsProcessing: axis_pos_cmd_ %f, axis_vel_cmd_ %f\n",
@@ -1174,6 +1248,12 @@ mcBOOL Axis::readAxisParam(mcUINT number, mcUDINT& value)
 
 void Axis::addMoveSupFB(FbAxisNode* fb, mcLREAL pos, mcLREAL vel)
 {
+  if (isStoppingOnError())
+  {
+    fb->syncStatus(mcFALSE, mcFALSE, mcFALSE, mcFALSE, mcTRUE,
+                   mcErrorCodeAxisStateViolation);
+    return;
+  }
   // new MC_MoveSuperimposed FB will abort the on-going one
   if (axis_superimposed_enable_ == mcTRUE)
   {
@@ -1230,7 +1310,12 @@ void Axis::replanUnderlyingMotion()
 
 mcLREAL Axis::getDeltaTime()
 {
-  return delta_time_;
+  return 1 / frequency_;
+}
+
+mcLREAL Axis::getFrequency() const
+{
+  return frequency_;
 }
 
 }  // namespace RTmotion

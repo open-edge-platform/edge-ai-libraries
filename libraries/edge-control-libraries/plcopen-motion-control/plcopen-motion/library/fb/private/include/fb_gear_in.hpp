@@ -33,10 +33,14 @@ public:
   void setInGearThreshold(mcREAL threshold);
 
   mcBOOL getInGear();
+  mcLREAL getVelocity() override;
+  mcBOOL isReadyForBufferedHandoff() override;
 
   MC_ERROR_CODE onRisingEdgeExecution() override;
+  MC_ERROR_CODE onFallingEdgeExecution() override;
   MC_ERROR_CODE onExecution() override;
   MC_ERROR_CODE afterFallingEdgeExecution() override;
+  void onError(MC_ERROR_CODE error_code) override;
 
 protected:
   VAR_IN_OUT AXIS_REF master_;
@@ -48,7 +52,7 @@ protected:
   VAR_OUTPUT mcBOOL in_gear_;
 
 private:
-  mcREAL ratio_;
+  mcLREAL ratio_;
   mcREAL in_gear_threshold_;
 };
 }  // namespace RTmotion

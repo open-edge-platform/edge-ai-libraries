@@ -1,7 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Task metadata and shared-upload file references; bundles are returned by path."""
 from __future__ import annotations
 
 from pathlib import PurePosixPath

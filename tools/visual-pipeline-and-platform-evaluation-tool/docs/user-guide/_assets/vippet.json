@@ -673,7 +673,7 @@
           "devices"
         ],
         "summary": "List available inference devices",
-        "description": "**Return all devices discovered by the OpenVINO runtime.**\n\n## Operation\nDiscovers CPU, GPU, and NPU devices available in the system and exposes\nthem in a simplified, API-friendly format.\n\n1. Initialize OpenVINO Core\n2. Discover all available inference devices\n3. Extract device properties and metadata\n4. Attach the core type of every online logical CPU to the CPU device\n5. Return formatted device list\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\nJSON array of Device objects.\n\n**Each device includes:**\n- `device_name` - Short identifier used by runtime (e.g., `\"CPU\"`, `\"GPU\"`, `\"GPU.0\"`, `\"NPU\"`)\n- `full_device_name` - Human-readable name (e.g., CPU/GPU marketing name)\n- `device_type` - `INTEGRATED` or `DISCRETE`\n- `device_family` - `CPU`, `GPU`, or `NPU`\n- `gpu_id` - Integer index for GPU devices (when applicable), otherwise `null`\n- `cpu_topology` - For the CPU device, the core type (`P`, `E`, `LPE` or `UNIFORM`)\n  of every online logical CPU, read from Linux sysfs. `null` for other devices, or\n  when the core types cannot be determined\n\n## Conditions\n\n### \u2705 Success\n- OpenVINO Core initializes correctly\n- At least zero devices are returned (empty list is valid)\n- A failure to read the CPU topology does not fail the request; `cpu_topology` is `null`\n\n### \u274c Failure\n- Unhandled exception during device discovery \u2192 500\n- OpenVINO cannot be initialized \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"device_name\": \"CPU\",\n    \"full_device_name\": \"Intel(R) Core(TM) Ultra 7 155H\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"CPU\",\n    \"gpu_id\": null,\n    \"cpu_topology\": {\n      \"is_hybrid\": true,\n      \"source\": \"sysfs_pmu\",\n      \"cores\": [\n        {\"cpu\": 0, \"core_type\": \"P\", \"core_id\": 0},\n        {\"cpu\": 6, \"core_type\": \"E\", \"core_id\": 6},\n        {\"cpu\": 14, \"core_type\": \"LPE\", \"core_id\": 14}\n      ]\n    }\n  },\n  {\n    \"device_name\": \"GPU.0\",\n    \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"GPU\",\n    \"gpu_id\": 0,\n    \"cpu_topology\": null\n  }\n]\n```",
+        "description": "**Return the inference devices of DL Streamer Pipeline Server 2.0.**\n\n## Operation\nPipelines run on DL Streamer Pipeline Server 2.0, so the devices listed are\nthe CPU, GPU, and NPU devices its OpenVINO runtime discovers. They are\nexposed in a simplified, API-friendly format.\n\n1. Read the device list from the server's `GET /devices` (once; later\n   requests reuse the first list read)\n2. Extract device properties and metadata\n3. Attach the core type of every online logical CPU to the CPU device\n4. Return formatted device list\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\nJSON array of Device objects.\n\n**Each device includes:**\n- `device_name` - Short identifier used by runtime (e.g., `\"CPU\"`, `\"GPU\"`, `\"GPU.0\"`, `\"NPU\"`)\n- `full_device_name` - Human-readable name (e.g., CPU/GPU marketing name)\n- `device_type` - `INTEGRATED` or `DISCRETE`\n- `device_family` - `CPU`, `GPU`, or `NPU`\n- `gpu_id` - Integer index for GPU devices (when applicable), otherwise `null`\n- `cpu_topology` - For the CPU device, the core type (`P`, `E`, `LPE` or `UNIFORM`)\n  of every online logical CPU, read from Linux sysfs. `null` for other devices, or\n  when the core types cannot be determined\n\n## Conditions\n\n### \u2705 Success\n- DL Streamer Pipeline Server 2.0 returns its device list\n- At least zero devices are returned (empty list is valid)\n- A failure to read the CPU topology does not fail the request; `cpu_topology` is `null`\n\n### \u274c Failure\n- DL Streamer Pipeline Server 2.0 is unreachable, or cannot list its devices \u2192 503\n- Unhandled exception during device discovery \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"device_name\": \"CPU\",\n    \"full_device_name\": \"Intel(R) Core(TM) Ultra 7 155H\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"CPU\",\n    \"gpu_id\": null,\n    \"cpu_topology\": {\n      \"is_hybrid\": true,\n      \"source\": \"sysfs_pmu\",\n      \"cores\": [\n        {\"cpu\": 0, \"core_type\": \"P\", \"core_id\": 0},\n        {\"cpu\": 6, \"core_type\": \"E\", \"core_id\": 6},\n        {\"cpu\": 14, \"core_type\": \"LPE\", \"core_id\": 14}\n      ]\n    }\n  },\n  {\n    \"device_name\": \"GPU.0\",\n    \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"GPU\",\n    \"gpu_id\": 0,\n    \"cpu_topology\": null\n  }\n]\n```",
         "operationId": "get_devices",
         "responses": {
           "200": {
@@ -699,6 +699,146 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Device list not available from DL Streamer Pipeline Server 2.0.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/audio/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Audio Statuses",
+        "operationId": "get_audio_statuses",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AudioJobSummary"
+                  },
+                  "type": "array",
+                  "title": "Response Get Audio Statuses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/audio/{job_id}/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Audio Job Status",
+        "operationId": "get_audio_job_status",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioJobStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/audio/{job_id}": {
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Stop a running audio job",
+        "description": "Request cancellation of a RUNNING Speech to Text or Text to Speech job.",
+        "operationId": "stop_audio_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Audio job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Audio job not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
@@ -709,7 +849,7 @@
           "jobs"
         ],
         "summary": "List all performance test jobs",
-        "description": "**List statuses of all performance test jobs.**\n\n## Operation\n\nReads current state and metrics for every performance test job created via the performance test API.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of PerformanceJobStatus objects |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n- Zero or more jobs may be present\n\n### \u274c Failure\n- Internal errors \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job123\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 120000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": 480.0,\n    \"per_stream_fps\": 30.0,\n    \"total_streams\": 16,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 8},\n      {\"id\": \"pipeline-2\", \"streams\": 8}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n    }\n  }\n]\n```",
+        "description": "**List statuses of all performance test jobs.**\n\n## Operation\n\nReads current state and metrics for every performance test job created via the performance test API.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of PerformanceJobStatus objects |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n- Zero or more jobs may be present\n\n### \u274c Failure\n- Internal errors \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job123\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 120000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": 480.0,\n    \"per_stream_fps\": 30.0,\n    \"min_stream_fps\": 27.5,\n    \"total_streams\": 16,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 8},\n      {\"id\": \"pipeline-2\", \"streams\": 8}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n    }\n  }\n]\n```",
         "operationId": "get_performance_statuses",
         "responses": {
           "200": {
@@ -735,7 +875,7 @@
           "jobs"
         ],
         "summary": "Get performance test job status",
-        "description": "**Get detailed status of a single performance test job.**\n\n## Operation\n\nRetrieves current state, timings, FPS metrics, and output paths for a specific performance test job.\n\n## Path Parameters\n\n- `job_id`: Identifier of the performance job to inspect\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | PerformanceJobStatus with current state, timings, FPS and output paths |\n| 404  | Job with given id does not exist |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- Job with given id exists in TestsManager\n\n### \u274c Failure\n- Unknown job id \u2192 404\n- Unexpected job status type \u2192 500\n\n## Examples\n\nSuccess (200):\n```json\n{\n  \"id\": \"job123\",\n  \"start_time\": 1715000000000,\n  \"elapsed_time\": 60000,\n  \"state\": \"COMPLETED\",\n  \"details\": [\"Pipeline completed successfully\"],\n  \"total_fps\": 480.0,\n  \"per_stream_fps\": 30.0,\n  \"total_streams\": 16,\n  \"streams_per_pipeline\": [\n    {\"id\": \"pipeline-1\", \"streams\": 8},\n    {\"id\": \"pipeline-2\", \"streams\": 8}\n  ],\n  \"video_output_paths\": {\n    \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n  }\n}\n```\n\nError (404):\n```json\n{\n  \"message\": \"Performance job job123 not found\"\n}\n```\n\nError (500):\n```json\n{\n  \"message\": \"Unexpected job status type for job job123\"\n}\n```",
+        "description": "**Get detailed status of a single performance test job.**\n\n## Operation\n\nRetrieves current state, timings, FPS metrics, and output paths for a specific performance test job.\n\n## Path Parameters\n\n- `job_id`: Identifier of the performance job to inspect\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | PerformanceJobStatus with current state, timings, FPS and output paths |\n| 404  | Job with given id does not exist |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- Job with given id exists in TestsManager\n\n### \u274c Failure\n- Unknown job id \u2192 404\n- Unexpected job status type \u2192 500\n\n## Examples\n\nSuccess (200):\n```json\n{\n  \"id\": \"job123\",\n  \"start_time\": 1715000000000,\n  \"elapsed_time\": 60000,\n  \"state\": \"COMPLETED\",\n  \"details\": [\"Pipeline completed successfully\"],\n  \"total_fps\": 480.0,\n  \"per_stream_fps\": 30.0,\n  \"min_stream_fps\": 27.5,\n  \"total_streams\": 16,\n  \"streams_per_pipeline\": [\n    {\"id\": \"pipeline-1\", \"streams\": 8},\n    {\"id\": \"pipeline-2\", \"streams\": 8}\n  ],\n  \"video_output_paths\": {\n    \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n  }\n}\n```\n\nError (404):\n```json\n{\n  \"message\": \"Performance job job123 not found\"\n}\n```\n\nError (500):\n```json\n{\n  \"message\": \"Unexpected job status type for job job123\"\n}\n```",
         "operationId": "get_performance_job_status",
         "parameters": [
           {
@@ -1081,7 +1221,7 @@
           "jobs"
         ],
         "summary": "List all density test jobs",
-        "description": "**List statuses of all density test jobs.**\n\n## Operation\n\nReads current state and metrics for every density test job.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of DensityJobStatus objects |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job456\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 45000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": null,\n    \"per_stream_fps\": 28.5,\n    \"total_streams\": 32,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 16},\n      {\"id\": \"pipeline-2\", \"streams\": 16}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job456-p1-0.mp4\"]\n    }\n  }\n]\n```",
+        "description": "**List statuses of all density test jobs.**\n\n## Operation\n\nReads current state and metrics for every density test job.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of DensityJobStatus objects |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job456\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 45000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": null,\n    \"per_stream_fps\": 28.5,\n    \"min_stream_fps\": 25.1,\n    \"total_streams\": 32,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 16},\n      {\"id\": \"pipeline-2\", \"streams\": 16}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job456-p1-0.mp4\"]\n    }\n  }\n]\n```",
         "operationId": "get_density_statuses",
         "responses": {
           "200": {
@@ -2403,7 +2543,7 @@
           "pipelines"
         ],
         "summary": "Validate Pipeline",
-        "description": "**Start asynchronous validation job for a pipeline graph.**\n\n## Operation\n1. Convert PipelineGraph to GStreamer launch string\n2. Extract validation parameters (e.g., `max-runtime`)\n3. Create validation job and run `gst_runner.py` in background\n4. Return generated job ID\n\n## Request Body\n**`PipelineValidation`** with:\n- `pipeline_graph` *(required)* - Nodes and edges representation\n- `parameters` *(optional)* - Configuration dict, e.g., `{\"max-runtime\": 10}`\n  - **Note:** `max-runtime` must be > 0 for validation mode\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `ValidationJobResponse` with `job_id` |\n| 400 | `MessageResponse` - Invalid parameters (e.g., `max-runtime` < 1) |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Graph converts to valid launch string\n- Parameters pass ValidationManager checks\n- Background validation job started\n\n### \u274c Failure\n- Parameter validation error \u2192 400\n- Unexpected exception \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [\n      {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n      {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n      {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n    ],\n    \"edges\": [\n      {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n      {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n    ]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"val001\"\n}\n```\n\n### Error Response (400)\n```json\n{\n  \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n}\n```",
+        "description": "**Start asynchronous validation job for a pipeline graph.**\n\n## Operation\n1. Convert PipelineGraph to GStreamer launch string\n2. Extract validation parameters (e.g., `max-runtime`)\n3. Create validation job and run the pipeline on DLSPS 2.0 in background\n4. Return generated job ID\n\n## Request Body\n**`PipelineValidation`** with:\n- `pipeline_graph` *(required)* - Nodes and edges representation\n- `parameters` *(optional)* - Configuration dict, e.g., `{\"max-runtime\": 10}`\n  - **Note:** `max-runtime` must be > 0 for validation mode\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `ValidationJobResponse` with `job_id` |\n| 400 | `MessageResponse` - Invalid parameters (e.g., `max-runtime` < 1) |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Graph converts to valid launch string\n- Parameters pass ValidationManager checks\n- Background validation job started\n\n### \u274c Failure\n- Parameter validation error \u2192 400\n- Unexpected exception \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [\n      {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n      {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n      {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n    ],\n    \"edges\": [\n      {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n      {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n    ]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"val001\"\n}\n```\n\n### Error Response (400)\n```json\n{\n  \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n}\n```",
         "operationId": "validate_pipeline",
         "requestBody": {
           "content": {
@@ -3201,7 +3341,7 @@
           "tests"
         ],
         "summary": "Start a performance test job",
-        "description": "**Start an asynchronous performance test job.**\n\n## Operation\n\n1. Validates the performance test request\n2. Creates a PerformanceJob with RUNNING state\n3. Spawns a background thread that runs the pipelines using a GStreamer-based runner\n4. Returns the job identifier for status polling\n\n## Request Body\n\n- `pipeline_performance_specs`: List of pipelines and number of streams per pipeline. Each pipeline can be:\n  - Variant reference: `{\"source\": \"variant\", \"pipeline_id\": \"...\", \"variant_id\": \"...\"}`\n  - Inline graph: `{\"source\": \"graph\", \"pipeline_graph\": {...}}`\n  - Pipeline description: `{\"source\": \"description\", \"pipeline_description\": \"...\"}`\n- `execution_config`: Configuration for output mode, metadata mode and runtime limits\n  - `output_mode`: disabled (default), file, or live_stream\n  - `max_runtime`: maximum runtime in seconds (0 = run until EOS)\n  - `metadata_mode`: disabled (default) or file\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202  | TestJobResponse with job_id of the created performance job |\n| 400  | Invalid request (empty specs, duplicate pipeline_ids, zero streams, missing variant, invalid output config) |\n| 500  | Unexpected error when creating the job or starting background thread |\n\n## Conditions\n\n### \u2705 Success\n- At least one stream is requested across all pipelines\n- All referenced variants exist\n- No duplicate pipeline_ids in request\n- TestsManager.test_performance() successfully enqueues the job\n\n### \u274c Failure\n- Another execution job is already running \u2192 409\n- Validation or configuration error \u2192 400\n- Unhandled exception in job creation \u2192 500\n\n## Examples\n\nRequest (variant reference):\n```json\n{\n  \"pipeline_performance_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"streams\": 8\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nRequest (inline graph):\n```json\n{\n  \"pipeline_performance_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"graph\",\n        \"pipeline_graph\": {\n          \"nodes\": [...],\n          \"edges\": [...]\n        }\n      },\n      \"streams\": 4\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nSuccess (202):\n```json\n{\n  \"job_id\": \"job123\"\n}\n```\n\nError (400):\n```json\n{\n  \"message\": \"At least one stream must be specified to run the pipeline.\"\n}\n```",
+        "description": "**Start an asynchronous performance test job.**\n\n## Operation\n\n1. Validates the performance test request\n2. Creates a PerformanceJob with RUNNING state\n3. Spawns a background thread that runs the pipelines using a GStreamer-based runner\n4. Returns the job identifier for status polling\n\n## Request Body\n\n- `pipeline_performance_specs`: List of pipelines and number of streams per pipeline. Each pipeline can be:\n  - Variant reference: `{\"source\": \"variant\", \"pipeline_id\": \"...\", \"variant_id\": \"...\"}`\n  - Inline graph: `{\"source\": \"graph\", \"pipeline_graph\": {...}}`\n  - Pipeline description: `{\"source\": \"description\", \"pipeline_description\": \"...\"}`\n- `execution_config`: Configuration for output mode, metadata mode and runtime limits\n  - `output_mode`: disabled (default), file, or live_stream\n  - `max_runtime`: maximum runtime in seconds (0 = run until EOS)\n  - `metadata_mode`: disabled (default) or file\n  - `pinned_cpu_cores`: logical CPU ids to pin the pipeline to (empty = no pinning)\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202  | TestJobResponse with job_id of the created performance job |\n| 400  | Invalid request (empty specs, duplicate pipeline_ids, zero streams, missing variant, invalid output config) |\n| 500  | Unexpected error when creating the job or starting background thread |\n\n## Conditions\n\n### \u2705 Success\n- At least one stream is requested across all pipelines\n- All referenced variants exist\n- No duplicate pipeline_ids in request\n- TestsManager.test_performance() successfully enqueues the job\n\n### \u274c Failure\n- Another execution job is already running \u2192 409\n- Validation or configuration error \u2192 400\n- Unhandled exception in job creation \u2192 500\n\n## Examples\n\nRequest (variant reference):\n```json\n{\n  \"pipeline_performance_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"streams\": 8\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nRequest (inline graph):\n```json\n{\n  \"pipeline_performance_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"graph\",\n        \"pipeline_graph\": {\n          \"nodes\": [...],\n          \"edges\": [...]\n        }\n      },\n      \"streams\": 4\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nSuccess (202):\n```json\n{\n  \"job_id\": \"job123\"\n}\n```\n\nError (400):\n```json\n{\n  \"message\": \"At least one stream must be specified to run the pipeline.\"\n}\n```",
         "operationId": "run_performance_test",
         "requestBody": {
           "content": {
@@ -3273,7 +3413,7 @@
           "tests"
         ],
         "summary": "Start a density test job",
-        "description": "**Start an asynchronous density test job.**\n\n## Operation\n\n1. Validates the density test request\n2. Selects the density mode from the request shape (classic or mixed)\n3. Creates a DensityJob with RUNNING state\n4. Spawns a background thread that runs a Benchmark to determine the maximum number of streams that still meets fps_floor\n5. Returns the job identifier for status polling\n\n## Density Modes\n\nThe endpoint supports two modes, selected automatically from the\nrequest shape (no API version flag is required):\n\n### Classic density (default)\nAll `pipeline_density_specs` omit the optional `streams` field. The\nbenchmark searches for the maximum total stream count that still\nmeets `fps_floor` and splits the total across pipelines using\n`stream_rate` percentages (which must sum to 100).\n\n### Mixed density\nExactly one of exactly two `pipeline_density_specs` sets `streams`\nto a fixed value. That pipeline is pinned to that count for every\niteration; the other pipeline is incremented by the benchmark\nusing the same exponential growth + bisection algorithm as classic\ndensity. The pass/fail stop criterion (`fps_floor`) is unchanged.\n`stream_rate` is ignored in this mode.\n\n## Request Body\n\n- `fps_floor`: Minimum acceptable FPS per stream\n- `pipeline_density_specs`: List of pipelines. Each pipeline can be:\n  - Variant reference: `{\"source\": \"variant\", \"pipeline_id\": \"...\", \"variant_id\": \"...\"}`\n  - Inline graph: `{\"source\": \"graph\", \"pipeline_graph\": {...}}`\n  - Pipeline description: `{\"source\": \"description\", \"pipeline_description\": \"...\"}`\n\n  Each spec also carries:\n  - `stream_rate` (classic mode): percentage share of total streams; all values must sum to 100.\n  - `streams` (mixed mode, optional): fixed input stream count for this pipeline. Setting it on exactly one of two specs switches the request into mixed-density mode.\n- `execution_config`: Configuration for output mode, metadata mode and runtime limits\n  - `output_mode`: disabled (default) or file (live_stream not supported)\n  - `max_runtime`: maximum runtime in seconds (0 = run until EOS)\n  - `metadata_mode`: must be disabled (metadata output not supported)\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202  | TestJobResponse with job_id of the created density job |\n| 400  | Invalid request (empty specs, duplicate pipeline_ids, stream_rate not summing to 100 in classic mode, mixed-mode constraints violated, missing variant, live_stream mode, invalid output config) |\n| 500  | Unexpected error when creating or starting the job |\n\n## Conditions\n\n### \u2705 Success\n- pipeline_density_specs is not empty\n- All referenced variants exist\n- No duplicate pipeline_ids in request\n- Classic mode: stream_rate ratios sum to 100%\n- Mixed mode: exactly two specs and exactly one of them with `streams` set\n- DensityTestSpec is valid and Benchmark.run() can be started in background thread\n\n### \u274c Failure\n- Another execution job is already running \u2192 409\n- Validation errors \u2192 400\n- Unhandled exception \u2192 500\n\n## Examples\n\nRequest (classic mode, variant reference):\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"stream_rate\": 50\n    },\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-b7c2e114\",\n        \"variant_id\": \"variant-def456\"\n      },\n      \"stream_rate\": 50\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nRequest (classic mode, inline graph):\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"graph\",\n        \"pipeline_graph\": {\n          \"nodes\": [...],\n          \"edges\": [...]\n        }\n      },\n      \"stream_rate\": 100\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nRequest (mixed mode - pipeline 1 fixed at 4 streams, pipeline 2 incremented):\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"streams\": 4\n    },\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-b7c2e114\",\n        \"variant_id\": \"variant-def456\"\n      }\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nSuccess (202):\n```json\n{\n  \"job_id\": \"job456\"\n}\n```\n\nError (400, classic mode):\n```json\n{\n  \"message\": \"Pipeline stream_rate ratios must sum to 100%, got 110%\"\n}\n```\n\nError (400, mixed mode):\n```json\n{\n  \"message\": \"Mixed-density mode requires exactly two pipeline_density_specs.\"\n}\n```",
+        "description": "**Start an asynchronous density test job.**\n\n## Operation\n\n1. Validates the density test request\n2. Selects the density mode from the request shape (classic or mixed)\n3. Creates a DensityJob with RUNNING state\n4. Spawns a background thread that runs a Benchmark to determine the maximum number of streams that still meets fps_floor\n5. Returns the job identifier for status polling\n\n## Density Modes\n\nThe endpoint supports two modes, selected automatically from the\nrequest shape (no API version flag is required):\n\n### Classic density (default)\nAll `pipeline_density_specs` omit the optional `streams` field. The\nbenchmark searches for the maximum total stream count that still\nmeets `fps_floor` and splits the total across pipelines using\n`stream_rate` percentages (which must sum to 100).\n\n### Mixed density\nExactly one of exactly two `pipeline_density_specs` sets `streams`\nto a fixed value. That pipeline is pinned to that count for every\niteration; the other pipeline is incremented by the benchmark\nusing the same exponential growth + bisection algorithm as classic\ndensity. The pass/fail stop criterion (`fps_floor`) is unchanged.\n`stream_rate` is ignored in this mode.\n\n## Request Body\n\n- `fps_floor`: Minimum acceptable FPS per stream\n- `pipeline_density_specs`: List of pipelines. Each pipeline can be:\n  - Variant reference: `{\"source\": \"variant\", \"pipeline_id\": \"...\", \"variant_id\": \"...\"}`\n  - Inline graph: `{\"source\": \"graph\", \"pipeline_graph\": {...}}`\n  - Pipeline description: `{\"source\": \"description\", \"pipeline_description\": \"...\"}`\n\n  Each spec also carries:\n  - `stream_rate` (classic mode): percentage share of total streams; all values must sum to 100.\n  - `streams` (mixed mode, optional): fixed input stream count for this pipeline. Setting it on exactly one of two specs switches the request into mixed-density mode.\n- `execution_config`: Configuration for output mode, metadata mode and runtime limits\n  - `output_mode`: disabled (default) or file (live_stream not supported)\n  - `max_runtime`: maximum runtime in seconds (0 = run until EOS)\n  - `metadata_mode`: must be disabled (metadata output not supported)\n  - `pinned_cpu_cores`: logical CPU ids to pin the pipeline to (empty = no pinning)\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202  | TestJobResponse with job_id of the created density job |\n| 400  | Invalid request (empty specs, duplicate pipeline_ids, stream_rate not summing to 100 in classic mode, mixed-mode constraints violated, missing variant, live_stream mode, invalid output config) |\n| 500  | Unexpected error when creating or starting the job |\n\n## Conditions\n\n### \u2705 Success\n- pipeline_density_specs is not empty\n- All referenced variants exist\n- No duplicate pipeline_ids in request\n- Classic mode: stream_rate ratios sum to 100%\n- Mixed mode: exactly two specs and exactly one of them with `streams` set\n- DensityTestSpec is valid and Benchmark.run() can be started in background thread\n\n### \u274c Failure\n- Another execution job is already running \u2192 409\n- Validation errors \u2192 400\n- Unhandled exception \u2192 500\n\n## Examples\n\nRequest (classic mode, variant reference):\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"stream_rate\": 50\n    },\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-b7c2e114\",\n        \"variant_id\": \"variant-def456\"\n      },\n      \"stream_rate\": 50\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nRequest (classic mode, inline graph):\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"graph\",\n        \"pipeline_graph\": {\n          \"nodes\": [...],\n          \"edges\": [...]\n        }\n      },\n      \"stream_rate\": 100\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nRequest (mixed mode - pipeline 1 fixed at 4 streams, pipeline 2 incremented):\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"streams\": 4\n    },\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-b7c2e114\",\n        \"variant_id\": \"variant-def456\"\n      }\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nSuccess (202):\n```json\n{\n  \"job_id\": \"job456\"\n}\n```\n\nError (400, classic mode):\n```json\n{\n  \"message\": \"Pipeline stream_rate ratios must sum to 100%, got 110%\"\n}\n```\n\nError (400, mixed mode):\n```json\n{\n  \"message\": \"Mixed-density mode requires exactly two pipeline_density_specs.\"\n}\n```",
         "operationId": "run_density_test",
         "requestBody": {
           "content": {
@@ -3887,6 +4027,259 @@
           }
         }
       }
+    },
+    "/voice/pipelines": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "List Audio Pipelines",
+        "operationId": "list_audio_pipelines_voice_pipelines_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AudioPipelineResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Audio Pipelines Voice Pipelines Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/recordings": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "List Audio Recordings",
+        "operationId": "list_audio_recordings_voice_recordings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AudioRecordingResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Audio Recordings Voice Recordings Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/recordings/{filename}/audio": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Get Audio Recording",
+        "operationId": "get_audio_recording_voice_recordings__filename__audio_get",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/pipelines/{pipeline_id}/variants/{variant_id}/runs": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Run Audio Pipeline Variant",
+        "operationId": "run_audio_pipeline_variant_voice_pipelines__pipeline_id__variants__variant_id__runs_post",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioPipelineJobStartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "input": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "title": "Input",
+                        "type": "string"
+                      },
+                      "voice": {
+                        "enum": [
+                          "Ryan",
+                          "Miles",
+                          "Aaron",
+                          "Nora",
+                          "Elena",
+                          "Kabir",
+                          "Angus"
+                        ],
+                        "title": "Voice",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "input",
+                      "voice"
+                    ],
+                    "title": "AudioPipelineRunRequest",
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "recording": {
+                        "maxLength": 255,
+                        "minLength": 1,
+                        "title": "Recording",
+                        "type": "string"
+                      },
+                      "language": {
+                        "pattern": "^[a-z]{2}$",
+                        "title": "Language",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "recording",
+                      "language"
+                    ],
+                    "title": "AudioRecordingRunRequest",
+                    "type": "object"
+                  }
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "language"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "language": {
+                    "type": "string",
+                    "pattern": "^[a-z]{2}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/jobs/{job_id}/artifact": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Get Audio Pipeline Artifact",
+        "operationId": "get_audio_pipeline_artifact_voice_jobs__job_id__artifact_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3901,6 +4294,428 @@
         ],
         "title": "AppStatus",
         "description": "**Application status enum for tracking initialization progress.**\n\n## Values\n- `STARTING` - Application is starting, no initialization yet\n- `INITIALIZING` - Application is initializing resources (e.g., loading videos)\n- `READY` - Application is fully initialized and ready to serve requests\n- `SHUTDOWN` - Application is shutting down\n\n### Example\n```json\n\"ready\"\n```"
+      },
+      "AudioJobState": {
+        "type": "string",
+        "enum": [
+          "RUNNING",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "title": "AudioJobState"
+      },
+      "AudioJobStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
+          "pipeline_name": {
+            "type": "string",
+            "title": "Pipeline Name"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "speech_to_text",
+              "text_to_speech"
+            ],
+            "title": "Operation"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "variant_name": {
+            "type": "string",
+            "title": "Variant Name"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ],
+            "title": "Device"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AudioJobState"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "service_round_trip_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Round Trip Ms"
+          },
+          "artifact_available": {
+            "type": "boolean",
+            "title": "Artifact Available"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "artifact_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pipeline_id",
+          "pipeline_name",
+          "operation",
+          "variant_id",
+          "variant_name",
+          "device",
+          "state",
+          "created_at",
+          "modified_at",
+          "artifact_available"
+        ],
+        "title": "AudioJobStatus"
+      },
+      "AudioJobSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
+          "pipeline_name": {
+            "type": "string",
+            "title": "Pipeline Name"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "speech_to_text",
+              "text_to_speech"
+            ],
+            "title": "Operation"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "variant_name": {
+            "type": "string",
+            "title": "Variant Name"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ],
+            "title": "Device"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AudioJobState"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "service_round_trip_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Round Trip Ms"
+          },
+          "artifact_available": {
+            "type": "boolean",
+            "title": "Artifact Available"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pipeline_id",
+          "pipeline_name",
+          "operation",
+          "variant_id",
+          "variant_name",
+          "device",
+          "state",
+          "created_at",
+          "modified_at",
+          "artifact_available"
+        ],
+        "title": "AudioJobSummary"
+      },
+      "AudioPipelineDefaultsResponse": {
+        "properties": {
+          "audio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "type": "object",
+        "title": "AudioPipelineDefaultsResponse"
+      },
+      "AudioPipelineJobStartResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "COMPLETED",
+              "FAILED"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "AudioPipelineJobStartResponse"
+      },
+      "AudioPipelineResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "type": {
+            "type": "string",
+            "const": "audio",
+            "title": "Type"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "speech_to_text",
+              "text_to_speech"
+            ],
+            "title": "Operation"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "thumbnail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail"
+          },
+          "required_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required Models"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/AudioPipelineVariantResponse"
+            },
+            "type": "array",
+            "title": "Variants"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/AudioPipelineDefaultsResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "type",
+          "operation",
+          "tags",
+          "required_models",
+          "variants",
+          "defaults"
+        ],
+        "title": "AudioPipelineResponse"
+      },
+      "AudioPipelineVariantResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ],
+            "title": "Device"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "device"
+        ],
+        "title": "AudioPipelineVariantResponse"
+      },
+      "AudioRecordingResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "title": "Duration Seconds"
+          },
+          "audio_url": {
+            "type": "string",
+            "title": "Audio Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "duration_seconds",
+          "audio_url"
+        ],
+        "title": "AudioRecordingResponse"
       },
       "BenchmarkJobResponse": {
         "properties": {
@@ -5473,6 +6288,21 @@
             ],
             "title": "Video Output Paths"
           },
+          "min_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Stream Fps",
+            "description": "FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure.",
+            "examples": [
+              27.5
+            ]
+          },
           "latency_tracer_metrics": {
             "anyOf": [
               {
@@ -5486,7 +6316,7 @@
               }
             ],
             "title": "Latency Tracer Metrics",
-            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples \u2014 for example when the pipeline exited before the first 1000 ms interval closed."
+            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when no latency samples were read: the job was executed with `execution_config.enable_latency_metrics=false`, or latency was requested but DL Streamer Pipeline Server runs without the latency tracer (the job's `details` then say so). An empty object `{}` means samples were read but none arrived \u2014 for example when the pipeline stopped before the server's first export."
           }
         },
         "type": "object",
@@ -5503,7 +6333,7 @@
           "video_output_paths"
         ],
         "title": "DensityJobStatus",
-        "description": "**Status of a density test job.**\n\nInherits all fields from TestsJobStatus without changes.\nDoes not include live_stream_urls because density tests do not support\nlive-streaming output mode (only disabled or file modes are allowed).\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths"
+        "description": "**Status of a density test job.**\n\nInherits all fields from TestsJobStatus without changes.\nDoes not include live_stream_urls because density tests do not support\nlive-streaming output mode (only disabled or file modes are allowed).\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths"
       },
       "DensityJobSummary": {
         "properties": {
@@ -5571,7 +6401,8 @@
               "output_mode": "disabled",
               "max_runtime": 0.0,
               "metadata_mode": "disabled",
-              "enable_latency_metrics": false
+              "enable_latency_metrics": false,
+              "pinned_cpu_cores": []
             },
             "examples": [
               {
@@ -5704,13 +6535,21 @@
           "enable_latency_metrics": {
             "type": "boolean",
             "title": "Enable Latency Metrics",
-            "description": "When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified.",
+            "description": "When true, the job reports DLStreamer `latency_tracer` samples per stream in `latency_tracer_metrics`. This flag does not start the tracer: DL Streamer Pipeline Server runs it for every pipeline when configured server-wide (`DLSPS2_GST_TRACERS` with `post-metrics=true`, and `DLSPS2_OTEL=true`), and ViPPET only reads the samples the server exports to metrics-manager. If the server is not configured that way, the test runs without latency metrics and the job's `details` say so. When false (default), no latency samples are read.",
             "default": false
+          },
+          "pinned_cpu_cores": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Pinned Cpu Cores",
+            "description": "Logical CPU ids the pipeline is pinned to, as reported by `GET /devices` in `cpu_topology.cores[].cpu`. An empty list (default) disables pinning and lets the pipeline run on every CPU available to the service. Ids are de-duplicated and sorted; ids the service itself cannot run on are rejected."
           }
         },
         "type": "object",
         "title": "ExecutionConfig",
-        "description": "**Configuration for pipeline execution behavior.**\n\nThis configuration controls output generation, runtime limits,\nand metadata publishing for test pipelines.\n\n## Attributes\n- `output_mode` - Mode for pipeline output generation:\n  - `disabled` - No output (fakesink remains, default)\n  - `file` - Save video to file (only allowed with max_runtime=0)\n  - `live_stream` - Stream output live to media server\n- `max_runtime` - Maximum runtime in seconds for the pipeline:\n  - 0: Run until natural completion (EOS), no time limit (default)\n  - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)\n  - <0: Not allowed (will be rejected)\n- `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:\n  - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)\n  - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints\n\n### Example (disabled output, no runtime limit)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (save to file, run until EOS)\n```json\n{\n  \"output_mode\": \"file\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (live streaming with 60 second limit)\n```json\n{\n  \"output_mode\": \"live_stream\",\n  \"max_runtime\": 60\n}\n```\n\n### Example (metadata publishing to file)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0,\n  \"metadata_mode\": \"file\"\n}\n```"
+        "description": "**Configuration for pipeline execution behavior.**\n\nThis configuration controls output generation, runtime limits,\nand metadata publishing for test pipelines.\n\n## Attributes\n- `output_mode` - Mode for pipeline output generation:\n  - `disabled` - No output (fakesink remains, default)\n  - `file` - Save video to file (only allowed with max_runtime=0)\n  - `live_stream` - Stream output live to media server\n- `max_runtime` - Maximum runtime in seconds for the pipeline:\n  - 0: Run until natural completion (EOS), no time limit (default)\n  - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)\n  - <0: Not allowed (will be rejected)\n- `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:\n  - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)\n  - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints\n- `pinned_cpu_cores` - Logical CPU ids (as reported by `GET /devices` in `cpu_topology.cores[].cpu`)\n  the GStreamer subprocess is restricted to. Empty list (default) means no pinning \u2014 the\n  pipeline may use every CPU available to the service.\n\n### Example (disabled output, no runtime limit)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (save to file, run until EOS)\n```json\n{\n  \"output_mode\": \"file\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (live streaming with 60 second limit)\n```json\n{\n  \"output_mode\": \"live_stream\",\n  \"max_runtime\": 60\n}\n```\n\n### Example (metadata publishing to file)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0,\n  \"metadata_mode\": \"file\"\n}\n```\n\n### Example (pinned to the first four logical CPUs)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0,\n  \"pinned_cpu_cores\": [0, 1, 2, 3]\n}\n```"
       },
       "GigECameraDetails": {
         "properties": {
@@ -6074,7 +6913,7 @@
           "interval_ms": {
             "type": "number",
             "title": "Interval Ms",
-            "description": "Length of the measurement window reported by the tracer, in ms.",
+            "description": "Total length of the tracer windows merged into this sample, in ms (about one export period).",
             "examples": [
               1000.25
             ]
@@ -6082,7 +6921,7 @@
           "avg_ms": {
             "type": "number",
             "title": "Avg Ms",
-            "description": "Average frame latency over the window, in ms.",
+            "description": "Mean per-frame latency over the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded).",
             "examples": [
               364.31
             ]
@@ -6090,7 +6929,7 @@
           "min_ms": {
             "type": "number",
             "title": "Min Ms",
-            "description": "Minimum frame latency observed in the window, in ms.",
+            "description": "Minimum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded).",
             "examples": [
               0.004
             ]
@@ -6098,7 +6937,7 @@
           "max_ms": {
             "type": "number",
             "title": "Max Ms",
-            "description": "Maximum frame latency observed in the window, in ms.",
+            "description": "Maximum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded).",
             "examples": [
               529.26
             ]
@@ -6106,7 +6945,8 @@
           "latency_ms": {
             "type": "number",
             "title": "Latency Ms",
-            "description": "Current end-to-end latency reported by the tracer, in ms.",
+            "description": "Deprecated: mean time between output frames in the window, in ms (frame period, = 1000 / fps). It is NOT a frame latency - use `avg_ms` (mean) and `max_ms`.",
+            "deprecated": true,
             "examples": [
               21.28
             ]
@@ -6121,7 +6961,7 @@
           "latency_ms"
         ],
         "title": "LatencyMetrics",
-        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value is extracted from a single\n`latency_tracer_pipeline_interval` line emitted by the\n`latency_tracer` (one such line per stream per interval ~1000 ms).\nOnly the most recent sample per stream is kept; history is not\nreported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Length of the measurement window, in milliseconds\n- `avg_ms` - Average frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds\n\n### Example\n```json\n{\n  \"interval_ms\": 1000.25,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
+        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value merges the `latency_tracer` windows of one stream over one\nDL Streamer Pipeline Server export period (`DLSPS2_OTEL_INTERVAL_MS`,\n1000 ms by default, so usually one tracer window). Only the most\nrecent sample per stream is kept; history is not reported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Total length of the tracer windows in the sample, in milliseconds\n- `avg_ms` - Mean frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - **Deprecated.** Mean time between output frames in the window, in milliseconds (frame period, `1000 / fps`). It is **not** a frame latency; use `avg_ms` (mean) and `max_ms`\n\nA frame's latency is the time from the moment the source element\noutputs the frame to the moment the frame is pushed into the sink;\nthe sink's own work is excluded.\n\n### Example\n```json\n{\n  \"interval_ms\": 1000.25,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
       },
       "MessageResponse": {
         "properties": {
@@ -6228,6 +7068,29 @@
             ],
             "title": "Unsupported Devices",
             "description": "Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link",
+            "description": "URL of the model page on its upstream hub (currently only Hugging Face), or null when not available."
+          },
+          "gated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelGated"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hugging Face gating mode, or null when unknown or not applicable (non-Hugging Face models)."
           }
         },
         "type": "object",
@@ -6493,6 +7356,17 @@
               }
             ],
             "description": "Model category, required when `hub` is `huggingface` (ignored for other hubs)."
+          },
+          "gated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelGated"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Gating mode of the hub model, stored on the registered model (null when unknown)."
           }
         },
         "type": "object",
@@ -6500,7 +7374,17 @@
           "names"
         ],
         "title": "ModelDownloadRequest",
-        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\nWhen `hub` is set, names not found in the catalog are downloaded from\nthat hub (names as returned by `POST /models/list`) and registered in\nthe catalog together with every installed precision. Supported hubs:\n`ultralytics` (category derived from the name suffix) and\n`huggingface` (category must be provided via `category`, since\nHuggingFace repo ids have no fixed naming convention to derive it\nfrom).\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n- `hub` - Optional upstream hub for names not in the catalog.\n- `category` - Required when `hub` is `huggingface`; ignored otherwise.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\nWhen `hub` is set, names not found in the catalog are downloaded from\nthat hub (names as returned by `POST /models/list`) and registered in\nthe catalog together with every installed precision. Supported hubs:\n`ultralytics` (category derived from the name suffix) and\n`huggingface` (category must be provided via `category`, since\nHuggingFace repo ids have no fixed naming convention to derive it\nfrom).\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n- `hub` - Optional upstream hub for names not in the catalog.\n- `category` - Required when `hub` is `huggingface`; ignored otherwise.\n- `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+      },
+      "ModelGated": {
+        "type": "string",
+        "enum": [
+          "false",
+          "auto",
+          "manual"
+        ],
+        "title": "ModelGated",
+        "description": "**Hugging Face gating mode of a model.**\n\n## Values\n- `FALSE` - Not gated, anyone can download the model\n- `AUTO` - Gated, access is granted automatically after accepting the license\n- `MANUAL` - Gated, access must be approved manually by the model authors\n\n### Example\n```json\n\"auto\"\n```"
       },
       "ModelHubListRequest": {
         "properties": {
@@ -7051,6 +7935,21 @@
             ],
             "title": "Video Output Paths"
           },
+          "min_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Stream Fps",
+            "description": "FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure.",
+            "examples": [
+              27.5
+            ]
+          },
           "latency_tracer_metrics": {
             "anyOf": [
               {
@@ -7064,7 +7963,7 @@
               }
             ],
             "title": "Latency Tracer Metrics",
-            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples \u2014 for example when the pipeline exited before the first 1000 ms interval closed."
+            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when no latency samples were read: the job was executed with `execution_config.enable_latency_metrics=false`, or latency was requested but DL Streamer Pipeline Server runs without the latency tracer (the job's `details` then say so). An empty object `{}` means samples were read but none arrived \u2014 for example when the pipeline stopped before the server's first export."
           },
           "live_stream_urls": {
             "anyOf": [
@@ -7122,7 +8021,7 @@
           "metadata_stream_urls"
         ],
         "title": "PerformanceJobStatus",
-        "description": "**Status of a performance test job.**\n\nInherits all fields from TestsJobStatus and adds live_stream_urls and\nmetadata_stream_urls for live-streaming output mode support, plus events\ncarrying recent live pipeline events.\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths\n- `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)\n- `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)\n- `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer"
+        "description": "**Status of a performance test job.**\n\nInherits all fields from TestsJobStatus and adds live_stream_urls and\nmetadata_stream_urls for live-streaming output mode support, plus events\ncarrying recent live pipeline events.\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths\n- `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)\n- `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)\n- `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer"
       },
       "PerformanceJobSummary": {
         "properties": {
@@ -7173,7 +8072,8 @@
               "output_mode": "disabled",
               "max_runtime": 0.0,
               "metadata_mode": "disabled",
-              "enable_latency_metrics": false
+              "enable_latency_metrics": false,
+              "pinned_cpu_cores": []
             },
             "examples": [
               {

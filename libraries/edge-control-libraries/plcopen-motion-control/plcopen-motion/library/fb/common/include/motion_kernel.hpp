@@ -29,7 +29,8 @@ public:
                         const mcLREAL master_ref_vel,
                         const mcLREAL axis_ref_pos, const mcLREAL axis_ref_vel,
                         const mcLREAL axis_ref_acc, MC_AXIS_STATES* state,
-                        OverrideFactors& override_factors);
+                        OverrideFactors& override_factors,
+                        mcBOOL superimposed_enabled = mcTRUE);
 
   void setNodeStartState(ExecutionNode* fb, mcLREAL current_pos,
                          mcLREAL current_vel, mcLREAL current_acc,
@@ -39,6 +40,7 @@ public:
                     mcLREAL current_acc, mcLREAL end_acc);
 
   std::deque<ExecutionNode*>& getQueuedMotions();
+  bool isStoppingOnError() const;
 
   void getCommands(mcLREAL* pos_cmd, mcLREAL* vel_cmd, mcLREAL* acc_cmd);
 
@@ -49,6 +51,7 @@ public:
   void addSupMoveFB(ExecutionNode* node, mcLREAL current_pos,
                     mcLREAL current_vel, mcLREAL current_acc, mcLREAL end_acc);
 
+  // Abort and detach the overlay without replanning its underlying motion.
   void abortCurSupMoveFB();
 
   void getSupMoveCommands(mcLREAL* pos_cmd, mcLREAL* vel_cmd, mcLREAL* acc_cmd);

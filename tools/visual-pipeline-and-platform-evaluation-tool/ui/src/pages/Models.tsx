@@ -6,7 +6,7 @@ import {
 } from "@/features/upload/uploaderMessages";
 import { api, type ModelCategory } from "@/api/api.generated.ts";
 import JSZip from "jszip";
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
@@ -14,6 +14,11 @@ import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 import { ModelsTable } from "@/features/models/ModelsTable.tsx";
 import { AddModelDialog } from "@/features/models/AddModelDialog.tsx";
 import { useModelInstall } from "@/features/models/useModelInstall";
+import {
+  LicenseAcknowledgementDialog,
+  type GatedModelLink,
+} from "@/features/models/LicenseAcknowledgementDialog";
+import { isGatedModel } from "@/features/models/modelNames";
 import { CATEGORY_INFO } from "@/features/models/categoryInfo.ts";
 import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
@@ -24,8 +29,8 @@ const validateModelArchive = async (
 ): Promise<PRE_UPLOAD_MESSAGES_TYPE | null> => {
   try {
     const zip = await JSZip.loadAsync(file);
-    const fileNames = Object.keys(zip.files).map(
-      (name) => name.split("/").pop()!,
+    const fileNames = Object.keys(zip.files).map((name) =>
+      name.split("/").pop()!,
     );
     const missing = REQUIRED_MODEL_FILES.filter(
       (required) => !fileNames.includes(required),
@@ -77,13 +82,26 @@ export const Models = () => {
     [runModelInstall],
   );
 
-  const handleInstallRequiredModels = useCallback(
-    () =>
-      installSelectedModels(
-        requiredUninstalledModels.map((model) => model.name),
-      ),
-    [requiredUninstalledModels, installSelectedModels],
-  );
+  const [gatedPrompt, setGatedPrompt] = useState<{
+    names: string[];
+    models: GatedModelLink[];
+  } | null>(null);
+
+  const handleInstallRequiredModels = useCallback(() => {
+    const names = requiredUninstalledModels.map((model) => model.name);
+    const gatedModels = requiredUninstalledModels.filter(isGatedModel);
+    if (gatedModels.length > 0) {
+      setGatedPrompt({
+        names,
+        models: gatedModels.map((model) => ({
+          name: model.display_name,
+          url: model.link ?? null,
+        })),
+      });
+      return;
+    }
+    return installSelectedModels(names);
+  }, [requiredUninstalledModels, installSelectedModels]);
 
   useEffect(() => {
     registerJobGroup("models", "Model Uploads", ["/models"]);
@@ -199,6 +217,20 @@ export const Models = () => {
             </div>
           ))}
         </div>
+        <LicenseAcknowledgementDialog
+          open={gatedPrompt !== null}
+          onOpenChange={(open) => {
+            if (!open) setGatedPrompt(null);
+          }}
+          models={gatedPrompt?.models ?? []}
+          hubName="Hugging Face"
+          onConfirm={() => {
+            if (!gatedPrompt) return;
+            const { names } = gatedPrompt;
+            setGatedPrompt(null);
+            void installSelectedModels(names);
+          }}
+        />
       </div>
     );
   }

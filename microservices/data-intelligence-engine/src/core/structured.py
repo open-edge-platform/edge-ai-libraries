@@ -1,51 +1,22 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Structured documents (docx/pptx/xlsx/html) into one content stream.
-
-A born-digital office/web file is not a flat page of pixels like a PDF: its text,
-tables and images are already typed nodes in an XML tree (OOXML) or a DOM. So the
-visual reconstruction a PDF needs -- render the page, detect a figure's region,
-OCR a scanned patch -- does not apply; the structure already says where every
-picture is. What *is* the same as the PDF path is the slow half's job: locate each
-figure, locate the prose around it, and pair the two into a caption. That pairing
-is shared here (`_assemble` -> `fused.reference_text_for`), exactly the primitive
-the PDF path uses; a format only has to say how it finds its figures and how it
-orders its text. The PDF path could adopt the same contract later -- for now it is
-left as is, and this drives docx/pptx/xlsx/html.
-
-The one trick that lets one pairing serve every format: `reference_text_for`
-scores a candidate mainly by vertical distance. A PDF supplies real pixel boxes;
-a structured file has none, so each block is given a synthetic box at its position
-in document order. "Vertical distance" then means "how many blocks apart", so the
-`Figure 3`/`图 3` reference search works with no change to the pairing code. What a
-structured file does *not* share is the PDF's no-key fallback (every caption-like
-line on the page): a docx has no pages, so that read the whole document. A figure
-here instead takes the caption paragraph right beside it (`_caption_line`).
-
-Why a native walk and not `SimpleDirectoryReader`: the plain-text reader returns
-one flat blob with no per-image position, which is exactly what figure/text
-pairing needs. The reader stays the fast path for a file with *no* images
-(`extractor.extract_text`); a file that carries pictures is walked here so each
-picture lands between the paragraphs that talk about it, and `surrounding_text`
-(derived from the stream at node time) can see them.
-
-Parsers are all permissively licensed (python-docx/pptx/openpyxl MIT, lxml BSD,
-beautifulsoup4 MIT), so this adds nothing that blocks an external release.
-"""
 
 import base64
 import os
 import re
+import shutil
+import signal
+import subprocess
 import zipfile
-from typing import Any, List, Optional, Mapping, Sequence, Tuple, Union
+from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, Dict, List, Optional, Mapping, Sequence, Tuple, Union
 
 from core.content import IMAGE, ROLE_DOC_IMAGE, TABLE, TEXT, ContentBlock, ContentStream
 from core.visual import Figure, caption_for
 
-#: Extension -> walker key. `.htm`/`.html` share one; the legacy binary formats
-#: (`.ppt`/`.doc`/`.xls`) are absent: python-pptx/docx/openpyxl read only the OOXML
-#: (zipped XML) variants, so an old binary file falls through to the plain-text
-#: reader rather than erroring here.
+#: Extension -> walker key. Legacy binary .doc/.ppt/.xls are not handled (OOXML only).
 _KINDS = {
     ".docx": "docx",
     ".pptx": "pptx",
@@ -54,10 +25,7 @@ _KINDS = {
     ".htm": "html",
 }
 
-#: Inside an OOXML zip, embedded pictures live under the `media/` directories. An
-#: xlsx chart has no bitmap -- it is a drawing under `xl/charts/` -- but the xlsx
-#: walker re-plots it as a figure (`_chart_image`), so a workbook holding only
-#: charts must take the structured walk too.
+#: OOXML zip dirs holding pictures; `xl/charts/` counts since xlsx charts are re-plotted as figures.
 _OOXML_MEDIA_DIRS = ("word/media/", "ppt/media/", "xl/media/", "xl/charts/")
 
 
@@ -66,24 +34,14 @@ def structured_kind(path: str) -> str:
     return _KINDS.get(os.path.splitext(path)[1].lower(), "")
 
 
-# --- fast pre-check: does the file carry any image at all? --------------------
-
-
 def has_media(path: str) -> bool:
-    """Whether `path` embeds any picture -- a cheap routing check, not a parse.
-
-    For an OOXML file this reads the zip's central directory only (the file
-    listing, never the compressed bytes), so the answer costs microseconds and
-    does not depend on how big the pictures are. For HTML it scans for an `<img>`
-    tag. A file with no media skips the structure walk and takes the plain-text
-    reader, exactly as before.
-    """
+    """Whether `path` embeds any picture, from the zip listing or an `<img>` scan only."""
     kind = structured_kind(path)
     if kind in ("docx", "pptx", "xlsx"):
         try:
             with zipfile.ZipFile(path) as archive:
                 return any(name.startswith(_OOXML_MEDIA_DIRS) for name in archive.namelist())
-        except Exception:  # noqa: BLE001 - not a readable zip: treat as no media
+        except Exception:  # noqa: BLE001
             return False
     if kind == "html":
         try:
@@ -94,10 +52,6 @@ def has_media(path: str) -> bool:
     return False
 
 
-#: A walker yields these in document order: a ready text/table block, or a figure
-#: to be captioned against the text around it. `Figure` is the shared slow-path
-#: unit (`core/visual.py`), the same one the PDF path builds -- here with a
-#: synthetic order-box for `bbox`, there with a real pixel box.
 Slot = Union[ContentBlock, Figure]
 
 
@@ -113,9 +67,7 @@ def _synthetic_bbox(order: int) -> Tuple[float, float, float, float]:
     return (0.0, float(order), 1.0, float(order) + 1.0)
 
 
-#: A paragraph that *is* a caption, not prose that mentions one: the marker and its
-#: number open the line (`图 4｜…`, `Figure 1: …`, `Table 2.`), where the PDF
-#: path's `CAPTION_LIKE_PATTERN` matches a marker anywhere in the text.
+#: A paragraph opening with a caption marker and number (`图 4｜…`, `Figure 1: …`, `Table 2.`).
 _CAPTION_HEAD = re.compile(
     r"^\s*(?:fig(?:ure)?|table|equation|formula|图|表|公式)"
     r"\s*[.．:：]?\s*[(（]?\s*\d+[a-z]?(?![0-9A-Za-z])",
@@ -127,15 +79,7 @@ _CAPTION_WINDOW = 2
 
 
 def _caption_line(slots: Sequence[Slot], order: int, page: int) -> Optional[int]:
-    """The position of the caption paragraph beside the figure at `order`, if any.
-
-    Only the figure's immediate neighbours on its own page (slide, sheet) are
-    looked at, nearest first and below before above at equal distance, since a
-    figure's caption usually follows it. A structured file has no real page to
-    bound the search -- a docx is one `page=0` -- so without this window the
-    PDF fallback (every caption-like line on the page) read the whole document
-    and gave every figure the same wall of captions.
-    """
+    """Position of the caption paragraph beside the figure at `order` on its page, nearest first, below before above."""
     for distance in range(1, _CAPTION_WINDOW + 1):
         for position in (order + distance, order - distance):
             if not 0 <= position < len(slots):
@@ -153,18 +97,7 @@ def _paired_caption(
     slots: Sequence[Slot], order: int, figure: Figure,
     candidates: Sequence[Mapping[str, Any]],
 ) -> str:
-    """The caption paragraph beside the figure at `order`, then the prose citing it.
-
-    The paragraph is kept whole -- the keyed pairing keeps only the sentences
-    carrying the key, which would cut a multi-sentence caption short. Only the
-    number heading it (`图 4`) is the key, so a caption that also mentions
-    `表 3` does not pull in the prose citing that table. `""` when no caption
-    paragraph sits beside the figure.
-
-    A walker that located the caption from geometry (`figure.caption_line`) is
-    believed over reading-order neighbours -- including when it found none
-    (`""`), since there the neighbours are exactly what it could not trust.
-    """
+    """The whole caption paragraph beside the figure at `order`, then the prose citing its number."""
     if figure.caption_line is not None:
         line = figure.caption_line.strip()
         if not line:
@@ -178,9 +111,7 @@ def _paired_caption(
         line_bbox = _synthetic_bbox(position)
         others = [c for c in candidates if c["bbox"] != line_bbox]
     head = _CAPTION_HEAD.match(line).group(0)
-    # No page candidates: the pairing's no-match fallback reads only those, so
-    # a number nothing else cites adds nothing rather than every caption-like
-    # line in the document.
+    # No page candidates, so an uncited number adds nothing.
     citing = caption_for(
         Figure(region_text=head, page=figure.page, bbox=figure.bbox), [], others,
     )
@@ -194,17 +125,7 @@ def _assemble(
     put_blob: Any,
     slots: Sequence[Slot],
 ) -> ContentStream:
-    """Turn ordered slots into a stream, captioning each figure from its neighbours.
-
-    Text/table slots keep their document position as `reading_order`, so a figure
-    inserted between them sits where it was found -- which is what lets
-    `surrounding_text` read the right prose at node time. A figure without a
-    preset caption takes the caption paragraph right beside it (`_caption_line`),
-    followed by the prose elsewhere that cites its number -- the shared keyed
-    pairing (`visual.caption_for`), every text slot a candidate with a synthetic
-    box at its order. With no caption paragraph beside it the caption stays
-    empty, and `surrounding_text` stands in at node time.
-    """
+    """Turn ordered slots into a stream, captioning each figure from its neighbours."""
     candidates = [
         {"text": slot.text, "page": slot.page, "bbox": _synthetic_bbox(order)}
         for order, slot in enumerate(slots)
@@ -246,9 +167,6 @@ def _assemble(
     )
 
 
-# --- entry point --------------------------------------------------------------
-
-
 def extract_structured(
     path: str,
     asset_id: str,
@@ -264,19 +182,11 @@ def extract_structured(
         "xlsx": _walk_xlsx,
         "html": _walk_html,
     }[kind](path)
-    return _assemble(asset_id, path, metadata, put_blob, slots)
-
-
-# --- shared: cells -> Markdown ------------------------------------------------
+    return _assemble(asset_id, path, metadata, put_blob, _rasterize_metafiles(slots))
 
 
 def _rows_to_markdown(rows: Sequence[Sequence[Any]]) -> str:
-    """A grid of cells as a GitHub Markdown table, the first row its header.
-
-    Row/column structure is a table's whole meaning, so it is kept as Markdown
-    rather than flattened to prose. `None` cells become empty; a pipe or newline
-    in a cell is neutralized so it cannot break the grid.
-    """
+    """A grid of cells as a GitHub Markdown table, the first row its header."""
     def cell(value: Any) -> str:
         if value is None:
             return ""
@@ -297,20 +207,8 @@ def _rows_to_markdown(rows: Sequence[Sequence[Any]]) -> str:
     return "\n".join(lines)
 
 
-# --- docx ---------------------------------------------------------------------
-
-
 def _walk_docx(path: str) -> List[Slot]:
-    """A .docx body in order: paragraphs, inline/anchored pictures, tables.
-
-    python-docx exposes paragraphs and tables as separate lists, losing their
-    interleaving, so the body's XML children are walked directly. Within a
-    paragraph each `a:blip` (a picture reference) is resolved through the part's
-    relationships in the order it appears, so a figure lands at its real spot in
-    the prose. A math formula (`m:oMath`, Office's native equation markup) keeps
-    its symbols as text rather than vanishing -- python-docx omits it from
-    `paragraph.text`.
-    """
+    """A .docx body in XML order: paragraphs (with OMML math as LaTeX), pictures, tables."""
     from docx import Document
     from docx.oxml.ns import qn
     from docx.oxml.table import CT_Tbl
@@ -336,7 +234,7 @@ def _walk_docx(path: str) -> List[Slot]:
                 image_part = part.related_parts[rid]
                 data = image_part.blob
                 content_type = getattr(image_part, "content_type", "") or "image/png"
-            except Exception:  # noqa: BLE001 - a missing relationship is skipped
+            except Exception:  # noqa: BLE001
                 continue
             slots.append(Figure(data=data, content_type=content_type))
 
@@ -355,8 +253,7 @@ def _walk_docx(path: str) -> List[Slot]:
 #: The OMML (Office Math Markup Language) namespace.
 _OMML_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 
-#: An n-ary operator (sum/integral/product/...) by its OMML character. These are
-#: the ones with a LaTeX command; anything else is emitted as the literal char.
+#: OMML n-ary operator character -> LaTeX command; others are emitted literally.
 _NARY_OPS = {
     "∑": r"\sum", "∫": r"\int", "∏": r"\prod",
     "∐": r"\coprod", "∮": r"\oint",
@@ -368,14 +265,7 @@ _DELIM_ESCAPE = {"{": r"\{", "}": r"\}", "⟨": r"\langle", "⟩": r"\rangle", "
 
 
 def _omml_paragraph_latex(paragraph_xml: Any) -> str:
-    """Every OMML formula in a paragraph converted to inline LaTeX, `$...$` each.
-
-    OMML is Office's structured equation markup -- fractions, scripts, radicals and
-    n-ary operators are nested elements, not glyphs -- so a structural conversion
-    keeps `x^2` and `\\frac{a}{b}` instead of the bare symbols a flat text read
-    leaves behind. Unconverted constructs degrade to their concatenated text rather
-    than being dropped, so an equation is never lost, only ever simplified.
-    """
+    """Every OMML formula in a paragraph converted to inline LaTeX, `$...$` each."""
     pieces = [
         _omml_to_latex(math).strip()
         for math in paragraph_xml.findall(".//{%s}oMath" % _OMML_NS)
@@ -447,30 +337,93 @@ def _omml_to_latex(element: Any) -> str:
             return r"\hat{%s}" % seq(one(node, "e"))
         if tag == "bar":
             return r"\overline{%s}" % seq(one(node, "e"))
-        # A run, a base/num/den/sup/... container, or anything not special-cased:
-        # concatenate the LaTeX of its children (text leaves end the recursion).
+        # Containers and unhandled constructs: concatenate their children.
         return "".join(conv(c) for c in node)
 
     return conv(element)
 
 
-# --- pptx ---------------------------------------------------------------------
+_METAFILE_SIDE = 2048
+_METAFILE_MAX_SCALE = 8.0
+
+
+def _metafile_suffix(data: bytes) -> str:
+    if data[:4] == b"\x01\x00\x00\x00" and data[40:44] == b" EMF":
+        return ".emf"
+    if data[:4] == b"\xd7\xcd\xc6\x9a" or (
+        data[:2] in (b"\x01\x00", b"\x02\x00") and data[2:6] in (b"\x09\x00\x00\x01", b"\x09\x00\x00\x03")
+    ):
+        return ".wmf"
+    return ""
+
+
+def _rasterize_metafiles(slots: List[Slot]) -> List[Slot]:
+    figures = [slot for slot in slots if isinstance(slot, Figure) and _metafile_suffix(slot.data)]
+    if not figures:
+        return slots
+    soffice = shutil.which("soffice")
+    pngs = _metafiles_to_png(soffice, [f.data for f in figures]) if soffice else [None] * len(figures)
+    dropped = set()
+    for figure, png in zip(figures, pngs):
+        if png is None:
+            dropped.add(id(figure))
+        else:
+            figure.data, figure.content_type = png, "image/png"
+    return [slot for slot in slots if id(slot) not in dropped]
+
+
+def _metafiles_to_png(soffice: str, blobs: Sequence[bytes]) -> List[Optional[bytes]]:
+    with TemporaryDirectory(prefix="engine-metafile-") as directory:
+        root = Path(directory)
+        sources = [root / f"{index}{_metafile_suffix(data)}" for index, data in enumerate(blobs)]
+        for source, data in zip(sources, blobs):
+            source.write_bytes(data)
+        with subprocess.Popen(
+            [soffice, "--headless", "--norestore", "--nolockcheck",
+             f"-env:UserInstallation={(root / 'profile').as_uri()}",
+             "--convert-to", "pdf", "--outdir", str(root / "out"), *map(str, sources)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        ) as process:
+            try:
+                process.wait(timeout=60 + 10 * len(sources))
+            except subprocess.TimeoutExpired:
+                # soffice forks soffice.bin, so kill the whole process group.
+                os.killpg(process.pid, signal.SIGKILL)
+        return [_render_metafile_pdf(root / "out" / f"{source.stem}.pdf") for source in sources]
+
+
+def _render_metafile_pdf(path: Path) -> Optional[bytes]:
+    import pypdfium2 as pdfium
+    from PIL import Image, ImageChops
+
+    if not path.is_file():
+        return None
+    try:
+        document = pdfium.PdfDocument(str(path))
+        try:
+            page = document[0]
+            width, height = page.get_size()
+            # The picture sits on a full (locale-sized) page: find its extent, then re-render just that.
+            preview = page.render(scale=1).to_pil().convert("RGB")
+            box = ImageChops.difference(preview, Image.new("RGB", preview.size, "white")).getbbox()
+            if box is None:
+                return None
+            left, top, right, bottom = box
+            scale = min(_METAFILE_SIDE / max(right - left, bottom - top), _METAFILE_MAX_SCALE)
+            crop = (max(left - 1, 0), max(height - bottom - 1, 0), max(width - right - 1, 0), max(top - 1, 0))
+            image = page.render(scale=scale, crop=crop).to_pil().convert("RGB")
+        finally:
+            document.close()
+    except Exception:  # noqa: BLE001
+        return None
+    output = BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
 
 
 def _walk_pptx(path: str) -> List[Slot]:
-    """Each slide's shapes in reading order: text frames, tables, pictures.
-
-    A slide stores exact shape coordinates, so reading order is recovered by
-    sorting shapes top-to-bottom then left-to-right -- the geometry is in the
-    file, no layout model. Group shapes are recursed into; the slide number is
-    each block's `page`.
-
-    Reading order is not enough to caption a picture, though: two pictures side
-    by side, each captioned below, read as picture, picture, caption, caption, so
-    the second picture's nearest slot is the first one's caption. The shape boxes
-    are used instead (`_slide_caption`), and the paragraph found is handed to
-    the pairing as the figure's `caption_line`.
-    """
+    """Each slide's shapes sorted top-to-bottom, left-to-right; pictures captioned by shape geometry."""
     from pptx import Presentation
     from pptx.enum.shapes import MSO_SHAPE_TYPE
 
@@ -498,7 +451,7 @@ def _walk_pptx(path: str) -> List[Slot]:
                 figure = Figure(
                     data=image.blob, content_type=image.content_type or "image/png", page=page,
                 )
-            except Exception:  # noqa: BLE001 - an unreadable picture is skipped
+            except Exception:  # noqa: BLE001
                 return
             slots.append(figure)
             pictures.append((figure, shape_box(shape)))
@@ -529,14 +482,7 @@ def _slide_caption(
     picture: Tuple[float, float, float, float],
     texts: Sequence[Tuple[str, Tuple[float, float, float, float]]],
 ) -> str:
-    """The caption text frame of a picture on a slide, judged by the shape boxes.
-
-    A caption shares the picture's column: only frames that overlap it
-    horizontally and open with a caption marker (`_CAPTION_HEAD`) qualify, and
-    the one with the smallest vertical gap wins, below before above at equal
-    gap. `""` when no frame qualifies -- the figure is then left to its
-    surrounding text, like any figure without a caption.
-    """
+    """The horizontally overlapping caption frame nearest a slide picture, below before above, or `""`."""
     left, top, right, bottom = picture
     best = None
     for text, (t_left, t_top, t_right, t_bottom) in texts:
@@ -550,30 +496,26 @@ def _slide_caption(
     return best[1] if best else ""
 
 
-# --- xlsx ---------------------------------------------------------------------
-
-#: Rows per Markdown block. A sheet is split into windows that each repeat the
-#: header, so a chunk the downstream splitter cuts still names its columns instead
-#: of becoming a wall of headerless numbers.
+#: Rows per Markdown block; each block repeats the header row.
 _XLSX_ROWS_PER_BLOCK = 50
 
 
 def _walk_xlsx(path: str) -> List[Slot]:
-    """Each sheet as header-carrying Markdown tables, charts, and embedded pictures.
-
-    `data_only=True` yields a formula cell's cached computed value, not its formula
-    text -- the number is what a query matches -- and each value is then rendered
-    through its cell's number format, so a date reads `2023-03-15` and a ratio reads
-    `5%` rather than `45000` or `0.05`. A large sheet is split into windows that
-    each repeat the header row. A chart is re-plotted to a bitmap (`_chart_image`);
-    embedded pictures (`xl/media`) become figures as they are.
-    """
+    """Each sheet as header-carrying Markdown tables, charts, and embedded pictures."""
     from openpyxl import load_workbook
 
     workbook = load_workbook(path, data_only=True)
+    try:
+        cell_images = _xlsx_cell_images(path)
+    except Exception:  # noqa: BLE001
+        cell_images = {}
     slots: List[Slot] = []
     for number, sheet in enumerate(workbook.worksheets, start=1):
-        rows = [[_format_cell(cell) for cell in row] for row in sheet.iter_rows()]
+        in_cell = cell_images.get(sheet.title, {})
+        rows = [
+            [None if cell.coordinate in in_cell else _format_cell(cell) for cell in row]
+            for row in sheet.iter_rows()
+        ]
         rows = [row for row in rows if any(cell is not None for cell in row)]
         if rows:
             title = _text_slot(f"# {sheet.title}", page=number)
@@ -601,17 +543,65 @@ def _walk_xlsx(path: str) -> List[Slot]:
             if data:
                 content_type = "image/" + (getattr(image, "format", None) or "png").lower()
                 slots.append(Figure(data=data, content_type=content_type, page=number))
+        for data, content_type in in_cell.values():
+            slots.append(Figure(data=data, content_type=content_type, page=number))
     return slots
 
 
-def _format_cell(cell: Any) -> Optional[str]:
-    """A cell's value as it is displayed: its number format applied to the value.
+def _xlsx_cell_images(path: str) -> Dict[str, Dict[str, Tuple[bytes, str]]]:
+    import mimetypes
+    import posixpath
+    from xml.etree import ElementTree
 
-    openpyxl already hands back a date-formatted cell as a `datetime`, so the work
-    is picking a readable rendering (date vs datetime vs time) and turning a percent
-    or plain number into its shown form. An unrecognized format falls through to the
-    plain value, never an error.
-    """
+    rid = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+    with zipfile.ZipFile(path) as archive:
+        names = set(archive.namelist())
+
+        def xml(name: str) -> Any:
+            return ElementTree.fromstring(archive.read(name)) if name in names else None
+
+        def rels(name: str) -> Mapping[str, str]:
+            folder, base = posixpath.split(name)
+            tree = xml(f"{folder}/_rels/{base}.rels")
+            return {
+                rel.get("Id"): posixpath.normpath(posixpath.join(folder, rel.get("Target"))).lstrip("/")
+                for rel in ([] if tree is None else tree)
+            }
+
+        metadata = xml("xl/metadata.xml")
+        values = xml("xl/richData/rdrichvalue.xml")
+        structures = xml("xl/richData/rdrichvaluestructure.xml")
+        rel_list = xml("xl/richData/richValueRel.xml")
+        if any(part is None for part in (metadata, values, structures, rel_list)):
+            return {}
+        targets = rels("xl/richData/richValueRel.xml")
+        images = [targets.get(rel.get(rid)) for rel in rel_list]
+        positions = [
+            next((i for i, key in enumerate(structure) if key.get("n") == "_rvRel:LocalImageIdentifier"), None)
+            for structure in structures
+        ]
+        value_images = []
+        for value in values:
+            position = positions[int(value.get("s"))]
+            value_images.append(None if position is None else images[int(value[position].text)])
+        future = metadata.find("{*}futureMetadata[@name='XLRICHVALUE']")
+        future = [int(block.find(".//{*}rvb").get("i")) for block in future]
+        cell_values = [future[int(block.find("{*}rc").get("v"))] for block in metadata.find("{*}valueMetadata")]
+
+        sheets = rels("xl/workbook.xml")
+        found: Dict[str, Dict[str, Tuple[bytes, str]]] = {}
+        for sheet in xml("xl/workbook.xml").iterfind(".//{*}sheet"):
+            tree = xml(sheets.get(sheet.get(rid), ""))
+            for cell in [] if tree is None else tree.iterfind(".//{*}c"):
+                target = value_images[cell_values[int(cell.get("vm")) - 1]] if cell.get("vm") else None
+                if target in names:
+                    content_type = mimetypes.guess_type(target)[0] or "image/png"
+                    found.setdefault(sheet.get("name"), {})[cell.get("r")] = (archive.read(target), content_type)
+    return found
+
+
+def _format_cell(cell: Any) -> Optional[str]:
+    """A cell's value as displayed, with its number format applied."""
     import datetime
 
     value = cell.value
@@ -638,7 +628,7 @@ def _format_cell(cell: Any) -> Optional[str]:
 
 
 def _chart_title(chart: Any) -> str:
-    """A chart's title text, or `""` -- the title lives a few layers deep in OOXML."""
+    """A chart's title text, or `""`."""
     try:
         title = chart.title
         if title is None:
@@ -647,20 +637,12 @@ def _chart_title(chart: Any) -> str:
             return title
         runs = title.tx.rich.p[0].r  # CharacterProperties-wrapped rich text
         return "".join(run.t for run in runs if run.t).strip()
-    except Exception:  # noqa: BLE001 - no title rather than a failed sheet
+    except Exception:  # noqa: BLE001
         return ""
 
 
 def _chart_image(workbook: Any, chart: Any) -> bytes:
-    """An openpyxl chart re-plotted to a PNG, or `b""` if it cannot be rendered.
-
-    openpyxl reads a chart as a vector definition with no stored bitmap, so there
-    is nothing to extract -- the chart is re-drawn from its series data with
-    Matplotlib (Agg, no display). The result is an approximation, not Excel's exact
-    styling, but it carries the shape of the data a query might ask about. Common
-    types (bar/line/pie/scatter) are handled; anything else, or any failure, yields
-    no image rather than breaking the sheet.
-    """
+    """An openpyxl chart re-plotted from its series data to a PNG, or `b""` if it cannot be rendered."""
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -685,7 +667,7 @@ def _chart_image(workbook: Any, chart: Any) -> bytes:
             elif "Line" in kind:
                 for s in series:
                     axes.plot(range(len(s)), s)
-            else:  # bar is the sensible default for the rest
+            else:
                 width = 0.8 / len(series)
                 for index, s in enumerate(series):
                     axes.bar([x + index * width for x in range(len(s))], s, width=width)
@@ -697,7 +679,7 @@ def _chart_image(workbook: Any, chart: Any) -> bytes:
             return buffer.getvalue()
         finally:
             plt.close(figure)
-    except Exception:  # noqa: BLE001 - a chart that will not render is skipped
+    except Exception:  # noqa: BLE001
         return b""
 
 
@@ -745,8 +727,6 @@ def _openpyxl_image_bytes(image: Any) -> bytes:
     return b""
 
 
-# --- html ---------------------------------------------------------------------
-
 #: Tags that close an inline run: text accumulated inside one is a block.
 _HTML_BLOCK_TAGS = frozenset({
     "p", "div", "section", "article", "header", "footer", "li", "blockquote",
@@ -755,16 +735,7 @@ _HTML_BLOCK_TAGS = frozenset({
 
 
 def _walk_html(path: str) -> List[Slot]:
-    """A DOM in document order: text runs, tables, and `<img>` with its caption.
-
-    DOM order is reading order, so the tree is walked depth-first, flushing the
-    accumulated inline text at each block boundary and at every image -- which
-    keeps a picture between the text before and after it. An image's caption comes
-    from `alt`/`title` or an enclosing `<figure>`'s `<figcaption>` (HTML states
-    what a PDF has to guess); with none, it is paired from the surrounding blocks.
-    `src` is read for a data URI or a path beside the file; a remote URL is not
-    fetched.
-    """
+    """A DOM in document order: text runs, tables, and local/data-URI `<img>` with its caption."""
     from bs4 import BeautifulSoup, NavigableString, Tag
 
     with open(path, "rb") as handle:
@@ -849,7 +820,7 @@ def _html_image_bytes(src: str, base_dir: str) -> Tuple[bytes, str]:
             return unquote_to_bytes(payload), content_type
         except Exception:  # noqa: BLE001
             return b"", ""
-    if "://" in src:  # a remote URL is not fetched
+    if "://" in src:
         return b"", ""
     candidate = os.path.normpath(os.path.join(base_dir, src.split("?")[0]))
     if os.path.isfile(candidate):

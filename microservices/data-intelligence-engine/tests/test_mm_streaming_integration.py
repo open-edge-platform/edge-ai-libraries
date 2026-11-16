@@ -64,21 +64,21 @@ class FakeMultimodalEmbedding:
         self.documents = []
         self.queries = []
 
-    def embed_image(self, images):
+    def get_image_embeddings(self, images):
         self.images.extend(images)
         return [list(IMAGE_VECTOR) for _ in images]
 
-    def embed_video(self, frames):
+    def get_video_embedding(self, frames):
         self.videos.append(list(frames))
         return list(VIDEO_VECTOR)
 
-    def embed_documents(self, texts):
+    def get_text_embedding_batch(self, texts):
         self.documents.extend(texts)
         return [list(DOCUMENT_VECTOR) for _ in texts]
 
-    def embed_text(self, texts):
-        self.queries.extend(texts)
-        return [list(QUERY_VECTOR) for _ in texts]
+    def get_query_embedding(self, text):
+        self.queries.append(text)
+        return list(QUERY_VECTOR)
 
 
 class FakeTextEmbedding(BaseEmbedding):

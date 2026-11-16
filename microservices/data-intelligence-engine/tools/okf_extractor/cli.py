@@ -1,7 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Local CLI for the same plan-instructions -> extract-OKF task pipeline."""
 from __future__ import annotations
 
 import argparse
@@ -28,8 +27,6 @@ def _limit_tree(tree, n: int):
 
 
 def _validate(bundle: Path, concepts) -> None:
-    """Compliance gate: warn on empty source_files or a source path missing on disk;
-    print per-type counts."""
     from collections import Counter
     counts = Counter(c.type for c in concepts)
     bad_empty = [c for c in concepts if not c.source_files]
@@ -58,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
                          "(escalation rules). Off = record findings and continue unattended.")
     args = ap.parse_args(argv)
 
-    # proxy isolation belt: set BEFORE importing/creating any httpx client.
+    # Must be set before any httpx client is created.
     os.environ.setdefault("no_proxy", "127.0.0.1,localhost")
     os.environ.setdefault("NO_PROXY", "127.0.0.1,localhost")
 

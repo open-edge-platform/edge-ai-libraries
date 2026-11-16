@@ -71,7 +71,7 @@ debian_50_profile_ros2 () {
   # --realtime (set by edge_base_robotics) supplies GPU/NPU prep via
   # edge_pack_base_realtime instead; skip edge_base to avoid installing both
   # the standard and real-time edge-pack base bundles together.
-  [[ " $* " = *" --realtime "* ]] || echo "edge_base"
+  ensure_parse_option --realtime "$@" || echo "edge_base"
 }
 
 verify_ros2 () {
@@ -81,7 +81,7 @@ verify_ros2 () {
 debian_50_install_ros2 () {
   configure_ros2
 
-  if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_ros2 && ! ensure_parse_reinstall "$@"; then
     echo "ROS 2 $ros_distro is installed." >&2
   else
     configure_ros2_apt_source || return 1

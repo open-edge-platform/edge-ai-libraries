@@ -12,13 +12,13 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional, Set, Tuple
 
 from src.config.loader import resolve_workspace_dir
 from src.providers.base import ProviderMetadata
+from src.providers.probes.extract import normalize_field_name
 from src.providers.probes.spec import DEFAULT_FILE_MAX_ENTRIES
 
 
@@ -31,11 +31,6 @@ logger = logging.getLogger(__name__)
 # Segments of the metadata dotted path that map to typed fields on
 # ``ProviderMetadata`` rather than into its free-form ``attributes`` dict.
 _KNOWN_FIELDS = ("attributes", "capability", "performance", "cost", "labels")
-
-# Characters that would break a dotted path or collide with Prometheus label
-# syntax; stripped/replaced when a parsed name is used as a metadata key.
-_LABEL_BLOCK = re.compile(r"\{[^}]*\}")
-_UNSAFE_CHARS = re.compile(r"[.:\s]")
 
 
 class Sink:
@@ -55,6 +50,10 @@ class MetadataSink(Sink):
 
     def __init__(self, prefix: str):
         self.prefix = prefix
+        # Every path this sink has written, in ``ProviderMetadata.to_dict()``
+        # coordinates (the shape of config ``metadata`` and of the providers
+        # API). Lets the write path tell probe output from static config.
+        self.published: Set[Tuple[str, ...]] = set()
 
     def emit(self, probe: "ProviderProbe", aggregates: Dict[str, float]) -> None:
         metadata = getattr(probe.host, "metadata", None)
@@ -64,18 +63,19 @@ class MetadataSink(Sink):
             return
         for name, value in aggregates.items():
             dotted = f"{self.prefix}.{self._normalize(name)}"
-            _set_metadata_path(metadata, dotted, value)
+            path = _set_metadata_path(metadata, dotted, value)
+            if path is not None:
+                self.published.add(path)
 
     @staticmethod
     def _normalize(name: str) -> str:
-        """Make a parsed field name safe as a dotted-path segment.
+        """Make a field name safe as a dotted-path segment.
 
-        Drops Prometheus ``{label="..."}`` blocks and replaces ``.``/``:``/space
-        so a raw metric name never fractures the path or shadows a nested key.
+        Names from a probe's extractors are already normalized (so every sink
+        agrees on them); re-applying the idempotent normalization keeps this
+        sink safe for any other caller.
         """
-        cleaned = _LABEL_BLOCK.sub("", name)
-        cleaned = _UNSAFE_CHARS.sub("_", cleaned).strip("_")
-        return cleaned or "value"
+        return normalize_field_name(name)
 
 
 class FileSink(Sink):
@@ -167,7 +167,9 @@ class FileSink(Sink):
         self._count = len(keep)
 
 
-def _set_metadata_path(metadata: ProviderMetadata, dotted: str, value: Any) -> None:
+def _set_metadata_path(
+    metadata: ProviderMetadata, dotted: str, value: Any
+) -> Optional[Tuple[str, ...]]:
     """Set ``value`` at ``dotted`` inside a live ``ProviderMetadata``.
 
     The first path segment selects the container: a recognised typed field
@@ -180,9 +182,15 @@ def _set_metadata_path(metadata: ProviderMetadata, dotted: str, value: Any) -> N
     as ``probe.foo``. To feed a routing field directly (e.g. the
     ``performance.*`` namespace read by ``PerformanceBased``) set the sink's
     ``prefix`` to that field.
+
+    Returns the path that was written in ``to_dict()`` coordinates (i.e. with a
+    leading ``attributes`` segment dropped), or ``None`` if nothing was written.
     """
     parts = dotted.split(".")
     head, rest = parts[0], parts[1:]
+    # ``attributes`` flatten to the top level in ``to_dict()``; every other
+    # root keeps its own name there.
+    written = tuple(rest) if head == "attributes" else tuple(parts)
 
     if head == "attributes":
         container = metadata.attributes
@@ -203,7 +211,7 @@ def _set_metadata_path(metadata: ProviderMetadata, dotted: str, value: Any) -> N
         rest = parts
 
     if not rest:
-        return
+        return None
 
     for part in rest[:-1]:
         nxt = container.get(part)
@@ -212,6 +220,7 @@ def _set_metadata_path(metadata: ProviderMetadata, dotted: str, value: Any) -> N
             container[part] = nxt
         container = nxt
     container[rest[-1]] = value
+    return written
 
 
 def build_sink(spec) -> Sink:

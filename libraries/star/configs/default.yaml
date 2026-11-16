@@ -1,0 +1,240 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# =========================
+# Application config
+# =========================
+app:
+  name: "semantic compression"
+  log_level: "INFO"          # SILENT, DEBUG, INFO, WARNING, ERROR, CRITICAL
+  device: "cpu"              # "cpu", "cuda:0", "intel:npu", "intel:gpu"
+  client_id: "mystream"       # [encoder] sent to the decoder at TCP connection start; override per encoder replica
+
+# =========================
+# Obj Detection model settings
+# =========================
+model:
+  enc_yolo_model_path: ./models/obj_det_models/yolov8m_int8_openvino_model # path to the encoder object detection model
+  pre_comp_conf: 0.05
+  iou_threshold: 0.45
+  tile_nms_iou: 0.45          # IoU used when merging duplicate detections from overlapping tiles
+  merge_tile_detections: true # enable class-wise NMS across tiles when overlap > 0
+  max_detections: 50
+  tile_size:               # larger tiles → large objects less likely to be split across boundaries
+  tile_overlap:             # overlap ≥ expected max object size (25% of tile_size is a safe starting point)
+  tile_batch_size: 1          # tiles per YOLO predict call; 1 = one tile at a time (original behavior, safer for older wrappers)
+  # Class IDs follow the standard 80-class COCO taxonomy baked into the yolov8 checkpoint
+  # (0=person, 1=bicycle, 2=car, 3=motorcycle, 4=airplane, 5=bus, 6=train, 7=truck, 8=boat, ...).
+  symbol_category_ids: [4, 8]  # airplane, boat: categories that should use airplane-symbol-v1 when selected
+  # Restrict to relevant classes only — eliminates stray detections; null disables filtering
+  valid_obj_categories:  # narrow this list (COCO class IDs) to suppress unwanted categories
+
+  # Object detection backend: "yolo" loads a local ultralytics/OpenVINO model in-process;
+  # "dlstreamer" delegates detection to a running DL Streamer Pipeline Server instance
+  # (gvadetect) over its REST API — see docker-compose.yml + configs/dlstreamer/config.json.
+  detector_backend: yolo  # yolo | dlstreamer
+  dlstreamer_base_url: http://dlstreamer-pipeline-server:8080
+  dlstreamer_pipeline_name: star_image_object_detection # must match a pipeline "name" in configs/dlstreamer/config.json
+  # Same absolute path in both this container and the pipeline server container
+  # (see docker-compose.yml) -- one value works for local file I/O here and for
+  # the file:// URI sent to the pipeline server.
+  dlstreamer_exchange_input_dir: /app/data
+  dlstreamer_exchange_output_dir: /app/output
+  dlstreamer_poll_interval_sec: 0.2 # status-polling cadence while waiting for a pipeline instance to complete
+  dlstreamer_timeout_sec: 30.0      # max time to wait for a single-frame detection pipeline to complete
+
+# =========================
+# Encoder setting
+# =========================
+encoder:
+  min_bg_bytes: 10
+  min_bg_pixels: 1000
+  min_bytes_for_budget_allocation: 10
+  min_obj_pixels: 1000
+  min_bytes_for_encoded_data: 500
+  avif_quality: 0
+  avif_speed: 7
+  avif_jobs: 8              # avifenc worker threads; set to 0 to let codec default behavior apply
+  avif_codec: aom           # options depend on libavif build (commonly: aom, rav1e, svt)
+  avif_timeout_sec: 120
+  compression_levels:
+    level_1: 10.5
+    level_2: 105.0
+  obj_budget_ratio: 0.9 # fraction of total budget allocated to objects (vs background)
+  object_budget_soft: true
+  max_body_bytes: 26214400  # 25 MiB; SDL443/T-004 cap on encoder-service request bodies
+  max_iter_bg: 8             # 0 = fixed scale (bg_scaling_min1 or min2), no binary search
+  max_iter_obj: 3            # obj scale search iterations; 0 = fixed obj_scaling_min + last codec, no binary search
+  scale_search_step_size: 1  # Step size for binary search when finding scale for budget
+  zlib_level: 5              # zlib compression level for bit-packed codecs (1=fast, 9=max compression)
+  # Quality mapping for mono-avif variants (0=highest, 63=lowest quality)
+  avif_mono_quality_map:
+    mono-avif-high: 0      # highest quality
+    mono-avif-mid: 32      # mid quality
+    mono-avif-low: 55      # low quality (high compression)
+
+
+# =========================
+# Pipeline manager setting
+# =========================
+pipeline_manager:
+  queue_backlog_threshold_1: 5             # queue < t1 => normal path (bg+obj), else evaluate next tier
+  queue_backlog_threshold_2: 10            # t1 <= queue < t2 => fast bg + normal obj
+  queue_backlog_threshold_3: 15            # t2 <= queue < t3 => fast bg + fast obj; queue >= t3 => skip obj detect + fast bg
+  compression_level: 2                      # regular encoder runner selector: 1->level_1, 2->level_2
+  fast_full_hysteresis_exit: 7              # optional; default = (queue_backlog_threshold_1 + queue_backlog_threshold_2) / 2
+  skip_obj_hysteresis_exit:  12             # optional; default = (queue_backlog_threshold_2 + queue_backlog_threshold_3) / 2
+  adaptive_compression_rate_warmup_frames: 50  # enable aggregate-rate-based compression tuning only after this many processed frames
+  adaptive_compression_rate_max: 300.0         # clamp adaptive compression_rate overrides to this maximum value
+  adaptive_compression_rate_boost_factor: 1.0  # when aggregate comp rate is below configured encoder.compression_rate, multiply configured rate by this factor
+  adaptive_compression_rate_method: moving_average # moving_average (default, based on processed frame count) | ema
+  adaptive_compression_rate_target_margin_ratio: 0.5 # final adaptive target is clamped within +/- this ratio around level-selected compression rate
+  adaptive_compression_rate_ema_alpha: 0.2      # EMA alpha used only when adaptive_compression_rate_method=ema
+  large_dim_tile_threshold_px: 1280        # per-image: when obj detection is active and max(image_dim) > threshold, force tile_size=640 and tile_overlap=10
+
+# =========================
+# Decoder setting
+# =========================
+decoder:
+  avif_timeout_sec: 120
+  smooth_sigma: 0.0       # Gaussian smoothing for masked codecs (0.0 = disabled)
+  bg_max_level: 150       # Maximum grayscale level for background low-bit codecs (mono-2bit, mono-mask-1bit)
+  max_body_bytes: 26214400  # 25 MiB; SDL443/T-004 cap on decoder-service request bodies
+
+# =========================
+# Image handling/processing setting
+# =========================
+img_process:
+  bg_scaling_min1_level_1: 30 # percent of original bg size if no object detected
+  bg_scaling_min2_level_1: 20 # percent of original bg size if objects are detected
+  bg_scaling_max_level_1: 100
+  obj_scaling_min_level_1: 50
+  obj_scaling_max_level_1: 100
+  bg_scaling_min1_level_2: 20 # more aggressive background downscale for higher compression
+  bg_scaling_min2_level_2: 5
+  bg_scaling_max_level_2: 100
+  obj_scaling_min_level_2: 30
+  obj_scaling_max_level_2: 100
+  additional_crop_margin: 0 # percent of increase around bbox for object crops
+  paste_feather_ratio: 0.0 # feather width as a fraction of computed margin pixels
+  paste_feather_min_px: 1 # minimum feather width in pixels when feathering is enabled
+  skip_object_bboxes_in_background: true # for bg mono-2bit / mono-mask-1bit, omit eligible object bbox regions from bg encoding; auto-disabled for sparse object overlays and ignored for AVIF bg codecs
+  canny_mode: old # old (legacy Gaussian+Canny) | new (bilateral+Gaussian+Canny+morph close)
+  canny_sigma: 2.0
+  canny_low: 12
+  canny_high: 45
+  canny_deriche_bilateral_d: 9
+  canny_deriche_bilateral_sigma_color: 60
+  canny_deriche_bilateral_sigma_space: 60
+  canny_deriche_gaussian_sigma: 2.0
+  canny_deriche_morph_close_kernel: 7
+  canny_deriche_morph_close_iterations: 2
+  # mono-skel-v1 object codec tuning (higher fidelity -> more bytes)
+  mono_skel_max_segments: 24
+  mono_skel_min_segment_length: 1
+  mono_skel_hough_threshold: 1
+  mono_skel_max_segment_gap: 3
+  mono_skel_stitch_angle_tol_deg: 28.0
+  mono_skel_work_max_dim: 384   # higher captures more detail (64..512), but costs more CPU
+  # mono-shape-v1 object codec tuning (polygon simplification for clearer silhouettes)
+  mono_shape_max_points: 120    # higher = more complex polygon approximation (more bytes, clearer detail)
+  mono_shape_epsilon_ratio: 0.01 # lower = tighter approximation to actual contour (more bytes, clearer edges)
+  vessel_theta_offset_deg: 90.0  # add to estimated vessel heading before symbol encoding
+  # Legacy shared map kept for backward compatibility with older configs.
+  encoders_tag:
+    color-avif: 0
+    mono-avif-high: 1
+    mono-avif-mid: 2
+    mono-avif-low: 3
+    mono-28bit: 4
+    mono-2bit: 5
+    mono-mask-1bit: 6
+    mono-skel-v1: 8
+    mono-shape-v1: 9
+    airplane-symbol-v1: 10
+  # Per-level encoder tags: these are now the only bg/object codec selection inputs.
+  encoders_tag_bg_level_1:
+    #color-avif: 0
+    mono-avif-high: 1
+    mono-avif-mid: 2
+
+  encoders_tag_objs_level_1:
+    #color-avif: 0
+    mono-avif-mid: 2
+    #mono-2bit: 5
+    #airplane-symbol-v1: 10
+    #mono-mask-1bit: 6
+
+  encoders_tag_bg_level_2:
+    mono-2bit: 5
+
+  encoders_tag_objs_level_2:
+    mono-avif-mid: 2
+    mono-2bit: 5
+    airplane-symbol-v1: 10
+    #mono-mask-1bit: 6
+
+# =========================
+# Input / Output
+# =========================
+io:
+  input_dir: "./data"
+  annot_file:
+  annot_dir:               # path to directory with YOLO-style .txt annotation files (one per image); if set, bypasses YOLO detection
+  input_catalog_sampling: "uniform"            # for YAML input catalogs with multiple dirs: uniform | proportional
+  output_dir: "./output"
+  save_visualizations: true
+  draw_bboxes: false                              # if true, overlay detected bounding boxes on saved reconstructed images
+  print_runtime_logs: false                      # if false, keep structured logs only in JSON files
+  write_json_logs: true                          # if false, disable only encoder_log.json/decoder_log.json (root/app logger behavior unchanged)
+
+# =========================
+# Image feeder
+# =========================
+image_feeder:
+  log_feeder_events: false                       # if true, emit feeder_rate_limited and feeder_enqueued events
+  target_input_rate_mbps: 1.0                  # Target data rate (Mbps); null/empty to disable rate limiting
+  run_duration_sec: 900                          # Stop feeder after this many seconds (e.g. 120 = 2 min); null/empty to run until all images are sent
+  mode: tcp                                  # http or tcp
+
+# =========================
+# Runtime performance knobs
+# =========================
+performance:
+  image_size: 640             # YOLO inference size
+
+# =========================
+# Evaluation parameters
+# =========================
+eval:
+
+# =========================
+# Payload overhead parameters
+# =========================
+mux_cfg:
+  endian: ">"
+  # Frame/header
+  fmt_payload_len: "!I"
+
+
+  # Image sizes
+  fmt_hw: "2H"            # convenience for packing (h, w)
+
+  # Length prefixes
+  fmt_len_bg: "I"         # e.g. uint32
+  fmt_len_obj: "I"        # e.g. uint32
+
+  # Counts
+  fmt_crops_count: "B"    # uint8 (max 255 objects per frame)
+
+  # BBoxes
+  fmt_bbox: "4H"          # 4x uint16 — used for expanded_bbox only
+
+  # Crop metadata
+  fmt_encoder_index: "B"  # uint8 (max 255 codec tags)
+
+  # SDL443/T-003: upper bound on a single length-prefixed TCP frame before it is allocated into a receive buffer
+  max_frame_len: 67108864  # 64 MiB
+
+  # SDL443/T-009: fallback cap on num_crops when no model-derived limit is supplied (matches fmt_crops_count's uint8 ceiling)
+  default_max_crops: 255

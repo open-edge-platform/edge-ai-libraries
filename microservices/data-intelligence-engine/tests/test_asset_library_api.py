@@ -546,6 +546,7 @@ def test_retrieve_merges_libraries_before_optional_postprocess(monkeypatch):
         lambda library, _body, _traces: chunks[library.name],
     )
     monkeypatch.setattr(retrieval_api, "postprocess_chunks", fake_postprocess)
+    monkeypatch.setattr(retrieval_api.config, "RERANK_MODEL_ID", "BAAI/bge-reranker-large")
 
     result = asyncio.run(
         retrieval_api.retrieve(

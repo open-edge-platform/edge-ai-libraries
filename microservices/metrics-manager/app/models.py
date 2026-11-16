@@ -22,6 +22,19 @@ from .settings import get_settings
 
 _logger = get_logger("models")
 
+_SERIES_KEY_ESCAPES = str.maketrans({"\\": "\\\\", ",": "\\,", "=": "\\="})
+
+
+def metric_series_key(name: str, tags: dict[str, str] | None) -> str:
+    """Identify a series without confusing label content with key separators."""
+    if not tags:
+        return name
+    labels = ",".join(
+        f"{key.translate(_SERIES_KEY_ESCAPES)}={value.translate(_SERIES_KEY_ESCAPES)}"
+        for key, value in sorted(tags.items())
+    )
+    return f"{name}{{{labels}}}"
+
 
 class MetricType(StrEnum):
     """Metric type enumeration."""
@@ -51,16 +64,12 @@ class Metric(BaseModel):
     fields: dict[str, int | float | str | bool] = Field(
         ..., min_length=1, description="Metric field values (at least one required)"
     )
-    tags: dict[str, str] | None = Field(
-        default_factory=dict, description="Metric tags/labels"
-    )
+    tags: dict[str, str] | None = Field(default_factory=dict, description="Metric tags/labels")
     timestamp: int | None = Field(
         default_factory=lambda: int(datetime.now(UTC).timestamp() * 1e9),
         description="Unix timestamp (seconds or nanoseconds)",
     )
-    metric_type: MetricType = Field(
-        default=MetricType.GAUGE, description="Type of metric"
-    )
+    metric_type: MetricType = Field(default=MetricType.GAUGE, description="Type of metric")
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -101,8 +110,7 @@ class Metric(BaseModel):
         meas = self._escape_measurement(self.name)
         if self.tags:
             tag_str = ",".join(
-                f"{self._escape_tag(k)}={self._escape_tag(v)}"
-                for k, v in sorted(self.tags.items())
+                f"{self._escape_tag(k)}={self._escape_tag(v)}" for k, v in sorted(self.tags.items())
             )
             measurement_part = f"{meas},{tag_str}"
         else:
@@ -133,11 +141,7 @@ class Metric(BaseModel):
         Returns:
             Dictionary in Telegraf JSON format
         """
-        ts = (
-            self.timestamp // int(1e9)
-            if self.timestamp
-            else int(datetime.now(UTC).timestamp())
-        )
+        ts = self.timestamp // int(1e9) if self.timestamp else int(datetime.now(UTC).timestamp())
         return {
             "name": self.name,
             "tags": self.tags or {},
@@ -202,11 +206,13 @@ class SimpleMetric(BaseModel):
 
     def to_metric(self) -> Metric:
         """Convert to full Metric object."""
-        return Metric(
-            name=self.name,
-            fields={"value": self.value},
-            tags=self.tags,
-            timestamp=self.timestamp,
+        return Metric.model_validate(
+            {
+                "name": self.name,
+                "fields": {"value": self.value},
+                "tags": self.tags,
+                "timestamp": self.timestamp,
+            }
         )
 
 
@@ -412,9 +418,7 @@ class OpenTelemetryMetric(BaseModel):
     Follows OTLP JSON format for metrics.
     """
 
-    resource_metrics: list[dict[str, Any]] = Field(
-        default_factory=list, alias="resourceMetrics"
-    )
+    resource_metrics: list[dict[str, Any]] = Field(default_factory=list, alias="resourceMetrics")
 
     def to_metrics(self) -> list[Metric]:
         """

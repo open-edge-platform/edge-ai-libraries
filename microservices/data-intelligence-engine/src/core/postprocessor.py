@@ -1,33 +1,36 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Postprocessing stage: reranking, and metadata replacement.
 
-`postprocess_nodes` runs over a chunk set. Ported from
-edgecraftrag/components/postprocessor.py:
-RerankProcessor plus the postprocessor loop in components/pipeline.py:570. The
-reranker uses the same provider names as embedding (config.MODEL_BACKENDS):
-
-- "llamaindex_openvino" -> llama-index OpenVINORerank over a workspace model
-- "openvino_genai"      -> OpenVINOGenAIReranking, same workspace models
-- "openai_compatible"   -> an OpenAI-compatible `/rerank` endpoint
-- "openvino_vl"         -> request-scoped Qwen VL postprocessor over a cached scorer
-
-`run()` mirrors RerankProcessor.run(retri_res=..., query_bundle=...), with top_n
-passed per call: the caller owns that setting, and the model instance is shared
-across requests.
-
-Models are cached by (backend, model path, device). EdgeCraftRAG keeps one
-reranker for the lifetime of a pipeline; since pipelines live with the
-caller now, the engine caches on the model identity instead -- otherwise every
-request would recompile the OpenVINO model.
-"""
-
+import logging
 import threading
 from typing import Dict, List, Optional, Tuple
 
 import config
-from core.embedding import require_openvino_model
+from core.embedding import require_openvino_model, resolve_model_path
+from inference.meta import InferenceMeta
 from llama_index.core.schema import NodeWithScore, QueryBundle
+
+logger = logging.getLogger(__name__)
+
+
+def reranker_class(backend: Optional[str], model_id: Optional[str]):
+    """The class a reranker request resolves to: a Qwen VL export is the media one."""
+    from inference.models import _qwen3_vl_reranker_ready
+
+    if backend and config.normalize_model_backend(backend) == config.REMOTE_OPENAI_COMPATIBLE:
+        return _RemoteReranker
+    if model_id and _qwen3_vl_reranker_ready(resolve_model_path(model_id)):
+        from inference.ov_adapter import OpenVINOVLReranker
+
+        return OpenVINOVLReranker
+    from inference.ov_adapter import OpenVINOGenAIReranking
+
+    return OpenVINOGenAIReranking
+
+
+def is_media_reranker(model_id: Optional[str]) -> bool:
+    """Whether this model reranks media, not just text."""
+    return reranker_class(None, model_id).SUPPORT_MULTIMODAL is True
 
 
 def postprocess_nodes(
@@ -37,40 +40,23 @@ def postprocess_nodes(
     top_n: Optional[int] = None,
     reranker_model=None,
 ) -> List[NodeWithScore]:
-    """Run one postprocessing stage over a chunk set.
-
-    `reranker_model` selects which reranker to use; the built model is cached
-    below, so repeated requests do not recompile it.
-    """
-    if processor_type == "metadata_replace":
-        for node in nodes:
-            node.node.text = node.node.metadata.get("window", node.node.text)
-        return nodes
+    """Rerank a chunk set."""
     model = reranker_model.model_dump() if hasattr(reranker_model, "model_dump") else (reranker_model or {})
     reranker = build_reranker(
         top_n=top_n or config.RERANK_TOP_N,
         backend=model.get("backend"),
         model_id=model.get("model_id"),
-        model_path=model.get("model_path"),
         device=model.get("device"),
         api_base=model.get("api_base"),
     )
     return reranker.run(retri_res=nodes, query_bundle=QueryBundle(query), top_n=top_n)
 
 
-class _RemoteReranker:
-    """Reranking over an OpenAI-compatible `/rerank` endpoint.
+class _RemoteReranker(InferenceMeta):
+    """Reranking over an OpenAI-compatible `/rerank` endpoint (vLLM/Cohere/Jina style or TEI)."""
 
-    vLLM (and other Cohere/Jina-style servers) take POST {model, query, documents,
-    top_n} and answer {results: [{index, relevance_score}]}; Text Embeddings
-    Inference takes `texts` instead of `documents` and answers a bare list of
-    {index, score}. The request carries both field names and either response
-    shape is accepted, so one provider covers both servers. Keeps the llama-index
-    postprocessor interface so the caller cannot tell the difference.
-
-    Stateless per call -- `top_n` is an argument, not written onto the instance --
-    so concurrent requests need no lock; the server batches them itself.
-    """
+    BACKEND = config.REMOTE_OPENAI_COMPATIBLE
+    SUPPORT_MULTIMODAL = False
 
     def __init__(self, model_id: str, api_base: str, top_n: int):
         self.model_id = model_id
@@ -78,7 +64,7 @@ class _RemoteReranker:
         self.top_n = top_n
         if not self.api_base:
             raise ValueError(
-                "The 'openai_compatible' rerank provider needs an endpoint: "
+                "The 'remote_openai_compatible' rerank backend needs an endpoint: "
                 "set ENGINE_RERANK_API_BASE"
             )
 
@@ -126,10 +112,7 @@ class RerankProcessor:
         self.model = rerank_model
         self.top_n = top_n
         self.default_top_n = top_n
-        # A local model has top_n set on it before inference and drives a single
-        # infer request; serialize the pair so concurrent requests with different
-        # top_n cannot interleave. A remote reranker takes top_n per call and
-        # holds no inference state, so it runs unlocked (serialize=False).
+        # Local models get top_n set on the instance, so setting it and inferring must be serialized.
         self._lock = lock if lock is not None else (threading.Lock() if serialize else None)
 
     def run(
@@ -158,34 +141,23 @@ _CACHE_LOCK = threading.Lock()
 def build_reranker(
     top_n: int = None,
     model_id: Optional[str] = None,
-    model_path: Optional[str] = None,
     device: Optional[str] = None,
     backend: Optional[str] = None,
     api_base: Optional[str] = None,
     document_fn=None,
 ) -> RerankProcessor:
-    """Return a reranker, reusing the compiled model for repeated requests.
-
-    Unset arguments fall back to the engine's configured defaults; the caller (its
-    retrieval pipeline) normally sends the model and device chosen by the user.
-    The VL adapter is request-scoped because its document reader is request data.
-    """
+    """Return a reranker, reusing the compiled model for repeated requests."""
     top_n = top_n or config.RERANK_TOP_N
-    if backend == "openvino_vl":
-        if document_fn is None:
-            raise ValueError("openvino_vl requires a media document reader")
-        from core.embedding import resolve_model_path
+    if document_fn is not None:
+        # Media reranker: request-scoped adapter over a cached scorer.
+        if backend and config.normalize_model_backend(backend) != config.LOCAL_OPENVINO:
+            raise ValueError("media reranking runs on the local_openvino backend")
         from inference.ov_adapter import OpenVINOVLReranker, OpenVINOVLReranking
 
-        resolved = resolve_model_path(model_path or (
-            # A picked workspace model addresses its own directory, exactly like
-            # the text backends below; only the default id takes the default path.
-            config.MEDIA_RERANK_MODEL_PATH if model_id in (None, config.MEDIA_RERANK_MODEL_ID)
-            else model_id
-        ))
         model_id = model_id or config.MEDIA_RERANK_MODEL_ID
+        resolved = resolve_model_path(model_id)
         device = device or config.MEDIA_RERANK_DEVICE
-        key = (backend, model_id, resolved, device)
+        key = (config.LOCAL_OPENVINO, model_id, resolved, device)
         shared = _VL_CACHE.get(key)
         if shared is None:
             with _CACHE_LOCK:
@@ -203,38 +175,46 @@ def build_reranker(
 
     backend = config.normalize_model_backend(backend or config.RERANK_BACKEND)
     model_id = model_id or config.RERANK_MODEL_ID
-    # A local backend addresses a model directory; the model chosen in the UI is a
-    # name under the workspace's model directory, which is also a valid path here.
-    model_path = model_path or (
-        config.RERANK_MODEL_PATH if model_id == config.RERANK_MODEL_ID else model_id
-    )
     device = device or config.RERANK_DEVICE
     api_base = api_base or config.RERANK_API_BASE
 
-    key = (backend, model_id, model_path, device, api_base)
+    key = (backend, model_id, device, api_base)
     cached = _CACHE.get(key)
     if cached is not None:
         return cached
     with _CACHE_LOCK:
-        # Re-check: another thread may have built it while we waited.
         cached = _CACHE.get(key)
         if cached is None:
-            cached = _build(backend, top_n, model_id, model_path, device, api_base)
+            cached = _build(backend, top_n, model_id, device, api_base)
             _CACHE[key] = cached
     return cached
 
 
 def _build(
-    backend: str, top_n: int, model_id: str, model_path: str, device: str, api_base: str
+    backend: str, top_n: int, model_id: str, device: str, api_base: str
 ) -> RerankProcessor:
-    if backend == "openai_compatible":
+    if backend == config.REMOTE_OPENAI_COMPATIBLE:
         return RerankProcessor(_RemoteReranker(model_id, api_base, top_n), top_n, serialize=False)
 
-    if backend == "llamaindex_openvino":
-        resolved = require_openvino_model(model_path, "reranker")
-        from llama_index.postprocessor.openvino_rerank import OpenVINORerank
+    resolved = require_openvino_model(model_id, "reranker")
+    from inference.ov_adapter import OpenVINOGenAIReranking, llamaindex_openvino_rerank
 
-        model = OpenVINORerank(
+    try:
+        # The exported graph needs fixed-length input within the model's position limit.
+        model = OpenVINOGenAIReranking(
+            model_id_or_path=resolved,
+            device=device,
+            top_n=top_n,
+            max_length=config.embedding_max_length(resolved),
+            pad_to_max_length=True,
+            padding_side="right",
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "ov_genai reranker failed for %s; falling back to ov_llamaindex",
+            resolved, exc_info=True,
+        )
+        model = llamaindex_openvino_rerank(
             model_id_or_path=resolved,
             device=device,
             top_n=top_n,
@@ -244,15 +224,4 @@ def _build(
                 "export": False,
             },
         )
-        return RerankProcessor(model, top_n)
-
-    if backend == "openvino_genai":
-        resolved = require_openvino_model(model_path, "reranker")
-        from inference.ov_adapter import OpenVINOGenAIReranking
-
-        model = OpenVINOGenAIReranking(
-            model_id_or_path=resolved, device=device, top_n=top_n
-        )
-        return RerankProcessor(model, top_n)
-
-    raise ValueError(f"Rerank provider {backend!r} has no factory implementation")
+    return RerankProcessor(model, top_n)

@@ -67,24 +67,24 @@ Prepare the models for the content you process. For text documents only, one doc
 | Images | GME | Shares the GME package with document embedding |
 | Short videos (≤ 60 s) | ViCLIP-B (default), ViCLIP-L or Cosmos-224p | Eight sampled frames per clip; longer videos are stored but not embedded |
 | Audio | Whisper + GME | Whisper transcribes; GME embeds the transcript |
-| Reranking retrieval results | bge-reranker-large | Optional. Used only when a request has `postprocess` |
-| Reranking video, image and audio results together | Qwen3-VL-Reranker-2B | Optional. Used only when a request has `postprocess`; see [Text-to-media retrieval](../text-to-media-retrieval.md) |
+| Reranking retrieval results (default) | Qwen3-VL-Reranker-2B | Optional. Used only when a request has `postprocess`; scores document text, figures, images, video and audio together; see [Text-to-media retrieval](../text-to-media-retrieval.md) |
+| Reranking document text with a text-only model | bge-reranker-large | Optional. Used when a request selects it or `ENGINE_RERANK_MODEL_ID` points to it |
 
 ## 2. Models at a glance
 
-| Model | Purpose | Runtime (`embedding_backend`) | Default directory under the model root | Options | Size (approx.) |
+| Model | Purpose | Backend (`embedding_backend`) | Default directory under the model root | Options | Size (approx.) |
 |---|---|---|---|---|---|
-| GME-Qwen2-VL-2B (OpenVINO package) | Embedding for documents, PDF figures, images and audio transcripts, 1536 dimensions | Documents: `native_openvino_gme`; images: `llamaindex_openvino` | `gme-Qwen2-VL-2B-Instruct-OV/` | Precision `int8` (default) / `int4` / `fp32` | 8.3 GB download; package 2.1 GB at int8, 1.3 GB at int4 |
-| BGE (for example `BAAI/bge-small-en-v1.5`) | Text-only embedding instead of GME, 384 dimensions | `llamaindex_openvino` or `openvino_genai` | `bge-small-en-v1.5/` (last part of the model ID) | `--weight-format` at conversion | A few hundred MB |
-| bge-reranker-large | Reranking retrieval results | `llamaindex_openvino` or `openvino_genai` | `BAAI/bge-reranker-large/` (keeps the vendor directory) | `--weight-format` at conversion; or a remote rerank service | 2.2 GB at fp32, about 0.6 GB at int8 |
-| Qwen3-VL-Reranker-2B | Unified reranking across video, image and audio-transcript hits | Fixed: OpenVINO (`openvino_vl`) | `Qwen3-VL-Reranker-2B-INT8-OV/` (serving default); FP16 export in `Qwen3-VL-Reranker-2B-OV/` | `--frames`, `--seq-bucket` at conversion | 4.2 GB download; FP16 package about 12 GB (three graphs), INT8 about half that |
-| PP-DocLayoutV3 (ONNX) | PDF layout detection: figure positions, scanned-page regions | Fixed: OpenVINO | `PP-DocLayoutV3/` | None | 250 MB |
-| ViCLIP-B (default) | Short-video embedding, 512 dimensions | `llamaindex_openvino` | `viclip-b-fp16/` | `fp16` (default) / `fp32` | Depends on precision |
-| ViCLIP-L | Short-video embedding, 768 dimensions | `llamaindex_openvino` | `viclip-l-fp16/` | `fp16` (default) / `fp32` | Depends on precision |
-| Cosmos-224p (optional) | Short-video embedding, 256 dimensions | `llamaindex_openvino` | `cosmos-224p-fp16/` | `fp16` (default) / `fp32` | Depends on precision |
-| Whisper `openai/whisper-small` | Speech recognition | Fixed: OpenVINO | `whisper-small/` | `--weight-format` at conversion | About 1 GB |
+| GME-Qwen2-VL-2B (OpenVINO package) | Embedding for documents, PDF figures, images and audio transcripts, 1536 dimensions | `local_openvino` (GME runtime) | `gme-Qwen2-VL-2B-Instruct-OV/` | Precision `int8` (default) / `int4` / `fp32` | 8.3 GB download; package 2.1 GB at int8, 1.3 GB at int4 |
+| BGE (for example `BAAI/bge-small-en-v1.5`) | Text-only embedding instead of GME, 384 dimensions | `local_openvino` | `bge-small-en-v1.5/` (last part of the model ID) | `--weight-format` at conversion | A few hundred MB |
+| bge-reranker-large | Reranking retrieval results | `local_openvino` or `remote_openai_compatible` | `BAAI/bge-reranker-large/` (keeps the vendor directory) | `--weight-format` at conversion; or a remote rerank service | 2.2 GB at fp32, about 0.6 GB at int8 |
+| Qwen3-VL-Reranker-2B | Unified reranking across video, image and audio-transcript hits | `local_openvino` (fixed) | `Qwen3-VL-Reranker-2B-INT8-OV/` (serving default); FP16 export in `Qwen3-VL-Reranker-2B-OV/` | `--frames`, `--seq-bucket` at conversion | 4.2 GB download; FP16 package about 12 GB (three graphs), INT8 about half that |
+| PP-DocLayoutV3 (ONNX) | PDF layout detection: figure positions, scanned-page regions | `local_openvino` (fixed) | `PP-DocLayoutV3/` | None | 250 MB |
+| ViCLIP-B (default) | Short-video embedding, 512 dimensions | `local_openvino` | `viclip-b-fp16/` | `fp16` (default) / `fp32` | Depends on precision |
+| ViCLIP-L | Short-video embedding, 768 dimensions | `local_openvino` | `viclip-l-fp16/` | `fp16` (default) / `fp32` | Depends on precision |
+| Cosmos-224p (optional) | Short-video embedding, 256 dimensions | `local_openvino` | `cosmos-224p-fp16/` | `fp16` (default) / `fp32` | Depends on precision |
+| Whisper `openai/whisper-small` | Speech recognition | `local_openvino` (fixed) | `whisper-small/` | `--weight-format` at conversion | About 1 GB |
 
-**The runtime and the model are set separately.** The runtime (`embedding_backend`) only says how a model runs. The model itself is named by `embedding_model` (a prepared model ID, such as `viclip-b-fp16`) or `embedding_model_path` (a local directory). There are two places to set them:
+**The backend and the model are set separately.** The backend (`embedding_backend`: `local_openvino` or `remote_openai_compatible`) only says where a model runs; the runtime is chosen from the model. The model itself is named by `embedding_model` (a prepared model ID, such as `viclip-b-fp16`) (the directory name under the model root). There are two places to set them:
 
 - Engine-wide defaults: the `ENGINE_*_EMBEDDING_*` and related environment variables; see each model in section 4.
 - One source: its `operator_options` when you create it, which override the defaults.
@@ -153,13 +153,12 @@ Output directory: `$OV_MODEL_DIR/gme-Qwen2-VL-2B-Instruct-OV/`, with `gme_openvi
 |---|---|---|
 | `--precision` (conversion) | `int8` (default), `int4`, `fp32` | int4 is fastest with slightly lower accuracy; fp32 is most accurate and slowest |
 | `--output-dir` (conversion) | Directory | Refused if the directory already exists |
-| `ENGINE_DOC_EMBEDDING_BACKEND` | `native_openvino_gme` (default) | Runtime for document embedding |
+| `ENGINE_DOC_EMBEDDING_BACKEND` | `local_openvino` (default) | Backend for document embedding; a GME package runs on the GME runtime |
 | `ENGINE_DOC_EMBEDDING_MODEL_ID` | `gme-Qwen2-VL-2B-Instruct-OV` (default) | Package directory name under the model root |
 | `ENGINE_DOC_EMBEDDING_DEVICE` | `CPU` (default; `GPU` in Compose), `GPU` | Device for document embedding |
-| `ENGINE_IMAGE_EMBEDDING_BACKEND` | `llamaindex_openvino` (default) | Runtime for image embedding |
-| `ENGINE_IMAGE_EMBEDDING_MODEL_ID` | `Alibaba-NLP/gme-Qwen2-VL-2B-Instruct` (default) | Recorded in the source profile; the package actually loaded is the one in `gme-Qwen2-VL-2B-Instruct-OV/` |
+| `ENGINE_IMAGE_EMBEDDING_BACKEND` | `local_openvino` (default) | Backend for image embedding |
+| `ENGINE_IMAGE_EMBEDDING_MODEL_ID` | `gme-Qwen2-VL-2B-Instruct-OV` (default) | Package directory name under the model root |
 | `ENGINE_IMAGE_EMBEDDING_DEVICE` | `CPU` (default), `GPU` | On the same device as document embedding, both share one runtime |
-| `operator_options.embedding_model_path` | Package directory | Another package for one source |
 | `operator_options.embedding_model` (image source) | A separately prepared GME package ID | Select a weight variant by model ID; `operator_options.precision` is rejected |
 | `operator_options.max_image_tokens` (image source) | Integer; defaults to the package's `processor.max_image_tokens` | Visual-token cap per image; the largest latency factor |
 
@@ -191,10 +190,10 @@ Output directory: `$OV_MODEL_DIR/bge-small-en-v1.5/`, with `openvino_model.xml/.
 | Option | Values | Description |
 |---|---|---|
 | `--weight-format` (conversion) | `fp32` when omitted; `fp16`, `int8` | Put it before the output directory argument |
-| `ENGINE_DOC_EMBEDDING_BACKEND` | `llamaindex_openvino`, `openvino_genai` | Required for BGE; the default is GME's `native_openvino_gme` |
+| `ENGINE_DOC_EMBEDDING_BACKEND` | `local_openvino` (default) | Same backend for BGE; the runtime is chosen from the model |
 | `ENGINE_DOC_EMBEDDING_MODEL_ID` | `BAAI/bge-small-en-v1.5` | Required for BGE; the last part is the directory name under the model root |
 | `ENGINE_DOC_EMBEDDING_DEVICE` | `CPU` (default; `GPU` in Compose), `GPU` | Device |
-| `operator_options.embedding_model`, `embedding_model_path` | Model ID or directory | Another text model for one source |
+| `operator_options.embedding_model` | Model ID (directory name under the model root) | Another text model for one source |
 
 ### 4.3 bge-reranker-large: optional reranking
 
@@ -224,10 +223,10 @@ Output directory: `$OV_MODEL_DIR/BAAI/bge-reranker-large/`, with `openvino_model
 | Option | Values | Description |
 |---|---|---|
 | `--weight-format` (conversion) | `fp32` when omitted; `fp16`, `int8` | Put it before the output directory argument. `int8` cuts the size from about 2.2 GB to about 0.6 GB |
-| `ENGINE_RERANK_BACKEND` | `llamaindex_openvino` (default), `openvino_genai`, `openai_compatible` | `openai_compatible` calls a remote rerank service and needs no local model |
-| `ENGINE_RERANK_MODEL_ID` | `BAAI/bge-reranker-large` (default) | Path under the model root, including the vendor directory |
+| `ENGINE_RERANK_BACKEND` | `local_openvino` (default), `remote_openai_compatible` | `remote_openai_compatible` calls a remote rerank service and needs no local model |
+| `ENGINE_RERANK_MODEL_ID` | `BAAI/bge-reranker-large` | Makes bge the default reranker instead of `Qwen3-VL-Reranker-2B-INT8-OV`; path under the model root, including the vendor directory |
 | `ENGINE_RERANK_DEVICE` | `CPU` (default; `GPU` in Compose), `GPU` | Device |
-| `ENGINE_RERANK_API_BASE` | URL | Used by `openai_compatible` only |
+| `ENGINE_RERANK_API_BASE` | URL | Used by `remote_openai_compatible` only |
 
 ### 4.4 PP-DocLayoutV3: PDF layout detection
 
@@ -315,7 +314,7 @@ Output: `$OV_MODEL_DIR/<model>-<precision>/`, containing `video_embedding.json`,
 | Option | Values | Description |
 |---|---|---|
 | `--precision` (conversion) | `fp16` (default), `fp32` | Use a matching `-fp16` or `-fp32` output directory |
-| `ENGINE_VIDEO_EMBEDDING_BACKEND` | `llamaindex_openvino` (default) | Runtime |
+| `ENGINE_VIDEO_EMBEDDING_BACKEND` | `local_openvino` (default) | Backend |
 | `ENGINE_VIDEO_EMBEDDING_MODEL_ID` | `viclip-b-fp16` (default) | The last part is the directory name under the model root.  |
 | `ENGINE_VIDEO_EMBEDDING_DEVICE` | `CPU` (default), `GPU`, `AUTO:GPU,CPU` | Device |
 | `operator_options.embedding_model` | Prepared package ID | Override the video model for one source |
@@ -420,8 +419,8 @@ Default serving directory: `$OV_MODEL_DIR/Qwen3-VL-Reranker-2B-INT8-OV/`, with `
 | `--seq-bucket` (conversion) | `768` (default) | Fixed token length video pairs are padded to; one compiled graph for every video query |
 | `--overwrite` (conversion) | Flag | Re-export a mode whose IR already exists |
 | `--mode` (quantization) | `INT8_ASYM` (default), `INT8_SYM` | NNCF weight-compression mode, per-channel |
-| `ENGINE_MEDIA_RERANK_BACKEND` | `openvino_vl` (default) | Runtime |
-| `ENGINE_MEDIA_RERANK_MODEL_ID` | `Qwen/Qwen3-VL-Reranker-2B-INT8` (default) | The last part plus `-OV` is the package directory under the model root; use `Qwen/Qwen3-VL-Reranker-2B` to serve the FP16 export |
+| `ENGINE_MEDIA_RERANK_BACKEND` | `local_openvino` (default) | Backend (only supported value) |
+| `ENGINE_MEDIA_RERANK_MODEL_ID` | `Qwen3-VL-Reranker-2B-INT8-OV` (default) | Package directory under the model root; use `Qwen3-VL-Reranker-2B-OV` to serve the FP16 export |
 | `ENGINE_MEDIA_RERANK_DEVICE` | `GPU` (default, PTL iGPU), `CPU` | Device |
 
 Before serving, run the parity checker against the official checkpoint; see [Prepare the OpenVINO model](../text-to-media-retrieval.md#prepare-the-openvino-model).

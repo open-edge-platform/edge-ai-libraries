@@ -100,7 +100,7 @@ debian_55_profile_ros_openvino () {
   # --realtime (set by edge_base_robotics) supplies GPU/NPU prep via
   # edge_pack_base_realtime instead; skip edge_base to avoid installing both
   # the standard and real-time edge-pack base bundles together.
-  [[ " $* " = *" --realtime "* ]] || echo "edge_base"
+  ensure_parse_option --realtime "$@" || echo "edge_base"
 }
 
 verify_ros_openvino () {
@@ -112,7 +112,7 @@ verify_ros_openvino () {
 debian_55_install_ros_openvino () {
   configure_ros_openvino
 
-  if verify_ros_openvino && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_ros_openvino && ! ensure_parse_reinstall "$@"; then
     echo "ROS 2 OpenVINO toolkit is installed." >&2
   else
     ensure_prop set installed/ros_openvino/owned true

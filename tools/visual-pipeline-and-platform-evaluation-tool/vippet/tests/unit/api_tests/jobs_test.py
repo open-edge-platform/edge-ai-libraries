@@ -1,13 +1,20 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import time
 import unittest
+from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from fastapi.routing import APIRoute
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock
 
 import api.api_schemas as schemas
+from api.dependencies.audio_jobs import get_audio_pipeline_job_manager
+from api.routes import voice
 from graph import Graph
 from internal_types import (
+    InternalDensityJobStatus,
     InternalModelDownloadJobState,
     InternalModelDownloadJobStatus,
     InternalModelDownloadJobSummary,
@@ -16,13 +23,197 @@ from internal_types import (
     InternalOptimizationJobState,
     InternalOptimizationJobSummary,
     InternalOptimizationType,
+    InternalPerformanceJobStatus,
     InternalPipelineRequestOptimize,
     InternalPipelineValidation,
+    InternalTestJobState,
     InternalValidationJobState,
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
 from api.routes.jobs import router as jobs_router
+from managers.audio_pipeline_job_manager import (
+    AudioPipelineJob,
+    AudioPipelineJobStatus,
+)
+from managers.audio_pipeline_manager import AudioPipelineOperation
+
+
+class TestAudioJobsAPI(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app = FastAPI()
+        self.app.include_router(jobs_router, prefix="/jobs")
+        self.app.include_router(voice.router, prefix="/voice")
+        self.manager = MagicMock()
+        self.manager.list_jobs = AsyncMock(return_value=[])
+        self.manager.get_job = AsyncMock(return_value=None)
+        self.manager.start_job = AsyncMock()
+        self.app.dependency_overrides[get_audio_pipeline_job_manager] = lambda: (
+            self.manager
+        )
+        self.client = TestClient(self.app)
+        self.addCleanup(self.client.close)
+        self.addCleanup(self.app.dependency_overrides.clear)
+
+    @staticmethod
+    def _make_audio_job(
+        *,
+        job_id: str = "audio-1",
+        operation: AudioPipelineOperation = AudioPipelineOperation.SPEECH_TO_TEXT,
+        status: AudioPipelineJobStatus = AudioPipelineJobStatus.COMPLETED,
+        transcript: str | None = "private transcript",
+        artifact_path: str | None = None,
+        error: str | None = None,
+    ) -> AudioPipelineJob:
+        now = datetime(2026, 10, 13, 12, 30, tzinfo=timezone.utc)
+        is_stt = operation is AudioPipelineOperation.SPEECH_TO_TEXT
+        return AudioPipelineJob(
+            id=job_id,
+            pipeline_id="speech-to-text" if is_stt else "text-to-speech",
+            pipeline_name="Speech to Text" if is_stt else "Text to Speech",
+            variant_id="cpu" if is_stt else "gpu",
+            variant_name="CPU" if is_stt else "GPU",
+            device="CPU" if is_stt else "GPU",
+            operation=operation,
+            status=status,
+            created_at=now,
+            modified_at=now,
+            transcript=transcript,
+            artifact_path=artifact_path,
+            artifact_filename="audio-1.wav" if artifact_path else None,
+            service_round_trip_ms=12.5,
+            error=error,
+        )
+
+    def test_list_audio_jobs_empty(self) -> None:
+        response = self.client.get("/jobs/audio/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+    def test_list_audio_jobs_excludes_sensitive_detail(self) -> None:
+        stt_job = self._make_audio_job()
+        tts_job = self._make_audio_job(
+            job_id="audio-2",
+            operation=AudioPipelineOperation.TEXT_TO_SPEECH,
+            transcript=None,
+            artifact_path="/private/output/audio-2.wav",
+        )
+        self.manager.list_jobs.return_value = [tts_job, stt_job]
+
+        response = self.client.get("/jobs/audio/status")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual([job["id"] for job in body], ["audio-2", "audio-1"])
+        self.assertEqual(body[0]["operation"], "text_to_speech")
+        self.assertEqual(body[0]["state"], "COMPLETED")
+        self.assertTrue(body[0]["artifact_available"])
+        self.assertEqual(body[0]["service_round_trip_ms"], 12.5)
+        self.assertNotIn("transcript", body[0])
+        self.assertNotIn("artifact_path", body[0])
+        self.assertNotIn("private transcript", response.text)
+        self.assertNotIn("/private/output", response.text)
+
+    def test_list_audio_jobs_includes_sanitized_error(self) -> None:
+        self.manager.list_jobs.return_value = [
+            self._make_audio_job(
+                status=AudioPipelineJobStatus.FAILED,
+                transcript=None,
+                error="Audio pipeline execution failed.",
+            )
+        ]
+
+        response = self.client.get("/jobs/audio/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()[0]["error"], "Audio pipeline execution failed."
+        )
+
+    def test_get_stt_audio_job_status_includes_transcript(self) -> None:
+        self.manager.get_job.return_value = self._make_audio_job()
+
+        response = self.client.get("/jobs/audio/audio-1/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["transcript"], "private transcript")
+        self.assertIsNone(response.json()["artifact_url"])
+        self.assertNotIn("artifact_path", response.json())
+
+    def test_get_tts_audio_job_status_includes_public_artifact_url(self) -> None:
+        self.manager.get_job.return_value = self._make_audio_job(
+            operation=AudioPipelineOperation.TEXT_TO_SPEECH,
+            transcript=None,
+            artifact_path="/private/output/audio-1.wav",
+        )
+
+        response = self.client.get("/jobs/audio/audio-1/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["artifact_url"],
+            "/api/v1/voice/jobs/audio-1/artifact",
+        )
+        self.assertNotIn("/private/output", response.text)
+
+    def test_get_audio_job_status_returns_404_for_unknown_id(self) -> None:
+        response = self.client.get("/jobs/audio/missing/status")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "Audio pipeline job not found."})
+
+    def test_voice_run_is_visible_through_audio_jobs(self) -> None:
+        job = self._make_audio_job(status=AudioPipelineJobStatus.RUNNING)
+        self.manager.start_job.return_value = job
+        self.manager.list_jobs.return_value = [job]
+
+        started = self.client.post(
+            "/voice/pipelines/speech-to-text/variants/cpu/runs",
+            json={"recording": "sample_male.wav", "language": "en"},
+        )
+        listed = self.client.get("/jobs/audio/status")
+
+        self.assertEqual(started.status_code, 202)
+        self.assertEqual(started.json()["job_id"], job.id)
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.json()[0]["id"], job.id)
+
+    def test_stop_audio_job_requests_cancellation(self) -> None:
+        self.manager.cancel_job = AsyncMock(
+            return_value=self._make_audio_job(
+                status=AudioPipelineJobStatus.COMPLETED, transcript=None
+            )
+        )
+
+        response = self.client.delete("/jobs/audio/audio-1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"message": "Job audio-1 stopped"})
+        self.manager.cancel_job.assert_awaited_once_with("audio-1")
+
+    def test_stop_audio_job_returns_404_for_unknown_id(self) -> None:
+        self.manager.cancel_job = AsyncMock(
+            side_effect=ValueError("Audio pipeline job 'missing' not found.")
+        )
+
+        response = self.client.delete("/jobs/audio/missing")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("not found", response.json()["message"])
+        self.manager.cancel_job.assert_awaited_once_with("missing")
+
+    def test_stop_audio_job_returns_409_when_not_running(self) -> None:
+        self.manager.cancel_job = AsyncMock(
+            side_effect=ValueError(
+                "Audio pipeline job 'audio-1' is not running (state: COMPLETED)."
+            )
+        )
+
+        response = self.client.delete("/jobs/audio/audio-1")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("not running", response.json()["message"])
 
 
 class TestJobsAPI(unittest.TestCase):
@@ -568,6 +759,60 @@ class TestJobsAPI(unittest.TestCase):
         response = self.client.delete(f"/jobs/tests/density/{job_id}")
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.json(), {"message": "Unexpected error occurred"})
+
+    # ------------------------------------------------------------------
+    # /jobs/tests/{performance,density}/{job_id}/status
+    # ------------------------------------------------------------------
+
+    @patch("api.routes.jobs.TestsManager")
+    def test_density_job_status_reports_min_stream_fps(self, mock_tests_manager_cls):
+        mock_tests_manager_cls.return_value.get_job_status.return_value = (
+            InternalDensityJobStatus(
+                id="density-1",
+                request={},
+                state=InternalTestJobState.COMPLETED,
+                start_time=1000,
+                end_time=2000,
+                per_stream_fps=31.0,
+                min_stream_fps=30.2,
+                total_streams=4,
+            )
+        )
+
+        response = self.client.get("/jobs/tests/density/density-1/status")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["per_stream_fps"], 31.0)
+        self.assertEqual(data["min_stream_fps"], 30.2)
+
+    @patch("api.routes.jobs.TestsManager")
+    def test_performance_job_status_without_per_stream_fps_has_null_min(
+        self, mock_tests_manager_cls
+    ):
+        mock_tests_manager_cls.return_value.get_job_status.return_value = (
+            InternalPerformanceJobStatus(
+                id="perf-1",
+                request={},
+                state=InternalTestJobState.COMPLETED,
+                start_time=1000,
+                end_time=2000,
+                per_stream_fps=25.0,
+            )
+        )
+
+        response = self.client.get("/jobs/tests/performance/perf-1/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["min_stream_fps"])
+
+    @patch("api.routes.jobs.TestsManager")
+    def test_density_job_status_not_found(self, mock_tests_manager_cls):
+        mock_tests_manager_cls.return_value.get_job_status.return_value = None
+
+        response = self.client.get("/jobs/tests/density/missing/status")
+
+        self.assertEqual(response.status_code, 404)
 
     # ------------------------------------------------------------------
     # /jobs/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}

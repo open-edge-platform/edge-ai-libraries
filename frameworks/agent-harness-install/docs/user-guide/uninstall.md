@@ -60,7 +60,16 @@ port-forwarding commands. Stop those processes separately after uninstall.
 ./uninstall.sh --yes --delete-models --harness openclaw
 ./uninstall.sh --yes --keep-models   # explicitly retain downloaded models
 ./uninstall.sh --yes --keep-agent-data --harness hermes   # keep ~/.hermes (sessions, memories, skills)
+./uninstall.sh --harness hermes --keep-models             # remove Hermes but keep the downloaded models
 ```
+
+> **Uninstalling Hermes (full uninstall):** `./uninstall.sh --harness hermes` is a full
+> uninstall, not an agent-only removal. It also deletes the downloaded/exported
+> models (`~/.agent-harness-install/models`) and `~/.hermes`. Re-downloading
+> models is time and bandwidth intensive, so add `--keep-models` to retain them
+> (and `--keep-agent-data` to retain `~/.hermes`). With `--keep-models`, the
+> models and their parent `~/.agent-harness-install` directory remain; the
+> Inference Router, OVMS container and backend network are still removed.
 
 Removes the Inference Router container and, if this install started one, the
 OpenVINO Model Server container, the private backend network, the

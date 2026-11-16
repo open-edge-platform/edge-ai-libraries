@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: Text to Speech
+definition: >-
+  Generate a WAV recording from the default text with the Text to Speech service.
+type: audio
+operation: text_to_speech
+thumbnail: images/text-to-speech.png
+tags:
+  - Audio
+  - Speech Synthesis
+  - Retail
+required_models:
+  - SpeechT5
+variants:
+  - name: CPU
+    device: CPU
+defaults:
+  text: >-
+    Welcome to Intel Performance Studio. This audio pipeline demonstrates clear text-to-speech
+    synthesis, measures service latency, and produces a WAV file ready for playback on supported
+    edge hardware.
+  voice: Ryan

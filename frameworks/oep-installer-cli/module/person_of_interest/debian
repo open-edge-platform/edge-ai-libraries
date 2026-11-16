@@ -1,0 +1,87 @@
+
+configure_person_of_interest () {
+  workspace="$(ensure_project_path)/person-of-interest"
+  version="$(ensure_parse_value_option version --version=2c13aa5b0d0cfb349b96e6fd43dab834ee947fd3 "$@")"
+  repository="https://github.com/intel-retail/storewide-loss-prevention.git"
+  used_ports=(3000 8000 6379 8001 8189)
+}
+
+verify_person_of_interest () {
+  local v
+  for v in Camera_01.mp4 Camera_02.mp4; do
+    [ -e "$workspace/scenescape/sample_data/$v" ] || {
+      echo "Missing $v" >&2
+      return 1
+    }
+  done
+}
+
+debian_90_profile_person_of_interest () {
+  echo "docker_io edge_base git make curl"
+}
+
+debian_90_install_person_of_interest () {
+  configure_person_of_interest "$@"
+  if verify_person_of_interest && ! ensure_parse_reinstall "$@"; then
+    echo "Person of Interest is installed" >&2
+  else
+    ensure_disk_size 15000
+    ensure_ports_open install person_of_interest "${used_ports[@]}"
+
+    echo "@@STEP Cloning repository"
+    ensure_git_export "$workspace" "$version" "$repository" person-of-interest scenescape
+
+    echo "@@STEP Downloading videos"
+    cd "$workspace"/person-of-interest
+    sed -i 's|@curl |@curl -f |' Makefile
+    make download-sample-video
+
+    verify_person_of_interest
+  fi
+
+  local device="$(ensure_parse_device "$@")"
+  echo "$device" > "$workspace"/.input
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_person_of_interest () {
+  configure_person_of_interest "$@"
+  ensure_ports_open start person_of_interest "${used_ports[@]}"
+  ensure_container_namespace start person_of_interest $(ensure_container_parse_yaml "$workspace"/person-of-interest/docker-compose*.yml)
+
+  local device="$(ensure_parse_device "$@")"
+  [[ " ${*,,} " = *" --$device "* ]] && echo "$device" > "$workspace"/.input || device="$(< "$workspace"/.input)"
+
+  cd "$workspace"/person-of-interest
+  export HOST_IP=$(ensure_ip)
+  export NO_PROXY="$NO_PROXY,web.scenescape.intel.com,$HOST_IP" no_proxy="$no_proxy,web.scenescape.intel.com,$HOST_IP"
+  make init DEVICE=all-${device}.env
+  make up
+
+  echo "@@HIGHLIGHT UI: http://$HOST_IP:${used_ports[0]}"
+  if [ -e docker/.env ]; then
+    local supass="$(grep -m1 '^SUPASS=' docker/.env 2>/dev/null | cut -d= -f2-)"
+    echo "@@HIGHLIGHT UI Auth: admin/$supass"
+  fi
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_stop_person_of_interest () {
+  configure_person_of_interest "$@"
+  cd "$workspace"/person-of-interest && {
+    make down || true
+    make clean-all || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
+  } || true
+}
+
+debian_90_remove_person_of_interest () {
+  debian_90_stop_person_of_interest "$@"
+  ensure_rm "$workspace"
+}
+

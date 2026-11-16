@@ -34,7 +34,9 @@ install_system_inspection () {
 
     net_pass=$ok
     net_access="$(system_scan_check_network_access)"
-    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}"
+    [[ "$net_access" = *reachable* ]] || { 
+      [[ "$net_access" = *skewed* ]] && net_pass="${nok/MSG/Check DateTime}" || net_pass="${nok/MSG/Check Proxies}"
+    }
     echo -e "Network|$net_access|$net_pass"
     [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2
 
@@ -47,7 +49,7 @@ install_system_inspection () {
     echo -e "CPU|$cpuinst_info|$pass"
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass"
 
-    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' '); do
+    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ' || true); do
       pass=$ok
       accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")"
       if [ -n "$accel_info" ]; then
@@ -57,7 +59,7 @@ install_system_inspection () {
       fi
     done
 
-    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' '); do
+    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ' || true); do
       pass=$ok
       accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")"
       if [ -n "$accel_info" ]; then
@@ -97,7 +99,7 @@ system_scan_check_membank () {
       if (in_dev && size !~ /No Module Installed/ && size !~ /Unknown/ && size != "") {
         print size " | Locator: " loc " | Bank: " bank
       }
-    }')
+    }') || true
 
   local total_slots=$(echo "$dmi_out" | grep -c "^\s*Locator:" || true)
   local populated_count=${#installed_modules[@]}
@@ -141,24 +143,27 @@ system_scan_check_network_access () {
   ) url
 
   for url in "${check_urls[@]}"; do
-    curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { echo "$url by $(id -un)"; return 0; }
+    curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { 
+      [[ "$url" = https://* ]] && curl -k -fsSL --connect-timeout 10 $url > /dev/null && echo "Clock skewed" || echo "$url by $(id -un)"
+      return 0; 
+    }
   done
 
   echo "registry reachable"
 }
 
 system_scan_get_system_summary () {
-  local cpuinfo="$(grep -m1 "model name" /proc/cpuinfo | cut -f2 -d: | sed 's|^ ||g')"
-  local coreinfo="$(grep "processor" /proc/cpuinfo | wc -l) cores"
-  local meminfo="$(grep -m1 "MemTotal:" /proc/meminfo | cut -f2 -d: | tr -d ' ')"
+  local cpuinfo="$(grep -m1 "model name" /proc/cpuinfo | cut -f2 -d: | sed 's|^ ||g' || echo Unknown)"
+  local coreinfo="$(grep "processor" /proc/cpuinfo | wc -l || echo 1) cores"
+  local meminfo="$(grep -m1 "MemTotal:" /proc/meminfo | cut -f2 -d: | tr -d ' ' || echo 0)"
   [[ "$meminfo" != *kB ]] || meminfo="$(( ${meminfo%kB} / 1024 / 1024 ))GB"
   [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1024 ))GB"
   echo "$cpuinfo · $coreinfo · $meminfo RAM"
 }
 
 system_scan_check_docker () {
-  local docker_ver=$(docker version 2> /dev/null | awk '/Version:/{print$NF;exit}' || true)
-  local compose_ver=$(docker compose version 2> /dev/null | awk '{print$NF}' || true)
+  local docker_ver="$(docker version 2> /dev/null | awk '/Version:/{print$NF;exit}' || true)"
+  local compose_ver="$(docker compose version 2> /dev/null | awk '{print$NF}' || true)"
   [ -z "$compose_ver" ] || docker_ver="$docker_ver + Compose $compose_ver"
   echo "$docker_ver"
 }
@@ -183,7 +188,7 @@ system_scan_check_cpu_instructions () {
 system_scan_check_pci_device () {
   local deviceid=${1,,}
   local default_name="$2"
-  local lspci_out="$(lspci -v -n -d $deviceid)"
+  local lspci_out="$(lspci -v -n -d $deviceid || true)"
   local subsystem="$(echo "$lspci_out" | grep -m1 Subsystem: | cut -f2- -d: | sed 's|^ ||g' || true)"
   if [ -n "$subsystem" ]; then
     local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true)"

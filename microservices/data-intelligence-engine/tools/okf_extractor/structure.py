@@ -1,13 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Folder scan + size estimate + folder table-of-contents.
-
-Requirement d: the folder's organization is meaningful. We scan the tree, estimate
-each file's token size (so the Stage-1 driver can hand the agent a budget and let it
-self-batch), and render the subfolder hierarchy as a nested markdown TOC that
-bundle.py embeds into index.md. PDF-internal TOC is OUT OF SCOPE for v1.
-"""
 from __future__ import annotations
 
 import os
@@ -17,7 +10,7 @@ from pathlib import Path
 
 @dataclass
 class FileInfo:
-    rel_path: str          # posix, relative to the scan root (the source_files join key form)
+    rel_path: str          # posix, relative to the scan root
     abs_path: Path
     size_bytes: int
     approx_tokens: int
@@ -65,8 +58,7 @@ def _toc_insert(toc: dict, rel_path: str) -> None:
 
 
 def render_toc_markdown(tree: Tree) -> str:
-    """Subfolder hierarchy -> nested bullet list. Captures directory structure that
-    forms a natural table-of-contents (requirement d)."""
+    """Render the folder hierarchy as a nested markdown bullet list."""
     lines: list[str] = []
 
     def walk(node: dict, depth: int) -> None:

@@ -1,11 +1,11 @@
+{{/* SPDX-FileCopyrightText: (C) 2026 Intel Corporation */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.serviceMonitor.enabled -}}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: {{ include "metrics-manager.fullname" . }}
-  {{- with .Values.serviceMonitor.namespace }}
-  namespace: {{ . }}
-  {{- end }}
+  namespace: {{ .Values.serviceMonitor.namespace | default .Release.Namespace }}
   labels:
     {{- include "metrics-manager.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.labels }}
@@ -16,6 +16,9 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
   selector:
     matchLabels:
       {{- include "metrics-manager.selectorLabels" . | nindent 6 }}

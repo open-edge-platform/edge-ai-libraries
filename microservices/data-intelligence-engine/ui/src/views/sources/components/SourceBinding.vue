@@ -34,13 +34,13 @@
             ghost
             @click="handleServingChange"
           >
-            <template v-if="binding.serving_state === 'DEPRECATED'">
+            <template v-if="binding.serving_state === 'DEGRADE'">
               <PlayCircleOutlined />
-              {{ $t("console.resume") }}
+              SERVING
             </template>
             <template v-else>
               <PauseCircleOutlined />
-              {{ $t("console.stop") }}
+              DEGRADE
             </template>
           </a-button>
         </a-tooltip>
@@ -51,7 +51,7 @@
           :disabled="
             locked ||
             sourceData?.enabled === false ||
-            binding.effective_state === 'DEPRECATED'
+            binding.effective_state === 'DEGRADE'
           "
           @click="handleExtraction"
         >
@@ -176,7 +176,7 @@ const locked = computed(() =>
       [status.source_id, status.replaces].includes(props.binding.source_id),
   ),
 );
-const handleUpdateServing = async (state: "SERVING" | "DEPRECATED") => {
+const handleUpdateServing = async (state: "SERVING" | "DEGRADE") => {
   submitLoading.value = true;
   try {
     await requestSourceServingUpdate(
@@ -191,14 +191,14 @@ const handleUpdateServing = async (state: "SERVING" | "DEPRECATED") => {
   }
 };
 const handleServingChange = () => {
-  if (props.binding.serving_state === "DEPRECATED")
+  if (props.binding.serving_state === "DEGRADE")
     return handleUpdateServing("SERVING");
   Modal.confirm({
     title: t("console.stop"),
     content: t("console.stopServing", { name: sourceData.value?.name }),
     okText: t("common.confirm"),
     cancelText: t("common.cancel"),
-    onOk: () => handleUpdateServing("DEPRECATED"),
+    onOk: () => handleUpdateServing("DEGRADE"),
   });
 };
 const handleExtraction = async () => {

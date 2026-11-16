@@ -1,0 +1,117 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Brings up the encoder and decoder as independently deployable services,
+# plus sample sender/receiver clients, all on one bridge network -- a stand-in
+# for "deployed on separate machines" that's reachable from a single host.
+#
+# `--role encoder` / `--role decoder` (main.py) each run BOTH the legacy batch
+# TCP mode AND the REST service concurrently in one container; this fixture
+# exercises the REST side (via sender/receiver) while the TCP side runs
+# against the same mounted `sample_data/images` in the background.
+#
+# Usage:
+#   python tests/sample_data/fetch_sample_data.py     # generate sample images first
+#   docker compose -f tests/docker-compose.yml up --build --scale sender=2 --scale receiver=2
+#
+# Scaling sender/receiver demonstrates the pub/sub fan-out: every receiver
+# replica independently reads every frame produced by every sender replica on
+# the shared "demo-stream".
+#
+# Encoder/decoder ports are published to the host so tests/perf/benchmark.py
+# can be pointed at http://localhost:8001 / http://localhost:8002 as well.
+
+services:
+  encoder:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command:
+      - "--role"
+      - "encoder"
+      - "--host"
+      - "decoder"
+      - "--port"
+      - "5000"
+      - "--fps"
+      - "2"
+      - "--decoder-url"
+      - "http://decoder:8000"
+      - "--service-host"
+      - "0.0.0.0"
+      - "--service-port"
+      - "8000"
+      - "--skip-obj-detction" # sample images are synthetic; skip the YOLO model for a fast demo
+    ports:
+      - "8001:8000"
+    volumes:
+      - "./sample_data/images:/app/data:ro"
+    depends_on: [decoder]
+    networks: [star-net]
+
+  decoder:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command:
+      - "--role"
+      - "decoder"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "5000"
+      - "--service-host"
+      - "0.0.0.0"
+      - "--service-port"
+      - "8000"
+      - "--stream-buffer-size"
+      - "200"
+      - "--output"
+      - "/app/output"
+    ports:
+      - "8002:8000"
+    volumes:
+      - decoder-output:/app/output
+    networks: [star-net]
+
+  sender:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.client
+    command:
+      - "sample_clients/sender_client.py"
+      - "--encoder-url"
+      - "http://encoder:8000"
+      - "--stream-id"
+      - "demo-stream"
+      - "--input-dir"
+      - "sample_data/images"
+      - "--fps"
+      - "2"
+      - "--loop"
+    depends_on: [encoder, decoder]
+    networks: [star-net]
+
+  receiver:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.client
+    command:
+      - "sample_clients/receiver_client.py"
+      - "--decoder-url"
+      - "http://decoder:8000"
+      - "--stream-id"
+      - "demo-stream"
+      - "--output-dir"
+      - "/app/received"
+      - "--wait-ms"
+      - "5000"
+    depends_on: [encoder, decoder]
+    networks: [star-net]
+
+networks:
+  star-net:
+    driver: bridge
+
+volumes:
+  decoder-output:

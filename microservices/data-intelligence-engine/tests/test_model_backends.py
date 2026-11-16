@@ -14,18 +14,21 @@ import core.postprocessor as postprocessor
 
 
 @pytest.mark.parametrize(
-    ("legacy", "canonical"),
-    [
-        ("openvino", "llamaindex_openvino"),
-        ("openai", "openai_compatible"),
-        ("gme", "native_openvino_gme"),
-    ],
+    "legacy",
+    ["openvino", "openai", "gme", "llamaindex_openvino", "openvino_genai",
+     "openai_compatible", "native_openvino_gme", "openvino_vl"],
 )
-def test_legacy_model_backend_names_are_normalized(legacy, canonical):
-    assert config.normalize_model_backend(legacy) == canonical
+def test_legacy_model_backend_names_are_rejected(legacy):
+    with pytest.raises(ValueError, match="model backend must be one of"):
+        config.normalize_model_backend(legacy)
 
 
-def test_reranker_reports_vl_backend_and_media_defaults(monkeypatch):
+@pytest.mark.parametrize("backend", config.MODEL_BACKENDS)
+def test_canonical_model_backend_names_are_accepted(backend):
+    assert config.normalize_model_backend(backend.upper()) == backend
+
+
+def test_reranker_reports_media_defaults(monkeypatch):
     def no_workspace_models(model_type=None):
         del model_type
         return []
@@ -36,18 +39,17 @@ def test_reranker_reports_vl_backend_and_media_defaults(monkeypatch):
     reranker = models.model_options(models.RERANKER)
 
     assert embedding["backends"] == list(config.MODEL_BACKENDS)
-    assert reranker["backends"] == [*config.MODEL_BACKENDS, "openvino_vl"]
-    assert "openvino_vl" not in embedding["backends"]
+    assert reranker["backends"] == list(config.MODEL_BACKENDS)
     from schemas import ModelOptions
     response = ModelOptions(**reranker).model_dump()
-    expected_models = [] if config.RERANK_BACKEND in config.LOCAL_MODEL_BACKENDS else [{
+    expected_models = [] if config.RERANK_BACKEND == config.LOCAL_OPENVINO else [{
         "name": config.RERANK_MODEL_ID, "path": config.RERANK_API_BASE,
         "ready": True, "model_type": models.RERANKER,
     }]
     assert reranker == {
         "model_type": models.RERANKER,
         "backend": config.RERANK_BACKEND,
-        "backends": [*config.MODEL_BACKENDS, "openvino_vl"],
+        "backends": list(config.MODEL_BACKENDS),
         "device": config.RERANK_DEVICE,
         "model_id": config.RERANK_MODEL_ID,
         "media_model_id": config.MEDIA_RERANK_MODEL_ID,
@@ -58,7 +60,7 @@ def test_reranker_reports_vl_backend_and_media_defaults(monkeypatch):
         "models": expected_models,
     }
     assert response == {
-        **reranker, "models": [{**model, "backend": None} for model in expected_models],
+        **reranker, "models": [{**model, "media": False} for model in expected_models],
     }
 
 
@@ -68,7 +70,7 @@ def test_layout_reports_its_own_backend_list(monkeypatch):
     layout = models.model_options(models.LAYOUT)
 
     assert layout["backend"] == config.LAYOUT_BACKEND
-    assert layout["backends"] == list(config.LAYOUT_BACKENDS)
+    assert layout["backends"] == [config.LOCAL_OPENVINO]
     assert layout["model_id"] == config.LAYOUT_MODEL_ID
 
 
@@ -125,13 +127,13 @@ def test_vl_capabilities_require_recognized_ir_not_a_model_id(tmp_path, artifact
         "supported_roles": [],
     }
     if vl_ready:
-        expected["backend"] = "openvino_vl"
+        expected["media"] = True
 
     assert models._scan(str(tmp_path)) == [expected]
 
 
 def test_unknown_capability_type_does_not_invent_support():
-    assert models._capabilities("future", backend="openvino_vl") == {
+    assert models._capabilities("future", media=True) == {
         "supported_kinds": [], "supported_asset_types": [], "supported_roles": [],
     }
 
@@ -198,18 +200,9 @@ def test_a_gme_package_as_exported_for_the_python_runtime_is_ready(tmp_path, tok
     assert {entry["ready"] for entry in models._scan(str(tmp_path))} == {ready}
 
 
-@pytest.mark.parametrize(
-    ("configured", "canonical"),
-    [
-        ("openvino", "llamaindex_openvino"),
-        ("openai", "openai_compatible"),
-        ("gme", "native_openvino_gme"),
-        ("openvino_genai", "openvino_genai"),
-    ],
-)
-def test_embedding_dispatches_with_canonical_name(
-    monkeypatch, configured, canonical
-):
+@pytest.mark.parametrize("canonical", config.MODEL_BACKENDS)
+def test_embedding_dispatches_with_canonical_name(monkeypatch, canonical):
+    configured = canonical
     def capture_backend(backend, *configuration):
         del configuration
         return backend
@@ -222,13 +215,12 @@ def test_embedding_dispatches_with_canonical_name(
     ) == canonical
 
 
-def test_gme_provider_is_rejected_only_when_building_a_reranker():
-    assert "native_openvino_gme" in config.MODEL_BACKENDS
-
-    with pytest.raises(ValueError, match="no factory implementation"):
-        postprocessor._build(
-            "native_openvino_gme", 3, "gme", "gme", "CPU", ""
-        )
+@pytest.mark.parametrize("legacy", ["native_openvino_gme", "openvino_genai", "openai_compatible"])
+def test_legacy_backend_is_rejected_by_both_factories(legacy):
+    with pytest.raises(ValueError, match="model backend must be one of"):
+        embedding.build_embedding(backend=legacy, model_id="m")
+    with pytest.raises(ValueError, match="model backend must be one of"):
+        postprocessor.build_reranker(backend=legacy, model_id="m")
 
 
 def _gme_package(model_dir, shipped, default="int4"):
@@ -274,6 +266,7 @@ def test_gme_precision_must_be_unambiguous(tmp_path, shipped, error):
 def test_genai_options_are_parsed_from_the_model_directory(tmp_path, monkeypatch):
     from inference import ov_adapter
 
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     monkeypatch.setattr(ov_adapter, "OpenVINOGenAIEmbedding", lambda **options: options)
     model_dir = tmp_path / "dense"
     (model_dir / "1_Pooling").mkdir(parents=True)
@@ -282,7 +275,7 @@ def test_genai_options_are_parsed_from_the_model_directory(tmp_path, monkeypatch
     for name in ("openvino_model.xml", "openvino_model.bin"):
         (model_dir / name).touch()
 
-    options = embedding._build("openvino_genai", "dense", str(model_dir), "CPU", "")
+    options = embedding._build(config.LOCAL_OPENVINO, "dense", "CPU", "")
 
     assert (options["max_length"], options["pooling"]) == (256, "mean")
 

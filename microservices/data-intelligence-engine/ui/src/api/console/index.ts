@@ -3,19 +3,18 @@
 
 import request from "../request";
 import type { AxiosProgressEvent } from "axios";
-
-const engineApi = "";
+import type { Asset, IngestResult } from "./type";
 
 export const getHealth = () => {
   return request({
-    url: `${engineApi}/health`,
+    url: "/health",
     method: "get",
   });
 };
 
 export const getAssetLibraryList = (showLoading = true) => {
   return request({
-    url: `${engineApi}/v1/libraries`,
+    url: "/v1/libraries",
     method: "get",
     showLoading,
   });
@@ -23,7 +22,7 @@ export const getAssetLibraryList = (showLoading = true) => {
 
 export const requestAssetLibraryCreate = (data: Object) => {
   return request({
-    url: `${engineApi}/v1/libraries`,
+    url: "/v1/libraries",
     method: "post",
     data,
     showSuccessMsg: true,
@@ -33,16 +32,20 @@ export const requestAssetLibraryCreate = (data: Object) => {
 
 export const requestAssetLibraryDelete = (name: string) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}`,
+    url: `/v1/libraries/${name}`,
     method: "delete",
     showSuccessMsg: true,
     successMsg: "console.saved",
   });
 };
 
-export const getAssetList = (name: string, params: Object, showLoading = false) => {
+export const getAssetList = (
+  name: string,
+  params: Object,
+  showLoading = false,
+) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/assets`,
+    url: `/v1/libraries/${name}/assets`,
     method: "get",
     params,
     showLoading,
@@ -51,7 +54,7 @@ export const getAssetList = (name: string, params: Object, showLoading = false) 
 
 export const requestAssetDelete = (name: string, data: Object) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/assets`,
+    url: `/v1/libraries/${name}/assets`,
     method: "delete",
     data,
     showSuccessMsg: true,
@@ -66,7 +69,7 @@ export const requestAssetUpload = (
   onUploadProgress: (event: AxiosProgressEvent) => void,
 ) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/uploads/${path}`,
+    url: `/v1/libraries/${name}/uploads/${path}`,
     method: "put",
     data,
     headers: { "Content-Type": "application/octet-stream" },
@@ -74,17 +77,32 @@ export const requestAssetUpload = (
   });
 };
 
-export const requestAssetCreate = (name: string, data: Object) => {
+export const requestAssetCreate = (
+  name: string,
+  data: Object,
+): Promise<IngestResult> => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/assets`,
+    url: `/v1/libraries/${name}/assets`,
     method: "post",
     data,
   });
 };
 
+export const getAssetMaterialization = (
+  name: string,
+  ids: string[],
+): Promise<Record<string, Asset["materialization"]>> => {
+  return request({
+    url: `/v1/libraries/${name}/assets/materialization`,
+    method: "get",
+    params: { asset_ids: ids },
+    paramsSerializer: { indexes: null },
+  });
+};
+
 export const requestAssetPoolCreate = (name: string, data: Object) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/asset_pools`,
+    url: `/v1/libraries/${name}/asset_pools`,
     method: "post",
     data,
     showSuccessMsg: true,
@@ -94,7 +112,7 @@ export const requestAssetPoolCreate = (name: string, data: Object) => {
 
 export const requestAssetPoolDelete = (name: string, id: string) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/asset_pools/${id}`,
+    url: `/v1/libraries/${name}/asset_pools/${id}`,
     method: "delete",
     showSuccessMsg: true,
     successMsg: "console.saved",
@@ -107,7 +125,7 @@ export const requestAssetPoolSourcesUpdate = (
   data: Object,
 ) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/asset_pools/${id}/sources`,
+    url: `/v1/libraries/${name}/asset_pools/${id}/sources`,
     method: "put",
     data,
     showSuccessMsg: true,
@@ -121,7 +139,7 @@ export const requestAssetPoolAssetsCreate = (
   data: Object,
 ) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/asset_pools/${id}/assets`,
+    url: `/v1/libraries/${name}/asset_pools/${id}/assets`,
     method: "post",
     data,
     showSuccessMsg: true,
@@ -136,7 +154,7 @@ export const requestSourceServingUpdate = (
   data: Object,
 ) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/asset_pools/${poolId}/sources/${sourceId}`,
+    url: `/v1/libraries/${name}/asset_pools/${poolId}/sources/${sourceId}`,
     method: "patch",
     data,
     showSuccessMsg: true,
@@ -150,7 +168,7 @@ export const requestExtractionCreate = (
   data: Object,
 ) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/asset_pools/${poolId}/extractions`,
+    url: `/v1/libraries/${name}/asset_pools/${poolId}/extractions`,
     method: "post",
     data,
     showSuccessMsg: true,
@@ -160,7 +178,7 @@ export const requestExtractionCreate = (
 
 export const getAssetPoolGraph = (name: string, id: string) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/asset_pools/${id}/graph`,
+    url: `/v1/libraries/${name}/asset_pools/${id}/graph`,
     method: "get",
     showLoading: true,
   });
@@ -168,7 +186,7 @@ export const getAssetPoolGraph = (name: string, id: string) => {
 
 export const requestSourceCreate = (name: string, data: Object) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/sources`,
+    url: `/v1/libraries/${name}/sources`,
     method: "post",
     data,
     showSuccessMsg: true,
@@ -178,7 +196,7 @@ export const requestSourceCreate = (name: string, data: Object) => {
 
 export const requestSourceDelete = (name: string, id: string) => {
   return request({
-    url: `${engineApi}/v1/libraries/${name}/sources/${id}`,
+    url: `/v1/libraries/${name}/sources/${id}`,
     method: "delete",
     showSuccessMsg: true,
     successMsg: "console.saved",
@@ -187,7 +205,7 @@ export const requestSourceDelete = (name: string, id: string) => {
 
 export const getDatabaseList = () => {
   return request({
-    url: `${engineApi}/v1/databases`,
+    url: "/v1/databases",
     method: "get",
     showLoading: true,
   });
@@ -195,7 +213,7 @@ export const getDatabaseList = () => {
 
 export const getDatabaseBackendList = () => {
   return request({
-    url: `${engineApi}/v1/databases/backends`,
+    url: "/v1/databases/backends",
     method: "get",
     showLoading: true,
   });
@@ -203,7 +221,7 @@ export const getDatabaseBackendList = () => {
 
 export const requestDatabaseCreate = (data: Object) => {
   return request({
-    url: `${engineApi}/v1/databases`,
+    url: "/v1/databases",
     method: "post",
     data,
     showSuccessMsg: true,
@@ -213,7 +231,7 @@ export const requestDatabaseCreate = (data: Object) => {
 
 export const requestDatabaseUpdate = (id: string, data: Object) => {
   return request({
-    url: `${engineApi}/v1/databases/${id}`,
+    url: `/v1/databases/${id}`,
     method: "patch",
     data,
     showSuccessMsg: true,
@@ -223,7 +241,7 @@ export const requestDatabaseUpdate = (id: string, data: Object) => {
 
 export const requestDatabaseDelete = (id: string) => {
   return request({
-    url: `${engineApi}/v1/databases/${id}`,
+    url: `/v1/databases/${id}`,
     method: "delete",
     showSuccessMsg: true,
     successMsg: "console.saved",
@@ -232,14 +250,21 @@ export const requestDatabaseDelete = (id: string) => {
 
 export const requestDatabaseCheck = (id: string) => {
   return request({
-    url: `${engineApi}/v1/databases/${id}/check`,
+    url: `/v1/databases/${id}/check`,
     method: "post",
+  });
+};
+
+export const getModelDevices = (): Promise<string[]> => {
+  return request({
+    url: "/v1/models/devices",
+    method: "get",
   });
 };
 
 export const getModelList = () => {
   return request({
-    url: `${engineApi}/v1/models`,
+    url: "/v1/models",
     method: "get",
     showLoading: true,
   });
@@ -247,11 +272,11 @@ export const getModelList = () => {
 
 export const requestRetrieval = (data: Object, signal?: AbortSignal) => {
   return request({
-    url: `${engineApi}/v1/retrieve`,
+    url: "/v1/retrieve",
     method: "post",
     data,
     signal,
   });
 };
 
-export const blobUrl = `${engineApi}/v1/blob`;
+export const blobUrl = "/v1/blob";

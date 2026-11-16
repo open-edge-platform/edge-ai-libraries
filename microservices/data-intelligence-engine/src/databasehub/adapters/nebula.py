@@ -1,18 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""NebulaGraph adapter: graph spaces through one connection.
-
-Ported from edgecraftrag/components/indexer.py:GraphIndexer's Nebula storage
-path. The graph backend is llama-index's ``NebulaPropertyGraphStore``, which the
-graph-search backend (core/graph_search.py) already reads from through the
-PropertyGraphStore primitives ``get_triplets`` / ``get`` / ``get_all_nodes``.
-Writes are the store's ``upsert_nodes`` / ``upsert_relations``, fed with the
-``{id, label, properties}`` vertex dicts and ``{source, label, target,
-properties}`` edge dicts the ``GraphAdapter`` contract carries.
-
-One adapter serves every space its connection can reach, building and caching a
-store per space (like MilvusAdapter caches a vector store per collection).
-"""
 
 import json
 import time
@@ -45,29 +32,18 @@ def _schema_columns(schema: str) -> Dict[str, str]:
     return columns
 
 
-# The store keeps every node's properties in one fixed-schema tag (`Props__`, and
-# the same columns on `Relation__`), created from this schema. Nebula is
-# schema-full: a property that is not a column fails the whole INSERT.
+# Nebula is schema-full: a property that is not a `Props__` column fails the whole INSERT.
 _PROPS_COLUMNS = _schema_columns(DEFAULT_PROPS_SCHEMA)
 _PACKED_PROPERTY = "_node_content"
 _DELETE_BATCH = 200
 
 
 def _vid_literal(vid: str) -> str:
-    """A vertex id as an nGQL string literal."""
     return '"' + vid.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _fit_properties(properties: Mapping[str, Any]) -> Dict[str, Any]:
-    """Map arbitrary properties onto the store's fixed columns.
-
-    The `GraphAdapter` contract carries free-form properties: the structural
-    extractor writes `origin`, `block_count`, `caption` and so on. Columns are
-    kept (cast to the column's type); everything else is packed as JSON into
-    `_node_content`, which is where OKF concepts already keep theirs and where
-    a reader looks for a node's content. JSON already there is merged into, its
-    own keys winning, so an OKF concept reads back exactly as written.
-    """
+    """Map properties onto the fixed columns; the rest is packed as JSON into `_node_content`."""
     fitted: Dict[str, Any] = {}
     extra: Dict[str, Any] = {}
     for key, value in properties.items():
@@ -106,10 +82,7 @@ class NebulaAdapter(GraphAdapter):
         self._options = dict(options)
         self._url = str(self._options["url"])
         self._username = str(self._options.get("username") or _DEFAULT_USERNAME)
-        # Optional: Nebula ships with authorization disabled, where any password
-        # is accepted. nebula3's SessionPool still refuses an empty one, so the
-        # (never empty) username stands in; a server that enforces authorization
-        # rejects it, and a real password must be passed there.
+        # nebula3 refuses an empty password even with auth disabled, so default to the username.
         self._password = str(self._options.get("password") or self._username)
         self._host, self._port = self._parse_url(self._url)
         self._default_space = str(self._options.get("space") or "")
@@ -217,11 +190,7 @@ class NebulaAdapter(GraphAdapter):
         return collection.space or self._default_space
 
     def existing_store(self, space: str) -> NebulaPropertyGraphStore:
-        """Open a persisted space for retrieval; never create a missing space.
-
-        The library constructor initializes its schema, but no concept content
-        is inserted or rebuilt here. Check even cached handles for deleted spaces.
-        """
+        """Open a persisted space for retrieval; never create a missing space."""
         space = space or self._default_space
         config = Config()
         config.timeout = engine_config.NEBULA_TIMEOUT_MS
@@ -279,8 +248,7 @@ class NebulaAdapter(GraphAdapter):
                 write()
                 return
             except Exception as error:
-                # LlamaIndex includes the statement and parameters in args too;
-                # classify the backend error, not text from the graph payload.
+                # LlamaIndex puts the statement in args too; classify only the backend error.
                 message = str(error)
                 if len(error.args) > 1 and error.args[0] == "NebulaGraph query failed:":
                     message = str(error.args[1])
@@ -330,8 +298,7 @@ class NebulaAdapter(GraphAdapter):
         self._retry_schema_write(lambda: self._upsert_relations(store, relations))
 
     def delete_vertices(self, collection: GraphCollection, vertex_ids: List[str]) -> int:
-        """`DELETE VERTEX ... WITH EDGE`, in batches. A missing space has nothing
-        to delete, so it is not created for the occasion."""
+        """`DELETE VERTEX ... WITH EDGE` in batches; a missing space is not created."""
         ids = [str(vertex_id) for vertex_id in dict.fromkeys(vertex_ids)]
         if not ids:
             return 0
@@ -351,9 +318,7 @@ class NebulaAdapter(GraphAdapter):
         parameters: Mapping[str, Any],
     ) -> List[Dict[str, Any]]:
         store = self.store(self._space_of(collection))
-        # structured_query returns the backend's raw result (a nebula3 ResultSet),
-        # not a list of dicts; this method is currently unused by graph search
-        # (which reads through get_triplets/get/get_all_nodes instead).
+        # Returns the raw nebula3 ResultSet, not a list of dicts.
         return store.structured_query(statement, param_map=dict(parameters or {}))
 
     def clear(self, collection: GraphCollection) -> None:

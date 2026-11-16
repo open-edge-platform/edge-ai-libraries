@@ -139,7 +139,7 @@ fi
 # starts and only fails later. Not for a remote embedding service, which
 # needs no local model. Checked before the (long) image build.
 if [[ "$prepare" == false && -z "$(ls -A "$workspace/models")" \
-      && "$(env_value ENGINE_DOC_EMBEDDING_BACKEND)" != openai_compatible ]]; then
+      && "$(env_value ENGINE_DOC_EMBEDDING_BACKEND)" != remote_openai_compatible ]]; then
   log "$workspace/models is empty; the default models ($models) will be prepared"
   prepare=true
 fi
@@ -203,12 +203,7 @@ model_id="$(jq -r '.model_id // empty' <<<"$document_embedding")"
 model_path="$(jq -r '.model_path // empty' <<<"$document_embedding")"
 [[ -n "$backend" && -n "$model_id" ]] \
   || die "the engine did not report a document embedding backend and model in /v1/models/embedding."
-if [[ "$backend" != openai_compatible ]]; then
-  if [[ "$model_id" == *gme* && "$backend" != native_openvino_gme ]]; then
-    die "document embedding model $model_id needs ENGINE_DOC_EMBEDDING_BACKEND=native_openvino_gme, but the engine runs $backend.
-Unset the variable in this shell (unset ENGINE_DOC_EMBEDDING_BACKEND) or fix it in deployment/docker/.env, then rerun this script.
-Sources created meanwhile keep $backend; create them again after the restart."
-  fi
+if [[ "$backend" != remote_openai_compatible ]]; then
   ready="$(jq -r --arg id "$model_id" --arg path "$model_path" '
     any(.models[]?; .ready == true and
       (if $path != "" then .path == $path else .name == $id or .path == $id end))

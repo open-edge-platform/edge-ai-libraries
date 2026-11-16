@@ -1,38 +1,12 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""A document's content, normalized: an ordered stream of typed blocks.
-
-This is the engine's own schema, not any extractor's. Docling, unstructured, and
-pdfplumber each describe a page differently; an extractor adapter maps into
-`ContentBlock` so that swapping extractors cannot silently change what is
-already persisted.
-
-The stream is the **asset's** durable content, written once at ingest. Chunking
-it into nodes is the **projection's** job and happens at materialize time, since
-how big a chunk should be depends on the embedding model, not on the document.
-That split is why a library with two vector sources at different chunk sizes
-runs layout extraction once rather than twice.
-
-A figure carries its caption as a field, not as a block of its own: there is one
-node per figure, and the caption stays available for display and citation. What
-is *around* the figure is not stored at all -- `surrounding_text` derives it from
-the neighbouring blocks on demand, because it is already in the stream and a
-second copy could only drift from the first.
-
-A standalone media file is a stream of one binary block with no text. There is
-no separate class for it and no modality flag on the asset: an asset is a file,
-and the difference between a report and a recording is which `kind` its blocks
-have.
-"""
 
 import mimetypes
 import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-#: A `media_key` that starts with this names a local file rather than a blob in
-#: the content store. A standalone media file *is* the asset, so its block points
-#: at the file it came from instead of at a second copy of its bytes.
+#: A `media_key` with this prefix names a local file rather than a content-store blob.
 FILE_SCHEME = "file://"
 
 
@@ -56,8 +30,7 @@ TABLE = "table"
 AUDIO = "audio"
 VIDEO = "video"
 
-#: Blocks whose payload is bytes in the object store rather than text in the
-#: record. A standalone media file is a stream of exactly one of these.
+#: Blocks whose payload is bytes in the object store rather than text in the record.
 BINARY_KINDS = frozenset({IMAGE, AUDIO, VIDEO})
 
 #: The family of a file that is not media: what a text source takes.
@@ -65,13 +38,7 @@ DOCUMENT = "document"
 
 
 def asset_family(selector: str) -> str:
-    """The family a selector names: ``image``, ``video``, ``audio`` or ``document``.
-
-    `selector` is a family, an extension (``"png"``) or a MIME type
-    (``"image/png"``). A source's `asset_types` and an asset's `asset_kind` are
-    both classified here, so the two cannot disagree about a file; ingest asks
-    the same (`core.extractor.media_kind`), so whatever can be ingested has one.
-    """
+    """The family (image/video/audio/document) of a family name, extension or MIME type."""
     selector = selector.strip().lower().lstrip('.')
     if selector in BINARY_KINDS:
         return selector
@@ -79,9 +46,7 @@ def asset_family(selector: str) -> str:
     family = (mime or '').split('/')[0]
     return family if family in BINARY_KINDS else DOCUMENT
 
-# `metadata.role`: where a block sits in the media-understanding scheme, and so
-# how it is processed. Set by the system, never by a user; `kind` stays the
-# content type. L0, the original media, carries no level prefix; derived levels do.
+# `metadata.role`: how a block is processed, set by the system; `kind` stays the content type.
 ROLE_IMAGE = "image"                  # a standalone image file
 ROLE_DOC_IMAGE = "doc_image"          # a figure extracted from a document (PDF page)
 ROLE_SHORT_VIDEO = "short_video"      # a clip short enough to embed whole
@@ -91,15 +56,14 @@ ROLE_L1_SEGMENT = "l1_segment"        # a time range cut from a long video
 ROLE_L2_CAPTION = "l2_caption"        # model-written description of media
 ROLE_L2_TRANSCRIPT = "l2_transcript"  # speech recognized from audio (ASR)
 ROLE_L3_WIKI = "l3_wiki"              # structured knowledge over a whole video
-# Produced from another block rather than read from the file: only multimodal
-# sources take these.
+# Produced from another block; only multimodal sources take these.
 MM_DERIVED_ROLES = frozenset(
     {ROLE_L1_SEGMENT, ROLE_L2_CAPTION, ROLE_L2_TRANSCRIPT, ROLE_L3_WIKI}
 )
 MM_ROLES = frozenset(
     {ROLE_IMAGE, ROLE_DOC_IMAGE, ROLE_SHORT_VIDEO, ROLE_LONG_VIDEO, ROLE_AUDIO}
 ) | MM_DERIVED_ROLES
-# The kind each role's blocks have, so a model's roles say which kinds it takes.
+# The block kind for each role.
 ROLE_to_KIND = {
     ROLE_IMAGE: IMAGE,
     ROLE_DOC_IMAGE: IMAGE,
@@ -118,10 +82,7 @@ def role_of(block: "ContentBlock") -> str:
     return str((block.metadata or {}).get("role") or "")
 
 
-#: Block metadata a node may carry. Metadata is otherwise free-form, and a
-#: projection writes what it carries into the vector store, so an unbounded
-#: passthrough would let any ingest path invent columns in a shared collection.
-#: Adding a key here is the deliberate act of making it part of the contract.
+#: Whitelisted block metadata a node may carry; each key becomes a vector-store column.
 BLOCK_METADATA_KEYS = (
     "role",
     "duration_s",
@@ -130,9 +91,6 @@ BLOCK_METADATA_KEYS = (
     "revision",
 )
 
-# Layout is for citing and for ordering, never for embedding. A node that let
-# these into its embedded text would have its vector polluted with coordinates,
-# so a projection excludes them (`excluded_embed_metadata_keys`).
 # Loader metadata that describes one page rather than the document it came from.
 _PER_PAGE_KEYS = frozenset({"page_label", "page", "page_number"})
 
@@ -154,11 +112,7 @@ def _page_of(metadata: Mapping[str, Any], fallback: int) -> int:
 
 
 def _window(texts, budget: int, keep_tail: bool) -> str:
-    """Up to `budget` characters drawn from `texts`, cut at a word boundary.
-
-    `keep_tail` takes the *end* of the text (what came just before a figure);
-    otherwise the beginning (what comes just after it).
-    """
+    """Up to `budget` characters from `texts`, cut at a word boundary; `keep_tail` keeps the end."""
     collected: List[str] = []
     remaining = budget
     for text in texts:
@@ -198,17 +152,14 @@ class ContentBlock:
     """One piece of an asset: text, a table, or media (image, audio, video)."""
 
     block_id: str
-    # text | table | image | audio | video. How it is processed is `metadata.role`.
+    # text | table | image | audio | video
     kind: str = TEXT
     # text | table, including derived text (captions, transcripts).
     text: str = ""
-    # image | audio | video (`BINARY_KINDS`): where the bytes live -- a blob key
-    # for an extracted figure, a `file://` URI for a standalone media file --
-    # and a caption, kept for display and embedded by text sources.
+    # Binary kinds: a blob key, or a `file://` URI for a standalone media file.
     media_key: str = ""
     caption: str = ""
-    # The block this one is the caption of, when a layout model reports them
-    # separately. Intra-document relations need no graph.
+    # The block this one is the caption of, when a layout model reports them separately.
     caption_for: str = ""
     page: int = 0
     bbox: Tuple[float, ...] = ()
@@ -229,10 +180,6 @@ class ContentBlock:
             layout["media_key"] = self.media_key
         if self.caption_for:
             layout["caption_for"] = self.caption_for
-        # A media block's own metadata is how a projection tells a clip from a
-        # still and a processed block from a placeholder, and how a retrieved
-        # node is located back in the source. Whitelisted, because everything
-        # here becomes a column in whichever collection the node lands in.
         for key in BLOCK_METADATA_KEYS:
             value = self.metadata.get(key)
             if value not in (None, ""):
@@ -271,12 +218,7 @@ class ContentBlock:
 
 @dataclass
 class ContentStream:
-    """A document's blocks in reading order, plus its document-level metadata.
-
-    `metadata` is what the loader stamped on the document -- `file_path`,
-    `file_name`, `asset_id`. It has to survive, because chunk deletion addresses
-    records by `file_path` / `file_name` and sync addresses them by `asset_id`.
-    """
+    """A document's blocks in reading order, plus document-level metadata (`file_path`, `file_name`, `asset_id`)."""
 
     asset_id: str
     blocks: List[ContentBlock] = field(default_factory=list)
@@ -303,17 +245,7 @@ class ContentStream:
         ]
 
     def surrounding_text(self, position: int, budget: int = 400) -> str:
-        """The text either side of the block at `position` in reading order.
-
-        A figure's neighbours are what a document says *about* it, and they are
-        usually the only searchable signal it has -- a caption may be "Figure 3"
-        or missing altogether. Derived from the stream rather than stored on the
-        block, because it is already in the stream: writing it down as well
-        would duplicate the text and let the copy drift from the original.
-
-        `budget` is a character count per side, trimmed at a word boundary so a
-        window never ends mid-word.
-        """
+        """The text either side of the block at `position`; `budget` is characters per side."""
         blocks = self.ordered()
         before = _window(
             (block.text for block in reversed(blocks[:position]) if block.text),
@@ -327,8 +259,6 @@ class ContentStream:
         )
         return "\n\n".join(part for part in (before, after) if part)
 
-    # --- construction ---------------------------------------------------------
-
     @classmethod
     def from_documents(
         cls,
@@ -336,14 +266,7 @@ class ContentStream:
         asset_id: str,
         metadata: Optional[Mapping[str, Any]] = None,
     ) -> "ContentStream":
-        """One stream for one file, however many pieces the loader split it into.
-
-        A loader hands back a document per page or per section; those are parts
-        of one asset, not assets of their own, so they become blocks in reading
-        order. This is the seam a real layout extractor replaces -- it produces
-        the same stream, with figures and bounding boxes instead of one block per
-        piece.
-        """
+        """One stream for one file: each loader document (page/section) becomes a text block."""
         blocks = []
         for order, document in enumerate(documents):
             document_metadata = dict(getattr(document, "metadata", None) or {})
@@ -377,8 +300,6 @@ class ContentStream:
             or id(document)
         )
         return cls.from_documents([document], asset_id)
-
-    # --- persistence ----------------------------------------------------------
 
     def to_record(self) -> dict:
         return {
@@ -418,10 +339,7 @@ class ContentStream:
 
 
 def media_block(stream: ContentStream) -> Optional[ContentBlock]:
-    """The block that carries the media itself, if this stream is a media file.
-
-    A document's figures have a role too, but they do not make it a media file.
-    """
+    """The block carrying the media itself, if this stream is a standalone media file."""
     for block in stream.ordered():
         if role_of(block) in (ROLE_IMAGE, ROLE_SHORT_VIDEO, ROLE_LONG_VIDEO, ROLE_AUDIO):
             return block

@@ -574,6 +574,7 @@ class ToolCompressor:
         *,
         record: bool = True,
         record_reminder: bool = False,
+        replace_same_offset: bool = True,
     ) -> tuple[list[dict], int]:
         """Persist this turn's carrier and re-splice all stored carriers at their
         offsets. Returns (messages, carrier_count). Offsets stay valid because
@@ -582,13 +583,21 @@ class ToolCompressor:
         `record=False` (delta turns with no NEW tools): don't append a carrier,
         only replay stored ones. `record_reminder=True` (replay-reminder user
         turns): also anchor a constant reminder at offset=len, replayed like a
-        carrier. Both streams replay regardless of this turn's record flags."""
+        carrier. Both streams replay regardless of this turn's record flags.
+
+        `replace_same_offset`: a re-sent request at the same offset (e.g. a
+        client retry) replaces the last carrier. Correct for `user_inline`,
+        whose carrier is the full filtered set; must be False for
+        `user_inline_delta`, whose carrier holds only tools NEW to the union —
+        replacing it would drop the earlier delta's tools from the prompt for
+        good, since they are already in the union and never re-sent."""
         key = self._conversation_key(messages)
         offset = len(messages)
         with self._inline_lock:
             entries = list(self._inline.get(key, []))
             if record:
-                if entries and entries[-1][0] == offset:
+                if (replace_same_offset and entries
+                        and entries[-1][0] == offset):
                     entries[-1] = (offset, carrier_content)  # same turn → replace
                 else:
                     entries.append((offset, carrier_content))
@@ -878,6 +887,9 @@ class ToolCompressor:
                     self._record_and_reconstruct_inline(
                         ctx.messages, carrier_content, record=bool(delta_tools),
                         record_reminder=record_reminder,
+                        # Delta carriers must append: replacing one at a
+                        # re-sent offset would lose its tools (see docstring).
+                        replace_same_offset=False,
                     )
                 )
             result_messages = self._inject_inline_delta_hints(

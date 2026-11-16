@@ -1,50 +1,90 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
+import httpx
 
 from explore import GstInspector
 
+_REQUEST = httpx.Request("GET", "http://dlsps/elements")
 
+
+def _elements_response(elements: list[dict]) -> httpx.Response:
+    return httpx.Response(200, json=elements, request=_REQUEST)
+
+
+@patch("explore.ELEMENTS_RETRY_DELAY_S", 0)
 class TestGstInspector(unittest.TestCase):
     def setUp(self):
-        # Reset the singleton instance before each test
         GstInspector._instance = None
 
     def tearDown(self):
-        # Reset the singleton instance after each test
         GstInspector._instance = None
 
-    @patch("explore.subprocess.run")
-    def test_singleton(self, mock_run):
-        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+    @patch("explore.httpx.get")
+    def test_singleton(self, mock_get):
+        mock_get.return_value = _elements_response([])
         a = GstInspector()
         b = GstInspector()
         self.assertIs(a, b)
 
-    @patch("explore.subprocess.run")
-    def test_get_elements(self, mock_run):
-        # Simulate gst-inspect-1.0 output
-        mock_run.return_value = MagicMock(
-            stdout=(
-                "va:  vaav1dec: VA-API AV1 Decoder in Intel(R) Gen Graphics\n"
-                "va:  vaav1enc: VA-API AV1 Encoder in Intel(R) Gen Graphics\n"
-                "va:  vacompositor: VA-API Video Compositor in Intel(R) Gen Graphics\n"
-            ),
-            stderr="",
-            returncode=0,
+    @patch("explore.httpx.get")
+    def test_elements_come_from_dlsps2(self, mock_get):
+        mock_get.return_value = _elements_response(
+            [
+                {"name": "vah264dec", "plugin": "va", "description": "VA H.264"},
+                {"name": "gvadetect", "plugin": "gva", "description": "Detect"},
+            ]
         )
-        inspector = GstInspector()
-        elements = inspector.get_elements()
-        expected = [
-            ("va", "vaav1dec", "VA-API AV1 Decoder in Intel(R) Gen Graphics"),
-            ("va", "vaav1enc", "VA-API AV1 Encoder in Intel(R) Gen Graphics"),
-            ("va", "vacompositor", "VA-API Video Compositor in Intel(R) Gen Graphics"),
-        ]
-        # Check that every expected element is in the returned elements
-        for exp in expected:
-            self.assertIn(exp, elements)
 
-        # Also check that the number of elements matches
-        self.assertEqual(len(elements), len(expected))
+        elements = GstInspector().get_elements()
+
+        self.assertEqual(
+            elements,
+            [("gva", "gvadetect", "Detect"), ("va", "vah264dec", "VA H.264")],
+        )
+        self.assertTrue(mock_get.call_args.args[0].endswith("/elements"))
+        self.assertEqual(mock_get.call_count, 1)
+
+    @patch("explore.httpx.get")
+    def test_retries_until_the_server_answers(self, mock_get):
+        mock_get.side_effect = [
+            httpx.ConnectError("refused"),
+            _elements_response([]),
+            _elements_response(
+                [{"name": "vah264dec", "plugin": "va", "description": "VA H.264"}]
+            ),
+        ]
+
+        with self.assertLogs("GstInspector", level="ERROR"):
+            elements = GstInspector().get_elements()
+
+        self.assertEqual(elements, [("va", "vah264dec", "VA H.264")])
+        self.assertEqual(mock_get.call_count, 3)
+
+    @patch("explore.httpx.get")
+    def test_unreachable_server_leaves_list_empty_and_reads_again(self, mock_get):
+        mock_get.side_effect = httpx.ConnectError("refused")
+
+        with self.assertLogs("GstInspector", level="ERROR") as cm:
+            inspector = GstInspector()
+            self.assertEqual(inspector.get_elements(), [])
+
+        self.assertTrue(any("No GStreamer elements" in m for m in cm.output))
+        attempts = mock_get.call_count
+
+        mock_get.side_effect = None
+        mock_get.return_value = _elements_response(
+            [{"name": "gvadetect", "plugin": "gva", "description": "Detect"}]
+        )
+        self.assertEqual(inspector.get_elements(), [("gva", "gvadetect", "Detect")])
+        self.assertEqual(mock_get.call_count, attempts + 1)
+
+    @patch("explore.httpx.get")
+    def test_malformed_response_counts_as_no_elements(self, mock_get):
+        mock_get.return_value = _elements_response([{"name": "x"}])
+
+        with self.assertLogs("GstInspector", level="ERROR"):
+            self.assertEqual(GstInspector().get_elements(), [])
 
 
 if __name__ == "__main__":

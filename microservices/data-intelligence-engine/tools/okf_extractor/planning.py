@@ -1,12 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 1: exhaustive, bounded corpus review -> task-specific instructions.
-
-Every source character is included in a review request. Reviews are hierarchically
-reduced when needed; neither sampling the first files nor truncating file tails is
-allowed. The final artifact has the same instructions section as config.yaml.
-"""
+"""Stage 1: exhaustive corpus review -> task-specific extraction instructions."""
 from __future__ import annotations
 
 import json
@@ -70,10 +65,8 @@ def _answer(
     cfg: Config, client: LLMClient, system: str, body: str, max_tokens: int,
     *, response_budgets: dict[str, int] | None = None,
 ) -> str:
-    """Retry this input intact and remember successful limits per task/phase."""
+    """Retry truncated answers with a larger limit and remember successful limits per phase."""
     messages = _messages(system, body)
-    # Include all JSON escaping, system instructions, role framing and output
-    # headroom, not just the raw source/review character count.
     available = int(cfg.llm["context_window"]) - approx_tokens(
         messages, float(cfg.batch["chars_per_token"]),
     ) - 256
@@ -85,8 +78,6 @@ def _answer(
         raise ValueError("Instruction planning request exceeds the configured context window")
     phase = "source review" if system == _REVIEW else "instruction synthesis" if system == _PLAN else "review reduction"
     learned = response_budgets.get(phase, initial) if response_budgets is not None else initial
-    # A larger earlier group may have needed more output. Reuse that allowance,
-    # but never exceed this request's current context headroom or response cap.
     limit = min(max(initial, learned), ceiling, available)
     attempts = 0
     while True:
@@ -127,7 +118,7 @@ def _pack(notes: list[str], limit: int) -> list[list[str]]:
     groups: list[list[str]] = []
     current: list[str] = []
     for note in notes:
-        # Oversized model output is split, never silently truncated.
+        # Oversized notes are split, never truncated.
         start = 0
         while start < len(note):
             end = min(len(note), start + limit)
@@ -158,8 +149,6 @@ def plan_instructions(
     token_budget = min(int(cfg.planning.get("chunk_tokens", 12000)), cfg.read_input_budget())
     summary_tokens = int(cfg.planning.get("summary_tokens", 1500))
     output_tokens = int(cfg.planning.get("max_tokens", cfg.llm.get("max_tokens", 4096)))
-    # Budget against serialized messages for every planning call. The lower
-    # chunk limit controls latency; the context limit controls model safety.
     response_tokens = max(
         summary_tokens, output_tokens,
         int(cfg.planning.get("max_response_tokens", DEFAULT_MAX_RESPONSE_TOKENS)),
@@ -168,9 +157,7 @@ def plan_instructions(
     char_budget = int(input_tokens * cpt)
     if char_budget < 256:
         raise ValueError("Instruction planning needs a larger input/context budget")
-    # Per-task, phase-specific state: one group proving that 3000 tokens are
-    # needed must not cause every later group to retry from 1500 again. Never
-    # mutate Config or share this learned state with concurrent/future tasks.
+    # Per-task learned output limits; never shared across tasks or written to Config.
     response_budgets: dict[str, int] = {}
     notes: list[str] = []
     for source in tree.files:
@@ -190,8 +177,6 @@ def plan_instructions(
                     end = start + (end - start) // 2
                     continue
                 try:
-                    # One model call per part: large sources take many, so show
-                    # progress rather than nothing until the whole file is done.
                     with ui.spinner(f"reviewing {source.rel_path}: part {part} · "
                                     f"{100 * start // max(1, len(text))}%"):
                         review = _answer(
@@ -200,9 +185,7 @@ def plan_instructions(
                         )
                     break
                 except ContextOverflowError:
-                    # The configured chars/token estimate is conservative, not
-                    # a tokenizer. A server-side overflow shrinks and retries
-                    # the same range, never skipping its remaining characters.
+                    # Shrink and retry the same range; never skip characters.
                     if end - start <= 256:
                         raise
                     end = start + (end - start) // 2
@@ -220,8 +203,6 @@ def plan_instructions(
         "language": options.language, "defaults": DEFAULT_INSTRUCTIONS,
     }, ensure_ascii=False)
     prefix = f"Task constraints:\n{context}\n\nAll corpus reviews:\n"
-    # Review JSON is embedded into a chat message, so its escaping is counted
-    # again below. Leave enough room for the longest of the two system prompts.
     synthesis_limit = char_budget - max(
         len(json.dumps(_messages(_PLAN, prefix), ensure_ascii=False)),
         len(json.dumps(_messages(_REDUCE, ""), ensure_ascii=False)),
@@ -245,8 +226,7 @@ def plan_instructions(
                     raise
         before = sum(map(len, notes))
         ui.info(f"condensing {len(notes)} reviews to fit the planning context")
-        # Double encoding can expand backslashes/newlines. Reserve half the
-        # remaining serialized budget, rather than packing raw strings.
+        # Half the budget: double JSON encoding can expand backslashes/newlines.
         groups = _pack(notes, synthesis_limit // 2)
         reduced: list[str] = []
         for number, group in enumerate(groups, 1):

@@ -1,7 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Two-stage task pipeline: plan instructions, then extract/merge/write OKF."""
 from __future__ import annotations
 
 import json
@@ -24,12 +23,7 @@ from .ui import UI
 
 
 def _extraction_tree(tree: Tree, cfg: Config, root: Path) -> tuple[Tree, dict[str, str]]:
-    """Deterministic, fully readable fragments; no capped read can hide a tail.
-
-    The old file driver considered a file covered after its first capped read.
-    Bound both lines and bytes BEFORE invoking it, then restore original source
-    paths on concepts. This also handles a single extremely long text line.
-    """
+    """Split sources into fragments small enough to read uncapped; returns fragment -> source path map."""
     char_limit = min(
         int(cfg.batch["per_file_read_bytes"]) // 8,
         int(cfg.read_input_budget() * float(cfg.batch["chars_per_token"]) / 4),
@@ -73,9 +67,7 @@ def extract_bundle(
     options: TaskOptions | None = None, ui: UI | None = None,
     interactive: bool = False, label: str = "",
 ) -> list[Concept]:
-    """`tree` holds complete, normalized UTF-8 sources at their logical paths.
-    `label` (e.g. the service's task ID) prefixes the stage headers, so tasks
-    running side by side can be told apart in the log."""
+    """Plan instructions, then extract, merge and write an OKF bundle from normalized UTF-8 sources."""
     ui = ui or UI(enabled=False)
     prefix = f"[{label}] " if label else ""
     ui.stage(f"{prefix}Stage 1 — review all content and plan instructions "
@@ -83,8 +75,7 @@ def extract_bundle(
     instructions = plan_instructions(cfg, client, tree, options=options, ui=ui)
     raw_config = deepcopy(cfg.raw)
     raw_config["instructions"] = instructions
-    # Files have already been decoded, including PDF/office inputs. A text blob
-    # can retain its original .pdf name without exposing a binary reader to it.
+    # Sources are already decoded to text, so only read_text is enabled.
     for name in ("read_pdf", "read_table", "read_docx"):
         raw_config["tools"][name] = {"enabled": False}
     raw_config["tools"]["read_text"] = {"enabled": True}

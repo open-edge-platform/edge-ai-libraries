@@ -81,3 +81,27 @@ def test_genai_empty_candidates_skip_inference(pipeline):
     adapter = ov_adapter.OpenVINOGenAIReranking("local-bge", top_n=2)
     assert adapter.postprocess_nodes([], query_str="query") == []
     assert pipeline[0].calls == []
+
+
+def test_factory_pads_candidates_to_the_model_limit(tmp_path, monkeypatch):
+    """Variable-length candidates need fixed-length input within the position limit."""
+    import config
+    from core import postprocessor
+
+    model = tmp_path / "bge-reranker"
+    model.mkdir()
+    (model / "openvino_model.xml").write_text("")
+    (model / "openvino_model.bin").write_text("")
+    (model / "tokenizer_config.json").write_text('{"model_max_length": 8192}')
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
+    seen = {}
+
+    class Fake:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+    monkeypatch.setattr(ov_adapter, "OpenVINOGenAIReranking", Fake)
+    postprocessor._build(config.LOCAL_OPENVINO, 3, "bge-reranker", "CPU", "")
+    assert seen["pad_to_max_length"] is True
+    assert seen["padding_side"] == "right"
+    assert seen["max_length"] == config.EMBEDDING_MAX_LENGTH

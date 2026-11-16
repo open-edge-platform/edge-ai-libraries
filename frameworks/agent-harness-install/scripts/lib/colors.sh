@@ -23,7 +23,7 @@ error() { printf "${C_RED}[ERROR]${C_RESET} %s\n" "$*" >&2; exit 1; }
 step() {
   local n="$1" total="$2" msg="$3"
   printf "\n${C_GREEN}[%s/%s]${C_RESET} ${C_BOLD}%s${C_RESET}\n" "$n" "$total" "$msg"
-  printf "  ${C_DIM}──────────────────────────────────────────────────${C_RESET}\n"
+  printf '  %s──────────────────────────────────────────────────%s\n' "$C_DIM" "$C_RESET"
 }
 
 # spin "label" cmd [args...] — runs a command, showing a spinner until it exits.

@@ -1,17 +1,13 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Asset library management endpoints.
-
-An asset library owns assets, sources, and the pools that pair the two. There is
-no activation: every path names the library it operates on, and ``{library}``
-accepts a name or an id.
-"""
+"""Asset library management endpoints; ``{library}`` accepts a name or an id."""
 
 import hashlib
 import os
 from typing import Dict, List, Optional
 
 import config
+from assetlib import collection_name
 from assetlib.sources.updates import SourceRuleError
 from core import materialize
 from core.extractor import is_supported
@@ -19,6 +15,7 @@ from core.file_asset_library import asset_id_for, file_origin, inline_origin
 from core.manager import registry
 from core.knowledge.okf import is_okf
 from core.multimodal import captioning, coverage, transcription
+from databasehub.manager import database_manager
 from schemas import (
     AssetCreateRequest,
     AssetCreateResult,
@@ -50,8 +47,7 @@ LIBRARY_API_PREFIX = "/v1/libraries"
 
 router = APIRouter(prefix=LIBRARY_API_PREFIX, tags=["libraries"])
 
-# A request the multi-source rules refuse (assetlib/sources/updates.py). Written
-# out because Starlette renamed the constant between versions.
+# Literal because Starlette renamed the 422 constant between versions.
 _UNPROCESSABLE = 422
 
 
@@ -61,12 +57,7 @@ def _text_reference(text: str) -> str:
 
 
 def _folder_files(path: str) -> List[str]:
-    """The ingestible files under a plain (non-OKF) folder, in a stable order.
-
-    Hidden entries are skipped (``.DS_Store``, ``.git``), as are files the
-    extractor cannot read: a dropped folder routinely holds a few, and refusing
-    the whole folder for them would make folder upload useless.
-    """
+    """The supported, non-hidden files under a plain (non-OKF) folder, in a stable order."""
     found = []
     for root, dirs, files in os.walk(path):
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
@@ -79,11 +70,7 @@ def _folder_files(path: str) -> List[str]:
 
 
 def _resolve_uploads(file_paths: List[str]) -> List[str]:
-    """Resolve bare file names in the shared upload directory.
-
-    An OKF bundle directory is one asset; any other directory stands for the
-    supported files inside it.
-    """
+    """Resolve names against the upload dir; an OKF dir is one asset, other dirs expand to their files."""
     resolved = []
     for requested in file_paths:
         path = (
@@ -137,11 +124,9 @@ async def get_asset_library(library: str):
 @router.post("", response_model=AssetLibraryOut, status_code=status.HTTP_201_CREATED)
 async def create_asset_library(body: AssetLibraryIn):
     try:
-        # `exclude_none` so an omitted content_database means "resolve one on
-        # first ingest" rather than arriving as an explicit None.
+        # An omitted content_database is resolved on first ingest.
         return registry.create(**body.model_dump(exclude_none=True)).to_out()
     except ValueError as e:
-        # "already exists" is a conflict; an unsupported parser/indexer is a 400.
         code = status.HTTP_409_CONFLICT if "already exists" in str(e) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=code, detail=str(e))
 
@@ -156,7 +141,20 @@ async def update_asset_library(library: str, body: AssetLibraryUpdate):
 
 @router.delete("/{library}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_asset_library(library: str):
-    if not registry.delete(library):
+    try:
+        deleted = registry.purge(library)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Could not delete the asset library: {type(error).__name__}: {error}. Part of it "
+                "may already be deleted; check that its databases are reachable on the Database "
+                "connections page, then delete it again to finish"
+            ),
+        ) from error
+    if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Asset library '{library}' not found")
 
 
@@ -170,14 +168,7 @@ async def create_assets(
     body: AssetCreateRequest,
     background_tasks: BackgroundTasks,
 ):
-    """Accept assets for a library and index them through selected pools.
-
-    Returns 202 at once: extraction (render/detect/OCR) and embedding are slow, so
-    they run in a background task (`materialize.ingest`) rather than on the request
-    thread. The response names the assets straight away because an
-    asset's id comes from where it was read from, not from its content
-    (`asset_id_for`), so it is known before anything is extracted.
-    """
+    """Accept assets for a library and index them through selected pools in the background."""
     asset_library = _require(library)
     if not body.file_paths and not body.text:
         raise HTTPException(
@@ -197,11 +188,7 @@ async def create_assets(
             detail=f"Asset pool(s) not found: {', '.join(missing_pool_ids)}",
         )
 
-    # Resolved before the task is scheduled: an unknown source or a missing file
-    # is a bad request, and reporting it from a background task would lose it.
-    # Resolving the source also adopts the library's default on a first ingest --
-    # a mutation of the library, hence the lock, and a cheap one: registering a
-    # source stores a locator and dials nothing.
+    # The lock guards adopting the library's default source on a first ingest.
     try:
         with registry.lock:
             content_source = asset_library.content_source(body.content_source_id)
@@ -221,8 +208,7 @@ async def create_assets(
         text_reference = _text_reference(body.text)
         asset_ids.append(asset_id_for(inline_origin(text_reference)))
 
-    # Mark them materializing now, so a client polling GET /assets sees progress
-    # the instant this 202 returns rather than only once the background task runs.
+    # Mark materializing now so GET /assets shows progress as soon as this returns.
     materialize.begin_materialization(asset_ids)
     background_tasks.add_task(
         materialize.ingest,
@@ -265,16 +251,7 @@ def _upload_target(library_id: str, relative_path: str) -> str:
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_file(library: str, file_path: str, request: Request):
-    """Stage a file from a browser so `POST /assets` can name it.
-
-    The request body is the file's bytes, not a multipart form: a browser can
-    send a `File` as-is, nothing has to buffer the whole thing to parse it, and
-    the engine needs no form parser. `file_path` is relative and may contain
-    folders, which is how a folder upload keeps its shape (an OKF bundle needs
-    it). Files go under the library's id, so the same name in two libraries
-    does not collide, and uploading a name again replaces it -- an asset's id
-    comes from its path, so re-ingesting it updates that asset.
-    """
+    """Stage a file (raw request body) under a relative path so `POST /assets` can name it."""
     asset_library = _require(library)
     try:
         target = _upload_target(asset_library.library_id, file_path)
@@ -306,11 +283,6 @@ async def upload_file(library: str, file_path: str, request: Request):
 
 
 def _uncovered_media_warnings(asset_library, media_streams) -> List[str]:
-    """Legacy coverage formatting, not part of the asynchronous ingest response.
-
-    Kept for callers of the old private helper. The request has no stream yet;
-    clients now read the authoritative coverage from `/enrichment` after ingest.
-    """
     warnings = []
     for asset_id, (path, stream) in media_streams.items():
         found = coverage.embedding_coverage(asset_library, asset_id, stream)
@@ -320,6 +292,31 @@ def _uncovered_media_warnings(asset_library, media_streams) -> List[str]:
                 f"{found.reason}"
             )
     return warnings
+
+
+def _database_location(database_id: str):
+    registration = database_manager.get(database_id)
+    if registration is None:
+        return None
+    options = registration.options
+    endpoint = options.get("uri") or options.get("url") or options.get("root") or database_id
+    return registration.backend, str(endpoint).rstrip("/")
+
+
+def _collection_owner(database_id: str, name: Optional[str]) -> Optional[str]:
+    registration = database_manager.get(database_id)
+    if not name or registration is None or registration.database_type == "object":
+        return None
+    location = _database_location(database_id)
+    for asset_library in registry.list():
+        for source in asset_library.sources.values():
+            if (
+                source.source_type != "object"
+                and collection_name(source.location) == name
+                and _database_location(source.database_id) == location
+            ):
+                return f"{asset_library.name}/{source.name}"
+    return None
 
 
 @router.get("/{library}/sources", response_model=list[SourceOut])
@@ -332,6 +329,12 @@ async def list_sources(library: str):
 )
 async def add_source(library: str, body: SourceIn):
     asset_library = _require(library)
+    owner = _collection_owner(body.database_id, body.collection_name)
+    if owner:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Collection {body.collection_name!r} is already used by source {owner}",
+        )
     try:
         source = asset_library.create_source(
             name=body.name,
@@ -359,13 +362,7 @@ async def update_source(
     body: SourceUpdate,
     background_tasks: BackgroundTasks,
 ):
-    """Rename, relabel, or switch a source on or off.
-
-    Nothing that decides its vectors can change: a different model or different
-    parameters is a new source, attached with `replaces`. Switching a source
-    off freezes it in every pool (its data stays); switching it back on rebuilds
-    its projections and catches it up before it serves again.
-    """
+    """Rename, relabel, or switch a source on or off."""
     asset_library = _require(library)
     if source_id not in asset_library.sources:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Source '{source_id}' not found")
@@ -394,11 +391,7 @@ async def update_source(
 
 @router.delete("/{library}/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_source(library: str, source_id: str):
-    """Detach a source and its pool bindings; leave external collections intact.
-
-    Refused while it holds live asset content or has an in-flight extraction.
-    Queued extraction jobs are cancelled before their bindings are removed.
-    """
+    """Detach a source and its pool bindings; leave external collections intact."""
     asset_library = _require(library)
     try:
         detached = asset_library.detach_source(source_id)
@@ -436,11 +429,6 @@ async def create_asset_pool(library: str, body: AssetPoolIn):
         code = status.HTTP_409_CONFLICT if "already exists" in str(error) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=code, detail=str(error))
     except Exception as error:  # backend or model dependency is unavailable
-        # Attaching a source builds its projection, which dials. Registering a
-        # database deliberately does not, so "registered but unreachable" is an
-        # ordinary state and this is where an operator first meets it -- as a
-        # 503 naming the backend, not a 500 that reads like a bad request.
-        # `set_asset_pool_sources` below answers the same way.
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Could not create the asset pool: {type(error).__name__}: {error}",
@@ -456,11 +444,25 @@ async def create_asset_pool(library: str, body: AssetPoolIn):
 @router.delete("/{library}/asset_pools/{asset_pool_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_asset_pool(library: str, asset_pool_id: str):
     asset_library = _require(library)
-    if not asset_library.remove_asset_pool(asset_pool_id):
+    if asset_pool_id not in asset_library.asset_pools:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Asset pool '{asset_pool_id}' not found",
         )
+    try:
+        asset_library.delete_asset_pool(asset_pool_id)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    except Exception as error:
+        registry.save()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Could not delete the asset pool: {type(error).__name__}: {error}. Part of it "
+                "may already be deleted; check that its sources' databases are reachable on the "
+                "Database connections page, then delete it again to finish"
+            ),
+        ) from error
     registry.save()
 
 
@@ -494,11 +496,7 @@ async def list_asset_pool_sources(library: str, asset_pool_id: str):
     response_model=PoolRoutingOut,
 )
 async def get_asset_pool_routing(library: str, asset_pool_id: str):
-    """Which source takes each kind of content in this pool, and in what state.
-
-    Routing is the sum of every source's filters and model; this is where it
-    can be read as one table, including the kinds nothing serving takes.
-    """
+    """Which source takes each kind of content in this pool, and in what state."""
     asset_library = _require(library)
     try:
         return asset_library.routing(asset_pool_id)
@@ -521,11 +519,7 @@ async def get_asset_pool_graph(
     asset_pool_id: str,
     limit: int = Query(config.GRAPH_VIEW_LIMIT, ge=1, le=20000),
 ):
-    """The pool's concept graph -- what `graph` retrieval walks -- for drawing.
-
-    Read from the graph source as persisted. 404 when the pool has no graph
-    source; 503 when its database cannot be reached.
-    """
+    """The pool's concept graph for drawing; 404 without a graph source, 503 if unreachable."""
     from core.retrievers import pool_concept_graph
 
     asset_library = _require(library)
@@ -559,15 +553,7 @@ async def create_extraction(
     library: str, asset_pool_id: str, response: Response,
     body: ExtractionRequest = ExtractionRequest(),
 ):
-    """Extract the pool's documents into OKF for a graph source, in the background.
-
-    The whole current corpus is extracted, published as the source's generated
-    `okf` bundle asset and built into the graph. 202 with a new job; 200 with
-    the job already queued or running for that pool and source (a running one
-    is followed by one more run, so documents added meanwhile are covered). A
-    job finding nothing changed since the last extraction ends `up_to_date`
-    unless `force`. Poll `GET .../extractions/{extraction_id}`.
-    """
+    """Extract the pool's documents into OKF for a graph source in the background; 200 if already queued."""
     asset_library = _require(library)
     try:
         asset_library._require_asset_pool(asset_pool_id)
@@ -617,8 +603,7 @@ async def get_extraction(library: str, asset_pool_id: str, extraction_id: str):
     response_model=ExtractionOut,
 )
 async def cancel_extraction(library: str, asset_pool_id: str, extraction_id: str):
-    """Cancel a queued extraction. 409 for a running one: its request to the
-    extractor is already in flight."""
+    """Cancel a queued extraction; 409 for a running one."""
     asset_library = _require(library)
     job = _require_extraction(asset_library, asset_pool_id, extraction_id)
     try:
@@ -688,12 +673,7 @@ async def set_source_serving_state(
     body: SourceServingStateUpdate,
     background_tasks: BackgroundTasks,
 ):
-    """Stop/resume one binding without changing the pool's attachments.
-
-    DEGRADE stops reads and future writes, retaining indexed data. SERVING
-    resumes this exact model, reporting PREPARING until caught up when needed.
-    No other binding is replaced or deprecated.
-    """
+    """Stop (DEGRADE) or resume (SERVING) one binding without changing the pool's attachments."""
     asset_library = _require(library)
     pool = asset_library.asset_pools.get(asset_pool_id)
     if pool is None or source_id not in pool.source_statuses:
@@ -722,22 +702,10 @@ def _sync_and_save(asset_library, asset_pool_ids: List[str]) -> None:
 
 
 def _caption_and_save(asset_library, asset_ids: List[str]) -> None:
-    """Describe each clip, then re-materialize the pools that now have more text.
-
-    The second sync is what gets the new description into the text collection;
-    `caption_asset` has already marked the asset changed, so only the blocks
-    that moved are rebuilt. A clip whose description failed is left alone --
-    its own status says why, and its vector is untouched.
-    """
     _enrich_and_save(asset_library, asset_ids, captioning.caption_asset)
 
 
 def _transcribe_and_save(asset_library, asset_ids: List[str]) -> None:
-    """Transcribe each recording, then re-materialize the pools that hold it.
-
-    The sync is what gets the transcript into a source that embeds derived
-    text (GME); a text source does not take it.
-    """
     _enrich_and_save(asset_library, asset_ids, transcription.transcribe_asset)
 
 
@@ -752,8 +720,7 @@ async def list_assets(
     page_size: int = Query(config.ASSET_PAGE_SIZE, ge=1),
 ):
     page = _require(library).list_assets(page_num, page_size)
-    # Overlay the live ingest phase so a client can show "text searchable" before
-    # "fully ready"; untracked assets (e.g. after a restart) report None.
+    # Untracked assets (e.g. after a restart) report None.
     for asset in page.assets:
         asset.materialization = materialize.materialization_phase(asset.id)
     return page
@@ -769,14 +736,7 @@ async def get_assets_materialization(library: str, asset_ids: List[str] = Query(
     "/{library}/assets/{asset_id}/enrichment", response_model=AssetEnrichmentOut
 )
 async def get_asset_enrichment(library: str, asset_id: str):
-    """How far this asset's background description and transcript have got.
-
-    The first place to look when a media asset is not being found. Captioning
-    and embedding are reported separately because they are separate pipelines:
-    a clip can be fully embedded and still undescribed, or described and not
-    embedded at all because no source in its pools can embed that kind of media.
-    A pool's `ready` distinguishes none of these.
-    """
+    """Embedding coverage plus background description and transcript status of one asset."""
     asset_library = _require(library)
     asset = asset_library.assets.get(asset_id)
     if asset is None:
@@ -818,8 +778,7 @@ async def delete_assets(library: str, body: AssetDeleteRequest, background_tasks
             detail=f"Could not delete assets: {type(error).__name__}: {error}",
         ) from error
     registry.save()
-    # A deletion can leave work behind: a generated OKF bundle to rebuild
-    # without the deleted documents, and an `auto` graph source to re-extract.
+    # Deletion can leave pools pending (OKF bundle rebuild, graph re-extraction).
     pending = [
         pool_id for pool_id, pool in asset_library.asset_pools.items()
         if any(status.status == "pending" for status in pool.source_statuses.values())

@@ -17,7 +17,7 @@ the auth ones):
 from __future__ import annotations
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Set, Tuple
 
 import httpx
 
@@ -80,6 +80,18 @@ class ProbeHost:
             name: probe.snapshot()
             for name, probe in getattr(self, "_probes", {}).items()
         }
+
+    def probe_published_paths(self) -> Set[Tuple[str, ...]]:
+        """Metadata paths written by this provider's probes.
+
+        In ``ProviderMetadata.to_dict()`` coordinates — the shape of the config
+        ``metadata`` block and of the providers API — so the write path can drop
+        probe output that a client echoed back from a GET.
+        """
+        paths: Set[Tuple[str, ...]] = set()
+        for probe in getattr(self, "_probes", {}).values():
+            paths |= probe.published_metadata_paths()
+        return paths
 
     async def probe_client(self) -> httpx.AsyncClient:
         """Return an authenticated HTTP client for probe requests.

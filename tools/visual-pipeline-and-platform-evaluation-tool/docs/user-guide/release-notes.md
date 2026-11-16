@@ -2,6 +2,18 @@
 
 Details about the changes, improvements, and known issues in this release of the application.
 
+## 2026.3.0
+
+**Release Date**: TBD
+
+**Improved**:
+
+- **Performance Testing**: The performance test suite now runs through a single CLI command with dry-run and
+  report-only modes. Users can benchmark their own pipelines alongside the predefined ones. Each run produces
+  JSON, CSV, and HTML reports with system information and CPU/GPU/NPU KPIs.
+
+---
+
 ## 2026.2.0
 
 **Release Date**: September 9, 2026

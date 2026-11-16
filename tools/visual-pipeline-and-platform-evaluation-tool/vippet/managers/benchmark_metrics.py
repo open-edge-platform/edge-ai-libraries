@@ -23,7 +23,7 @@ _CPU_METRIC = "cpu_usage_user"
 _MEMORY_METRIC = "mem_used_percent"
 _NPU_METRIC = "npu_utilization"
 _GPU_ENGINE_METRIC = "gpu_engine_usage_usage"
-_GPU_POWER_METRIC = "gpu_power"
+_GPU_POWER_METRIC = "gpu_power_power_w"
 _LATENCY_MAX_METRIC = "pipeline_latency_max_ms"
 _LATENCY_MIN_METRIC = "pipeline_latency_min_ms"
 _LATENCY_METRIC = "pipeline_latency_avg_ms"
@@ -267,7 +267,7 @@ def media_usage(parsed_metrics: list[dict]) -> float | None:
 
 
 def power_usage(parsed_metrics: list[dict]) -> float | None:
-    """Average package power draw (watts) from ``gpu_power`` / ``pkg_cur_power``."""
+    """Average package power draw (watts) from ``gpu_power_power_w`` / ``pkg_cur_power``."""
     values: list[float] = []
 
     for event in parsed_metrics:

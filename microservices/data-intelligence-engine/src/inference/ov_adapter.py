@@ -1,51 +1,12 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Engine-native OpenVINO adapters, aligned to the llama-index API.
-
-The shared home for the adapters this engine writes itself to wrap an OpenVINO
-backend into an interface the rest of the engine speaks -- the ones llama-index
-(or another library) does not already provide. It sits in `inference/`, outside
-any one core domain's package, because OpenVINO cuts *across* domains: today
-embedding, rerank, and layout live here, and an OCR model gaining an OV variant
-would add its adapter here too rather than duplicating the OV plumbing.
-
-What lives here today:
-
-- **openvino_genai** (`OpenVINOGenAIEmbedding`, `OpenVINOGenAIReranking`): thin
-  wrappers over `openvino_genai`'s text pipelines. Originally ported from
-  edgecraftrag/components/ov_llamaindex_helper.py; used when EMBEDDING_BACKEND /
-  RERANK_BACKEND == "openvino_genai" (requires the openvino-genai package).
-- **llamaindex_openvino embedding** (`serialized_openvino_embedding`): llama-index's
-  own `OpenVINOEmbedding` with its inference serialized, which it is not itself.
-- **document layout** (`OpenVINOLayoutDetector`): OpenVINO compilation and raw
-    port handling behind the engine's `LayoutDetector` interface. PP-DocLayoutV3
-    preprocessing and decoding remain in `core.layout`.
-- **multimodal embedding** (`MultimodalOVEmbedding` + the OV-specific
-  `OVEmbeddingRuntime` protocol): a model-neutral adapter over any runtime that
-  speaks a text path and a fused (image + reference text) path in one shared
-  space. The runtime is the model-specific half and lives in the embedding
-    runtime module (`inference.gme_runtime` is the first); a second VL model is a
-  second runtime file there, and this adapter reuses it unchanged. The
-  backend-neutral `FusedEmbedding` protocol (what marks any model as multimodal)
-    lives in `core.embedding`, not here, so a non-OV multimodal backend can
-  satisfy it without importing this module.
-
-Note the split by *layer*, not by domain: the embedding domain's model-specific
-runtimes are sibling modules under `inference` (`inference.gme_runtime` is the first);
-their llama-index adapter is here, beside rerank's, because "adapt an OV backend
-to our API" is the concern this file owns.
-
-Every heavy backend import (openvino_genai, openvino, PIL) is kept lazy inside
-the class that needs it. The factories (`core.embedding`, `core.postprocessor`,
-`core.layout`) import each class lazily.
-"""
 
 from io import BytesIO
 import functools
 import math
 import os
 import threading
-from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, Sequence, Tuple, Union, runtime_checkable
+from typing import Any, Callable, ClassVar, Dict, List, Mapping, Optional, Protocol, Sequence, Tuple, Union, runtime_checkable
 
 import numpy as np
 
@@ -55,6 +16,15 @@ from core.layout import (
     PPDocLayoutV3Runtime,
     as_pil_image,
     pp_doclayout_v3_onnx_path,
+)
+import config
+from inference.meta import (
+    RUNTIME_OV_CORE,
+    RUNTIME_OV_GENAI,
+    RUNTIME_OV_GME,
+    RUNTIME_OV_LLAMAINDEX,
+    RUNTIME_OV_OPTIMUM,
+    InferenceMeta,
 )
 from llama_index.core.base.embeddings.base import DEFAULT_EMBED_BATCH_SIZE, BaseEmbedding
 from llama_index.core.bridge.pydantic import Field, PrivateAttr
@@ -67,7 +37,11 @@ from llama_index.core.schema import MetadataMode, NodeWithScore, QueryBundle
 dispatcher = get_dispatcher(__name__)
 
 
-class OpenVINOGenAIEmbedding(BaseEmbedding):
+class OpenVINOGenAIEmbedding(InferenceMeta, BaseEmbedding):
+    BACKEND: ClassVar[str] = config.LOCAL_OPENVINO
+    RUNTIME: ClassVar[str] = RUNTIME_OV_GENAI
+    SUPPORT_MULTIMODAL: ClassVar[Optional[bool]] = False
+
     model_path: str = Field(description="Local path.")
     max_length: Optional[int] = Field(description="Maximum length of input.")
     pooling: str = Field(description="Pooling strategy. One of ['cls', 'mean'].")
@@ -133,10 +107,7 @@ class OpenVINOGenAIEmbedding(BaseEmbedding):
         self._ov_pipe = openvino_genai.TextEmbeddingPipeline(model_path, device, config, **model_kwargs)
         self._device = device
         self._model = self._ov_pipe
-        # The GenAI pipeline drives a single infer request; concurrent embed
-        # calls (retrieve requests offloaded to the threadpool) would race on it,
-        # so serialize them. Mirrors the locks on the reranker, layout detector
-        # and GME runtime.
+        # The pipeline drives a single infer request; concurrent embed calls must be serialized.
         self._lock = threading.Lock()
 
     @classmethod
@@ -166,18 +137,14 @@ class OpenVINOGenAIEmbedding(BaseEmbedding):
 
 @functools.lru_cache(maxsize=None)
 def _serialized_openvino_embedding_class():
-    # Defined on first use: subclassing needs the llama-index OpenVINO package
-    # (optimum, transformers) imported, which this module keeps lazy.
     from llama_index.embeddings.huggingface_openvino import OpenVINOEmbedding
 
-    class SerializedOpenVINOEmbedding(OpenVINOEmbedding):
-        """llama-index's OpenVINOEmbedding, safe to call from several threads.
+    class SerializedOpenVINOEmbedding(InferenceMeta, OpenVINOEmbedding):
+        """llama-index's OpenVINOEmbedding with `_embed` serialized ("Infer Request is busy")."""
 
-        Its optimum model infers through the CompiledModel's one cached infer
-        request, so concurrent embed calls fail with "Infer Request is busy"; the
-        fast tokenizer it calls first is not reentrant either. Every embed path
-        funnels through `_embed`, so the lock wraps that.
-        """
+        BACKEND: ClassVar[str] = config.LOCAL_OPENVINO
+        RUNTIME: ClassVar[str] = RUNTIME_OV_LLAMAINDEX
+        SUPPORT_MULTIMODAL: ClassVar[Optional[bool]] = False
 
         _lock: Any = PrivateAttr(default_factory=threading.Lock)
 
@@ -206,7 +173,6 @@ def serialized_openvino_embedding(**options) -> BaseEmbedding:
         "export": False,
     }
     # The upstream adapter does not forward model_kwargs to its tokenizer.
-    # Inject a tokenizer loaded explicitly without Hub access as well.
     if options.get("tokenizer") is None:
         options["tokenizer"] = AutoTokenizer.from_pretrained(
             options["model_id_or_path"], local_files_only=True
@@ -214,7 +180,28 @@ def serialized_openvino_embedding(**options) -> BaseEmbedding:
     return _serialized_openvino_embedding_class()(**options)
 
 
-class OpenVINOGenAIReranking(BaseNodePostprocessor):
+@functools.lru_cache(maxsize=None)
+def _llamaindex_rerank_class():
+    from llama_index.postprocessor.openvino_rerank import OpenVINORerank
+
+    class LlamaIndexOpenVINORerank(InferenceMeta, OpenVINORerank):
+        BACKEND: ClassVar[str] = config.LOCAL_OPENVINO
+        RUNTIME: ClassVar[str] = RUNTIME_OV_LLAMAINDEX
+        SUPPORT_MULTIMODAL: ClassVar[Optional[bool]] = False
+
+    return LlamaIndexOpenVINORerank
+
+
+def llamaindex_openvino_rerank(**options) -> BaseNodePostprocessor:
+    """An `OpenVINORerank(**options)` that reports its backend and runtime."""
+    return _llamaindex_rerank_class()(**options)
+
+
+class OpenVINOGenAIReranking(InferenceMeta, BaseNodePostprocessor):
+    BACKEND: ClassVar[str] = config.LOCAL_OPENVINO
+    RUNTIME: ClassVar[str] = RUNTIME_OV_GENAI
+    SUPPORT_MULTIMODAL: ClassVar[Optional[bool]] = False
+
     model_id_or_path: str = Field(description="Huggingface model id or local path.")
     top_n: int = Field(description="Number of nodes to return sorted by score.")
     keep_retrieval_score: bool = Field(default=False, description="Whether to keep the retrieval score in metadata.")
@@ -246,10 +233,7 @@ class OpenVINOGenAIReranking(BaseNodePostprocessor):
         )
 
         config = openvino_genai.TextRerankPipeline.Config()
-        # GenAI captures top_n at construction and truncates its ranked output.
-        # Return all candidates so a cached pipeline can serve any request's
-        # top_n without recompiling. The native field is a size_t; it only
-        # bounds sorting/truncation, not inference or buffer allocation.
+        # top_n is fixed at construction; keep all candidates so a cached pipeline serves any top_n.
         config.top_n = np.iinfo(np.uintp).max
         if max_length:
             config.max_length = max_length
@@ -286,7 +270,6 @@ class OpenVINOGenAIReranking(BaseNodePostprocessor):
         ) as event:
             outputs = self._ov_pipe.rerank(query_bundle.query_str, nodes_text_list)
             ranked = []
-            # Output order is rank order; each index addresses the input list.
             # Copy nodes so reranking cannot overwrite recall scores/metadata.
             for index, score in outputs:
                 node = nodes[index].model_copy(deep=True)
@@ -305,13 +288,12 @@ class OpenVINOGenAIReranking(BaseNodePostprocessor):
 from inference.multimodal.qwen3_vl_reranker_ov import OpenVINOVLReranking
 
 
-class OpenVINOVLReranker(BaseNodePostprocessor):
-    """LlamaIndex postprocessor over the Qwen VL media scorer.
+class OpenVINOVLReranker(InferenceMeta, BaseNodePostprocessor):
+    """Request-scoped LlamaIndex postprocessor over the Qwen VL media scorer."""
 
-    Request-scoped: `document_fn` turns each candidate node into the pixels or
-    transcript the scorer consumes, so one adapter instance serves one request
-    while the compiled model stays shared (see `core.postprocessor._VL_CACHE`).
-    """
+    BACKEND: ClassVar[str] = config.LOCAL_OPENVINO
+    RUNTIME: ClassVar[str] = RUNTIME_OV_CORE
+    SUPPORT_MULTIMODAL: ClassVar[Optional[bool]] = True
 
     model_id_or_path: str
     top_n: int
@@ -374,12 +356,11 @@ class OpenVINOVLReranker(BaseNodePostprocessor):
 # --- document layout ---------------------------------------------------------
 
 
-class OpenVINOLayoutDetector(LayoutDetector):
-    """Adapt PP-DocLayoutV3 OpenVINO inference to `LayoutDetector`.
+class OpenVINOLayoutDetector(InferenceMeta, LayoutDetector):
+    """PP-DocLayoutV3 OpenVINO inference as a `LayoutDetector`, compiled lazily on first `detect`."""
 
-    The compiled model is loaded lazily on the first `detect`. Tests may inject
-    a callable or compiled model, processor, and label map to avoid downloads.
-    """
+    BACKEND: ClassVar[str] = config.LOCAL_OPENVINO
+    RUNTIME: ClassVar[str] = RUNTIME_OV_CORE
 
     def __init__(
         self,
@@ -473,7 +454,7 @@ class OpenVINOLayoutDetector(LayoutDetector):
         for port, array in zip(ports, arrays):
             try:
                 name = " ".join(port.get_names()).lower()
-            except Exception:  # noqa: BLE001 - unnamed ports fall back to order
+            except Exception:  # noqa: BLE001
                 name = ""
             if "logit" in name:
                 logits = array
@@ -487,27 +468,11 @@ class OpenVINOLayoutDetector(LayoutDetector):
 
 
 # --- multimodal OV embedding --------------------------------------------------
-# A model-neutral adapter over any runtime that speaks a text path and a fused
-# (image + reference text) path in one shared vector space. The runtime is the
-# model-specific half (`inference.gme_runtime.GmeOpenVINO` is the first); a
-# second VL model is a second runtime, not a second adapter.
-#
-# The backend-neutral `FusedEmbedding` protocol -- what marks a model as
-# multimodal to the projection -- lives in `core.embedding`, not here:
-# a non-OV multimodal backend (e.g. a remote/vLLM adapter) must satisfy it
-# without importing this OV module. `OVEmbeddingRuntime` below is OV-specific and
-# stays.
 
 
 @runtime_checkable
 class OVEmbeddingRuntime(Protocol):
-    """The model-specific inference half `MultimodalOVEmbedding` drives.
-
-    A new VL embedding model is a new implementation of this -- a text encoder
-    and a fused (image + text) encoder that land in one shared space -- not a new
-    llama-index adapter. Both methods return an ``(N, D)`` array (``.tolist()``
-    turns it into what llama-index wants).
-    """
+    """The model-specific inference half `MultimodalOVEmbedding` drives; methods return ``(N, D)`` arrays."""
 
     def get_text_embeddings(
         self,
@@ -527,24 +492,21 @@ class OVEmbeddingRuntime(Protocol):
     ) -> Any:
         ...
 
+    def get_image_embeddings(
+        self,
+        images: Sequence[Any],
+        is_query: bool = True,
+        show_progress_bar: bool = False,
+    ) -> Any:
+        ...
 
-class MultimodalOVEmbedding(BaseEmbedding):
-    """A llama-index `BaseEmbedding` over an `OVEmbeddingRuntime`, model-neutral.
 
-    Shape mirrors `OpenVINOGenAIEmbedding` above (its text-only sibling in this
-    adapter layer): implement the three sync `_get_*` primitives returning
-    `List[float]`, plus async delegates. The extra fused path -- not part of
-    llama-index's `BaseEmbedding`, which only speaks text -- is what a text-only
-    adapter cannot offer. The vector projection calls it directly to precompute
-    an image node's vector and set `node.embedding` before insertion; llama-index
-    then embeds only the text nodes through the primitives here.
+class MultimodalOVEmbedding(InferenceMeta, BaseEmbedding):
+    """A llama-index `BaseEmbedding` over an `OVEmbeddingRuntime`, with extra fused and image paths."""
 
-    The runtime uses a query-vs-document prompt asymmetry: `is_query=True` selects
-    the (optional) query instruction, `is_query=False` is the corpus/document
-    side. The query path here uses `is_query=True`, the text and fused (corpus)
-    paths `is_query=False`; the fused path may additionally carry its own
-    `fused_instruction` to steer joint vectors without touching the text path.
-    """
+    BACKEND: ClassVar[str] = config.LOCAL_OPENVINO
+    RUNTIME: ClassVar[str] = RUNTIME_OV_GME
+    SUPPORT_MULTIMODAL: ClassVar[Optional[bool]] = True
 
     query_instruction: Optional[str] = Field(
         default=None, description="Instruction prepended to a query (is_query=True)."
@@ -555,6 +517,7 @@ class MultimodalOVEmbedding(BaseEmbedding):
     )
 
     _runtime: Any = PrivateAttr()
+    _supported_roles: Any = PrivateAttr(default=frozenset())
 
     def __init__(
         self,
@@ -563,6 +526,7 @@ class MultimodalOVEmbedding(BaseEmbedding):
         fused_instruction: Optional[str] = None,
         embed_batch_size: int = DEFAULT_EMBED_BATCH_SIZE,
         callback_manager: Optional[CallbackManager] = None,
+        supported_roles: Sequence[str] = (),
     ):
         super().__init__(
             embed_batch_size=embed_batch_size,
@@ -571,13 +535,35 @@ class MultimodalOVEmbedding(BaseEmbedding):
             fused_instruction=fused_instruction,
         )
         self._runtime = runtime
+        self._supported_roles = frozenset(supported_roles)
 
     @classmethod
     def class_name(cls) -> str:
         return "MultimodalOVEmbedding"
 
-    # The runtime returns an (N, D) L2-normalized np.ndarray; llama-index wants
-    # List[float] / List[List[float]].
+    # --- `core.multimodal.MultimodalEmbedding` contract ---
+
+    @property
+    def dimension(self) -> int:
+        return int(self._runtime.embedding_dim)
+
+    @property
+    def supported_roles(self) -> frozenset:
+        return self._supported_roles
+
+    @property
+    def model_path(self) -> str:
+        return str(self._runtime.model_dir)
+
+    @property
+    def device(self) -> str:
+        return self._runtime.device
+
+    @property
+    def max_image_tokens(self) -> int:
+        return self._runtime.max_image_tokens
+
+    # The runtime returns an (N, D) L2-normalized np.ndarray.
     def _encode(self, texts: List[str], is_query: bool) -> List[List[float]]:
         instruction = self.query_instruction if is_query else None
         arr = self._runtime.get_text_embeddings(
@@ -598,12 +584,7 @@ class MultimodalOVEmbedding(BaseEmbedding):
 
     @staticmethod
     def _as_image(image: Union[bytes, bytearray, Any]):
-        """A PIL image from raw bytes; a path or PIL image is passed through.
-
-        The projection reads a figure's pixels back through `blob_reader`, so the
-        common input is bytes -- decoded to RGB here. Anything else (a path, an
-        already-open image) the runtime handles itself.
-        """
+        """A PIL image from raw bytes; a path or PIL image is passed through."""
         if isinstance(image, (bytes, bytearray)):
             from PIL import Image
 
@@ -626,6 +607,16 @@ class MultimodalOVEmbedding(BaseEmbedding):
 
     def get_fused_embedding(self, text: str, image: Any) -> List[float]:
         return self.get_fused_embeddings([text], [image])[0]
+
+    def get_image_embeddings(self, images: Sequence[Any]) -> List[List[float]]:
+        """One vector per image, in the same space as the text path."""
+        images = [self._as_image(image) for image in images]
+        if not images:
+            return []
+        arr = self._runtime.get_image_embeddings(
+            images, is_query=False, show_progress_bar=False
+        )
+        return arr.tolist()
 
     async def _aget_query_embedding(self, query: str) -> List[float]:
         return self._get_query_embedding(query)

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Environment Variables
 
 Configuration is managed via environment variables. All variables map directly to Pydantic Settings field names (case-insensitive). The `.env` file is loaded automatically by `docker compose up`.
@@ -9,15 +14,14 @@ Configuration is managed via environment variables. All variables map directly t
 | `HOST` | `0.0.0.0` | API server bind address |
 | `METRICS_PORT` | `9090` | Metrics Manager API port |
 | `SERVICE_NAME` | `metrics-manager` | Service name used in logs and health checks |
-| `SERVICE_VERSION` | `2026.2.0` | Service version reported in health endpoints |
+| `SERVICE_VERSION` | `2026.3.0` | Service version reported in health endpoints |
 | `ENVIRONMENT` | `production` | Deployment environment: `development`, `staging`, `production`. Production disables `/docs` and `/redoc` Swagger endpoints |
 | `LOG_LEVEL` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `LOG_FORMAT` | `json` | Log format: `json` (structured, for log aggregators) or `text` (human-readable) |
 | `LOG_INCLUDE_TIMESTAMP` | `true` | Include timestamp field in log entries |
-| `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated or JSON array). Set to `http://localhost:3000,http://my-dashboard:3000` to restrict |
+| `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated or JSON array of strings). Malformed JSON arrays or non-string entries fail startup. Set to `http://localhost:3000,http://my-dashboard:3000` to restrict |
 | `CORS_ALLOW_CREDENTIALS` | `false` | Allow credentials in CORS requests (cookies, etc.) |
-| `METRICS_MANAGER_HOSTNAME` | _(unset)_ | Override the `host=` tag stamped on every metric (Telegraf, qmassa_reader.py, npu_reader.py). Unset = use kernel hostname. Set to a stable value (e.g., `lab-node-42`) to keep Grafana dashboards stable across reboots |
-| `HARDWARE_TELEMETRY_ENABLED` | `true` | Start the `qmassa` GPU collector under supervisord. Set to `false` where `/dev/dri` cannot be mapped into the container; CPU, memory, temperature and NPU metrics are unaffected |
+| `METRICS_MANAGER_HOSTNAME` | _(unset)_ | Override the `host=` tag stamped on every metric (Telegraf and the `mm-plugin-*` collectors). Unset = use kernel hostname. Set to a stable value (e.g., `lab-node-42`) to keep Grafana dashboards stable across reboots |
 
 ## Metrics Storage
 
@@ -51,8 +55,7 @@ Configuration is managed via environment variables. All variables map directly t
 |----------|---------|-------------|
 | `TRUST_FORWARDED_HEADERS` | `false` | Honor `X-Forwarded-For` / `X-Real-IP` headers for client IP detection. Set to `true` ONLY when running behind a trusted reverse proxy (Nginx, Traefik, etc.) |
 
-> [!WARNING]
-> Setting this to `true` without a reverse proxy allows clients to spoof their IP and bypass rate limiting.
+> **Warning:** Setting this to `true` without a reverse proxy allows clients to spoof their IP and bypass rate limiting.
 
 ## Telegraf Settings (Application Configuration)
 
@@ -60,8 +63,9 @@ These variables configure the Telegraf locations for the application to use:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TELEGRAF_CONFIG_PATH` | `/etc/telegraf/telegraf.conf` | Path to Telegraf config inside the container (informational, not loaded by the app) |
+| `TELEGRAF_CONFIG_PATH` | `/etc/telegraf/telegraf.conf` | Main Telegraf config inside the container, read by the entrypoint and passed to Telegraf |
 | `TELEGRAF_PORT` | `9273` | Telegraf Prometheus endpoint port (where SSE poller fetches system metrics) |
+| `TELEGRAF_HTTP_PORT` | `8186` | Docker-only Telegraf HTTP listener port; used by the shipped configuration |
 | `TELEGRAF_HTTP_ENDPOINT` | `http://localhost:8186/write` | Telegraf HTTP listener endpoint used to persist custom metrics in InfluxDB Line Protocol. Must be accessible from the app container |
 
 ## SSE Poller Settings
@@ -80,10 +84,54 @@ These variables are used ONLY by `compose.yaml` and are NOT read by the applicat
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TELEGRAF_CONFIG` | `./telegraf.conf` | Host path to Telegraf config file (mounted into container) |
-| `TELEGRAF_CONFIG_DIR` | `./telegraf.d` | Host path to additional Telegraf configs directory (mounted into container) |
-| `HOST_METRICS_PORT` | `9090` | Host port mapping for Metrics Manager API |
-| `HOST_TELEGRAF_PORT` | `9273` | Host port mapping for Telegraf Prometheus endpoint |
-| `HOST_TELEGRAF_HTTP_PORT` | `8186` | Host port mapping for Telegraf HTTP listener |
+| `TELEGRAF_CONFIG_DIR` | `./telegraf.d` | Host directory mounted at `/etc/telegraf/telegraf.d`; `.conf` files are snapshotted and loaded at startup |
+| `HOST_METRICS_PORT` | `9090` | API host mapping in bridge mode; actual API listener in host-NIC mode |
+| `HOST_TELEGRAF_PORT` | `9273` | Prometheus host mapping in bridge mode; actual listener in host-NIC mode |
+| `HOST_TELEGRAF_HTTP_PORT` | `8186` | HTTP ingest host mapping in bridge mode; actual listener in host-NIC mode |
+
+The default `metrics-manager` service uses bridge networking.
+`metrics-manager-host-nic` is opt-in via `host-nic-telemetry` and shares the host
+network. Stop the other variant and name the desired service explicitly:
+activating the profile alone selects both. See
+[switching variants and exposure](./native-docker-collectors.md#compose-deployment-variants).
+The existing `test` profile is only a development test runner.
+
+Compose supplies matching listener ports and local scrape/ingestion URLs for
+each variant; internal API/Prometheus/HTTP ports must be distinct integers
+from 1 through 65535. The entrypoint derives local URLs from port values for
+plain Docker unless explicitly overridden. If running Telegraf directly with
+the Docker configuration, export `TELEGRAF_PORT` and `TELEGRAF_HTTP_PORT` first.
+Custom configurations must match these listeners themselves; they are never
+rewritten.
+
+## Optional Docker Collectors
+
+These settings are read by the Docker entrypoint, not Pydantic. Compose passes
+them into the container; use `-e` with plain `docker run`. Optional flags accept
+only lowercase `true`/`false` (including rejecting empty values and `auto`).
+They control bundled additions, not the baseline or user-supplied inputs.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_RAPL` | `false` | Native package/platform RAPL power |
+| `ENABLE_POWERSTAT_EXTRA` | `false` | Per-CPU frequency/temperature, without duplicating base package/C-state inputs |
+| `ENABLE_TURBOSTAT` | `false` | Turbostat diagnostics with a bounded executable/MSR preflight |
+| `ENABLE_TEMPERATURE` | `false` | High-resolution package temperature and min/max/mean |
+| `ENABLE_INTERRUPTS` | `false` | Numbered device IRQs with per-CPU series |
+| `ENABLE_NETWORK` | `false` (bridge), `true` (host-NIC) | Network traffic and NIC driver counters; explicit `false` overrides either default |
+| `ENABLE_NETWORK_VIRTUAL` | `false` | Separate veth/lxc traffic and driver counters |
+| `ENABLE_STORAGE` | `false` | Filesystem usage and disk I/O; bundled serial/WWID export disabled |
+| `TURBOSTAT_INTERVAL` | `5` | Positive integer seconds fitting a Telegraf duration |
+| `TURBOSTAT_BIN` | `/usr/local/bin/turbostat` | Absolute container executable path, without spaces/shell expansion |
+| `HOST_TURBOSTAT_BIN` | _(unset)_ | Host binary source for the explicit read-only mount in the optional Compose override |
+
+Invalid flags/interval/path syntax fail startup. Unavailable or incompatible
+Turbostat binaries and unreadable MSRs produce a warning and skip the automatic
+Turbostat input, not the whole stack. Docker bind failures occur before that
+check and can still prevent container creation. See the
+[collectors guide](./native-docker-collectors.md) for the mount, conflicts with
+custom inputs and hardware/namespace scope. Recreate containers after changing
+settings; there is no hot reload. Bare-metal `auto` semantics are unchanged.
 
 ---
 
@@ -183,7 +231,7 @@ The Metrics Manager image includes optional components that are bundled but not 
 
 **Current Status:** Bundled in the image but **NOT started by default**.
 
-**Why not enabled:** The default Metrics Manager already collects GPU metrics via `qmassa_reader.py` and Telegraf's `inputs.execd`. Using both would be redundant.
+**Why not enabled:** The default Metrics Manager already collects GPU metrics via `mm-plugin-gpu` and Telegraf's `inputs.execd`. Using both would be redundant.
 
 **When to enable:** If you want a dedicated GPU metrics exporter that outputs to a separate Prometheus port (typically `:9100` or similar) without going through Telegraf.
 
@@ -219,7 +267,7 @@ Any `*.conf` file dropped into `/etc/supervisor/conf.d/` is picked up automatica
 ### Pattern: Add a Program in Your Downstream Image
 
 ```dockerfile
-FROM intel/metrics-manager:2026.2.0
+FROM intel/metrics-manager:2026.3.0
 
 # Drop additional supervisord program units into the include directory.
 COPY my-extra-service.conf /etc/supervisor/conf.d/my-extra-service.conf
@@ -268,16 +316,17 @@ TELEGRAF_CONFIG=./my-telegraf.conf docker compose up
 
 ### Additional Config Directory
 
-Drop additional `.conf` files in `telegraf.d/`:
+The native-enabled container loads the main configuration plus a private
+snapshot of mounted `telegraf.d/**/*.conf` files and enabled bundled additions.
+It passes that snapshot using `--config-directory`; mounted source files are
+not modified. Review old drop-ins before upgrading: earlier native-enabled
+images mounted this directory but did not load it. Keep only one agent, output
+and HTTP listener configuration, and avoid duplicate inputs.
 
-```bash
-mkdir telegraf.d
-echo '[[inputs.exec]]
-  commands = ["my-custom-script.sh"]
-  interval = "10s"
-  data_format = "json"
-' > telegraf.d/custom-input.conf
-```
+See [Additional collectors in the native-enabled Docker image](./native-docker-collectors.md)
+for optional RAPL/Turbostat setup, customization and metric verification.
+Use the Docker flags listed above; Python-reader flag names are not aliases.
+`native/metrics-options.conf` applies to installed bare-metal services only.
 
 ### Example: Disable GPU or NPU Metrics
 

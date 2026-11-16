@@ -66,7 +66,7 @@
           <a-textarea
             v-model:value="form.options"
             :rows="7"
-            placeholder='{"uri": "http://localhost:19530"}'
+            placeholder='{"uri": "http://milvus-standalone:19530"}'
             class="json-input"
           />
         </a-form-item>
@@ -127,7 +127,7 @@ const form = reactive({
   backend: props.dialogData?.backend || "",
   options: props.dialogData
     ? JSON.stringify(props.dialogData.options, null, 2)
-    : "",
+    : '{"uri": "http://milvus-standalone:19530"}',
   description: props.dialogData?.description || "",
 });
 const backendOptions = computed(

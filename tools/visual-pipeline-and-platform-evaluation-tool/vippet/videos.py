@@ -13,7 +13,10 @@ from typing import Dict, List, Literal, Optional, Tuple
 import cv2
 import yaml
 
-from pipeline_runner import PipelineRunner
+from dlsps2_runner import Dlsps2PipelineRunner
+
+# The TS conversion runs on DLSPS 2.0. Both containers mount the same video
+# directories, so the output lands here.
 
 # Allowed video file extensions (lowercase, without dot)
 VIDEO_EXTENSIONS = (
@@ -818,7 +821,9 @@ class VideosManager:
         )
 
         try:
-            runner = PipelineRunner(mode="normal", max_runtime=0.0)
+            runner = Dlsps2PipelineRunner(
+                mode="normal", max_runtime=0.0, validate_pipelines=False
+            )
             if demuxer:
                 pipeline_command = (
                     f"filesrc location={source_path} ! {demuxer} ! {parser} ! {caps} "
@@ -833,6 +838,11 @@ class VideosManager:
             return True
         except Exception as e:
             logger.error(f"Failed to convert '{source_filename}' to TS: {e}")
+            # A half-written file would later pass for a finished conversion.
+            try:
+                os.remove(ts_path)
+            except OSError:
+                pass
             return False
 
     @staticmethod

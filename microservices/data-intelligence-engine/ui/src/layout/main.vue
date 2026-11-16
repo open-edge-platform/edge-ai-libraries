@@ -44,7 +44,11 @@
         </div>
         <div
           class="page-container"
-          :class="{ 'workspace-page': isWorkspacePage }"
+          :class="{
+            'workspace-page': isWorkspacePage,
+            'table-page': isTablePage,
+            'chat-page': currentPage === 'chat',
+          }"
         >
           <a-alert
             v-if="loadError"
@@ -73,6 +77,7 @@
                 :library-data="libraryData"
                 @refresh="handleSearch"
                 @select-library="handleLibraryChange"
+                @library-deleted="handleLibraryDeleted"
               />
             </router-view>
           </div>
@@ -89,6 +94,7 @@ import { useI18n } from "vue-i18n";
 import { ReloadOutlined } from "@ant-design/icons-vue";
 import Header from "@/layout/Header.vue";
 import Sidebar from "@/layout/Sidebar.vue";
+import { useLibraryStore } from "@/store/library";
 import { getAssetLibraryList, getHealth } from "@/api/console";
 import type { Library } from "@/api/console/type";
 
@@ -102,8 +108,11 @@ const initialized = ref(false);
 const online = ref(false);
 const loadError = ref("");
 const libraryList = ref<Library[]>([]);
+const libraryStore = useLibraryStore();
 const libraryName = ref(
-  typeof route.query.library === "string" ? route.query.library : "",
+  typeof route.query.library === "string"
+    ? route.query.library
+    : libraryStore.selectedName,
 );
 const refreshKey = ref(0);
 const libraryData = computed(() =>
@@ -114,6 +123,11 @@ const isLibraryPage = computed(
   () => !["libraries", "databases", "models"].includes(currentPage.value),
 );
 const isWorkspacePage = computed(() => currentPage.value !== "chat");
+const isTablePage = computed(() =>
+  ["libraries", "assets", "pools", "sources", "databases", "models"].includes(
+    currentPage.value,
+  ),
+);
 let statusTimer: ReturnType<typeof setTimeout>;
 let disposed = false;
 let healthCheckedAt = 0;
@@ -122,6 +136,8 @@ const previousTitle = document.title;
 const queryLibraryList = async (showLoading = true) => {
   libraryList.value = await getAssetLibraryList(showLoading);
   if (!libraryList.value.some((item) => item.name === libraryName.value)) {
+    if (libraryStore.selectedName === libraryName.value)
+      libraryStore.selectedName = "";
     libraryName.value = libraryList.value[0]?.name || "";
   }
 };
@@ -150,13 +166,19 @@ const handleRefresh = async () => {
 };
 const handleLibraryChange = (value: unknown) => {
   libraryName.value = String(value);
+  libraryStore.selectedName = libraryName.value;
+};
+const handleLibraryDeleted = (name: string) => {
+  if (name !== libraryName.value) return;
+  libraryName.value = "";
+  libraryStore.selectedName = "";
 };
 const querySourceStatus = async () => {
-  if (Date.now() - healthCheckedAt >= 15000) await queryEngineHealth();
+  // if (Date.now() - healthCheckedAt >= 15000) await queryEngineHealth();
   const syncing = libraryData.value?.asset_pools.some((pool) =>
     pool.source_statuses.some(
       (status) =>
-        !["DEPRECATED", "DISABLED"].includes(status.effective_state) &&
+        !["DEGRADE", "DISABLED"].includes(status.effective_state) &&
         (["pending", "indexing"].includes(status.status) ||
           ["running", "queued"].includes(status.extraction?.state || "")),
     ),
@@ -181,12 +203,13 @@ watch(
 watch(
   () => route.query.library,
   (name) => {
-    if (typeof name === "string") libraryName.value = name;
+    if (typeof name === "string") handleLibraryChange(name);
   },
+  { immediate: true },
 );
 onMounted(async () => {
   await handleRefresh();
-  if (!disposed) statusTimer = setTimeout(querySourceStatus, 3000);
+  if (!disposed) statusTimer = setTimeout(querySourceStatus, 5000);
 });
 onUnmounted(() => {
   disposed = true;
@@ -257,7 +280,7 @@ onUnmounted(() => {
   .workspace-page {
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: auto;
     .page-content {
       display: flex;
       flex-direction: column;
@@ -286,6 +309,21 @@ onUnmounted(() => {
     }
     :deep(.table-container .type-tabs .intel-tabs-tab) {
       padding: 8px 0;
+    }
+  }
+  .table-page {
+    overflow: hidden;
+    .page-content {
+      min-height: 0;
+    }
+  }
+  .chat-page {
+    display: flex;
+    flex-direction: column;
+    .page-content {
+      display: flex;
+      flex: 1;
+      min-height: 0;
     }
   }
   :deep(.summary-strip) {

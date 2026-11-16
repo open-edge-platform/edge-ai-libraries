@@ -1,0 +1,149 @@
+
+# start smart_parking [resources]
+ensure_container_namespace () {
+  local act_name="${1:?}"
+  local name="${2:?}"
+  shift 2
+
+  case "$act_name" in
+  install) ensure_prop set installed/$name/containers "$*" ;;
+  start) ensure_prop set started/$name/containers "$*" ;;
+  esac
+
+  local container_resources=(
+    $(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/')
+    $(docker network ls --format '{{.Name}}' | sed 's/^/net:/')
+    $(docker volume ls --format '{{.Name}}'  | sed 's/^/vol:/')
+    $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}')
+  )
+  local c stopper mname mpath
+  for c in "$@"; do
+    [[ " ${container_resources[*]} " = *" $c "* ]] || continue
+
+    printf "${red}%s is in conflict${reset}\n" "$c" >&2
+    for mpath in $(ensure_prop find "installed/*/containers") $(ensure_prop find "started/*/containers"); do
+      [[ " $(ensure_prop get "$mpath") " = *" $c "* ]] || continue
+      mname="${mpath#*/}"; mname="${mname%/*}"
+      stopper="${_act_cache_functions[stop_$mname]:-}"
+      [ -n "$stopper" ] || continue
+      printf "${red}Stopping $mname to release container %s${reset}\n" "$c" >&2
+      ( set -e; $stopper "$mname" -- ) >&2 || true
+    done
+
+    container_resources=(
+      $(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/')
+      $(docker network ls --format '{{.Name}}' | sed 's/^/net:/')
+      $(docker volume ls --format '{{.Name}}'  | sed 's/^/vol:/')
+      $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}')
+    )
+    [[ " ${container_resources[*]} " = *" $c "* ]] || continue
+
+    printf "${red}%s is occupied${reset}\n%s\n" "$c" "${container_resources[*]}" >&2
+    return 3
+  done
+}
+
+# [--project=<name>] [yaml files]
+ensure_container_parse_yaml () {
+python3 - "$@" <<'EOF'
+import os, re, sys, yaml
+def _any(loader, node):  # tolerate Compose !reset / !override tags
+  if isinstance(node, yaml.MappingNode):  return loader.construct_mapping(node, deep=True)
+  if isinstance(node, yaml.SequenceNode): return loader.construct_sequence(node, deep=True)
+  return loader.construct_scalar(node)
+for tag in ("!reset", "!override"):
+  yaml.SafeLoader.add_constructor(tag, _any)
+INNER = re.compile(r"\$\{([A-Za-z_]\w*)(?:(:?)([-?+])([^${}]*))?\}")
+def resolve(v):
+  if v is None: return None
+  s = str(v).replace("$$", "\0")
+  while (m := INNER.search(s)):
+    if m.group(3) != "-": return None
+    s = s[:m.start()] + m.group(4) + s[m.end():]
+  if re.search(r"\$[A-Za-z_]", s): return None
+  return s.replace("\0", "$")
+def normalize(n):
+  return re.sub(r"[^a-z0-9_-]", "", n.lower()).lstrip("_-")
+def host_ports(p):
+  if isinstance(p, int): return []                    # container-only port
+  if isinstance(p, dict):
+    port = resolve(p.get("published"))
+  else:
+    s = resolve(p)
+    if s is None: return []
+    s = s.partition("/")[0]
+    if s.startswith("["): s = s.partition("]:")[2]  # [::1]:8080:80
+    parts = s.rsplit(":", 2)
+    port = parts[-2] if len(parts) >= 2 else None
+  m = re.fullmatch(r"(\d+)(?:-(\d+))?", port or "")
+  if not m: return []
+  lo = int(m.group(1))
+  return range(lo, int(m.group(2) or lo) + 1)
+cli_project, paths = None, []
+for a in sys.argv[1:]:
+  if a.startswith("--project="): cli_project = a.split("=", 1)[1]
+  else: paths.append(a)
+services, networks, volumes, file_name = {}, {}, {}, None
+for path in paths:
+  with open(path) as f:
+    d = yaml.safe_load(f) or {}
+  file_name = d.get("name") or file_name
+  for n, s in (d.get("services") or {}).items():
+    if not isinstance(s, dict): continue
+    m = services.setdefault(n, {"ports": []})
+    for k in ("container_name", "network_mode", "networks", "scale", "deploy"):
+      if k in s: m[k] = s[k]
+    m["ports"] += s.get("ports") or []
+  for sec, tgt in (("networks", networks), ("volumes", volumes)):
+    for k, c in (d.get(sec) or {}).items():
+      tgt.setdefault(k, {}).update(c or {})
+proj = resolve(cli_project or file_name) or os.path.basename(os.path.dirname(os.path.abspath(paths[0])))
+proj = normalize(proj)
+seen = set()
+def out(kind, v):
+  if v is not None and (kind, v) not in seen:
+    seen.add((kind, v)); print(f"{kind}:{v}")
+needs_default = False
+for n, s in services.items():
+  if s.get("container_name"):
+    out("name", resolve(s["container_name"]))
+  else:
+    r = resolve(s.get("scale") or (s.get("deploy") or {}).get("replicas") or 1)
+    for i in range(1, (int(r) if str(r).isdigit() else 1) + 1):
+      out("name", f"{proj}-{n}-{i}")
+  if "network_mode" not in s and not s.get("networks"):
+    needs_default = True
+  for p in s["ports"]:
+    for port in host_ports(p):
+      out("port", port)
+if needs_default: networks.setdefault("default", {})
+for kind, table in (("net", networks), ("vol", volumes)):
+  for k, c in table.items():
+    if c.get("external"): continue                  # never ours to clean up
+    out(kind, resolve(c["name"]) if c.get("name") else f"{proj}_{k}")
+EOF
+}
+
+# [resources]
+ensure_container_cleanup () {
+  local c
+  for c in "$@"; do
+    case "$c" in
+    name:*) 
+      echo "Cleaning up $c..." >&2
+      docker container rm -v -f ${c#name:} > /dev/null || true
+      ;;
+    vol:*)
+      echo "Cleaning up $c..." >&2
+      docker volume rm -f ${c#vol:} > /dev/null || true
+      ;;
+    net:*)
+      echo "Cleaning up $c..." >&2
+      docker network rm -f ${c#net:} > /dev/null || true
+      ;;
+    esac
+  done
+  echo "Cleaning up anonymous volumes..." >&2
+  docker volume prune -f > /dev/null || true
+}
+

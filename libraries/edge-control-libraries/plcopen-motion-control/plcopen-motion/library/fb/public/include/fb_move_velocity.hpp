@@ -19,6 +19,7 @@ namespace RTmotion
 {
 /**
  * @brief Function block MC_MoveVelocity
+ * Uses Ruckig velocity control with acceleration/deceleration and jerk limits.
  */
 class FbMoveVelocity : public FbAxisMotion
 {

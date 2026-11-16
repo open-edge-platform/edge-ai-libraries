@@ -14,6 +14,7 @@
 #include "gtest/gtest.h"
 
 #ifdef PLOT
+#include "test_plot.hpp"
 #include <plot/matplotlibcpp.h>
 namespace plt = matplotlibcpp;
 #endif
@@ -92,7 +93,10 @@ protected:
     plt::xlabel("time");
     plt::ylabel("Jerk");
     // Save the image (file format is determined by the extension)
-    plt::save(file_name);
+    const std::string filename = "offline_scurve_test_" + file_name;
+    plt::save(filename);
+    plt::close();
+    test_plot::TestPlot::recordFile(filename);
   }
 #endif
 

@@ -93,6 +93,23 @@ ensure_ovms_config() {
   [[ -f "$config_file" ]] || printf '{"model_config_list": [], "mediapipe_config_list": []}' >"$config_file"
 }
 
+# OVMS runs as the image's fixed uid (5000), not the host user, so a restrictive
+# host umask (e.g. 077) leaves the model files unreadable to it.
+ensure_ovms_models_readable() {
+  [[ -d "$HARNESS_MODELS_DIR" ]] || return 0
+  local resolved home_resolved
+  resolved="$(realpath -m -- "$HARNESS_MODELS_DIR" 2>/dev/null || true)"
+  home_resolved="$(realpath -m -- "$HOME" 2>/dev/null || true)"
+  if [[ -z "$resolved" || -z "$home_resolved" || "$resolved" == "/" \
+        || "$resolved" == "$home_resolved" || "$home_resolved" == "$resolved"/* ]]; then
+    warn "Not changing permissions under HARNESS_MODELS_DIR='${HARNESS_MODELS_DIR}': it is, or contains, your home directory (or could not be resolved). Use a dedicated models directory."
+    return 0
+  fi
+  # Trailing slash so chmod -R also descends when the directory is a symlink.
+  chmod -R o+rX -- "${HARNESS_MODELS_DIR%/}/" 2>/dev/null \
+    || warn "Could not make every file under ${HARNESS_MODELS_DIR} readable by OVMS (some may belong to another user); if the model fails to load, run: sudo chmod -R o+rX '${HARNESS_MODELS_DIR}/'"
+}
+
 # The HF/OpenVINO export tooling shells out via httpx, which only understands
 # http/https/socks5/socks5h proxy schemes — a bare "socks://" (missing the
 # "5") fails deep inside httpx with a raw traceback instead of a clear error.
@@ -994,7 +1011,7 @@ _add_model_config_entry_locked() {
   # `printf >file` happens to avoid this (its permissions come from umask,
   # typically 644), which is why only the *first* registration ever breaks.
   chmod 644 "$tmp"
-  node -e '
+  if ! node -e '
       const fs = require("node:fs");
       const [configFile, name, basePath] = process.argv.slice(1);
       let data = {};
@@ -1004,7 +1021,14 @@ _add_model_config_entry_locked() {
       data.model_config_list.push({ config: { name, base_path: basePath } });
       data.mediapipe_config_list = Array.isArray(data.mediapipe_config_list) ? data.mediapipe_config_list : [];
       process.stdout.write(JSON.stringify(data, null, 2));
-    ' "$config_file" "$name" "$base_path" >"$tmp" && mv -f "$tmp" "$config_file" || { rm -f "$tmp"; return 1; }
+    ' "$config_file" "$name" "$base_path" >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! mv -f "$tmp" "$config_file"; then
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 # ensure_backend_network — idempotent create of the user-defined network
@@ -1021,6 +1045,7 @@ ensure_openvino_model_server() {
   local gpu_args group_add_args bind_host
   local -a proxy_args=()
   ensure_ovms_config
+  ensure_ovms_models_readable
   ensure_backend_network
   if docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
     # Recreated, not just restarted -- a plain `docker restart` keeps
@@ -1040,8 +1065,9 @@ ensure_openvino_model_server() {
   # exact extra flag for GPU-targeted containers).
   group_add_args="$(intel_gpu_docker_group_add_args)"
   docker_proxy_env_args_into proxy_args
-  bind_host="$(resolve_bind_host)" && [[ -n "$bind_host" ]] \
-    || error "Could not resolve the address to publish OpenVINO Model Server on; refusing to publish on all interfaces."
+  if ! bind_host="$(resolve_bind_host)" || [[ -z "$bind_host" ]]; then
+    error "Could not resolve the address to publish OpenVINO Model Server on; refusing to publish on all interfaces."
+  fi
   info "Starting OpenVINO Model Server on port ${HARNESS_OVMS_REST_PORT}…"
   local docker_run_output
   # shellcheck disable=SC2086
@@ -1356,15 +1382,16 @@ list_exported_models() {
       [[ -n "$line" ]] || continue
       found=1
       printf '  %s\n' "$line"
-    done < <(node -e '
+    done < <(node - "$reg_file" <<'JS'
       try {
-        const data = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+        const data = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8"));
         for (const name of Object.keys(data)) {
           const hub = data[name]?.hub || "?";
           console.log(`${name}\t(hub: ${hub}, not served by OVMS)`);
         }
       } catch {}
-    ' "$reg_file")
+JS
+    )
   fi
   [[ "$found" -eq 1 ]] && return 0
   [[ -d "$dir" ]] || { info "No models exported yet (${dir})."; return 0; }
@@ -1469,7 +1496,7 @@ _remove_model_from_ovms_config_locked() {
   # mktemp-defaults-to-0600 vs. OVMS's fixed non-root container uid issue
   # applies here too.
   chmod 644 "$tmp"
-  node -e '
+  if ! node -e '
       const fs = require("node:fs");
       const [configFile, name] = process.argv.slice(1);
       let data;
@@ -1480,7 +1507,14 @@ _remove_model_from_ovms_config_locked() {
         }
       }
       process.stdout.write(JSON.stringify(data, null, 2));
-    ' "$config_file" "$name" >"$tmp" && mv -f "$tmp" "$config_file" || { rm -f "$tmp"; return 1; }
+    ' "$config_file" "$name" >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! mv -f "$tmp" "$config_file"; then
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 # ovms_managed_marker_file / record_ovms_managed / ovms_is_managed — persist

@@ -105,6 +105,14 @@ starts vLLM's OpenAI-compatible API server wired to it via `LMCacheMPConnector`.
 MODEL=model_name SERVE=model_name MODEL_PATH=/path/to/models bash integration/lmcache/vllm/vllm-start.sh
 ```
 
+`MODEL_PATH` is the directory that contains the model folders, and `MODEL` /
+`SERVE` are the model folder name. Do not add `/` to any of them. For example,
+with the model in `/models/Qwen3.5-9B`:
+
+```bash
+MODEL_PATH=/models MODEL=Qwen3.5-9B SERVE=Qwen3.5-9B bash integration/lmcache/vllm/vllm-start.sh
+```
+
 See [docs/configuration.md](docs/configuration.md#deployment-environment-variables-integrationlmcachevllmvllm-startsh)
 for the full list of environment variables `vllm-start.sh` accepts (model
 path, ports, LMCache sizing, `FORCE_BUILD`, and Docker build/run passthroughs).

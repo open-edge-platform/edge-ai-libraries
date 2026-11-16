@@ -30,7 +30,9 @@ No additional effort is needed, referencing the filename via `module` is
 sufficient after the file is placed in this directory. The backend resolves
 the filename to an absolute container path
 (`/scripts/<file>.py`) when building the runnable pipeline command, and
-maps it back to the bare filename when storing the graph.
+maps it back to the bare filename when storing the graph. The pipeline
+server mounts `shared/scripts` read-only at the same path, so the script
+runs there.
 
 > [!NOTE]
 > The `shared/scripts` directory is excluded from linter checks, as it

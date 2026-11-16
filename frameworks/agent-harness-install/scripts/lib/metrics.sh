@@ -238,8 +238,9 @@ metrics_resolve_harness_settings() {
 metrics_validate_jaeger_ports() {
   local port
   for port in "$HARNESS_JAEGER_UI_PORT" "$HARNESS_JAEGER_OTLP_PORT"; do
-    [[ "$port" =~ ^[0-9]+$ ]] && (( port > 0 && port < 65536 )) \
-      || error "Jaeger ports must be between 1 and 65535 (got '${port}')."
+    if [[ ! "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+      error "Jaeger ports must be between 1 and 65535 (got '${port}')."
+    fi
   done
 }
 
@@ -657,7 +658,7 @@ Run 'hermes gateway restart', start a new session, and check again."
 
 metrics_show_harness() {
   local home store enabled backend endpoint content size plugin_line
-  printf "\n${C_BOLD}Harness telemetry${C_RESET}\n"
+  printf '\n%sHarness telemetry%s\n' "$C_BOLD" "$C_RESET"
   if ! metrics_harness_check; then
     info "Not available: ${M_SKIP_REASON}."
     return 0
@@ -830,8 +831,8 @@ metrics_router_prepare_file() {
   if (( max > 0 )) && [[ -f "$file" ]]; then
     size="$(wc -c <"$file" | tr -d ' ')"
     if (( size > max )); then
-      mv -f -- "$file" "${file}.1" && chmod 600 "${file}.1" \
-        || error "Could not rotate ${file}."
+      mv -f -- "$file" "${file}.1" || error "Could not rotate ${file}."
+      chmod 600 "${file}.1" || error "Could not restrict ${file}.1."
       info "Rotated ${file} (${size} bytes) to ${file}.1; /v1/metrics counts only the new file."
     fi
   fi
@@ -944,7 +945,7 @@ metrics_clean_router() {
 
 metrics_show_router() {
   local cfg probe_host json file lines
-  printf "\n${C_BOLD}Inference Router telemetry${C_RESET}\n"
+  printf '\n%sInference Router telemetry%s\n' "$C_BOLD" "$C_RESET"
   cfg="$(inference_router_workspace_dir)/config.yaml"
   if [[ "$(metrics_state_get router.enabled)" == true ]]; then
     ok "Persistent collection enabled (file backend)"
@@ -991,6 +992,7 @@ metrics_show_router() {
 
 # Reads the Router's /v1/metrics JSON on stdin and prints the CLI summary.
 metrics_format_router_metrics() {
+  # shellcheck disable=SC2016  # JavaScript template literals, not shell expansions
   node -e '
     const d = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
     const t = d.token_metrics.overall, l = d.latency_metrics.overall;
