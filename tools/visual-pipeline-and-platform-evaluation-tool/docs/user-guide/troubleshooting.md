@@ -69,14 +69,14 @@ and rerun the jobs.
 
 ---
 
-## 5. Support limited to DL Streamer 2026.0.0 pipelines and models
+## 5. Support limited to DL Streamer 2026.3.0 pipelines and models
 
-ViPPET currently supports only pipelines and models that are supported by **DL Streamer 2026.0.0**.
+ViPPET currently supports only pipelines and models that are supported by **DL Streamer 2026.3.0**.
 
 For the full list of supported models, elements, and other details, see the DL Streamer release notes:
 [DL Streamer release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/release-notes.html)
 
-If a custom pipeline works correctly with DL Streamer 2026.0.0, it is expected to also work
+If a custom pipeline works correctly with DL Streamer 2026.3.0, it is expected to also work
 in ViPPET (see also the “Limited validation scope” limitation below).
 
 ---
@@ -88,9 +88,9 @@ Validation and testing in this release focused mainly on **sanity checks for pre
 For **custom pipelines**:
 
 - Their behavior in ViPPET is less explored and may vary.
-- However, if a custom pipeline is supported and works correctly with **DL Streamer 2026.0.0**,
+- However, if a custom pipeline is supported and works correctly with **DL Streamer 2026.3.0**,
   it is expected to behave similarly when run via ViPPET (see also “Support limited to
-  DL Streamer 2026.0.0 pipelines and models” above).
+  DL Streamer 2026.3.0 pipelines and models” above).
 
 ---
 
