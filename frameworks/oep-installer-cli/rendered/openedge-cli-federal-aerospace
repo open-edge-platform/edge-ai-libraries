@@ -3132,7 +3132,12 @@ debian_31_install_k3s_io ()
     install_k3s_io_sriov;
     ensure_prop set installed/k3s_io/owned true;
     ensure_sudo env "${proxy_args[@]}" K3S_MODE=server ./install-k3s.sh;
-    ensure_sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml "$k3s_binary" kubectl wait --for=condition=Ready nodes --all --timeout=300s;
+    echo "@@STEP Waiting for nodes";
+    local start_clock=$SECONDS;
+    while [ $(( SECONDS - start_clock )) -lt 300 ]; do
+        sleep 1;
+        ensure_sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml "$k3s_binary" kubectl wait --for=condition=Ready nodes --all --timeout=300s && break || true;
+    done;
     echo "@@STEP Installing Helm";
     ensure_sudo ./install-helm.sh;
     echo "@@STEP Installing Intel device plugins";
