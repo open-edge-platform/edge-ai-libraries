@@ -6264,7 +6264,7 @@ debian_90_install_multimodal_weld_defect_detection ()
         echo "Multimodal weld defect detection is installed." 1>&2;
     else
         ensure_disk_size 15000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install multimodal_weld_defect_detection "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal;
         cd "$workspace"/industrial-edge-insights-multimodal;
@@ -6507,7 +6507,7 @@ debian_90_install_real_time_scene_understanding ()
         echo "Live Video Captioning is installed." 1>&2;
     else
         ensure_disk_size 64000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install real_time_scene_understanding "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository live-video-analysis/real-time-scene-understanding;
         cd "$workspace"/live-video-analysis/real-time-scene-understanding;
@@ -6771,7 +6771,7 @@ debian_90_install_uav_mission_compute_sdk ()
             return 3;
         fi;
         ensure_disk_size 20000 || return $?;
-        ensure_ram_size 16000000 || return $?;
+        ensure_ram_size 14680064 || return $?;
         uav_mission_compute_sdk_checkout || return $?;
         local source_commit;
         source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?;
@@ -6958,7 +6958,7 @@ debian_90_install_wind_turbine_anomaly_detection ()
         echo "Wind turbine anomaly detection is installed." 1>&2;
     else
         ensure_disk_size 64000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install wind_turbine_anomaly_detection "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series;
         cd "$workspace"/industrial-edge-insights-time-series;
@@ -10846,7 +10846,7 @@ install_geti ()
         echo "Geti is installed." 1>&2;
     else
         ensure_disk_size 20000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install geti "${used_ports[@]}";
         echo "@@STEP Pulling image";
         docker pull $image_name;
