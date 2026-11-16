@@ -95,7 +95,9 @@ Hugging Face Hub.
 ### Windows
 
 > [!IMPORTANT]
-> Install Git, Python and DLStreamer. Make sure that all applications are available in `PATH` environment variable. Following steps will start only backend API.
+> Install Git, Python and DLStreamer. 
+> Make sure that all applications are available in `PATH` environment variable. 
+> Following steps will start only backend API.
 
 1. Clone the repository:
 
@@ -140,7 +142,6 @@ Hugging Face Hub.
 
    Open a browser and navigate to `http://localhost:7860/api/v1/docs` (or `http://<HOST-IP>:7860/api/v1/docs`)
    to access the Swagger UI.
-
 
 ## Pipeline execution on DL Streamer Pipeline Server 2.0
 
