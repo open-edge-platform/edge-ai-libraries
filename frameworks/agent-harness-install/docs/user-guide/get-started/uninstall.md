@@ -63,6 +63,7 @@ port-forwarding commands. Stop those processes separately after uninstall.
 ./uninstall.sh --harness hermes --keep-models             # remove Hermes but keep the downloaded models
 ```
 
+> [!NOTE]
 > **Uninstalling Hermes (full uninstall):** `./uninstall.sh --harness hermes` is a full
 > uninstall, not an agent-only removal. It also deletes the downloaded/exported
 > models (`~/.agent-harness-install/models`) and `~/.hermes`. Re-downloading
