@@ -174,7 +174,7 @@ In Docker Compose, `ovms-vlm` is defined under the `vlm` profile and its `depend
 
 The project `.env` file controls Docker Compose substitution defaults.
 
-See the full [environment file](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/behavioral-analysis/.env) for more details.
+See the full [environment file](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/behavioral-analysis/.env) for more details.
 
 ## Pattern Configuration (config/patterns.yaml)
 

@@ -124,7 +124,7 @@ Even if some elements are not shown as expected in the UI, the underlying **pipe
 
 ViPPET currently supports only models defined under:
 
-- [`vippet/models/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/models)
+- [`vippet/models/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/models)
   — one YAML file per model. This catalog is synced into the application
   database at startup (insert-only: existing rows are never updated or
   removed when a file changes).

@@ -15,7 +15,7 @@ The tutorial uses these parts:
 
 - **VSS** indexes and searches the video. Its **MCP server** gives the agent
   tools to call.
-- **[agent-harness-install](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/frameworks/agent-harness-install)**
+- **[agent-harness-install](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/frameworks/agent-harness-install)**
   is an installer. It serves the agent model with **OpenVINO™ Model Server**
   (OVMS) behind an **Inference Router**, and it installs the **Hermes** agent.
 - **Hermes** is the agent. It talks to you, uses the model to decide what to
@@ -158,7 +158,7 @@ The installer asks two questions:
 
 On the first run, the installer downloads the model. This can take a long
 time. For all installer options, see the installer's
-[Get Started](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/user-guide/get-started.md)
+[Get Started](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/frameworks/agent-harness-install/docs/user-guide/get-started.md)
 guide.
 
 ### Connect Hermes to the model
@@ -267,7 +267,7 @@ The installer can also install OpenClaw. Make these two changes:
 For the OpenClaw request timeout, see
 [OpenClaw](./agentic-video-analytics.md#openclaw) in the reference page. For
 other agents, see the installer's
-[Get Started](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/user-guide/get-started.md)
+[Get Started](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/frameworks/agent-harness-install/docs/user-guide/get-started.md)
 guide.
 
 ## Troubleshooting

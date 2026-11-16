@@ -1,6 +1,6 @@
 # Backend
 
-The ViPPET backend lives in [`vippet/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet).
+The ViPPET backend lives in [`vippet/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet).
 It is a Python 3.12 / FastAPI service that exposes a REST API on port `7860`,
 orchestrates GStreamer + DL Streamer pipelines that run on DL Streamer
 Pipeline Server 2.0 (the `dlstreamer-pipeline-server` service), runs
@@ -159,7 +159,7 @@ def process(data: list[dict[str, int]] | None) -> bool:
 - Use Pydantic v2 models from `api_schemas.py` for both request bodies and
   responses; call `.model_dump()` (never the deprecated `.dict()`).
 - Document each endpoint with a markdown docstring, Swagger renders it.
-  See the example in [`AGENTS.md`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/AGENTS.md).
+  See the example in [`AGENTS.md`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/AGENTS.md).
 - Use `logging` (module-level logger), never `print()`.
 
 ### Managers and helpers
