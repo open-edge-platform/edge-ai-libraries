@@ -3,12 +3,12 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Running Without a Checkout
+# Run Without a Checkout
 
 `install.sh` is a thin bootstrap: if it finds `scripts/install.sh` next to it
-(a normal checkout), it just runs that. If it's fetched standalone (e.g.
+(a normal checkout), it just runs that. If it is fetched standalone (e.g.,
 `curl -fsSL <url>/install.sh | bash`), it clones this installer's own repo at
-a pinned ref into a temp dir first, then runs the payload from there:
+a pinned reference into a temporary directory first, then runs the payload from there:
 
 ```bash
 export HARNESS_INSTALL_REPO=https://github.com/<you>/<your-fork>.git
@@ -27,7 +27,7 @@ For this repo specifically (a monorepo, so `HARNESS_INSTALL_SUBDIR` is set),
 with no local clone:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/agent-harness-install/install.sh \
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.3.0/frameworks/agent-harness-install/install.sh \
   | HARNESS_INSTALL_REPO=https://github.com/open-edge-platform/edge-ai-libraries.git \
     HARNESS_INSTALL_SUBDIR=frameworks/agent-harness-install \
     HARNESS_INSTALL_REF=v1.0.0 bash
@@ -37,7 +37,7 @@ Installer flags/env after the piped script need `-s --` first, since stdin is
 already consumed by the pipe:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/agent-harness-install/install.sh \
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.3.0/frameworks/agent-harness-install/install.sh \
   | HARNESS_INSTALL_REPO=https://github.com/open-edge-platform/edge-ai-libraries.git \
     HARNESS_INSTALL_SUBDIR=frameworks/agent-harness-install \
     HARNESS_INSTALL_REF=v1.0.0 \
@@ -52,7 +52,7 @@ that checkout instead (the normal source-checkout path above).
 (Docker/Node.js/Python) — this works in standalone mode too, since the
 pinned ref is fetched in full to the temp dir before anything runs, so
 `startup.sh` is right there alongside `scripts/install.sh`. The temp clone
-is still removed as soon as `install.sh` exits, so there's nothing left to
-run `./startup.sh` from directly afterward -- if you want to pre-provision
+is still removed as soon as `install.sh` exits, so there is nothing left to
+run `./startup.sh` from directly afterward — if you want to pre-provision
 a host or re-run just the prerequisite step on its own, use a real
 `git clone` (the normal source-checkout path above) instead.
