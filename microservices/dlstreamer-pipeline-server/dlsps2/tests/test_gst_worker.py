@@ -276,6 +276,33 @@ class TestTeardownFlushesFinalFps:
 
         fps_source.destroy.assert_called_once()
 
+    def test_releases_bus_timer_and_probes(self):
+        """After teardown the instance holds no bus, timer or pad probe,
+        so nothing keeps its GstBus (and its GstPoll socketpair) alive."""
+        pad = MagicMock()
+        probe_id = pad.add_probe.return_value
+        bus = MagicMock()
+        inst = _Instance(
+            instance_id="leak",
+            pipeline=MagicMock(),
+            bus=bus,
+            bus_handler_id=1,
+            fps_source=MagicMock(),
+            probes=[(pad, probe_id)],
+        )
+        worker = GstWorker()
+        with worker._lock:
+            worker._instances["leak"] = inst
+
+        with patch("core.gst_worker._emit"):
+            worker._teardown("leak")
+
+        pad.remove_probe.assert_called_once_with(probe_id)
+        bus.remove_signal_watch.assert_called_once()
+        assert inst.bus is None
+        assert inst.fps_source is None
+        assert inst.probes == []
+
 
 class TestStopUnknownInstance:
     """Stop for an instance that never registered must still report "stopped"."""
