@@ -41,7 +41,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`metrics enable\|disable\|show`) | `bash test/metrics-test.sh` | 42 |
+| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 43 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 9; two require the Hermes image runtime |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -63,7 +63,7 @@ Both relevant PRs and relevant pushes to `main` run the same offline coverage in
 the [quality-gates workflow](../../../.github/workflows/agent-harness-openshell.yml).
 CI separates the suites into named steps and TAP artifacts rather than invoking
 the nested wrappers: `HARNESS_TEST_SKIP_NESTED=1 bash test/openshell-test.sh`
-runs the 74 direct cases; the other four suites run once in their own steps.
+runs the 74 direct cases; the other five suites run once in their own steps.
 The all-in-one local command still runs 77 outer registrations as documented
 above. CI additionally runs the reporting-helper tests described below.
 CI triggers, syntax checks and prepared-runner instructions are described in
@@ -277,7 +277,7 @@ real sandbox operations.
 | `connect_works_while_deployment_is_locked` | Connections during mutation | Connect to different agent fixtures while another process holds the deployment lock. |
 | `group_refresh_precedes_deployment_lock` | Docker-group reexecution | Preserve arguments and refresh permissions before lock acquisition; verify the replacement mutation holds the lock. |
 
-## Telemetry (`metrics`)
+## Telemetry (`observability`)
 
 Source and execution: [metrics-test.sh](metrics-test.sh), `bash test/metrics-test.sh`.
 Docker and the Hermes CLI are replaced by shell functions and every case uses a
@@ -286,7 +286,7 @@ real Router container can write its telemetry file, that the Hermes plugin
 exports spans, or that Jaeger displays them; those need a live deployment.
 
 [metrics-cli-test.sh](metrics-cli-test.sh) (`bash test/metrics-cli-test.sh`, 9
-cases) additionally runs the real `./install.sh metrics ...` entry point as a
+cases; its own CI step) additionally runs the real `./install.sh observability ...` entry point as a
 subprocess against stateful fake `docker`, `hermes`, `flock` and `curl`
 executables: the enable/disable round trip, `--keep-jaeger`, a foreign Jaeger
 container, an unreachable Docker daemon, an already-disabled plugin, the
@@ -327,6 +327,7 @@ codes and resulting state, not real containers.
 | `router_state_reverts_when_rewrite_fails` | Failed config rewrite | Restore the previous saved state. |
 | `unsupported_harness_is_reported` | Non-Hermes agent or OpenShell | Skip the harness with a reason while still applying the Router for `--target all`. |
 | `dispatch` | Deployment locking | Skip the lock for `show`; take it for `enable` and `disable`, in any runtime. |
+| `show_surfaces_a_failed_plugin_load` | Plugin dependency import failure | Warn, with the `hermes gateway restart` remedy, when Hermes's error log shows the plugin's last load failed and no later load succeeded; stay quiet otherwise or while disabled. |
 | `enable_keeps_saved_harness_settings` | Re-running `enable` | Keep saved backend, endpoint and content unless named again. |
 | `foreign_config_fails_before_side_effects` | Foreign config ordering | Fail before starting Jaeger or touching the plugin. |
 | `managed_config_removal_is_marker_gated` | Config removal | Remove only a file that carries the installer's marker. |

@@ -152,7 +152,7 @@ write_inference_router_config() {
 
 # inference_router_telemetry_block — the config.yaml `telemetry:` section.
 # In-memory by default; "file" (JSONL in the bind-mounted workspace, i.e.
-# /app/telemetry.jsonl inside the container) once `./install.sh metrics enable
+# /app/telemetry.jsonl inside the container) once `./install.sh observability enable
 # --target router` has recorded it in metrics.json (see metrics.sh). Kept here
 # so every regeneration of config.yaml preserves that choice.
 inference_router_telemetry_block() {

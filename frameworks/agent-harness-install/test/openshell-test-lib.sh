@@ -42,3 +42,12 @@ expect_failure() {
     return 1
   fi
 }
+
+# refute <command...> -- asserts that the command fails. A bare `! command`
+# never triggers errexit, so written that way an assertion is a silent no-op.
+refute() {
+  if "$@"; then
+    printf 'Expected failure, but the command succeeded: %s\n' "$*" >&2
+    return 1
+  fi
+}

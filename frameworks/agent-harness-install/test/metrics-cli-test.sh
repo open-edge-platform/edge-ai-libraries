@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-# CLI-level test for `./install.sh metrics <enable|disable|show>`: runs the real
+# CLI-level test for `./install.sh observability <enable|disable|show>`: runs the real
 # entry point as a subprocess (argument parsing, deployment lock, dispatch, exit
 # codes) against stateful fake `docker`, `hermes` and `flock` executables.
 # Nothing touches the host; it does not replace a run on a real Docker host.
@@ -138,7 +138,7 @@ run_case() {
 }
 
 case_enable_all_then_disable() {
-  cli metrics enable --target all --backend jaeger
+  cli observability enable --target all --backend jaeger
   check 'enable exits 0' rc_is 0
   check 'router config switched to file telemetry' file_has "$HARNESS_IR_WORKSPACE_DIR/config.yaml" 'backend: "file"'
   check 'router telemetry file created' test -f "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl"
@@ -150,11 +150,11 @@ case_enable_all_then_disable() {
   check 'router state saved' state_is router.enabled true
   check 'harness state saved' state_is harness.enabled true
 
-  cli metrics show
+  cli observability show
   check 'show exits 0' rc_is 0
   check 'show reports the harness enabled' out_has 'Enabled for Hermes'
 
-  cli metrics disable --target all
+  cli observability disable --target all
   check 'disable exits 0' rc_is 0
   check 'router config back to memory' file_has "$HARNESS_IR_WORKSPACE_DIR/config.yaml" 'backend: "memory"'
   if chmod_is_effective; then
@@ -167,11 +167,11 @@ case_enable_all_then_disable() {
 }
 
 case_keep_jaeger_then_remove() {
-  cli metrics enable --target harness --backend jaeger
-  cli metrics disable --target harness --keep-jaeger
+  cli observability enable --target harness --backend jaeger
+  cli observability disable --target harness --keep-jaeger
   check 'disable --keep-jaeger exits 0' rc_is 0
   check 'jaeger kept' has_container agent-harness-install-jaeger
-  cli metrics disable --target harness
+  cli observability disable --target harness
   check 'second disable exits 0' rc_is 0
   check 'jaeger removed by the later disable' no_container agent-harness-install-jaeger
 }
@@ -179,7 +179,7 @@ case_keep_jaeger_then_remove() {
 case_foreign_jaeger_is_refused() {
   mkdir -p "$FAKE/containers/agent-harness-install-jaeger"
   : >"$FAKE/containers/agent-harness-install-jaeger/label"
-  cli metrics enable --target harness --backend jaeger
+  cli observability enable --target harness --backend jaeger
   check 'enable fails' rc_fails
   check 'explains the container is not ours' out_has 'was not created by this installer'
   check 'foreign container untouched' has_container agent-harness-install-jaeger
@@ -190,47 +190,51 @@ case_foreign_jaeger_is_refused() {
 case_target_all_failure_rolls_router_back() {
   mkdir -p "$FAKE/containers/agent-harness-install-jaeger"
   : >"$FAKE/containers/agent-harness-install-jaeger/label"
-  cli metrics enable --target all --backend jaeger
+  cli observability enable --target all --backend jaeger
   check 'enable fails before any change' rc_fails
   check 'router state untouched' state_is router.enabled ''
   check 'router config untouched' file_has "$HARNESS_IR_WORKSPACE_DIR/config.yaml" 'backend: "memory"'
 }
 
 case_docker_down_is_an_error() {
-  FAKE_DOCKER_DOWN=1 cli metrics enable --target harness --backend jaeger
+  FAKE_DOCKER_DOWN=1 cli observability enable --target harness --backend jaeger
   check 'fails when Docker cannot be queried' rc_fails
   check 'says so' out_has 'Cannot inspect Docker containers'
   check 'jaeger not created' no_container agent-harness-install-jaeger
 }
 
 case_disable_survives_an_already_disabled_plugin() {
-  cli metrics enable --target harness
-  FAKE_HERMES_DISABLE_FAILS=1 cli metrics disable --target harness
+  cli observability enable --target harness
+  FAKE_HERMES_DISABLE_FAILS=1 cli observability disable --target harness
   check 'failing command with a plugin that lists as enabled is an error' rc_fails
   check 'state still enabled so it can be retried' state_is harness.enabled true
   echo disabled >"$FAKE/plugin/state"
-  FAKE_HERMES_DISABLE_FAILS=1 cli metrics disable --target harness
+  FAKE_HERMES_DISABLE_FAILS=1 cli observability disable --target harness
   check 'already-disabled plugin is accepted' rc_is 0
   check 'state cleared' state_is harness.enabled false
 }
 
 case_all_disable_still_reaches_router() {
-  cli metrics enable --target all
-  FAKE_HERMES_DISABLE_FAILS=1 cli metrics disable --target all
+  cli observability enable --target all
+  FAKE_HERMES_DISABLE_FAILS=1 cli observability disable --target all
   check 'harness failure is reported' rc_fails
   check 'router was still disabled' state_is router.enabled false
   check 'harness stays enabled for retry' state_is harness.enabled true
 }
 
 case_rejects_bad_input() {
-  cli metrics enable --target harness --backend otlp
-  check 'otlp without endpoint rejected' rc_fails
-  cli metrics enable --target harness --endpoint 'http://x:4318/v1/traces;touch pwned'
+  cli observability enable --target harness --backend otlp
+  check 'otlp is no longer a backend' rc_fails
+  check 'lists the supported backends' out_has 'must be sqlite or jaeger'
+  cli observability enable --target harness --endpoint 'http://x:4318/v1/traces;touch pwned'
   check 'unsafe endpoint rejected' rc_fails
   check 'nothing executed' test ! -e "$SCRIPT_DIR/pwned"
-  cli metrics bogus
+  cli observability bogus
   check 'unknown verb rejected' rc_fails
-  HARNESS_IR_TELEMETRY_FILE_MODE=777 cli metrics enable --target router
+  cli metrics enable --target router
+  check 'the old metrics verb is not accepted' rc_fails
+  check 'router state untouched by the old verb' state_is router.enabled ''
+  HARNESS_IR_TELEMETRY_FILE_MODE=777 cli observability enable --target router
   check 'bad file mode rejected' rc_fails
   check 'router state untouched by a rejected mode' state_is router.enabled ''
 }
@@ -239,7 +243,7 @@ case_rejects_bad_input() {
 case_help_runs_nothing() {
   cli --help
   check 'help exits 0' rc_is 0
-  check 'help lists the metrics command' out_has 'metrics <enable|disable|show>'
+  check 'help lists the observability command' out_has 'observability <enable|disable|show>'
   check 'no external command was run' test ! -s "$FAKE/hermes.log"
   check 'no shell error in the help output' test "$(grep -c 'command not found' "$LOG")" = 0
 }
@@ -252,7 +256,7 @@ run_case 'an unreachable Docker daemon is an error' case_docker_down_is_an_error
 run_case 'disable accepts a plugin that is already disabled' case_disable_survives_an_already_disabled_plugin
 run_case '--target all disable still disables the Router when the harness fails' case_all_disable_still_reaches_router
 run_case 'bad input is rejected without side effects' case_rejects_bad_input
-run_case '--help prints the metrics options without running any command' case_help_runs_nothing
+run_case '--help prints the observability options without running any command' case_help_runs_nothing
 
 printf '1..%d\n' "$N"
 exit "$FAILED"

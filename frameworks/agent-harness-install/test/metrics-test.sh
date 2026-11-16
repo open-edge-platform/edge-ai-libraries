@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-# Unit tests for `./install.sh metrics <enable|disable|show>` (scripts/lib/metrics.sh).
+# Unit tests for `./install.sh observability <enable|disable|show>` (scripts/lib/metrics.sh).
 # Docker and the Hermes CLI are replaced by shell functions; nothing touches the host.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -82,27 +82,28 @@ parse_rejections() {
   fixture
   expect_failure '--target must be' metrics_parse_args show --target bogus
   expect_failure '--backend must be' metrics_parse_args enable --backend prometheus
+  expect_failure '--backend must be sqlite or jaeger' metrics_parse_args enable --backend otlp --endpoint http://h:4318/v1/traces
   expect_failure '--content must be' metrics_parse_args enable --content all
   expect_failure 'cannot be combined with --backend sqlite' \
     metrics_parse_args enable --backend sqlite --endpoint http://h:4318/v1/traces
   expect_failure 'plain http\(s\) URL' \
-    metrics_parse_args enable --backend otlp --endpoint 'http://user:pw@h:4318/v1/traces'
+    metrics_parse_args enable --backend jaeger --endpoint 'http://user:pw@h:4318/v1/traces'
   expect_failure 'plain http\(s\) URL' \
-    metrics_parse_args enable --backend otlp --endpoint 'http://h:4318/v1/traces?token=x'
-  expect_failure 'only valid with .metrics enable' metrics_parse_args disable --backend jaeger
+    metrics_parse_args enable --backend jaeger --endpoint 'http://h:4318/v1/traces?token=x'
+  expect_failure 'only valid with .observability enable' metrics_parse_args disable --backend jaeger
   expect_failure 'apply to the harness' metrics_parse_args enable --target router --content full
   expect_failure 'requires a value' metrics_parse_args enable --endpoint
   expect_failure 'given more than once' metrics_parse_args enable --backend sqlite --backend=jaeger
   expect_failure 'given more than once' metrics_parse_args show --target router --target all
   expect_failure 'port must be between' \
-    metrics_parse_args enable --backend otlp --endpoint http://h:99999/v1/traces
+    metrics_parse_args enable --backend jaeger --endpoint http://h:99999/v1/traces
   expect_failure 'port must be between' \
-    metrics_parse_args enable --backend otlp --endpoint 'http://[::1]:0/v1/traces'
-  metrics_parse_args enable --backend otlp --endpoint 'http://[::1]:4318/v1/traces'
+    metrics_parse_args enable --backend jaeger --endpoint 'http://[::1]:0/v1/traces'
+  metrics_parse_args enable --backend jaeger --endpoint 'http://[::1]:4318/v1/traces'
   [[ "$M_ENDPOINT" == 'http://[::1]:4318/v1/traces' ]]
-  metrics_parse_args enable --backend otlp --endpoint http://h:65535
+  metrics_parse_args enable --backend jaeger --endpoint http://h:65535
   expect_failure 'plain http\(s\) URL' \
-    metrics_parse_args enable --backend otlp --endpoint 'http://[::1]x:4318/v1/traces'
+    metrics_parse_args enable --backend jaeger --endpoint 'http://[::1]x:4318/v1/traces'
 }
 
 router_toggle() {
@@ -118,7 +119,7 @@ router_toggle() {
   grep -Fxq "docker restart $HARNESS_IR_CONTAINER" "$ACTIONS"
   metrics_router_apply false
   grep -Fq 'backend: "memory"' "$cfg"
-  ! grep -Fq 'file_path' "$cfg"
+  refute grep -Fq 'file_path' "$cfg"
   [[ "$(metrics_state_get router.enabled)" == false ]]
   [[ -f "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
 }
@@ -149,26 +150,29 @@ router_without_config_defers() {
   rm -f "$HARNESS_IR_WORKSPACE_DIR/config.yaml"
   metrics_router_apply true
   [[ "$(metrics_state_get router.enabled)" == true ]]
-  ! grep -q restart "$ACTIONS"
+  refute grep -q restart "$ACTIONS"
 }
 
 harness_enable_disable() {
   fixture
   local cfg="$HERMES_HOME/hermes_otel.yaml"
-  M_TARGET=harness M_BACKEND=otlp M_ENDPOINT=http://collector:4318/v1/traces M_CONTENT=preview
+  # An external Jaeger: exported to, but not managed, so no query_port is written.
+  M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT=http://collector:4318/v1/traces M_CONTENT=preview
   metrics_enable_harness
   grep -Fxq 'hermes install hermes_otel' "$ACTIONS"
   grep -Fxq 'hermes enable' "$ACTIONS"
   grep -Fxq 'content_capture: "preview"' "$cfg"
-  grep -Fq 'type: otlp' "$cfg"
+  grep -Fq 'type: jaeger' "$cfg"
   grep -Fq 'endpoint: "http://collector:4318/v1/traces"' "$cfg"
+  refute grep -Fq 'query_port' "$cfg"
+  refute grep -q 'docker run' "$ACTIONS"
   [[ "$(uname -s)" != Linux || "$(stat -c '%a' "$cfg")" == 600 ]]
-  [[ "$(metrics_state_get harness.backend)" == otlp ]]
+  [[ "$(metrics_state_get harness.backend)" == jaeger && "$(metrics_state_get harness.managed_jaeger)" == false ]]
   # sqlite means no exporter entry, and "off" must stay a quoted string.
   M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
   metrics_enable_harness
   grep -Fxq 'content_capture: "off"' "$cfg"
-  ! grep -q 'backends:' "$cfg"
+  refute grep -q 'backends:' "$cfg"
   metrics_disable_harness
   grep -Fxq 'hermes disable' "$ACTIONS"
   [[ ! -e "$cfg" && -d "$HERMES_HOME/plugins/hermes_otel" ]]
@@ -212,7 +216,7 @@ foreign_jaeger_is_never_reused_or_removed() {
   [[ ! -s "$ACTIONS" && ! -d "$HERMES_HOME/plugins/hermes_otel" ]]
   # Removal (also used by uninstall) leaves a same-named container that is not ours.
   TEST_JAEGER_LABEL='' metrics_remove_jaeger
-  ! grep -q 'docker rm' "$ACTIONS"
+  refute grep -q 'docker rm' "$ACTIONS"
   metrics_remove_jaeger
   grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
   # With no container at all, nothing is removed.
@@ -227,35 +231,36 @@ docker_query_failure_is_not_absence() {
   TEST_DOCKER_LS_FAILS=1 expect_failure 'Cannot inspect Docker containers' metrics_enable_harness
   [[ ! -s "$ACTIONS" ]]
   TEST_DOCKER_LS_FAILS=1 expect_failure 'Cannot inspect Docker containers' metrics_remove_jaeger
-  ! grep -q 'docker run' "$ACTIONS"
+  refute grep -q 'docker run' "$ACTIONS"
 }
 
 rejected_endpoint_is_not_echoed() {
   fixture
   local out
-  out="$( (metrics_parse_args enable --backend otlp --endpoint 'http://user:s3cr3t@h:4318/v1/traces?token=abc') 2>&1 || true)"
+  out="$( (metrics_parse_args enable --backend jaeger --endpoint 'http://user:s3cr3t@h:4318/v1/traces?token=abc') 2>&1 || true)"
   grep -Fq 'plain http(s) URL' <<<"$out"
-  ! grep -Fq 's3cr3t' <<<"$out"
-  out="$( (metrics_parse_args enable --backend otlp --endpoint 'http://h:99999/s3cr3t') 2>&1 || true)"
+  refute grep -Fq 's3cr3t' <<<"$out"
+  out="$( (metrics_parse_args enable --backend jaeger --endpoint 'http://h:99999/s3cr3t') 2>&1 || true)"
   grep -Fq 'port must be between' <<<"$out"
-  ! grep -Fq 's3cr3t' <<<"$out"
+  refute grep -Fq 's3cr3t' <<<"$out"
 }
 
 saved_settings_are_resolved_before_validation() {
   fixture
-  M_TARGET=harness M_BACKEND=otlp M_ENDPOINT=http://collector:4318/v1/traces M_CONTENT=preview
+  M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT=http://collector:4318/v1/traces M_CONTENT=preview
   metrics_enable_harness
   # Only the endpoint changes: the saved backend and content are kept.
   metrics_parse_args enable --target harness --endpoint http://other:4318/v1/traces
   metrics_enable_harness
-  [[ "$(metrics_state_get harness.backend)" == otlp && "$(metrics_state_get harness.content)" == preview ]]
+  [[ "$(metrics_state_get harness.backend)" == jaeger && "$(metrics_state_get harness.content)" == preview ]]
   [[ "$(metrics_state_get harness.endpoint)" == http://other:4318/v1/traces ]]
   # Naming the same backend again, without an endpoint, keeps the saved one.
-  metrics_parse_args enable --target harness --backend otlp
+  metrics_parse_args enable --target harness --backend jaeger
   metrics_enable_harness
   [[ "$(metrics_state_get harness.endpoint)" == http://other:4318/v1/traces ]]
-  # A new backend never inherits an endpoint saved for another one.
-  metrics_parse_args enable --target harness --backend otlp --endpoint http://x:4318/v1/traces
+  [[ "$(metrics_state_get harness.managed_jaeger)" == false ]]
+  # An endpoint saved while another backend was active is never inherited.
+  metrics_parse_args enable --target harness --backend sqlite
   metrics_enable_harness
   metrics_parse_args enable --target harness --backend jaeger
   metrics_enable_harness
@@ -266,8 +271,6 @@ saved_settings_are_resolved_before_validation() {
   fixture
   metrics_parse_args enable --target harness --endpoint http://h:4318/v1/traces
   expect_failure 'needs an exporting backend' metrics_enable_harness
-  metrics_parse_args enable --target harness --backend otlp
-  expect_failure 'requires --endpoint' metrics_enable_harness
 }
 
 plugin_source_is_validated() {
@@ -315,7 +318,7 @@ router_state_is_unchanged_when_file_preparation_fails() {
   HARNESS_IR_TELEMETRY_FILE_MODE=666 HARNESS_IR_TELEMETRY_MAX_BYTES=big \
     expect_failure 'must be a non-negative integer' metrics_router_apply true
   [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
-  ! grep -q restart "$ACTIONS"
+  refute grep -q restart "$ACTIONS"
   if [[ "$(metrics_router_host_gid)" != 0 ]]; then
     TEST_DOCKER_LS_FAILS=1 expect_failure 'Cannot inspect Docker containers' metrics_router_apply true
     [[ -z "$(metrics_state_get router.enabled)" ]]
@@ -391,7 +394,7 @@ router_file_is_rotated_when_large() {
   printf 'keep\n' >"$HOME/elsewhere"
   ln -s "$HOME/elsewhere" "$file.1"
   [[ -L "$file.1" ]] || { echo "# skipped: symlinks unavailable"; return 0; }
-  ! metrics_clean_router
+  refute metrics_clean_router
   expect_failure 'symlinked telemetry file' metrics_router_prepare_file
   [[ "$(cat "$HOME/elsewhere")" == keep ]]
 }
@@ -446,7 +449,7 @@ enable_keeps_saved_harness_settings() {
   [[ "$(metrics_state_get harness.managed_jaeger)" == true ]]
   grep -Fq 'type: jaeger' "$HERMES_HOME/hermes_otel.yaml"
   grep -Fxq 'content_capture: "full"' "$HERMES_HOME/hermes_otel.yaml"
-  ! grep -q "docker rm" "$ACTIONS"
+  refute grep -q "docker rm" "$ACTIONS"
   # An explicitly named flag still wins.
   M_BACKEND=sqlite M_BACKEND_GIVEN=1
   metrics_enable_harness
@@ -482,8 +485,8 @@ parse_disable_options() {
   [[ -n "$M_CLEAN" && "$M_TARGET" == router ]]
   metrics_parse_args disable --keep-jaeger
   [[ -n "$M_KEEP_JAEGER" && -z "$M_CLEAN" ]]
-  expect_failure 'only valid with .metrics disable' metrics_parse_args enable --clean
-  expect_failure 'only valid with .metrics disable' metrics_parse_args show --keep-jaeger
+  expect_failure 'only valid with .observability disable' metrics_parse_args enable --clean
+  expect_failure 'only valid with .observability disable' metrics_parse_args show --keep-jaeger
   expect_failure 'conflict' metrics_parse_args disable --clean --keep-jaeger
   expect_failure 'applies to the harness' metrics_parse_args disable --keep-jaeger --target router
   expect_failure 'Unknown option' metrics_parse_args disable --clean=1
@@ -509,7 +512,8 @@ router_disable_clean_is_opt_in() {
   printf 'keep\n' >"$HOME/elsewhere"
   rm -f "$file"
   ln -s "$HOME/elsewhere" "$file"
-  ! metrics_clean_router
+  [[ -L "$file" ]] || { echo "# skipped: symlinks unavailable"; return 0; }
+  refute metrics_clean_router
   [[ "$(cat "$HOME/elsewhere")" == keep ]]
 }
 
@@ -543,7 +547,7 @@ harness_disable_clean_empties_store() {
   out="$(metrics_show_harness_store "$db")"
   grep -Fq 'records: 4 (log=1, span=3); sessions: 2; error spans: 1' <<<"$out"
   grep -Fq 'tool.read: n=2 avg=20.0ms max=30.0ms' <<<"$out"
-  ! grep -q $'\x1b' <<<"$out"
+  refute grep -q $'\x1b' <<<"$out"
   M_CLEAN=""
   metrics_disable_harness
   [[ "$(sqlite_event_count "$db")" == 4 ]]
@@ -566,7 +570,7 @@ harness_keep_jaeger_on_disable() {
   metrics_enable_harness
   M_KEEP_JAEGER=1
   metrics_disable_harness
-  ! grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  refute grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
   # The container is kept, but it is no longer the active backend.
   [[ "$(metrics_state_get harness.kept_jaeger)" == true && "$(metrics_state_get harness.managed_jaeger)" == false ]]
   [[ "$(metrics_state_get harness.enabled)" == false ]]
@@ -582,10 +586,10 @@ kept_jaeger_survives_a_later_enable() {
   metrics_enable_harness
   M_KEEP_JAEGER=1
   metrics_disable_harness
-  # e.g. 'metrics enable --target all' later, defaulting the harness to sqlite
+  # e.g. 'observability enable --target all' later, defaulting the harness to sqlite
   M_BACKEND=sqlite M_ENDPOINT="" M_BACKEND_GIVEN="" M_CONTENT_GIVEN=""
   metrics_enable_harness
-  ! grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  refute grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
   [[ "$(metrics_state_get harness.kept_jaeger)" == true && "$(metrics_state_get harness.managed_jaeger)" == false ]]
   # Actively switching to Jaeger uses the kept container again; switching away removes it.
   M_BACKEND=jaeger M_BACKEND_GIVEN=1
@@ -643,7 +647,7 @@ PY
   kill "$holder" 2>/dev/null || true
   wait "$holder" 2>/dev/null || true
   grep -Fq 'may still contain their text' <<<"$out"
-  ! grep -Fq 'cleaned' <<<"$out"
+  refute grep -Fq 'cleaned' <<<"$out"
 }
 
 all_target_rolls_the_router_back_when_the_harness_fails() {
@@ -676,24 +680,24 @@ all_target_disable_reaches_the_router_after_a_harness_failure() {
 content_capture_warns_for_remote_endpoints() {
   fixture
   local out
-  M_TARGET=harness M_BACKEND=otlp M_ENDPOINT=http://collector.example:4318/v1/traces M_CONTENT=full
+  M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT=http://collector.example:4318/v1/traces M_CONTENT=full
   out="$(metrics_enable_harness 2>&1)"
   grep -Fq 'not on this machine' <<<"$out"
   M_ENDPOINT=http://localhost:4318/v1/traces
   out="$(metrics_enable_harness 2>&1)"
-  ! grep -Fq 'not on this machine' <<<"$out"
+  refute grep -Fq 'not on this machine' <<<"$out"
   M_ENDPOINT=http://127.0.0.1.evil.example:4318/v1/traces
   out="$(metrics_enable_harness 2>&1)"
   grep -Fq 'not on this machine' <<<"$out"
   M_ENDPOINT='http://[::1]:4318/v1/traces'
   out="$(metrics_enable_harness 2>&1)"
-  ! grep -Fq 'not on this machine' <<<"$out"
+  refute grep -Fq 'not on this machine' <<<"$out"
   M_ENDPOINT='http://[2001:db8::1]:4318/v1/traces'
   out="$(metrics_enable_harness 2>&1)"
   grep -Fq 'not on this machine' <<<"$out"
   M_ENDPOINT=http://collector.example:4318/v1/traces M_CONTENT=off
   out="$(metrics_enable_harness 2>&1)"
-  ! grep -Fq 'not on this machine' <<<"$out"
+  refute grep -Fq 'not on this machine' <<<"$out"
 }
 
 clean_failures_are_reported() {
@@ -705,9 +709,9 @@ clean_failures_are_reported() {
   M_CLEAN=1
   out="$(metrics_disable_router 2>&1)"
   grep -Fq 'was not cleaned' <<<"$out"
-  ! grep -Fq 'and collected data cleaned' <<<"$out"
+  refute grep -Fq 'and collected data cleaned' <<<"$out"
   ln -s "$HOME/elsewhere" "$HERMES_HOME/hermes_otel_live.db"
-  ! metrics_clean_harness_store "$HERMES_HOME"
+  refute metrics_clean_harness_store "$HERMES_HOME"
   [[ "$(cat "$HOME/elsewhere")" == keep ]]
 }
 
@@ -723,16 +727,43 @@ JSON
   grep -Fq 'requests=3 input_tokens=30 output_tokens=9' <<<"$out"
   grep -Fq 'ovms/Qwen3: requests=2 in=20 out=6 (50.0% of tokens)' <<<"$out"
   grep -Fq '(0.0% of tokens)' <<<"$out"
-  ! grep -q $'\x1b' <<<"$out"
+  refute grep -q $'\x1b' <<<"$out"
+}
+
+show_surfaces_a_failed_plugin_load() {
+  fixture
+  local out
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  mkdir -p "$HERMES_HOME/logs"
+  # No logs at all: nothing to warn about.
+  out="$(metrics_show_harness 2>&1)"
+  refute grep -Fq 'could not import its dependencies' <<<"$out"
+  printf '2026-11-16 09:17:28,018 WARNING hermes_otel: [hermes-otel] OpenTelemetry import error: No module named opentelemetry.exporter\n' >"$HERMES_HOME/logs/errors.log"
+  out="$(metrics_show_harness 2>&1)"
+  grep -Fq 'could not import its dependencies' <<<"$out"
+  grep -Fq 'hermes gateway restart' <<<"$out"
+  # A later successful load clears it; an earlier one does not.
+  printf '2026-11-16 09:17:34,118 INFO hermes_otel: [hermes-otel] Registered 15 hooks\n' >"$HERMES_HOME/logs/agent.log"
+  out="$(metrics_show_harness 2>&1)"
+  refute grep -Fq 'could not import its dependencies' <<<"$out"
+  printf '2026-11-16 09:17:20,000 INFO hermes_otel: [hermes-otel] Registered 15 hooks\n' >"$HERMES_HOME/logs/agent.log"
+  out="$(metrics_show_harness 2>&1)"
+  grep -Fq 'could not import its dependencies' <<<"$out"
+  # Not reported while the harness is disabled.
+  metrics_disable_harness
+  out="$(metrics_show_harness 2>&1)"
+  refute grep -Fq 'could not import its dependencies' <<<"$out"
 }
 
 dispatch() {
   fixture
   with_deployment_lock() { printf 'lock\n' >>"$ACTIONS"; "$@"; }
   run_metrics_command() { printf 'metrics %s\n' "$*" >>"$ACTIONS"; }
-  (main metrics show --target router)
-  (main --runtime openshell metrics enable --target router)
+  (main observability show --target router)
+  (main --runtime openshell observability enable --target router)
   cmp "$ACTIONS" <(printf 'metrics show --target router\nlock\nmetrics enable --target router\n')
+  expect_failure 'Unknown command: metrics' main metrics show --target router
 }
 
 run_case 'metrics flags default and parse in both --flag value and --flag=value form' parse_defaults
@@ -756,7 +787,8 @@ run_case 'router telemetry file is rotated once and cleaned with --clean' router
 run_case 'sqlite backend warns about exporter env vars' sqlite_warns_about_exporter_env
 run_case 'router state reverts when the config rewrite fails' router_state_reverts_when_rewrite_fails
 run_case 'unsupported harness/runtime is reported, router still applied for --target all' unsupported_harness_is_reported
-run_case 'metrics show skips the deployment lock; mutations take it, in any runtime' dispatch
+run_case 'observability show skips the deployment lock; mutations take it, in any runtime' dispatch
+run_case 'show warns when the last Hermes process could not load the plugin' show_surfaces_a_failed_plugin_load
 run_case 'enable without harness flags keeps the saved harness settings' enable_keeps_saved_harness_settings
 run_case 'a foreign hermes_otel.yaml fails before Jaeger or the plugin is touched' foreign_config_fails_before_side_effects
 run_case 'managed-config removal only touches files this installer wrote' managed_config_removal_is_marker_gated

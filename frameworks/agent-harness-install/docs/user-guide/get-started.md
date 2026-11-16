@@ -134,15 +134,15 @@ Options: `--non-interactive`, `--skip-gpu-check`, `--harness <name>`,
 `--model-precision <int4|int8|fp16|fp32>`, `--model-device <device>`; run
 `./install.sh --help` for the full list of options and environment variables.
 
-## Metrics
+## Observability
 
-`metrics` turns telemetry on or off for the Inference Router and the harness
-and shows its state. Every verb takes arguments:
+`observability` turns telemetry on or off for the Inference Router and the
+harness and shows its state. Every verb takes arguments:
 
 ```bash
-./install.sh metrics enable [--target all|harness|router] [--backend sqlite|jaeger|otlp] [--endpoint <url>] [--content off|preview|full]
-./install.sh metrics disable [--target all|harness|router] [--clean | --keep-jaeger]
-./install.sh metrics show [--target all|harness|router]
+./install.sh observability enable [--target all|harness|router] [--backend sqlite|jaeger] [--endpoint <url>] [--content off|preview|full]
+./install.sh observability disable [--target all|harness|router] [--clean | --keep-jaeger]
+./install.sh observability show [--target all|harness|router]
 ```
 
 | Verb | Arguments | What it controls |
@@ -163,19 +163,24 @@ and shows its state. Every verb takes arguments:
   account's primary group is root (gid 0) there is no private group to share,
   so `enable` fails instead of silently making the file world-writable; set
   `HARNESS_IR_TELEMETRY_FILE_MODE=666` to accept that. Rootless
-  Docker and user-namespace remapping do not map group ids that way (`metrics
-  enable` warns when it detects them); set
+  Docker and user-namespace remapping do not map group ids that way
+  (`observability enable` warns when it detects them); set
   `HARNESS_IR_TELEMETRY_FILE_MODE=666` there. A router container created by an
   earlier installer version lacks that group: re-run `./install.sh` once to
   recreate it before enabling. The choice is saved only after the file is
   ready, so a failed `enable` leaves the previous setting in place.
 - `harness` (Hermes, host runtime): installs and enables the `hermes-otel`
   plugin and writes `$HERMES_HOME/hermes_otel.yaml`. `--backend sqlite` keeps
-  records in the local store only; `jaeger` exports OTLP to a Jaeger
-  all-in-one container managed by the installer (loopback only), or to
-  `--endpoint` when given; `otlp` requires `--endpoint`. `--content` controls
-  prompt/response capture and defaults to `off`. Restart running Hermes
-  sessions afterwards. `disable` disables the plugin, removes the managed
+  records in the local store only; `jaeger` exports OTLP traces to a Jaeger
+  all-in-one container managed by the installer (loopback only), or to your
+  own Jaeger at `--endpoint` when given. `--content` controls
+  prompt/response capture and defaults to `off`. Then run `hermes gateway
+  restart` and start a new session: a Hermes process that was already running
+  (the gateway, or the plugin host it relaunches) picks up the plugin's Python
+  dependencies only after a restart, and until then every turn logs
+  `[hermes-otel] OpenTelemetry packages not available` and records nothing.
+  `observability show` reports that condition from Hermes's error log.
+  `disable` disables the plugin, removes the managed
   config and any managed Jaeger. If the plugin cannot be disabled (Hermes
   missing from `PATH`, or `hermes plugins disable` fails), `disable` fails and
   changes nothing, so the state never claims collection is off while it is on.
@@ -193,7 +198,7 @@ and shows its state. Every verb takes arguments:
   before either target is changed, and if the harness still fails the Router
   change made by that command is reverted.
 - Re-running `enable` keeps the saved harness `--backend`, `--endpoint` and
-  `--content` unless you name them again, so `metrics enable --target all`
+  `--content` unless you name them again, so `observability enable --target all`
   later does not reset a Jaeger setup to `sqlite`. Naming only `--endpoint`
   keeps the saved backend; a saved endpoint is reused only for the backend it
   was saved with.
@@ -204,14 +209,14 @@ and shows its state. Every verb takes arguments:
 
 | Command | Router `telemetry.jsonl` | Hermes local store (`hermes_otel_live.db`) | Managed Jaeger and its traces |
 |---|---|---|---|
-| `metrics disable` | Kept | Kept | Removed |
-| `metrics disable --clean` | Emptied | Emptied | Removed |
-| `metrics disable --keep-jaeger` | Kept | Kept | Kept running |
+| `observability disable` | Kept | Kept | Removed |
+| `observability disable --clean` | Emptied | Emptied | Removed |
+| `observability disable --keep-jaeger` | Kept | Kept | Kept running |
 
 - `--clean` and `--keep-jaeger` conflict, since cleaning removes Jaeger's traces.
-  `--keep-jaeger` applies to the harness. A later `metrics disable --target
-  harness` (or uninstall) removes the kept container; a later `metrics enable`
-  that does not use Jaeger leaves it running.
+  `--keep-jaeger` applies to the harness. A later `observability disable
+  --target harness` (or uninstall) removes the kept container; a later
+  `observability enable` that does not use Jaeger leaves it running.
 - The Hermes store is emptied in place, not deleted, so a running Hermes
   gateway keeps working. A Hermes session that is still running keeps adding
   records until it is restarted. The plugin keeps at most 4000 rows per kind
@@ -221,14 +226,14 @@ and shows its state. Every verb takes arguments:
   process (a running Hermes) keeps the store open, the deleted rows may stay in
   the write-ahead log; the command then reports that, and you should close
   Hermes and run the clean again.
-- Traces already exported to your own `--endpoint` collector are not removed;
-  clear them in that backend.
+- Traces already exported to your own `--endpoint` Jaeger are not removed;
+  clear them in that Jaeger.
 - The Router restarts when it is disabled, which also resets its in-memory
   counters.
 
 ### Reading the data
 
-`metrics show` is the CLI view:
+`observability show` is the CLI view:
 
 - **Router:** whether file collection is on, the events file, and live totals
   from `/v1/metrics` (requests, tokens, latency), followed by a per
@@ -243,8 +248,9 @@ and shows its state. Every verb takes arguments:
 
 Limitations: harness telemetry is not available in OpenShell sandboxes (the
 sandbox has no network egress beyond the router), and only Hermes is
-supported. After an OpenShell install, pass `--runtime openshell` to `metrics`
-(otherwise the runtime defaults to `host`). Router telemetry works in both
+supported. After an OpenShell install, pass `--runtime openshell` to
+`observability` (otherwise the runtime defaults to `host`). Router telemetry
+works in both
 runtimes. The Router's `telemetry.jsonl` is append-only while the Router runs;
 the installer rotates it once it exceeds `HARNESS_IR_TELEMETRY_MAX_BYTES` (see
 [Router telemetry file](#router-telemetry-file)).
@@ -263,33 +269,36 @@ and applies to a fresh plugin install only (an installed plugin is left as is).
 ### Harness backends
 
 `--backend` applies to the harness only; the Router has its own `memory`/`file`
-backend (see [Router telemetry file](#router-telemetry-file)). `jaeger` and
-`otlp` both export OTLP/HTTP traces. The difference is that `jaeger` can start
-and manage the collector for you.
+backend (see [Router telemetry file](#router-telemetry-file)). Trace export
+always uses OTLP/HTTP; `jaeger` names where the traces go, and the installer
+can start and manage that Jaeger for you.
 
 | `--backend` | Where the data goes | `--endpoint` |
 |---|---|---|
 | `sqlite` (default) | The plugin's local store, `$HERMES_HOME/hermes_otel_live.db` (default `~/.hermes`). Nothing leaves the machine. | Not allowed |
-| `jaeger` | Without `--endpoint`: a managed `jaegertracing/all-in-one` container (`agent-harness-install-jaeger`), published on `127.0.0.1` only (UI `16686`, OTLP `4318`). With `--endpoint`: your own Jaeger, which the installer does not manage. | Optional |
-| `otlp` | Any OTLP/HTTP collector at `--endpoint` (for example an OpenTelemetry Collector or Grafana Tempo). Storage is whatever that collector uses. | Required |
+| `jaeger` | Without `--endpoint`: a managed `jaegertracing/all-in-one` container (`agent-harness-install-jaeger`), published on `127.0.0.1` only (UI `16686`, OTLP `4318`). With `--endpoint`: your own Jaeger's OTLP/HTTP traces URL (for example `http://host:4318/v1/traces`), which the installer does not manage. | Optional |
 
 - The `--endpoint` URL must be plain `http(s)://host[:port][/path]` (host: a
   name, IPv4 address or bracketed IPv6 such as `[::1]`; port 1 to 65535), with
   no credentials or query string. Repeating a flag is an error.
-- The managed Jaeger container is removed by `metrics disable`, by switching
-  to another backend, and by uninstall.
+- With `--endpoint`, the plugin exports traces only (no metrics or logs) and
+  expects that Jaeger's query API on port `16686` of the same host for its own
+  dashboard and skill; `observability show` does not read it. Any OTLP/HTTP
+  receiver accepts the traces, but only a Jaeger gives the plugin a read path.
+- The managed Jaeger container is removed by `observability disable`, by
+  switching to `sqlite` or to an external `--endpoint`, and by uninstall.
 - `--content` is independent of `--backend`: with `preview` or `full`,
   prompt/response text is sent to whichever backend you chose, including an
-  external `otlp` collector. `enable` warns when the endpoint is not on this
+  external Jaeger. `enable` warns when the endpoint is not on this
   machine (`127.0.0.1` or `localhost`).
 
 ### Router telemetry file
 
 The Inference Router supports exactly two telemetry backends, `memory` and
-`file`, and `metrics enable --target router` selects `file`. Nothing leaves
+`file`, and `observability enable --target router` selects `file`. Nothing leaves
 the machine: the Router appends to a local file and does not export telemetry.
 
-| | `memory` (default) | `file` (after `metrics enable --target router`) |
+| | `memory` (default) | `file` (after `observability enable --target router`) |
 |---|---|---|
 | Storage | Router process memory | `telemetry.jsonl`, bind-mounted from the container's `/app/telemetry.jsonl` to `~/.agent-harness-install/inference-router/workspace/telemetry.jsonl` |
 | `GET /v1/metrics` | Reads the in-process counters | Re-reads and re-parses the whole file |
@@ -301,22 +310,22 @@ available. It holds no prompt or response text.
 
 What clears the file:
 
-- `./install.sh metrics disable --target router --clean` (or `--target all`)
+- `./install.sh observability disable --target router --clean` (or `--target all`)
   empties it after switching the Router back to `memory`.
 - `POST /v1/metrics/reset` on the Router truncates it.
-- Deleting it by hand is safe; the next `metrics enable --target router`
+- Deleting it by hand is safe; the next `observability enable --target router`
   recreates it with the right permissions.
 - Rotation: when the installer next prepares the file (an install, or
-  `metrics enable --target router`) and it is larger than
+  `observability enable --target router`) and it is larger than
   `HARNESS_IR_TELEMETRY_MAX_BYTES` (default 20 MiB; `0` turns rotation off),
   it is moved to `telemetry.jsonl.1` (mode 600) and a fresh file is started.
   Only one previous generation is kept, and `/v1/metrics` counts only the new
-  file. `metrics show` warns when the file is over the limit, and
+  file. `observability show` warns when the file is over the limit, and
   `--clean` removes the rotated file too.
 - `./uninstall.sh` removes it with the rest of the state directory, including
   with `--keep-models`, which only retains the models.
 
-`metrics disable --target router` switches back to `memory` and restarts the
+`observability disable --target router` switches back to `memory` and restarts the
 Router, so the live counters read zero, but it leaves the file in place unless
 you pass `--clean`. The kept file is restricted to owner-only (mode 600) since
 nothing writes it any more; a later `enable` reopens it as configured. If you

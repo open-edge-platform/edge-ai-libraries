@@ -179,7 +179,7 @@ flowchart TD
 
 ### Telemetry
 
-`./install.sh metrics enable|disable|show` controls telemetry for two
+`./install.sh observability enable|disable|show` controls telemetry for two
 independent blocks, chosen with `--target harness|router|all`. `enable` takes
 the collection and storage options (`--backend`, `--endpoint`, `--content`),
 `disable` can delete the collected data (`--clean`) or keep the managed
@@ -187,11 +187,11 @@ Jaeger (`--keep-jaeger`), and `show` prints a CLI summary, with Jaeger as the
 full trace view. The Router
 persists its counters and latencies to a JSONL file and serves them on
 `/v1/metrics`. The Hermes harness records per-turn traces through the
-`hermes-otel` plugin, to a local SQLite store and optionally to an OTLP
-backend. Harness telemetry is Hermes-only and unavailable in OpenShell
+`hermes-otel` plugin, to a local SQLite store and optionally to a Jaeger
+(managed, or your own at `--endpoint`). Harness telemetry is Hermes-only and unavailable in OpenShell
 sandboxes. Choices are kept in `~/.agent-harness-install/metrics.json`, so a
 later install that regenerates the Router's `config.yaml` preserves them. See
-[Metrics](docs/user-guide/get-started.md#metrics) for the options.
+[Observability](docs/user-guide/get-started.md#observability) for the options.
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 55, "curve": "basis"}}}%%
@@ -202,7 +202,7 @@ flowchart TD
     classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
     classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray: 4 3
 
-    CMD(["./install.sh metrics<br/>enable | disable | show<br/>--target harness, router or all"]):::step
+    CMD(["./install.sh observability<br/>enable | disable | show<br/>--target harness, router or all"]):::step
     LOCK{"Verb"}:::decision
     SHOWN["show: read-only summary<br/>of the Router (/v1/metrics)<br/>and the Hermes store; no lock;<br/>prints the Jaeger UI URL"]:::step
     STATE[("~/.agent-harness-install/metrics.json<br/>router.* and harness.* settings")]:::store
@@ -236,7 +236,7 @@ flowchart TD
         HBE{"--backend"}:::decision
         HSQL[("sqlite (default)<br/>hermes_otel_live.db<br/>emptied by --clean")]:::store
         HJ["jaeger: managed container<br/>UI on 127.0.0.1:16686<br/>--keep-jaeger keeps it"]:::agent
-        HO["otlp, or jaeger with<br/>--endpoint: external<br/>collector"]:::ext
+        HO["jaeger with --endpoint:<br/>your own Jaeger"]:::ext
         HCHK --> HPLUG --> HCFG --> HBE
         HBE --> HSQL
         HBE --> HJ
@@ -328,9 +328,9 @@ scripts/lib/openvino.sh       OpenVINO Model Server (OpenAI-compatible inference
 scripts/lib/inference-router.sh  Inference Router (always run in front of OVMS or an external endpoint; agents are wired to it, not to the model server directly)
 scripts/lib/agents.sh         agent-harness-install's agent catalog: openclaw / deepagents-code (dcode) / hermes
 scripts/lib/harness-mcp.sh    registers an arbitrary MCP endpoint URL with an agent (Hermes and OpenClaw built in; others via HARNESS_MCP_REGISTER_CMD)
-scripts/lib/metrics.sh        `metrics enable|disable|show`: Inference Router telemetry + Hermes hermes-otel plugin, optional managed Jaeger
+scripts/lib/metrics.sh        `observability enable|disable|show`: Inference Router telemetry + Hermes hermes-otel plugin, optional managed Jaeger
 docs/user-guide/              usage documentation (see Documentation above)
-test/metrics-test.sh          unit tests for the metrics command (docker/hermes stubbed)
+test/metrics-test.sh          unit tests for the observability command (docker/hermes stubbed)
 test/smoke-test.sh            end-to-end smoke test suite (phased; see --list)
 test/full-flow-test.sh        full install -> real chat completion -> uninstall run, per agent
 ```

@@ -37,6 +37,7 @@ const suites = [
   ["inference", "Managed inference"],
   ["lifecycle", "Model lifecycle and CLI"],
   ["metrics", "Telemetry (metrics)"],
+  ["metrics-cli", "Telemetry (metrics) CLI entry point"],
   ["defaults", "Agent model defaults"],
   ["reporting", "TAP reporting regression"]
 ];
