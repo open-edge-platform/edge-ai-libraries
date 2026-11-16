@@ -3,6 +3,20 @@
 This page tracks releases of the Audio Analyzer microservice. The most
 recent release is listed first; older entries are preserved for history.
 
+## Version 2026.3.0
+
+**Release Date:** TBD
+
+**New:**
+
+- Optional FunASR Paraformer models, VAD, and punctuation models can be downloaded from ModelScope when the CJK dependencies are installed.
+- Model snapshots can be provisioned through a shared Model Download service using `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL`, with direct downloads available as a fallback.
+
+**Improved:**
+
+- Startup reuses valid model snapshots and provisions missing or incomplete snapshots from the configured source.
+- Updated the Level Zero package to version 1.34.0.
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026
