@@ -124,20 +124,25 @@ export const createStagedSelections = (
 ): StagedPipelineSelection[] => {
   const decode = pipelines.find((p) => p.name === STAGED_DEFAULT_PIPELINE);
   if (decode) {
-    const variantId = (name: string, fallback: number) =>
+    const variantId = (
+      name: string,
+      fallbackName: string,
+      fallbackIndex: number,
+    ) =>
       (
         decode.variants.find((v) => v.name === name) ??
-        decode.variants[fallback]
+        decode.variants.find((v) => v.name === fallbackName) ??
+        decode.variants[fallbackIndex]
       )?.id ?? "";
     return [
       {
         pipelineId: decode.id,
-        variantId: variantId("GPU", 0),
+        variantId: variantId("GPU HEVC", "GPU", 0),
         streamCpuCores: [],
       },
       {
         pipelineId: decode.id,
-        variantId: variantId("CPU", 0),
+        variantId: variantId("CPU HEVC", "CPU", 0),
         streamCpuCores: [],
       },
     ];

@@ -1,10 +1,10 @@
 name: Media Decode
 definition: >
-  Media-only decode workload with no inference. The CPU variant decodes with
-  software avdec_h264, the GPU variant decodes on the GPU media engine (VDBox)
-  through decodebin3. Run both together in a staged density test to find the
-  maximum VDBox streams first and then the CPU streams that still fit, with
-  CPU streams pinned to selected cores.
+  Media-only decode workload with no inference. AVC variants use avdec_h264 on
+  the CPU and decodebin3 on the GPU media engine (VDBox); HEVC variants use
+  avdec_h265 and decodebin3 respectively. Run a codec-matched pair together in
+  a staged density test to find the maximum VDBox streams first and then the
+  CPU streams that still fit, with CPU streams pinned to selected cores.
 tags:
   - Media
 thumbnail: images/simple-nvr.png
@@ -21,6 +21,22 @@ variants:
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      video/x-raw(memory:VAMemory) !
+      queue !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink sync=false async=false
+  - name: CPU HEVC
+    pipeline_description: >-
+      filesrc location=/videos/input/auto/people-hevc.mp4 !
+      parsebin !
+      avdec_h265 !
+      queue !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink sync=false async=false
+  - name: GPU HEVC
+    pipeline_description: >-
+      filesrc location=/videos/input/auto/people-hevc.mp4 !
       decodebin3 !
       video/x-raw(memory:VAMemory) !
       queue !

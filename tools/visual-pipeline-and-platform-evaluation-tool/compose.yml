@@ -103,6 +103,8 @@ x-vippet: &vippet
     - ./shared/images/:/images
     - ./shared/models/:/models
     - ./shared/videos/:/videos
+    - ./vippet/pipelines/assets/people-hevc.mp4:/videos/input/auto/people-hevc.mp4:ro
+    - ./vippet/pipelines/assets/people-hevc.mp4.json:/videos/input/auto/people-hevc.mp4.json:ro
     - ./shared/scripts/:/scripts
     - ./shared/metadata/:/metadata
     - ./shared/db:/db
@@ -269,6 +271,7 @@ services:
       - /var/tmp
     volumes:
       - ./shared/videos/:/videos
+      - ./vippet/pipelines/assets/people-hevc.mp4:/videos/input/auto/people-hevc.mp4:ro
       - ./shared/models/:/models
       - ./shared/images/:/images
       - ./shared/metadata/:/metadata
