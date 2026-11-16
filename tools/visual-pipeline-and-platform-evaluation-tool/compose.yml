@@ -145,6 +145,7 @@ services:
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
     image: docker.io/intel/model-download:2026.3.0-rc1
+    pull_policy: daily
     container_name: model-download
     ports:
       - "8000:8000"
@@ -366,6 +367,7 @@ services:
         condition: service_completed_successfully
   metrics-manager:
     image: docker.io/intel/metrics-manager:2026.3.0-rc1
+    pull_policy: daily
     container_name: metrics-manager
     init: true
     ports:
