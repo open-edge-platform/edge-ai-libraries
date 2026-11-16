@@ -23,19 +23,10 @@ logger = logging.getLogger(__name__)
 
 PIPELINE_ID = "smart-parking"
 
-# Functional cases cover both:
-#   * preprocess and optimize request types,
-#   * a device-named variant ("cpu" -> optimizer search restricted to CPU)
-#     and a non-device variant ("gpu_npu" -> optimizer keeps default scope).
+# Functional cases cover a device-named variant ("cpu" -> optimizer search
+# restricted to CPU) and a non-device variant ("gpu_npu" -> optimizer keeps
+# default scope). The optimizer runs on DL Streamer Pipeline Server.
 OPTIMIZATION_CASES = [
-    (
-        "preprocess-cpu-variant",
-        "cpu",
-        {
-            "type": "preprocess",
-            "parameters": {"search_duration": 10, "sample_duration": 3},
-        },
-    ),
     (
         "optimize-cpu-variant",
         "cpu",
@@ -117,3 +108,21 @@ def test_pipeline_optimize_flow(
     assert final_status.get("error_message") is None, (
         f"Job {job_id} returned error message: {final_status.get('error_message')}"
     )
+
+
+@pytest.mark.smoke
+def test_preprocess_optimization_type_is_rejected(
+    http_client: requests.Session,
+) -> None:
+    """The deprecated preprocess type is rejected with 400 and creates no job."""
+    response = http_client.post(
+        f"{BASE_URL}/pipelines/{PIPELINE_ID}/variants/cpu/optimize",
+        json={"type": "preprocess", "parameters": None},
+        timeout=30,
+    )
+
+    assert response.status_code == 400, (
+        f"Expected 400 for preprocess optimization, "
+        f"got {response.status_code}, body={response.text}"
+    )
+    assert "preprocess" in response.json().get("message", ""), response.text

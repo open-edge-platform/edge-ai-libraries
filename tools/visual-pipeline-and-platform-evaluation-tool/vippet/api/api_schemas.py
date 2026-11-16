@@ -231,7 +231,8 @@ class OptimizationType(str, Enum):
     **Type of optimization operation.**
 
     ## Values
-    - `PREPROCESS` - Run only preprocessing
+    - `PREPROCESS` - Deprecated: not supported since pipelines run on DL Streamer
+      Pipeline Server; requests with it are rejected with 400
     - `OPTIMIZE` - Run full optimization with search/sampling
 
     ### Example
@@ -1317,7 +1318,8 @@ class PipelineRequestOptimize(BaseModel):
     **Request body for starting a pipeline optimization job.**
 
     ## Attributes
-    - `type` - Optimization type: `preprocess` (run only preprocessing) or `optimize` (run full optimization with search/sampling)
+    - `type` - Optimization type: `optimize` (run full optimization with search/sampling);
+      `preprocess` is deprecated and rejected with 400
     - `parameters` - Optional dictionary with optimizer-specific settings
 
     ### Example

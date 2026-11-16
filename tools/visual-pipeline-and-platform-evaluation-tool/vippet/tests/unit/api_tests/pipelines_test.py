@@ -15,6 +15,7 @@ from internal_types import (
     InternalPipelineValidation,
     InternalVariant,
 )
+from managers.optimization_manager import PREPROCESS_NOT_SUPPORTED
 
 
 # Helper to generate test timestamp as datetime
@@ -718,7 +719,7 @@ class TestPipelinesAPI(unittest.TestCase):
             "opt-job-123"
         )
 
-        payload = {"type": "preprocess", "parameters": None}
+        payload = {"type": "optimize", "parameters": None}
 
         response = self.client.post(
             "/pipelines/pipeline-abc123/variants/variant-123/optimize", json=payload
@@ -741,7 +742,7 @@ class TestPipelinesAPI(unittest.TestCase):
             ValueError("Pipeline with id 'nonexistent' not found.")
         )
 
-        payload = {"type": "preprocess", "parameters": None}
+        payload = {"type": "optimize", "parameters": None}
 
         response = self.client.post(
             "/pipelines/nonexistent/variants/variant-123/optimize", json=payload
@@ -763,7 +764,7 @@ class TestPipelinesAPI(unittest.TestCase):
             )
         )
 
-        payload = {"type": "preprocess", "parameters": None}
+        payload = {"type": "optimize", "parameters": None}
 
         response = self.client.post(
             "/pipelines/pipeline-abc123/variants/nonexistent-variant/optimize",
@@ -773,6 +774,27 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertIn("not found", response.json()["message"])
         mock_optimization_manager_cls.return_value.run_optimization.assert_not_called()
+
+    @patch("api.routes.pipelines.OptimizationManager")
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_optimize_variant_preprocess_returns_400(
+        self, mock_pipeline_manager_cls, mock_optimization_manager_cls
+    ):
+        """The deprecated preprocess type is rejected with 400 and the reason."""
+        mock_pipeline_manager_cls.return_value.get_variant_by_ids.return_value = (
+            self._create_internal_variant(variant_id="variant-123")
+        )
+        mock_optimization_manager_cls.return_value.run_optimization.side_effect = (
+            ValueError(PREPROCESS_NOT_SUPPORTED)
+        )
+
+        response = self.client.post(
+            "/pipelines/pipeline-abc123/variants/variant-123/optimize",
+            json={"type": "preprocess", "parameters": None},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["message"], PREPROCESS_NOT_SUPPORTED)
 
     # ------------------------------------------------------------------
     # /pipelines/validate
