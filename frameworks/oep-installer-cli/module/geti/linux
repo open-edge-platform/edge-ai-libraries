@@ -19,7 +19,7 @@ install_geti () {
     echo "Geti is installed." >&2
   else
     ensure_disk_size 20000
-    ensure_ram_size 16777216 # 16 GiB
+    ensure_ram_size 14680064 # 14 GiB
     ensure_ports_open install geti "${used_ports[@]}"
 
     echo "@@STEP Pulling image"

@@ -43,8 +43,7 @@ debian_41_remove_edge_pack_base_realtime () {
 }
 
 debian_41_sbom_edge_pack_base_realtime () {
-  configure_edge_pack_base_realtime "$@" 2> /dev/null && {
-    sbom_edge_pack_repo_entries "$@"
-    ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*"
-  }
+  configure_edge_pack_base_realtime "$@" 2> /dev/null || return 0
+  sbom_edge_pack_repo_entries "$@"
+  ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*"
 }
