@@ -4,6 +4,7 @@ configure_handheld_multi_modal () {
   version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git
   used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997)
+  wait_timeout=120
 }
 
 verify_handheld_multi_modal () {
@@ -13,6 +14,19 @@ verify_handheld_multi_modal () {
     [ -r "$app_dir/docs/user-guide/index.md" ] &&
     [ -r "$app_dir/config/devices.yaml" ] &&
     python3 "$app_dir/scripts/demo_assets.py" check-model --root "$app_dir"
+}
+
+verify_handheld_multi_modal_ready () {
+  local output status
+  if output="$(curl --noproxy '*' --insecure --silent --show-error --output /dev/null --max-time 5 \
+    https://127.0.0.1:8443/ 2>&1)"; then
+    return 0
+  else
+    status=$?
+  fi
+  [ "$status" -ne 7 ] || return 1
+  printf '%s\n' "$output" >&2
+  return "$status"
 }
 
 debian_90_profile_handheld_multi_modal () {
@@ -66,8 +80,18 @@ debian_90_start_handheld_multi_modal () {
   ensure_ports_open start handheld_multi_modal "${used_ports[@]}"
   cd "$workspace"/handheld-multi-modal
   ensure_container_namespace start handheld_multi_modal $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true
-  make up CONFIRM=yes
+  make up CONFIRM=yes || return $?
+  local start_time=$SECONDS ready=0
+  while (( SECONDS - start_time < wait_timeout )); do
+    if verify_handheld_multi_modal_ready; then ready=1; break; fi
+    sleep 5
+  done
+  if [ "$ready" -ne 1 ]; then
+    echo "Handheld Multi-Modal readiness timed out. Inspect Docker Compose logs in $workspace/handheld-multi-modal." >&2
+    return 1
+  fi
   echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)"
+  echo "@@HIGHLIGHT Status: cd $workspace/handheld-multi-modal && docker compose -f compose/handheld-multi-modal.yaml -f compose/cameras.yaml -f config/devices.yaml ps"
   echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
@@ -78,6 +102,7 @@ debian_90_stop_handheld_multi_modal () {
     make stop || true
     ensure_container_cleanup $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true
   } || true
+  ensure_prop remove started/handheld_multi_modal/ports
 }
 
 debian_90_remove_handheld_multi_modal () {
@@ -85,4 +110,6 @@ debian_90_remove_handheld_multi_modal () {
   local app_dir="$workspace"/handheld-multi-modal
   [ ! -d "$app_dir" ] || (cd "$app_dir" && make clean-all CONFIRM=yes || true)
   ensure_rm "$workspace"
+  ensure_prop remove started/handheld_multi_modal/ports || true
+  ensure_prop remove installed/handheld_multi_modal/ports || true
 }
