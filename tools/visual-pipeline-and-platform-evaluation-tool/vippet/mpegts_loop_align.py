@@ -25,7 +25,7 @@ def _pid(packet):
 
 def _payload(packet):
     if packet[3] & 0x20:
-        return packet[5 + packet[4]:] if packet[3] & 0x10 else b""
+        return packet[5 + packet[4] :] if packet[3] & 0x10 else b""
     return packet[4:]
 
 
@@ -33,7 +33,7 @@ def _pmt_pids(packets):
     for packet in packets:
         if _pid(packet) == PAT_PID and packet[1] & 0x40:
             body = _payload(packet)
-            section = body[1 + body[0]:]
+            section = body[1 + body[0] :]
             length = ((section[1] & 0x0F) << 8) | section[2]
             return {
                 ((section[i + 2] & 0x1F) << 8) | section[i + 3]
@@ -53,7 +53,9 @@ def _split(packet, keep=SPLIT_PAYLOAD_BYTES):
     def header_with_adaptation(stuff):
         head = bytearray(packet[:4])
         head[3] = (head[3] & 0xCF) | 0x30
-        adapt = bytes([stuff]) + (b"\x00" + b"\xff" * (stuff - 1) if stuff >= 1 else b"")
+        adapt = bytes([stuff]) + (
+            b"\x00" + b"\xff" * (stuff - 1) if stuff >= 1 else b""
+        )
         return bytes(head) + adapt
 
     first = header_with_adaptation(first_stuff) + body[:keep]
@@ -68,7 +70,9 @@ def align(src, dst):
         data = handle.read()
     if len(data) % TS_PACKET_SIZE:
         raise ValueError("input size is not a multiple of 188 bytes")
-    packets = [data[i:i + TS_PACKET_SIZE] for i in range(0, len(data), TS_PACKET_SIZE)]
+    packets = [
+        data[i : i + TS_PACKET_SIZE] for i in range(0, len(data), TS_PACKET_SIZE)
+    ]
     for index, packet in enumerate(packets):
         if packet[0] != SYNC_BYTE:
             raise ValueError("sync loss at packet %d" % index)
@@ -85,7 +89,12 @@ def align(src, dst):
             counts[pid] += 1
         if pid in psi_pids:
             psi_index[pid].append(index)
-        elif (packet[3] & 0xF0) == 0x10 and not (packet[1] & 0x40) and not (packet[3] & 0xC0) and index > 0:
+        elif (
+            (packet[3] & 0xF0) == 0x10
+            and not (packet[1] & 0x40)
+            and not (packet[3] & 0xC0)
+            and index > 0
+        ):
             splittable[pid].append(index)
 
     split_at = set()
@@ -131,18 +140,32 @@ def align(src, dst):
         raise ValueError("alignment failed: counts not multiples of 16")
     with open(dst, "wb") as handle:
         handle.write(result)
-    return {"packets": len(result) // TS_PACKET_SIZE, "bytes": len(result),
-            "splits": len(split_at), "repeats": len(repeat_at)}
+    return {
+        "packets": len(result) // TS_PACKET_SIZE,
+        "bytes": len(result),
+        "splits": len(split_at),
+        "repeats": len(repeat_at),
+    }
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Align MPEG-TS continuity counters for looping.")
+    parser = argparse.ArgumentParser(
+        description="Align MPEG-TS continuity counters for looping."
+    )
     parser.add_argument("src")
     parser.add_argument("dst")
     args = parser.parse_args(argv)
     report = align(args.src, args.dst)
-    print("wrote %s: %d packets, %d bytes, %d splits, %d PSI repeats"
-          % (args.dst, report["packets"], report["bytes"], report["splits"], report["repeats"]))
+    print(
+        "wrote %s: %d packets, %d bytes, %d splits, %d PSI repeats"
+        % (
+            args.dst,
+            report["packets"],
+            report["bytes"],
+            report["splits"],
+            report["repeats"],
+        )
+    )
 
 
 if __name__ == "__main__":
