@@ -24,7 +24,6 @@ from managers.execution_coordinator import (
     JobExecutionConflictError,
 )
 from managers.optimization_manager import (
-    PREPROCESS_NOT_SUPPORTED,
     OptimizationManager,
     OptimizationRunner,
     PipelineOptimizationResult,
@@ -391,22 +390,19 @@ class TestOptimizationManager(unittest.TestCase):
     # Unsupported types
     # ------------------------------------------------------------------
 
-    def test_run_optimization_rejects_preprocess_without_creating_job(self):
-        """PREPROCESS is rejected before a job is created or the lease is taken."""
+    def test_run_optimization_preprocess_ignores_durations(self):
+        """PREPROCESS runs no search, so its durations are not validated."""
         manager = OptimizationManager()
         variant = _create_internal_variant()
-        request = self._make_internal_request(InternalOptimizationType.PREPROCESS)
+        request = self._make_internal_request(
+            InternalOptimizationType.PREPROCESS, parameters={"search_duration": "abc"}
+        )
 
         with patch.object(manager, "_execute_optimization") as mock_execute:
-            with self.assertRaises(ValueError) as ctx:
-                manager.run_optimization(variant, request)
+            job_id = manager.run_optimization(variant, request)
 
-            self.assertEqual(str(ctx.exception), PREPROCESS_NOT_SUPPORTED)
-            self.assertEqual(manager.jobs, {})
-            mock_execute.assert_not_called()
-
-            # The lease was never taken, so an OPTIMIZE job can still start.
-            manager.run_optimization(variant, self._make_internal_request())
+        self.assertIn(job_id, manager.jobs)
+        mock_execute.assert_called_once()
 
     def test_run_optimization_rejects_invalid_durations(self):
         """Invalid durations are rejected before a job is created or the lease is taken."""
@@ -578,6 +574,29 @@ class TestOptimizationManager(unittest.TestCase):
                     expected,
                 )
 
+    @patch("managers.optimization_manager.Graph")
+    def test_execute_optimization_preprocess_completes_without_fps(
+        self, mock_graph_cls
+    ):
+        """PREPROCESS uses the runner's preprocessing, never the optimizer search."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(manager, "job-preprocess")
+        manager.jobs["job-preprocess"].request = self._make_internal_request(
+            InternalOptimizationType.PREPROCESS
+        )
+        runner.run_preprocessing.return_value = PipelineOptimizationResult(
+            optimized_pipeline_description="preprocessed ! sink"
+        )
+
+        self._execute(manager, "job-preprocess", runner, variant_name="CPU")
+
+        updated = manager.jobs["job-preprocess"]
+        self.assertEqual(updated.state, InternalOptimizationJobState.COMPLETED)
+        self.assertEqual(updated.optimized_pipeline_description, "preprocessed ! sink")
+        self.assertIsNone(updated.total_fps)
+        runner.run_preprocessing.assert_called_once_with("filesrc ! decodebin3 ! sink")
+        runner.run_optimization.assert_not_called()
+
     def test_execute_optimization_graph_conversion_exception_sets_error(self):
         """If Graph.from_pipeline_description fails, job should be marked as FAILED."""
         manager = OptimizationManager()
@@ -704,6 +723,16 @@ class TestOptimizationRunner(unittest.TestCase):
         )
         self.assertEqual(result.optimized_pipeline_description, "best ! sink")
         self.assertEqual(result.total_fps, 99.0)
+
+    @patch("managers.optimization_manager.Dlsps2Optimizer")
+    def test_run_preprocessing_forwards_to_dlsps(self, mock_cls):
+        mock_cls.return_value.preprocess.return_value = "preprocessed ! sink"
+
+        result = OptimizationRunner().run_preprocessing("orig ! sink")
+
+        mock_cls.return_value.preprocess.assert_called_once_with("orig ! sink")
+        self.assertEqual(result.optimized_pipeline_description, "preprocessed ! sink")
+        self.assertIsNone(result.total_fps)
 
     @patch("managers.optimization_manager.Dlsps2Optimizer")
     def test_cancel_delegates_to_client(self, mock_cls):

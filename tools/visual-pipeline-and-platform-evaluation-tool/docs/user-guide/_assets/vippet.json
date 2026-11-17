@@ -2881,7 +2881,7 @@
           "pipelines"
         ],
         "summary": "Optimize Variant",
-        "description": "**Start asynchronous optimization job for a pipeline variant.**\n\n## Operation\n1. Validate that pipeline and variant exist\n2. Delegate to `OptimizationManager.run_optimization()` with variant\n3. Return generated job ID\n\n> **Note:** Optimization works with both read-only (PREDEFINED) and user-created variants.\n> The optimization job uses the variant's graphs as input but does not modify the original variant.\n\nThe optimizer runs as a job on DL Streamer Pipeline Server, so candidate pipelines\nrun on the server's runtime and devices. A variant named `CPU`, `GPU` or `NPU`\nrestricts the search to that device. Cancel a running job with\n`DELETE /jobs/optimization/{job_id}`.\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline containing the variant\n- `variant_id` - ID of the variant to optimize\n\n## Request Body\n**`PipelineRequestOptimize`** with:\n- `type` *(required)* - Optimization type: `\"optimize\"`. `\"preprocess\"` is deprecated\n  and rejected with 400.\n- `parameters` *(optional)* - Optimizer-specific options, e.g.:\n  ```json\n  {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n  ```\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `OptimizationJobResponse` with `job_id` of created job |\n| 400 | `MessageResponse` - Unsupported optimization type (`preprocess`), or `search_duration` or `sample_duration` is not a number greater than 0 |\n| 404 | `MessageResponse` - Pipeline or variant with given IDs do not exist |\n| 409 | `MessageResponse` - Another execution job is already running |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- Variant's graph can be converted to a launch string\n- OptimizationManager starts a background job\n\n### \u274c Failure\n- Another execution job is already running \u2192 409\n- Unknown pipeline or variant ID \u2192 404\n- Optimization type `preprocess` \u2192 400\n- `search_duration` or `sample_duration` not a number greater than 0 \u2192 400\n  (numeric strings such as `\"30\"` are accepted)\n- Unhandled exception in pipeline/variant lookup or job creation \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"type\": \"optimize\",\n  \"parameters\": {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"opt789\"\n}\n```",
+        "description": "**Start asynchronous optimization job for a pipeline variant.**\n\n## Operation\n1. Validate that pipeline and variant exist\n2. Delegate to `OptimizationManager.run_optimization()` with variant\n3. Return generated job ID\n\n> **Note:** Optimization works with both read-only (PREDEFINED) and user-created variants.\n> The optimization job uses the variant's graphs as input but does not modify the original variant.\n\nThe optimizer runs on DL Streamer Pipeline Server, so candidate pipelines run on\nthe server's runtime and devices. A variant named `CPU`, `GPU` or `NPU` restricts\nthe search to that device. Cancel a running job with\n`DELETE /jobs/optimization/{job_id}`.\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline containing the variant\n- `variant_id` - ID of the variant to optimize\n\n## Request Body\n**`PipelineRequestOptimize`** with:\n- `type` *(required)* - Optimization type: `\"preprocess\"` or `\"optimize\"`\n- `parameters` *(optional)* - Optimizer-specific options, e.g.:\n  ```json\n  {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n  ```\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `OptimizationJobResponse` with `job_id` of created job |\n| 400 | `MessageResponse` - For `optimize`, `search_duration` or `sample_duration` is not a number greater than 0 |\n| 404 | `MessageResponse` - Pipeline or variant with given IDs do not exist |\n| 409 | `MessageResponse` - Another execution job is already running |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- Variant's graph can be converted to a launch string\n- OptimizationManager starts a background job\n\n### \u274c Failure\n- Another execution job is already running \u2192 409\n- Unknown pipeline or variant ID \u2192 404\n- For `optimize`, `search_duration` or `sample_duration` not a number greater than 0 \u2192 400\n  (numeric strings such as `\"30\"` are accepted)\n- Unhandled exception in pipeline/variant lookup or job creation \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"type\": \"optimize\",\n  \"parameters\": {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"opt789\"\n}\n```",
         "operationId": "optimize_variant",
         "parameters": [
           {
@@ -2925,7 +2925,7 @@
             }
           },
           "400": {
-            "description": "Unsupported optimization type or invalid parameters",
+            "description": "Invalid optimization parameters",
             "content": {
               "application/json": {
                 "schema": {
@@ -7906,7 +7906,7 @@
           "optimize"
         ],
         "title": "OptimizationType",
-        "description": "**Type of optimization operation.**\n\n## Values\n- `PREPROCESS` - Deprecated: not supported since pipelines run on DL Streamer\n  Pipeline Server; requests with it are rejected with 400\n- `OPTIMIZE` - Run full optimization with search/sampling\n\n### Example\n```json\n\"optimize\"\n```"
+        "description": "**Type of optimization operation.**\n\n## Values\n- `PREPROCESS` - Run only preprocessing\n- `OPTIMIZE` - Run full optimization with search/sampling\n\n### Example\n```json\n\"optimize\"\n```"
       },
       "OutputMode": {
         "type": "string",
@@ -8628,7 +8628,7 @@
           "parameters"
         ],
         "title": "PipelineRequestOptimize",
-        "description": "**Request body for starting a pipeline optimization job.**\n\n## Attributes\n- `type` - Optimization type: `optimize` (run full optimization with search/sampling);\n  `preprocess` is deprecated and rejected with 400\n- `parameters` - Optional dictionary with optimizer-specific settings\n\n### Example\n```json\n{\n  \"type\": \"optimize\",\n  \"parameters\": {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n}\n```"
+        "description": "**Request body for starting a pipeline optimization job.**\n\n## Attributes\n- `type` - Optimization type: `preprocess` (run only preprocessing) or `optimize` (run full optimization with search/sampling)\n- `parameters` - Optional dictionary with optimizer-specific settings\n\n### Example\n```json\n{\n  \"type\": \"optimize\",\n  \"parameters\": {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n}\n```"
       },
       "PipelineSource": {
         "type": "string",

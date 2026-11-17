@@ -299,6 +299,42 @@ class TestDlsps2Optimizer(unittest.TestCase):
         self.assertEqual(api.deleted, ["j1"])
 
 
+class TestDlsps2Preprocess(unittest.TestCase):
+    def _preprocess(self, response: httpx.Response) -> str:
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return response
+
+        with _patched_client(handler):
+            result = Dlsps2Optimizer(base_url=BASE_URL).preprocess("decodebin ! sink")
+        self.assertEqual(requests[0].url.path, "/optimize/preprocess")
+        self.assertEqual(
+            json.loads(requests[0].content), {"pipeline": "decodebin ! sink"}
+        )
+        return result
+
+    def test_returns_processed_pipeline(self):
+        response = httpx.Response(200, json={"processed_pipeline": "decodebin3 ! sink"})
+
+        self.assertEqual(self._preprocess(response), "decodebin3 ! sink")
+
+    def test_server_without_preprocess_endpoint_raises_clear_error(self):
+        response = httpx.Response(405, json={"detail": "Method Not Allowed"})
+
+        with self.assertRaisesRegex(Dlsps2OptimizerError, "no preprocess endpoint"):
+            self._preprocess(response)
+
+    def test_server_error_raises_with_detail(self):
+        response = httpx.Response(503, json={"detail": "preprocess timed out"})
+
+        with self.assertRaisesRegex(
+            Dlsps2OptimizerError, "HTTP 503: preprocess timed out"
+        ):
+            self._preprocess(response)
+
+
 class TestCancelLeftoverOptimizations(unittest.TestCase):
     def test_cancels_only_running_jobs(self):
         deleted: list[str] = []

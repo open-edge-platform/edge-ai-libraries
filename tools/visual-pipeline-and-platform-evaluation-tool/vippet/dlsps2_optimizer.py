@@ -12,6 +12,8 @@ vippet's process:
 * ``GET /optimize/status/{id}`` is polled until the job is ``final``.
 * ``GET /optimize/result/{id}`` returns the best pipeline found and its FPS.
 * ``DELETE /optimize/{id}`` cancels the job.
+* ``POST /optimize/preprocess`` applies only the optimizer's element
+  substitutions to a launch string, synchronously and without a job.
 
 The server keeps its jobs in memory only, so a job it no longer knows (404)
 means the server restarted and the job is lost.
@@ -51,6 +53,12 @@ DLSPS2_OPTIMIZE_UNREACHABLE_S: float = float(
 # exited, at most max(30, 3 * sample_duration) seconds after the cancel.
 DLSPS2_OPTIMIZE_BUSY_WAIT_S: float = float(
     os.environ.get("DLSPS2_OPTIMIZE_BUSY_WAIT_S", "45")
+)
+
+# Per-request timeout of POST /optimize/preprocess, seconds. The server gives the
+# preprocessing subprocess up to 30 s.
+DLSPS2_PREPROCESS_TIMEOUT_S: float = float(
+    os.environ.get("DLSPS2_PREPROCESS_TIMEOUT_S", "60")
 )
 
 # The server kills the optimizer worker max(30, 3 * sample_duration) seconds
@@ -123,6 +131,50 @@ class Dlsps2Optimizer:
     def is_cancelled(self) -> bool:
         """Return ``True`` once :meth:`cancel` was called."""
         return self._cancelled.is_set()
+
+    def preprocess(self, pipeline: str) -> str:
+        """
+        Apply the optimizer's element substitutions to a launch string.
+
+        Runs no candidate pipelines and takes no optimizer slot on the server.
+
+        Args:
+            pipeline: GStreamer launch string to preprocess.
+
+        Returns:
+            str: The preprocessed launch string.
+
+        Raises:
+            Dlsps2OptimizerError: The server is unreachable, has no
+                preprocess endpoint, or could not preprocess the pipeline.
+        """
+        try:
+            with httpx.Client(
+                timeout=DLSPS2_PREPROCESS_TIMEOUT_S, verify=DLSPS2_VERIFY_TLS
+            ) as client:
+                response = client.post(
+                    f"{self.base_url}/optimize/preprocess", json={"pipeline": pipeline}
+                )
+        except httpx.HTTPError as exc:
+            raise Dlsps2OptimizerError(
+                f"Cannot reach DLSPS 2.0 at {self.base_url}: {exc}"
+            ) from exc
+        if response.status_code in (404, 405):
+            raise Dlsps2OptimizerError(
+                f"DLSPS 2.0 at {self.base_url} has no preprocess endpoint "
+                f"(POST /optimize/preprocess); it needs a server release with it"
+            )
+        if response.is_error:
+            raise Dlsps2OptimizerError(
+                f"DLSPS 2.0 could not preprocess the pipeline: "
+                f"{_response_detail(response)}"
+            )
+        try:
+            return str(response.json()["processed_pipeline"])
+        except (ValueError, KeyError, TypeError) as exc:
+            raise Dlsps2OptimizerError(
+                f"Unexpected answer to POST /optimize/preprocess: {response.text}"
+            ) from exc
 
     def optimize(
         self,

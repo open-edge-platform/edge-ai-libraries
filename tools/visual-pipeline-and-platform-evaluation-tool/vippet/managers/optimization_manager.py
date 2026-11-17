@@ -30,13 +30,6 @@ DEFAULT_SAMPLE_DURATION = 10  # seconds
 # Any other variant name keeps the optimizer's default (all devices).
 DEVICE_VARIANT_NAMES: frozenset[str] = frozenset({"CPU", "GPU", "NPU"})
 
-# DLSPS 2.0 runs only the full optimizer search, not its preprocessing alone.
-PREPROCESS_NOT_SUPPORTED = (
-    "Optimization type 'preprocess' is not supported: pipelines run on DLSPS 2.0, "
-    "which runs only the full optimization. Use type 'optimize', which applies "
-    "the same preprocessing first."
-)
-
 logger = logging.getLogger("optimization_manager")
 
 
@@ -69,7 +62,7 @@ class PipelineOptimizationResult:
 
     Attributes:
         optimized_pipeline_description: Optimized GStreamer pipeline string produced by the optimizer.
-        total_fps: Measured total FPS for the optimized pipeline.
+        total_fps: Measured total FPS for the optimized pipeline (None for PREPROCESS type).
     """
 
     optimized_pipeline_description: str
@@ -97,6 +90,30 @@ class OptimizationRunner:
     def __init__(self) -> None:
         self.logger = logging.getLogger("OptimizationRunner")
         self._optimizer = Dlsps2Optimizer()
+
+    def run_preprocessing(
+        self, pipeline_description: str
+    ) -> PipelineOptimizationResult:
+        """
+        Run only the preprocessing stage on the provided GStreamer pipeline string.
+
+        DLSPS 2.0 applies the optimizer's element substitutions and returns
+        the preprocessed pipeline string; no candidate pipelines are run.
+
+        Args:
+            pipeline_description: Original GStreamer pipeline string to preprocess.
+
+        Returns:
+            PipelineOptimizationResult: Result containing the preprocessed GStreamer pipeline string.
+
+        Raises:
+            Dlsps2OptimizerError: DLSPS 2.0 could not preprocess the pipeline.
+        """
+        return PipelineOptimizationResult(
+            optimized_pipeline_description=self._optimizer.preprocess(
+                pipeline_description
+            )
+        )
 
     def run_optimization(
         self,
@@ -263,17 +280,16 @@ class OptimizationManager:
 
         Raises:
             ValueError: If an rtspsrc node has a missing or invalid location.
-            ValueError: The optimization type is not supported (``preprocess``),
-                or ``search_duration`` or ``sample_duration`` is invalid.
+            ValueError: The optimization type is unknown, or, for OPTIMIZE,
+                ``search_duration`` or ``sample_duration`` is invalid.
             JobExecutionConflictError: Another pipeline execution job is running.
         """
         variant.pipeline_graph.validate_rtsp_sources()
 
-        if optimization_request.type != InternalOptimizationType.OPTIMIZE:
-            if optimization_request.type == InternalOptimizationType.PREPROCESS:
-                raise ValueError(PREPROCESS_NOT_SUPPORTED)
+        if optimization_request.type == InternalOptimizationType.OPTIMIZE:
+            self._durations(optimization_request)
+        elif optimization_request.type != InternalOptimizationType.PREPROCESS:
             raise ValueError(f"Unknown optimization type: {optimization_request.type}")
-        self._durations(optimization_request)
 
         job_id = self._generate_job_id()
         execution_lease = ExecutionCoordinator().acquire(
@@ -426,6 +442,46 @@ class OptimizationManager:
                 job.details = [error_message]
         self.logger.error(f"Pipeline optimization {job_id} failed: {error_message}")
 
+    def _run_optimize(
+        self,
+        job_id: str,
+        runner: OptimizationRunner,
+        pipeline_description: str,
+        optimization_request: InternalPipelineRequestOptimize,
+        variant_name: str,
+    ) -> PipelineOptimizationResult:
+        """Run the full optimizer search for an OPTIMIZE job."""
+        params = optimization_request.parameters or {}
+        # Map the variant name to a device allow-list. Only "CPU",
+        # "GPU" and "NPU" (case-insensitive) are recognized as
+        # device names; other names keep the default search scope.
+        allowed_devices = self._resolve_allowed_devices(variant_name)
+        if allowed_devices is not None:
+            self.logger.info(
+                f"Restricting optimizer device search to {allowed_devices} "
+                f"for job {job_id} (variant name: {variant_name!r})"
+            )
+        # Resolve effective values once so they can be both logged
+        # and forwarded to the runner. This makes it easy to verify
+        # in the logs that the values from the request (or defaults)
+        # actually reach the optimizer.
+        effective_search_duration, effective_sample_duration = self._durations(
+            optimization_request
+        )
+        self.logger.info(
+            f"Starting DLSPS 2.0 optimizer for job {job_id} with "
+            f"search_duration={effective_search_duration}s, "
+            f"sample_duration={effective_sample_duration}s, "
+            f"allowed_devices={allowed_devices} "
+            f"(raw parameters={params!r})"
+        )
+        return runner.run_optimization(
+            pipeline_description=pipeline_description,
+            search_duration=effective_search_duration,
+            sample_duration=effective_sample_duration,
+            allowed_devices=allowed_devices,
+        )
+
     def _execute_optimization(
         self,
         job_id: str,
@@ -438,14 +494,15 @@ class OptimizationManager:
         """
         Execute the optimization process in a background thread.
 
-        The optimizer runs as a DLSPS 2.0 job through ``runner``; this method
-        blocks until it ends and then updates the corresponding
+        The optimizer runs on DLSPS 2.0 through ``runner``: OPTIMIZE as a
+        server job, PREPROCESS as a single request. This method blocks until
+        it ends and then updates the corresponding
         :class:`InternalOptimizationJobStatus`.
 
-        The variant name restricts the optimizer's device search scope:
-        variant names equal (case-insensitive) to "CPU", "GPU" or "NPU" map
-        to a single-device allowed list. Any other variant name keeps the
-        optimizer's default search scope.
+        For OPTIMIZE, the variant name restricts the optimizer's device search
+        scope: variant names equal (case-insensitive) to "CPU", "GPU" or "NPU"
+        map to a single-device allowed list. Any other variant name keeps the
+        optimizer's default search scope. PREPROCESS is not affected.
 
         After successful optimization, both advanced and simple views
         are generated from the optimized GStreamer pipeline string as
@@ -481,36 +538,16 @@ class OptimizationManager:
                 f"Starting pipeline optimization execution for job {job_id}, original pipeline: {pipeline_description}"
             )
 
-            params = optimization_request.parameters or {}
-            # Map the variant name to a device allow-list. Only "CPU",
-            # "GPU" and "NPU" (case-insensitive) are recognized as
-            # device names; other names keep the default search scope.
-            allowed_devices = self._resolve_allowed_devices(variant_name)
-            if allowed_devices is not None:
-                self.logger.info(
-                    f"Restricting optimizer device search to {allowed_devices} "
-                    f"for job {job_id} (variant name: {variant_name!r})"
+            if optimization_request.type == InternalOptimizationType.PREPROCESS:
+                results = runner.run_preprocessing(pipeline_description)
+            else:
+                results = self._run_optimize(
+                    job_id,
+                    runner,
+                    pipeline_description,
+                    optimization_request,
+                    variant_name,
                 )
-            # Resolve effective values once so they can be both logged
-            # and forwarded to the runner. This makes it easy to verify
-            # in the logs that the values from the request (or defaults)
-            # actually reach the optimizer.
-            effective_search_duration, effective_sample_duration = self._durations(
-                optimization_request
-            )
-            self.logger.info(
-                f"Starting DLSPS 2.0 optimizer for job {job_id} with "
-                f"search_duration={effective_search_duration}s, "
-                f"sample_duration={effective_sample_duration}s, "
-                f"allowed_devices={allowed_devices} "
-                f"(raw parameters={params!r})"
-            )
-            results = runner.run_optimization(
-                pipeline_description=pipeline_description,
-                search_duration=effective_search_duration,
-                sample_duration=effective_sample_duration,
-                allowed_devices=allowed_devices,
-            )
 
             # Build both views outside the lock; a parse error fails the job.
             graph = Graph.from_pipeline_description(

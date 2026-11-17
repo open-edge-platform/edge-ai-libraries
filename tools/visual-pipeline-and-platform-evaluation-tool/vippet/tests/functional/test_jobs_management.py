@@ -67,20 +67,10 @@ def _start_density_job(session: requests.Session) -> str:
 def _start_optimization_job(session: requests.Session) -> str:
     """Submit a minimal optimization job and return its job_id."""
     payload = {
-        "type": "optimize",
+        "type": "preprocess",
         "parameters": {"search_duration": 5, "sample_duration": 2},
     }
     return start_optimization_job(session, PIPELINE_ID, PIPELINE_VARIANT, payload)
-
-
-def _cancel_and_drain_optimization_job(session: requests.Session, job_id: str) -> None:
-    """Cancel an optimization job, if it still runs, and wait until it ends."""
-    response = session.delete(f"{BASE_URL}/jobs/optimization/{job_id}", timeout=30)
-    assert response.status_code in (200, 409), (
-        f"Unexpected status cancelling optimization job {job_id}: "
-        f"{response.status_code}, body={response.text}"
-    )
-    drain_job(session, f"{BASE_URL}/jobs/optimization/{job_id}/status")
 
 
 @pytest.mark.smoke
@@ -424,7 +414,7 @@ def test_get_all_optimization_job_statuses_returns_list(
 ) -> None:
     """After an optimization job, GET /jobs/optimization/status returns a non-empty list containing the job."""
     job_id = _start_optimization_job(http_client)
-    _cancel_and_drain_optimization_job(http_client, job_id)
+    drain_job(http_client, f"{BASE_URL}/jobs/optimization/{job_id}/status")
 
     response = http_client.get(f"{BASE_URL}/jobs/optimization/status", timeout=30)
 
@@ -447,7 +437,7 @@ def test_get_optimization_job_summary_returns_correct_request(
 ) -> None:
     """After an optimization job, GET /jobs/optimization/{job_id} echoes back the original request."""
     job_id = _start_optimization_job(http_client)
-    _cancel_and_drain_optimization_job(http_client, job_id)
+    drain_job(http_client, f"{BASE_URL}/jobs/optimization/{job_id}/status")
 
     response = http_client.get(f"{BASE_URL}/jobs/optimization/{job_id}", timeout=30)
 

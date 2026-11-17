@@ -619,7 +619,7 @@ def test_optimize_variant_for_nonexistent_pipeline_returns_404(
     response = http_client.post(
         f"{BASE_URL}/pipelines/{nonexistent_pipeline_id}/variants/cpu/optimize",
         json={
-            "type": "optimize",
+            "type": "preprocess",
             "parameters": {"search_duration": 5, "sample_duration": 2},
         },
         timeout=30,
