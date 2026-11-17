@@ -70,6 +70,8 @@ NAN = math.nan
 CSV_COLS = ["concurrency", "req_id", "audio_file", "status", "error",
             "e2e_latency_s", "upload_time_s", "decode_time_s", "ttft_s", "itl_s",
             "inference_time_s", "output_tokens", "total_chunks"]
+KPI_CSV_COLS = ["Audio_File_Size", "Audio_File_Duration", "E2E_Latency", "TTFT",
+                "Inference_Time", "Output_Tokens"]
 METRICS = ["e2e_latency_s", "upload_time_s", "decode_time_s", "ttft_s", "itl_s",
            "inference_time_s", "output_tokens", "total_chunks"]
 
@@ -250,6 +252,11 @@ def _f(x):
     return "" if x != x else f"{x:.6f}"
 
 
+def _average_kpi_row(values):
+    return [_f(sum(values[key]) / len(values[key])) if values[key] else ""
+            for key in KPI_CSV_COLS]
+
+
 class _TimedMultipartPayload(aiohttp.payload.Payload):
     """Wraps the multipart body to record when the upload has been fully written."""
 
@@ -384,10 +391,12 @@ def _write_transcript(fh, conc, rec: Rec):
 
 
 class Runner:
-    def __init__(self, session, audios, timeout, stats=None, writer=None, conc=0, text_fh=None):
+    def __init__(self, session, audios, timeout, stats=None, writer=None, conc=0, text_fh=None,
+                 kpi_values=None):
         self.session, self.timeout = session, timeout
         self.it = itertools.cycle(audios)
         self.stats, self.writer, self.conc, self.text_fh = stats, writer, conc, text_fh
+        self.kpi_values = kpi_values
 
     async def one(self, i):
         audio = next(self.it)
@@ -396,6 +405,17 @@ class Runner:
         if self.stats is not None:
             self.stats.add(rec)
             self.writer.writerow(rec.row(self.conc))
+            if self.kpi_values is not None:
+                self.kpi_values["Audio_File_Size"].append(len(audio["bytes"]))
+                duration = audio["duration_s"]
+                if duration is not None:
+                    self.kpi_values["Audio_File_Duration"].append(duration)
+                if rec.ok:
+                    metrics = rec.metrics()
+                    for column, key in (("E2E_Latency", "e2e_latency_s"), ("TTFT", "ttft_s"),
+                                        ("Inference_Time", "inference_time_s"),
+                                        ("Output_Tokens", "output_tokens")):
+                        self.kpi_values[column].append(metrics[key])
         if self.text_fh is not None:
             _write_transcript(self.text_fh, self.conc, rec)
 
@@ -444,12 +464,16 @@ async def measure(audios, args, summary, out_dir):
     print(" ".join(_cell(t, w) for t, w, _ in COLS))
     async with _session() as session:
         with (out_dir / "raw_transcribe_sse.csv").open("w", newline="", encoding="utf-8") as fh, \
+                (out_dir / "audio-analyzer-wsf.csv").open("w", newline="", encoding="utf-8") as kpi_fh, \
                 (out_dir / "transcripts.txt").open("w", encoding="utf-8") as text_fh:
             writer = csv.writer(fh)
+            kpi_writer = csv.writer(kpi_fh)
+            kpi_values = {key: [] for key in KPI_CSV_COLS}
             writer.writerow(CSV_COLS)
+            kpi_writer.writerow(KPI_CSV_COLS)
             for conc in args.concurrency:
                 stats = Stats()
-                runner = Runner(session, audios, args.timeout, stats, writer, conc, text_fh)
+                runner = Runner(session, audios, args.timeout, stats, writer, conc, text_fh, kpi_values)
                 start_epoch, t0 = time.time(), time.perf_counter()
                 await closed_loop(runner, conc, args.num_requests)
                 res = {"concurrency": conc, "start_epoch": round(start_epoch, 3),
@@ -458,6 +482,7 @@ async def measure(audios, args, summary, out_dir):
                 fh.flush()
                 print(" ".join(_cell(g(res), w) for _, w, g in COLS))
                 _write_summary(out_dir, summary)
+            kpi_writer.writerow(_average_kpi_row(kpi_values))
 
 
 def _int_list(text):
