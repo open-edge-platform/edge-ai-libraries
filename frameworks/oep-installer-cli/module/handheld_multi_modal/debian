@@ -90,8 +90,9 @@ debian_90_start_handheld_multi_modal () {
     echo "Handheld Multi-Modal readiness timed out. Inspect Docker Compose logs in $workspace/handheld-multi-modal." >&2
     return 1
   fi
+  echo "Docker Compose service status:"
+  docker compose -f compose/handheld-multi-modal.yaml -f compose/cameras.yaml -f config/devices.yaml ps || return $?
   echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)"
-  echo "@@HIGHLIGHT Status: cd $workspace/handheld-multi-modal && docker compose -f compose/handheld-multi-modal.yaml -f compose/cameras.yaml -f config/devices.yaml ps"
   echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
@@ -102,7 +103,6 @@ debian_90_stop_handheld_multi_modal () {
     make stop || true
     ensure_container_cleanup $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true
   } || true
-  ensure_prop remove started/handheld_multi_modal/ports
 }
 
 debian_90_remove_handheld_multi_modal () {
@@ -110,6 +110,4 @@ debian_90_remove_handheld_multi_modal () {
   local app_dir="$workspace"/handheld-multi-modal
   [ ! -d "$app_dir" ] || (cd "$app_dir" && make clean-all CONFIRM=yes || true)
   ensure_rm "$workspace"
-  ensure_prop remove started/handheld_multi_modal/ports || true
-  ensure_prop remove installed/handheld_multi_modal/ports || true
 }
