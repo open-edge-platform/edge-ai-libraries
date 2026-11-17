@@ -201,9 +201,11 @@ ensure_chat_end_token_stops() {
 }
 
 # Sets `tool_parser: "<name>"` inside the LLMCalculatorOptions block of an
-# OVMS graph.pbtxt (argv[1] = graph path, argv[2] = parser). Replaces an
-# existing value, otherwise inserts after models_path, the one option every
-# exporter writes. Stdlib-only python, run by ensure_graph_tool_parser.
+# OVMS graph.pbtxt (argv[1] = graph path, argv[2] = parser). Only that block
+# is touched: embedding/rerank/speech graphs also carry models_path, and an
+# unknown field there stops OVMS from loading them. Replaces an existing
+# value, otherwise inserts after models_path, the one option every exporter
+# writes. Stdlib-only python, run by ensure_graph_tool_parser.
 _OVMS_TOOL_PARSER_PY='
 import os, re, sys
 path, parser = sys.argv[1], sys.argv[2]
@@ -211,10 +213,26 @@ if not re.fullmatch(r"[A-Za-z0-9_.-]+", parser):
     sys.exit("tool parser name %r may only contain letters, digits, . _ -" % parser)
 with open(path, encoding="utf-8") as f:
     lines = f.read().split("\n")
+start = next((i for i, l in enumerate(lines) if "mediapipe.LLMCalculatorOptions" in l), None)
+if start is None:
+    sys.exit("%s has no LLMCalculatorOptions block; tool_parser applies to LLM graphs only" % path)
+# Braces inside quoted values (plugin_config JSON) do not delimit the block.
+quoted = re.compile(r"\"(?:[^\"\\]|\\.)*\"|\x27(?:[^\x27\\]|\\.)*\x27")
+depth, opened, end = 0, False, None
+for i in range(start, len(lines)):
+    bare = quoted.sub("", lines[i])
+    depth += bare.count("{") - bare.count("}")
+    opened = opened or "{" in bare
+    if opened and depth <= 0:
+        end = i
+        break
+if end is None:
+    sys.exit("unterminated LLMCalculatorOptions block in %s" % path)
+block = range(start, end + 1)
 existing = re.compile(r"^(\s*)tool_parser\s*:\s*\"([^\"]*)\"(,?)\s*$")
 anchor = re.compile(r"^(\s*)models_path\s*:.*?(,?)\s*$")
-for i, line in enumerate(lines):
-    m = existing.match(line)
+for i in block:
+    m = existing.match(lines[i])
     if m:
         if m.group(2) == parser:
             sys.exit(0)
@@ -222,14 +240,14 @@ for i, line in enumerate(lines):
         print("changed tool_parser from %r to %r in %s" % (m.group(2), parser, path))
         break
 else:
-    for i, line in enumerate(lines):
-        m = anchor.match(line)
+    for i in block:
+        m = anchor.match(lines[i])
         if m:
             lines.insert(i + 1, "%stool_parser: \"%s\"%s" % (m.group(1), parser, m.group(2)))
             print("set tool_parser %r in %s" % (parser, path))
             break
     else:
-        sys.exit("no models_path option found in %s; cannot place tool_parser" % path)
+        sys.exit("no models_path option in the LLMCalculatorOptions block of %s; cannot place tool_parser" % path)
 tmp = path + ".tmp"
 with open(tmp, "w", encoding="utf-8") as f:
     f.write("\n".join(lines))

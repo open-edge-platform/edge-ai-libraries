@@ -82,7 +82,9 @@ For sandbox setup, architecture and lifecycle guidance, see
   SHA-256, and passes the same commit via `--commit`. No flags are needed.
   To install another Hermes release with the same mechanics, set
   `HERMES_PINNED_COMMIT` (full commit SHA) and `HERMES_PINNED_SHA256` (the
-  SHA-256 of `scripts/install.sh` at that commit) together. To use a
+  SHA-256 of `scripts/install.sh` at that commit) together; the pair is
+  checked before anything is installed, and `--runtime openshell` builds
+  the sandbox image with it. To use a
   different installer, set `HERMES_INSTALL_URL` together with
   `HERMES_INSTALL_SHA256` (or `HERMES_ALLOW_UNVERIFIED_INSTALL=1`, not
   recommended); `HERMES_INSTALL_SHA256` alone overrides the built-in digest.

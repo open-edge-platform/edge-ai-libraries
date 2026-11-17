@@ -151,13 +151,16 @@ OpenAI-style `tool_calls`. That is a per-model option in the model's
 HARNESS_OVMS_TOOL_PARSER=hermes3 ./install.sh --harness hermes --model OpenVINO/Qwen3-8B-int4-ov --non-interactive
 ```
 
-The parser is written into the exported model's `graph.pbtxt` (also on a
-re-run with the same `--model` against an already exported model) before
-OVMS is restarted. Use the
+The parser is written into the LLM block of the exported model's
+`graph.pbtxt` (also on a re-run with the same `--model` against an already
+exported model) before OVMS is restarted; a model whose graph has no LLM
+block (embeddings, reranking, speech) is rejected. Use the
 parser name OVMS documents for the model family (`hermes3` for Qwen3 and
 Hermes-style `<tool_call>` output). Passing `--tool_parser` through
 `HARNESS_OVMS_EXTRA_ARGS` is rejected: OVMS does not accept it when started
-from `--config_path`, and the container would crash-loop.
+from `--config_path`, and the container would crash-loop. With
+`--runtime openshell` the same variable applies, since sandboxes share the
+host's OVMS.
 
 ## Model sources
 

@@ -490,6 +490,12 @@ main() {
   export HARNESS_MODEL_PRECISION HARNESS_MODEL_DEVICE HARNESS_MODEL_DOWNLOAD_REVISION HARNESS_HF_MODEL_REVISION
   apply_model_source_defaults
 
+  # A half or malformed Hermes pin override must fail here, before prerequisite
+  # setup or ensure_inference_backend can touch an existing deployment.
+  case "${positional[0]:-}" in
+    "" | inference | onboard) validate_hermes_pin ;;
+  esac
+
   # Group refresh may exec this script again. Do it before opening the
   # deployment lock, so the new process cannot inherit and reacquire that lock.
   case "${positional[0]:-}" in

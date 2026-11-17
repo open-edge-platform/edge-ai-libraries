@@ -565,8 +565,14 @@ phase_03_libunit() {
       lib_eval "$tp_cfg"'ensure_graph_tool_parser m "bad\" name"'
     check_fail "ensure_graph_tool_parser: fails for a model that is not registered" \
       lib_eval "$tp_cfg"'ensure_graph_tool_parser other hermes3'
-    check_fail "ensure_graph_tool_parser: fails when the graph has no models_path" \
-      lib_eval "$tp_cfg"'printf "%s\n" "node {}" > "$g"; ensure_graph_tool_parser m hermes3'
+    check_fail_output_contains "ensure_graph_tool_parser: fails when the LLM block has no models_path" "models_path" \
+      lib_eval "$tp_cfg"'printf "%s\n" "node {" "  [type.googleapis.com / mediapipe.LLMCalculatorOptions]: {" "    device: \"GPU\"," "  }" "}" > "$g"; ensure_graph_tool_parser m hermes3'
+    # Embedding/rerank/speech graphs also have models_path; tool_parser there breaks OVMS loading.
+    local tp_emb='"node {" "  [type.googleapis.com / mediapipe.EmbeddingsCalculatorOVOptions]: {" "    models_path: \"./\"," "    normalize_embeddings: true," "  }" "}"'
+    check_fail_output_contains "ensure_graph_tool_parser: rejects a graph without an LLMCalculatorOptions block" "LLM graphs only" \
+      lib_eval "$tp_cfg""printf '%s\n' $tp_emb > \"\$g\"; ensure_graph_tool_parser m hermes3"
+    check_output_contains "ensure_graph_tool_parser: only edits the LLM block when other calculators precede it" "1 LLM" \
+      lib_eval "$tp_cfg""{ printf '%s\n' $tp_emb; cat \"\$g\"; } > \"\$g.new\" && mv \"\$g.new\" \"\$g\"; ensure_graph_tool_parser m hermes3 >/dev/null; printf '%s ' \"\$(grep -c tool_parser \"\$g\")\"; grep -A2 LLMCalculatorOptions \"\$g\" | grep -q tool_parser && echo LLM"
   else
     skip "ensure_graph_tool_parser checks" "python3 or node not installed"
   fi
@@ -767,6 +773,8 @@ phase_07_optparsing() {
     env HARNESS_OVMS_EXPORTER=docker-pull bash "$REPO_ROOT/install.sh" --model-hub ollama --model llama3.2
   check_fail_output_contains "install.sh rejects geti without GETI_* in the environment" "GETI_HOST" \
     env -u GETI_HOST -u GETI_TOKEN -u GETI_WORKSPACE_ID bash "$REPO_ROOT/install.sh" --model-hub geti --model "My Project"
+  check_fail_output_contains "install.sh rejects a half Hermes pin override before installing anything" "together" \
+    env HERMES_PINNED_COMMIT="$(printf 'a%.0s' $(seq 40))" NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness hermes --model org/m --non-interactive
 }
 
 phase_08_agent_resolution() {
