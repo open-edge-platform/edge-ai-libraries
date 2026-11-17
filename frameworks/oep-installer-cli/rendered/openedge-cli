@@ -2324,14 +2324,14 @@ configure_deterministic_threat_detection ()
 configure_digital_signage () 
 { 
     workspace="$(ensure_project_path)/digital-signage";
-    version="$(ensure_parse_value_option version --version=0325809a172bf47865ce9727a5187780880ee3d1 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/digital-signage.git";
     used_ports=(5000 8000 3478)
 }
 configure_dine_in () 
 { 
     workspace="$(ensure_project_path)/dine-in";
-    version="$(ensure_parse_value_option version --version=65d1959a5b3ac268370220e972f5c97efee21d48 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/order-accuracy.git";
     ports=(7861 8083 8002 8011 9000 8081 9091)
 }
@@ -2911,7 +2911,7 @@ configure_loitering_detection ()
 configure_loss_prevention () 
 { 
     workspace="$(ensure_project_path)/loss-prevention";
-    version="$(ensure_parse_value_option version --version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/loss-prevention.git";
     used_ports=(4000 15672 5672 8002 4001)
 }
@@ -3116,7 +3116,7 @@ configure_pcm ()
 configure_person_of_interest () 
 { 
     workspace="$(ensure_project_path)/person-of-interest";
-    version="$(ensure_parse_value_option version --version=2c13aa5b0d0cfb349b96e6fd43dab834ee947fd3 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/storewide-loss-prevention.git";
     used_ports=(3000 8000 6379 8001 8189)
 }
@@ -3364,7 +3364,7 @@ configure_smart_intersection_device ()
 configure_smart_kiosk_assistant () 
 { 
     workspace="$(ensure_project_path)/smart-kiosk-assistant";
-    version="$(ensure_parse_value_option version --version=66728aeb875b382c3f342380513ea00170ff45fd "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/voice-enabled-interactions.git";
     used_ports=(7860 7861 8012 8000 9000 8090 8020 8554 9001 8010 8011);
     used_models=(pyannote/speaker-diarization-community-1 pyannote/speaker-diarization-3.1 pyannote/segmentation-3.0)
@@ -3450,7 +3450,7 @@ configure_surgical_instrument ()
 configure_suspicious_activity_detection () 
 { 
     workspace="$(ensure_project_path)/suspicious-activity-detection";
-    version="$(ensure_parse_value_option version --version=2c13aa5b0d0cfb349b96e6fd43dab834ee947fd3 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/storewide-loss-prevention.git";
     used_ports=(7860 5432 8085 8082 8000 9000 8333 9333 8080 8002 8003)
 }
@@ -3464,7 +3464,7 @@ configure_system_info ()
 configure_take_away () 
 { 
     workspace="$(ensure_project_path)/take-away";
-    version="$(ensure_parse_value_option version --version=65d1959a5b3ac268370220e972f5c97efee21d48 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/order-accuracy.git";
     used_ports=(7860 8000 8080 8001 9000 9001 8010)
 }
@@ -6264,7 +6264,7 @@ debian_90_install_multimodal_weld_defect_detection ()
         echo "Multimodal weld defect detection is installed." 1>&2;
     else
         ensure_disk_size 15000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install multimodal_weld_defect_detection "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal;
         cd "$workspace"/industrial-edge-insights-multimodal;
@@ -6507,7 +6507,7 @@ debian_90_install_real_time_scene_understanding ()
         echo "Live Video Captioning is installed." 1>&2;
     else
         ensure_disk_size 64000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install real_time_scene_understanding "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository live-video-analysis/real-time-scene-understanding;
         cd "$workspace"/live-video-analysis/real-time-scene-understanding;
@@ -6771,7 +6771,7 @@ debian_90_install_uav_mission_compute_sdk ()
             return 3;
         fi;
         ensure_disk_size 20000 || return $?;
-        ensure_ram_size 16000000 || return $?;
+        ensure_ram_size 14680064 || return $?;
         uav_mission_compute_sdk_checkout || return $?;
         local source_commit;
         source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?;
@@ -6958,7 +6958,7 @@ debian_90_install_wind_turbine_anomaly_detection ()
         echo "Wind turbine anomaly detection is installed." 1>&2;
     else
         ensure_disk_size 64000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install wind_turbine_anomaly_detection "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series;
         cd "$workspace"/industrial-edge-insights-time-series;
@@ -9027,7 +9027,7 @@ ensure_container_namespace ()
             ensure_prop set started/$name/containers "$*"
         ;;
     esac;
-    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{p=$5; sub(/.*:/,"",p); if (!(p in seen)) {seen[p]; print "port:" p}}'));
+    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltun | awk '{p=$5; sub(/.*:/,"",p); if (!(p in seen)) {seen[p]; print "port:" p}}'));
     local c stopper mname mpath;
     for c in "$@";
     do
@@ -9044,7 +9044,7 @@ ensure_container_namespace ()
             ( set -e;
             $stopper "$mname" -- ) 1>&2 || true;
         done;
-        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{p=$5; sub(/.*:/,"",p); if (!(p in seen)) {seen[p]; print "port:" p}}'));
+        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltun | awk '{p=$5; sub(/.*:/,"",p); if (!(p in seen)) {seen[p]; print "port:" p}}'));
         [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
         printf "${red}%s is occupied${reset}\n%s\n" "$c" "${container_resources[*]}" 1>&2;
         return 3;
@@ -10543,7 +10543,7 @@ ensure_ports_open ()
         local port out stopper mname mpath;
         for port in $*;
         do
-            out="$(ss -Hltunp "sport = :$port")";
+            out="$(ss -Hltun "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
             for mpath in $(ensure_prop find "installed/*/ports") $(ensure_prop find "started/*/ports");
@@ -10557,7 +10557,7 @@ ensure_ports_open ()
                 ( set -e;
                 $stopper "$mname" -- ) 1>&2 || true;
             done;
-            out="$(ss -Hltunp "sport = :$port")";
+            out="$(ss -Hltun "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
             return 3;
@@ -10846,7 +10846,7 @@ install_geti ()
         echo "Geti is installed." 1>&2;
     else
         ensure_disk_size 20000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install geti "${used_ports[@]}";
         echo "@@STEP Pulling image";
         docker pull $image_name;

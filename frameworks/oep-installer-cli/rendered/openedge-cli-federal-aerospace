@@ -3935,7 +3935,7 @@ debian_90_install_uav_mission_compute_sdk ()
             return 3;
         fi;
         ensure_disk_size 20000 || return $?;
-        ensure_ram_size 16000000 || return $?;
+        ensure_ram_size 14680064 || return $?;
         uav_mission_compute_sdk_checkout || return $?;
         local source_commit;
         source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?;
@@ -4592,7 +4592,7 @@ ensure_container_namespace ()
             ensure_prop set started/$name/containers "$*"
         ;;
     esac;
-    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{p=$5; sub(/.*:/,"",p); if (!(p in seen)) {seen[p]; print "port:" p}}'));
+    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltun | awk '{p=$5; sub(/.*:/,"",p); if (!(p in seen)) {seen[p]; print "port:" p}}'));
     local c stopper mname mpath;
     for c in "$@";
     do
@@ -4609,7 +4609,7 @@ ensure_container_namespace ()
             ( set -e;
             $stopper "$mname" -- ) 1>&2 || true;
         done;
-        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{p=$5; sub(/.*:/,"",p); if (!(p in seen)) {seen[p]; print "port:" p}}'));
+        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltun | awk '{p=$5; sub(/.*:/,"",p); if (!(p in seen)) {seen[p]; print "port:" p}}'));
         [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
         printf "${red}%s is occupied${reset}\n%s\n" "$c" "${container_resources[*]}" 1>&2;
         return 3;
@@ -6092,7 +6092,7 @@ ensure_ports_open ()
         local port out stopper mname mpath;
         for port in $*;
         do
-            out="$(ss -Hltunp "sport = :$port")";
+            out="$(ss -Hltun "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
             for mpath in $(ensure_prop find "installed/*/ports") $(ensure_prop find "started/*/ports");
@@ -6106,7 +6106,7 @@ ensure_ports_open ()
                 ( set -e;
                 $stopper "$mname" -- ) 1>&2 || true;
             done;
-            out="$(ss -Hltunp "sport = :$port")";
+            out="$(ss -Hltun "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
             return 3;

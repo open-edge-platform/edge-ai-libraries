@@ -83,8 +83,7 @@ debian_90_install_uav_mission_compute_sdk () {
       return 3
     fi
     ensure_disk_size 20000 || return $?
-    ensure_ram_size 16000000 || return $?
-    ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?
+    ensure_ram_size 14680064 || return $? # 14GiB
     uav_mission_compute_sdk_checkout || return $?
     local source_commit
     source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?

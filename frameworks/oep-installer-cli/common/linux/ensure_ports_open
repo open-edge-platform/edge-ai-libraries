@@ -13,7 +13,7 @@ ensure_ports_open () {
   if command -v ss > /dev/null; then
     local port out stopper mname mpath
     for port in $*; do
-      out="$(ss -Hltunp "sport = :$port")"
+      out="$(ss -Hltun "sport = :$port")"
       [ -n "$out" ] || continue
 
       printf "${red}Port %s is occupied${reset}\n" "$port" >&2
@@ -26,7 +26,7 @@ ensure_ports_open () {
         ( set -e; $stopper "$mname" -- ) >&2 || true
       done
 
-      out="$(ss -Hltunp "sport = :$port")"
+      out="$(ss -Hltun "sport = :$port")"
       [ -n "$out" ] || continue
 
       printf "${red}Port %s is occupied${reset}\n%s\n" "$port" "$out" >&2
