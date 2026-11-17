@@ -178,6 +178,11 @@ class VoiceInitializationTests(unittest.TestCase):
 
         self.assert_failed_voice_startup()
 
+    def test_non_utf8_audio_yaml_disables_only_voice(self) -> None:
+        self.audio_path.write_bytes(b"type: audio\nname: Invalid \xff\n")
+
+        self.assert_failed_voice_startup()
+
     def test_empty_yaml_disables_only_voice(self) -> None:
         self.audio_path.write_text("", encoding="utf-8")
 
