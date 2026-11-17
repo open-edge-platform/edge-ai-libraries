@@ -82,7 +82,7 @@ def __init__(self, agent):
 ## Model loading
 
 `config.json`'s `udfs.models`/`udfs.device` fields are documented field-by-field
-in [Configure Microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/how-to-configure.md);
+in [Configure Microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/how-to-configure.md);
 what that doc doesn't cover is the runtime contract your UDF process sees.
 If `udfs.models` names a file, and that file is placed under `models/` in
 your deployment package (named starting with `<udf_name>`), the

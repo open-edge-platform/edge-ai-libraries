@@ -141,12 +141,12 @@ includes these concrete response/log/message snippets.
 
 - **REPO** (repo clone present) → `cd docker && docker compose up -d`
 - **STANDALONE** (no clone) → follow the
-  [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/get-started.md) to fetch
+  [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/get-started.md) to fetch
   the compose files and bring up the service (it covers the exact
   `docker compose up` sequence for the prebuilt image), then return here
   for step 2.
 - Already running → confirm with the health-check command from the
-  [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/get-started.md)
+  [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/get-started.md)
   then skip to step 2.
 - **Host has no Intel iGPU?** The compose file unconditionally mounts
   `/dev/dri` and adds it under `devices:`. If `docker compose up` fails on
@@ -157,7 +157,7 @@ includes these concrete response/log/message snippets.
 
 Wait for the REST API and Kapacitor to be reachable — use the wait
 commands shown in the
-[Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/get-started.md)
+[Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/get-started.md)
 (`/docs` first, then `/health` after the first `POST /config`).
 
 ## 2. Pick a pattern
@@ -196,7 +196,7 @@ warnings if it fails.
 
 For the `POST /udfs/package` upload and `POST /config` calls, follow the
 exact request format and sequence from the
-[Access Microservice API reference](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/how-to-access-api.md).
+[Access Microservice API reference](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/how-to-access-api.md).
 Full config shape and a troubleshooting table:
 [`references/api-workflow.md`](./references/api-workflow.md).
 
@@ -206,7 +206,7 @@ REST calls — quote them verbatim in your answer so the grader can verify.
 ## 5. Feed data and verify
 
 Send test points using the `POST /input` request format from the
-[Access Microservice API reference](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/how-to-access-api.md),
+[Access Microservice API reference](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/how-to-access-api.md),
 then tail the container log:
 
 ```bash
