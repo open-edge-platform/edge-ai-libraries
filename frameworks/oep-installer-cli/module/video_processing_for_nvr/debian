@@ -30,7 +30,7 @@ debian_90_install_video_processing_for_nvr () {
   if verify_video_processing_for_nvr && ! ensure_parse_reinstall "$@"; then
     echo "Video Processing for NVR is already installed." 1>&2
   else
-    ensure_disk_size 300
+    ensure_disk_size 10000
     ensure_git_export "$workspace" "$version" "$repository" video-processing-for-nvr
 
     mkdir -p "$workspace"/videos

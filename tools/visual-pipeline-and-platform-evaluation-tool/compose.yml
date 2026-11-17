@@ -196,7 +196,7 @@ services:
       - ./shared/model-download/venv-geti:/opt/.venv-geti
       - ./shared/model-download/venv-hls:/opt/.venv-hls
   audio-analyzer:
-    image: ${AUDIO_ANALYZER_IMAGE:-docker.io/intel/audio-analyzer:${AUDIO_ANALYZER_TAG:-2026.2.0}}
+    image: ${AUDIO_ANALYZER_IMAGE:-docker.io/intel/audio-analyzer:${AUDIO_ANALYZER_TAG:-2026.3.0-rc1}}
     container_name: audio-analyzer
     ports:
       - "8010:8010"
@@ -232,7 +232,7 @@ services:
       start_period: 15m
       retries: 5
   text-to-speech:
-    image: ${TEXT_TO_SPEECH_IMAGE:-docker.io/intel/text-to-speech:${TEXT_TO_SPEECH_TAG:-2026.2.0}}
+    image: ${TEXT_TO_SPEECH_IMAGE:-docker.io/intel/text-to-speech:${TEXT_TO_SPEECH_TAG:-2026.3.0-rc1}}
     container_name: text-to-speech
     ports:
       - "8011:8011"
@@ -401,7 +401,7 @@ services:
       start_period: 15s
       start_interval: 1s
   mediamtx:
-    image: bluenviron/mediamtx:1.21.1
+    image: bluenviron/mediamtx:1.21.3
     container_name: mediamtx
     environment:
       - MTX_LOGLEVEL=info

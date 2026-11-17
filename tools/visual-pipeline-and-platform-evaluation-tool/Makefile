@@ -19,8 +19,8 @@ PROJECT_DIR := $(shell pwd)
 COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
 EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
-export AUDIO_ANALYZER_TAG ?= 2026.2.0
-export TEXT_TO_SPEECH_TAG ?= 2026.2.0
+export AUDIO_ANALYZER_TAG ?= 2026.3.0-rc1
+export TEXT_TO_SPEECH_TAG ?= 2026.3.0-rc1
 
 define base-compose
 	{ [[ ! -f .env ]] || . .env; } && \

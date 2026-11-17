@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def _validate_cpu_cores(value: Optional[List[int]]) -> Optional[List[int]]:
@@ -165,6 +165,117 @@ class ValidationStatus(BaseModel):
     validation_id: str
     state: str  # One of: QUEUED, VALID, INVALID
     message: str  # error reason if state is INVALID, otherwise empty string
+
+
+# ---------------------------------------------------------------------------
+# Optimization
+# ---------------------------------------------------------------------------
+
+class OptimizeRequest(BaseModel):
+    pipeline: str
+    mode: Literal["fps", "power"] = Field(
+        default="fps", description="fps: maximize frames per second; power: minimize watts (needs power_metrics_endpoint)"
+    )
+    optimization_profile: Literal["coarse", "fine", "default"] = Field(
+        default="default",
+        description="coarse and fine override search_duration, sample_duration, batch_sizes and nireq_sizes",
+    )
+    search_duration: float = Field(
+        default=300, gt=0, description="Seconds to search for a better pipeline"
+    )
+    sample_duration: float = Field(
+        default=10, gt=0, description="Seconds each candidate pipeline is sampled"
+    )
+    detection_threshold: float = Field(
+        default=0.95, ge=0, le=1,
+        description="Minimum detections a candidate must keep relative to the baseline to count as valid",
+    )
+    fps_limit: Optional[float] = Field(
+        default=None, gt=0, description="Minimum fps every valid candidate must achieve"
+    )
+    power_limit: Optional[float] = Field(
+        default=None, gt=0, description="Maximum power in watts every valid candidate may use"
+    )
+    power_metrics_endpoint: Optional[str] = Field(
+        default=None, description="Prometheus endpoint of a Metrics Manager; required for power mode"
+    )
+    enable_cross_stream_batching: bool = Field(
+        default=False, description="Batch inference work across streams in fps mode"
+    )
+    maximize_streams: bool = Field(
+        default=False,
+        description="Pack as many parallel streams as possible within fps_limit or power_limit",
+    )
+    batch_sizes: Optional[List[int]] = Field(
+        default=None, description="Batch sizes to try; optimizer default if omitted"
+    )
+    nireq_sizes: Optional[List[int]] = Field(
+        default=None, description="nireq values to try; optimizer default if omitted"
+    )
+    allowed_devices: Optional[List[str]] = Field(
+        default=None,
+        description="Devices the optimizer may use (for example CPU, GPU, NPU); all detected devices if omitted",
+    )
+
+    @field_validator("allowed_devices")
+    @classmethod
+    def _check_allowed_devices(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        if value is None:
+            return None
+        if not value or any(not device.strip() for device in value):
+            raise ValueError("allowed_devices must be a non-empty list of device names")
+        return value
+
+    @field_validator("batch_sizes", "nireq_sizes")
+    @classmethod
+    def _check_sizes(cls, value: Optional[List[int]]) -> Optional[List[int]]:
+        if value is None:
+            return None
+        if not value or any(size < 1 for size in value):
+            raise ValueError("sizes must be a non-empty list of positive integers")
+        return value
+
+    @model_validator(mode="after")
+    def _check_mode_options(self) -> "OptimizeRequest":
+        if self.mode == "power" and not self.power_metrics_endpoint:
+            raise ValueError("power_metrics_endpoint is required when mode is power")
+        if self.maximize_streams and self.fps_limit is None and self.power_limit is None:
+            raise ValueError("maximize_streams requires fps_limit or power_limit")
+        return self
+
+
+class OptimizeResponse(BaseModel):
+    job_id: str
+
+
+class OptimizeStatusResponse(BaseModel):
+    job_id: str
+    state: str  # One of: RUNNING, COMPLETED, CANCELLED, ERROR
+    final: bool  # True once the job has stopped
+    message: str  # reason for CANCELLED or ERROR, otherwise empty string
+    mode: str  # fps or power
+    candidates_evaluated: int
+    baseline_fps: Optional[float] = None
+    best_fps: Optional[float] = None
+    elapsed_time: float  # seconds since the job started
+
+
+class OptimizePipelineResult(BaseModel):
+    pipeline: Optional[str] = None
+    fps: Optional[float] = None
+    power: Optional[float] = None
+    metrics: Optional[dict] = None
+
+
+class OptimizeResultResponse(BaseModel):
+    job_id: str
+    state: str  # One of: RUNNING, COMPLETED, CANCELLED, ERROR
+    final: bool  # False while the job is running, in which case results are partial
+    message: str
+    mode: str  # fps or power
+    baseline: Optional[OptimizePipelineResult] = None
+    best: Optional[OptimizePipelineResult] = None  # best pipeline found so far
+    candidates: List[OptimizePipelineResult] = []
 
 
 # ---------------------------------------------------------------------------

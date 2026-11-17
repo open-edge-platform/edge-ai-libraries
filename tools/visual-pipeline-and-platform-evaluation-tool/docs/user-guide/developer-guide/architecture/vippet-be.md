@@ -43,7 +43,8 @@ Latency and VLM metrics come from the server's OpenTelemetry export to `metrics-
 folder and read back by `vippet/pipeline_events.py`. `vippet/pipeline_runner.py` holds the result types shared
 by both modules.
 
-Device discovery (`vippet/device.py`) and the DL Streamer pipeline optimizer still run in the backend process.
+The device list (`vippet/device.py`) is read from the server's `GET /devices`, so it shows the devices pipelines
+actually run on. The DL Streamer pipeline optimizer still runs in the backend process.
 
 ### Docker Compose with Hardware Profiles
 

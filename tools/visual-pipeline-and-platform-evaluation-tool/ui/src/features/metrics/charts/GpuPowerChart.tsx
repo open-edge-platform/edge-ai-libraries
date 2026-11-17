@@ -5,8 +5,7 @@ import {
 } from "@/features/metrics/charts";
 
 interface GpuPowerChartProps
-  extends DashboardChartCommonProps,
-    DashboardSummarySectionProps {
+  extends DashboardChartCommonProps, DashboardSummarySectionProps {
   data: Array<{ timestamp: number; gpuPower: number; pkgPower: number }>;
   yAxisMax: number;
   selectedGpu: number;

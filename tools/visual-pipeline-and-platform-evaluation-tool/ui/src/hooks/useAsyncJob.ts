@@ -72,11 +72,11 @@ interface UseAsyncJobOptionsSingle<
   TStatus extends AsyncJobStatus,
   TResult = void,
 > extends UseAsyncJobOptionsBase<
-    TMutationArgs,
-    TMutationResponse,
-    TStatus,
-    TResult
-  > {
+  TMutationArgs,
+  TMutationResponse,
+  TStatus,
+  TResult
+> {
   multiple?: false;
   /** RTK Query subscription hook used to poll the job status. */
   statusCheckHook: StatusCheckHook<{ jobId: string }, TStatus>;

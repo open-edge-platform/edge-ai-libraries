@@ -53,7 +53,7 @@ vippet/
 ├── benchmark.py          # Density benchmarking
 ├── video_encoder.py      # Encoding / live-streaming sub-pipelines
 ├── video_decoder.py      # Decoder selection / caps building
-├── device.py             # OpenVINO device detection (CPU/GPU/NPU)
+├── device.py             # Device list (CPU/GPU/NPU) from DLSPS 2.0
 ├── cpu_topology.py       # CPU core types (P/E/LPE) from Linux sysfs
 ├── videos.py             # Input/output video management
 ├── images.py             # Image set management
@@ -78,11 +78,12 @@ A few invariants worth knowing:
   the container context (`PYTHONPATH=/app`). Tests run inside the same image.
 - GStreamer pipelines are **not** executed in-process. `dlsps2_runner.py`
   sends every pipeline to DL Streamer Pipeline Server 2.0 over REST, one
-  server instance per stream. Device detection and the DL Streamer pipeline
-  optimizer still run in the `vippet` process.
+  server instance per stream. The DL Streamer pipeline optimizer still runs
+  in the `vippet` process.
 - `setup_env.sh` selects the Compose hardware profile (`cpu`, `gpu`, `npu`, `gpu-wsl`).
-  OpenVINO™ device detection (`device.py`) runs inside the backend at startup and
-  determines the available inference devices and pipeline variants.
+  `device.py` reads the available inference devices from the server's
+  `GET /devices` on first use and caches them; they determine the devices
+  listed by the API and the pipeline variants loaded at startup.
 - The model catalog (`vippet/models/*.yaml`, one file per model) is copied
   into the image at build time, not runtime-mounted. `db_seed.py` syncs it
   into the `models`/`model_variants` DB tables at startup, insert-only:

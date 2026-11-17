@@ -271,7 +271,7 @@ act_get ()
             done
         ;;
         init)
-            declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_));
+            declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(bootstrap|resume|list|setup)$' | cut -f2- -d_));
             declare -g _act_cache_modules=($(declare -F | grep -E " ${installer_family}_[0-9]+_($(IFS='|'; echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'));
             declare -gA _act_cache_functions=();
             local f rest;
@@ -2324,14 +2324,14 @@ configure_deterministic_threat_detection ()
 configure_digital_signage () 
 { 
     workspace="$(ensure_project_path)/digital-signage";
-    version="$(ensure_parse_value_option version --version=0325809a172bf47865ce9727a5187780880ee3d1 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/digital-signage.git";
     used_ports=(5000 8000 3478)
 }
 configure_dine_in () 
 { 
     workspace="$(ensure_project_path)/dine-in";
-    version="$(ensure_parse_value_option version --version=65d1959a5b3ac268370220e972f5c97efee21d48 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/order-accuracy.git";
     ports=(7861 8083 8002 8011 9000 8081 9091)
 }
@@ -2424,7 +2424,19 @@ configure_edge_pack ()
 configure_edge_pack_base_realtime () 
 { 
     configure_edge_pack "$@";
-    version="1.0"
+    version="$(ensure_parse_value_option version "$@")";
+    [ -n "$version" ] || { 
+        case "$ID$VERSION_ID$(uname -r)" in 
+            ubuntu26.04*realtime*)
+                version="1.0"
+            ;;
+            *)
+                echo "Unsupported realtime platform $ID $VERSION_ID kernel $(uname -r)" 1>&2;
+                echo "Fallback to edge_pack_base_standard" 1>&2;
+                return 3
+            ;;
+        esac
+    }
 }
 configure_edge_pack_base_standard () 
 { 
@@ -2459,21 +2471,37 @@ configure_edge_pack_ipu ()
 configure_edge_pack_kernel_image () 
 { 
     cmdline=(xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192);
-    local kver="$(uname -r)" incompatibles=(7.0.0-14-generic);
+    version="$(ensure_parse_value_option version "$@")";
+    [ -z "$version" ] || return 0;
+    local kver="$(uname -r)" incompatibles=(7.0.0-14-generic 7.0.0-14-realtime);
     case "$ID$VERSION_ID" in 
-        ubuntu24.04 | ubuntu26.04)
-            if [[ "$kver" = "7.0."* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
+        ubuntu24.04)
+            if [[ "$kver" = *7.0.* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
                 version="$kver";
             else
                 version="$(set -o pipefail; apt-cache depends linux-image-generic-hwe-$VERSION_ID 2> /dev/null | sed -n '/.*Depends: *linux-image-/{s///;p;q}' || echo 7.0.0-42-generic)";
+            fi
+        ;;
+        ubuntu26.04)
+            if ensure_parse_option edge_pack_base_realtime "$@"; then
+                if [[ "$kver" = *7.0.*realtime* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
+                    version="$kver";
+                else
+                    version="$(set -o pipefail; apt-cache depends linux-image-realtime-hwe-$VERSION_ID 2> /dev/null | sed -n '/.*Depends: *linux-image-/{s///;p;q}' || echo 7.0.0-43-realtime)";
+                fi;
+            else
+                if [[ "$kver" = *7.0.* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
+                    version="$kver";
+                else
+                    version="$(set -o pipefail; apt-cache depends linux-image-generic-hwe-$VERSION_ID 2> /dev/null | sed -n '/.*Depends: *linux-image-/{s///;p;q}' || echo 7.0.0-43-generic)";
+                fi;
             fi
         ;;
         *)
             echo "$ID $VERSION_ID not supported" 1>&2;
             return 1
         ;;
-    esac;
-    version="$(ensure_parse_value_option version --version="$version" "$@")"
+    esac
 }
 configure_edge_pack_manageability () 
 { 
@@ -2635,7 +2663,8 @@ configure_handheld_multi_modal ()
     workspace="$(ensure_project_path)/handheld-multi-modal";
     version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git;
-    used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997)
+    used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997);
+    wait_timeout=120
 }
 configure_humanoid_imitation_learning () 
 { 
@@ -2883,7 +2912,7 @@ configure_loitering_detection ()
 configure_loss_prevention () 
 { 
     workspace="$(ensure_project_path)/loss-prevention";
-    version="$(ensure_parse_value_option version --version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/loss-prevention.git";
     used_ports=(4000 15672 5672 8002 4001)
 }
@@ -3088,7 +3117,7 @@ configure_pcm ()
 configure_person_of_interest () 
 { 
     workspace="$(ensure_project_path)/person-of-interest";
-    version="$(ensure_parse_value_option version --version=2c13aa5b0d0cfb349b96e6fd43dab834ee947fd3 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/storewide-loss-prevention.git";
     used_ports=(3000 8000 6379 8001 8189)
 }
@@ -3147,26 +3176,6 @@ configure_physical_ai_studio_device ()
             pais_index="https://download.pytorch.org/whl/$pais_extra"
         ;;
     esac
-}
-configure_post_fusion () 
-{ 
-    workspace="$(ensure_project_path)/post-fusion";
-    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
-    repository=https://github.com/open-edge-platform/metro-ai-suite.git;
-    inputs=2;
-    pipeline=kitti/2C1L/localFusionPipeline;
-    dataset=kitti360;
-    repeat=10;
-    media_type=multisensor;
-    duration=1800
-}
-configure_post_fusion_device () 
-{ 
-    local device="$1" image=tfcc-npu;
-    [ "$device" = "npu" ] || image=tfcc;
-    cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion;
-    echo "$image" > .image;
-    docker compose -f docker/docker-compose.yml build $image --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
 }
 configure_power_tuning () 
 { 
@@ -3336,7 +3345,7 @@ configure_smart_intersection_device ()
 configure_smart_kiosk_assistant () 
 { 
     workspace="$(ensure_project_path)/smart-kiosk-assistant";
-    version="$(ensure_parse_value_option version --version=66728aeb875b382c3f342380513ea00170ff45fd "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/voice-enabled-interactions.git";
     used_ports=(7860 7861 8012 8000 9000 8090 8020 8554 9001 8010 8011);
     used_models=(pyannote/speaker-diarization-community-1 pyannote/speaker-diarization-3.1 pyannote/segmentation-3.0)
@@ -3422,7 +3431,7 @@ configure_surgical_instrument ()
 configure_suspicious_activity_detection () 
 { 
     workspace="$(ensure_project_path)/suspicious-activity-detection";
-    version="$(ensure_parse_value_option version --version=2c13aa5b0d0cfb349b96e6fd43dab834ee947fd3 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/storewide-loss-prevention.git";
     used_ports=(7860 5432 8085 8082 8000 9000 8333 9333 8080 8002 8003)
 }
@@ -3436,7 +3445,7 @@ configure_system_info ()
 configure_take_away () 
 { 
     workspace="$(ensure_project_path)/take-away";
-    version="$(ensure_parse_value_option version --version=65d1959a5b3ac268370220e972f5c97efee21d48 "$@")";
+    version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
     repository="https://github.com/intel-retail/order-accuracy.git";
     used_ports=(7860 8000 8080 8001 9000 9001 8010)
 }
@@ -3465,7 +3474,8 @@ configure_uav_mission_compute_sdk ()
     sdk_path="$source_path/uav-mission-compute-sdk";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
     version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")";
-    used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
+    used_ports=(1884 8080 8554 8888 8889 5002 3000 8086);
+    wait_timeout=120
 }
 configure_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -3481,6 +3491,7 @@ configure_uncrewed_aerial_vehicle_vision_analytics ()
     version="release-2026.3.0";
     workspace="$(ensure_project_path)/uav-mission-compute-sdk/vision-analytics";
     app_dir="$workspace/uav-vision-analytics";
+    pipeline_service="dlstreamer-pipeline-server";
     compose_files=(-f docker-compose-pymavlink.yml)
 }
 configure_uv () 
@@ -3575,6 +3586,7 @@ configure_visual_search_question_and_answering ()
     export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct;
     export DOCKER_VOLUME_DIRECTORY="$workspace";
     export HOST_DATA_PATH="$workspace"/data;
+    export HF_ENDPOINT="${HF_ENDPOINT:-https://huggingface.co}";
     export REGISTRY=intel/;
     export TAG=latest;
     [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$worksapce"/.device_from_install)";
@@ -3600,6 +3612,14 @@ configure_wind_turbine_anomaly_detection_device ()
     cd "$workspace"/industrial-edge-insights-time-series;
     sed -i "s|\"device\":.*$|\"device\": \"$device\"|" apps/wind-turbine-anomaly-detection/time-series-analytics-config/config.json apps/wind-turbine-anomaly-detection/time-series-analytics-config/config.json
 }
+configure_xpu_smi () 
+{ 
+    repo_name="repositories.intel.com";
+    key_url="https://$repo_name/gpu/intel-graphics.key";
+    key_file="/usr/share/keyrings/intel-graphics.gpg";
+    apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified";
+    apt_file="/etc/apt/sources.list.d/intel-graphics.list"
+}
 debian_05_install_curl () 
 { 
     ensure_apt_install_package curl ca-certificates
@@ -3607,6 +3627,10 @@ debian_05_install_curl ()
 debian_05_install_dmidecode () 
 { 
     ensure_apt_install_package dmidecode
+}
+debian_05_install_kmod () 
+{ 
+    ensure_apt_install_package kmod
 }
 debian_05_install_pciutils () 
 { 
@@ -3624,6 +3648,10 @@ debian_05_sbom_dmidecode ()
 { 
     ensure_sbom_format pkg-list dmidecode
 }
+debian_05_sbom_kmod () 
+{ 
+    ensure_sbom_format pkg-list kmod
+}
 debian_05_sbom_pciutils () 
 { 
     ensure_sbom_format pkg-list pciutils
@@ -3636,7 +3664,7 @@ debian_08_profile_system_inspection ()
 { 
     case "$1" in 
         bootstrap | install)
-            echo "curl dmidecode pciutils"
+            echo "curl dmidecode pciutils kmod"
         ;;
     esac
 }
@@ -3651,10 +3679,6 @@ debian_10_install_wget ()
 debian_10_sbom_gnupg () 
 { 
     ensure_sbom_format pkg-list gnupg
-}
-debian_10_sbom_lsb_release () 
-{ 
-    ensure_sbom_format pkg-list lsb-release
 }
 debian_10_sbom_wget () 
 { 
@@ -4059,7 +4083,16 @@ debian_30_install_v4l_utils ()
 }
 debian_30_install_xpu_smi () 
 { 
-    ensure_apt_install_package xpu-smi || printf "${red}xpu-smi not installed${reset}\n"
+    configure_xpu_smi "$@";
+    if ensure_apt_is_installed xpu-smi; then
+        echo "xpu-smi is installed." 1>&2;
+    else
+        ensure_prop set installed/xpu_smi/owned true;
+        ensure_apt_key $key_file $key_url --dearmor;
+        ensure_apt_source $apt_file "$apt_entry";
+        ensure_apt update -y;
+        ensure_apt install -y --no-install-recommends xpu-smi;
+    fi
 }
 debian_30_remove_autoconf () 
 { 
@@ -4165,7 +4198,8 @@ debian_30_remove_v4l_utils ()
 }
 debian_30_remove_xpu_smi () 
 { 
-    ensure_apt_remove_package xpu-smi
+    [ "$(ensure_prop get installed/xpu_smi/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y xpu-smi
 }
 debian_30_sbom_autoconf () 
 { 
@@ -4274,6 +4308,12 @@ debian_30_sbom_v4l_utils ()
 }
 debian_30_sbom_xpu_smi () 
 { 
+    configure_xpu_smi "$@";
+    ensure_sbom_format repo-name "$repo_name";
+    ensure_sbom_format apt-source "$apt_entry";
+    ensure_sbom_format apt-list-file "$apt_file";
+    ensure_sbom_format gpg-key "$key_url";
+    ensure_sbom_format key-file "$key_file";
     ensure_sbom_format pkg-list xpu-smi
 }
 debian_31_install_k3s_io () 
@@ -4317,7 +4357,12 @@ debian_31_install_k3s_io ()
     install_k3s_io_sriov;
     ensure_prop set installed/k3s_io/owned true;
     ensure_sudo env "${proxy_args[@]}" K3S_MODE=server ./install-k3s.sh;
-    ensure_sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml "$k3s_binary" kubectl wait --for=condition=Ready nodes --all --timeout=300s;
+    echo "@@STEP Waiting for nodes";
+    local start_clock=$SECONDS;
+    while [ $(( SECONDS - start_clock )) -lt 300 ]; do
+        sleep 1;
+        ensure_sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml "$k3s_binary" kubectl wait --for=condition=Ready nodes --all --timeout=300s && break || true;
+    done;
     echo "@@STEP Installing Helm";
     ensure_sudo ./install-helm.sh;
     echo "@@STEP Installing Intel device plugins";
@@ -4388,7 +4433,7 @@ EOF
 }
 debian_35_profile_intel_lpmd () 
 { 
-    echo "kernel_module_essential linux_tools pkg_config autoconf automake git"
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake make git gawk"
 }
 debian_35_remove_intel_lpmd () 
 { 
@@ -4453,10 +4498,6 @@ debian_39_remove_edge_pack ()
         [ -z "$edge_pack_ppa_repo" ] || ensure_rm "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
     }
 }
-debian_40_group_edge_pack_base_realtime () 
-{ 
-    echo "render:992 video:44"
-}
 debian_40_group_edge_pack_base_standard () 
 { 
     echo "render:992 video:44"
@@ -4496,35 +4537,6 @@ debian_40_install_core_types ()
         ensure_fetch "$script" - | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types;
         echo "@@HIGHLIGHT Core types are detected and written to /etc/core-types";
     fi
-}
-debian_40_install_edge_pack_base_realtime () 
-{ 
-    configure_edge_pack_base_realtime "$@";
-    if ensure_apt_is_installed intel-edge-base-realtime && ! ensure_parse_reinstall "$@"; then
-        echo "intel-edge-base-realtime is installed." 1>&2;
-    else
-        local candidate;
-        candidate="$(apt-cache policy intel-edge-base-realtime 2> /dev/null | awk '/Candidate:/{print $2}')";
-        if [ -z "$candidate" ] || [ "$candidate" = "(none)" ]; then
-            echo "intel-edge-base-realtime is not available in the edge-pack apt repo ($edge_pack_repo)." 1>&2;
-            echo "This is a known upstream gap: Intel has not yet published intel-edge-base-realtime." 1>&2;
-            echo "Falling back to the standard edge-pack base bundle (intel-edge-base-standard) instead." 1>&2;
-            ensure_prop set installed/edge_pack_base_realtime/fallback true;
-            debian_40_install_edge_pack_base_standard "$@";
-            [ -n "$(ensure_prop get installed/edge_pack_base_standard/owned)" ] || ensure_prop set installed/edge_pack_base_standard/owned false;
-            [ -c /dev/dri/renderD128 ];
-            ensure_group_add $(debian_40_group_edge_pack_base_realtime);
-            echo "@@HIGHLIGHT intel-edge-base-realtime unavailable @installed intel-edge-base-standard instead";
-            return 0;
-        fi;
-        ensure_prop remove installed/edge_pack_base_realtime/fallback;
-        ensure_prop set installed/edge_pack_base_realtime/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-realtime onevpl-tools || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
-    fi;
-    [ -c /dev/dri/renderD128 ];
-    ensure_group_add $(debian_40_group_edge_pack_base_realtime)
 }
 debian_40_install_edge_pack_base_standard () 
 { 
@@ -4785,10 +4797,6 @@ debian_40_profile_core_types ()
         ;;
     esac
 }
-debian_40_profile_edge_pack_base_realtime () 
-{ 
-    echo "edge_pack"
-}
 debian_40_profile_edge_pack_base_standard () 
 { 
     echo "edge_pack"
@@ -4823,7 +4831,7 @@ debian_40_profile_edge_pack_media_core ()
 }
 debian_40_profile_edge_pack_npu () 
 { 
-    echo "edge_pack libze1"
+    echo "edge_pack libze1 kmod"
 }
 debian_40_profile_edge_pack_tsn () 
 { 
@@ -4839,7 +4847,7 @@ debian_40_profile_libyang ()
 }
 debian_40_profile_npu_accel () 
 { 
-    echo "libtbb12 jq libze1"
+    echo "libtbb12 jq libze1 kmod"
 }
 debian_40_profile_pcm () 
 { 
@@ -4853,16 +4861,6 @@ debian_40_remove_core_types ()
 { 
     [ "$(ensure_prop get installed/core_types/owned)" = "true" ] || return 0;
     ensure_rm /etc/core-types
-}
-debian_40_remove_edge_pack_base_realtime () 
-{ 
-    if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" != "true" ]; then
-        [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0;
-        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
-    else
-        debian_40_remove_edge_pack_base_standard "$@";
-    fi;
-    ensure_prop remove installed/edge_pack_base_realtime/fallback
 }
 debian_40_remove_edge_pack_base_standard () 
 { 
@@ -4955,16 +4953,6 @@ debian_40_remove_system_info ()
     fi;
     ensure_rm "$workspace"
 }
-debian_40_sbom_edge_pack_base_realtime () 
-{ 
-    configure_edge_pack_base_realtime "$@";
-    sbom_edge_pack_repo_entries "$@";
-    if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" = "true" ]; then
-        ensure_sbom_format pkg-list "intel-edge-base-standard=$version*";
-    else
-        ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*";
-    fi
-}
 debian_40_sbom_edge_pack_base_standard () 
 { 
     configure_edge_pack_base_standard "$@";
@@ -5035,6 +5023,10 @@ debian_40_sbom_gpu_accel ()
     ensure_sbom_format key-file "$key_file";
     ensure_sbom_format pkg-list "${pkg_list[@]}"
 }
+debian_40_sbom_lsb_release () 
+{ 
+    ensure_sbom_format pkg-list lsb-release
+}
 debian_40_sbom_npu_accel () 
 { 
     configure_npu_accel "$@";
@@ -5048,6 +5040,40 @@ debian_40_sbom_npu_accel ()
 debian_40_sbom_software_properties_common () 
 { 
     ensure_sbom_format pkg-list software-properties-common
+}
+debian_41_group_edge_pack_base_realtime () 
+{ 
+    echo "render:992 video:44"
+}
+debian_41_install_edge_pack_base_realtime () 
+{ 
+    configure_edge_pack_base_realtime "$@" || return 0;
+    if ensure_apt_is_installed intel-edge-base-realtime && ! ensure_parse_reinstall "$@"; then
+        echo "intel-edge-base-realtime is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_base_realtime/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-base-realtime onevpl-tools || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
+    fi;
+    [ -c /dev/dri/renderD128 ];
+    ensure_group_add $(debian_40_group_edge_pack_base_realtime)
+}
+debian_41_profile_edge_pack_base_realtime () 
+{ 
+    configure_edge_pack_base_realtime "$@" 2> /dev/null && echo "edge_pack" || echo "edge_pack_base_standard"
+}
+debian_41_remove_edge_pack_base_realtime () 
+{ 
+    configure_edge_pack_base_realtime "$@" || return 0;
+    [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-base-realtime || true
+}
+debian_41_sbom_edge_pack_base_realtime () 
+{ 
+    configure_edge_pack_base_realtime "$@" 2> /dev/null || return 0;
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*"
 }
 debian_45_install_cloud_image_utils () 
 { 
@@ -5206,8 +5232,7 @@ debian_50_install_uv ()
 }
 debian_50_profile_ros2 () 
 { 
-    echo "curl gnupg git software_properties_common lsb_release";
-    ensure_parse_option --realtime "$@" || echo "edge_base"
+    echo "curl gnupg git software_properties_common lsb_release"
 }
 debian_50_profile_uv () 
 { 
@@ -5356,8 +5381,7 @@ debian_55_profile_realsense ()
 }
 debian_55_profile_ros_openvino () 
 { 
-    echo "curl gnupg ros2 libze1 debconf_utils";
-    ensure_parse_option --realtime "$@" || echo "edge_base"
+    echo "curl gnupg ros2 libze1 debconf_utils"
 }
 debian_55_remove_cdi () 
 { 
@@ -5534,7 +5558,7 @@ debian_70_profile_openvino ()
 }
 debian_70_profile_time_confighub () 
 { 
-    echo "libyang git cmake make kernel_module_essential python3_dev"
+    echo "libyang git cmake make kernel_module_essential python3_dev python3_venv"
 }
 debian_70_remove_edge_pack_media_ffmpeg () 
 { 
@@ -5734,7 +5758,7 @@ debian_85_install_video_search_and_summarization ()
 }
 debian_85_profile_esq () 
 { 
-    echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests stress_ng msr_tools rustup"
+    echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests stress_ng msr_tools rustup kmod"
 }
 debian_85_profile_video_search_and_summarization () 
 { 
@@ -6223,7 +6247,7 @@ debian_90_install_multimodal_weld_defect_detection ()
         echo "Multimodal weld defect detection is installed." 1>&2;
     else
         ensure_disk_size 15000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install multimodal_weld_defect_detection "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal;
         cd "$workspace"/industrial-edge-insights-multimodal;
@@ -6232,14 +6256,14 @@ INFLUXDB_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 INFLUXDB_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
 VISUALIZER_GRAFANA_USER=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 VISUALIZER_GRAFANA_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
-SEAWEEDFS_WEB_AUTH_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
+SEAWEEDFS_WEB_AUTH_USER=$(cat /dev/urandom | tr -dc a-z | head -c 10)
 SEAWEEDFS_WEB_AUTH_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
 HOST_IP=$(ensure_ip)
 EOF
 
         verify_multimodal_weld_defect_detection;
     fi;
-    local device=$(ensure_parse_device "$@");
+    local device=$(ensure_parse_device --devices=cpu,gpu "$@");
     configure_multimodal_weld_defect_detection_device "$device";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
@@ -6433,32 +6457,6 @@ debian_90_install_physical_ai_studio ()
     echo "@@HIGHLIGHT $installer_name start";
     echo "@@HIGHLIGHT $installer_name remove"
 }
-debian_90_install_post_fusion () 
-{ 
-    configure_post_fusion "$@";
-    if verify_post_fusion && ! ensure_parse_reinstall "$@"; then
-        echo "Sensor Fusion for Traffic Management - Post Fusion is installed." 1>&2;
-    else
-        ensure_disk_size 300;
-        ensure_git_export "$workspace" "$version" "$repository" sensor-fusion-for-traffic-management/post-fusion;
-        cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion;
-        sed -i -e "s|^numOfProcess=.*|numOfProcess=$inputs|" -e "s|^maxConcurrentWorkload=.*|maxConcurrentWorklod=$inputs|" ai_inference/source/low_latency_server/AiInference.config;
-        sed -i "s|^RUN git clone https://github.com/oneapi-src/level-zero.git|RUN git clone --depth 1 --branch v1.24.2 https://github.com/oneapi-src/level-zero.git|" docker/Dockerfile_TFCC.dockerfile;
-        cat > docker/.env <<EOF
-VIDEO_GROUP_ID=$(getent group video | cut -f3 -d: || echo 44)
-RENDER_GROUP_ID=$(getent group render | cut -f3 -d: || echo 992)
-BASE_VERSION=$VERSION_ID
-BASE=$ID
-EOF
-
-        verify_post_fusion;
-    fi;
-    local device=$(ensure_parse_device "$@");
-    configure_post_fusion_device "$device";
-    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
-    echo "@@HIGHLIGHT $installer_name install|start [--gpu/npu]";
-    echo "@@HIGHLIGHT $installer_name remove"
-}
 debian_90_install_real_time_scene_understanding () 
 { 
     configure_real_time_scene_understanding "$@";
@@ -6466,7 +6464,7 @@ debian_90_install_real_time_scene_understanding ()
         echo "Live Video Captioning is installed." 1>&2;
     else
         ensure_disk_size 64000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install real_time_scene_understanding "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository live-video-analysis/real-time-scene-understanding;
         cd "$workspace"/live-video-analysis/real-time-scene-understanding;
@@ -6646,15 +6644,15 @@ debian_90_install_surgical_instrument ()
     if verify_surgical_instrument && ! ensure_parse_reinstall "$@"; then
         echo "Surgical Instrument is installed" 1>&2;
     else
-        ensure_disk_size 70000;
+        ensure_disk_size 75000;
         ensure_git_export "$workspace" "$version" "$repository" surgical-instrument;
         cd "$workspace"/surgical-instrument;
         echo "@@STEP Downloading dataset";
         make download-dataset;
-        echo "@@STEP Preparing dataset";
-        make prepare-dataset MAX_POS_PER_VIDEO=800;
         echo "@@STEP Creating venv";
         make backend-venv;
+        echo "@@STEP Preparing dataset";
+        make prepare-dataset MAX_POS_PER_VIDEO=800;
         echo "@@STEP Generating polyp_test.mp4";
         .venv-backend/bin/python scripts/create_endoscopy_video.py --images-dir datasets/REAL-Colon/raw/001-001_frames --output videos/polyp_test.mp4 --seconds 60 --fps 60 --width 1920 --height 1080;
         echo "@@STEP Bootstraping backend";
@@ -6730,7 +6728,7 @@ debian_90_install_uav_mission_compute_sdk ()
             return 3;
         fi;
         ensure_disk_size 20000 || return $?;
-        ensure_ram_size 16000000 || return $?;
+        ensure_ram_size 14680064 || return $?;
         uav_mission_compute_sdk_checkout || return $?;
         local source_commit;
         source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?;
@@ -6741,7 +6739,7 @@ debian_90_install_uav_mission_compute_sdk ()
             echo "Mission Compute SDK initialization did not produce the expected source and .env." 1>&2;
             return 1;
         fi;
-        ensure_prop set installed/uav_mission_compute_sdk "$source_commit" || return $?;
+        ensure_prop set installed/uav_mission_compute_sdk/commit "$source_commit" || return $?;
         verify_uav_mission_compute_sdk || return $?;
     fi;
     echo "@@HIGHLIGHT workspace: $sdk_path";
@@ -6798,6 +6796,9 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics ()
     echo "Review $app_dir/.env and upstream LAN bindings before starting the application.";
     make init || return $?;
     sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
+    local used_ports=();
+    resolve_uncrewed_aerial_vehicle_vision_analytics_ports || return $?;
+    ensure_ports_open install uncrewed_aerial_vehicle_vision_analytics "${used_ports[@]}" || return $?;
     local detection="$app_dir/resources/models/yolo11s/yolo11s_openvino_model/yolo11s";
     local caption="$app_dir/resources/ov_models/gpu/InternVL2-1B";
     if [[ ! -f "$detection.xml" || ! -f "$detection.bin" ]]; then
@@ -6828,7 +6829,7 @@ debian_90_install_video_processing_for_nvr ()
     if verify_video_processing_for_nvr && ! ensure_parse_reinstall "$@"; then
         echo "Video Processing for NVR is already installed." 1>&2;
     else
-        ensure_disk_size 300;
+        ensure_disk_size 10000;
         ensure_git_export "$workspace" "$version" "$repository" video-processing-for-nvr;
         mkdir -p "$workspace"/videos;
         cd "$workspace"/videos;
@@ -6889,7 +6890,7 @@ debian_90_install_visual_search_question_and_answering ()
     if verify_visual_search_question_and_answering && ! ensure_parse_reinstall "$@"; then
         echo "Visual search question and answering is installed." 1>&2;
     else
-        ensure_disk_size 8000;
+        ensure_disk_size 50000;
         ensure_ports_open install visual_search_question_and_answering "${used_ports[@]}";
         ensure_git_export "$workspace" $version $repository visual-search-question-and-answering;
         cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose;
@@ -6917,7 +6918,7 @@ debian_90_install_wind_turbine_anomaly_detection ()
         echo "Wind turbine anomaly detection is installed." 1>&2;
     else
         ensure_disk_size 64000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install wind_turbine_anomaly_detection "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series;
         cd "$workspace"/industrial-edge-insights-time-series;
@@ -6975,10 +6976,17 @@ debian_90_profile_edge_base_robotics ()
     echo "core_types system_inspection system_summary ros2 ros_openvino realsense";
     case "$1" in 
         bootstrap)
-            echo "edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel"
+            echo "edge_pack_base_realtime edge_pack_npu edge_base gpu_accel npu_accel"
         ;;
         *)
-            configure_edge_pack_selection "edge_pack_base_realtime edge_pack_npu" "$@"
+            local selected;
+            if ensure_parse_option --realtime "$@"; then
+                selected=($(configure_edge_pack_selection "edge_pack_base_realtime edge_pack_npu" "$@"));
+            else
+                selected=($(configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu" "$@"));
+            fi;
+            [[ "${selected[*]}" != *gpu_accel* ]] || selected+=(edge_base);
+            echo "${selected[*]}"
         ;;
     esac
 }
@@ -6992,7 +7000,7 @@ debian_90_profile_handheld_multi_modal ()
 }
 debian_90_profile_humanoid_imitation_learning () 
 { 
-    echo "git curl edge_base docker_io"
+    echo "git curl edge_base_robotics docker_io"
 }
 debian_90_profile_image_based_video_search () 
 { 
@@ -7048,15 +7056,11 @@ debian_90_profile_person_of_interest ()
 }
 debian_90_profile_physical_ai_framework () 
 { 
-    echo "git curl edge_base uv ffmpeg"
+    echo "git curl edge_base_robotics uv ffmpeg"
 }
 debian_90_profile_physical_ai_studio () 
 { 
-    echo "git curl edge_base uv ffmpeg"
-}
-debian_90_profile_post_fusion () 
-{ 
-    echo "edge_base docker_io"
+    echo "git curl edge_base_robotics uv ffmpeg"
 }
 debian_90_profile_real_time_scene_understanding () 
 { 
@@ -7096,7 +7100,7 @@ debian_90_profile_surgical_instrument ()
 }
 debian_90_profile_suspicious_activity_detection () 
 { 
-    echo "docker_io edge_base git make curl"
+    echo "docker_io edge_base git make curl python3_venv"
 }
 debian_90_profile_take_away () 
 { 
@@ -7104,7 +7108,7 @@ debian_90_profile_take_away ()
 }
 debian_90_profile_uav_mission_compute_sdk () 
 { 
-    echo "docker_io edge_base git make"
+    echo "docker_io edge_base git make curl"
 }
 debian_90_profile_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -7112,7 +7116,7 @@ debian_90_profile_uncrewed_aerial_vehicle_ground_station ()
 }
 debian_90_profile_uncrewed_aerial_vehicle_vision_analytics () 
 { 
-    echo "docker_io git curl make v4l_utils edge_base python3_venv"
+    echo "docker_io git curl make v4l_utils edge_base python3_venv gawk"
 }
 debian_90_profile_video_processing_for_nvr () 
 { 
@@ -7268,11 +7272,6 @@ debian_90_remove_physical_ai_studio ()
     uv tool uninstall "$pais_pkg" > /dev/null 2>&1 || true;
     ensure_rm "$pais_run_dir" "$pais_bin"
 }
-debian_90_remove_post_fusion () 
-{ 
-    debian_90_stop_post_fusion "$@";
-    ensure_rm "$workspace"
-}
 debian_90_remove_real_time_scene_understanding () 
 { 
     debian_90_stop_real_time_scene_understanding "$@";
@@ -7281,7 +7280,6 @@ debian_90_remove_real_time_scene_understanding ()
 debian_90_remove_scenescape () 
 { 
     debian_90_stop_scenescape "$@";
-    cd "$workspace" && make clean-all || true;
     ensure_rm "$workspace" || true;
     ensure_skills remove "${skills[@]}"
 }
@@ -7341,7 +7339,7 @@ debian_90_remove_take_away ()
 debian_90_remove_uav_mission_compute_sdk () 
 { 
     configure_uav_mission_compute_sdk "$@";
-    if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk)" ]; then
+    if [ -z "$(ensure_prop get installed/uav_mission_compute_sdk/commit)" ]; then
         echo "uav_mission_compute_sdk is not installed." 1>&2;
         return 0;
     fi;
@@ -7353,9 +7351,7 @@ debian_90_remove_uav_mission_compute_sdk ()
         make down || true;
         ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
     } || true;
-    ensure_prop remove started/uav_mission_compute_sdk/ || true;
-    ensure_rm "$workspace" || return $?;
-    ensure_prop remove installed/uav_mission_compute_sdk
+    ensure_rm "$workspace" || return $?
 }
 debian_90_remove_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -7494,7 +7490,21 @@ debian_90_start_handheld_multi_modal ()
     ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     cd "$workspace"/handheld-multi-modal;
     ensure_container_namespace start handheld_multi_modal $(ensure_container_parse_yaml compose/handheld-multi-modal.yaml compose/cameras.yaml config/devices.yaml) || true;
-    make up CONFIRM=yes;
+    make up CONFIRM=yes || return $?;
+    local start_time=$SECONDS ready=0;
+    while (( SECONDS - start_time < wait_timeout )); do
+        if verify_handheld_multi_modal_ready; then
+            ready=1;
+            break;
+        fi;
+        sleep 5;
+    done;
+    if [ "$ready" -ne 1 ]; then
+        echo "Handheld Multi-Modal readiness timed out. Inspect Docker Compose logs in $workspace/handheld-multi-modal." 1>&2;
+        return 1;
+    fi;
+    echo "Docker Compose service status:";
+    docker compose -f compose/handheld-multi-modal.yaml -f compose/cameras.yaml -f config/devices.yaml ps || return $?;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)";
     echo "@@HIGHLIGHT $installer_name stop|remove"
 }
@@ -7645,7 +7655,7 @@ debian_90_start_multimodal_weld_defect_detection ()
     configure_multimodal_weld_defect_detection "$@";
     ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}";
     ensure_container_namespace start multimodal_weld_defect_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-multimodal/docker-compose*.yml);
-    local device="$(ensure_parse_device "$@")";
+    local device="$(ensure_parse_device --devices=cpu,gpu "$@")";
     [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device;
     cd "$workspace"/industrial-edge-insights-multimodal;
     export TELEGRAF_INPUT_PLUGIN=mqtt_consumer;
@@ -7848,28 +7858,6 @@ debian_90_start_physical_ai_studio ()
     echo "@@HIGHLIGHT logs @$pais_log_file";
     echo "@@HIGHLIGHT $installer_name stop|remove"
 }
-debian_90_start_post_fusion () 
-{ 
-    configure_post_fusion "$@";
-    debian_90_stop_post_fusion "$@";
-    local device=$(ensure_parse_device "$@");
-    [[ " ${*,,} " != *" --$device "* ]] || configure_post_fusion_device "$device";
-    cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion;
-    local image="$(< .image)";
-    if docker compose -f docker/docker-compose.yml up $image -d --wait; then
-        if docker compose -f docker/docker-compose.yml exec -w /home/tfcc/metro -i $image bash -c 'echo intel | sudo -S bash run_service_bare_log.sh &disown'; then
-            stime=$SECONDS;
-            while [ $(( SECONDS - stime )) -lt $duration ]; do
-                docker compose -f docker/docker-compose.yml exec -w /home/tfcc/metro -i $image bash -xc "echo intel | sudo -S ./build/bin/testGRPCCPlusLPipeline 127.0.0.1 50052 ai_inference/test/configs/$pipeline.json $inputs $repeat ai_inference/test/demo/$dataset $media_type" && break;
-                sleep 5s;
-            done;
-        fi;
-    fi;
-    docker compose -f docker/docker-compose.yml logs;
-    docker compose -f docker/docker-compose.yml down -v --remove-orphans;
-    echo "@@HIGHLIGHT $installer_name start [--gpu|npu]";
-    echo "@@HIGHLIGHT $installer_name stop|remove"
-}
 debian_90_start_real_time_scene_understanding () 
 { 
     configure_real_time_scene_understanding "$@";
@@ -8032,32 +8020,33 @@ debian_90_start_uav_mission_compute_sdk ()
     };
     cd "$sdk_path" || return $?;
     sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
-    if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
-        ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?;
-    fi;
+    ensure_ports_open start uav_mission_compute_sdk "${used_ports[@]}" || return $?;
     ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || true;
     if make up-sim-camera; then
         :;
     else
         local rc=$?;
-        make down || return $?;
+        make down || true;
+        ensure_prop remove started/uav_mission_compute_sdk/ports || true;
         return "$rc";
     fi;
-    local attempt;
-    for ((attempt=0; attempt<24; attempt++))
-    do
+    local start_time=$SECONDS ready=0;
+    while (( SECONDS - start_time < wait_timeout )); do
         if verify_uav_mission_compute_sdk_running; then
+            ready=1;
             break;
         fi;
         sleep 5;
     done;
-    if [ "$attempt" -eq 24 ]; then
-        echo "Mission Compute SDK simulation did not start all expected services. Inspect Docker Compose logs in $sdk_path." 1>&2;
-        make down || return $?;
+    if [ "$ready" -ne 1 ]; then
+        echo "Mission Compute SDK readiness timed out (services or REST API). Inspect Docker Compose logs in $sdk_path." 1>&2;
+        make down || true;
+        ensure_prop remove started/uav_mission_compute_sdk/ports || true;
         return 1;
     fi;
-    ensure_prop create started/uav_mission_compute_sdk/ports || return $?;
     ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?;
+    echo "Docker Compose service status:";
+    docker compose --profile sim-camera --profile observability ps || return $?;
     echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras";
     echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080";
     echo "@@HIGHLIGHT $installer_name stop uav_mission_compute_sdk"
@@ -8072,15 +8061,23 @@ debian_90_start_uncrewed_aerial_vehicle_ground_station ()
     cd "$app_dir" || return $?;
     local used_ports=();
     if [ -z "$(ensure_prop get started/uncrewed_aerial_vehicle_ground_station/ports)" ]; then
-        local config ports;
-        config="$(docker compose "${compose_files[@]}" config --format json)" || return $?;
-        ports="$(python3 -c '
-import json, sys
-config = json.load(sys.stdin)
-print(" ".join(sorted({str(port["published"]) for service in config["services"].values()
-                       for port in service.get("ports", []) if "published" in port})))
-' <<< "$config")" || return $?;
-        read -r -a used_ports <<< "$ports";
+        local config line port;
+        local -A seen_ports=();
+        config="$(docker compose "${compose_files[@]}" config --format yaml)" || return $?;
+        while IFS= read -r line; do
+            if [[ "$line" =~ ^[[:space:]]+published:[[:space:]]*\"?([0-9]+(-[0-9]+)?)\"?[[:space:]]*$ ]]; then
+                port="${BASH_REMATCH[1]}";
+                if [[ -z "${seen_ports[$port]:-}" ]]; then
+                    used_ports+=("$port");
+                    seen_ports[$port]=1;
+                fi;
+            else
+                if [[ "$line" =~ ^[[:space:]]+published: ]]; then
+                    echo "Unsupported published port in Compose configuration: $line" 1>&2;
+                    return 1;
+                fi;
+            fi;
+        done <<< "$config";
         ensure_ports_open install uncrewed_aerial_vehicle_ground_station "${used_ports[@]}" || return $?;
     else
         read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_ground_station/ports)";
@@ -8115,20 +8112,14 @@ debian_90_start_uncrewed_aerial_vehicle_vision_analytics ()
     fi;
     cd "$app_dir" || return $?;
     local used_ports=();
-    if [ -z "$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)" ]; then
-        local config ports;
-        config="$(docker compose "${compose_files[@]}" config --format json)" || return $?;
-        ports="$(python3 -c '
-import json, sys
-config = json.load(sys.stdin)
-print(" ".join(sorted({str(port["published"]) for service in config["services"].values()
-                       for port in service.get("ports", []) if "published" in port})))
-' <<< "$config")" || return $?;
-        read -r -a used_ports <<< "$ports";
-        ensure_ports_open install uncrewed_aerial_vehicle_vision_analytics "${used_ports[@]}" || return $?;
+    local started_ports;
+    started_ports="$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)" || return $?;
+    if [ -n "$started_ports" ] && [ "$started_ports" != none ]; then
+        read -r -a used_ports <<< "$started_ports";
     else
-        read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)";
+        resolve_uncrewed_aerial_vehicle_vision_analytics_ports || return $?;
     fi;
+    ensure_ports_open start uncrewed_aerial_vehicle_vision_analytics "${used_ports[@]}" || return $?;
     sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
     ensure_container_namespace start uncrewed_aerial_vehicle_vision_analytics $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true;
     make pymav-up || return $?;
@@ -8138,7 +8129,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
         if [ "$check" = pipelines ]; then
             make check-cameras || return $?;
             if ! verify_uncrewed_aerial_vehicle_vision_analytics_manager; then
-                docker exec --detach dlstreamer-pipeline-server sh -c 'exec python3 /home/pipeline-server/scripts/pipeline_manager.py --start-now >/tmp/oep-uav-manager.log 2>&1' || return $?;
+                docker compose "${compose_files[@]}" exec -T --detach "$pipeline_service" sh -c 'exec python3 /home/pipeline-server/scripts/pipeline_manager.py --start-now >/tmp/oep-uav-manager.log 2>&1' || return $?;
             fi;
         fi;
         local attempts=24;
@@ -8199,7 +8190,7 @@ debian_90_start_visual_search_question_and_answering ()
     ensure_container_namespace start visual_search_question_and_answering $(ensure_container_parse_yaml "$workspace"/visual-search-question-and-answering/deployment/docker-compose/*.yaml);
     cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose;
     . ./env.sh;
-    docker compose -f compose_milvus.yaml up -d;
+    docker compose -f compose_milvus.yaml up -d --timeout=300;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT $installer_name stop|remove";
     echo "@@HIGHLIGHT dataset: $HOST_DATA_PATH/DAVIS/subset"
@@ -8380,7 +8371,7 @@ debian_90_stop_loss_prevention ()
         pkill -f "python3 benchmark.py" || true;
         make down-lp || true;
         cd src && docker compose down -v --remove-orphans || true;
-        ensure_container_namespace start loss_prevention $(ensure_container_parse_yaml docker-compose*.yml)
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
     } || true;
     docker volume rm -f lp-mcp-data || true
 }
@@ -8452,11 +8443,6 @@ debian_90_stop_physical_ai_studio ()
     fi;
     rm -f "$pais_pid_file"
 }
-debian_90_stop_post_fusion () 
-{ 
-    configure_post_fusion "$@";
-    cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion && docker compose -f docker/docker-compose.yml down -v --remove-orphans || true
-}
 debian_90_stop_real_time_scene_understanding () 
 { 
     configure_real_time_scene_understanding "$@";
@@ -8470,6 +8456,7 @@ debian_90_stop_scenescape ()
     configure_scenescape "$@";
     cd "$workspace" && { 
         make demo-close || true;
+        make clean-all || true;
         ensure_container_cleanup $(ensure_container_parse_yaml sample_data/compose/compose.*.yml)
     } || true
 }
@@ -8543,8 +8530,7 @@ debian_90_stop_uav_mission_compute_sdk ()
     cd "$sdk_path" && { 
         make down || true;
         ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
-    } || true;
-    ensure_prop remove started/uav_mission_compute_sdk/
+    } || true
 }
 debian_90_stop_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -8764,8 +8750,8 @@ debian_99_profile_robotics_ai_suite ()
 }
 debian_99_profile_system_summary () 
 { 
-    [ "$1" != "bootstrap" ] || echo "system_inspection curl dmidecode pciutils";
-    [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+    [ "$1" != "bootstrap" ] || echo "system_inspection curl dmidecode pciutils kmod";
+    [ "$1" != "install" ] || echo "curl dmidecode pciutils kmod"
 }
 debian_99_profile_uncrewed_aerial_vehicle_blueprint () 
 { 
@@ -8954,17 +8940,21 @@ ensure_container_cleanup ()
     do
         case "$c" in 
             name:*)
-                docker container rm -v -f ${c#name:} 2> /dev/null || true
+                echo "Cleaning up $c..." 1>&2;
+                docker container rm -v -f ${c#name:} > /dev/null || true
             ;;
             vol:*)
-                docker volume rm -f ${c#vol:} 2> /dev/null || true
+                echo "Cleaning up $c..." 1>&2;
+                docker volume rm -f ${c#vol:} > /dev/null || true
             ;;
             net:*)
-                docker network rm -f ${c#net:} 2> /dev/null || true
+                echo "Cleaning up $c..." 1>&2;
+                docker network rm -f ${c#net:} > /dev/null || true
             ;;
         esac;
     done;
-    docker volume prune -f || true
+    echo "Cleaning up anonymous volumes..." 1>&2;
+    docker volume prune -f > /dev/null || true
 }
 ensure_container_namespace () 
 { 
@@ -8979,7 +8969,7 @@ ensure_container_namespace ()
             ensure_prop set started/$name/containers "$*"
         ;;
     esac;
-    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
+    local container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltun | awk '{p=$5; sub(/.*:/,"",p); if (!(p in seen)) {seen[p]; print "port:" p}}'));
     local c stopper mname mpath;
     for c in "$@";
     do
@@ -8996,7 +8986,7 @@ ensure_container_namespace ()
             ( set -e;
             $stopper "$mname" -- ) 1>&2 || true;
         done;
-        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltunp | awk '{seen[gensub(/.*:/,"",1,$(NF-1))]=1}END{for(k in seen)print "port:"k}'));
+        container_resources=($(docker ps --no-trunc --format '{{.Names}}' | tr ',' '\n' | sed 's/^/name:/') $(docker network ls --format '{{.Name}}' | sed 's/^/net:/') $(docker volume ls --format '{{.Name}}' | sed 's/^/vol:/') $(ss -Hltun | awk '{p=$5; sub(/.*:/,"",p); if (!(p in seen)) {seen[p]; print "port:" p}}'));
         [[ " ${container_resources[*]} " = *" $c "* ]] || continue;
         printf "${red}%s is occupied${reset}\n%s\n" "$c" "${container_resources[*]}" 1>&2;
         return 3;
@@ -10428,14 +10418,20 @@ ensure_osrf_gazebo_ros2 ()
 }
 ensure_parse_device () 
 { 
-    local device="cpu";
-    local args_uc=" ${*^^} ";
-    [ ! -e /dev/accel/accel0 ] || device="npu";
-    [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
-    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
-    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    echo $device
+    local devices=($(ensure_parse_value_option devices --devices=cpu,gpu,npu "$@" | tr ',' ' '));
+    local device="";
+    ! ensure_parse_option cpu "${devices[@]}" || device=cpu;
+    [ ! -e /dev/accel/accel0 ] || ! ensure_parse_option npu "${devices[@]}" || device="npu";
+    [ ! -e /dev/dri/renderD128 ] || ! ensure_parse_option gpu "${devices[@]}" || device="gpu";
+    [ -n "$device" ] || { 
+        echo "No acceptable device device" 1>&2;
+        return 3
+    };
+    for d in "${devices[@]}";
+    do
+        ! ensure_parse_option --$d "${@,,}" || device="$d";
+    done;
+    echo "$device"
 }
 ensure_parse_option () 
 { 
@@ -10489,7 +10485,7 @@ ensure_ports_open ()
         local port out stopper mname mpath;
         for port in $*;
         do
-            out="$(ss -Hltunp "sport = :$port")";
+            out="$(ss -Hltun "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
             for mpath in $(ensure_prop find "installed/*/ports") $(ensure_prop find "started/*/ports");
@@ -10503,7 +10499,7 @@ ensure_ports_open ()
                 ( set -e;
                 $stopper "$mname" -- ) 1>&2 || true;
             done;
-            out="$(ss -Hltunp "sport = :$port")";
+            out="$(ss -Hltun "sport = :$port")";
             [ -n "$out" ] || continue;
             printf "${red}Port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
             return 3;
@@ -10792,7 +10788,7 @@ install_geti ()
         echo "Geti is installed." 1>&2;
     else
         ensure_disk_size 20000;
-        ensure_ram_size 16777216;
+        ensure_ram_size 14680064;
         ensure_ports_open install geti "${used_ports[@]}";
         echo "@@STEP Pulling image";
         docker pull $image_name;
@@ -10930,7 +10926,9 @@ install_system_inspection ()
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2;
     net_pass=$ok;
     net_access="$(system_scan_check_network_access)";
-    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}";
+    [[ "$net_access" = *reachable* ]] || { 
+        [[ "$net_access" = *skewed* ]] && net_pass="${nok/MSG/Check DateTime}" || net_pass="${nok/MSG/Check Proxies}"
+    };
     echo -e "Network|$net_access|$net_pass";
     [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2;
     echo;
@@ -10940,7 +10938,7 @@ install_system_inspection ()
     [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}";
     echo -e "CPU|$cpuinst_info|$pass";
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass";
-    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ');
+    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ' || true);
     do
         pass=$ok;
         accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")";
@@ -10950,7 +10948,7 @@ install_system_inspection ()
             [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2;
         fi;
     done;
-    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ');
+    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ' || true);
     do
         pass=$ok;
         accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")";
@@ -11044,6 +11042,28 @@ remove_osrf_gazebo_ros2 ()
 { 
     configure_osrf_gazebo_ros2;
     ensure_rm "$osrf_list" "$osrf_key"
+}
+resolve_uncrewed_aerial_vehicle_vision_analytics_ports () 
+{ 
+    local config line port;
+    local -A seen_ports=();
+    used_ports=();
+    config="$(docker compose "${compose_files[@]}" config --format yaml)" || return $?;
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^[[:space:]]+published:[[:space:]]*\"?([0-9]+(-[0-9]+)?)\"?[[:space:]]*$ ]]; then
+            port="${BASH_REMATCH[1]}";
+            if [[ -z "${seen_ports[$port]:-}" ]]; then
+                used_ports+=("$port");
+                seen_ports[$port]=1;
+            fi;
+        else
+            if [[ "$line" =~ ^[[:space:]]+published: ]]; then
+                echo "Unsupported published port in Compose configuration: $line" 1>&2;
+                return 1;
+            fi;
+        fi;
+    done <<< "$config";
+    return 0
 }
 sbom_edge_pack_repo_entries () 
 { 
@@ -11149,13 +11169,14 @@ subcommand_list ()
 { 
     local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
     local module_region_list=" ${_act_cache_modules[*]/#/--} ";
-    local k v args=() mods=() cli_version="" sbom=0 margs=0;
+    local k v args=() mods=() cli_version="" sbom=0 margs=0 tc=0;
     for v in "$@";
     do
         case "$v" in 
             --help)
                 echo "list options:";
                 echo "  --cli-version <v>  save cli version in the SBOM header";
+                echo "  --test-coverage    show test coverage subset";
                 echo "  --sbom             show component SBOM items";
                 echo;
                 return 0
@@ -11163,11 +11184,32 @@ subcommand_list ()
             --sbom)
                 sbom=1
             ;;
+            --test-coverage)
+                tc=1
+            ;;
             --cli-version=*)
                 cli_version="${v#*=}"
             ;;
             --cli-version)
 
+            ;;
+            --auto-completion | --auto-completion=*)
+                local data="Y21kcyBpbnN0YWxsIHJlbW92ZSBzdGFydCBzdG9wCm5hbWVzIGN1cmwgZG1pZGVjb2RlIGttb2QgcGNpdXRpbHMgc3lzdGVtX2luc3BlY3Rpb24gZ251cGcgd2dldCBjcHVpZCBkZWJjb25mX3V0aWxzIGdhd2sganEgbGliZ2wxIGxpYnRiYjEyIGxpYnplMSB1bnppcCB5cSBlZGdlX3BhY2tfa2VybmVsX2ltYWdlIHJlYm9vdCBhdXRvY29uZiBhdXRvbWFrZSBidWlsZF9lc3NlbnRpYWwgY2hyb255IGNtYWtlIGRvY2tlcl9jZSBkb2NrZXJfaW8gZ2l0IGdvbGFuZyBrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbCBsaWJwY3JlMl9kZXYgbGludXhfdG9vbHMgbG1fc2Vuc29ycyBtYWtlIG1zcl90b29scyBwa2dfY29uZmlnIHB5dGhvbjNfZGV2IHB5dGhvbjNfdmVudiBweXRob24zX3lhbWwgcnN5bmMgcnVzdHVwIHN0cmVzc19uZyBzeXNiZW5jaCB2NGxfdXRpbHMgeHB1X3NtaSBrM3NfaW8gaW50ZWxfbHBtZCBlZGdlX3BhY2sgY29yZV90eXBlcyBlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZCBlZGdlX3BhY2tfY29tcHV0ZV9leHRyYSBlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZSBlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheSBlZGdlX3BhY2tfZ3JhcGhpY3Nfc3Jpb3YgZWRnZV9wYWNrX2lwdSBlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eSBlZGdlX3BhY2tfbWVkaWFfY29yZSBlZGdlX3BhY2tfbnB1IGVkZ2VfcGFja190c24gZ3B1X2FjY2VsIGxpYnlhbmcgbHNiX3JlbGVhc2UgbnB1X2FjY2VsIHBjbSBzb2Z0d2FyZV9wcm9wZXJ0aWVzX2NvbW1vbiBzeXN0ZW1faW5mbyBlZGdlX3BhY2tfYmFzZV9yZWFsdGltZSBjbG91ZF9pbWFnZV91dGlscyBsaWJjYXAyX2JpbiBtZW10ZXN0ZXIgb3ZtZiBwaXB4IHBvd2VyX3R1bmluZyBxZW11X3N5c3RlbV94ODYgcWVtdV91dGlscyBydF90ZXN0cyB1YnVudHVfc2VydmVyIHJvczIgdXYgY2RpIHJlYWxzZW5zZSByb3Nfb3BlbnZpbm8gZWRnZV9wYWNrX21lZGlhX2ZmbXBlZyBlZGdlX3BhY2tfbWVkaWFfZ3N0IGZmbXBlZyBtZWRpYW10eCBub2RlanMgb3BlbnZpbm8gdGltZV9jb25maWdodWIgZGxzdHJlYW1lciBhbm9tYWxpYiBlc3EgaGFuZGhlbGRfYmx1ZXByaW50IG1pc3Npb25fZGVjaXNpb25fc3VwcG9ydF9ibHVlcHJpbnQgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfYmx1ZXByaW50IHZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbiBhZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmUgYWdlbnRpY19zbWFydF9jb21tdW5pdHkgYXV0b25vbW91c19tb2JpbGVfcm9ib3QgZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uIGRpZ2l0YWxfc2lnbmFnZSBkaW5lX2luIGdldGkgaGFuZGhlbGRfbXVsdGlfbW9kYWwgaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nIGltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaCBsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50IGxpdmVfdmlkZW9fY2FwdGlvbmluZyBsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnIGxpdmVfdmlkZW9fc2VhcmNoIGxvaXRlcmluZ19kZXRlY3Rpb24gbG9zc19wcmV2ZW50aW9uIG11bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZyBtdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbiBuaWN1X3dhcm1lciBwYWxsZXRfZGVmZWN0X2RldGVjdGlvbiBwY2JfYW5vbWFseV9kZXRlY3Rpb24gcGVyc29uX29mX2ludGVyZXN0IHBoeXNpY2FsX2FpX2ZyYW1ld29yayBwaHlzaWNhbF9haV9zdHVkaW8gcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmcgc2NlbmVzY2FwZSBzbWFydF9pbnRlcnNlY3Rpb24gc21hcnRfa2lvc2tfYXNzaXN0YW50IHNtYXJ0X252ciBzbWFydF9wYXJraW5nIHNtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50IHN0YXRpb25hcnlfcm9ib3RfdmlzaW9uIHN1cmdpY2FsX2luc3RydW1lbnQgc3VzcGljaW91c19hY3Rpdml0eV9kZXRlY3Rpb24gdGFrZV9hd2F5IHVhdl9taXNzaW9uX2NvbXB1dGVfc2RrIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2dyb3VuZF9zdGF0aW9uIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MgdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyIHZpcHBldCB2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmcgd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uIHNtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50IHN5c3RlbV9zdW1tYXJ5IGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnQgbWV0cm9fYWlfc3VpdGUgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIGluZmVyZW5jaW5nIG1hbnVmYWN0dXJpbmdfYWlfc3VpdGUgcm9ib3RpY3NfYWlfc3VpdGUgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlIGVkZ2VfYmFzZSBlZGdlX2Jhc2Vfcm9ib3RpY3MgaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZSByZXRhaWxfYWlfc3VpdGUgY29tcHV0ZXJfdmlzaW9uIGhlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlCmZsYWdzIGluc3RhbGwgLS1jb250aW51ZSAtLWRyeS1ydW4gLS1yZWluc3RhbGwgLS12YWxpZGF0ZQpzdGF0ZSBpbnN0YWxsIC0KbW9kIGluc3RhbGwgcmVib290Cm1vZCBpbnN0YWxsIGxpdmVfdmlkZW9fY2FwdGlvbmluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCB0YWtlX2F3YXkgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgZWRnZV9wYWNrX2Jhc2VfcmVhbHRpbWUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgZGlnaXRhbF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHBjbSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCB0aW1lX2NvbmZpZ2h1YiAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBidWlsZF9lc3NlbnRpYWwKbW9kIGluc3RhbGwgcHl0aG9uM192ZW52Cm1vZCBpbnN0YWxsIGVkZ2VfcGFja190c24gLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgY2hyb255Cm1vZCBpbnN0YWxsIGszc19pbwptb2QgaW5zdGFsbCBzb2Z0d2FyZV9wcm9wZXJ0aWVzX2NvbW1vbgptb2QgaW5zdGFsbCBlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheSAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCByZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBnZXRpIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHJzeW5jCm1vZCBpbnN0YWxsIHZpcHBldCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgaW5zdGFsbCBjbG91ZF9pbWFnZV91dGlscwptb2QgaW5zdGFsbCBnaXQKbW9kIGluc3RhbGwgZWRnZV9iYXNlIEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbG9zc19wcmV2ZW50aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1scCAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgLS1vYyAtLW9kIEBkZXZpY2U6Z3B1IC0tYWdlIC0tbHB2bG0KbW9kIGluc3RhbGwgZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwga21vZAptb2QgaW5zdGFsbCBncHVfYWNjZWwgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgcGNiX2Fub21hbHlfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGNtYWtlCm1vZCBpbnN0YWxsIGF1dG9tYWtlCm1vZCBpbnN0YWxsIG1hbnVmYWN0dXJpbmdfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgdjRsX3V0aWxzCm1vZCBpbnN0YWxsIHN5c3RlbV9zdW1tYXJ5Cm1vZCBpbnN0YWxsIGdudXBnCm1vZCBpbnN0YWxsIG92bWYKbW9kIGluc3RhbGwgbnB1X2FjY2VsIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGxtX3NlbnNvcnMKbW9kIGluc3RhbGwgbGliZ2wxCm1vZCBpbnN0YWxsIHN0cmVzc19uZwptb2QgaW5zdGFsbCBub2RlanMKbW9kIGluc3RhbGwgZG9ja2VyX2NlCm1vZCBpbnN0YWxsIG1lbXRlc3Rlcgptb2QgaW5zdGFsbCBhZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmUgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgZWRnZV9wYWNrX2lwdSAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBoZWFsdGhfYW5kX2xpZmVfc2NpZW5jZV9haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbiAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBydF90ZXN0cwptb2QgaW5zdGFsbCBzeXN0ZW1faW5zcGVjdGlvbgptb2QgaW5zdGFsbCBjb21wdXRlcl92aXNpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24gLS12YWxpZGF0ZQptb2QgaW5zdGFsbCBwaXB4Cm1vZCBpbnN0YWxsIG1lZGlhbXR4IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGxvaXRlcmluZ19kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgZWRnZV9wYWNrX21lZGlhX2ZmbXBlZyAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIG9wZW52aW5vIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uIC0tdmFsaWRhdGUKbW9kIGluc3RhbGwgbWFrZQptb2QgaW5zdGFsbCBzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCB1dgptb2QgaW5zdGFsbCBzY2VuZXNjYXBlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVidW50dV9zZXJ2ZXIKbW9kIGluc3RhbGwgbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCBpbnN0YWxsIGVzcSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBhdXRvbm9tb3VzX21vYmlsZV9yb2JvdCBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdSAtLWNvbXBsZXRlCm1vZCBpbnN0YWxsIGxpdmVfdmlkZW9fYWxlcnRfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmQgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBkaW5lX2luIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGRvY2tlcl9pbwptb2QgaW5zdGFsbCBwaHlzaWNhbF9haV9mcmFtZXdvcmsgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gLS12YWxpZGF0ZSBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBwZXJzb25fb2ZfaW50ZXJlc3QgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgcnVzdHVwCm1vZCBpbnN0YWxsIHJvc19vcGVudmlubyAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBweXRob24zX3lhbWwKbW9kIGluc3RhbGwgbGlidGJiMTIKbW9kIGluc3RhbGwgcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgbGl2ZV92aWRlb19zZWFyY2ggQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgcG93ZXJfdHVuaW5nIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIHB5dGhvbjNfZGV2Cm1vZCBpbnN0YWxsIHBrZ19jb25maWcKbW9kIGluc3RhbGwgaGFuZGhlbGRfYmx1ZXByaW50IEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXZlcnNpb24gLS1rM3MKbW9kIGluc3RhbGwgc21hcnRfbnZyIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGVkZ2VfYmFzZV9yb2JvdGljcyBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS1yZWFsdGltZSAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgcWVtdV91dGlscwptb2QgaW5zdGFsbCBlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZSAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBsaWJjYXAyX2Jpbgptb2QgaW5zdGFsbCBnYXdrCm1vZCBpbnN0YWxsIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBtdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgbGliemUxIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGZmbXBlZwptb2QgaW5zdGFsbCB1bnppcAptb2QgaW5zdGFsbCBkbHN0cmVhbWVyIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uIC0tdmFsaWRhdGUKbW9kIGluc3RhbGwgdWF2X21pc3Npb25fY29tcHV0ZV9zZGsgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgYXV0b2NvbmYKbW9kIGluc3RhbGwgcm9ib3RpY3NfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXBpMDUtcnRjLW92IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiAtLXZhbGlkYXRlIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1IC0tY29tcGxldGUKbW9kIGluc3RhbGwgZWRnZV9wYWNrX21lZGlhX2dzdCAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBsaWJwY3JlMl9kZXYKbW9kIGluc3RhbGwgcGh5c2ljYWxfYWlfc3R1ZGlvIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGluZmVyZW5jaW5nIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uIC0tdmFsaWRhdGUKbW9kIGluc3RhbGwgcm9zMiAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdXNlY2FzZSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQHZhbHVlOi0tdXNlY2FzZSBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCB3Z2V0Cm1vZCBpbnN0YWxsIG1ldHJvX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHNtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2dyb3VuZF9zdGF0aW9uIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGRtaWRlY29kZQptb2QgaW5zdGFsbCBuaWN1X3dhcm1lciBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBzeXN0ZW1faW5mbyAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmcgQHZhbHVlOi0tdmVyc2lvbiAtLXBpMDUtcnRjLW92IC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbAptb2QgaW5zdGFsbCB4cHVfc21pCm1vZCBpbnN0YWxsIGNwdWlkCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19jb21wdXRlX2V4dHJhIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGxzYl9yZWxlYXNlCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19tYW5hZ2VhYmlsaXR5IC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIHN5c2JlbmNoCm1vZCBpbnN0YWxsIGFnZW50aWNfc21hcnRfY29tbXVuaXR5IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHN1cmdpY2FsX2luc3RydW1lbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwganEKbW9kIGluc3RhbGwgZGViY29uZl91dGlscwptb2QgaW5zdGFsbCBwY2l1dGlscwptb2QgaW5zdGFsbCBpbWFnZV9iYXNlZF92aWRlb19zZWFyY2ggQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbGlieWFuZwptb2QgaW5zdGFsbCBsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBlZGdlX3BhY2tfa2VybmVsX2ltYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBpbnN0YWxsIG1zcl90b29scwptb2QgaW5zdGFsbCBjZGkgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgYW5vbWFsaWIgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24gLS12YWxpZGF0ZQptb2QgaW5zdGFsbCBjdXJsCm1vZCBpbnN0YWxsIHNtYXJ0X2tpb3NrX2Fzc2lzdGFudCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGludGVsX2xwbWQgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgZ29sYW5nCm1vZCBpbnN0YWxsIGNvcmVfdHlwZXMgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgaGFuZGhlbGRfbXVsdGlfbW9kYWwgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgc21hcnRfaW50ZXJzZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGxpbnV4X3Rvb2xzCm1vZCBpbnN0YWxsIGVkZ2VfcGFjayAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCB3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgeXEKbW9kIGluc3RhbGwgc21hcnRfcGFya2luZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCB2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgcmV0YWlsX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS11c2VjYXNlIC0tbHAgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEB2YWx1ZTotLXVzZWNhc2UgQGRldmljZTpjcHUgLS1vYyAtLW9kIEBkZXZpY2U6Z3B1IC0tYWdlIC0tbHB2bG0KbW9kIGluc3RhbGwgcWVtdV9zeXN0ZW1feDg2Cm1vZCBpbnN0YWxsIHJlYWxzZW5zZSAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbWVkaWFfY29yZSAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbnB1IC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19ncmFwaGljc19zcmlvdiAtLXJlaW5zdGFsbApmbGFncyByZW1vdmUgLS1kcnktcnVuIC0tcmVtb3ZlLWFsbCAtLXJlbW92ZS1tZQpzdGF0ZSByZW1vdmUgaW5zdGFsbGVkCm1vZCByZW1vdmUgbGl2ZV92aWRlb19jYXB0aW9uaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdGFrZV9hd2F5IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZGlnaXRhbF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZWRnZV9wYWNrX2Jhc2VfcmVhbHRpbWUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBwY20gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB0aW1lX2NvbmZpZ2h1Ygptb2QgcmVtb3ZlIGJ1aWxkX2Vzc2VudGlhbAptb2QgcmVtb3ZlIGVkZ2VfcGFja190c24KbW9kIHJlbW92ZSBrM3NfaW8KbW9kIHJlbW92ZSBlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheQptb2QgcmVtb3ZlIHJlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgcnN5bmMKbW9kIHJlbW92ZSBnZXRpIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdmlwcGV0IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgY2xvdWRfaW1hZ2VfdXRpbHMKbW9kIHJlbW92ZSB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgcmVtb3ZlIGdpdAptb2QgcmVtb3ZlIGVkZ2VfYmFzZSBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uCm1vZCByZW1vdmUgbG9zc19wcmV2ZW50aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljcwptb2QgcmVtb3ZlIGdwdV9hY2NlbAptb2QgcmVtb3ZlIHBjYl9hbm9tYWx5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGNtYWtlCm1vZCByZW1vdmUgYXV0b21ha2UKbW9kIHJlbW92ZSBtYW51ZmFjdHVyaW5nX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdjRsX3V0aWxzCm1vZCByZW1vdmUgb3ZtZgptb2QgcmVtb3ZlIG5wdV9hY2NlbCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGxtX3NlbnNvcnMKbW9kIHJlbW92ZSBzdHJlc3NfbmcKbW9kIHJlbW92ZSBub2RlanMKbW9kIHJlbW92ZSBkb2NrZXJfY2UKbW9kIHJlbW92ZSBtZW10ZXN0ZXIKbW9kIHJlbW92ZSBhZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBlZGdlX3BhY2tfaXB1Cm1vZCByZW1vdmUgaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbgptb2QgcmVtb3ZlIHJ0X3Rlc3RzCm1vZCByZW1vdmUgY29tcHV0ZXJfdmlzaW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbG9pdGVyaW5nX2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIG1lZGlhbXR4Cm1vZCByZW1vdmUgZWRnZV9wYWNrX21lZGlhX2ZmbXBlZwptb2QgcmVtb3ZlIGludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2UgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBvcGVudmlubyAtLXZhbGlkYXRlCm1vZCByZW1vdmUgbWFrZQptb2QgcmVtb3ZlIHNtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdXYKbW9kIHJlbW92ZSBzY2VuZXNjYXBlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCByZW1vdmUgZXNxIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgYXV0b25vbW91c19tb2JpbGVfcm9ib3QgLS1jb21wbGV0ZQptb2QgcmVtb3ZlIGxpdmVfdmlkZW9fYWxlcnRfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZAptb2QgcmVtb3ZlIHZpZGVvX3Byb2Nlc3NpbmdfZm9yX252ciBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGRpbmVfaW4gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHJlbW92ZSBkb2NrZXJfaW8KbW9kIHJlbW92ZSBwaHlzaWNhbF9haV9mcmFtZXdvcmsgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBwZXJzb25fb2ZfaW50ZXJlc3QgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBydXN0dXAKbW9kIHJlbW92ZSByb3Nfb3BlbnZpbm8KbW9kIHJlbW92ZSBwYWxsZXRfZGVmZWN0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGxpdmVfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgcG93ZXJfdHVuaW5nCm1vZCByZW1vdmUgcGtnX2NvbmZpZwptb2QgcmVtb3ZlIGhhbmRoZWxkX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCByZW1vdmUgc21hcnRfbnZyIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZWRnZV9iYXNlX3JvYm90aWNzIEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXJlYWx0aW1lIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGVkZ2VfcGFja19ncmFwaGljc19jb3JlCm1vZCByZW1vdmUgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZmZtcGVnCm1vZCByZW1vdmUgdW56aXAKbW9kIHJlbW92ZSBkbHN0cmVhbWVyIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdWF2X21pc3Npb25fY29tcHV0ZV9zZGsgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBhdXRvY29uZgptb2QgcmVtb3ZlIHJvYm90aWNzX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS1waTA1LXJ0Yy1vdiAtLXZlcnNpb24gLS1jb21wbGV0ZQptb2QgcmVtb3ZlIGVkZ2VfcGFja19tZWRpYV9nc3QKbW9kIHJlbW92ZSBwaHlzaWNhbF9haV9zdHVkaW8gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBpbmZlcmVuY2luZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHJvczIKbW9kIHJlbW92ZSBzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIG1ldHJvX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCByZW1vdmUgc21hcnRfcm91dGVfcGxhbm5pbmdfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbgptb2QgcmVtb3ZlIGRtaWRlY29kZQptb2QgcmVtb3ZlIG5pY3Vfd2FybWVyIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgc3lzdGVtX2luZm8KbW9kIHJlbW92ZSBodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmcgQHZhbHVlOi0tdmVyc2lvbiAtLXBpMDUtcnRjLW92IC0tdmVyc2lvbgptb2QgcmVtb3ZlIGtlcm5lbF9tb2R1bGVfZXNzZW50aWFsCm1vZCByZW1vdmUgeHB1X3NtaQptb2QgcmVtb3ZlIGNwdWlkCm1vZCByZW1vdmUgZWRnZV9wYWNrX2NvbXB1dGVfZXh0cmEKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eQptb2QgcmVtb3ZlIHN5c2JlbmNoCm1vZCByZW1vdmUgYWdlbnRpY19zbWFydF9jb21tdW5pdHkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBzdXJnaWNhbF9pbnN0cnVtZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUganEKbW9kIHJlbW92ZSBkZWJjb25mX3V0aWxzCm1vZCByZW1vdmUgaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbGlieWFuZwptb2QgcmVtb3ZlIGxpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWcgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBtc3JfdG9vbHMKbW9kIHJlbW92ZSBjZGkKbW9kIHJlbW92ZSBhbm9tYWxpYiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHNtYXJ0X2tpb3NrX2Fzc2lzdGFudCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBpbnRlbF9scG1kCm1vZCByZW1vdmUgbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBnb2xhbmcKbW9kIHJlbW92ZSBjb3JlX3R5cGVzCm1vZCByZW1vdmUgaGFuZGhlbGRfbXVsdGlfbW9kYWwgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBzbWFydF9pbnRlcnNlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBsaW51eF90b29scwptb2QgcmVtb3ZlIGVkZ2VfcGFjawptb2QgcmVtb3ZlIHdpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHlxCm1vZCByZW1vdmUgc21hcnRfcGFya2luZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHZpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgcmVtb3ZlIHJldGFpbF9haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHJlYWxzZW5zZQptb2QgcmVtb3ZlIGVkZ2VfcGFja19tZWRpYV9jb3JlCm1vZCByZW1vdmUgZWRnZV9wYWNrX25wdQptb2QgcmVtb3ZlIGVkZ2VfcGFja19ncmFwaGljc19zcmlvdgpmbGFncyBzdGFydCAtLWNvbnRpbnVlIC0tZHJ5LXJ1bgpzdGF0ZSBzdGFydCBpbnN0YWxsZWQKbW9kIHN0YXJ0IGxpdmVfdmlkZW9fY2FwdGlvbmluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgdGFrZV9hd2F5IEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBkaWdpdGFsX3NpZ25hZ2UgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IHJlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBnZXRpIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCB2aXBwZXQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IGxvc3NfcHJldmVudGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tbHAgLS12ZXJzaW9uIC0tYmVuY2htYXJrIEBkZXZpY2U6Y3B1IC0tb2MgLS1vZCBAZGV2aWNlOmdwdSAtLWFnZSAtLWxwdmxtCm1vZCBzdGFydCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzCm1vZCBzdGFydCBwY2JfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IGFnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZSBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgbG9pdGVyaW5nX2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHNjZW5lc2NhcGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IGVzcSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgbGl2ZV92aWRlb19hbGVydF9hZ2VudCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBkaW5lX2luIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCB2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHBlcnNvbl9vZl9pbnRlcmVzdCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IGxpdmVfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBzbWFydF9udnIgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IG11bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgdWF2X21pc3Npb25fY29tcHV0ZV9zZGsgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IHBoeXNpY2FsX2FpX3N0dWRpbyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgc3VzcGljaW91c19hY3Rpdml0eV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHNtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbgptb2Qgc3RhcnQgbmljdV93YXJtZXIgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IGFnZW50aWNfc21hcnRfY29tbXVuaXR5IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBzdXJnaWNhbF9pbnN0cnVtZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBpbWFnZV9iYXNlZF92aWRlb19zZWFyY2ggQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IGxpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHNtYXJ0X2tpb3NrX2Fzc2lzdGFudCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBzbWFydF9pbnRlcnNlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHdpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgc21hcnRfcGFya2luZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1CmZsYWdzIHN0b3AgLS1kcnktcnVuIC0tc3RvcC1hbGwKc3RhdGUgc3RvcCBzdGFydGVkCm1vZCBzdG9wIGxpdmVfdmlkZW9fY2FwdGlvbmluZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB0YWtlX2F3YXkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZGlnaXRhbF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHJlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGdldGkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdmlwcGV0IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGxvc3NfcHJldmVudGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzCm1vZCBzdG9wIHBjYl9hbm9tYWx5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBtYW51ZmFjdHVyaW5nX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGFnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBoZWFsdGhfYW5kX2xpZmVfc2NpZW5jZV9haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBjb21wdXRlcl92aXNpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgbG9pdGVyaW5nX2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHNtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHNjZW5lc2NhcGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZXNxCm1vZCBzdG9wIGxpdmVfdmlkZW9fYWxlcnRfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGRpbmVfaW4gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdG9wIHBlcnNvbl9vZl9pbnRlcmVzdCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBwYWxsZXRfZGVmZWN0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBsaXZlX3ZpZGVvX3NlYXJjaCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBzbWFydF9udnIgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIG11bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB1YXZfbWlzc2lvbl9jb21wdXRlX3NkayBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCByb2JvdGljc19haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBwaHlzaWNhbF9haV9zdHVkaW8gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3Agc3VzcGljaW91c19hY3Rpdml0eV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgbWV0cm9fYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0b3Agc21hcnRfcm91dGVfcGxhbm5pbmdfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24KbW9kIHN0b3AgbmljdV93YXJtZXIgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgYWdlbnRpY19zbWFydF9jb21tdW5pdHkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGxpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWcgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlCm1vZCBzdG9wIHNtYXJ0X2tpb3NrX2Fzc2lzdGFudCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIG11bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHNtYXJ0X2ludGVyc2VjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3Agc21hcnRfcGFya2luZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0b3AgcmV0YWlsX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCg==" cmd state;
+                [[ $data != @@* ]] || { 
+                    echo "Completion data not rendered; run bootstrap" 1>&2;
+                    return 3
+                };
+                data="$(base64 -d <<< "$data")";
+                cmd=${v#--auto-completion};
+                cmd=${cmd#=};
+                if [ -z "$cmd" ]; then
+                    grep -E '^(cmds|names)( |$)' <<< "$data";
+                else
+                    awk -v c="$cmd" '$1 != "cmds" && $1 != "names" && $2 == c { $2 = ""; sub(/  /, " "); sub(/ $/, ""); print }' <<< "$data";
+                    state=$(awk -v c="$cmd" '$1 == "state" && $2 == c { print $3 }' <<< "$data");
+                    [[ $state == installed || $state == started ]] && echo active $(ensure_prop find "$state/*" | cut -f2 -d/ | sort -u);
+                fi;
+                return 0
             ;;
             *)
                 if [ $margs -eq 1 ]; then
@@ -11232,77 +11274,179 @@ subcommand_list ()
             echo "---";
         done;
     else
-        local all_cmds=(${_act_cache_cmds[*]});
-        local profile_lines=() module_lines=();
-        local -A module_act_cache=();
-        local all_modules=(${_act_cache_modules[*]});
-        if [ ${#all_modules[@]} -gt 0 ]; then
-            local module_name;
-            for module_name in "${all_modules[@]}";
+        if [ $tc -eq 1 ]; then
+            if declare -F configure_edge_pack_kernel_image > /dev/null; then
+                configure_edge_pack_kernel_image $(act_extract_args install edge_pack_kernel_image "" "$@") > /dev/null 2>&1 || true;
+                set -- "$@" --edge_pack_kernel_image --version="$version";
+            fi;
+            local -A closure=() size=() target=() covered=();
+            local c h m candidates=();
+            for c in "${mods[@]}";
             do
-                [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
-                local module_cmds=() mname cmd;
-                for cmd in ${all_cmds[*]};
+                local comps=();
+                for h in $(act_find_deps install "$c" $(act_extract_args install "$c" "" "$@"));
                 do
-                    for mname in $(act_expand_modules $cmd $module_name "$@");
-                    do
-                        if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-                            module_cmds+=($cmd);
-                            break;
-                        fi;
-                    done;
+                    comps+=("${h#${installer_family}_*_install_}");
                 done;
-                module_act_cache[$module_name]="${module_cmds[*]}";
-                module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
-            done;
-        fi;
-        act_get prefix profile_;
-        local all_profiles=(${_act_reply[*]});
-        if [ ${#all_profiles[@]} -gt 0 ]; then
-            local profiler;
-            for profiler in "${all_profiles[@]}";
-            do
-                local profile_name=${profiler#*_*_*_};
-                [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
-                [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
-                local profile_cmds=() mname1 mname2 cmd found;
-                for cmd in ${all_cmds[*]};
+                [ ${#comps[@]} -gt 0 ] || continue;
+                closure[$c]=" ${comps[*]} ";
+                size[$c]=${#comps[@]};
+                candidates+=("$c");
+                for m in "${comps[@]}";
                 do
-                    for mname1 in $($profiler $cmd "$@");
+                    target[$m]=1;
+                done;
+            done;
+            if [ ${#target[@]} -eq 0 ]; then
+                echo "No installable components" 1>&2;
+                return 3;
+            fi;
+            local picked=() best best_gain best_size gain left=${#target[@]};
+            while [ $left -gt 0 ]; do
+                best="" best_gain=0 best_size=0;
+                for c in $(printf '%s\n' "${candidates[@]}" | LC_ALL=C.UTF-8 sort);
+                do
+                    [[ " ${picked[*]} " != *" $c "* ]] || continue;
+                    gain=0;
+                    for m in ${closure[$c]};
                     do
-                        if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-                            profile_cmds+=($cmd);
-                            break;
-                        fi;
-                        found=0;
-                        for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                        [ -n "${covered[$m]:-}" ] || gain=$((gain+1));
+                    done;
+                    if [ $gain -gt $best_gain ] || { 
+                        [ $gain -eq $best_gain ] && [ $gain -gt 0 ] && [ ${size[$c]} -lt $best_size ]
+                    }; then
+                        best=$c best_gain=$gain best_size=${size[$c]};
+                    fi;
+                done;
+                [ -n "$best" ] || break;
+                picked+=("$best");
+                for m in ${closure[$best]};
+                do
+                    [ -n "${covered[$m]:-}" ] || { 
+                        covered[$m]=1;
+                        left=$((left-1))
+                    };
+                done;
+            done;
+            local -A cnt=();
+            for c in "${picked[@]}";
+            do
+                for m in ${closure[$c]};
+                do
+                    cnt[$m]=$(( ${cnt[$m]:-0} + 1 ));
+                done;
+            done;
+            local final=() redundant;
+            for c in $(for c in "${picked[@]}";
+do
+    echo "${size[$c]} $c";
+done | sort -rn | cut -f2 -d' ');
+            do
+                redundant=1;
+                for m in ${closure[$c]};
+                do
+                    [ ${cnt[$m]} -gt 1 ] || { 
+                        redundant=0;
+                        break
+                    };
+                done;
+                if [ $redundant -eq 1 ]; then
+                    for m in ${closure[$c]};
+                    do
+                        cnt[$m]=$(( cnt[$m] - 1 ));
+                    done;
+                else
+                    final+=("$c");
+                fi;
+            done;
+            local -A shown=();
+            { 
+                for c in "${final[@]}";
+                do
+                    local adds=();
+                    for m in ${closure[$c]};
+                    do
+                        [ -n "${shown[$m]:-}" ] || { 
+                            shown[$m]=1;
+                            adds+=("$m")
+                        };
+                    done;
+                    printf "|%s|+%d|[%s]\n" "$c" ${#adds[@]} "${adds[*]}";
+                done
+            } | ensure_columns;
+        else
+            local all_cmds=(${_act_cache_cmds[*]});
+            local profile_lines=() module_lines=();
+            local -A module_act_cache=();
+            local all_modules=(${_act_cache_modules[*]});
+            if [ ${#all_modules[@]} -gt 0 ]; then
+                local module_name;
+                for module_name in "${all_modules[@]}";
+                do
+                    [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue;
+                    local module_cmds=() mname cmd;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname in $(act_expand_modules $cmd $module_name "$@");
                         do
-                            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-                                found=1;
+                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                                module_cmds+=($cmd);
                                 break;
                             fi;
                         done;
-                        if [ $found -eq 1 ]; then
-                            profile_cmds+=($cmd);
-                            break;
-                        fi;
                     done;
+                    module_act_cache[$module_name]="${module_cmds[*]}";
+                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
                 done;
-                profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
-            done;
-        fi;
-        { 
-            if [ ${#profile_lines[@]} -gt 0 ]; then
-                printf "List of Profiles:\n";
-                printf "%s\n" "${profile_lines[@]}" | sort;
-                printf "\n";
             fi;
-            if [ ${#module_lines[@]} -gt 0 ]; then
-                printf "List of Components:\n";
-                printf "%s\n" "${module_lines[@]}" | sort;
-                printf "\n";
-            fi
-        } | ensure_columns;
+            act_get prefix profile_;
+            local all_profiles=(${_act_reply[*]});
+            if [ ${#all_profiles[@]} -gt 0 ]; then
+                local profiler;
+                for profiler in "${all_profiles[@]}";
+                do
+                    local profile_name=${profiler#*_*_*_};
+                    [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue;
+                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                    local profile_cmds=() mname1 mname2 cmd found;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname1 in $($profiler $cmd "$@");
+                        do
+                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                            found=0;
+                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                            do
+                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                    found=1;
+                                    break;
+                                fi;
+                            done;
+                            if [ $found -eq 1 ]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
+                    done;
+                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+                done;
+            fi;
+            { 
+                if [ ${#profile_lines[@]} -gt 0 ]; then
+                    printf "List of Profiles:\n";
+                    printf "%s\n" "${profile_lines[@]}" | sort;
+                    printf "\n";
+                fi;
+                if [ ${#module_lines[@]} -gt 0 ]; then
+                    printf "List of Components:\n";
+                    printf "%s\n" "${module_lines[@]}" | sort;
+                    printf "\n";
+                fi
+            } | ensure_columns;
+        fi;
     fi
 }
 subcommand_remove () 
@@ -11330,6 +11474,12 @@ subcommand_remove ()
 }
 subcommand_resume () 
 { 
+    if ensure_parse_option --help "$@"; then
+        echo "resume options:";
+        echo "  none";
+        echo;
+        return 0;
+    fi;
     local args=($(ensure_prop get command));
     [[ ${#args[*]} -gt 0 ]] || { 
         echo "Nothing to resume" 1>&2;
@@ -11343,9 +11493,13 @@ subcommand_resume ()
 }
 subcommand_setup () 
 { 
-    ensure_parse_option --help "$@" && return;
-    local installer_misc_functions=(_act_levenshtein system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uav_mission_compute_sdk_checkout);
-    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW2RpZ2l0YWxfc2lnbmFnZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2Nocm9ueV09IiIgW2szc19pb109IiIgW3NvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFtyc3luY109IiIgW3ZpcHBldF09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludF09IiIgW2Nsb3VkX2ltYWdlX3V0aWxzXT0iIiBbZ2l0XT0iIiBbZWRnZV9iYXNlXT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtnbnVwZ109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtsbV9zZW5zb3JzXT0iIiBbbGliZ2wxXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbbWVtdGVzdGVyXT0iIiBbLS1yZWluc3RhbGxdPSIiIFthZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmVdPSIiIFtlZGdlX3BhY2tfaXB1XT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbl09IiIgW3J0X3Rlc3RzXT0iIiBbc3lzdGVtX2luc3BlY3Rpb25dPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtwaXB4XT0iIiBbbWVkaWFtdHhdPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbZWRnZV9wYWNrX21lZGlhX2ZmbXBlZ109IiIgWy0tdmFsaWRhdGVdPSIiIFtpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlXT0iIiBbb3BlbnZpbm9dPSIiIFttYWtlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFt1dl09IiIgW3NjZW5lc2NhcGVdPSIiIFt1YnVudHVfc2VydmVyXT0iIiBbbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludF09IiIgW2VzcV09IiIgW2F1dG9ub21vdXNfbW9iaWxlX3JvYm90XT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW2VkZ2VfcGFja19iYXNlX3N0YW5kYXJkXT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbZGluZV9pbl09IiIgW2RvY2tlcl9pb109IiIgW3BoeXNpY2FsX2FpX2ZyYW1ld29ya109IiIgW3BlcnNvbl9vZl9pbnRlcmVzdF09IiIgW3J1c3R1cF09IiIgW3Jvc19vcGVudmlub109IiIgW3B5dGhvbjNfeWFtbF09IiIgW2xpYnRiYjEyXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3Bvd2VyX3R1bmluZ109IiIgW3B5dGhvbjNfZGV2XT0iIiBbcGtnX2NvbmZpZ109IiIgW2hhbmRoZWxkX2JsdWVwcmludF09IiIgW3NtYXJ0X252cl09IiIgW2VkZ2VfYmFzZV9yb2JvdGljc109IiIgWy0tZHJ5LXJ1bl09IiIgW3FlbXVfdXRpbHNdPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZV09IiIgW2xpYmNhcDJfYmluXT0iIiBbZ2F3a109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW2xpYnplMV09IiIgW2ZmbXBlZ109IiIgW3VuemlwXT0iIiBbcG9zdF9mdXNpb25dPSIiIFtkbHN0cmVhbWVyXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFthdXRvY29uZl09IiIgW3JvYm90aWNzX2FpX3N1aXRlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2dzdF09IiIgW2xpYnBjcmUyX2Rldl09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW3JvczJdPSIiIFtpbmZlcmVuY2luZ109IiIgW3N1c3BpY2lvdXNfYWN0aXZpdHlfZGV0ZWN0aW9uXT0iIiBbd2dldF09IiIgW3NtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50XT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW2RtaWRlY29kZV09IiIgW25pY3Vfd2FybWVyXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmddPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW3hwdV9zbWldPSIiIFtjcHVpZF09IiIgW2VkZ2VfcGFja19jb21wdXRlX2V4dHJhXT0iIiBbbHNiX3JlbGVhc2VdPSIiIFtlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eV09IiIgW3N5c2JlbmNoXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbanFdPSIiIFtkZWJjb25mX3V0aWxzXT0iIiBbcGNpdXRpbHNdPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaWJ5YW5nXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV09IiIgW2VkZ2VfcGFja19rZXJuZWxfaW1hZ2VdPSIiIFttc3JfdG9vbHNdPSIiIFtjZGldPSIiIFthbm9tYWxpYl09IiIgW2N1cmxdPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF09IiIgW2ludGVsX2xwbWRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbeXFdPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nXT0iIiBbcWVtdV9zeXN0ZW1feDg2XT0iIiBbcmV0YWlsX2FpX3N1aXRlXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2NvcmVdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVtb3ZlKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbZGlnaXRhbF9zaWduYWdlXT0iIiBbZWRnZV9wYWNrX2Jhc2VfcmVhbHRpbWVdPSIiIFtwY21dPSIiIFt0aW1lX2NvbmZpZ2h1Yl09IiIgW2J1aWxkX2Vzc2VudGlhbF09IiIgW2VkZ2VfcGFja190c25dPSIiIFtrM3NfaW9dPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheV09IiIgW3JlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nXT0iIiBbcnN5bmNdPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbY2xvdWRfaW1hZ2VfdXRpbHNdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtsb3NzX3ByZXZlbnRpb25dPSIiIFtkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb25dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzXT0iIiBbZ3B1X2FjY2VsXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbY21ha2VdPSIiIFthdXRvbWFrZV09IiIgW21hbnVmYWN0dXJpbmdfYWlfc3VpdGVdPSIiIFt2NGxfdXRpbHNdPSIiIFtvdm1mXT0iIiBbbnB1X2FjY2VsXT0iIiBbbG1fc2Vuc29yc109IiIgW3N0cmVzc19uZ109IiIgW25vZGVqc109IiIgW2RvY2tlcl9jZV09IiIgW21lbXRlc3Rlcl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbZWRnZV9wYWNrX2lwdV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbc3RhdGlvbmFyeV9yb2JvdF92aXNpb25dPSIiIFtydF90ZXN0c109IiIgW2NvbXB1dGVyX3Zpc2lvbl09IiIgW2xvaXRlcmluZ19kZXRlY3Rpb25dPSIiIFttZWRpYW10eF09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbdXZdPSIiIFtzY2VuZXNjYXBlXT0iIiBbbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludF09IiIgW2VzcV09IiIgW2F1dG9ub21vdXNfbW9iaWxlX3JvYm90XT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW2VkZ2VfcGFja19iYXNlX3N0YW5kYXJkXT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW2RvY2tlcl9pb109IiIgW3BoeXNpY2FsX2FpX2ZyYW1ld29ya109IiIgW3BlcnNvbl9vZl9pbnRlcmVzdF09IiIgW3J1c3R1cF09IiIgW3Jvc19vcGVudmlub109IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtwb3dlcl90dW5pbmddPSIiIFtwa2dfY29uZmlnXT0iIiBbaGFuZGhlbGRfYmx1ZXByaW50XT0iIiBbc21hcnRfbnZyXT0iIiBbZWRnZV9iYXNlX3JvYm90aWNzXT0iIiBbLS1kcnktcnVuXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmVdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGRdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtmZm1wZWddPSIiIFt1bnppcF09IiIgW3Bvc3RfZnVzaW9uXT0iIiBbZGxzdHJlYW1lcl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbYXV0b2NvbmZdPSIiIFtyb2JvdGljc19haV9zdWl0ZV09IiIgW2VkZ2VfcGFja19tZWRpYV9nc3RdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtyb3MyXT0iIiBbaW5mZXJlbmNpbmddPSIiIFtzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50XT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW2RtaWRlY29kZV09IiIgW25pY3Vfd2FybWVyXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmddPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW3hwdV9zbWldPSIiIFtjcHVpZF09IiIgW2VkZ2VfcGFja19jb21wdXRlX2V4dHJhXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2pxXT0iIiBbZGViY29uZl91dGlsc109IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpYnlhbmddPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbbXNyX3Rvb2xzXT0iIiBbY2RpXT0iIiBbYW5vbWFsaWJdPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF09IiIgW2ludGVsX2xwbWRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbeXFdPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nXT0iIiBbcmV0YWlsX2FpX3N1aXRlXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2NvcmVdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVzdW1lKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0YXJ0KQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbZGlnaXRhbF9zaWduYWdlXT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljc109IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgWy0tdmFsaWRhdGVdPSIiIFtpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFtzY2VuZXNjYXBlXT0iIiBbZXNxXT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW2RpbmVfaW5dPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtwZXJzb25fb2ZfaW50ZXJlc3RdPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbc21hcnRfbnZyXT0iIiBbLS1kcnktcnVuXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbcG9zdF9mdXNpb25dPSIiIFt1YXZfbWlzc2lvbl9jb21wdXRlX3Nka109IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW3N1c3BpY2lvdXNfYWN0aXZpdHlfZGV0ZWN0aW9uXT0iIiBbc21hcnRfcm91dGVfcGxhbm5pbmdfYWdlbnRdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0b3ApCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtkaWdpdGFsX3NpZ25hZ2VdPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtsb3NzX3ByZXZlbnRpb25dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbLS12YWxpZGF0ZV09IiIgW2ludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2VdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW3BlcnNvbl9vZl9pbnRlcmVzdF09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtzbWFydF9udnJdPSIiIFstLWRyeS1ydW5dPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGRdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtwb3N0X2Z1c2lvbl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50XT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbl09IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
+    if ensure_parse_option --help "$@"; then
+        echo "setup options:";
+        echo "  none";
+        echo;
+        return 0;
+    fi;
+    local installer_misc_functions=(_act_levenshtein resolve_uncrewed_aerial_vehicle_vision_analytics_ports system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uav_mission_compute_sdk_checkout);
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
     { 
@@ -11363,8 +11517,122 @@ EOF
     chmod a+rx "$installer_bin";
     echo "Installer reconstructed at ${installer_bin/#"$HOME"/"~"}";
     local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name";
+    local cname=${installer_name//-/_};
     mkdir -p "$(dirname "$completion_script")";
-    base64 -d > "$completion_script" <<< "$installer_completion_text" || { 
+    sed -e "s/_openedge_cli_/_${cname}_/g" -e "s/@@NAME@@/$installer_name/g" > "$completion_script" <<'EOS' || 
+#!/bin/bash
+# logic is static; data is read (never evaluated) from "<bin> list --auto-completion[=cmd]"
+_openedge_cli_completion () {
+  local cur=$2 prev=${COMP_WORDS[COMP_CWORD-1]} bin cmd flags="" state="" kind rest i w s sec="" dev_used=0
+  local -a f picked=() sugg=() tmp=() out=() names=() active=()
+  local -A mods=() opts=() used=() valopt=() seen=()
+  COMPREPLY=()
+
+  bin=$(type -P "${COMP_WORDS[0]}") || return 0
+  cmd=${COMP_WORDS[1]}
+
+  # first word, or list: only cmds/names are needed
+  if (( COMP_CWORD == 1 )) || [ "$cmd" = list ]; then
+    local cmds="" all_names=""
+    while read -r kind rest; do
+      [[ $kind =~ ^[a-z]+$ && $rest =~ ^[A-Za-z0-9_@:=.,\ -]*$ ]] || continue
+      case "$kind" in
+      cmds)  cmds=$rest ;;
+      names) all_names=$rest ;;
+      esac
+    done < <("$bin" list --auto-completion 2>/dev/null)
+
+    if (( COMP_CWORD == 1 )); then
+      COMPREPLY=($(compgen -W "$cmds list setup resume --help" -- "$cur"))
+      return
+    fi
+    [ "$prev" = --cli-version ] && return
+    for ((i=2;i<COMP_CWORD;i++)); do used[${COMP_WORDS[i]}]=1; done
+    for s in --sbom --test-coverage --cli-version $all_names; do
+      [[ -v used[$s] ]] || out+=("$s")
+    done
+    COMPREPLY=($(compgen -W "${out[*]}" -- "$cur"))
+    return
+  fi
+
+  # per-command data in one call
+  [[ $cmd =~ ^[a-z_]+$ ]] || return 0
+  while read -r kind rest; do
+    [[ $kind =~ ^[a-z]+$ && $rest =~ ^[A-Za-z0-9_@:=.,\ -]*$ ]] || continue
+    read -r -a f <<< "$rest"
+    case "$kind" in
+    flags)  flags=$rest ;;
+    state)  state=${f[0]:-} ;;
+    active) active=("${f[@]}") ;;
+    mod)    [ ${#f[@]} -ge 1 ] && { mods[${f[0]}]=1; opts[${f[0]}]="${f[*]:1}"; } ;;
+    esac
+  done < <("$bin" list --auto-completion="$cmd" 2>/dev/null)
+  [ ${#mods[@]} -gt 0 ] || [ -n "$flags" ] || return 0
+
+  # options that take a value (--key <value> or --key=<value>)
+  for s in ${opts[*]}; do [[ $s == @value:* ]] && valopt[${s#@value:}]=1; done
+
+  # cursor on the value: let the user type it
+  [[ -n $prev && -v valopt[$prev] ]] && return
+  [[ $cur == "=" || $prev == "=" ]] && return
+
+  # walk words already typed
+  for ((i=2;i<COMP_CWORD;i++)); do
+    w=${COMP_WORDS[i]}
+    [[ -z $w || $w == "=" ]] && continue
+    if [[ ${COMP_WORDS[i+1]:-} == "=" ]]; then used[$w]=1; i=$((i+2)); continue; fi
+    [[ -v valopt[${COMP_WORDS[i-1]}] ]] && continue
+    used[$w]=1
+    if [[ $w == --?* && -v mods[${w#--}] ]]; then
+      sec=${w#--}
+    elif [[ -z $sec && -v mods[$w] ]]; then
+      picked+=("$w")
+    fi
+  done
+
+  # component names: all (install) or installed/started (start/stop/remove)
+  if [[ $state == installed || $state == started ]]; then
+    for s in "${active[@]}"; do [[ -v mods[$s] ]] && names+=("$s"); done
+  else
+    names=(${!mods[*]})
+  fi
+
+  # candidates
+  if [ -n "$sec" ]; then
+    sugg=(${opts[$sec]:-} "${picked[@]/#/--}")
+  else
+    sugg=($flags "${names[@]}" "${picked[@]/#/--}")
+    for w in "${picked[@]}"; do
+      for s in ${opts[$w]:-}; do
+        [[ -v valopt[$s] ]] || sugg+=("$s")
+      done
+    done
+  fi
+
+  # expand placeholders; offer only devices present on this host
+  for s in "${sugg[@]}"; do
+    case "$s" in
+    @value:*)    ;;
+    @device:gpu) [ -e /dev/dri/renderD128 ] && tmp+=(--gpu) ;;
+    @device:npu) [ -e /dev/accel/accel0 ]   && tmp+=(--npu) ;;
+    @device:cpu) tmp+=(--cpu) ;;
+    *)           tmp+=("$s") ;;
+    esac
+  done
+
+  # filter: already used, mutually exclusive devices, duplicates
+  [[ -v used[--cpu] || -v used[--gpu] || -v used[--npu] ]] && dev_used=1
+  for s in "${tmp[@]}"; do
+    [[ -v used[$s] || -v seen[$s] ]] && continue
+    [[ $dev_used -eq 1 && $s =~ ^--(cpu|gpu|npu)$ ]] && continue
+    seen[$s]=1
+    out+=("$s")
+  done
+  COMPREPLY=($(compgen -W "${out[*]}" -- "$cur"))
+}
+complete -F _openedge_cli_completion @@NAME@@
+EOS
+ { 
         echo "Failed to write to $completion_script" 1>&2;
         return 1
     };
@@ -11419,8 +11687,8 @@ system_scan_check_cpu_instructions ()
 }
 system_scan_check_docker () 
 { 
-    local docker_ver=$(docker version 2> /dev/null | awk '/Version:/{print$NF;exit}' || true);
-    local compose_ver=$(docker compose version 2> /dev/null | awk '{print$NF}' || true);
+    local docker_ver="$(docker version 2> /dev/null | awk '/Version:/{print$NF;exit}' || true)";
+    local compose_ver="$(docker compose version 2> /dev/null | awk '{print$NF}' || true)";
     [ -z "$compose_ver" ] || docker_ver="$docker_ver + Compose $compose_ver";
     echo "$docker_ver"
 }
@@ -11449,7 +11717,7 @@ system_scan_check_membank ()
       if (in_dev && size !~ /No Module Installed/ && size !~ /Unknown/ && size != "") {
         print size " | Locator: " loc " | Bank: " bank
       }
-    }');
+    }') || true;
     local total_slots=$(echo "$dmi_out" | grep -c "^\s*Locator:" || true);
     local populated_count=${#installed_modules[@]};
     if [[ ${populated_count} -eq 0 ]]; then
@@ -11495,7 +11763,7 @@ system_scan_check_network_access ()
     for url in "${check_urls[@]}";
     do
         curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { 
-            echo "$url by $(id -un)";
+            [[ "$url" = https://* ]] && curl -k -fsSL --connect-timeout 10 $url > /dev/null && echo "Clock skewed" || echo "$url by $(id -un)";
             return 0
         };
     done;
@@ -11505,7 +11773,7 @@ system_scan_check_pci_device ()
 { 
     local deviceid=${1,,};
     local default_name="$2";
-    local lspci_out="$(lspci -v -n -d $deviceid)";
+    local lspci_out="$(lspci -v -n -d $deviceid || true)";
     local subsystem="$(echo "$lspci_out" | grep -m1 Subsystem: | cut -f2- -d: | sed 's|^ ||g' || true)";
     if [ -n "$subsystem" ]; then
         local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true)";
@@ -11520,9 +11788,9 @@ system_scan_check_pci_device ()
 }
 system_scan_get_system_summary () 
 { 
-    local cpuinfo="$(grep -m1 "model name" /proc/cpuinfo | cut -f2 -d: | sed 's|^ ||g')";
-    local coreinfo="$(grep "processor" /proc/cpuinfo | wc -l) cores";
-    local meminfo="$(grep -m1 "MemTotal:" /proc/meminfo | cut -f2 -d: | tr -d ' ')";
+    local cpuinfo="$(grep -m1 "model name" /proc/cpuinfo | cut -f2 -d: | sed 's|^ ||g' || echo Unknown)";
+    local coreinfo="$(grep "processor" /proc/cpuinfo | wc -l || echo 1) cores";
+    local meminfo="$(grep -m1 "MemTotal:" /proc/meminfo | cut -f2 -d: | tr -d ' ' || echo 0)";
     [[ "$meminfo" != *kB ]] || meminfo="$(( ${meminfo%kB} / 1024 / 1024 ))GB";
     [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1024 ))GB";
     echo "$cpuinfo · $coreinfo · $meminfo RAM"
@@ -11820,6 +12088,18 @@ verify_handheld_multi_modal ()
     local app_dir="$workspace"/handheld-multi-modal;
     [ -r "$app_dir/Makefile" ] && [ -r "$app_dir/compose/handheld-multi-modal.yaml" ] && [ -r "$app_dir/docs/user-guide/index.md" ] && [ -r "$app_dir/config/devices.yaml" ] && python3 "$app_dir/scripts/demo_assets.py" check-model --root "$app_dir"
 }
+verify_handheld_multi_modal_ready () 
+{ 
+    local output status;
+    if output="$(curl --noproxy '*' --insecure --silent --show-error --output /dev/null --max-time 5 https://127.0.0.1:8443/ 2>&1)"; then
+        return 0;
+    else
+        status=$?;
+    fi;
+    [ "$status" -ne 7 ] || return 1;
+    printf '%s\n' "$output" 1>&2;
+    return "$status"
+}
 verify_humanoid_imitation_learning () 
 { 
     configure_humanoid_imitation_learning "$@";
@@ -11994,10 +12274,6 @@ verify_physical_ai_studio ()
     configure_uv;
     [ -x "$pais_bin" ] && [ "$(cat "$pais_device_file" 2> /dev/null)" = "$pais_extra" ] && uv tool list 2> /dev/null | grep -q -E "^$pais_pkg v${pais_version//./\\.}( |$)"
 }
-verify_post_fusion () 
-{ 
-    [ -d "$workspace" ]
-}
 verify_power_tuning () 
 { 
     [ -e "$power_tuning_path"/openvino_stress.sh ]
@@ -12157,18 +12433,26 @@ verify_time_confighub ()
 verify_uav_mission_compute_sdk () 
 { 
     local installed_commit;
-    installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk)" || return $?;
+    installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk/commit)" || return $?;
     [ -r "$sdk_path/Makefile" ] && [ -r "$sdk_path/.env" ] && [ -n "$installed_commit" ] && [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" = "$installed_commit" ]
 }
 verify_uav_mission_compute_sdk_running () 
 { 
-    local expected running service;
+    local expected running service output status;
     expected="$(docker compose --profile sim-camera --profile observability config --services)" || return $?;
     running="$(docker compose --profile sim-camera --profile observability ps --status running --services)" || return $?;
     [ -n "$expected" ] || return 1;
     while IFS= read -r service; do
         grep -Fxq -- "$service" <<< "$running" || return 1;
-    done <<< "$expected"
+    done <<< "$expected";
+    if output="$(curl --noproxy '*' --silent --show-error --output /dev/null --max-time 5 http://127.0.0.1:8080/ 2>&1)"; then
+        return 0;
+    else
+        status=$?;
+    fi;
+    [ "$status" -ne 7 ] || return 1;
+    printf '%s\n' "$output" 1>&2;
+    return "$status"
 }
 verify_uncrewed_aerial_vehicle_ground_station () 
 { 
@@ -12176,14 +12460,21 @@ verify_uncrewed_aerial_vehicle_ground_station ()
 }
 verify_uncrewed_aerial_vehicle_ground_station_services () 
 { 
-    local expected running service;
+    local expected running service output status;
     expected="$(docker compose "${compose_files[@]}" config --services)" || return $?;
     running="$(docker compose "${compose_files[@]}" ps --status running --services)" || return $?;
     [ -n "$expected" ] || return 1;
     while IFS= read -r service; do
         grep -Fxq -- "$service" <<< "$running" || return 1;
     done <<< "$expected";
-    docker compose "${compose_files[@]}" exec -T viz-backend python3 -c 'from urllib.request import urlopen; urlopen("http://127.0.0.1:8080/api/runtime-config", timeout=5).close()'
+    if output="$(docker compose "${compose_files[@]}" exec -T viz-backend curl --noproxy '*' --silent --show-error --fail --output /dev/null --max-time 5 http://127.0.0.1:8080/api/runtime-config 2>&1)"; then
+        return 0;
+    else
+        status=$?;
+    fi;
+    [ "$status" -ne 7 ] || return 1;
+    printf '%s\n' "$output" 1>&2;
+    return "$status"
 }
 verify_uncrewed_aerial_vehicle_vision_analytics () 
 { 
@@ -12195,18 +12486,14 @@ verify_uncrewed_aerial_vehicle_vision_analytics_installed ()
 }
 verify_uncrewed_aerial_vehicle_vision_analytics_manager () 
 { 
-    docker exec dlstreamer-pipeline-server python3 -c '
-from pathlib import Path
-import sys
-expected = [b"python3", b"/home/pipeline-server/scripts/pipeline_manager.py", b"--start-now"]
-for path in Path("/proc").glob("[0-9]*/cmdline"):
-    try:
-        command = path.read_bytes().rstrip(b"\0").split(b"\0")
-    except (FileNotFoundError, ProcessLookupError, PermissionError):
-        continue
-    if command == expected:
-        sys.exit(0)
-sys.exit(1)
+    docker compose "${compose_files[@]}" exec -T "$pipeline_service" sh -c '
+for command_line in /proc/[0-9]*/cmdline; do
+  [ -r "$command_line" ] || continue
+  current="$(tr "\000" " " < "$command_line" 2>/dev/null)" || continue
+  current="${current% }"
+  [ "$current" = "python3 /home/pipeline-server/scripts/pipeline_manager.py --start-now" ] && exit 0
+done
+exit 1
 '
 }
 verify_uncrewed_aerial_vehicle_vision_analytics_models () 
@@ -12219,7 +12506,7 @@ verify_uncrewed_aerial_vehicle_vision_analytics_pipelines ()
 { 
     verify_uncrewed_aerial_vehicle_vision_analytics_manager || return 1;
     local status;
-    status="$(docker exec dlstreamer-pipeline-server python3 /home/pipeline-server/scripts/pipeline_manager.py --status)" || return $?;
+    status="$(docker compose "${compose_files[@]}" exec -T "$pipeline_service" python3 /home/pipeline-server/scripts/pipeline_manager.py --status)" || return $?;
     printf '%s\n' "$status" | awk '
     NR > 1 { if (NF != 6 || $4 != "RUNNING" || $6 != "yes") failed = 1; count++ }
     END { exit (failed || !count) }
@@ -12227,14 +12514,21 @@ verify_uncrewed_aerial_vehicle_vision_analytics_pipelines ()
 }
 verify_uncrewed_aerial_vehicle_vision_analytics_services () 
 { 
-    local expected running service;
+    local expected running service output status;
     expected="$(docker compose "${compose_files[@]}" config --services)" || return $?;
     running="$(docker compose "${compose_files[@]}" ps --status running --services)" || return $?;
     [ -n "$expected" ] || return 1;
     while IFS= read -r service; do
         grep -Fxq -- "$service" <<< "$running" || return 1;
     done <<< "$expected";
-    docker exec dlstreamer-pipeline-server python3 -c 'from urllib.request import urlopen; urlopen("http://127.0.0.1:8081/pipelines/status", timeout=5).close()'
+    if output="$(docker compose "${compose_files[@]}" exec -T "$pipeline_service" curl --noproxy '*' --silent --show-error --fail --output /dev/null --max-time 5 http://127.0.0.1:8081/pipelines/status 2>&1)"; then
+        return 0;
+    else
+        status=$?;
+    fi;
+    [ "$status" -ne 7 ] || return 1;
+    printf '%s\n' "$output" 1>&2;
+    return "$status"
 }
 verify_video_processing_for_nvr () 
 { 

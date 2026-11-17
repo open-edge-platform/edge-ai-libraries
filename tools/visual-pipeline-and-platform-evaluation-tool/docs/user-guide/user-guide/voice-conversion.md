@@ -68,19 +68,19 @@ Text input under `shared/audio/input` so installed default recordings can be
 reused.
 
 The Makefile defines and exports `AUDIO_ANALYZER_TAG` and `TEXT_TO_SPEECH_TAG`,
-both defaulting to `2026.2.0`. Standard lifecycle targets use these defaults
+both defaulting to `2026.3.0-rc1`. Standard lifecycle targets use these defaults
 without any shell variable setup. Override them independently on the command
 line, for example:
 
 ```bash
-make build run AUDIO_ANALYZER_TAG=2026.2.0 TEXT_TO_SPEECH_TAG=2026.2.0
+make build run AUDIO_ANALYZER_TAG=2026.3.0-rc1 TEXT_TO_SPEECH_TAG=2026.3.0-rc1
 ```
 
 Command-line values override inherited environment values and Makefile defaults.
 Full image overrides remain available and take precedence over tags:
 
-- `AUDIO_ANALYZER_IMAGE=docker.io/intel/audio-analyzer:2026.2.0`
-- `TEXT_TO_SPEECH_IMAGE=docker.io/intel/text-to-speech:2026.2.0`
+- `AUDIO_ANALYZER_IMAGE=docker.io/intel/audio-analyzer:2026.3.0-rc1`
+- `TEXT_TO_SPEECH_IMAGE=docker.io/intel/text-to-speech:2026.3.0-rc1`
 
 Export these variables in the shell to select another version, registry, or
 image digest. Do not store overrides in `.env` when using Make: the standard

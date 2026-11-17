@@ -1,7 +1,7 @@
 
 configure_loss_prevention () {
   workspace="$(ensure_project_path)/loss-prevention"
-  version="$(ensure_parse_value_option version --version=59ef5cc4aadd81ca2971294fecb2238a98d5fbe4 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/intel-retail/loss-prevention.git"
   used_ports=(4000 15672 5672 8002 4001)
 }
@@ -184,7 +184,7 @@ debian_90_stop_loss_prevention () {
     pkill -f "python3 benchmark.py" || true
     make down-lp || true
     cd src && docker compose down -v --remove-orphans || true
-    ensure_container_namespace start loss_prevention $(ensure_container_parse_yaml docker-compose*.yml)
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
   } || true
   docker volume rm -f lp-mcp-data || true
 }

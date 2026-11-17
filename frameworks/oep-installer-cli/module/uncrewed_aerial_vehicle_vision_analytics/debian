@@ -4,6 +4,7 @@ configure_uncrewed_aerial_vehicle_vision_analytics () {
   version="release-2026.3.0"
   workspace="$(ensure_project_path)/uav-mission-compute-sdk/vision-analytics"
   app_dir="$workspace/uav-vision-analytics"
+  pipeline_service="dlstreamer-pipeline-server"
   compose_files=(-f docker-compose-pymavlink.yml)
 }
 
@@ -25,7 +26,7 @@ verify_uncrewed_aerial_vehicle_vision_analytics () {
 }
 
 debian_90_profile_uncrewed_aerial_vehicle_vision_analytics () {
-  echo "docker_io git curl make v4l_utils edge_base python3_venv"
+  echo "docker_io git curl make v4l_utils edge_base python3_venv gawk"
 }
 
 debian_90_license_uncrewed_aerial_vehicle_vision_analytics () {
@@ -59,6 +60,26 @@ install_uncrewed_aerial_vehicle_vision_analytics_source () {
   echo "UAV source commit: $(git -C "$workspace" rev-parse HEAD)"
 }
 
+resolve_uncrewed_aerial_vehicle_vision_analytics_ports () {
+  local config line port
+  local -A seen_ports=()
+  used_ports=()
+  config="$(docker compose "${compose_files[@]}" config --format yaml)" || return $?
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^[[:space:]]+published:[[:space:]]*\"?([0-9]+(-[0-9]+)?)\"?[[:space:]]*$ ]]; then
+      port="${BASH_REMATCH[1]}"
+      if [[ -z "${seen_ports[$port]:-}" ]]; then
+        used_ports+=("$port")
+        seen_ports[$port]=1
+      fi
+    elif [[ "$line" =~ ^[[:space:]]+published: ]]; then
+      echo "Unsupported published port in Compose configuration: $line" >&2
+      return 1
+    fi
+  done <<< "$config"
+  return 0
+}
+
 debian_90_install_uncrewed_aerial_vehicle_vision_analytics () {
   configure_uncrewed_aerial_vehicle_vision_analytics "$@"
   if verify_uncrewed_aerial_vehicle_vision_analytics && ! ensure_parse_reinstall "$@"; then
@@ -81,6 +102,9 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics () {
   echo "Review $app_dir/.env and upstream LAN bindings before starting the application."
   make init || return $?
   sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
+  local used_ports=()
+  resolve_uncrewed_aerial_vehicle_vision_analytics_ports || return $?
+  ensure_ports_open install uncrewed_aerial_vehicle_vision_analytics "${used_ports[@]}" || return $?
   local detection="$app_dir/resources/models/yolo11s/yolo11s_openvino_model/yolo11s"
   local caption="$app_dir/resources/ov_models/gpu/InternVL2-1B"
   if [[ ! -f "$detection.xml" || ! -f "$detection.bin" ]]; then
@@ -108,37 +132,41 @@ debian_90_install_uncrewed_aerial_vehicle_vision_analytics () {
 }
 
 verify_uncrewed_aerial_vehicle_vision_analytics_services () {
-  local expected running service
+  local expected running service output status
   expected="$(docker compose "${compose_files[@]}" config --services)" || return $?
   running="$(docker compose "${compose_files[@]}" ps --status running --services)" || return $?
   [ -n "$expected" ] || return 1
   while IFS= read -r service; do
     grep -Fxq -- "$service" <<< "$running" || return 1
   done <<< "$expected"
-  docker exec dlstreamer-pipeline-server python3 -c \
-    'from urllib.request import urlopen; urlopen("http://127.0.0.1:8081/pipelines/status", timeout=5).close()'
+  if output="$(docker compose "${compose_files[@]}" exec -T "$pipeline_service" \
+    curl --noproxy '*' --silent --show-error --fail --output /dev/null --max-time 5 \
+    http://127.0.0.1:8081/pipelines/status 2>&1)"; then
+    return 0
+  else
+    status=$?
+  fi
+  [ "$status" -ne 7 ] || return 1
+  printf '%s\n' "$output" >&2
+  return "$status"
 }
 
 verify_uncrewed_aerial_vehicle_vision_analytics_manager () {
-  docker exec dlstreamer-pipeline-server python3 -c '
-from pathlib import Path
-import sys
-expected = [b"python3", b"/home/pipeline-server/scripts/pipeline_manager.py", b"--start-now"]
-for path in Path("/proc").glob("[0-9]*/cmdline"):
-    try:
-        command = path.read_bytes().rstrip(b"\0").split(b"\0")
-    except (FileNotFoundError, ProcessLookupError, PermissionError):
-        continue
-    if command == expected:
-        sys.exit(0)
-sys.exit(1)
+  docker compose "${compose_files[@]}" exec -T "$pipeline_service" sh -c '
+for command_line in /proc/[0-9]*/cmdline; do
+  [ -r "$command_line" ] || continue
+  current="$(tr "\000" " " < "$command_line" 2>/dev/null)" || continue
+  current="${current% }"
+  [ "$current" = "python3 /home/pipeline-server/scripts/pipeline_manager.py --start-now" ] && exit 0
+done
+exit 1
 '
 }
 
 verify_uncrewed_aerial_vehicle_vision_analytics_pipelines () {
   verify_uncrewed_aerial_vehicle_vision_analytics_manager || return 1
   local status
-  status="$(docker exec dlstreamer-pipeline-server python3 /home/pipeline-server/scripts/pipeline_manager.py --status)" || return $?
+  status="$(docker compose "${compose_files[@]}" exec -T "$pipeline_service" python3 /home/pipeline-server/scripts/pipeline_manager.py --status)" || return $?
   printf '%s\n' "$status" | awk '
     NR > 1 { if (NF != 6 || $4 != "RUNNING" || $6 != "yes") failed = 1; count++ }
     END { exit (failed || !count) }
@@ -153,20 +181,14 @@ debian_90_start_uncrewed_aerial_vehicle_vision_analytics () {
   fi
   cd "$app_dir" || return $?
   local used_ports=()
-  if [ -z "$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)" ]; then
-    local config ports
-    config="$(docker compose "${compose_files[@]}" config --format json)" || return $?
-    ports="$(python3 -c '
-import json, sys
-config = json.load(sys.stdin)
-print(" ".join(sorted({str(port["published"]) for service in config["services"].values()
-                       for port in service.get("ports", []) if "published" in port})))
-' <<< "$config")" || return $?
-    read -r -a used_ports <<< "$ports"
-    ensure_ports_open install uncrewed_aerial_vehicle_vision_analytics "${used_ports[@]}" || return $?
+  local started_ports
+  started_ports="$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)" || return $?
+  if [ -n "$started_ports" ] && [ "$started_ports" != none ]; then
+    read -r -a used_ports <<< "$started_ports"
   else
-    read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_vision_analytics/ports)"
+    resolve_uncrewed_aerial_vehicle_vision_analytics_ports || return $?
   fi
+  ensure_ports_open start uncrewed_aerial_vehicle_vision_analytics "${used_ports[@]}" || return $?
   sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
   ensure_container_namespace start uncrewed_aerial_vehicle_vision_analytics $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
   make pymav-up || return $?
@@ -175,7 +197,7 @@ print(" ".join(sorted({str(port["published"]) for service in config["services"].
     if [ "$check" = pipelines ]; then
       make check-cameras || return $?
       if ! verify_uncrewed_aerial_vehicle_vision_analytics_manager; then
-        docker exec --detach dlstreamer-pipeline-server sh -c \
+        docker compose "${compose_files[@]}" exec -T --detach "$pipeline_service" sh -c \
           'exec python3 /home/pipeline-server/scripts/pipeline_manager.py --start-now >/tmp/oep-uav-manager.log 2>&1' || return $?
       fi
     fi

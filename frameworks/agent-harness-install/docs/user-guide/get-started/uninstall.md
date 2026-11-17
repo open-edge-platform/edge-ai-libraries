@@ -60,21 +60,29 @@ port-forwarding commands. Stop those processes separately after uninstall.
 ./uninstall.sh --yes --delete-models --harness openclaw
 ./uninstall.sh --yes --keep-models   # explicitly retain downloaded models
 ./uninstall.sh --yes --keep-agent-data --harness hermes   # keep ~/.hermes (sessions, memories, skills)
+./uninstall.sh --harness hermes --keep-models             # remove Hermes but keep the downloaded models
 ```
+
+> [!NOTE]
+> **Uninstalling Hermes (full uninstall):** `./uninstall.sh --harness hermes` is a full
+> uninstall, not an agent-only removal. It also deletes the downloaded/exported
+> models (`~/.agent-harness-install/models`) and `~/.hermes`. Re-downloading
+> models is time and bandwidth intensive, so add `--keep-models` to retain them
+> (and `--keep-agent-data` to retain `~/.hermes`). With `--keep-models`, the
+> models and their parent `~/.agent-harness-install` directory remain; the
+> Inference Router, OVMS container and backend network are still removed.
 
 Removes the Inference Router container and, if this install started one, the
 OpenVINO Model Server container, the private backend network, the
-installed agent (its actual package — e.g. `npm
-uninstall -g openclaw`, `uv tool uninstall deepagents-code`, or Hermes's own
-data directory `~/.hermes` — not just its CLI shim), and the
-`~/.agent-harness-install` state directory. Owned OpenShell sandboxes and an
-installer-owned OpenShell runtime are removed too. Model deletion is the default;
-`--delete-models` remains a compatibility alias. Pass `--keep-agent-data` to
-preserve Hermes's or dcode's config/sessions/memories/skills instead of
-deleting them. An agent data directory is only deleted if it is an absolute,
+installed agent (its actual package — e.g., `npm uninstall -g openclaw`,
+`uv tool uninstall deepagents-code`, or Hermes's own data directory `~/.hermes`
+— not just its CLI shim), and the `~/.agent-harness-install` state directory.
+Owned OpenShell sandboxes and an installer-owned OpenShell runtime are removed too.
+Model deletion is the default; `--delete-models` remains a compatibility alias.
+Pass `--keep-agent-data` to preserve Hermes's or dcode's config/sessions/memories/skills
+instead of deleting them. An agent data directory is only deleted if it is an absolute,
 non-symlink path that is not `$HOME` or one of its parents (guarding a
-mistyped `HERMES_HOME`/`DEEPAGENTS_HOME`); otherwise it is left in place with
-a warning.
+mistyped `HERMES_HOME`/`DEEPAGENTS_HOME`); otherwise it is left in place with a warning.
 
 Left in place: Docker, Node.js/nvm, the Intel compute runtime, the Docker
 daemon proxy drop-in (if one was written), the downloaded OVMS and Inference
