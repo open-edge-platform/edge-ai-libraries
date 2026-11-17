@@ -74,15 +74,23 @@ debian_90_install_uncrewed_aerial_vehicle_ground_station () {
 }
 
 verify_uncrewed_aerial_vehicle_ground_station_services () {
-  local expected running service
+  local expected running service output status
   expected="$(docker compose "${compose_files[@]}" config --services)" || return $?
   running="$(docker compose "${compose_files[@]}" ps --status running --services)" || return $?
   [ -n "$expected" ] || return 1
   while IFS= read -r service; do
     grep -Fxq -- "$service" <<< "$running" || return 1
   done <<< "$expected"
-  docker compose "${compose_files[@]}" exec -T viz-backend python3 -c \
-    'from urllib.request import urlopen; urlopen("http://127.0.0.1:8080/api/runtime-config", timeout=5).close()'
+  if output="$(docker compose "${compose_files[@]}" exec -T viz-backend \
+    curl --noproxy '*' --silent --show-error --fail --output /dev/null --max-time 5 \
+    http://127.0.0.1:8080/api/runtime-config 2>&1)"; then
+    return 0
+  else
+    status=$?
+  fi
+  [ "$status" -ne 7 ] || return 1
+  printf '%s\n' "$output" >&2
+  return "$status"
 }
 
 debian_90_start_uncrewed_aerial_vehicle_ground_station () {
@@ -94,15 +102,21 @@ debian_90_start_uncrewed_aerial_vehicle_ground_station () {
   cd "$app_dir" || return $?
   local used_ports=()
   if [ -z "$(ensure_prop get started/uncrewed_aerial_vehicle_ground_station/ports)" ]; then
-    local config ports
-    config="$(docker compose "${compose_files[@]}" config --format json)" || return $?
-    ports="$(python3 -c '
-import json, sys
-config = json.load(sys.stdin)
-print(" ".join(sorted({str(port["published"]) for service in config["services"].values()
-                       for port in service.get("ports", []) if "published" in port})))
-' <<< "$config")" || return $?
-    read -r -a used_ports <<< "$ports"
+    local config line port
+    local -A seen_ports=()
+    config="$(docker compose "${compose_files[@]}" config --format yaml)" || return $?
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^[[:space:]]+published:[[:space:]]*\"?([0-9]+(-[0-9]+)?)\"?[[:space:]]*$ ]]; then
+        port="${BASH_REMATCH[1]}"
+        if [[ -z "${seen_ports[$port]:-}" ]]; then
+          used_ports+=("$port")
+          seen_ports[$port]=1
+        fi
+      elif [[ "$line" =~ ^[[:space:]]+published: ]]; then
+        echo "Unsupported published port in Compose configuration: $line" >&2
+        return 1
+      fi
+    done <<< "$config"
     ensure_ports_open install uncrewed_aerial_vehicle_ground_station "${used_ports[@]}" || return $?
   else
     read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_ground_station/ports)"
