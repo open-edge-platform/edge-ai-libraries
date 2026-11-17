@@ -40,6 +40,8 @@ class _FakeOptimizeApi:
         self.deleted: list[str] = []
         self.post_response: httpx.Response | None = None
         self.status_response: httpx.Response | None = None
+        # Status polls answered with 503 before the real status.
+        self.status_errors = 0
 
     def _state(self) -> str:
         if self.deleted:
@@ -54,6 +56,9 @@ class _FakeOptimizeApi:
         if request.method == "GET" and path == "/optimize/status/j1":
             if self.status_response is not None:
                 return self.status_response
+            if self.status_errors:
+                self.status_errors -= 1
+                return httpx.Response(503, json={"detail": "starting"})
             state = self._state()
             return httpx.Response(
                 200,
@@ -203,6 +208,32 @@ class TestDlsps2Optimizer(unittest.TestCase):
             with self.assertRaisesRegex(Dlsps2OptimizerError, "did not finish in time"):
                 self._optimize(api, search_duration=0.02, sample_duration=0)
 
+        self.assertEqual(api.deleted, ["j1"])
+
+    def test_server_error_while_polling_is_tolerated(self):
+        api = _FakeOptimizeApi(["RUNNING", "COMPLETED"])
+        api.status_errors = 2
+
+        result = self._optimize(api)
+
+        self.assertEqual(result.pipeline, "best ! sink")
+        self.assertEqual(api.deleted, [])
+
+    def test_persistent_server_error_while_polling_raises_after_grace(self):
+        api = _FakeOptimizeApi(["RUNNING"])
+        api.status_response = httpx.Response(502, json={"detail": "bad gateway"})
+
+        with patch.object(dlsps2_optimizer, "DLSPS2_OPTIMIZE_UNREACHABLE_S", 0.02):
+            with self.assertRaisesRegex(Dlsps2OptimizerError, "HTTP 502: bad gateway"):
+                self._optimize(api)
+        self.assertEqual(api.deleted, ["j1"])
+
+    def test_unexpected_error_after_submit_cancels_job(self):
+        api = _FakeOptimizeApi(["RUNNING"])
+
+        with patch.object(Dlsps2Optimizer, "_wait", side_effect=RuntimeError("bug")):
+            with self.assertRaisesRegex(RuntimeError, "bug"):
+                self._optimize(api)
         self.assertEqual(api.deleted, ["j1"])
 
     def test_unreachable_server_while_polling_raises_after_grace(self):

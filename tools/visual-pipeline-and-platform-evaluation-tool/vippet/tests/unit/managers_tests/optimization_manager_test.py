@@ -408,6 +408,26 @@ class TestOptimizationManager(unittest.TestCase):
             # The lease was never taken, so an OPTIMIZE job can still start.
             manager.run_optimization(variant, self._make_internal_request())
 
+    def test_run_optimization_rejects_invalid_durations(self):
+        """Invalid durations are rejected before a job is created or the lease is taken."""
+        manager = OptimizationManager()
+        variant = _create_internal_variant()
+        cases = {
+            "search_duration": ["abc", None, 0, -5, "inf", "nan", [30]],
+            "sample_duration": ["", 0, float("inf")],
+        }
+        with patch.object(manager, "_execute_optimization") as mock_execute:
+            for name, values in cases.items():
+                for value in values:
+                    with self.subTest(name=name, value=value):
+                        request = self._make_internal_request(parameters={name: value})
+
+                        with self.assertRaisesRegex(ValueError, f"Parameter '{name}'"):
+                            manager.run_optimization(variant, request)
+
+            self.assertEqual(manager.jobs, {})
+            mock_execute.assert_not_called()
+
     # ------------------------------------------------------------------
     # _execute_optimization behaviour
     # ------------------------------------------------------------------
@@ -427,6 +447,7 @@ class TestOptimizationManager(unittest.TestCase):
             start_time=int(time.time() * 1000),
         )
         runner = MagicMock(spec=OptimizationRunner)
+        runner.is_cancelled.return_value = False
         runner.run_optimization.return_value = PipelineOptimizationResult(
             optimized_pipeline_description="optimized ! sink", total_fps=55.5
         )
@@ -496,6 +517,42 @@ class TestOptimizationManager(unittest.TestCase):
         kwargs = runner.run_optimization.call_args.kwargs
         self.assertEqual(kwargs["search_duration"], 300)
         self.assertEqual(kwargs["sample_duration"], 10)
+
+    @patch("managers.optimization_manager.Graph")
+    def test_execute_optimization_converts_numeric_string_durations(
+        self, mock_graph_cls
+    ):
+        """Numeric strings are accepted, like max-runtime of validation jobs."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(
+            manager,
+            "job-strings",
+            parameters={"search_duration": "30", "sample_duration": "2.5"},
+        )
+
+        self._execute(manager, "job-strings", runner)
+
+        kwargs = runner.run_optimization.call_args.kwargs
+        self.assertEqual(kwargs["search_duration"], 30.0)
+        self.assertEqual(kwargs["sample_duration"], 2.5)
+        self.assertIsInstance(kwargs["search_duration"], float)
+
+    @patch("managers.optimization_manager.Graph")
+    def test_execute_optimization_cancel_after_server_job_ended_marks_failed(
+        self, mock_graph_cls
+    ):
+        """A cancel that lands after the server job ended still wins over the result."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(manager, "job-late-cancel")
+        runner.is_cancelled.return_value = True
+
+        self._execute(manager, "job-late-cancel", runner)
+
+        updated = manager.jobs["job-late-cancel"]
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertEqual(updated.details, ["Cancelled by user"])
+        self.assertIsNone(updated.optimized_pipeline_description)
+        self.assertIsNone(updated.total_fps)
 
     @patch("managers.optimization_manager.Graph")
     def test_execute_optimization_maps_variant_name_to_allowed_devices(

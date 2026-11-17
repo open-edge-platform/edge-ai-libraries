@@ -38,7 +38,8 @@ DLSPS2_OPTIMIZE_POLL_S: float = float(os.environ.get("DLSPS2_OPTIMIZE_POLL_S", "
 # compilation, which can take minutes on NPU.
 DLSPS2_OPTIMIZE_SLACK_S: float = float(os.environ.get("DLSPS2_OPTIMIZE_SLACK_S", "300"))
 
-# Seconds the server may stay unreachable while a job is polled.
+# Seconds the server may stay unreachable, or answer with a server error (5xx),
+# while a job is polled.
 DLSPS2_OPTIMIZE_UNREACHABLE_S: float = float(
     os.environ.get("DLSPS2_OPTIMIZE_UNREACHABLE_S", "60")
 )
@@ -55,6 +56,10 @@ class Dlsps2OptimizerError(RuntimeError):
 
 class Dlsps2OptimizerCancelled(Exception):
     """The optimizer job was cancelled through :meth:`Dlsps2Optimizer.cancel`."""
+
+
+class _Dlsps2Unavailable(Dlsps2OptimizerError):
+    """The server answered a status poll with a server error (5xx)."""
 
 
 @dataclass
@@ -156,15 +161,16 @@ class Dlsps2Optimizer:
                 sample_duration,
                 allowed_devices,
             )
-            deadline = (
-                time.monotonic()
-                + search_duration
-                + 3 * sample_duration
-                + DLSPS2_OPTIMIZE_SLACK_S
-            )
             try:
+                deadline = (
+                    time.monotonic()
+                    + search_duration
+                    + 3 * sample_duration
+                    + DLSPS2_OPTIMIZE_SLACK_S
+                )
                 status = self._wait(client, job_id, deadline)
-            except Dlsps2OptimizerError:
+            except BaseException:
+                # Whatever ends the wait, the server job must not outlive it.
                 self._cancel_job(client, job_id)
                 raise
             if status is None:
@@ -227,7 +233,7 @@ class Dlsps2Optimizer:
                 unreachable_since = None
                 if status.get("final"):
                     return status
-            except httpx.TransportError as exc:
+            except (httpx.TransportError, _Dlsps2Unavailable) as exc:
                 now = time.monotonic()
                 unreachable_since = unreachable_since or now
                 if now - unreachable_since > DLSPS2_OPTIMIZE_UNREACHABLE_S:
@@ -249,6 +255,8 @@ class Dlsps2Optimizer:
                 f"DLSPS 2.0 no longer knows optimizer job {job_id}; "
                 f"the server may have restarted"
             )
+        if response.is_server_error:
+            raise _Dlsps2Unavailable(_response_detail(response))
         try:
             response.raise_for_status()
             status = response.json()

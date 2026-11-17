@@ -653,7 +653,7 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
             "model": schemas.OptimizationJobResponse,
         },
         400: {
-            "description": "Unsupported optimization type",
+            "description": "Unsupported optimization type or invalid parameters",
             "model": schemas.MessageResponse,
         },
         409: {
@@ -707,7 +707,7 @@ def optimize_variant(
     | Code | Description |
     |------|-------------|
     | 202 | `OptimizationJobResponse` with `job_id` of created job |
-    | 400 | `MessageResponse` - Unsupported optimization type (`preprocess`) |
+    | 400 | `MessageResponse` - Unsupported optimization type (`preprocess`), or `search_duration` or `sample_duration` is not a number greater than 0 |
     | 404 | `MessageResponse` - Pipeline or variant with given IDs do not exist |
     | 409 | `MessageResponse` - Another execution job is already running |
     | 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |
@@ -723,6 +723,8 @@ def optimize_variant(
     - Another execution job is already running → 409
     - Unknown pipeline or variant ID → 404
     - Optimization type `preprocess` → 400
+    - `search_duration` or `sample_duration` not a number greater than 0 → 400
+      (numeric strings such as `"30"` are accepted)
     - Unhandled exception in pipeline/variant lookup or job creation → 500
 
     ## Examples

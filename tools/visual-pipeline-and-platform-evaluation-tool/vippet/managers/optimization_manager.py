@@ -1,4 +1,5 @@
 import logging
+import math
 import threading
 import time
 import uuid
@@ -37,6 +38,25 @@ PREPROCESS_NOT_SUPPORTED = (
 )
 
 logger = logging.getLogger("optimization_manager")
+
+
+def _duration_parameter(params: dict, name: str, default: float) -> float:
+    """
+    Read a duration in seconds from the optimization request parameters.
+
+    Like ``max-runtime`` of validation jobs, numeric strings are accepted.
+
+    Raises:
+        ValueError: The value is not a number, or not finite and greater than 0.
+    """
+    value = params.get(name, default)
+    try:
+        duration = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Parameter '{name}' must be a number.")
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError(f"Parameter '{name}' must be greater than 0.")
+    return duration
 
 
 @dataclass
@@ -81,8 +101,8 @@ class OptimizationRunner:
     def run_optimization(
         self,
         pipeline_description: str,
-        search_duration: int,
-        sample_duration: int,
+        search_duration: float,
+        sample_duration: float,
         allowed_devices: list[str] | None = None,
     ) -> PipelineOptimizationResult:
         """
@@ -175,6 +195,22 @@ class OptimizationManager:
         return uuid.uuid1().hex
 
     @staticmethod
+    def _durations(
+        optimization_request: InternalPipelineRequestOptimize,
+    ) -> tuple[float, float]:
+        """
+        Return the search and sample durations of a request, with defaults.
+
+        Raises:
+            ValueError: A duration is not a number, or not finite and greater than 0.
+        """
+        params = optimization_request.parameters or {}
+        return (
+            _duration_parameter(params, "search_duration", DEFAULT_SEARCH_DURATION),
+            _duration_parameter(params, "sample_duration", DEFAULT_SAMPLE_DURATION),
+        )
+
+    @staticmethod
     def _resolve_allowed_devices(variant_name: str) -> list[str] | None:
         """
         Map a variant name to the optimizer's allowed device list.
@@ -227,7 +263,8 @@ class OptimizationManager:
 
         Raises:
             ValueError: If an rtspsrc node has a missing or invalid location.
-            ValueError: The optimization type is not supported (``preprocess``).
+            ValueError: The optimization type is not supported (``preprocess``),
+                or ``search_duration`` or ``sample_duration`` is invalid.
             JobExecutionConflictError: Another pipeline execution job is running.
         """
         variant.pipeline_graph.validate_rtsp_sources()
@@ -236,6 +273,7 @@ class OptimizationManager:
             if optimization_request.type == InternalOptimizationType.PREPROCESS:
                 raise ValueError(PREPROCESS_NOT_SUPPORTED)
             raise ValueError(f"Unknown optimization type: {optimization_request.type}")
+        self._durations(optimization_request)
 
         job_id = self._generate_job_id()
         execution_lease = ExecutionCoordinator().acquire(
@@ -457,11 +495,8 @@ class OptimizationManager:
             # and forwarded to the runner. This makes it easy to verify
             # in the logs that the values from the request (or defaults)
             # actually reach the optimizer.
-            effective_search_duration = params.get(
-                "search_duration", DEFAULT_SEARCH_DURATION
-            )
-            effective_sample_duration = params.get(
-                "sample_duration", DEFAULT_SAMPLE_DURATION
+            effective_search_duration, effective_sample_duration = self._durations(
+                optimization_request
             )
             self.logger.info(
                 f"Starting DLSPS 2.0 optimizer for job {job_id} with "
@@ -484,7 +519,15 @@ class OptimizationManager:
             graph_simple = graph.to_simple_view()
 
             with self._jobs_lock:
-                if job_id in self.jobs:
+                # cancel_job() holds the same lock, so a cancel that came after
+                # the server job ended is seen here and wins over the result.
+                cancelled = runner.is_cancelled()
+                if job_id in self.jobs and cancelled:
+                    job = self.jobs[job_id]
+                    job.state = InternalOptimizationJobState.FAILED
+                    job.end_time = int(time.time() * 1000)
+                    job.details = ["Cancelled by user"]
+                elif job_id in self.jobs:
                     job = self.jobs[job_id]
                     job.state = InternalOptimizationJobState.COMPLETED
                     job.end_time = int(time.time() * 1000)
@@ -496,10 +539,15 @@ class OptimizationManager:
                     job.optimized_pipeline_graph = graph
                     job.optimized_pipeline_graph_simple = graph_simple
 
-            self.logger.info(
-                f"Pipeline optimization {job_id} completed successfully, "
-                f"optimized pipeline: {results.optimized_pipeline_description}"
-            )
+            if cancelled:
+                self.logger.info(
+                    f"Pipeline optimization {job_id} was cancelled, marking as FAILED"
+                )
+            else:
+                self.logger.info(
+                    f"Pipeline optimization {job_id} completed successfully, "
+                    f"optimized pipeline: {results.optimized_pipeline_description}"
+                )
 
         except Dlsps2OptimizerCancelled:
             self.logger.info(
