@@ -454,7 +454,7 @@ class PipelineManager:
         for config_path in PipelineLoader.list():
             try:
                 config = PipelineLoader.config(config_path)
-            except (OSError, yaml.YAMLError):
+            except (OSError, UnicodeError, yaml.YAMLError):
                 self.logger.warning(
                     "Skipping unreadable pipeline config: %s", config_path
                 )
