@@ -184,7 +184,6 @@ def dlsps2_latency_configured() -> bool:
     )
 
 
-_LAUNCH_ELEMENT = LAUNCH_ELEMENT
 _METRICS_ON = re.compile(r"(?:^|\s)metrics=(?:true|1|yes)(?:\s|$)", re.IGNORECASE)
 
 
@@ -208,7 +207,7 @@ def _wants_post_metrics(element: str) -> bool:
 def wants_genai_post_metrics(command: str) -> bool:
     """Whether ``command`` has a ``gvagenai`` with ``metrics=true`` and no ``post-metrics``."""
     return any(
-        _wants_post_metrics(m.group(0)) for m in _LAUNCH_ELEMENT.finditer(command)
+        _wants_post_metrics(m.group(0)) for m in LAUNCH_ELEMENT.finditer(command)
     )
 
 
@@ -230,11 +229,8 @@ def with_genai_post_metrics(command: str) -> str:
         stripped = element.rstrip()
         return f"{stripped} post-metrics=true{element[len(stripped) :]}"
 
-    return _LAUNCH_ELEMENT.sub(_add, command)
+    return LAUNCH_ELEMENT.sub(_add, command)
 
-
-# A launch string token: whitespace-separated, double-quoted parts kept whole.
-_LAUNCH_TOKEN = LAUNCH_TOKEN
 
 # Parentheses attached to the text before them, without spaces inside: caps
 # features (``video/x-raw(memory:VAMemory)``, also shell-escaped as
@@ -266,7 +262,7 @@ def with_fps_chain_last(command: str, stream_id: str) -> str:
     """
     chains: list[list[str]] = [[]]
     after_link = True
-    for token in _LAUNCH_TOKEN.findall(command):
+    for token in LAUNCH_TOKEN.findall(command):
         unquoted = _ATTACHED_PARENS.sub("", QUOTED_VALUE.sub("", token))
         if token != "!" and ("!" in unquoted or "(" in unquoted or ")" in unquoted):
             # A link without spaces around it, or a bin: leave it as written.
@@ -339,7 +335,7 @@ def validation_launch_string(command: str) -> str:
 
     def _swap(match: re.Match) -> str:
         element = match.group(0)
-        tokens = _LAUNCH_TOKEN.findall(element)
+        tokens = LAUNCH_TOKEN.findall(element)
         if not tokens or tokens[0] not in _WRITING_SINKS | _WRITING_PASSTHROUGHS:
             return element
         end = 1
@@ -361,7 +357,7 @@ def validation_launch_string(command: str) -> str:
         trailing = element[len(element.rstrip()) :]
         return leading + " ".join(swapped + tokens[end:]) + trailing
 
-    return _LAUNCH_ELEMENT.sub(_swap, command)
+    return LAUNCH_ELEMENT.sub(_swap, command)
 
 
 # States in which a DLSPS 2.0 instance may still hold devices.
