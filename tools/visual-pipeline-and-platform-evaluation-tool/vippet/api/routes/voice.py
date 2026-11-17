@@ -19,6 +19,7 @@ from audio_assets import AudioAssetsManager
 from api.dependencies.audio_jobs import (
     configure_audio_pipeline_job_manager_factory,
     get_audio_pipeline_job_manager,
+    require_voice_available,
 )
 from managers.audio_pipeline_job_manager import (
     AudioInputTooLargeError,
@@ -29,7 +30,7 @@ from managers.audio_pipeline_job_manager import (
 )
 from managers.audio_pipeline_manager import get_audio_pipeline_manager
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_voice_available)])
 logger = logging.getLogger("api.routes.voice")
 
 MAX_RESPONSE_BYTES = 64 * 1024 * 1024

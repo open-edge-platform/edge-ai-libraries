@@ -306,6 +306,7 @@ class VoiceServiceTests(unittest.IsolatedAsyncioTestCase):
 class VoiceRoutesTests(unittest.TestCase):
     def setUp(self) -> None:
         app = FastAPI()
+        app.state.voice_available = True
         app.include_router(voice.router, prefix="/voice")
         self.app = app
         self.client = TestClient(app)
