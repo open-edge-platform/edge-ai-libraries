@@ -121,7 +121,7 @@ This section only adds the skill to an existing OpenClaw setup. It assumes:
 
 - OpenClaw is installed and onboarded, and `~/.openclaw/openclaw.json` and the
   agent workspace `~/.openclaw/workspace` exist. To install it, follow
-  [Set Up OpenClaw](https://github.com/open-edge-platform/metro-ai-suite/blob/main/enterprise-data-intelligence/docs/user-guide/get-started.md#3-set-up-openclaw)
+  [Set Up OpenClaw](https://github.com/open-edge-platform/metro-ai-suite/blob/release-2026.3.0/enterprise-data-intelligence/docs/user-guide/get-started.md#3-set-up-openclaw)
   (Node.js >= 22.14.0, `npm install -g openclaw@2026.5.6`, `openclaw onboard --install-daemon`).
 - A model provider is configured in `openclaw.json` and the agent already answers
   in `openclaw tui`. The model must support tool calls, because the skill works by

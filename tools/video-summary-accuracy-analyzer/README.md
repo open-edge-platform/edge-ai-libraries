@@ -52,7 +52,7 @@ Use a human-reviewed reference that describes the video accurately. Keep the ref
 
 ## Links
 
-- [Video Summary Accuracy Analyzer in Edge AI Libraries](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/video-summary-accuracy-analyzer)
+- [Video Summary Accuracy Analyzer in Edge AI Libraries](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/tools/video-summary-accuracy-analyzer)
 - [Edge AI Libraries](https://github.com/open-edge-platform/edge-ai-libraries)
 - [Issues](https://github.com/open-edge-platform/edge-ai-libraries/issues)
 - [Pull Requests](https://github.com/open-edge-platform/edge-ai-libraries/pulls)

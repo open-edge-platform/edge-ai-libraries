@@ -4,7 +4,7 @@ ViPPET supports two kinds of pipelines:
 
 - **Built-in (predefined) pipelines**: shipped with the backend image and
   loaded at startup from YAML files in
-  [`vippet/pipelines/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/pipelines).
+  [`vippet/pipelines/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/pipelines).
   All their variants are marked `read_only=true`.
 - **User-created pipelines**: created at runtime through the REST API
   (`POST /api/v1/pipelines`) or from the **Pipelines** page in the UI.
@@ -104,7 +104,7 @@ the same conventions used by the other built-in pipelines:
 ### 4. Models and videos
 
 - Add any new models as a YAML file under
-  [`vippet/models/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/models)
+  [`vippet/models/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/models)
   (one file per model) so they can be installed at runtime by the
   `model-download` service. This catalog is copied into the image at build
   time and synced into the database at startup, so adding or editing a

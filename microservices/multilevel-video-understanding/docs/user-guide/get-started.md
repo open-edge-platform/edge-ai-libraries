@@ -33,12 +33,12 @@ This microservice is designed to work effortlessly with GenAI model servings tha
 The default `Qwen3.6-35B-A3B` configuration uses FP8 with a 60k context window and targets a **64 GB system**. Verify model compatibility and peak memory use on your deployment; changing the default model does not establish runtime validation.
 
 - Provide at least **32 GB of swap** as a memory-pressure safety net; swap does not guarantee that model or device allocations will succeed. If your host lacks enough swap, see [Adding Swap Space](./get-started/add-swap.md).
-- To lower KV-cache memory requirements, reduce `MAX_MODEL_LEN` (e.g. `32768`) in [set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/set_env.sh).
+- To lower KV-cache memory requirements, reduce `MAX_MODEL_LEN` (e.g. `32768`) in [set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/multilevel-video-understanding/docker/set_env.sh).
 - The **first startup takes about 30 minutes** while the weights are downloaded and compiled. The serving becomes healthy once it answers on `http://<host>:41091/v1/models`.
 
 ## Step 1. Configure the environment
 
-All environment variables for both the model serving and the microservice live in one file, [docker/set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/set_env.sh). Source it in your shell before starting anything:
+All environment variables for both the model serving and the microservice live in one file, [docker/set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/multilevel-video-understanding/docker/set_env.sh). Source it in your shell before starting anything:
 
 ```bash
 cd edge-ai-libraries/microservices/multilevel-video-understanding
@@ -85,7 +85,7 @@ Provide the `multilevel-video-understanding` image in one of two ways:
 
 ## Step 3. Launch
 
-The Compose file ([docker/compose.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/compose.yaml)) defines both services on a shared network: `model-serving` (the llm-scaler model serving) and `multilevel-video-understanding`. The image, mounts, and entrypoint for llm-scaler are defined under `docker/model_serving/llm-scaler/`. Choose one of the two deployment options below.
+The Compose file ([docker/compose.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/multilevel-video-understanding/docker/compose.yaml)) defines both services on a shared network: `model-serving` (the llm-scaler model serving) and `multilevel-video-understanding`. The image, mounts, and entrypoint for llm-scaler are defined under `docker/model_serving/llm-scaler/`. Choose one of the two deployment options below.
 
 ```bash
 chmod +x ./setup_docker.sh
@@ -103,7 +103,7 @@ source docker/set_env.sh
 
 ### Option 2 — Use an existing model serving
 
-If you already have an OpenAI-compatible serving running — a **warm local llm-scaler instance** (fast iteration on the same host) or a **remote** endpoint — point the microservice at it in [docker/set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/set_env.sh) and start with `--light`:
+If you already have an OpenAI-compatible serving running — a **warm local llm-scaler instance** (fast iteration on the same host) or a **remote** endpoint — point the microservice at it in [docker/set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/multilevel-video-understanding/docker/set_env.sh) and start with `--light`:
 
 ```bash
 # in docker/set_env.sh (or your shell), set the endpoint(s), e.g. a remote host:
@@ -232,7 +232,7 @@ http://localhost:8192/docs
 
    > [!NOTE]
    > sometimes `poetry install` may take a long time; in that case, an alternative option to install packages could be:
-   > 
+   >
    > ```bash
    > poetry export -f requirements.txt > requirements.txt
    > pip install -r requirements.txt
