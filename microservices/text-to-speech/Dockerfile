@@ -54,7 +54,7 @@ COPY requirements.txt ./requirements.txt
 RUN python3 -m venv "$VIRTUAL_ENV" \
     && "$VIRTUAL_ENV/bin/pip" install --upgrade pip setuptools \
     && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt \
-    && python3 -c "import openvino, openvino_genai, openvino_tokenizers as t; print(openvino.__version__, t.__version__); assert openvino.__file__.startswith('/opt/venv')"
+    && "$VIRTUAL_ENV/bin/python3" -c "import openvino, openvino_genai, openvino_tokenizers as t; print(openvino.__version__, t.__version__); assert openvino.__file__.startswith('/opt/venv')"
 
 
 COPY . .
