@@ -42,9 +42,16 @@ class _FakeOptimizeApi:
         self.status_response: httpx.Response | None = None
         # Status polls answered with 503 before the real status.
         self.status_errors = 0
+        # Status polls that still report RUNNING after the job was cancelled.
+        self.running_after_cancel = 0
+        self.polls_after_cancel = 0
 
     def _state(self) -> str:
         if self.deleted:
+            self.polls_after_cancel += 1
+            if self.running_after_cancel:
+                self.running_after_cancel -= 1
+                return "RUNNING"
             return "CANCELLED"
         return self.states.pop(0) if len(self.states) > 1 else self.states[0]
 
@@ -209,6 +216,18 @@ class TestDlsps2Optimizer(unittest.TestCase):
                 self._optimize(api, search_duration=0.02, sample_duration=0)
 
         self.assertEqual(api.deleted, ["j1"])
+
+    def test_failure_waits_until_server_job_ends(self):
+        """After a failure the job is cancelled and awaited, so the server slot is free."""
+        api = _FakeOptimizeApi(["RUNNING"])
+        api.running_after_cancel = 2
+
+        with patch.object(dlsps2_optimizer, "DLSPS2_OPTIMIZE_SLACK_S", 0.0):
+            with self.assertRaisesRegex(Dlsps2OptimizerError, "did not finish in time"):
+                self._optimize(api, search_duration=0.02, sample_duration=0)
+
+        self.assertEqual(api.deleted, ["j1"])
+        self.assertEqual(api.polls_after_cancel, 3)
 
     def test_server_error_while_polling_is_tolerated(self):
         api = _FakeOptimizeApi(["RUNNING", "COMPLETED"])

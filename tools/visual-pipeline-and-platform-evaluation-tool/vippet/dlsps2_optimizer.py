@@ -170,8 +170,10 @@ class Dlsps2Optimizer:
                 )
                 status = self._wait(client, job_id, deadline)
             except BaseException:
-                # Whatever ends the wait, the server job must not outlive it.
+                # Whatever ends the wait, the server job must not outlive it, and
+                # the caller keeps its lease until the server can take another job.
                 self._cancel_job(client, job_id)
+                self._wait_cancelled(client, job_id, sample_duration)
                 raise
             if status is None:
                 self._cancel_job(client, job_id)
@@ -313,7 +315,13 @@ class Dlsps2Optimizer:
     def _wait_cancelled(
         self, client: httpx.Client, job_id: str, sample_duration: float
     ) -> None:
-        """Wait until a cancelled job ends, so the server can take the next one."""
+        """Wait until a cancelled job ends, so the server can take the next one.
+
+        The server frees its only optimizer slot when the job's worker exits,
+        which can take until the worker is killed, max(30, 3 * sample_duration)
+        seconds after the cancel. Returns at once when the server is
+        unreachable or no longer knows the job.
+        """
         grace = max(_CANCEL_GRACE_MIN_S, 3 * sample_duration) + _CANCEL_MARGIN_S
         deadline = time.monotonic() + grace
         while time.monotonic() < deadline:
