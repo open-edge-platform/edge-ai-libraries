@@ -1,6 +1,7 @@
 // Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import type { JsonObject } from "../../api/console/type";
+import type { JsonObject, ModelOptions } from "../../api/console/type";
+import { REMOTE_BACKEND, effectiveBackend, embeddingChoice } from "./embeddingModels";
 
 export const instructionKeys = [
   "TYPE_HINTS",
@@ -69,10 +70,21 @@ export const serializeSourceOptions = (
   type: string,
   form: SourceOptionsForm,
   t: (key: string) => string,
+  modelData: Record<string, ModelOptions> = {},
 ): JsonObject => {
-  const numberOption = (value: number, min: number, max = Infinity, integer = false) => {
-    if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max ||
-      (integer && !Number.isSafeInteger(value)))
+  const numberOption = (
+    value: number,
+    min: number,
+    max = Infinity,
+    integer = false,
+  ) => {
+    if (
+      typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      value < min ||
+      value > max ||
+      (integer && !Number.isSafeInteger(value))
+    )
       throw new Error(t("console.invalidSourceNumber"));
     return value;
   };
@@ -87,25 +99,39 @@ export const serializeSourceOptions = (
     let timezone = form.timezone.trim();
     if (form.trigger === "schedule") {
       const fields = form.cron.trim().split(/\s+/);
-      const bounds = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]];
-      if (fields.length !== 5)
-        throw new Error(t("console.invalidSchedule"));
+      const bounds = [
+        [0, 59],
+        [0, 23],
+        [1, 31],
+        [1, 12],
+        [0, 7],
+      ];
+      if (fields.length !== 5) throw new Error(t("console.invalidSchedule"));
       fields.forEach((field, index) => {
         const [low, high] = bounds[index];
         for (const part of field.split(",")) {
           const match = /^(\*|\d+(?:-\d+)?)(?:\/(\d+))?$/.exec(part);
           if (!match) throw new Error(t("console.invalidSchedule"));
           const step = match[2] === undefined ? 1 : Number(match[2]);
-          const range = match[1] === "*" ? [low, high] : match[1].split("-").map(Number);
+          const range =
+            match[1] === "*" ? [low, high] : match[1].split("-").map(Number);
           const start = range[0];
           const end = range[1] ?? (match[2] === undefined ? start : high);
-          if (!Number.isSafeInteger(step) || step <= 0 || start < low || start > end || end > high)
+          if (
+            !Number.isSafeInteger(step) ||
+            step <= 0 ||
+            start < low ||
+            start > end ||
+            end > high
+          )
             throw new Error(t("console.invalidSchedule"));
         }
       });
       try {
         if (!timezone) throw new Error();
-        timezone = new Intl.DateTimeFormat("en", { timeZone: timezone }).resolvedOptions().timeZone;
+        timezone = new Intl.DateTimeFormat("en", {
+          timeZone: timezone,
+        }).resolvedOptions().timeZone;
       } catch {
         throw new Error(t("console.invalidSchedule"));
       }
@@ -115,7 +141,10 @@ export const serializeSourceOptions = (
       timeout: numberOption(form.timeout, Number.MIN_VALUE),
       trigger:
         form.trigger === "auto"
-          ? { mode: "auto", debounce_seconds: numberOption(form.debounce, 0, 86400) }
+          ? {
+              mode: "auto",
+              debounce_seconds: numberOption(form.debounce, 0, 86400),
+            }
           : form.trigger === "schedule"
             ? {
                 mode: "schedule",
@@ -141,16 +170,36 @@ export const serializeSourceOptions = (
   const types = form.vectorTypes;
   if (
     !types.length ||
-    (types.length > 1 &&
-      (types.includes("document") || types.includes("video")))
+    (types.length > 1 && (types.includes("video") || types.includes("document")))
   )
     throw new Error(t("console.incompatibleContent"));
   const mode = vectorMode(types);
   const vector = form.vectors[mode];
   const result: JsonObject = { asset_types: types };
-  if (vector.backend) result.embedding_backend = vector.backend;
-  if (vector.model.trim()) result.embedding_model = vector.model.trim();
-  if (vector.backend === "openai_compatible") {
+  const embedding = modelData.embedding;
+  const model = vector.model.trim();
+  const backend = effectiveBackend(embedding, types, vector.backend);
+  if (backend === REMOTE_BACKEND) {
+    if (vector.backend) {
+      if (!model) throw new Error(t("console.modelRequiredWithBackend"));
+      result.embedding_backend = vector.backend;
+      result.embedding_model = model;
+    }
+  } else {
+    const choice = embeddingChoice(embedding, types);
+    if (choice.status === "none") throw new Error(t("console.noCommonModel"));
+    if (model) {
+      if (!choice.candidates.includes(model))
+        throw new Error(t("console.noCommonModel"));
+      result.embedding_backend = backend;
+      result.embedding_model = model;
+    } else if (choice.status === "differ") {
+      throw new Error(t("console.defaultModelsDiffer"));
+    } else if (vector.backend) {
+      result.embedding_backend = vector.backend;
+    }
+  }
+  if (backend === REMOTE_BACKEND) {
     if (vector.apiBase.trim())
       result.embedding_api_base = httpUrl(
         vector.apiBase,
@@ -159,7 +208,12 @@ export const serializeSourceOptions = (
   } else {
     if (vector.device) result.embedding_device = vector.device;
     if (mode !== "video" && vector.maxImageTokens != null)
-      result.max_image_tokens = numberOption(vector.maxImageTokens, 1, Infinity, true);
+      result.max_image_tokens = numberOption(
+        vector.maxImageTokens,
+        1,
+        Infinity,
+        true,
+      );
   }
   if (mode === "document") {
     if (
@@ -168,12 +222,29 @@ export const serializeSourceOptions = (
       vector.chunkOverlap >= vector.chunkSize
     )
       throw new Error(t("console.invalidOverlap"));
-    if (vector.chunkSize != null) result.chunk_size = numberOption(vector.chunkSize, 1, Infinity, true);
-    if (vector.chunkOverlap != null) result.chunk_overlap = numberOption(vector.chunkOverlap, 0, Infinity, true);
+    if (vector.chunkSize != null)
+      result.chunk_size = numberOption(vector.chunkSize, 1, Infinity, true);
+    if (vector.chunkOverlap != null)
+      result.chunk_overlap = numberOption(
+        vector.chunkOverlap,
+        0,
+        Infinity,
+        true,
+      );
     if (vector.figureContext != null)
-      result.figure_context_chars = numberOption(vector.figureContext, 0, Infinity, true);
+      result.figure_context_chars = numberOption(
+        vector.figureContext,
+        0,
+        Infinity,
+        true,
+      );
   }
   if (mode === "video" && vector.framesPerClip != null)
-    result.frames_per_clip = numberOption(vector.framesPerClip, 1, Infinity, true);
+    result.frames_per_clip = numberOption(
+      vector.framesPerClip,
+      1,
+      Infinity,
+      true,
+    );
   return result;
 };

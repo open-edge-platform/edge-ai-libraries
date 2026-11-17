@@ -11,7 +11,10 @@
       <div>
         <h3>{{ drawerData.name || drawerData.id }}</h3>
         <StatusTag :value="drawerData.kind" />
-        <StatusTag :value="drawerData.materialization || 'unknown'" />
+        <AssetStatus
+          :value="drawerData.materialization || 'unknown'"
+          :expired="drawerData.progressExpired"
+        />
       </div>
     </div>
     <a-descriptions :column="1" bordered size="small">
@@ -47,9 +50,11 @@
 <script lang="ts" setup name="DetailDrawer">
 import { ref } from "vue";
 import { FileTextOutlined } from "@ant-design/icons-vue";
-import type { Asset, Library } from "@/api/console/type";
+import type { Library } from "@/api/console/type";
+import type { AssetRow } from "../AssetProgress";
 import StatusTag from "../../../components/StatusTag.vue";
-defineProps<{ drawerData: Asset; libraryData: Library }>();
+import AssetStatus from "./AssetStatus.vue";
+defineProps<{ drawerData: AssetRow; libraryData: Library }>();
 const emit = defineEmits<{ close: [] }>();
 const handleClose = () => emit("close");
 const drawerVisible = ref(true);

@@ -39,6 +39,12 @@ from schemas import RetrieveRequest
 from tests.video_package import video_package
 
 
+@pytest.fixture(autouse=True)
+def _unscoped_pools(monkeypatch):
+    monkeypatch.setattr(retrievers, "pool_asset_scope", lambda asset_pool: None)
+    monkeypatch.setattr(retrieval, "pool_asset_scope", lambda asset_pool: None)
+
+
 def _hit(node_id, score, **metadata):
     return NodeWithScore(node=TextNode(id_=node_id, text=node_id, metadata=metadata), score=score)
 
@@ -798,27 +804,7 @@ def test_mixed_document_video_reranks_through_one_postprocess(monkeypatch):
                     "libraries": ["library", "library"], "strict": True}
 
 
-def test_document_figure_keeps_text_reranker_default(monkeypatch):
-    document = FakeVector("document", hits=[_hit(
-        "figure", 0.7, asset_id="report", kind=IMAGE, role="doc_image",
-    )])
-    selected = {}
-
-    def postprocess(query, chunks, processor_type, top_n, reranker_model, **kwargs):
-        selected.update(model=reranker_model, media_libraries=kwargs.get("media_libraries"))
-        return chunks
-
-    monkeypatch.setattr(retrieval, "postprocess_chunks", postprocess)
-    with _client(monkeypatch, _library(_pool(document))) as client:
-        response = client.post("/v1/retrieve", json={
-            "libraries": ["library"], "query": "figure",
-            "target_media": ["document"], "postprocess": {"top_n": 1},
-        })
-    assert response.status_code == 200
-    assert selected == {"model": None, "media_libraries": None}
-
-
-@pytest.mark.parametrize("backend", ["native_openvino_gme", "gme", "GME"])
+@pytest.mark.parametrize("backend", [None, config.LOCAL_OPENVINO])
 def test_g12_native_gme_bypasses_registry_even_for_a_gme_model_directory(monkeypatch, tmp_path, backend):
     from core.multimodal import registry
 
@@ -829,14 +815,14 @@ def test_g12_native_gme_bypasses_registry_even_for_a_gme_model_directory(monkeyp
 
     monkeypatch.setattr(registry, "resolve", forbidden)
     monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path.parent))
-    profile = describe_vector_source({
-        "embedding_backend": backend,
-        "embedding_model": tmp_path.name,
-        "block_kinds": ["image", "text"],
-    })
+    options = {"embedding_model": tmp_path.name, "block_kinds": ["image", "text"]}
+    if backend:
+        options["embedding_backend"] = backend
+    profile = describe_vector_source(options)
 
     assert profile["encoder_kind"] == "text"
-    assert profile["backend"] == "native_openvino_gme"
+    assert profile["backend"] == config.LOCAL_OPENVINO
+    assert profile["runtime"] == "ov_gme" and profile["fused"] is True
     assert profile["model"] == tmp_path.name
     assert profile["params"]["block_kinds"] == ["image", "text"]
     assert "multimodal_model" not in profile
@@ -846,11 +832,13 @@ def test_g12_native_gme_bypasses_registry_even_for_a_gme_model_directory(monkeyp
 def test_g12_media_defaults_remain_registry_owned_with_native_text_default(monkeypatch, kind):
     from core.multimodal import registry
 
-    monkeypatch.setattr(config, "EMBEDDING_BACKEND", "native_openvino_gme")
+    monkeypatch.setattr(config, "EMBEDDING_BACKEND", config.LOCAL_OPENVINO)
     calls = []
     resolved = SimpleNamespace(
-        backend="llamaindex_openvino", model_id="microsoft/xclip-fake", params={},
-        model=SimpleNamespace(supported_roles={ROLE_SHORT_VIDEO}, supported_asset_types={kind}),
+        backend=config.LOCAL_OPENVINO, model_id="microsoft/xclip-fake", params={},
+        model=SimpleNamespace(
+            supported_roles={ROLE_SHORT_VIDEO}, supported_asset_types={kind}, runtime="ov_core",
+        ),
         record=lambda: {"name": "xclip", "path": "fake"},
     )
     monkeypatch.setattr(registry, "resolve", lambda options: calls.append(options) or resolved)
@@ -859,12 +847,12 @@ def test_g12_media_defaults_remain_registry_owned_with_native_text_default(monke
 
     assert calls == [{"asset_types": [kind]}]
     assert profile["encoder_kind"] == "multimodal"
-    assert profile["backend"] == "llamaindex_openvino"
+    assert profile["backend"] == config.LOCAL_OPENVINO
     assert files._is_multimodal({"asset_types": [kind]})
 
 
 @pytest.mark.parametrize("selection", ["model", "local-model"])
-@pytest.mark.parametrize("backend", ["native_openvino_gme", "gme", "GME"])
+@pytest.mark.parametrize("backend", [config.LOCAL_OPENVINO])
 @pytest.mark.parametrize("block_kinds", [None, ["text", "image"]])
 def test_g12_explicit_gme_text_model_inherits_native_default_without_registry(monkeypatch, tmp_path, selection, backend, block_kinds):
     from core.multimodal import registry
@@ -874,7 +862,7 @@ def test_g12_explicit_gme_text_model_inherits_native_default_without_registry(mo
     (tmp_path / "gme_openvino_config.json").write_text("{}")
     options = {} if block_kinds is None else {"block_kinds": block_kinds}
     options["embedding_model"] = (
-        "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct" if selection == "model" else tmp_path.name
+        "gme-Qwen2-VL-2B-Instruct-OV" if selection == "model" else tmp_path.name
     )
 
     def forbidden(*args, **kwargs):
@@ -884,17 +872,19 @@ def test_g12_explicit_gme_text_model_inherits_native_default_without_registry(mo
     profile = describe_vector_source(options)
 
     assert profile["encoder_kind"] == "text"
-    assert profile["backend"] == "native_openvino_gme"
+    assert profile["backend"] == config.LOCAL_OPENVINO
+    if selection == "local-model":
+        assert profile["runtime"] == "ov_gme"
     assert not files._is_multimodal(options)
     assert "multimodal_model" not in profile
     source = Source("text", "vector", VectorCollection("text", 4), configuration=options, profile=profile)
     library, calls = _text_projection_builder(monkeypatch)
     assert type(library.build_projection("p", "pool", source)) is VectorIndexer
-    assert calls[0]["backend"] == "native_openvino_gme"
+    assert calls[0]["backend"] == config.LOCAL_OPENVINO
 
 
 def test_native_text_default_does_not_capture_explicit_media_only_model(monkeypatch, tmp_path):
-    monkeypatch.setattr(config, "EMBEDDING_BACKEND", "native_openvino_gme")
+    monkeypatch.setattr(config, "EMBEDDING_BACKEND", config.LOCAL_OPENVINO)
     monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     package = video_package(tmp_path)
     options = {
@@ -904,24 +894,24 @@ def test_native_text_default_does_not_capture_explicit_media_only_model(monkeypa
     profile = describe_vector_source(options)
 
     assert profile["encoder_kind"] == "multimodal"
-    assert profile["backend"] == "llamaindex_openvino"
+    assert profile["backend"] == config.LOCAL_OPENVINO
     assert files._is_multimodal(options)
     with pytest.raises(ValueError, match="block_kinds"):
         describe_vector_source({**options, "block_kinds": ["image"]})
 
 
 def test_native_text_default_does_not_make_model_only_video_a_valid_source(monkeypatch):
-    monkeypatch.setattr(config, "EMBEDDING_BACKEND", "native_openvino_gme")
+    monkeypatch.setattr(config, "EMBEDDING_BACKEND", config.LOCAL_OPENVINO)
 
     with pytest.raises(ValueError, match="asset_types"):
         describe_vector_source({"embedding_model": "viclip-b-fp16"})
 
 
 @pytest.mark.parametrize("kind", ["image", "audio"])
-@pytest.mark.parametrize("backend", [None, "native_openvino_gme"])
+@pytest.mark.parametrize("backend", [None, config.LOCAL_OPENVINO])
 def test_native_gme_media_asset_scope_is_not_the_document_pipeline(monkeypatch, kind, backend):
-    monkeypatch.setattr(config, "EMBEDDING_BACKEND", "native_openvino_gme")
-    options = {"asset_types": [kind], "embedding_model": "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"}
+    monkeypatch.setattr(config, "EMBEDDING_BACKEND", config.LOCAL_OPENVINO)
+    options = {"asset_types": [kind], "embedding_model": "gme-Qwen2-VL-2B-Instruct-OV"}
     if backend:
         options["embedding_backend"] = backend
 
@@ -932,7 +922,7 @@ def test_native_gme_media_asset_scope_is_not_the_document_pipeline(monkeypatch, 
     assert profile["params"]["asset_types"] == [kind]
     assert profile["params"]["block_roles"] == (["image"] if kind == "image" else ["l2_transcript"])
     if backend:
-        assert profile["backend"] == "native_openvino_gme"
+        assert profile["backend"] == config.LOCAL_OPENVINO
 
 
 def _text_projection_builder(monkeypatch):
@@ -967,8 +957,8 @@ def _text_projection_builder(monkeypatch):
 @pytest.mark.parametrize("changed_id", ["model-B", "model-A"])
 def test_text_projection_uses_frozen_profile_after_engine_defaults_change(monkeypatch, selection, changed_id):
     for key, value in {
-        "EMBEDDING_BACKEND": "openvino", "EMBEDDING_MODEL_ID": "model-A",
-        "EMBEDDING_MODEL_PATH": "/models/A", "EMBEDDING_DEVICE": "CPU",
+        "EMBEDDING_BACKEND": config.LOCAL_OPENVINO, "EMBEDDING_MODEL_ID": "model-A",
+        "EMBEDDING_DEVICE": "CPU",
         "CHUNK_SIZE": 96, "CHUNK_OVERLAP": 12, "FIGURE_CONTEXT_CHARS": 180,
     }.items():
         monkeypatch.setattr(config, key, value)
@@ -981,8 +971,8 @@ def test_text_projection_uses_frozen_profile_after_engine_defaults_change(monkey
     source = Source("text", "vector", VectorCollection("text", 4), configuration=options, profile=profile)
     source = Source.from_record(source.to_record())
     for key, value in {
-        "EMBEDDING_BACKEND": "native_openvino_gme", "EMBEDDING_MODEL_ID": changed_id,
-        "EMBEDDING_MODEL_PATH": "/models/B", "EMBEDDING_DEVICE": "GPU",
+        "EMBEDDING_BACKEND": config.REMOTE_OPENAI_COMPATIBLE, "EMBEDDING_MODEL_ID": changed_id,
+        "EMBEDDING_DEVICE": "GPU",
         "CHUNK_SIZE": 256, "CHUNK_OVERLAP": 20, "FIGURE_CONTEXT_CHARS": 300,
     }.items():
         monkeypatch.setattr(config, key, value)
@@ -991,11 +981,10 @@ def test_text_projection_uses_frozen_profile_after_engine_defaults_change(monkey
     projection = library.build_projection("p", "pool", source)
 
     expected_id = options.get("embedding_model", "model-A")
-    expected_path = expected_id if selection != "default" else "/models/A"
     assert profile["model_id"] == expected_id
-    assert profile["model_path"] == expected_path
+    assert "model_path" not in profile
     assert calls == [{
-        "backend": "llamaindex_openvino", "model_id": expected_id, "model_path": expected_path,
+        "backend": config.LOCAL_OPENVINO, "model_id": expected_id,
         "device": options.get("embedding_device", "CPU"), "api_base": None,
     }]
     assert type(projection) is VectorIndexer
@@ -1009,7 +998,6 @@ def test_text_projection_uses_frozen_profile_after_engine_defaults_change(monkey
 @pytest.mark.parametrize("legacy_path", [False, True])
 def test_text_projection_compatibility_with_legacy_model_only_profile(monkeypatch, legacy_path):
     monkeypatch.setattr(config, "EMBEDDING_MODEL_ID", "B")
-    monkeypatch.setattr(config, "EMBEDDING_MODEL_PATH", "/models/B")
     profile = {
         "encoder_kind": "text", "backend": "openvino", "device": "CPU",
         "model": "/models/A" if legacy_path else "A",
@@ -1017,15 +1005,19 @@ def test_text_projection_compatibility_with_legacy_model_only_profile(monkeypatc
     }
     options = {"embedding_model": "A"} if legacy_path else {}
     source = Source("text", "vector", VectorCollection("text", 4), configuration=options, profile=profile)
+    # A stored record's old backend name is upgraded when it is read back.
+    source = Source.from_record(source.to_record())
+    assert source.profile["backend"] == config.LOCAL_OPENVINO
+    assert source.profile["runtime"] == "ov_llamaindex" and source.profile["fused"] is False
     library, calls = _text_projection_builder(monkeypatch)
 
     projection = library.build_projection("p", "pool", source)
 
     assert calls[0]["model_id"] == "A"
-    assert calls[0]["model_path"] == ("/models/A" if legacy_path else "A")
-    assert calls[0]["backend"] == "openvino" and calls[0]["device"] == "CPU"
+    assert "model_path" not in calls[0]
+    assert calls[0]["backend"] == config.LOCAL_OPENVINO and calls[0]["device"] == "CPU"
     assert projection._node_parser.chunk_overlap == 0
-    assert source.profile == profile and source.configuration == options
+    assert source.configuration == options
 
 
 @pytest.mark.parametrize("multimodal", [False, True])
@@ -1058,7 +1050,7 @@ def test_projection_build_keeps_model_selection_and_two_argument_blob_reader(mon
         configuration={"asset_types": ["video"]} if multimodal else {},
         profile={
             "encoder_kind": "multimodal" if multimodal else "text",
-            **({"backend": "llamaindex_openvino", "multimodal_model": {
+            **({"backend": config.LOCAL_OPENVINO, "multimodal_model": {
                 "name": "viclip-b", "id": "viclip-b-fp16", "path": "viclip-b-fp16",
             }} if multimodal else {}),
         },

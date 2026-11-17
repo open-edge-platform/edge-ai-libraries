@@ -46,14 +46,14 @@ def test_runtime_settings_have_defaults_and_environment_overrides(
 
 def test_media_reranker_defaults_to_int8_package(monkeypatch, tmp_path):
     settings = load_config(monkeypatch, tmp_path)
-    assert settings["MEDIA_RERANK_MODEL_ID"] == "Qwen/Qwen3-VL-Reranker-2B-INT8"
-    assert Path(settings["MEDIA_RERANK_MODEL_PATH"]).name == "Qwen3-VL-Reranker-2B-INT8-OV"
+    assert settings["MEDIA_RERANK_MODEL_ID"] == "Qwen3-VL-Reranker-2B-INT8-OV"
+    assert "MEDIA_RERANK_MODEL_PATH" not in settings
 
     fp16 = load_config(
         monkeypatch, tmp_path,
-        ENGINE_MEDIA_RERANK_MODEL_ID="Qwen/Qwen3-VL-Reranker-2B",
+        ENGINE_MEDIA_RERANK_MODEL_ID="Qwen3-VL-Reranker-2B-OV",
     )
-    assert Path(fp16["MEDIA_RERANK_MODEL_PATH"]).name == "Qwen3-VL-Reranker-2B-OV"
+    assert fp16["MEDIA_RERANK_MODEL_ID"] == "Qwen3-VL-Reranker-2B-OV"
 
 
 @pytest.mark.parametrize("endpoint", [None, "", "https://unused.invalid"])
@@ -100,8 +100,9 @@ def test_model_directories_follow_workspace_and_model_identifiers(monkeypatch, t
     )
 
     assert values["MODEL_DIR"] == str(tmp_path / "workspace/models")
-    assert values["EMBEDDING_MODEL_PATH"] == str(tmp_path / "workspace/models/dense")
-    assert values["RERANK_MODEL_PATH"] == str(tmp_path / "workspace/models/example/reranker")
+    assert values["EMBEDDING_MODEL_ID"] == "example/dense"
+    assert values["RERANK_MODEL_ID"] == "example/reranker"
+    assert not [name for name in values if name.endswith("_MODEL_PATH")]
 
 
 @pytest.mark.parametrize("root", [None, ""])
@@ -112,14 +113,14 @@ def test_unset_or_empty_model_root_defaults_to_workspace(monkeypatch, tmp_path, 
     model_root = tmp_path / "workspace/models"
     assert values["MODEL_DIR"] == str(model_root)
     for setting, name in (
-        ("EMBEDDING_MODEL_PATH", "gme-Qwen2-VL-2B-Instruct-OV"),
-        ("VIDEO_EMBEDDING_MODEL_PATH", "viclip-b-fp16"),
-        ("IMAGE_EMBEDDING_MODEL_PATH", "gme-Qwen2-VL-2B-Instruct-OV"),
-        ("ASR_MODEL_PATH", "whisper-small"),
-        ("RERANK_MODEL_PATH", "BAAI/bge-reranker-large"),
-        ("LAYOUT_MODEL_PATH", "PP-DocLayoutV3"),
+        ("EMBEDDING_MODEL_ID", "gme-Qwen2-VL-2B-Instruct-OV"),
+        ("VIDEO_EMBEDDING_MODEL_ID", "viclip-b-fp16"),
+        ("IMAGE_EMBEDDING_MODEL_ID", "gme-Qwen2-VL-2B-Instruct-OV"),
+        ("ASR_MODEL_ID", "whisper-small"),
+        ("RERANK_MODEL_ID", "Qwen3-VL-Reranker-2B-INT8-OV"),
+        ("LAYOUT_MODEL_ID", "PP-DocLayoutV3"),
     ):
-        assert values[setting] == str(model_root / name)
+        assert values[setting] == name
 
 
 def test_model_root_is_shared_by_every_model_capability(monkeypatch, tmp_path):
@@ -138,14 +139,14 @@ def test_model_root_is_shared_by_every_model_capability(monkeypatch, tmp_path):
     assert values["MODEL_DIR"] == str(model_root)
     assert model_root.is_dir()
     for setting, name in (
-        ("EMBEDDING_MODEL_PATH", "dense"),
-        ("VIDEO_EMBEDDING_MODEL_PATH", "video"),
-        ("IMAGE_EMBEDDING_MODEL_PATH", "image"),
-        ("ASR_MODEL_PATH", "speech"),
-        ("RERANK_MODEL_PATH", "example/reranker"),
-        ("LAYOUT_MODEL_PATH", "PP-DocLayoutV3"),
+        ("EMBEDDING_MODEL_ID", "example/dense"),
+        ("VIDEO_EMBEDDING_MODEL_ID", "example/video"),
+        ("IMAGE_EMBEDDING_MODEL_ID", "example/image"),
+        ("ASR_MODEL_ID", "example/speech"),
+        ("RERANK_MODEL_ID", "example/reranker"),
+        ("LAYOUT_MODEL_ID", "PP-DocLayoutV3"),
     ):
-        assert values[setting] == str(model_root / name)
+        assert values[setting] == name
 
 
 def test_default_gme_adapters_share_the_package_under_a_custom_root(monkeypatch, tmp_path):
@@ -155,8 +156,9 @@ def test_default_gme_adapters_share_the_package_under_a_custom_root(monkeypatch,
         MODEL_PATH=str(tmp_path / "legacy"),
     )
 
-    assert values["EMBEDDING_MODEL_PATH"] == values["IMAGE_EMBEDDING_MODEL_PATH"]
-    assert values["EMBEDDING_MODEL_PATH"] == str(model_root / "gme-Qwen2-VL-2B-Instruct-OV")
+    assert values["EMBEDDING_MODEL_ID"] == values["IMAGE_EMBEDDING_MODEL_ID"]
+    assert values["EMBEDDING_MODEL_ID"] == "gme-Qwen2-VL-2B-Instruct-OV"
+    assert values["MODEL_DIR"] == str(model_root)
     assert values["SHARED_MODEL_DIR"] == str(Path.home() / "models")
     assert values["LEGACY_MODEL_DIR"] == str(tmp_path / "legacy")
 
@@ -164,14 +166,14 @@ def test_default_gme_adapters_share_the_package_under_a_custom_root(monkeypatch,
 def test_document_embedding_environment_configures_the_existing_factories(monkeypatch, tmp_path):
     values = load_config(
         monkeypatch, tmp_path,
-        ENGINE_DOC_EMBEDDING_BACKEND="openai",
+        ENGINE_DOC_EMBEDDING_BACKEND="remote_openai_compatible",
         ENGINE_DOC_EMBEDDING_MODEL_ID="example/documents",
         ENGINE_DOC_EMBEDDING_DEVICE="GPU.0",
         ENGINE_DOC_EMBEDDING_API_BASE="http://embedding.internal/v1",
         ENGINE_DOC_EMBEDDING_API_KEY="test-key",
     )
 
-    assert values["EMBEDDING_BACKEND"] == "openai_compatible"
+    assert values["EMBEDDING_BACKEND"] == "remote_openai_compatible"
     assert values["EMBEDDING_MODEL_ID"] == "example/documents"
     assert values["EMBEDDING_DEVICE"] == "GPU.0"
     assert values["EMBEDDING_API_BASE"] == "http://embedding.internal/v1"
@@ -193,7 +195,6 @@ def test_model_root_is_used_by_resolution_registry_and_discovery(monkeypatch, tm
     assert embedding.resolve_model_path("dense") == str(model)
     assert embedding.workspace_model_dir("example/new") == str(model_root / "example/new")
     assert registry.local_path("dense") == model
-    assert registry.stored_path(model) == "dense"
     assert registry.path_for_id("example/video") == model_root / "video"
     assert models.workspace_models() == [
         {"name": "dense", "path": str(model), "ready": True, "model_type": "embedding",
@@ -240,12 +241,14 @@ def test_shared_model_root_is_used_by_path_resolution(monkeypatch, tmp_path):
 def test_genai_factory_uses_configured_input_length(monkeypatch, tmp_path):
     from inference import ov_adapter
 
+    (tmp_path / "model").mkdir()
     for name in ("openvino_model.xml", "openvino_model.bin"):
-        (tmp_path / name).touch()
+        (tmp_path / "model" / name).touch()
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     monkeypatch.setattr(config, "EMBEDDING_MAX_LENGTH", 384, raising=False)
     monkeypatch.setattr(ov_adapter, "OpenVINOGenAIEmbedding", lambda **options: options)
 
-    options = embedding._build("openvino_genai", "model", str(tmp_path), "CPU", "")
+    options = embedding._build(config.LOCAL_OPENVINO, "model", "CPU", "")
 
     assert options["max_length"] == 384
 
@@ -253,24 +256,22 @@ def test_genai_factory_uses_configured_input_length(monkeypatch, tmp_path):
 @pytest.mark.parametrize(
     ("module", "factory", "prefix", "path_index"),
     [
-        (embedding, "build_embedding", "EMBEDDING", 2),
-        (postprocessor, "build_reranker", "RERANK", 3),
+        (embedding, "build_embedding", "EMBEDDING", 1),
+        (postprocessor, "build_reranker", "RERANK", 2),
     ],
 )
 @pytest.mark.parametrize(
     ("options", "expected"),
     [
-        ({}, "/configured/model"),
-        ({"model_id": "configured"}, "/configured/model"),
+        ({}, "configured"),
+        ({"model_id": "configured"}, "configured"),
         ({"model_id": "another"}, "another"),
-        ({"model_path": "/explicit/model"}, "/explicit/model"),
     ],
 )
 def test_model_factories_honor_configured_paths_and_explicit_overrides(
     monkeypatch, module, factory, prefix, path_index, options, expected
 ):
     monkeypatch.setattr(config, f"{prefix}_MODEL_ID", "configured")
-    monkeypatch.setattr(config, f"{prefix}_MODEL_PATH", "/configured/model")
     monkeypatch.setattr(module, "_CACHE", embedding.ModelCache() if module is embedding else {})
     monkeypatch.setattr(module, "_build", lambda *arguments: arguments)
 
@@ -278,12 +279,12 @@ def test_model_factories_honor_configured_paths_and_explicit_overrides(
 
 
 def test_openai_embedding_uses_configured_api_key(monkeypatch):
-    module = ModuleType("llama_index.embeddings.openai")
-    module.OpenAIEmbedding = lambda **options: options
-    monkeypatch.setitem(sys.modules, module.__name__, module)
+    from inference import remote_adapter
+
+    monkeypatch.setattr(remote_adapter, "remote_openai_embedding", lambda **options: options)
     monkeypatch.setattr(config, "EMBEDDING_API_KEY", "test-key")
 
-    options = embedding._build("openai_compatible", "model", "model", "CPU", "http://embed")
+    options = embedding._build(config.REMOTE_OPENAI_COMPATIBLE, "model", "CPU", "http://embed")
 
     assert options["api_key"] == "test-key"
     assert options["api_base"] == "http://embed/v1"
@@ -546,7 +547,7 @@ def test_remote_reranker_accepts_tei_list_response_and_applies_top_n(monkeypatch
 
 
 def test_request_backend_selects_remote_reranker(monkeypatch):
-    monkeypatch.setattr(config, "RERANK_BACKEND", "llamaindex_openvino")
+    monkeypatch.setattr(config, "RERANK_BACKEND", config.LOCAL_OPENVINO)
     monkeypatch.setattr(postprocessor, "_CACHE", {})
     built = []
     monkeypatch.setattr(
@@ -557,11 +558,11 @@ def test_request_backend_selects_remote_reranker(monkeypatch):
 
     postprocessor.postprocess_nodes(
         "q", [], "reranker", 3,
-        {"backend": "openai_compatible", "model_id": "m", "api_base": "http://reranker"},
+        {"backend": config.REMOTE_OPENAI_COMPATIBLE, "model_id": "m", "api_base": "http://reranker"},
     )
 
-    backend, _, model_id, _, _, api_base = built[0]
-    assert (backend, model_id, api_base) == ("openai_compatible", "m", "http://reranker")
+    backend, _, model_id, _, api_base = built[0]
+    assert (backend, model_id, api_base) == (config.REMOTE_OPENAI_COMPATIBLE, "m", "http://reranker")
 
 
 def test_remote_reranks_run_concurrently_with_their_own_top_n(monkeypatch):
@@ -579,7 +580,7 @@ def test_remote_reranks_run_concurrently_with_their_own_top_n(monkeypatch):
         return SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"results": results})
 
     monkeypatch.setattr(httpx, "post", post)
-    processor = postprocessor._build("openai_compatible", 3, "m", "m", "CPU", "http://reranker")
+    processor = postprocessor._build(config.REMOTE_OPENAI_COMPATIBLE, 3, "m", "CPU", "http://reranker")
     nodes = [NodeWithScore(node=TextNode(text=text)) for text in ("a", "b", "c")]
     sizes = {}
 

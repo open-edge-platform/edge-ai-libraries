@@ -54,6 +54,8 @@ def _internal_model_to_api(model: InternalSupportedModel) -> schemas.Model:
         used_by_pipelines=list(model.used_by_pipelines),
         default=model.default,
         unsupported_devices=model.unsupported_devices,
+        link=model.link,
+        gated=schemas.ModelGated(model.gated) if model.gated else None,
     )
 
 
@@ -330,6 +332,8 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
         derive it from); `huggingface/<name>/` is scanned for the
         downloaded artefact.
     - **`category`** *(optional)* - Required when `hub` is `huggingface`.
+    - **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the
+      hub listing; stored on the registered model, `null` when omitted.
 
     ## Response Body
 
@@ -358,10 +362,13 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
     manager = ModelManager()
     hub = body.hub.value if body.hub else None
     category = InternalModelCategory(body.category.value) if body.category else None
+    gated = body.gated.value if body.gated else None
     try:
         items: dict[str, schemas.ModelDownloadJobItem] = {}
         for name in body.names:
-            job_id, status, message = await manager.start_download(name, hub, category)
+            job_id, status, message = await manager.start_download(
+                name, hub, category, gated
+            )
             items[name] = schemas.ModelDownloadJobItem(
                 name=name,
                 job_id=job_id,

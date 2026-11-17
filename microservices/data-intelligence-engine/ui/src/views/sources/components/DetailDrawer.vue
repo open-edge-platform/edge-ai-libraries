@@ -70,9 +70,11 @@
           class="notice-wrap"
         />
         <JsonPretty
+          v-if="Object.keys(drawerData.operator_options || {}).length"
           :data="drawerData.operator_options"
           :theme="themeStore.theme === 'dark' ? 'dark' : 'light'"
         />
+        <a-empty v-else />
       </a-tab-pane>
     </a-tabs>
   </a-drawer>

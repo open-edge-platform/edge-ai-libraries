@@ -10,7 +10,7 @@ debian_40_profile_edge_pack_manageability () {
 
 debian_40_install_edge_pack_manageability () {
   configure_edge_pack_manageability "$@"
-  if ensure_apt_is_installed intel-edge-manageability && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-manageability && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-manageability is installed." >&2
   else
     ensure_prop set installed/edge_pack_manageability/owned true

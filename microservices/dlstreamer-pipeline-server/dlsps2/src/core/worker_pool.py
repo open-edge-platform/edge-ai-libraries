@@ -241,7 +241,7 @@ class ManagedWorker:
             try:
                 event = json.loads(stripped)
             except json.JSONDecodeError:
-                logger.debug("[gst_worker:%s] %s", self.affinity_key, stripped)
+                logger.warning("[gst_worker:%s] non-JSON stdout line dropped: %s", self.affinity_key, stripped)
                 continue
 
             self._event_handler(event)

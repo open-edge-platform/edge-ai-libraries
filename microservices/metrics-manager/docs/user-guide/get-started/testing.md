@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Testing Guide
 
 This guide covers how to run tests for Metrics Manager.
@@ -24,7 +29,8 @@ docker compose build
 docker compose --profile test run --rm metrics-manager-test
 ```
 
-Expected output: `179 passed in ~2s`
+All collected tests should pass; optional checks report their missing prerequisites
+as skips.
 
 ### Run with Coverage Report
 
@@ -72,11 +78,14 @@ docker compose --profile test run --rm metrics-manager-test \
    PROMETHEUS_TELEGRAF_ENDPOINT=http://localhost:9273
    ```
 
-4. **Start Telegraf on host:**
+4. **For manual smoke tests, start the Docker telemetry backend:**
 
    ```bash
-   telegraf --config telegraf.conf
+   docker compose up -d metrics-manager
    ```
+
+   The root Telegraf configuration uses paths and native collectors installed in
+   the image; it is not a standalone host configuration.
 
 ### Run Tests
 
@@ -109,9 +118,13 @@ pytest tests/test_models.py -v
 | `test_metrics.py`              | Internal service metrics counters and uptime                               |
 | `test_rate_limit.py`           | IP-based rate limiting middleware                                          |
 | `test_sse.py`                  | SSE endpoint `/metrics/stream`: streaming, parsing, errors                 |
-| `test_npu_monitor_tool.py`     | NPU bit slicing, register maps, value decoding                             |
-| `test_npu_reader.py`           | `npu_reader.py` syntax, Telegraf wiring, InfluxDB fields                   |
-| `test_telegraf_integration.py` | Telegraf configuration mounting and custom-metrics (integration)           |
+| `test_telegraf_integration.py` | Native collector wiring, Telegraf configuration and custom metrics        |
+| `test_docker_collectors.py`    | Optional collector selection, validation and mounted configuration        |
+| `test_docker_accelerators.py`  | Pinned GPU/NPU downloads, archive validation and extended-image wiring     |
+| `test_telemetry_selection.py`  | Real Telegraf filtering of storage, network and process fixtures           |
+| `test_compose_profiles.py`    | Default bridge and opt-in host-NIC profiles                                |
+| `test_env_example.py`         | Documented Docker configuration defaults                                  |
+| `test_versions.py`            | Version mirrors, pinned dependencies and Docker build structure            |
 
 ---
 
@@ -229,13 +242,219 @@ tests/test_routes.py::...                PASSED
 tests/test_metrics.py::...               PASSED
 tests/test_rate_limit.py::...            PASSED
 tests/test_sse.py::...                   PASSED
-tests/test_npu_monitor_tool.py::...      PASSED
-tests/test_npu_reader.py::...            PASSED
-tests/test_telegraf_integration.py::...  SKIPPED (requires Docker)
-========================= 179 passed, 1 skipped in 1.70s ==============
+tests/test_telegraf_integration.py::...  PASSED
+tests/test_docker_collectors.py::...     PASSED
+tests/test_telemetry_selection.py::...   PASSED
+```
+
+The real Telegraf selection checks require the binary pinned in `versions.env`.
+Set its absolute path explicitly; otherwise those checks are skipped:
+
+```bash
+TELEGRAF_TEST_BINARY=/absolute/path/to/telegraf \
+  .venv/bin/pytest tests/test_telemetry_selection.py -v
 ```
 
 ---
+
+## Native collector build and tests
+
+The Go module in `native/` contains six standalone collectors:
+
+| Command | Data source |
+|---------|-------------|
+| `mm-plugin-cpu` | CPU topology, frequency and utilization from procfs/sysfs |
+| `mm-plugin-gpu` | GPU and optional per-process telemetry from a qmassa JSON stream |
+| `mm-plugin-npu` | Intel NPU PMT telemetry and sysfs |
+| `mm-plugin-proc` | Process CPU and memory usage from procfs |
+| `mm-plugin-membw` | Memory-controller performance counters, with multi-socket affinity |
+| `mm-plugin-rapl` | Package/platform energy counters exposed through powercap |
+
+Collectors emit InfluxDB line protocol to stdout by default. The shared `-out`
+option also supports a Unix stream socket for Telegraf's `socket_listener`.
+Native measurements use base units such as Hz, bytes, bytes per second and
+watts; percentages remain percentages.
+
+Build and test the module independently of the service image or Debian package.
+From `microservices/metrics-manager`, run on a Linux host with Docker:
+
+```bash
+. ./versions.env
+docker run --rm --cap-drop ALL --security-opt no-new-privileges \
+  --user "$(id -u):$(id -g)" \
+  -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
+  -e http_proxy -e https_proxy -e no_proxy \
+  -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomodcache \
+  -e GOTOOLCHAIN=local -e GOFLAGS=-mod=readonly \
+  -v "$PWD/native:/src:ro" -w /src "$GO_IMAGE" \
+  sh -ec 'go test -race ./...; go vet ./...; CGO_ENABLED=0 go build ./cmd/...'
+```
+
+`versions.env` pins the compiler image by digest; `go.mod` declares the minimum
+language version and module dependency. The command downloads that dependency
+into the disposable container and leaves no build outputs in the checkout.
+Unit tests use synthetic kernel files, qmassa fixtures and mocked performance
+counters; they do not require GPU/NPU devices or privileged hardware access.
+Passing these tests does not replace real-hardware validation of each collector.
+
+### Terminal dashboard tests
+
+The same Go test command also covers the Prometheus parser, HTTP poller and
+terminal dashboard: responsive layouts, process limits/CPU modes, thresholds,
+alert lifecycles, chart history, missing data, and network/storage counter rates.
+Configuration examples are checked against built-in defaults.
+Linux CLI regressions run the real entry point in a pseudo-terminal and verify
+clean SIGINT/SIGTERM exits, restored terminal attributes and alternate-screen
+cleanup.
+
+Build the standalone dashboard using the
+[terminal guide](./terminal-dashboard.md#build-and-start). Check `--help`,
+`--version` and `-once` output, then exercise all four tabs and resize a real
+terminal across single-, two- and three-column layouts. Verify that the terminal
+is restored after quitting or interrupting the process. A one-frame rendering
+does not test keyboard interaction or accumulated history.
+
+## Helm migration tests
+
+The Helm regressions use the real Helm CLI and parse the rendered Kubernetes
+objects. With Helm and Make on `PATH` in the project test environment, run:
+
+```bash
+pytest -q tests/test_helm_chart.py tests/test_versions.py
+helm lint ./helm/metrics-manager --strict
+```
+
+Coverage includes restricted/native configuration, collector environment
+compatibility, rejection of removed values, Deployment/DaemonSet rendering,
+AppArmor before/after Kubernetes 1.30, host device opt-ins, custom ports and
+forwarding URLs, read-only ConfigMaps, rollout checksums, ServiceMonitor namespace
+selection, and rendering the packaged chart. Helm-dependent tests are skipped
+when the CLI is unavailable; skipped checks are not validation evidence.
+
+Before cluster installation, run the chosen RC image with the rendered restricted
+configuration, UID/GID 10001, a read-only root filesystem, dropped capabilities
+and writable `/tmp` and custom-metrics volumes. Check API health, native CPU/memory
+metrics, tagged API-to-Telegraf-to-Prometheus forwarding, changed ports, read-only
+drop-ins and graceful shutdown.
+
+Container checks do not exercise Kubernetes admission, scheduling, PVC binding,
+Service routing or an actual Helm upgrade. Validate those on an approved cluster,
+including old-values migration and the explicit hardware profile on supported
+nodes. Do not modify a shared cluster or its security policy solely to run tests.
+
+For the upgrade scenario, install the actual 2026.2.0 chart and image with a PVC,
+then write a marker into the custom-metrics directory. Confirm that an upgrade
+with `--reuse-values` reports the removed-option migration error even when the
+stored defaults lack new hardware fields. Upgrade with `--reset-values` and
+migrated overrides, then verify the PVC UID, marker contents and native metrics.
+Also test a restricted DaemonSet and custom main configuration. After uninstall,
+wait for dependent pods to disappear before checking resource cleanup; Helm
+returning successfully does not by itself prove garbage collection is complete.
+
+Restricted runtime tests require AppArmor support in the node's container
+runtime, not just on the physical host. Containerized Kind nodes may lack that
+support. Use a suitable cluster or an isolated VM with its own kernel rather than
+disabling AppArmor to pass the tests. Verify the running application has an
+enforced AppArmor profile, seccomp filtering, no effective capabilities,
+`NoNewPrivs`, UID 10001 and a read-only root filesystem.
+
+See the [Helm deployment guide](./deploy-with-helm.md).
+
+## Release validation scope
+
+Build both image variants with explicit `INSTALL_OPENVINO` values and distinct
+tags, as described in the [build guide](./build-from-source.md). For each image,
+check startup, the reported version, tagged metric ingestion through the API
+to Telegraf's Prometheus endpoint, core CPU/memory/process series, and graceful
+shutdown. Allow time for at least two collection intervals before checking
+rate-based metrics.
+
+Unit tests and container smoke tests do not prove that host GPU, NPU, power or
+memory-bandwidth counters are accessible. Validate those collectors on the
+intended hardware with the documented device access and permissions. Likewise,
+an OpenVINO import or CPU device check does not validate GPU/NPU inference.
+
+## OpenVINO accelerator smoke test
+
+On an approved host with supported Intel GPU and NPU devices, run this from the
+component directory after building the extended image:
+
+```bash
+docker run --rm --network none --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --device /dev/dri --device /dev/accel \
+  --memory 3g --cpus 4 --pids-limit 256 \
+  --mount "type=bind,source=$PWD/tests/openvino_runtime_smoke.py,target=/validation/smoke.py,readonly" \
+  --entrypoint /opt/venv/bin/python \
+  intel/metrics-manager:2026.3.0-extended-rc1 /validation/smoke.py
+```
+
+This runs a small synthetic graph for five seconds on each of CPU, GPU and NPU,
+checks changing inputs against expected numerical outputs, and verifies the
+actual execution device. It does not use `AUTO` or CPU fallback. Missing devices,
+compilation failures and incorrect results produce a nonzero exit status.
+This is an explicit hardware test, not part of the ordinary pytest suite and
+not a performance benchmark or validation of every model/platform.
+
+The command grants only the device nodes needed for inference, not host PID,
+the Docker socket or privileged mode. The broader telemetry matrix additionally
+tests PMT/perf/MSR access using the separately approved telemetry deployment.
+Host kernel drivers and NPU firmware must already be compatible; this test
+does not install or modify them.
+
+## Isolated Debian package tests
+
+Build the package using `./native/build.sh`. From the component directory, run
+both scenarios in separate disposable Ubuntu containers:
+
+```bash
+(
+set -e
+for scenario in fresh upgrade; do
+  docker run --rm \
+    --cap-drop ALL \
+    --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER \
+    --cap-add SETUID --cap-add SETGID \
+    --security-opt no-new-privileges \
+    --cpus 2 --memory 2g \
+    -e http_proxy -e https_proxy -e HTTP_PROXY -e HTTPS_PROXY \
+    -e no_proxy -e NO_PROXY \
+    -e DEBIAN_FRONTEND=noninteractive \
+    -e METRICS_MANAGER_PACKAGE_TEST=1 \
+    -v "$PWD/native/packaging/dist/metrics-manager_2026.3.0_amd64.deb:/packages/metrics-manager.deb:ro" \
+    -v "$PWD/native/tests/package-install-test.sh:/tests/package-install-test.sh:ro" \
+    ubuntu:24.04 \
+    bash /tests/package-install-test.sh /packages/metrics-manager.deb "$scenario"
+done
+)
+```
+
+The script requires root inside a disposable container, refuses an existing
+Metrics Manager installation or running systemd, and uses real `apt`/`dpkg`.
+Only the package and test script are mounted, read-only. No host system
+directories, devices, PID namespace or published ports are required.
+Network access is needed for distribution dependencies and `curl`.
+
+Both scenarios verify dependency resolution, account/file/FIFO ownership,
+binary versions, documentation and offline systemd unit validation. The
+installed Telegraf runs as the service user, exports an HTTP-ingested metric,
+and supplies the installed TUI. Removal must preserve operator configuration;
+purge must remove package configuration and the service account.
+
+The upgrade scenario derives a synthetic lower-version fixture from the current
+payload. It verifies that five modified conffiles survive, new defaults appear
+as `.dpkg-dist`, and operator drop-ins/scripts remain unchanged. This is not a
+test of an older release's binaries or automatic metric migration.
+
+Run the optional-collector configuration tests without changing host services:
+
+```bash
+bash native/tests/configure-metrics-test.sh
+```
+
+Actual systemd startup, service restart during upgrade, reboot and privileged
+hardware collection require an approved test host or disposable VM. Container
+tests do not validate systemd sandbox enforcement or boot behavior.
 
 ## Development Setup
 
@@ -248,10 +467,16 @@ uv sync --group test --group dev
 # Run with auto-reload
 uvicorn app.main:app --reload --port 9090
 
-# Run linting and formatting
-black app/
-ruff check app/
+# Check application formatting, linting and types
+.venv/bin/black --check app/
+.venv/bin/ruff check app/
+.venv/bin/mypy app/
 ```
+
+Async fixtures use function-scoped event loops and close their stores/clients.
+Resource leaks and unraisable exceptions fail the suite rather than being
+silenced. Lifecycle regressions cover queued/active HTTP pushes, debounce
+cancellation and cleanup when the application lifespan exits with an error.
 
 ---
 
@@ -260,9 +485,9 @@ ruff check app/
 | Issue                          | Solution                                                          |
 | ------------------------------ | ----------------------------------------------------------------- |
 | `Module not found: app`        | Ensure you are in `metrics-manager/` directory and ran `uv sync`  |
-| `Connection refused on :9090`  | Telegraf not running. Start it: `telegraf --config telegraf.conf` |
+| `Connection refused on :9090`  | The API is not running. Start the service with `docker compose up -d` |
 | `Test fixtures failed`         | Clear cache: `pytest --cache-clear`                               |
-| `telegraf_integration skipped` | Expected if not in Docker. Other tests still pass                 |
+| `telemetry_selection skipped` | Set `TELEGRAF_TEST_BINARY` to the pinned Telegraf binary           |
 
 ## Supporting Resources
 

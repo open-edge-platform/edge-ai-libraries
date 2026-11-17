@@ -110,19 +110,21 @@ const configuredModel = computed(() => {
     )
   );
 });
-const availability = computed<{ type: "success" | "error"; message: string }>(() => {
-  const options = props.modelData;
-  const local = ["llamaindex_openvino", "openvino_genai", "native_openvino_gme"].includes(options.backend);
-  if (!local)
-    return options.api_base
-      ? { type: "success", message: "console.remoteConfigured" }
-      : { type: "error", message: "console.remoteMissing" };
-  if (!configuredModel.value)
-    return { type: "error", message: "console.missingModel" };
-  return configuredModel.value.ready
-    ? { type: "success", message: "console.exported" }
-    : { type: "error", message: "console.notExported" };
-});
+const availability = computed<{ type: "success" | "error"; message: string }>(
+  () => {
+    const options = props.modelData;
+    const local = options.backend === "local_openvino";
+    if (!local)
+      return options.api_base
+        ? { type: "success", message: "console.remoteConfigured" }
+        : { type: "error", message: "console.remoteMissing" };
+    if (!configuredModel.value)
+      return { type: "error", message: "console.missingModel" };
+    return configuredModel.value.ready
+      ? { type: "success", message: "console.exported" }
+      : { type: "error", message: "console.notExported" };
+  },
+);
 const tableColumns = computed<TableColumnsType<ModelInfo>>(() => [
   { title: t("console.name"), key: "name", dataIndex: "name", width: 350 },
   { title: t("console.modelPath"), key: "path", dataIndex: "path" },
@@ -196,5 +198,11 @@ const tableColumns = computed<TableColumnsType<ModelInfo>>(() => [
 }
 .muted-wrap {
   color: var(--font-info-color);
+}
+@media (max-width: 700px) {
+  .configuration-wrap {
+    max-height: 140px;
+    overflow: auto;
+  }
 }
 </style>

@@ -19,6 +19,8 @@ namespace RTmotion
 {
 /**
  * @brief Function block MC_Stop
+ * Uses Ruckig velocity control to stop from the current command velocity and
+ * acceleration without restarting the jerk ramp from zero acceleration.
  */
 class FbStop : public FbAxisMotion
 {

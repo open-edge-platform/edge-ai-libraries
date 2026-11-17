@@ -1,0 +1,232 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# nfpm specification for the bare-metal Metrics Manager package.
+#
+# Build it with ./build.sh, which stages every artefact into dist/ first. The
+# staging step is what lets this file stay declarative: by the time nfpm runs,
+# the Go binaries have been compiled, and Telegraf and qmassa have been
+# downloaded and checksummed.
+#
+# The package installs telemetry collection and the terminal dashboard. It does
+# not install the REST API or the SSE stream, which remain container-only.
+
+name: metrics-manager
+arch: amd64
+platform: linux
+version: ${METRICS_MANAGER_VERSION}
+section: utils
+priority: optional
+maintainer: Intel Corporation
+description: |
+  Hardware telemetry collection and terminal dashboard for edge systems.
+
+  Collects CPU, memory, GPU and NPU telemetry through Telegraf and publishes it
+  on a local Prometheus endpoint. mm-tui renders the same readings in a
+  terminal dashboard.
+
+  Collectors that need privileges run as separate services, so the agent that
+  parses input and runs operator scripts holds none.
+vendor: Intel Corporation
+homepage: https://github.com/open-edge-platform/edge-ai-libraries
+license: Apache-2.0
+
+depends:
+  # Maintainer scripts create the account, runtime files and systemd services.
+  - adduser
+  - systemd
+  - kmod
+  # qmassa links against both: libudev to enumerate the graphics devices and
+  # libcap to inspect its own privileges.
+  - libudev1
+  - libcap2
+  - libgcc-s1
+  - libc6 (>= 2.34)
+
+contents:
+  # --- Executables ----------------------------------------------------------
+  #
+  # Everything except the dashboard lives in libexec. These are invoked by the
+  # services rather than by a person, and keeping them out of the search path
+  # also means the bundled Telegraf and qmassa cannot collide with a distro
+  # package of the same name.
+  - src: dist/bin/telegraf
+    dst: /usr/libexec/metrics-manager/telegraf
+    file_info: { mode: 0755 }
+
+  - src: dist/bin/qmassa
+    dst: /usr/libexec/metrics-manager/qmassa
+    file_info: { mode: 0755 }
+
+  - src: dist/bin/mm-plugin-cpu
+    dst: /usr/libexec/metrics-manager/mm-plugin-cpu
+    file_info: { mode: 0755 }
+
+  - src: dist/bin/mm-plugin-gpu
+    dst: /usr/libexec/metrics-manager/mm-plugin-gpu
+    file_info: { mode: 0755 }
+
+  - src: dist/bin/mm-plugin-npu
+    dst: /usr/libexec/metrics-manager/mm-plugin-npu
+    file_info: { mode: 0755 }
+
+  - src: dist/bin/mm-plugin-proc
+    dst: /usr/libexec/metrics-manager/mm-plugin-proc
+    file_info: { mode: 0755 }
+
+  - src: dist/bin/mm-plugin-membw
+    dst: /usr/libexec/metrics-manager/mm-plugin-membw
+    file_info: { mode: 0755 }
+
+  - src: dist/bin/mm-plugin-rapl
+    dst: /usr/libexec/metrics-manager/mm-plugin-rapl
+    file_info: { mode: 0755 }
+
+  # The dashboard is the one thing a person runs, so it goes in the path.
+  - src: dist/bin/mm-tui
+    dst: /usr/bin/mm-tui
+    file_info: { mode: 0755 }
+
+  # --- Configuration --------------------------------------------------------
+  #
+  # Marked noreplace: an upgrade must not discard a tuned configuration. The
+  # packaged version is left alongside as a .dpkg-dist file when it changes.
+  - src: etc/telegraf.conf
+    dst: /etc/metrics-manager/telegraf.conf
+    type: config|noreplace
+    file_info: { mode: 0644 }
+
+  # The privileged collector instance. Separate from the file above because it
+  # runs as a different service with different privileges, and mixing the two
+  # would mean the endpoint and the MSR reads shared a process.
+  - src: etc/telegraf-powerstat.conf
+    dst: /etc/metrics-manager/telegraf-powerstat.conf
+    type: config|noreplace
+    file_info: { mode: 0644 }
+
+  - src: etc/metrics-manager.env
+    dst: /etc/metrics-manager/metrics-manager.env
+    type: config|noreplace
+    file_info: { mode: 0644 }
+
+  - src: etc/tui-dashboard.json
+    dst: /etc/metrics-manager/tui-dashboard.json
+    type: config|noreplace
+    file_info: { mode: 0644 }
+
+  - src: etc/tui-charts.json
+    dst: /etc/metrics-manager/tui-charts.json
+    type: config|noreplace
+    file_info: { mode: 0644 }
+
+  # Drop-in directory for local Telegraf configuration, read after the main
+  # file and never touched by an upgrade.
+  - dst: /etc/metrics-manager/telegraf.d
+    type: dir
+    file_info: { mode: 0755, owner: root, group: root }
+
+  - dst: /etc/metrics-manager/powerstat.d
+    type: dir
+    file_info: { mode: 0755, owner: root, group: root }
+
+  # Operator-supplied metric scripts, in the style of /etc/cron.daily.
+  #
+  # Root-owned and not writable by the service user: Telegraf executes whatever
+  # is in here, so a compromise of Telegraf must not be able to add to it.
+  - dst: /etc/metrics-manager/custom-metrics.d
+    type: dir
+    file_info: { mode: 0755, owner: root, group: root }
+
+  # --- System integration ---------------------------------------------------
+  - src: systemd/metrics-manager-telegraf.service
+    dst: /usr/lib/systemd/system/metrics-manager-telegraf.service
+    file_info: { mode: 0644 }
+
+  - src: systemd/metrics-manager-qmassa.service
+    dst: /usr/lib/systemd/system/metrics-manager-qmassa.service
+    file_info: { mode: 0644 }
+
+  - src: systemd/metrics-manager-npu.service
+    dst: /usr/lib/systemd/system/metrics-manager-npu.service
+    file_info: { mode: 0644 }
+
+  - src: systemd/metrics-manager-powerstat.service
+    dst: /usr/lib/systemd/system/metrics-manager-powerstat.service
+    file_info: { mode: 0644 }
+
+  - src: systemd/metrics-manager-proc.service
+    dst: /usr/lib/systemd/system/metrics-manager-proc.service
+    file_info: { mode: 0644 }
+
+  - src: systemd/metrics-manager-membw.service
+    dst: /usr/lib/systemd/system/metrics-manager-membw.service
+    file_info: { mode: 0644 }
+
+  - src: systemd/metrics-manager-rapl.service
+    dst: /usr/lib/systemd/system/metrics-manager-rapl.service
+    file_info: { mode: 0644 }
+
+  # Creates the runtime directory and the FIFO with ownership that lets root
+  # write and only the service user read.
+  - src: tmpfiles/metrics-manager.conf
+    dst: /usr/lib/tmpfiles.d/metrics-manager.conf
+    file_info: { mode: 0644 }
+
+  # Loads the msr module, without which GPU power and temperature are silently
+  # absent.
+  - src: modules-load/metrics-manager.conf
+    dst: /usr/lib/modules-load.d/metrics-manager.conf
+    file_info: { mode: 0644 }
+
+  # --- Documentation --------------------------------------------------------
+  - src: etc/telegraf-network.conf.example
+    dst: /usr/share/doc/metrics-manager/examples/telegraf-network.conf
+    file_info: { mode: 0644 }
+  - src: etc/telegraf-network-virtual.conf.example
+    dst: /usr/share/doc/metrics-manager/examples/telegraf-network-virtual.conf
+    file_info: { mode: 0644 }
+  - src: etc/telegraf-storage.conf.example
+    dst: /usr/share/doc/metrics-manager/examples/telegraf-storage.conf
+    file_info: { mode: 0644 }
+  - src: etc/telegraf-temperature.conf.example
+    dst: /usr/share/doc/metrics-manager/examples/telegraf-temperature.conf
+    file_info: { mode: 0644 }
+  - src: etc/telegraf-interrupts.conf.example
+    dst: /usr/share/doc/metrics-manager/examples/telegraf-interrupts.conf
+    file_info: { mode: 0644 }
+  - src: etc/telegraf-powerstat-extra.conf.example
+    dst: /usr/share/doc/metrics-manager/examples/telegraf-powerstat-extra.conf
+    file_info: { mode: 0644 }
+  - src: etc/telegraf-turbostat.conf.example
+    dst: /usr/share/doc/metrics-manager/examples/telegraf-turbostat.conf
+    file_info: { mode: 0644 }
+
+  - src: dist/doc/README.md
+    dst: /usr/share/doc/metrics-manager/README.md
+    file_info: { mode: 0644 }
+
+  - src: dist/doc/native-metric-migration.md
+    dst: /usr/share/doc/metrics-manager/native-metric-migration.md
+    file_info:
+      mode: 0644
+
+  - src: dist/doc/terminal-dashboard.md
+    dst: /usr/share/doc/metrics-manager/terminal-dashboard.md
+    file_info: { mode: 0644 }
+
+  - src: dist/doc/images/*
+    dst: /usr/share/doc/metrics-manager/images/
+    file_info: { mode: 0644 }
+
+  - src: dist/doc/third_party_program.txt
+    dst: /usr/share/doc/metrics-manager/third_party_program.txt
+    file_info: { mode: 0644 }
+
+  - src: dist/doc/LICENSE
+    dst: /usr/share/doc/metrics-manager/LICENSE
+    file_info: { mode: 0644 }
+
+scripts:
+  postinstall: scripts/postinst.sh
+  preremove: scripts/prerm.sh
+  postremove: scripts/postrm.sh

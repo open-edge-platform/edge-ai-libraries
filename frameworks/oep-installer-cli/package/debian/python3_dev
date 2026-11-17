@@ -1,0 +1,7 @@
+debian_30_install_python3_dev () {
+  ensure_apt_install_package python3-dev
+}
+
+debian_30_sbom_python3_dev () {
+  ensure_sbom_format pkg-list python3-dev
+}

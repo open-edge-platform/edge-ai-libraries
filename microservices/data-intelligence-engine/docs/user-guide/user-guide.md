@@ -161,7 +161,7 @@ chunk therefore keeps the page and bounding box of its source block. Layout
 coordinates remain as record metadata but are excluded from embeddings.
 
 A document figure (`role: "doc_image"`) becomes one image node. A document
-source explicitly using `native_openvino_gme` has a `text` profile and uses
+source using the `local_openvino` GME document package has a `text` profile and uses
 `VectorIndexer`; GME embeds the image jointly with its reference text (fused),
 or surrounding prose when no caption is available. It can retain a figure with
 pixels alone. A text-only embedding model falls back to the caption/prose and
@@ -546,30 +546,30 @@ graph retriever's options.
 | `ENGINE_WORKSPACE` | `data-intelligence-engine/workspace` | Root for uploads, content, configuration, bundled database state, and the default model directory. |
 | `ENGINE_UPLOAD_DIR` | `$ENGINE_WORKSPACE/uploads` | Location used to resolve bare asset file names. |
 | `ENGINE_MODEL_ROOT_PATH` | `$ENGINE_WORKSPACE/models` | Shared root for document, video, image, ASR, rerank, and layout models. An empty value also uses this default. |
-| `ENGINE_DOC_EMBEDDING_BACKEND` | `native_openvino_gme` | Document/fused embedding provider: `llamaindex_openvino`, `openvino_genai`, `openai_compatible`, or `native_openvino_gme`. |
+| `ENGINE_DOC_EMBEDDING_BACKEND` | `local_openvino` | Document/fused embedding backend: `local_openvino` or `remote_openai_compatible`. The runtime (GME, GenAI, or LlamaIndex fallback) is chosen from the model. |
 | `ENGINE_DOC_EMBEDDING_MODEL_ID` | `gme-Qwen2-VL-2B-Instruct-OV` | Document embedding model identifier; its final component names the local directory under the shared model root. |
 | `ENGINE_DOC_EMBEDDING_DEVICE` | `CPU` | OpenVINO document embedding device. |
 | `ENGINE_DOC_EMBEDDING_API_BASE` | empty | OpenAI-compatible document embedding endpoint. |
 | `ENGINE_DOC_EMBEDDING_API_KEY` | `unused` | API key for the OpenAI-compatible document embedding endpoint. |
-| `ENGINE_VIDEO_EMBEDDING_BACKEND` | `llamaindex_openvino` | Runtime for prepared video packages. |
+| `ENGINE_VIDEO_EMBEDDING_BACKEND` | `local_openvino` | Backend for prepared video packages. |
 | `ENGINE_VIDEO_EMBEDDING_MODEL_ID` | `viclip-b-fp16` | Standalone video package ID; alternatives `viclip-l-fp16` and `cosmos-224p-fp16`, with fp32 variants for all three. |
 | `ENGINE_VIDEO_EMBEDDING_DEVICE` | `CPU` | Video embedding device; set `GPU.0` explicitly for an Intel GPU. |
-| `ENGINE_IMAGE_EMBEDDING_BACKEND` | `llamaindex_openvino` | Transitional runtime for standalone images and derived text. |
-| `ENGINE_IMAGE_EMBEDDING_MODEL_ID` | `Alibaba-NLP/gme-Qwen2-VL-2B-Instruct` | Image/transcript model. This default uses the prepared `gme-Qwen2-VL-2B-Instruct-OV` folder under the shared root; other IDs use their final component. |
+| `ENGINE_IMAGE_EMBEDDING_BACKEND` | `local_openvino` | Backend for standalone images and derived text. |
+| `ENGINE_IMAGE_EMBEDDING_MODEL_ID` | `gme-Qwen2-VL-2B-Instruct-OV` | Image/transcript model: the directory name under the shared root. Vendor-style IDs such as `Alibaba-NLP/gme-*` are rejected. |
 | `ENGINE_IMAGE_EMBEDDING_DEVICE` | `CPU` | Image and derived-text embedding device. |
-| `ENGINE_ASR_MODEL_ID` | `openai/whisper-small` | Speech-recognition checkpoint under the shared root, named by its final ID component; ASR runtime is fixed to `openvino`. |
+| `ENGINE_ASR_MODEL_ID` | `whisper-small` | Speech-recognition model directory under the shared root; the backend is fixed to `local_openvino`. |
 | `ENGINE_ASR_DEVICE` | `CPU` | Speech-recognition device. |
 | `ENGINE_ASR_LANGUAGE` | `zh` | Whisper language; explicitly empty enables automatic detection. Compose preserves an empty value. |
 | `ENGINE_ASR_ENABLED` | `true` | Enable background transcription (`1`, `true`, `yes` are true). |
 | `ENGINE_VIDEO_SUMMARY_BASE_URL` | empty | Optional caption service; empty skips caption-task registration. |
 | `ENGINE_LAYOUT_DEVICE` | `CPU` | Layout inference device. |
-| `ENGINE_RERANK_BACKEND` | `llamaindex_openvino` | Uses the shared provider list; `native_openvino_gme` is embedding-only. |
-| `ENGINE_RERANK_MODEL_ID` | `BAAI/bge-reranker-large` | Reranker identifier, including the vendor directory under the shared root (`BAAI/bge-reranker-large` by default). |
+| `ENGINE_RERANK_BACKEND` | `local_openvino` | Backend for a text reranker such as `BAAI/bge-reranker-large`: `local_openvino` or `remote_openai_compatible`. |
+| `ENGINE_RERANK_MODEL_ID` | `Qwen3-VL-Reranker-2B-INT8-OV` | Default reranker when a request sets no `postprocess.reranker_model`: a directory under the shared root. The Qwen3-VL default scores document text, figures, images, video and audio transcripts together; set a text reranker such as `BAAI/bge-reranker-large` to rerank document-only requests with it. |
 | `ENGINE_RERANK_DEVICE` | `CPU` | OpenVINO reranker device. |
-| `ENGINE_RERANK_API_BASE` | empty | Remote rerank endpoint for the `openai_compatible` provider (vLLM, TEI, or any Cohere/Jina-style `/rerank`); `/rerank` is appended unless already present. |
+| `ENGINE_RERANK_API_BASE` | empty | Remote rerank endpoint for the `remote_openai_compatible` backend (vLLM, TEI, or any Cohere/Jina-style `/rerank`); `/rerank` is appended unless already present. |
 | `ENGINE_RERANK_API_KEY` | `unused` | API key sent as `Authorization: Bearer` to the remote rerank endpoint. |
-| `ENGINE_MEDIA_RERANK_BACKEND` | `openvino_vl` | Media reranker backend; `openvino_vl` is the only supported value. |
-| `ENGINE_MEDIA_RERANK_MODEL_ID` | `Qwen/Qwen3-VL-Reranker-2B-INT8` | Multimodal reranker for text, image, video and audio-transcript candidates. Its final component plus `-OV` names the IR package under the shared model root. |
+| `ENGINE_MEDIA_RERANK_BACKEND` | `local_openvino` | Media reranker backend; `local_openvino` is the only supported value. |
+| `ENGINE_MEDIA_RERANK_MODEL_ID` | `Qwen3-VL-Reranker-2B-INT8-OV` | Multimodal reranker for text, image, video and audio-transcript candidates: the Qwen3-VL IR package directory under the shared model root (FP16: `Qwen3-VL-Reranker-2B-OV`). |
 | `ENGINE_MEDIA_RERANK_DEVICE` | `GPU` | OpenVINO device for media reranking. |
 | `ENGINE_MEDIA_RERANK_DOC_WORKERS` | `8` | Workers loading candidate media before reranking (maximum 32). |
 | `MEDIA_RERANK_VIDEO_MAX_FRAMES` | `8` | Frames sampled per video candidate during media reranking. |
@@ -618,7 +618,7 @@ Multimodal tuning is also in `src/config.py`, **not environment variables**:
 | `VIDEO_SUMMARY_TIMEOUT` | `300.0` | Caption-service timeout in seconds. |
 
 Former `ENGINE_*` spellings for these constants are no longer read. There is
-no ASR backend environment knob either; `ASR_BACKEND` is fixed to `openvino`.
+no ASR or layout backend environment knob either; both are fixed to `local_openvino`.
 The deployment configuration test compares every environment setting read by
 the engine with Compose forwarding and requires its exact name in this guide.
 
@@ -697,7 +697,7 @@ Compose overrides several model defaults for GPU deployment. Check
 
 ### Remote document embedding
 
-The `openai_compatible` provider sends document and query text to an
+The `remote_openai_compatible` backend sends document and query text to an
 OpenAI-compatible embedding server instead of loading a model in the engine
 process. GME served by the
 [multimodal-embedding-serving](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/multimodal-embedding-serving)
@@ -727,7 +727,7 @@ To make the remote model the engine-wide default, add the following to
 
 ```bash
 cat >> deployment/docker/.env <<EOF
-ENGINE_DOC_EMBEDDING_BACKEND=openai_compatible
+ENGINE_DOC_EMBEDDING_BACKEND=remote_openai_compatible
 ENGINE_DOC_EMBEDDING_MODEL_ID=GME/gme-qwen2-vl-2b-instruct
 ENGINE_DOC_EMBEDDING_API_BASE=http://$HOST_IP:9777
 EOF
@@ -735,13 +735,9 @@ EOF
 
 `ENGINE_DOC_EMBEDDING_API_BASE` is the server root. The engine appends `/v1`
 when it is missing, and the client then calls `<api_base>/v1/embeddings`.
-`ENGINE_DOC_EMBEDDING_MODEL_ID` is sent as the request's `model`. Use
-`GME/gme-qwen2-vl-2b-instruct`, not the alias
-`Alibaba-NLP/gme-Qwen2-VL-2B-Instruct`, even though the serving microservice
-accepts both. Any `Alibaba-NLP/gme-*` ID matches the engine's local multimodal
-GME model, and a source that names it with `openai_compatible` is rejected
-with `Model 'gme_qwen2vl' runs on llamaindex_openvino, not 'openai_compatible'`.
-The
+`ENGINE_DOC_EMBEDDING_MODEL_ID` is sent as the request's `model`; here it is
+just the remote model name (`GME/gme-qwen2-vl-2b-instruct`). Image and video
+media sources cannot use the remote backend. The
 microservice does not check `ENGINE_DOC_EMBEDDING_API_KEY`, so leave it
 `unused`. `ENGINE_DOC_EMBEDDING_DEVICE` is ignored, because the device is chosen
 on the serving side.
@@ -754,7 +750,7 @@ defaults stay as they are:
 curl -X POST "$ENGINE_URL/v1/libraries/<library>/sources" \
   -H 'Content-Type: application/json' \
   -d '{"name":"vec-remote","database_id":"<milvus-id>","collection_name":"remote_vectors",
-       "operator_options":{"embedding_backend":"openai_compatible",
+       "operator_options":{"embedding_backend":"remote_openai_compatible",
                            "embedding_model":"GME/gme-qwen2-vl-2b-instruct",
                            "embedding_api_base":"http://'"$HOST_IP"':9777"}}'
 ```
@@ -779,16 +775,16 @@ Behaviour to be aware of:
   changes, an existing remote source sends its requests to the new address.
   Point it only at a server that runs the same model.
 - **Same vectors as local GME.** With the same INT8 package, the serving
-  microservice's `/v1/embeddings` returns the same vectors as the local
-  `native_openvino_gme` runtime, for both queries and documents.
+  microservice's `/v1/embeddings` returns the same vectors as the
+  local GME runtime (`local_openvino`), for both queries and documents.
 - **Text only.** The OpenAI protocol carries text, so a remote model is not a
   fused image+text embedder. Figure nodes are embedded from their caption and
   surrounding text instead of from caption plus pixels. Use
-  `native_openvino_gme` locally when figure retrieval by image content matters.
+  `local_openvino` with a GME package when figure retrieval by image content matters.
 - **Scope.** Only document embedding goes remote. Standalone image, video, and
   speech sources keep their local `ENGINE_IMAGE_EMBEDDING_*`,
   `ENGINE_VIDEO_EMBEDDING_*`, and `ENGINE_ASR_*` models. Reranking has its own
-  remote settings, `ENGINE_RERANK_BACKEND=openai_compatible` and
+  remote settings, `ENGINE_RERANK_BACKEND=remote_openai_compatible` and
   `ENGINE_RERANK_API_BASE`.
 
 ## Models
@@ -835,28 +831,28 @@ normally bundled with LlamaIndex. If that cache is missing or corrupt, prepare
 it outside the engine rather than relying on an automatic fetch. Sentence
 splitting uses Punkt directly and does not invoke NLTK's resource downloader.
 
-The shared embedding/text-rerank providers are:
+There are two model backends for embedding and text reranking:
 
-- `llamaindex_openvino`: load OpenVINO IR through the LlamaIndex adapter.
-- `openvino_genai`: use OpenVINO GenAI with the same workspace models.
-- `openai_compatible`: call an OpenAI-compatible HTTP endpoint.
-- `native_openvino_gme`: native multimodal GME runtime, for embedding only.
+- `local_openvino`: run an OpenVINO model from the shared model root. The
+  runtime is chosen internally from the model: OpenVINO GenAI for standard IR
+  text embedding/rerank (with a LlamaIndex fallback), the GME runtime for GME
+  packages, OpenVINO Core for ViCLIP, Cosmos, VL reranking and layout, and
+  Optimum for ASR. It is recorded as `runtime` in source profiles and is not
+  configurable.
+- `remote_openai_compatible`: call an OpenAI-compatible HTTP endpoint.
 
-Media reranking uses a separate provider:
+The former names `llamaindex_openvino`, `openvino_genai`, `native_openvino_gme`,
+`openai_compatible` and `openvino_vl` are no longer accepted.
 
-- `openvino_vl`: run a prepared Qwen3-VL reranker over text, image, video and
-  audio-transcript candidates. It is reranker-only, configured through
-  `ENGINE_MEDIA_RERANK_*`, and is not a valid embedding backend or
-  `ENGINE_RERANK_BACKEND` value.
+Media reranking is `local_openvino` only (`ENGINE_MEDIA_RERANK_*`); a media
+reranker is recognized as a Qwen3-VL export. It is not a valid embedding
+backend.
 
-Legacy `openvino`, `openai`, and `gme` names are normalized to their canonical
-shared provider names for existing persisted source options.
+A GME package under `local_openvino` is the document/text-and-figure model; a
+standard IR directory such as BGE uses the same backend. Document sources
+using GME are not interchangeable with standalone-media sources.
 
-The media registry uses `llamaindex_openvino` for ViCLIP and GME
-media packages. Explicit `native_openvino_gme` selects a document/text-and-figure
-profile; it is not interchangeable with a standalone-media source.
-
-Model discovery lists GME, ViCLIP and Cosmos under `embedding`, and Whisper under `asr`. Qwen3-VL reranker packages appear under `reranker` with `backend: "openvino_vl"`, and `/v1/models/reranker` reports the configured media default as `media_model_id`.
+Model discovery lists GME, ViCLIP and Cosmos under `embedding`, and Whisper under `asr`. Qwen3-VL reranker packages appear under `reranker` with `media: true`, and `/v1/models/reranker` reports the configured media default as `media_model_id`.
 
 The project pins its OpenVINO and transformer stack in `pyproject.toml`. The
 PyTorch CPU wheel index is required during installation because the project pins

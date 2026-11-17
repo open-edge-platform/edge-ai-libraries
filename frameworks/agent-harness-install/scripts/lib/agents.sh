@@ -110,7 +110,12 @@ install_openclaw() {
   # npm 11.16+/12+ blocks a package's install-time lifecycle scripts unless
   # explicitly allow-listed; OpenClaw's own install docs require this flag
   # on those npm versions, and skipping it silently leaves the CLI broken.
-  npm_ver="$(command_exists npm && npm --version 2>/dev/null || true)"
+  npm_ver=""
+  if command_exists npm; then
+    if ! npm_ver="$(npm --version 2>/dev/null)"; then
+      npm_ver=""
+    fi
+  fi
   if [[ -n "$npm_ver" ]] && version_gte "$npm_ver" "11.16.0"; then
     npm_args+=(--allow-scripts=openclaw)
   fi
@@ -315,8 +320,11 @@ to accept the risk and proceed without pinning)."
     : >"$hermes_log"
     # tee into hermes_log so the failure can be classified; spin still
     # shows/prints the output as before.
-    if spin "Installing Hermes" bash -c \
-      'bash "$1" "${@:3}" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' \
+    if spin "Installing Hermes" bash -c "$(cat <<'SH'
+bash "$1" "${@:3}" 2>&1 | tee "$2"
+exit "${PIPESTATUS[0]}"
+SH
+    )" \
       _ "$installer_tmp" "$hermes_log" "${installer_args[@]}"; then
       hermes_installed=1
       break

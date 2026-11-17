@@ -28,10 +28,17 @@ class TestCorsOriginsParsing:
         s = Settings(cors_origins_raw='["http://localhost:3000", "http://example.com"]')
         assert s.cors_origins == ["http://localhost:3000", "http://example.com"]
 
-    def test_cors_origins_invalid_json_falls_back_to_split(self):
-        """Lines 78-82: invalid JSON starting with '[' falls back to comma split."""
-        s = Settings(cors_origins_raw="[invalid json")
-        assert "[invalid json" in s.cors_origins
+    @pytest.mark.parametrize("raw", ["[invalid json", "[1]", "[null]", '["*", 1]', " [broken"])
+    def test_cors_origins_invalid_json_is_rejected(self, raw):
+        s = Settings(cors_origins_raw=raw)
+        with pytest.raises(ValueError, match="CORS_ORIGINS"):
+            _ = s.cors_origins
+
+    def test_cors_origins_json_with_whitespace_and_empty_array(self):
+        assert Settings(cors_origins_raw='  ["https://example.com"]  ').cors_origins == [
+            "https://example.com"
+        ]
+        assert Settings(cors_origins_raw="[]").cors_origins == []
 
     def test_cors_origins_comma_separated(self):
         s = Settings(cors_origins_raw="http://a.com,http://b.com")

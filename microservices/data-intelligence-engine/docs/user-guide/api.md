@@ -246,7 +246,7 @@ directory and `files_kept` for external files, which the engine never deletes.
 
 Document illustrations (`role: "doc_image"`) normally use the document
 source's GME fused image/reference-text path. A source explicitly configured
-with `native_openvino_gme` has a `text` profile, not a multimodal indexer.
+with the `local_openvino` GME document package has a `text` profile, not a multimodal indexer.
 Only explicit user co-location of a GME multimodal source accepting those
 images with the document source indexes an illustration in both sources;
 use separate pools or source filters to avoid that choice.
@@ -304,13 +304,15 @@ query for reranking, and `exclude_chunk_ids` removes previously seen chunks
 before postprocessing. A `target_media` without `image` excludes images inside
 the retrieval queries, so excluded images do not consume `top_k` slots.
 
-`postprocess.reranker_model` selects the reranker per request; unset fields fall
-back to the `ENGINE_RERANK_*` settings. To rerank on a remote server (vLLM, TEI,
+Without `postprocess.reranker_model`, the default reranker
+`Qwen3-VL-Reranker-2B-INT8-OV` (`ENGINE_RERANK_MODEL_ID`) scores text and media
+candidates together. `postprocess.reranker_model` selects the reranker per
+request; unset fields fall back to the `ENGINE_RERANK_*` settings. To rerank on a remote server (vLLM, TEI,
 or another `/rerank` endpoint) for one request only:
 
 ```json
 "postprocess":{"processor_type":"reranker","top_n":3,
-  "reranker_model":{"backend":"openai_compatible",
+  "reranker_model":{"backend":"remote_openai_compatible",
                     "model_id":"BAAI/bge-reranker-large",
                     "api_base":"http://reranker:8000/v1"}}
 ```
@@ -343,8 +345,10 @@ See the [user guide](user-guide.md#models) for model and device configuration.
 
 ### Embedding backends
 
-Provider names are `llamaindex_openvino`, `openvino_genai`,
-`openai_compatible`, and `native_openvino_gme`. The media registry uses
-`llamaindex_openvino` for video and GME media packages. Explicit
-`native_openvino_gme` selects the document/text-and-figure profile, not a
-standalone-media source.
+Backend names are `local_openvino` and `remote_openai_compatible`; the former
+names (`llamaindex_openvino`, `openvino_genai`, `native_openvino_gme`,
+`openai_compatible`) are rejected. The runtime (GenAI or LlamaIndex for standard
+IR text models, GME, or OpenVINO Core for ViCLIP and Cosmos) is chosen
+internally from the model and recorded as `runtime` in the source profile. A
+GME package under `local_openvino` selected for a document source gives the
+document/text-and-figure profile, not a standalone-media source.

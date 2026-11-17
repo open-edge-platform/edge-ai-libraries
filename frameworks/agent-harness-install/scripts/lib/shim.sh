@@ -29,10 +29,11 @@ ensure_local_bin_in_profile() {
     return 0
   fi
   shell_name="$(basename "${SHELL:-bash}")"
+  local deferred_path="\$PATH"
   case "$shell_name" in
-    fish) path_line="$(printf 'set -gx PATH "%s" $PATH' "$HARNESS_SHIM_DIR")" ;;
-    csh | tcsh) path_line="$(printf 'setenv PATH "%s:$PATH"' "$HARNESS_SHIM_DIR")" ;;
-    *) path_line="$(printf 'export PATH="%s:$PATH"' "$HARNESS_SHIM_DIR")" ;;
+    fish) path_line="$(printf 'set -gx PATH "%s" %s' "$HARNESS_SHIM_DIR" "$deferred_path")" ;;
+    csh | tcsh) path_line="$(printf 'setenv PATH "%s:%s"' "$HARNESS_SHIM_DIR" "$deferred_path")" ;;
+    *) path_line="$(printf 'export PATH="%s:%s"' "$HARNESS_SHIM_DIR" "$deferred_path")" ;;
   esac
   mkdir -p "$(dirname "$profile")"
   {

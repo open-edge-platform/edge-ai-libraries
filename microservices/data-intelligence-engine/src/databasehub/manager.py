@@ -1,34 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""The registered database connections, and the adapter that owns each one.
-
-An adapter *is* the backend boundary (see `adapters/__init__.py`), so this hands
-out adapters. There is no operator layer above them: the one it used to build
-forwarded almost every call to the identically named adapter method.
-
-**Nothing is registered at import time.** This used to read `MILVUS_URI`,
-`NEBULA_URI` and the rest out of the environment in `__init__` and register four
-fixed ids -- `default-vector`, `default-object` and friends. That made a
-connection a deployment-time decision: pointing the engine at a different Milvus
-meant editing the environment and restarting, connecting to two at once was
-impossible, and there was no way to ask what the engine was connected to or
-whether it worked. Connections are now runtime state like everything else --
-registered over HTTP (`api/databases.py`), persisted in the workspace
-(`databasehub/repository.py`), and restored *before* the asset libraries that
-name them.
-
-A consequence worth stating plainly: a fresh engine is connected to nothing, and
-a source cannot be created until a database is registered.
-
-`ensure_content_database` is the single, deliberate exception, and it is a
-narrower one than it looks. It registers one object database -- a directory in
-the workspace, through the filesystem backend -- the first time a library needs
-somewhere to put asset content and has not been told where. Not at import, not
-at startup: a fresh engine still reports nothing registered. What it buys is
-that ingesting content cannot fail for want of an object store, which is
-different from guessing at a connection, because the engine owns that directory
-either way.
-"""
 
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
@@ -44,28 +15,19 @@ from databasehub.adapters.vector import VectorAdapter
 
 DatabaseAdapter = VectorAdapter | SqlAdapter | GraphAdapter | ObjectAdapter
 
-# The one place a (category, backend) pair becomes a connection. `register`
-# validates against these keys, so adding a backend is a single entry.
 BACKENDS: Dict[Tuple[str, str], Callable[[Mapping[str, object]], DatabaseAdapter]] = {
     ("vector", "milvus"): MilvusAdapter,
     ("graph", "nebula"): NebulaAdapter,
     ("object", "filesystem"): FilesystemObjectAdapter,
 }
 
-#: Option keys never echoed back over the API. They are persisted -- a
-#: connection that forgot its password would not reconnect -- but a GET returns
-#: a placeholder, so a credential cannot leak into a log, a screenshot or a UI
-#: that renders whatever it is given.
+#: Option keys persisted but redacted when returned over the API.
 SECRET_OPTION_KEYS = frozenset(
     {"password", "secret_key", "token", "api_key", "secret", "dsn"}
 )
 REDACTED = "***"
 
-#: The id of the object database the engine registers for itself to hold asset
-#: content when nothing else has been registered to hold it. Not a connection
-#: being guessed at -- a directory in the workspace the engine already owns
-#: (`config.CONTENT_DIR`), reached through the filesystem object backend, which
-#: needs no server and no credentials.
+#: Filesystem object database at `config.CONTENT_DIR`, auto-registered for asset content.
 WORKSPACE_CONTENT_DATABASE = "workspace-content"
 
 
@@ -111,8 +73,6 @@ class DatabaseRegistration:
 class DatabaseHubManager:
     """The registered databases, and the adapter that owns each connection."""
 
-    # Derived from BACKENDS, so a new entry there is immediately registrable and
-    # there is no second list to keep in step.
     SUPPORTED_BACKENDS: Dict[str, set] = {}
     for _database_type, _backend in BACKENDS:
         SUPPORTED_BACKENDS.setdefault(_database_type, set()).add(_backend)
@@ -121,14 +81,7 @@ class DatabaseHubManager:
     def __init__(self):
         self._registrations: Dict[str, DatabaseRegistration] = {}
         self._adapters: Dict[str, DatabaseAdapter] = {}
-        #: Called after a registration this manager made on its own behalf, so
-        #: it survives a restart. Set by the service entrypoint to write
-        #: `databasehub/repository.py`; left a no-op elsewhere, which is what
-        #: keeps this module free of any knowledge of where records are kept.
-        #:
-        #: Only `ensure_content_database` needs it. Every other registration
-        #: arrives through the API, which persists on its own -- but a content
-        #: database registered halfway through an ingest has no such caller.
+        #: Persists registrations made by `ensure_content_database`; set by the service entrypoint.
         self.persist: Callable[[], Any] = lambda: None
 
     # --- registry -------------------------------------------------------------
@@ -142,13 +95,7 @@ class DatabaseHubManager:
         description: str = "",
         replace: bool = False,
     ) -> DatabaseRegistration:
-        """Record a database the engine may connect to.
-
-        Nothing is dialled here. The adapter is built on first use, so
-        registering an unreachable database succeeds and `check` is how you find
-        out -- which is the right way round: an operator should be able to write
-        down a connection before the far end is up.
-        """
+        """Record a database the engine may connect to; nothing is dialled until first use."""
         if not database_id:
             raise ValueError("A database needs an id")
         database_type = database_type.lower()
@@ -188,15 +135,7 @@ class DatabaseHubManager:
     ) -> DatabaseRegistration:
         """Change where a database points, closing the live connection.
 
-        The type cannot change: sources already reference this id and were built
-        against a vector or an object store, and turning one into the other
-        under them would leave those sources describing something that is not
-        there. Delete and re-register to do that deliberately.
-
-        Options are replaced wholesale rather than merged, so removing a setting
-        is possible -- but a secret left out is kept, since the API redacts them
-        on the way out and a client that echoes a GET back would otherwise
-        overwrite the real credential with `***`.
+        The type cannot change. Options are replaced wholesale, but omitted or redacted secrets are kept.
         """
         current = self.require(database_id)
         merged = dict(current.options if options is None else options)
@@ -232,8 +171,6 @@ class DatabaseHubManager:
             )
         return registration
 
-    # Kept under the old name: `create_source` and `build_projection` ask for a
-    # registration, and this reads better there than `require` does.
     get_registration = require
 
     def get(self, database_id: str) -> Optional[DatabaseRegistration]:
@@ -243,11 +180,7 @@ class DatabaseHubManager:
         return list(self._registrations.values())
 
     def databases_of_type(self, database_type: str) -> List[DatabaseRegistration]:
-        """Every registered database of one category, in registration order.
-
-        `AssetLibrary.content_source` uses this to find the object store when a
-        library has not named one and there is only one to find.
-        """
+        """Every registered database of one category, in registration order."""
         database_type = database_type.lower()
         return [
             registration
@@ -256,20 +189,7 @@ class DatabaseHubManager:
         ]
 
     def ensure_content_database(self) -> str:
-        """Register the workspace's own object store, if it is not already, and
-        return its id.
-
-        The one registration this manager makes on its own behalf, and the
-        exception that proves the rule above: nothing is registered at import
-        time or at startup, so a fresh engine still reports no databases. This
-        runs only when a library actually needs somewhere to put content and has
-        not been told where -- at which point "nowhere" is not a useful answer,
-        and `config.CONTENT_DIR` is the answer the workspace layout has
-        documented all along.
-
-        Idempotent, and it never repoints an existing registration: an operator
-        who has moved this id somewhere else keeps it.
-        """
+        """Register the workspace object store if absent and return its id; never repoints an existing one."""
         existing = self._registrations.get(WORKSPACE_CONTENT_DATABASE)
         if existing is not None:
             return existing.database_id
@@ -305,16 +225,10 @@ class DatabaseHubManager:
         return adapter
 
     def check(self, database_id: str) -> Tuple[bool, str]:
-        """Connect and ask the backend whether it is there. `(ok, error)`.
-
-        Reports rather than raises: "this database is unreachable" is the answer
-        to the question, not a failure to answer it. A failed check drops the
-        adapter, so the next attempt reconnects instead of reusing a client
-        bound to a dead endpoint.
-        """
+        """Ping the backend and return `(ok, error)`; a failed check drops the cached adapter."""
         try:
             self.get_adapter(database_id).ping()
-        except Exception as error:  # noqa: BLE001 - the error *is* the result
+        except Exception as error:  # noqa: BLE001
             self._adapters.pop(database_id, None)
             return False, f"{type(error).__name__}: {error}"
         return True, ""
@@ -326,7 +240,7 @@ class DatabaseHubManager:
             return False
         try:
             adapter.close()
-        except Exception:  # noqa: BLE001 - closing must not fail a reconfigure
+        except Exception:  # noqa: BLE001
             pass
         return True
 
@@ -352,11 +266,7 @@ class DatabaseHubManager:
         ]
 
     def restore(self, records: List[Mapping[str, Any]]) -> List[str]:
-        """Rebuild the registrations, reporting each bad record on its own.
-
-        One unusable record -- a backend that no longer exists, say -- costs that
-        database, not every other one and not the service starting.
-        """
+        """Rebuild the registrations, skipping each invalid record individually."""
         restored = []
         for record in records:
             try:
@@ -369,7 +279,7 @@ class DatabaseHubManager:
                     description=registration.description,
                     replace=True,
                 )
-            except Exception as error:  # noqa: BLE001 - isolate invalid records
+            except Exception as error:  # noqa: BLE001
                 print(
                     "Skipping database "
                     f"{record.get('database_id', '<unnamed>')!r}: {error}"

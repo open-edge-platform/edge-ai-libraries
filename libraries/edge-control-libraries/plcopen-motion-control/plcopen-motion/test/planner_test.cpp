@@ -14,11 +14,69 @@
 #include "gtest/gtest.h"
 
 #ifdef PLOT
+#include "test_plot.hpp"
 #include <plot/matplotlibcpp.h>
 namespace plt = matplotlibcpp;
 #endif
 
 namespace traj_pro = trajectory_processing;
+
+class PlannerClockTest : public ::testing::TestWithParam<double>
+{
+};
+
+TEST_P(PlannerClockTest, FrequencySurvivesBackendSwitchingAndCopying)
+{
+  using namespace RTmotion;
+#ifdef PLOT
+  test_plot::TestPlot plot("planner_test");
+#endif
+  for (const auto type : { mcRuckig, mcOffLine, mcPoly5, mcLine })
+  {
+    SCOPED_TRACE(type);
+    traj_pro::AxisPlanner original;
+    original.setCondition(0, 2, 0, 0, 0, 0, 1, 1, 4, 40, type);
+    original.setFrequency(GetParam());
+    traj_pro::AxisPlanner copied(original);
+    traj_pro::AxisPlanner assigned;
+    assigned.setFrequency(GetParam() / 2);
+    assigned = original;
+    for (auto* planner : { &original, &copied, &assigned })
+    {
+#ifdef PLOT
+      const std::string label =
+          std::to_string(type) + (planner == &original ? " original" :
+                                  planner == &copied   ? " copied" :
+                                                         " assigned");
+#endif
+      planner->setCondition(0, 2, 0, 0, 0, 0, NAN, 1, 4, 40, mcRuckig);
+      ASSERT_EQ(planner->onReplan(), mcErrorCodeGood);
+      double position = 0, velocity = 0, acceleration = 0;
+      for (int cycle = 1; cycle <= GetParam(); ++cycle)
+      {
+        ASSERT_EQ(planner->onExecution(cycle / GetParam(), &position, &velocity,
+                                       &acceleration),
+                  mcErrorCodeGood);
+#ifdef PLOT
+        plot.add("Position", label, cycle / GetParam(), position);
+        plot.add("Velocity", label, cycle / GetParam(), velocity);
+#endif
+      }
+#ifdef PLOT
+      plot.add("Position", label + " expected at 1 s", 1, 0.825);
+      plot.add("Velocity", label + " expected at 1 s", 1, 1);
+#endif
+      EXPECT_NEAR(position, 0.825, 1e-9);
+      EXPECT_NEAR(velocity, 1, 1e-9);
+    }
+  }
+#ifdef PLOT
+  plot.save();
+#endif
+}
+
+INSTANTIATE_TEST_SUITE_P(CycleFrequencies, PlannerClockTest,
+                         ::testing::Values(250.0, 500.0, 1000.0, 2000.0));
 
 // The fixture for testing class Foo.
 class PlannerTest : public ::testing::Test
@@ -90,13 +148,162 @@ protected:
     plt::xlabel("time");
     plt::ylabel("Jerk");
     // Save the image (file format is determined by the extension)
-    plt::save(file_name);
+    const std::string filename = "planner_test_" + file_name;
+    plt::save(filename);
+    plt::close();
+    test_plot::TestPlot::recordFile(filename);
   }
 #endif
   traj_pro::AxisPlanner planner_ = {};
 };
 
+TEST_F(PlannerTest, VelocityTrackingUsesCycleTime)
+{
+#ifdef PLOT
+  test_plot::TestPlot plot("planner_test");
+#endif
+  for (const double delta_time : { 0.001, 0.002 })
+  {
+    SCOPED_TRACE(::testing::Message() << "delta_time=" << delta_time);
+    planner_.setCondition(0, NAN, 0, 1, 0, 0, NAN, 1, 1, 10,
+                          RTmotion::mcRuckig);
+    double position = 0, velocity = 0, acceleration = 0;
+    ASSERT_EQ(planner_.onVelocityTracking(delta_time, &position, &velocity,
+                                          &acceleration),
+              RTmotion::mcErrorCodeGood);
+    EXPECT_NEAR(acceleration, 10 * delta_time, 1e-12);
+    EXPECT_NEAR(velocity, 5 * delta_time * delta_time, 1e-12);
+#ifdef PLOT
+    plot.add("Acceleration", "Actual", delta_time, acceleration);
+    plot.add("Acceleration", "Expected", delta_time, 10 * delta_time);
+    plot.add("Velocity", "Actual", delta_time, velocity);
+    plot.add("Velocity", "Expected", delta_time, 5 * delta_time * delta_time);
+#endif
+  }
+#ifdef PLOT
+  plot.save();
+#endif
+}
+
+TEST_F(PlannerTest, VelocityTrackingReportsInvalidLimits)
+{
+  planner_.setCondition(0, NAN, 0, 1, 0, 0, NAN, 1, 1, 0, RTmotion::mcRuckig);
+  double position = 2, velocity = 3, acceleration = 4;
+#ifdef PLOT
+  test_plot::TestPlot plot("planner_test");
+  plot.add("Output values", "Position", 0, position);
+  plot.add("Output values", "Velocity", 0, velocity);
+  plot.add("Output values", "Acceleration", 0, acceleration);
+#endif
+  const auto result =
+      planner_.onVelocityTracking(0.001, &position, &velocity, &acceleration);
+  EXPECT_EQ(result, RTmotion::mcErrorCodeScurveInvalidInput);
+  EXPECT_DOUBLE_EQ(position, 2);
+  EXPECT_DOUBLE_EQ(velocity, 3);
+  EXPECT_DOUBLE_EQ(acceleration, 4);
+#ifdef PLOT
+  plot.add("Output values", "Position", 1, position);
+  plot.add("Output values", "Velocity", 1, velocity);
+  plot.add("Output values", "Acceleration", 1, acceleration);
+  plot.add("Error code", "Actual", 1, result);
+  plot.add("Error code", "Expected", 1,
+           RTmotion::mcErrorCodeScurveInvalidInput);
+  plot.save();
+#endif
+}
+
+TEST_F(PlannerTest, PositionPlanningAfterVelocityTracking)
+{
+#ifdef PLOT
+  test_plot::TestPlot plot("planner_test");
+#endif
+  planner_.setCondition(0, NAN, 0, 1, 0, 0, NAN, 1, 1, 10, RTmotion::mcRuckig);
+  double position = 0, velocity = 0, acceleration = 0;
+  ASSERT_EQ(
+      planner_.onVelocityTracking(0.001, &position, &velocity, &acceleration),
+      RTmotion::mcErrorCodeGood);
+  planner_.setCondition(0, 1, 0, 0, 0, 0, NAN, 2, 5, 20, RTmotion::mcRuckig);
+  ASSERT_EQ(planner_.onReplan(), RTmotion::mcErrorCodeGood);
+  for (int cycle = 0; cycle < 3000; ++cycle)
+  {
+    ASSERT_EQ(planner_.onExecution((cycle + 1) * 0.001, &position, &velocity,
+                                   &acceleration),
+              RTmotion::mcErrorCodeGood);
+#ifdef PLOT
+    plot.add("Position", "Actual", (cycle + 1) * 0.001, position);
+    plot.add("Position", "Target", (cycle + 1) * 0.001, 1);
+    plot.add("Velocity", "Actual", (cycle + 1) * 0.001, velocity);
+    plot.add("Acceleration", "Actual", (cycle + 1) * 0.001, acceleration);
+#endif
+  }
+  EXPECT_NEAR(position, 1, 1e-12);
+  EXPECT_NEAR(velocity, 0, 1e-12);
+  EXPECT_NEAR(acceleration, 0, 1e-12);
+#ifdef PLOT
+  plot.save();
+#endif
+}
+
 // Tests velocity profile
+TEST_P(PlannerClockTest, TrackingPreservesPositionClockOnSuccessAndError)
+{
+  using namespace RTmotion;
+#ifdef PLOT
+  test_plot::TestPlot plot("planner_test");
+#endif
+  for (const bool invalid : { false, true })
+  {
+    SCOPED_TRACE(invalid);
+    traj_pro::AxisPlanner planner;
+    planner.setFrequency(GetParam());
+    planner.setCondition(0, NAN, 0, 1, 0, 0, NAN, 1, 4, invalid ? 0 : 40,
+                         mcRuckig);
+    double position = 0, velocity = 0, acceleration = 0;
+    const auto result = planner.onVelocityTracking(
+        2 / GetParam(), &position, &velocity, &acceleration, -1);
+    EXPECT_EQ(result,
+              invalid ? mcErrorCodeScurveInvalidInput : mcErrorCodeGood);
+#ifdef PLOT
+    const std::string label = invalid ? "After invalid tracking" :
+                                        "After valid tracking";
+    plot.add("Tracking error code", label, invalid ? 1 : 0, result);
+#endif
+    planner.setCondition(0, 2, 0, 0, 0, 0, NAN, 1, 4, 40, mcRuckig);
+    ASSERT_EQ(planner.onReplan(), mcErrorCodeGood);
+    for (int cycle = 1; cycle <= GetParam(); ++cycle)
+    {
+      ASSERT_EQ(planner.onExecution(cycle / GetParam(), &position, &velocity,
+                                    &acceleration),
+                mcErrorCodeGood);
+#ifdef PLOT
+      plot.add("Position", label, cycle / GetParam(), position);
+      plot.add("Velocity", label, cycle / GetParam(), velocity);
+      plot.add("Acceleration", label, cycle / GetParam(), acceleration);
+#endif
+    }
+    EXPECT_NEAR(position, 0.825, 1e-9);
+    for (int cycle = static_cast<int>(GetParam()) + 1;
+         cycle <= static_cast<int>(std::ceil(2.35 * GetParam())); ++cycle)
+    {
+      ASSERT_EQ(planner.onExecution(cycle / GetParam(), &position, &velocity,
+                                    &acceleration),
+                mcErrorCodeGood);
+#ifdef PLOT
+      plot.add("Position", label, cycle / GetParam(), position);
+      plot.add("Velocity", label, cycle / GetParam(), velocity);
+      plot.add("Acceleration", label, cycle / GetParam(), acceleration);
+#endif
+    }
+    EXPECT_NEAR(position, 2, 1e-9);
+    EXPECT_NEAR(velocity, 0, 1e-9);
+  }
+#ifdef PLOT
+  plot.add("Position", "Expected at 1 s", 1, 0.825);
+  plot.add("Position", "Final target", 2.35, 2);
+  plot.save();
+#endif
+}
+
 TEST_F(PlannerTest, VelocityUp)
 {
   planner_.setCondition(5, NAN, -1, 10, 0, 0, NAN, 5, 10, 30,

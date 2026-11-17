@@ -80,7 +80,7 @@ docker run --rm --user "$(id -u):$(id -g)" \
   -e HOME=/home/dlstreamer \
   -e http_proxy -e https_proxy -e no_proxy \
   -v "${PWD}:/home/dlstreamer/" \
-  intel/dlstreamer:2026.2.0-ubuntu24 \
+  intel/dlstreamer:2026.3.0-ubuntu24-rc1 \
   bash -c "export MODELS_PATH=/home/dlstreamer && /opt/intel/dlstreamer/samples/download_public_models.sh yolo11s"
 ```
 
@@ -104,7 +104,7 @@ docker run --rm -it --name dlstreamer \
   --net=host \
   -e DISPLAY=$DISPLAY \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
-  intel/dlstreamer:2026.2.0-ubuntu24
+  intel/dlstreamer:2026.3.0-ubuntu24-rc1
 ```
 
 ```bash

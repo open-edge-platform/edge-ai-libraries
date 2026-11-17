@@ -89,72 +89,111 @@ def build_parser() -> argparse.ArgumentParser:
             "to pytest unchanged."
         ),
     )
-    parser.add_argument(
-        "--config",
-        metavar="NAME_OR_PATH",
-        help=(
-            "Config preset name in config/ (default, quick, full), a YAML "
-            "path, or a result JSON / run directory whose recorded settings "
-            "are reused. Defaults to $PERF_CONFIG_FILE, then $PERF_CONFIG, "
-            "then 'default'."
-        ),
-    )
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print the resolved matrix and exclusions, then exit 0 without running jobs.",
-    )
-    mode.add_argument(
-        "--report-only",
-        nargs="*",
-        metavar="PATH",
-        default=None,
-        # None means the flag is absent; [] means "use latest".
-        help=(
-            "Rebuild the HTML report from result JSON (file, run directory "
-            "or 'latest' symlink); several paths render as several runs. "
-            "Defaults to <results-dir>/latest. Does not contact ViPPET."
-        ),
-    )
-    parser.add_argument(
-        "--report-output",
-        metavar="PATH",
-        default=None,
-        help="HTML output path for --report-only.",
-    )
 
-    group = parser.add_argument_group("settings (override YAML and env)")
+    # Every option is collected first and registered sorted by flag, so
+    # --help and the usage line list them alphabetically. argparse keeps the
+    # order in which add_argument is called, also for the mutually exclusive
+    # group, whose actions belong to the parser.
+    options: list[tuple[str, Any, dict[str, Any]]] = [
+        (
+            "--config",
+            parser,
+            {
+                "metavar": "NAME_OR_PATH",
+                "help": (
+                    "Config preset name in config/ (default, quick, full), a "
+                    "YAML path, or a result JSON / run directory whose "
+                    "recorded settings are reused. Defaults to "
+                    "$PERF_CONFIG_FILE, then $PERF_CONFIG, then 'default'."
+                ),
+            },
+        ),
+        (
+            "--dry-run",
+            mode,
+            {
+                "action": "store_true",
+                "help": (
+                    "Print the resolved matrix and exclusions, then exit 0 "
+                    "without running jobs."
+                ),
+            },
+        ),
+        (
+            "--report-only",
+            mode,
+            {
+                "nargs": "*",
+                "metavar": "PATH",
+                # None means the flag is absent; [] means "use latest".
+                "default": None,
+                "help": (
+                    "Rebuild the HTML report from result JSON (file, run "
+                    "directory or 'latest' symlink); several paths render as "
+                    "several runs. Defaults to <results-dir>/latest. Does "
+                    "not contact ViPPET."
+                ),
+            },
+        ),
+        (
+            "--report-output",
+            parser,
+            {
+                "metavar": "PATH",
+                "default": None,
+                "help": "HTML output path for --report-only.",
+            },
+        ),
+    ]
     for spec in SPECS:
         env_note = f" [env: {spec.env}]" if spec.env else ""
         help_text = f"{spec.help} (YAML: {spec.key}){env_note}"
         if spec.kind == "bool":
-            group.add_argument(
-                spec.flag,
-                dest=spec.dest,
-                action="store_const",
-                const=True,
-                default=None,
-                help=help_text,
-            )
             assert spec.negative_flag, spec.key
-            group.add_argument(
-                spec.negative_flag,
-                dest=spec.dest,
-                action="store_const",
-                const=False,
-                help=f"Set {spec.key} to false.",
+            options.append(
+                (
+                    spec.flag,
+                    parser,
+                    {
+                        "dest": spec.dest,
+                        "action": "store_const",
+                        "const": True,
+                        "default": None,
+                        "help": help_text,
+                    },
+                )
+            )
+            options.append(
+                (
+                    spec.negative_flag,
+                    parser,
+                    {
+                        "dest": spec.dest,
+                        "action": "store_const",
+                        "const": False,
+                        "help": f"Set {spec.key} to false.",
+                    },
+                )
             )
         else:
-            group.add_argument(
-                spec.flag,
-                dest=spec.dest,
-                type=_argparse_type(spec),
-                default=None,
-                metavar=spec.metavar,
-                choices=spec.choices if spec.kind == "choice" else None,
-                help=help_text,
+            options.append(
+                (
+                    spec.flag,
+                    parser,
+                    {
+                        "dest": spec.dest,
+                        "type": _argparse_type(spec),
+                        "default": None,
+                        "metavar": spec.metavar,
+                        "choices": spec.choices if spec.kind == "choice" else None,
+                        "help": help_text,
+                    },
+                )
             )
+
+    for flag, target, kwargs in sorted(options, key=lambda option: option[0]):
+        target.add_argument(flag, **kwargs)
     return parser
 
 

@@ -1,0 +1,47 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=Metrics Manager Intel RAPL power collector
+Documentation=file:///usr/share/doc/metrics-manager/README.md
+After=systemd-tmpfiles-setup.service metrics-manager-telegraf.service
+
+[Service]
+Type=simple
+User=metrics-manager
+Group=metrics-manager
+EnvironmentFile=/etc/metrics-manager/metrics-manager.env
+ExecStart=/usr/libexec/metrics-manager/mm-plugin-rapl \
+    -out unix:///run/metrics-manager/collect.sock
+Restart=on-failure
+RestartSec=5s
+
+# energy_uj is typically root-readable only. Permit reading it without
+# granting root or write access to the rest of the system.
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+NoNewPrivileges=true
+
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/run/metrics-manager
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectProc=invisible
+PrivateDevices=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

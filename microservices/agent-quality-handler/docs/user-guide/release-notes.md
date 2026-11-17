@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Version 2026.3.0
 
-**TBD**
+**Release Date:** TBD
 
 This release introduces **dynamic agent routing**, a **configuration-driven
 agent registry**, and **custom-agent output persistence**, along with deployment

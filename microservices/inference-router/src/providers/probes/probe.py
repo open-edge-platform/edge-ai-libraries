@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Dict, List, Set, Tuple
 
 from src.providers.probes.aggregator import MetricAggregator
 from src.providers.probes.extract import FieldExtractor
-from src.providers.probes.publish import Sink, build_sink
+from src.providers.probes.publish import MetadataSink, Sink, build_sink
 from src.providers.probes.spec import ProbeSpec
 
 
@@ -56,6 +56,8 @@ class ProviderProbe:
         self._success = 0
         self._fail = 0
         self._miss = 0
+        # Field names already warned about for same-name overwrites (once each).
+        self._overwrite_warned: Set[str] = set()
 
     # ---- lifecycle ----------------------------------------------------------
 
@@ -141,13 +143,56 @@ class ProviderProbe:
                 )
 
     def _extract(self, text: str) -> Dict[str, float]:
-        """Merge every extract rule's ``{name: value}`` pairs for this tick."""
+        """Merge every extract rule's ``{name: value}`` pairs for this tick.
+
+        Rules apply in order and matches in response order; when several
+        produce the same field name the last one wins, with a one-time warning
+        per name (see :meth:`_warn_overwritten`).
+        """
         merged: Dict[str, float] = {}
+        captured: Dict[str, str] = {}  # field name -> captured name it came from
         for extractor in self._extractors:
-            merged.update(extractor.apply(text))
+            for raw, name, value in extractor.matches(text):
+                if name in merged:
+                    self._warn_overwritten(name, captured[name], raw)
+                merged[name] = value
+                captured[name] = raw
         return merged
 
+    def _warn_overwritten(self, name: str, previous: str, current: str) -> None:
+        """Log once per field name that a later match replaced an earlier one.
+
+        Not an error — "last match wins" is the documented rule — but silently
+        dropping a series (e.g. all but one ``finished_reason`` of a counter)
+        is easy to miss, so say which name lost data and why.
+        """
+        if name in self._overwrite_warned:
+            return
+        self._overwrite_warned.add(name)
+        if previous == current:
+            logger.warning(
+                "probe %r on provider %r: more than one match produced field %r; "
+                "only the last match is kept. Narrow the regex (e.g. pin a label) "
+                "to select a single series.",
+                self.spec.name, self.host.name, name,
+            )
+        else:
+            logger.warning(
+                "probe %r on provider %r: %r and %r both publish as field %r after "
+                "name normalization; only the last match is kept. Capture a "
+                "distinguishing part (e.g. a label value) in the name group.",
+                self.spec.name, self.host.name, previous, current, name,
+            )
+
     # ---- read path ----------------------------------------------------------
+
+    def published_metadata_paths(self) -> Set[Tuple[str, ...]]:
+        """Metadata paths this probe has written (``to_dict()`` coordinates)."""
+        paths: Set[Tuple[str, ...]] = set()
+        for sink in self._sinks:
+            if isinstance(sink, MetadataSink):
+                paths |= sink.published
+        return paths
 
     def snapshot(self) -> dict:
         """Live programmatic view of this probe — aggregates + counters.

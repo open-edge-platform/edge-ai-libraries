@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  model-serving-vllm-xpu:
+    container_name: model-serving-vllm-xpu
+    image: vllm/vllm-openai-xpu:v0.31.0
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "${VLLM_RESTART_POLICY:-on-failure:2}"
+    ports:
+      - "${VLLM_BIND_HOST:-127.0.0.1}:${VLLM_SERVICE_PORT:-41091}:8000"
+    group_add:
+      - "${VIDEO_GROUP_ID:-1000}"
+      - "${RENDER_GROUP_ID:-1000}"
+    devices:
+      - /dev/dri:/dev/dri
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ${HF_HOME:-${HOME}/models/huggingface}:/llm/.cache/huggingface
+      - ${MODEL_DIR:-${HOME}/models}:/models:ro
+      - .:/llm/test_resources:ro
+    environment:
+      no_proxy: ${no_proxy:-localhost,127.0.0.1,model-serving,multilevel-video-understanding}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp/.cache
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://huggingface.co}
+      HF_HOME: /llm/.cache/huggingface
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+      MODEL_PATH: ${LLM_MODEL:-/models/Qwen3.8-27B-AWQ-INT4}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-10000}
+      LOAD_QUANTIZATION: ${LOAD_QUANTIZATION:-compressed-tensors}
+      TENSOR_PARALLEL_SIZE: ${TENSOR_PARALLEL_SIZE:-1}
+      GPU_MEM_UTIL: ${GPU_MEM_UTIL:-0.8}
+      DYNAMIC_LORA: ${DYNAMIC_LORA:-0}
+    shm_size: '16g'
+    entrypoint: ["/bin/bash", "/llm/test_resources/entrypoint.sh"]
+    networks:
+      app-network:
+        aliases:
+          - model-serving
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/v1/models >/dev/null || exit 1"]
+      start_period: 7200s
+      start_interval: 10s
+      interval: 5m
+      timeout: 5s
+      retries: 3
+
+networks:
+  app-network:
+    driver: bridge

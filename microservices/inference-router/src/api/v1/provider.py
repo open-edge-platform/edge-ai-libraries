@@ -98,6 +98,88 @@ def _with_live_metadata(http_request: Request, provider: dict) -> dict:
     return {**provider, "metadata": live}
 
 
+def _probe_published_paths(http_request: Request, name: str) -> set[tuple[str, ...]]:
+    """Metadata paths the running provider's probes have written (may be empty)."""
+    router_runtime = getattr(http_request.app.state, "router", None)
+    provider_map = getattr(router_runtime, "provider_map", None) or {}
+    published = getattr(provider_map.get(name), "probe_published_paths", None)
+    if not callable(published):
+        return set()
+    return set(published())
+
+
+def _lookup_path(mapping: object, path: tuple[str, ...]) -> tuple[bool, object]:
+    """Return ``(found, value)`` for a nested key path in ``mapping``."""
+    node = mapping
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return False, None
+        node = node[key]
+    return True, node
+
+
+def _strip_probe_path(metadata: dict, path: tuple[str, ...], static: dict) -> None:
+    """Undo one probe-written ``path`` in ``metadata`` (in place).
+
+    The value goes back to its on-disk ``static`` value when the config has one
+    (a probe may overwrite a static seed such as ``performance.ttft_ms``);
+    otherwise it is removed, along with any container left empty that the
+    config never had (e.g. the ``performance`` dict a probe created).
+    """
+    parents: list[tuple[dict, str]] = []
+    node = metadata
+    for key in path[:-1]:
+        child = node.get(key)
+        if not isinstance(child, dict):
+            return
+        parents.append((node, key))
+        node = child
+    if path[-1] not in node:
+        return
+
+    found, value = _lookup_path(static, path)
+    if found:
+        node[path[-1]] = copy.deepcopy(value)
+        return
+    del node[path[-1]]
+
+    for depth in range(len(parents) - 1, -1, -1):
+        parent, key = parents[depth]
+        if parent[key]:
+            break
+        found, value = _lookup_path(static, path[: depth + 1])
+        if not found:
+            del parent[key]
+        else:
+            # Keep an empty dict the config already had; restore a scalar the
+            # probe promoted to a dict (``performance: 0.5`` → ``{...}``).
+            if not isinstance(value, dict):
+                parent[key] = copy.deepcopy(value)
+            break
+
+
+def _strip_probe_metadata(
+    metadata: dict, static: dict | None, paths: set[tuple[str, ...]]
+) -> dict:
+    """Drop live probe output from a POSTed ``metadata`` before it is persisted.
+
+    GET overlays live probe values onto ``metadata`` (see
+    :func:`_with_live_metadata`), so a client that edits and re-POSTs a GET body
+    — the UI's edit dialog does exactly that — echoes those values back. Left
+    alone they would be written to ``config.yaml`` as static metadata, outlive
+    the probe that produced them, and keep steering routing with a frozen value.
+
+    Only paths the provider's running probes have actually written are touched,
+    and only when present in the payload: anything else the client sent,
+    including a deliberate deletion, is kept as-is. ``static`` is the provider's
+    on-disk metadata, used to restore a static value a probe overwrote.
+    """
+    stripped = copy.deepcopy(metadata)
+    for path in sorted(paths):
+        _strip_probe_path(stripped, path, static or {})
+    return stripped
+
+
 def _iter_provider_configs(http_request: Request) -> list[dict]:
     """Snapshot the in-memory providers as plain dicts (resolved values)."""
     config = getattr(http_request.app.state, "config", None)
@@ -275,9 +357,10 @@ async def create_or_update_provider(
     payload. Caveat: GET redacts secrets, so omit or re-supply ``api_key`` and
     friends — re-POSTing a redacted value would persist the mask. GET also
     reflects *live* probe metadata (e.g. ``performance.num_requests_waiting``);
-    echoing the whole ``metadata`` back would persist those volatile values, so
-    prefer sending only the sections you changed (the edit-in-place flow posts
-    ``settings`` alone).
+    when a posted ``metadata`` echoes those values back they are stripped (or
+    reset to their on-disk static value) before persisting — see
+    :func:`_strip_probe_metadata` — so only the client's own edits reach
+    ``config.yaml``.
 
     ``fallback`` is exclusive: setting it ``true`` on this provider sets it
     ``false`` on whichever provider held it before, in both the runtime and
@@ -288,6 +371,12 @@ async def create_or_update_provider(
             providers = _raw_provider_entries(http_request)
             existing = _find_in(providers, name)
             updated = _updated_provider_payload(existing, name, update_req)
+            if update_req.metadata is not None:
+                updated["metadata"] = _strip_probe_metadata(
+                    updated["metadata"],
+                    (existing or {}).get("metadata"),
+                    _probe_published_paths(http_request, name),
+                )
 
             if existing is None:
                 next_providers = [*providers, updated]

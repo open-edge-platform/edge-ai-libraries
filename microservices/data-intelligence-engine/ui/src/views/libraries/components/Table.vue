@@ -120,6 +120,7 @@ const emit = defineEmits<{
   select: [name: string];
   "select-library": [name: string];
   search: [];
+  deleted: [name: string];
 }>();
 const handleCreate = () => emit("create");
 const handleSelect = (name: string) => emit("select", name);
@@ -145,6 +146,7 @@ const handleDelete = (name: string) => {
     okType: "danger",
     async onOk() {
       await requestAssetLibraryDelete(name);
+      emit("deleted", name);
       emit("search");
     },
   });

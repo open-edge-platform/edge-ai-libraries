@@ -1,6 +1,7 @@
 /* Copyright (C) 2025 Intel Corporation; SPDX-License-Identifier: Apache-2.0 */
 .intel-markdown {
   color: var(--font-main-color);
+  white-space: normal;
   strong {
     font-weight: 600;
   }
@@ -163,9 +164,16 @@
     white-space: normal;
     line-height: 1.75;
   }
-}
-
-ul,
-li {
-  word-wrap: break-word;
+  ul,
+  li {
+    word-wrap: break-word;
+  }
+  ul {
+    display: block;
+    list-style-type: disc;
+    margin-block-start: 0;
+    margin-block-end: 0;
+    padding-inline-start: 40px;
+    unicode-bidi: isolate;
+  }
 }

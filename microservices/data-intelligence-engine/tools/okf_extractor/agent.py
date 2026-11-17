@@ -1,18 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Bounded tool loop — the half-open core, reused by both stages. Outer code
-hard-codes the stage boundary; INSIDE a stage the LLM runs this loop over a fixed
-tool set. Structure + guardrails borrowed from opencode:
-    - termination: model emits finish_reason="stop" with no unresolved tool errors;
-    - max_steps cap with reserved final emit turns and bounded idle recovery;
-  - doom-loop breaker: 3 identical (name, args) calls in a row -> force emit;
-  - invalid-args feedback: return a model-facing "rewrite the input" string, never throw.
-
-The wire protocol is standard OpenAI function-calling (same as opencode): tools go
-out as tools=[{type:function, function:{name,description,parameters}}]; tool results
-come back as role:"tool" messages keyed by tool_call_id.
-"""
 from __future__ import annotations
 
 import json
@@ -43,7 +31,7 @@ class AgentCtx:
     files_read: list[str] = field(default_factory=list)    # rel_paths successfully read
     read_tokens: int = 0                               # running read-token counter
     budget_exhausted: bool = False
-    assigned_files: set[str] | None = None             # None for legacy, unscoped sessions
+    assigned_files: set[str] | None = None             # None for unscoped sessions
     completed_files: set[str] = field(default_factory=set)
     text_read_ranges: dict[str, list[tuple[int, int]]] = field(default_factory=dict)
     last_tool_error: str = ""
@@ -111,10 +99,7 @@ def _tool_result(tc: dict, out: str) -> dict:
 
 
 def _schema_error(value: Any, schema: dict, path: str = "arguments") -> str | None:
-    """Validate the tool schemas' small JSON subset, including nested link objects.
-
-    Errors name fields and types, never source text or the submitted argument values.
-    """
+    """Validate against the small JSON Schema subset the tool schemas use."""
     types = {
         "string": str, "integer": int, "number": (int, float),
         "boolean": bool, "array": list, "object": dict,
@@ -151,7 +136,6 @@ def _schema_error(value: Any, schema: dict, path: str = "arguments") -> str | No
 
 
 def _parse_and_validate(args_json: str | dict, schema: dict) -> tuple[dict | None, str | None]:
-    """Accept standard JSON arguments and object-valued compatible server replies."""
     try:
         args = args_json if isinstance(args_json, dict) else json.loads(args_json) if args_json else {}
     except (TypeError, ValueError):
@@ -165,7 +149,6 @@ def _parse_and_validate(args_json: str | dict, schema: dict) -> tuple[dict | Non
 
 
 def _rejected_label(name: str, args_json: str | dict) -> str:
-    """Name the concept a rejected write was for, when its arguments still parse."""
     try:
         args = args_json if isinstance(args_json, dict) else json.loads(args_json or "{}")
     except (TypeError, ValueError):
@@ -174,7 +157,7 @@ def _rejected_label(name: str, args_json: str | dict) -> str:
 
 
 def _tool_call_key(name: str, args_json: str | dict) -> tuple[str, ...]:
-    """A corrected write repairs that concept, not every write in the session."""
+    """Key write_concept calls by (type, title) so a fix clears only that concept's error."""
     if name == "write_concept":
         try:
             args = args_json if isinstance(args_json, dict) else json.loads(args_json or "{}")
@@ -196,7 +179,6 @@ def _write_repair_feedback(out: str, ctx: AgentCtx) -> str:
 
 
 def _call_detail(name: str, args: dict) -> str:
-    """Compact human-facing description of a tool call for the activity stream."""
     if not isinstance(args, dict):
         return ""
     if name == "write_concept":
@@ -217,7 +199,6 @@ def _call_detail(name: str, args: dict) -> str:
 
 
 def _result_note(name: str, out: str, ctx: AgentCtx) -> str:
-    """Short, clean result annotation for the activity line (not an echo of the path)."""
     low = out.lower()
     if out.startswith("Read budget exhausted"):
         return "budget exhausted → emit"
@@ -230,7 +211,6 @@ def _result_note(name: str, out: str, ctx: AgentCtx) -> str:
     if "not found" in low or "outside the data root" in low:
         return "not found"
     if name.startswith("read_"):
-        # show how many tokens this read added + running budget usage
         state = "read complete" if "End of file." in out else "read ok"
         return f"{state} · {ctx.read_tokens}/{ctx.read_budget} tok used"
     if name == "list_dir":
@@ -266,17 +246,7 @@ def run_agent(
     max_idle_steps: int = 4,
     final_emit_steps: int = 4,
 ) -> str:
-    """Drive one short-lived tool-loop session. Mutates ctx (sink/files_read/…).
-
-    Returns HOW the session ended, so the driver can judge whether the batch was
-    extracted completely or must be re-run with a smaller budget:
-      "natural"   — the model stopped on its own (finished the batch);
-      "soft_gate" — the history soft-gate forced a final emit (ran out of context room);
-      "max_steps" — the step cap was hit (ran out of turns).
-            "stalled" / "invalid_args" / "output_limit" / "invalid_response" — recovery failed.
-    A ContextOverflowError from the client is NOT caught here — it propagates so the
-    driver can shrink the batch budget and retry.
-    """
+    """Drive one tool-loop session over `ctx`; returns how it ended ("natural", "soft_gate", "max_steps", ...)."""
     if max_steps <= 0 or output_tokens <= 0 or max_response_tokens <= 0:
         raise ValueError("Extraction step and output token limits must be positive")
     ui = ui or UI(enabled=False)
@@ -306,7 +276,7 @@ def run_agent(
                 "Emit the remaining concepts using write_concept (several separate calls per "
                 "response are allowed), then finish. " + _source_files_guidance(ctx)
             )})
-        # history soft-gate: pre-empt an overflow 400 by forcing a final emit turn.
+        # Soft-gate: force a final emit turn before the history overflows the context.
         over_history = (
             history_limit > 0
             and approx_tokens(messages, chars_per_token) > history_limit
@@ -335,8 +305,7 @@ def run_agent(
             limit = min(limit, ceiling)
         if limit <= 0:
             return "soft_gate"
-        # Do not dispatch partial tool calls. They often look like malformed
-        # JSON even though the real problem was the model's output token cap.
+        # Retry truncated responses with a larger max_tokens instead of dispatching partial tool calls.
         while True:
             with ui.spinner(f"waiting for model · turn {step + 1} (limit {max_steps})"):
                 choice = client.chat(
@@ -351,7 +320,7 @@ def run_agent(
                 return "output_limit"
             ui.warn(f"tool response truncated at max_tokens={limit}; retrying same turn at {increased}")
             limit = increased
-        output_tokens = limit  # Reuse a successful larger allowance for the remaining turns.
+        output_tokens = limit
         msg = choice.get("message", {}) or {}
         tcs = msg.get("tool_calls") or []
 
@@ -360,8 +329,6 @@ def run_agent(
                 ctx.last_tool_error = f"Model returned no usable tool calls (finish_reason={choice.get('finish_reason')})"
                 return "invalid_response"
             if pending_errors:
-                # A model may stop after writing other concepts instead of fixing
-                # the rejected one. Keep its identity and require bounded repair.
                 idle_steps += 1
                 ctx.last_tool_error = next(reversed(pending_errors.values()))
                 if idle_steps >= max(1, max_idle_steps):
@@ -378,8 +345,7 @@ def run_agent(
                     "concepts do not repair it.\n" + details + "\n" + _source_files_guidance(ctx)
                 )})
                 continue
-            # Links are optional per call, so a session can finish with no relations
-            # at all and the bundle builds a graph without edges. Ask once for them.
+            # Ask once for links if no recorded concept has any.
             if (not links_notice and len(ctx.sink) > 1 and step < max_steps - 1
                     and not any(concept.links for concept in ctx.sink)):
                 links_notice = True
@@ -392,17 +358,14 @@ def run_agent(
                     "`links` to the exact titles of the related concepts. Then finish."
                 )})
                 continue
-            # model stopped on its own. If this happened only because we forced a final
-            # emit via the soft-gate, report soft_gate; otherwise it's a natural finish.
             return forced_reason or "natural"
 
-        # Compatible servers sometimes return object-valued arguments. Echo the
-        # standard string form in history even when we accept that input form.
+        # Some compatible servers return object-valued arguments; normalize to strings in history.
         for tc in tcs:
             fn = tc.get("function", {}) or {}
             if isinstance(fn.get("arguments"), dict):
                 fn["arguments"] = json.dumps(fn["arguments"], ensure_ascii=False)
-        messages.append(msg)                            # echo assistant turn (with tool_calls)
+        messages.append(msg)
         only_repeats = True                            # every call this turn re-sent a recorded concept
         for tc in tcs:
             fn = tc.get("function", {}) or {}
@@ -417,7 +380,7 @@ def run_agent(
             except (TypeError, ValueError):
                 arguments_key = str(args_json)
 
-            # doom-loop breaker: 3 identical (name, args) in a row -> force emit.
+            # Doom-loop breaker: 3 identical (name, args) calls in a row force an emit.
             recent.append((name, arguments_key))
             recent = recent[-3:]
             if len(recent) == 3 and len(set(recent)) == 1:
@@ -465,9 +428,7 @@ def run_agent(
             messages.append(_tool_result(tc, out))
 
         updated = (ctx.read_tokens, len(ctx.completed_files), len(ctx.sink), len(ctx.findings))
-        # Every assigned fragment is read and the model only repeats concepts it
-        # already recorded: it has nothing left to emit, it just will not stop.
-        # Seen with one-sentence documents. That is a finished batch, not a stall.
+        # All input read and only already-recorded concepts repeated: treat as finished.
         all_read = ctx.assigned_files is not None and ctx.assigned_files <= ctx.completed_files
         repeat_steps = repeat_steps + 1 if (all_read and only_repeats and updated == progress) else 0
         if repeat_steps >= 2 and not pending_errors:
@@ -479,5 +440,4 @@ def run_agent(
             ui.warn(f"no extraction progress for {idle_steps} turn(s) — retrying a smaller batch")
             return "invalid_args" if pending_errors else "stalled"
 
-    # fell out of the for-loop = ran the full step budget without a natural stop.
     return "invalid_args" if pending_errors else "max_steps"

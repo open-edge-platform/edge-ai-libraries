@@ -10,7 +10,7 @@ debian_40_profile_edge_pack_compute_extra () {
 
 debian_40_install_edge_pack_compute_extra () {
   configure_edge_pack_compute_extra "$@"
-  if ensure_apt_is_installed intel-edge-compute-extra && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-compute-extra && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-compute-extra is installed." >&2
   else
     ensure_prop set installed/edge_pack_compute_extra/owned true

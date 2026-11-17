@@ -152,11 +152,11 @@ def test_model_download_endpoint_is_not_forwarded_to_engine(compose_config, endp
 def test_dotenv_runtime_values_override_compose_defaults(compose_config):
     service = compose_config(
         ENGINE_COMPOSE,
-        env_values={"ENGINE_DOC_EMBEDDING_MODEL_ID": "example/dense", "ENGINE_RERANK_BACKEND": "openai_compatible"},
+        env_values={"ENGINE_DOC_EMBEDDING_MODEL_ID": "example/dense", "ENGINE_RERANK_BACKEND": "remote_openai_compatible"},
     )["services"]["engine"]
 
     assert service["environment"]["ENGINE_DOC_EMBEDDING_MODEL_ID"] == "example/dense"
-    assert service["environment"]["ENGINE_RERANK_BACKEND"] == "openai_compatible"
+    assert service["environment"]["ENGINE_RERANK_BACKEND"] == "remote_openai_compatible"
     assert service["environment"]["ENGINE_LAYOUT_DEVICE"] == "CPU"
     assert service["environment"]["ENGINE_UPLOAD_DIR"] == "/workspace/uploads"
     assert service["environment"]["ENGINE_MODEL_ROOT_PATH"] == "/workspace/models"
@@ -177,7 +177,7 @@ def test_compose_model_root_follows_workspace_unless_overridden(compose_config, 
 
 def test_compose_forwards_document_embedding_settings(compose_config):
     overrides = {
-        "ENGINE_DOC_EMBEDDING_BACKEND": "openai_compatible",
+        "ENGINE_DOC_EMBEDDING_BACKEND": "remote_openai_compatible",
         "ENGINE_DOC_EMBEDDING_MODEL_ID": "example/documents",
         "ENGINE_DOC_EMBEDDING_DEVICE": "CPU",
         "ENGINE_DOC_EMBEDDING_API_BASE": "http://embedding.internal/v1",

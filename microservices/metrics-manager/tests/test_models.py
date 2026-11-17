@@ -4,6 +4,7 @@
 """Tests for app/models.py."""
 
 import pytest
+from pydantic import ValidationError
 
 from app.models import (
     InfluxLineProtocolInput,
@@ -30,6 +31,7 @@ class TestMetricTimestampNormalization:
 
     def test_none_generates_current_timestamp(self):
         import time
+
         before = int(time.time() * 1e9)
         m = Metric(name="x", fields={"v": 1}, timestamp=None)
         after = int(time.time() * 1e9)
@@ -159,11 +161,12 @@ class TestMetricsBatchValidation:
         assert len(batch.metrics) == 1
 
     def test_empty_batch_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             MetricsBatch(metrics=[])
 
     def test_batch_exceeding_settings_limit_rejected(self):
         from unittest.mock import patch
+
         from app.settings import Settings
 
         small_limit = Settings(max_metrics_batch_size=2)
@@ -256,7 +259,7 @@ class TestInfluxLineProtocolParsingEdgeCases:
 
     def test_complex_escaped_string(self):
         metric = InfluxLineProtocolInput.parse_line(r'event msg="hello\\\"world"')
-        assert metric.fields["msg"] == r'hello\"world'
+        assert metric.fields["msg"] == r"hello\"world"
 
 
 class TestOpenTelemetryHistogram:
@@ -271,7 +274,10 @@ class TestOpenTelemetryHistogram:
                                     "name": "request_latency",
                                     "histogram": {
                                         "dataPoints": [
-                                            {"asDouble": 100.5, "timeUnixNano": "1704067200000000000"}
+                                            {
+                                                "asDouble": 100.5,
+                                                "timeUnixNano": "1704067200000000000",
+                                            }
                                         ]
                                     },
                                 }

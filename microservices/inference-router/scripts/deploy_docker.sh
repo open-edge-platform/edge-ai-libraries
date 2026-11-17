@@ -60,8 +60,7 @@ COMPOSE_UI="$PROJECT_ROOT/deployment/docker/docker-compose-ui.yml"
 ROUTER_PORT="${ROUTER_PORT:-8000}"
 UI_PORT="${UI_PORT:-7010}"
 # Whether the operator explicitly set IR_BIND_HOST (we honor it in both modes).
-# Otherwise the default depends on the mode: loopback for standalone, host LAN
-# IP for the UI deployment (resolved below once the mode is known).
+# Otherwise the router binds loopback in both modes (resolved below).
 IR_BIND_HOST_RAW="${IR_BIND_HOST:-}"
 # Image coordinates. Empty REGISTRY -> use locally built images (the default).
 # Set REGISTRY (e.g. intel/) to pull prebuilt images from a remote registry.

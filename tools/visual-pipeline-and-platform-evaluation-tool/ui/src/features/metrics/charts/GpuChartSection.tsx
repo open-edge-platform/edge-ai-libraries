@@ -7,8 +7,7 @@ import {
 } from "@/features/metrics/charts";
 
 interface GpuChartSectionProps
-  extends DashboardChartCommonProps,
-    DashboardSummarySectionProps {
+  extends DashboardChartCommonProps, DashboardSummarySectionProps {
   title: string;
   chartData: Array<{ timestamp: number } & Record<string, number>>;
   chartDataKeys: string[];

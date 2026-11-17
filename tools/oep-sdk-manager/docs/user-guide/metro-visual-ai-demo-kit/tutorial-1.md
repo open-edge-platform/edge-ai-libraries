@@ -97,7 +97,7 @@ docker run --rm -i --user "$(id -u):$(id -g)" \
   -w /home/dlstreamer \
   -e http_proxy -e https_proxy -e no_proxy \
   -v "$PWD:/home/dlstreamer" \
-  intel/dlstreamer:2026.2.0-ubuntu24 bash -s <<'EOF'
+  intel/dlstreamer:2026.3.0-ubuntu24-rc1 bash -s <<'EOF'
 set -euo pipefail
 
 cd /home/dlstreamer/

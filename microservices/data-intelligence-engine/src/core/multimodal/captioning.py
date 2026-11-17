@@ -1,29 +1,5 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""The background half of ingest: describing a clip, long after it was stored.
-
-Embedding a clip is fast and happens inside the normal pool sync. Describing
-one means a vision-language model reading the whole thing, which takes minutes,
-so it cannot sit inside the request that stored the asset. This module is that
-work, and the shape of it is dictated by one thing: **it must be safe to run
-twice.**
-
-Three decisions follow from that.
-
-**The caption block's id is a domain coordinate**, `<asset_id>:caption`, not
-anything derived from a request. A retry addresses the same block and replaces
-it, rather than appending a second description of the same clip.
-
-**Job state lives on the content stream**, in `caption_status` -- the record is
-already written per asset, already read on every sync, and already the thing a
-rebuild would replay from. A separate store would be a second source of truth
-to keep in step with the first.
-
-**The stream is re-read inside the lock, immediately before merging.** The job
-starts minutes after the asset was stored, and the same file may have been
-re-ingested in between; merging into the stream as it was at submission time
-would quietly revert that ingest.
-"""
 
 import os
 import threading
@@ -46,14 +22,10 @@ STATUS_COMPLETED = "completed"
 STATUS_FAILED = "failed"
 STATUS_SKIPPED = "skipped"
 
-#: Media roles a caption is written for. An image is embedded but not
-#: described -- a visual embedding already carries what it looks like, and a
-#: generated sentence about it would mostly restate that less precisely.
+#: Media roles a caption is written for.
 CAPTIONED_ROLES = frozenset({ROLE_SHORT_VIDEO})
 
-# One lock per asset: two ingests of the same file must not interleave their
-# read-modify-write of the same content record. Keyed by asset so unrelated
-# assets still caption concurrently.
+# Per-asset locks serializing read-modify-write of an asset's content record.
 _LOCKS: Dict[str, threading.Lock] = {}
 _LOCKS_GUARD = threading.Lock()
 
@@ -65,11 +37,10 @@ def asset_lock(asset_id: str) -> threading.Lock:
 
 
 def caption_block_id(asset_id: str) -> str:
-    """Where this asset's description lives, whoever wrote it and whenever."""
+    """Stable caption block id, so a retry replaces rather than appends."""
     return f"{asset_id}:caption"
 
 
-#: Why an undescribed clip will stay that way, when nothing is configured to describe it.
 NOT_CONFIGURED = (
     "video summary service is not configured (ENGINE_VIDEO_SUMMARY_BASE_URL)"
 )
@@ -81,7 +52,6 @@ def needs_caption(stream: ContentStream) -> bool:
 
 
 def _media_block(stream: ContentStream) -> Optional[ContentBlock]:
-    """The clip to describe, if this stream has one of a captioned role."""
     block = media_block(stream)
     if block is not None and role_of(block) in CAPTIONED_ROLES:
         return block
@@ -89,13 +59,7 @@ def _media_block(stream: ContentStream) -> Optional[ContentBlock]:
 
 
 def caption_status(stream: ContentStream) -> Dict[str, Any]:
-    """What the caption job has made of this asset so far.
-
-    About captioning only. Whether the asset gets a *vector* is a separate
-    pipeline with its own answer (`coverage.embedding_coverage`); reporting
-    "unsupported" here for a recording that simply is not described would have
-    read as though it were not searchable either.
-    """
+    """Caption job status for this asset (captioning only, not embedding)."""
     block = media_block(stream)
     role = role_of(block) if block else ""
     status = str(stream.metadata.get("caption_status") or "")
@@ -103,9 +67,7 @@ def caption_status(stream: ContentStream) -> Dict[str, Any]:
     if not status:
         status = STATUS_PENDING if role in CAPTIONED_ROLES else STATUS_SKIPPED
         if status == STATUS_PENDING and not VideoSummaryClient().configured:
-            # No job was queued, so "pending" would wait forever. Worked out
-            # now rather than stored: a clip ingested after the service is
-            # configured is described as usual.
+            # No job was queued; derived rather than stored.
             status, error = STATUS_SKIPPED, NOT_CONFIGURED
     return {
         "role": role,
@@ -121,23 +83,17 @@ def caption_asset(
     client: Optional[VideoSummaryClient] = None,
     now: Optional[float] = None,
 ) -> str:
-    """Describe this asset's clip and fold the result into its content stream.
-
-    Returns the resulting status. Idempotent: an asset already captioned, or
-    one with nothing to caption, is left alone.
-    """
+    """Describe this asset's clip and fold the result into its content stream; idempotent."""
     client = client or VideoSummaryClient()
     asset = library.assets.get(asset_id)
     if asset is None:
         return STATUS_SKIPPED
     if not client.configured:
-        # Nothing to call. Deliberately not recorded as a failure: the clip is
-        # embedded and findable, and turning the service on later should let
-        # the job run normally rather than meeting a terminal state.
+        # Not recorded, so enabling the service later lets the job run normally.
         return STATUS_SKIPPED
 
     with asset_lock(asset_id):
-        # Re-read rather than trust the stream this job was queued against.
+        # Re-read: the asset may have been re-ingested since the job was queued.
         stream = reload_stream(library, asset)
         block = _media_block(stream)
         if block is None:
@@ -151,7 +107,7 @@ def caption_asset(
                 text = client.caption(path)
         except VideoSummaryError as error:
             return _record(library, asset, stream, STATUS_FAILED, str(error), now)
-        except Exception as error:  # noqa: BLE001 - reported on the asset, not raised
+        except Exception as error:  # noqa: BLE001
             return _record(
                 library, asset, stream, STATUS_FAILED,
                 f"{type(error).__name__}: {error}", now,
@@ -164,11 +120,7 @@ def caption_asset(
 def sources_taking(library: Any, asset: Any, blocks: Sequence[ContentBlock]) -> Set[str]:
     """The sources, in the asset's pools, whose records would hold one of `blocks`.
 
-    A multimodal source takes a block its model `covers`; a graph source
-    extracts knowledge from every text block of an asset it accepts. A text
-    source never takes derived blocks. Unavailable and frozen sources are
-    judged by their persisted profiles, without loading a model, so they catch
-    up when re-enabled or brought back by a rollback.
+    Unavailable and frozen sources are judged by their persisted profiles.
     """
     from core.indexer import GraphIndexer, MultimodalIndexer, accepts_asset, accepts_block  # noqa: PLC0415
     from core.multimodal.routing import effective_configuration
@@ -205,13 +157,7 @@ def sources_taking(library: Any, asset: Any, blocks: Sequence[ContentBlock]) -> 
 
 
 def note_derived(library: Any, asset: Any, blocks: Sequence[ContentBlock]) -> bool:
-    """Re-open the asset only in the sources whose records `blocks` change.
-
-    `blocks` are the derived blocks just written and any they replaced. A
-    caption that no source takes is stored and nothing is re-embedded: marking
-    the asset changed everywhere would have re-encoded its clip for an
-    identical vector. Returns whether anything was re-opened.
-    """
+    """Re-open the asset only in the sources whose records `blocks` change; returns whether any were."""
     taking = sources_taking(library, asset, blocks)
     if taking:
         library.note_assets_changed([asset.asset_id], taking)
@@ -231,10 +177,7 @@ def reload_stream(library: Any, asset: Any) -> ContentStream:
 def _merge_caption(
     stream: ContentStream, asset_id: str, text: str, source_block_id: str
 ) -> List[ContentBlock]:
-    """Put the description in the stream, replacing any earlier one.
-
-    Returns the blocks this changed: the new caption and the one it replaced.
-    """
+    """Put the caption in the stream, returning the new block and any it replaced."""
     block_id = caption_block_id(asset_id)
     caption = ContentBlock(
         block_id=block_id,
@@ -263,12 +206,7 @@ def _record(
     now: Optional[float],
     changed: Sequence[ContentBlock] = (),
 ) -> str:
-    """Persist the stream and let the sources that take `changed` know.
-
-    The write happens even on failure, so the reason is visible on the asset
-    rather than only in a log. What was already materialized stays: a clip
-    whose description failed keeps the vector it got at sync time.
-    """
+    """Persist the stream (also on failure) and re-open sources that take `changed`."""
     import time  # noqa: PLC0415
 
     stream.metadata["caption_status"] = status
@@ -283,9 +221,6 @@ def _record(
     library.content_store.put_record(source, key, stream.to_record())
     asset.cached = stream
     if status == STATUS_COMPLETED:
-        # Only a changed caption changes what a projection should hold, and
-        # only for a source that takes it. A failure left the blocks as they
-        # were, and marking the asset stale would re-embed them for nothing.
         note_derived(library, asset, changed)
     return status
 

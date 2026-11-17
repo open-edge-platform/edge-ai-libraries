@@ -18,7 +18,7 @@ SimpleSummaryPack = "llama-index"
 disallow_untyped_defs = true
 exclude = ["_static", "build", "examples", "notebooks", "venv"]
 ignore_missing_imports = true
-python_version = "3.10"
+python_version = "3.11"
 
 [tool.poetry]
 name = "document-summarization"
@@ -31,7 +31,7 @@ license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<4.0"
+python = ">=3.11,<4.0"
 llama-index-core = ">=0.13.0"
 llama-index = ">0.13.0"
 fastapi = ">=0.115.2,<1.0"
@@ -40,14 +40,19 @@ uvicorn = "^0.34.2"
 python-multipart = "^0.0.32"
 llama-index-llms-openai-like = ">0.5.0"
 llama-index-readers-file = ">=0.4.0"
-gradio = "^6.6.0"
+# TODO: revert to a regular version constraint once gradio 6.32.0 is released.
+# Prebuilt wheel from gradio-app/gradio#14034 (commit 1028366) which relaxes the
+# pillow pin to <14.0, allowing the patched pillow 13 release. Installing gradio
+# from git source is not supported (frontend assets are only in built wheels).
+gradio = { url = "https://huggingface.co/buckets/gradio/pypi-previews/resolve/ee16f32721f50d5a64b987bcb76f0df9d05d4068/gradio-6.31.0-py3-none-any.whl" }
+pillow = "^13.0"
 nest-asyncio = "^1.6.0"
 docx2txt = "^0.9"
 pyyaml = "^6.0.2"
 pydantic-settings = "^2.9.1"
-opentelemetry-sdk = "1.39.1"
-opentelemetry-instrumentation-fastapi = "0.60b1"
-openlit = "1.42.0"
+opentelemetry-sdk = "1.45.2"
+opentelemetry-instrumentation-fastapi = "0.66b2"
+openlit = "1.45.0"
 httpx = "0.27.2"
 nltk = "^3.9.1"
 

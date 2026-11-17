@@ -9,7 +9,7 @@
 #
 # In the pipeline editor, open the GVAMetaPublish node in advanced view, set
 # Method to 'mqtt' and Broker Address to 'mqtt-broker:1883'. The address is
-# resolved from inside the vippet container, so 'localhost' refers to that
+# resolved from inside the DLSPS 2.0 container, so 'localhost' refers to that
 # container and will not reach the broker.
 #
 # Watch the published metadata with:
@@ -38,3 +38,17 @@ services:
     depends_on:
       mqtt-broker:
         condition: service_started
+
+  dlstreamer-pipeline-server:
+    depends_on:
+      mqtt-broker:
+        condition: service_started
+    environment:
+      http_proxy: ""
+      https_proxy: ""
+      all_proxy: ""
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      ALL_PROXY: ""
+      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager,mqtt-broker"
+      NO_PROXY: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager,mqtt-broker"

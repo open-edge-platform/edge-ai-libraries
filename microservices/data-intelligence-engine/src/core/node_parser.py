@@ -1,12 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Simple node parser.
-
-Ported from edgecraftrag/components/node_parser.py:SimpleNodeParser — a thin
-wrapper over llama-index's SentenceSplitter (chunk_size / chunk_overlap).
-Sentence splitting uses the same untrained Punkt implementation directly, not
-LlamaIndex's NLTK downloader. Token counting requires a prepared local cache.
-"""
 
 import hashlib
 import os
@@ -19,14 +12,14 @@ from llama_index.core.schema import BaseNode, Document
 
 
 class SimpleNodeParser(SentenceSplitter):
-    """SentenceSplitter with EdgeCraftRAG's `run(docs=...)` entrypoint."""
+    """SentenceSplitter with a `run(docs=...)` entrypoint."""
 
     def run(self, docs: List[Document]) -> List[BaseNode]:
         return self.get_nodes_from_documents(docs, show_progress=False)
 
 
 def _local_tokenizer():
-    """Use LlamaIndex's existing token counts without its download fallback."""
+    """LlamaIndex's tokenizer, refusing to download a missing vocabulary."""
     import llama_index.core
     from llama_index.core.utils import get_tokenizer
 
@@ -36,9 +29,7 @@ def _local_tokenizer():
         "TIKTOKEN_CACHE_DIR",
         str(Path(llama_index.core.__file__).parent / "_static/tiktoken_cache"),
     )
-    # LlamaIndex's default gpt-3.5-turbo tokenizer uses cl100k_base. Validate
-    # the same cached artifact/hash as tiktoken before letting it load anything;
-    # tiktoken otherwise downloads missing OR corrupt vocabulary files.
+    # Check the cached cl100k_base file as tiktoken does; tiktoken downloads missing or corrupt ones.
     vocabulary = "https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken"
     cache_key = hashlib.sha1(vocabulary.encode(), usedforsecurity=False).hexdigest()
     expected_hash = "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7"

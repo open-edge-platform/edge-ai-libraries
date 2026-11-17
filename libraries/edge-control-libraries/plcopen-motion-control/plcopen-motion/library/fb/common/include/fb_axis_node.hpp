@@ -35,6 +35,20 @@ public:
   mcBOOL isAborted();
   virtual mcBOOL isError();
   virtual MC_ERROR_CODE getErrorID();
+  virtual mcBOOL isReadyForBufferedHandoff()
+  {
+    return mcTRUE;
+  }
+  virtual mcBOOL isPositionCoupled()
+  {
+    return mcFALSE;
+  }
+  // Position-gearing acquisition supplies current master progress and
+  // derivatives.
+  virtual void getMasterReference(mcLREAL& /*position*/, mcLREAL& /*velocity*/,
+                                  mcLREAL& /*acceleration*/)
+  {
+  }
 
   virtual mcLREAL getPosition()           = 0;
   virtual mcLREAL getVelocity()           = 0;

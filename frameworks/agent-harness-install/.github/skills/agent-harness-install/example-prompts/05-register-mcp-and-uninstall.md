@@ -1,0 +1,1 @@
+Register the MCP endpoint `<name>` at `<url>` with my installed OpenClaw agent. Afterwards, show me how to uninstall OpenClaw while keeping the downloaded models, and tell me what the uninstall leaves behind.

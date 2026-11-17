@@ -17,6 +17,7 @@ system metrics visualization and custom metrics ingestion.
 
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -71,13 +72,11 @@ class CorrelationIdMiddleware:
             raise
 
         latency_ms = (time.perf_counter() - start_time) * 1000
-        get_service_metrics().record_request(
-            success=status_code < 400, latency_ms=latency_ms
-        )
+        get_service_metrics().record_request(success=status_code < 400, latency_ms=latency_ms)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifecycle - startup and shutdown."""
     setup_logging()  # configure logging here so settings errors surface cleanly
     settings = get_settings()
@@ -97,14 +96,14 @@ async def lifespan(app: FastAPI):
     stats = await store.get_stats()
     logger.info("Metrics store initialized", extra={"stats": stats})
 
-    yield
-
-    # Graceful shutdown - release resources
-    logger.info(
-        "Shutting down Metrics Manager",
-        extra={"uptime_seconds": service_metrics.uptime_seconds},
-    )
-    await store.close()
+    try:
+        yield
+    finally:
+        logger.info(
+            "Shutting down Metrics Manager",
+            extra={"uptime_seconds": service_metrics.uptime_seconds},
+        )
+        await store.close()
 
 
 # Initialize FastAPI app

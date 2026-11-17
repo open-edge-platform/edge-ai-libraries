@@ -51,6 +51,7 @@ agent-facing map.
 | GET | `/config` | Current `udfs`/`alerts` config; `?restart=true` schedules a background Kapacitor restart |
 | POST | `/config` | Replace config (≤5 KB payload); validates UDF deployment package files exist |
 | POST | `/udfs/package` | Upload a `.tar` UDF deployment package (multipart `file` field) |
+| POST | `/stop_pipeline` | Stop the Kapacitor daemon, retaining configuration; optional `expected_task_id` guards task identity |
 | POST | `/opcua_alerts` | Forward an alert message to the configured OPC UA server |
 
 Full schema: [`docs/user-guide/api-reference.md`](../docs/user-guide/api-reference.md)
@@ -127,6 +128,9 @@ GitHub and uses the prebuilt image.
 - `/health` reflects the Kapacitor daemon's health, not the FastAPI
   process — a 200 from `/health` does not guarantee the UDF pipeline is
   correctly configured.
+- `/stop_pipeline` shuts down the entire daemon, not only the configured task.
+  It verifies shutdown before returning success; repeated stops are safe.
+  `/health` returns 503 afterward. `POST /config` can restart analytics.
 - `GET /config?restart=true` returns the **pre-restart** config; the
   restart itself runs as a background task after the response is sent.
 - `POST /config` payloads are capped at 5 KB; `POST /udfs/package` uploads

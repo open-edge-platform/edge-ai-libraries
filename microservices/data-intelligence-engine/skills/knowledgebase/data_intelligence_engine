@@ -1,0 +1,308 @@
+#!/usr/bin/env bash
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: data_intelligence_engine "question" [--library NAME] [--pool ID] [--top-k N]
+                                [--media LIST] [--rerank N]
+
+Retrieves the most relevant knowledge base chunks from the Data Intelligence
+Engine (POST /v1/retrieve). The engine returns source text only; it does not
+generate an answer.
+
+Options:
+  --library NAME  asset library name or ID (default: $KB_LIBRARY, or one library
+                  discovered on the engine)
+  --pool ID       asset pool ID to search, repeatable (default: $KB_POOL, or every pool)
+  --top-k N       chunks retrieved per source, 1-100 (default: 5)
+  --media LIST    comma-separated document,image,video,audio to search only those
+                  (default: $KB_TARGET_MEDIA, or every modality)
+  --rerank N      rerank the candidates and keep the best N (default: $KB_RERANK_TOP_N,
+                  or no reranking)
+
+Environment:
+  KB_ENGINE_URL       engine base URL (default: $ENGINE_URL, or
+                      http://localhost:${ENGINE_PORT:-16022})
+  KB_LIBRARY          asset library name or ID (default: discovered, see below)
+  KB_POOL             asset pool ID (default: every pool in the library)
+  KB_TARGET_MEDIA     default for --media
+  KB_RERANK_TOP_N     default for --rerank
+  KB_CONNECT_TIMEOUT  connection timeout in seconds (default: 10)
+
+Without --library or KB_LIBRARY, the engine's libraries are listed and one is
+searched: one that holds every --pool ID, or else one with a pool that has
+assets. enterprise-kb is preferred when it qualifies, otherwise the first in the
+engine's order; the choice is reported on stderr. Without jq, enterprise-kb is
+used.
+EOF
+}
+
+engine_get() {
+  curl \
+    --silent \
+    --show-error \
+    --fail-with-body \
+    --connect-timeout "$connect_timeout" \
+    "${engine_url}$1"
+}
+
+discover_library() {
+  local libraries pools_response library_id library_path library_name chosen="" index
+  local candidates=() names=()
+
+  if ! libraries=$(engine_get "/v1/libraries"); then
+    printf '%s\n' "$libraries" >&2
+    exit 1
+  fi
+
+  while IFS=$'\t' read -r library_id library_path library_name; do
+    if ! pools_response=$(engine_get "/v1/libraries/${library_path}/asset_pools"); then
+      printf '%s\n' "$pools_response" >&2
+      exit 1
+    fi
+    if jq -e --argjson wanted "[$pools_json]" '
+        if $wanted == [] then any(.[]; (.asset_ids // []) | length > 0)
+        else ($wanted - map(.asset_pool_id)) == [] end
+      ' >/dev/null <<<"$pools_response"; then
+      candidates+=("$library_id")
+      names+=("$library_name")
+    fi
+  done < <(jq -r '.[] | [.id, (.id | @uri), .name] | @tsv' <<<"$libraries")
+
+  if [[ ${#candidates[@]} -eq 0 ]]; then
+    if [[ -n "$pools_json" ]]; then
+      echo "Error: no asset library on ${engine_url} has asset pool(s) ${pools_json}; pass --library." >&2
+    else
+      echo "Error: no asset library on ${engine_url} has a pool with assets; ingest assets or pass --library." >&2
+    fi
+    exit 1
+  fi
+
+  for index in "${!names[@]}"; do
+    if [[ "${names[index]}" == "enterprise-kb" ]]; then
+      chosen="$index"
+      break
+    fi
+  done
+  chosen="${chosen:-0}"
+  library="${candidates[chosen]}"
+
+  if [[ ${#candidates[@]} -gt 1 ]]; then
+    local others=()
+    for index in "${!names[@]}"; do
+      [[ "$index" == "$chosen" ]] || others+=("${names[index]}")
+    done
+    local IFS=','
+    echo "Note: searching library '${names[chosen]}'; also available: ${others[*]}. Pass --library NAME to choose." >&2
+  else
+    echo "Note: searching library '${names[chosen]}'." >&2
+  fi
+}
+
+json_escape() {
+  local value="$1" escaped="" char
+  local index
+
+  for ((index = 0; index < ${#value}; index++)); do
+    char="${value:index:1}"
+    case "$char" in
+      '"') escaped+='\"' ;;
+      '\') escaped+='\\' ;;
+      $'\b') escaped+='\b' ;;
+      $'\f') escaped+='\f' ;;
+      $'\n') escaped+='\n' ;;
+      $'\r') escaped+='\r' ;;
+      $'\t') escaped+='\t' ;;
+      *) escaped+="$char" ;;
+    esac
+  done
+
+  printf '%s' "$escaped"
+}
+
+require_positive_integer() {
+  local option="$1" value="$2"
+  if [[ ! "$value" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: $option must be a positive integer." >&2
+    exit 2
+  fi
+}
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "Error: curl is required but was not found in PATH." >&2
+  exit 127
+fi
+
+if [[ $# -eq 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $# -lt 1 ]]; then
+  usage >&2
+  exit 2
+fi
+
+library="${KB_LIBRARY:-}"
+library_given=false
+top_k="5"
+media="${KB_TARGET_MEDIA:-}"
+rerank="${KB_RERANK_TOP_N:-}"
+pools=()
+query_parts=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --library)
+      [[ $# -ge 2 ]] || { echo "Error: --library requires a value." >&2; exit 2; }
+      library="$2"
+      library_given=true
+      shift 2
+      ;;
+    --pool)
+      [[ $# -ge 2 ]] || { echo "Error: --pool requires a value." >&2; exit 2; }
+      pools+=("$2")
+      shift 2
+      ;;
+    --top-k)
+      [[ $# -ge 2 ]] || { echo "Error: --top-k requires a value." >&2; exit 2; }
+      top_k="$2"
+      shift 2
+      ;;
+    --media)
+      [[ $# -ge 2 ]] || { echo "Error: --media requires a value." >&2; exit 2; }
+      media="$2"
+      shift 2
+      ;;
+    --rerank)
+      [[ $# -ge 2 ]] || { echo "Error: --rerank requires a value." >&2; exit 2; }
+      rerank="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      query_parts+=("$@")
+      break
+      ;;
+    --*)
+      echo "Error: unknown option '$1'." >&2
+      exit 2
+      ;;
+    *)
+      query_parts+=("$1")
+      shift
+      ;;
+  esac
+done
+
+query="${query_parts[*]}"
+if [[ -z "${query//[[:space:]]/}" ]]; then
+  echo "Error: query text cannot be empty." >&2
+  exit 2
+fi
+
+if [[ -z "${library//[[:space:]]/}" ]]; then
+  if [[ "$library_given" == true ]]; then
+    echo "Error: library cannot be empty." >&2
+    exit 2
+  fi
+  library=""
+fi
+
+require_positive_integer "--top-k" "$top_k"
+if ((10#$top_k > 100)); then
+  echo "Error: --top-k must be between 1 and 100." >&2
+  exit 2
+fi
+
+if [[ -n "$rerank" ]]; then
+  require_positive_integer "--rerank" "$rerank"
+fi
+
+if [[ -n "$media" && ! "$media" =~ ^(document|image|video|audio)(,(document|image|video|audio))*$ ]]; then
+  echo "Error: --media must be a comma-separated list of document, image, video, audio." >&2
+  exit 2
+fi
+
+if [[ ${#pools[@]} -eq 0 && -n "${KB_POOL:-}" ]]; then
+  pools=("$KB_POOL")
+fi
+
+engine_url="${KB_ENGINE_URL:-${ENGINE_URL:-http://localhost:${ENGINE_PORT:-16022}}}"
+connect_timeout="${KB_CONNECT_TIMEOUT:-10}"
+engine_url="${engine_url%/}"
+
+require_positive_integer "KB_CONNECT_TIMEOUT" "$connect_timeout"
+
+pools_json=""
+for pool in "${pools[@]}"; do
+  pools_json+="${pools_json:+,}\"$(json_escape "$pool")\""
+done
+
+if [[ -z "$library" ]]; then
+  if command -v jq >/dev/null 2>&1; then
+    discover_library
+  else
+    library="enterprise-kb"
+  fi
+fi
+
+media_json=""
+if [[ -n "$media" ]]; then
+  IFS=',' read -r -a media_list <<<"$media"
+  for target in "${media_list[@]}"; do
+    [[ ",$media_json," == *",\"$target\","* ]] || media_json+="${media_json:+,}\"$target\""
+  done
+fi
+
+postprocess_json=""
+if [[ -n "$rerank" ]]; then
+  postprocess_json=",\"postprocess\":{\"processor_type\":\"reranker\",\"top_n\":$rerank}"
+fi
+
+payload=$(printf '{"query":"%s","libraries":["%s"],"asset_pool_ids":[%s],"top_k":%s,"target_media":[%s]%s}' \
+  "$(json_escape "$query")" "$(json_escape "$library")" "$pools_json" "$top_k" "$media_json" "$postprocess_json")
+
+if ! response=$(curl \
+  --silent \
+  --show-error \
+  --fail-with-body \
+  --connect-timeout "$connect_timeout" \
+  --request POST \
+  --header "Content-Type: application/json" \
+  --data "$payload" \
+  "${engine_url}/v1/retrieve"); then
+  printf '%s\n' "$response" >&2
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  printf '%s\n' "$response"
+  exit 0
+fi
+
+jq -r --arg engine "$engine_url" '
+  def excerpt: if length > 500 then .[0:500] + "..." else . end;
+  def blob_url($meta):
+    "\($engine)/v1/blob?library=\($meta.library // "" | @uri)&source_id=\($meta.source_id // "" | @uri)&media_key=\($meta.media_key | @uri)";
+  if (.chunks | length) == 0 then
+    "No matching content was found in the knowledge base."
+  else
+    .chunks | to_entries[] | .key as $index | .value as $chunk | ($chunk.metadata // {}) as $meta |
+      "[\($index + 1)] score=\(($chunk.score * 1000 | round) / 1000) source=\($meta.file_name // $meta.asset_id // "unknown")"
+      + (if $meta.page != null then " page=\($meta.page)" else "" end)
+      + (if ($meta.kind // "text") != "text" then " kind=\($meta.kind)" else "" end)
+      + (if $meta.t_start_ms != null then " time=\($meta.t_start_ms / 1000)-\(($meta.t_end_ms // $meta.t_start_ms) / 1000)s" else "" end)
+      + "\n"
+      + (if ($chunk.text // "") | test("\\S") then $chunk.text
+         else
+           [ (if $meta.media_key != null then "media: \(blob_url($meta))" else empty end),
+             (($meta.caption // $meta.surrounding_text // "") | select(test("\\S")) | "context: \(excerpt)") ]
+           | join("\n")
+         end)
+      + "\n"
+  end
+' <<<"$response"

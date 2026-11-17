@@ -25,9 +25,9 @@ Telegraf is a lightweight metrics agent that runs inside the container and colle
 - `/proc/stat` → CPU usage (user, system, idle) per core
 - `/proc/meminfo` → Memory (total, used, available)
 - `/sys/class/thermal/` → CPU temperature
-- `read_cpu_freq.sh` (custom script) → CPU frequency
-- `qmassa` (GPU reader) → Intel Arc GPU metrics (via named pipe)
-- `npu_reader.py` (custom script) → Intel NPU metrics
+- `mm-plugin-cpu` (native plugin) → CPU frequency, split by core class (P / E / LP-E)
+- `mm-plugin-gpu` (native plugin) → Intel GPU metrics, parsed from the `qmassa` named pipe
+- `mm-plugin-npu` (native plugin) → Intel NPU metrics
 - `Telegraf HTTP listener :8186` → Custom metrics from Metrics Manager
 
 **Processing:**
@@ -188,9 +188,14 @@ See [Environment Variables](./get-started/environment-variables.md#security) for
 | `cpu`   | `/proc/stat`          | 1s         | usage_user, usage_system, usage_idle (per core + total)          |
 | `mem`   | `/proc/meminfo`       | 1s         | total, used, available, used_percent                             |
 | `temp`  | `/sys/class/thermal/` | 1s         | temperature (per sensor, filtered to coretemp)                   |
-| `exec`  | `read_cpu_freq.sh`    | 10s        | cpu_freq_mhz (per core)                                          |
-| `execd` | `qmassa_reader.py`    | continuous | gpu\_\* (engine usage, frequency, power)                         |
-| `execd` | `npu_reader.py`       | 1s         | npu_power, npu_frequency, npu_temperature, npu_utilization, etc. |
+| `execd` | `mm-plugin-cpu`       | 1s         | cpu_frequency_avg, cpu_core_class\_\* (per P / E / LP-E class)   |
+| `execd` | `mm-plugin-gpu`       | continuous | gpu\_\* (engine usage, frequency, power, memory, temperature, throttle) |
+| `execd` | `mm-plugin-npu`       | 1s         | npu_power, npu_frequency, npu_temperature, npu_utilization, etc. |
+
+The three `mm-plugin-*` binaries live in `/usr/libexec/metrics-manager/`. They
+are plain Go programs with no runtime dependencies, and the bare-metal package
+ships the very same binaries from the very same path, so the container and a
+native install report identical metrics.
 
 **Telegraf Output:**
 

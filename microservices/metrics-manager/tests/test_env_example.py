@@ -59,7 +59,7 @@ class TestEnvExampleCoverage:
         )
 
     def test_metrics_manager_hostname_documented(self):
-        # Not a Settings field (it's read directly by qmassa_reader / npu_reader
+        # Not a Settings field (it's read directly by the mm-plugin-* collectors
         # / telegraf.conf), but users still need to discover it from the
         # template.
         assert "METRICS_MANAGER_HOSTNAME" in _names_in_env_example()

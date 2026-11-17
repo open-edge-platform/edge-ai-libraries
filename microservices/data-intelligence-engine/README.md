@@ -35,6 +35,9 @@ retrieve: query -> document fusion or media search -> optional reranking -> chun
   registered over the API and persisted in the workspace.
 - Web console at `/console/` for libraries, ingest progress, retrieval and the
   concept graph.
+- Skills for agent: [`skills/knowledgebase`](skills/README.md) wraps retrieval in a
+  `curl` script so an external agent can query the engine and answer from the
+  returned chunks.
 
 ## Quick Start
 
@@ -136,6 +139,8 @@ Each content type needs its models prepared and a source configured for it; see
 - [Text-to-media retrieval and media reranking](docs/user-guide/text-to-media-retrieval.md).
 - [How to prepare models](docs/user-guide/how-to-guides/how-to-prepare-models.md).
 - [Scripts](scripts/README.md) — the deployment scripts and API helpers.
+- [Skills for agent](skills/README.md) — the `knowledgebase` skill that lets an
+  OpenClaw agent answer from the engine's retrieval results.
 
 ## Security
 

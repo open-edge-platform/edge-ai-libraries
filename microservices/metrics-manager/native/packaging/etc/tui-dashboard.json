@@ -1,0 +1,97 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "mouse": true,
+  "storage": {
+    "mountPoints": [],
+    "devices": [],
+    "ignoreFilesystems": ["tmpfs", "devtmpfs", "devfs", "iso9660", "overlay", "aufs", "squashfs"],
+    "maxFilesystems": 4,
+    "maxDevices": 4,
+    "maxSampleAge": "10s"
+  },
+  "network": {
+    "interfaces": [],
+    "maxInterfaces": 8,
+    "maxSampleAge": "10s",
+    "speedMbps": {}
+  },
+  "processes": {
+    "maxDisplayed": 10,
+    "sortBy": "usage",
+    "descending": true,
+    "cpuMode": "total",
+    "maxSampleAge": "3s"
+  },
+  "alerts": {
+    "samplesToRaise": 3,
+    "samplesToClear": 3,
+    "hysteresisPercent": 5,
+    "showCareful": false,
+    "maxHistory": 50,
+    "bottomBar": true
+  },
+  "thresholds": {
+    "storage.usedPercent": {"careful": 70, "warning": 80, "critical": 90},
+    "storage.inodesPercent": {"careful": 70, "warning": 80, "critical": 90},
+    "network.rxPercent": {"careful": 70, "warning": 80, "critical": 90},
+    "network.txPercent": {"careful": 70, "warning": 80, "critical": 90},
+    "network.errorsPerSecond": {"careful": 0.1, "warning": 1, "critical": 10},
+    "network.dropsPerSecond": {"careful": 0.1, "warning": 1, "critical": 10},
+    "cpu.classPercent": {
+      "careful": 65,
+      "warning": 75,
+      "critical": 85
+    },
+    "gpu.vramPercent": {
+      "careful": 70,
+      "warning": 85,
+      "critical": 95
+    },
+    "gpu.processPercent": {
+      "careful": 50,
+      "warning": 70,
+      "critical": 90
+    },
+    "cpu.totalPercent": {
+      "careful": 65,
+      "warning": 75,
+      "critical": 85
+    },
+    "cpu.temperatureC": {
+      "careful": 70,
+      "warning": 85,
+      "critical": 95
+    },
+    "memory.usedPercent": {
+      "careful": 50,
+      "warning": 70,
+      "critical": 90
+    },
+    "gpu.utilizationPercent": {
+      "careful": 50,
+      "warning": 70,
+      "critical": 90
+    },
+    "gpu.temperatureC": {
+      "careful": 60,
+      "warning": 70,
+      "critical": 80
+    },
+    "npu.utilizationPercent": {
+      "careful": 50,
+      "warning": 70,
+      "critical": 90
+    },
+    "npu.temperatureC": {
+      "careful": 70,
+      "warning": 85,
+      "critical": 95
+    },
+    "process.cpuPercent": {
+      "careful": 50,
+      "warning": 70,
+      "critical": 90
+    }
+  }
+}

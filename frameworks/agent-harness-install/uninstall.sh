@@ -8,10 +8,30 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs openvino inference-router agents openshell; do
-  # shellcheck disable=SC1090
-  . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
-done
+# shellcheck source=scripts/lib/colors.sh
+. "${SCRIPT_DIR}/scripts/lib/colors.sh"
+# shellcheck source=scripts/lib/verify.sh
+. "${SCRIPT_DIR}/scripts/lib/verify.sh"
+# shellcheck source=scripts/lib/state.sh
+. "${SCRIPT_DIR}/scripts/lib/state.sh"
+# shellcheck source=scripts/lib/sudo.sh
+. "${SCRIPT_DIR}/scripts/lib/sudo.sh"
+# shellcheck source=scripts/lib/shim.sh
+. "${SCRIPT_DIR}/scripts/lib/shim.sh"
+# shellcheck source=scripts/lib/gpu-intel.sh
+. "${SCRIPT_DIR}/scripts/lib/gpu-intel.sh"
+# shellcheck source=scripts/lib/docker-setup.sh
+. "${SCRIPT_DIR}/scripts/lib/docker-setup.sh"
+# shellcheck source=scripts/lib/nodejs.sh
+. "${SCRIPT_DIR}/scripts/lib/nodejs.sh"
+# shellcheck source=scripts/lib/openvino.sh
+. "${SCRIPT_DIR}/scripts/lib/openvino.sh"
+# shellcheck source=scripts/lib/inference-router.sh
+. "${SCRIPT_DIR}/scripts/lib/inference-router.sh"
+# shellcheck source=scripts/lib/agents.sh
+. "${SCRIPT_DIR}/scripts/lib/agents.sh"
+# shellcheck source=scripts/lib/openshell.sh
+. "${SCRIPT_DIR}/scripts/lib/openshell.sh"
 
 ASSUME_YES=""
 DELETE_MODELS=1
@@ -175,7 +195,7 @@ main() {
     esac
   fi
 
-  printf "\n${C_YELLOW}${C_BOLD}agent-harness-install — Uninstall${C_RESET}\n\n"
+  printf '\n%s%sagent-harness-install — Uninstall%s\n\n' "$C_YELLOW" "$C_BOLD" "$C_RESET"
   confirm_uninstall "$agent_desc"
 
   remove_all_openshell_agents
@@ -212,8 +232,8 @@ endpoint; this installer never started one)."
   remove_state_dir
   ok "State directory removed"
 
-  printf "\n${C_GREEN}${C_BOLD}=== Uninstall complete ===${C_RESET}\n"
-  printf "  ${C_DIM}Docker, Node.js/nvm, and the Intel compute runtime were left installed.${C_RESET}\n\n"
+  printf '\n%s%s=== Uninstall complete ===%s\n' "$C_GREEN" "$C_BOLD" "$C_RESET"
+  printf '  %sDocker, Node.js/nvm, and the Intel compute runtime were left installed.%s\n\n' "$C_DIM" "$C_RESET"
 }
 
 remove_all_openshell_agents() {

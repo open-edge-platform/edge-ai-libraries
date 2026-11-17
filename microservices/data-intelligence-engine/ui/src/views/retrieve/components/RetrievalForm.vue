@@ -41,14 +41,23 @@
       <span>02</span>
       {{ $t("console.retrievalSettings") }}
     </div>
-    <a-form-item
-      v-if="form.modalities.includes('document')"
-    >
+    <a-form-item v-if="form.modalities.includes('document')">
       <template #label>
         {{ $t("console.retrieverType") }}
-        <FormTooltip :title="$t(form.type === 'graph' ? 'console.graphHintRetrieval' : `console.${form.type}Hint`)" />
+        <FormTooltip
+          :title="
+            $t(
+              form.type === 'graph'
+                ? 'console.graphHintRetrieval'
+                : `console.${form.type}Hint`,
+            )
+          "
+        />
       </template>
-      <a-select v-model:value="form.type" :placeholder="$t('console.pleaseSelect')">
+      <a-select
+        v-model:value="form.type"
+        :placeholder="$t('console.pleaseSelect')"
+      >
         <a-select-option
           v-for="type in ['rrf', 'vectorsimilarity', 'bm25', 'graph']"
           :key="type"
@@ -71,23 +80,21 @@
       </div>
     </a-form-item>
     <a-form-item :label="$t('console.postprocess')">
-      <a-select v-model:value="form.reranker" :placeholder="$t('console.pleaseSelect')">
+      <a-select
+        v-model:value="form.reranker"
+        :placeholder="$t('console.pleaseSelect')"
+      >
         <a-select-option value="">{{
           defaultRerankerModel || "—"
         }}</a-select-option>
         <a-select-option
           v-for="model in modelData.reranker?.models.filter(
-            (item) =>
-              item.backend !== 'openvino_vl' &&
-              item.name !== defaultRerankerModel,
+            (item) => !item.media && item.name !== defaultRerankerModel,
           )"
           :key="model.name"
           :value="model.name"
         >
           {{ model.name }}
-        </a-select-option>
-        <a-select-option value="__window__">
-          {{ $t("console.sentenceWindow") }}
         </a-select-option>
         <a-select-option value="__none__">
           {{ $t("console.none") }}
@@ -95,7 +102,7 @@
       </a-select>
     </a-form-item>
     <a-form-item
-      v-if="!['__none__', '__window__'].includes(form.reranker)"
+      v-if="form.reranker !== '__none__'"
       :label="$t('console.topN')"
     >
       <div class="slider-wrap">
@@ -111,7 +118,7 @@
     </a-form-item>
     <a-collapse ghost class="advanced-wrap">
       <a-collapse-panel key="advanced" :header="$t('console.advanced')">
-        <template v-if="!['__none__', '__window__'].includes(form.reranker)">
+        <template v-if="form.reranker !== '__none__'">
           <a-form-item>
             <template #label>
               {{ $t("console.rerankQuery") }}
@@ -123,7 +130,10 @@
             />
           </a-form-item>
           <a-form-item :label="$t('console.backend')">
-            <a-select v-model:value="form.backend" :placeholder="$t('console.pleaseSelect')">
+            <a-select
+              v-model:value="form.backend"
+              :placeholder="$t('console.pleaseSelect')"
+            >
               <a-select-option value="">
                 {{ $t("console.engineDefault") }}
               </a-select-option>
@@ -139,11 +149,22 @@
           <a-form-item>
             <template #label>
               {{ $t("console.device") }}
-              <FormTooltip :title="effectiveRerankerBackend === 'openvino_vl' ? $t('console.vlDeviceHint') : $t('console.inheritEngineHint')" />
+              <FormTooltip
+                :title="
+                  effectiveRerankerMedia
+                    ? $t('console.vlDeviceHint')
+                    : $t('console.inheritEngineHint')
+                "
+              />
             </template>
-            <a-input
+            <a-select
               v-model:value="form.device"
+              :loading="devicesLoading"
               :placeholder="rerankerDevicePlaceholder"
+              :options="[
+                { value: '', label: rerankerDevicePlaceholder },
+                ...deviceList.map((value) => ({ value, label: value })),
+              ]"
             />
           </a-form-item>
           <a-form-item :label="$t('console.modelId')">
@@ -160,42 +181,44 @@
               "
             />
           </a-form-item>
-          <a-form-item :label="$t('console.modelPath')">
-            <a-input
-              v-model:value="form.modelPath"
-              :placeholder="rerankerModelPathPlaceholder"
-            />
-          </a-form-item>
         </template>
         <a-form-item>
           <template #label>
             {{ $t("console.excludeChunks") }}
             <FormTooltip :title="$t('console.excludeChunksHint')" />
           </template>
-          <a-textarea v-model:value="form.excluded" :rows="3" placeholder="chunk-id-1&#10;chunk-id-2" />
+          <a-textarea
+            v-model:value="form.excluded"
+            :rows="3"
+            placeholder="chunk-id-1&#10;chunk-id-2"
+          />
         </a-form-item>
       </a-collapse-panel>
     </a-collapse>
   </a-form>
 </template>
 <script lang="ts" setup name="RetrievalForm">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import FormTooltip from "@/components/FormTooltip.vue";
-import { getModelList, requestRetrieval } from "@/api/console";
+import { getModelDevices, getModelList, requestRetrieval } from "@/api/console";
+import { Local } from "@/utils/storage";
 import type {
   Library,
   ModelOptions,
   RetrieveRequest,
 } from "@/api/console/type";
-import { findRerankerModel, inferRerankerBackend } from "../RerankerModel";
+import { inferRerankerBackend, isMediaReranker } from "../RerankerModel";
 const props = defineProps<{ libraryData: Library }>();
 const route = useRoute();
 const { t } = useI18n();
 const modelData = ref<Record<string, ModelOptions>>({});
-const form = reactive({
-  pool: typeof route.query.pool === "string" ? route.query.pool : "",
+const deviceList = ref<string[]>([]);
+const devicesLoading = ref(false);
+const storageKey = `console.retrieval.${props.libraryData.name}`;
+const defaults = {
+  pool: "",
   topK: 5,
   topN: 3,
   type: "rrf",
@@ -206,11 +229,30 @@ const form = reactive({
   device: "",
   model: "",
   apiBase: "",
-  modelPath: "",
   excluded: "",
+};
+const stored = Local.get(storageKey) as Partial<typeof defaults> | null;
+const form = reactive({
+  ...defaults,
+  ...stored,
+  pool:
+    typeof route.query.pool === "string"
+      ? route.query.pool
+      : props.libraryData.asset_pools.some((pool) => pool.id === stored?.pool)
+        ? stored!.pool!
+        : "",
 });
+watch(form, () => Local.set(storageKey, form));
 const handleModalitiesChange = (values: Array<string | number | boolean>) => {
-  if (values.length) form.modalities = values.map(String);
+  if (!values.length) return;
+  const selected = values.map(String);
+  if (selected.includes("video") && !form.modalities.includes("video")) {
+    form.modalities = ["video"];
+  } else {
+    form.modalities = selected.filter(
+      (type) => type !== "video" || selected.length === 1,
+    );
+  }
 };
 const mediaSearch = computed(() =>
   form.modalities.some((item) => item !== "document"),
@@ -221,36 +263,39 @@ const defaultRerankerModel = computed(() => {
     (mediaSearch.value ? options?.media_model_id : options?.model_id) || ""
   );
 });
-const selectedRerankerModel = computed(() => {
-  return findRerankerModel(modelData.value.reranker, {
-    model_id: form.model.trim() || form.reranker || defaultRerankerModel.value,
-    model_path: form.modelPath.trim(),
-  });
-});
-const effectiveRerankerBackend = computed(
-  () => inferRerankerBackend(modelData.value.reranker, {
-    backend: form.backend,
-    model_id: form.model.trim() || form.reranker,
-    model_path: form.modelPath.trim(),
-  }, mediaSearch.value),
+const effectiveRerankerBackend = computed(() =>
+  inferRerankerBackend(
+    modelData.value.reranker,
+    {
+      backend: form.backend,
+      model_id: form.model.trim() || form.reranker,
+    },
+    mediaSearch.value,
+  ),
+);
+const effectiveRerankerMedia = computed(() =>
+  isMediaReranker(
+    modelData.value.reranker,
+    {
+      backend: form.backend,
+      model_id: form.model.trim() || form.reranker,
+    },
+    mediaSearch.value,
+  ),
 );
 const rerankerDevicePlaceholder = computed(() => {
-  const configuredDevice =
-    effectiveRerankerBackend.value === "openvino_vl"
-      ? modelData.value.reranker?.media_device
-      : modelData.value.reranker?.device;
+  const configuredDevice = effectiveRerankerMedia.value
+    ? modelData.value.reranker?.media_device
+    : modelData.value.reranker?.device;
   return configuredDevice
     ? t("console.configuredDevicePlaceholder", { device: configuredDevice })
-    : t("console.deviceExample");
+    : t("console.engineDefault");
 });
 const rerankerModelPlaceholder = computed(
   () =>
     form.reranker ||
     defaultRerankerModel.value ||
     t("console.rerankerModelExample"),
-);
-const rerankerModelPathPlaceholder = computed(
-  () => selectedRerankerModel.value?.path || "/workspace/models/...",
 );
 const excludedIds = computed(() =>
   form.excluded.split(/[\s,]+/).filter(Boolean),
@@ -272,9 +317,7 @@ const retrieve = async (query: string, signal?: AbortSignal) => {
     exclude_chunk_ids: excludedIds.value,
   };
   if (documents) data.retriever_type = form.type;
-  if (form.reranker === "__window__")
-    data.postprocess = { processor_type: "metadata_replace" };
-  else if (form.reranker !== "__none__") {
+  if (form.reranker !== "__none__") {
     data.postprocess = { processor_type: "reranker", top_n: form.topN };
     if (form.rerankQuery.trim())
       data.postprocess.query = form.rerankQuery.trim();
@@ -284,20 +327,29 @@ const retrieve = async (query: string, signal?: AbortSignal) => {
         backend: form.backend,
         device: form.device.trim(),
         api_base: form.apiBase.trim(),
-        model_path: form.modelPath.trim(),
       }).filter(([, value]) => value),
     );
-    const backend = inferRerankerBackend(modelData.value.reranker, model, mediaSearch.value);
-    if (!model.backend && backend === "openvino_vl") model.backend = backend;
     if (Object.keys(model).length) {
       data.postprocess.reranker_model = model;
     }
   }
   return requestRetrieval(data, signal);
 };
+const queryModelDevices = async () => {
+  devicesLoading.value = true;
+  try {
+    deviceList.value = await getModelDevices();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    devicesLoading.value = false;
+  }
+};
 onMounted(async () => {
   modelData.value = await getModelList();
+  queryModelDevices();
 });
+
 defineExpose({ retrieve, excludeChunk, excludedIds });
 </script>
 <style scoped lang="less">

@@ -30,16 +30,11 @@ class Source:
     name: str = ""
     database_id: str = ""
     configuration: Mapping[str, Any] = field(default_factory=dict)
-    # Off switch, set by the operator: a disabled source is frozen in every
-    # pool it is attached to (assetlib/sources/binding.py). The only mutable
-    # fact about a source, beside its name and labels -- what it embeds with
-    # is fixed at creation, and changing it means creating a new source.
+    # A disabled source is frozen in every pool it is attached to.
     enabled: bool = True
     labels: Mapping[str, str] = field(default_factory=dict)
     created_at: str = ""
-    # What this source embeds with, resolved once at creation so a later change
-    # of engine defaults cannot silently change what its records mean
-    # (assetlib/sources/profile.py).
+    # What this source embeds with, fixed at creation.
     profile: Mapping[str, Any] = field(default_factory=dict)
 
     def to_record(self) -> dict[str, Any]:
@@ -68,7 +63,12 @@ class Source:
             VectorCollection,
         )
 
+        from assetlib.sources.profile import upgrade_legacy_backends
+
         source_type = str(record["source_type"]).lower()
+        profile, configuration = upgrade_legacy_backends(
+            record.get("profile") or {}, record.get("operator_options") or {}
+        )
         collection_types = {
             "vector": VectorCollection,
             "sql": SqlCollection,
@@ -83,42 +83,26 @@ class Source:
             source_id=str(record["source_id"]),
             name=str(record["name"]),
             source_type=source_type,
-            # Absent in a record written before connections were runtime state,
-            # when this was an `adapter_id` naming a connection the engine
-            # registered for itself. Left empty rather than raised on, so the
-            # library still restores and reports the source as unreconciled
-            # (`AssetLibrary._source_problem`) instead of vanishing.
+            # May be absent; empty restores the source as unreconciled rather than failing.
             database_id=str(record.get("database_id") or ""),
             location=location,
-            configuration=dict(record.get("operator_options") or {}),
+            configuration=configuration,
             enabled=bool(record.get("enabled", True)),
             labels=dict(record.get("labels") or {}),
             created_at=str(record.get("created_at") or ""),
-            profile=dict(record.get("profile") or {}),
+            profile=profile,
         )
 
 
 class Asset(Protocol):
-    """Something a library holds, and where it was read from.
-
-    `origin` is not a `Source` the library registers: an origin is where the
-    asset came *from* (a file on disk, a request body), a source is where it is
-    materialized *to*. They were the same registry once, told apart by whether
-    `database_id` happened to be set, which made a filtering accident part of the
-    contract.
-    """
+    """Something a library holds; `origin` is where it was read from, not a registered source."""
 
     asset_id: str
     origin: Source
 
 
 class Projection(Protocol, Generic[AssetT, QueryT, ResultT]):
-    """A materialized view of assets and the behavior used to query it.
-
-    This is the whole surface an asset library may rely on. Anything a
-    projection exposes beyond it -- a LlamaIndex index, a backend client, a
-    vendor handle -- is private to that projection.
-    """
+    """A materialized view of assets and the behavior used to query it."""
 
     projection_id: str
     name: str
@@ -143,20 +127,7 @@ class Projection(Protocol, Generic[AssetT, QueryT, ResultT]):
 
 @runtime_checkable
 class ChunkProjection(Protocol):
-    """A projection whose materialized records can be enumerated and dropped.
-
-    A vector projection can be listed and deleted from by metadata; a graph
-    projection cannot. Callers that need either test for this protocol by name
-    rather than probing for the individual methods, so the capability is part of
-    the contract instead of an ad-hoc `hasattr`.
-
-    `version` counts writes: it changes whenever the materialized set does, so a
-    cache built over `load()` can tell that it is stale.
-
-    There is no `clear`: nothing drops a whole collection, because detaching a
-    source or deleting an asset library deliberately leaves the physical data
-    alone. Add it back alongside the first caller that means to destroy data.
-    """
+    """A projection whose records can be enumerated and dropped; `version` changes on every write."""
 
     version: int
 
@@ -169,12 +140,5 @@ class ChunkProjection(Protocol):
     def delete_by_metadata(self, field: str, values: Sequence[str]) -> int: ...
 
     def indexed_asset_ids(self, asset_ids: Sequence[str]) -> Set[str]:
-        """Which of `asset_ids` this projection already holds.
-
-        Answers about a known set rather than enumerating the projection, so
-        attaching a source to a pool that already has assets -- or syncing one
-        -- costs a bounded query instead of reading every record. May return a
-        subset if the backend cannot answer; a caller treats anything missing as
-        not indexed yet.
-        """
+        """Which of `asset_ids` this projection already holds; missing ones count as not indexed."""
         ...
