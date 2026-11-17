@@ -1,7 +1,7 @@
 
 configure_pallet_defect_detection () {
   workspace="$(ensure_project_path)/pallet-defect-detection"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
   used_ports=(80 443 8000 3478)
   wait_timeout=120
@@ -12,7 +12,7 @@ verify_pallet_defect_detection () {
     echo "warehouse.avi missing" 1>&2
     return 1
   }
-  [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ] || {
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/model.bin ] || {
     echo "model.bin missing" 1>&2
     return 1
   }
@@ -63,6 +63,7 @@ EOF
 debian_90_start_pallet_defect_detection () {
   configure_pallet_defect_detection "$@"
   ensure_ports_open start pallet_defect_detection "${used_ports[@]}"
+  ensure_container_namespace start pallet_defect_detection $(ensure_container_parse_yaml "$workspace"/industrial-edge-insights-vision/docker-compose.yml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device
@@ -103,7 +104,8 @@ debian_90_stop_pallet_defect_detection () {
   configure_pallet_defect_detection "$@"
   cd "$workspace"/industrial-edge-insights-vision && {
     ./sample_stop.sh || true
-    docker compose down -v
+    docker compose down -v || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml)
   } || true
 }
 

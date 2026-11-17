@@ -219,7 +219,6 @@ import sys
 from pathlib import Path
 import gi
 import gstgva
-import openvino
 import cv2
 assert sys.implementation.name == 'cpython' and sys.version_info[:2] >= (3, 12) and struct.calcsize('P') == 8, 'CPython 3.12 or newer x64 is required'
 assert Path(gi.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()), 'GI was loaded from another Python environment'
@@ -230,7 +229,7 @@ assert Gst.ElementFactory.make('gvadetect', None) is not None, 'gvadetect is una
 print('Python:', sys.executable)
 print(Gst.version_string())
 '@
-Write-Host '[start] Validating GI, gstgva, OpenVINO, OpenCV and the gvadetect element. Native library loading may take a moment...'
+Write-Host '[start] Validating GI, gstgva, OpenCV and the gvadetect element. Native library loading may take a moment...'
 & $uv.Path run --no-project --no-python-downloads --python $python -- $python -c $validationCode
 if ($LASTEXITCODE -ne 0) { throw 'The backend environment cannot load its native dependencies.' }
 

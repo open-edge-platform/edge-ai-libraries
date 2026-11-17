@@ -229,7 +229,8 @@ class TestGStreamerRtspDestination:
         mock_end_stream = mocker.patch.object(gstreamer_rtsp_destination,'_end_stream')
         gstreamer_rtsp_destination.finish()
         mock_end_stream.assert_called_once()
-        mock_rtsp_server.remove_stream.assert_called_once_with(gstreamer_rtsp_destination._rtsp_path)
+        mock_rtsp_server.remove_stream.assert_called_once_with(
+            gstreamer_rtsp_destination._rtsp_path, gstreamer_rtsp_destination)
 
 
 class TestMediaLifecycle:

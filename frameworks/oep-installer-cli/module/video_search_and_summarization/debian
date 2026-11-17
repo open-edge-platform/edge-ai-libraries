@@ -1,11 +1,8 @@
 
 configure_video_search_and_summarization () {
   workspace="$(ensure_project_path)/video-search-and-summarization"
-  version="$(ensure_parse_value_option version --version=1c5fdc1f440e685c8f82322ec09b60b7320ea404 "$@")"
+  version="$(ensure_parse_value_option version --version=2026.3.0-rc1 "$@")"
   repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
-
-  version_skills=release-2026.2.0
-  repository_skills="https://github.com/open-edge-platform/skills.git"
   skills=(vss-search-index vss-summarize-video)
 
   export APP_HOST_PORT=${APP_HOST_PORT:-12345}
@@ -14,11 +11,12 @@ configure_video_search_and_summarization () {
   [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$workspace"/.device_from_install)"
   local device=$(ensure_parse_device "$@")
 
-  export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+  export VLM_MODEL_NAME=OpenVINO/Qwen3.5-4B-int8-ov
   export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en
-  export OD_MODEL_NAME=yolov8l-worldv2
+  export OD_MODEL_NAME=yolov8l
+  export ASR_MODEL=whisper-base
   export TEXT_EMBEDDING_MODEL=QwenText/qwen3-embedding-0.6b
-  export OVMS_LLM_MODEL_NAME=meta-llama/Llama-3.2-3B-Instruct
+  export OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-4B-int8-ov
 
   export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false
   export MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32
@@ -34,6 +32,7 @@ configure_video_search_and_summarization () {
   export VLM_COMPRESSION_WEIGHT_FORMAT=int4
   export LLM_COMPRESSION_WEIGHT_FORMAT=int4
   export SDK_USE_OPENVINO=true
+  export DATAPREP_DETECTION_MODEL=OpenVINO/yolox_s-int8-ov
   export DATAPREP_EMBEDDING_DEVICE=${device^^}
   export DATAPREP_DETECTION_DEVICE=${device^^}
   export MME_EMBEDDING_DEVICE=${device^^}
@@ -51,7 +50,7 @@ configure_video_search_and_summarization () {
   export RABBITMQ_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
   export RABBITMQ_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
   export REGISTRY_URL=intel
-  export TAG=latest
+  export TAG="$version"
 }
 
 configure_video_search_and_summarization_gated () {
@@ -62,12 +61,10 @@ configure_video_search_and_summarization_gated () {
 
 verify_video_search_and_summarization () {
   local files_to_check=(
-    ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml
-    ov_models/object-detection/ultralytics/public/yolov8l/FP16/yolov8l.xml
-    ov_models/ovms/openvino_models/gpu/int4/meta-llama/Llama-3.2-3B-Instruct/openvino_model.xml
-    ov_models/ovms/openvino_models/gpu/int4/Qwen/Qwen2.5-VL-3B-Instruct/openvino_config.json
-    ov_models/ovms/openvino_models/gpu/int4/config_all.json
-    ov_models/ovms/config.json
+    ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.bin
+    ov_models/object-detection/ultralytics/public/yolov8l/FP16/yolov8l.bin
+    ov_models/ovms/openvino_models/gpu/int8/OpenVINO/Qwen3-4B-int8-ov/openvino_model.bin
+    ov_models/ovms/openvino_models/gpu/int8/OpenVINO/Qwen3.5-4B-int8-ov/openvino_language_model.bin
   )
   for f in "${files_to_check[@]}"; do
     [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || {
@@ -88,9 +85,10 @@ debian_85_install_video_search_and_summarization () {
   else
     ensure_disk_size 8000
     ensure_ports_open install video_search_and_summarization "${used_ports[@]}"
+    ensure_container_namespace install video_search_and_summarization name:vss-model-download
 
     echo "@@STEP Cloning repository"
-    ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization
+    ensure_git_export "$workspace" release-${version%-rc*} $repository sample-applications/video-search-and-summarization
 
     echo "@@STEP Configuring models"
     configure_video_search_and_summarization_gated
@@ -100,12 +98,12 @@ debian_85_install_video_search_and_summarization () {
     echo "@@STEP @@IF docker compose .* pull .* @@THEN Pulling images"
     cd "$workspace"/sample-applications/video-search-and-summarization
     sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
-    sed 's|FINAL_ARG=.*|FINAL_ARG="pull --ignore-pull-failures"|' setup.sh > .setup.sh
+    sed 's|FINAL_ARGS=.*|FINAL_ARGS=(pull --ignore-pull-failures)|' setup.sh > .setup.sh
     sed -i 's|"Unified Summarization/Search UI is now available.*"|""|' .setup.sh
     . ./.setup.sh --search-and-summary
 
     echo "@@STEP Installing skills"
-    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
+    ensure_skills add -- "${skills[@]/#/.github/skills/}"
 
     verify_video_search_and_summarization
   fi
@@ -120,6 +118,7 @@ debian_85_install_video_search_and_summarization () {
 debian_85_start_video_search_and_summarization () {
   configure_video_search_and_summarization "$@"
   ensure_ports_open start video_search_and_summarization "${used_ports[@]}"
+  ensure_container_namespace start video_search_and_summarization $(ensure_container_parse_yaml "$workspace"/sample-applications/video-search-and-summarization/docker/*.yaml)
 
   configure_video_search_and_summarization_gated
   cd "$workspace"/sample-applications/video-search-and-summarization
@@ -136,8 +135,7 @@ debian_85_stop_video_search_and_summarization () {
   cd "$workspace"/sample-applications/video-search-and-summarization && {
     . ./setup.sh --stop || true
     . ./setup.sh --clean-data || true
-    docker volume rm -f docker_ov-models || true
-    docker volume rm -f docker_dataprep-yolox-models
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml) 
   } || true
 }
 

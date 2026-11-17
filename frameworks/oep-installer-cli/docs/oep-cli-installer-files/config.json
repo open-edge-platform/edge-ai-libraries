@@ -355,6 +355,17 @@
           ]
         },
         {
+          "label": "Smart Route Planning Agent",
+          "value": "smart_route_planning_agent",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true
+        },
+        {
           "label": "Smart Traffic Intersection Agent",
           "value": "smart_traffic_intersection_agent",
           "supports": {
@@ -822,42 +833,42 @@
             "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
@@ -1151,31 +1162,31 @@
           "links": [
             {
               "text": "Agentic Predictive Maintenance Pipeline",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html"
             },
             {
               "text": "Agentic Smart Community",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-smart-community/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-metro/agentic-smart-community/index.html"
             },
             {
               "text": "Image Based Video Search",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/image-based-video-search/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/image-based-video-search/index.html"
             },
             {
               "text": "Live Video Captioning",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-captioning/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/live-video-captioning/index.html"
             },
             {
               "text": "Live Video Captioning RAG",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-captioning-rag/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/live-captioning-rag/index.html"
             },
             {
               "text": "Live Video Search",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-search/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/live-video-search/index.html"
             },
             {
               "text": "Live Video Alert Agent",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-alert-agent/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/live-video-alert-agent/index.html"
             },
             {
               "text": "Loitering Detection",
@@ -1190,8 +1201,12 @@
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html"
             },
             {
+              "text": "Smart Route Planning Agent",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-route-planning-agent/index.html"
+            },
+            {
               "text": "Smart Traffic Intersection Agent",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-traffic-intersection-agent/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-traffic-intersection-agent/index.html"
             },
             {
               "text": "Video Search and Summarization",
@@ -1199,7 +1214,7 @@
             },
             {
               "text": "Video Processing for NVR",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/video-processing-for-nvr/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/video-processing-for-nvr/index.html"
             },
             {
               "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",
@@ -1215,31 +1230,31 @@
           "links": [
             {
               "text": "Agentic Predictive Maintenance Pipeline",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html"
             },
             {
               "text": "Agentic Smart Community",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-smart-community/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-metro/agentic-smart-community/index.html"
             },
             {
               "text": "Image Based Video Search",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/image-based-video-search/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/image-based-video-search/index.html"
             },
             {
               "text": "Live Video Captioning",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-captioning/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/live-video-captioning/index.html"
             },
             {
               "text": "Live Video Captioning RAG",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-captioning-rag/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/live-captioning-rag/index.html"
             },
             {
               "text": "Live Video Search",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-search/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/live-video-search/index.html"
             },
             {
               "text": "Live Video Alert Agent",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-alert-agent/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/live-video-alert-agent/index.html"
             },
             {
               "text": "Loitering Detection",
@@ -1254,8 +1269,12 @@
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html"
             },
             {
+              "text": "Smart Route Planning Agent",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-route-planning-agent/index.html"
+            },
+            {
               "text": "Smart Traffic Intersection Agent",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-traffic-intersection-agent/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-traffic-intersection-agent/index.html"
             },
             {
               "text": "Video Search and Summarization",
@@ -1263,7 +1282,7 @@
             },
             {
               "text": "Video Processing for NVR",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/video-processing-for-nvr/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/video-processing-for-nvr/index.html"
             },
             {
               "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",
@@ -1327,7 +1346,7 @@
           "links": [
             {
               "text": "Digital Signage",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
             },
             {
               "text": "Loss Prevention",
@@ -1339,11 +1358,11 @@
             },
             {
               "text": "Store Wide Loss Prevention",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html"
             },
             {
               "text": "Voice Enabled Interactions",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/voice-enabled-interactions/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/voice-enabled-interactions/index.html"
             }
           ]
         },
@@ -1355,7 +1374,7 @@
           "links": [
             {
               "text": "Digital Signage",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
             },
             {
               "text": "Loss Prevention",
@@ -1367,11 +1386,11 @@
             },
             {
               "text": "Store Wide Loss Prevention",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html"
             },
             {
               "text": "Voice Enabled Interactions",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/voice-enabled-interactions/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/voice-enabled-interactions/index.html"
             }
           ]
         },
@@ -1383,7 +1402,7 @@
           "links": [
             {
               "text": "Digital Signage",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
             }
           ]
         },
@@ -1395,7 +1414,7 @@
           "links": [
             {
               "text": "Digital Signage",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
             }
           ]
         },
@@ -1407,7 +1426,7 @@
           "links": [
             {
               "text": "Multi-Modal Patient Monitoring",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/multi-modal-patient-monitoring/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/multi-modal-patient-monitoring/index.html"
             },
             {
               "text": "NICU Warmer",
@@ -1415,7 +1434,7 @@
             },
             {
               "text": "Surgical Instrument",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/surgical-instrument/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/surgical-instrument/index.html"
             }
           ]
         },
@@ -1427,7 +1446,7 @@
           "links": [
             {
               "text": "Multi-Modal Patient Monitoring",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/multi-modal-patient-monitoring/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/multi-modal-patient-monitoring/index.html"
             },
             {
               "text": "NICU Warmer",
@@ -1435,7 +1454,7 @@
             },
             {
               "text": "Surgical Instrument",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/surgical-instrument/index.html"
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/surgical-instrument/index.html"
             }
           ]
         },
@@ -1495,7 +1514,7 @@
           "links": [
             {
               "text": "Deterministic Threat Detection",
-              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/release-2026.3.0/deterministic-threat-detection"
             }
           ]
         },
@@ -1507,7 +1526,7 @@
           "links": [
             {
               "text": "Deterministic Threat Detection",
-              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/release-2026.3.0/deterministic-threat-detection"
             }
           ]
         },

@@ -46,6 +46,7 @@ services:
       - GATEWAY_CONFIG=/app/config.yaml
       - GATEWAY_LOG_DIR=${GATEWAY_LOG_DIR:-/app/logs}
       - IR_OV_MODEL=/models/ov-classifier
+      - IR_BACKBONE=${IR_BACKBONE:-qwen35-2b}
       - IR_DEVICE=${IR_DEVICE:-GPU}
       - HF_ENDPOINT=${HF_ENDPOINT:-}
       - http_proxy=${http_proxy:-}
@@ -53,8 +54,8 @@ services:
       - no_proxy=${no_proxy:-}
     restart: unless-stopped
     healthcheck:
-      # Probe the address the router actually binds to (IR_BIND_HOST). In UI
-      # mode deploy_docker.sh binds it to the host LAN IP so the UI can reach it.
+      # Probe the address the router actually binds to (IR_BIND_HOST): loopback
+      # by default, or the interface the operator exported.
       test:
         [
           "CMD",
