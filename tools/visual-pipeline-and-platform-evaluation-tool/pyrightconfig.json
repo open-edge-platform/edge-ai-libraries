@@ -15,7 +15,8 @@
     ".git",
     "docs",
     "shared",
-    "ui"
+    "ui",
+    "vippet/gst_plugins/python/sscape_*.py"
   ],
   "executionEnvironments": [
     {
