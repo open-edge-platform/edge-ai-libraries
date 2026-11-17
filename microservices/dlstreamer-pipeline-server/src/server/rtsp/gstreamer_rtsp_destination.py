@@ -73,7 +73,8 @@ class GStreamerRtspDestination(AppDestination):
             return None
         if isinstance(value, int) and not isinstance(value, bool) and value > 0:
             return value
-        self._logger.warning("Ignoring invalid 'encode-gop-size' value '%s': expected a positive integer.", value)
+        self._logger.warning(
+            "Ignoring invalid 'encode-gop-size' value '%s': expected a positive integer.", value)
         return None
 
     def _init_stream(self, sample):
@@ -130,15 +131,17 @@ class GStreamerRtspDestination(AppDestination):
                     "Skipping encode-bitrate for non-openh264enc H.264 encoder '%s'; "
                     "using element default.", factory.get_name() if factory else "unknown")
         if self._encode_gop_size and h264_encoder:
-            # Frames between keyframes. A client can only start decoding at a keyframe, so a client that joins the
-            # stream waits up to one GOP. The property name differs per encoder.
+            # Frames between keyframes. A client can only start decoding at a keyframe, so a
+            # client that joins the stream waits up to one GOP. The property name differs per
+            # encoder.
             factory = h264_encoder.get_factory()
             gop_property = {"openh264enc": "gop-size", "vah264enc": "key-int-max"}.get(
                 factory.get_name() if factory else None)
             if gop_property:
                 h264_encoder.set_property(gop_property, self._encode_gop_size)
             else:
-                self._logger.debug("Skipping encode-gop-size for unknown H.264 encoder; using element default.")
+                self._logger.debug(
+                    "Skipping encode-gop-size for unknown H.264 encoder; using element default.")
 
     def _push_buffer(self, buffer):
         buffer.make_writable()

@@ -169,14 +169,20 @@ class TestGStreamerRtspDestination:
         h264_encoder = mock_rtsp_pipeline.get_by_name("h264encoder")
         h264_encoder.set_property.assert_not_called()
 
-    @pytest.mark.parametrize("encoder_name,gop_property", [("openh264enc", "gop-size"), ("vah264enc", "key-int-max")])
+    @pytest.mark.parametrize("encoder_name,gop_property", [
+        ("openh264enc", "gop-size"),
+        ("vah264enc", "key-int-max"),
+    ])
     def test_set_app_src_h264_sets_gop_size(self, request, encoder_name, gop_property):
-        """set_app_src must set the keyframe interval with the property name of the active H.264 encoder."""
+        """set_app_src must set the keyframe interval using the encoder's own property name."""
         destination = request.getfixturevalue("gstreamer_rtsp_destination")
         mock_rtsp_pipeline = MagicMock()
         h264_encoder = MagicMock()
         h264_encoder.get_factory.return_value.get_name.return_value = encoder_name
-        mock_rtsp_pipeline.get_by_name.side_effect = lambda name: h264_encoder if name == "h264encoder" else None
+
+        def get_by_name(name):
+            return h264_encoder if name == "h264encoder" else None
+        mock_rtsp_pipeline.get_by_name.side_effect = get_by_name
         setattr(destination, '_frame_size', 1000)
         setattr(destination, '_encode_bitrate', None)
         setattr(destination, '_encode_gop_size', 15)
@@ -184,20 +190,33 @@ class TestGStreamerRtspDestination:
         h264_encoder.set_property.assert_called_once_with(gop_property, 15)
 
     def test_set_app_src_h264_without_gop_size_keeps_encoder_default(self, request):
+        """set_app_src must leave the keyframe interval alone when no gop size was requested."""
         destination = request.getfixturevalue("gstreamer_rtsp_destination")
         mock_rtsp_pipeline = MagicMock()
         h264_encoder = MagicMock()
         h264_encoder.get_factory.return_value.get_name.return_value = "openh264enc"
-        mock_rtsp_pipeline.get_by_name.side_effect = lambda name: h264_encoder if name == "h264encoder" else None
+
+        def get_by_name(name):
+            return h264_encoder if name == "h264encoder" else None
+        mock_rtsp_pipeline.get_by_name.side_effect = get_by_name
         setattr(destination, '_frame_size', 1000)
         setattr(destination, '_encode_bitrate', None)
         setattr(destination, '_encode_gop_size', None)
         destination.set_app_src(MagicMock(), False, mock_rtsp_pipeline)
         h264_encoder.set_property.assert_not_called()
 
-    @pytest.mark.parametrize("value,expected", [(None, None), (15, 15), (0, None), (-3, None), ("15", None), (True, None)])
+    @pytest.mark.parametrize("value,expected", [
+        (None, None),
+        (15, 15),
+        (0, None),
+        (-3, None),
+        ("15", None),
+        (True, None),
+    ])
     def test_parse_gop_size(self, request, value, expected):
+        """_parse_gop_size must accept only positive, non-bool integers and reject the rest."""
         destination = request.getfixturevalue("gstreamer_rtsp_destination")
+        # pylint: disable=protected-access
         assert destination._parse_gop_size(value) == expected
 
     def test_push_buffer(self, gstreamer_rtsp_destination, mock_pipeline,Gst,mocker):
