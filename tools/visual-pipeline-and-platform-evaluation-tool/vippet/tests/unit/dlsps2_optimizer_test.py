@@ -40,6 +40,8 @@ class _FakeOptimizeApi:
         self.deleted: list[str] = []
         self.post_response: httpx.Response | None = None
         self.status_response: httpx.Response | None = None
+        # POST /optimize requests answered with 409 before the job starts.
+        self.busy_posts = 0
         # Status polls answered with 503 before the real status.
         self.status_errors = 0
         # Status polls that still report RUNNING after the job was cancelled.
@@ -59,6 +61,9 @@ class _FakeOptimizeApi:
         path = request.url.path
         if request.method == "POST" and path == "/optimize":
             self.submitted.append(json.loads(request.content))
+            if self.busy_posts:
+                self.busy_posts -= 1
+                return httpx.Response(409, json={"detail": "job old is still running"})
             return self.post_response or httpx.Response(200, json={"job_id": "j1"})
         if request.method == "GET" and path == "/optimize/status/j1":
             if self.status_response is not None:
@@ -160,10 +165,34 @@ class TestDlsps2Optimizer(unittest.TestCase):
             409, json={"detail": "optimizer job abc is still running"}
         )
 
-        with self.assertRaisesRegex(
-            Dlsps2OptimizerError, "already running.*abc is still running"
-        ):
-            self._optimize(api)
+        with patch.object(dlsps2_optimizer, "DLSPS2_OPTIMIZE_BUSY_WAIT_S", 0.0):
+            with self.assertRaisesRegex(
+                Dlsps2OptimizerError, "already running.*abc is still running"
+            ):
+                self._optimize(api)
+
+    def test_busy_server_is_retried_until_free(self):
+        """A job still ending on the server delays the start instead of failing it."""
+        api = _FakeOptimizeApi(["COMPLETED"])
+        api.busy_posts = 2
+
+        result = self._optimize(api)
+
+        self.assertEqual(result.pipeline, "best ! sink")
+        self.assertEqual(len(api.submitted), 3)
+
+    def test_cancel_while_server_busy_raises_cancelled(self):
+        api = _FakeOptimizeApi(["COMPLETED"])
+        api.busy_posts = 1000
+        optimizer = Dlsps2Optimizer(base_url=BASE_URL, poll_interval=0.01)
+        timer = threading.Timer(0.05, optimizer.cancel)
+        timer.start()
+
+        with self.assertRaises(Dlsps2OptimizerCancelled):
+            self._optimize(api, optimizer=optimizer)
+
+        timer.join()
+        self.assertEqual(api.deleted, [])
 
     def test_invalid_request_raises_with_detail(self):
         api = _FakeOptimizeApi(["COMPLETED"])

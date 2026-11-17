@@ -44,6 +44,15 @@ DLSPS2_OPTIMIZE_UNREACHABLE_S: float = float(
     os.environ.get("DLSPS2_OPTIMIZE_UNREACHABLE_S", "60")
 )
 
+# Seconds to keep retrying POST /optimize while the server answers 409. vippet
+# is the server's only client and starts one optimization at a time, so a busy
+# server is finishing a job cancelled when a previous vippet process ended (see
+# cancel_leftover_optimizations): it frees the slot once that job's worker has
+# exited, at most max(30, 3 * sample_duration) seconds after the cancel.
+DLSPS2_OPTIMIZE_BUSY_WAIT_S: float = float(
+    os.environ.get("DLSPS2_OPTIMIZE_BUSY_WAIT_S", "45")
+)
+
 # The server kills the optimizer worker max(30, 3 * sample_duration) seconds
 # after a cancel; wait that long plus this margin for the job to end.
 _CANCEL_GRACE_MIN_S = 30.0
@@ -193,12 +202,24 @@ class Dlsps2Optimizer:
             )
 
     def _submit(self, client: httpx.Client, request: dict[str, Any]) -> str:
-        try:
-            response = client.post(f"{self.base_url}/optimize", json=request)
-        except httpx.HTTPError as exc:
-            raise Dlsps2OptimizerError(
-                f"Cannot reach DLSPS 2.0 at {self.base_url}: {exc}"
-            ) from exc
+        busy_deadline = time.monotonic() + DLSPS2_OPTIMIZE_BUSY_WAIT_S
+        while True:
+            try:
+                response = client.post(f"{self.base_url}/optimize", json=request)
+            except httpx.HTTPError as exc:
+                raise Dlsps2OptimizerError(
+                    f"Cannot reach DLSPS 2.0 at {self.base_url}: {exc}"
+                ) from exc
+            if response.status_code != 409 or time.monotonic() >= busy_deadline:
+                break
+            logger.info(
+                "DLSPS 2.0 is still running another optimizer job, retrying: %s",
+                _response_detail(response),
+            )
+            if self._cancelled.wait(self.poll_interval):
+                raise Dlsps2OptimizerCancelled(
+                    "Optimizer job cancelled before DLSPS 2.0 could start it"
+                )
         if response.status_code in (404, 405):
             raise Dlsps2OptimizerError(
                 f"DLSPS 2.0 at {self.base_url} has no optimizer endpoint "
