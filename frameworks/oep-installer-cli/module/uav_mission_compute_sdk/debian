@@ -137,9 +137,10 @@ debian_90_start_uav_mission_compute_sdk () {
     return 1
   fi
   ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?
+  echo "Docker Compose service status:"
+  docker compose --profile sim-camera --profile observability ps || return $?
   echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras"
   echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080"
-  echo "@@HIGHLIGHT Status: cd $sdk_path && docker compose --profile sim-camera --profile observability ps"
   echo "@@HIGHLIGHT $installer_name stop uav_mission_compute_sdk"
 }
 
@@ -153,7 +154,6 @@ debian_90_stop_uav_mission_compute_sdk () {
     make down || true
     ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
   } || true
-  ensure_prop remove started/uav_mission_compute_sdk/ports
 }
 
 debian_90_remove_uav_mission_compute_sdk () {
@@ -171,7 +171,4 @@ debian_90_remove_uav_mission_compute_sdk () {
     ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml) || true
   } || true
   ensure_rm "$workspace" || return $?
-  ensure_prop remove started/uav_mission_compute_sdk/ports || true
-  ensure_prop remove installed/uav_mission_compute_sdk/ports || true
-  ensure_prop remove installed/uav_mission_compute_sdk/commit || true
 }

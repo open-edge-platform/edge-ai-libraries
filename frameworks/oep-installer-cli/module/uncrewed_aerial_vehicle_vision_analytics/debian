@@ -244,6 +244,5 @@ debian_90_remove_uncrewed_aerial_vehicle_vision_analytics () {
   } || true
   ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/ || true
   ensure_rm "$workspace" || return $?
-  ensure_prop remove installed/uncrewed_aerial_vehicle_vision_analytics/ports || true
   ensure_prop remove installed/uncrewed_aerial_vehicle_vision_analytics/
 }
