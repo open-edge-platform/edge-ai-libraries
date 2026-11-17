@@ -3932,7 +3932,9 @@ debian_90_install_uncrewed_aerial_vehicle_ground_station ()
     ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/version || return $?;
     cd "$app_dir" || return $?;
     echo "Review $app_dir/.env and upstream LAN bindings before starting the application.";
-    make init || return $?;
+    make init ACCEPT_VSS_MODELS=y || return $?;
+    sed -i -e 's|^VSS_EMBEDDING_MODEL=[[:space:]]*$|VSS_EMBEDDING_MODEL=CLIP/clip-vit-b-32|' -e 's|^DATAPREP_DETECTION_MODEL=[[:space:]]*$|DATAPREP_DETECTION_MODEL=OpenVINO/yolox_s-int8-ov|' .env || return $?;
+    make _check_vss_env || return $?;
     sed -i -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?;
     docker compose "${compose_files[@]}" pull --ignore-buildable && docker compose "${compose_files[@]}" build || return $?;
     if [ ! -f "$app_dir/.env" ]; then
@@ -4112,9 +4114,8 @@ debian_90_start_uncrewed_aerial_vehicle_ground_station ()
     else
         read -r -a used_ports <<< "$(ensure_prop get started/uncrewed_aerial_vehicle_ground_station/ports)";
     fi;
-    sed -i -e "s|^VIZ_HOST_IP=.*|VIZ_HOST_IP=$(ensure_ip)|" -e "s|^VIZ_PUBLIC_HOST=.*|VIZ_PUBLIC_HOST=$(ensure_ip)|" .env || return $?;
     ensure_container_namespace start uncrewed_aerial_vehicle_ground_station $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true;
-    make up || return $?;
+    make up-vss || return $?;
     local attempt ready=0;
     for ((attempt=0; attempt<24; attempt++))
     do
@@ -4128,9 +4129,16 @@ debian_90_start_uncrewed_aerial_vehicle_ground_station ()
         echo "ground-station readiness timed out. Inspect docker compose logs in $app_dir." 1>&2;
         return 1;
     fi;
+    local dashboard_port;
+    dashboard_port="$(docker compose "${compose_files[@]}" port viz-backend 8080)" || return $?;
+    dashboard_port="${dashboard_port##*:}";
+    if [[ ! "$dashboard_port" =~ ^[0-9]+$ ]]; then
+        echo "Could not determine the published ground-station dashboard port." 1>&2;
+        return 1;
+    fi;
     ensure_prop create started/uncrewed_aerial_vehicle_ground_station/ports || return $?;
     ensure_prop set started/uncrewed_aerial_vehicle_ground_station/ports "${used_ports[*]:-none}" || return $?;
-    echo "@@HIGHLIGHT Dashboard: http://<VIZ_HOST_IP>:<VIZ_PORT> from $app_dir/.env";
+    echo "@@HIGHLIGHT Dashboard: http://$(ensure_ip):$dashboard_port";
     echo "@@HIGHLIGHT $installer_name stop uncrewed_aerial_vehicle_ground_station"
 }
 debian_90_start_uncrewed_aerial_vehicle_vision_analytics () 
@@ -4150,7 +4158,6 @@ debian_90_start_uncrewed_aerial_vehicle_vision_analytics ()
         resolve_uncrewed_aerial_vehicle_vision_analytics_ports || return $?;
     fi;
     ensure_ports_open start uncrewed_aerial_vehicle_vision_analytics "${used_ports[@]}" || return $?;
-    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
     ensure_container_namespace start uncrewed_aerial_vehicle_vision_analytics $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true;
     make pymav-up || return $?;
     local check attempt ready;
@@ -4200,7 +4207,7 @@ debian_90_stop_uncrewed_aerial_vehicle_ground_station ()
         return 1;
     fi;
     cd "$app_dir" && { 
-        docker compose "${compose_files[@]}" down || true;
+        make down-vss || true;
         ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
     } || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/
@@ -4213,7 +4220,7 @@ debian_90_stop_uncrewed_aerial_vehicle_vision_analytics ()
         return 1;
     fi;
     cd "$app_dir" && { 
-        docker compose "${compose_files[@]}" down || true;
+        make pymav-down || true;
         ensure_container_cleanup $(ensure_container_parse_yaml docker-compose-pymavlink.yml) || true
     } || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_vision_analytics/
