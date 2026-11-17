@@ -14,6 +14,7 @@ import cv2
 import yaml
 
 from dlsps2_runner import Dlsps2PipelineRunner
+from mpegts_loop_align import align
 
 # The TS conversion runs on DLSPS 2.0. Both containers mount the same video
 # directories, so the output lands here.
@@ -835,14 +836,18 @@ class VideosManager:
                     f"! mpegtsmux ! filesink location={ts_path}"
                 )
             runner.run(pipeline_command)
+            aligned_path = ts_path + ".aligned"
+            align(ts_path, aligned_path)
+            os.replace(aligned_path, ts_path)
             return True
         except Exception as e:
             logger.error(f"Failed to convert '{source_filename}' to TS: {e}")
             # A half-written file would later pass for a finished conversion.
-            try:
-                os.remove(ts_path)
-            except OSError:
-                pass
+            for path in (ts_path, ts_path + ".aligned"):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
             return False
 
     @staticmethod
