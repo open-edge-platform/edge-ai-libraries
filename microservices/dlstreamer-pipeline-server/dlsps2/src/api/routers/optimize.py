@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Path
@@ -10,8 +11,15 @@ from api.schema import (
     OptimizeResponse,
     OptimizeResultResponse,
     OptimizeStatusResponse,
+    PreprocessRequest,
+    PreprocessResponse,
 )
-from core.optimizer_manager import OptimizerBusyError, OptimizerManager
+from core.optimizer_manager import (
+    OptimizerBusyError,
+    OptimizerManager,
+    OptimizerPreprocessError,
+    preprocess_pipeline,
+)
 
 router = APIRouter(prefix="/optimize", tags=["optimization"])
 
@@ -53,6 +61,18 @@ async def start_optimization(request: OptimizeRequest):
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"job_id": job_id}
+
+
+@router.post("/preprocess", response_model=PreprocessResponse)
+def preprocess_optimization_pipeline(request: PreprocessRequest):
+    """Apply the optimizer's known element substitutions to a pipeline without searching."""
+    if not request.pipeline.strip():
+        raise HTTPException(status_code=400, detail="pipeline must not be empty")
+    try:
+        processed = preprocess_pipeline(request.pipeline)
+    except OptimizerPreprocessError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"processed_pipeline": processed}
 
 
 @router.get("/status", response_model=List[OptimizeStatusResponse])

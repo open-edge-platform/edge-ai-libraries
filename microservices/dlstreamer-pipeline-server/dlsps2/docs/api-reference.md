@@ -43,6 +43,7 @@ authoritative schema for the version you are running:
 | `GET` | [/validate/status](#get-validatestatus) | Return the status of all validation requests. | Yes |
 | `GET` | [/validate/status/{validation_id}](#get-validatestatusvalidation_id) | Return the status of a specific validation request. | Yes |
 | `POST` | [/optimize](#post-optimize) | Start an asynchronous pipeline optimization job. | Yes |
+| `POST` | [/optimize/preprocess](#post-optimizepreprocess) | Apply the optimizer's known element substitutions to a pipeline without searching. | Yes |
 | `GET` | [/optimize/status](#get-optimizestatus) | Return the status of all optimizer jobs. | Yes |
 | `GET` | [/optimize/status/{job_id}](#get-optimizestatusjob_id) | Return the progress of an optimizer job. | Yes |
 | `GET` | [/optimize/result/{job_id}](#get-optimizeresultjob_id) | Return the optimizer result (partial while running). | Yes |
@@ -1039,6 +1040,42 @@ curl http://localhost:8080/optimize/result/7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d
 ```
 
 ---
+
+## `POST` /optimize/preprocess
+
+Applies the DL Streamer optimizer's `preprocess_pipeline` substitutions to a pipeline. Each substitution replaces a known element combination with a more performant alternative. No pipeline is run, so the call returns quickly. It runs in a subprocess and times out after 30 seconds.
+
+### Request body
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `pipeline` | string | Yes | GStreamer pipeline string. Must not be empty. |
+
+### Responses
+
+#### `200 OK`
+
+```json
+{
+  "processed_pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=CPU ! gvafpscounter ! fakesink"
+}
+```
+
+#### `400 Bad Request`
+
+Returned when `pipeline` is empty.
+
+#### `503 Service Unavailable`
+
+Returned when the optimizer cannot be run or times out. The `detail` field gives the reason.
+
+### Example
+
+```bash
+curl -X POST http://localhost:8080/optimize/preprocess \
+  -H 'Content-Type: application/json' \
+  -d '{"pipeline": "filesrc location=/videos/sample.mp4 ! decodebin ! gvadetect model=/models/yolo.xml ! gvafpscounter ! fakesink"}'
+```
 
 ## `DELETE` /optimize/{job_id}
 
