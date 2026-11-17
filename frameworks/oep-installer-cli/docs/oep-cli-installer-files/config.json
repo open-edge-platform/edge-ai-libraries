@@ -126,8 +126,8 @@
           }
         },
         {
-          "label": "Federal and Aerospace (Mission Decision Support)",
-          "value": "federal_and_aerospace_ai_suite_mission_decision_support",
+          "label": "Federal and Aerospace (Mission Sensing Service)",
+          "value": "federal_and_aerospace_ai_suite_mission_sensing_service",
           "supports": {
             "OP_SYSTEM": [
               "UBUNTU_24_04",
@@ -701,21 +701,11 @@
           "remove": true
         },
         {
-          "label": "Deterministic Threat Detection",
-          "value": "deterministic_threat_detection",
+          "label": "Mission Sensing Service Blueprint",
+          "value": "mission_sensing_service_blueprint",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
-            ]
-          },
-          "remove": true
-        },
-        {
-          "label": "Mission Decision Support Blueprint",
-          "value": "mission_decision_support_blueprint",
-          "supports": {
-            "PROFILE": [
-              "federal_and_aerospace_ai_suite_mission_decision_support"
+              "federal_and_aerospace_ai_suite_mission_sensing_service"
             ]
           }
         },
@@ -724,20 +714,9 @@
           "value": "deterministic_threat_detection",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite_mission_decision_support"
+              "federal_and_aerospace_ai_suite_mission_sensing_service"
             ]
           },
-          "remove": true
-        },
-        {
-          "label": "UAV Mission Compute SDK",
-          "value": "uav_mission_compute_sdk",
-          "supports": {
-            "PROFILE": [
-              "federal_and_aerospace_ai_suite_mission_decision_support"
-            ]
-          },
-          "startStop": true,
           "remove": true
         },
         {
@@ -858,14 +837,14 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
@@ -1045,7 +1024,7 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "text": "Get Started",
@@ -1053,7 +1032,7 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "Get Started",
@@ -1508,7 +1487,7 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "links": [
@@ -1520,7 +1499,7 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "links": [
