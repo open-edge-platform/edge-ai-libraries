@@ -78,7 +78,8 @@ from typing import Callable, Optional
 
 import httpx
 
-from pipeline_events import LAUNCH_ELEMENT, EventCapture
+from gst_properties import LAUNCH_ELEMENT, LAUNCH_TOKEN, QUOTED_VALUE
+from pipeline_events import EventCapture
 from pipeline_runner import LatencyTracerSample, PipelineEvent, PipelineResult
 
 logger = logging.getLogger("dlsps2_runner")
@@ -233,7 +234,7 @@ def with_genai_post_metrics(command: str) -> str:
 
 
 # A launch string token: whitespace-separated, double-quoted parts kept whole.
-_LAUNCH_TOKEN = re.compile(r'(?:[^\s"]|"[^"]*")+')
+_LAUNCH_TOKEN = LAUNCH_TOKEN
 
 # Parentheses attached to the text before them, without spaces inside: caps
 # features (``video/x-raw(memory:VAMemory)``, also shell-escaped as
@@ -266,7 +267,7 @@ def with_fps_chain_last(command: str, stream_id: str) -> str:
     chains: list[list[str]] = [[]]
     after_link = True
     for token in _LAUNCH_TOKEN.findall(command):
-        unquoted = _ATTACHED_PARENS.sub("", re.sub(r'"[^"]*"', "", token))
+        unquoted = _ATTACHED_PARENS.sub("", QUOTED_VALUE.sub("", token))
         if token != "!" and ("!" in unquoted or "(" in unquoted or ")" in unquoted):
             # A link without spaces around it, or a bin: leave it as written.
             return command

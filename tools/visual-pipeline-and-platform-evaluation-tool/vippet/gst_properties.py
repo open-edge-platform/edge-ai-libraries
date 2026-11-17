@@ -6,6 +6,12 @@
 import re
 
 
+_QUOTED_VALUE_PATTERN = r""""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'"""
+QUOTED_VALUE = re.compile(_QUOTED_VALUE_PATTERN)
+LAUNCH_ELEMENT = re.compile(rf"""(?:[^!"']|{_QUOTED_VALUE_PATTERN})+""")
+LAUNCH_TOKEN = re.compile(rf"""(?:[^\s"']|{_QUOTED_VALUE_PATTERN})+""")
+
+
 def quote_property(value: object) -> str:
     """Serialize a value for use in a GStreamer pipeline property.
 

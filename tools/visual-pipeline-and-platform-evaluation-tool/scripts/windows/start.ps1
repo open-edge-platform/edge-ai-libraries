@@ -20,7 +20,7 @@ starts can use different data directories without retaining generated defaults.
 Missing data-path variables are set beneath DataDirectory and their directories
 are created. Existing nonempty environment overrides take precedence:
 MODELS_PATH, INPUT_VIDEO_DIR, AUTO_VIDEO_DIR, UPLOADED_VIDEO_DIR, OUTPUT_VIDEO_DIR,
-UPLOADED_IMAGES_DIR and METADATA_DIR. Creates audio\input, audio\output and db
+AUTO_AUDIO_DIR, OUTPUT_AUDIO_DIR, UPLOADED_IMAGES_DIR and METADATA_DIR. Creates db
 under DataDirectory. DATABASE_URL defaults to a persistent SQLite database at
 db\app.db, rather than the backend's in-memory default.
 
@@ -30,9 +30,11 @@ directories must exist and are not created as empty substitutes. The default
 recordings YAML comes from this checkout's shared\videos\default_recordings.yaml.
 An explicit DEFAULT_RECORDINGS_FILE override is preserved; a missing override
 warns that automatic recording downloads will be skipped.
+DEFAULT_AUDIO_RECORDINGS_FILE defaults to shared\audio\default_recordings.yaml;
+an explicit missing override warns that bundled audio recordings will be skipped.
 
-Unspecified MODEL_DOWNLOAD_URL, METRICS_MANAGER_URL and LIVE_STREAM_SERVER_HOST
-default to local services (ports 8000, 9090 and RTSP 8554). APP_LOG_LEVEL defaults
+Unspecified MODEL_DOWNLOAD_URL, METRICS_MANAGER_URL, DLSPS2_BASE_URL and LIVE_STREAM_SERVER_HOST
+default to local services (ports 8000, 9090, 8080 and RTSP 8554). APP_LOG_LEVEL defaults
 to INFO. Existing environment overrides are preserved. Supporting services and
 the UI must be started separately. Backend startup can download recordings and
 other external resources. Proxy settings apply to setup, uv and the backend.
@@ -67,6 +69,12 @@ Configure the service to use model files accessible at the backend's MODELS_PATH
 .PARAMETER MetricsManagerUrl
 Optional metrics-manager service URL. When supplied, replaces METRICS_MANAGER_URL
 for this session; otherwise the existing environment or http://127.0.0.1:9090 applies.
+
+.PARAMETER Dlsps2BaseUrl
+Optional DL Streamer Pipeline Server 2.0 URL. When supplied, replaces DLSPS2_BASE_URL
+for this session; otherwise the existing environment or http://127.0.0.1:8080 applies.
+The server must be started separately with resources accessible at the paths sent
+by the backend. For a remote server behind a proxy, configure NoProxy as needed.
 
 .PARAMETER HttpProxy
 Optional HTTP proxy URL forwarded to setup.ps1. Overrides HTTP_PROXY for this
@@ -104,6 +112,7 @@ $startOptions = @{
     DataDirectory = 'D:\Vippet\data'
     ModelDownloadUrl = 'http://127.0.0.1:8000'
     MetricsManagerUrl = 'http://127.0.0.1:9090'
+    Dlsps2BaseUrl = 'http://127.0.0.1:8080'
     Port = 7861
 }
 .\scripts\windows\start.ps1 @startOptions
@@ -127,6 +136,7 @@ param(
     [string]$DataDirectory = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Vippet'),
     [string]$ModelDownloadUrl,
     [string]$MetricsManagerUrl,
+    [string]$Dlsps2BaseUrl,
     [ValidateNotNullOrEmpty()][string]$HttpProxy,
     [ValidateNotNullOrEmpty()][string]$HttpsProxy,
     [ValidateNotNullOrEmpty()][string]$NoProxy,
@@ -139,7 +149,9 @@ foreach ($name in @('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'PATH', 'VIRTUAL_EN
     'PYTHONPATH', 'PYGI_DLL_DIRS', 'GI_TYPELIB_PATH', 'SCRIPTS_PATH', 'LABELS_PATH',
     'PUBLIC_MODEL_PROC_PATH', 'DEFAULT_RECORDINGS_FILE', 'MODELS_PATH', 'INPUT_VIDEO_DIR',
     'AUTO_VIDEO_DIR', 'UPLOADED_VIDEO_DIR', 'OUTPUT_VIDEO_DIR', 'UPLOADED_IMAGES_DIR',
+    'AUTO_AUDIO_DIR', 'OUTPUT_AUDIO_DIR', 'DEFAULT_AUDIO_RECORDINGS_FILE',
     'METADATA_DIR', 'DATABASE_URL', 'MODEL_DOWNLOAD_URL', 'METRICS_MANAGER_URL',
+    'DLSPS2_BASE_URL',
     'LIVE_STREAM_SERVER_HOST', 'LIVE_STREAM_SERVER_PORT', 'APP_LOG_LEVEL')) {
     $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
@@ -237,6 +249,7 @@ $component = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $dataRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($DataDirectory)
 if ($ModelDownloadUrl) { $env:MODEL_DOWNLOAD_URL = $ModelDownloadUrl }
 if ($MetricsManagerUrl) { $env:METRICS_MANAGER_URL = $MetricsManagerUrl }
+if ($Dlsps2BaseUrl) { $env:DLSPS2_BASE_URL = $Dlsps2BaseUrl }
 
 Write-Host '[start] Validating scripts, labels and model-proc resource directories...'
 $resourcePaths = @{
@@ -264,6 +277,18 @@ if (!$env:DEFAULT_RECORDINGS_FILE) {
     }
 }
 
+Write-Host '[start] Configuring the audio recordings YAML...'
+if (!$env:DEFAULT_AUDIO_RECORDINGS_FILE) {
+    $audioRecordings = Join-Path $component 'shared\audio\default_recordings.yaml'
+    if (!(Test-Path -LiteralPath $audioRecordings -PathType Leaf)) { throw "Default audio recordings YAML not found: $audioRecordings" }
+    $env:DEFAULT_AUDIO_RECORDINGS_FILE = $audioRecordings
+} else {
+    $env:DEFAULT_AUDIO_RECORDINGS_FILE = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($env:DEFAULT_AUDIO_RECORDINGS_FILE)
+    if (!(Test-Path -LiteralPath $env:DEFAULT_AUDIO_RECORDINGS_FILE -PathType Leaf)) {
+        Write-Warning 'DEFAULT_AUDIO_RECORDINGS_FILE does not exist; bundled audio recordings will be skipped.'
+    }
+}
+
 Write-Host '[start] Preparing writable data directories and database configuration...'
 $dataPaths = @{
     MODELS_PATH = 'models\output'
@@ -271,6 +296,8 @@ $dataPaths = @{
     AUTO_VIDEO_DIR = 'videos\input\auto'
     UPLOADED_VIDEO_DIR = 'videos\input\uploaded'
     OUTPUT_VIDEO_DIR = 'videos\output'
+    AUTO_AUDIO_DIR = 'audio\input\auto'
+    OUTPUT_AUDIO_DIR = 'audio\output'
     UPLOADED_IMAGES_DIR = 'images\input\uploaded'
     METADATA_DIR = 'metadata'
 }
@@ -281,9 +308,7 @@ foreach ($name in $dataPaths.Keys) {
     Set-Item -Path "Env:$name" -Value $dataPath
     New-Item -ItemType Directory -Force -Path $dataPath | Out-Null
 }
-foreach ($directory in @('audio\input', 'audio\output', 'db')) {
-    New-Item -ItemType Directory -Force -Path (Join-Path $dataRoot $directory) | Out-Null
-}
+New-Item -ItemType Directory -Force -Path (Join-Path $dataRoot 'db') | Out-Null
 if (!$env:DATABASE_URL) {
     $dbPath = (Join-Path $dataRoot 'db\app.db').Replace('\', '/')
     $env:DATABASE_URL = "sqlite+aiosqlite:///$dbPath"
@@ -292,6 +317,7 @@ Write-Host '[start] Configuring service addresses and application logging...'
 $serviceDefaults = @{
     MODEL_DOWNLOAD_URL = 'http://127.0.0.1:8000'
     METRICS_MANAGER_URL = 'http://127.0.0.1:9090'
+    DLSPS2_BASE_URL = 'http://127.0.0.1:8080'
     LIVE_STREAM_SERVER_HOST = '127.0.0.1'
     LIVE_STREAM_SERVER_PORT = '8554'
     APP_LOG_LEVEL = 'INFO'

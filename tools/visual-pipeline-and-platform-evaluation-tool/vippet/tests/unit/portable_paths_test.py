@@ -35,6 +35,9 @@ PATH_DEFAULTS = {
     "UPLOADED_VIDEO_DIR": "/videos/input/uploaded",
     "OUTPUT_VIDEO_DIR": "/videos/output",
     "DEFAULT_RECORDINGS_FILE": "/videos/default_recordings.yaml",
+    "AUTO_AUDIO_DIR": "/audio/input/auto",
+    "OUTPUT_AUDIO_DIR": "/audio/output",
+    "DEFAULT_AUDIO_RECORDINGS_FILE": "/audio/default_recordings.yaml",
     "METADATA_DIR": "/metadata",
 }
 
@@ -51,11 +54,11 @@ class TestPortablePathDefaults(unittest.TestCase):
         code = (
             "import json, platform_paths\n"
             f"platform_paths.IS_WINDOWS = {windows!r}\n"
-            "import database, images, models, resources, videos\n"
+            "import audio_assets, database, images, models, resources, videos\n"
             "from managers import metadata_manager\n"
             "from api.routes import timeseries\n"
             "config = {}\n"
-            "for module in (database, images, models, resources, videos, metadata_manager):\n"
+            "for module in (audio_assets, database, images, models, resources, videos, metadata_manager):\n"
             "    config.update({key: value for key, value in vars(module).items() "
             "if key.isupper() and isinstance(value, str)})\n"
             "config['TIMESERIES_METADATA_DIR'] = timeseries.METADATA_DIR\n"
@@ -79,7 +82,12 @@ class TestPortablePathDefaults(unittest.TestCase):
                 for key, default_path in PATH_DEFAULTS.items():
                     expected = (
                         default_path
-                        if key in {"MODELS_PATH", "DEFAULT_RECORDINGS_FILE"}
+                        if key
+                        in {
+                            "MODELS_PATH",
+                            "DEFAULT_RECORDINGS_FILE",
+                            "DEFAULT_AUDIO_RECORDINGS_FILE",
+                        }
                         else os.path.normpath(default_path)
                     )
                     with self.subTest(windows=windows, key=key):
