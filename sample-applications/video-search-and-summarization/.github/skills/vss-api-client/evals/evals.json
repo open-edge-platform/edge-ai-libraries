@@ -86,13 +86,13 @@
       "id": 90,
       "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
       "prompt": "I just uploaded a video to VSS and generated its search embeddings. Now I want to run a natural language query like \"person entering through the side door\" against `/search/query`, restrict results to clips tagged \"warehouse\", and only look within the last 24 hours. Can you show me the exact request body and how to read the ranked clip results from the response?",
-      "expected_output": "Before answering the search question, the response unconditionally runs the skill's bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at the official VSS repo or a fork of it and reuses that checkout if so, or otherwise performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main; it then cd's into the resolved app root before giving the /search/query request body and result-reading guidance.",
+      "expected_output": "Before answering the search question, the response unconditionally runs the skill's bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at the official VSS repo or a fork of it and reuses that checkout if so, or otherwise performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from release-2026.3.0; it then cd's into the resolved app root before giving the /search/query request body and result-reading guidance.",
       "files": [],
       "expectations": [
         "The response runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as a first step before addressing the requested search query task, even though the prompt never asked about setup, location, or cloning.",
         "The bootstrap step determines whether the current location is already a valid clone/checkout (or a fork) of the VSS project by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, checking origin/upstream URLs) for a match to the official VSS repo (open-edge-platform/edge-ai-libraries) or a fork of it, rather than merely checking for local marker files.",
         "If that remote check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the response reuses it and performs NO re-clone.",
-        "If no valid checkout or matching remote is found, the response performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the main branch.",
+        "If no valid checkout or matching remote is found, the response performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the release-2026.3.0 branch.",
         "The response changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's real commands for the search query task."
       ]
     }

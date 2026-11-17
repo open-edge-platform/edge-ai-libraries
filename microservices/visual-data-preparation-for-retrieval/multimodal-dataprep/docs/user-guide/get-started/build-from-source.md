@@ -28,8 +28,8 @@ Following options are provided to build the microservice.
 1. Clone the repository and change to project directory:
 
    ```bash
-   # Clone the mainline branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b main
+   # Clone the release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
 
    cd edge-ai-libraries/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep
    ```

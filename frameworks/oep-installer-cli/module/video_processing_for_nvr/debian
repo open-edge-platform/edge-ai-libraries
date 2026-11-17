@@ -1,7 +1,7 @@
 
 configure_video_processing_for_nvr () {
   workspace="$(ensure_project_path)/video-processing-for-nvr"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   duration=45
 
@@ -30,7 +30,7 @@ debian_90_install_video_processing_for_nvr () {
   if verify_video_processing_for_nvr && ! ensure_parse_reinstall "$@"; then
     echo "Video Processing for NVR is already installed." 1>&2
   else
-    ensure_disk_size 300
+    ensure_disk_size 10000
     ensure_git_export "$workspace" "$version" "$repository" video-processing-for-nvr
 
     mkdir -p "$workspace"/videos
@@ -81,6 +81,7 @@ ov.save_model(ppp.build(), "modified_yolov8n/yolov8n.xml")
 debian_90_start_video_processing_for_nvr () {
   configure_video_processing_for_nvr "$@"
   debian_90_stop_video_processing_for_nvr "$@"
+  ensure_container_namespace start video_processing_for_nvr $(ensure_container_parse_yaml "$workspace"/video-processing-for-nvr/docker/*.yml)
 
   [ ! -r "$workspace"/.device ] || set -- "$@" --"$(< "$workspace"/.device)"
   local device=$(ensure_parse_device "$@")
@@ -106,7 +107,7 @@ debian_90_stop_video_processing_for_nvr () {
   configure_video_processing_for_nvr "$@"
   cd "$workspace"/video-processing-for-nvr/docker && {
     docker compose down -v --remove-orphans || true
-    docker rm -f vpp-npu
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yml)
   } || true
 }
 

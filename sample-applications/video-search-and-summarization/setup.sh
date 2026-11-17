@@ -695,8 +695,8 @@ fi
 
 # =================== Model Download Microservice (service mode) ===================
 # Image auto-pulled by `docker run` if absent; --pull-always also refreshes a cached copy.
-# Override MODEL_DOWNLOAD_IMAGE to pin a tag.
-export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-intel/model-download:${MODEL_DOWNLOAD_TAG:-latest}}
+# Override MODEL_DOWNLOAD_IMAGE or MODEL_DOWNLOAD_TAG to use another image.
+export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-intel/model-download:${MODEL_DOWNLOAD_TAG:-2026.3.0-rc1}}
 # OVMS release tag used by the openvino plugin's export_model.py.
 export MODEL_DOWNLOAD_OVMS_TAG=${MODEL_DOWNLOAD_OVMS_TAG:-v2026.4.1}
 # Sub-path under the OVMS models dir for converted models (kept lowercase).

@@ -47,7 +47,7 @@ To deploy with Helm chart, you can either install the chart from Docker hub or f
    # Clone the latest on the mainline
      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    # Alternatively, clone a specific release branch
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
    ```
 
 2. Navigate to the chart directory:
@@ -75,7 +75,7 @@ The following is a summary of key configuration options available in the `values
 | `startupConfig.enabled`        | Creates and mounts a startup-model ConfigMap and schedules its models asynchronously                                                                                         | `false`                      | No                       |
 | `startupConfig.config`         | Startup configuration containing the default `download_path`, `parallel_downloads`, and `models` list                                                                        | See `values.yaml`            | When enabled             |
 | `image.repository`             | image repository url                                                                                                                                                          | intel/model-download         | Yes                      |
-| `image.tag`                    | latest image tag                                                                                                                                                              | latest                 | Yes                      |
+| `image.tag`                    | image tag                                                                                                                                                              | 2026.3.0-rc1                 | Yes                      |
 | `gpu.enabled`                  | For model download deployed on GPU                                                                                                                                            | false                        |
 | `gpu.key`                      | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node <gpu-node> | `<your-node-key-on-cluster>` |
 | `affinity.enabled`             | Default is false, true to enable affinity                                                                                                                                     | `false`                      |

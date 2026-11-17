@@ -27,7 +27,7 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 │   ├── pipeline_events.py # Live pipeline events read from JSON Lines files
 │   ├── pipeline_runner.py # Pipeline run result types
 │   ├── graph.py          # GStreamer pipeline graph representation
-│   ├── device.py         # OpenVINO device detection (CPU/GPU/NPU)
+│   ├── device.py         # Device list (CPU/GPU/NPU) from DLSPS 2.0
 │   ├── video_encoder.py  # Video encoding/live-streaming management
 │   ├── requirements.txt  # Production Python dependencies
 │   └── Dockerfile        # Multi-stage Docker image (prod/test)
@@ -213,9 +213,10 @@ The REST API is not published on the host otherwise.
 - **Never modify** `shared/` directory contents in code — it's a runtime-mounted volume
 - The `vippet/` Python package uses relative imports — always run from the container context
 - GStreamer pipelines run on **DL Streamer Pipeline Server 2.0** (`dlstreamer-pipeline-server`), sent over REST
-  by `dlsps2_runner.py`, one server instance per stream; they are not executed in the vippet process. Device
-  detection and the DL Streamer pipeline optimizer still run in vippet
-- Hardware device detection happens at startup via `device.py` (OpenVINO Core)
+  by `dlsps2_runner.py`, one server instance per stream; they are not executed in the vippet process. The DL
+  Streamer pipeline optimizer still runs in vippet
+- Hardware devices come from the DLSPS 2.0 `GET /devices` endpoint, read by
+  `device.py` on first use and cached
 - AI models are installed at runtime via the `model-download` microservice;
   vippet-app exposes `/api/v1/models` endpoints (and the UI Models page) to trigger installs
 - The model catalog lives in `vippet/models/` (one YAML file per model), baked into the

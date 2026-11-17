@@ -437,6 +437,7 @@ class Dlsps2PipelineRunner:
         base_url: Optional[str] = None,
         validate_pipelines: bool = True,
         on_event: Optional[Callable[[PipelineEvent], None]] = None,
+        pinned_cpu_cores: Optional[list[int]] = None,
     ):
         """Initialize the runner.
 
@@ -462,6 +463,9 @@ class Dlsps2PipelineRunner:
                 pipeline that writes a file, since the check would run it
                 once more before the real run.
             on_event: Called with each live pipeline event of a normal run.
+            pinned_cpu_cores: Logical CPU ids every started instance is
+                pinned to, sent as ``cpu_cores`` in ``POST /pipelines``.
+                ``None`` or empty runs unpinned.
 
         With ``enable_latency_metrics`` the latency samples are read from
         metrics-manager; see the module docstring for the server setup and
@@ -483,6 +487,7 @@ class Dlsps2PipelineRunner:
         self.base_url = (base_url or DLSPS2_BASE_URL).rstrip("/")
         self.validate_pipelines = validate_pipelines
         self.on_event = on_event
+        self.pinned_cpu_cores = sorted(set(pinned_cpu_cores or []))
         self.cancelled = False
         self.logger = logger
         # Launch strings DLSPS 2.0 already accepted, reused across density iterations.
@@ -614,13 +619,13 @@ class Dlsps2PipelineRunner:
         pipeline_command: str,
         validate_pipeline: bool = True,
     ) -> str:
-        response = client.post(
-            f"{self.base_url}/pipelines",
-            json={
-                "pipeline": pipeline_command,
-                "validate_pipeline": validate_pipeline,
-            },
-        )
+        body: dict[str, object] = {
+            "pipeline": pipeline_command,
+            "validate_pipeline": validate_pipeline,
+        }
+        if self.pinned_cpu_cores:
+            body["cpu_cores"] = self.pinned_cpu_cores
+        response = client.post(f"{self.base_url}/pipelines", json=body)
         response.raise_for_status()
         return response.json()["instance_id"]
 

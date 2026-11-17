@@ -180,7 +180,7 @@ if [[ "$ACTION" != "down" ]]; then
     USER_GROUP_ID=$(id -g)
 
     # Export environment variables for docker-compose
-    export TAG="${TAG:-latest}"
+    export TAG="${TAG:-2026.3.0-rc1}"
     export REGISTRY="${REGISTRY:-}"
     export USER_GROUP_ID="$USER_GROUP_ID"
     export MODEL_PATH="$MODEL_PATH"

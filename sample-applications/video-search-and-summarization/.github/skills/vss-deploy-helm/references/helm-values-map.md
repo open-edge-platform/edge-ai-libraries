@@ -69,7 +69,7 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `global.vlmName` | empty | VLM model used by OVMS or vLLM; required in summary/unified. |
 | `global.llmName` | empty | Optional separate OVMS LLM model; empty means shared VLM model. |
 | `global.embeddingModelName` | empty | Required for search/unified; drives embedding service, dataprep, video search. |
-| `global.modelDownload.image.repository/tag/pullPolicy` | `intel/model-download` / `latest` / `IfNotPresent` | Image used by model-download init containers for OVMS VLM/LLM and video-ingestion OD models. |
+| `global.modelDownload.image.repository/tag/pullPolicy` | `intel/model-download` / `2026.3.0-rc1` / `IfNotPresent` | Image used by model-download init containers for OVMS VLM/LLM and video-ingestion OD models. |
 | `global.modelDownload.ovmsReleaseTag` | `v2026.4.1` | OVMS export version used by the model-download OpenVINO plugin. |
 | `global.vdmsIndexName` | empty | Set by search/unified override files to choose VDMS collection. |
 | `global.devices.multimodalEmbedding.device/key` | `CPU` / empty | GPU scheduling for multimodal embedding service. |
@@ -117,7 +117,7 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `videosearch.enabled` | `false` | Enabled by search/unified. Image `intel/video-search:2026.3.0-rc1`. |
 | `summaryui.enabled`, `searchui.enabled` | `false` | UI aliases. `summaryui` becomes summary or unified UI; `searchui` is separate Search UI in search/dual. |
 | `global.metricsManager.enabled` | `false` | Enables the Metrics Manager subchart, nginx health/SSE routes, and DataPrep publisher environment. |
-| `metricsmanager.image.repository/tag` | `intel/metrics-manager` / `2026.2.0` | Metrics Manager runtime image. |
+| `metricsmanager.image.repository/tag` | `intel/metrics-manager` / `2026.3.0-rc1` | Metrics Manager runtime image. |
 
 ## Rendered resource names with release `vss`
 

@@ -27,17 +27,17 @@ There are 2 options to get the charts in your workspace:
 Use the following command to pull the Helm chart from Docker Hub:
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version <version-no>
+helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version 2026.3.0-rc1-helm
 ```
 
-Refer to the release notes for details on the latest version number to use for the sample application.
+Use chart version `2026.3.0-rc1-helm` for this release.
 
 ##### Step 2: Extract the `.tgz` File
 
 After pulling the chart, extract the `.tgz` file:
 
 ```bash
-tar -xvf video-search-and-summarization-<version-no>.tgz
+tar -xvf video-search-and-summarization-2026.3.0-rc1-helm.tgz
 ```
 
 This will create a directory named `video-search-and-summarization` containing the chart files. Navigate to the extracted directory to access the charts.
@@ -53,10 +53,7 @@ cd video-search-and-summarization
 Clone the repository containing the Helm chart:
 
 ```bash
-# Clone the latest on mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
 ```
 
 ##### Step 2: Change to the Chart Directory
@@ -82,6 +79,7 @@ Update or edit the values in YAML file as follows:
 | `global.registry` | Single-source image registry override for all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, multimodal-dataprep, multimodal-embedding-serving, vector-retriever). Leave empty to keep each subchart's own default. | `""` or `my-registry.example.com/vss/` |
 | `global.tag` | Single-source image tag override for the VSS service images above. Leave empty to keep each subchart's own default tag. | `""` or `2026.3.0-rc1` |
 | `global.pullPolicy` | Image pull policy override for the VSS service images above. Leave empty to keep each subchart's default (`IfNotPresent`). Set to `Always` to force a fresh pull on every pod start (e.g. when reusing a mutable tag). | `""`, `Always`, or `IfNotPresent` |
+| `global.modelDownload.image.repository` and `global.modelDownload.image.tag` | Model-download image for OVMS and video-ingestion init containers, independent of `global.registry` and `global.tag`. | `intel/model-download` and `2026.3.0-rc1` |
 | `global.metricsManager.enabled` | Deploy Metrics Manager and enable direct DataPrep metric publishing | `true` or `false` |
 | `global.keepPvc` | PVC gets deleted by default once helm is uninstalled. Set this to true to persist PVC (helps avoid delay due to model re-downloads when re-installing chart). | `true` or `false` |
 | `global.huggingfaceToken` | Your Hugging Face API token | `<your-huggingface-token>` |
@@ -133,7 +131,7 @@ Update or edit the values in YAML file as follows:
 | `multimodaldataprep.sdkPipeline.pipelineStallTimeoutS` | Fail a DataPrep video ingestion when no pipeline stage makes progress for this many seconds (for example a GPU hang). `0` disables the watchdog. | `300` (default) |
 | `videoingestion.odModelName` | Name of object detection model (generic YOLO id from the model-download ultralytics hub) used during video ingestion | `yolov8l` |
 | `metricsmanager.image.repository` | Metrics Manager image repository | `docker.io/intel/metrics-manager` |
-| `metricsmanager.image.tag` | Metrics Manager image tag | `2026.2.0` |
+| `metricsmanager.image.tag` | Metrics Manager image tag | `2026.3.0-rc1` |
 
 > **`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` override:** You do **not** need to put this in `user_values_override.yaml`. You can set it directly at install/upgrade time with `--set`, for example:
 >
@@ -143,7 +141,7 @@ Update or edit the values in YAML file as follows:
 > ```
 
 > [!TIP]
-> Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
+> Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
 
 > **DataPrep device override precedence:** `global.devices.multimodalDataprep.embedding.device` and `global.devices.multimodalDataprep.detection.device` are set independently in `user_values_override.yaml`. Each defaults to `CPU`; set `GPU`/`NPU` (with the matching resource `key`) to offload that component.
 
@@ -303,9 +301,9 @@ kubectl describe node <node-name> | grep -A20 "Allocatable:" | grep -E "gpu|npu|
 
 > [!TIP]
 > If no GPU/NPU resources appear, ensure the Intel device plugin is installed. See [Intel Device Plugins for Kubernetes](https://github.com/intel/intel-device-plugins-for-kubernetes).
-> 
+>
 > **Split-device note:** When using different devices for VLM and LLM (e.g., GPU + NPU), ensure at least one node in your cluster has **both** resources available. The pod will only schedule on nodes that satisfy all resource requests.
-> 
+>
 > **NPU Support:** Only the OVMS LLM (`global.devices.ovms.llm.device`) can run on NPU, with a text-only `-cw-` model. The VLM is not supported on NPU, because NPU vision-language pipelines accept only one image per request while VSS sends several frames per chunk.
 
 ##### Model Weight Format
@@ -332,7 +330,7 @@ ovms:
 
 > [!NOTE]
 > Models from the `OpenVINO/` namespace (e.g., `OpenVINO/Qwen3.5-4B-int8-ov`) are pre-converted and do not undergo weight format conversion. The chart uses the precision in the model name (`int4`, `int8`, `fp16`, or `fp32`) instead of the device default or `*_WEIGHT_FORMAT`. `-nf4-ov` models fail at render time because model-download cannot fetch them. NPU always uses `int4`.
-> 
+>
 > **Storage Model Names:** Models are stored with the device in the name (e.g., `OpenVINO_Qwen3.5-4B-int8-ov_GPU`); models converted from other namespaces also carry the weight format (e.g., `<org>_<model>_GPU_int4`). Changing the device or weight format creates a new copy, preserving existing models.
 
 #### **Use Case 2: Video Summarization with vLLM (CPU-based)**
@@ -403,13 +401,13 @@ helm install vss . -f search_override.yaml -f search_milvus_override.yaml -f use
 
 > [!IMPORTANT]
 > **Important — clear persisted data when switching backends:** embeddings live only in the vector database, but uploaded videos and their metadata live in MinIO and the Pipeline Manager's PostgreSQL database, which are backed by PVCs shared across backends. Switching `global.vectordbBackend` without clearing them leaves the previously ingested videos visible in the UI while the new backend holds no embeddings for them, so search returns nothing for those videos. Uninstall the chart, delete the PVCs, then reinstall:
-> 
+>
 > ```bash
 > helm uninstall vss -n $my_namespace
 > kubectl delete pvc --all -n $my_namespace
 > helm install vss . -f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml -n $my_namespace
 > ```
-> 
+>
 > `kubectl delete pvc --all` also removes the model-cache PVCs, so the first start after this re-downloads and re-converts the models. To keep those, delete only the data PVCs (MinIO, PostgreSQL, dataprep and the vector database) instead — list them with `kubectl get pvc -n $my_namespace`. Alternatively, re-ingest every video after the switch instead of clearing the PVCs.
 
 #### **Use Case 4: Unified Video Search and Summarization**
@@ -420,7 +418,7 @@ To deploy the combined video search and summarization functionality with a singl
 helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
-> **Requirement:** Before installing the unified stack, set `global.embeddingModelName` to a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`) in `user_values_override.yaml`. The chart will raise an error if the embedding model is not set. Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
+> **Requirement:** Before installing the unified stack, set `global.embeddingModelName` to a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`) in `user_values_override.yaml`. The chart will raise an error if the embedding model is not set. Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
 >
 > **Device Tip:** In unified mode, `multimodal-embedding-ms` and `multimodal-dataprep` run with independent PVC-backed model/cache storage, so you can choose different devices per service.
 
@@ -460,7 +458,7 @@ kubectl get pods -n $my_namespace
 2. Ensure all containers in each pod are _Ready_. As all pods are running single container only, this is typically denoted by mentioning **1/1** in the **READY** column.
 
 > [!IMPORTANT]
-> 
+>
 > - When deployed for first time, it may take up-to around 50 Mins to bring all the pods/containers in running and ready state, as several containers try to download models which can take a while. The time to bring up all the pods depends on several factors including but not limited to node availability, node load average, network speed, compute availability, etc.
 > - If you want to persist the downloaded models and avoid delays pertaining to model downloads when re-installing the charts, set the `global.keepPvc` value to `true` in `user_values_override.yaml` file before installing the chart.
 

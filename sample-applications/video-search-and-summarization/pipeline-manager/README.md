@@ -25,10 +25,7 @@ The Pipeline Manager Service is a core component of the Video Search and Summari
 
 1. Clone the repository:
    ```sh
-   # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
 
    cd edge-ai-libraries/sample-applications/video-search-and-summarization/pipeline-manager
    ```

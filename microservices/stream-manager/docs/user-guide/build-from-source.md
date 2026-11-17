@@ -21,7 +21,7 @@ This repository holds many projects. Use a sparse checkout to download only the
 
 ```bash
 git clone --no-checkout --filter=blob:none --single-branch \
-  --branch main \
+  --branch release-2026.3.0 \
   https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries
 git sparse-checkout set --cone microservices/stream-manager
@@ -72,7 +72,7 @@ Build the image:
 make docker-build
 ```
 
-The default image is `intel/stream-manager:latest`. To use a different image name or tag, run:
+The default image is `intel/stream-manager:2026.3.0-rc1`. To use a different image name or tag, run:
 
 ```bash
 make docker-build IMAGE=<your_image_name>:<tag>
@@ -98,7 +98,7 @@ make docker-run IMAGE=<your_image_name>:<tag>
 > [!NOTE]
 > `make docker-run` pulls the image if it is not present locally.
 > If you do not set `IMAGE`, it pulls and runs
-> the default image, `intel/stream-manager:latest`.
+> the default image, `intel/stream-manager:2026.3.0-rc1`.
 
 `make docker-run` publishes the container's port `8080` to a random host port.
 It prints the assigned port and the application and API docs URLs after it starts.

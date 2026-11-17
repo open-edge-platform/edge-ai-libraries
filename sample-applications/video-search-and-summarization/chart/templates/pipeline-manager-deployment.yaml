@@ -34,7 +34,7 @@ spec:
       initContainers:
         {{- if .Values.videosearch.enabled }}
         - name: wait-for-videosearch
-          image: curlimages/curl:latest
+          image: curlimages/curl:8.23.0
           command:
             - sh
             - -c
@@ -48,7 +48,7 @@ spec:
         {{- end }}
         {{- if .Values.ovms.enabled }}
         - name: wait-for-ovms
-          image: curlimages/curl:latest
+          image: curlimages/curl:8.23.0
           command:
             - sh
             - -c
@@ -75,7 +75,7 @@ spec:
         {{- end }}
         {{- if .Values.vllm.enabled }}
         - name: wait-for-vllm
-          image: curlimages/curl:latest
+          image: curlimages/curl:8.23.0
           command:
             - sh
             - -c

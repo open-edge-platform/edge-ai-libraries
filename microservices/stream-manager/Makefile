@@ -13,7 +13,7 @@ LDFLAGS        := -s -w \
 	-X main.BuildDate=$(BUILD_DATE) \
 	-extldflags '-z relro -z now'
 
-IMAGE          ?= intel/stream-manager:latest
+IMAGE          ?= intel/stream-manager:2026.3.0-rc1
 IMAGE_REF      := $(if $(findstring :,$(notdir $(IMAGE))),$(IMAGE),$(IMAGE):latest-dev)
 CONTAINER_NAME := stream-manager
 CONTAINER_PORT := 8080
@@ -45,7 +45,7 @@ help: ## Show this help
 	@echo "  make access-urls           Show URLs (ACCESS_PORT=$(ACCESS_PORT), must match app port)"
 	@echo ""
 	@echo "Container targets:"
-	@echo "  make docker-build          Build IMAGE (default: intel/stream-manager:latest)"
+	@echo "  make docker-build          Build IMAGE (default: intel/stream-manager:2026.3.0-rc1)"
 	@echo "  make docker-run            Run IMAGE (local or pulled); ephemeral host port; see CONFIG_FILE, DATA_DIR"
 	@echo "  make docker-stop           Stop and remove the running container (CONTAINER_NAME)"
 	@echo ""
@@ -71,7 +71,7 @@ access-urls: ## Show local and primary remote URLs for ACCESS_PORT
 	@PORT=$(ACCESS_PORT); \
 	$(PRINT_ACCESS_URLS)
 
-docker-build: ## Build IMAGE (default: intel/stream-manager:latest).
+docker-build: ## Build IMAGE (default: intel/stream-manager:2026.3.0-rc1).
 	docker build \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg BUILD_NUMBER=$(BUILD_NUMBER) \
@@ -79,7 +79,7 @@ docker-build: ## Build IMAGE (default: intel/stream-manager:latest).
 		-t $(IMAGE_REF) .
 	@echo "Built image $(IMAGE_REF)"
 
-docker-run: ## Run IMAGE (default: intel/stream-manager:latest); pull if missing.
+docker-run: ## Run IMAGE (default: intel/stream-manager:2026.3.0-rc1); pull if missing.
 ifneq ($(strip $(DATA_DIR)),)
 	@echo "Preparing bind-mount directory $(DATA_DIR) for distroless uid/gid 65532"
 	@mkdir -p $(DATA_DIR)

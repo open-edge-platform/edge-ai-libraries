@@ -34,7 +34,7 @@ Run the bundled bootstrap. It first tries to find an existing VSS checkout -
 walking up from the current directory and inspecting the enclosing git repo - and
 reuses it **without ever re-cloning**. Only when no checkout is found does it do a
 shallow, single-branch, sparse checkout of just
-`sample-applications/video-search-and-summarization` from `main`. It prints the
+`sample-applications/video-search-and-summarization` from `release-2026.3.0`. It prints the
 resolved app root on stdout:
 
 ```bash

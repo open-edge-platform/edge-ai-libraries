@@ -136,6 +136,8 @@ class _Instance:
     bus: Optional[Gst.Bus] = field(default=None, repr=False)
     bus_handler_id: int = 0
     fps_source: Optional[GLib.Source] = field(default=None, repr=False)
+    # (pad, probe_id) pairs; removed on teardown so the pad stops referencing this instance.
+    probes: list = field(default_factory=list, repr=False)
     # Self-computed FPS state. frame_count is incremented from the
     # GStreamer streaming thread (inside the pad probe callback) and read
     # from the shared main loop thread (inside the poll timer), hence the
@@ -267,7 +269,7 @@ class GstWorker:
             pad = GstWorker._fps_probe_pad(pipeline, fps_element)
             if pad is None:
                 return 0
-            pad.add_probe(Gst.PadProbeType.BUFFER, GstWorker._on_buffer_probe, inst)
+            inst.probes.append((pad, pad.add_probe(Gst.PadProbeType.BUFFER, GstWorker._on_buffer_probe, inst)))
             return 1
         sinks_iter = pipeline.iterate_sinks()
         while True:
@@ -279,7 +281,7 @@ class GstWorker:
                 pad_result, pad = pads_iter.next()
                 if pad_result != Gst.IteratorResult.OK:
                     break
-                pad.add_probe(Gst.PadProbeType.BUFFER, GstWorker._on_buffer_probe, inst)
+                inst.probes.append((pad, pad.add_probe(Gst.PadProbeType.BUFFER, GstWorker._on_buffer_probe, inst)))
                 return 1
         return 0
 
@@ -490,6 +492,12 @@ class GstWorker:
             inst.bus.remove_signal_watch()
         inst.pipeline.set_state(Gst.State.NULL)
 
+        # Each GstBus owns a GstPoll socketpair (2 fds), and probe/timer callbacks hold the instance; drop all of them.
+        for pad, probe_id in inst.probes:
+            pad.remove_probe(probe_id)
+        inst.probes.clear()
+        inst.bus = None
+        inst.fps_source = None
         del inst.pipeline
         _emit({"instance_id": instance_id, "event": "stopped"})
 

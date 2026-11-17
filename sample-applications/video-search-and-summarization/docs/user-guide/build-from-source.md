@@ -21,10 +21,7 @@ This section shows how to build the Video Search and Summary sample application 
    Clone the Video Summary Sample Application repository:
 
    ```bash
-   # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
    ```
 
 2. **Navigate to the Directory**:
@@ -46,7 +43,7 @@ This section shows how to build the Video Search and Summary sample application 
      ```bash
      export REGISTRY_URL=<your-container-registry-url>    # e.g. "docker.io/username/"
      export PROJECT_NAME=<your-project-name>              # e.g. "video-search-and-summarization"
-     export TAG=<your-tag>                                # e.g. "rc4" or "latest"
+     export TAG=<your-tag>                                # e.g. "2026.3.0-rc1"
      ```
 
    > **_IMPORTANT:_** Each image is named as **\<REGISTRY_URL>\<PROJECT_NAME>/\<microservice-name>:\<TAG>**. For example, with `REGISTRY_URL=docker.io/username/` and `PROJECT_NAME=video-search-and-summarization`, an image is built as **docker.io/username/video-search-and-summarization/\<microservice-name>:\<TAG>**. If `REGISTRY_URL` or `PROJECT_NAME` are unset, the corresponding part is omitted. If `TAG` is unset, **latest** is used.

@@ -44,8 +44,8 @@ See the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/conce
 ## Step 1: Acquire the Helm Chart
 
 ```bash
-# Clone the main branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b main
+# Clone the release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
 
 # Navigate to the chart directory
 cd edge-ai-libraries/sample-applications/video-search-and-summarization/chart
@@ -162,7 +162,7 @@ helm install vss . \
   -n ${NAMESPACE}
 ```
 
-> **Requirement:** The chart will raise an error if `global.embeddingModelName` is not set. Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
+> **Requirement:** The chart will raise an error if `global.embeddingModelName` is not set. Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
 
 **Understanding the override files:**
 

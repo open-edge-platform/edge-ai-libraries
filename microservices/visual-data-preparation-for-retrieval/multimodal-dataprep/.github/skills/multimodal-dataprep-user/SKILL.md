@@ -93,7 +93,7 @@ export MM_DATAPREP_DETECTION_MODEL_NAME='OpenVINO/<repo>'   # a Hugging Face Ope
 # Also verified on CPU/GPU/NPU: OpenVINO/yolox_tiny-fp16-ov (lightest), OpenVINO/yolox_l-int8-ov (more accurate), OpenVINO/YOLO11n-fp16-ov (AGPL-3.0)
 # export MM_DATAPREP_DETECTION_CLASSES='person,car'   # optional class filter
 export REGISTRY_URL='docker.io/intel'
-export TAG='latest'
+export TAG='2026.3.0-rc1'
 
 source ./setup.sh --nosetup
 docker compose -f docker/compose.yaml up -d --no-build

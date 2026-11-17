@@ -164,7 +164,7 @@ spec:
       # pipeline-manager now carries a readinessProbe, so its Service only
       # publishes an endpoint once GET /health succeeds.
       - name: wait-for-pipeline-manager
-        image: curlimages/curl:latest
+        image: curlimages/curl:8.23.0
         command:
           - sh
           - -c

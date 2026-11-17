@@ -57,7 +57,7 @@ as the only line on stdout:
 If any of those hit, that checkout is **reused and NO clone is performed**. Only
 when all three miss does it clone - and then only a **shallow (`--depth 1`),
 single-branch, sparse** checkout of just
-`sample-applications/video-search-and-summarization` from `main`:
+`sample-applications/video-search-and-summarization` from `release-2026.3.0`:
 
 ```bash
 # SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);
@@ -167,7 +167,7 @@ must therefore report the bootstrap result: the resolved `APP_ROOT`, whether an
 existing checkout was reused without cloning, and that commands ran after
 changing to that app root. Also state that a total bootstrap miss falls back to
 a shallow (`--depth 1`), single-branch, sparse checkout of only the VSS app from
-`main`. Report the observed `/manager/health` and summary feature values.
+`release-2026.3.0`. Report the observed `/manager/health` and summary feature values.
 
 For the summary workflow, name every public Manager operation used (method and
 `/manager/...` path), the important request fields, the observed response, and

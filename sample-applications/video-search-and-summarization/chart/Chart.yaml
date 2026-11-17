@@ -1,72 +1,72 @@
 apiVersion: v2
 name: video-search-and-summarization
 description: A helm chart for deploying Intel Video Search and Summarization sample application
-version: 2026.2.0-helm
+version: 2026.3.0-rc1-helm
 dependencies:
   - name: ovms
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/ovms"
     condition: ovms.enabled
   - name: minioserver
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/minio-server"
   - name: audioanalyzer
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/audio-analyzer/"
     condition: audioanalyzer.enabled
   - name: postgresql
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/postgresql/"
   - name: rabbitmq
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/rabbitmq/"
     condition: rabbitmq.enabled
   - name: videoingestion
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/video-ingestion/"
     condition: videoingestion.enabled
   - name: videosearch
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/video-search/"
     condition: videosearch.enabled
   - name: vdmsvectordb
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/vdms-vectordb/"
     condition: vdmsvectordb.enabled
   - name: multimodal-dataprep
     alias: multimodaldataprep
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/multimodal-dataprep/"
     condition: multimodaldataprep.enabled
   - name: vectorretriever
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/vector-retriever/"
     condition: vectorretriever.enabled
   - name: milvusstandalone
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/milvus-standalone/"
     condition: milvusstandalone.enabled
   - name: multimodalembeddingms
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/multimodal-embedding-ms/"
     condition: multimodalembeddingms.enabled
   - name: vllm-server
     alias: vllm
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/vllm"
     condition: vllm.enabled
   - name: vssui
     alias: summaryui
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/vss-ui/"
     condition: summaryui.enabled
   - name: vssui
     alias: searchui
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/vss-ui/"
     condition: searchui.enabled
   - name: metrics-manager
     alias: metricsmanager
-    version: 2026.2.0-helm
+    version: 2026.3.0-rc1-helm
     repository: "file://subchart/metrics-manager/"
     condition: global.metricsManager.enabled
