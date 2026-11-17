@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Callable
+from typing import Annotated
+
+from fastapi import Depends, HTTPException, Request
 
 from managers.audio_pipeline_job_manager import AudioPipelineJobManager
 
@@ -18,7 +21,17 @@ def configure_audio_pipeline_job_manager_factory(
     _factory = factory
 
 
-def get_audio_pipeline_job_manager() -> AudioPipelineJobManager:
+async def require_voice_available(request: Request) -> None:
+    if not getattr(request.app.state, "voice_available", False):
+        raise HTTPException(
+            503,
+            "Voice is unavailable because initialization failed. See server logs.",
+        )
+
+
+def get_audio_pipeline_job_manager(
+    _available: Annotated[None, Depends(require_voice_available)] = None,
+) -> AudioPipelineJobManager:
     global _manager
     if _manager is None:
         if _factory is None:

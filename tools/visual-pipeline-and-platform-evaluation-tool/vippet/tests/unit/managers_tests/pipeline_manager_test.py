@@ -2327,11 +2327,13 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
         self.assertEqual(multi_variant_count, predefined_count)
 
     @patch("managers.pipeline_manager.PipelineLoader")
-    def test_audio_definitions_are_skipped(self, mock_loader_cls):
-        """Audio definitions have no graph and must not be loaded as pipelines."""
+    def test_audio_unknown_and_empty_definitions_are_skipped(self, mock_loader_cls):
+        """Only supported graph definitions belong in this registry."""
         configs = {
             "config_0.yaml": MOCK_PIPELINE_CONFIGS[0],
             "config_1.yaml": {"name": "Speech to Text", "type": "audio"},
+            "config_2.yaml": {"type": "unknown", "variants": "invalid"},
+            "config_3.yaml": None,
         }
         mock_loader_cls.list.return_value = list(configs)
         mock_loader_cls.config.side_effect = configs.__getitem__

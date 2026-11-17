@@ -115,13 +115,12 @@ class AudioPipelineManagerTests(unittest.TestCase):
             ["speech-to-text"],
         )
 
-    def test_rejects_unknown_pipeline_type(self) -> None:
+    def test_ignores_unknown_pipeline_type(self) -> None:
         config = self.stt_config()
         config["type"] = "voice"
         self.write_pipeline("speech-to-text.yaml", config)
 
-        with self.assertRaisesRegex(ValueError, "type must be 'audio'"):
-            AudioPipelineManager(self.pipeline_dir)
+        self.assertEqual(AudioPipelineManager(self.pipeline_dir).list_pipelines(), [])
 
     def test_rejects_unknown_operation(self) -> None:
         config = self.stt_config()

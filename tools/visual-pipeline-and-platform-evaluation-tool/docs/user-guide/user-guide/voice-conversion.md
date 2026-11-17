@@ -36,6 +36,15 @@ edited text, and another voice. Each successful TTS job publishes a UUID-named
 WAV file under `shared/audio/output`, which the browser downloads or plays.
 Accepted managed Audio runs appear under **Jobs > Audio** at `/jobs/audio`.
 
+If Voice initialization fails, the backend still becomes ready and Vision and
+time-series pipelines remain available. All Voice endpoints under
+`/api/v1/voice/` and audio job endpoints under `/api/v1/jobs/audio/` return HTTP
+503 with a Voice-unavailable message. Check the backend logs, correct invalid
+Audio YAML definitions or permissions for `OUTPUT_AUDIO_DIR`, and restart the
+backend to initialize Voice again. Unknown pipeline types are ignored by both
+pipeline catalogs. Empty or syntactically invalid YAML files disable Voice but
+are skipped by the Vision and time-series catalog.
+
 ## Deployment
 
 Run from the ViPPET component directory. The Makefile detects the hardware
