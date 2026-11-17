@@ -21,7 +21,7 @@ configure_physical_ai_framework_device () {
 }
 
 debian_90_profile_physical_ai_framework () {
-  echo "git curl edge_base uv ffmpeg"
+  echo "git curl edge_base_robotics uv ffmpeg"
 }
 
 verify_physical_ai_framework () {

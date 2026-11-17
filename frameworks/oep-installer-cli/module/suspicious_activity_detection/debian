@@ -1,7 +1,7 @@
 
 configure_suspicious_activity_detection () {
   workspace="$(ensure_project_path)/suspicious-activity-detection"
-  version="$(ensure_parse_value_option version --version=2c13aa5b0d0cfb349b96e6fd43dab834ee947fd3 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/intel-retail/storewide-loss-prevention.git"
   used_ports=(7860 5432 8085 8082 8000 9000 8333 9333 8080 8002 8003)
 }
