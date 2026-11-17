@@ -1,6 +1,5 @@
 import type { Node } from "@/api/api.generated";
 
-// Element properties round-trip through the API as strings, so "false" is falsy.
 export const isTruthyPropertyValue = (value: unknown): boolean =>
   value === true || String(value ?? "").toLowerCase() === "true";
 
