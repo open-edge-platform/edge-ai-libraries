@@ -1719,7 +1719,7 @@ class TestConvertToTs(unittest.TestCase):
 
     def test_raw_stream_extension_goes_through_parser_only(self):
         """Raw elementary streams build a pipeline without a demuxer."""
-        with patch("videos.Dlsps2PipelineRunner") as mock_runner_cls:
+        with patch("videos.Dlsps2PipelineRunner") as mock_runner_cls, patch("videos.align"), patch("videos.os.replace"):
             runner = MagicMock()
             mock_runner_cls.return_value = runner
             ok = VideosManager._convert_to_ts("/tmp/x.264", "/tmp/x.ts", "264", "h264")
@@ -1768,7 +1768,7 @@ class TestConvertToTs(unittest.TestCase):
         self.assertFalse(ok)
 
     def test_converts_on_dlsps_without_pre_check(self):
-        with patch("videos.Dlsps2PipelineRunner") as mock_dlsps:
+        with patch("videos.Dlsps2PipelineRunner") as mock_dlsps, patch("videos.align"), patch("videos.os.replace"):
             ok = VideosManager._convert_to_ts(
                 "/videos/x.mp4", "/videos/x.ts", "mp4", "h264"
             )
