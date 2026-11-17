@@ -6,13 +6,16 @@
 Starts the native Windows ViPPET API with configured runtimes and data paths.
 
 .DESCRIPTION
-Calls setup.ps1 -EnvironmentOnly to validate the existing venv and configure the
-installed DLStreamer v2026.2.0 runtime and Python bindings in this session. Starts
+Calls setup.ps1 -EnvironmentOnly to check the existing venv and configure proxy
+settings, then directly invokes setup_dls_env.ps1 and setup_python_env.ps1 to
+configure the installed DLStreamer v2026.2.0 runtime and Python bindings. Starts
 uvicorn via uv run using that explicit interpreter. Project discovery and Python
 downloads are disabled; startup does not create venvs or install dependencies.
 Vendor scripts may rebuild the plugin cache and patch bindings during validation.
 The API listens only on 127.0.0.1, on port 7860 by default. The script runs in
-the foreground and restores the original working directory on exit.
+the foreground and restores the original working directory and managed environment
+variables on exit, including when preparation or backend startup fails. Repeated
+starts can use different data directories without retaining generated defaults.
 
 Missing data-path variables are set beneath DataDirectory and their directories
 are created. Existing nonempty environment overrides take precedence:
@@ -33,7 +36,8 @@ default to local services (ports 8000, 9090 and RTSP 8554). APP_LOG_LEVEL defaul
 to INFO. Existing environment overrides are preserved. Supporting services and
 the UI must be started separately. Backend startup can download recordings and
 other external resources. Proxy settings apply to setup, uv and the backend.
-Environment changes affect this process and its children, not system settings.
+Environment changes affect the backend and its children, not system settings,
+and are restored in the calling process when this script exits.
 
 Console messages prefixed with [start] and [setup] identify preparation stages.
 After launch, uvicorn logs report backend readiness and runtime activity.
@@ -44,7 +48,7 @@ Must match the system-wide GSTREAMER_1_0_ROOT_MSVC_X86_64 setting.
 
 .PARAMETER DLStreamerRoot
 Installed DLStreamer v2026.2.0 root containing bin, scripts and Python bindings.
-Defaults to C:\Program Files\Intel\dlstreamer. Must match setup.ps1's runtime.
+Defaults to C:\Program Files\Intel\dlstreamer. Python Bindings must be installed.
 
 .PARAMETER VenvDirectory
 Existing backend environment. Defaults to Vippet\.venv-backend under the current
@@ -129,12 +133,21 @@ param(
     [ValidateRange(1, 65535)][int]$Port = 7860
 )
 
+$savedEnvironment = @{}
+foreach ($name in @('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'PATH', 'VIRTUAL_ENV',
+    'GSTREAMER_1_0_ROOT_MSVC_X86_64', 'DLSTREAMER_DIR', 'GST_PLUGIN_PATH',
+    'PYTHONPATH', 'PYGI_DLL_DIRS', 'GI_TYPELIB_PATH', 'SCRIPTS_PATH', 'LABELS_PATH',
+    'PUBLIC_MODEL_PROC_PATH', 'DEFAULT_RECORDINGS_FILE', 'MODELS_PATH', 'INPUT_VIDEO_DIR',
+    'AUTO_VIDEO_DIR', 'UPLOADED_VIDEO_DIR', 'OUTPUT_VIDEO_DIR', 'UPLOADED_IMAGES_DIR',
+    'METADATA_DIR', 'DATABASE_URL', 'MODEL_DOWNLOAD_URL', 'METRICS_MANAGER_URL',
+    'LIVE_STREAM_SERVER_HOST', 'LIVE_STREAM_SERVER_PORT', 'APP_LOG_LEVEL')) {
+    $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+}
 $ErrorActionPreference = 'Stop'
+try {
 Write-Host '[start] Preparing the backend session with setup.ps1 -EnvironmentOnly...'
 $setupOptions = @{
     EnvironmentOnly = $true
-    GStreamerRoot = $GStreamerRoot
-    DLStreamerRoot = $DLStreamerRoot
     VenvDirectory = $VenvDirectory
 }
 foreach ($proxyParameter in @('HttpProxy', 'HttpsProxy', 'NoProxy')) {
@@ -145,6 +158,82 @@ foreach ($proxyParameter in @('HttpProxy', 'HttpsProxy', 'NoProxy')) {
 & "$PSScriptRoot\setup.ps1" @setupOptions
 $uv = Get-Command uv -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 $python = (Resolve-Path -LiteralPath (Join-Path $VenvDirectory 'Scripts\python.exe')).Path
+
+Write-Host '[start] Checking GStreamer and DLStreamer installations and system registration...'
+$gstreamer = (Resolve-Path -LiteralPath $GStreamerRoot).Path.TrimEnd('\')
+$dlstreamer = (Resolve-Path -LiteralPath $DLStreamerRoot).Path
+foreach ($directory in @((Join-Path $gstreamer 'bin'), (Join-Path $gstreamer 'lib\gstreamer-1.0'), (Join-Path $dlstreamer 'bin'))) {
+    if (!(Test-Path -LiteralPath $directory -PathType Container)) { throw "Required runtime directory not found: $directory" }
+}
+$setupDls = Join-Path $dlstreamer 'scripts\setup_dls_env.ps1'
+$setupPython = Join-Path $dlstreamer 'scripts\setup_python_env.ps1'
+foreach ($script in @($setupDls, $setupPython)) {
+    if (!(Test-Path -LiteralPath $script -PathType Leaf)) { throw "Required DLStreamer script not found: $script" }
+}
+$machineGStreamer = [Environment]::GetEnvironmentVariable('GSTREAMER_1_0_ROOT_MSVC_X86_64', 'Machine')
+if (!$machineGStreamer -or (Resolve-Path -LiteralPath $machineGStreamer).Path.TrimEnd('\') -ine $gstreamer) {
+    throw 'GStreamerRoot must match the installed system-wide GSTREAMER_1_0_ROOT_MSVC_X86_64 setting required by DLStreamer v2026.2.0. Repair the GStreamer installation or select its registered root.'
+}
+$env:GSTREAMER_1_0_ROOT_MSVC_X86_64 = $gstreamer
+$env:VIRTUAL_ENV = Split-Path -Parent (Split-Path -Parent $python)
+
+Write-Host '[start] Running DLStreamer setup_dls_env.ps1 (runtime configuration and plugin validation)...'
+$global:LASTEXITCODE = 0
+& $setupDls
+if ($LASTEXITCODE -ne 0) { throw "DLStreamer runtime setup failed with code $LASTEXITCODE." }
+$env:PATH = ((@(Split-Path -Parent $python) + @($env:PATH -split ';')) |
+    Where-Object { $_ } | Select-Object -Unique) -join ';'
+$selectedPython = Get-Command python -ErrorAction Stop | Select-Object -First 1
+if ($selectedPython.CommandType -ne 'Application' -or $selectedPython.Path -ine $python) {
+    throw 'The selected venv Python is not the python command on PATH. Remove conflicting command overrides before continuing.'
+}
+Write-Host '[start] Locating GStreamer Python bindings in the selected environment...'
+$bindingsPath = (& $uv.Path run --no-project --no-python-downloads --python $python -- $python -I -c "from pathlib import Path; import gstreamer_python; print(Path(gstreamer_python.__file__).parent / 'Lib' / 'site-packages')" | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $bindingsPath -PathType Container)) {
+    throw 'The selected venv is missing GStreamer Python bindings. Rerun full setup for this environment.'
+}
+$env:PYTHONPATH = ((@($bindingsPath, (Join-Path $dlstreamer 'python')) + @($env:PYTHONPATH -split ';')) |
+    Where-Object { $_ } | Select-Object -Unique) -join ';'
+$env:PYGI_DLL_DIRS = ((@((Join-Path $gstreamer 'bin')) + @($env:PYGI_DLL_DIRS -split ';')) |
+    Where-Object { $_ } | Select-Object -Unique) -join ';'
+$typelibDirectory = Join-Path $dlstreamer 'lib\girepository-1.0'
+if (!(Test-Path -LiteralPath $typelibDirectory -PathType Container)) {
+    $typelibDirectory = Join-Path $dlstreamer 'build\src\gst\metadata'
+}
+$env:GI_TYPELIB_PATH = ((@($typelibDirectory) + @($env:GI_TYPELIB_PATH -split ';')) |
+    Where-Object { $_ } | Select-Object -Unique) -join ';'
+Write-Host '[start] Running DLStreamer setup_python_env.ps1 (binding configuration, optional patching and validation)...'
+$global:LASTEXITCODE = 0
+$previousErrorActionPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    & $setupPython
+} finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+}
+if ($LASTEXITCODE -ne 0) { throw "DLStreamer Python setup failed with code $LASTEXITCODE." }
+
+$validationCode = @'
+import struct
+import sys
+from pathlib import Path
+import gi
+import gstgva
+import openvino
+import cv2
+assert sys.implementation.name == 'cpython' and sys.version_info[:2] >= (3, 12) and struct.calcsize('P') == 8, 'CPython 3.12 or newer x64 is required'
+assert Path(gi.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()), 'GI was loaded from another Python environment'
+gi.require_version('Gst', '1.0')
+from gi.repository import Gst
+Gst.init(None)
+assert Gst.ElementFactory.make('gvadetect', None) is not None, 'gvadetect is unavailable'
+print('Python:', sys.executable)
+print(Gst.version_string())
+'@
+Write-Host '[start] Validating GI, gstgva, OpenVINO, OpenCV and the gvadetect element. Native library loading may take a moment...'
+& $uv.Path run --no-project --no-python-downloads --python $python -- $python -c $validationCode
+if ($LASTEXITCODE -ne 0) { throw 'The backend environment cannot load its native dependencies.' }
+
 $component = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $dataRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($DataDirectory)
 if ($ModelDownloadUrl) { $env:MODEL_DOWNLOAD_URL = $ModelDownloadUrl }
@@ -223,4 +312,9 @@ try {
     Write-Host '[start] Backend stopped successfully.'
 } finally {
     Pop-Location
+}
+} finally {
+    foreach ($name in $savedEnvironment.Keys) {
+        [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name], 'Process')
+    }
 }

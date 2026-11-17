@@ -111,7 +111,7 @@ Hugging Face Hub.
 
 1. Prepare environment:
 
-   Following command will create venv directory and install dependencies.
+   The following command creates a venv or updates dependencies in an existing valid venv.
 
    ```powershell
    $common = @{
