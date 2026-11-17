@@ -44,11 +44,11 @@ services:
       mqtt-broker:
         condition: service_started
     environment:
-      http_proxy: ""
-      https_proxy: ""
-      all_proxy: ""
-      HTTP_PROXY: ""
-      HTTPS_PROXY: ""
-      ALL_PROXY: ""
-      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager,mqtt-broker"
-      NO_PROXY: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager,mqtt-broker"
+      http_proxy: !reset null
+      https_proxy: !reset null
+      all_proxy: !reset null
+      HTTP_PROXY: !reset null
+      HTTPS_PROXY: !reset null
+      ALL_PROXY: !reset null
+      no_proxy: !reset null
+      NO_PROXY: !reset null
