@@ -46,6 +46,7 @@ services:
       - GATEWAY_CONFIG=/app/config.yaml
       - GATEWAY_LOG_DIR=${GATEWAY_LOG_DIR:-/app/logs}
       - IR_OV_MODEL=/models/ov-classifier
+      - IR_BACKBONE=${IR_BACKBONE:-qwen35-2b}
       - IR_DEVICE=${IR_DEVICE:-GPU}
       - HF_ENDPOINT=${HF_ENDPOINT:-}
       - http_proxy=${http_proxy:-}
