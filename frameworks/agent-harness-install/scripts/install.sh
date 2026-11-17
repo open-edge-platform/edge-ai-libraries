@@ -91,6 +91,8 @@ usage() {
     HERMES_INSTALL_URL            Custom Hermes installer URL (default: scripts/install.sh at a pinned hermes-agent commit, checksum built in)
     HERMES_INSTALL_SHA256         Expected SHA-256 of the Hermes installer (required with HERMES_INSTALL_URL unless HERMES_ALLOW_UNVERIFIED_INSTALL=1)
     HERMES_ALLOW_UNVERIFIED_INSTALL  Run a custom Hermes installer without a pinned checksum (not recommended)
+    HERMES_PINNED_COMMIT, HERMES_PINNED_SHA256  Install another hermes-agent release: its full commit SHA and the SHA-256 of scripts/install.sh
+                                  at that commit (set both together; default: the release this installer was validated with)
     DCODE_INSTALL_URL             Custom dcode installer URL (default: libs/code/scripts/install.sh at a pinned deepagents commit, checksum built in)
     DCODE_INSTALL_SHA256          Expected SHA-256 of the dcode installer (required with DCODE_INSTALL_URL unless HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1)
     HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL  Run a custom dcode installer without a pinned checksum (not recommended)
@@ -108,7 +110,8 @@ usage() {
     HARNESS_OVMS_EXPORT_IMAGE     OVMS "-py" image used by the docker-pull exporter to convert non-OpenVINO/* models (default: openvino/model_server:2026.1-py)
     HARNESS_BACKEND_NETWORK      Docker network joining OVMS + the Inference Router so they can reach each other by name (default: agent-harness-install-backend)
     MIN_NODE_VERSION
-    HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser <parser>)
+    HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --log_level DEBUG); not for per-model options such as --tool_parser
+    HARNESS_OVMS_TOOL_PARSER      Tool-call parser written into the served model's graph.pbtxt (e.g. hermes3), needed by agents that call tools
     HARNESS_OVMS_EXPORTER         docker-pull (default) | export-model-py | model-download | hf-snapshot (see Known limitations)
     HARNESS_HF_MODEL_REVISION     Pin an exact HF revision (commit/tag/branch) for the hf-snapshot exporter
     HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt (export-model-py exporter only)

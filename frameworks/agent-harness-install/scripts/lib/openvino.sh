@@ -27,9 +27,17 @@ HARNESS_OVMS_CONTAINER="${HARNESS_OVMS_CONTAINER:-agent-harness-install-ovms}"
 # is loopback-only by default (resolve_bind_host), neither of which a
 # separate container (IR) can reach. See ensure_backend_network.
 HARNESS_BACKEND_NETWORK="${HARNESS_BACKEND_NETWORK:-agent-harness-install-backend}"
-# Extra OVMS server flags, e.g. "--tool_parser <parser> --task text_generation"
-# for agents that need OpenAI-style tool calls.
+# Extra OVMS *server* flags (e.g. "--log_level DEBUG"), appended to the
+# container's command line. Per-model options such as --tool_parser do not
+# belong here: OVMS rejects them when started from --config_path, so the
+# container crash-loops. See HARNESS_OVMS_TOOL_PARSER for tool calls.
 HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
+# Tool-call parser for the served model (OVMS's per-model `tool_parser`
+# graph option, e.g. hermes3 for Qwen/Hermes-style <tool_call> output).
+# Agents that call tools need it; without it OVMS returns tool calls as
+# plain text. Written into the model's graph.pbtxt after export, so it works
+# with every exporter and on a re-run against an already exported model.
+HARNESS_OVMS_TOOL_PARSER="${HARNESS_OVMS_TOOL_PARSER:-}"
 
 # Set HARNESS_LLM_ROUTER_ENDPOINT to point this installer's Inference Router
 # (IR) at an existing OpenAI-compatible server instead of its own OVMS
@@ -187,6 +195,68 @@ ensure_chat_end_token_stops() {
     out="$(docker run --rm -u "$(id -u):$(id -g)" -v "${dir}:/model:rw" --entrypoint python3 \
       "$HARNESS_OVMS_EXPORT_IMAGE" -c "$_OVMS_EOS_FIX_PY" /model 2>&1)" \
       || { warn "Could not check the stop tokens of ${dir}: ${out}"; return 0; }
+  fi
+  [[ -z "$out" ]] || info "$out"
+  return 0
+}
+
+# Sets `tool_parser: "<name>"` inside the LLMCalculatorOptions block of an
+# OVMS graph.pbtxt (argv[1] = graph path, argv[2] = parser). Replaces an
+# existing value, otherwise inserts after models_path, the one option every
+# exporter writes. Stdlib-only python, run by ensure_graph_tool_parser.
+_OVMS_TOOL_PARSER_PY='
+import os, re, sys
+path, parser = sys.argv[1], sys.argv[2]
+if not re.fullmatch(r"[A-Za-z0-9_.-]+", parser):
+    sys.exit("tool parser name %r may only contain letters, digits, . _ -" % parser)
+with open(path, encoding="utf-8") as f:
+    lines = f.read().split("\n")
+existing = re.compile(r"^(\s*)tool_parser\s*:\s*\"([^\"]*)\"(,?)\s*$")
+anchor = re.compile(r"^(\s*)models_path\s*:.*?(,?)\s*$")
+for i, line in enumerate(lines):
+    m = existing.match(line)
+    if m:
+        if m.group(2) == parser:
+            sys.exit(0)
+        lines[i] = "%stool_parser: \"%s\"%s" % (m.group(1), parser, m.group(3))
+        print("changed tool_parser from %r to %r in %s" % (m.group(2), parser, path))
+        break
+else:
+    for i, line in enumerate(lines):
+        m = anchor.match(line)
+        if m:
+            lines.insert(i + 1, "%stool_parser: \"%s\"%s" % (m.group(1), parser, m.group(2)))
+            print("set tool_parser %r in %s" % (parser, path))
+            break
+    else:
+        sys.exit("no models_path option found in %s; cannot place tool_parser" % path)
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    f.write("\n".join(lines))
+os.replace(tmp, path)
+'
+
+# ensure_graph_tool_parser model_name parser -- makes the registered model's
+# graph.pbtxt name the given tool parser (HARNESS_OVMS_TOOL_PARSER). Looks
+# the model directory up in config.json, since exporters differ in layout.
+# Idempotent. Fatal on failure: an agent that was promised tool calls would
+# otherwise silently get them back as plain text.
+ensure_graph_tool_parser() {
+  local model_name="$1" parser="$2" base_path graph out
+  base_path="$(_ovms_config_base_path_for "${HARNESS_MODELS_DIR}/config.json" "$model_name")"
+  [[ -n "$base_path" ]] \
+    || error "Cannot set the tool parser: '${model_name}' is not registered in ${HARNESS_MODELS_DIR}/config.json."
+  graph="${HARNESS_MODELS_DIR}/${base_path}/graph.pbtxt"
+  [[ -f "$graph" ]] || error "Cannot set the tool parser: ${graph} does not exist."
+  if command_exists python3; then
+    out="$(python3 -c "$_OVMS_TOOL_PARSER_PY" "$graph" "$parser" 2>&1)" \
+      || error "Could not set tool_parser in ${graph}: ${out}"
+  else
+    command_exists docker || error "python3 or Docker is required to set the tool parser in ${graph}."
+    # The pinned -py image ships python3, so no host python is required.
+    out="$(docker run --rm -u "$(id -u):$(id -g)" -v "$(dirname "$graph"):/model:rw" --entrypoint python3 \
+      "$HARNESS_OVMS_EXPORT_IMAGE" -c "$_OVMS_TOOL_PARSER_PY" /model/graph.pbtxt "$parser" 2>&1)" \
+      || error "Could not set tool_parser in ${graph}: ${out}"
   fi
   [[ -z "$out" ]] || info "$out"
   return 0
@@ -1044,6 +1114,14 @@ ensure_backend_network() {
 ensure_openvino_model_server() {
   local gpu_args group_add_args bind_host
   local -a proxy_args=()
+  # Per-model graph options on the server command line make OVMS exit at
+  # startup under --config_path, and --restart unless-stopped then loops it.
+  case " $HARNESS_OVMS_EXTRA_ARGS " in
+    *" --tool_parser"* | *" --reasoning_parser"*)
+      error "HARNESS_OVMS_EXTRA_ARGS contains a per-model option (--tool_parser/--reasoning_parser)
+that OVMS rejects when started from --config_path. Set HARNESS_OVMS_TOOL_PARSER=<parser>
+instead; it is written into the model's graph.pbtxt." ;;
+  esac
   ensure_ovms_config
   ensure_ovms_models_readable
   ensure_backend_network
@@ -1161,6 +1239,10 @@ ensure_inference_backend() {
 docker-pull, export-model-py, model-download, or hf-snapshot)." ;;
         esac
         [[ "$HARNESS_LAST_MODEL_REGISTERED" -eq 1 ]] || model_download_unregistered=1
+        # Before the restart below, which is what makes OVMS reload the graph.
+        if [[ -n "$HARNESS_OVMS_TOOL_PARSER" && "$model_download_unregistered" -eq 0 ]]; then
+          ensure_graph_tool_parser "$(model_dir_name "$HARNESS_HF_MODEL")" "$HARNESS_OVMS_TOOL_PARSER"
+        fi
         if [[ "${HARNESS_RUNTIME:-host}" == openshell && "$model_download_unregistered" == 0 ]]; then
           with_state_lock ovms-config _select_ovms_model_locked "$(model_dir_name "$HARNESS_HF_MODEL")"
         fi

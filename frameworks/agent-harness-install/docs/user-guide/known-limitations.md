@@ -78,11 +78,17 @@ For sandbox setup, architecture and lifecycle guidance, see
   Nous Research does not publish a checksum for it, and the
   `hermes-agent.nousresearch.com` URL always serves the latest script, so
   this installer instead fetches `scripts/install.sh` from a pinned
-  `NousResearch/hermes-agent` commit (the `v0.22.2` tag), verifies its
+  `NousResearch/hermes-agent` commit (the `v0.23.0` tag), verifies its
   SHA-256, and passes the same commit via `--commit`. No flags are needed.
-  To use a different installer, set `HERMES_INSTALL_URL` together with
+  To install another Hermes release with the same mechanics, set
+  `HERMES_PINNED_COMMIT` (full commit SHA) and `HERMES_PINNED_SHA256` (the
+  SHA-256 of `scripts/install.sh` at that commit) together. To use a
+  different installer, set `HERMES_INSTALL_URL` together with
   `HERMES_INSTALL_SHA256` (or `HERMES_ALLOW_UNVERIFIED_INSTALL=1`, not
   recommended); `HERMES_INSTALL_SHA256` alone overrides the built-in digest.
+  A custom installer URL installs whatever that installer's default channel
+  resolves to, unless `HERMES_PINNED_COMMIT`/`HERMES_PINNED_SHA256` are also
+  set, in which case that commit is passed via `--commit`.
 - "deepagents-code" installs LangChain's official `dcode` CLI via its own
   installer. As with Hermes, this installer fetches `libs/code/scripts/install.sh`
   from a pinned `langchain-ai/deepagents` commit (the `deepagents-code==0.1.86`
