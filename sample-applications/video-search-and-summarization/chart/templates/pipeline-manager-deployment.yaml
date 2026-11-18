@@ -57,16 +57,16 @@ spec:
                 NAME="$1"; ENC="$2"
                 RETRIES=0
                 MAX_RETRIES=240
-                until curl -s -f -m 10 "http://{{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v1/models/${ENC}" | grep -q '"AVAILABLE"'; do
+                until STATUS="$(curl -s -o /dev/null -w '%{http_code}' -m 10 "http://{{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/models/${ENC}/ready")" && [ "$STATUS" = "200" ]; do
                   RETRIES=$((RETRIES+1))
                   if [ $RETRIES -ge $MAX_RETRIES ]; then
-                    echo "OVMS servable ${NAME} not AVAILABLE after $MAX_RETRIES attempts"
+                    echo "OVMS servable ${NAME} not ready after $MAX_RETRIES attempts"
                     exit 1
                   fi
                   echo "Waiting for OVMS servable ${NAME}... (Attempt $RETRIES of $MAX_RETRIES)"
                   sleep 15
                 done
-                echo "OVMS servable ${NAME} is AVAILABLE"
+                echo "OVMS servable ${NAME} is ready"
               }
               wait_model "{{ $vlmStorageName }}" "{{ $vlmStorageName | urlquery }}"
               {{- if $ovms.splitModel }}
