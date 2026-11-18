@@ -140,18 +140,16 @@ system_scan_check_network_access () {
   local check_urls=(
     http://connectivity-check.ubuntu.com
     https://apt.repos.intel.com
-  ) url
-
+  ) url date_str
   for url in "${check_urls[@]}"; do
     curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null 2>&1 || { 
       if [[ "$url" = https://* ]]; then
-         local date_str="$(curl -sIk --max-time 10 $url 2> /dev/null | grep -i '^date:' | cut -f2- -d' ' | tr -d '\r' || true)"
-         if [ -n "$date_str" ]; then
-           ensure_sudo date -u -s "@$(date -u -d "$date_str" +%s 2> /dev/null || true)" > /dev/null 2>&1 || true
-           curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null 2>&1 && continue || true
-         fi
-         echo "Clock skewed"
-         return 0
+        if date_str="$(curl -fsIk --max-time 10 $url 2> /dev/null | grep -i '^date:' | cut -f2- -d' ' | tr -d '\r')" && [ -n "$date_str" ]; then
+          ensure_sudo date -u -s "@$(date -u -d "$date_str" +%s 2> /dev/null)" > /dev/null 2>&1 &&
+          curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null 2>&1 && continue || true
+        fi
+        echo "Clock skewed"
+        return 0
       fi
       echo "$url by $(id -un)"
       return 0; 
