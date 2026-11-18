@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 
 import config
 from assetlib import collection_name
-from assetlib.sources.updates import SourceRuleError
+from assetlib.sources.updates import SourceBusyError, SourceRuleError
 from core import materialize
 from core.extractor import is_supported
 from core.file_asset_library import asset_id_for, file_origin, inline_origin
@@ -27,6 +27,7 @@ from schemas import (
     AssetLibraryUpdate,
     AssetPage,
     AssetPoolAssetsIn,
+    AssetPoolAssetsRemoved,
     AssetPoolIn,
     AssetPoolOut,
     AssetPoolSourcesIn,
@@ -72,6 +73,7 @@ def _folder_files(path: str) -> List[str]:
 def _resolve_uploads(file_paths: List[str]) -> List[str]:
     """Resolve names against the upload dir; an OKF dir is one asset, other dirs expand to their files."""
     resolved = []
+    upload_root = os.path.abspath(config.UPLOAD_DIR)
     for requested in file_paths:
         path = (
             requested
@@ -79,6 +81,10 @@ def _resolve_uploads(file_paths: List[str]) -> List[str]:
             else os.path.join(config.UPLOAD_DIR, requested)
         )
         path = os.path.abspath(path)
+        if os.path.commonpath([path, upload_root]) != upload_root:
+            raise ValueError(
+                f"Asset path is outside the upload directory: {requested!r}"
+            )
         if not os.path.exists(path):
             raise ValueError(
                 f"Asset file not found: {requested!r} (resolved to {path!r})"
@@ -362,7 +368,7 @@ async def update_source(
     body: SourceUpdate,
     background_tasks: BackgroundTasks,
 ):
-    """Rename, relabel, or switch a source on or off."""
+    """Rename, relabel, switch a source on or off, or change its embedding device and re-embed it."""
     asset_library = _require(library)
     if source_id not in asset_library.sources:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Source '{source_id}' not found")
@@ -370,6 +376,8 @@ async def update_source(
         resync = asset_library.update_source(
             source_id, **body.model_dump(exclude_unset=True)
         )
+    except SourceBusyError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error))
     except SourceRuleError as error:
         raise HTTPException(status_code=_UNPROCESSABLE, detail=str(error))
     except ValueError as error:
@@ -377,7 +385,7 @@ async def update_source(
     except Exception as error:  # a projection could not be rebuilt
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Could not enable the source: {type(error).__name__}: {error}",
+            detail=f"Could not rebuild the source: {type(error).__name__}: {error}",
         )
     registry.save()
     if resync:
@@ -628,6 +636,63 @@ async def add_asset_pool_assets(
     registry.save()
     background_tasks.add_task(_sync_and_save, asset_library, [asset_pool_id])
     return await get_asset_pool(library, asset_pool_id)
+
+
+@router.delete("/{library}/asset_pools/{asset_pool_id}/assets", response_model=AssetPoolAssetsRemoved)
+async def remove_asset_pool_assets(
+    library: str,
+    asset_pool_id: str,
+    body: AssetPoolAssetsIn,
+    background_tasks: BackgroundTasks,
+):
+    asset_library = _require(library)
+    asset_pool = asset_library.asset_pools.get(asset_pool_id)
+    if asset_pool is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Asset pool '{asset_pool_id}' not found",
+        )
+    if not body.asset_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one asset ID is required",
+        )
+    try:
+        result = asset_library.remove_assets_from_pool(asset_pool_id, body.asset_ids)
+    except ValueError as error:
+        code = (
+            status.HTTP_404_NOT_FOUND
+            if "not found" in str(error).lower()
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(status_code=code, detail=str(error)) from error
+    except Exception as error:
+        registry.save()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Could not remove assets from the asset pool: {type(error).__name__}: {error}. "
+                "Part of their records may already be removed; check that the pool's sources' "
+                "databases are reachable on the Database connections page, then remove them again "
+                "to finish"
+            ),
+        ) from error
+    registry.save()
+    if any(sync.status == "pending" for sync in asset_pool.source_statuses.values()):
+        background_tasks.add_task(_sync_and_save, asset_library, [asset_pool_id])
+    return AssetPoolAssetsRemoved(library=asset_library.name, **result)
+
+
+@router.delete(
+    "/{library}/asset_pools/{asset_pool_id}/assets/{asset_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_asset_pool_asset(
+    library: str, asset_pool_id: str, asset_id: str, background_tasks: BackgroundTasks
+):
+    await remove_asset_pool_assets(
+        library, asset_pool_id, AssetPoolAssetsIn(asset_ids=[asset_id]), background_tasks
+    )
 
 
 @router.put("/{library}/asset_pools/{asset_pool_id}/sources", response_model=AssetPoolOut)

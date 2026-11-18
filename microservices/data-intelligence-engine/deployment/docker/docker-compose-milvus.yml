@@ -27,7 +27,7 @@ services:
       no_proxy: *no_proxy_hosts
       NO_PROXY: *no_proxy_hosts
     volumes:
-      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/milvus/etcd:/etcd
+      - ${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/milvus/etcd:/etcd
     command:
       - etcd
       - -advertise-client-urls=http://etcd:${ETCD_CLIENT_PORT:-2379}
@@ -51,7 +51,7 @@ services:
     image: ${MINIO_INIT_IMAGE:-${MILVUS_IMAGE:-milvusdb/milvus:v2.4.6}}
     user: "0:0"
     volumes:
-      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/milvus/minio:/minio_data
+      - ${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/milvus/minio:/minio_data
     entrypoint: ["sh", "-c"]
     command:
       - >-
@@ -81,7 +81,7 @@ services:
       no_proxy: *no_proxy_hosts
       NO_PROXY: *no_proxy_hosts
     volumes:
-      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/milvus/minio:/minio_data
+      - ${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/milvus/minio:/minio_data
     # Entrypoint is already /usr/bin/minio, so the command carries only its args.
     command:
       - server
@@ -108,7 +108,7 @@ services:
       no_proxy: *no_proxy_hosts
       NO_PROXY: *no_proxy_hosts
     volumes:
-      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/milvus/db:/var/lib/milvus
+      - ${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/milvus/db:/var/lib/milvus
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "curl", "-f", "${MILVUS_HEALTHCHECK_URL:-http://localhost:9091/healthz}"]

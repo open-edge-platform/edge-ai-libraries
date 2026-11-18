@@ -81,6 +81,21 @@ class FilesystemObjectAdapter(ObjectAdapter):
         except FileNotFoundError as error:
             raise KeyError(key) from error
 
+    def get_bounded(self, collection: ObjectCollection, key: str, max_bytes: int) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be positive")
+        path = self._path(collection, key)
+        try:
+            with open(path, "rb") as file:
+                if os.fstat(file.fileno()).st_size > max_bytes:
+                    raise OverflowError("source_limit")
+                data = file.read(max_bytes + 1)
+        except FileNotFoundError as error:
+            raise KeyError(key) from error
+        if len(data) > max_bytes:
+            raise OverflowError("source_limit")
+        return data
+
     def delete(self, collection: ObjectCollection, key: str) -> None:
         try:
             os.unlink(self._path(collection, key))

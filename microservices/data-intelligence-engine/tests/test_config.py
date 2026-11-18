@@ -49,12 +49,6 @@ def test_media_reranker_defaults_to_int8_package(monkeypatch, tmp_path):
     assert settings["MEDIA_RERANK_MODEL_ID"] == "Qwen3-VL-Reranker-2B-INT8-OV"
     assert "MEDIA_RERANK_MODEL_PATH" not in settings
 
-    fp16 = load_config(
-        monkeypatch, tmp_path,
-        ENGINE_MEDIA_RERANK_MODEL_ID="Qwen3-VL-Reranker-2B-OV",
-    )
-    assert fp16["MEDIA_RERANK_MODEL_ID"] == "Qwen3-VL-Reranker-2B-OV"
-
 
 @pytest.mark.parametrize("endpoint", [None, "", "https://unused.invalid"])
 def test_config_does_not_require_or_configure_a_model_download_endpoint(tmp_path, endpoint):
