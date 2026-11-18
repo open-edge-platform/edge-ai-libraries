@@ -65,7 +65,8 @@ debian_90_install_smart_kiosk_assistant () {
     cd "$workspace"/smart-kiosk-assistant
 
     # add ovms model
-    used_models+=("$(grep -m1 ^OVMS_MODEL_NAME= .env.example | cut -f2- -d= | tr -d '"')")
+    local OVMS_MODEL_NAME="$(grep -m1 ^OVMS_MODEL_NAME= .env.example | cut -f2- -d= | tr -d '"')"
+    used_models+=("$OVMS_MODEL_NAME")
 
     # add HF_TOKEN
     ensure_hf_token "${used_models[@]}"
@@ -75,15 +76,19 @@ debian_90_install_smart_kiosk_assistant () {
     sed -i "s|^KIOSK_CORE_IDENTITY_ENABLED=.*|KIOSK_CORE_IDENTITY_ENABLED=true|" .env.example
 
     # setup
+    echo "@@STEP Setting up"
     make init-env && make setup-dirs 
+    echo "@@STEP Downloading videos"
     make download-sample-video
 
     # build
+    echo "@@STEP Building sample"
     REGISTRY=true make build
     docker compose pull --ignore-buildable
   fi
 
   local device="$(ensure_parse_device "$@")"
+  echo "@@STEP Configuring for $device"
   configure_smart_kiosk_assistant_device "${device^^}"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -98,7 +103,10 @@ debian_90_start_smart_kiosk_assistant () {
   ensure_container_namespace start smart_kiosk_assistant $(ensure_container_parse_yaml "$workspace"/smart-kiosk-assistant/docker-compose.yml)
 
   local device=$(ensure_parse_device "$@")
-  [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}"
+  [[ " ${*,,} " != *" --$device "* ]] || {
+    echo "@@STEP Configuring for $device"
+    configure_smart_kiosk_assistant_device "${device^^}"
+  }
 
   cd "$workspace"/smart-kiosk-assistant
   make up
