@@ -11,6 +11,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api import main
+from api.dependencies.audio_jobs import (
+    _reset_audio_pipeline_job_manager_for_tests,
+    get_audio_pipeline_job_manager,
+)
 from api.middleware import InitializationMiddleware
 from api.routes import health
 from audio_assets import AudioAssetsManager
@@ -22,6 +26,15 @@ from managers.pipeline_manager import PipelineManager
 
 class VoiceInitializationTests(unittest.TestCase):
     def setUp(self) -> None:
+        _reset_audio_pipeline_job_manager_for_tests()
+        self.addCleanup(_reset_audio_pipeline_job_manager_for_tests)
+        self.configure_factory = self.enterContext(
+            patch.object(
+                main,
+                "configure_audio_pipeline_job_manager_factory",
+                wraps=main.configure_audio_pipeline_job_manager_factory,
+            )
+        )
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.pipeline_dir = root / "pipelines"
         self.pipeline_dir.mkdir()
@@ -151,6 +164,34 @@ class VoiceInitializationTests(unittest.TestCase):
         with self.assertLogs(level="ERROR") as logs:
             main._initialize_in_background(self.app)
         self.assertIn("Voice initialization failed", "\n".join(logs.output))
+        self.configure_factory.assert_not_called()
+        self.assert_backend_ready()
+        self.assert_voice_unavailable()
+
+    def test_successful_initialization_configures_lazy_job_manager(self) -> None:
+        with patch.object(main, "AudioPipelineJobManager") as manager_type:
+            main._initialize_in_background(self.app)
+
+            self.assertTrue(self.app.state.voice_available)
+            self.configure_factory.assert_called_once_with(
+                main._create_audio_pipeline_job_manager
+            )
+            manager_type.assert_not_called()
+            manager = get_audio_pipeline_job_manager()
+            self.assertIs(manager, get_audio_pipeline_job_manager())
+            manager_type.assert_called_once_with(
+                audio_pipeline_manager._default_manager,
+                AudioAssetsManager(),
+                main.execute_transcription,
+                main.execute_synthesis,
+            )
+
+    def test_factory_configuration_failure_disables_only_voice(self) -> None:
+        self.configure_factory.side_effect = RuntimeError("configuration failed")
+
+        with self.assertLogs(level="ERROR"):
+            main._initialize_in_background(self.app)
+
         self.assert_backend_ready()
         self.assert_voice_unavailable()
 

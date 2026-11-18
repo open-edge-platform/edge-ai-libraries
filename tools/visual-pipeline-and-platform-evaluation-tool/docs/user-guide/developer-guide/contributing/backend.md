@@ -31,6 +31,7 @@ vippet/
 │   │   ├── devices.py
 │   │   ├── convert.py
 │   │   ├── tests.py
+│   │   ├── voice.py       # Audio catalog, recordings, and pipeline runs
 │   │   └── health.py
 │   └── static/           # Static assets served by the API
 ├── managers/             # Business logic; thread-safe singletons
@@ -54,6 +55,8 @@ vippet/
 ├── video_encoder.py      # Encoding / live-streaming sub-pipelines
 ├── video_decoder.py      # Decoder selection / caps building
 ├── device.py             # Device list (CPU/GPU/NPU) from DLSPS 2.0
+├── audio_service_client.py # Bounded HTTP calls to speech services
+├── audio_errors.py        # Audio domain exceptions, independent of FastAPI
 ├── cpu_topology.py       # CPU core types (P/E/LPE) from Linux sysfs
 ├── videos.py             # Input/output video management
 ├── images.py             # Image set management

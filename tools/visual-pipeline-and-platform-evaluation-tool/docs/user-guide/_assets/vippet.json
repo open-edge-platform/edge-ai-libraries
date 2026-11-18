@@ -719,6 +719,7 @@
           "jobs"
         ],
         "summary": "Get Audio Statuses",
+        "description": "# List Audio Job Statuses\n\n## Operation\nReturn job summaries without transcripts or internal artifact paths.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Audio job summaries, possibly empty |\n| 503 | Voice initialization failed |",
         "operationId": "get_audio_statuses",
         "responses": {
           "200": {
@@ -744,6 +745,7 @@
           "jobs"
         ],
         "summary": "Get Audio Job Status",
+        "description": "# Get Audio Job Status\n\n## Parameters\n- `job_id`: ID returned when starting an audio pipeline run.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Job state, transcript, and public artifact URL when available |\n| 404 | Job does not exist |\n| 503 | Voice initialization failed |",
         "operationId": "get_audio_job_status",
         "parameters": [
           {
@@ -786,7 +788,7 @@
           "jobs"
         ],
         "summary": "Stop a running audio job",
-        "description": "Request cancellation of a RUNNING Speech to Text or Text to Speech job.",
+        "description": "# Stop Audio Job\n\n## Operation\nRequest cancellation of a running speech-to-text or text-to-speech job.\nA cancelled job completes without a transcript or audio artifact.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Cancellation completed |\n| 404 | Job does not exist |\n| 409 | Job is no longer running |\n| 503 | Voice initialization failed |",
         "operationId": "stop_audio_job",
         "parameters": [
           {
@@ -2206,7 +2208,7 @@
           "models"
         ],
         "summary": "Start one or more model download jobs",
-        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n- **`category`** *(optional)* - Required when `hub` is `huggingface`.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
+        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n- **`category`** *(optional)* - Required when `hub` is `huggingface`.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
         "operationId": "start_model_download",
         "requestBody": {
           "content": {
@@ -4034,6 +4036,7 @@
           "voice"
         ],
         "summary": "List Audio Pipelines",
+        "description": "# List Audio Pipelines\n\n## Operation\nReturn the read-only audio catalog, including variants and default inputs.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Audio pipeline definitions |\n| 503 | Voice initialization failed |",
         "operationId": "list_audio_pipelines_voice_pipelines_get",
         "responses": {
           "200": {
@@ -4059,6 +4062,7 @@
           "voice"
         ],
         "summary": "List Audio Recordings",
+        "description": "# List Audio Recordings\n\n## Operation\nReturn bundled recordings with their durations and public playback URLs.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Available audio recordings |\n| 503 | Voice initialization failed |",
         "operationId": "list_audio_recordings_voice_recordings_get",
         "responses": {
           "200": {
@@ -4084,6 +4088,7 @@
           "voice"
         ],
         "summary": "Get Audio Recording",
+        "description": "# Get Audio Recording\n\n## Parameters\n- `filename`: Name of a registered recording, not an arbitrary file path.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | WAV recording with caching disabled |\n| 404 | Recording does not exist |\n| 503 | Voice initialization failed |",
         "operationId": "get_audio_recording_voice_recordings__filename__audio_get",
         "parameters": [
           {
@@ -4119,6 +4124,7 @@
           "voice"
         ],
         "summary": "Run Audio Pipeline Variant",
+        "description": "# Run Audio Pipeline Variant\n\n## Operation\nStart an asynchronous speech-to-text or text-to-speech job on the selected\nvariant. Poll its status through the audio job endpoints.\n\n## Request Body\n- JSON: `input` and `voice` for synthesis, or `recording` and `language`\n  for transcription of a registered recording.\n- Multipart: `file` and a two-letter `language` for uploaded audio.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 202 | Job ID and initial state |\n| 400 | Pipeline does not accept the selected input type |\n| 404 | Pipeline, variant, or recording does not exist |\n| 409 | Pipeline cannot run with the supplied inputs |\n| 413 | Audio upload exceeds the size limit |\n| 415 | Unsupported request content type |\n| 422 | Invalid request fields |\n| 503 | Voice initialization failed |",
         "operationId": "run_audio_pipeline_variant_voice_pipelines__pipeline_id__variants__variant_id__runs_post",
         "parameters": [
           {
@@ -4170,6 +4176,7 @@
                 "oneOf": [
                   {
                     "additionalProperties": false,
+                    "description": "**Request to synthesize speech from text using an audio pipeline.**\n\nString values are trimmed and unknown fields are rejected.\n\n## Attributes\n- `input` - Text to synthesize, from 1 to 200 characters\n- `voice` - Supported synthesis voice selected from `SpeechVoice`\n\n### Example\n```json\n{\"input\": \"Hello world\", \"voice\": \"Ryan\"}\n```",
                     "properties": {
                       "input": {
                         "maxLength": 200,
@@ -4178,6 +4185,7 @@
                         "type": "string"
                       },
                       "voice": {
+                        "description": "**Supported voice for speech synthesis.**\n\n## Values\n- `Ryan`\n- `Miles`\n- `Aaron`\n- `Nora`\n- `Elena`\n- `Kabir`\n- `Angus`",
                         "enum": [
                           "Ryan",
                           "Miles",
@@ -4187,7 +4195,7 @@
                           "Kabir",
                           "Angus"
                         ],
-                        "title": "Voice",
+                        "title": "SpeechVoice",
                         "type": "string"
                       }
                     },
@@ -4200,6 +4208,7 @@
                   },
                   {
                     "additionalProperties": false,
+                    "description": "**Request to transcribe a registered audio recording.**\n\nString values are trimmed and unknown fields are rejected.\n\n## Attributes\n- `recording` - Registered recording filename, from 1 to 255 characters\n- `language` - Two-letter lowercase transcription language code\n\n### Example\n```json\n{\"recording\": \"sample.wav\", \"language\": \"en\"}\n```",
                     "properties": {
                       "recording": {
                         "maxLength": 255,
@@ -4252,6 +4261,7 @@
           "voice"
         ],
         "summary": "Get Audio Pipeline Artifact",
+        "description": "# Get Audio Pipeline Artifact\n\n## Parameters\n- `job_id`: ID of a completed text-to-speech job.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Generated WAV audio with caching disabled |\n| 404 | Job does not exist |\n| 409 | Job has no available audio artifact |\n| 503 | Voice initialization failed |",
         "operationId": "get_audio_pipeline_artifact_voice_jobs__job_id__artifact_get",
         "parameters": [
           {
@@ -4302,7 +4312,8 @@
           "COMPLETED",
           "FAILED"
         ],
-        "title": "AudioJobState"
+        "title": "AudioJobState",
+        "description": "**State of an asynchronous audio pipeline job.**\n\n## Values\n- `RUNNING` - Speech conversion is in progress\n- `COMPLETED` - Job finished, including cancellation without a result\n- `FAILED` - Job execution failed"
       },
       "AudioJobStatus": {
         "properties": {
@@ -4419,7 +4430,8 @@
           "modified_at",
           "artifact_available"
         ],
-        "title": "AudioJobStatus"
+        "title": "AudioJobStatus",
+        "description": "**Detailed audio job status including its available conversion result.**\n\nInherits the metadata and execution state from `AudioJobSummary`.\n\n## Attributes\n- `transcript` - Recognized text for a successful speech-to-text run,\n  otherwise null\n- `artifact_url` - Public URL of the generated speech audio, otherwise null"
       },
       "AudioJobSummary": {
         "properties": {
@@ -4514,7 +4526,8 @@
           "modified_at",
           "artifact_available"
         ],
-        "title": "AudioJobSummary"
+        "title": "AudioJobSummary",
+        "description": "**Audio job summary without transcripts or internal artifact paths.**\n\n## Attributes\n- `id` - Job identifier\n- `pipeline_id` - Identifier of the executed audio pipeline\n- `pipeline_name` - Human-readable pipeline name\n- `operation` - `speech_to_text` or `text_to_speech`\n- `variant_id` - Identifier of the selected execution variant\n- `variant_name` - Human-readable variant name\n- `device` - Inference device selected for the run\n- `state` - Current audio job state\n- `created_at` - Job creation timestamp in UTC\n- `modified_at` - Last state transition timestamp in UTC\n- `service_round_trip_ms` - Optional speech-service round-trip time in ms\n- `artifact_available` - Whether an audio artifact is associated with the job\n- `error` - Optional sanitized execution failure message"
       },
       "AudioPipelineDefaultsResponse": {
         "properties": {
@@ -4564,7 +4577,8 @@
           }
         },
         "type": "object",
-        "title": "AudioPipelineDefaultsResponse"
+        "title": "AudioPipelineDefaultsResponse",
+        "description": "**Default inputs supplied by an audio pipeline definition.**\n\n## Attributes\n- `audio` - Optional bundled recording filename for speech-to-text\n- `language` - Optional transcription language code\n- `text` - Optional default text for speech synthesis\n- `voice` - Optional default synthesis voice"
       },
       "AudioPipelineJobStartResponse": {
         "properties": {
@@ -4573,13 +4587,7 @@
             "title": "Job Id"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "RUNNING",
-              "COMPLETED",
-              "FAILED"
-            ],
-            "title": "Status"
+            "$ref": "#/components/schemas/AudioJobState"
           }
         },
         "type": "object",
@@ -4587,7 +4595,8 @@
           "job_id",
           "status"
         ],
-        "title": "AudioPipelineJobStartResponse"
+        "title": "AudioPipelineJobStartResponse",
+        "description": "**Response returned when an audio pipeline run is accepted.**\n\n## Attributes\n- `job_id` - Job identifier used to poll status and retrieve its result\n- `status` - Job state when the run was accepted\n\n### Example\n```json\n{\"job_id\": \"audio-job-123\", \"status\": \"RUNNING\"}\n```"
       },
       "AudioPipelineResponse": {
         "properties": {
@@ -4664,7 +4673,8 @@
           "variants",
           "defaults"
         ],
-        "title": "AudioPipelineResponse"
+        "title": "AudioPipelineResponse",
+        "description": "**Read-only audio pipeline definition exposed by the Voice catalog.**\n\n## Attributes\n- `id` - Pipeline identifier used when starting a run\n- `name` - Human-readable pipeline name\n- `description` - Description of the speech conversion operation\n- `type` - Pipeline type, always `audio`\n- `operation` - `speech_to_text` or `text_to_speech`\n- `tags` - Tags used to categorize the pipeline\n- `thumbnail` - Optional Base64-encoded pipeline thumbnail\n- `required_models` - Names of models required by the pipeline\n- `variants` - Available device-specific execution variants\n- `defaults` - Default recording, language, text, and voice inputs"
       },
       "AudioPipelineVariantResponse": {
         "properties": {
@@ -4692,7 +4702,8 @@
           "name",
           "device"
         ],
-        "title": "AudioPipelineVariantResponse"
+        "title": "AudioPipelineVariantResponse",
+        "description": "**Audio pipeline variant targeting a particular inference device.**\n\n## Attributes\n- `id` - Variant identifier used when starting a run\n- `name` - Human-readable variant name\n- `device` - Target inference device: CPU, GPU, or NPU"
       },
       "AudioRecordingResponse": {
         "properties": {
@@ -4715,7 +4726,8 @@
           "duration_seconds",
           "audio_url"
         ],
-        "title": "AudioRecordingResponse"
+        "title": "AudioRecordingResponse",
+        "description": "**Bundled recording available as input to speech-to-text pipelines.**\n\n## Attributes\n- `filename` - Registered recording filename\n- `duration_seconds` - Recording duration in seconds\n- `audio_url` - Public API URL for playing or downloading the recording"
       },
       "BenchmarkJobResponse": {
         "properties": {
@@ -7101,7 +7113,7 @@
           "install_status"
         ],
         "title": "Model",
-        "description": "**Description of a single supported model exposed by the models API.**\n\nLists every model known to vippet-app: both entries from the model\ncatalog (`vippet/models/*.yaml`, seeded into the DB at startup) and\nuser-uploaded models. Use `install_status` to know if the model is\nready to use, and `used_by_pipelines` to know whether installing it is\nrecommended (non-empty list means at least one predefined pipeline\nreferences it).\n\nThe `variants` array enumerates every selectable (precision,\nmodel-proc) combination \u2014 used by the pipeline builder to populate\nthe model dropdown. The install page collapses them under a single\n`display_name` and shows the unique precisions only.\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human-readable model name suitable for UI\n- `category` - Logical model category (`image_classification`, `object_detection`, `image_segmentation`, `pose_estimation`, `vision_language_models`, `large_language_models`, `automatic_speech_recognition`, `text_to_speech`) or null when unknown\n- `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)\n- `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)\n- `variants` - Selectable variants of this model (one per precision and optional model-proc)\n- `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation\n- `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.\n- `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"display_name\": \"YOLO 11n 640x640\",\n  \"category\": \"object_detection\",\n  \"source\": \"ultralytics\",\n  \"install_status\": \"installed\",\n  \"variants\": [\n    {\"name\": \"yolo11n_INT8\", \"display_name\": \"YOLO 11n 640x640 (INT8)\", \"precision\": \"INT8\"},\n    {\"name\": \"yolo11n_FP16\", \"display_name\": \"YOLO 11n 640x640 (FP16)\", \"precision\": \"FP16\"}\n  ],\n  \"used_by_pipelines\": [\"smart-nvr\", \"goods-detection\"],\n  \"unsupported_devices\": null\n}\n```"
+        "description": "**Description of a single supported model exposed by the models API.**\n\nLists every model known to vippet-app: both entries from the model\ncatalog (`vippet/models/*.yaml`, seeded into the DB at startup) and\nuser-uploaded models. Use `install_status` to know if the model is\nready to use, and `used_by_pipelines` to know whether installing it is\nrecommended (non-empty list means at least one predefined pipeline\nreferences it).\n\nThe `variants` array enumerates every selectable (precision,\nmodel-proc) combination \u2014 used by the pipeline builder to populate\nthe model dropdown. The install page collapses them under a single\n`display_name` and shows the unique precisions only.\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human-readable model name suitable for UI\n- `category` - Logical model category (`image_classification`, `object_detection`, `image_segmentation`, `pose_estimation`, `vision_language_models`, `large_language_models`, `automatic_speech_recognition`, `text_to_speech`) or null when unknown\n- `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)\n- `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)\n- `variants` - Selectable variants of this model (one per precision and optional model-proc)\n- `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation\n- `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.\n- `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)\n- `link` - URL of the model page on its upstream hub (currently Hugging Face only), or null\n- `gated` - Hugging Face gating mode (`false`, `auto`, `manual`), or null when unknown or not applicable\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"display_name\": \"YOLO 11n 640x640\",\n  \"category\": \"object_detection\",\n  \"source\": \"ultralytics\",\n  \"install_status\": \"installed\",\n  \"variants\": [\n    {\"name\": \"yolo11n_INT8\", \"display_name\": \"YOLO 11n 640x640 (INT8)\", \"precision\": \"INT8\"},\n    {\"name\": \"yolo11n_FP16\", \"display_name\": \"YOLO 11n 640x640 (FP16)\", \"precision\": \"FP16\"}\n  ],\n  \"used_by_pipelines\": [\"smart-nvr\", \"goods-detection\"],\n  \"unsupported_devices\": null,\n  \"link\": null\n}\n```"
       },
       "ModelCategory": {
         "type": "string",

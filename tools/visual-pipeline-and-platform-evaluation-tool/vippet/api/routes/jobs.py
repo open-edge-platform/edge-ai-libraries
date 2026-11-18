@@ -10,8 +10,10 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 import api.api_schemas as schemas
 from api.dependencies.audio_jobs import get_audio_pipeline_job_manager
+from audio_errors import AudioJobNotFoundError, AudioJobNotRunningError
 from graph import Graph
 from internal_types import (
+    InternalAudioPipelineJob,
     InternalBenchmarkJobStatus,
     InternalBenchmarkJobSummary,
     InternalDensityJobStatus,
@@ -28,10 +30,7 @@ from internal_types import (
     InternalValidationJobSummary,
 )
 from managers.benchmark_manager import BenchmarkManager
-from managers.audio_pipeline_job_manager import (
-    AudioPipelineJob,
-    AudioPipelineJobManager,
-)
+from managers.audio_pipeline_job_manager import AudioPipelineJobManager
 from managers.metadata_manager import MetadataManager
 from managers.model_manager import ModelManager
 from managers.optimization_manager import OptimizationManager
@@ -50,7 +49,7 @@ AudioJobManagerDependency = Annotated[
 ]
 
 
-def _audio_job_to_api_summary(job: AudioPipelineJob) -> schemas.AudioJobSummary:
+def _audio_job_to_api_summary(job: InternalAudioPipelineJob) -> schemas.AudioJobSummary:
     return schemas.AudioJobSummary(
         id=job.id,
         pipeline_id=job.pipeline_id,
@@ -68,7 +67,7 @@ def _audio_job_to_api_summary(job: AudioPipelineJob) -> schemas.AudioJobSummary:
     )
 
 
-def _audio_job_to_api_status(job: AudioPipelineJob) -> schemas.AudioJobStatus:
+def _audio_job_to_api_status(job: InternalAudioPipelineJob) -> schemas.AudioJobStatus:
     summary = _audio_job_to_api_summary(job)
     return schemas.AudioJobStatus(
         **summary.model_dump(),
@@ -192,6 +191,18 @@ def stop_benchmark_job_handler(job_id: str):
 async def get_audio_statuses(
     manager: AudioJobManagerDependency,
 ) -> list[schemas.AudioJobSummary]:
+    """
+    # List Audio Job Statuses
+
+    ## Operation
+    Return job summaries without transcripts or internal artifact paths.
+
+    ## Response Codes
+    | Code | Description |
+    |------|-------------|
+    | 200 | Audio job summaries, possibly empty |
+    | 503 | Voice initialization failed |
+    """
     return [_audio_job_to_api_summary(job) for job in await manager.list_jobs()]
 
 
@@ -204,6 +215,19 @@ async def get_audio_job_status(
     job_id: str,
     manager: AudioJobManagerDependency,
 ) -> schemas.AudioJobStatus:
+    """
+    # Get Audio Job Status
+
+    ## Parameters
+    - `job_id`: ID returned when starting an audio pipeline run.
+
+    ## Response Codes
+    | Code | Description |
+    |------|-------------|
+    | 200 | Job state, transcript, and public artifact URL when available |
+    | 404 | Job does not exist |
+    | 503 | Voice initialization failed |
+    """
     job = await manager.get_job(job_id)
     if job is None:
         raise HTTPException(404, "Audio pipeline job not found.")
@@ -214,6 +238,7 @@ async def get_audio_job_status(
     "/audio/{job_id}",
     operation_id="stop_audio_job",
     summary="Stop a running audio job",
+    response_model=None,
     responses={
         200: {
             "description": "Successful Response",
@@ -232,17 +257,37 @@ async def get_audio_job_status(
 async def stop_audio_job(
     job_id: str,
     manager: AudioJobManagerDependency,
-):
-    """Request cancellation of a RUNNING Speech to Text or Text to Speech job."""
+) -> schemas.MessageResponse | JSONResponse:
+    """
+    # Stop Audio Job
+
+    ## Operation
+    Request cancellation of a running speech-to-text or text-to-speech job.
+    A cancelled job completes without a transcript or audio artifact.
+
+    ## Response Codes
+    | Code | Description |
+    |------|-------------|
+    | 200 | Cancellation completed |
+    | 404 | Job does not exist |
+    | 409 | Job is no longer running |
+    | 503 | Voice initialization failed |
+    """
     try:
         await manager.cancel_job(job_id)
-    except ValueError as exc:
+    except AudioJobNotFoundError as exc:
         message = str(exc)
-        status_code = 404 if "not found" in message else 409
         logger.warning("Failed to stop audio job %s: %s", job_id, message)
         return JSONResponse(
             content=schemas.MessageResponse(message=message).model_dump(),
-            status_code=status_code,
+            status_code=404,
+        )
+    except AudioJobNotRunningError as exc:
+        message = str(exc)
+        logger.warning("Failed to stop audio job %s: %s", job_id, message)
+        return JSONResponse(
+            content=schemas.MessageResponse(message=message).model_dump(),
+            status_code=409,
         )
     return schemas.MessageResponse(message=f"Job {job_id} stopped")
 

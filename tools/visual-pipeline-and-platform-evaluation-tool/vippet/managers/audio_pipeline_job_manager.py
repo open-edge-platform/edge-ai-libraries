@@ -8,20 +8,33 @@ import tempfile
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from enum import Enum
 from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
 
-from fastapi import HTTPException
-
 from audio_assets import AudioAssetsManager
-from managers.audio_pipeline_manager import (
-    AudioDevice,
-    AudioPipeline,
-    AudioPipelineManager,
-    AudioPipelineOperation,
+from audio_errors import (
+    AudioInputTooLargeError,
+    AudioJobNotFoundError,
+    AudioJobNotRunningError,
+    AudioPipelineError,
+    AudioPipelineNotFoundError,
+    AudioPipelineVariantNotFoundError,
+    AudioRecordingInputNotAcceptedError,
+    AudioRecordingNotFoundError,
+    AudioSTTInputNotAcceptedError,
+    AudioTTSInputNotAcceptedError,
+    SpeechServiceError,
 )
+from internal_types import (
+    InternalAudioJobState,
+    InternalAudioPipeline,
+    InternalAudioPipelineJob,
+    InternalAudioPipelineOperation,
+    InternalAudioPipelineRecordingInput,
+    InternalAudioPipelineSTTInput,
+)
+from managers.audio_pipeline_manager import AudioPipelineManager
 
 logger = logging.getLogger("audio_pipeline_jobs")
 
@@ -34,64 +47,23 @@ MAX_STT_UPLOAD_BYTES = 200 * 1024 * 1024
 _STAGE_CHUNK_BYTES = 1024 * 1024
 
 
-class AudioInputTooLargeError(ValueError):
-    pass
-
-
-class AudioPipelineJobStatus(str, Enum):
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-
-
 TERMINAL_STATUSES = {
-    AudioPipelineJobStatus.COMPLETED,
-    AudioPipelineJobStatus.FAILED,
+    InternalAudioJobState.COMPLETED,
+    InternalAudioJobState.FAILED,
 }
 
 _ALLOWED_TRANSITIONS = {
-    AudioPipelineJobStatus.RUNNING: {
-        AudioPipelineJobStatus.COMPLETED,
-        AudioPipelineJobStatus.FAILED,
+    InternalAudioJobState.RUNNING: {
+        InternalAudioJobState.COMPLETED,
+        InternalAudioJobState.FAILED,
     },
 }
 
 
-@dataclass
-class AudioPipelineJob:
-    id: str
-    pipeline_id: str
-    pipeline_name: str
-    variant_id: str
-    variant_name: str
-    device: AudioDevice
-    operation: AudioPipelineOperation
-    status: AudioPipelineJobStatus
-    created_at: datetime
-    modified_at: datetime
-    transcript: str | None = None
-    artifact_path: str | None = None
-    artifact_filename: str | None = None
-    service_round_trip_ms: float | None = None
-    error: str | None = None
-
-
-@dataclass(frozen=True)
-class AudioPipelineSTTInput:
-    file: BinaryIO
-    filename: str
-    content_type: str
-    language: str
-
-
-@dataclass(frozen=True)
-class AudioPipelineRecordingInput:
-    filename: str
-    language: str
-
-
 @dataclass(frozen=True)
 class _StagedSTTInput:
+    """Manager-owned upload copy that outlives the incoming HTTP request."""
+
     path: Path
     filename: str
     content_type: str
@@ -99,6 +71,13 @@ class _StagedSTTInput:
 
 
 class AudioPipelineJobManager:
+    """Coordinate in-memory speech jobs, background tasks, and owned files.
+
+    Injected callbacks perform speech conversion without tying the manager to
+    HTTP. A lock protects job bookkeeping; completed task references and owned
+    temporary inputs are cleaned up independently of request lifetimes.
+    """
+
     def __init__(
         self,
         pipelines: AudioPipelineManager,
@@ -107,14 +86,23 @@ class AudioPipelineJobManager:
         synthesize: Synthesize,
         max_terminal_jobs: int = DEFAULT_MAX_TERMINAL_JOBS,
     ) -> None:
+        """Bind catalog, assets, and conversion callbacks and create staging storage.
+
+        ``max_terminal_jobs`` bounds retained completed and failed job records;
+        pruning those records also schedules removal of their audio artifacts.
+
+        Raises:
+            ValueError: The terminal-job retention limit is negative.
+        """
         if max_terminal_jobs < 0:
             raise ValueError("max_terminal_jobs must not be negative")
         self.pipelines = pipelines
         self.assets = assets
         self.transcribe = transcribe
         self.synthesize = synthesize
-        self._jobs: dict[str, AudioPipelineJob] = {}
+        self._jobs: dict[str, InternalAudioPipelineJob] = {}
         self._tasks: dict[str, asyncio.Task[None]] = {}
+        self._cleanup_tasks: set[asyncio.Task[None]] = set()
         self._started_job_ids: set[str] = set()
         self._lock = asyncio.Lock()
         self._max_terminal_jobs = max_terminal_jobs
@@ -130,35 +118,57 @@ class AudioPipelineJobManager:
         *,
         input_text: str | None = None,
         voice: str | None = None,
-        stt_input: AudioPipelineSTTInput | None = None,
-        recording_input: AudioPipelineRecordingInput | None = None,
-    ) -> AudioPipelineJob:
+        stt_input: InternalAudioPipelineSTTInput | None = None,
+        recording_input: InternalAudioPipelineRecordingInput | None = None,
+    ) -> InternalAudioPipelineJob:
+        """Validate inputs, stage any upload, and schedule a background conversion.
+
+        Speech-to-text accepts an upload or registered recording; text-to-speech
+        requires text and voice. Uploads are copied before returning so the job
+        does not depend on the request keeping its file stream open.
+
+        Returns:
+            A snapshot of the newly registered RUNNING job, not its final result.
+
+        Raises:
+            AudioPipelineError: The pipeline, variant, recording, or input is
+                invalid, including an upload exceeding the configured size cap.
+            RuntimeError: An uploaded input cannot be staged.
+        """
         pipeline = self.pipelines.get_pipeline(pipeline_id)
         if pipeline is None:
-            raise ValueError(f"Audio pipeline '{pipeline_id}' not found.")
-        if pipeline.operation is not AudioPipelineOperation.TEXT_TO_SPEECH and (
+            raise AudioPipelineNotFoundError(
+                f"Audio pipeline '{pipeline_id}' not found."
+            )
+        if pipeline.operation is not InternalAudioPipelineOperation.TEXT_TO_SPEECH and (
             input_text is not None or voice is not None
         ):
-            raise ValueError("Speech-to-text pipelines do not accept TTS overrides.")
+            raise AudioTTSInputNotAcceptedError(
+                "Speech-to-text pipelines do not accept TTS overrides."
+            )
         if (
-            pipeline.operation is not AudioPipelineOperation.SPEECH_TO_TEXT
+            pipeline.operation is not InternalAudioPipelineOperation.SPEECH_TO_TEXT
             and stt_input is not None
         ):
-            raise ValueError("Text-to-speech pipelines do not accept STT input.")
+            raise AudioSTTInputNotAcceptedError(
+                "Text-to-speech pipelines do not accept STT input."
+            )
         if recording_input is not None:
-            if pipeline.operation is not AudioPipelineOperation.SPEECH_TO_TEXT:
-                raise ValueError(
+            if pipeline.operation is not InternalAudioPipelineOperation.SPEECH_TO_TEXT:
+                raise AudioRecordingInputNotAcceptedError(
                     "Text-to-speech pipelines do not accept recording input."
                 )
             if self.assets.get_path(recording_input.filename) is None:
-                raise ValueError(
+                raise AudioRecordingNotFoundError(
                     f"Audio recording '{recording_input.filename}' not found."
                 )
-        if pipeline.operation is AudioPipelineOperation.SPEECH_TO_TEXT:
+        if pipeline.operation is InternalAudioPipelineOperation.SPEECH_TO_TEXT:
             if stt_input is None and recording_input is None:
-                raise ValueError("Speech-to-text pipelines require audio input.")
+                raise AudioPipelineError(
+                    "Speech-to-text pipelines require audio input."
+                )
         elif input_text is None or voice is None:
-            raise ValueError("Text-to-speech pipelines require text and voice.")
+            raise AudioPipelineError("Text-to-speech pipelines require text and voice.")
         variant = next(
             (
                 candidate
@@ -168,11 +178,11 @@ class AudioPipelineJobManager:
             None,
         )
         if variant is None:
-            raise ValueError(
+            raise AudioPipelineVariantNotFoundError(
                 f"Audio pipeline '{pipeline_id}' variant '{variant_id}' not found."
             )
         now = datetime.now(timezone.utc)
-        job = AudioPipelineJob(
+        job = InternalAudioPipelineJob(
             id=str(uuid4()),
             pipeline_id=pipeline.id,
             pipeline_name=pipeline.name,
@@ -180,7 +190,7 @@ class AudioPipelineJobManager:
             variant_name=variant.name,
             device=variant.device,
             operation=pipeline.operation,
-            status=AudioPipelineJobStatus.RUNNING,
+            status=InternalAudioJobState.RUNNING,
             created_at=now,
             modified_at=now,
         )
@@ -215,8 +225,14 @@ class AudioPipelineJobManager:
 
     async def _stage_stt_input_async(
         self,
-        source: AudioPipelineSTTInput,
+        source: InternalAudioPipelineSTTInput,
     ) -> _StagedSTTInput:
+        """Stage an upload in a worker thread without leaking files on cancellation.
+
+        Shield the copy because cancelling an await cannot stop the worker.
+        If the caller is interrupted, wait for the worker and delete any completed
+        copy before propagating the original interruption.
+        """
         task = asyncio.create_task(asyncio.to_thread(self._stage_stt_input, source))
         try:
             return await asyncio.shield(task)
@@ -229,7 +245,15 @@ class AudioPipelineJobManager:
                 await self._delete_staged_input(staged)
             raise
 
-    def _stage_stt_input(self, source: AudioPipelineSTTInput) -> _StagedSTTInput:
+    def _stage_stt_input(
+        self, source: InternalAudioPipelineSTTInput
+    ) -> _StagedSTTInput:
+        """Copy an upload to a uniquely named private file with a bounded size.
+
+        Leave the source stream open and remove incomplete output on failure.
+        Oversized input raises AudioInputTooLargeError; other copy errors become
+        RuntimeError without exposing private filesystem details.
+        """
         destination = self._input_directory / f"{uuid4()}.upload"
         try:
             written = 0
@@ -259,13 +283,19 @@ class AudioPipelineJobManager:
     async def _execute(
         self,
         job_id: str,
-        pipeline: AudioPipeline,
+        pipeline: InternalAudioPipeline,
         *,
         input_text: str | None,
         voice: str | None,
         stt_input: _StagedSTTInput | None,
-        recording_input: AudioPipelineRecordingInput | None = None,
+        recording_input: InternalAudioPipelineRecordingInput | None = None,
     ) -> None:
+        """Run conversion, publish its result, and finalize job-owned resources.
+
+        Publish only while the job remains active. Cancellation completes it
+        without a result; other execution failures mark it FAILED with a generic
+        public message. Remove staged input and discard uncommitted artifacts.
+        """
         uncommitted_artifact_path: str | None = None
         try:
             async with self._lock:
@@ -275,7 +305,7 @@ class AudioPipelineJobManager:
                 self._started_job_ids.add(job_id)
                 device = job.device
 
-            if pipeline.operation is AudioPipelineOperation.SPEECH_TO_TEXT:
+            if pipeline.operation is InternalAudioPipelineOperation.SPEECH_TO_TEXT:
                 transcript, duration = await self._execute_stt(
                     device,
                     stt_input,
@@ -302,7 +332,7 @@ class AudioPipelineJobManager:
                     job.artifact_path = artifact_path
                     job.artifact_filename = artifact_filename
                     job.service_round_trip_ms = duration
-                    self._transition_locked(job, AudioPipelineJobStatus.COMPLETED)
+                    self._transition_locked(job, InternalAudioJobState.COMPLETED)
                     uncommitted_artifact_path = None
                     cleanup_paths = self._prune_terminal_jobs_locked()
             await self._delete_artifacts(
@@ -318,7 +348,7 @@ class AudioPipelineJobManager:
             async with self._lock:
                 job = self._jobs.get(job_id)
                 if job is not None and job.status not in TERMINAL_STATUSES:
-                    self._transition_locked(job, AudioPipelineJobStatus.COMPLETED)
+                    self._transition_locked(job, InternalAudioJobState.COMPLETED)
                 cleanup_paths = self._prune_terminal_jobs_locked()
             await self._delete_artifacts(
                 cleanup_paths
@@ -330,8 +360,7 @@ class AudioPipelineJobManager:
             )
             raise
         except Exception as exc:
-            # HTTPException details are static, sanitized messages from the voice routes.
-            reason = exc.detail if isinstance(exc, HTTPException) else None
+            reason = str(exc) if isinstance(exc, SpeechServiceError) else None
             logger.error(
                 "Audio pipeline job %s failed (%s%s)",
                 job_id,
@@ -342,7 +371,7 @@ class AudioPipelineJobManager:
                 job = self._jobs.get(job_id)
                 if job is not None and job.status not in TERMINAL_STATUSES:
                     job.error = "Audio pipeline execution failed."
-                    self._transition_locked(job, AudioPipelineJobStatus.FAILED)
+                    self._transition_locked(job, InternalAudioJobState.FAILED)
                 cleanup_paths = self._prune_terminal_jobs_locked()
             await self._delete_artifacts(
                 cleanup_paths
@@ -360,8 +389,14 @@ class AudioPipelineJobManager:
         self,
         device: str,
         stt_input: _StagedSTTInput | None,
-        recording_input: AudioPipelineRecordingInput | None,
+        recording_input: InternalAudioPipelineRecordingInput | None,
     ) -> tuple[str, float]:
+        """Open a registered recording or staged upload for the transcription callback.
+
+        Registered input takes precedence when both inputs are supplied. Keep the
+        file open throughout conversion and return text with round-trip time in
+        milliseconds. Raise RuntimeError if no usable input remains.
+        """
         if recording_input is not None:
             filename = recording_input.filename
             path = self.assets.get_path(filename)
@@ -394,6 +429,12 @@ class AudioPipelineJobManager:
         input_text: str,
         voice: str,
     ) -> tuple[str, str, float]:
+        """Synthesize speech and atomically publish its job-specific WAV file.
+
+        Write through a temporary file in the output directory so readers never
+        observe a partially written destination. Return its path, download
+        filename, and service round-trip time in milliseconds.
+        """
         content, duration = await self.synthesize(input_text, voice, device)
         output_directory = Path(self.assets.get_output_directory())
         output_directory.mkdir(parents=True, exist_ok=True)
@@ -418,9 +459,14 @@ class AudioPipelineJobManager:
 
     @staticmethod
     def _transition_locked(
-        job: AudioPipelineJob,
-        status: AudioPipelineJobStatus,
+        job: InternalAudioPipelineJob,
+        status: InternalAudioJobState,
     ) -> None:
+        """Apply an allowed state transition and refresh its UTC timestamp.
+
+        The caller must hold the manager lock. Invalid transitions raise
+        RuntimeError rather than silently overwriting a terminal state.
+        """
         if status not in _ALLOWED_TRANSITIONS.get(job.status, set()):
             raise RuntimeError(
                 f"Invalid Audio job transition: {job.status} -> {status}"
@@ -429,6 +475,11 @@ class AudioPipelineJobManager:
         job.modified_at = datetime.now(timezone.utc)
 
     def _prune_terminal_jobs_locked(self) -> list[str]:
+        """Evict the oldest terminal records and return artifacts to delete.
+
+        The caller must hold the manager lock and delete the returned paths
+        after releasing it. Active jobs do not count toward the retention limit.
+        """
         terminal_jobs = sorted(
             (job for job in self._jobs.values() if job.status in TERMINAL_STATUSES),
             key=lambda candidate: candidate.modified_at,
@@ -442,6 +493,11 @@ class AudioPipelineJobManager:
         return artifact_paths
 
     async def _delete_artifacts(self, artifact_paths: list[str]) -> None:
+        """Best-effort removal of artifacts confined to the configured output tree.
+
+        Deduplicate paths, reject resolved locations outside the output directory,
+        and log deletion failures without aborting job bookkeeping.
+        """
         if not artifact_paths:
             return
         output_directory = Path(self.assets.get_output_directory()).resolve()
@@ -464,6 +520,11 @@ class AudioPipelineJobManager:
         self,
         staged_input: _StagedSTTInput | None,
     ) -> None:
+        """Remove an owned staged upload in a worker thread, if one exists.
+
+        Reject resolved paths outside the staging directory and log unlink
+        failures without replacing the job's execution outcome.
+        """
         if staged_input is None:
             return
         candidate = staged_input.path.resolve()
@@ -487,33 +548,61 @@ class AudioPipelineJobManager:
         job_id: str,
         task: asyncio.Task[None],
     ) -> None:
+        """Observe task completion and retain the asynchronous bookkeeping cleanup.
+
+        Keep a strong reference to the cleanup task until its callback runs so
+        it cannot disappear before removing the completed execution task.
+        """
         try:
             task.exception()
         except asyncio.CancelledError:
             pass
-        asyncio.create_task(self._remove_task(job_id, task))
+        cleanup_task = asyncio.create_task(self._remove_task(job_id, task))
+        self._cleanup_tasks.add(cleanup_task)
+        cleanup_task.add_done_callback(self._on_cleanup_done)
+
+    def _on_cleanup_done(self, task: asyncio.Task[None]) -> None:
+        """Release the cleanup-task reference and observe any failure safely.
+
+        Retrieve exceptions to avoid unhandled-task warnings, but do not log
+        exception details that might contain private data.
+        """
+        self._cleanup_tasks.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            logger.error("Failed to clean up Audio job task")
 
     async def _remove_task(
         self,
         job_id: str,
         task: asyncio.Task[None],
     ) -> None:
+        """Remove a task reference only if it still belongs to this job entry."""
         async with self._lock:
             if self._tasks.get(job_id) is task:
                 self._tasks.pop(job_id, None)
 
-    async def get_job(self, job_id: str) -> AudioPipelineJob | None:
+    async def get_job(self, job_id: str) -> InternalAudioPipelineJob | None:
+        """Return a job snapshot, or None when unknown or already pruned."""
         async with self._lock:
             job = self._jobs.get(job_id)
             return replace(job) if job is not None else None
 
-    async def cancel_job(self, job_id: str) -> AudioPipelineJob:
+    async def cancel_job(self, job_id: str) -> InternalAudioPipelineJob:
+        """Stop an active job and return its completed snapshot without a result.
+
+        A task not yet started is allowed to enter execution and perform its own
+        input cleanup rather than being cancelled before its finally block runs.
+
+        Raises:
+            AudioJobNotFoundError: The job is unknown or has been pruned.
+            AudioJobNotRunningError: The job is already in a terminal state.
+        """
         async with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
-                raise ValueError(f"Audio pipeline job '{job_id}' not found.")
+                raise AudioJobNotFoundError(f"Audio pipeline job '{job_id}' not found.")
             if job.status in TERMINAL_STATUSES:
-                raise ValueError(
+                raise AudioJobNotRunningError(
                     f"Audio pipeline job '{job_id}' is not running "
                     f"(state: {job.status.value})."
                 )
@@ -521,7 +610,7 @@ class AudioPipelineJobManager:
             was_started = job_id in self._started_job_ids
             task = self._tasks.get(job_id)
             if not was_started or task is None:
-                self._transition_locked(job, AudioPipelineJobStatus.COMPLETED)
+                self._transition_locked(job, InternalAudioJobState.COMPLETED)
             cleanup_paths = self._prune_terminal_jobs_locked()
         await self._delete_artifacts(cleanup_paths)
         if task is not None:
@@ -531,7 +620,8 @@ class AudioPipelineJobManager:
         async with self._lock:
             return replace(job)
 
-    async def list_jobs(self) -> list[AudioPipelineJob]:
+    async def list_jobs(self) -> list[InternalAudioPipelineJob]:
+        """Return retained job snapshots in ascending creation-time order."""
         async with self._lock:
             return [
                 replace(job)
@@ -542,22 +632,33 @@ class AudioPipelineJobManager:
             ]
 
     async def wait(self, job_id: str) -> None:
+        """Wait for execution and remove its task reference without returning a result.
+
+        Execution errors are reflected in the job state rather than re-raised.
+        An unknown or already pruned job raises AudioJobNotFoundError.
+        """
         async with self._lock:
             task = self._tasks.get(job_id)
             job = self._jobs.get(job_id)
         if task is None and job is None:
-            raise ValueError(f"Audio pipeline job '{job_id}' not found.")
+            raise AudioJobNotFoundError(f"Audio pipeline job '{job_id}' not found.")
         if task is None:
             return
         await asyncio.gather(task, return_exceptions=True)
         await self._remove_task(job_id, task)
 
     async def shutdown(self) -> None:
+        """Complete active jobs, cancel executions, and release staging storage.
+
+        Await execution and retained cleanup tasks before removing the temporary
+        input directory. Artifacts of retained completed jobs are not deleted
+        merely because the manager shuts down.
+        """
         async with self._lock:
             tasks = list(self._tasks.items())
             for job in self._jobs.values():
                 if job.status not in TERMINAL_STATUSES:
-                    self._transition_locked(job, AudioPipelineJobStatus.COMPLETED)
+                    self._transition_locked(job, InternalAudioJobState.COMPLETED)
             cleanup_paths = self._prune_terminal_jobs_locked()
         await self._delete_artifacts(cleanup_paths)
         for _, task in tasks:
@@ -568,4 +669,5 @@ class AudioPipelineJobManager:
         )
         for job_id, task in tasks:
             await self._remove_task(job_id, task)
+        await asyncio.gather(*self._cleanup_tasks, return_exceptions=True)
         await asyncio.to_thread(self._input_directory_owner.cleanup)

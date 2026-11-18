@@ -2,15 +2,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import yaml
 
 from audio_assets import SAFE_FILENAME_PATTERN
-from internal_types import InternalPipelineType
+from internal_types import (
+    InternalAudioDevice,
+    InternalAudioPipeline,
+    InternalAudioPipelineDefaults,
+    InternalAudioPipelineOperation,
+    InternalAudioPipelineVariant,
+    InternalPipelineType,
+    InternalSpeechVoice,
+)
 from utils import load_thumbnail_as_base64, slugify_text
 
 AUDIO_PIPELINES_DIR = Path(__file__).resolve().parent.parent / "pipelines"
@@ -25,61 +31,23 @@ PIPELINE_FIELDS = {
     "variants",
     "defaults",
 }
-SPEECH_VOICES = {"Ryan", "Miles", "Aaron", "Nora", "Elena", "Kabir", "Angus"}
 PIPELINE_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
-class AudioPipelineOperation(str, Enum):
-    SPEECH_TO_TEXT = "speech_to_text"
-    TEXT_TO_SPEECH = "text_to_speech"
-
-
-AudioDevice = Literal["CPU", "GPU", "NPU"]
-
-
 SUPPORTED_DEVICES = {
-    AudioPipelineOperation.SPEECH_TO_TEXT: {"CPU", "GPU", "NPU"},
-    AudioPipelineOperation.TEXT_TO_SPEECH: {"CPU", "GPU"},
+    InternalAudioPipelineOperation.SPEECH_TO_TEXT: {"CPU", "GPU", "NPU"},
+    InternalAudioPipelineOperation.TEXT_TO_SPEECH: {"CPU", "GPU"},
 }
-
-
-@dataclass(frozen=True)
-class AudioPipelineVariant:
-    id: str
-    name: str
-    device: AudioDevice
-
-
-@dataclass(frozen=True)
-class AudioPipelineDefaults:
-    audio: str | None = None
-    language: str | None = None
-    text: str | None = None
-    voice: str | None = None
-
-
-@dataclass(frozen=True)
-class AudioPipeline:
-    id: str
-    name: str
-    description: str
-    type: str
-    operation: AudioPipelineOperation
-    tags: list[str]
-    thumbnail: str | None
-    required_models: list[str]
-    variants: list[AudioPipelineVariant]
-    defaults: AudioPipelineDefaults
 
 
 class AudioPipelineManager:
     def __init__(self, pipeline_dir: Path = AUDIO_PIPELINES_DIR) -> None:
         self._pipelines = self._load_pipelines(pipeline_dir)
 
-    def _load_pipelines(self, pipeline_dir: Path) -> dict[str, AudioPipeline]:
+    def _load_pipelines(self, pipeline_dir: Path) -> dict[str, InternalAudioPipeline]:
         if not pipeline_dir.is_dir():
             raise RuntimeError(f"Audio pipeline directory not found: {pipeline_dir}")
-        pipelines: dict[str, AudioPipeline] = {}
+        pipelines: dict[str, InternalAudioPipeline] = {}
         for config_path in sorted(pipeline_dir.glob("*.yaml")):
             pipeline = self._load_pipeline(config_path)
             if pipeline is None:
@@ -89,7 +57,7 @@ class AudioPipelineManager:
             pipelines[pipeline.id] = pipeline
         return pipelines
 
-    def _load_pipeline(self, config_path: Path) -> AudioPipeline | None:
+    def _load_pipeline(self, config_path: Path) -> InternalAudioPipeline | None:
         try:
             config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         except (OSError, yaml.YAMLError) as exc:
@@ -115,7 +83,7 @@ class AudioPipelineManager:
         if not isinstance(description, str):
             raise ValueError(f"Audio pipeline '{pipeline_id}' definition must be text")
         try:
-            operation = AudioPipelineOperation(config.get("operation"))
+            operation = InternalAudioPipelineOperation(config.get("operation"))
         except ValueError as exc:
             raise ValueError(
                 f"Audio pipeline '{pipeline_id}' has unsupported operation"
@@ -142,7 +110,7 @@ class AudioPipelineManager:
             )
         defaults = self._load_defaults(pipeline_id, operation, defaults_config)
 
-        return AudioPipeline(
+        return InternalAudioPipeline(
             id=pipeline_id,
             name=name,
             description=description.strip(),
@@ -158,10 +126,10 @@ class AudioPipelineManager:
     def _load_defaults(
         self,
         pipeline_id: str,
-        operation: AudioPipelineOperation,
+        operation: InternalAudioPipelineOperation,
         defaults: dict[str, Any],
-    ) -> AudioPipelineDefaults:
-        if operation is AudioPipelineOperation.SPEECH_TO_TEXT:
+    ) -> InternalAudioPipelineDefaults:
+        if operation is InternalAudioPipelineOperation.SPEECH_TO_TEXT:
             allowed = {"audio", "language"}
             self._reject_unknown_defaults(pipeline_id, defaults, allowed)
             audio = defaults.get("audio")
@@ -181,7 +149,7 @@ class AudioPipelineManager:
                 raise ValueError(
                     f"Audio pipeline '{pipeline_id}' language must be a two-letter code"
                 )
-            return AudioPipelineDefaults(
+            return InternalAudioPipelineDefaults(
                 audio=audio,
                 language=language,
             )
@@ -194,9 +162,15 @@ class AudioPipelineManager:
                 f"Audio pipeline '{pipeline_id}' default text must be between 1 and 200 characters"
             )
         voice = defaults.get("voice")
-        if voice not in SPEECH_VOICES:
+        if not isinstance(voice, str):
             raise ValueError(f"Audio pipeline '{pipeline_id}' has unsupported voice")
-        return AudioPipelineDefaults(text=text.strip(), voice=voice)
+        try:
+            speech_voice = InternalSpeechVoice(voice)
+        except ValueError as exc:
+            raise ValueError(
+                f"Audio pipeline '{pipeline_id}' has unsupported voice"
+            ) from exc
+        return InternalAudioPipelineDefaults(text=text.strip(), voice=speech_voice)
 
     def _load_required_models(
         self,
@@ -220,15 +194,15 @@ class AudioPipelineManager:
     def _load_variants(
         self,
         pipeline_id: str,
-        operation: AudioPipelineOperation,
+        operation: InternalAudioPipelineOperation,
         config: dict[str, Any],
-    ) -> list[AudioPipelineVariant]:
+    ) -> list[InternalAudioPipelineVariant]:
         variants_config = config.get("variants")
         if not isinstance(variants_config, list) or not variants_config:
             raise ValueError(
                 f"Audio pipeline '{pipeline_id}' must define at least one variant"
             )
-        variants: list[AudioPipelineVariant] = []
+        variants: list[InternalAudioPipelineVariant] = []
         variant_ids: set[str] = set()
         for variant_config in variants_config:
             if not isinstance(variant_config, dict) or set(variant_config) != {
@@ -258,10 +232,10 @@ class AudioPipelineManager:
                 )
             variant_ids.add(variant_id)
             variants.append(
-                AudioPipelineVariant(
+                InternalAudioPipelineVariant(
                     id=variant_id,
                     name=name.strip(),
-                    device=cast(AudioDevice, device),
+                    device=cast(InternalAudioDevice, device),
                 )
             )
         return variants
@@ -288,10 +262,10 @@ class AudioPipelineManager:
                 f"{', '.join(sorted(unknown))}"
             )
 
-    def list_pipelines(self) -> list[AudioPipeline]:
+    def list_pipelines(self) -> list[InternalAudioPipeline]:
         return list(self._pipelines.values())
 
-    def get_pipeline(self, pipeline_id: str) -> AudioPipeline | None:
+    def get_pipeline(self, pipeline_id: str) -> InternalAudioPipeline | None:
         return self._pipelines.get(pipeline_id)
 
 

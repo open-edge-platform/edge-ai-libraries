@@ -13,7 +13,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
 from audio_assets import AudioAssetsManager
-from api.dependencies.audio_jobs import shutdown_audio_pipeline_job_manager
+from audio_service_client import execute_synthesis, execute_transcription
+from api.dependencies.audio_jobs import (
+    configure_audio_pipeline_job_manager_factory,
+    shutdown_audio_pipeline_job_manager,
+)
 from api.middleware import InitializationMiddleware
 from api.routes import health
 from app_version import VIPPET_VERSION
@@ -23,6 +27,7 @@ from dlsps2_runner import stop_leftover_instances
 from images import ImagesManager
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
+from managers.audio_pipeline_job_manager import AudioPipelineJobManager
 from managers.audio_pipeline_manager import get_audio_pipeline_manager
 from managers.model_manager import ModelManager
 from managers.pipeline_manager import PipelineManager
@@ -72,6 +77,20 @@ def _release_pipeline_execution() -> None:
     remove_event_folders()
 
 
+def _create_audio_pipeline_job_manager() -> AudioPipelineJobManager:
+    """Build the audio job manager with its catalog, assets, and speech clients.
+
+    Registered during Voice initialization as a factory so the dependency layer
+    creates the shared manager lazily, without router-import side effects.
+    """
+    return AudioPipelineJobManager(
+        get_audio_pipeline_manager(),
+        AudioAssetsManager(),
+        execute_transcription,
+        execute_synthesis,
+    )
+
+
 def _initialize_in_background(app: FastAPI) -> None:
     """
     Initialize application resources in background thread.
@@ -101,6 +120,9 @@ def _initialize_in_background(app: FastAPI) -> None:
         try:
             AudioAssetsManager()
             get_audio_pipeline_manager()
+            configure_audio_pipeline_job_manager_factory(
+                _create_audio_pipeline_job_manager
+            )
         except Exception:
             logger.exception("Voice initialization failed; Voice is disabled")
         else:
