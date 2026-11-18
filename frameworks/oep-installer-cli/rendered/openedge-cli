@@ -6827,7 +6827,9 @@ debian_90_install_uav_mission_compute_sdk ()
         source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?;
         cd "$sdk_path" || return $?;
         make init || return $?;
-        sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
+        local host_ip;
+        host_ip="$(ensure_ip)" || return $?;
+        sed -i "s|^HOST_IP=.*|HOST_IP=$host_ip|" .env || return $?;
         if [ ! -r "$sdk_path/Makefile" ] || [ ! -r "$sdk_path/.env" ] || [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" != "$source_commit" ]; then
             echo "Mission Compute SDK initialization did not produce the expected source and .env." 1>&2;
             return 1;
@@ -6854,6 +6856,7 @@ debian_90_install_uncrewed_aerial_vehicle_ground_station ()
     ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/version || return $?;
     cd "$app_dir" || return $?;
     echo "Review $app_dir/.env and upstream LAN bindings before starting the application.";
+    make clean-vss-index || true;
     make init ACCEPT_VSS_MODELS=y || return $?;
     sed -i -e 's|^VSS_EMBEDDING_MODEL=[[:space:]]*$|VSS_EMBEDDING_MODEL=CLIP/clip-vit-b-32|' -e 's|^DATAPREP_DETECTION_MODEL=[[:space:]]*$|DATAPREP_DETECTION_MODEL=OpenVINO/yolox_s-int8-ov|' .env || return $?;
     make _check_vss_env || return $?;
@@ -7477,10 +7480,10 @@ debian_90_remove_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" && { 
-        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
-        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
-    } || true;
+    cd "$app_dir" || return $?;
+    make clean-vss-index || true;
+    docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/
@@ -8214,7 +8217,12 @@ debian_90_start_uav_mission_compute_sdk ()
         return 1
     };
     cd "$sdk_path" || return $?;
-    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?;
+    local host_ip;
+    host_ip="$(sed -n 's/^HOST_IP=//p' .env | head -n1)";
+    if [ -z "$host_ip" ]; then
+        echo "Mission Compute SDK HOST_IP is missing from $sdk_path/.env. Run install to repair it." 1>&2;
+        return 1;
+    fi;
     ensure_ports_open start uav_mission_compute_sdk "${used_ports[@]}" || return $?;
     ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || true;
     if make up-sim-camera; then
@@ -8227,7 +8235,7 @@ debian_90_start_uav_mission_compute_sdk ()
     fi;
     local start_time=$SECONDS ready=0;
     while (( SECONDS - start_time < wait_timeout )); do
-        if verify_uav_mission_compute_sdk_running; then
+        if verify_uav_mission_compute_sdk_running "$host_ip"; then
             ready=1;
             break;
         fi;
@@ -12670,14 +12678,14 @@ verify_uav_mission_compute_sdk ()
 }
 verify_uav_mission_compute_sdk_running () 
 { 
-    local expected running service output status;
+    local host_ip="$1" expected running service output status;
     expected="$(docker compose --profile sim-camera --profile observability config --services)" || return $?;
     running="$(docker compose --profile sim-camera --profile observability ps --status running --services)" || return $?;
     [ -n "$expected" ] || return 1;
     while IFS= read -r service; do
         grep -Fxq -- "$service" <<< "$running" || return 1;
     done <<< "$expected";
-    if output="$(curl --noproxy '*' --silent --show-error --output /dev/null --max-time 5 http://127.0.0.1:8080/ 2>&1)"; then
+    if output="$(curl --noproxy '*' --silent --show-error --output /dev/null --max-time 5 "http://$host_ip:8080/" 2>&1)"; then
         return 0;
     else
         status=$?;
