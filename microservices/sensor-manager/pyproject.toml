@@ -3,7 +3,7 @@
 
 [project]
 name = "sensor-manager"
-version = "2026.3.0-dev"
+version = "2026.3.0-rc2"
 description = "Microservice for discovering and describing USB, ONVIF and GigE Vision cameras."
 readme = "README.md"
 requires-python = "==3.12.*"
