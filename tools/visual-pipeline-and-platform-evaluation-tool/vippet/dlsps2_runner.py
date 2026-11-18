@@ -363,8 +363,9 @@ def validation_launch_string(command: str) -> str:
     return _LAUNCH_ELEMENT.sub(_swap, command)
 
 
-# States in which a DLSPS 2.0 instance may still hold devices.
-_ACTIVE_STATES = frozenset({"QUEUED", "RUNNING", "RESTARTING"})
+# States in which a DLSPS 2.0 instance may still hold devices. A STOPPING
+# instance holds them until its worker confirms the teardown.
+_ACTIVE_STATES = frozenset({"QUEUED", "RUNNING", "RESTARTING", "STOPPING"})
 
 # Seconds for stopping leftover instances when vippet starts or stops.
 DLSPS2_CLEANUP_TIMEOUT_S: float = float(os.environ.get("DLSPS2_CLEANUP_TIMEOUT_S", "5"))

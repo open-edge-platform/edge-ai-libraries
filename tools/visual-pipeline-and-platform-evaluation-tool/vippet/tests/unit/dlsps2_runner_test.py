@@ -1856,6 +1856,7 @@ class TestStopLeftoverInstances(unittest.TestCase):
                 json=[
                     {"id": "run", "state": "RUNNING"},
                     {"id": "queued", "state": "QUEUED"},
+                    {"id": "stopping", "state": "STOPPING"},
                     {"id": "done", "state": "COMPLETED"},
                     {"id": "gone", "state": "ABORTED"},
                 ],
@@ -1864,8 +1865,8 @@ class TestStopLeftoverInstances(unittest.TestCase):
         with self._client(handler), self.assertLogs("dlsps2_runner", "WARNING"):
             stopped = dlsps2_runner.stop_leftover_instances(base_url="http://d:8080")
 
-        self.assertEqual(stopped, 2)
-        self.assertEqual(sorted(deleted), ["queued", "run"])
+        self.assertEqual(stopped, 3)
+        self.assertEqual(sorted(deleted), ["queued", "run", "stopping"])
 
     def test_unreachable_server_is_logged(self):
         def handler(request: httpx.Request) -> httpx.Response:
