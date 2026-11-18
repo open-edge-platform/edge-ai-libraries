@@ -1103,6 +1103,51 @@ class TestOptimizationManagerWithVariant(unittest.TestCase):
 
         self.assertEqual(list(manager.jobs), [job_id])
 
+    def test_run_optimization_rejects_invalid_rtsp_location(self):
+        """An invalid rtspsrc location is rejected without taking the execution lease."""
+        manager = OptimizationManager()
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {
+                        "id": "0",
+                        "type": "rtspsrc",
+                        "data": {"location": "rtsp://host/a ! filesink location=/x"},
+                    },
+                    {"id": "1", "type": "decodebin3", "data": {}},
+                    {"id": "2", "type": "fakesink", "data": {}},
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                ],
+            }
+        )
+        timestamp = get_current_timestamp()
+        variant = InternalVariant(
+            id="variant-cpu",
+            name="CPU",
+            read_only=False,
+            pipeline_graph=graph,
+            pipeline_graph_simple=graph,
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+        request = InternalPipelineRequestOptimize(
+            type=InternalOptimizationType.OPTIMIZE, parameters=None
+        )
+
+        with patch.object(manager, "_execute_optimization") as mock_execute:
+            with self.assertRaises(ValueError) as ctx:
+                manager.run_optimization(variant, request)
+
+            self.assertIn("Invalid RTSP location", str(ctx.exception))
+            mock_execute.assert_not_called()
+            self.assertEqual(manager.jobs, {})
+
+            # The lease was not taken, so a valid job can start right away.
+            manager.run_optimization(_create_internal_variant("GPU"), request)
+
     def test_run_optimization_calls_to_pipeline_description(self):
         """run_optimization should call to_pipeline_description on variant's graph."""
         manager = OptimizationManager()
