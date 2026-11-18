@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import unittest
 from datetime import datetime, timezone
@@ -177,6 +180,55 @@ def create_pipeline_definition(
 
 
 class TestPipelineManager(unittest.TestCase):
+    @patch("managers.pipeline_manager.VideoEncoder")
+    def test_media_vdbox_file_output_uses_gpu_encoder(self, encoder_class):
+        spec = create_internal_performance_spec("vdbox", "VDBox", streams=1)
+        spec.pipeline_graph = Graph.from_pipeline_description(
+            'fakesrc ! parsebin ! decodebin3 caps="video/x-raw(memory:VAMemory)" ! '
+            "queue ! gvafpscounter starting-frame=2000 ! "
+            "fakesink name=default_output_sink sync=false async=false"
+        )
+        encoder = encoder_class.return_value
+        encoder.create_video_output_subpipeline.return_value = (
+            "vah264enc ! h264parse ! mp4mux ! filesink location=/tmp/output.mp4"
+        )
+        config = create_internal_execution_config()
+        config.output_mode = InternalOutputMode.FILE
+        command = PipelineManager().build_pipeline_command([spec], config, "vdbox-file")
+        encoder.create_video_output_subpipeline.assert_called_once()
+        self.assertEqual(
+            encoder.create_video_output_subpipeline.call_args.args[1], "GPU"
+        )
+        self.assertIn("decodebin3", command.command)
+        self.assertIn("vah264enc", command.command)
+        self.assertNotIn("openh264enc", command.command)
+
+    def test_media_vdbox_is_preserved_and_cpu_pinning_is_per_stream(self):
+        manager = PipelineManager()
+        hardware = create_internal_performance_spec("vdbox", "VDBox", streams=2)
+        hardware.pipeline_graph = Graph.from_pipeline_description(
+            'fakesrc ! decodebin3 caps="video/x-raw(memory:VAMemory)" ! '
+            "gvafpscounter starting-frame=2000 ! "
+            "fakesink name=default_output_sink sync=false async=false"
+        )
+        software = create_internal_performance_spec("cpu", "CPU", streams=5)
+        software.pipeline_graph = Graph.from_dict(
+            {**create_simple_graph().to_dict(), "cpu_pinning": [12, 13]}
+        )
+        command = manager.build_pipeline_command(
+            [hardware, software], create_internal_execution_config(), "hybrid"
+        )
+        self.assertEqual(len(command.stream_commands), 7)
+        self.assertEqual(
+            list(command.stream_cpu_cores.values()), [[12], [13], [12], [13], [12]]
+        )
+        for info in command.streams_per_pipeline["vdbox"]:
+            self.assertNotIn(info.stream_id, command.stream_cpu_cores)
+            launch = command.stream_commands[info.stream_id]
+            self.assertIn("decodebin3", launch)
+            self.assertIn("memory:VAMemory", launch)
+            self.assertNotIn("avdec_", launch)
+
     def setUp(self):
         """Reset singleton state before each test."""
         PipelineManager._instance = None

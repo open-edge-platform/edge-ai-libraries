@@ -40,6 +40,33 @@ from managers.audio_pipeline_manager import AudioPipelineOperation
 
 
 class TestAudioJobsAPI(unittest.TestCase):
+    def test_density_status_preserves_trial_window_and_selection(self):
+        from api.routes.jobs import _density_job_to_api_status
+
+        trial = {
+            "index": 0,
+            "stage": "cpu",
+            "started_at": 1000,
+            "ended_at": 31000,
+            "measurement_started_at": 6000,
+            "measurement_ended_at": 30000,
+            "streams_per_pipeline": {"hybrid-vdbox": 3, "hybrid-cpu": 2},
+            "min_stream_fps": 30.0,
+            "passed": True,
+        }
+        job = InternalDensityJobStatus(
+            id="hybrid",
+            request={},
+            state=InternalTestJobState.COMPLETED,
+            start_time=1000,
+            end_time=31000,
+            trials=[trial],
+            selected_trial=0,
+        )
+        status = _density_job_to_api_status(job)
+        self.assertEqual(status.selected_trial, 0)
+        self.assertEqual(status.trials[0].model_dump(), trial)
+
     def setUp(self) -> None:
         self.app = FastAPI()
         self.app.include_router(jobs_router, prefix="/jobs")
@@ -1308,7 +1335,6 @@ class TestModelDownloadJobsAPI(unittest.TestCase):
 
     @patch("api.routes.jobs.ModelManager")
     def test_get_model_job_summary_returns_api_shape(self, mock_manager_cls):
-
         mock_manager = MagicMock()
         mock_manager.get_job_summary.return_value = InternalModelDownloadJobSummary(
             id="mdl-1",

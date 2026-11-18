@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """benchmark.py
 
 This module provides the Benchmark class for evaluating pipeline performance
@@ -6,9 +9,11 @@ based on configurable parameters and stream counts.
 
 import logging
 import math
-from dataclasses import dataclass, field
+import time
+from dataclasses import dataclass, field, replace
+from typing import Callable
 
-from dlsps2_runner import Dlsps2PipelineRunner
+from dlsps2_runner import Dlsps2PipelineRunner, VdboxDecoderUnavailable
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -117,8 +122,12 @@ class Benchmark:
         enable_latency_metrics: bool = False,
         job_id: str | None = None,
         pinned_cpu_cores: list[int] | None = None,
+        on_trial: Callable[[dict], None] | None = None,
     ):
         self.best_result = None
+        self.trials: list[dict] = []
+        self.on_trial = on_trial
+        self.stage = "density"
         # Every stream runs as its own DLSPS 2.0 instance, which reports
         # per-stream FPS; with `enable_latency_metrics` the latency samples
         # come from the DLSPS OpenTelemetry export to metrics-manager.
@@ -130,6 +139,7 @@ class Benchmark:
             enable_latency_metrics=enable_latency_metrics,
             job_id=job_id,
             pinned_cpu_cores=pinned_cpu_cores,
+            require_common_window=True,
         )
         self.logger = logging.getLogger(__name__)
 
@@ -263,6 +273,68 @@ class Benchmark:
                 "Use output_mode='disabled' or output_mode='file' instead."
             )
 
+        if execution_config.max_runtime == 0:
+            execution_config = replace(execution_config, max_runtime=30)
+        self.runner.max_runtime = execution_config.max_runtime
+
+        if len(pipeline_density_specs) == 2 and not self._is_mixed_mode(
+            pipeline_density_specs
+        ):
+            hardware = [
+                spec
+                for spec in pipeline_density_specs
+                if spec.pipeline_graph.is_media_vdbox()
+            ]
+            software = [
+                spec
+                for spec in pipeline_density_specs
+                if spec.pipeline_graph.is_media_cpu()
+            ]
+            if len(hardware) == len(software) == 1:
+                self.stage = "vdbox"
+                baseline = self.run(
+                    [replace(hardware[0], stream_rate=100)],
+                    fps_floor,
+                    execution_config,
+                    job_id,
+                )
+                if self.runner.is_cancelled():
+                    return baseline
+                baseline_fps = (
+                    baseline.min_stream_fps
+                    if baseline.min_stream_fps is not None
+                    else baseline.per_stream_fps
+                )
+                if baseline_fps < fps_floor:
+                    raise RuntimeError("No VDBox stream configuration meets fps_floor.")
+                fixed = replace(hardware[0], streams=baseline.n_streams)
+                self.stage = "cpu"
+                mixed = self.run(
+                    [fixed, software[0]],
+                    fps_floor,
+                    execution_config,
+                    job_id,
+                )
+                mixed_fps = (
+                    mixed.min_stream_fps
+                    if mixed.min_stream_fps is not None
+                    else mixed.per_stream_fps
+                )
+                if mixed_fps >= fps_floor:
+                    counts = {spec.id: spec for spec in mixed.streams_per_pipeline}
+                    mixed.streams_per_pipeline = [
+                        counts[spec.pipeline_id] for spec in pipeline_density_specs
+                    ]
+                    return mixed
+                baseline.streams_per_pipeline.append(
+                    InternalPipelineStreamSpec(id=software[0].pipeline_id, streams=0)
+                )
+                counts = {spec.id: spec for spec in baseline.streams_per_pipeline}
+                baseline.streams_per_pipeline = [
+                    counts[spec.pipeline_id] for spec in pipeline_density_specs
+                ]
+                return baseline
+
         # The search loop drives a single "search variable" through an
         # exponential growth + bisection refinement. Its semantics depend
         # on the density mode (see ``_calculate_streams_per_pipeline``):
@@ -340,13 +412,54 @@ class Benchmark:
             # parsing to the user-facing streams declared by this run
             # so the density job's `latency_tracer_metrics` never
             # reports internal sinks.
-            result = self.runner.run(
-                pipeline_command,
-                n_streams,
-                allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
-                stream_commands=pipeline_cmd.stream_commands,
-                validation_stream_ids=set(pipeline_cmd.validation_stream_ids) or None,
-            )
+            trial = {
+                "index": len(self.trials),
+                "stage": self.stage,
+                "started_at": int(time.time() * 1000),
+                "ended_at": None,
+                "streams_per_pipeline": {
+                    spec.pipeline_id: count
+                    for spec, count in zip(
+                        pipeline_density_specs, streams_per_pipeline_counts
+                    )
+                },
+                "min_stream_fps": None,
+                "passed": None,
+            }
+            self.trials.append(trial)
+            if self.on_trial:
+                self.on_trial(dict(trial))
+            try:
+                result = self.runner.run(
+                    pipeline_command,
+                    n_streams,
+                    allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
+                    stream_commands=pipeline_cmd.stream_commands,
+                    validation_stream_ids=set(pipeline_cmd.validation_stream_ids)
+                    or None,
+                    stream_cpu_cores=pipeline_cmd.stream_cpu_cores,
+                )
+            except VdboxDecoderUnavailable as exc:
+                if self.stage not in {"vdbox", "cpu"} or (
+                    self.stage == "vdbox" and not best_config.n_streams
+                ):
+                    raise
+                trial.update(ended_at=int(time.time() * 1000), passed=False)
+                if self.on_trial:
+                    self.on_trial(dict(trial))
+                self.logger.warning(
+                    "VDBox decoder unavailable at %d streams: %s", n_streams, exc
+                )
+                if exponential:
+                    lower_bound = search_value // 2 + 1
+                    exponential = False
+                higher_bound = search_value - 1
+                if lower_bound > higher_bound:
+                    per_stream_fps = 0.0
+                    min_stream_fps = None
+                    break
+                search_value = (lower_bound + higher_bound) // 2
+                continue
 
             # Check for cancellation
             if result.cancelled:
@@ -365,6 +478,15 @@ class Benchmark:
             judged_fps = (
                 min_stream_fps if min_stream_fps is not None else per_stream_fps
             )
+            trial.update(
+                ended_at=int(time.time() * 1000),
+                min_stream_fps=judged_fps,
+                passed=judged_fps >= fps_floor,
+                measurement_started_at=self.runner.measurement_started_at,
+                measurement_ended_at=self.runner.measurement_ended_at,
+            )
+            if self.on_trial:
+                self.on_trial(dict(trial))
 
             self.logger.info(
                 "exit_code=%d, search_value=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, min_stream_fps=%s, exponential=%s, lower_bound=%d, higher_bound=%s, details=%s",
@@ -411,8 +533,14 @@ class Benchmark:
                     search_value *= 2
                 else:
                     exponential = False
-                    higher_bound = search_value
-                    lower_bound = max(1, search_value // 2)
+                    if self.stage in {"vdbox", "cpu"}:
+                        higher_bound = search_value - 1
+                        lower_bound = search_value // 2 + 1
+                    else:
+                        higher_bound = search_value
+                        lower_bound = max(1, search_value // 2)
+                    if lower_bound > higher_bound:
+                        break
                     search_value = (lower_bound + higher_bound) // 2
             # use bisecting search for fine tune maximum number of streams
             else:

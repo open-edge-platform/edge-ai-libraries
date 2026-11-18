@@ -1,10 +1,13 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import copy
 import logging
 import os
 import re
 from collections import defaultdict
 from collections.abc import Iterator
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -330,6 +333,31 @@ class Edge:
 class Graph:
     nodes: list[Node]
     edges: list[Edge]
+    cpu_pinning: list[int] = field(default_factory=list)
+
+    def is_media_vdbox(self) -> bool:
+        return not any(
+            node.type.startswith("gva")
+            and node.type not in {"gvafpscounter", "gvametaconvert", "gvametapublish"}
+            for node in self.nodes
+        ) and any(
+            node.type == "decodebin3" and "memory:VAMemory" in node.data.get("caps", "")
+            for node in self.nodes
+        )
+
+    def is_media_cpu(self) -> bool:
+        return not any(
+            node.type.startswith("gva")
+            and node.type not in {"gvafpscounter", "gvametaconvert", "gvametapublish"}
+            for node in self.nodes
+        ) and any(node.type in {"avdec_h264", "avdec_h265"} for node in self.nodes)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.cpu_pinning, list) or any(
+            type(cpu) is not int or cpu < 0 for cpu in self.cpu_pinning
+        ):
+            raise ValueError("cpu_pinning must be a list of non-negative CPU ids.")
+        self.cpu_pinning = list(dict.fromkeys(self.cpu_pinning))
 
     @staticmethod
     def from_dict(data: dict) -> "Graph":
@@ -362,9 +390,9 @@ class Graph:
             for edge in data["edges"]
         ]
 
-        return Graph(nodes=nodes, edges=edges)
+        return Graph(nodes=nodes, edges=edges, cpu_pinning=data.get("cpu_pinning", []))
 
-    def to_dict(self) -> dict[str, list[dict[str, str | dict[str, str]]]]:
+    def to_dict(self) -> dict:
         """
         Convert Graph into a plain dictionary (for example for JSON serialization).
 
@@ -374,7 +402,10 @@ class Graph:
         The resulting structure is compatible with the public API schema.
         Using asdict() here ensures all dataclass fields are serialized consistently.
         """
-        return asdict(self)
+        data = asdict(self)
+        if not self.cpu_pinning:
+            data.pop("cpu_pinning")
+        return data
 
     @staticmethod
     def from_pipeline_description(pipeline_description: str) -> "Graph":
@@ -1323,6 +1354,7 @@ class Graph:
         backwards from it) and return the recommended encoder device based on
         memory type. Falls back to the last video/x-raw node in the list when
         the main output sink cannot be identified.
+        Raw caps set directly on decodebin3 are also considered.
 
         Note: NPU variants are not considered because NPUs do not provide dedicated
         memory accessible for GStreamer pipeline buffering; they operate exclusively
@@ -1340,6 +1372,15 @@ class Graph:
             if "memory:VAMemory" in caps_type:
                 return ENCODER_DEVICE_GPU
             return ENCODER_DEVICE_CPU
+
+        def _raw_caps(node: Node) -> str:
+            if node.type.startswith("video/x-raw"):
+                return node.type
+            if node.type == "decodebin3":
+                caps = node.data.get("caps", "").strip('"')
+                if caps.startswith("video/x-raw"):
+                    return caps
+            return ""
 
         # Prefer caps on the path feeding the main output sink; caps on other
         # tee branches (e.g. a sysmem VLM branch) must not decide the encoder.
@@ -1360,14 +1401,14 @@ class Graph:
                 node = nodes_by_id.get(node_id)
                 if node is None:
                     continue
-                if node.type.startswith("video/x-raw"):
-                    return _device_for_caps(node.type)
+                if caps := _raw_caps(node):
+                    return _device_for_caps(caps)
                 pending.extend(sources_by_target.get(node_id, []))
             return ENCODER_DEVICE_CPU
 
         for node in reversed(self.nodes):
-            if node.type.startswith("video/x-raw"):
-                return _device_for_caps(node.type)
+            if caps := _raw_caps(node):
+                return _device_for_caps(caps)
 
         return ENCODER_DEVICE_CPU
 
@@ -1475,7 +1516,11 @@ class Graph:
         logger.debug(
             f"Simple view graph created with {len(simple_nodes)} nodes and {len(simple_edges)} edges"
         )
-        return Graph(nodes=simple_nodes, edges=simple_edges)
+        return Graph(
+            nodes=simple_nodes,
+            edges=simple_edges,
+            cpu_pinning=list(self.cpu_pinning),
+        )
 
     @staticmethod
     def apply_simple_view_changes(
@@ -1635,6 +1680,7 @@ class Graph:
         # Step 4: Apply property changes to advanced view
         # Create a deep copy of the advanced graph to avoid modifying the original
         result_advanced = copy.deepcopy(original_advanced)
+        result_advanced.cpu_pinning = list(modified_simple.cpu_pinning)
 
         # Build a lookup dictionary for advanced nodes
         advanced_nodes_by_id = {node.id: node for node in result_advanced.nodes}

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import re
 import os
 import unittest
@@ -13,6 +16,20 @@ from graph import (
     OUTPUT_PLACEHOLDER,
 )
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
+
+
+class TestGraphCpuPinning(unittest.TestCase):
+    def test_pinning_round_trips_and_reaches_simple_view(self):
+        graph = Graph.from_dict({"nodes": [], "edges": [], "cpu_pinning": [12, 13, 12]})
+        self.assertEqual(graph.cpu_pinning, [12, 13])
+        self.assertEqual(Graph.from_dict(graph.to_dict()).cpu_pinning, [12, 13])
+        self.assertEqual(graph.to_simple_view().cpu_pinning, [12, 13])
+
+    def test_invalid_cpu_pinning_is_rejected(self):
+        for cpus in ([-1], [True], ["12"], [1.5], "12", None):
+            with self.subTest(cpus=cpus), self.assertRaises(ValueError):
+                Graph.from_dict({"nodes": [], "edges": [], "cpu_pinning": cpus})
+
 
 # Create mock instances for SupportedModelsManager and VideosManager
 mock_models_manager_instance = MagicMock()
@@ -3651,6 +3668,43 @@ class TestValidateInferenceDevicesShareVaDisplay(unittest.TestCase):
 
 class TestGetRecommendedEncoderDevice(unittest.TestCase):
     """Test cases for Graph.get_recommended_encoder_device method."""
+
+    def test_gpu_encoder_for_decodebin3_va_caps_property(self):
+        for caps in ('"video/x-raw(memory:VAMemory)"', "video/x-raw(memory:VAMemory)"):
+            for sink_type in ("fakesink", "filesink"):
+                with self.subTest(caps=caps, sink_type=sink_type):
+                    graph = Graph(
+                        nodes=[
+                            Node(id="0", type="decodebin3", data={"caps": caps}),
+                            Node(
+                                id="1",
+                                type=sink_type,
+                                data={"name": "default_output_sink"},
+                            ),
+                        ],
+                        edges=[Edge(id="0", source="0", target="1")],
+                    )
+                    self.assertEqual(
+                        graph.get_recommended_encoder_device(), ENCODER_DEVICE_GPU
+                    )
+
+    def test_downstream_system_memory_overrides_decodebin3_va_caps(self):
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="decodebin3",
+                    data={"caps": '"video/x-raw(memory:VAMemory)"'},
+                ),
+                Node(id="1", type="video/x-raw", data={"__node_kind": "caps"}),
+                Node(id="2", type="fakesink", data={"name": "default_output_sink"}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_CPU)
 
     def test_gpu_encoder_for_va_memory_caps(self):
         """Test that GPU encoder is recommended when video/x-raw(memory:VAMemory) is found."""

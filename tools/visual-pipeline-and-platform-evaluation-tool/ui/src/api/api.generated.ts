@@ -863,17 +863,17 @@ export type ListHubModelsApiResponse =
 export type ListHubModelsApiArg = {
   modelHubListRequest: ModelHubListRequest;
 };
-export type UploadModelApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 201 Model uploaded successfully */ ModelUploadResponse;
+export type UploadModelApiResponse = /** status 200 Successful Response */
+  | any
+  | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
   /** status 200 Successful Response */
-  | any
-  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+    | any
+    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -1252,6 +1252,8 @@ export type Edge = {
   target: string;
 };
 export type PipelineGraph = {
+  /** Logical CPU ids assigned round-robin, one core per stream. Empty uses test-level pinning. */
+  cpu_pinning?: number[];
   /** List of pipeline nodes. */
   nodes: Node[];
   /** List of directed edges between nodes. */
@@ -1289,10 +1291,7 @@ export type Device = {
   gpu_id: number | null;
   cpu_topology?: CpuTopology | null;
 };
-export type AudioJobState =
-  | "RUNNING"
-  | "COMPLETED"
-  | "FAILED";
+export type AudioJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type AudioJobSummary = {
   id: string;
   pipeline_id: string;
@@ -1388,6 +1387,19 @@ export type PerformanceJobSummary = {
     [key: string]: any;
   };
 };
+export type DensityTrial = {
+  index: number;
+  stage: "density" | "vdbox" | "cpu";
+  started_at: number;
+  ended_at?: number | null;
+  measurement_started_at?: number | null;
+  measurement_ended_at?: number | null;
+  streams_per_pipeline: {
+    [key: string]: number;
+  };
+  min_stream_fps?: number | null;
+  passed?: boolean | null;
+};
 export type DensityJobStatus = {
   id: string;
   start_time: number;
@@ -1407,6 +1419,8 @@ export type DensityJobStatus = {
   latency_tracer_metrics?: {
     [key: string]: LatencyMetrics;
   } | null;
+  trials?: DensityTrial[];
+  selected_trial?: number | null;
 };
 export type DensityJobSummary = {
   id: string;
@@ -1515,7 +1529,6 @@ export type ModelInstallStatus =
   | "not_installed"
   | "installing"
   | "failed";
-export type ModelGated = "false" | "auto" | "manual";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1526,6 +1539,7 @@ export type ModelVariant = {
   /** Whether the underlying artefacts for this exact variant are present on disk. */
   installed?: boolean;
 };
+export type ModelGated = "false" | "auto" | "manual";
 export type Model = {
   /** Internal model identifier. */
   name: string;

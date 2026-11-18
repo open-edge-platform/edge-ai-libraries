@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import tempfile
 from typing import List
@@ -1264,6 +1267,18 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
             if body.pipeline_graph_simple is not None
             else None
         )
+
+        for request_graph, internal_graph in (
+            (body.pipeline_graph, graph),
+            (body.pipeline_graph_simple, graph_simple),
+        ):
+            if (
+                request_graph is not None
+                and internal_graph is not None
+                and "cpu_pinning" not in request_graph.model_fields_set
+            ):
+                current = PipelineManager().get_variant_by_ids(pipeline_id, variant_id)
+                internal_graph.cpu_pinning = list(current.pipeline_graph.cpu_pinning)
 
         updated_variant = PipelineManager().update_variant(
             pipeline_id=pipeline_id,

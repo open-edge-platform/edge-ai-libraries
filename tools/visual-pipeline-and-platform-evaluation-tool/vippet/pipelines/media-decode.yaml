@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: Media Decode
+definition: >
+  Media-only AVC/HEVC decode for measuring stream density and CPU utilization.
+tags:
+  - Media
+type: vision
+variants:
+  - name: VDBox
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      parsebin !
+      decodebin3 caps="video/x-raw(memory:VAMemory)" !
+      queue !
+      gvafpscounter starting-frame=2000 !
+      fakesink name=default_output_sink sync=false async=false
+  - name: CPU H264
+    cpu_pinning: []
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      parsebin !
+      avdec_h264 max-threads=1 !
+      queue !
+      gvafpscounter starting-frame=2000 !
+      fakesink name=default_output_sink sync=false async=false
+  - name: CPU H265
+    cpu_pinning: []
+    pipeline_description: >-
+      filesrc location=/videos/input/media-decode-h265.mp4 !
+      parsebin !
+      avdec_h265 max-threads=1 !
+      queue !
+      gvafpscounter starting-frame=2000 !
+      fakesink name=default_output_sink sync=false async=false

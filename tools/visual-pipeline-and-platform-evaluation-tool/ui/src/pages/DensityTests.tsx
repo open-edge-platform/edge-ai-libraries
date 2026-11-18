@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useState } from "react";
 import {
   useFrozenMetrics,
@@ -46,6 +49,7 @@ import {
 } from "@/lib/apiUtils.ts";
 import { CONTENT_CONTAINER_CLASS, formatErrorMessage } from "@/lib/utils.ts";
 import { NavigationGuard } from "@/components/shared/NavigationGuard";
+import { HybridDecodeTest } from "@/features/pipeline-tests/HybridDecodeTest";
 
 export const DensityTests = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 10;
@@ -53,6 +57,7 @@ export const DensityTests = () => {
   const [stopDensityTest, { isLoading: isStopping }] =
     useStopDensityTestJobMutation();
   const [mode, setMode] = useState<DensityMode>("classic");
+  const [hybridRunning, setHybridRunning] = useState(false);
   const [classicSelections, setClassicSelections] = useState<
     ClassicPipelineSelection[]
   >([]);
@@ -199,11 +204,14 @@ export const DensityTests = () => {
         className="mb-6"
       >
         <TabsList>
-          <TabsTrigger value="classic" disabled={isRunning}>
+          <TabsTrigger value="classic" disabled={isRunning || hybridRunning}>
             Classic
           </TabsTrigger>
-          <TabsTrigger value="mixed" disabled={isRunning}>
+          <TabsTrigger value="mixed" disabled={isRunning || hybridRunning}>
             Mixed
+          </TabsTrigger>
+          <TabsTrigger value="hybrid" disabled={isRunning || hybridRunning}>
+            Hybrid Decode
           </TabsTrigger>
         </TabsList>
 
@@ -235,208 +243,223 @@ export const DensityTests = () => {
             disabled={isRunning}
           />
         </TabsContent>
+        <TabsContent value="hybrid">
+          <p className="text-sm text-muted-foreground mb-3">
+            Finds the maximum number of VDBox streams first, then adds CPU
+            decode streams while keeping the VDBox count fixed. Every stream
+            must meet the target FPS.
+          </p>
+          <HybridDecodeTest
+            pipelines={pipelines}
+            onRunningChange={setHybridRunning}
+          />
+        </TabsContent>
       </Tabs>
 
-      <div className="my-4">
-        <label className="block text-sm font-medium mb-2">Set target FPS</label>
-        <div className="flex items-center gap-3">
-          <input
-            type="number"
-            value={fpsFloor}
-            onChange={(e) => setFpsFloor(Number(e.target.value))}
-            min={1}
-            max={120}
-            disabled={isRunning}
-            className="w-24 px-3 py-2 border"
-          />
-          <span className="text-sm text-muted-foreground">FPS</span>
-        </div>
-
-        <div className="my-4 flex items-center gap-6 flex-wrap">
-          <div className="flex items-center">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <label className="flex items-center gap-2 cursor-pointer h-[2.625rem]">
-                  <Checkbox
-                    checked={latencyMetricsEnabled}
-                    disabled={isRunning}
-                    onCheckedChange={(checked) =>
-                      setLatencyMetricsEnabled(checked === true)
-                    }
-                  />
-                  <span className="text-sm font-medium">
-                    Enable latency metrics
-                  </span>
-                </label>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>Collect pipeline latency measurements during the test</p>
-              </TooltipContent>
-            </Tooltip>
+      {mode !== "hybrid" && (
+        <div className="my-4">
+          <label className="block text-sm font-medium mb-2">
+            Set target FPS
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              value={fpsFloor}
+              onChange={(e) => setFpsFloor(Number(e.target.value))}
+              min={1}
+              max={120}
+              disabled={isRunning}
+              className="w-24 px-3 py-2 border"
+            />
+            <span className="text-sm text-muted-foreground">FPS</span>
           </div>
 
-          <div className="flex items-center">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
-                  <Checkbox
-                    checked={loopingEnabled}
-                    disabled={isRunning}
-                    onCheckedChange={(checked) => {
-                      const isChecked = checked === true;
-                      setLoopingEnabled(isChecked);
-                    }}
-                  />
-                  <span className="text-sm font-medium">
-                    Set iteration duration
-                  </span>
-                </label>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>Run test iteration for a selected duration</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-
-          {loopingEnabled && (
-            <div className="flex items-center gap-2 h-[2.625rem]">
-              <span className="text-xs text-muted-foreground">Duration</span>
-              <Input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={loopingRuntimeInput}
-                disabled={isRunning}
-                onChange={(event) => {
-                  const value = event.target.value;
-
-                  if (value !== "" && !/^\d+$/.test(value)) {
-                    return;
-                  }
-
-                  setLoopingRuntimeInput(value);
-
-                  if (value === "") {
-                    return;
-                  }
-
-                  const parsedValue = Number.parseInt(value, 10);
-                  setLoopingRuntimeSeconds(parsedValue);
-                }}
-                onBlur={() => {
-                  const parsedValue =
-                    loopingRuntimeInput.trim().length === 0
-                      ? Number.NaN
-                      : Number.parseInt(loopingRuntimeInput, 10);
-                  const normalizedValue =
-                    Number.isFinite(parsedValue) && parsedValue >= 1
-                      ? parsedValue
-                      : DEFAULT_LOOPING_RUNTIME_SECONDS;
-
-                  setLoopingRuntimeSeconds(normalizedValue);
-                  setLoopingRuntimeInput(String(normalizedValue));
-                }}
-                className="h-8 w-24 px-2 text-xs"
-              />
-              <span className="text-xs text-muted-foreground">s</span>
+          <div className="my-4 flex items-center gap-6 flex-wrap">
+            <div className="flex items-center">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label className="flex items-center gap-2 cursor-pointer h-[2.625rem]">
+                    <Checkbox
+                      checked={latencyMetricsEnabled}
+                      disabled={isRunning}
+                      onCheckedChange={(checked) =>
+                        setLatencyMetricsEnabled(checked === true)
+                      }
+                    />
+                    <span className="text-sm font-medium">
+                      Enable latency metrics
+                    </span>
+                  </label>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Collect pipeline latency measurements during the test</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
-          )}
-        </div>
 
-        {isRunning ? (
-          <Button
-            onClick={handleStopTest}
-            disabled={isStopping}
-            variant="destructive"
-            className="w-[10rem]"
-            title="Stop test"
-          >
-            <Square className="w-5 h-5" />
-            <span>{isStopping ? "Stopping..." : "Stop"}</span>
-          </Button>
-        ) : (
-          <Button onClick={handleRunTest} disabled={isRunning || !canRunTest}>
-            {isRunning ? "Starting..." : "Run density test"}
-          </Button>
-        )}
+            <div className="flex items-center">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                    <Checkbox
+                      checked={loopingEnabled}
+                      disabled={isRunning}
+                      onCheckedChange={(checked) => {
+                        const isChecked = checked === true;
+                        setLoopingEnabled(isChecked);
+                      }}
+                    />
+                    <span className="text-sm font-medium">
+                      Set iteration duration
+                    </span>
+                  </label>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Run test iteration for a selected duration</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
 
-        {jobStatus && (
-          <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
-            <p className="text-sm font-medium text-status-fg">
-              Test Status: {jobStatus.state}
-            </p>
-            {jobStatus.state === "RUNNING" && (
-              <div className="mt-2">
-                <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-status-info-accent"></div>
-                  <span className="text-xs text-status-fg">
-                    Running density test...
-                  </span>
-                </div>
-                <MetricsDashboard
-                  enableLatencyMetrics={latencyMetricsEnabled}
+            {loopingEnabled && (
+              <div className="flex items-center gap-2 h-[2.625rem]">
+                <span className="text-xs text-muted-foreground">Duration</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={loopingRuntimeInput}
+                  disabled={isRunning}
+                  onChange={(event) => {
+                    const value = event.target.value;
+
+                    if (value !== "" && !/^\d+$/.test(value)) {
+                      return;
+                    }
+
+                    setLoopingRuntimeInput(value);
+
+                    if (value === "") {
+                      return;
+                    }
+
+                    const parsedValue = Number.parseInt(value, 10);
+                    setLoopingRuntimeSeconds(parsedValue);
+                  }}
+                  onBlur={() => {
+                    const parsedValue =
+                      loopingRuntimeInput.trim().length === 0
+                        ? Number.NaN
+                        : Number.parseInt(loopingRuntimeInput, 10);
+                    const normalizedValue =
+                      Number.isFinite(parsedValue) && parsedValue >= 1
+                        ? parsedValue
+                        : DEFAULT_LOOPING_RUNTIME_SECONDS;
+
+                    setLoopingRuntimeSeconds(normalizedValue);
+                    setLoopingRuntimeInput(String(normalizedValue));
+                  }}
+                  className="h-8 w-24 px-2 text-xs"
                 />
+                <span className="text-xs text-muted-foreground">s</span>
               </div>
             )}
           </div>
-        )}
 
-        {testResult && (
-          <div className="status-success m-4 p-3 bg-status-bg border border-status-border">
-            <p className="text-sm font-medium text-status-fg mb-2">
-              Test Completed Successfully
-            </p>
-            <div className="space-y-1 text-sm">
-              <p className="text-status-fg">
-                <span className="font-medium">Per Stream FPS:</span>{" "}
-                {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
+          {isRunning ? (
+            <Button
+              onClick={handleStopTest}
+              disabled={isStopping}
+              variant="destructive"
+              className="w-[10rem]"
+              title="Stop test"
+            >
+              <Square className="w-5 h-5" />
+              <span>{isStopping ? "Stopping..." : "Stop"}</span>
+            </Button>
+          ) : (
+            <Button onClick={handleRunTest} disabled={isRunning || !canRunTest}>
+              {isRunning ? "Starting..." : "Run density test"}
+            </Button>
+          )}
+
+          {jobStatus && (
+            <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
+              <p className="text-sm font-medium text-status-fg">
+                Test Status: {jobStatus.state}
               </p>
-              {testResult.min_stream_fps != null && (
-                <p className="text-status-fg">
-                  <span className="font-medium">Slowest Stream FPS:</span>{" "}
-                  {testResult.min_stream_fps.toFixed(2)}
-                </p>
-              )}
-              <p className="text-status-fg">
-                <span className="font-medium">Total Streams:</span>{" "}
-                {testResult.total_streams ?? "N/A"}
-              </p>
-              {testResult.streams_per_pipeline && (
+              {jobStatus.state === "RUNNING" && (
                 <div className="mt-2">
-                  <p className="text-status-fg font-medium mb-1">
-                    Streams per Pipeline:
-                  </p>
-                  <PipelineStreamsSummary
-                    streamsPerPipeline={testResult.streams_per_pipeline}
-                    pipelines={pipelines ?? []}
+                  <div className="animate-pulse flex items-center gap-2">
+                    <div className="h-2 w-2 bg-status-info-accent"></div>
+                    <span className="text-xs text-status-fg">
+                      Running density test...
+                    </span>
+                  </div>
+                  <MetricsDashboard
+                    enableLatencyMetrics={latencyMetricsEnabled}
                   />
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {!isRunning && frozenSummary && (
-          <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
-            <p className="text-sm font-medium text-status-fg mb-2">
-              Frozen Metrics Snapshot
-            </p>
-            <MetricsDashboard
-              historyOverride={frozenHistory}
-              metricsOverride={frozenSummary}
-            />
-          </div>
-        )}
+          {testResult && (
+            <div className="status-success m-4 p-3 bg-status-bg border border-status-border">
+              <p className="text-sm font-medium text-status-fg mb-2">
+                Test Completed Successfully
+              </p>
+              <div className="space-y-1 text-sm">
+                <p className="text-status-fg">
+                  <span className="font-medium">Per Stream FPS:</span>{" "}
+                  {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
+                </p>
+                {testResult.min_stream_fps != null && (
+                  <p className="text-status-fg">
+                    <span className="font-medium">Slowest Stream FPS:</span>{" "}
+                    {testResult.min_stream_fps.toFixed(2)}
+                  </p>
+                )}
+                <p className="text-status-fg">
+                  <span className="font-medium">Total Streams:</span>{" "}
+                  {testResult.total_streams ?? "N/A"}
+                </p>
+                {testResult.streams_per_pipeline && (
+                  <div className="mt-2">
+                    <p className="text-status-fg font-medium mb-1">
+                      Streams per Pipeline:
+                    </p>
+                    <PipelineStreamsSummary
+                      streamsPerPipeline={testResult.streams_per_pipeline}
+                      pipelines={pipelines ?? []}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-        {errorMessage && (
-          <div className="status-error my-4 p-3 bg-status-bg border border-status-border">
-            <p className="text-sm font-medium text-status-fg mb-2">
-              Test Failed
-            </p>
-            <p className="text-xs text-status-fg">{errorMessage}</p>
-          </div>
-        )}
-      </div>
+          {!isRunning && frozenSummary && (
+            <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
+              <p className="text-sm font-medium text-status-fg mb-2">
+                Frozen Metrics Snapshot
+              </p>
+              <MetricsDashboard
+                historyOverride={frozenHistory}
+                metricsOverride={frozenSummary}
+              />
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="status-error my-4 p-3 bg-status-bg border border-status-border">
+              <p className="text-sm font-medium text-status-fg mb-2">
+                Test Failed
+              </p>
+              <p className="text-xs text-status-fg">{errorMessage}</p>
+            </div>
+          )}
+        </div>
+      )}
       <div className="pb-4" />
     </div>
   );

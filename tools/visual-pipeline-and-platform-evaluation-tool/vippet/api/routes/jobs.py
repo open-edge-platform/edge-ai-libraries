@@ -1539,6 +1539,8 @@ def _density_job_to_api_status(
     )
     return schemas.DensityJobStatus(
         id=job.id,
+        trials=[schemas.DensityTrial.model_validate(trial) for trial in job.trials],
+        selected_trial=job.selected_trial,
         start_time=job.start_time,
         elapsed_time=elapsed_time,
         state=schemas.TestJobState(job.state.value),

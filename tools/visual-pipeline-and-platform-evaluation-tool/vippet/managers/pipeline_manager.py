@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import threading
 from copy import deepcopy
@@ -80,6 +83,7 @@ class PipelineCommand:
         default_factory=dict
     )
     stream_commands: dict[str, str] = field(default_factory=dict)
+    stream_cpu_cores: dict[str, list[int]] = field(default_factory=dict)
 
     @property
     def all_stream_ids(self) -> list[str]:
@@ -500,6 +504,12 @@ class PipelineManager:
 
                 # Parse variant pipeline description into advanced graph
                 variant_graph = Graph.from_pipeline_description(variant_pipeline_desc)
+                variant_graph = Graph.from_dict(
+                    {
+                        **variant_graph.to_dict(),
+                        "cpu_pinning": variant_config.get("cpu_pinning", []),
+                    }
+                )
 
                 # Generate simple view for variant
                 variant_simple_graph = variant_graph.to_simple_view()
@@ -645,6 +655,7 @@ class PipelineManager:
         # key in the job's `latency_tracer_metrics` map.
         streams_per_pipeline: dict[str, list[InternalStreamInfo]] = {}
         stream_commands: dict[str, str] = {}
+        stream_cpu_cores: dict[str, list[int]] = {}
 
         # Determine if we need looping behavior based on max_runtime
         # Looping is only supported for disabled and live_stream modes
@@ -691,7 +702,20 @@ class PipelineManager:
             # have to be adapted to the raw-video stream produced by the dedicated
             # image decoder; ``apply_decodebin3_replacement`` handles both cases.
             _, target_gpu_index = split_device_target(base_graph.get_target_device())
-            if base_graph.has_decodebin3() or base_graph.has_image_set_source():
+            if base_graph.is_media_cpu():
+                codec = base_graph.determine_input_codec()
+                for node in base_graph.nodes:
+                    if (
+                        node.type in {"avdec_h264", "avdec_h265"}
+                        and codec
+                        and node.type != f"avdec_{codec}"
+                    ):
+                        raise ValueError(
+                            f"CPU decoder {node.type} does not match input codec {codec}."
+                        )
+            if (
+                base_graph.has_decodebin3() and not base_graph.is_media_vdbox()
+            ) or base_graph.has_image_set_source():
                 codec = base_graph.determine_input_codec()
                 target_device = base_graph.get_target_device()
                 base_graph = base_graph.apply_decodebin3_replacement(
@@ -836,6 +860,11 @@ class PipelineManager:
 
                 pipeline_parts.append(unique_pipeline_str)
                 stream_commands[stream_info.stream_id] = unique_pipeline_str
+                if spec.pipeline_graph.cpu_pinning:
+                    cores = spec.pipeline_graph.cpu_pinning
+                    stream_cpu_cores[stream_info.stream_id] = [
+                        cores[stream_index % len(cores)]
+                    ]
 
         return PipelineCommand(
             command=" ".join(pipeline_parts),
@@ -844,6 +873,7 @@ class PipelineManager:
             metadata_file_paths=metadata_file_paths,
             streams_per_pipeline=streams_per_pipeline,
             stream_commands=stream_commands,
+            stream_cpu_cores=stream_cpu_cores,
         )
 
     def add_variant(

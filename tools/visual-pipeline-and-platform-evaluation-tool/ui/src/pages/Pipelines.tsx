@@ -125,10 +125,13 @@ const normalizeSourceNodeData = (
 const buildGraphData = (
   nodes: ReactFlowNode[],
   edges: ReactFlowEdge[],
+  cpuPinning: number[] = [],
 ): {
+  cpu_pinning: number[];
   nodes: Array<{ id: string; type: string; data: { [key: string]: string } }>;
   edges: Array<{ id: string; source: string; target: string }>;
 } => ({
+  cpu_pinning: cpuPinning,
   nodes: nodes.map((node) => ({
     id: node.id,
     type: node.type ?? "",
@@ -264,6 +267,14 @@ export const Pipelines = () => {
     resetHistory();
   }, [variant, resetHistory, setCurrentNodes, setCurrentEdges]);
 
+  const savedCpuPinning = data?.variants.find((entry) => entry.id === variant)
+    ?.pipeline_graph.cpu_pinning;
+  const pinningChanged =
+    JSON.stringify(pinnedCpuCores) !== JSON.stringify(savedCpuPinning ?? []);
+  useEffect(() => {
+    setPinnedCpuCores(savedCpuPinning ?? []);
+  }, [savedCpuPinning, variant]);
+
   // Default Metadata JSON ON for the VLM pipeline (its only output is metadata
   // JSON lines); OFF for other pipelines.
   const isVlmPipeline =
@@ -304,7 +315,11 @@ export const Pipelines = () => {
     if (!id || !variant) return;
 
     try {
-      const graphData = buildGraphData(currentNodes, currentEdges);
+      const graphData = buildGraphData(
+        currentNodes,
+        currentEdges,
+        pinnedCpuCores,
+      );
 
       await updateVariant({
         pipelineId: id,
@@ -386,7 +401,11 @@ export const Pipelines = () => {
           ? "file"
           : "disabled";
 
-      const graphData = buildGraphData(currentNodes, currentEdges);
+      const graphData = buildGraphData(
+        currentNodes,
+        currentEdges,
+        pinnedCpuCores,
+      );
 
       let payloadGraphData = graphData;
       if (isSimpleMode) {
@@ -575,7 +594,7 @@ export const Pipelines = () => {
                 currentVariant={variant}
                 variants={data.variants}
                 source={source}
-                hasUnsavedChanges={canUndo}
+                hasUnsavedChanges={canUndo || pinningChanged}
                 disabled={jobStatus?.state === "RUNNING"}
               />
             )}
@@ -619,7 +638,7 @@ export const Pipelines = () => {
               <TooltipTrigger asChild>
                 <Button
                   onClick={handleSave}
-                  disabled={isReadOnly || !canUndo}
+                  disabled={isReadOnly || (!canUndo && !pinningChanged)}
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Save"
@@ -698,13 +717,14 @@ export const Pipelines = () => {
                         View mode
                       </p>
                       <ViewModeSwitcher
+                        cpuPinning={pinnedCpuCores}
                         pipelineId={id}
                         variant={variant}
                         isPredefined={data.source === "PREDEFINED"}
                         isSimpleMode={isSimpleMode}
                         currentNodes={currentNodes}
                         currentEdges={currentEdges}
-                        hasUnsavedChanges={canUndo}
+                        hasUnsavedChanges={canUndo || pinningChanged}
                         onModeChange={setIsSimpleMode}
                         onTransitionStart={() => setIsTransitioning(true)}
                         onTransitionEnd={() => setIsTransitioning(false)}
@@ -972,6 +992,7 @@ export const Pipelines = () => {
               />
             )}
             <PipelineActionsMenu
+              cpuPinning={pinnedCpuCores}
               pipeline={data}
               variantId={variant!}
               currentNodes={currentNodes}

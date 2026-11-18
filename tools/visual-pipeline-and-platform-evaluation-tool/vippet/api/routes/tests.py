@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 from typing import List
 
@@ -227,8 +230,14 @@ def run_density_test(body: schemas.DensityTestSpec):
 
     ## Density Modes
 
-    The endpoint supports two modes, selected automatically from the
+    The endpoint supports three modes, selected automatically from the
     request shape (no API version flag is required):
+
+    ### Hybrid media decode
+    Exactly two media-only variants, one VDBox (`decodebin3` with VAMemory caps)
+    and one CPU (`avdec_h264` or `avdec_h265`), with neither setting `streams`:
+    first find maximum VDBox density, then hold it fixed while searching CPU
+    density. Ratios are ignored. Every stream must meet `fps_floor`.
 
     ### Classic density (default)
     All `pipeline_density_specs` omit the optional `streams` field. The
