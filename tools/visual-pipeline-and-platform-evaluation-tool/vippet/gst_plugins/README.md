@@ -41,7 +41,7 @@ required.
 
 The `vippet` process itself does not load these elements: its
 `GST_PLUGIN_PATH` does not include this directory. The DL Streamer pipeline
-optimizer, which runs in the `vippet` process, therefore does not see them.
+optimizer runs on the server too, so it sees them like any other pipeline.
 
 ## Adding a new Python element
 

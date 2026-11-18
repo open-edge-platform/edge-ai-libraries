@@ -356,6 +356,58 @@ def test_get_optimization_job_status_for_nonexistent_job_returns_404(
     )
 
 
+@pytest.mark.smoke
+def test_stop_optimization_job_for_nonexistent_job_returns_404(
+    http_client: requests.Session,
+) -> None:
+    """Calls DELETE /jobs/optimization/{job_id} with a non-existent job ID and asserts 404."""
+    response = http_client.delete(
+        f"{BASE_URL}/jobs/optimization/{_NONEXISTENT_JOB_ID}",
+        timeout=30,
+    )
+
+    assert response.status_code == 404, (
+        f"Expected 404 for unknown optimization job stop, "
+        f"got {response.status_code}, body={response.text}"
+    )
+
+
+@pytest.mark.full
+def test_stop_running_optimization_job_marks_it_cancelled(
+    http_client: requests.Session,
+) -> None:
+    """DELETE /jobs/optimization/{job_id} on a running job ends it as FAILED, cancelled by user."""
+    job_id = start_optimization_job(
+        http_client,
+        PIPELINE_ID,
+        PIPELINE_VARIANT,
+        {
+            "type": "optimize",
+            "parameters": {"search_duration": 300, "sample_duration": 5},
+        },
+    )
+
+    response = http_client.delete(f"{BASE_URL}/jobs/optimization/{job_id}", timeout=30)
+
+    assert response.status_code == 200, (
+        f"Expected 200 cancelling a running optimization job, "
+        f"got {response.status_code}, body={response.text}"
+    )
+    final_status = wait_for_job_completion(
+        http_client,
+        f"{BASE_URL}/jobs/optimization/{job_id}/status",
+        assert_initial_running=False,
+    )
+    assert final_status.get("state") == "FAILED", final_status
+    assert final_status.get("details") == ["Cancelled by user"], final_status
+
+    response = http_client.delete(f"{BASE_URL}/jobs/optimization/{job_id}", timeout=30)
+    assert response.status_code == 409, (
+        f"Expected 409 cancelling a finished optimization job, "
+        f"got {response.status_code}, body={response.text}"
+    )
+
+
 @pytest.mark.full
 def test_get_all_optimization_job_statuses_returns_list(
     http_client: requests.Session,
