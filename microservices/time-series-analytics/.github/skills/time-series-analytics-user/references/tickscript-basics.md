@@ -125,7 +125,7 @@ deployment actually configures:
   output; whatever is watching the anomaly points (your UDF via an HTTP
   call to `http://localhost:5000/opcua_alerts`, or an external consumer
   polling results) has to call it explicitly. Request shape:
-  [Access Microservice API](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/how-to-access-api.md).
+  [Access Microservice API](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/how-to-access-api.md).
 
 Full config key reference for both (field-by-field, with examples):
-[Configure Microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/how-to-configure.md).
+[Configure Microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/how-to-configure.md).
