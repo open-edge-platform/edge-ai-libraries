@@ -1,4 +1,5 @@
-## Project Overview
+# Project Overview
+
 Stream Manager is a microservice responsible for managing video streams, including their configuration, recording, and storage. Several Intel Open Edge Platform applications consume its REST APIs to interact with and control video streams.
 
 It provides endpoints for buffering an existing RTSP stream, updating the buffer size, record the buffered and live RTSP stream on disk (and also to S3-compatible storage) and retrieval clips or frames from recorded streams for given timestamps.
@@ -11,7 +12,9 @@ Before entertaining any user request or instructions for this project, please ma
 - Verify if `docker` is installed on the host machine. This could be required as user might want to run the application as a container in order to use it with other microservices. User also might want to build the image themselves. If `docker` is not installed, offer the user to install `docker v29` or a any version later than this. If user agrees, install `docker` on the host machine with the specified version.
 
 ## Repository Structure
+
 The repository is structured as follows:
+
 - `cmd/`: Contains the main application entry point.
 - `internal/`: Contains the core application logic, including stream management, recording, and storage handling.
 - `docs/`: Contains project documentation.
@@ -25,9 +28,11 @@ The repository is structured as follows:
 It also contains .Dockerignore and .gitignore files for ignoring unnecessary files in Docker builds and Git version control, respectively. The application may also contain `TODO.md` for tracking pending tasks and improvements. `TODO.md` should never be considered while development unless explicitly referenced.
 
 ## Build
+
 You can either build on host or build a container image:
 
 ### Build on Host
+
 To build the application, you need to run the build command with some linker flags for smaller binaries and to set some essential build-time variables:
 
 ```bash
@@ -78,10 +83,12 @@ Application can be setup standalone. However, its primary goal for setup is to u
 4. If a config file is available, ask users if they want to mount it to the container to override the default configuration. If yes, your docker run command will include another bind mount: `-v <config-file-path>:/config.json`
 
 5. Run the container with the specified port and volume/mount configurations, using the following command:
-```bash
-docker run -p <host-port>:<container-port> -v <volume-or-directory-path>:/data -v <config-file-path>:/config.json <image-name>:<tag>
-```
-Please note the mount to `/data` or `/config.json` in the container is only provided if user wants it for persistent storage or configuration override respectively.
+
+   ```bash
+   docker run -p <host-port>:<container-port> -v <volume-or-directory-path>:/data -v <config-file-path>:/config.json <image-name>:<tag>
+   ```
+
+   Please note the mount to `/data` or `/config.json` in the container is only provided if user wants it for persistent storage or configuration override respectively.
 
 6. Once the setup is complete, verify that the container is running correctly by checking its status. Also hit the `v1/status` endpoint to verify the service is up and running. If everything is fine, tell user how to access the application from host and from a remote machine.
 
@@ -191,6 +198,7 @@ The application has pre-commit hooks configured, which lints and vets the applic
 Following is the guidelines regarding the directory structure of the documentation. They are primarily present inside the `docs` dir in root. A single `README.md` file in project root is also present. If these files are not present at their respective location, please create it when asked to write documentation of the application.
 
 #### README.md
+
 - This file `README.md` is present in the root of the project.
 - Start with extremely brief, concise yet brilliant, comprehensive and unambiguous explanation of the application for why it exists.
 - Write a README file which contains the quick start section and links and small description to all documents inside the `docs` directory (except the `index.md` file)
@@ -203,24 +211,24 @@ Following is the guidelines regarding the directory structure of the documentati
 
 #### API Reference Guide
 
-- API reference document is available at `docs/api-docs/api-reference.md`.
-- Keep updating the `docs/api-docs/api-reference.md` and `docs/api-docs/openapi.yaml` document as the api specs and implementation keeps changing or updating.
+- API reference document is available at `docs/user-guide/api-reference.md`.
+- Keep updating the `docs/user-guide/api-reference.md` and `docs/user-guide/api-docs/openapi.yaml` document as the api specs and implementation keeps changing or updating.
 
 #### Build from Source Guide
 
-- Build from source guide should be present at the `docs/user-guide/build-from-source.md`.
+- Build from source guide should be present at the `docs/user-guide/get-started/build-from-source.md`.
 - This document guides user clearly towards how to build the application on host and how to build a container image. Refer to the [Build](#build) section here and other information available to write a well designed guide.
 
 #### Openapi Specs
 
 - `openapi.yaml` file lives in the `docs/user-guide/api-docs/openapi.yaml` file.
 - This contains the YAML content read by the gin-swagger tool to present the Swagger UI for using the API along with all the API specification, request and response schemas, sample request and response examples, and error codes with corresponding error response.
-- Wehenevr asked to update the Swagger UI or openapi specs - Keep the YAML file upto date with the actual implementation of API routes and schema, request body, response body and error code/response being used.
+- Wehenevr asked to update the Swagger UI or openapi specs - Keep the YAML file up to date with the actual implementation of API routes and schema, request body, response body and error code/response being used.
 - Apart from explicitly being asked, update or work on it to sync with the changes whenever asked to update the documentation.
 
 ## Agent-Specific Notes
 
-Read the (`copilot-instructions.md`)[.github/copilot-instructions.md] for guidance on how to interact with the copilot agents.
+Read the [`copilot-instructions.md`](.github/copilot-instructions.md) for guidance on how to interact with the copilot agents.
 
 ## Additional Notes
 
