@@ -4,7 +4,7 @@ configure_gpu_accel () {
   key_file="/usr/share/keyrings/intel-graphics.gpg"
   apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified"
   apt_file="/etc/apt/sources.list.d/intel-graphics.list"
-  pkg_list=(clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
+  pkg_list=(clinfo vainfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
   allow_downgrades=(libva-wayland2)
 }
 
