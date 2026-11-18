@@ -188,11 +188,12 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `UPLOAD_MAX_SIZE_BYTES`            | Maximum accepted upload body size in bytes                   | `2147483648` (2 GiB)                                       |
 | `OUTPUT_VIDEO_DIR`                 | Path to output videos                                        | `/videos/output`                                           |
 | `UPLOADED_IMAGES_DIR`              | Path to user-uploaded image sets                             | `/images/input/uploaded`                                   |
-| `SIMPLE_VIEW_VISIBLE_ELEMENTS`     | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source,videoscale`           |
+| `SIMPLE_VIEW_VISIBLE_ELEMENTS`     | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source,videoscale,sscape_*`  |
 | `SIMPLE_VIEW_INVISIBLE_ELEMENTS`   | Element names hidden from simplified pipeline view           | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` |
 | `LIVE_STREAM_SERVER_HOST`          | RTSP server hostname                                         | `mediamtx`                                                 |
 | `LIVE_STREAM_SERVER_PORT`          | RTSP server port                                             | `8554`                                                     |
 | `RTSPSRC_DEFAULT_LATENCY_MS`       | Default latency in ms for rtspsrc elements                   | `100`                                                      |
+| `RTSP_PROBE_TIMEOUT_S`             | Timeout in s for probing the codec of custom RTSP streams    | `5`                                                        |
 | `BENCHMARK_ENABLE_LATENCY_METRICS` | Enable DLStreamer latency tracer for benchmark test cases    | `true`                                                     |
 | `DLSPS2_BASE_URL`                  | DL Streamer Pipeline Server 2.0 REST base URL                | `http://dlstreamer-pipeline-server:8080`                   |
 | `DLSPS2_VERIFY_TLS`                | Verify the server's TLS certificate (https base URL)         | `false`                                                    |
@@ -222,7 +223,8 @@ The REST API is not published on the host otherwise.
 - The model catalog lives in `vippet/models/` (one YAML file per model), baked into the
   image at build time and synced insert-only into the DB at startup via `db_seed.py`;
   adding/editing a model requires an image rebuild (`make build`), not just a restart
-- Video input sources: files from `shared/videos/input/`, USB cameras (`/dev/video*`), RTSP/ONVIF cameras
+- Video input sources: files from `shared/videos/input/`, USB cameras (`/dev/video*`), RTSP/ONVIF cameras,
+  custom RTSP URLs (validated by `vippet/rtsp_utils.py`, codec probed with `gst-discoverer-1.0`)
 
 ## Documentation Standards
 

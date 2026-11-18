@@ -6,6 +6,12 @@ Details about the changes, improvements, and known issues in this release of the
 
 **Release Date**: TBD
 
+**New**:
+
+- **Custom RTSP Streams**: Any RTSP stream can be used as pipeline input by selecting **Custom RTSP URL…**
+  for a camera source in the pipeline editor. The stream codec is detected automatically to pick a decoder
+  that matches the inference device.
+
 **Improved**:
 
 - **Performance Testing**: The performance test suite now runs through a single CLI command with dry-run and
