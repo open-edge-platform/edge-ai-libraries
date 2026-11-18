@@ -8,7 +8,7 @@ run-name: "[Time Series] PR  workflow (by @${{ github.actor }} via ${{ github.ev
 on:
   push:
     branches:
-      - 'main'
+      - 'release-2026.3.0'
     paths:
       - 'microservices/time-series-analytics/*'
       - 'microservices/time-series-analytics/config/**'
