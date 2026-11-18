@@ -44,7 +44,9 @@ folder and read back by `vippet/pipeline_events.py`. `vippet/pipeline_runner.py`
 by both modules.
 
 The device list (`vippet/device.py`) is read from the server's `GET /devices`, so it shows the devices pipelines
-actually run on. The DL Streamer pipeline optimizer still runs in the backend process.
+actually run on. The DL Streamer pipeline optimizer runs as a server job too: `vippet/dlsps2_optimizer.py` starts it
+with `POST /optimize`, polls it until it ends and cancels it on request, so the candidate pipelines also run on the
+server's runtime and devices.
 
 ### Docker Compose with Hardware Profiles
 
