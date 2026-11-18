@@ -1,9 +1,11 @@
 import logging
+import math
 import threading
 import time
 import uuid
 from dataclasses import dataclass
 
+from dlsps2_optimizer import Dlsps2Optimizer, Dlsps2OptimizerCancelled
 from graph import Graph
 from internal_types import (
     InternalOptimizationJobStatus,
@@ -24,11 +26,30 @@ DEFAULT_SAMPLE_DURATION = 10  # seconds
 
 # Variant names (case-insensitive) that map directly to a single OpenVINO
 # device. When a variant has one of these names, the optimizer search scope
-# is restricted to that device via DLSOptimizer.set_allowed_devices().
+# is restricted to that device through the job's ``allowed_devices``.
 # Any other variant name keeps the optimizer's default (all devices).
 DEVICE_VARIANT_NAMES: frozenset[str] = frozenset({"CPU", "GPU", "NPU"})
 
 logger = logging.getLogger("optimization_manager")
+
+
+def _duration_parameter(params: dict, name: str, default: float) -> float:
+    """
+    Read a duration in seconds from the optimization request parameters.
+
+    Like ``max-runtime`` of validation jobs, numeric strings are accepted.
+
+    Raises:
+        ValueError: The value is not a number, or not finite and greater than 0.
+    """
+    value = params.get(name, default)
+    try:
+        duration = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Parameter '{name}' must be a number.")
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError(f"Parameter '{name}' must be greater than 0.")
+    return duration
 
 
 @dataclass
@@ -58,15 +79,17 @@ class PipelineOptimizationResult:
 
 class OptimizationRunner:
     """
-    Thin wrapper around the external optimizer module.
+    Thin wrapper around the DLSPS 2.0 optimizer client.
 
-    All direct imports and calls into ``optimizer.py`` are isolated here
-    so that the manager can be easily unit-tested by mocking this class.
+    The optimizer runs as a DLSPS 2.0 job (see :mod:`dlsps2_optimizer`), so
+    candidate pipelines run on the server's runtime and devices. All calls to
+    the client are isolated here so that the manager can be easily
+    unit-tested by mocking this class.
     """
 
     def __init__(self) -> None:
         self.logger = logging.getLogger("OptimizationRunner")
-        self.cancelled = False
+        self._optimizer = Dlsps2Optimizer()
 
     def run_preprocessing(
         self, pipeline_description: str
@@ -74,29 +97,29 @@ class OptimizationRunner:
         """
         Run only the preprocessing stage on the provided GStreamer pipeline string.
 
-        The external optimizer takes a GStreamer pipeline string, processes it,
-        and returns the preprocessed pipeline string.
+        DLSPS 2.0 applies the optimizer's element substitutions and returns
+        the preprocessed pipeline string; no candidate pipelines are run.
 
         Args:
             pipeline_description: Original GStreamer pipeline string to preprocess.
 
         Returns:
             PipelineOptimizationResult: Result containing the preprocessed GStreamer pipeline string.
-        """
-        # Import from /opt/intel/dlstreamer/scripts/optimizer/optimizer.py provided in DLStreamer image
-        # https://github.com/open-edge-platform/dlstreamer/tree/main/scripts/optimizer
-        import optimizer  # pyright: ignore[reportMissingImports]
 
-        optimized_pipeline = optimizer.preprocess_pipeline(pipeline_description)
+        Raises:
+            Dlsps2OptimizerError: DLSPS 2.0 could not preprocess the pipeline.
+        """
         return PipelineOptimizationResult(
-            optimized_pipeline_description=optimized_pipeline
+            optimized_pipeline_description=self._optimizer.preprocess(
+                pipeline_description
+            )
         )
 
     def run_optimization(
         self,
         pipeline_description: str,
-        search_duration: int,
-        sample_duration: int,
+        search_duration: float,
+        sample_duration: float,
         allowed_devices: list[str] | None = None,
     ) -> PipelineOptimizationResult:
         """
@@ -116,48 +139,28 @@ class OptimizationRunner:
         Returns:
             PipelineOptimizationResult: Result containing the optimized GStreamer
                 pipeline string and measured total FPS.
+
+        Raises:
+            Dlsps2OptimizerCancelled: :meth:`cancel` was called.
+            Dlsps2OptimizerError: The DLSPS 2.0 job failed or could not run.
         """
-        # Import from /opt/intel/dlstreamer/scripts/optimizer/optimizer.py provided in DLStreamer image
-        # https://github.com/open-edge-platform/dlstreamer/tree/main/scripts/optimizer/optimizer.py
-        import optimizer  # pyright: ignore[reportMissingImports]
-
-        opt = optimizer.DLSOptimizer()
-        opt.set_sample_duration(sample_duration)
-
-        # Restrict the device search scope only when an explicit list is
-        # provided. Calling set_allowed_devices with None would override the
-        # default behavior, which is undesirable.
-        if allowed_devices is not None:
-            opt.set_allowed_devices(allowed_devices)
-
-        # Log the exact values that are about to be forwarded to
-        # DLSOptimizer so the search time budget can be verified end-to-end
-        # in the application log.
-        self.logger.info(
-            f"Calling DLSOptimizer.optimize_for_fps with "
-            f"search_duration={search_duration}s, "
-            f"sample_duration={sample_duration}s, "
-            f"allowed_devices={allowed_devices}"
+        result = self._optimizer.optimize(
+            pipeline_description,
+            search_duration=search_duration,
+            sample_duration=sample_duration,
+            allowed_devices=allowed_devices,
         )
-
-        optimized_pipeline, metrics = opt.optimize_for_fps(
-            pipeline_description, search_duration=search_duration
-        )
-
-        # DLStreamer optimizer may return a metrics dict or a bare float.
-        total_fps = metrics["fps"] if isinstance(metrics, dict) else metrics
-
         return PipelineOptimizationResult(
-            optimized_pipeline_description=optimized_pipeline, total_fps=total_fps
+            optimized_pipeline_description=result.pipeline, total_fps=result.fps
         )
 
     def cancel(self) -> None:
-        """Mark the current run as cancelled."""
-        self.cancelled = True
+        """Cancel the current run."""
+        self._optimizer.cancel()
 
     def is_cancelled(self) -> bool:
         """Return ``True`` if :meth:`cancel` was called."""
-        return self.cancelled
+        return self._optimizer.is_cancelled()
 
 
 class OptimizationManager:
@@ -207,6 +210,22 @@ class OptimizationManager:
         Generate a unique job ID using UUID.
         """
         return uuid.uuid1().hex
+
+    @staticmethod
+    def _durations(
+        optimization_request: InternalPipelineRequestOptimize,
+    ) -> tuple[float, float]:
+        """
+        Return the search and sample durations of a request, with defaults.
+
+        Raises:
+            ValueError: A duration is not a number, or not finite and greater than 0.
+        """
+        params = optimization_request.parameters or {}
+        return (
+            _duration_parameter(params, "search_duration", DEFAULT_SEARCH_DURATION),
+            _duration_parameter(params, "sample_duration", DEFAULT_SAMPLE_DURATION),
+        )
 
     @staticmethod
     def _resolve_allowed_devices(variant_name: str) -> list[str] | None:
@@ -261,8 +280,16 @@ class OptimizationManager:
 
         Raises:
             ValueError: If an rtspsrc node has a missing or invalid location.
+            ValueError: The optimization type is unknown, or, for OPTIMIZE,
+                ``search_duration`` or ``sample_duration`` is invalid.
+            JobExecutionConflictError: Another pipeline execution job is running.
         """
         variant.pipeline_graph.validate_rtsp_sources()
+
+        if optimization_request.type == InternalOptimizationType.OPTIMIZE:
+            self._durations(optimization_request)
+        elif optimization_request.type != InternalOptimizationType.PREPROCESS:
+            raise ValueError(f"Unknown optimization type: {optimization_request.type}")
 
         job_id = self._generate_job_id()
         execution_lease = ExecutionCoordinator().acquire(
@@ -287,16 +314,21 @@ class OptimizationManager:
                 type=optimization_request.type,
             )
 
+            # Registered with the job, so the job can be cancelled as soon as
+            # it is visible.
+            runner = OptimizationRunner()
             with self._jobs_lock:
                 self.jobs[job_id] = job
+                self.runners[job_id] = runner
 
             # Start execution in background thread. The variant name is passed
             # down so _execute_optimization can map it to an allowed device list
-            # for the optimizer (only relevant for full OPTIMIZE jobs).
+            # for the optimizer.
             thread = threading.Thread(
                 target=self._execute_optimization,
                 args=(
                     job_id,
+                    runner,
                     pipeline_description,
                     optimization_request,
                     variant.name,
@@ -308,6 +340,7 @@ class OptimizationManager:
         except Exception:
             with self._jobs_lock:
                 self.jobs.pop(job_id, None)
+                self.runners.pop(job_id, None)
             ExecutionCoordinator().release(execution_lease)
             raise
 
@@ -362,6 +395,36 @@ class OptimizationManager:
 
             return summary
 
+    def cancel_job(self, job_id: str) -> tuple[bool, str]:
+        """
+        Cancel a running optimization job.
+
+        The runner cancels the DLSPS 2.0 job; the job then ends as FAILED
+        with the "Cancelled by user" detail.
+
+        Returns:
+            tuple[bool, str]: Whether cancellation was requested, and a
+                human-readable message. The message says "not found" for an
+                unknown job and "not running" for a job that already ended.
+        """
+        with self._jobs_lock:
+            job = self.jobs.get(job_id)
+            if job is None:
+                msg = f"Optimization job {job_id} not found"
+                self.logger.warning(msg)
+                return False, msg
+
+            runner = self.runners.get(job_id)
+            if job.state != InternalOptimizationJobState.RUNNING or runner is None:
+                msg = f"Optimization job {job_id} is not running (state: {job.state.value})"
+                self.logger.warning(msg)
+                return False, msg
+
+            runner.cancel()
+            msg = f"Optimization job {job_id} cancelled"
+            self.logger.info(msg)
+            return True, msg
+
     def _update_job_error(self, job_id: str, error_message: str) -> None:
         """
         Mark the job as failed, clear the details list, and append the failure message.
@@ -379,9 +442,50 @@ class OptimizationManager:
                 job.details = [error_message]
         self.logger.error(f"Pipeline optimization {job_id} failed: {error_message}")
 
+    def _run_optimize(
+        self,
+        job_id: str,
+        runner: OptimizationRunner,
+        pipeline_description: str,
+        optimization_request: InternalPipelineRequestOptimize,
+        variant_name: str,
+    ) -> PipelineOptimizationResult:
+        """Run the full optimizer search for an OPTIMIZE job."""
+        params = optimization_request.parameters or {}
+        # Map the variant name to a device allow-list. Only "CPU",
+        # "GPU" and "NPU" (case-insensitive) are recognized as
+        # device names; other names keep the default search scope.
+        allowed_devices = self._resolve_allowed_devices(variant_name)
+        if allowed_devices is not None:
+            self.logger.info(
+                f"Restricting optimizer device search to {allowed_devices} "
+                f"for job {job_id} (variant name: {variant_name!r})"
+            )
+        # Resolve effective values once so they can be both logged
+        # and forwarded to the runner. This makes it easy to verify
+        # in the logs that the values from the request (or defaults)
+        # actually reach the optimizer.
+        effective_search_duration, effective_sample_duration = self._durations(
+            optimization_request
+        )
+        self.logger.info(
+            f"Starting DLSPS 2.0 optimizer for job {job_id} with "
+            f"search_duration={effective_search_duration}s, "
+            f"sample_duration={effective_sample_duration}s, "
+            f"allowed_devices={allowed_devices} "
+            f"(raw parameters={params!r})"
+        )
+        return runner.run_optimization(
+            pipeline_description=pipeline_description,
+            search_duration=effective_search_duration,
+            sample_duration=effective_sample_duration,
+            allowed_devices=allowed_devices,
+        )
+
     def _execute_optimization(
         self,
         job_id: str,
+        runner: OptimizationRunner,
         pipeline_description: str,
         optimization_request: InternalPipelineRequestOptimize,
         variant_name: str = "",
@@ -390,34 +494,34 @@ class OptimizationManager:
         """
         Execute the optimization process in a background thread.
 
-        The method chooses between preprocessing or full optimization,
-        delegates work to :class:`OptimizationRunner` and then updates
-        the corresponding :class:`InternalOptimizationJobStatus` accordingly.
+        The optimizer runs on DLSPS 2.0 through ``runner``: OPTIMIZE as a
+        server job, PREPROCESS as a single request. This method blocks until
+        it ends and then updates the corresponding
+        :class:`InternalOptimizationJobStatus`.
 
-        For full OPTIMIZE jobs, the variant name is used to restrict the
-        optimizer's device search scope: variant names equal (case-insensitive)
-        to "CPU", "GPU" or "NPU" map to a single-device allowed list. Any
-        other variant name keeps the optimizer's default search scope.
-        The PREPROCESS type is not affected by this mapping.
+        For OPTIMIZE, the variant name restricts the optimizer's device search
+        scope: variant names equal (case-insensitive) to "CPU", "GPU" or "NPU"
+        map to a single-device allowed list. Any other variant name keeps the
+        optimizer's default search scope. PREPROCESS is not affected.
 
         After successful optimization, both advanced and simple views
         are generated from the optimized GStreamer pipeline string as
         internal Graph objects.
 
-        When a job is cancelled, it is always marked as FAILED regardless
-        of exit code, because partial optimization results are not useful.
-        There is no cancel endpoint yet, but the runner infrastructure is
-        prepared to support it.
+        A cancelled job (see :meth:`cancel_job`) is always marked as FAILED,
+        because partial optimization results are not useful.
 
         The details list is cleared when transitioning to a new state, then
         new entries for that state are appended.
 
         Args:
             job_id: Unique identifier of the optimization job.
+            runner: Runner registered for the job in ``self.runners``.
             pipeline_description: GStreamer pipeline string to optimize.
-            optimization_request: Internal optimization parameters and type.
+            optimization_request: Internal optimization parameters.
             variant_name: Name of the variant being optimized. Used to map
-                to an allowed device list for the OPTIMIZE type.
+                to an allowed device list.
+            execution_lease: Lease released when the job ends.
 
         Returns:
             None (updates job status in place via self.jobs[job_id])
@@ -434,111 +538,63 @@ class OptimizationManager:
                 f"Starting pipeline optimization execution for job {job_id}, original pipeline: {pipeline_description}"
             )
 
-            # Initialize OptimizationRunner
-            runner = OptimizationRunner()
-
-            # Store runner for this job. There is no cancel endpoint yet,
-            # but the infrastructure is prepared to support cancellation.
-            with self._jobs_lock:
-                self.runners[job_id] = runner
-
-            if optimization_request.type not in [
-                InternalOptimizationType.PREPROCESS,
-                InternalOptimizationType.OPTIMIZE,
-            ]:
-                # Unsupported type; this is considered a user error.
-                raise ValueError(
-                    f"Unknown optimization type: {optimization_request.type}"
-                )
-
-            # Run the pipeline
             if optimization_request.type == InternalOptimizationType.PREPROCESS:
-                results = runner.run_preprocessing(
-                    pipeline_description=pipeline_description,
-                )
-            else:  # InternalOptimizationType.OPTIMIZE
-                params = optimization_request.parameters or {}
-                # Map the variant name to a device allow-list. Only "CPU",
-                # "GPU" and "NPU" (case-insensitive) are recognized as
-                # device names; other names keep the default search scope.
-                allowed_devices = self._resolve_allowed_devices(variant_name)
-                if allowed_devices is not None:
-                    self.logger.info(
-                        f"Restricting optimizer device search to {allowed_devices} "
-                        f"for job {job_id} (variant name: {variant_name!r})"
-                    )
-                # Resolve effective values once so they can be both logged
-                # and forwarded to the runner. This makes it easy to verify
-                # in the logs that the values from the request (or defaults)
-                # actually reach DLSOptimizer.
-                effective_search_duration = params.get(
-                    "search_duration", DEFAULT_SEARCH_DURATION
-                )
-                effective_sample_duration = params.get(
-                    "sample_duration", DEFAULT_SAMPLE_DURATION
-                )
-                self.logger.info(
-                    f"Starting DLSOptimizer for job {job_id} with "
-                    f"search_duration={effective_search_duration}s, "
-                    f"sample_duration={effective_sample_duration}s, "
-                    f"allowed_devices={allowed_devices} "
-                    f"(raw parameters={params!r})"
-                )
-                results = runner.run_optimization(
-                    pipeline_description=pipeline_description,
-                    search_duration=effective_search_duration,
-                    sample_duration=effective_sample_duration,
-                    allowed_devices=allowed_devices,
+                results = runner.run_preprocessing(pipeline_description)
+            else:
+                results = self._run_optimize(
+                    job_id,
+                    runner,
+                    pipeline_description,
+                    optimization_request,
+                    variant_name,
                 )
 
-            # Update job with results
+            # Build both views outside the lock; a parse error fails the job.
+            graph = Graph.from_pipeline_description(
+                results.optimized_pipeline_description
+            )
+            graph_simple = graph.to_simple_view()
+
             with self._jobs_lock:
-                if job_id in self.jobs:
+                # cancel_job() holds the same lock, so a cancel that came after
+                # the server job ended is seen here and wins over the result.
+                cancelled = runner.is_cancelled()
+                if job_id in self.jobs and cancelled:
                     job = self.jobs[job_id]
+                    job.state = InternalOptimizationJobState.FAILED
+                    job.end_time = int(time.time() * 1000)
+                    job.details = ["Cancelled by user"]
+                elif job_id in self.jobs:
+                    job = self.jobs[job_id]
+                    job.state = InternalOptimizationJobState.COMPLETED
+                    job.end_time = int(time.time() * 1000)
+                    job.details = ["Optimization completed successfully"]
+                    job.total_fps = results.total_fps
+                    job.optimized_pipeline_description = (
+                        results.optimized_pipeline_description
+                    )
+                    job.optimized_pipeline_graph = graph
+                    job.optimized_pipeline_graph_simple = graph_simple
 
-                    # Cancelled optimization jobs are always FAILED because
-                    # partial optimization results are not useful
-                    if runner.is_cancelled():
-                        self.logger.info(
-                            f"Pipeline optimization {job_id} was cancelled, marking as FAILED"
-                        )
-                        job.state = InternalOptimizationJobState.FAILED
-                        job.end_time = int(time.time() * 1000)
-                        job.details = ["Cancelled by user"]
-                    else:
-                        # Normal completion
-                        job.state = InternalOptimizationJobState.COMPLETED
-                        job.end_time = int(time.time() * 1000)
-                        job.details = ["Optimization completed successfully"]
+            if cancelled:
+                self.logger.info(
+                    f"Pipeline optimization {job_id} was cancelled, marking as FAILED"
+                )
+            else:
+                self.logger.info(
+                    f"Pipeline optimization {job_id} completed successfully, "
+                    f"optimized pipeline: {results.optimized_pipeline_description}"
+                )
 
-                        if results is not None:
-                            # Persist numeric metrics and optimized pipeline string
-                            job.total_fps = results.total_fps
-                            job.optimized_pipeline_description = (
-                                results.optimized_pipeline_description
-                            )
-
-                            # Build advanced Graph from the optimized pipeline description
-                            graph = Graph.from_pipeline_description(
-                                results.optimized_pipeline_description
-                            )
-                            job.optimized_pipeline_graph = graph
-
-                            # Generate simple view Graph from the optimized advanced graph
-                            job.optimized_pipeline_graph_simple = graph.to_simple_view()
-
-                        self.logger.info(
-                            f"Pipeline optimization {job_id} completed successfully, optimized pipeline: {job.optimized_pipeline_description}"
-                        )
-
-                # Clean up runner after completion regardless of outcome
-                self.runners.pop(job_id, None)
-
+        except Dlsps2OptimizerCancelled:
+            self.logger.info(
+                f"Pipeline optimization {job_id} was cancelled, marking as FAILED"
+            )
+            self._update_job_error(job_id, "Cancelled by user")
         except Exception as e:
-            # Clean up runner on error
-            with self._jobs_lock:
-                self.runners.pop(job_id, None)
             self._update_job_error(job_id, str(e))
         finally:
+            with self._jobs_lock:
+                self.runners.pop(job_id, None)
             if execution_lease is not None:
                 ExecutionCoordinator().release(execution_lease)

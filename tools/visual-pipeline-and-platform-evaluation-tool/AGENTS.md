@@ -24,6 +24,7 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 │   ├── orm_models.py     # SQLAlchemy ORM models
 │   ├── benchmark.py      # Density benchmarking logic
 │   ├── dlsps2_runner.py  # Runs pipelines on DL Streamer Pipeline Server 2.0 (REST)
+│   ├── dlsps2_optimizer.py # Runs the DL Streamer pipeline optimizer on the server (REST)
 │   ├── pipeline_events.py # Live pipeline events read from JSON Lines files
 │   ├── pipeline_runner.py # Pipeline run result types
 │   ├── graph.py          # GStreamer pipeline graph representation
@@ -215,7 +216,7 @@ The REST API is not published on the host otherwise.
 - The `vippet/` Python package uses relative imports — always run from the container context
 - GStreamer pipelines run on **DL Streamer Pipeline Server 2.0** (`dlstreamer-pipeline-server`), sent over REST
   by `dlsps2_runner.py`, one server instance per stream; they are not executed in the vippet process. The DL
-  Streamer pipeline optimizer still runs in vippet
+  Streamer pipeline optimizer runs on the server too, as a job started by `dlsps2_optimizer.py` (`POST /optimize`)
 - Hardware devices come from the DLSPS 2.0 `GET /devices` endpoint, read by
   `device.py` on first use and cached
 - AI models are installed at runtime via the `model-download` microservice;

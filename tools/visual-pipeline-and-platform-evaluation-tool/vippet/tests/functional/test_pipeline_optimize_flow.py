@@ -27,6 +27,7 @@ PIPELINE_ID = "smart-parking"
 #   * preprocess and optimize request types,
 #   * a device-named variant ("cpu" -> optimizer search restricted to CPU)
 #     and a non-device variant ("gpu_npu" -> optimizer keeps default scope).
+# The optimizer runs on DL Streamer Pipeline Server.
 OPTIMIZATION_CASES = [
     (
         "preprocess-cpu-variant",
