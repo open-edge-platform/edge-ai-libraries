@@ -7,7 +7,8 @@ Worker Pool for DLSPS 2.0 with CPU Affinity Support
 Manages a pool of gst_worker.py subprocesses, keyed by CPU affinity.
 
 Architecture:
-- One long-lived unpinned worker (key=None) for pipelines without cpu_cores
+- One unpinned worker (key=None) for pipelines without cpu_cores
+  - Recycled (restarted) after DLSPS_WORKER_RECYCLE_IDLE_SECONDS idle (no active pipelines)
 - Multiple ephemeral pinned workers (key=tuple of sorted cores)
   - Auto-stop after 1 minute idle (no active pipelines)
 - Shared stdout/stderr reader threads dispatch events to all tracked instances
@@ -33,6 +34,9 @@ _GST_WORKER = os.path.join(os.path.dirname(__file__), "gst_worker.py")
 # Idle timeout (seconds) before a pinned worker is reaped if empty
 _IDLE_TIMEOUT_SECONDS = 60.0
 
+# Default idle delay (seconds) before the unpinned worker is recycled; 0 disables recycling
+_DEFAULT_RECYCLE_IDLE_SECONDS = 60.0
+
 # gst_worker.py logs to stderr as JSON; map level names to Python logging levels
 _WORKER_LOG_LEVELS = {
     "CRITICAL": logging.CRITICAL,
@@ -41,6 +45,17 @@ _WORKER_LOG_LEVELS = {
     "INFO": logging.INFO,
     "DEBUG": logging.DEBUG,
 }
+
+
+def _read_recycle_idle_seconds() -> Optional[float]:
+    """Read DLSPS_WORKER_RECYCLE_IDLE_SECONDS; None means recycling is disabled."""
+    raw = os.environ.get("DLSPS_WORKER_RECYCLE_IDLE_SECONDS", str(_DEFAULT_RECYCLE_IDLE_SECONDS))
+    try:
+        value = float(raw)
+    except ValueError:
+        logger.warning("Invalid DLSPS_WORKER_RECYCLE_IDLE_SECONDS=%r, using default", raw)
+        return _DEFAULT_RECYCLE_IDLE_SECONDS
+    return value if value > 0 else None
 
 
 def _normalize_cpu_cores(cpu_cores: Optional[List[int]]) -> Optional[Tuple[int, ...]]:
@@ -289,6 +304,7 @@ class WorkerPool:
         self._lock = threading.RLock()
         self._idle_timers: Dict[Optional[Tuple[int, ...]], threading.Timer] = {}
         self._shutting_down = threading.Event()
+        self._recycle_idle_seconds = _read_recycle_idle_seconds()
 
     # ------------------------------------------------------------------
     # Public API
@@ -409,9 +425,9 @@ class WorkerPool:
             timer.cancel()
 
     def _maybe_schedule_idle_reap(self, affinity_key: Optional[Tuple[int, ...]]) -> None:
-        """Schedule idle reaping for a pinned worker if it just became idle."""
-        if affinity_key is None:
-            # Never reap the unpinned worker
+        """Schedule reaping/recycling of a worker that just became idle."""
+        delay = _IDLE_TIMEOUT_SECONDS if affinity_key is not None else self._recycle_idle_seconds
+        if delay is None:
             return
 
         with self._lock:
@@ -423,7 +439,7 @@ class WorkerPool:
 
             self._cancel_idle_timer(affinity_key)
             timer = threading.Timer(
-                _IDLE_TIMEOUT_SECONDS,
+                delay,
                 self._reap_idle_worker,
                 args=(affinity_key,),
             )
@@ -432,15 +448,12 @@ class WorkerPool:
             timer.start()
         logger.debug(
             "Scheduled idle reap for worker in %.0fs (affinity: %s)",
-            _IDLE_TIMEOUT_SECONDS,
+            delay,
             affinity_key,
         )
 
     def _reap_idle_worker(self, affinity_key: Optional[Tuple[int, ...]]) -> None:
-        """Reap (shutdown) an idle pinned worker."""
-        if affinity_key is None:
-            return
-
+        """Shut down an idle worker; the unpinned worker is restarted right away."""
         with self._lock:
             worker = self._workers.get(affinity_key)
             if worker is None or not worker.is_idle() or not worker.is_alive():
@@ -451,3 +464,16 @@ class WorkerPool:
 
         logger.info("Reaped idle worker (affinity: %s)", affinity_key)
         worker.shutdown()
+
+        if affinity_key is None:
+            self._restart_unpinned_worker()
+
+    def _restart_unpinned_worker(self) -> None:
+        """Start a fresh unpinned worker after an idle recycle."""
+        with self._lock:
+            if self._shutting_down.is_set() or self._workers.get(None) is not None:
+                return
+            if self._get_or_create_worker(None) is None:
+                logger.error("Failed to restart unpinned worker after idle recycle")
+                return
+        logger.info("Recycled idle unpinned worker")
