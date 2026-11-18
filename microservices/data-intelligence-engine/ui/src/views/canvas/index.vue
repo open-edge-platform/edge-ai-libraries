@@ -47,12 +47,11 @@
         <CanvasBoard
           v-if="!loading"
           ref="boardRef"
-          :library-id="libraryData.id"
+          :library-data="libraryData"
           :node-list="nodeList"
           :edge-list="edgeList"
           :loading="submitLoading"
-          :selected-key="selectedKey"
-          :selected-edge="selectedEdge"
+          :selection="{ key: selectedKey, edge: selectedEdge }"
           @connect="handleConnect"
           @select="handleSelect"
           @select-edge="handleSelectEdge"
@@ -60,416 +59,32 @@
           @create="handleCreate"
           @deselect="handleDeselect"
           @detach="handleDetach()"
+          @remove-node="handleRemoveNode"
         />
       </div>
     </a-card>
-    <a-drawer
+    <CanvasDetails
       :open="detailsVisible"
-      :title="$t('console.details')"
-      width="min(440px, 100vw)"
-      :mask="false"
-      class="canvas-inspector"
+      :library-data="libraryData"
+      :node="selectedNode"
+      :edge="selectedEdge"
+      :node-list="nodeList"
+      :assets="assetList"
+      :submit-loading="submitLoading"
       @close="handleDeselect"
-    >
-      <template v-if="selectedNode">
-        <div class="detail-title">
-          <CanvasResource :node="selectedNode" />
-          <a-typography-text copyable class="resource-id">{{
-            selectedNode.id
-          }}</a-typography-text>
-        </div>
-        <template v-if="selectedAsset">
-          <a-descriptions :column="1" bordered size="small">
-            <a-descriptions-item :label="$t('console.origin')">
-              {{ selectedAsset.origin }}
-            </a-descriptions-item>
-            <a-descriptions-item :label="$t('console.kind')">
-              {{
-                $te(`console.${selectedAsset.kind}`)
-                  ? $t(`console.${selectedAsset.kind}`)
-                  : selectedAsset.kind
-              }}
-            </a-descriptions-item>
-            <a-descriptions-item :label="$t('console.mediaType')">
-              {{ selectedAsset.media_type || "—" }}
-            </a-descriptions-item>
-            <a-descriptions-item :label="$t('console.contentSource')">
-              {{
-                libraryData.sources.find(
-                  (source) => source.id === selectedAsset?.content_source_id,
-                )?.name ||
-                selectedAsset.content_source_id ||
-                "—"
-              }}
-            </a-descriptions-item>
-            <a-descriptions-item :label="$t('console.pools')">
-              <a-tag v-for="pool in selectedAssetPools" :key="pool.id">
-                {{ pool.name }}
-              </a-tag>
-              <span v-if="!selectedAssetPools.length">{{
-                $t("console.none")
-              }}</span>
-            </a-descriptions-item>
-          </a-descriptions>
-          <div v-if="availablePools.length" class="association-wrap">
-            <h4>{{ $t("console.addToPool") }}</h4>
-            <div class="association-controls">
-              <a-select
-                v-model:value="relatedPoolId"
-                showSearch
-                optionFilterProp="label"
-                :placeholder="$t('console.pleaseSelect')"
-                :options="
-                  availablePools.map((pool) => ({
-                    value: pool.id,
-                    label: pool.name,
-                  }))
-                "
-              />
-              <a-button
-                :loading="submitLoading"
-                :disabled="!relatedPoolId"
-                @click="handleConnect(selectedKey, `pool:${relatedPoolId}`)"
-              >
-                {{ $t("console.add") }}
-              </a-button>
-            </div>
-          </div>
-          <a-button
-            danger
-            class="detail-action"
-            :disabled="selectedAsset.pending"
-            :title="selectedAsset.pending ? $t('console.assetPendingHint') : undefined"
-            @click="handleDeleteAsset"
-          >
-            {{ $t("common.delete") }}
-          </a-button>
-        </template>
-        <template v-else-if="selectedPool">
-          <a-row :gutter="16" class="stats-wrap">
-            <a-col :span="8">
-              <a-statistic
-                :title="$t('console.assets')"
-                :value="selectedPool.asset_ids.length"
-              />
-            </a-col>
-            <a-col :span="8">
-              <a-statistic
-                :title="$t('console.sources')"
-                :value="selectedPool.source_statuses.length"
-              />
-            </a-col>
-            <a-col :span="8">
-              <a-statistic
-                :title="$t('console.revision')"
-                :value="selectedPool.revision"
-              />
-            </a-col>
-          </a-row>
-          <SourceBinding
-            v-for="binding in selectedPool.source_statuses"
-            :key="binding.source_id"
-            :library-data="libraryData"
-            :pool="selectedPool"
-            :binding="binding"
-            removable
-            @search="handleSearch"
-            @detach="
-              handleDetach({
-                from: `pool:${selectedPool.id}`,
-                to: `source:${binding.source_id}`,
-              })
-            "
-          />
-          <div v-if="availableSources.length" class="association-wrap">
-            <h4>{{ $t("console.attachSource") }}</h4>
-            <div class="association-controls">
-              <a-select
-                v-model:value="relatedSourceId"
-                showSearch
-                optionFilterProp="label"
-                :placeholder="$t('console.pleaseSelect')"
-                :options="
-                  availableSources.map((source) => ({
-                    value: source.id,
-                    label: `${source.name} (${source.type})`,
-                  }))
-                "
-              />
-              <a-button
-                :loading="submitLoading"
-                :disabled="!relatedSourceId"
-                @click="handleConnect(selectedKey, `source:${relatedSourceId}`)"
-              >
-                {{ $t("console.add") }}
-              </a-button>
-            </div>
-          </div>
-          <a-collapse ghost class="pool-information">
-            <a-collapse-panel
-              key="assets"
-              :header="`${$t('console.poolAssets')} (${selectedPool.asset_ids.length})`"
-            >
-              <a-list :data-source="selectedPool.asset_ids" size="small">
-                <template #renderItem="{ item }">
-                  <a-list-item>
-                    <a @click="handleSelect(`asset:${item}`)">
-                      {{
-                        assetList.find((asset) => asset.id === item)?.name ||
-                        item
-                      }}
-                    </a>
-                  </a-list-item>
-                </template>
-              </a-list>
-            </a-collapse-panel>
-            <a-collapse-panel key="metadata" :header="$t('console.metadata')">
-              <JsonPretty
-                :data="selectedPool.metadata"
-                :theme="themeStore.theme === 'dark' ? 'dark' : 'light'"
-              />
-            </a-collapse-panel>
-          </a-collapse>
-          <div v-if="availableAssets.length" class="association-wrap">
-            <h4>{{ $t("console.addAssets") }}</h4>
-            <div class="association-controls">
-              <a-select
-                v-model:value="relatedAssetId"
-                showSearch
-                optionFilterProp="label"
-                :placeholder="$t('console.pleaseSelect')"
-                :options="
-                  availableAssets.map((asset) => ({
-                    value: asset.id,
-                    label: asset.name || asset.id,
-                  }))
-                "
-              />
-              <a-button
-                :loading="submitLoading"
-                :disabled="!relatedAssetId"
-                @click="handleConnect(`asset:${relatedAssetId}`, selectedKey)"
-              >
-                {{ $t("console.add") }}
-              </a-button>
-            </div>
-          </div>
-          <p class="section-hint">{{ $t("console.poolHint") }}</p>
-          <a-space wrap class="detail-action">
-            <a-button
-              type="primary"
-              ghost
-              @click="handleManagePool(selectedPool.id)"
-            >
-              {{ $t("console.manage") }}
-            </a-button>
-            <a-button @click="handleUpload(selectedPool.id)">
-              {{ $t("console.upload") }}
-            </a-button>
-            <a-button @click="handleRetrieve(selectedPool.id)">
-              {{ $t("console.retrieve") }}
-            </a-button>
-            <a-button danger @click="handleDeletePool">
-              {{ $t("common.delete") }}
-            </a-button>
-          </a-space>
-        </template>
-        <template v-else-if="selectedSource">
-          <a-descriptions :column="1" bordered size="small">
-            <a-descriptions-item :label="$t('console.type')">
-              {{
-                $te(`console.${selectedSource.type}Source`)
-                  ? $t(`console.${selectedSource.type}Source`)
-                  : selectedSource.type
-              }}
-            </a-descriptions-item>
-            <a-descriptions-item :label="$t('console.database')">
-              {{ selectedSource.database_id }}
-            </a-descriptions-item>
-            <a-descriptions-item :label="$t('console.collection')">
-              {{ selectedSource.collection_name }}
-            </a-descriptions-item>
-            <a-descriptions-item :label="$t('console.status')">
-              {{
-                $t(
-                  selectedSource.enabled
-                    ? "console.enabled"
-                    : "console.DISABLED",
-                )
-              }}
-            </a-descriptions-item>
-            <a-descriptions-item :label="$t('console.validation')">
-              <StatusTag
-                :value="
-                  selectedSource.reconciled ? 'reconciled' : 'unreconciled'
-                "
-              />
-            </a-descriptions-item>
-            <a-descriptions-item
-              v-if="selectedNode.content"
-              :label="$t('console.role')"
-            >
-              {{ $t("console.defaultContent") }}
-            </a-descriptions-item>
-          </a-descriptions>
-          <a-alert
-            v-if="selectedSource.reconciliation_error"
-            type="error"
-            showIcon
-            :message="selectedSource.reconciliation_error"
-            class="detail-notice"
-          />
-          <div class="configuration-wrap">
-            <h4>{{ $t("console.sourceConfiguration") }}</h4>
-            <JsonPretty
-              :data="selectedSource.operator_options"
-              :theme="themeStore.theme === 'dark' ? 'dark' : 'light'"
-            />
-            <p class="section-hint">{{ $t("console.sourcesHint") }}</p>
-          </div>
-          <h4>{{ $t("console.inUseBy") }}</h4>
-          <template v-if="selectedNode.content">
-            <a-tag v-for="pool in libraryData.asset_pools" :key="pool.id">{{
-              pool.name
-            }}</a-tag>
-            <p class="section-hint">{{ $t("console.contentLink") }}</p>
-          </template>
-          <template v-else>
-            <div v-for="entry in selectedSourceBindings" :key="entry.pool.id">
-              <h4>{{ entry.pool.name }}</h4>
-              <SourceBinding
-                :library-data="libraryData"
-                :pool="entry.pool"
-                :binding="entry.binding"
-                removable
-                @search="handleSearch"
-                @detach="
-                  handleDetach({
-                    from: `pool:${entry.pool.id}`,
-                    to: selectedKey,
-                  })
-                "
-              />
-            </div>
-            <p v-if="!selectedSourceBindings.length" class="section-hint">
-              {{ $t("console.none") }}
-            </p>
-            <div
-              v-if="availablePools.length && selectedSource.type !== 'object'"
-              class="association-wrap"
-            >
-              <h4>{{ $t("console.addToPool") }}</h4>
-              <div class="association-controls">
-                <a-select
-                  v-model:value="relatedPoolId"
-                  showSearch
-                  optionFilterProp="label"
-                  :placeholder="$t('console.pleaseSelect')"
-                  :options="
-                    availablePools.map((pool) => ({
-                      value: pool.id,
-                      label: pool.name,
-                    }))
-                  "
-                />
-                <a-button
-                  :loading="submitLoading"
-                  :disabled="!relatedPoolId"
-                  @click="handleConnect(`pool:${relatedPoolId}`, selectedKey)"
-                >
-                  {{ $t("console.add") }}
-                </a-button>
-              </div>
-            </div>
-          </template>
-          <a-button danger @click="handleDeleteSource">
-            {{ $t("common.delete") }}
-          </a-button>
-        </template>
-        <a-divider />
-        <a-space wrap>
-          <a-button @click="handleShowLinked">
-            {{ $t("console.showLinked") }}
-          </a-button>
-          <a-button @click="handleRemoveNode">
-            {{ $t("console.removeCanvas") }}
-          </a-button>
-        </a-space>
-      </template>
-      <template v-else-if="selectedEdge">
-        <div class="link-summary">
-          <span>
-            {{ nodeList.find((node) => node.key === selectedEdge?.from)?.name }}
-          </span>
-          <ArrowRightOutlined />
-          <span>
-            {{ nodeList.find((node) => node.key === selectedEdge?.to)?.name }}
-          </span>
-        </div>
-        <SourceBinding
-          v-if="selectedEdgePool && selectedEdgeBinding"
-          :library-data="libraryData"
-          :pool="selectedEdgePool"
-          :binding="selectedEdgeBinding"
-          @search="handleSearch"
-        />
-        <a-alert
-          v-if="selectedEdge.content"
-          type="info"
-          showIcon
-          :message="$t('console.contentLink')"
-        />
-        <a-alert
-          v-else-if="selectedEdge.from.startsWith('asset:')"
-          type="info"
-          showIcon
-          :message="$t('console.assetLink')"
-        />
-        <template v-else>
-          <p class="section-hint">{{ $t("console.detachHint") }}</p>
-          <a-button danger :loading="submitLoading" @click="handleDetach()">
-            {{ $t("console.detach") }}
-          </a-button>
-        </template>
-      </template>
-      <template v-else>
-        <h3>{{ libraryData.name }}</h3>
-        <a-descriptions :column="1" bordered size="small">
-          <a-descriptions-item :label="$t('console.description')">{{
-            libraryData.description || $t("console.noDescription")
-          }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.assets')">{{
-            libraryData.asset_count
-          }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.documents')">{{
-            libraryData.document_count
-          }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.chunks')">{{
-            libraryData.chunk_count
-          }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.pools')">{{
-            libraryData.asset_pools.length
-          }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.sources')">{{
-            libraryData.sources.length
-          }}</a-descriptions-item>
-          <a-descriptions-item :label="$t('console.contentDatabase')">{{
-            libraryData.content_database || "—"
-          }}</a-descriptions-item>
-        </a-descriptions>
-        <p class="section-hint detail-notice">
-          {{ $t("console.canvasInteractionHint") }}
-        </p>
-        <a-button type="primary" @click="handleRetrieve()">{{
-          $t("console.retrieve")
-        }}</a-button>
-      </template>
-      <template #footer
-        ><span class="section-hint">{{
-          $t("console.canvasKeyboardHint")
-        }}</span></template
-      >
-    </a-drawer>
+      @connect="handleConnect"
+      @add-assets="handleAddAssets"
+      @detach="handleDetach"
+      @select="handleSelect"
+      @search="handleSearch"
+      @manage="handleManagePool"
+      @upload="handleUpload"
+      @retrieve="handleRetrieve"
+      @remove-node="handleRemoveNode"
+      @delete-asset="handleDeleteAsset"
+      @delete-pool="handleDeletePool"
+      @delete-source="handleDeleteSource"
+    />
     <CreatePoolDialog
       v-if="createPool"
       :library-data="libraryData"
@@ -505,13 +120,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { Modal } from "ant-design-vue";
-import {
-  ArrowRightOutlined,
-  EyeOutlined,
-  NodeIndexOutlined,
-} from "@ant-design/icons-vue";
+import { EyeOutlined, NodeIndexOutlined } from "@ant-design/icons-vue";
 import {
   requestAssetDelete,
+  requestAssetPoolAssetDelete,
   requestAssetPoolAssetsCreate,
   requestAssetPoolDelete,
   requestAssetPoolSourcesUpdate,
@@ -519,22 +131,26 @@ import {
 } from "@/api/console";
 import type { IngestResult, Source } from "@/api/console/type";
 import { customNotification } from "@/utils/notification";
-import { themeAppStore } from "@/store/theme";
-import JsonPretty from "vue-json-pretty";
-import "vue-json-pretty/lib/styles.css";
 import type { ConsolePageProps } from "../../types/console";
 import type { CanvasEdge, CanvasNode, NodeKind, Position } from "./Type";
-import { buildCanvasEdges, buildCanvasNodes } from "./ResourceModel";
+import {
+  buildCanvasEdges,
+  buildCanvasNodes,
+  getSourceDisplayStatus,
+} from "./ResourceModel";
 import { resourceCategoryList } from "./ResourcePresentation";
 import CanvasBoard from "./components/CanvasBoard.vue";
-import CanvasResource from "./components/CanvasResource.vue";
+import CanvasDetails from "./components/CanvasDetails.vue";
 import CreatePoolDialog from "../pools/components/CreateDialog.vue";
 import CreateSourceDialog from "../sources/components/CreateDialog.vue";
 import UploadDialog from "../assets/components/UploadDialog.vue";
-import { getAssetProgress, readDroppedFiles, syncAssetProgress } from "../assets/AssetUtils";
+import {
+  getAssetProgress,
+  readDroppedFiles,
+  syncAssetProgress,
+} from "../assets/AssetUtils";
 import type { StagedFile } from "../assets/AssetUtils";
-import SourceBinding from "../sources/components/SourceBinding.vue";
-import StatusTag from "../../components/StatusTag.vue";
+import { isAssetDeletionBlocked } from "../assets/AssetProgress";
 const props = defineProps<ConsolePageProps>();
 const emit = defineEmits<{ refresh: [] }>();
 const handleSearch = () => emit("refresh");
@@ -551,14 +167,8 @@ const handleManagePool = (id: string) =>
   router.push({ path: "/pools", query: { pool: id } });
 const handleRetrieve = (pool?: string) =>
   router.push({ path: "/retrieve", query: pool ? { pool } : {} });
-const handleShowLinked = () => boardRef.value?.showLinked(selectedKey.value);
-const handleRemoveNode = () => {
-  boardRef.value?.removeNode(selectedKey.value);
-  handleDeselect();
-};
 const { t } = useI18n();
 const router = useRouter();
-const themeStore = themeAppStore();
 const boardRef = ref<InstanceType<typeof CanvasBoard>>();
 const loading = ref(true);
 const submitLoading = ref(false);
@@ -589,16 +199,24 @@ const queryAssetList = (showLoading = false): Promise<void> => {
             customNotification("error", message, undefined);
             return new Error(message);
           },
-          () => { if (!disposed) emit("refresh"); },
+          () => {
+            if (!disposed) emit("refresh");
+          },
           () => !disposed,
           showLoading,
         );
       } finally {
         loading.value = false;
         if (!disposed && progress.expire())
-          customNotification("warning", t("console.processing"), t("console.pollExpired"));
+          customNotification(
+            "warning",
+            t("console.processing"),
+            t("console.pollExpired"),
+          );
       }
-    })().finally(() => { inFlight = undefined; });
+    })().finally(() => {
+      inFlight = undefined;
+    });
   }
   return inFlight;
 };
@@ -632,9 +250,6 @@ const resourceCounts = computed(() => ({
 const selectedKey = ref("");
 const selectedEdge = ref<CanvasEdge>();
 const detailsVisible = ref(false);
-const relatedPoolId = ref<string>();
-const relatedSourceId = ref<string>();
-const relatedAssetId = ref<string>();
 const creationPosition = ref<Position>();
 const creationTarget = ref<CanvasNode>();
 const pendingSelection = ref("");
@@ -662,59 +277,6 @@ const selectedSource = computed(() =>
     (item) => `source:${item.id}` === selectedKey.value,
   ),
 );
-const selectedAssetPools = computed(
-  () =>
-    props.libraryData?.asset_pools.filter(
-      (pool) =>
-        selectedAsset.value && pool.asset_ids.includes(selectedAsset.value.id),
-    ) || [],
-);
-const selectedSourceBindings = computed(() =>
-  (props.libraryData?.asset_pools || []).flatMap((pool) =>
-    pool.source_statuses
-      .filter((binding) => binding.source_id === selectedSource.value?.id)
-      .map((binding) => ({ pool, binding })),
-  ),
-);
-const availablePools = computed(
-  () =>
-    props.libraryData?.asset_pools.filter((pool) =>
-      selectedAsset.value
-        ? !selectedAsset.value.pending && !pool.asset_ids.includes(selectedAsset.value.id)
-        : selectedSource.value &&
-          !pool.source_statuses.some(
-            (binding) => binding.source_id === selectedSource.value?.id,
-          ),
-    ) || [],
-);
-const availableSources = computed(
-  () =>
-    props.libraryData?.sources.filter(
-      (source) =>
-        source.type !== "object" &&
-        source.id !== props.libraryData?.default_content_source_id &&
-        selectedPool.value &&
-        !selectedPool.value.source_statuses.some(
-          (binding) => binding.source_id === source.id,
-        ),
-    ) || [],
-);
-const availableAssets = computed(() =>
-  assetList.value.filter(
-    (asset) =>
-      !asset.pending && selectedPool.value && !selectedPool.value.asset_ids.includes(asset.id),
-  ),
-);
-const selectedEdgePool = computed(() =>
-  props.libraryData?.asset_pools.find(
-    (pool) => `pool:${pool.id}` === selectedEdge.value?.from,
-  ),
-);
-const selectedEdgeBinding = computed(() =>
-  selectedEdgePool.value?.source_statuses.find(
-    (binding) => `source:${binding.source_id}` === selectedEdge.value?.to,
-  ),
-);
 const handleSelect = (key: string) => {
   selectedKey.value = key;
   selectedEdge.value = undefined;
@@ -724,6 +286,26 @@ const handleSelectEdge = (edge: CanvasEdge) => {
   selectedEdge.value = edge;
   selectedKey.value = "";
   detailsVisible.value = true;
+};
+const handleRemoveNode = (key: string) => {
+  if (key.startsWith("asset:")) {
+    const assetId = key.slice("asset:".length);
+    const pools = props.libraryData?.asset_pools.filter((pool) =>
+      pool.asset_ids.includes(assetId),
+    );
+    if (pools?.length) {
+      Modal.warning({
+        title: t("console.removeCanvas"),
+        content: t("console.removeCanvasLinkedAsset", {
+          pools: pools.map((pool) => pool.name).join(", "),
+        }),
+        okText: t("common.confirm"),
+      });
+      return;
+    }
+  }
+  boardRef.value?.removeNode(key);
+  if (selectedKey.value === key) handleDeselect();
 };
 const handleDeselect = () => {
   selectedKey.value = "";
@@ -744,8 +326,15 @@ const handleConnect = async (from: string, to: string) => {
     customNotification("warning", t("common.prompt"), t("console.invalidLink"));
     return;
   }
-  if (item.kind === "asset" && assetList.value.find((asset) => asset.id === item.id)?.pending) {
-    customNotification("info", t("common.prompt"), t("console.assetPendingHint"));
+  if (
+    item.kind === "asset" &&
+    assetList.value.find((asset) => asset.id === item.id)?.pending
+  ) {
+    customNotification(
+      "info",
+      t("common.prompt"),
+      t("console.assetPendingHint"),
+    );
     return;
   }
   const data = props.libraryData!.asset_pools.find(
@@ -788,22 +377,84 @@ const handleConnect = async (from: string, to: string) => {
     submitLoading.value = false;
   }
 };
+const handleAddAssets = async (poolId: string, assetIds: string[]) => {
+  if (submitLoading.value || !assetIds.length) return;
+  submitLoading.value = true;
+  try {
+    await requestAssetPoolAssetsCreate(props.libraryData!.name, poolId, {
+      asset_ids: assetIds,
+    });
+    boardRef.value?.placeNodes([
+      `pool:${poolId}`,
+      ...assetIds.map((id) => `asset:${id}`),
+    ]);
+    emit("refresh");
+    await queryAssetList();
+  } finally {
+    submitLoading.value = false;
+  }
+};
+const detachBlocked = (edge: CanvasEdge) => {
+  if (edge.from.startsWith("asset:")) {
+    const asset = assetList.value.find(
+      (item) => `asset:${item.id}` === edge.from,
+    );
+    return (
+      !asset || isAssetDeletionBlocked(asset, props.libraryData!.asset_pools)
+    );
+  }
+  const pool = props.libraryData!.asset_pools.find(
+    (item) => `pool:${item.id}` === edge.from,
+  );
+  const source = props.libraryData!.sources.find(
+    (item) => `source:${item.id}` === edge.to,
+  );
+  return (
+    pool?.display_status === "indexing" ||
+    (!!source &&
+      getSourceDisplayStatus(props.libraryData!, source) === "indexing")
+  );
+};
 const handleDetach = (edge = selectedEdge.value) => {
-  if (!edge) return;
+  if (!edge || submitLoading.value) return;
   if (
     edge.content ||
-    edge.to === `source:${props.libraryData!.default_content_source_id}` ||
-    edge.from.startsWith("asset:")
+    edge.to === `source:${props.libraryData!.default_content_source_id}`
   ) {
-    customNotification(
-      "info",
-      t("common.prompt"),
-      t(
-        edge.from.startsWith("asset:")
-          ? "console.assetLink"
-          : "console.contentLink",
-      ),
-    );
+    customNotification("info", t("common.prompt"), t("console.contentLink"));
+    return;
+  }
+  if (detachBlocked(edge)) return;
+  if (edge.from.startsWith("asset:")) {
+    const assetId = edge.from.slice("asset:".length);
+    const poolId = edge.to.slice("pool:".length);
+    Modal.confirm({
+      title: t("console.removeOneFromPool"),
+      content: t("console.removePoolAssetsConfirm", { count: 1 }),
+      okType: "danger",
+      okText: t("common.confirm"),
+      cancelText: t("common.cancel"),
+      async onOk() {
+        if (detachBlocked(edge)) return;
+        submitLoading.value = true;
+        try {
+          await requestAssetPoolAssetDelete(
+            props.libraryData!.name,
+            poolId,
+            assetId,
+          );
+          if (
+            selectedEdge.value?.from === edge.from &&
+            selectedEdge.value?.to === edge.to
+          )
+            handleDeselect();
+          emit("refresh");
+          await queryAssetList();
+        } finally {
+          submitLoading.value = false;
+        }
+      },
+    });
     return;
   }
   const pool = props.libraryData!.asset_pools.find(
@@ -826,6 +477,7 @@ const handleDetach = (edge = selectedEdge.value) => {
     okText: t("common.confirm"),
     cancelText: t("common.cancel"),
     async onOk() {
+      if (detachBlocked(edge)) return;
       submitLoading.value = true;
       try {
         await requestAssetPoolSourcesUpdate(props.libraryData!.name, pool.id, {
@@ -922,58 +574,79 @@ const handleUploaded = async (result: IngestResult) => {
   await queryAssetList();
   emit("refresh");
 };
-const handleDeleteAsset = () =>
+const handleDeleteAsset = () => {
+  const asset = selectedAsset.value;
+  if (!asset || isAssetDeletionBlocked(asset, props.libraryData!.asset_pools))
+    return;
+  const id = asset.id;
   Modal.confirm({
     title: t("common.delete"),
     content: t("console.deleteAssets", { count: 1 }),
     okType: "danger",
     async onOk() {
-      const id = selectedAsset.value!.id;
+      const current = assetList.value.find((item) => item.id === id);
+      if (
+        !current ||
+        isAssetDeletionBlocked(current, props.libraryData!.asset_pools)
+      )
+        return;
       await requestAssetDelete(props.libraryData!.name, {
         asset_ids: [id],
       });
-      boardRef.value?.removeNode(selectedKey.value);
-      handleDeselect();
+      boardRef.value?.removeNode(`asset:${id}`);
+      if (selectedKey.value === `asset:${id}`) handleDeselect();
       progress.remove([id]);
       await queryAssetList();
       emit("refresh");
     },
   });
-const handleDeletePool = () =>
+};
+const handleDeletePool = () => {
+  const pool = selectedPool.value;
+  if (!pool || pool.display_status === "indexing") return;
+  const id = pool.id;
   Modal.confirm({
     title: t("common.delete"),
-    content: t("console.deletePool", { name: selectedPool.value!.name }),
+    content: t("console.deletePool", { name: pool.name }),
     okType: "danger",
     async onOk() {
-      await requestAssetPoolDelete(
-        props.libraryData!.name,
-        selectedPool.value!.id,
+      const current = props.libraryData!.asset_pools.find(
+        (item) => item.id === id,
       );
-      boardRef.value?.removeNode(selectedKey.value);
-      handleDeselect();
+      if (!current || current.display_status === "indexing") return;
+      await requestAssetPoolDelete(props.libraryData!.name, id);
+      boardRef.value?.removeNode(`pool:${id}`);
+      if (selectedKey.value === `pool:${id}`) handleDeselect();
       emit("refresh");
     },
   });
-const handleDeleteSource = () =>
+};
+const handleDeleteSource = () => {
+  const source = selectedSource.value;
+  if (
+    !source ||
+    getSourceDisplayStatus(props.libraryData!, source) === "indexing"
+  )
+    return;
+  const id = source.id;
   Modal.confirm({
     title: t("common.delete"),
-    content: t("console.deleteSource", { name: selectedSource.value!.name }),
+    content: t("console.deleteSource", { name: source.name }),
     okType: "danger",
     async onOk() {
-      await requestSourceDelete(
-        props.libraryData!.name,
-        selectedSource.value!.id,
-      );
-      boardRef.value?.removeNode(selectedKey.value);
-      handleDeselect();
+      const current = props.libraryData!.sources.find((item) => item.id === id);
+      if (
+        !current ||
+        getSourceDisplayStatus(props.libraryData!, current) === "indexing"
+      )
+        return;
+      await requestSourceDelete(props.libraryData!.name, id);
+      boardRef.value?.removeNode(`source:${id}`);
+      if (selectedKey.value === `source:${id}`) handleDeselect();
       emit("refresh");
     },
   });
-watch(selectedKey, () => {
-  relatedPoolId.value = undefined;
-  relatedSourceId.value = undefined;
-  relatedAssetId.value = undefined;
-});
+};
 watch(nodeList, (nodes) => {
   if (
     pendingSelection.value &&
@@ -1095,69 +768,5 @@ watch(edgeList, (edges) => {
     margin-left: 4px;
     color: var(--font-info-color);
   }
-}
-.detail-title {
-  margin-bottom: 16px;
-  .resource-id {
-    display: block;
-    margin-top: 8px;
-    font-size: 12px;
-    color: var(--font-info-color);
-    overflow-wrap: anywhere;
-  }
-}
-.detail-action {
-  margin-top: 20px;
-}
-.stats-wrap {
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--bg-card-color);
-  margin-bottom: 16px;
-  :deep(.intel-statistic-content) {
-    font-size: 22px;
-  }
-}
-.configuration-wrap {
-  margin: 16px 0;
-}
-.link-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
-  background: var(--bg-card-color);
-  border-radius: 8px;
-  color: var(--font-main-color);
-}
-.association-wrap {
-  margin: 16px 0;
-}
-.association-controls {
-  display: flex;
-  gap: 8px;
-  .intel-select {
-    flex: 1;
-    min-width: 0;
-  }
-}
-.section-hint {
-  color: var(--font-info-color);
-  font-size: 12px;
-  line-height: 1.7;
-  margin-top: 10px;
-}
-.detail-notice {
-  margin: 16px 0;
-}
-.pool-information :deep(.intel-collapse-content-box) {
-  padding: 0 0 12px;
-}
-h4 {
-  margin: 12px 0 8px;
-  color: var(--font-main-color);
-  font-size: 13px;
 }
 </style>

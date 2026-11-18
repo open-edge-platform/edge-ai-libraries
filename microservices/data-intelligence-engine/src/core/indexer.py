@@ -200,30 +200,6 @@ class VectorIndexer:
 
     # --- assets -> nodes ------------------------------------------------------
 
-    def nodes_from(self, asset: Any) -> List[BaseNode]:
-        """One asset's content blocks as nodes; a chunk never spans two blocks."""
-        stream = asset.content
-        blocks = stream.ordered()
-        base = {**dict(stream.metadata), "asset_id": asset.asset_id}
-        nodes: List[BaseNode] = []
-        image_nodes: List[ImageNode] = []
-        for position in range(len(blocks)):
-            for node in self._block_nodes(stream, blocks, position, base):
-                nodes.append(node)
-                if isinstance(node, ImageNode) and node.metadata.get("media_key"):
-                    image_nodes.append(node)
-        # Image vectors are precomputed; text nodes are embedded by `insert_nodes`.
-        from core.embedding import embed_media_nodes
-
-        if image_nodes:
-            embed_media_nodes(
-                self._embedding_model,
-                image_nodes,
-                self._blob_reader,
-                getattr(asset, "content_source_id", None),
-            )
-        return nodes
-
     def _block_nodes(
         self, stream: ContentStream, blocks: Sequence[ContentBlock], position: int,
         base: Mapping[str, Any],
@@ -309,12 +285,10 @@ class VectorIndexer:
             id_=block.block_id,
             text=block.text,
             metadata={**base, **block.layout_metadata()},
+            excluded_embed_metadata_keys=list(EMBED_EXCLUDED_METADATA_KEYS),
+            excluded_llm_metadata_keys=list(EMBED_EXCLUDED_METADATA_KEYS),
         )
-        nodes = self._node_parser.run([document])
-        for node in nodes:
-            node.excluded_embed_metadata_keys = list(EMBED_EXCLUDED_METADATA_KEYS)
-            node.excluded_llm_metadata_keys = list(LAYOUT_METADATA_KEYS)
-        return nodes
+        return self._node_parser.run([document])
 
     def _media_node(
         self, stream: ContentStream, position: int, base: Mapping[str, Any]
@@ -347,25 +321,78 @@ class VectorIndexer:
     def remove(self, asset_ids: Collection[str]) -> int:
         return self.delete_by_metadata("asset_id", list(asset_ids))
 
+    def reembed(self, assets: Sequence[Any]) -> int:
+        from llama_index.core.schema import MetadataMode
+
+        from core.embedding import embed_media_nodes
+
+        nodes = self._stored_nodes(assets)
+        content_sources = {
+            asset.asset_id: getattr(asset, "content_source_id", None) for asset in assets
+        }
+        fused_by_source: Dict[Any, List[BaseNode]] = {}
+        for node in nodes:
+            if isinstance(node, ImageNode) and node.metadata.get("media_key"):
+                fused_by_source.setdefault(
+                    content_sources.get(node.metadata.get("asset_id")), []
+                ).append(node)
+        for source_id, group in fused_by_source.items():
+            embed_media_nodes(self._embedding_model, group, self._blob_reader, source_id)
+        texts = [node for node in nodes if node.embedding is None]
+        if texts:
+            vectors = self._embedding_model.get_text_embedding_batch(
+                [node.get_content(metadata_mode=MetadataMode.EMBED) for node in texts]
+            )
+            for node, vector in zip(texts, vectors):
+                node.embedding = list(vector)
+        return self._write_embeddings(self.collection, nodes)
+
+    def reembed_concepts(self) -> int:
+        from llama_index.core.schema import MetadataMode
+
+        collection = VectorCollection(f"{self.collection.name}_concept", self.dimension)
+        if not self._adapter.has_collection(collection):
+            return 0
+        nodes = self._adapter.load_nodes(collection)
+        if not nodes:
+            return 0
+        vectors = self._embedding_model.get_text_embedding_batch(
+            [node.get_content(metadata_mode=MetadataMode.EMBED) for node in nodes]
+        )
+        for node, vector in zip(nodes, vectors):
+            node.embedding = list(vector)
+        return self._write_embeddings(collection, nodes)
+
+    def _stored_nodes(self, assets: Sequence[Any]) -> List[BaseNode]:
+        nodes = self._adapter.load_nodes_where(
+            self.collection, "asset_id", [asset.asset_id for asset in assets]
+        )
+        for node in nodes:
+            node.embedding = None
+        return nodes
+
+    def _write_embeddings(
+        self, collection: VectorCollection, nodes: Sequence[BaseNode]
+    ) -> int:
+        written = self._adapter.update_embeddings(
+            collection,
+            {node.node_id: node.embedding for node in nodes if node.embedding is not None},
+        )
+        self.version += 1
+        return written
+
     def materialize(
-        self, request: VectorIngestRequest, documents_added: Optional[int] = None
+        self, request: VectorIngestRequest, documents_added: int = 0
     ) -> Dict[str, int]:
         """Write nodes into the collection; `documents_added` overrides the document count."""
         self._validate_collection()
         nodes = list(request.nodes)
-        if request.documents:
-            nodes.extend(self._node_parser.run(request.documents))
         if nodes:
             exposure.stamp_nodes(nodes, self.source)
             self._index.insert_nodes(nodes)
             self._adapter.flush(self.collection)
             self.version += 1
-        return {
-            "documents_added": (
-                len(request.documents) if documents_added is None else documents_added
-            ),
-            "chunks_added": len(nodes),
-        }
+        return {"documents_added": documents_added, "chunks_added": len(nodes)}
 
     def retrieve(self, query: VectorRetrieveRequest) -> List[NodeWithScore]:
         self._validate_collection()
@@ -574,27 +601,67 @@ class MultimodalIndexer(VectorIndexer):
     def _vector_for(
         self, stream: ContentStream, block: ContentBlock
     ) -> Optional[List[float]]:
+        return self._media_vector(
+            self._asset_of(stream),
+            role_of(block),
+            block.media_key,
+            stream.metadata.get("file_name"),
+        )
+
+    def _media_vector(
+        self, asset: Any, role: str, media_key: str, file_name: Optional[str]
+    ) -> Optional[List[float]]:
         from core.multimodal import frames as frame_utils
 
-        role = role_of(block)
-        asset = self._asset_of(stream)
         if role in (ROLE_IMAGE, ROLE_DOC_IMAGE):
             from io import BytesIO  # noqa: PLC0415
 
             from PIL import Image  # noqa: PLC0415
 
-            image = Image.open(BytesIO(asset.read_blob(block.media_key))).convert("RGB")
+            image = Image.open(BytesIO(asset.read_blob(media_key))).convert("RGB")
             return self._embedding.get_image_embeddings([image])[0]
         if role in (ROLE_SHORT_VIDEO, ROLE_L1_SEGMENT):
             import os  # noqa: PLC0415
 
-            suffix = os.path.splitext(stream.metadata.get("file_name") or "")[1] or ".mp4"
-            with asset.media_path(block.media_key, suffix) as path:
+            suffix = os.path.splitext(file_name or "")[1] or ".mp4"
+            with asset.media_path(media_key, suffix) as path:
                 sampled = frame_utils.sample_frames(
                     path, getattr(self._embedding, "frames_per_clip", 8)
                 )
             return self._embedding.get_video_embedding(sampled)
         return None
+
+    def reembed(self, assets: Sequence[Any]) -> int:
+        by_id = {asset.asset_id: asset for asset in assets}
+        nodes = self._stored_nodes(assets)
+        texts = []
+        for node in nodes:
+            metadata = node.metadata
+            if metadata.get("kind") == TEXT:
+                texts.append(node)
+                continue
+            vector = self._media_vector(
+                by_id[metadata["asset_id"]],
+                str(metadata.get("role") or ""),
+                metadata.get("media_key"),
+                metadata.get("file_name"),
+            )
+            if vector is None:
+                raise ValueError(
+                    f"Cannot re-embed record {node.node_id!r}: role "
+                    f"{metadata.get('role')!r} has no media embedding"
+                )
+            node.embedding = list(vector)
+        if texts:
+            vectors = self._embedding.get_text_embedding_batch(
+                [node.get_content() for node in texts]
+            )
+            for node, vector in zip(texts, vectors):
+                node.embedding = list(vector)
+        return self._write_embeddings(self.collection, nodes)
+
+    def reembed_concepts(self) -> int:
+        return 0
 
     def _asset_of(self, stream: ContentStream) -> Any:
         asset = self._assets_by_stream.get(id(stream))
@@ -621,7 +688,9 @@ class _DeclaredWidth(BaseEmbedding):
     _embedding: Any = PrivateAttr()
 
     def __init__(self, embedding):
-        super().__init__()
+        import config
+
+        super().__init__(embed_batch_size=config.INGEST_BATCH_SIZE)
         self._embedding = embedding
 
     @classmethod

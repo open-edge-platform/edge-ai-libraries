@@ -22,7 +22,7 @@ services:
       OKF_EXTRACTOR_PORT: ${OKF_EXTRACTOR_CONTAINER_PORT:-8080}
       OKF_EXTRACTOR_API_KEY: ${OKF_EXTRACTOR_API_KEY:-}
       OKF_EXTRACTOR_MAX_TASK_BYTES: ${OKF_EXTRACTOR_MAX_TASK_BYTES:-67108864}
-      ENGINE_UPLOAD_DIR: ${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE:-/workspace}/uploads}
+      ENGINE_UPLOAD_DIR: ${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE_CONTAINER_PATH:-/workspace}/uploads}
       OKF_EXTRACTOR_LLM_BASE_URL: ${OKF_EXTRACTOR_LLM_BASE_URL:-http://host.docker.internal:8000/v1}
       OKF_EXTRACTOR_LLM_MODEL: ${OKF_EXTRACTOR_LLM_MODEL:-Qwen/Qwen3.5-122B-A10B}
       OKF_EXTRACTOR_LLM_API_KEY: ${OKF_EXTRACTOR_LLM_API_KEY:-EMPTY}
@@ -34,9 +34,9 @@ services:
       - "${OKF_EXTRACTOR_PORT:-8080}:${OKF_EXTRACTOR_CONTAINER_PORT:-8080}"
     # Default UID/GID matches the engine image's non-root `user`. Override only
     # to match the actual shared directory/engine ownership, not to run as root.
-    user: "${OKF_EXTRACTOR_UID:-1000}:${OKF_EXTRACTOR_GID:-1000}"
+    user: "${USER_UID:-1000}:${USER_GID:-1000}"
     volumes:
-      - ${ENGINE_UPLOAD_PATH:-${ENGINE_WORKSPACE_PATH:-../../workspace}/uploads}:${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE:-/workspace}/uploads}
+      - ${ENGINE_UPLOAD_PATH:-${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/uploads}:${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE_CONTAINER_PATH:-/workspace}/uploads}
     restart: unless-stopped
 
 networks:

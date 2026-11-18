@@ -1,6 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 import json
+import math
 import os
 from pathlib import Path
 
@@ -21,11 +22,34 @@ def _env_int(
     return value
 
 
+def _env_float(name: str, default: float) -> float:
+    value = float(os.getenv(name, str(default)))
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} must be a finite positive number")
+    return value
+
+
+# Online console media preparation; independent of embedding/reranking budgets.
+MEDIA_MAX_HITS = _env_int("ENGINE_MAX_MEDIA_HITS", 2)
+MEDIA_MAX_TOTAL_FRAMES = _env_int("ENGINE_MAX_TOTAL_MEDIA_FRAMES", 8)
+MEDIA_IMAGE_LONGEST_SIDE = _env_int("ENGINE_IMAGE_LONGEST_SIDE", 768)
+MEDIA_JPEG_QUALITY = _env_int("ENGINE_MEDIA_JPEG_QUALITY", 90, maximum=100)
+MEDIA_MAX_SOURCE_BYTES = _env_int("ENGINE_MEDIA_MAX_SOURCE_BYTES", 104857600)
+MEDIA_MAX_PIXELS = _env_int("ENGINE_MEDIA_MAX_PIXELS", 40000000)
+MEDIA_MAX_PAYLOAD_BYTES = _env_int("ENGINE_MEDIA_MAX_PAYLOAD_BYTES", 8388608)
+MEDIA_PREPARE_TIMEOUT_S = _env_float("ENGINE_MEDIA_PREPARE_TIMEOUT_S", 15)
+MEDIA_PREPARE_WORKERS = _env_int("ENGINE_MEDIA_PREPARE_WORKERS", 2)
+MEDIA_VIDEO_SAMPLE_FPS = _env_float("ENGINE_VIDEO_SAMPLE_FPS", 1.0)
+MEDIA_MAX_VIDEO_FRAMES = _env_int("ENGINE_MAX_VIDEO_FRAMES", 4, minimum=2)
+MEDIA_VIDEO_WIDTH = _env_int("ENGINE_VIDEO_WIDTH", 480)
+MEDIA_VIDEO_HEIGHT = _env_int("ENGINE_VIDEO_HEIGHT", 270)
+
+
 HOST = os.getenv("ENGINE_HOST", "0.0.0.0")
 PORT = _env_int("ENGINE_PORT", 16022, maximum=65535)
 LOG_LEVEL = os.getenv("ENGINE_LOG_LEVEL", "INFO").upper()
 CORS_ALLOW_ORIGINS = ["*"]
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = False
 CORS_ALLOW_METHODS = ["*"]
 CORS_ALLOW_HEADERS = ["*"]
 # Default page size of `GET /v1/libraries/{library}/assets`.
@@ -66,6 +90,7 @@ FIGURE_CONTEXT_CHARS = 400
 # Nodes embedded and inserted per batch, and max built-but-unembedded nodes queued.
 INGEST_BATCH_SIZE = 16
 INGEST_QUEUE_MAX = 64
+INGEST_INSERT_BATCH_SIZE = 100
 
 # --- Model backends -----------------------------------------------------------
 LOCAL_OPENVINO = "local_openvino"
@@ -94,7 +119,7 @@ EMBEDDING_BACKEND = _backend("ENGINE_DOC_EMBEDDING_BACKEND")
 EMBEDDING_MODEL_ID = os.getenv(
     "ENGINE_DOC_EMBEDDING_MODEL_ID", "gme-Qwen2-VL-2B-Instruct-OV"
 )
-EMBEDDING_DEVICE = os.getenv("ENGINE_DOC_EMBEDDING_DEVICE", "CPU")
+EMBEDDING_DEVICE = os.getenv("ENGINE_DOC_EMBEDDING_DEVICE", "GPU")
 EMBEDDING_API_BASE = os.getenv("ENGINE_DOC_EMBEDDING_API_BASE", "")  # remote_openai_compatible
 EMBEDDING_API_KEY = os.getenv("ENGINE_DOC_EMBEDDING_API_KEY", "unused")
 # Upper bound on input length; the genai pipeline pads every input to it.
@@ -137,7 +162,7 @@ IMAGE_HTTP_TIMEOUT = 30.0  # seconds
 # --- Reranker (postprocessing) ------------------------------------------------
 RERANK_BACKEND = _backend("ENGINE_RERANK_BACKEND")
 RERANK_MODEL_ID = os.getenv("ENGINE_RERANK_MODEL_ID", "Qwen3-VL-Reranker-2B-INT8-OV")
-RERANK_DEVICE = os.getenv("ENGINE_RERANK_DEVICE", "CPU")
+RERANK_DEVICE = os.getenv("ENGINE_RERANK_DEVICE", "GPU")
 RERANK_API_BASE = os.getenv("ENGINE_RERANK_API_BASE", "")  # remote_openai_compatible
 RERANK_API_KEY = os.getenv("ENGINE_RERANK_API_KEY", "unused")
 REMOTE_RERANK_TIMEOUT = 120.0  # seconds
@@ -157,7 +182,7 @@ MEDIA_RERANK_DOC_WORKERS = _env_int("ENGINE_MEDIA_RERANK_DOC_WORKERS", 8, maximu
 # Only PP-DocLayoutV3 on OpenVINO is supported.
 LAYOUT_BACKEND = LOCAL_OPENVINO
 LAYOUT_MODEL_ID = "PP-DocLayoutV3"
-LAYOUT_DEVICE = os.getenv("ENGINE_LAYOUT_DEVICE", "CPU")
+LAYOUT_DEVICE = os.getenv("ENGINE_LAYOUT_DEVICE", "GPU")
 # Detections below this confidence are dropped before a block is emitted.
 LAYOUT_SCORE_THRESHOLD = 0.3
 
@@ -188,20 +213,20 @@ VIDEO_EMBEDDING_BACKEND = _backend("ENGINE_VIDEO_EMBEDDING_BACKEND")
 VIDEO_EMBEDDING_MODEL_ID = os.getenv(
     "ENGINE_VIDEO_EMBEDDING_MODEL_ID", "viclip-b-fp16"
 )
-VIDEO_EMBEDDING_DEVICE = os.getenv("ENGINE_VIDEO_EMBEDDING_DEVICE", "CPU")
+VIDEO_EMBEDDING_DEVICE = os.getenv("ENGINE_VIDEO_EMBEDDING_DEVICE", "GPU")
 
 # Images and media-derived text; requires a pre-exported OpenVINO package.
 IMAGE_EMBEDDING_BACKEND = _backend("ENGINE_IMAGE_EMBEDDING_BACKEND")
 IMAGE_EMBEDDING_MODEL_ID = os.getenv(
     "ENGINE_IMAGE_EMBEDDING_MODEL_ID", "gme-Qwen2-VL-2B-Instruct-OV"
 )
-IMAGE_EMBEDDING_DEVICE = os.getenv("ENGINE_IMAGE_EMBEDDING_DEVICE", "CPU")
+IMAGE_EMBEDDING_DEVICE = os.getenv("ENGINE_IMAGE_EMBEDDING_DEVICE", "GPU")
 
 # Speech recognition for audio `l2_transcript` blocks; the IR must be prepared at
 # the model path or its `openvino/` subdirectory.
 ASR_BACKEND = LOCAL_OPENVINO
 ASR_MODEL_ID = os.getenv("ENGINE_ASR_MODEL_ID", "whisper-small")
-ASR_DEVICE = os.getenv("ENGINE_ASR_DEVICE", "CPU")
+ASR_DEVICE = os.getenv("ENGINE_ASR_DEVICE", "GPU")
 # Whisper language code ("zh", "en", ...); empty detects it per recording.
 ASR_LANGUAGE = os.getenv("ENGINE_ASR_LANGUAGE", "zh")
 # Whisper prompt; for zh it steers output toward simplified characters.
