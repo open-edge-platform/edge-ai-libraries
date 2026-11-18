@@ -3343,6 +3343,28 @@ class TestToFromDict(unittest.TestCase):
 
 
 class TestGraphToDescription(unittest.TestCase):
+    def test_blank_properties_are_not_serialized(self):
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="fakesrc", data={"name": "", "num-buffers": "0"}),
+                Node(
+                    id="1",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "format": "", "width": "1280"},
+                ),
+                Node(id="2", type="fakesink", data={"sync": "false"}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+        self.assertEqual(
+            graph.to_pipeline_description(),
+            "fakesrc num-buffers=0 ! video/x-raw,width=1280 ! fakesink sync=false",
+        )
+        self.assertEqual(graph.nodes[0].data["name"], "")
+
     @patch("graph.SupportedModelsManager")
     @patch("graph.VideosManager")
     def test_graph_to_description(self, mock_videos_cls, mock_models_cls):

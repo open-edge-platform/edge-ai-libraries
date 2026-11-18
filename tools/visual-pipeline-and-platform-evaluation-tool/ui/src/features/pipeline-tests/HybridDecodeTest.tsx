@@ -85,8 +85,10 @@ export const HybridDecodeTest = ({
   const [videoName, setVideoName] = useState("");
   const [coreOverride, setCoreOverride] = useState<number[] | null>(null);
   const [pinningOpen, setPinningOpen] = useState(false);
-  const [fps, setFps] = useState(30);
-  const [duration, setDuration] = useState(30);
+  const [fpsInput, setFpsInput] = useState("30");
+  const [durationInput, setDurationInput] = useState("30");
+  const fps = Number(fpsInput);
+  const duration = Number(durationInput);
   const [error, setError] = useState<string | null>(null);
   const [cpuUsage, setCpuUsage] = useState<Record<number, number | undefined>>(
     {},
@@ -168,7 +170,7 @@ export const HybridDecodeTest = ({
     selectedHardware &&
     selectedSoftware &&
     !configurationError &&
-    Number.isFinite(fps) &&
+    Number.isInteger(fps) &&
     fps >= 1 &&
     Number.isFinite(duration) &&
     duration >= 10;
@@ -313,8 +315,8 @@ export const HybridDecodeTest = ({
             id="hybrid-fps"
             type="number"
             min={1}
-            value={fps}
-            onChange={(event) => setFps(Number(event.target.value))}
+            value={fpsInput}
+            onChange={(event) => setFpsInput(event.target.value)}
             disabled={isRunning}
             className="w-28"
           />
@@ -330,8 +332,8 @@ export const HybridDecodeTest = ({
             id="hybrid-duration"
             type="number"
             min={10}
-            value={duration}
-            onChange={(event) => setDuration(Number(event.target.value))}
+            value={durationInput}
+            onChange={(event) => setDurationInput(event.target.value)}
             disabled={isRunning}
             className="w-28"
           />

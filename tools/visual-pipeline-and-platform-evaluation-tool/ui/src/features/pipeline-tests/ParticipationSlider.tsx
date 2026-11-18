@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Slider } from "@/components/ui/slider.tsx";
 import { cn } from "@/lib/utils.ts";
 
@@ -18,6 +19,7 @@ export const ParticipationSlider = ({
   disabled = false,
   valueInputClassName,
 }: ParticipationSliderProps) => {
+  const [draft, setDraft] = useState<string | null>(null);
   return (
     <div
       className={cn(
@@ -32,6 +34,7 @@ export const ParticipationSlider = ({
         value={[value]}
         onValueChange={(val) => {
           if (!disabled) {
+            setDraft(null);
             onChange(val[0]);
           }
         }}
@@ -46,14 +49,20 @@ export const ParticipationSlider = ({
       </span>
       <input
         type="number"
-        value={value}
+        value={draft ?? value}
         onChange={(e) => {
           if (disabled) return;
-          const newValue = parseInt(e.target.value, 10);
-          if (!isNaN(newValue) && newValue >= min && newValue <= max) {
+          setDraft(e.target.value);
+          const newValue = e.target.valueAsNumber;
+          if (
+            Number.isInteger(newValue) &&
+            newValue >= min &&
+            newValue <= max
+          ) {
             onChange(newValue);
           }
         }}
+        onBlur={() => setDraft(null)}
         min={min}
         max={max}
         className={cn(

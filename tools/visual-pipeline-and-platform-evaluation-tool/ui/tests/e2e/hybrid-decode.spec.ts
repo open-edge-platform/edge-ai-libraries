@@ -216,6 +216,14 @@ test("HEVC hybrid request preserves pinning and marks the best configuration", a
   const submission = await setup(page, 0, undefined, () => completed);
   await page.getByRole("combobox", { name: "Video source" }).click();
   await page.getByRole("option", { name: /h265.mp4/ }).click();
+  const targetFps = page.getByLabel("Target FPS", { exact: true });
+  await targetFps.clear();
+  await expect(targetFps).toHaveValue("");
+  await expect(
+    page.getByRole("button", { name: "Run hybrid decode" }),
+  ).toBeDisabled();
+  await targetFps.pressSequentially("30");
+  await expect(targetFps).toHaveValue("30");
   await expect(page.getByRole("combobox", { name: "Video source" })).toHaveText(
     "h265.mp4 · H.265",
   );
@@ -308,6 +316,32 @@ test("HEVC hybrid request preserves pinning and marks the best configuration", a
   });
 });
 
+test("classic and mixed density accept clearing and retyping target FPS", async ({
+  page,
+}) => {
+  await setup(page);
+  for (const mode of ["Classic", "Mixed"]) {
+    await page.getByRole("tab", { name: mode, exact: true }).click();
+    const fps = page.getByLabel("Set target FPS");
+    await fps.clear();
+    await expect(fps).toHaveValue("");
+    await expect(
+      page.getByRole("button", { name: "Run density test" }),
+    ).toBeDisabled();
+    await fps.pressSequentially("45");
+    await expect(fps).toHaveValue("45");
+    await expect(
+      page.getByRole("button", { name: "Run density test" }),
+    ).toBeEnabled();
+  }
+  await page.getByRole("tab", { name: "Classic" }).click();
+  const participation = page.getByRole("tabpanel").getByRole("spinbutton");
+  await participation.clear();
+  await expect(participation).toHaveValue("");
+  await participation.pressSequentially("100");
+  await expect(participation).toHaveValue("100");
+});
+
 test("hybrid test automatically matches the codec and requires a stable runtime", async ({
   page,
 }) => {
@@ -317,9 +351,13 @@ test("hybrid test automatically matches the codec and requires a stable runtime"
   await page.getByRole("combobox", { name: "Video source" }).click();
   await page.getByRole("option", { name: /h265.mp4/ }).click();
   await expect(run).toBeEnabled();
-  await page.getByLabel("Iteration duration (s)").fill("5");
+  const duration = page.getByLabel("Iteration duration (s)");
+  await duration.clear();
+  await expect(duration).toHaveValue("");
   await expect(run).toBeDisabled();
-  await page.getByLabel("Iteration duration (s)").fill("30");
+  await duration.pressSequentially("5");
+  await expect(run).toBeDisabled();
+  await duration.fill("30");
   await page.getByRole("combobox", { name: "Video source" }).click();
   await page.getByRole("option", { name: /h264.mp4/ }).click();
   await expect(page.getByText("avdec_h264", { exact: true })).toBeVisible();

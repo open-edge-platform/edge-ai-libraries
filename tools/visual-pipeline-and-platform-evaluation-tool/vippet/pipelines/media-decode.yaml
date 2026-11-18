@@ -6,6 +6,7 @@ definition: >
   Media-only AVC/HEVC decode for measuring stream density and CPU utilization.
 tags:
   - Media
+thumbnail: images/media-decode.png
 type: vision
 variants:
   - name: VDBox

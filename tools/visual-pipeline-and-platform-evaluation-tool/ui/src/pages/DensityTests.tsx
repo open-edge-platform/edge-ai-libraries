@@ -65,7 +65,7 @@ export const DensityTests = () => {
     MixedPipelineSelection[]
   >([]);
   const [mixedStreams, setMixedStreams] = useState(DEFAULT_MIXED_STREAMS);
-  const [fpsFloor, setFpsFloor] = useState<number>(30);
+  const [fpsInput, setFpsInput] = useState("30");
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
     min_stream_fps: number | null;
@@ -112,9 +112,14 @@ export const DensityTests = () => {
 
   const isMixedMode = mode === "mixed";
 
-  const canRunTest = isMixedMode
-    ? isMixedSelectionValid(mixedSelections, mixedStreams)
-    : isClassicSelectionValid(classicSelections);
+  const fpsFloor = Number(fpsInput);
+  const canRunTest =
+    Number.isInteger(fpsFloor) &&
+    fpsFloor >= 1 &&
+    fpsFloor <= 120 &&
+    (isMixedMode
+      ? isMixedSelectionValid(mixedSelections, mixedStreams)
+      : isClassicSelectionValid(classicSelections));
 
   const handleRunTest = async () => {
     if (!canRunTest) return;
@@ -258,14 +263,18 @@ export const DensityTests = () => {
 
       {mode !== "hybrid" && (
         <div className="my-4">
-          <label className="block text-sm font-medium mb-2">
+          <label
+            htmlFor="density-fps"
+            className="block text-sm font-medium mb-2"
+          >
             Set target FPS
           </label>
           <div className="flex items-center gap-3">
             <input
+              id="density-fps"
               type="number"
-              value={fpsFloor}
-              onChange={(e) => setFpsFloor(Number(e.target.value))}
+              value={fpsInput}
+              onChange={(event) => setFpsInput(event.target.value)}
               min={1}
               max={120}
               disabled={isRunning}

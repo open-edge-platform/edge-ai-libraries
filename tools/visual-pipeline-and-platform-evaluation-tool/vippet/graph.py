@@ -4251,7 +4251,7 @@ def _build_chain(
             props_items = [
                 (key, value)
                 for key, value in node.data.items()
-                if not key.startswith("__")
+                if not key.startswith("__") and value != ""
             ]
 
             if props_items:
@@ -4270,7 +4270,7 @@ def _build_chain(
             result_parts.append(node.type)
             spec = _model_spec(node.type)
             for key, value in node.data.items():
-                if key.startswith("__"):
+                if key.startswith("__") or value == "":
                     continue
                 # Remap the canonical in-memory key ``model`` back to the wire key
                 # declared in NODE_MODEL_SPECS for this node type (e.g. ``model-path``
