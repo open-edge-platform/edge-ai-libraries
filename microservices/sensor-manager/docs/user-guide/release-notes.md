@@ -15,4 +15,4 @@ Initial release of Sensor Manager as a camera discovery service.
 - **GigE Vision camera discovery**: GigE Vision cameras are discovered with the Aravis
   `arv-tool-0.8` utility and reported as `GIGE` sensors with their vendor, model, serial number
   and current acquisition settings.
-- **REST API**: `/api/v1/sensors` REST API, Docker Compose file and Helm chart.
+- **REST API**: `/api/v1/sensors` REST API and Docker Compose file.
