@@ -155,7 +155,8 @@ docker logs agent-harness-install-ovms 2>&1 | grep -i parser
 ```
 
 If the template is not recognised, the detected parser is wrong for the
-model, or parsing should be disabled, override it through the installer:
+model, parsing should be disabled, or `HARNESS_OVMS_IMAGE` pins an OVMS
+release older than 2026.3 (no auto-detection), set it through the installer:
 
 ```bash
 HARNESS_OVMS_TOOL_PARSER=hermes3 ./install.sh --harness hermes --model OpenVINO/Qwen3-8B-int4-ov --non-interactive
