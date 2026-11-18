@@ -23,7 +23,7 @@ configure_smart_kiosk_assistant_device () {
 
   ./setup_models.sh --device ${device}
 
-  local OVMS_MODEL_NAME="$(grep -m1 ^OVMS_MODEL_NAME= .env | cut -f2- -d= | tr -d'"')"
+  local OVMS_MODEL_NAME="$(grep -m1 ^OVMS_MODEL_NAME= .env | cut -f2- -d= | tr -d '"')"
   [ -e "$workspace"/smart-kiosk-assistant/models/${OVMS_MODEL_NAME}/openvino_model.bin ] || {
     echo "Missing ${OVMS_MODEL_NAME}" >&2
     return 1
@@ -34,8 +34,8 @@ verify_smart_kiosk_assistant () {
   [ -f "$workspace"/smart-kiosk-assistant/.env ] || return 1
 
   cd "$workspace"/smart-kiosk-assistant
-  local MEDIA_FILES="$(grep -m1 ^MEDIA_FILES= .env | cut -f2- -d= | tr -d'"')"
-  local SAMPLE_DATA_DIR="$(grep -m1 ^SAMPLE_DATA_DIR= .env | cut -f2- -d= | tr -d'"')"
+  local MEDIA_FILES="$(grep -m1 ^MEDIA_FILES= .env | cut -f2- -d= | tr -d '"')"
+  local SAMPLE_DATA_DIR="$(grep -m1 ^SAMPLE_DATA_DIR= .env | cut -f2- -d= | tr -d '"')"
   local f
   for f in ${MEDIA_FILES//,/ }; do
     [ -e "$SAMPLE_DATA_DIR/$f" ] || { 
