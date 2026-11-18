@@ -48,8 +48,8 @@ services:
       - "${NEBULA_META_HTTP_PORT:-19559}:${NEBULA_META_INTERNAL_HTTP_PORT:-19559}"
       - "${NEBULA_META_HTTP2_PORT:-19560}:19560"
     volumes:
-      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/nebula/data/meta0:/data/meta
-      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/nebula/logs/meta0:/logs
+      - ${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/nebula/data/meta0:/data/meta
+      - ${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/nebula/logs/meta0:/logs
     ulimits: *ulimits
     restart: on-failure
     cap_add:
@@ -80,8 +80,8 @@ services:
       - "${NEBULA_STORAGE_HTTP_PORT:-19779}:${NEBULA_STORAGE_INTERNAL_HTTP_PORT:-19779}"
       - "${NEBULA_STORAGE_HTTP2_PORT:-19780}:19780"
     volumes:
-      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/nebula/data/storage0:/data/storage
-      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/nebula/logs/storage0:/logs
+      - ${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/nebula/data/storage0:/data/storage
+      - ${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/nebula/logs/storage0:/logs
     ulimits: *ulimits
     restart: on-failure
     cap_add:
@@ -111,7 +111,7 @@ services:
       - "${NEBULA_GRAPH_HTTP_PORT:-19669}:${NEBULA_GRAPH_INTERNAL_HTTP_PORT:-19669}"
       - "${NEBULA_GRAPH_HTTP2_PORT:-19670}:19670"
     volumes:
-      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/nebula/logs/graph:/logs
+      - ${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/nebula/logs/graph:/logs
     ulimits: *ulimits
     restart: on-failure
     cap_add:
