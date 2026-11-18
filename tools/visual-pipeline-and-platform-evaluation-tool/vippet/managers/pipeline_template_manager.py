@@ -101,6 +101,7 @@ class PipelineTemplateManager:
             * source is set to TEMPLATE
             * all variants are read_only=True
             * fields that require user input are stored as empty strings
+            * types other than vision and time_series are skipped
 
         Returns:
             List of InternalPipeline template objects.
@@ -122,6 +123,19 @@ class PipelineTemplateManager:
         for config_path in sorted(templates_dir.glob("*.yaml")):
             try:
                 config = PipelineLoader.config(config_path)
+                template_type_str = config.get(
+                    "type", InternalPipelineType.VISION.value
+                )
+                if template_type_str not in (
+                    InternalPipelineType.VISION.value,
+                    InternalPipelineType.TIME_SERIES.value,
+                ):
+                    self.logger.warning(
+                        "Skipping unsupported template type '%s' in: %s",
+                        template_type_str,
+                        config_path,
+                    )
+                    continue
                 template = self._build_template_from_config(
                     config, str(config_path), existing_templates=templates
                 )
@@ -167,15 +181,7 @@ class PipelineTemplateManager:
 
         # Read type from config, default to vision
         template_type_str = config.get("type", InternalPipelineType.VISION.value)
-        try:
-            template_type = InternalPipelineType(template_type_str)
-        except ValueError:
-            logger.warning(
-                "Unknown template type '%s' in template '%s', defaulting to 'vision'",
-                template_type_str,
-                name,
-            )
-            template_type = InternalPipelineType.VISION
+        template_type = InternalPipelineType(template_type_str)
 
         current_time = get_current_timestamp()
         existing_variant_ids: list[str] = []
