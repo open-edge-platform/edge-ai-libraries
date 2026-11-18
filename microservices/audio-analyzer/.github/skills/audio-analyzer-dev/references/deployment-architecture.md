@@ -164,5 +164,5 @@ service:
   useful for quick iteration without touching the Compose-managed tag.
 
 `.env` controls `REGISTRY` (default `intel`) and `RELEASE_TAG` (pinned to the
-current release, e.g. `2026.2.0`). Never leave an image reference on
+selected release candidate, `2026.3.0-rc1`). Never leave an image reference on
 `:latest` in a committed Compose override meant for production use.

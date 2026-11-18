@@ -3,6 +3,14 @@
 This page tracks releases of the Audio Analyzer microservice. The most
 recent release is listed first; older entries are preserved for history.
 
+## Version 2026.3.0
+
+**Status:** Unreleased
+
+**Changed:**
+
+- Updated the default container image tag to `2026.3.0-rc1` for release-candidate testing.
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026
