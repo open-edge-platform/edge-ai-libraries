@@ -31,7 +31,9 @@
           <div class="name-wrap">
             <div class="pool-icon"><ApartmentOutlined /></div>
             <div>
-              <a :title="record.name" @click="handleView(record.id)">{{ record.name }}</a>
+              <a :title="record.name" @click="handleView(record.id)">{{
+                record.name
+              }}</a>
               <div class="id-wrap" :title="record.id">{{ record.id }}</div>
             </div>
           </div>
@@ -55,8 +57,13 @@
               </span>
               <StatusTag :value="binding.display_status" />
             </div>
-            <a-tooltip v-if="record.source_statuses.length > 1" :title="sourceSummary(record)">
-              <a-tag :bordered="false">+{{ record.source_statuses.length - 1 }}</a-tag>
+            <a-tooltip
+              v-if="record.source_statuses.length > 1"
+              :title="sourceSummary(record)"
+            >
+              <a-tag :bordered="false"
+                >+{{ record.source_statuses.length - 1 }}</a-tag
+              >
             </a-tooltip>
           </div>
         </template>
@@ -73,13 +80,22 @@
             >
               {{ $t("console.manage") }}
             </a-button>
-            <a-button
-              danger
-              size="small"
-              @click="handleDelete(record.id, record.name)"
+            <a-tooltip
+              :title="
+                isIndexingPool(record)
+                  ? $t('console.poolIndexingDeleteHint')
+                  : undefined
+              "
             >
-              {{ $t("common.delete") }}
-            </a-button>
+              <a-button
+                danger
+                size="small"
+                :disabled="isIndexingPool(record)"
+                @click="handleDelete(record.id, record.name)"
+              >
+                {{ $t("common.delete") }}
+              </a-button>
+            </a-tooltip>
           </a-space>
         </template>
       </template>
@@ -103,10 +119,17 @@ const handleView = (id: string) => emit("view", id);
 const { t } = useI18n();
 const searchName = ref("");
 const tableColumns = computed(() => getTableColumns(t));
-const sourceSummary = (pool: AssetPool) => pool.source_statuses.map((binding) => {
-  const name = props.libraryData.sources.find((source) => source.id === binding.source_id)?.name || binding.source_id;
-  return `${name}: ${t(`console.${binding.display_status}`)}`;
-}).join("; ");
+const sourceSummary = (pool: AssetPool) =>
+  pool.source_statuses
+    .map((binding) => {
+      const name =
+        props.libraryData.sources.find(
+          (source) => source.id === binding.source_id,
+        )?.name || binding.source_id;
+      return `${name}: ${t(`console.${binding.display_status}`)}`;
+    })
+    .join("; ");
+const isIndexingPool = (pool: AssetPool) => pool.display_status === "indexing";
 const tableList = computed(() =>
   props.tableData.filter((item) =>
     `${item.name} ${item.id}`
@@ -115,6 +138,8 @@ const tableList = computed(() =>
   ),
 );
 const handleDelete = (id: string, name: string) => {
+  const pool = props.tableData.find((item) => item.id === id);
+  if (!pool || isIndexingPool(pool)) return;
   Modal.confirm({
     title: t("common.delete"),
     content: t("console.deletePool", { name }),
@@ -122,6 +147,8 @@ const handleDelete = (id: string, name: string) => {
     okText: t("common.confirm"),
     cancelText: t("common.cancel"),
     async onOk() {
+      const current = props.tableData.find((item) => item.id === id);
+      if (!current || isIndexingPool(current)) return;
       await requestAssetPoolDelete(props.libraryData.name, id);
       emit("search");
     },

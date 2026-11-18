@@ -56,8 +56,16 @@
           <a-tooltip placement="top" :trigger="['hover', 'focus']">
             <template #title>
               <div class="status-legend">
-                <div v-for="phase in ['materializing', 'text_ready', 'ready']" :key="phase" class="status-legend-item">
-                  <AssetStatus :value="phase" :show-description="false" legend />
+                <div
+                  v-for="phase in ['materializing', 'text_ready', 'ready']"
+                  :key="phase"
+                  class="status-legend-item"
+                >
+                  <AssetStatus
+                    :value="phase"
+                    :show-description="false"
+                    legend
+                  />
                   <span>{{ $t(`console.assetStatusHint.${phase}`) }}</span>
                 </div>
               </div>
@@ -74,13 +82,7 @@
         <template v-if="column.key === 'name'">
           <div class="asset-name">
             <div class="file-icon" :class="getAssetKind(record)">
-              <FileTextOutlined v-if="getAssetKind(record) === 'document'" />
-              <PictureOutlined v-else-if="getAssetKind(record) === 'image'" />
-              <PlaySquareOutlined
-                v-else-if="getAssetKind(record) === 'video'"
-              />
-              <SoundOutlined v-else-if="getAssetKind(record) === 'audio'" />
-              <FileOutlined v-else />
+              <component :is="getAssetIcon(getAssetKind(record))" />
             </div>
             <div>
               <a
@@ -141,8 +143,13 @@
             >
               {{ $t("common.details") }}
             </a-button>
-            <a-tooltip :title="record.pending ? $t('console.assetPendingHint') : undefined">
-              <a-button danger size="small" :disabled="record.pending" @click="handleDelete([record.id])">
+            <a-tooltip :title="deleteHint(record)">
+              <a-button
+                danger
+                size="small"
+                :disabled="isAssetDeletionBlocked(record, poolData)"
+                @click="handleDelete([record.id])"
+              >
                 {{ $t("common.delete") }}
               </a-button>
             </a-tooltip>
@@ -159,36 +166,44 @@ import { Modal } from "ant-design-vue";
 import type { Key } from "ant-design-vue/es/_util/type";
 import {
   DeleteOutlined,
-  FileOutlined,
-  FileTextOutlined,
   InfoCircleOutlined,
-  PictureOutlined,
-  PlaySquareOutlined,
-  SoundOutlined,
   UploadOutlined,
 } from "@ant-design/icons-vue";
 import { requestAssetDelete } from "@/api/console";
 import type { AssetPool } from "@/api/console/type";
-import type { AssetRow } from "../AssetProgress";
+import { isAssetDeletionBlocked, type AssetRow } from "../AssetProgress";
 import StatusTag from "../../../components/StatusTag.vue";
 import AssetStatus from "./AssetStatus.vue";
 import getTableColumns from "../ColumnsList";
 import ConsoleTable from "../../../components/ConsoleTable.vue";
-import { getAssetKind } from "../AssetUtils";
+import { getAssetIcon, getAssetKind } from "../AssetUtils";
 const props = defineProps<{
   tableData: AssetRow[];
   poolData: AssetPool[];
   libraryName: string;
   uploadVersion: number;
 }>();
-const emit = defineEmits<{ upload: []; search: []; view: [id: string]; deleted: [ids: string[]] }>();
+const emit = defineEmits<{
+  upload: [];
+  search: [];
+  view: [id: string];
+  deleted: [ids: string[]];
+}>();
 const handleUpload = () => emit("upload");
 const handleView = (id: string) => emit("view", id);
 const { t } = useI18n();
+const deleteHint = (record: AssetRow) => {
+  if (record.pending) return t("console.assetPendingHint");
+  if (isAssetDeletionBlocked(record, props.poolData))
+    return t("console.assetIndexingDeleteHint");
+  return undefined;
+};
 const assetType = ref("all");
 const searchName = ref("");
 const selectedKeys = ref<string[]>([]);
-const getCheckboxProps = (record: AssetRow) => ({ disabled: Boolean(record.pending) });
+const getCheckboxProps = (record: AssetRow) => ({
+  disabled: isAssetDeletionBlocked(record, props.poolData),
+});
 const tableColumns = computed(() => getTableColumns(t));
 const poolNames = (ids: string[]) =>
   ids
@@ -207,6 +222,14 @@ const handleSelectionChange = (keys: Key[]) => {
   selectedKeys.value = keys.map(String);
 };
 const handleDelete = (ids: string[]) => {
+  if (
+    !ids.length ||
+    ids.some((id) => {
+      const asset = props.tableData.find((item) => item.id === id);
+      return !asset || isAssetDeletionBlocked(asset, props.poolData);
+    })
+  )
+    return;
   Modal.confirm({
     title: t("common.delete"),
     content: t("console.deleteAssets", { count: ids.length }),
@@ -214,6 +237,13 @@ const handleDelete = (ids: string[]) => {
     cancelText: t("common.cancel"),
     okType: "danger",
     async onOk() {
+      if (
+        ids.some((id) => {
+          const asset = props.tableData.find((item) => item.id === id);
+          return !asset || isAssetDeletionBlocked(asset, props.poolData);
+        })
+      )
+        return;
       await requestAssetDelete(props.libraryName, { asset_ids: ids });
       selectedKeys.value = [];
       emit("deleted", ids);
@@ -221,19 +251,18 @@ const handleDelete = (ids: string[]) => {
     },
   });
 };
+watch([() => props.tableData, () => props.poolData], () => {
+  selectedKeys.value = selectedKeys.value.filter((id) =>
+    props.tableData.some(
+      (item) => item.id === id && !isAssetDeletionBlocked(item, props.poolData),
+    ),
+  );
+});
 watch(
-  () => props.tableData,
-  (data) => {
-    selectedKeys.value = selectedKeys.value.filter((id) =>
-      data.some((item) => item.id === id && !item.pending),
-    );
-    watch(
-      () => props.uploadVersion,
-      () => {
-        assetType.value = "all";
-        searchName.value = "";
-      },
-    );
+  () => props.uploadVersion,
+  () => {
+    assetType.value = "all";
+    searchName.value = "";
   },
 );
 </script>
