@@ -249,7 +249,7 @@ class VideoSource(str, Enum):
     **Origin of an input video file on disk.**
 
     ## Values
-    - `AUTO` - Video downloaded automatically from `default_recordings.yaml`
+    - `AUTO` - Sample video downloaded on demand from `default_recordings.yaml`
       into `/videos/input/auto/`
     - `UPLOADED` - Video uploaded by the user via the
       `POST /videos/upload` endpoint into `/videos/input/uploaded/`
@@ -3125,6 +3125,50 @@ class Video(BaseModel):
             "'/assets/videos/input/{path}'."
         ),
     )
+
+class DefaultVideoDownloadState(str, Enum):
+    AVAILABLE = "available"
+    QUEUED = "queued"
+    DOWNLOADING = "downloading"
+    DOWNLOADED = "downloaded"
+    FAILED = "failed"
+    CONFLICT = "conflict"
+
+
+class DefaultVideoConversionState(str, Enum):
+    NOT_CONVERTED = "not_converted"
+    QUEUED = "queued"
+    CONVERTING = "converting"
+    CONVERTED = "converted"
+    FAILED = "failed"
+    CONFLICT = "conflict"
+
+
+class DefaultVideoRecording(BaseModel):
+    filename: str
+    source: str
+    status: DefaultVideoDownloadState
+    hevc_filename: str
+    conversion_status: DefaultVideoConversionState
+
+
+class DefaultVideoDownloadRequest(BaseModel):
+  filename: str
+
+
+class DefaultVideoDownloadResponse(BaseModel):
+  filename: str
+  status: DefaultVideoDownloadState
+
+
+class DefaultVideoConversionRequest(BaseModel):
+    filename: str
+
+
+class DefaultVideoConversionResponse(BaseModel):
+    filename: str
+    hevc_filename: str
+    status: DefaultVideoConversionState
 
 
 class VideoUploadError(BaseModel):

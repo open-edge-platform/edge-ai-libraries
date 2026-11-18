@@ -18,6 +18,10 @@ class TestVideosAPI(unittest.TestCase):
         app.include_router(videos_router, prefix="/videos")
         cls.client = TestClient(app)
 
+    def setUp(self):
+        videos_route._default_video_download_status.clear()
+        videos_route._default_video_conversion_status.clear()
+
     @staticmethod
     def _make_video(
         filename,
@@ -133,6 +137,184 @@ class TestVideosAPI(unittest.TestCase):
             self.assertEqual(response.status_code, 500)
             body = response.json()
             self.assertIn("message", body)
+
+    def test_get_default_video_recordings_marks_pexels_source(self):
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.get_default_recordings.return_value = [
+                {
+                    "filename": "pexels.mp4",
+                    "url": "https://videos.pexels.com/video-files/1.mp4",
+                }
+            ]
+            manager.default_video_exists.return_value = False
+            manager.filename_exists.return_value = False
+            manager.default_hevc_filename.return_value = "pexels_h265.mp4"
+            manager.get_video.return_value = None
+
+            response = self.client.get("/videos/default-recordings")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            [
+                {
+                    "filename": "pexels.mp4",
+                    "source": "Pexels",
+                    "status": "available",
+                    "hevc_filename": "pexels_h265.mp4",
+                    "conversion_status": "not_converted",
+                }
+            ],
+        )
+
+    def test_start_hevc_conversion_for_downloaded_default(self):
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.get_default_recordings.return_value = [
+                {
+                    "filename": "sample.mp4",
+                    "url": "https://example.test/sample.mp4",
+                }
+            ]
+            manager.default_video_exists.return_value = True
+            manager.default_hevc_filename.return_value = "sample_h265.mp4"
+            manager.get_video.return_value = None
+            manager.filename_exists.return_value = False
+            manager.convert_default_video_to_hevc.return_value = "sample_h265.mp4"
+
+            response = self.client.post(
+                "/videos/convert-hevc", json={"filename": "sample.mp4"}
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()["hevc_filename"], "sample_h265.mp4")
+        manager.convert_default_video_to_hevc.assert_called_once_with("sample.mp4")
+        self.assertEqual(
+            videos_route._default_video_conversion_status["sample.mp4"],
+            videos_route.schemas.DefaultVideoConversionState.CONVERTED,
+        )
+
+    def test_start_hevc_conversion_requires_downloaded_source(self):
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.get_default_recordings.return_value = [
+                {
+                    "filename": "sample.mp4",
+                    "url": "https://example.test/sample.mp4",
+                }
+            ]
+            manager.default_video_exists.return_value = False
+
+            response = self.client.post(
+                "/videos/convert-hevc", json={"filename": "sample.mp4"}
+            )
+
+        self.assertEqual(response.status_code, 409)
+        manager.convert_default_video_to_hevc.assert_not_called()
+
+    def test_start_default_video_download_uses_manifest_filename(self):
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.get_default_recordings.return_value = [
+                {
+                    "filename": "sample.mp4",
+                    "url": "https://example.test/sample.mp4",
+                }
+            ]
+            manager.default_video_exists.return_value = False
+            manager.filename_exists.return_value = False
+            manager.download_default_video.return_value = True
+
+            response = self.client.post(
+                "/videos/download-default",
+                json={"filename": "sample.mp4"},
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()["filename"], "sample.mp4")
+        self.assertEqual(response.json()["status"], "queued")
+        manager.download_default_video.assert_called_once_with("sample.mp4")
+
+    def test_start_default_video_download_rejects_unknown_filename(self):
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager_class.return_value.get_default_recordings.return_value = []
+
+            response = self.client.post(
+                "/videos/download-default",
+                json={"filename": "../../outside.mp4"},
+            )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_start_default_video_download_rejects_batch_request(self):
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.get_default_recordings.return_value = [
+                {
+                    "filename": "one.mp4",
+                    "url": "https://videos.pexels.com/video-files/1.mp4",
+                },
+                {
+                    "filename": "two.mp4",
+                    "url": "https://videos.pexels.com/video-files/2.mp4",
+                },
+            ]
+
+            response = self.client.post(
+                "/videos/download-default",
+                json={"filenames": ["one.mp4", "two.mp4"]},
+            )
+
+        self.assertEqual(response.status_code, 422)
+        manager.download_default_video.assert_not_called()
+
+    def test_start_default_video_download_rejects_parallel_pexels_download(self):
+        videos_route._default_video_download_status["one.mp4"] = (
+            videos_route.schemas.DefaultVideoDownloadState.QUEUED
+        )
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.get_default_recordings.return_value = [
+                {
+                    "filename": "one.mp4",
+                    "url": "https://videos.pexels.com/video-files/1.mp4",
+                },
+                {
+                    "filename": "two.mp4",
+                    "url": "https://videos.pexels.com/video-files/2.mp4",
+                },
+            ]
+            manager.default_video_exists.return_value = False
+            manager.filename_exists.return_value = False
+
+            response = self.client.post(
+                "/videos/download-default",
+                json={"filename": "two.mp4"},
+            )
+
+        self.assertEqual(response.status_code, 409)
+        manager.download_default_video.assert_not_called()
+
+    def test_start_default_video_download_rejects_uploaded_filename_conflict(self):
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.get_default_recordings.return_value = [
+                {
+                    "filename": "sample.mp4",
+                    "url": "https://example.test/sample.mp4",
+                }
+            ]
+            manager.default_video_exists.return_value = False
+            manager.filename_exists.return_value = True
+
+            response = self.client.post(
+                "/videos/download-default",
+                json={"filename": "sample.mp4"},
+            )
+
+        self.assertEqual(response.status_code, 409)
+        manager.download_default_video.assert_not_called()
 
     def test_check_video_input_exists_true(self):
         """check-video-input-exists reports presence from VideosManager."""

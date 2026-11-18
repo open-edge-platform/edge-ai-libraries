@@ -3541,6 +3541,145 @@
         }
       }
     },
+    "/videos/default-recordings": {
+      "get": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "List optional sample videos and their download status",
+        "operationId": "get_default_video_recordings",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DefaultVideoRecording"
+                  },
+                  "type": "array",
+                  "title": "Response Get Default Video Recordings"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/videos/download-default": {
+      "post": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "Download one optional sample video",
+        "operationId": "start_default_video_download",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefaultVideoDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultVideoDownloadResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The video is already downloaded or a download is in progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultVideoDownloadResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A requested filename is not in the sample manifest."
+          },
+          "409": {
+            "description": "A filename conflict or concurrent Pexels download exists."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/videos/convert-hevc": {
+      "post": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "Transcode a downloaded sample video to HEVC",
+        "operationId": "start_default_video_hevc_conversion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefaultVideoConversionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultVideoConversionResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The video is already converted or a conversion is running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultVideoConversionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The filename is not in the sample manifest."
+          },
+          "409": {
+            "description": "The source or output filename is unavailable."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/videos": {
       "get": {
         "tags": [
@@ -6199,6 +6338,126 @@
         ],
         "title": "CpuTopologySource",
         "description": "**Method used to determine the CPU core types.**\n\n## Values\n- `sysfs_pmu` - Hybrid PMU CPU lists in Linux sysfs (`cpu_core`, `cpu_atom`, `cpu_lowpower`)\n- `sysfs_cache` - Cache topology in Linux sysfs, used when the hybrid PMU lists are missing\n- `uniform` - Non-hybrid processor; every core is `UNIFORM`\n\n### Example\n```json\n\"sysfs_pmu\"\n```"
+      },
+      "DefaultVideoConversionRequest": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "title": "DefaultVideoConversionRequest"
+      },
+      "DefaultVideoConversionResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "hevc_filename": {
+            "type": "string",
+            "title": "Hevc Filename"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DefaultVideoConversionState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "hevc_filename",
+          "status"
+        ],
+        "title": "DefaultVideoConversionResponse"
+      },
+      "DefaultVideoConversionState": {
+        "type": "string",
+        "enum": [
+          "not_converted",
+          "queued",
+          "converting",
+          "converted",
+          "failed",
+          "conflict"
+        ],
+        "title": "DefaultVideoConversionState"
+      },
+      "DefaultVideoDownloadRequest": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "title": "DefaultVideoDownloadRequest"
+      },
+      "DefaultVideoDownloadResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DefaultVideoDownloadState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "status"
+        ],
+        "title": "DefaultVideoDownloadResponse"
+      },
+      "DefaultVideoDownloadState": {
+        "type": "string",
+        "enum": [
+          "available",
+          "queued",
+          "downloading",
+          "downloaded",
+          "failed",
+          "conflict"
+        ],
+        "title": "DefaultVideoDownloadState"
+      },
+      "DefaultVideoRecording": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DefaultVideoDownloadState"
+          },
+          "hevc_filename": {
+            "type": "string",
+            "title": "Hevc Filename"
+          },
+          "conversion_status": {
+            "$ref": "#/components/schemas/DefaultVideoConversionState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "source",
+          "status",
+          "hevc_filename",
+          "conversion_status"
+        ],
+        "title": "DefaultVideoRecording"
       },
       "DensityJobStatus": {
         "properties": {
@@ -9194,7 +9453,7 @@
           "uploaded"
         ],
         "title": "VideoSource",
-        "description": "**Origin of an input video file on disk.**\n\n## Values\n- `AUTO` - Video downloaded automatically from `default_recordings.yaml`\n  into `/videos/input/auto/`\n- `UPLOADED` - Video uploaded by the user via the\n  `POST /videos/upload` endpoint into `/videos/input/uploaded/`\n\n### Example\n```json\n\"uploaded\"\n```"
+        "description": "**Origin of an input video file on disk.**\n\n## Values\n- `AUTO` - Sample video downloaded on demand from `default_recordings.yaml`\n  into `/videos/input/auto/`\n- `UPLOADED` - Video uploaded by the user via the\n  `POST /videos/upload` endpoint into `/videos/input/uploaded/`\n\n### Example\n```json\n\"uploaded\"\n```"
       },
       "VideoUploadError": {
         "properties": {

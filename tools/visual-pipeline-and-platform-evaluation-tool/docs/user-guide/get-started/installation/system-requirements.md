@@ -34,7 +34,7 @@ are not bundled with the tool.
 | Installation           | ViPPET repository sources                                                   | `github.com`                                                                     |
 | First start            | Pre-built container images                                                  | `docker.io` (Docker Hub)                                                         |
 | First start            | `model-download` plugin virtual environments (Python packages)              | `pypi.org`, `files.pythonhosted.org`                                             |
-| First start            | Default sample recordings listed in `shared/videos/default_recordings.yaml` | `storage.openvinotoolkit.org`, `github.com`, `pexels.com`                        |
+| Sample video download | Recordings listed in `shared/videos/default_recordings.yaml`               | `storage.openvinotoolkit.org`, `github.com`, `pexels.com`                        |
 | Model installation     | Model weights and metadata for the selected hub                             | `huggingface.co`, `ultralytics.com`, `storage.openvinotoolkit.org`, Intel® Geti™ |
 | Build from source      | Base images, apt packages, Python and npm dependencies                      | `docker.io`, distribution and language package registries                        |
 | UI and API docs in use | Web fonts and the Swagger UI bundle                                         | `fonts.googleapis.com`, `cdn.jsdelivr.net`                                       |

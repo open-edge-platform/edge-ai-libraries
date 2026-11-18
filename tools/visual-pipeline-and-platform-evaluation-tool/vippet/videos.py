@@ -6,6 +6,7 @@ import time
 import threading
 import urllib.request
 import urllib.error
+from urllib.parse import urlparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, Tuple
@@ -203,12 +204,10 @@ class VideosManager:
     Implements singleton pattern using __new__ with double-checked locking.
     Create instances with VideosManager() to get the shared singleton instance.
 
-    Initialization performs three phases:
-    1. Download videos from default_recordings.yaml into AUTO_VIDEO_DIR
-       (if not already present).
-    2. Scan AUTO_VIDEO_DIR and UPLOADED_VIDEO_DIR and load all video files
+     Initialization performs two phases:
+     1. Scan AUTO_VIDEO_DIR and UPLOADED_VIDEO_DIR and load all video files
        with their metadata (JSON cache).
-    3. Convert all non-TS videos to TS format for looping support. The TS
+     2. Convert all non-TS videos to TS format for looping support. The TS
        file is written next to the source video (same subdirectory).
 
     Filenames must be unique across 'auto' and 'uploaded'. This invariant is
@@ -226,6 +225,7 @@ class VideosManager:
     # concurrent uploads that slipped past filename_exists() cannot both
     # move their temp file into the same target path.
     _upload_lock = threading.Lock()
+    _pending_video_outputs: set[str] = set()
 
     def __new__(cls) -> "VideosManager":
         if cls._instance is None:
@@ -239,7 +239,6 @@ class VideosManager:
         """
         Initializes the VideosManager.
         - Creates AUTO_VIDEO_DIR and UPLOADED_VIDEO_DIR if missing
-        - Downloads videos from default_recordings.yaml into AUTO_VIDEO_DIR
         - Scans both sub-directories and loads video metadata
         - Ensures all TS conversions exist next to their sources
 
@@ -271,13 +270,10 @@ class VideosManager:
         self._videos: Dict[str, Video] = {}
         self._video_paths: Dict[str, str] = {}
 
-        # Phase 1: Download videos from default_recordings.yaml into AUTO_VIDEO_DIR
-        self._download_default_videos()
-
-        # Phase 2: Scan and load all video files with metadata
+        # Phase 1: Scan and load all video files with metadata
         self._scan_and_load_all_videos()
 
-        # Phase 3: Ensure all TS conversions exist next to their sources
+        # Phase 2: Ensure all TS conversions exist next to their sources
         self._ensure_all_ts_conversions()
 
     @staticmethod
@@ -316,7 +312,7 @@ class VideosManager:
             )
             return
 
-        recordings = self._load_recordings_yaml(DEFAULT_RECORDINGS_FILE)
+        recordings = self.get_default_recordings()
         if not recordings:
             logger.debug("No recordings found in default_recordings.yaml.")
             return
@@ -326,17 +322,137 @@ class VideosManager:
         )
 
         for recording in recordings:
+            self._download_video(recording["url"], recording["filename"])
+
+    def get_default_recordings(self) -> List[dict]:
+        """Return valid sample recordings from the configured manifest."""
+        recordings = self._load_recordings_yaml(DEFAULT_RECORDINGS_FILE)
+        valid_recordings = []
+        for recording in recordings:
+            if not isinstance(recording, dict):
+                logger.warning("Invalid recording entry in default_recordings.yaml")
+                continue
             url = recording.get("url")
             filename = recording.get("filename")
-
-            if not url or not filename:
-                logger.warning(
-                    f"Invalid recording entry in default_recordings.yaml: "
-                    f"url='{url}', filename='{filename}'. Skipping."
-                )
+            try:
+                parsed_url = urlparse(url) if isinstance(url, str) else None
+            except ValueError:
+                parsed_url = None
+            if (
+                not isinstance(filename, str)
+                or not filename
+                or os.path.basename(filename) != filename
+                or filename in (".", "..")
+                or not isinstance(url, str)
+                or parsed_url is None
+                or parsed_url.scheme != "https"
+                or not parsed_url.hostname
+            ):
+                logger.warning("Invalid recording entry in default_recordings.yaml")
                 continue
+            valid_recordings.append({"url": url, "filename": filename})
+        return valid_recordings
 
-            self._download_video(url, filename)
+    @staticmethod
+    def default_video_exists(filename: str) -> bool:
+        """Return whether a manifest video is already present in the auto folder."""
+        return os.path.isfile(os.path.join(AUTO_VIDEO_DIR, filename))
+
+    @staticmethod
+    def default_hevc_filename(filename: str) -> str:
+        """Return the separate MP4 filename used for an HEVC conversion."""
+        return f"{os.path.splitext(filename)[0]}_h265.mp4"
+
+    def download_default_video(self, filename: str) -> bool:
+        """Download one manifest recording and register its metadata."""
+        recording = next(
+            (
+                entry
+                for entry in self.get_default_recordings()
+                if entry["filename"] == filename
+            ),
+            None,
+        )
+        if recording is None:
+            return False
+
+        with self._upload_lock:
+            if self.default_video_exists(filename):
+                return True
+            if self.filename_exists(filename):
+                return False
+            self._pending_video_outputs.add(filename)
+
+        try:
+            if self._download_video(recording["url"], filename) is None:
+                return False
+
+            self._scan_and_load_all_videos()
+            self._ensure_all_ts_conversions()
+            return self.default_video_exists(filename)
+        finally:
+            with self._upload_lock:
+                self._pending_video_outputs.discard(filename)
+
+    def convert_default_video_to_hevc(self, filename: str) -> Optional[str]:
+        """Encode a downloaded manifest video as a separate H.265 MP4."""
+        if not any(
+            recording["filename"] == filename
+            for recording in self.get_default_recordings()
+        ) or not self.default_video_exists(filename):
+            return None
+
+        output_filename = self.default_hevc_filename(filename)
+        output_path = os.path.join(AUTO_VIDEO_DIR, output_filename)
+        if self.default_video_exists(output_filename):
+            video = self._videos.get(output_filename)
+            return (
+                output_filename
+                if video is not None
+                and video.source == "auto"
+                and video.codec == "h265"
+                else None
+            )
+
+        with self._upload_lock:
+            if self.filename_exists(output_filename):
+                return None
+            self._pending_video_outputs.add(output_filename)
+
+        temp_path = f"{output_path}.partial"
+        try:
+            source_path = os.path.join(AUTO_VIDEO_DIR, filename)
+            if not self._convert_to_hevc(source_path, temp_path):
+                return None
+            if not os.path.isfile(temp_path) or os.path.getsize(temp_path) == 0:
+                logger.error("HEVC conversion produced no output for '%s'", filename)
+                return None
+            if not self._move_file(temp_path, output_path):
+                return None
+
+            self._scan_and_load_all_videos()
+            output_video = self._videos.get(output_filename)
+            if output_video is None or output_video.codec != "h265":
+                logger.error("HEVC conversion output '%s' is not H.265", output_filename)
+                self._cleanup_file(output_path)
+                self._cleanup_file(f"{output_path}.json")
+                self._videos.pop(output_filename, None)
+                self._video_paths.pop(output_filename, None)
+                return None
+
+            self._ensure_all_ts_conversions()
+            return output_filename
+        except Exception:
+            logger.exception("Failed to convert '%s' to HEVC", filename)
+            self._cleanup_file(output_path)
+            self._cleanup_file(f"{output_path}.json")
+            self._videos.pop(output_filename, None)
+            self._video_paths.pop(output_filename, None)
+            return None
+        finally:
+            self._cleanup_file(temp_path)
+            with self._upload_lock:
+                self._pending_video_outputs.discard(output_filename)
 
     @staticmethod
     def _load_recordings_yaml(yaml_path: str) -> List[dict]:
@@ -846,6 +962,32 @@ class VideosManager:
             return False
 
     @staticmethod
+    def _gst_location(path: str) -> str:
+        escaped = path.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+
+    @staticmethod
+    def _convert_to_hevc(source_path: str, output_path: str) -> bool:
+        """Transcode video to HEVC using the DLSPS VA-API encoder."""
+        source = VideosManager._gst_location(source_path)
+        output = VideosManager._gst_location(output_path)
+        pipeline_command = (
+            f"filesrc location={source} ! decodebin3 caps=video/x-raw ! "
+            "videoconvert ! video/x-raw,format=NV12 ! vah265enc ! h265parse ! "
+            f"mp4mux ! filesink location={output}"
+        )
+        try:
+            runner = Dlsps2PipelineRunner(
+                mode="normal", max_runtime=0.0, validate_pipelines=False
+            )
+            runner.run(pipeline_command)
+            return True
+        except Exception as exc:
+            logger.error("DLSPS failed to encode '%s' as HEVC: %s", source_path, exc)
+            VideosManager._cleanup_file(output_path)
+            return False
+
+    @staticmethod
     def _get_demuxer_for_extension(extension: str) -> Optional[str]:
         """
         Returns an appropriate GStreamer demuxer for a given file extension.
@@ -1005,6 +1147,9 @@ class VideosManager:
         # Defend against path traversal by considering only the basename.
         basename = os.path.basename(filename)
 
+        if basename in self._pending_video_outputs:
+            return True
+
         # Fast path: in-memory map covers every file we have scanned.
         if basename in self._video_paths:
             return True
@@ -1053,6 +1198,11 @@ class VideosManager:
         # reservation below turns the filename check + move into a single
         # critical section per target path.
         with self._upload_lock:
+            if self.filename_exists(basename):
+                raise RuntimeError(
+                    f"A video with filename '{basename}' already exists."
+                )
+
             # Atomically reserve ``target_path``. If the file (or a
             # reservation from a concurrent upload) already exists, abort
             # before touching anything on disk.
