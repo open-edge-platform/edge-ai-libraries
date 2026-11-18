@@ -70,7 +70,7 @@ NAN = math.nan
 CSV_COLS = ["concurrency", "req_id", "audio_file", "status", "error",
             "e2e_latency_s", "upload_time_s", "decode_time_s", "ttft_s", "itl_s",
             "inference_time_s", "output_tokens", "total_chunks"]
-KPI_CSV_COLS = ["Audio_File_Size_mb", "Audio_File_Duration (s)", "E2E_Latency (s)",
+KPI_CSV_COLS = ["Audio_File_Size (mb)", "Audio_File_Duration (s)", "E2E_Latency (s)",
                 "TTFT (s)", "Inference_Time", "Output_Tokens"]
 METRICS = ["e2e_latency_s", "upload_time_s", "decode_time_s", "ttft_s", "itl_s",
            "inference_time_s", "output_tokens", "total_chunks"]
@@ -406,7 +406,7 @@ class Runner:
             self.stats.add(rec)
             self.writer.writerow(rec.row(self.conc))
             if self.kpi_values is not None:
-                self.kpi_values["Audio_File_Size_mb"].append(len(audio["bytes"]) / 1_000_000)
+                self.kpi_values["Audio_File_Size (mb)"].append(len(audio["bytes"]) / 1_000_000)
                 duration = audio["duration_s"]
                 if duration is not None:
                     self.kpi_values["Audio_File_Duration (s)"].append(duration)
