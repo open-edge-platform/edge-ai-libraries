@@ -552,31 +552,7 @@ phase_03_libunit() {
     skip "ensure_chat_end_token_stops checks" "python3 not installed"
   fi
 
-  # ensure_graph_tool_parser edits the registered model's graph.pbtxt in place.
-  local tp_cfg='HARNESS_MODELS_DIR=$(mktemp -d); mkdir -p "$HARNESS_MODELS_DIR/org/m"; printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"m\",\"base_path\":\"org/m\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; g="$HARNESS_MODELS_DIR/org/m/graph.pbtxt"; printf "%s\n" "node {" "  node_options: {" "    [type.googleapis.com / mediapipe.LLMCalculatorOptions]: {" "      models_path: \"./\"," "      device: \"GPU\"," "    }" "  }" "}" > "$g"; '
-  if command -v python3 >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
-    check_output_contains "ensure_graph_tool_parser: inserts tool_parser after models_path" '      tool_parser: "hermes3",' \
-      lib_eval "$tp_cfg"'ensure_graph_tool_parser m hermes3 >/dev/null; cat "$g"'
-    check_output_contains "ensure_graph_tool_parser: is idempotent" '1' \
-      lib_eval "$tp_cfg"'ensure_graph_tool_parser m hermes3 >/dev/null; ensure_graph_tool_parser m hermes3 >/dev/null; grep -c tool_parser "$g"'
-    check_output_contains "ensure_graph_tool_parser: replaces an existing parser" 'tool_parser: "llama3",' \
-      lib_eval "$tp_cfg"'ensure_graph_tool_parser m hermes3 >/dev/null; ensure_graph_tool_parser m llama3 >/dev/null; grep tool_parser "$g"'
-    check_fail "ensure_graph_tool_parser: rejects a parser name with quote or space characters" \
-      lib_eval "$tp_cfg"'ensure_graph_tool_parser m "bad\" name"'
-    check_fail "ensure_graph_tool_parser: fails for a model that is not registered" \
-      lib_eval "$tp_cfg"'ensure_graph_tool_parser other hermes3'
-    check_fail_output_contains "ensure_graph_tool_parser: fails when the LLM block has no models_path" "models_path" \
-      lib_eval "$tp_cfg"'printf "%s\n" "node {" "  [type.googleapis.com / mediapipe.LLMCalculatorOptions]: {" "    device: \"GPU\"," "  }" "}" > "$g"; ensure_graph_tool_parser m hermes3'
-    # Embedding/rerank/speech graphs also have models_path; tool_parser there breaks OVMS loading.
-    local tp_emb='"node {" "  [type.googleapis.com / mediapipe.EmbeddingsCalculatorOVOptions]: {" "    models_path: \"./\"," "    normalize_embeddings: true," "  }" "}"'
-    check_fail_output_contains "ensure_graph_tool_parser: rejects a graph without an LLMCalculatorOptions block" "LLM graphs only" \
-      lib_eval "$tp_cfg""printf '%s\n' $tp_emb > \"\$g\"; ensure_graph_tool_parser m hermes3"
-    check_output_contains "ensure_graph_tool_parser: only edits the LLM block when other calculators precede it" "1 LLM" \
-      lib_eval "$tp_cfg""{ printf '%s\n' $tp_emb; cat \"\$g\"; } > \"\$g.new\" && mv \"\$g.new\" \"\$g\"; ensure_graph_tool_parser m hermes3 >/dev/null; printf '%s ' \"\$(grep -c tool_parser \"\$g\")\"; grep -A2 LLMCalculatorOptions \"\$g\" | grep -q tool_parser && echo LLM"
-  else
-    skip "ensure_graph_tool_parser checks" "python3 or node not installed"
-  fi
-  check_fail_output_contains "ensure_openvino_model_server: rejects --tool_parser in HARNESS_OVMS_EXTRA_ARGS" "HARNESS_OVMS_TOOL_PARSER" \
+  check_fail_output_contains "ensure_openvino_model_server: rejects --tool_parser in HARNESS_OVMS_EXTRA_ARGS" "per-model option" \
     lib_eval 'HARNESS_OVMS_EXTRA_ARGS="--tool_parser hermes3"; ensure_openvino_model_server'
 
   # Hermes pin override: both halves together, well-formed.
