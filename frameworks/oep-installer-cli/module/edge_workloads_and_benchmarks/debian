@@ -11,7 +11,7 @@ verify_edge_workloads_and_benchmarks () {
 }
 
 debian_90_profile_edge_workloads_and_benchmarks () {
-  echo "docker_io make curl git edge_base jq lsb_release build_essential cmake wget python3_dev python3_venv ffmpeg cpuid bc gnupg apt_transport_https software_properties_common"
+  echo "docker_io make curl git edge_base jq lsb_release build_essential cmake wget python3_dev python3_venv ffmpeg cpuid bc gnupg apt_transport_https software_properties_common procps"
 }
 
 debian_90_install_edge_workloads_and_benchmarks () {
