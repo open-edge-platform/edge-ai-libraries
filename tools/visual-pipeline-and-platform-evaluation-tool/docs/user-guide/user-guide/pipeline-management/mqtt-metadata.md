@@ -55,16 +55,19 @@ The defaults match the bundled broker, so no changes are needed when the pipelin
 | Field                  | Default            | Description                                                                        |
 |------------------------|--------------------|------------------------------------------------------------------------------------|
 | Method                 | `file`             | Publish to a file or to an MQTT broker.                                            |
-| Broker Address         | `mqtt-broker:1883` | Host and port, resolved from inside the `vippet` container.                        |
+| Broker Address         | `mqtt-broker:1883` | Host and port, resolved from inside the DLSPS 2.0 container.                       |
 | Topic                  | `vippet/metadata`  | Topic the metadata is published on.                                                |
 | Client ID              | *(empty)*          | Client identifier. One is generated when left empty.                               |
 | Max Connect Attempts   | `1`                | Failed connection attempts before the pipeline fails. Range 1-10.                  |
 | Max Reconnect Interval | `30`               | Upper bound in seconds between reconnect attempts. Range 1-300.                    |
 | Config File            | *(empty)*          | Path to a JSON file with credentials and TLS settings. Overrides the fields above. |
 
-Behind an HTTP proxy, no extra configuration is needed. The MQTT client library ignores `no_proxy` and would
-otherwise route broker traffic through the proxy, so ViPPET removes the proxy variables from the GStreamer
-process whenever a pipeline publishes to a broker.
+The MQTT overlay preserves the configured HTTP proxies for remote HTTP video sources and sets
+`PAHO_C_CLIENT_USE_HTTP_PROXY=FALSE` so Paho does not route MQTT through an HTTP proxy. This setting requires
+Paho MQTT C 1.3.14 or later. The DLSPS image used by this project currently includes Paho C 1.3.13, which
+does not support this setting; until the DLSPS/DL Streamer base image is updated, MQTT publishing from a
+proxy-configured environment may fail. Do not remove the DLSPS proxy variables globally, as that also breaks
+access to remote HTTP(S) sources that require the proxy.
 
 ## Subscribing to the Output
 

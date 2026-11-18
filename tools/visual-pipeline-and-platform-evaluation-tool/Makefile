@@ -119,18 +119,21 @@ ruff: $(VENV_SENTINEL) ## Run ruff linter
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	ruff --version ;\
 	# Exclude shared/ — runtime-mounted volume, not source code ;\
-	ruff check --exclude shared/ ;\
-	ruff format --check --exclude shared/
+	# Exclude SceneScape GStreamer plugins ;\
+	ruff check --exclude shared/ --exclude 'vippet/gst_plugins/python/sscape_*.py' ;\
+	ruff format --check --exclude shared/ --exclude 'vippet/gst_plugins/python/sscape_*.py'
 
 fix-linter: $(VENV_SENTINEL) ## Fix linter issues using ruff
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	# Exclude shared/ — runtime-mounted volume, not source code ;\
-	ruff check --fix --exclude shared/
+	# Exclude SceneScape GStreamer plugins ;\
+	ruff check --fix --exclude shared/ --exclude 'vippet/gst_plugins/python/sscape_*.py'
 
 format: $(VENV_SENTINEL) ## Format code using ruff
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	# Exclude shared/ — runtime-mounted volume, not source code ;\
-	ruff format --exclude shared/
+	# Exclude SceneScape GStreamer plugins ;\
+	ruff format --exclude shared/ --exclude 'vippet/gst_plugins/python/sscape_*.py'
 
 pyright: $(VENV_SENTINEL) ## Run pyright type checker
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\

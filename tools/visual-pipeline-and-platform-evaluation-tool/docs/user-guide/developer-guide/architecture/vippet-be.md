@@ -189,6 +189,12 @@ memory only. Key methods: `discover_all_cameras()`, `get_camera_by_id()`, `load_
 `get_usb_camera_details_by_device_path()`, `get_network_camera_details_by_rtsp_url()`,
 `get_encoding_for_rtsp_url()`.
 
+Custom RTSP URLs that do not belong to a discovered camera are handled by `rtsp_utils.py`:
+`validate_rtsp_url()` rejects URLs that could alter the generated pipeline description (whitespace, `!`,
+quotes, `,` and similar) or that embed credentials, and `probe_rtsp_codec()` detects the stream codec with
+`gst-discoverer-1.0` (timeout `RTSP_PROBE_TIMEOUT_S`, results cached per URL) so that `Graph` can select a
+device-specific decoder instead of `decodebin3`.
+
 ### TestsManager
 
 Runs performance and density benchmarks. Performance tests run a single pipeline variant under defined

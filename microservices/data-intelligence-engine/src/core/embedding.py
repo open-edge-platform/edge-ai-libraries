@@ -124,6 +124,32 @@ def is_gme_package(model_path: str) -> bool:
     return True
 
 
+def device_available(device: str) -> bool:
+    import openvino as ov
+
+    from inference.gme_runtime import _META_DEVICE_PREFIXES
+
+    name = str(device or "").split(":", 1)[0].upper()
+    if not name:
+        return False
+    if name in _META_DEVICE_PREFIXES:
+        return True
+    available = ov.Core().available_devices
+    return name in available or (
+        "." not in name and any(item.startswith(f"{name}.") for item in available)
+    )
+
+
+def device_family(device: str) -> str:
+    from inference.gme_runtime import _META_DEVICE_PREFIXES
+
+    name = str(device or "").strip().upper()
+    head = name.split(":", 1)[0]
+    if head in _META_DEVICE_PREFIXES:
+        return name
+    return head.split(".", 1)[0]
+
+
 def embedding_class(backend: str, model_path: str):
     """The class `build_embedding` instantiates for this backend and model."""
     if backend == config.REMOTE_OPENAI_COMPATIBLE:
@@ -184,6 +210,7 @@ def _build(backend: str, model_id: str, device: str, api_base: str):
         return MultimodalOVEmbedding(
             build_gme_runtime(model_id, device),
             fused_instruction=config.EMBEDDING_FUSED_INSTRUCTION,
+            embed_batch_size=config.INGEST_BATCH_SIZE,
         )
 
     resolved = require_openvino_model(model_id, "embedding model")

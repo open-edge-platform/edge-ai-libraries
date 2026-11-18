@@ -143,7 +143,7 @@ six==1.17.0
 sortedcontainers==2.4.0
 soundfile==0.13.1
 soxr==1.1.0
-speechbrain==1.0.3
+speechbrain==1.1.2
 SQLAlchemy==2.1.4
 starlette==1.8.0
 sympy==1.14.0

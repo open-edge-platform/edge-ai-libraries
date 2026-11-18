@@ -15,6 +15,12 @@ from resources import (
     get_public_model_proc_manager,
     get_scripts_manager,
 )
+from rtsp_utils import (
+    RTSP_URL_PREFIX,
+    probe_rtsp_codec,
+    redact_rtsp_url,
+    validate_rtsp_url,
+)
 from utils import slugify_text
 from video_decoder import VideoDecoder, split_device_target
 from videos import VideosManager
@@ -22,7 +28,6 @@ from images import ImagesManager
 
 # Internal constant used as a placeholder type for the main output sink in the graph.
 OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
-RTSP_URL_PREFIX = "rtsp://"
 USB_DEVICE_PREFIX = "/dev/video"
 # Followed by the Aravis camera name: IP address or full Aravis device ID (vendor-model-serial).
 GIGE_CAMERA_PREFIX = "gige://"
@@ -74,7 +79,7 @@ model_proc_manager = get_public_model_proc_manager()
 # All other elements (including caps nodes) will be hidden and their edges reconnected.
 SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
     "SIMPLE_VIEW_VISIBLE_ELEMENTS",
-    "*src,urisourcebin,gva*,*sink,source,videoscale,tsam-udf",
+    "*src,urisourcebin,gva*,*sink,source,videoscale,tsam-udf,sscape_*",
 )
 
 # Configuration for Simple View: comma-separated regex patterns for invisible elements.
@@ -1692,7 +1697,13 @@ class Graph:
                     )
 
                 elif kind == InputKind.CAMERA:
-                    if source.startswith(RTSP_URL_PREFIX):
+                    if source.strip().startswith(RTSP_URL_PREFIX):
+                        try:
+                            source = validate_rtsp_url(source)
+                        except ValueError as e:
+                            raise ValueError(
+                                f"Invalid RTSP source for node {node_id}: {e}"
+                            ) from e
                         target_type = "rtspsrc"
                         target_properties = {"location": source}
                         logger.debug(
@@ -1943,7 +1954,9 @@ class Graph:
         of input is used, then retrieves the codec accordingly:
         - filesrc: reads Video.codec from VideosManager based on the location property.
         - v4l2src: reads best_capture.fourcc from CameraManager for the device path.
-        - rtspsrc: reads best_profile.encoding from CameraManager for the RTSP URL.
+        - rtspsrc: reads best_profile.encoding from CameraManager for the RTSP URL;
+          for streams not owned by a discovered camera (custom RTSP URLs) the
+          stream is probed with gst-discoverer.
         - aravissrc: reads current_capture.pixel_format from CameraManager for the camera IP.
 
         Returns:
@@ -2013,8 +2026,10 @@ class Graph:
                             f"Determined codec '{encoding}' from rtspsrc URL '{location}' (encoding lookup)"
                         )
                         return encoding
-                    logger.debug(f"No camera found for RTSP URL '{location}'")
-                    return None
+                    logger.debug(
+                        f"No camera found for RTSP URL '{redact_rtsp_url(location)}', probing stream"
+                    )
+                    return probe_rtsp_codec(location)
                 best_profile = details.best_profile
                 if best_profile is not None and best_profile.encoding:
                     logger.debug(
@@ -3523,6 +3538,32 @@ class Graph:
                     src_node.id,
                 )
                 caps_target.type = new_type
+
+    def validate_rtsp_sources(self) -> None:
+        """
+        Validate the ``location`` of every rtspsrc node with ``validate_rtsp_url``.
+
+        Property values are written unquoted to the GStreamer pipeline
+        description, so user-provided RTSP URLs must not contain characters
+        that could alter the pipeline (whitespace, '!', quotes, ...).
+
+        Raises:
+            ValueError: If an rtspsrc node has a missing or invalid location.
+        """
+        for node in self.nodes:
+            if node.type != "rtspsrc":
+                continue
+            location = node.data.get("location")
+            if not location:
+                raise ValueError(
+                    f"rtspsrc element '{node.id}' requires a 'location' property"
+                )
+            try:
+                node.data["location"] = validate_rtsp_url(location)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid RTSP location for rtspsrc element '{node.id}': {e}"
+                ) from e
 
     def validate_camera_sources_followed_by_decodebin3(self) -> None:
         """

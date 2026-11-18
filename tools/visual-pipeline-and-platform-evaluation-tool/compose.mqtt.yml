@@ -44,11 +44,4 @@ services:
       mqtt-broker:
         condition: service_started
     environment:
-      http_proxy: !reset null
-      https_proxy: !reset null
-      all_proxy: !reset null
-      HTTP_PROXY: !reset null
-      HTTPS_PROXY: !reset null
-      ALL_PROXY: !reset null
-      no_proxy: !reset null
-      NO_PROXY: !reset null
+      PAHO_C_CLIENT_USE_HTTP_PROXY: "FALSE"

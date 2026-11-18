@@ -211,6 +211,54 @@ class MilvusAdapter(VectorAdapter):
                 continue
         return nodes
 
+    def has_collection(self, collection: VectorCollection) -> bool:
+        return bool(self._milvus_client.has_collection(collection.name))
+
+    def _query_all(
+        self, collection: VectorCollection, expression: str
+    ) -> List[dict]:
+        iterator = self._client(collection).query_iterator(
+            collection_name=collection.name,
+            filter=expression,
+            output_fields=["*"],
+            batch_size=config.MILVUS_QUERY_BATCH_SIZE,
+            consistency_level="Strong",
+        )
+        rows: List[dict] = []
+        try:
+            while True:
+                batch = iterator.next()
+                if not batch:
+                    break
+                rows.extend(batch)
+        finally:
+            iterator.close()
+        return rows
+
+    def load_nodes_where(
+        self, collection: VectorCollection, field: str, values: Sequence[str]
+    ) -> List[BaseNode]:
+        if not values:
+            return []
+        quoted = ", ".join(json.dumps(value) for value in values)
+        rows = self._query_all(collection, f"{field} in [{quoted}]")
+        return [metadata_dict_to_node(row, text=row.get("text", "")) for row in rows]
+
+    def update_embeddings(
+        self, collection: VectorCollection, embeddings: Mapping[str, Sequence[float]]
+    ) -> int:
+        if not embeddings:
+            return 0
+        store = self.vector_store(collection)
+        quoted = ", ".join(json.dumps(node_id) for node_id in embeddings)
+        rows = self._query_all(collection, f"id in [{quoted}]")
+        for row in rows:
+            row[store.embedding_field] = [float(value) for value in embeddings[row["id"]]]
+        if rows:
+            self._milvus_client.upsert(collection_name=collection.name, data=rows)
+            self._milvus_client.flush(collection.name)
+        return len(rows)
+
     def ping(self) -> None:
         """List collections to force a server round trip."""
         self._milvus_client.list_collections()

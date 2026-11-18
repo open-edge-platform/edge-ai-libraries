@@ -66,6 +66,8 @@ def test_asset_library_surface_is_reachable():
         ("/{library}/asset_pools", "POST"),
         ("/{library}/asset_pools/{asset_pool_id}/sources", "GET"),
         ("/{library}/asset_pools/{asset_pool_id}/assets", "GET"),
+        ("/{library}/asset_pools/{asset_pool_id}/assets", "DELETE"),
+        ("/{library}/asset_pools/{asset_pool_id}/assets/{asset_id}", "DELETE"),
     ):
         assert (asset_library_api.LIBRARY_API_PREFIX + suffix, method) in paths, suffix
 
