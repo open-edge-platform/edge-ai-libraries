@@ -700,7 +700,7 @@ Compose overrides several model defaults for GPU deployment. Check
 The `remote_openai_compatible` backend sends document and query text to an
 OpenAI-compatible embedding server instead of loading a model in the engine
 process. GME served by the
-[multimodal-embedding-serving](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/multimodal-embedding-serving)
+[multimodal-embedding-serving](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/microservices/multimodal-embedding-serving)
 microservice (model `GME/gme-qwen2-vl-2b-instruct`) is one such server. Any
 server that implements `POST /v1/embeddings` also works.
 

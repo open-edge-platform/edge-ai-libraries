@@ -226,4 +226,4 @@ The runtime calls `similarity_search_with_score(query, k, fetch_k=..., filter=..
 
 - [How It Works](./how-it-works.md)
 - [API Reference](./api-reference.md)
-- [Retriever backend source notes](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/vector-retriever/vector-retriever/src/retriever/backends/README.md)
+- [Retriever backend source notes](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/vector-retriever/vector-retriever/src/retriever/backends/README.md)

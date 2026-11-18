@@ -9,14 +9,14 @@ The canonical, maintained walkthrough for the deploy sequence and the
 full REST API already lives in this microservice's own docs (official Intel
 GitHub repository) — read those rather than duplicating them here:
 
-- [Get Started](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/get-started.md) —
+- [Get Started](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/get-started.md) —
   the exact `docker compose up` -> package -> upload -> `POST /config` ->
   `POST /input` -> verify sequence, worked end-to-end with the built-in
   `temperature_classifier` sample.
-- [Configure Microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/how-to-configure.md) —
+- [Configure Microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/how-to-configure.md) —
   the full `config.json` shape (`udfs.name`/`.models`/`.device`,
   `alerts.mqtt`, `alerts.opcua`), field by field.
-- [Access Microservice API](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/how-to-access-api.md) —
+- [Access Microservice API](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/how-to-access-api.md) —
   every REST route with a request/response example, including
   `POST /opcua_alerts`.
 

@@ -89,7 +89,7 @@ Hugging Face Hub.
 ## Pipeline execution on DL Streamer Pipeline Server 2.0
 
 Every pipeline runs on a
-[DL Streamer Pipeline Server 2.0](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/dlsps2/README.md)
+[DL Streamer Pipeline Server 2.0](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/dlstreamer-pipeline-server/dlsps2/README.md)
 container, the `dlstreamer-pipeline-server` service. The server runs:
 
 - pipeline validation;

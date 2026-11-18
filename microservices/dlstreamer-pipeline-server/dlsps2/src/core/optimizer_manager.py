@@ -39,6 +39,41 @@ class OptimizerBusyError(RuntimeError):
     """Raised when a job is submitted while another optimizer job is still active."""
 
 
+class OptimizerPreprocessError(RuntimeError):
+    """Raised when the optimizer preprocess step fails or times out."""
+
+
+_PREPROCESS_TIMEOUT_SECONDS = 30.0
+
+
+def preprocess_pipeline(pipeline: str, timeout: float = _PREPROCESS_TIMEOUT_SECONDS) -> str:
+    """Apply the DL Streamer optimizer's element substitutions. Runs in a short-lived subprocess."""
+    try:
+        completed = subprocess.run(
+            [sys.executable, _OPTIMIZER_WORKER, "preprocess"],
+            input=json.dumps({"pipeline": pipeline}) + "\n",
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise OptimizerPreprocessError("preprocess timed out") from exc
+    except OSError as exc:
+        raise OptimizerPreprocessError(f"failed to launch optimizer worker: {exc}") from exc
+
+    lines = completed.stdout.strip().splitlines()
+    try:
+        payload = json.loads(lines[-1])
+    except (IndexError, json.JSONDecodeError) as exc:
+        raise OptimizerPreprocessError(completed.stderr.strip() or "no output from optimizer worker") from exc
+    if "error" in payload:
+        raise OptimizerPreprocessError(payload["error"])
+    if "processed_pipeline" not in payload:
+        raise OptimizerPreprocessError("optimizer worker returned no processed_pipeline")
+    return payload["processed_pipeline"]
+
+
 @dataclass
 class OptimizerJob:
     job_id: str
