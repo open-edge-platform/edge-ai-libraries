@@ -18,7 +18,8 @@ modes:
   ``fakesink`` so the check leaves no files or streams behind (see
   :func:`validation_launch_string`). Every stream then runs as its own
   instance (``POST /pipelines`` per stream with ``validate_pipeline=false``,
-  all in the unpinned worker),
+  all in the unpinned worker, naming the element its FPS is counted at in
+  ``fps_element``, see :func:`with_fps_element`),
   so the instances start together. ``GET /pipelines/{id}/status`` is polled
   for each stream's ``frame_fps`` and ``frame_interval``; every instance is
   stopped with
@@ -258,10 +259,12 @@ _ATTACHED_PARENS = re.compile(r"(?<=[^\s()\\])\\?\([^\s()\\]*\\?\)")
 def with_fps_chain_last(command: str, stream_id: str) -> str:
     """Move the chain DLSPS 2.0 should count FPS on to the end of ``command``.
 
-    DLSPS 2.0 counts an instance's FPS at the first sink ``iterate_sinks()``
-    returns, which is the sink parsed last. In a pipeline whose branches run
-    at different rates (a VLM branch fed one frame per trigger), only one
-    branch gives the stream's FPS:
+    A server that takes ``fps_element`` counts FPS at the element
+    :func:`with_fps_element` names; this is the fallback for one that ignores
+    it. Such a server counts an instance's FPS at the first sink
+    ``iterate_sinks()`` returns, which is the sink parsed last. In a pipeline
+    whose branches run at different rates (a VLM branch fed one frame per
+    trigger), only one branch gives the stream's FPS:
 
     - the chain with ``gvafpscounter``, where the pipeline itself counts
       FPS, if exactly one chain has it and that chain ends in a sink;
@@ -313,6 +316,56 @@ def _ends_in_sink(chain: list[str]) -> bool:
         return False
     last_link = len(chain) - 1 - chain[::-1].index("!")
     return chain[last_link + 1].endswith("sink")
+
+
+# Name given to a stream's gvafpscounter that has none, so DLSPS 2.0 can find it.
+_FPS_COUNTER_NAME = "vippet_fps_counter"
+
+
+def with_fps_element(command: str, stream_id: str) -> tuple[str, str | None]:
+    """Name the element DLSPS 2.0 should count the stream's FPS at.
+
+    DLSPS 2.0 counts FPS at the input of the element named by
+    ``fps_element`` in ``POST /pipelines``. That is:
+
+    - the ``gvafpscounter``, where the pipeline itself counts FPS, if
+      ``command`` has exactly one; it is given a name if it has none;
+    - otherwise the stream's main sink, named after the second half of
+      ``stream_id`` (``<source>__<sink>``).
+
+    Only an element outside bins (``( ... )``) is a ``gvafpscounter`` here.
+    DLSPS fails an instance whose ``fps_element`` is not in its pipeline, so
+    a name is returned only when ``command`` has it.
+
+    Returns:
+        ``command``, with the ``gvafpscounter`` named if it was not, and the
+        element's name; or ``command`` unchanged and ``None`` if no element
+        is found.
+    """
+    counters = [
+        match
+        for match in _LAUNCH_ELEMENT.finditer(command)
+        if _LAUNCH_TOKEN.findall(match.group(0))[:1] == ["gvafpscounter"]
+    ]
+    if len(counters) == 1:
+        element = counters[0].group(0)
+        tokens = _LAUNCH_TOKEN.findall(element)
+        end = 1
+        while end < len(tokens) and "=" in tokens[end]:
+            end += 1
+        name = dict(token.split("=", 1) for token in tokens[1:end]).get("name")
+        if name is not None:
+            return command, name.strip('"')
+        if f"name={_FPS_COUNTER_NAME}" not in _LAUNCH_TOKEN.findall(command):
+            start = counters[0].start() + element.index("gvafpscounter")
+            start += len("gvafpscounter")
+            named = f"{command[:start]} name={_FPS_COUNTER_NAME}{command[start:]}"
+            return named, _FPS_COUNTER_NAME
+    _, _, sink = stream_id.partition("__")
+    tokens = set(_LAUNCH_TOKEN.findall(command))
+    if sink and {f"name={sink}", f'name="{sink}"'} & tokens:
+        return command, sink
+    return command, None
 
 
 # Elements that write files or send data out of the pipeline. A validation run
@@ -637,6 +690,7 @@ class Dlsps2PipelineRunner:
         client: httpx.Client,
         pipeline_command: str,
         validate_pipeline: bool = True,
+        fps_element: str | None = None,
     ) -> str:
         body: dict[str, object] = {
             "pipeline": pipeline_command,
@@ -644,6 +698,8 @@ class Dlsps2PipelineRunner:
         }
         if self.pinned_cpu_cores:
             body["cpu_cores"] = self.pinned_cpu_cores
+        if fps_element:
+            body["fps_element"] = fps_element
         response = client.post(f"{self.base_url}/pipelines", json=body)
         response.raise_for_status()
         return response.json()["instance_id"]
@@ -1414,10 +1470,16 @@ class Dlsps2PipelineRunner:
         started_at = time.monotonic()
         metrics_polled_at = started_at
 
-        # DLSPS 2.0 counts FPS at the sink parsed last.
+        # DLSPS 2.0 counts FPS at the fps_element, or, on a server that
+        # ignores it, at the sink parsed last.
+        named = {
+            sid: with_fps_element(command, sid)
+            for sid, command in stream_commands.items()
+        }
+        fps_elements = {sid: element for sid, (_, element) in named.items() if element}
         stream_commands = {
             sid: with_fps_chain_last(command, sid)
-            for sid, command in stream_commands.items()
+            for sid, (command, _) in named.items()
         }
         with self._client() as client, self._metrics_client() as metrics_client:
             if any(
@@ -1453,7 +1515,10 @@ class Dlsps2PipelineRunner:
                             break
                         try:
                             instances[stream_id] = self._start(
-                                client, command, validate_pipeline=False
+                                client,
+                                command,
+                                validate_pipeline=False,
+                                fps_element=fps_elements.get(stream_id),
                             )
                         except httpx.HTTPError as exc:
                             raise RuntimeError(

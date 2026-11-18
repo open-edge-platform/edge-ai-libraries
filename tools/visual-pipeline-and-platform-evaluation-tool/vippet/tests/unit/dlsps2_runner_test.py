@@ -1780,6 +1780,89 @@ class TestWithFpsChainLast(unittest.TestCase):
         self.assertEqual(sent, f"{self.SIDE} {self.MAIN}")
 
 
+class TestWithFpsElement(unittest.TestCase):
+    SID = TestWithFpsChainLast.SID
+    MAIN = TestWithFpsChainLast.MAIN
+    SIDE = TestWithFpsChainLast.SIDE
+    COUNTED = (
+        't. ! queue ! gvagenai prompt="Is it! safe?" ! gvafpscounter '
+        "starting-frame=10 ! fakesink sync=false"
+    )
+
+    def test_unnamed_gvafpscounter_gets_a_name(self):
+        self.assertEqual(
+            dlsps2_runner.with_fps_element(f"{self.MAIN} {self.COUNTED}", self.SID),
+            (
+                f'{self.MAIN} t. ! queue ! gvagenai prompt="Is it! safe?" ! '
+                "gvafpscounter name=vippet_fps_counter starting-frame=10 ! "
+                "fakesink sync=false",
+                "vippet_fps_counter",
+            ),
+        )
+
+    def test_named_gvafpscounter_keeps_its_name(self):
+        for name in ("cnt", '"cnt"'):
+            command = f"a ! gvafpscounter name={name} ! fakesink name=sink_p0_s0"
+            with self.subTest(name=name):
+                self.assertEqual(
+                    dlsps2_runner.with_fps_element(command, self.SID),
+                    (command, "cnt"),
+                )
+
+    def test_main_sink_when_gvafpscounter_does_not_pick_one_element(self):
+        quoted = self.MAIN.replace("name=sink_p0_s0", 'name="sink_p0_s0"')
+        for command in (
+            f"{self.MAIN} {self.SIDE}",  # none
+            f"{self.MAIN} {self.COUNTED} {self.COUNTED}",  # two
+            f"{quoted} {self.SIDE}",
+            # The name the counter would get is taken.
+            f"{self.MAIN} {self.COUNTED} t. ! fakesink name=vippet_fps_counter",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(
+                    dlsps2_runner.with_fps_element(command, self.SID),
+                    (command, "sink_p0_s0"),
+                )
+
+    def test_no_element_found(self):
+        for command, stream_id in (
+            (f"{self.MAIN} {self.SIDE}", "stream"),  # no sink in the id
+            (f"{self.MAIN} {self.SIDE}", "src__other_sink"),  # sink not found
+            # Only in a prompt, not an element's name.
+            ('a ! gvagenai prompt="name=sink_p0_s0" ! fakesink', self.SID),
+        ):
+            with self.subTest(command=command, stream_id=stream_id):
+                self.assertEqual(
+                    dlsps2_runner.with_fps_element(command, stream_id),
+                    (command, None),
+                )
+
+    def test_runs_start_with_the_fps_element(self):
+        fake = _FakeStreamSet([[{"state": "COMPLETED"}, {"state": "COMPLETED"}]])
+        runner = Dlsps2PipelineRunner(
+            mode="normal", base_url="http://dlsps:8080", max_runtime=0
+        )
+        with (
+            patch.object(runner, "_push_fps_metric"),
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            runner.run(
+                PIPELINE,
+                stream_commands={
+                    self.SID: f"{self.MAIN} {self.COUNTED}",
+                    "stream": PIPELINE,
+                },
+            )
+
+        bodies = [json.loads(r.content) for r in fake.calls("POST")]
+        self.assertEqual(bodies[0]["fps_element"], "vippet_fps_counter")
+        self.assertIn("gvafpscounter name=vippet_fps_counter", bodies[0]["pipeline"])
+        self.assertNotIn("fps_element", bodies[1])
+        validated = [body["pipeline"] for body in fake.validate_posts()]
+        self.assertIn("gvafpscounter name=vippet_fps_counter", validated[0])
+
+
 class TestValidationLaunchString(unittest.TestCase):
     def test_writing_sinks_become_fakesinks(self):
         command = (
