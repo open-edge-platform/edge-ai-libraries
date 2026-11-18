@@ -48,6 +48,7 @@ vippet/
 ├── benchmarks/           # Benchmark suite YAMLs + loader
 ├── graph.py              # In-memory pipeline graph (parse / serialize / simple view)
 ├── dlsps2_runner.py      # Runs pipelines on DL Streamer Pipeline Server 2.0 (REST)
+├── dlsps2_optimizer.py   # Runs the DL Streamer pipeline optimizer on the server (REST)
 ├── pipeline_events.py    # Live pipeline events read back from JSON Lines files
 ├── pipeline_runner.py    # Pipeline run result types
 ├── benchmark.py          # Density benchmarking
@@ -78,8 +79,8 @@ A few invariants worth knowing:
   the container context (`PYTHONPATH=/app`). Tests run inside the same image.
 - GStreamer pipelines are **not** executed in-process. `dlsps2_runner.py`
   sends every pipeline to DL Streamer Pipeline Server 2.0 over REST, one
-  server instance per stream. The DL Streamer pipeline optimizer still runs
-  in the `vippet` process.
+  server instance per stream. `dlsps2_optimizer.py` runs the DL Streamer
+  pipeline optimizer as a server job (`POST /optimize`).
 - `setup_env.sh` selects the Compose hardware profile (`cpu`, `gpu`, `npu`, `gpu-wsl`).
   `device.py` reads the available inference devices from the server's
   `GET /devices` on first use and caches them; they determine the devices

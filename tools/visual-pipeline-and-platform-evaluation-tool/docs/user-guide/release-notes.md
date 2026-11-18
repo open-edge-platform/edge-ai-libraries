@@ -17,6 +17,11 @@ Details about the changes, improvements, and known issues in this release of the
 - **Performance Testing**: The performance test suite now runs through a single CLI command with dry-run and
   report-only modes. Users can benchmark their own pipelines alongside the predefined ones. Each run produces
   JSON, CSV, and HTML reports with system information and CPU/GPU/NPU KPIs.
+- **Pipeline Optimization on DL Streamer Pipeline Server**: The DL Streamer pipeline optimizer runs as a job on
+  DL Streamer Pipeline Server instead of inside the ViPPET backend, so candidate pipelines run on the same runtime and
+  devices as every other pipeline, and a crashing candidate no longer restarts the backend. The `preprocess`
+  optimization type also runs on the server. A running optimization job can be cancelled with
+  `DELETE /jobs/optimization/{job_id}`.
 
 ---
 
