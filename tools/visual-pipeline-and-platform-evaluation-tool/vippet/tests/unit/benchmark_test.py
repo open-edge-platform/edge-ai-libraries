@@ -1,11 +1,14 @@
+import json
 import unittest
 from unittest.mock import patch, MagicMock
 
 import api.api_schemas as schemas
+from api.routes.benchmarks import run_benchmark_suite
 from benchmark import (
     Benchmark,
     BenchmarkResult,
 )
+from dlsps2_runner import Dlsps2PipelineRunner
 from graph import Graph, Node, Edge
 from internal_types import (
     InternalExecutionConfig,
@@ -14,6 +17,7 @@ from internal_types import (
     InternalPipelineDensitySpec,
     InternalPipelineStreamSpec,
 )
+from managers import benchmark_metrics as metrics
 from managers.pipeline_manager import PipelineCommand
 from pipeline_runner import LatencyTracerSample, PipelineResult
 
@@ -147,8 +151,12 @@ class TestBenchmark(unittest.TestCase):
             self.assertEqual(result, expected_result)
 
     def test_benchmark_completion_status_uses_completed(self):
-        self.assertEqual(schemas.BenchmarkTestCaseRunStatus.COMPLETED.value, "completed")
-        self.assertNotIn("passed", [status.value for status in schemas.BenchmarkTestCaseRunStatus])
+        self.assertEqual(
+            schemas.BenchmarkTestCaseRunStatus.COMPLETED.value, "completed"
+        )
+        self.assertNotIn(
+            "passed", [status.value for status in schemas.BenchmarkTestCaseRunStatus]
+        )
 
     def test_invalid_ratio_raises_value_error(self):
         # Set stream rates to create an invalid ratio
@@ -513,6 +521,157 @@ class TestBenchmark(unittest.TestCase):
             self.assertTrue(result.streams_per_pipeline[1].id.startswith("__graph-"))
 
 
+class TestBenchmarkApiRoutes(unittest.TestCase):
+    @patch("api.routes.benchmarks.BenchmarkManager")
+    def test_run_benchmark_suite_returns_accepted_job_response(
+        self, mock_benchmark_manager_cls
+    ):
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.start_suite.return_value = "benchmark-job-123"
+        mock_benchmark_manager_cls.return_value = mock_manager_instance
+
+        response = run_benchmark_suite("manufacturing")
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(
+            json.loads(bytes(response.body)), {"job_id": "benchmark-job-123"}
+        )
+        mock_manager_instance.start_suite.assert_called_once_with("manufacturing")
+
+    @patch("api.routes.benchmarks.BenchmarkManager")
+    def test_run_benchmark_suite_returns_400_for_invalid_suite(
+        self, mock_benchmark_manager_cls
+    ):
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.start_suite.side_effect = ValueError(
+            "Benchmark suite with slug 'unknown' not found."
+        )
+        mock_benchmark_manager_cls.return_value = mock_manager_instance
+
+        response = run_benchmark_suite("unknown")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            json.loads(bytes(response.body)),
+            {"message": "Benchmark suite with slug 'unknown' not found."},
+        )
+        mock_manager_instance.start_suite.assert_called_once_with("unknown")
+
+
+class TestBenchmarkMetrics(unittest.TestCase):
+    """Tests for benchmark metric extraction from collected metrics payloads."""
+
+    @staticmethod
+    def _metric(
+        name: str,
+        value: float,
+        labels: dict[str, str] | None = None,
+    ) -> dict:
+        metric: dict = {"name": name, "fields": {"value": value}}
+        if labels is not None:
+            metric["labels"] = labels
+        return metric
+
+    def test_extracts_usage_metrics_including_latency_average(self):
+        parsed_metrics = metrics.parse_metrics_text(
+            json.dumps(
+                [
+                    {
+                        "metrics": [
+                            self._metric("cpu_usage_user", 20.0),
+                            self._metric("mem_used_percent", 50.0),
+                            self._metric("npu_utilization", 60.0),
+                            self._metric(
+                                "gpu_engine_usage_usage",
+                                70.0,
+                                {"engine": "compute"},
+                            ),
+                            self._metric(
+                                "gpu_engine_usage_usage",
+                                30.0,
+                                {"engine": "video"},
+                            ),
+                            self._metric(
+                                "gpu_power_power_w",
+                                10.0,
+                                {"type": "pkg_cur_power"},
+                            ),
+                            self._metric("pipeline_latency_avg_ms", 14.5),
+                        ]
+                    },
+                    {
+                        "metrics": [
+                            self._metric("cpu_usage_user", 22.0),
+                            self._metric("mem_used_percent", 52.0),
+                            self._metric("npu_utilization", 62.0),
+                            self._metric(
+                                "gpu_engine_usage_usage",
+                                80.0,
+                                {"engine": "compute"},
+                            ),
+                            self._metric(
+                                "gpu_engine_usage_usage",
+                                40.0,
+                                {"engine": "video"},
+                            ),
+                            self._metric(
+                                "gpu_power_power_w",
+                                12.0,
+                                {"type": "pkg_cur_power"},
+                            ),
+                            self._metric("pipeline_latency_avg_ms", 15.5),
+                        ]
+                    },
+                ]
+            )
+        )
+
+        self.assertEqual(metrics.cpu_usage(parsed_metrics), 21.0)
+        self.assertEqual(metrics.memory_usage(parsed_metrics), 51.0)
+        self.assertEqual(metrics.npu_usage(parsed_metrics), 61.0)
+        self.assertEqual(metrics.gpu_usage(parsed_metrics), 75.0)
+        self.assertEqual(metrics.media_usage(parsed_metrics), 35.0)
+        self.assertEqual(metrics.power_usage(parsed_metrics), 11.0)
+        self.assertEqual(metrics.latency_avg_ms(parsed_metrics), 15.0)
+
+    def test_power_usage_reads_only_package_power_from_native_collector(self):
+        parsed_metrics = metrics.parse_metrics_text(
+            json.dumps(
+                [
+                    {
+                        "metrics": [
+                            # Pre-2026.3.0 metrics-manager name; no longer emitted.
+                            self._metric("gpu_power", 99.0, {"type": "pkg_cur_power"}),
+                            self._metric(
+                                "gpu_power_power_w", 4.0, {"type": "gpu_cur_power"}
+                            ),
+                            self._metric(
+                                "gpu_power_power_w", 20.0, {"type": "pkg_cur_power"}
+                            ),
+                        ]
+                    }
+                ]
+            )
+        )
+
+        self.assertEqual(metrics.power_usage(parsed_metrics), 20.0)
+
+    def test_power_usage_returns_none_without_native_power_samples(self):
+        parsed_metrics = metrics.parse_metrics_text(
+            json.dumps(
+                [
+                    {
+                        "metrics": [
+                            self._metric("gpu_power", 9.0, {"type": "pkg_cur_power"})
+                        ]
+                    }
+                ]
+            )
+        )
+
+        self.assertIsNone(metrics.power_usage(parsed_metrics))
+
+
 class TestBenchmarkLatencyTracerMetrics(unittest.TestCase):
     """Verify that BenchmarkResult carries the best-config tracer sample."""
 
@@ -590,7 +749,7 @@ class TestBenchmarkLatencyTracerMetrics(unittest.TestCase):
         call_index = {"i": 0}
 
         def fake_run(*args, **kwargs):
-            """Mimic PipelineRunner: set the tracer map, then return the result."""
+            """Mimic the runner: set the tracer map, then return the result."""
             i = call_index["i"]
             benchmark.runner.latency_tracer_metrics = per_iteration_samples[i]
             call_index["i"] = i + 1
@@ -985,6 +1144,75 @@ class TestBenchmarkMixedDensity(unittest.TestCase):
         # The incremented pipeline must actually change (otherwise the
         # search is broken).
         self.assertGreater(len(set(grow_streams_seen)), 1)
+
+
+class TestBenchmarkSlowestStream(unittest.TestCase):
+    """With per-stream FPS, the slowest stream decides pass or fail."""
+
+    STREAM_COMMANDS = {"s0": "pipeline 0", "s1": "pipeline 1"}
+
+    def setUp(self):
+        self.specs = [create_internal_density_spec("/pipelines/p/variants/v", "p")]
+        # Mean 35 passes a floor of 30 at 2 streams; the slowest stream does not.
+        self.results = [
+            PipelineResult(total_fps=40, per_stream_fps=40, stream_fps={"s0": 40.0}),
+            PipelineResult(
+                total_fps=70, per_stream_fps=35, stream_fps={"s0": 45.0, "s1": 25.0}
+            ),
+        ] * 2
+
+    def _run(self, benchmark: Benchmark) -> BenchmarkResult:
+        with patch("benchmark.PipelineManager") as mock_pipeline_manager_cls:
+            mock_pipeline_manager_cls.return_value.build_pipeline_command.return_value = PipelineCommand(
+                command="pipeline 0 pipeline 1",
+                stream_commands=self.STREAM_COMMANDS,
+            )
+            with patch.object(benchmark.runner, "run", side_effect=self.results) as run:
+                result = benchmark.run(
+                    self.specs,
+                    fps_floor=30,
+                    execution_config=create_internal_execution_config(),
+                    job_id="job-1",
+                )
+        self.run_calls = run.call_args_list
+        return result
+
+    def test_slowest_stream_below_floor_fails_the_iteration(self):
+        result = self._run(Benchmark())
+
+        self.assertEqual(result.n_streams, 1)
+        self.assertEqual(result.per_stream_fps, 40)
+        self.assertEqual(result.min_stream_fps, 40.0)
+
+    def test_dlsps2_runner_gets_latency_flag(self):
+        benchmark = Benchmark(enable_latency_metrics=True)
+
+        self.assertIsInstance(benchmark.runner, Dlsps2PipelineRunner)
+        self.assertEqual(benchmark.runner.latency_tracer_metrics, {})
+
+    def test_dlsps2_runner_receives_per_stream_commands(self):
+        benchmark = Benchmark()
+
+        self.assertIsInstance(benchmark.runner, Dlsps2PipelineRunner)
+        result = self._run(benchmark)
+
+        self.assertEqual(result.n_streams, 1)
+        for call in self.run_calls:
+            self.assertEqual(call.kwargs["stream_commands"], self.STREAM_COMMANDS)
+
+    def test_without_per_stream_fps_the_mean_decides(self):
+        self.results = [
+            PipelineResult(total_fps=40, per_stream_fps=40),
+            PipelineResult(total_fps=70, per_stream_fps=35),
+            PipelineResult(total_fps=60, per_stream_fps=15),
+            PipelineResult(total_fps=90, per_stream_fps=30),
+            PipelineResult(total_fps=60, per_stream_fps=15),
+        ]
+
+        result = self._run(Benchmark())
+
+        self.assertEqual(result.n_streams, 3)
+        self.assertIsNone(result.min_stream_fps)
 
 
 if __name__ == "__main__":

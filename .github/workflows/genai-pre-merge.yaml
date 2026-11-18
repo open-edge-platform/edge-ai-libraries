@@ -175,7 +175,7 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
           # Use the downloaded template
-          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_core.html"   
+          trivy fs . --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o "trivy_code_scan_core.html"
       
       - name: Upload trivy reports
         continue-on-error: false
@@ -223,14 +223,14 @@ jobs:
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image chatqna-core-backend and scanning"
               docker build -f ./sample-applications/chat-question-and-answer-core/docker/Dockerfile -t chatqna-core-backend:latest ./sample-applications/chat-question-and-answer-core/
-              trivy image chatqna-core-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
+              trivy image chatqna-core-backend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
               trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json chatqna-core-backend:latest
               echo "completed chatqna-core-backend scanning"
               
               echo "**************************************************************"
               echo "Building image chatqna-core-frontend and scanning"
               docker build -t="chatqna-core-frontend:latest" ./sample-applications/chat-question-and-answer-core/ui
-              trivy image chatqna-core-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
+              trivy image chatqna-core-frontend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
               trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json chatqna-core-frontend:latest
               echo "completed chatqna-core-frontend scanning"
               echo "print all the files"
@@ -256,7 +256,7 @@ jobs:
         run: |
           echo "Running Bandit security scan..."
           
-          python -m bandit -r sample-applications/chat-question-and-answer-core/ -v --exit-zero > bandit_scan_report_summary.txt || echo "Bandit found security issues"
+          python -m bandit -r sample-applications/chat-question-and-answer-core/ -v --severity-level high --confidence-level high > bandit_scan_report_summary.txt
           
           echo "Bandit scan completed"
       
@@ -364,7 +364,7 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
           # Use the downloaded template
-          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_chatqna.html"   
+          trivy fs . --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o "trivy_code_scan_chatqna.html"
       
       - name: Upload trivy reports
         continue-on-error: false
@@ -410,14 +410,14 @@ jobs:
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image chatqna-backend and scanning"
               docker build -f ./sample-applications/chat-question-and-answer/Dockerfile -t chatqna-backend:latest ./sample-applications/chat-question-and-answer/
-              trivy image chatqna-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.html
+              trivy image chatqna-backend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.html
               trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.spdx.json chatqna-backend:latest
               echo "completed chatqna-backend scanning"
               
               echo "**************************************************************"
               echo "Building image chatqna-frontend and scanning"
               docker build -t="chatqna-frontend:latest" ./sample-applications/chat-question-and-answer/ui/react
-              trivy image chatqna-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.html
+              trivy image chatqna-frontend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.html
               trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.spdx.json chatqna-frontend:latest
               echo "completed chatqna-frontend scanning"
               echo "print all the files"
@@ -443,7 +443,7 @@ jobs:
         run: |
           echo "Running Bandit security scan..."
           
-          python -m bandit -r sample-applications/chat-question-and-answer/ -v --exit-zero > bandit_scan_report_summary_chatqna.txt || echo "Bandit found security issues"
+          python -m bandit -r sample-applications/chat-question-and-answer/ -v --severity-level high --confidence-level high > bandit_scan_report_summary_chatqna.txt
           
           echo "Bandit scan completed"
       
@@ -527,7 +527,7 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
           # Use the downloaded template
-          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_doc_summary.html"   
+          trivy fs . --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o "trivy_code_scan_doc_summary.html"
       
       - name: Upload trivy reports
         continue-on-error: false
@@ -575,7 +575,7 @@ jobs:
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image doc-summary-backend and scanning"
               docker build -f ./sample-applications/document-summarization/Dockerfile -t doc-summary-backend:latest ./sample-applications/document-summarization/
-              trivy image doc-summary-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.html
+              trivy image doc-summary-backend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.html
               trivy image --quiet --format spdx-json --output sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.spdx.json doc-summary-backend:latest
               echo "completed doc-summary-backend scanning"
               
@@ -601,7 +601,7 @@ jobs:
         run: |
           echo "Running Bandit security scan..."
           
-          python -m bandit -r sample-applications/document-summarization/ -v --exit-zero > bandit_scan_report_summary_doc_summary.txt || echo "Bandit found security issues"
+          python -m bandit -r sample-applications/document-summarization/ -v --severity-level high --confidence-level high > bandit_scan_report_summary_doc_summary.txt
           
           echo "Bandit scan completed"
       
@@ -679,7 +679,7 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
           # Use the downloaded template
-          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_doc_ing.html"   
+          trivy fs . --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o "trivy_code_scan_doc_ing.html"
       
       - name: Upload trivy reports
         continue-on-error: false
@@ -726,7 +726,7 @@ jobs:
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image doc_ing-backend and scanning"
               docker build -f ./microservices/document-ingestion/pgvector/docker/Dockerfile -t doc_ing-backend:latest ./microservices/document-ingestion/pgvector/
-              trivy image doc_ing-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.html
+              trivy image doc_ing-backend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.html
               trivy image --quiet --format spdx-json --output microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.spdx.json doc_ing-backend:latest
               echo "completed doc_ing-backend scanning"
             
@@ -748,7 +748,7 @@ jobs:
         run: |
           echo "Running Bandit security scan..."
           
-          python -m bandit -r microservices/document-ingestion/ -v --exit-zero > bandit_scan_report_summary_doc_ing.txt || echo "Bandit found security issues"
+          python -m bandit -r microservices/document-ingestion/ -v --severity-level high --confidence-level high > bandit_scan_report_summary_doc_ing.txt
           
           echo "Bandit scan completed"
       

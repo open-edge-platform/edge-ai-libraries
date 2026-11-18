@@ -30,10 +30,10 @@ supported hubs. Only the Hugging Face download functionality is disabled.
 #### Get a token
 
 1. Sign in (or create an account) at [https://huggingface.co](https://huggingface.co).
-2. Open **Settings -> Access Tokens** and create a new token. A token with the **read** role
+1. Open **Settings -> Access Tokens** and create a new token. A token with the **read** role
    is sufficient to download public and gated models.
-3. For any gated model, additionally [accept](../../user-guide/model-management/huggingface.md) its license on the model's Hugging Face page
-   while signed in with the same account.
+1. For any gated model, additionally [accept](../../user-guide/model-management/huggingface.md) its license on the
+   model's Hugging Face page while signed in with the same account.
 
 #### Configure the token
 
@@ -48,7 +48,7 @@ automatically because `compose.yml` already declares
 
 ```bash
 export HF_TOKEN="hf_your_token_here"
-make run
+make run-prebuilt    # or `make run` when building from source
 ```
 
 To make the variable persistent, add the `export` line to `~/.bashrc`, `~/.zshrc`, or your

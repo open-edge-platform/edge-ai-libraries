@@ -1,0 +1,22 @@
+{
+  "profile": {
+    "label": "Inferencing",
+    "value": "inferencing",
+    "installAll": true,
+    "remove": true,
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
+  "modules": [
+    { "label": "OpenVINO", "value": "openvino", "remove": true }
+  ],
+  "install": {
+    "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install inferencing"
+  },
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openvino.ai/2026/get-started.html"
+  },
+  "resources": [
+    { "text": "OpenVINO", "url": "https://docs.openvino.ai/2026/get-started.html" }
+  ]
+}

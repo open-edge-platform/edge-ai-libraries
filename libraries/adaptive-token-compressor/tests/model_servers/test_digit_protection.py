@@ -12,7 +12,7 @@ serialization and the Noop passthrough):
      marker. Packaging guard.
   3. Live-server semantics — with ``force_reserve_digit=True`` + radius, digit
      tokens (and their neighbors) survive compression. Skipped unless a real
-     lingua server is reachable (same gate as test_lingua_integration.py).
+     compress server is reachable (same gate as test_compress_server_integration.py).
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from adaptive_token_compressor.model_servers.lingua import apply_patch
+from adaptive_token_compressor.model_servers.compress_server import apply_patch
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ class TestIdempotency:
         rc = apply_patch.main()
         assert rc == 0
         assert called["apply"] is False
-        assert "already patched" in capsys.readouterr().out.lower()
+        assert "already applied" in capsys.readouterr().out.lower()
 
     def test_unpatched_invokes_apply(self, fake_llmlingua_dir, monkeypatch):
         fake_llmlingua_dir(patched=False)
@@ -194,30 +194,30 @@ class TestShippedPatch:
 # ─────────────────────────────────────────────────────────────────────────────
 # ATC-UNIT-012..013 · Live-server semantics (integration; skipped if no server)
 #
-# Gate mirrors tests/harness/test_lingua_integration.py: the whole class is
-# skipped unless a lingua server is reachable. Requires the LLMLingua-2 patch
+# Gate mirrors tests/harness/test_compress_server_integration.py: the whole class is
+# skipped unless a compress server is reachable. Requires the neighbor-protection patch
 # applied on that server for the neighbor-radius assertion to hold.
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 import requests  # noqa: E402  (kept next to its only user, like the integration suite)
 
-from adaptive_token_compressor.core.backends import LinguaHTTPBackend  # noqa: E402
+from adaptive_token_compressor.core.backends import TokenPruneBackend  # noqa: E402
 
-_LINGUA_URL = os.environ.get("LINGUA_INTEGRATION_URL", "http://localhost:8001/compress")
-_LINGUA_HEALTH = _LINGUA_URL.rsplit("/", 1)[0] + "/health"
+_COMPRESS_SERVER_URL = os.environ.get("COMPRESS_SERVER_INTEGRATION_URL", "http://localhost:8001/compress")
+_COMPRESS_SERVER_HEALTH = _COMPRESS_SERVER_URL.rsplit("/", 1)[0] + "/health"
 
 
 def _server_reachable() -> bool:
     try:
-        return requests.get(_LINGUA_HEALTH, timeout=2).status_code == 200
+        return requests.get(_COMPRESS_SERVER_HEALTH, timeout=2).status_code == 200
     except Exception:
         return False
 
 
 @pytest.mark.skipif(
     not _server_reachable(),
-    reason=f"Lingua server not reachable at {_LINGUA_HEALTH}",
+    reason=f"Compress Server not reachable at {_COMPRESS_SERVER_HEALTH}",
 )
 class TestDigitProtectionLive:
     # Numeric-heavy text; the digit *runs* must survive compression.
@@ -240,7 +240,7 @@ class TestDigitProtectionLive:
     _CANONICAL = {"4096", "8001", "250"}
 
     def test_canonical_integers_survive_with_force_reserve_digit(self):
-        backend = LinguaHTTPBackend(lingua_url=_LINGUA_URL)
+        backend = TokenPruneBackend(compress_server_url=_COMPRESS_SERVER_URL)
         out = backend.compress(
             self._TEXT, rate=0.3, force_reserve_digit=True, digit_neighbor_radius=0
         )
@@ -251,7 +251,7 @@ class TestDigitProtectionLive:
     def test_protection_retains_more_digits_than_no_protection(self):
         # The feature's contract: force_reserve_digit=True keeps at least as many
         # distinct digit runs as force_reserve_digit=False at the same rate.
-        backend = LinguaHTTPBackend(lingua_url=_LINGUA_URL)
+        backend = TokenPruneBackend(compress_server_url=_COMPRESS_SERVER_URL)
         off = set(self._digit_runs(
             backend.compress(self._TEXT, rate=0.3, force_reserve_digit=False)
         ))
@@ -261,7 +261,7 @@ class TestDigitProtectionLive:
         assert len(on) >= len(off)
 
     def test_neighbor_radius_keeps_more_context_than_radius_zero(self):
-        backend = LinguaHTTPBackend(lingua_url=_LINGUA_URL)
+        backend = TokenPruneBackend(compress_server_url=_COMPRESS_SERVER_URL)
         common = dict(rate=0.3, force_reserve_digit=True)
         out_r0 = backend.compress(self._TEXT, digit_neighbor_radius=0, **common)
         out_r3 = backend.compress(self._TEXT, digit_neighbor_radius=3, **common)

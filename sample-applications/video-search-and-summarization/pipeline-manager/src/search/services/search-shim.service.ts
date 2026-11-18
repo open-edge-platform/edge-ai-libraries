@@ -7,8 +7,6 @@ import { HttpService } from '@nestjs/axios';
 
 @Injectable()
 export class SearchShimService {
-  lastEmbeddingsUpdate: number = new Date().getTime();
-
   constructor(
     private $config: ConfigService,
     private $http: HttpService,
@@ -17,13 +15,12 @@ export class SearchShimService {
   search(query: SearchShimQuery[]) {
     const endPoint: string = this.$config.get('search.endpoint')!;
     const api = [endPoint, 'query'].join('/') + '/';
+    const timeout = this.$config.get<number>('search.queryTimeoutMs') ?? 30000;
 
     console.log('=== SEARCH SHIM SERVICE ===');
     console.log('api endpoint:', api);
     console.log('query payload:', JSON.stringify(query, null, 2));
 
-    return this.$http.post<SearchResultRO>(api, query);
+    return this.$http.post<SearchResultRO>(api, query, { timeout });
   }
-
-  embeddingsUpdate() {}
 }

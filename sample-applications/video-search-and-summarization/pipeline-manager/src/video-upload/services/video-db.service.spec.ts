@@ -257,4 +257,34 @@ describe('VideoDbService', () => {
       expect(repository.save).not.toHaveBeenCalled();
     });
   });
+
+  describe('setEmbeddingFlags', () => {
+    it('updates only the given flags (and updatedAt) and returns the fresh row', async () => {
+      const updated = { ...mockVideoEntity, searchEmbeddings: true };
+      repository.update.mockResolvedValue({ affected: 1 } as any);
+      repository.findOne.mockResolvedValue(updated as any);
+
+      const result = await service.setEmbeddingFlags('test-video-123', {
+        searchEmbeddings: true,
+      });
+
+      expect(repository.update).toHaveBeenCalledWith(
+        { videoId: 'test-video-123' },
+        { searchEmbeddings: true, updatedAt: expect.any(String) },
+      );
+      expect(repository.save).not.toHaveBeenCalled();
+      expect(result).toEqual(updated);
+    });
+
+    it('returns null when the video does not exist', async () => {
+      repository.update.mockResolvedValue({ affected: 0 } as any);
+
+      const result = await service.setEmbeddingFlags('missing', {
+        textEmbeddings: true,
+      });
+
+      expect(result).toBeNull();
+      expect(repository.findOne).not.toHaveBeenCalled();
+    });
+  });
 });

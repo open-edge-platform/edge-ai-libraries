@@ -60,6 +60,7 @@ export MM_DATAPREP_PIPELINE_COMPLETION_QUEUE_MAXSIZE=${MM_DATAPREP_PIPELINE_COMP
 export MM_DATAPREP_DETECTION_WORKER_THREADS=${MM_DATAPREP_DETECTION_WORKER_THREADS:-2}
 export MM_DATAPREP_EMBED_WORKER_THREADS=${MM_DATAPREP_EMBED_WORKER_THREADS:-2}
 export MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S=${MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+export MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S=${MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S:-300}
 export MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS=${MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS:-false}
 export MM_DATAPREP_ENABLE_TRACING=${MM_DATAPREP_ENABLE_TRACING:-false}
 export MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS=${MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS:-2}
@@ -89,8 +90,8 @@ else
 fi
 
 # Model storage configuration for object detection
-export YOLOX_MODELS_VOLUME_NAME="dataprep-yolox-models"
-export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
+export DETECTION_MODELS_VOLUME_NAME="dataprep-detection-models"
+export DETECTION_MODELS_MOUNT_PATH="/app/models/object-detection"
 
 
 # Env vars for minio service ---------------------------
@@ -140,19 +141,27 @@ if [ "$1" != "--down" ] && [ "$1" != "--build" ]; then
         echo -e "${RED}ERROR: MINIO_ROOT_PASSWORD is not set in environment.${NC}"
         return
     fi
+
+    # No default detection model: the user must choose one explicitly.
+    if [[ ! "${MM_DATAPREP_ENABLE_OBJECT_DETECTION,,}" =~ ^(false|0|no|off)$ ]] && [ -z "$MM_DATAPREP_DETECTION_MODEL_NAME" ]; then
+        echo -e "${RED}ERROR: MM_DATAPREP_DETECTION_MODEL_NAME is not set in environment.${NC}"
+        echo "Set it to a Hugging Face OpenVINO detection model (OpenVINO/<repo>, see https://huggingface.co/OpenVINO),"
+        echo "or disable object detection with MM_DATAPREP_ENABLE_OBJECT_DETECTION=false."
+        return
+    fi
     
-    # Create docker volume for YOLOX models if it doesn't exist
-    if ! docker volume ls | grep -q "${YOLOX_MODELS_VOLUME_NAME}"; then
-        echo "Creating Docker volume for YOLOX models: ${YOLOX_MODELS_VOLUME_NAME}"
-        docker volume create "${YOLOX_MODELS_VOLUME_NAME}"
+    # Create docker volume for object detection models if it doesn't exist
+    if ! docker volume ls | grep -q "${DETECTION_MODELS_VOLUME_NAME}"; then
+        echo "Creating Docker volume for object detection models: ${DETECTION_MODELS_VOLUME_NAME}"
+        docker volume create "${DETECTION_MODELS_VOLUME_NAME}"
         if [ $? = 0 ]; then
-            echo "YOLOX models volume created successfully"
+            echo "Object detection models volume created successfully"
         else
-            echo -e "${RED}ERROR: Failed to create YOLOX models volume${NC}"
+            echo -e "${RED}ERROR: Failed to create object detection models volume${NC}"
             return
         fi
     else
-        echo "YOLOX models volume already exists: ${YOLOX_MODELS_VOLUME_NAME}"
+        echo "Object detection models volume already exists: ${DETECTION_MODELS_VOLUME_NAME}"
     fi
 fi
 
@@ -192,9 +201,9 @@ elif [ "$1" = "--down" ] && [ "$#" -eq 1 ]; then
     if [ $? = 0 ]; then
         echo "All services down!"
         
-        # Optional: Remove YOLOX models volume (uncomment if you want to clean up models on teardown)
-        # echo "Removing YOLOX models volume: ${YOLOX_MODELS_VOLUME_NAME}"
-        # docker volume rm "${YOLOX_MODELS_VOLUME_NAME}" 2>/dev/null || echo "Volume not found or already removed"
+        # Optional: Remove object detection models volume (uncomment if you want to clean up models on teardown)
+        # echo "Removing object detection models volume: ${DETECTION_MODELS_VOLUME_NAME}"
+        # docker volume rm "${DETECTION_MODELS_VOLUME_NAME}" 2>/dev/null || echo "Volume not found or already removed"
     fi
 
 # Build dataprep image
@@ -217,7 +226,7 @@ elif [ "$1" = "--build" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
 elif [ "$1" = "--nd" ] && [ "$#" -eq 1 ]; then
     docker compose -f docker/compose.yaml up --build
 
-# Default: export environment variables (and ensure YOLOX volume exists) without building or starting containers
+# Default: export environment variables (and ensure the detection models volume exists) without building or starting containers
 elif [ "$#" -eq 0 ]; then
     echo "All environment variables set successfully!"
 

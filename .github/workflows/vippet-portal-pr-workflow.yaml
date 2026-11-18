@@ -1,0 +1,108 @@
+name: "[ViPPET Portal] PR workflow"
+run-name: "[ViPPET Portal] PR workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+
+on:
+  pull_request:
+    branches:
+      - main
+      - release-*
+    paths:
+      - 'tools/vippet-portal/**'
+      - '.github/workflows/vippet-portal-pr-workflow.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  PORTAL_DIR: tools/vippet-portal
+  UI_DIR: tools/vippet-portal/ui
+  NODE_VERSION: '22'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  lint:
+    name: Lint and format UI
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.UI_DIR }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.UI_DIR }}
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ${{ env.UI_DIR }}
+        run: npm run lint
+
+      - name: Check Prettier formatting
+        working-directory: ${{ env.UI_DIR }}
+        run: npm run format:check
+
+  codegen:
+    name: Verify API codegen is up to date
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: ${{ env.PORTAL_DIR }}/server/requirements.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.UI_DIR }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.PORTAL_DIR }}
+        run: |
+          make install-server
+          (cd ui && npm ci)
+
+      - name: Regenerate OpenAPI schema and RTK Query client
+        working-directory: ${{ env.PORTAL_DIR }}
+        run: make api-codegen
+
+      # git status (not git diff) so a missing, newly generated file also fails.
+      - name: Fail if generated files differ from the committed ones
+        working-directory: ${{ env.PORTAL_DIR }}
+        run: |
+          CHANGES=$(git status --porcelain -- ui/openapi.json ui/src/api/portalApi.generated.ts)
+          if [ -n "$CHANGES" ]; then
+            echo "::error::Generated API files are out of date. Run 'make api-codegen' in tools/vippet-portal and commit the result."
+            echo "$CHANGES"
+            git --no-pager diff -- ui/openapi.json ui/src/api/portalApi.generated.ts
+            exit 1
+          fi
+
+      - name: Type-check UI against the generated client
+        working-directory: ${{ env.UI_DIR }}
+        run: npx tsc -b

@@ -14,9 +14,6 @@ The service exposes a FastAPI-based REST API and supports two dispatch modes:
 The following diagram illustrates the high-level architecture and data flow:
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     A[Detection Pipeline] -->|POST /api/v1/actions/execute| B
 
@@ -88,12 +85,12 @@ flowchart TD
 
 ### Built-in Action Tools
 
-| Tool | Description | Required Configuration |
-|------|-------------|----------------------|
-| `log_alert` | Logs the alert event to application logs | None |
-| `trigger_webhook` | HTTP POST to a configurable external endpoint, with optional HMAC-SHA256 signing | `WEBHOOK_URL` |
-| `capture_snapshot` | Saves the image payload from the request to disk | `SNAPSHOT_DIR` |
-| `publish_mqtt` | Publishes the alert to an MQTT broker topic | `MQTT_BROKER` |
+| Tool               | Description                                                                      | Required Configuration |
+| ------------------ | -------------------------------------------------------------------------------- | ---------------------- |
+| `log_alert`        | Logs the alert event to application logs                                         | None                   |
+| `trigger_webhook`  | HTTP POST to a configurable external endpoint, with optional HMAC-SHA256 signing | `WEBHOOK_URL`          |
+| `capture_snapshot` | Saves the image payload from the request to disk                                 | `SNAPSHOT_DIR`         |
+| `publish_mqtt`     | Publishes the alert to an MQTT broker topic                                      | `MQTT_BROKER`          |
 
 ## Integration
 

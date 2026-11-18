@@ -77,13 +77,14 @@ into the container.
 
 
 #### Model Preparation
-Docker Compose deployments require the OpenVINO model prepared
-**before starting the router**. The currently supported intelligent routing
-classifier model is `Qwen3.5-2B-FP16`.
+Docker Compose deployments require the OpenVINO classifier model prepared
+**before starting the router**, even if you do not enable model-based routing
+yet: the compose file mounts it into the container. The default model-based
+routing classifier model is `Qwen3.5-2B` in OpenVINO FP16 format.
 
-Download the supported Qwen3.5 2B OpenVINO model. If your
-environment uses an internal model mirror or an approved local checkpoint,
-replace `Qwen/Qwen3.5-2B` with that equivalent source:
+Download the Qwen3.5 2B OpenVINO model. If your environment uses an internal
+model mirror, download the same `OpenVINO/Qwen3.5-2B-fp16-ov` repository from
+it:
 
 ```bash
 # install huggingface CLI
@@ -95,7 +96,7 @@ either run the install command with `--break-system-packages`, or create
 a Python virtual environment first.
 
 ```bash
-hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen2.5-2B-FP16
+hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen3.5-2B-FP16
 ```
 
 > **Note**: **`/opt` permissions:** the default `/opt/models` is typically root-owned.
@@ -113,24 +114,30 @@ export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
 
 ### Step 2: Deploy
 
-The deploy resolves the image `${REGISTRY}inference-router:${TAG}`. By default
-`REGISTRY` is empty, so a **locally built** image is used. Choose one of the
-following.
+By default the deploy starts **both** the router and its web UI. The router
+image resolves to `${REGISTRY}inference-router:${TAG}` and the UI image to
+`${REGISTRY}inference-router-ui:${TAG}` — they share the same `REGISTRY` prefix
+and `TAG`. With `REGISTRY` empty (the default), **locally built** images are
+used. Choose one of the following.
+
+To deploy the router **without** the UI, add `--standalone` to any of the
+commands below.
 
 #### Option 1: build from source (default)
 
-With no `REGISTRY` set, build the image locally and deploy:
+With no `REGISTRY` set, build the images locally and deploy:
 
 ```bash
 bash scripts/deploy_docker.sh --build
 ```
 
-`--build` forces a build. If the image already exists, run `bash scripts/deploy_docker.sh`.
+`--build` forces a build of both the router and UI images. If the images
+already exist, run `bash scripts/deploy_docker.sh`.
 
 #### Option 2: use a remote prebuilt image
 
 Set a remote registry by exporting environment variables. The deploy then
-**pulls** the prebuilt image instead of building:
+**pulls** the prebuilt images instead of building:
 
 ```bash
 export REGISTRY="intel/"
@@ -138,16 +145,27 @@ export TAG="latest"
 ```
 
 `REGISTRY` is a prefix — include the trailing `/` (e.g. `intel/` or
-`myregistry.example.com:5000/`). Leave it unset/empty to use the local image
+`myregistry.example.com:5000/`). Leave it unset/empty to use the local images
 from Option 1.
 
-Check that the container is running:
+Deploy:
+
+```bash
+bash scripts/deploy_docker.sh
+```
+
+With either option, if `workspace/policy.yaml` or `workspace/strategy.yaml` is
+missing, the deploy script copies the default from the router image, so the
+defaults match the router version being deployed. Existing workspace files are
+never overwritten.
+
+Check that the containers are running:
 
 ```bash
 docker ps --filter name=inference-router
 ```
 
-To stop the router:
+To stop everything:
 
 ```bash
 bash scripts/deploy_docker.sh --down
@@ -159,22 +177,49 @@ To use a different host port:
 ROUTER_PORT=9000 bash scripts/deploy_docker.sh
 ```
 
-#### Enable Remote Access
+#### Web UI
 
-By default, the router binds to `127.0.0.1` (loopback), so it is only reachable
-from the host it runs on. To allow access from **other machines**, export
-`IR_BIND_HOST=0.0.0.0` (or a specific interface IP) before deploying:
+With the UI enabled (the default), open it in a browser at
+`http://<host-ip>:7010` (or `http://localhost:7010` on the host itself). The UI
+listens on every interface, but the router itself still binds to `127.0.0.1`
+by default: both containers use the host network, so the UI reaches the router
+over loopback. The router API is therefore reachable only from the host unless
+you [enable remote access](#enable-remote-access). Use a different UI port with
+`--ui-port`:
 
 ```bash
-IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh
+bash scripts/deploy_docker.sh --ui-port 8080
+```
+
+To skip the UI and deploy only the router (local-only by default, see
+[Enable Remote Access](#enable-remote-access)):
+
+```bash
+bash scripts/deploy_docker.sh --standalone
+```
+
+#### Enable Remote Access
+
+In both deployment modes the router binds to `127.0.0.1` (loopback) by default,
+so it is only reachable from the host it runs on. To allow access from **other
+machines**, export `IR_BIND_HOST=0.0.0.0` before deploying:
+
+```bash
+IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh               # router + UI
+IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh --standalone  # router only
 ```
 
 Clients on other machines will then reach the router at `http://<host-ip>:8000`
 (substitute your `ROUTER_PORT` if you changed it).
 
+`0.0.0.0` serves every interface, so `localhost` keeps working on the host. If
+you instead set `IR_BIND_HOST` to one specific interface IP, the router listens
+only on that address: `localhost` is refused, so use that IP in place of
+`localhost` in the requests below.
+
 ### Step 3: Verify
 
-List available models. The response includes `router` plus your configured
+List available models. The response includes `auto` plus your configured
 providers:
 
 ```bash
@@ -250,6 +295,77 @@ View router metrics:
 curl http://localhost:8000/v1/metrics
 ```
 
+## Optional: Model-Based Routing
+
+With model-based routing, a small classifier model on this host reads each
+request and decides whether a local model can handle it or it should go to a
+cloud model. The router ships a ready-to-use classifier for the model prepared
+in [Model Preparation](#model-preparation); no training is needed.
+
+1. Give the two providers the labels `local` and `cloud` in
+   `workspace/config.yaml`:
+
+   ```yaml
+   providers:
+     - name: "local"
+       type: "hosted_vllm"
+       model: "Qwen/Qwen3.5-9B"
+       fallback: true
+       metadata:
+         labels: ["local"]
+       settings:
+         endpoint: "http://localhost:8088/v1"
+     - name: "cloud"
+       type: "openai"
+       model: "gpt-4o"
+       metadata:
+         labels: ["cloud"]
+       settings:
+         endpoint: "https://api.openai.com/v1"
+         auth:
+           scheme: "bearer"
+           api_key: "${OPENAI_API_KEY}"
+   ```
+
+2. Select the built-in `ModelBased` policy in the same file:
+
+   ```yaml
+   routing:
+     policy: "ModelBased"
+   ```
+
+3. Redeploy with `IR_OV_MODEL` still exported, then check the router log for
+   the classifier:
+
+   ```bash
+   export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
+   bash scripts/deploy_docker.sh
+   docker logs inference-router 2>&1 | grep -E "Compiled backbone|Preloaded"
+   ```
+
+   `Preloaded 1 ModelBasedRule classifier(s) for the active policy` means
+   model-based routing is active.
+
+4. Send requests with `"model": "auto"`. A simple question goes to `local`, a
+   hard one to `cloud`:
+
+   ```bash
+   curl http://localhost:8000/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "auto",
+       "messages": [{"role": "user", "content": "What is the capital of France?"}]
+     }'
+   ```
+
+The classifier runs on the Intel GPU by default and falls back to the CPU when
+no GPU is available. Choose the device with `IR_DEVICE=CPU` or
+`IR_DEVICE=GPU.1` before deploying.
+
+See [Model-Based Routing](./routing.md#model-based-routing) for the other
+supported model, custom classifier versions, your own categories, and
+troubleshooting.
+
 ## Optional: Pass-through Services
 
 Besides chat completions, the router can expose additional OpenAI-compatible
@@ -320,8 +436,10 @@ Notes:
   `/v1/providers` and can be managed there.
 - **Concurrency.** Requests to these endpoints count against `max-concurrency`,
   shared with `/v1/chat/completions` — when the limit is reached the router
-  returns `429`. Status and configuration endpoints
-  (`/health`, `/v1/models`, `/v1/config`) are never limited.
+  returns `429`. There is no limit by default; set
+  `GATEWAY_MAX_CONCURRENCY=<n>` (or pass `--max-concurrency <n>`) to enable
+  one. Status and configuration endpoints (`/health`, `/v1/models`,
+  `/v1/config`) are never limited.
 - **Dynamic control.** Because they are ordinary providers, you can enable,
   disable, update, or delete them at runtime through the `/v1/providers` API; the
   change takes effect immediately. Disabling or removing the provider makes its
@@ -338,14 +456,17 @@ Use the unified `compressor` node and select the compressor type with
 
 
 - `tool` — filters the request `tools` schema to a relevant subset using a
-  **tool predictor** (an OpenAI-compatible LLM endpoint).
-- `harness` — compresses system or developer messages using a **Lingua server**.
+  **tool predictor** (an OpenAI-compatible LLM endpoint, or a reranker endpoint
+  for the small-model option).
+- `harness` — compresses system or developer messages using a **compress server**.
+- `context` — compresses the conversation context.
 
-These backend services are **not** part of the router. To deploy
-the Lingua server and the tool predictor,
-see the
+>  **Caution:** The context compressor is experimental and is disabled by default.
+
+The compress server and tool predictor are **not** part of the router.
+For deployment instructions, see the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
-repository. 
+repository.
 For detailed purpose and behavior of each compressor, see the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor) repository documentation.
 
@@ -369,7 +490,7 @@ The `postresponse` stage is not for request compression.
 
 In each plugin entry, `node` must be one of the supported fixed values
 (currently `compressor`). `settings.type` selects the compressor type
-(`tool` or `harness`). `name` is only an instance identifier and can be any
+(`tool`, `harness`, or `context`). `name` is only an instance identifier and can be any
 unique string.
 
 ```yaml
@@ -383,9 +504,8 @@ plugins:
         predictor_url: "http://localhost:8088/v1/chat/completions"
         predictor_model: "Qwen/Qwen3.6-35B-A3B"
         score_threshold: 2.0
-        prompt_mode: "dynamic"
-        tool_descriptions_mode: "dynamic"
         placement: "schema"
+        accumulate: true
   postrouting:
     - name: "compressor_harness"
       node: "compressor"
@@ -393,41 +513,153 @@ plugins:
       settings:
         type: "harness"
         profile: "openclaw"
-        lingua_url: "http://localhost:8001/compress"
+        compress_server_url: "http://localhost:8001/compress"
         compress_rate: 0.5
         compress_min_chars: 200
         timeout: 60.0
         enable_quantum_lock: false
+        metrics_keys: ["provider"]   # split this compressor's metrics by provider
+    - name: "compressor_context"
+      node: "compressor"
+      enabled: false
+      settings:
+        type: "context"
+        protect_recent_tool_turns: 1
+        large_result_stub: true
+        large_result_stub_guidance: "legacy"
+        large_result_min_tokens: 4000
+        large_result_keep_tool_turns: 1
+        compression_mode: "none"
   postresponse: []
 ```
 
+See [Compressor plugin](./plugin.md#compressor-plugin) for more configuration details.
+
+The `tool` example above uses the large-model predictor (`Qwen/Qwen3.6-35B-A3B`).
+To use the small-model predictor instead, point the `tool` compressor at a
+reranker endpoint and select tools with `top_k`:
+
+```yaml
+plugins:
+  prerouting:
+    - name: "compressor_tool"
+      node: "compressor"
+      enabled: true
+      settings:
+        type: "tool"
+        predictor_url: "http://localhost:8091/v1/rerank"
+        predictor_model: "Qwen/Qwen3-Reranker-0.6B"
+        predictor_backend: "reranker"
+        top_k: 10
+        placement: "schema"
+        accumulate: true
+```
+
+The small model is faster but saves fewer tool tokens. Size `top_k` to the
+number of tools per request. For measured results and how to choose `top_k`,
+see the ToolCompressor configuration guide in the
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+repository.
+
+#### Selecting per-compressor metrics
+
+Each compressor instance records the metrics listed in `settings.metrics`,
+reported as `<plugin_name>.<metric>`. If `metrics` is omitted or empty, the
+default set below is used. A non-empty list replaces the default set, **so
+include the default metrics you still want**:
+
+```yaml
+  postrouting:
+    - name: "compressor_harness"
+      node: "compressor"
+      enabled: true
+      settings:
+        type: "harness"
+        compress_server_url: "http://localhost:8001/compress"
+        metrics: [total_input, total_output, call_count, compression_ratio,
+                  avg_duration_per_call, total_saved, avg_saved_per_call]
+```
+
+| Metric | Default | Description |
+| -------- | -------- | -------- |
+| `total_input` | Yes | Sum of input tokens before compression |
+| `total_output` | Yes | Sum of output tokens after compression |
+| `call_count` | Yes | Number of times the compressor ran |
+| `compression_ratio` | Yes | `total_output / total_input`; lower means stronger compression |
+| `avg_duration_per_call` | Yes | Average compression latency per call, in milliseconds |
+| `total_saved` | No | Sum of saved tokens (`total_input - total_output`) |
+| `total_duration` | No | Sum of compression latency, in milliseconds |
+| `avg_saved_per_call` | No | Average saved tokens per call |
+| `avg_input_per_call` | No | Average input tokens per call |
+| `avg_output_per_call` | No | Average output tokens per call |
+
+Unknown metric names are skipped with a warning in the router log. The
+cross-compressor `overall.*` fields are always recorded.
+
+#### Splitting metrics by provider
+
+To see a compressor's metrics per provider, set `settings.metrics_keys` on it:
+
+```yaml
+  postrouting:
+    - name: "compressor_harness"
+      node: "compressor"
+      enabled: true
+      settings:
+        type: "harness"
+        compress_server_url: "http://localhost:8001/compress"
+        metrics_keys: ["provider"]
+```
+
+Each key names a request attribute the router fills in for every request; the
+compressor's metrics are then also recorded per value of that key and reported
+under `metrics_by_keys` (see [Metrics by key](#metrics-by-key)). The only
+supported key is currently `provider`, the provider that served the request.
+
+- `metrics_keys` is optional. If omitted or empty, metrics are not split and
+  `metrics_by_keys` is `null` in the instance view.
+- `metrics_keys` is only allowed on `postrouting` compressors. A `prerouting`
+  compressor runs before the provider is chosen, so setting it there (or at any
+  other stage) is rejected at load time, as is an unsupported key.
+- `metrics_keys` only splits how metrics are reported; it does not change which
+  requests a compressor runs on. To run a compressor for some providers only,
+  [attach it to those providers](./plugin.md#attaching-plugins-to-providers).
+
 ### Metrics Checking
 
-Compressor-related metrics are exposed from the following two endpoints.
+After sending chat requests, choose the view that matches what you want to
+inspect:
 
-After sending chat requests, view the aggregated compression metrics:
+| Endpoint | Purpose |
+| -------- | ------- |
+| `/v1/plugins/compressor` | Aggregated metrics across compressor instances. |
+| `/v1/plugins/compressor/<name>` | Configuration and runtime metrics for one compressor instance. |
+| `/v1/metrics` | Token usage before and after router plugin processing for the whole request. |
+
+Replace `<name>` with a configured plugin instance name, such as
+`compressor_harness` in the configuration above.
+
+#### Node-level compression metrics
+
+View metrics across all compressor instances:
 
 ```bash
 curl http://localhost:8000/v1/plugins/compressor
 ```
 
-To compare token usage before and after router plugin processing (overall
-compressor effect):
-
-```bash
-curl http://localhost:8000/v1/metrics
-```
-
-
-#### 1. `/v1/plugins/compressor` (node-level compression metrics)
-
 This endpoint returns the `compressor` node view, including metrics aggregated
 by the shared `CompressionManager`:
 
 - `metrics`: numeric aggregates.
+- `metrics_by_keys`: the same aggregates split by key for compressors that set
+  `settings.metrics_keys` (see
+  [Splitting metrics by provider](#splitting-metrics-by-provider) and
+  [Metrics by key](#metrics-by-key)).
 - `cache_stats`: per-compressor cache usage.
 
-The `metrics` object usually contains:
+The `metrics` object contains each instance's selected metrics (see
+[Selecting per-compressor metrics](#selecting-per-compressor-metrics)). With
+the default set, these are:
 
 - `<plugin_name>.total_input`: sum of input tokens before this plugin's compression.
 - `<plugin_name>.total_output`: sum of output tokens after this plugin's compression.
@@ -444,6 +676,12 @@ It also includes cross-plugin overall fields:
 - `overall.compression_ratio`: `overall.total_output / overall.total_input`.
 - `overall.avg_duration_per_request`: average end-to-end compression time per request.
 
+> **Note**:
+> `overall.*` fields only count the request parts the compressors cover, and
+> count a part twice when two compressors of the same type run in series. For
+> the whole-request saving, use
+> [`/v1/metrics`](#whole-request-token-usage).
+
 The `cache_stats` object contains:
 
 - `<plugin_name>.currsize`: current cache entry count.
@@ -453,7 +691,88 @@ This endpoint returns the node metadata plus empty metrics when no compressor
 plugin is configured, or when compressor metrics are not available yet (for
 example before any request flows through the compressor pipeline).
 
-#### 2. `/v1/metrics` (router telemetry with compression effect)
+##### Metrics by key
+
+`metrics_by_keys` maps each key to its values, and each value to a snapshot
+with the same field names as `metrics`. The only key is currently `provider`,
+whose values are provider names, for example:
+
+```json
+{
+  "metrics_by_keys": {
+    "provider": {
+      "openai-gpt": {
+        "compressor_harness.total_input": 800,
+        "overall.total_requests": 2
+      },
+      "vllm-qwen": {
+        "compressor_harness.total_input": 1200,
+        "overall.total_requests": 3
+      }
+    }
+  }
+}
+```
+
+The example shows selected fields. Read per-provider metrics with the following
+in mind:
+
+- Only compressors that set `metrics_keys: ["provider"]` are counted. Their
+  fields appear here, and the per-provider `overall.*` fields cover those
+  compressors only. They therefore do not add up to the global `overall.*`
+  fields when another compressor (for example a `prerouting` one, which cannot
+  be split by provider) is configured.
+- Token counts are `cl100k_base` estimates, not counts from each provider's own
+  tokenizer.
+- The compression cache is shared across providers. A cache hit is fast no matter
+  which provider it is recorded under, so durations are not comparable across
+  providers; saved token counts are.
+- Sum fields (`total_input`, `total_output`, `call_count`, ...) add up across
+  providers to the corresponding global values for those compressors.
+  Ratio and average fields (`compression_ratio`, `avg_*`) do not; recompute them
+  from the summed totals.
+
+#### Per-instance compression metrics
+
+View one compressor instance using `/v1/plugins/compressor/<name>`. For example,
+to inspect the `compressor_harness` instance configured above:
+
+```bash
+curl http://localhost:8000/v1/plugins/compressor/compressor_harness
+```
+
+The response includes the instance configuration and, for a live instance, its
+runtime metrics:
+
+- `metrics`: only this compressor's fields, using the
+  `<plugin_name>.*` names described above.
+- `metrics_by_keys`: for a compressor that sets `settings.metrics_keys`, the
+  same per-instance fields split by key (`provider`). The
+  [per-provider accounting notes](#metrics-by-key) also apply here.
+  An empty object (`{}`) means no request has been recorded yet. For a
+  compressor without `metrics_keys`, this field is `null` because metrics are
+  not split by key.
+
+A configured-but-disabled instance that is not loaded returns its static
+configuration rather than live runtime metrics.
+
+To reset this instance's metrics, or the shared node-level metrics:
+
+```bash
+curl -X POST http://localhost:8000/v1/plugins/compressor/compressor_harness/reset
+curl -X POST http://localhost:8000/v1/plugins/compressor/reset
+```
+
+For the general plugin inspection and reset API contract, see the
+[API Reference](./api-reference.md#get-plugin).
+
+#### Whole-request token usage
+
+Compare token usage before and after router plugin processing:
+
+```bash
+curl http://localhost:8000/v1/metrics
+```
 
 This endpoint includes compressor effect under `token_metrics`:
 
@@ -482,31 +801,6 @@ How to interpret compression savings:
 Unlike provider-reported prompt tokens, `before_router` and `after_router`
 tokens here are counted with the same token accounting method, so they are directly
 comparable.
-
-#### 3. `/v1/plugins/{node}/{name}` (per-instance view)
-
-Beyond the group-aggregated compression view above, any plugin may fold its
-**own** runtime information (including metrics) into its instance view. Fetch it with:
-
-```bash
-curl http://localhost:8000/v1/plugins/<node>/<name>
-```
-
-The response is whatever the plugin's `describe()` hook returns — the instance
-configuration plus any plugin-defined fields (e.g. a `metrics` object). Plugins that
-support it can reset their per-instance state:
-
-```bash
-curl -X POST http://localhost:8000/v1/plugins/<node>/<name>/reset
-```
-
-There is also a node-level pair: `GET /v1/plugins/<node>` (the type's
-`describe_node()` payload, which may carry cross-instance aggregates) and
-`POST /v1/plugins/<node>/reset`. See the
-[API Reference](./api-reference.md#get-plugin) for the full contract.
-
-Registering your own plugin type and the full list of built-in plugins are
-covered in the [Plugins guide](./plugin.md).
 
 ## Learn More
 

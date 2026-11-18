@@ -11,7 +11,7 @@ reference it in a pipeline (see
 two extension points contributors actually have:
 
 1. Loading custom Python scripts through the `gvapython` element.
-2. Controlling whether an element is visible in the simplified pipeline view.
+1. Controlling whether an element is visible in the simplified pipeline view.
 
 ## Use custom `gvapython` modules (deprecated)
 
@@ -22,7 +22,7 @@ To add and use a new script:
 
 1. Drop your script into `shared/scripts` (for example
    `tracked_object_filter.py`).
-2. In your pipeline description, set the `module` property on the
+1. In your pipeline description, set the `module` property on the
    `gvapython` element to the script filename.
    Example: `gvapython module=tracked_object_filter.py`.
 
@@ -30,9 +30,12 @@ No additional effort is needed, referencing the filename via `module` is
 sufficient after the file is placed in this directory. The backend resolves
 the filename to an absolute container path
 (`/scripts/<file>.py`) when building the runnable pipeline command, and
-maps it back to the bare filename when storing the graph.
+maps it back to the bare filename when storing the graph. The pipeline
+server mounts `shared/scripts` read-only at the same path, so the script
+runs there.
 
-> **Note:** The `shared/scripts` directory is excluded from linter checks, as it
+> [!NOTE]
+> The `shared/scripts` directory is excluded from linter checks, as it
 > contains custom scripts that may not conform to standard linting rules.
 
 ### Limitations
@@ -62,7 +65,7 @@ configured on the `vippet` service in `compose.yml`:
 
 | Variable                         | Default                                                    | Meaning                                                                                                              |
 |----------------------------------|------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | `*src,urisourcebin,gva*,*sink,source`                      | Comma-separated wildcard patterns. An element is a candidate for the Simple view only if its type matches one entry. |
+| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | `*src,urisourcebin,gva*,*sink,source,videoscale,sscape_*`  | Comma-separated wildcard patterns. An element is a candidate for the Simple view only if its type matches one entry. |
 | `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` | Comma-separated wildcard patterns. Matches are removed from the Simple view even if they also match the visible set. |
 
 Evaluation order is **VISIBLE first, then INVISIBLE exclusions**. Caps nodes
@@ -72,7 +75,8 @@ When introducing a new element (typically by writing a new pipeline that
 references it):
 
 - If the element is a meaningful, user-facing step (a new source family,
-  a new inference element following the `gva*` naming, a new sink...) it
+  a new inference element following the `gva*` naming, a new SceneScape
+  element following the `sscape_*` naming, a new sink...) it
   will appear in the Simple view automatically thanks to the default
   patterns.
 - If the element is purely technical plumbing (a new converter, a new
@@ -80,7 +84,7 @@ references it):
   view, add it to `SIMPLE_VIEW_INVISIBLE_ELEMENTS` in `compose.yml`.
 - If your element name does not match any of the existing patterns
   (for example it is not `*src` / `gva*` / `*sink` / `urisourcebin` /
-  `source`) and should be exposed, extend `SIMPLE_VIEW_VISIBLE_ELEMENTS`
+  `source` / `videoscale` / `sscape_*`) and should be exposed, extend `SIMPLE_VIEW_VISIBLE_ELEMENTS`
   accordingly. Keep the patterns broad and named, not pipeline-specific.
 
 Any change to these variables must also be documented in the README and
@@ -91,3 +95,4 @@ in the *Key Environment Variables* table of
 
 - [How to add a new pipeline](./new-pipeline.md)
 - [Backend contributing guide](./backend.md)
+- [Add an element that is not in the base image](https://github.com/staszczuk/edge-ai-libraries/blob/add-basler-support/tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/developer-guide/contributing/new-element.md#add-an-element-that-is-not-in-the-base-image)

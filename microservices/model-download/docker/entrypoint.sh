@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 set -e
 
 # Make downloaded artifacts group-writable (dirs 0775, files 0664) so the
@@ -127,79 +130,37 @@ install_dependencies() {
             fi
             echo "0" > "${status_file}"
             ;;
-        huggingface)
-            echo -e "${BLUE}INFO:${NC} HuggingFace dependencies will be installed via uv sync"
+        huggingface|modelscope)
+            echo -e "${BLUE}INFO:${NC} ${plugin} dependencies will be installed via uv sync"
             echo "0" > "${status_file}"
             ;;
         ollama)
-            echo -e "${BLUE}INFO:${NC} Installing Ollama binary..."
-            OLLAMA_VERSION="v0.32.0"
-            OLLAMA_ARCHIVE="${PARALLEL_TMP_DIR}/ollama-linux-amd64.tar.zst"
-            OLLAMA_URL="https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst"
-
-            # Ensure zstd is available
-            if ! command -v zstd &> /dev/null && ! command -v unzstd &> /dev/null; then
-                echo -e "${RED} ERROR:${NC} zstd is not installed. Please install zstd package."
-                echo "1" > "${status_file}"
-                return 1
-            fi
-
-            mkdir -p /opt/bin
-
-            echo -e "${BLUE}INFO:${NC} Downloading and extracting Ollama ${OLLAMA_VERSION} binary only..."
-            # Stream the archive and extract only the ollama binary - avoids writing full archive to disk
-            if ! curl -fSL "${OLLAMA_URL}" | tar --use-compress-program=unzstd -xf - -C /opt/bin --strip-components=1 bin/ollama; then
-                echo -e "${RED} ERROR:${NC} Failed to download or extract Ollama binary"
-                echo "1" > "${status_file}"
-                return 1
-            fi
-
-            chmod +x /opt/bin/ollama
-
-            # Verify ollama binary is present and executable
+            # The binary is baked into the image at build time (see docker/Dockerfile).
             if [ -x "/opt/bin/ollama" ]; then
-                echo -e "${GREEN} SUCCESS:${NC} Ollama binary ${OLLAMA_VERSION} installed successfully to /opt/bin/ollama"
+                echo -e "${GREEN} SUCCESS:${NC} Ollama binary available at /opt/bin/ollama"
                 /opt/bin/ollama --version 2>&1 | grep -i "version" || true
             else
-                echo -e "${RED} ERROR:${NC} Ollama binary not found or not executable at /opt/bin/ollama"
+                echo -e "${RED} ERROR:${NC} Ollama binary not found or not executable at /opt/bin/ollama. Rebuild the image."
                 echo "1" > "${status_file}"
                 return 1
             fi
             echo "0" > "${status_file}"
             ;;
         ultralytics)
-            echo -e "${BLUE}INFO:${NC} Downloading Ultralytics public models script from GitHub"
-            DLSTREAMER_SAMPLES_URL="https://raw.githubusercontent.com/open-edge-platform/dlstreamer/4d22f42ffe1df79800dc2ef1749f7e37f3d47bf1/samples"
-            mkdir -p /opt/scripts/models
-            if curl -fsSL -o /opt/scripts/download_public_models.sh "${DLSTREAMER_SAMPLES_URL}/download_public_models.sh"; then
-                chmod +x /opt/scripts/download_public_models.sh
-                echo -e "${GREEN} SUCCESS:${NC} Ultralytics public models script downloaded to /opt/scripts/download_public_models.sh"
-            else
-                echo -e "${RED} ERROR:${NC} Failed to download Ultralytics public models script"
+            echo -e "${BLUE}INFO:${NC} Using bundled Ultralytics model scripts"
+            if [[ ! -f /opt/scripts/download_public_models.sh || ! -f /opt/scripts/shared_utils.py || ! -f /opt/scripts/models/convert_mars_deepsort.py ]]; then
+                echo -e "${RED} ERROR:${NC} Bundled Ultralytics model scripts or companions are missing"
                 echo "1" > "${status_file}"
                 return 1
             fi
-
-            # mars-small128 relies on a companion converter (models/convert_mars_deepsort.py)
-            # and shared_utils.py; the script expects them alongside itself under /opt/scripts.
-            if ! curl -fsSL -o /opt/scripts/shared_utils.py "${DLSTREAMER_SAMPLES_URL}/shared_utils.py"; then
-                echo -e "${RED} ERROR:${NC} Failed to download shared_utils.py"
-                echo "1" > "${status_file}"
-                return 1
-            fi
-            if ! curl -fsSL -o /opt/scripts/models/convert_mars_deepsort.py "${DLSTREAMER_SAMPLES_URL}/models/convert_mars_deepsort.py"; then
-                echo -e "${RED} ERROR:${NC} Failed to download convert_mars_deepsort.py"
-                echo "1" > "${status_file}"
-                return 1
-            fi
-            echo -e "${GREEN} SUCCESS:${NC} Mars-Small128 converter and shared_utils.py downloaded"
+            echo -e "${GREEN} SUCCESS:${NC} Ultralytics model scripts and companions are available"
 
             echo -e "${BLUE}INFO:${NC} Ultralytics dependencies will be installed via uv sync"
             echo "0" > "${status_file}"
             ;;
         geti)
             echo -e "${BLUE}INFO:${NC} Geti plugin dependencies will be installed via uv sync"
-            echo -e "${BLUE}INFO:${NC} Geti plugin requires: GETI_HOST, GETI_TOKEN, GETI_SERVER_API_VERSION"
+            echo -e "${BLUE}INFO:${NC} Geti plugin uses the unauthenticated Geti 3.0 Model API; GETI_HOST is required"
             echo "0" > "${status_file}"
             ;;
         hls)
@@ -279,6 +240,7 @@ run_plugins_parallel() {
 PLUGINS=""
 START_SERVICE=true
 EPHEMERAL_MODE=false
+MCP_MODE=false
 EPHEMERAL_ARGS=()
 EXTRA_ARGS=()
 
@@ -301,6 +263,10 @@ while [[ $# -gt 0 ]]; do
             EPHEMERAL_ARGS=("$@")
             break
             ;;
+        --mcp)
+            MCP_MODE=true
+            shift
+            ;;
         *)
             shift
             ;;
@@ -311,7 +277,7 @@ done
 # external-sources plugin are listed individually; 'external-sources'
 # itself is an internal plugin name and is rejected if passed by the user.
 EXTERNAL_SOURCES_HUBS=(pipeline-zoo-models omz remote-url)
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
+AVAILABLE_PLUGINS=("openvino" "huggingface" "modelscope" "ollama" "ultralytics" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
 
 # Install plugin-specific dependencies (in parallel)
 if [ "$PLUGINS" = "all" ]; then
@@ -362,15 +328,15 @@ cd /opt
 # ollama to PATH if it's not already there
 export PATH="/opt/bin/:$PATH"
 
-# Generate a lockfile so per-plugin venv syncs below can resolve packages from
-# the current pyproject.toml and any declared extras/conflicts.
+# Resolve dependencies at startup, then use that lockfile for every venv sync.
 print_info "Generating lockfile..."
 if ! uv lock; then
-    print_warning "Failed to generate lockfile; plugin venvs may be incomplete"
+    print_error "Failed to resolve dependencies and generate the startup lockfile"
+    exit 1
 fi
 
 print_info "Installing core dependencies from pyproject.toml..."
-if ! uv sync --no-dev; then
+if ! uv sync --locked --no-dev; then
     print_error "Failed to sync base dependencies"
     exit 1
 fi
@@ -391,7 +357,7 @@ for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
     if [[ "$plugin" == "omz" ]]; then
         OMZ_VENV="/opt/.venv-omz"
         print_info "Creating isolated OMZ venv at ${OMZ_VENV} with openvino-dev==2024.6.0"
-        if UV_PROJECT_ENVIRONMENT="${OMZ_VENV}" uv sync --extra omz --no-dev; then
+        if UV_PROJECT_ENVIRONMENT="${OMZ_VENV}" uv sync --locked --extra omz --no-dev; then
             if uv pip install --python "${OMZ_VENV}/bin/python" -r /opt/requirements/omz.txt --index-url https://pypi.org/simple --extra-index-url https://download.pytorch.org/whl/cpu; then
                 if "${OMZ_VENV}/bin/omz_downloader" --help > /dev/null 2>&1; then
                     print_success "OMZ venv created with openvino-dev and OMZ tools ready"
@@ -420,7 +386,7 @@ for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
     PLUGIN_VENV="/opt/.venv-${plugin}"
     print_info "Creating venv for plugin '${plugin}' at ${PLUGIN_VENV} ..."
 
-    if UV_PROJECT_ENVIRONMENT="${PLUGIN_VENV}" uv sync --extra "${plugin}" --no-dev; then
+    if UV_PROJECT_ENVIRONMENT="${PLUGIN_VENV}" uv sync --locked --extra "${plugin}" --no-dev; then
         print_success "Plugin venv created: ${plugin}"
 
         # For openvino with a custom OVMS release tag, also install the
@@ -453,15 +419,35 @@ fi
 if [ "$EPHEMERAL_MODE" = true ]; then
     print_header "Running in Ephemeral Mode"
     print_info "Executing one-shot download/conversion..."
+    if [ "${EPHEMERAL_ARGS[0]:-}" = "--command" ]; then
+        if [ "${#EPHEMERAL_ARGS[@]}" -lt 2 ]; then
+            print_error "--ephemeral --command requires a command"
+            exit 1
+        fi
+        exec "${EPHEMERAL_ARGS[@]:1}"
+    fi
     exec /opt/scripts/get_model.sh --internal "${EPHEMERAL_ARGS[@]}"
 elif [ "$START_SERVICE" = true ]; then
-    print_header "Starting Model Download Service"
-    cd /opt
-    print_info "Launching service at http://0.0.0.0:8000"
-    echo -e "${GREEN}===============================================${NC}"
-    echo -e "${GREEN}  Model Download Service is now starting up    ${NC}"
-    echo -e "${GREEN}===============================================${NC}"
-    exec uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+    if [ "$MCP_MODE" = true ]; then
+        MCP_TRANSPORT="${MCP_TRANSPORT:-http}"
+        MCP_HOST="${MCP_HOST:-0.0.0.0}"
+        MCP_PORT="${MCP_PORT:-8000}"
+        print_header "Starting Model Download MCP Server"
+        cd /opt
+        print_info "Launching MCP server (${MCP_TRANSPORT}) at ${MCP_HOST}:${MCP_PORT}"
+        echo -e "${GREEN}===============================================${NC}"
+        echo -e "${GREEN}  Model Download MCP Server is now starting    ${NC}"
+        echo -e "${GREEN}===============================================${NC}"
+        exec python -m src.mcp --transport "${MCP_TRANSPORT}" --host "${MCP_HOST}" --port "${MCP_PORT}"
+    else
+        print_header "Starting Model Download Service"
+        cd /opt
+        print_info "Launching service at http://0.0.0.0:8000"
+        echo -e "${GREEN}===============================================${NC}"
+        echo -e "${GREEN}  Model Download Service is now starting up    ${NC}"
+        echo -e "${GREEN}===============================================${NC}"
+        exec uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+    fi
 else
     print_warning "Service start skipped due to --no-start flag"
     exec "$@"

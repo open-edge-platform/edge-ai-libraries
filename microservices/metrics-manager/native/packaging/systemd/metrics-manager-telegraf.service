@@ -1,0 +1,68 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=Metrics Manager telemetry agent
+Documentation=file:///usr/share/doc/metrics-manager/README.md
+After=network-online.target systemd-tmpfiles-setup.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=metrics-manager
+Group=metrics-manager
+EnvironmentFile=/etc/metrics-manager/metrics-manager.env
+
+# A socket left behind by a crash would make the bind fail, and Telegraf does
+# not clear it itself.
+ExecStartPre=/bin/rm -f /run/metrics-manager/collect.sock
+
+ExecStart=/usr/libexec/metrics-manager/telegraf \
+    --config /etc/metrics-manager/telegraf.conf \
+    --config-directory /etc/metrics-manager/telegraf.d
+
+Restart=on-failure
+RestartSec=5s
+
+# --- Privileges -------------------------------------------------------------
+#
+# This service holds no privileges at all, which is the point of the split
+# described in telegraf.conf. It is the component that listens on a socket,
+# parses whatever arrives on it, and executes the operator's custom-metrics
+# scripts, so it is the one that must not be worth compromising.
+#
+# Collectors that need more run as their own units and deliver samples through
+# the unix socket in /run/metrics-manager.
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=true
+
+# --- Filesystem -------------------------------------------------------------
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# The runtime directory holds the ingest socket and the qmassa FIFO, and is the
+# only writable path this service has.
+ReadWritePaths=/run/metrics-manager
+
+# --- Kernel and namespaces --------------------------------------------------
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# AF_UNIX for the collector socket, AF_INET for the two loopback listeners, and
+# AF_NETLINK because the Go resolver consults the kernel for local addresses.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

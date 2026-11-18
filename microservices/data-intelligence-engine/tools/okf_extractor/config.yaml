@@ -1,0 +1,74 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Standalone OKF service/CLI configuration, separate from the engine settings.
+# Deployment may override llm.base_url/model/api_key through OKF_EXTRACTOR_LLM_*
+# environment variables. Tasks cannot override model access or execution limits.
+
+llm:
+  base_url:    # vLLM OpenAI-compatible endpoint (122B)
+  model: 
+  api_key: EMPTY                          # vLLM ignores it; the Bearer header is still sent
+  temperature: 0.0
+  max_tokens: 4096                        # per-call OUTPUT cap
+  context_window: 131072                  # = server max_model_len; the batch budget derives from this
+  enable_thinking: false                  # no-think by default (fast, deterministic tool calls)
+  timeout: 600.0                          # httpx per-request seconds (long-reasoning safety)
+
+# Stage 1: review ALL task content in bounded chunks, then synthesize instructions.
+# Large corpora use hierarchical reduction of the reviews, never first-file sampling.
+planning:
+  chunk_tokens: 12000
+  summary_tokens: 1500      # initial review/reduction allowance; successful retries are reused per task/phase
+  max_tokens: 4096
+  max_response_tokens: 8192  # bounded output-token retry ceiling for truncated reviews/plans
+
+# Stage-2 extraction batching — the hard guardrail against context overflow.
+batch:
+  safe_fraction: 0.3          # fraction of context_window usable for READ INPUT per session
+  reserve_tokens: 6000        # headroom for system prompt + tool schemas + model output
+  chars_per_token: 3.0        # cheap size estimate: approx_tokens = bytes / chars_per_token
+                              # (~3 for CJK-heavy corpora; conservative on purpose)
+  max_steps: 60               # bounded tool turns; strict task sessions must finish naturally
+  max_files_per_batch: 8
+  max_response_tokens: 8192   # retry truncated tool output on the same turn, without partial writes
+  max_idle_steps: 4           # repeated reads/invalid calls with no progress trigger a smaller batch
+  final_emit_steps: 4         # reserve up to this many final turns for writes, not more reads
+  per_file_read_bytes: 50000  # per read_* call byte cap  (== opencode MAX_BYTES 50KB)
+  per_file_read_lines: 2000   # per read_* call line cap  (== opencode DEFAULT_READ_LIMIT)
+
+# Tool whitelist enable-switches + the python package each reader needs.
+# A switch that is OFF, or whose package fails to import, silently drops that reader
+# from the whitelist (the agent then cannot select it). read_text + list_dir are
+# stdlib and always available.
+tools:
+  list_dir:      { enabled: true }
+  read_text:     { enabled: true }
+  read_pdf:      { enabled: true,  package: pypdf }
+  read_table:    { enabled: true,  package: pandas }   # xlsx also needs openpyxl; csv works on pandas alone
+  read_docx:     { enabled: true,  package: docx }     # python-docx imports as `docx`
+  write_concept: { enabled: true }
+  ask_human:     { enabled: true }                     # escalate a judgment call to a human
+
+# Merge/canonicalization is part of Stage 2 (extract OKF using generated instructions).
+merge:
+  llm_canonicalize: true      # false -> same-title fold only (no per-type LLM pass)
+  max_gloss: 60               # chars of the evidence-card gloss per concept
+  max_roles: 4                # distinct role summaries per concept in the evidence card
+
+# Prompt templates (external md with placeholders — the human-in-the-loop surface).
+# Paths are relative to okf_producer/ ; leave null to use the bundled templates/.
+prompts:
+  extract: templates/extract.md
+  canonicalize: templates/canonicalize.md
+
+# Optional operator constraints. Non-empty values override generated segments;
+# otherwise Stage 1 generates corpus-specific instructions from all task content.
+instructions:
+  DOMAIN: ""            # domain framing sentence (context for extraction)
+  GRANULARITY: ""       # one-thing-one-concept / anti-over-split rules
+  TITLE_RULES: ""       # cross-document title normalization rules
+  RELATION_RULES: ""    # when/how to add concept->concept links (drives the graph edges)
+  MERGE_STANCE: ""      # how aggressive/conservative Stage-2 merging should be
+  ESCALATION_RULES: ""  # when the agent should ask_human (folder structure / pdf toc / human summary / ambiguous)
+  TYPE_HINTS: ""        # suggested corpus-specific concept types (soft guidance)

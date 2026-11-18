@@ -16,7 +16,7 @@ import pytest
 import yaml
 
 from src.config import ProviderConfig, RouterConfig, RoutingConfig, TelemetryConfig
-from src.rsd.decision import DecisionEngine
+from src.rsd.engine.decision import DecisionEngine
 from ._api_contract_support import make_test_client
 
 
@@ -183,46 +183,32 @@ def test_update_existing_policy_replaces_wholesale(tmp_path, monkeypatch):
     assert cost_first["strategies"] == ["Planning"]
 
 
-def test_create_policy_unknown_strategy_is_400_and_no_write(tmp_path, monkeypatch):
+def test_create_policy_rejects_invalid_definitions_without_writing(tmp_path, monkeypatch):
     client = _seed(tmp_path, monkeypatch)
-    response = client.post("/v1/policies/Bad", json={"strategies": ["Planing"]})
-    assert response.status_code == 400
-    assert "unknown strategy" in response.json()["detail"]
-    # Nothing was written.
-    assert [p["name"] for p in _persisted(tmp_path)] == ["Balanced", "CostFirst"]
-
-
-def test_create_policy_invalid_criterion_is_400(tmp_path, monkeypatch):
-    client = _seed(tmp_path, monkeypatch)
-    response = client.post(
-        "/v1/policies/Bad", json={"criterion": "Whatever", "strategies": ["Planning"]}
+    cases = (
+        ({"strategies": ["Planing"]}, "unknown strategy"),
+        ({"criterion": "Whatever", "strategies": ["Planning"]}, None),
+        ({"strategies": []}, None),
     )
-    assert response.status_code == 400
+    for payload, detail in cases:
+        response = client.post("/v1/policies/Bad", json=payload)
+        assert response.status_code == 400
+        if detail:
+            assert detail in response.json()["detail"]
+        assert [p["name"] for p in _persisted(tmp_path)] == ["Balanced", "CostFirst"]
 
 
-def test_create_policy_empty_strategies_is_400(tmp_path, monkeypatch):
-    client = _seed(tmp_path, monkeypatch)
-    response = client.post("/v1/policies/Bad", json={"strategies": []})
-    assert response.status_code == 400
-
-
-def test_post_policy_missing_workspace_file_is_400(tmp_path, monkeypatch):
+def test_policy_endpoints_reject_missing_workspace_file(tmp_path, monkeypatch):
     client = _seed(tmp_path, monkeypatch, write_policy=False)
-    response = client.post("/v1/policies/Fast", json={"strategies": ["Planning"]})
-    assert response.status_code == 400
-    assert "not found" in response.json()["detail"]
-
-
-def test_get_policy_missing_workspace_file_is_400(tmp_path, monkeypatch):
-    client = _seed(tmp_path, monkeypatch, write_policy=False)
-
-    listed = client.get("/v1/policies")
-    assert listed.status_code == 400
-    assert "not found" in listed.json()["detail"]
-
-    fetched = client.get("/v1/policies/Balanced")
-    assert fetched.status_code == 400
-    assert "not found" in fetched.json()["detail"]
+    responses = (
+        client.get("/v1/policies"),
+        client.get("/v1/policies/Balanced"),
+        client.post("/v1/policies/Fast", json={"strategies": ["Planning"]}),
+        client.delete("/v1/policies/Balanced"),
+    )
+    for response in responses:
+        assert response.status_code == 400
+        assert "not found" in response.json()["detail"]
 
 
 def test_delete_policy_removes_and_persists(tmp_path, monkeypatch):
@@ -244,9 +230,3 @@ def test_delete_active_policy_is_409(tmp_path, monkeypatch):
     assert "active routing policy" in response.json()["detail"]
     # Untouched.
     assert [p["name"] for p in _persisted(tmp_path)] == ["Balanced", "CostFirst"]
-
-
-def test_delete_policy_missing_workspace_file_is_400(tmp_path, monkeypatch):
-    client = _seed(tmp_path, monkeypatch, write_policy=False)
-    response = client.delete("/v1/policies/Balanced")
-    assert response.status_code == 400

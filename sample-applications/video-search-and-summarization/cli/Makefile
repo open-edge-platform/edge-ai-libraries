@@ -7,7 +7,7 @@
 BINARY_NAME=video-summarizer-cli
 SRC_DIR=src
 BUILD_DIR=.
-MIN_GO_VERSION=1.23.0
+MIN_GO_VERSION=1.26.0
 
 # Check Go version
 .PHONY: check-go-version

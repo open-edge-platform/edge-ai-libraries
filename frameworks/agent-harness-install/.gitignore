@@ -1,0 +1,4 @@
+.codesight/
+node_modules/
+test/logs/
+.model_download_logs/

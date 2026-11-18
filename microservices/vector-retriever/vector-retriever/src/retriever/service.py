@@ -25,11 +25,11 @@ from src.retriever.embedding_client import EmbeddingAPI
 from src.retriever.backends.registry import (
     BACKEND_PUSHDOWN_OPERATORS as BACKEND_NATIVE_PUSHDOWN_OPERATORS,
 )
+from src.retriever.backends.vdms.concurrency import serialize_vdms_calls
 
 
 logger = get_logger()
 TIME_FILTER_METADATA_FIELD = "created_at"
-
 
 def _serialize_log_value(value: Any) -> Any:
     """Convert nested models into plain values suitable for debug logs."""
@@ -87,6 +87,7 @@ def _do_vector_search(db: Any, embedding: list[float], resolved_top_k: int, fetc
     return db.similarity_search_with_score_by_vector(embedding, k=fetch_k, **fkw)
 
 
+@serialize_vdms_calls
 def _similarity_search_with_reconnect(
     db: Any,
     query: str,
@@ -114,6 +115,7 @@ def _similarity_search_with_reconnect(
         return _do_search(fresh_db, query, resolved_top_k, fetch_k, query_filter)
 
 
+@serialize_vdms_calls
 def _vector_search_with_reconnect(
     db: Any,
     embedding: list[float],
@@ -484,10 +486,11 @@ def execute_single_query(query_request: QueryRequest) -> QueryResultBlock:
     is_image_query = query_request.image is not None
 
     logger.info(
-        "Executing query_id=%s modality=%s top_k=%d has_where=%s pushdown_tags=%s pushdown_time=%s pushdown_generic=%s warnings=%d",
+        "Executing query_id=%s modality=%s top_k=%d min_score=%s has_where=%s pushdown_tags=%s pushdown_time=%s pushdown_generic=%s warnings=%d",
         resolved_query_id,
         "image" if is_image_query else "text",
         resolved_top_k,
+        query_request.min_score,
         bool(normalized_where),
         bool(pushdown_tags),
         bool(pushdown_time_filter),
@@ -535,8 +538,12 @@ def execute_single_query(query_request: QueryRequest) -> QueryResultBlock:
             query_filter=query_filter,
         )
 
+    min_score = query_request.min_score
     items: list[QueryResultItem] = []
     for doc, score in docs_with_score:
+        if min_score is not None and float(score) < min_score:
+            continue
+
         metadata = dict(doc.metadata)
 
         if normalized_where is not None and not _evaluate_where_clause(metadata, normalized_where):

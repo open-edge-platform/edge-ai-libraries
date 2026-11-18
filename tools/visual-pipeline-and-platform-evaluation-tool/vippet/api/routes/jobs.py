@@ -1,10 +1,15 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import time
+from typing import Annotated
 
-from fastapi import APIRouter, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 import api.api_schemas as schemas
+from api.dependencies.audio_jobs import get_audio_pipeline_job_manager
 from graph import Graph
 from internal_types import (
     InternalBenchmarkJobStatus,
@@ -23,6 +28,10 @@ from internal_types import (
     InternalValidationJobSummary,
 )
 from managers.benchmark_manager import BenchmarkManager
+from managers.audio_pipeline_job_manager import (
+    AudioPipelineJob,
+    AudioPipelineJobManager,
+)
 from managers.metadata_manager import MetadataManager
 from managers.model_manager import ModelManager
 from managers.optimization_manager import OptimizationManager
@@ -34,6 +43,42 @@ METADATA_SNAPSHOT_LIMIT = 1000
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.jobs")
+
+AudioJobManagerDependency = Annotated[
+    AudioPipelineJobManager,
+    Depends(get_audio_pipeline_job_manager),
+]
+
+
+def _audio_job_to_api_summary(job: AudioPipelineJob) -> schemas.AudioJobSummary:
+    return schemas.AudioJobSummary(
+        id=job.id,
+        pipeline_id=job.pipeline_id,
+        pipeline_name=job.pipeline_name,
+        operation=job.operation.value,
+        variant_id=job.variant_id,
+        variant_name=job.variant_name,
+        device=job.device,
+        state=schemas.AudioJobState(job.status.value),
+        created_at=job.created_at,
+        modified_at=job.modified_at,
+        service_round_trip_ms=job.service_round_trip_ms,
+        artifact_available=job.artifact_path is not None,
+        error=job.error,
+    )
+
+
+def _audio_job_to_api_status(job: AudioPipelineJob) -> schemas.AudioJobStatus:
+    summary = _audio_job_to_api_summary(job)
+    return schemas.AudioJobStatus(
+        **summary.model_dump(),
+        transcript=job.transcript,
+        artifact_url=(
+            f"/api/v1/voice/jobs/{job.id}/artifact"
+            if job.artifact_path is not None
+            else None
+        ),
+    )
 
 
 def get_test_job_status(job_id: str, job_type: str):
@@ -140,6 +185,69 @@ def stop_benchmark_job_handler(job_id: str):
 
 
 @router.get(
+    "/audio/status",
+    operation_id="get_audio_statuses",
+    response_model=list[schemas.AudioJobSummary],
+)
+async def get_audio_statuses(
+    manager: AudioJobManagerDependency,
+) -> list[schemas.AudioJobSummary]:
+    return [_audio_job_to_api_summary(job) for job in await manager.list_jobs()]
+
+
+@router.get(
+    "/audio/{job_id}/status",
+    operation_id="get_audio_job_status",
+    response_model=schemas.AudioJobStatus,
+)
+async def get_audio_job_status(
+    job_id: str,
+    manager: AudioJobManagerDependency,
+) -> schemas.AudioJobStatus:
+    job = await manager.get_job(job_id)
+    if job is None:
+        raise HTTPException(404, "Audio pipeline job not found.")
+    return _audio_job_to_api_status(job)
+
+
+@router.delete(
+    "/audio/{job_id}",
+    operation_id="stop_audio_job",
+    summary="Stop a running audio job",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "model": schemas.MessageResponse,
+        },
+        404: {
+            "description": "Audio job not found",
+            "model": schemas.MessageResponse,
+        },
+        409: {
+            "description": "Audio job not running",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+async def stop_audio_job(
+    job_id: str,
+    manager: AudioJobManagerDependency,
+):
+    """Request cancellation of a RUNNING Speech to Text or Text to Speech job."""
+    try:
+        await manager.cancel_job(job_id)
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if "not found" in message else 409
+        logger.warning("Failed to stop audio job %s: %s", job_id, message)
+        return JSONResponse(
+            content=schemas.MessageResponse(message=message).model_dump(),
+            status_code=status_code,
+        )
+    return schemas.MessageResponse(message=f"Job {job_id} stopped")
+
+
+@router.get(
     "/tests/performance/status",
     operation_id="get_performance_statuses",
     summary="List all performance test jobs",
@@ -185,6 +293,7 @@ def get_performance_statuses():
         "details": [],
         "total_fps": 480.0,
         "per_stream_fps": 30.0,
+        "min_stream_fps": 27.5,
         "total_streams": 16,
         "streams_per_pipeline": [
           {"id": "pipeline-1", "streams": 8},
@@ -261,6 +370,7 @@ def get_performance_job_status(job_id: str):
       "details": ["Pipeline completed successfully"],
       "total_fps": 480.0,
       "per_stream_fps": 30.0,
+      "min_stream_fps": 27.5,
       "total_streams": 16,
       "streams_per_pipeline": [
         {"id": "pipeline-1", "streams": 8},
@@ -524,6 +634,7 @@ def get_performance_job_metadata_for_stream(
             "description": "SSE stream of metadata records",
             "content": {"text/event-stream": {}},
         },
+        204: {"description": "Job finished; no further metadata will be produced"},
         404: {"description": "Job not found", "model": schemas.MessageResponse},
     },
 )
@@ -538,7 +649,9 @@ async def stream_performance_job_metadata(
     Opens a persistent HTTP connection and pushes each new JSON record emitted
     by the ``gvametapublish`` GStreamer element as an SSE ``data:`` event.
     The stream terminates automatically when the pipeline finishes.
-    A ``": keepalive"`` comment is sent every 30 s to prevent proxy timeouts.
+    A padding comment is sent on connect and a ``": keepalive"`` comment every
+    10 s, so buffering proxies release the response instead of holding it until
+    the stream closes.
 
     ## Path Parameters
 
@@ -556,6 +669,7 @@ async def stream_performance_job_metadata(
     | Code | Description |
     |------|-------------|
     | 200  | SSE stream opened |
+    | 204  | Job has finished; the client should not reconnect |
     | 404  | Job id is unknown or no metadata is available for this job |
     """
     if not MetadataManager().job_exists(job_id):
@@ -574,6 +688,10 @@ async def stream_performance_job_metadata(
             ).model_dump(),
             status_code=404,
         )
+
+    if not MetadataManager().is_tailing(job_id):
+        # EventSource reconnects after a normal close; 204 tells it to stop for good.
+        return Response(status_code=204)
 
     global_index = MetadataManager().resolve_file_index(job_id, pipeline_id, file_index)
     if global_index is None:
@@ -643,6 +761,7 @@ def get_density_statuses():
         "details": [],
         "total_fps": null,
         "per_stream_fps": 28.5,
+        "min_stream_fps": 25.1,
         "total_streams": 32,
         "streams_per_pipeline": [
           {"id": "pipeline-1", "streams": 16},
@@ -1098,6 +1217,55 @@ def get_optimization_job_status(job_id: str):
     return _optimization_job_to_api_status(internal_status)
 
 
+@router.delete(
+    "/optimization/{job_id}",
+    operation_id="stop_optimization_job",
+    summary="Cancel a running optimization job",
+    responses={
+        200: {
+            "description": "Cancellation requested",
+            "model": schemas.MessageResponse,
+        },
+        404: {
+            "description": "Optimization job not found",
+            "model": schemas.MessageResponse,
+        },
+        409: {
+            "description": "Optimization job not running",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+def stop_optimization_job(job_id: str):
+    """
+    **Cancel a running optimization job.**
+
+    ## Operation
+
+    Cancels the job's optimizer run on DL Streamer Pipeline Server. The job
+    then ends as `FAILED` with the detail `Cancelled by user`; the
+    candidates evaluated so far are discarded.
+
+    ## Path Parameters
+
+    - `job_id`: Identifier of the optimization job to cancel
+
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 200  | Job was RUNNING and cancellation was requested |
+    | 404  | Job does not exist |
+    | 409  | Job exists but is not RUNNING |
+    """
+    success, message = OptimizationManager().cancel_job(job_id)
+    response = schemas.MessageResponse(message=message)
+    if success:
+        return response
+    status_code = 404 if "not found" in message.lower() else 409
+    return JSONResponse(content=response.model_dump(), status_code=status_code)
+
+
 @router.get(
     "/validation/status",
     operation_id="get_validation_statuses",
@@ -1373,6 +1541,7 @@ def _performance_job_to_api_status(
         details=list(job.details),
         total_fps=job.total_fps,
         per_stream_fps=job.per_stream_fps,
+        min_stream_fps=job.min_stream_fps,
         total_streams=job.total_streams,
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,
@@ -1381,6 +1550,17 @@ def _performance_job_to_api_status(
         latency_tracer_metrics=_convert_latency_tracer_metrics(
             job.latency_tracer_metrics
         ),
+        events=[
+            schemas.PipelineEvent(
+                timestamp_ms=event.timestamp_ms,
+                source=event.source,
+                text=event.text,
+                element=event.element,
+                pts_seconds=event.pts_seconds,
+                prompt=event.prompt,
+            )
+            for event in list(job.events)
+        ],
     )
 
 
@@ -1414,6 +1594,7 @@ def _density_job_to_api_status(
         details=list(job.details),
         total_fps=job.total_fps,
         per_stream_fps=job.per_stream_fps,
+        min_stream_fps=job.min_stream_fps,
         total_streams=job.total_streams,
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,

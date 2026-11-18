@@ -36,20 +36,39 @@ def _build_retriever_payload(
     query_request: Any,
     initial_k: int,
     time_range: Optional[Tuple[str, str]],
+    min_score: Optional[float] = None,
 ) -> list[dict]:
     """Build the vector-retriever ``/query`` request body for a single query.
+
+    Supports both text queries (``query``) and image queries (``image_base64``);
+    exactly one of the two is expected to be set on ``query_request``. Image
+    embedding is performed by the vector-retriever microservice itself, which
+    natively accepts a discriminated ``image`` input (``image_base64``/``image_url``).
 
     Tags are intentionally NOT pushed down; the caller keeps its own tag
     post-filtering to preserve exact "match any" subset semantics across backends.
     """
     item: dict[str, Any] = {
         "query_id": query_request.query_id,
-        "query": query_request.query,
         "top_k": initial_k,
     }
+
+    image_base64 = getattr(query_request, "image_base64", None)
+    if image_base64 and image_base64.strip():
+        # Accept either a raw base64 string or a full ``data:image/...;base64,``
+        # data URL; strip the prefix so any caller can be tolerant.
+        raw_image = image_base64.strip()
+        if "," in raw_image and raw_image.lower().startswith("data:"):
+            raw_image = raw_image.split(",", 1)[1]
+        item["image"] = {"type": "image_base64", "image_base64": raw_image}
+    else:
+        item["query"] = query_request.query
+
     if time_range is not None:
         start, end = time_range
         item["time_filter"] = {"start": start, "end": end}
+    if min_score is not None and min_score > 0:
+        item["min_score"] = min_score
     return [item]
 
 
@@ -57,6 +76,7 @@ async def retrieve_frames_via_service(
     query_request: Any,
     initial_k: int,
     time_range: Optional[Tuple[str, str]] = None,
+    min_score: Optional[float] = None,
 ) -> List[Tuple[RetrievedDocument, float]]:
     """Delegate similarity search to the vector-retriever microservice.
 
@@ -64,6 +84,8 @@ async def retrieve_frames_via_service(
         query_request: The incoming query (must expose ``query_id`` and ``query``).
         initial_k: Number of frame candidates to request (maps to retriever ``top_k``).
         time_range: Optional ``(start, end)`` ISO strings to push down as a time filter.
+        min_score: Optional minimum frame score; pushed down so the retriever
+            drops weaker frames before its ``top_k`` cut. ``None``/0 disables it.
 
     Returns:
         A list of ``(RetrievedDocument, score)`` tuples ordered by relevance.
@@ -72,7 +94,7 @@ async def retrieve_frames_via_service(
         RuntimeError: If the retriever call fails or returns an error payload.
     """
     endpoint = settings.RETRIEVER_ENDPOINT.rstrip("/")
-    payload = _build_retriever_payload(query_request, initial_k, time_range)
+    payload = _build_retriever_payload(query_request, initial_k, time_range, min_score)
 
     timeout = aiohttp.ClientTimeout(total=settings.RETRIEVER_TIMEOUT_SECONDS)
     # trust_env=False so internal service-to-service calls never route through a

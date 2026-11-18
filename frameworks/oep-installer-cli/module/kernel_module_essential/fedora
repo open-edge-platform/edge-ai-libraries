@@ -1,0 +1,64 @@
+
+configure_kernel_module_essential_fedora () {
+  local ver;
+  ver=$(configure_kernel_module_essential) || { local rc=$?; return $?; }
+
+  # Default system compiler major per RHEL release
+  local rel="${VERSION_ID%%.*}" major=${ver%%.*} def
+  case $rel in
+  6|7) def=4 ;;
+  8) def=8 ;; 
+  9) def=11 ;; 
+  10) def=14 ;; 
+  *) def=$major ;;
+  esac
+
+  install_pkgs=("kernel-devel-$(uname -r)")
+  if (( major == def )); then
+    install_pkgs+=(gcc gcc-c++)
+    export CC=gcc
+    export CXX=g++
+  elif (( rel == 7 )); then
+    install_pkgs+=(devtoolset-$major-gcc devtoolset-$major-gcc-c++)
+    export CC=/opt/rh/devtoolset-$major/root/usr/bin/gcc
+    export CXX=/opt/rh/devtoolset-$major/root/usr/bin/g++
+  else
+    install_pkgs+=(gcc-toolset-$major-gcc gcc-toolset-$major-gcc-c++)
+    export CC=/opt/rh/gcc-toolset-$major/root/usr/bin/gcc
+    export CXX=/opt/rh/gcc-toolset-$major/root/usr/bin/g++
+  fi
+}
+
+fedora_30_install_kernel_module_essential () {
+  configure_kernel_module_essential_fedora
+
+  local p pkgs=()
+  for p in ${install_pkgs[*]}; do
+    if ensure_dnf_is_installed $p; then
+      echo "$p is installed." >&2
+    else
+      ensure_prop set installed/kernel_module_essential/owned_$p true
+      pkgs+=($p)
+    fi
+  done
+  # TODO: install devtoolset differently
+  if [ ${#pkgs[@]} -gt 0 ]; then
+    ensure_dnf install "${pkgs[@]}"
+  fi
+}
+
+fedora_30_remove_kernel_module_essential () {
+  configure_kernel_module_essential_fedora
+  
+  local p pkgs=()
+  for p in ${install_pkgs[*]}; do
+    [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue
+    pkgs+=($p)
+  done
+  [ ${#pkgs[@]} -eq 0 ] || ensure_dnf remove ${pkgs[*]}
+}
+
+fedora_30_sbom_kernel_module_essential () {
+  configure_kernel_module_essential_fedora
+  ensure_sbom_format pkg-list ${install_pkgs[*]}
+}

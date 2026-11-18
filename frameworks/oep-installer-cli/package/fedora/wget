@@ -1,0 +1,8 @@
+
+fedora_10_install_wget () {
+  ensure_dnf_install_package wget ca-certificates
+}
+
+fedora_10_sbom_wget () {
+  ensure_sbom_format pkg-list wget ca-certificates
+}

@@ -174,7 +174,8 @@ Before categorizing commits, read the existing `CHANGELOG.md` (if present):
    | **Documentation** | `doc`, `docs`, `documentation`, `readme`, `changelog`, `typo`, `spelling` |
    | **Changed** | everything else |
 
-   > **Tip:** If a commit is ambiguous, prefer the section that better serves the reader. Merge commits and automated bot commits (e.g., Dependabot) should go in **Security** or **Changed** as appropriate.
+   > [!TIP]
+   > If a commit is ambiguous, prefer the section that better serves the reader. Merge commits and automated bot commits (e.g., Dependabot) should go in **Security** or **Changed** as appropriate.
 
 4. Also collect PR numbers referenced in commit messages (pattern `(#\d+)` or `#\d+`).
 

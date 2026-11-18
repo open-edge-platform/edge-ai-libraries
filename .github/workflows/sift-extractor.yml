@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: sift-extractor
+
+# Scoped CI for libraries/sift-extractor. GitHub-hosted runners do NOT provide
+# Intel GPU / oneAPI OpenCL or Level Zero devices. GPU extraction, OpenCL/SYCL
+# CTest, Arc timing, and quality-floor scoring are NOT executed here and must
+# be run on private lab hosts. This workflow only checks tree hygiene that can
+# run without a GPU: SPDX headers on new/changed files, CMake configure with
+# both backends disabled (headers/install layout), and a compile of the
+# backend-agnostic public headers when a system compiler is available.
+
+on:
+  pull_request:
+    paths:
+      - "libraries/sift-extractor/**"
+      - ".github/workflows/sift-extractor.yml"
+  push:
+    paths:
+      - "libraries/sift-extractor/**"
+      - ".github/workflows/sift-extractor.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disclose-no-gpu-runner:
+    name: Disclose absent GPU runners
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record CI scope
+        run: |
+          cat <<'EOF'
+          sift-extractor CI scope
+          ------------------------
+          - This job runs on GitHub-hosted ubuntu-latest.
+          - No Intel Arc / integrated GPU runner is attached to this workflow.
+          - OpenCL device discovery, SYCL Level Zero extract/match tests,
+            validate_sift_pair quality scoring, Arc timing, soak, and
+            concurrency gates are intentionally skipped in CI.
+          - Trusted GPU validation remains a private-lab / manual gate.
+          EOF
+
+  header-hygiene:
+    name: SPDX header hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check SPDX identifiers on C/C++/Python/CMake sources
+        working-directory: libraries/sift-extractor
+        run: |
+          set -euo pipefail
+          missing=0
+          while IFS= read -r -d '' file; do
+            if ! grep -q 'SPDX-License-Identifier:' "$file"; then
+              echo "missing SPDX-License-Identifier: $file"
+              missing=1
+            fi
+          done < <(find . -type f \( \
+            -name '*.cpp' -o -name '*.hpp' -o -name '*.h' -o -name '*.py' \
+            -o -name 'CMakeLists.txt' -o -name '*.cmake' -o -name '*.cmake.in' \
+            \) ! -path './src/sycl_reference/*' -print0)
+          if [[ "$missing" -ne 0 ]]; then
+            echo "::error::One or more sources lack SPDX-License-Identifier"
+            exit 1
+          fi
+
+  cmake-cpu-configure:
+    name: CMake configure (backends off)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Configure without OpenCL/SYCL
+        working-directory: libraries/sift-extractor
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-ci \
+            -DSIFT_ENABLE_OPENCL=OFF \
+            -DSIFT_ENABLE_SYCL=OFF \
+            -DSIFT_BUILD_TESTS=OFF \
+            -DSIFT_BUILD_SAMPLES=OFF \
+            -DSIFT_BUILD_PYTHON=OFF \
+            -DCMAKE_BUILD_TYPE=Release
+          # With both backends off the library targets are skipped; configure
+          # success still validates option/version wiring used by packaging.
+          test -f build-ci/CMakeCache.txt
+          grep -q 'SIFT_ENABLE_OPENCL:BOOL=OFF' build-ci/CMakeCache.txt
+          grep -q 'SIFT_ENABLE_SYCL:BOOL=OFF' build-ci/CMakeCache.txt

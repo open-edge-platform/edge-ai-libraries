@@ -76,8 +76,17 @@ components:
           type: string
           title: Query Id
         query:
-          type: string
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Query
+          description: Text query. Provide exactly one of `query` or `image_base64`.
+        image_base64:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Image Base64
+          description: Base64-encoded query image. Provide exactly one of `query` or `image_base64`.
         tags:
           anyOf:
           - items:
@@ -90,10 +99,17 @@ components:
           anyOf:
           - $ref: '#/components/schemas/TimeRange'
           - type: 'null'
+        min_peak_score:
+          anyOf:
+          - type: number
+            minimum: 0
+            maximum: 1
+          - type: 'null'
+          title: Min Peak Score
+          description: Drop frames scoring below this value (0-1) before aggregation. Defaults to `SEARCH_MIN_PEAK_SCORE`; `0` disables the filter. Also accepted as `minPeakScore`.
       type: object
       required:
       - query_id
-      - query
       title: QueryRequest
     TimeRange:
       properties:

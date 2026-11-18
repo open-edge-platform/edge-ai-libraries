@@ -1,0 +1,116 @@
+# Compress Server — OpenVINO image. Does NOT install adaptive-token-compressor.
+# Container only carries the standalone server file (`app.py`) + LLMLingua patch.
+# Library clients reach the running container over HTTP via TokenPruneBackend.
+
+# Build context is the repo root (set in deployment/compress-server/docker-compose.yaml
+# as `build.context: ../..`), so `COPY src/.../app.py` resolves correctly.
+#
+# Defaults: --runtime ov, --device gpu, --port 8001 (ov devices: cpu/gpu).
+
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Intel GPU runtime (Level-Zero loader + neo .deb bundle).
+# Required for OpenVINO to access GPU devices. Harmless if container is run
+# without `/dev/dri` devices passed in (CPU users) — OpenVINO simply won't use XPU.
+# `patch` is required for the neighbor-protection patch step below; python:slim
+# images don't ship it by default.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+        ca-certificates curl ocl-icd-libopencl1 libze1 patch \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp/neo
+# Fetch only the runtime .deb packages. The matching -dbgsym .ddeb debug-symbol
+# variants are not needed at runtime; dropping them also cuts the number of HTTPS
+# downloads (fewer TLS handshakes to fail behind a flaky corporate proxy). curl is
+# hardened with --fail + retries so a transient GitHub asset-CDN / proxy TLS hiccup
+# is retried instead of aborting the whole build.
+RUN set -eux; \
+    for url in \
+        https://github.com/intel/intel-graphics-compiler/releases/download/v2.30.1/intel-igc-core-2_2.30.1+20950_amd64.deb \
+        https://github.com/intel/intel-graphics-compiler/releases/download/v2.30.1/intel-igc-opencl-2_2.30.1+20950_amd64.deb \
+        https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/intel-ocloc_26.09.37435.1-0_amd64.deb \
+        https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/intel-opencl-icd_26.09.37435.1-0_amd64.deb \
+        https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/libigdgmm12_22.9.0_amd64.deb \
+        https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/libze-intel-gpu1_26.09.37435.1-0_amd64.deb ; \
+    do \
+        curl -fL --retry 5 --retry-all-errors -O "$url"; \
+    done; \
+    dpkg -i ./*.deb
+RUN rm -rf /tmp/neo
+WORKDIR /app
+
+# CPU torch is enough for OpenVINO-backed execution paths (OV drives the GPU via
+# its own runtime; torch never leaves the CPU here). Install from the CPU wheel
+# index to get the lean CPU-only build and avoid the heavy accelerator runtime
+# packages the default PyPI torch wheel pulls in on Linux (unused here, ~GBs).
+RUN pip install --no-cache-dir \
+        torch==2.8.0+cpu \
+        --index-url https://download.pytorch.org/whl/cpu
+
+# Compress Server's own runtime deps (NOT adaptive-token-compressor).
+# All versions are pinned to the validated image (see also the
+# adaptive-token-compressor[compress-server-ov] extras).
+RUN pip install --no-cache-dir \
+        llmlingua==0.2.2 \
+        huggingface_hub==1.21.0 \
+        fastapi==0.141.1 \
+        "uvicorn[standard]==0.52.4" \
+        pydantic==2.13.5
+
+# OpenVINO runtime deps used by `--runtime ov`.
+RUN pip install --no-cache-dir \
+        openvino==2026.3.1 \
+        openvino-tokenizers==2026.3.1.0 \
+        "optimum[openvino]==2.3.0" \
+        optimum-intel==2.1.0 \
+        nncf==3.3.0
+
+# Pin the transformer stack. Must stay a separate step AFTER the OV stack:
+# optimum-intel 2.1.0 declares transformers<5.6, but trivy requires
+# transformers>=5.5.0 and 5.16.1 is the validated version, so we override it
+# here (pip warns about the optimum-intel requirement; runtime is unaffected).
+RUN pip install --no-cache-dir \
+        transformers==5.16.1 \
+        tokenizers==0.23.2
+
+# Security: pin transitively-pulled packages flagged by trivy to fixed versions.
+RUN pip install --no-cache-dir \
+        setuptools==84.0.0 \
+        wheel==0.48.0 \
+        jaraco.context==6.1.2 \
+        msgpack==1.2.2
+
+# Apply the neighbor-protection patch to LLMLingua-2 (digit_neighbor_radius). Same patch file used by
+# bare-metal `python -m ...apply_patch`. See plan §6.5.1.5.
+COPY src/adaptive_token_compressor/model_servers/compress_server/patches/0001-digit-neighbor-radius.patch /tmp/
+RUN patch -d "$(python -c 'import llmlingua, os; print(os.path.dirname(llmlingua.__file__))')" -p1 \
+        < /tmp/0001-digit-neighbor-radius.patch \
+    && rm /tmp/0001-digit-neighbor-radius.patch
+
+# Server entry — copied as a renamed standalone script (plan §17.A:
+# app.py runs both `python -m ...compress_server` and `python compress_server.py`).
+COPY src/adaptive_token_compressor/model_servers/compress_server/app.py /app/compress_server.py
+
+# HuggingFace model cache (mounted as a named volume in compose). Lives under
+# the non-root user's home so the mounted volume is writable without root.
+ENV HF_HOME=/home/user/.cache/huggingface
+RUN useradd -m -u 1000 user && mkdir -p ${HF_HOME} && chown -R user:user ${HF_HOME} /app
+USER user
+
+ENV COMPRESS_SERVER_PORT=8001
+ENV COMPRESS_SERVER_RUNTIME=ov
+# ov devices: cpu / gpu (lowercase). Default gpu; override at run time
+# (compose sets COMPRESS_SERVER_DEVICE). Must NOT be pytorch's "xpu" — ov rejects it.
+ENV COMPRESS_SERVER_DEVICE=gpu
+ENV COMPRESS_SERVER_MODE=llmlingua2
+ENV COMPRESS_SERVER_MODEL_NAME_ID=""
+ENV COMPRESS_SERVER_OV_CACHE_DIR=/home/user/.cache/huggingface/ov_ir
+
+EXPOSE 8001
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+        CMD curl --fail --silent http://127.0.0.1:${COMPRESS_SERVER_PORT}/health || exit 1
+
+# Shell form so env vars expand. --mode is always explicit; model_name_id remains optional.
+CMD python compress_server.py --runtime ${COMPRESS_SERVER_RUNTIME} --device ${COMPRESS_SERVER_DEVICE} --port ${COMPRESS_SERVER_PORT} --host 0.0.0.0 --mode ${COMPRESS_SERVER_MODE} ${COMPRESS_SERVER_MODEL_NAME_ID:+--model_name_id $COMPRESS_SERVER_MODEL_NAME_ID}

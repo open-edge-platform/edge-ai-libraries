@@ -5,6 +5,89 @@ export const GVA_TRACKING_TYPES = [
   "deep-sort",
 ] as const;
 
+export const DEEP_SORT_TRACKING_TYPE = "deep-sort";
+export const DEEPSORT_CFG_KEY = "deepsort-trck-cfg";
+
+export type DeepSortParam = {
+  key: string;
+  label: string;
+  type: "number" | "text";
+  defaultValue: string;
+  description: string;
+  step?: number;
+  min?: number;
+  max?: number;
+};
+
+// Deep SORT tracker parameters exposed to the UI. These are packed into the
+// single `deepsort-trck-cfg="k=v,k=v,..."` gvatrack property at emit time.
+// See https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/object_tracking.html
+export const DEEP_SORT_PARAMS: readonly DeepSortParam[] = [
+  {
+    key: "max_iou_distance",
+    label: "Max IoU distance",
+    type: "number",
+    defaultValue: "0.7",
+    step: 0.05,
+    min: 0,
+    max: 1,
+    description: "Max IoU for matching (lower = stricter)",
+  },
+  {
+    key: "max_age",
+    label: "Max age",
+    type: "number",
+    defaultValue: "30",
+    step: 1,
+    min: 1,
+    description: "Frames a track survives without detection",
+  },
+  {
+    key: "n_init",
+    label: "N init",
+    type: "number",
+    defaultValue: "3",
+    step: 1,
+    min: 1,
+    description: "Detections needed to confirm a track",
+  },
+  {
+    key: "max_cosine_distance",
+    label: "Max cosine distance",
+    type: "number",
+    defaultValue: "0.2",
+    step: 0.05,
+    min: 0,
+    max: 1,
+    description: "Max appearance distance (lower = stricter)",
+  },
+  {
+    key: "nn_budget",
+    label: "NN budget",
+    type: "number",
+    defaultValue: "100",
+    step: 1,
+    min: 0,
+    description: "Features stored per track (0 = unlimited)",
+  },
+  {
+    key: "object_class",
+    label: "Object class",
+    type: "text",
+    defaultValue: "",
+    description: "Only track this class",
+  },
+  {
+    key: "reid_max_age",
+    label: "Re-ID max age",
+    type: "number",
+    defaultValue: "0",
+    step: 1,
+    min: 0,
+    description: "Frames to keep tracks for re-ID (0 = off)",
+  },
+] as const;
+
 export const gvaTrackConfig = {
   editableProperties: [
     {

@@ -2,8 +2,8 @@
 
 This section shows how to build the Video Search and Summary sample application from source.
 
-> **Note:**
->
+> [!NOTE]
+> 
 > - The dependent microservices can be built separately from their respective microservice folders which is recommended. There is an option provided to build dependencies along with sample application if required.
 > - The build instruction is applicable only on an Ubuntu system. Build from source is not supported either for the sample application or the dependent microservices on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). It is recommended to use prebuilt images on Edge Microvisor Toolkit.
 

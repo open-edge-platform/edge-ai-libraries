@@ -67,7 +67,7 @@ The application flow involves the following steps for both search indexing and s
    - **Create the pipeline**: The Video Summarization Pipeline Manager configures the pipeline based on your input.
 
 2. **Input Video Sources**:
-   - **Provide video**: You will provide the video to be summarized and searched. You can also configure the video through the UI. Currently, only offline video processing is supported through reading from local storage. In the future, live camera-streaming will be supported. The pipeline manager stores the video in a local object store.
+   - **Provide video**: You will provide the video to be summarized and searched. You can also configure the video through the UI. The summarization pipeline processes offline video read from local storage. Live RTSP cameras can be ingested into the **search** index instead — see [Video Search](./video-search.md) — but they are not summarized. The pipeline manager stores the video in a local object store.
 
    - **Ingest video**: The Video Ingestion microservice consumes the stored video. The microservices reuses the DL Streamer pipeline server and its capabilities to provide features such as object detection, audio classification, and (in future) input feed from live cameras. The ingestion process involves decoding, chunking, and selecting frame(s) from the input video. The extracted frame(s) is passed through object detection blocks, or the audio classification block if they are configured. The extracted frames and the metadata returned by the object detector and/or audio classification are then passed to the VLM microservice for captioning, and the embedding microservice for search indexing.
 

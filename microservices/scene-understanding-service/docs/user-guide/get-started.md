@@ -82,9 +82,28 @@ Use the Docker path for the simplest setup with a released image. For local deve
 The container exposes the API on host port `8082` and reads config from `/app/configs`.
 Use a versioned image tag instead of `latest` for reproducible deployments.
 
+The service must be on the same Docker network as your Scenescape deployment so
+it can resolve the MQTT broker and REST API hostnames. Attach it with
+`--network`, matching the network name of your Scenescape stack (the default
+compose deployment creates `scenescape_scenescape`; run `docker network ls` to
+confirm).
+
 ```bash
 docker run --rm -p 8082:8082 \
+  --network scenescape_scenescape \
   -v "$PWD/configs:/app/configs:ro" \
+  intel/scene-understanding-service:<RELEASE_TAG>
+```
+
+If your Scenescape deployment uses TLS for the MQTT broker (the default
+deployment does), set `mqtt.use_tls: true` in `scene-config.yaml` and mount the
+Scenescape certificates so the service can authenticate:
+
+```bash
+docker run --rm -p 8082:8082 \
+  --network scenescape_scenescape \
+  -v "$PWD/configs:/app/configs:ro" \
+  -v "$PWD/secrets:/app/secrets:ro" \
   intel/scene-understanding-service:<RELEASE_TAG>
 ```
 

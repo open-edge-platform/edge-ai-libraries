@@ -1,17 +1,22 @@
-name: "[DLSPS] [U22/U24] Build weekly cache imgs"
-run-name: "[DLSPS] [U22/U24] Build weekly cache imgs"
+name: "[DLSPS] [U22/U24/U26] Build weekly cache imgs"
+run-name: "[DLSPS] [U22/U24/U26] Build weekly cache imgs"
 on:
   schedule:
-    - cron: '0 5 * * MON' # 5:00 UTC each Monday
+    - cron: '0 5 * * *' # every day at 5:00 UTC
   workflow_dispatch:
     inputs:
       image-tag:
         description: 'Image tag'
         required: false
         type: string
+      dls-branch:
+        description: DL Streamer branch or ref to build
+        required: false
+        type: string
+        default: main
 permissions: {}
 env:
-  dlstreamer-version: "2026.0.0"
+  dlstreamer-version: "2026.3.0"
   DLS_REL_PATH: "./edge-ai-libraries-repo/libraries/dlstreamer"
 
 jobs:
@@ -29,6 +34,8 @@ jobs:
             ubuntu_version: ubuntu22
           - path_dockerfile: ./edge-ai-libraries-repo/libraries/dlstreamer/docker/ubuntu/ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
+          - path_dockerfile: ./edge-ai-libraries-repo/libraries/dlstreamer/docker/ubuntu/ubuntu26.Dockerfile
+            ubuntu_version: ubuntu26
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -36,10 +43,14 @@ jobs:
         persist-credentials: false
         path: edge-ai-libraries-repo
 
-    - name: Init submodules
-      run: |
-        cd edge-ai-libraries-repo
-        git submodule update --init --recursive libraries/dlstreamer
+    - name: Check out DL Streamer repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        repository: open-edge-platform/dlstreamer
+        ref: ${{ inputs.dls-branch || 'main' }}
+        submodules: recursive
+        persist-credentials: false
+        path: edge-ai-libraries-repo/libraries/dlstreamer
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1

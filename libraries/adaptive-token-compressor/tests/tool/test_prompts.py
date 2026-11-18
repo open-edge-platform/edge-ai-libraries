@@ -88,6 +88,33 @@ class TestBuildDynamicPredictionPrompt:
         assert "available skills" not in result
         assert "Completed tool calls" not in result
 
+    def test_default_keeps_count_rule(self):
+        result = build_dynamic_prediction_prompt(
+            template=BASE_PROMPT, tool_descriptions="- read: rd",
+        )
+        assert "You MUST include 5-7 tools" in result
+        assert "Score every available tool" not in result
+
+    def test_score_all_only_swaps_count_rule(self):
+        kwargs = dict(template=BASE_PROMPT, tool_descriptions="- read: rd")
+        default = build_dynamic_prediction_prompt(**kwargs)
+        score_all = build_dynamic_prediction_prompt(**kwargs, score_all=True)
+        assert score_all == default.replace(
+            "- You MUST include 5-7 tools (3-4 core + 1-3 fallback)\n",
+            "- Score every available tool from 1 to 5\n",
+        )
+
+    def test_tool_count_level_only_swaps_count_rule(self):
+        kwargs = dict(template=BASE_PROMPT, tool_descriptions="- read: rd")
+        default = build_dynamic_prediction_prompt(**kwargs)
+        custom = build_dynamic_prediction_prompt(
+            **kwargs, tool_count_level="medium",
+        )
+        assert custom == default.replace(
+            "- You MUST include 5-7 tools (3-4 core + 1-3 fallback)\n",
+            "- You MUST include 5-10 tools (3-5 core + 2-4 fallback)\n",
+        )
+
     def test_skills_section_appended(self):
         result = build_dynamic_prediction_prompt(
             template=BASE_PROMPT,

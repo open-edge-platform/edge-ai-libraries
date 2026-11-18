@@ -10,6 +10,7 @@ from api.openai_endpoints import router as openai_router
 from api.realtime_endpoints import router as realtime_router
 from utils.config_loader import config
 from utils.ensure_model import ensure_model
+from utils.model_download_client import provision_at_startup
 from utils.openvino_runtime_validation import validate_runtime_configuration
 from utils.preload_models import preload_models
 import logging
@@ -47,11 +48,14 @@ def _clear_storage_on_startup() -> None:
         if os.path.isdir(entry_path):
             shutil.rmtree(entry_path, ignore_errors=True)
             count += 1
-    logger.info("Cleared %d session folder(s) from storage on startup", count)
+    logger.warning(
+        "clear_storage_on_startup is enabled — cleared %d session folder(s) from storage "
+        "on startup", count
+    )
 
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     _clear_storage_on_startup()
     try:
         validate_runtime_configuration(config)
@@ -68,8 +72,20 @@ def startup_event():
             "Runtime configuration validation failed — service will start but "
             "some inference paths may not be available: %s", exc
         )
-    ensure_model()
-    preload_models()
+    try:
+        # Snapshots come from a shared Model Download service when configured
+        # and reachable, otherwise Audio Analyzer downloads them itself (unless
+        # AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD=false requires pre-provisioning).
+        await provision_at_startup()
+        ensure_model()
+        preload_models()
+    except Exception as exc:
+        logger.warning(
+            "ASR model is unavailable. "
+            "Startup will be retried by the container runtime: %s",
+            exc,
+        )
+        raise
 
 
 app.include_router(openai_router)

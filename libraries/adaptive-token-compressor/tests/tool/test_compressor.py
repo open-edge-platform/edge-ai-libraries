@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -14,7 +15,11 @@ from adaptive_token_compressor.tool.compressor import (
     filter_tools,
     filter_tooling_section,
 )
-from adaptive_token_compressor.tool.predictor import ToolCandidate
+from adaptive_token_compressor.tool.predictor import (
+    HTTPToolPredictor,
+    RerankerToolPredictor,
+    ToolCandidate,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -201,9 +206,118 @@ class TestToolCompressorConstruction:
         with pytest.raises(ConfigError):
             ToolCompressor(predictor_url=URL, score_threshold=6.0)
 
+    def test_invalid_top_k_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(predictor_url=URL, top_k=0)
+
     def test_invalid_timeout_raises(self):
         with pytest.raises(ConfigError):
             ToolCompressor(predictor_url=URL, timeout=0)
+
+    def test_reranker_backend_constructs_reranker_predictor(self):
+        comp = ToolCompressor(predictor_url=URL, predictor_backend="reranker")
+        assert isinstance(comp._predictor, RerankerToolPredictor)
+
+    def test_generative_default_selection_is_threshold(self):
+        comp = ToolCompressor(predictor_url=URL)
+        assert comp._score_threshold == 2.0
+        assert comp._top_k is None
+
+    def test_reranker_default_selection_is_top_k(self):
+        comp = ToolCompressor(predictor_url=URL, predictor_backend="reranker")
+        assert comp._top_k == 20
+        assert comp._score_threshold is None
+
+    def test_reranker_explicit_threshold_is_kept(self):
+        comp = ToolCompressor(
+            predictor_url=URL, predictor_backend="reranker", score_threshold=1.1,
+        )
+        assert comp._score_threshold == 1.1
+        assert comp._top_k is None
+
+    def test_json_schema_with_reranker_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(
+                predictor_url=URL, predictor_backend="reranker",
+                predictor_json_schema=True,
+            )
+
+    def test_json_schema_with_static_prompt_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(
+                predictor_url=URL, prompt_mode="static",
+                predictor_json_schema=True,
+            )
+
+    @pytest.mark.parametrize("level,expected", [
+        ("small", "- You MUST include 5-7 tools (3-4 core + 1-3 fallback)\n"),
+        ("medium", "- You MUST include 5-10 tools (3-5 core + 2-4 fallback)\n"),
+        ("high", "- You MUST include 7-15 tools (4-6 core + 3-9 fallback)\n"),
+    ])
+    def test_tool_count_level_in_prompt(self, level, expected):
+        comp = ToolCompressor(predictor_url=URL, tool_count_level=level)
+        prompt = comp._compose_system_prompt(
+            "- read: rd", skills=[], call_history=[], skill_content=None,
+        )
+        assert expected in prompt
+        assert prompt.count("You MUST include") == 1
+
+    def test_invalid_tool_count_level_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(predictor_url=URL, tool_count_level="huge")  # type: ignore[arg-type]
+
+    def test_non_default_tool_count_level_with_static_or_schema_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(
+                predictor_url=URL, prompt_mode="static", tool_count_level="high",
+            )
+        with pytest.raises(ConfigError):
+            ToolCompressor(
+                predictor_url=URL, predictor_json_schema=True,
+                tool_count_level="high",
+            )
+
+    def test_json_schema_swaps_count_rule_in_prompt(self):
+        comp = ToolCompressor(predictor_url=URL, predictor_json_schema=True)
+        prompt = comp._compose_system_prompt(
+            "- read: rd", skills=[], call_history=[], skill_content=None,
+        )
+        assert "Score every available tool from 1 to 5" in prompt
+        assert "5-7 tools" not in prompt
+
+    def test_no_json_schema_keeps_count_rule_in_prompt(self):
+        comp = ToolCompressor(predictor_url=URL)
+        prompt = comp._compose_system_prompt(
+            "- read: rd", skills=[], call_history=[], skill_content=None,
+        )
+        assert "You MUST include 5-7 tools" in prompt
+        assert "Score every available tool" not in prompt
+
+    def test_json_schema_is_opt_in_for_generative_predictor(self):
+        default_comp = ToolCompressor(predictor_url=URL)
+        schema_comp = ToolCompressor(
+            predictor_url=URL, predictor_json_schema=True,
+        )
+
+        assert isinstance(default_comp._predictor, HTTPToolPredictor)
+        assert default_comp._predictor._enforce_json_schema is False
+        assert isinstance(schema_comp._predictor, HTTPToolPredictor)
+        assert schema_comp._predictor._enforce_json_schema is True
+
+    def test_predictor_max_output_tokens_is_forwarded(self):
+        comp = ToolCompressor(
+            predictor_url=URL, predictor_max_output_tokens=1024,
+        )
+
+        assert isinstance(comp._predictor, HTTPToolPredictor)
+        assert comp._predictor._max_output_tokens == 1024
+
+    def test_invalid_predictor_backend_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(
+                predictor_url=URL,
+                predictor_backend="invalid",  # type: ignore[arg-type]
+            )
 
     def test_invalid_placement_raises(self):
         with pytest.raises(ConfigError):
@@ -309,7 +423,7 @@ class TestToolCompressorPredictorFailure:
 
 class TestToolCompressorNoToolsPredicted:
     def test_empty_candidates_short_circuits(self):
-        comp = ToolCompressor(predictor_url=URL)
+        comp = ToolCompressor(predictor_url=URL, resident_tools=None)
         comp._predictor = FakePredictor(candidates=[])
         result = comp.compress(_make_request())
         assert result.metrics.skip_reason == "no_tools_predicted"
@@ -318,7 +432,9 @@ class TestToolCompressorNoToolsPredicted:
         assert len(result.tools) == 2
 
     def test_all_below_threshold_short_circuits(self):
-        comp = ToolCompressor(predictor_url=URL, score_threshold=4.0)
+        comp = ToolCompressor(
+            predictor_url=URL, score_threshold=4.0, resident_tools=None,
+        )
         comp._predictor = FakePredictor(
             candidates=[ToolCandidate(name="read", score=2)],
         )
@@ -333,6 +449,37 @@ class TestToolCompressorNoToolsPredicted:
 
 
 class TestToolCompressorSuccess:
+    def test_reranker_receives_tool_definitions(self):
+        comp = ToolCompressor(
+            predictor_url=URL,
+            predictor_backend="reranker",
+            score_threshold=3.0,
+        )
+        calls = []
+
+        def fake_predict(task, *, system_prompt, tool_definitions=None):
+            calls.append({
+                "task": task,
+                "system_prompt": system_prompt,
+                "tool_definitions": tool_definitions,
+            })
+            return [ToolCandidate(name="read", score=4.0)], {}
+
+        comp._predictor.predict = fake_predict  # type: ignore[method-assign]
+        tools = [_tool("read", "Read a file"), _tool("write", "Write a file")]
+        tools[0]["function"]["parameters"] = {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+        }
+
+        result = comp.compress(_make_request(tools=tools))
+
+        definitions = calls[0]["tool_definitions"]
+        assert [definition.name for definition in definitions] == ["read", "write"]
+        assert definitions[0].description == "Read a file"
+        assert definitions[0].parameters["properties"]["path"] == {"type": "string"}
+        assert [tool["function"]["name"] for tool in result.tools] == ["read"]
+
     def test_filters_below_threshold(self):
         comp = ToolCompressor(predictor_url=URL, score_threshold=3.0)
         comp._predictor = FakePredictor(
@@ -348,6 +495,30 @@ class TestToolCompressorSuccess:
         assert result.metrics.error is None
         assert result.metrics.succeeded
         assert result.metrics.scope == CompressionScope.TOOL
+
+    def test_top_k_selects_highest_scores_instead_of_threshold(self):
+        comp = ToolCompressor(
+            predictor_url=URL,
+            score_threshold=5.0,
+            top_k=2,
+            accumulate=False,
+            resident_tools=None,
+        )
+        comp._predictor = FakePredictor(
+            candidates=[
+                ToolCandidate(name="read", score=2),
+                ToolCandidate(name="write", score=4),
+                ToolCandidate(name="exec", score=3),
+            ],
+        )
+
+        result = comp.compress(
+            _make_request(tools=[_tool("read"), _tool("write"), _tool("exec")])
+        )
+
+        assert [tool["function"]["name"] for tool in result.tools] == ["write", "exec"]
+        assert result.metrics.details["top_k"] == 2
+        assert result.metrics.details["predicted_count"] == 2
 
     def test_metrics_details_populated(self):
         comp = ToolCompressor(predictor_url=URL, score_threshold=3.0)
@@ -368,7 +539,8 @@ class TestToolCompressorSuccess:
         assert d["filtered_count"] == 2
         assert d["score_threshold"] == 3.0
         assert d["predicted_count"] == 2
-        assert sorted(d["predicted_tools"]) == ["read", "write"]
+        assert d["predicted_tools"] == ["read", "write"]
+        assert "resident_count" not in d
         # Candidate dataclasses preserved (unfiltered) in details.
         assert len(d["candidates"]) == 3
 
@@ -439,6 +611,7 @@ class TestToolCompressorDimensions:
         comp = ToolCompressor(
             predictor_url=URL,
             prompt_mode="dynamic",
+            resident_tools=None,
         )
         fake = FakePredictor(
             candidates=[ToolCandidate(name="read", score=5)],
@@ -774,7 +947,10 @@ class TestToolCompressorAccumulate:
            _tool("write"), _tool("read")]
 
     def _build(self, seqs, placement="schema"):
-        comp = ToolCompressor(predictor_url=URL, placement=placement, accumulate=True)
+        comp = ToolCompressor(
+            predictor_url=URL, placement=placement, accumulate=True,
+            resident_tools=None,
+        )
         comp._predictor = _SeqPredictor(seqs)
         return comp
 
@@ -886,6 +1062,7 @@ class TestToolCompressorUserInlineDelta:
     def _build(self, seqs):
         comp = ToolCompressor(
             predictor_url=URL, placement="user_inline_delta", accumulate=True,
+            resident_tools=None,
         )
         comp._predictor = _SeqPredictor(seqs)
         return comp
@@ -1009,6 +1186,19 @@ class TestToolCompressorUserInlineDelta:
         for tdef in self.ALL:
             assert json.dumps(tdef) in joined
 
+    def test_same_offset_resend_appends_not_replaces(self):
+        # A re-sent request at the same boundary (e.g. client retry) that
+        # selects a NEW tool must append a second delta carrier. Replacing the
+        # first would drop "exec": it is already in the union, so it is never
+        # re-sent as a delta and would vanish from the prompt for good.
+        comp = self._build([["exec"], ["exec", "process"]])
+        comp.compress(_convo(0, self.ALL))
+        result = comp.compress(_convo(0, self.ALL))   # same offset, re-sent
+        assert result.metrics.details["inline_carrier_count"] == 2
+        joined = " ".join(self._carriers(result.messages))
+        assert json.dumps(_tool("exec")) in joined
+        assert json.dumps(_tool("process")) in joined
+
     def test_does_not_mutate_ctx_messages(self):
         comp = self._build([["exec"]])
         ctx = _convo(0, self.ALL)
@@ -1054,3 +1244,357 @@ class TestToolCompressorUserInlineDelta:
                           if m.get("role") == "user"
                           and not str(m.get("content", "")).startswith(("# Tools", "Reminder:")))
         assert idx1[0] > first_user
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ToolCompressor — resident_tools (always in `tools`, dropped from prediction)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class _PoolRecordingReranker(RerankerToolPredictor):
+    """Reranker stand-in that records the tool pool it was asked to score."""
+
+    def __init__(self, names: list[str]):
+        super().__init__(url=URL, model="fake")
+        self._names = names
+        self.pools: list[list[str]] = []
+
+    def predict(self, task, *, system_prompt, tool_definitions=None):
+        self.pools.append([t.name for t in tool_definitions or []])
+        return [ToolCandidate(name=n, score=5.0) for n in self._names], {}
+
+
+class TestToolCompressorResidentTools:
+    ALL = [_tool("exec"), _tool("process"), _tool("web_search"),
+           _tool("write"), _tool("read")]
+    RESIDENT = ["read", "write", "exec"]
+
+    def _build(self, seqs, placement="user_inline_delta", resident=None):
+        comp = ToolCompressor(
+            predictor_url=URL, placement=placement,
+            resident_tools=self.RESIDENT if resident is None else resident,
+        )
+        comp._predictor = _SeqPredictor(seqs)
+        return comp
+
+    @staticmethod
+    def _names(tools):
+        return [t["function"]["name"] for t in tools or []]
+
+    @pytest.mark.parametrize("placement", [
+        "schema", "user_inline_delta", "user_tail", "system_tail", "user_inline",
+    ])
+    def test_invalid_resident_tools_raise(self, placement):
+        for bad in ("read", [""], [1]):
+            with pytest.raises(ConfigError):
+                ToolCompressor(
+                    predictor_url=URL, placement=placement, resident_tools=bad,
+                )
+
+    def test_schema_ignores_explicit_resident_names(self):
+        comp = self._build([["web_search", "read"]], placement="schema")
+        result = comp.compress(_convo(0, self.ALL))
+        assert self._names(result.tools) == ["web_search", "read"]
+        assert result.metrics.details["predicted_tools"] == ["web_search", "read"]
+        assert "resident_count" not in result.metrics.details
+
+    def test_delta_tools_field_is_resident_and_carriers_hold_pool_only(self):
+        comp = self._build([["web_search", "exec"]])
+        result = comp.compress(_convo(0, self.ALL))
+        assert self._names(result.tools) == ["exec", "write", "read"]
+        carriers = TestToolCompressorUserInlineDelta._carriers(result.messages)
+        joined = " ".join(carriers)
+        assert json.dumps(_tool("web_search")) in joined
+        for name in self.RESIDENT:
+            assert json.dumps(_tool(name)) not in joined
+        assert result.metrics.details["inline_delta_count"] == 1
+
+    def test_delta_empty_pool_prediction_has_no_full_schema_fallback(self):
+        comp = self._build([[]])
+        result = comp.compress(_convo(0, self.ALL))
+        assert self._names(result.tools) == ["exec", "write", "read"]
+        assert result.metrics.details["no_prediction_fallback"] is False
+        assert TestToolCompressorUserInlineDelta._carriers(result.messages) == []
+
+    def test_delta_strict_prefix_extension_with_resident(self):
+        comp = self._build([[], ["web_search"], ["process"], []])
+        prev = None
+        for t in range(4):
+            result = comp.compress(_convo(t, self.ALL))
+            assert self._names(result.tools) == ["exec", "write", "read"]
+            core = TestToolCompressorUserInlineDelta._strip_reminder(result.messages)
+            if prev is not None:
+                assert core[:len(prev)] == prev, f"turn {t} not extension"
+            prev = core
+
+    def test_reranker_scores_full_schema_and_resident_skip_top_k(self):
+        comp = ToolCompressor(
+            predictor_url=URL, predictor_backend="reranker", top_k=2,
+            placement="user_inline_delta", resident_tools=self.RESIDENT,
+        )
+        # Resident tools rank first; they must not take the top-k pool slots.
+        fake = _PoolRecordingReranker(["read", "exec", "web_search", "process"])
+        comp._predictor = fake
+        result = comp.compress(_convo(0, self.ALL))
+        assert fake.pools == [["exec", "process", "web_search", "write", "read"]]
+        assert result.metrics.details["predicted_tools"] == ["web_search", "process"]
+
+    def test_generative_prompt_describes_full_schema(self):
+        comp = self._build([["web_search"]])
+        seen = []
+        orig = comp._compose_system_prompt
+
+        def spy(tool_descriptions, **kw):
+            seen.append(tool_descriptions)
+            return orig(tool_descriptions, **kw)
+
+        comp._compose_system_prompt = spy
+        comp.compress(_convo(0, self.ALL))
+        for name in ("exec", "process", "web_search", "write", "read"):
+            assert name in seen[0]
+
+    def test_all_tools_resident_skips_prediction(self):
+        comp = self._build([["exec"]], resident=["exec", "process", "web_search",
+                                                 "write", "read"])
+        ctx = _convo(0, self.ALL)
+        result = comp.compress(ctx)
+        assert result.metrics.skip_reason == "all_tools_resident"
+        assert result.tools is ctx.tools
+        assert comp._predictor.i == 0
+
+    def test_resident_names_absent_from_request_is_default_behaviour(self):
+        tools = [_tool("web_search"), _tool("process")]
+        ref = ToolCompressor(
+            predictor_url=URL, placement="user_inline_delta", resident_tools=None,
+        )
+        ref._predictor = _SeqPredictor([["web_search"]])
+        comp = self._build([["web_search"]])
+        assert (comp.compress(_convo(0, tools)).messages
+                == ref.compress(_convo(0, tools)).messages)
+
+
+class TestToolCompressorAutoResidentTools:
+    ALL = TestToolCompressorResidentTools.ALL
+
+    def _build(self, seqs, placement="user_inline_delta", **kwargs):
+        comp = ToolCompressor(predictor_url=URL, placement=placement, **kwargs)
+        comp._predictor = _SeqPredictor(seqs)
+        return comp
+
+    def test_default_keeps_first_tool_and_predicts_pool(self):
+        comp = self._build([["exec", "web_search"]])
+        ctx = _convo(0, self.ALL)
+        before = json.dumps(ctx.tools)
+        result = comp.compress(ctx)
+        carriers = TestToolCompressorUserInlineDelta._carriers(result.messages)
+        assert json.dumps(self.ALL[2]) in " ".join(carriers)
+        assert json.dumps(self.ALL[0]) not in " ".join(carriers)
+        assert result.metrics.details["inline_delta_count"] == 1
+        assert result.tools == [self.ALL[0]]
+        assert result.metrics.details["resident_count"] == 1
+        assert result.metrics.details["predicted_tools"] == ["web_search"]
+        assert json.dumps(ctx.tools) == before
+
+    def test_explicit_auto_skips_invalid_entries_and_normalizes_name(self):
+        invalid = [
+            {},
+            {"function": {"name": "missing_type"}},
+            {"type": "other", "function": {"name": "not_a_function"}},
+            {"type": "function", "function": "invalid"},
+            {"type": "function", "function": {"name": 1}},
+            _tool(" "),
+        ]
+        resident = _tool(" ReAd ")
+        comp = self._build([["read", "write"]], resident_tools="auto")
+        result = comp.compress(_make_request(tools=invalid + [resident, _tool("write")]))
+        assert result.tools == [resident]
+        carriers = TestToolCompressorUserInlineDelta._carriers(result.messages)
+        assert json.dumps(_tool("write")) in " ".join(carriers)
+        assert result.metrics.details["predicted_tools"] == ["write"]
+        assert result.metrics.details["resident_count"] == 1
+
+    def test_no_valid_function_tool_preserves_fallback_and_warns(self, caplog):
+        tools = [{}, {"type": "other", "function": {"name": "not_a_function"}}]
+        comp = self._build([[]])
+        with caplog.at_level(logging.WARNING):
+            result = comp.compress(_make_request(tools=tools))
+        assert result.tools is None
+        assert result.metrics.details["no_prediction_fallback"] is True
+        assert "found no valid function tool" in caplog.text
+        assert not comp._auto_residents
+        valid = comp.compress(_make_request(tools=[_tool("read"), _tool("write")]))
+        assert valid.tools == [_tool("read")]
+
+    @pytest.mark.parametrize("placement", ["schema", "user_inline_delta"])
+    @pytest.mark.parametrize("resident", [None, []])
+    def test_none_and_empty_list_disable_residency(self, placement, resident):
+        comp = self._build(
+            [["web_search"]], placement=placement, resident_tools=resident,
+        )
+        result = comp.compress(_convo(0, self.ALL))
+        if placement == "schema":
+            assert result.tools == [self.ALL[2]]
+        else:
+            assert result.tools is None
+            carriers = TestToolCompressorUserInlineDelta._carriers(result.messages)
+            assert json.dumps(self.ALL[2]) in " ".join(carriers)
+            assert json.dumps(self.ALL[0]) not in " ".join(carriers)
+        assert "resident_count" not in result.metrics.details
+        assert not comp._auto_residents
+
+    def test_empty_prediction_keeps_only_auto_resident(self):
+        comp = self._build([[]])
+        result = comp.compress(_convo(0, self.ALL))
+        assert result.tools == [self.ALL[0]]
+        assert result.metrics.skip_reason is None
+        assert result.metrics.details["no_prediction_fallback"] is False
+        assert result.metrics.details["predicted_tools"] == []
+        assert TestToolCompressorUserInlineDelta._carriers(result.messages) == []
+
+    def test_single_valid_tool_skips_prediction(self):
+        comp = self._build([[]])
+        ctx = _make_request(tools=[_tool("read")])
+        result = comp.compress(ctx)
+        assert result.tools is ctx.tools
+        assert result.metrics.skip_reason == "all_tools_resident"
+        assert comp._predictor.i == 0
+        assert comp._auto_residents[comp._conversation_key(ctx.messages)] == "read"
+
+    def test_auto_resident_does_not_take_reranker_top_k_slot(self):
+        comp = ToolCompressor(
+            predictor_url=URL, predictor_backend="reranker", top_k=2,
+            placement="user_inline_delta",
+        )
+        fake = _PoolRecordingReranker(["exec", "web_search", "process", "read"])
+        comp._predictor = fake
+        result = comp.compress(_convo(0, self.ALL))
+        assert fake.pools == [["exec", "process", "web_search", "write", "read"]]
+        assert result.tools == [self.ALL[0]]
+        assert result.metrics.details["predicted_tools"] == ["web_search", "process"]
+
+    def test_same_offset_retry_keeps_first_resident(self):
+        comp = self._build([["web_search"], ["exec"]])
+        first = comp.compress(_convo(0, self.ALL))
+        reordered = [self.ALL[2], self.ALL[0], self.ALL[1], *self.ALL[3:]]
+        second = comp.compress(_convo(0, reordered))
+        assert first.tools == second.tools == [self.ALL[0]]
+        carriers = TestToolCompressorUserInlineDelta._carriers(second.messages)
+        assert len(carriers) == 1
+        assert json.dumps(self.ALL[2]) in carriers[0]
+        assert comp._resident_names == frozenset()
+
+    def test_separate_conversations_resolve_their_own_first_tool(self):
+        comp = self._build([[], [], []])
+        first = comp.compress(_make_request(task="First task", tools=self.ALL))
+        other = [_tool("different"), _tool("another")]
+        second = comp.compress(_make_request(task="Second task", tools=other))
+        reordered = [self.ALL[2], self.ALL[0], self.ALL[1], *self.ALL[3:]]
+        retry = comp.compress(_make_request(task="First task", tools=reordered))
+        assert first.tools == [self.ALL[0]]
+        assert second.tools == [other[0]]
+        assert retry.tools == [self.ALL[0]]
+
+    def test_schema_ignores_auto_and_preserves_prediction_prefix(self):
+        from adaptive_token_compressor.tool.compressor import render_tools_block
+
+        comp = self._build(
+            [["web_search"], ["process", "exec"], []], placement="schema",
+        )
+        reordered = [self.ALL[2], self.ALL[1], self.ALL[0], *self.ALL[3:]]
+        first = comp.compress(_convo(0, self.ALL))
+        second = comp.compress(_convo(1, reordered))
+        third = comp.compress(_convo(2, list(reversed(self.ALL))))
+        assert first.tools == [self.ALL[2]]
+        assert second.tools == [self.ALL[2], self.ALL[1], self.ALL[0]]
+        assert third.tools == second.tools
+        assert second.tools[:len(first.tools)] == first.tools
+        definition_prefix = render_tools_block(first.tools).split("\n</tools>", 1)[0]
+        assert render_tools_block(second.tools).startswith(definition_prefix)
+        assert render_tools_block(third.tools) == render_tools_block(second.tools)
+        assert not comp._auto_residents
+
+    def test_delta_keeps_resident_and_replayed_message_prefix(self):
+        comp = self._build(
+            [["web_search"], ["process", "exec"], []],
+            placement="user_inline_delta",
+        )
+        reordered = [self.ALL[2], self.ALL[1], self.ALL[0], *self.ALL[3:]]
+        previous = None
+        for turn, tools in enumerate([self.ALL, reordered, list(reversed(self.ALL))]):
+            result = comp.compress(_convo(turn, tools))
+            assert result.tools == [self.ALL[0]]
+            core = TestToolCompressorUserInlineDelta._strip_reminder(result.messages)
+            if previous is not None:
+                assert core[:len(previous)] == previous
+            previous = core
+        carriers = TestToolCompressorUserInlineDelta._carriers(result.messages)
+        assert len(carriers) == 2
+        assert json.dumps(self.ALL[2]) in carriers[0]
+        assert json.dumps(self.ALL[1]) in carriers[1]
+        assert all(json.dumps(self.ALL[0]) not in carrier for carrier in carriers)
+
+    def test_auto_resident_lru_is_bounded_and_touched_on_hits(self):
+        comp = ToolCompressor(
+            predictor_url=URL, placement="user_inline_delta",
+            accumulate_max_conversations=2,
+        )
+        messages = [[{"role": "user", "content": task}] for task in ("A", "B", "C")]
+        resolve = comp._resolve_resident_names
+        assert resolve([_tool("read"), _tool("write")], messages[0]) == frozenset({"read"})
+        assert resolve([_tool("write"), _tool("read")], messages[1]) == frozenset({"write"})
+        assert resolve([_tool("write"), _tool("read")], messages[0]) == frozenset({"read"})
+        assert resolve([_tool("exec"), _tool("read")], messages[2]) == frozenset({"exec"})
+        assert list(comp._auto_residents) == [
+            comp._conversation_key(messages[0]), comp._conversation_key(messages[2]),
+        ]
+        assert len(comp._auto_residents) == 2
+
+    def test_concurrent_resolution_uses_one_resident_for_the_conversation(self):
+        comp = ToolCompressor(predictor_url=URL, placement="user_inline_delta")
+        messages = _convo(0, self.ALL).messages
+        schemas = [self.ALL[index:] + self.ALL[:index] for index in range(len(self.ALL))]
+        with ThreadPoolExecutor(max_workers=len(schemas)) as executor:
+            names = list(executor.map(
+                lambda tools: comp._resolve_resident_names(tools, messages), schemas,
+            ))
+        assert len(set(names)) == 1
+        assert len(comp._auto_residents) == 1
+
+    @pytest.mark.parametrize("placement", [
+        "schema", "user_tail", "system_tail", "user_inline",
+    ])
+    @pytest.mark.parametrize("resident", [
+        "auto", None, [], ["exec"], ["read", "exec"],
+    ])
+    @pytest.mark.parametrize("prediction", [["web_search"], []])
+    def test_resident_config_is_ignored_outside_delta(self, placement, resident, prediction):
+        comp = self._build(
+            [prediction], placement=placement, resident_tools=resident,
+        )
+        reference = self._build(
+            [prediction], placement=placement, resident_tools=None,
+        )
+        ctx = _convo(0, self.ALL)
+        result = comp.compress(ctx)
+        expected = reference.compress(ctx)
+        assert result.tools == expected.tools
+        assert result.messages == expected.messages
+        assert result.metrics.details == expected.metrics.details
+        assert result.metrics.skip_reason == expected.metrics.skip_reason
+        assert comp._resident_names == frozenset()
+        assert not comp._auto_resident
+        assert not comp._auto_residents
+        if placement == "schema":
+            assert result.tools == ([self.ALL[2]] if prediction else self.ALL)
+        else:
+            assert result.tools is None
+
+    def test_explicit_names_preserve_normalization_and_schema_order(self):
+        comp = self._build(
+            [["read", "exec", "web_search"]],
+            resident_tools=[" READ ", "ExEc", "read"],
+        )
+        result = comp.compress(_convo(0, self.ALL))
+        assert result.tools == [self.ALL[0], self.ALL[4]]
+        assert result.metrics.details["resident_count"] == 2
+        assert result.metrics.details["predicted_tools"] == ["web_search"]

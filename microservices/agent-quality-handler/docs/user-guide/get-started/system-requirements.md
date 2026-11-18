@@ -18,6 +18,6 @@ MQTT ingestion can use the broker in the Compose deployment or a reachable exter
 
 ## Hardware
 
-Fallback mode runs without an LLM. LLM mode uses the profile-gated OVMS deployment and requires a supported Intel GPU, appropriate `/dev/dri` access, sufficient memory for the selected model, and network access to obtain model assets.
+LLM mode (the default) uses the OVMS deployment and requires a supported Intel GPU, appropriate `/dev/dri` access, sufficient memory for the selected model, and network access to obtain model assets.
 
 See [Get Started](../get-started.md) for deployment commands.

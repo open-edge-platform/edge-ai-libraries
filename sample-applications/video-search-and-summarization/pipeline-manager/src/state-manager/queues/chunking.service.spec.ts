@@ -8,7 +8,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DatastoreService } from '../../datastore/services/datastore.service';
 import { TemplateService } from '../../language-model/services/template.service';
 import { ConfigService } from '@nestjs/config';
-import { PipelineEvents } from '../../events/Pipeline.events';
+import { PipelineEvents, VideoEvents } from '../../events/Pipeline.events';
 import { from, of, throwError } from 'rxjs';
 import { StateActionStatus } from '../models/state.model';
 import { DataPrepShimService } from '../../data-prep/services/data-prep-shim.service';
@@ -552,6 +552,54 @@ describe('ChunkingService', () => {
 
       // Assert - processing queue unchanged
       expect(service['processing']).toHaveLength(1);
+    });
+  });
+
+  describe('createChunkSearchEmbeddings', () => {
+    const chunkState = {
+      userInputs: { chunkDuration: 8 },
+      frames: { '2': { chunkId: '1' } },
+      video: { videoId: 'video-1', tags: ['lobby'] },
+    };
+
+    it('records textEmbeddings on the video once a chunk caption is embedded', () => {
+      stateService.fetch.mockReturnValue(chunkState as any);
+
+      service.createChunkSearchEmbeddings({
+        stateId: mockStateId,
+        frameIds: mockFrameIds,
+        caption: 'A person walks in',
+      });
+
+      expect(dataPrepShimService.createEmbeddingsFromSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ video_id: 'video-1', video_start_time: 8 }),
+      );
+      expect(stateService.searchEmbeddingsCreated).toHaveBeenCalledWith(
+        mockStateId,
+        mockQueueKey,
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        VideoEvents.EMBEDDINGS_STATUS,
+        { videoId: 'video-1', kind: 'textEmbeddings', created: true },
+      );
+    });
+
+    it('does not report a status when the chunk embedding fails', () => {
+      stateService.fetch.mockReturnValue(chunkState as any);
+      dataPrepShimService.createEmbeddingsFromSummary.mockReturnValue(
+        throwError(() => new Error('dataprep down')) as any,
+      );
+
+      service.createChunkSearchEmbeddings({
+        stateId: mockStateId,
+        frameIds: mockFrameIds,
+        caption: 'A person walks in',
+      });
+
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+        VideoEvents.EMBEDDINGS_STATUS,
+        expect.anything(),
+      );
     });
   });
 });

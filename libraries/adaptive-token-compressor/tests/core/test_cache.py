@@ -21,13 +21,13 @@ from adaptive_token_compressor.core.cache import (
 
 class TestHashKey:
     def test_same_input_same_output(self):
-        a = hash_key("lingua", "content", 0.5)
-        b = hash_key("lingua", "content", 0.5)
+        a = hash_key("token_prune", "content", 0.5)
+        b = hash_key("token_prune", "content", 0.5)
         assert a == b
 
     def test_different_input_different_output(self):
-        a = hash_key("lingua", "content", 0.5)
-        b = hash_key("lingua", "content", 0.6)
+        a = hash_key("token_prune", "content", 0.5)
+        b = hash_key("token_prune", "content", 0.6)
         assert a != b
 
     def test_order_sensitive(self):

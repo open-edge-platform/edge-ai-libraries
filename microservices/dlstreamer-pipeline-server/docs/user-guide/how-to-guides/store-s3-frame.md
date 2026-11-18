@@ -14,7 +14,8 @@ storage server service details to DL Streamer Pipeline Server's `docker-compose.
 at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`.
 For this tutorial we will be following this approach.
 
-> **Note:** In a production deployment, get the server details from your system admin and
+> [!NOTE]
+> In a production deployment, get the server details from your system admin and
 > update the environment variables or compose file accordingly.
 
 For demonstration, we will use SeaweedFS as the S3 storage for frames, launching it together with DL Streamer Pipeline Server. To get started, follow the steps below.
@@ -30,7 +31,8 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
      S3_STORAGE_PASS=spass
      ```
 
-> **Note**: SeaweedFS S3 gateway API is mapped to port 8888 externally (internal port 8333)
+> [!NOTE]
+> SeaweedFS S3 gateway API is mapped to port 8888 externally (internal port 8333)
 > to avoid conflict with DL Streamer Pipeline Server (which uses port 8080).
 
    - For metadata publishing, we would be using MQTT. To enable it, we need to add the host and port details of MQTT broker in `.env` file mentioned above.
@@ -39,7 +41,8 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
      MQTT_HOST=<MQTT_BROKER_IP_ADDRESS>
      MQTT_PORT=1883
      ```
-> **Note:** the default compose file from DL Streamer Pipeline Server provides an MQTT broker.
+> [!NOTE]
+> the default compose file from DL Streamer Pipeline Server provides an MQTT broker.
 > If you already have a broker running, only the host and port details are to be added to the
 > environment variables.
 
@@ -145,7 +148,8 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
             driver: local
         ```
 
-> **Important:** Create a SeaweedFS S3 IAM configuration file `seaweedfs_s3_config.json` in
+> [!IMPORTANT]
+> Create a SeaweedFS S3 IAM configuration file `seaweedfs_s3_config.json` in
 > the docker directory with the following content to enable username/password authentication:
 
         ```json
@@ -180,7 +184,8 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
       - "../configs/sample_s3write/config.json:/home/pipeline-server/config.json"
     ```
 
-> **Note:** There is no `gvawatermark` element in the pipeline string, which means frames
+> [!NOTE]
+> There is no `gvawatermark` element in the pipeline string, which means frames
 > published to S3 storage will be unannotated. If you wish to publish annotated frames,
 > consider adding it to your pipeline. In that case, the `"pipeline"` string may look like this.
 
@@ -268,7 +273,8 @@ be sent as part of pipeline launch request mentioned few steps below. Learn more
 
     The frame destination sub-config for `s3_write` indicates that the frame objects (referred by there respective image handles) will be stored in the bucket `dlstreamer-pipeline-results` at the object path prefixed as `camera1`. For example `camera1\<IMG_HANDLE>.jpg`. To learn more about the configuration details of S3 storage mentioned in `S3_write`, refer [here](../advanced-guide/detailed_usage/publisher/s3_frame_storage.md#s3_write-configuration)
 
-> **Note:**: DL Streamer Pipeline Server supports only writing of object data to S3 storage.
+> [!NOTE]
+> DL Streamer Pipeline Server supports only writing of object data to S3 storage.
 > It does not support creating, maintaining or deletion of buckets. It also does not support
 > reading or deletion of objects from bucket. Additionally, as mentioned before, DL Streamer
 > Pipeline Server assumes that the user already has a S3 storage with buckets configured.

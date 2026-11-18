@@ -68,24 +68,22 @@ The following is a summary of key configuration options available in the `values
 | `env.MAX_UPLOAD_SIZE_MB`       | Maximum allowed upload ZIP size in MB                                                                                                                                         | `500`                        | No                       |
 | `env.UPLOAD_CHUNK_SIZE_KB`     | Chunk size for streaming file uploads in KB (larger improves throughput, smaller reduces memory for concurrent uploads)                                                       | `8`                          | No                       |
 | `env.EXTERNAL_SOURCES_URL_ALLOWLIST` | Comma-separated `host/path` prefixes allowed for the `remote-url` hub. When set, it replaces the default allowlist defined in `src/plugins/external_sources/sources.yaml` | `github.com/open-edge-platform/edge-ai-resources/` | No                       |
-| `env.GETI_WORKSPACE_ID`        | Geti™ workspace ID                                                                                                                                                             |                              | Yes, For Geti™ connection |
 | `env.GETI_HOST`                | Geti™ connection host address                                                                                                                                                  |                              | Yes, For Geti™ connection |
-| `env.GETI_TOKEN`               | Geti™ Personal Access token                                                                                                                                                    |                              | Yes, For Geti™ connection |
-| `env.GETI_SERVER_API_VERSION`  | Geti™ API version                                                                                                                                                              | `v1`                         | Yes, For Geti™ connection |
 | `env.GETI_SERVER_SSL_VERIFY`   | Enables SSL certificate validation for HTTPS/HTTP Geti™ hosts                                                                                                                  | `False`                      | Yes, For Geti™ connection |
 | `service.nodePort`             | Sets the static port (in the 30000–32767 range)                                                                                                                               | 32000                        | Yes                      |
 | `env.ENABLED_PLUGINS`          | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics,pipeline-zoo-models,remote-url,omz,openvino,geti,hls`) or `all` to enable all available plugins | `all`                        | Yes                      |
 | `startupConfig.enabled`        | Creates and mounts a startup-model ConfigMap and schedules its models asynchronously                                                                                         | `false`                      | No                       |
 | `startupConfig.config`         | Startup configuration containing the default `download_path`, `parallel_downloads`, and `models` list                                                                        | See `values.yaml`            | When enabled             |
 | `image.repository`             | image repository url                                                                                                                                                          | intel/model-download         | Yes                      |
-| `image.tag`                    | latest image tag                                                                                                                                                              | latest                       | Yes                      |
+| `image.tag`                    | latest image tag                                                                                                                                                              | latest                 | Yes                      |
 | `gpu.enabled`                  | For model download deployed on GPU                                                                                                                                            | false                        |
 | `gpu.key`                      | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node <gpu-node> | `<your-node-key-on-cluster>` |
 | `affinity.enabled`             | Default is false, true to enable affinity                                                                                                                                     | `false`                      |
 | `affinity.key`                 | Provide the key for the affinity,default is kubernetes.io/hostname                                                                                                            | `kubernetes.io/hostname`     |
 | `affinity.value`               | Provide the values for the respective key                                                                                                                                     |                              |
 
-> **Note:** See the chart's `values.yaml` file for a full list of configurable parameters.
+> [!NOTE]
+> See the chart's `values.yaml` file for a full list of configurable parameters.
 
 ### Preload Models
 
@@ -125,7 +123,8 @@ full schema and behavior, see [Download Models at Startup](./startup-models.md).
 helm install model-download . -n <your-namespace>
 ```
 
-> **Note:** `model-download` creates and manages a shared PVC that can be used by dependent applications such as Chat Q&A.
+> [!NOTE]
+> `model-download` creates and manages a shared PVC that can be used by dependent applications such as Chat Q&A.
 
 ## Verify the Deployment
 
@@ -170,7 +169,7 @@ helm uninstall <name> -n <your-namespace>
   kubectl delete pvc <pvc-name> -n <namespace>
   ```
 
-> **Note:**
+> [!NOTE]
 > Delete the shared PVC only after confirming no other workload or application (for example,
 > Chat Q&A) depends on it. In such cases, uninstall the dependent application first, then clean up `model-download` resources, and finally delete the shared PVC if required.
 

@@ -1,0 +1,3 @@
+debian_99_profile_robotics_ai_suite () {
+  [ "$1" = "start" ] || echo "autonomous_mobile_robot stationary_robot_vision humanoid_imitation_learning physical_ai_framework physical_ai_studio"
+}

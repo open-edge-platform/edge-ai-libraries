@@ -18,6 +18,7 @@ import PipelineEditorCanvas, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useDismissOnOutsidePointerDown } from "@/hooks/useDismissOnOutsidePointerDown";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
@@ -60,12 +61,14 @@ import {
   Eye,
   Film,
   Infinity as InfinityIcon,
+  Pin,
   Redo2,
   Save,
   SlidersHorizontal,
   Timer,
   Undo2,
 } from "lucide-react";
+import { CpuCorePinningDialog } from "@/features/pipeline-editor/CpuCorePinningDialog.tsx";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { NavigationGuard } from "@/components/shared/NavigationGuard";
 import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog.tsx";
@@ -81,8 +84,12 @@ const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
   return nodes.some((node) => {
     if (node.type === "source") {
       const sourceType = (node.data as { source?: string })?.source || "";
-      // Check if it's a camera: /dev/video* or rtsp://
-      return sourceType.startsWith("/dev/") || sourceType.startsWith("rtsp://");
+      // Check if it's a camera: /dev/video*, rtsp:// or gige://
+      return (
+        sourceType.startsWith("/dev/") ||
+        sourceType.startsWith("rtsp://") ||
+        sourceType.startsWith("gige://")
+      );
     }
     return false;
   });
@@ -159,6 +166,8 @@ export const Pipelines = () => {
   const [streams, setStreams] = useState(1);
   const [streamsInput, setStreamsInput] = useState("1");
   const [isSimpleMode, setIsSimpleMode] = useState(true);
+  const [pinnedCpuCores, setPinnedCpuCores] = useState<number[]>([]);
+  const [cpuPinningDialogOpen, setCpuPinningDialogOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null,
@@ -251,18 +260,21 @@ export const Pipelines = () => {
     setSelectedNode(null);
     setShowDetailsPanel(false);
     setCompletedVideoPath(null);
+    setPinnedCpuCores([]);
     resetHistory();
   }, [variant, resetHistory, setCurrentNodes, setCurrentEdges]);
 
   // Default Metadata JSON ON for the VLM pipeline (its only output is metadata
   // JSON lines); OFF for other pipelines.
+  const isVlmPipeline =
+    data?.variants
+      .find((v) => v.id === variant)
+      ?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ?? false;
+  const isAlertingVlmPipeline = data?.name === "Alerting VLM";
+
   useEffect(() => {
-    const variantData = data?.variants.find((v) => v.id === variant);
-    const isVlmPipeline =
-      variantData?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ??
-      false;
     setMetadataEnabled(isVlmPipeline);
-  }, [variant, data]);
+  }, [isVlmPipeline]);
 
   const handleViewportChange = (viewport: Viewport) => {
     setCurrentViewport(viewport);
@@ -406,6 +418,7 @@ export const Pipelines = () => {
             max_runtime: maxRuntimeSeconds,
             metadata_mode: hasMetadata && metadataEnabled ? "file" : "disabled",
             enable_latency_metrics: latencyMetricsEnabled,
+            pinned_cpu_cores: isSimpleMode ? [] : pinnedCpuCores,
           },
         },
       });
@@ -466,41 +479,24 @@ export const Pipelines = () => {
     setEditorKey((prev) => prev + 1); // Force PipelineEditor to re-initialize
   };
 
-  useEffect(() => {
-    if (!showDetailsPanel) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isResizingRef.current) return;
-
-      const target = event.target as HTMLElement;
-
-      if (target.closest("header")) return;
-
-      if (
-        detailsPanelRef.current &&
-        !detailsPanelRef.current.contains(target)
-      ) {
-        const isResizeHandle =
-          target.closest("[data-resize-handle]") ||
-          target.closest("[data-resize-handle-active]") ||
-          target.closest('[role="separator"]') ||
-          target.getAttribute("data-resize-handle") !== null;
-
-        if (!isResizeHandle) {
-          if (jobStatus?.state !== "RUNNING" && !completedVideoPath) {
-            setShowDetailsPanel(false);
-            setSelectedNode(null);
-          }
-        }
+  useDismissOnOutsidePointerDown({
+    ref: detailsPanelRef,
+    enabled: showDetailsPanel,
+    ignoreSelectors: [
+      "header",
+      "[data-resize-handle]",
+      "[data-resize-handle-active]",
+      '[role="separator"]',
+      ".react-flow__node",
+    ],
+    shouldIgnore: () => isResizingRef.current,
+    onDismiss: () => {
+      if (jobStatus?.state !== "RUNNING" && !completedVideoPath) {
+        setShowDetailsPanel(false);
+        setSelectedNode(null);
       }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showDetailsPanel, jobStatus?.state, completedVideoPath]);
+    },
+  });
 
   if (isSuccess && data) {
     const isTimeSeriesPipeline = data.tags?.includes("Time Series") ?? false;
@@ -638,6 +634,40 @@ export const Pipelines = () => {
                     : !canUndo
                       ? "No changes to save"
                       : "Save (Ctrl+S)"}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => !isSimpleMode && setCpuPinningDialogOpen(true)}
+                  aria-disabled={isSimpleMode}
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="CPU core pinning"
+                  className={
+                    isSimpleMode
+                      ? "cursor-not-allowed opacity-50 hover:bg-transparent"
+                      : undefined
+                  }
+                >
+                  <Pin
+                    className={
+                      !isSimpleMode && pinnedCpuCores.length > 0
+                        ? "h-5 w-5 text-brand-accent"
+                        : "h-5 w-5"
+                    }
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>
+                  {isSimpleMode
+                    ? "CPU core pinning (available in advanced mode only)"
+                    : pinnedCpuCores.length > 0
+                      ? `CPU core pinning (${pinnedCpuCores.length} selected)`
+                      : "CPU core pinning (all cores)"}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -960,7 +990,7 @@ export const Pipelines = () => {
                 );
                 const firstVariant = remainingVariants[0];
                 if (firstVariant) {
-                  navigate(`/pipelines/${id}/${firstVariant.id}`);
+                  navigate(`/pipelines/vision/${id}/${firstVariant.id}`);
                 } else {
                   navigate("/pipelines");
                 }
@@ -998,14 +1028,18 @@ export const Pipelines = () => {
                     <PerformanceTestPanel
                       isRunning={jobStatus?.state === "RUNNING"}
                       completedVideoPath={completedVideoPath}
+                      metadataStreamUrls={jobStatus?.metadata_stream_urls}
                       livePreviewEnabled={livePreviewEnabled}
                       videoOutputEnabled={videoOutputEnabled}
                       enableLatencyMetrics={latencyMetricsEnabled}
                       enableMetadata={metadataEnabled && pipelineHasMetadata}
+                      isVlmPipeline={isVlmPipeline}
+                      isAlertingVlmPipeline={isAlertingVlmPipeline}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
                       }
+                      events={jobStatus?.events}
                       resultOverrides={
                         jobStatus
                           ? {
@@ -1072,6 +1106,14 @@ export const Pipelines = () => {
           models={pipelineModelStatuses}
           onModelsChanged={refreshRequiredModels}
         />
+        {!isSimpleMode && (
+          <CpuCorePinningDialog
+            open={cpuPinningDialogOpen}
+            onOpenChange={setCpuPinningDialogOpen}
+            pinnedCores={pinnedCpuCores}
+            onApply={setPinnedCpuCores}
+          />
+        )}
       </div>
     );
   }

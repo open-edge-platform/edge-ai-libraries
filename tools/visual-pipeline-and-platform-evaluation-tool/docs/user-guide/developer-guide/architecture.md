@@ -5,17 +5,20 @@ ViPPET application specific services and foundational services, which provide pl
 
 ![ViPPET architecture](../_assets/VIPPET-architecture-2026.1.svg "vippet architecture")
 
+For the Voice integration, see [STT, TTS and metrics architecture](./voice-architecture.md)
+for C4 System Context, Container and Component diagrams and runtime flows.
+
 ## Application Specific Microservices
 
 Application-specific microservices implement ViPPET's end-user workflows. Together they provide the
-web UI, the backend control plane for pipelines and jobs, and the network camera discovery path used
-to onboard ONVIF-compatible devices.
+web UI, the backend control plane for pipelines and jobs, and the camera discovery path used
+to onboard USB and ONVIF-compatible devices.
 
-| Microservice                                  | Description                                                                                                                                                                    | Docs                                | API        |
-|-----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|------------|
-| ![alt text](../_assets/ViPPET-UI.svg "Title") | **ViPPET UI** microservice provides the web-based React interface for user interaction. It integrates with backend and foundation services through secure API calls.           | [Docs](./architecture/vippet-ui.md) | N/A        |
-| ![alt text](../_assets/ViPPET-BE.svg "Title") | **ViPPET BE (Backend)** microservice orchestrates workflows and exposes core application APIs. It manages user requests, coordinates jobs, and routes analytics results to UI. | [Docs](./architecture/vippet-be.md) | <a>API</a> |
-| ![alt text](../_assets/ONVIF.svg "Title")     | **ViPPET ONVIF Discovery** microservice is used to discover ONVIF-capable network cameras on the local subnet.                                                                 | N/A                                 | N/A        |
+| Microservice                                  | Description                                                                                                                                                                    | Docs                                                                                                                            | API                                                                                                                                    |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| ![alt text](../_assets/ViPPET-UI.svg "Title") | **ViPPET UI** microservice provides the web-based React interface for user interaction. It integrates with backend and foundation services through secure API calls.           | [Docs](./architecture/vippet-ui.md)                                                                                             | N/A                                                                                                                                    |
+| ![alt text](../_assets/ViPPET-BE.svg "Title") | **ViPPET BE (Backend)** microservice orchestrates workflows and exposes core application APIs. It manages user requests, coordinates jobs, and routes analytics results to UI. | [Docs](./architecture/vippet-be.md)                                                                                             | <a>API</a>                                                                                                                             |
+| ![alt text](../_assets/ONVIF.svg "Title")     | **Sensor Manager** microservice discovers USB cameras and ONVIF-capable network cameras on the local subnet and loads their ONVIF media profiles.                              | [Docs](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/sensor-manager/docs/user-guide/index.md) | [API](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/sensor-manager/docs/user-guide/api-reference.md) |
 
 ## Middleware Microservices
 
@@ -33,6 +36,7 @@ including stream ingestion, model lifecycle management, and operational observab
 
 VIPPET UI <./architecture/vippet-ui>
 VIPPET Backend <./architecture/vippet-be>
+Voice: STT, TTS and Metrics <./voice-architecture>
 
 :::
 hide_directive-->

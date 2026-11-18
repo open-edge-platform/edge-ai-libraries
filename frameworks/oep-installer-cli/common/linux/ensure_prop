@@ -1,0 +1,50 @@
+
+# set/get properties
+# set <key> <value> [--prompt "Donwload model (y/n)?"] [--create]
+# get <key> [--boolean] # normalize value to true/false
+ensure_prop () {
+  local op="$1" key_rpath="${2:?}" value="${3:-}"
+  local key_base="$(ensure_project_path)/${installer_name:?}"
+  local key_path="$key_base/$key_rpath"
+  case "$op" in
+  find)    
+    ( cd "$key_base" && find . -ipath "./$key_rpath" -print 2> /dev/null | cut -f2- -d/ ) ;;
+  create)
+    mkdir -m 700 -p "${key_path%/*}" ;;
+  remove)
+    if [ -f "$key_path" ]; then
+      rm -f "$key_path"
+    elif [[ "$key_rpath" = */ && -d "${key_path%/}" ]]; then
+      rm -rf "${key_path%/}"
+    fi
+    ;;
+  get)
+    [ ! -r "$key_path" ] || value="$(< "$key_path")"
+    if ensure_parse_option --boolean "$@"; then
+      [[ " true yes t y a accept " = *" ${value,,} "* ]] && value="true" || value="false"
+    fi
+    printf '%s' "$value" 
+    ;;
+  set)
+    local prompt="$(ensure_parse_value_option prompt "$@")"
+    if [[ -n "$prompt" && -z "$value" ]]; then
+      # write an askpass helper
+      local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+      [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}"
+      mkdir -p "$rundir" 2>/dev/null || return 1
+      {
+        flock -w 300 -e 9 || { echo "ensure_prop: timed out waiting for another installer" >&2; return 1; }
+        local askpass_helper="$rundir"/askpass-prop
+        export -n OEP_PROP_INPUT
+        act_panelled_logs_askpass "$askpass_helper" OEP_PROP_INPUT || { echo "ensure_prop: failed to create askpass helper" >&2; return 1; }
+        value="$("$askpass_helper" "$prompt" | tr -d '\n')"
+      } 9< "$rundir"
+    fi
+    if ensure_parse_option --create "$@"; then
+      mkdir -m 700 -p "${key_path%/*}"
+    fi
+    ( umask 077; printf '%s' "$value" > "$key_path" )
+    ;;
+  esac
+}
+

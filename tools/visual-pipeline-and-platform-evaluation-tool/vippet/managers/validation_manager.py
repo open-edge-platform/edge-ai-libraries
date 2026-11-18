@@ -10,19 +10,19 @@ from internal_types import (
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
+from dlsps2_runner import Dlsps2PipelineRunner
 from managers.execution_coordinator import (
     ExecutionCoordinator,
     ExecutionLease,
     PIPELINE_EXECUTION_GROUP,
 )
-from pipeline_runner import PipelineRunner
 
 logger = logging.getLogger("validation_manager")
 
 
 class ValidationManager:
     """
-    Thread-safe singleton that manages validation jobs using PipelineRunner to execute pipelines.
+    Thread-safe singleton that manages validation jobs, run on DLSPS 2.0.
 
     Implements singleton pattern using __new__ with double-checked locking.
     Create instances with ValidationManager() to get the shared singleton instance.
@@ -31,7 +31,7 @@ class ValidationManager:
 
     * create and track :class:`InternalValidationJob` instances,
     * run validations asynchronously in background threads,
-    * use :class:`PipelineRunner` in validation mode to execute pipelines,
+    * use :class:`Dlsps2PipelineRunner` in validation mode to execute pipelines,
     * expose job status and summaries in a thread-safe manner.
 
     All internal state uses Graph objects and internal types from internal_types.
@@ -76,11 +76,12 @@ class ValidationManager:
 
         The method:
 
+        * validates the RTSP URLs of rtspsrc nodes,
         * converts the internal Graph to a pipeline description string,
         * extracts and validates runtime parameters (e.g. ``max-runtime``),
         * creates a new :class:`InternalValidationJob` with RUNNING state,
         * spawns a background thread that executes the pipeline via
-          :class:`PipelineRunner` in validation mode.
+          :class:`Dlsps2PipelineRunner` in validation mode.
 
         Args:
             validation_request: Internal validation request with Graph object
@@ -93,8 +94,10 @@ class ValidationManager:
         ------
         ValueError
             If user-provided parameters are invalid (e.g. ``max-runtime``
-            is less than 1).
+            is less than 1) or an rtspsrc node has an invalid location.
         """
+        validation_request.pipeline_graph.validate_rtsp_sources()
+
         # Get pipeline description from internal Graph
         pipeline_description = (
             validation_request.pipeline_graph.to_pipeline_description()
@@ -174,7 +177,7 @@ class ValidationManager:
         """
         Execute the validation process in a background thread.
 
-        The method uses :class:`PipelineRunner` in validation mode and updates
+        The method uses :class:`Dlsps2PipelineRunner` in validation mode and updates
         the corresponding :class:`InternalValidationJob` accordingly.
 
         Validity is determined by exit_code == 0 and no errors found in stderr.
@@ -183,11 +186,10 @@ class ValidationManager:
         new entries for that state are appended.
         """
         try:
-            # Create PipelineRunner in validation mode.
-            # `job_id` is forwarded for API consistency with performance
-            # and density paths, even though validation mode never
-            # pushes FPS metrics (no gvafpscounter is attached).
-            runner = PipelineRunner(
+            # Create the pipeline runner in validation mode. `job_id` is
+            # forwarded for API consistency with performance and density
+            # paths, even though validation mode never pushes FPS metrics.
+            runner = Dlsps2PipelineRunner(
                 mode="validation",
                 max_runtime=max_runtime,
                 hard_timeout=hard_timeout,

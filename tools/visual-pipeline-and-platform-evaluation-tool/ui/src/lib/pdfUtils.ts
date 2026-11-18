@@ -1,10 +1,23 @@
 import { format } from "date-fns";
-import domtoimage from "dom-to-image";
 import jsPDF from "jspdf";
+import {
+  captureNodeAsImage,
+  isPdfExportIgnored,
+} from "@/lib/pdf/pdfDomCapture";
+import {
+  fillPdfPageBackground,
+  getPdfBackground,
+} from "@/lib/pdf/pdfBackground";
+import { createImageSlicer, loadImage } from "@/lib/pdf/pdfImage";
+import { computePageBoundariesMm } from "@/lib/pdf/pdfPagination";
 
-export type PdfBackgroundRgb = [number, number, number];
-
-const PDF_EXPORT_IGNORE_ATTRIBUTE = "data-export-ignore";
+export type { PdfBackgroundRgb } from "@/lib/pdf/pdfBackground";
+export {
+  fillPdfPageBackground,
+  getPdfBackground,
+} from "@/lib/pdf/pdfBackground";
+export { isPdfExportIgnored } from "@/lib/pdf/pdfDomCapture";
+export { loadImage } from "@/lib/pdf/pdfImage";
 
 type ExportNodeToPdfOptions = {
   filename: string;
@@ -15,55 +28,11 @@ type ExportNodeToPdfOptions = {
   imageQuality?: number;
 };
 
-type PdfBackground = {
-  backgroundColor: string;
-  backgroundRgb: PdfBackgroundRgb;
-};
-
 const DEFAULT_PAGE_PADDING_MM = 10;
 const DEFAULT_IMAGE_QUALITY = 0.95;
-const LIGHT_PDF_BACKGROUND_HEX = "#ffffff";
-const LIGHT_PDF_BACKGROUND_RGB: PdfBackgroundRgb = [255, 255, 255];
-const DARK_PDF_BACKGROUND_HEX = "#242528";
-const DARK_PDF_BACKGROUND_RGB: PdfBackgroundRgb = [36, 37, 40];
-
-export const isPdfExportIgnored = (node: Node) =>
-  node instanceof Element && node.hasAttribute(PDF_EXPORT_IGNORE_ATTRIBUTE);
 
 export const formatFilenameTimestamp = (timestamp: number) =>
   format(new Date(timestamp), "yyyy-MM-dd-HH-mm-ss");
-
-export const getPdfBackground = (isDarkMode: boolean): PdfBackground => {
-  if (isDarkMode) {
-    return {
-      backgroundColor: DARK_PDF_BACKGROUND_HEX,
-      backgroundRgb: DARK_PDF_BACKGROUND_RGB,
-    };
-  }
-
-  return {
-    backgroundColor: LIGHT_PDF_BACKGROUND_HEX,
-    backgroundRgb: LIGHT_PDF_BACKGROUND_RGB,
-  };
-};
-
-export const fillPdfPageBackground = (
-  pdf: jsPDF,
-  pageWidth: number,
-  pageHeight: number,
-  backgroundRgb: PdfBackgroundRgb,
-) => {
-  pdf.setFillColor(...backgroundRgb);
-  pdf.rect(0, 0, pageWidth, pageHeight, "F");
-};
-
-export const loadImage = (src: string) =>
-  new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
 
 export const exportNodeToPdf = async ({
   filename,
@@ -74,48 +43,64 @@ export const exportNodeToPdf = async ({
   imageQuality = DEFAULT_IMAGE_QUALITY,
 }: ExportNodeToPdfOptions) => {
   const { backgroundColor, backgroundRgb } = getPdfBackground(isDarkMode);
-  const exportFilter = (nodeToFilter: Node) => {
-    if (isPdfExportIgnored(nodeToFilter)) {
-      return false;
-    }
+  const exportFilter = (nodeToFilter: Node) =>
+    isPdfExportIgnored(nodeToFilter) ? false : (filter?.(nodeToFilter) ?? true);
 
-    return filter ? filter(nodeToFilter) : true;
-  };
-
-  const imgData = await domtoimage.toPng(node, {
-    bgcolor: backgroundColor,
-    quality: imageQuality,
+  const {
+    imageData,
+    format: imageFormat,
+    rowBreakOffsetsPx,
+  } = await captureNodeAsImage({
+    node,
+    backgroundColor,
+    imageQuality,
     filter: exportFilter,
   });
 
-  const img = await loadImage(imgData);
+  const img = await loadImage(imageData);
   const pdf = new jsPDF("p", "mm", "a4");
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const imgWidth = pageWidth - pagePaddingMm * 2;
   const imgHeight = (img.height * imgWidth) / img.width;
-
-  fillPdfPageBackground(pdf, pageWidth, pageHeight, backgroundRgb);
-  pdf.addImage(
-    imgData,
-    "PNG",
-    pagePaddingMm,
-    pagePaddingMm,
-    imgWidth,
-    imgHeight,
-  );
-
   const visibleHeightPerPage = pageHeight - pagePaddingMm * 2;
-  let remainingHeight = imgHeight - visibleHeightPerPage;
-  let currentPage = 1;
 
-  while (remainingHeight > 0) {
-    pdf.addPage();
+  const scale = imgWidth / img.width;
+  const rowBreaksMm = rowBreakOffsetsPx.map((offsetPx) => offsetPx * scale);
+
+  const pageBoundariesMm = computePageBoundariesMm(
+    imgHeight,
+    visibleHeightPerPage,
+    rowBreaksMm,
+  );
+  const pageCount = pageBoundariesMm.length - 1;
+  const sliceImage = createImageSlicer(img);
+  const pdfImageFormat = imageFormat === "image/jpeg" ? "JPEG" : "PNG";
+
+  for (let index = 0; index < pageCount; index += 1) {
+    const startMm = pageBoundariesMm[index];
+    const endMm = pageBoundariesMm[index + 1];
+    const sliceHeightMm = endMm - startMm;
+    const sliceDataUrl = sliceImage(
+      startMm / scale,
+      sliceHeightMm / scale,
+      imageFormat,
+      imageQuality,
+    );
+
+    if (index > 0) {
+      pdf.addPage();
+    }
+
     fillPdfPageBackground(pdf, pageWidth, pageHeight, backgroundRgb);
-    const yOffset = pagePaddingMm - currentPage * visibleHeightPerPage;
-    pdf.addImage(imgData, "PNG", pagePaddingMm, yOffset, imgWidth, imgHeight);
-    remainingHeight -= visibleHeightPerPage;
-    currentPage += 1;
+    pdf.addImage(
+      sliceDataUrl,
+      pdfImageFormat,
+      pagePaddingMm,
+      pagePaddingMm,
+      imgWidth,
+      sliceHeightMm,
+    );
   }
 
   pdf.save(filename);

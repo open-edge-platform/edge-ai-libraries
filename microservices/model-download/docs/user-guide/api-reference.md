@@ -77,7 +77,7 @@ curl -X POST http://localhost:8200/api/v1/models/list \
 | `huggingface`        | `author`, `search`, `tags`                                                                       |
 | `ultralytics`        | `search`                                                                                         |
 | `pipeline-zoo-models`| `search`                                                                                         |
-| `geti`               | `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_name`, `export_type`, `precision`, `model_format` |
+| `geti`               | `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id` |
 
 **Response:**
 
@@ -94,11 +94,27 @@ curl -X POST http://localhost:8200/api/v1/models/list \
       "requires_token": false
     }
   ],
+  "count": 10,
   "total": 100,
   "limit": 10,
-  "offset": 0
+  "offset": 0,
+  "has_more": true,
+  "next_offset": 10
 }
 ```
+
+**Response Fields:**
+
+| Field         | Type        | Description                                                                                     |
+| ------------- | ----------- | ------------------------------------------------------------------------------------------------- |
+| `hub`         | string      | The hub the models were listed from                                                                |
+| `items`       | array       | Models returned for this page (see `ModelListItem`)                                                 |
+| `count`       | int         | Number of models returned in this response (size of `items`)                                       |
+| `total`       | int \| null | Total number of matching models, when the hub reports it                                           |
+| `limit`       | int         | Applied page size                                                                                   |
+| `offset`      | int         | Applied offset                                                                                      |
+| `has_more`    | bool \| null| Whether another page is available (derived from `total` when known, otherwise inferred)             |
+| `next_offset` | int \| null | Offset to use for the next page; only present when `has_more` is `true`                             |
 
 ---
 
@@ -206,6 +222,7 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | Hub                  | Description                          |
 | -------------------- | ------------------------------------ |
 | `huggingface`        | HuggingFace model hub               |
+| `modelscope`         | ModelScope snapshots (including FunASR) |
 | `ollama`             | Ollama model registry                |
 | `ultralytics`        | Ultralytics YOLO models             |
 | `pipeline-zoo-models`| Pipeline Zoo Models                  |
@@ -214,6 +231,33 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | `geti`               | Intel Geti™                          |
 | `hls`                | HLS model source                     |
 | `remote-url`         | Download from a remote URL           |
+
+FunASR snapshots use the `modelscope` plugin. Enable it with
+`--plugins modelscope` (or add `modelscope` to `ENABLED_PLUGINS`). For example,
+download Mandarin Paraformer, VAD, and punctuation models together:
+
+```bash
+curl -X POST "http://localhost:8200/models/download?download_path=funasr" \
+  -H 'Content-Type: application/json' \
+  -d '{"models":[{"name":"iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch","hub":"modelscope","revision":"v2.0.4"},{"name":"iic/speech_fsmn_vad_zh-cn-16k-common-pytorch","hub":"modelscope","revision":"v2.0.4"},{"name":"iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch","hub":"modelscope","revision":"v2.0.4"}]}'
+```
+
+The response contains a `job_ids` array. Poll `GET /jobs/<job_id>` until
+`status` is `completed`; the model files are then available to containers
+sharing the downloader's model storage volume. These FunASR requests download
+native PyTorch snapshots, not OpenVINO IR. Use `hub: "openvino"` for supported
+OpenVINO exports instead.
+
+Snapshots are stored under `<MODELS_DIR>/funasr/modelscope/<owner>_<model>/`.
+Use ModelScope repository IDs and revisions, not Hugging Face commit hashes.
+Hugging Face remains supported for other downloads.
+
+For whisper.cpp, request `hub: "huggingface"` with
+`name: "ggerganov/whisper.cpp"` and `config: {"files": ["ggml-base.bin"]}`
+to fetch only that filename. The `files` option is limited to plain filenames.
+The `openai-whisper` provider in Audio Analyzer downloads its official `.pt`
+checkpoint directly through the OpenAI Whisper package; it is not a Model
+Download service hub.
 
 **Model Types:**
 
@@ -244,7 +288,7 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 
 **`name` Format by Hub:**
 
-- `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name
+- `huggingface`, `modelscope`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name
 - `ultralytics`: single name, comma-separated names, or `all`
 - `pipeline-zoo-models`: single name, comma-separated names, or `all`
 - `omz`: single name or comma-separated names (`all` is not supported)
@@ -497,7 +541,7 @@ curl http://localhost:8200/api/v1/plugins
 | `GET /api/v1/models/results`          | Get completed model operations                 |
 | `GET /api/v1/models/jobs`             | Get jobs for a specific model                  |
 
-### Jobs
+### Jobs (Endpoints)
 
 | Endpoint                              | Description                                    |
 | ------------------------------------- | ---------------------------------------------- |

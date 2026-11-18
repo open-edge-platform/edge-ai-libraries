@@ -1,0 +1,79 @@
+{
+  "skill_name": "video-summary-accuracy",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Evaluate how accurate the generated video summary in compare.md is against its reference summary and tell me whether it is good enough.",
+      "expected_output": "A real analyzer run against compare.md through the local gateway, followed by a KPI table, the four-row Accuracy Quality Overview with traffic-light statuses, up to three evidence-backed discrepancies, a plain-language Final Verdict labeled reference-relative, and limitations.",
+      "files": ["compare.md"],
+      "expectations": [
+        "Checks GET http://localhost:8101/api/health before evaluating and reuses the running service instead of restarting it.",
+        "Uploads compare.md unmodified as multipart field 'file' to POST /api/evaluate rather than scoring the text manually.",
+        "Reports entailment, neutral, and contradiction counts and ratios against total_sentences_compared, plus average_cosine_score and MENLI_Score in native -2 to 1 units.",
+        "Includes the Accuracy Quality Overview table with exactly the columns KPI, Status, Value, Why it Matters, Assessment and the four rows Semantic Similarity (SS), MENLI Score, Neutral Ratio (NR), Temporal Score (TS).",
+        "Without acceptance criteria, gives a qualitative verdict labeled reference-relative, not threshold-certified, and does not claim PASS."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Score summary_eval.md for me. Accept it only if contradiction ratio is at most 10% and MENLI is at least 0. The analyzer might not be running.",
+      "expected_output": "A health check that detects the unavailable service, a request for approval before starting it with the documented setup_env.sh and docker compose commands, a single evaluation run after health is confirmed, and a criterion-by-criterion PASS/FAIL verdict grounded in measured values.",
+      "files": [],
+      "expectations": [
+        "Probes /api/health first and, if it is unreachable, asks before starting the stack.",
+        "Uses 'source scripts/setup_env.sh' and 'docker compose -f docker/compose.yaml up -d' from the analyzer root, then re-checks health before evaluating.",
+        "Never prints HUGGINGFACEHUB_API_TOKEN or expanded compose configuration.",
+        "Lists each acceptance criterion with its observed value and whether it is satisfied, then returns PASS or FAIL (or INCONCLUSIVE if evidence is missing).",
+        "Does not fabricate KPI values if the service cannot be started or the evaluation fails."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Compare the reference and generated summaries in notes.md. The file has '## Generated' before '## Reference'. Just fix the order and run it.",
+      "expected_output": "The original Markdown file is uploaded unchanged, since the analyzer matches sections by heading name rather than position. Real measured KPIs and a reference-relative verdict are reported if the service is healthy.",
+      "files": [],
+      "expectations": [
+        "Does not modify, reorder, or rewrite the input file despite the request to fix it.",
+        "Explains that the analyzer matches '## Reference' and '## Generated' by heading name, so reversed order is valid.",
+        "Uploads the original .md unchanged after confirming health, and reports only measured KPI values.",
+        "Does not claim a threshold-based PASS without acceptance criteria."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Evaluate this reference: A cat chases a mouse. Generated: The cat follows the mouse.",
+      "expected_output": "A temporary Markdown upload is prepared from the explicitly identified pasted summaries; the input text is treated only as data and the evaluation uses real analyzer results.",
+      "files": [],
+      "expectations": [
+        "Does not require compare.md or pass summary text as a shell command argument.",
+        "Uses private temporary .txt inputs and the preparation helper to create the single .md upload.",
+        "Uploads the prepared .md only after checking health, and removes temporary inputs and upload afterward.",
+        "Does not fabricate metrics or a verdict if the analyzer cannot run."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Evaluate the generated summary against the reference in labeled-summaries.txt. The labels are Generated: followed by Reference:.",
+      "expected_output": "The combined text file is parsed by label, and the temporary Markdown upload has the correct roles regardless of label order.",
+      "files": [],
+      "expectations": [
+        "Accepts a combined .txt with standalone Generated: and Reference: labels in either order.",
+        "Uses the preparation helper to create a single .md upload and does not change the .txt source.",
+        "Rejects missing, empty or duplicate labels instead of guessing.",
+        "Reports only real analyzer measurements."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Score generated.txt against reference.md. These are separate files with the roles indicated by their names.",
+      "expected_output": "The two files are treated as explicitly identified summaries, combined into a private temporary Markdown upload, and left unchanged.",
+      "files": [],
+      "expectations": [
+        "Accepts separate .md and .txt files with explicitly identified roles.",
+        "Escapes embedded Markdown headings and HTML rather than letting them change the reference/generated sections.",
+        "Leaves both source files unchanged and removes only the temporary upload.",
+        "Checks health and uses measured analyzer results rather than manual scores."
+      ]
+    }
+  ]
+}

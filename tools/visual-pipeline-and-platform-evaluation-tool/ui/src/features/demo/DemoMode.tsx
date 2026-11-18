@@ -39,6 +39,23 @@ import { gvaMetaConvertConfig } from "@/features/pipeline-editor/nodes/GVAMetaCo
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
+import { dataSrcConfig } from "@/features/pipeline-editor/nodes/DataSrcNode.config.ts";
+import { fakeSinkConfig } from "@/features/pipeline-editor/nodes/FakeSinkNode.config.ts";
+import { fileSinkConfig } from "@/features/pipeline-editor/nodes/FileSinkNode.config.ts";
+import { fileSrcConfig } from "@/features/pipeline-editor/nodes/FileSrcNode.config.ts";
+import { gvaFpsCounterConfig } from "@/features/pipeline-editor/nodes/GVAFpsCounterNode.config.ts";
+import { gvaMetaPublishConfig } from "@/features/pipeline-editor/nodes/GVAMetaPublishNode.config.ts";
+import { mp4MuxConfig } from "@/features/pipeline-editor/nodes/Mp4MuxNode.config.ts";
+import { multiFileSinkConfig } from "@/features/pipeline-editor/nodes/MultiFileSinkNode.config.ts";
+import { queueConfig } from "@/features/pipeline-editor/nodes/QueueNode.config.ts";
+import { splitMuxSinkConfig } from "@/features/pipeline-editor/nodes/SplitMuxSinkNode.config.ts";
+import { teeConfig } from "@/features/pipeline-editor/nodes/TeeNode.config.ts";
+import { tsamIngestionConfig } from "@/features/pipeline-editor/nodes/TsamIngestionNode.config.ts";
+import { tsamOutputConfig } from "@/features/pipeline-editor/nodes/TsamOutputNode.config.ts";
+import { tsamUdfConfig } from "@/features/pipeline-editor/nodes/TsamUdfNode.config.ts";
+import { proximityTriggerConfig } from "@/features/pipeline-editor/nodes/custom/ProximityTriggerNode.config.ts";
+import { sscapeTimestampCaptureConfig } from "@/features/pipeline-editor/nodes/custom/SscapeTimestampCaptureNode.config.ts";
+import { sscapePostInferenceDataPublishConfig } from "@/features/pipeline-editor/nodes/custom/SscapePostInferenceDataPublishNode.config.ts";
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 import type { Pipeline } from "@/api/api.generated";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
@@ -86,6 +103,8 @@ const nodeTypeToTag: Record<string, string> = {
 
   // Encoders
   vah264enc: "Encoder",
+  openh264enc: "Encoder",
+  jpegenc: "Encoder",
 
   // Demuxers/Muxers/Parsers
   qtdemux: "Demuxer",
@@ -105,9 +124,15 @@ const nodeTypeToTag: Record<string, string> = {
   gvametaconvert: "Converter",
   gvametapublish: "Publisher",
   gvafpscounter: "Counter",
+  gvaproximitytrigger_py: "Trigger",
+
+  // SceneScape
+  sscape_timestamp_capture: "Timestamp",
+  sscape_post_inference_data_publish: "Publisher",
 
   // Video Processing
   videoconvert: "Converter",
+  videoconvertscale: "Transform",
   videoscale: "PostProc",
   vapostproc: "Transform",
   capsfilter: "Filter",
@@ -115,6 +140,7 @@ const nodeTypeToTag: Record<string, string> = {
   // Sinks
   fakesink: "Sink",
   filesink: "Sink",
+  multifilesink: "Sink",
   autovideosink: "Sink",
   v4l2sink: "Sink",
   ximagesink: "Sink",
@@ -162,6 +188,41 @@ const getNodeConfig = (nodeType: string): NodeConfig | null => {
       return gvaClassifyConfig;
     case "gvadetect":
       return gvaDetectConfig;
+    case "gvaproximitytrigger_py":
+      return proximityTriggerConfig;
+    case "sscape_timestamp_capture":
+      return sscapeTimestampCaptureConfig;
+    case "sscape_post_inference_data_publish":
+      return sscapePostInferenceDataPublishConfig;
+    case "multifilesink":
+      return multiFileSinkConfig;
+    case "filesink":
+      return fileSinkConfig;
+    case "fakesink":
+      return fakeSinkConfig;
+    case "filesrc":
+      return fileSrcConfig;
+    case "tee":
+      return teeConfig;
+    case "queue":
+    case "queue2":
+      return queueConfig;
+    case "mp4mux":
+      return mp4MuxConfig;
+    case "gvafpscounter":
+      return gvaFpsCounterConfig;
+    case "gvametapublish":
+      return gvaMetaPublishConfig;
+    case "splitmuxsink":
+      return splitMuxSinkConfig;
+    case "datasrc":
+      return dataSrcConfig;
+    case "tsam-ingestion":
+      return tsamIngestionConfig;
+    case "tsam-udf":
+      return tsamUdfConfig;
+    case "tsam-output":
+      return tsamOutputConfig;
     default:
       return null;
   }
@@ -924,9 +985,9 @@ const DemoMode = () => {
     const getDefaultModelForNode = (nodeType: string) => {
       const category =
         nodeType === "gvadetect"
-          ? "detection"
+          ? "object_detection"
           : nodeType === "gvaclassify"
-            ? "classification"
+            ? "image_classification"
             : null;
 
       if (!category) return null;
@@ -2232,44 +2293,47 @@ const DemoMode = () => {
                                   <div className="space-y-3">
                                     {/* Participation rate per pipeline */}
                                     <div className="space-y-2">
-                                      {pipelineSelections.map((selection, index) => {
-                                        const pipeline = pipelines.find(
-                                          (p) => p.id === selection.pipelineId,
-                                        );
+                                      {pipelineSelections.map(
+                                        (selection, index) => {
+                                          const pipeline = pipelines.find(
+                                            (p) =>
+                                              p.id === selection.pipelineId,
+                                          );
 
-                                        return (
-                                          <div
-                                            key={selection.pipelineId}
-                                            className="rounded-md border border-demo-panel-border bg-demo-preview-card-surface px-3 py-2"
-                                          >
-                                            <div className="flex items-center justify-between gap-2 mb-2">
-                                              <span className="text-xs text-demo-panel-title font-semibold">
-                                                {pipeline?.name
-                                                  ? getBasePipelineName(
-                                                      pipeline.name,
-                                                    )
-                                                  : "Pipeline"}
-                                              </span>
-                                              <span className="text-[0.625rem] text-muted-foreground">
-                                                Participation rate
-                                              </span>
+                                          return (
+                                            <div
+                                              key={selection.pipelineId}
+                                              className="rounded-md border border-demo-panel-border bg-demo-preview-card-surface px-3 py-2"
+                                            >
+                                              <div className="flex items-center justify-between gap-2 mb-2">
+                                                <span className="text-xs text-demo-panel-title font-semibold">
+                                                  {pipeline?.name
+                                                    ? getBasePipelineName(
+                                                        pipeline.name,
+                                                      )
+                                                    : "Pipeline"}
+                                                </span>
+                                                <span className="text-[0.625rem] text-muted-foreground">
+                                                  Participation rate
+                                                </span>
+                                              </div>
+                                              <ParticipationSlider
+                                                value={selection.stream_rate}
+                                                onChange={(val) =>
+                                                  handleStreamRateChange(
+                                                    index,
+                                                    val,
+                                                  )
+                                                }
+                                                min={0}
+                                                max={100}
+                                                disabled={isReadOnly}
+                                                valueInputClassName="rounded-lg border-demo-carousel-button-border bg-demo-panel-menu-surface text-demo-panel-input-text focus-visible:ring-demo-panel-input-focus-ring focus-visible:ring-2"
+                                              />
                                             </div>
-                                            <ParticipationSlider
-                                              value={selection.stream_rate}
-                                              onChange={(val) =>
-                                                handleStreamRateChange(
-                                                  index,
-                                                  val,
-                                                )
-                                              }
-                                              min={0}
-                                              max={100}
-                                              disabled={isReadOnly}
-                                              valueInputClassName="rounded-lg border-demo-carousel-button-border bg-demo-panel-menu-surface text-demo-panel-input-text focus-visible:ring-demo-panel-input-focus-ring focus-visible:ring-2"
-                                            />
-                                          </div>
-                                        );
-                                      })}
+                                          );
+                                        },
+                                      )}
                                     </div>
 
                                     {/* FPS Floor */}

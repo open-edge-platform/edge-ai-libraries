@@ -19,21 +19,20 @@ set -euo pipefail
 CONTAINER="${KVWEAVE_CONTAINER:-vllm-kvweave}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# Directory inside container for tests
-CONTAINER_TEST_DIR="/tmp/kvweave_tests"
+# Test dir inside container (unique path avoids stale pycache).
+CONTAINER_TEST_DIR="/tmp/kvweave_tests_$(date +%s)_$$"
 
 # Check container is running
 if ! docker inspect --format='{{.State.Running}}' "$CONTAINER" 2>/dev/null | grep -q true; then
     echo "ERROR: Container '$CONTAINER' is not running."
     echo "Start it first, e.g.:"
-    echo "  integration/vllm/vllm-start.sh              # normal serving container"
-    echo "  DEBUG=1 integration/vllm/vllm-start.sh       # interactive debug shell"
+    echo "  integration/lmcache/vllm/vllm-start.sh      # normal serving container"
+    echo "  DEBUG=1 integration/lmcache/vllm/vllm-start.sh # interactive debug shell"
     exit 1
 fi
 
 # Copy test files and pyproject.toml into container
 echo "=== Syncing test files to container ==="
-docker exec "$CONTAINER" rm -rf "$CONTAINER_TEST_DIR"
 docker exec "$CONTAINER" mkdir -p "$CONTAINER_TEST_DIR/tests"
 docker exec "$CONTAINER" pip install pytest
 docker cp "${REPO_ROOT}/tests/." "${CONTAINER}:${CONTAINER_TEST_DIR}/tests/"
@@ -73,6 +72,7 @@ if [ -f /opt/intel/oneapi/setvars.sh ]; then
 fi
 cd "$1"
 shift
+export KVWEAVE_PERF_RESULTS="/tmp/kvweave_perf_results_$(date +%s)_$$.json"
 python -m pytest "$@"
 ' _ "$CONTAINER_TEST_DIR" "${PYTEST_BASE_ARGS[@]}" "${PYTEST_ARGS[@]}")
 

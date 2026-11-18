@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+import threading
+import time
 import types
 
 import src.retriever.service as service_module
@@ -461,3 +463,133 @@ def test_execute_single_query_image_with_where_filter(monkeypatch):
 
     assert result.count == 1
     assert result.items[0].metadata["video_id"] == "v-match"
+
+
+class _ConcurrencyProbeVectorDb:
+    """DB stub that records the peak number of overlapping search calls."""
+
+    def __init__(self, hold_seconds=0.05):
+        self.hold_seconds = hold_seconds
+        self.active = 0
+        self.max_active = 0
+        self._lock = threading.Lock()
+
+    def _enter(self):
+        with self._lock:
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+
+    def _exit(self):
+        with self._lock:
+            self.active -= 1
+
+    def similarity_search_with_score(self, query, k, fetch_k, filter):
+        self._enter()
+        try:
+            time.sleep(self.hold_seconds)
+            return []
+        finally:
+            self._exit()
+
+    def similarity_search_with_score_by_vector(self, embedding, k, filter=None):
+        self._enter()
+        try:
+            time.sleep(self.hold_seconds)
+            return []
+        finally:
+            self._exit()
+
+
+def _run_concurrently(target, args, threads=8):
+    workers = [threading.Thread(target=target, args=args) for _ in range(threads)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=30)
+    assert not any(worker.is_alive() for worker in workers), "search threads deadlocked"
+
+
+def test_vdms_similarity_search_is_serialized(monkeypatch):
+    """VDMS shares one non-thread-safe socket, so searches must not overlap."""
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+    db = _ConcurrencyProbeVectorDb()
+
+    _run_concurrently(
+        service_module._similarity_search_with_reconnect,
+        (db, "a query", 5, 10, None),
+    )
+
+    assert db.max_active == 1
+
+
+def test_vdms_vector_search_is_serialized(monkeypatch):
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+    db = _ConcurrencyProbeVectorDb()
+
+    _run_concurrently(
+        service_module._vector_search_with_reconnect,
+        (db, [0.1, 0.2, 0.3], 5, 10, None),
+    )
+
+    assert db.max_active == 1
+
+
+def test_pooled_backends_are_not_serialized(monkeypatch):
+    """Milvus/PGVector pool their connections and must keep running in parallel."""
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "milvus")
+    db = _ConcurrencyProbeVectorDb(hold_seconds=0.2)
+
+    _run_concurrently(
+        service_module._similarity_search_with_reconnect,
+        (db, "a query", 5, 10, None),
+    )
+
+    assert db.max_active > 1
+
+
+def _scored_docs(*scores):
+    return [
+        (
+            types.SimpleNamespace(metadata={"video_id": f"v{i}"}, page_content=f"frame-{i}"),
+            score,
+        )
+        for i, score in enumerate(scores)
+    ]
+
+
+def test_execute_single_query_drops_items_below_min_score(monkeypatch):
+    """min_score removes low-scoring items before the top_k cut."""
+    fake_db = _FakeVectorDb(_scored_docs(0.9, 0.35, 0.2, 0.19, 0.05))
+    monkeypatch.setattr(service_module, "get_vectordb", lambda: fake_db)
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+
+    result = service_module.execute_single_query(
+        QueryRequest(query="test query", top_k=10, min_score=0.2)
+    )
+
+    assert [item.score for item in result.items] == [0.9, 0.35, 0.2]
+    assert result.count == 3
+
+
+def test_execute_single_query_min_score_applies_before_top_k(monkeypatch):
+    """The returned top_k are the best items that clear min_score."""
+    fake_db = _FakeVectorDb(_scored_docs(0.1, 0.8, 0.5, 0.15, 0.6))
+    monkeypatch.setattr(service_module, "get_vectordb", lambda: fake_db)
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+
+    result = service_module.execute_single_query(
+        QueryRequest(query="test query", top_k=2, min_score=0.55)
+    )
+
+    assert [item.score for item in result.items] == [0.8, 0.6]
+
+
+def test_execute_single_query_without_min_score_keeps_all(monkeypatch):
+    """Omitting min_score keeps the existing unfiltered behavior."""
+    fake_db = _FakeVectorDb(_scored_docs(0.9, 0.01, -0.2))
+    monkeypatch.setattr(service_module, "get_vectordb", lambda: fake_db)
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+
+    result = service_module.execute_single_query(QueryRequest(query="test query", top_k=10))
+
+    assert result.count == 3

@@ -16,6 +16,7 @@ area-specific guides and summarizes what to expect from each.
 | [Backend](./contributing/backend.md)                        | FastAPI routes, managers, GStreamer/DL Streamer integration, pipeline execution and benchmarking. |
 | [How to add a new pipeline](./contributing/new-pipeline.md) | Built-in pipeline YAML files under `vippet/pipelines/` and user-created pipelines via the API.    |
 | [How to add a new element](./contributing/new-element.md)   | Custom `gvapython` modules and notes on element visibility in the simple/advanced views.          |
+| [UI end-to-end tests](./contributing/ui-e2e-testing.md)     | Playwright configuration, running tests locally, VS Code extension setup, adding new specs.       |
 
 <!--hide_directive Input for Frontend and Documentation needed
 | Area | What you can add or change |
@@ -35,11 +36,14 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 │   └── tests/          # pytest / unittest suites
 ├── ui/                 # Frontend (React 19, TypeScript, Vite)
 ├── video_generator/    # Synthetic test-video generator
-├── onvif_discovery/    # ONVIF camera discovery agent
 ├── shared/             # Runtime-mounted volumes (models, videos, scripts, metadata)
 ├── compose*.yml        # Docker Compose files (hardware profiles)
 └── Makefile            # Main build / run / lint / test targets
 ```
+
+Camera discovery (USB and ONVIF) is provided by the
+[Sensor Manager](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/sensor-manager) microservice
+(`microservices/sensor-manager`), which is built together with ViPPET by `make build`.
 
 For the architecture of each layer see the
 [Architecture](./architecture.md) section.
@@ -85,6 +89,7 @@ listed at the bottom of each contributing page.
 ./contributing/backend
 ./contributing/new-pipeline
 ./contributing/new-element
+./contributing/ui-e2e-testing
 
 :::
 hide_directive-->

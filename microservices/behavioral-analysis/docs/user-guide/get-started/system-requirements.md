@@ -30,14 +30,9 @@
   - Required: Intel CPU.
   - Optional (recommended for full experience):
     - Intel integrated or discrete GPU supported by Intel® Graphics Compute
-      Runtime — VLM inference `Qwen2.5-VL-7B-Instruct (GPU-backed recommended)`
-    - Intel NPU supported by the `linux-npu-driver` stack — recommended for
-      VLM inference (see [Release Notes](../release-notes.md) for a known
-      issue on systems without NPU).
-
-  - The host must expose GPU and NPU devices to Docker, for example:
-    - `/dev/dri` (GPU)
-    - `/dev/accel/accel0` (NPU)
+      Runtime for VLM inference with `Qwen2.5-VL-7B-Instruct` (GPU-backed recommended)
+    - Intel NPU (Neural Processing Unit) for YOLO-Pose inference acceleration.
+      Requires `/dev/accel` device access and NPU-compatible OpenVINO™ drivers on the host.
 
 ## Required Ports
 
@@ -51,17 +46,19 @@ The following services must be running and accessible for the behavioral-analysi
 | --- | --- | --- |
 | SeaweedFS | Frame storage (S3-compatible object store) | `http://seaweedfs:8333` |
 | MQTT Broker | Event messaging (`ba/requests` / `ba/results`) | `broker.scenescape.intel.com:1883` |
-| OpenVINO Model Server (OVMS) | VLM inference (Qwen2.5-VL-7B-Instruct) | `http://ovms-vlm:8001` |
+| OpenVINO™ Model Server (OVMS) | VLM inference (Qwen2.5-VL-7B-Instruct) | `http://ovms-vlm:8001` |
 
-> **Note:** OVMS is only required when `VLM_ENABLED=true` (the default). The service starts and functions for pose-only detection if VLM is disabled.
+> [!NOTE]
+> OVMS is only required when `VLM_ENABLED=true`. VLM is disabled by default,
+> and the service starts and functions for pose-only detection unless it is explicitly enabled.
 
 ## YOLO-Pose Model
 
-The service requires a YOLO26n-pose model in OpenVINO IR format (`.xml` + `.bin`):
+The service requires a YOLO26n-pose model in OpenVINO™ IR format (`.xml` + `.bin`):
 
 | Item | Details |
 | --- | --- |
-| Model format | OpenVINO IR (`.xml` + `.bin`) |
+| Model format | OpenVINO™ IR (`.xml` + `.bin`) |
 | Expected path | `/models/yolo_models/yolo26n-pose/yolo26n-pose.xml` (inside container) |
 | Host mount | `${DOWNLOADED_MODEL_PATH:-./models}:/models:ro` |
 
@@ -69,7 +66,7 @@ The service requires a YOLO26n-pose model in OpenVINO IR format (`.xml` + `.bin`
 
 | Environment Variable | Default | Options |
 | --- | --- | --- |
-| `GST_INFERENCE_DEVICE` | `CPU` | `CPU`, `GPU`, `NPU` (any device supported by the installed OpenVINO Runtime) |
+| `GST_INFERENCE_DEVICE` | `CPU` | `CPU`, `GPU` (any device supported by the installed OpenVINO™ Runtime) |
 
 ## Network Requirements
 

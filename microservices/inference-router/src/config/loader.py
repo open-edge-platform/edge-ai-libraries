@@ -24,7 +24,10 @@ from src.exceptions import ConfigurationError
 logger = logging.getLogger(__name__)
 
 
-_PLUGIN_TRIGGERS = {"prerouting", "postrouting", "postresponse"}
+# ``standalone`` is a non-hook phase: such plugins are built (so their settings are
+# validated and their routes/instances are discoverable) but are never run in any
+# request/response chain. Use it for route-only plugins like ``provider_management``.
+_PLUGIN_TRIGGERS = {"prerouting", "postrouting", "postresponse", "standalone"}
 
 
 # Matches ``${VAR}`` or ``${VAR:-default}`` anywhere in a string. The default
@@ -33,6 +36,11 @@ _PLUGIN_TRIGGERS = {"prerouting", "postrouting", "postresponse"}
 # ``[^}]*`` re-scans to end-of-string from every ``${`` and is polynomial (a
 # ReDoS vector, CWE-1333). No real env-var default approaches this bound.
 _ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]{0,4096}))?\}")
+
+
+# Plugin phases that can be attached to individual providers (the provider is
+# known by then). Prerouting plugins always apply to every request.
+_PROVIDER_PLUGIN_TRIGGERS = {"postrouting", "postresponse"}
 
 
 # Allowed characters for user-defined ``name`` fields.
@@ -46,7 +54,7 @@ def resolve_workspace_dir() -> Path:
     ``$GATEWAY_CONFIG`` (production points this at ``workspace/config.yaml``),
     else ``<cwd>/workspace``. This is where operators drop overriding
     ``policy.yaml`` / ``strategy.yaml`` files (see
-    :func:`src.rsd.policy.resolve_policy_file`).
+    :func:`src.rsd.engine.policy.resolve_policy_file`).
     """
     override = os.environ.get("GATEWAY_WORKSPACE")
     if override:
@@ -196,6 +204,11 @@ def _build_router_config(config_data: dict) -> RouterConfig:
         plugin = _build_plugin_config(plugin_data, trigger="postresponse")
         plugins.append(plugin)
 
+    # Parse standalone (non-hook) plugins: built and mounted, but not run in any chain.
+    for plugin_data in plugins_data.get("standalone") or []:
+        plugin = _build_plugin_config(plugin_data, trigger="standalone")
+        plugins.append(plugin)
+
     seen_plugins = set()
     for plugin in plugins:
         identity = (plugin.node, plugin.name)
@@ -204,6 +217,8 @@ def _build_router_config(config_data: dict) -> RouterConfig:
                 f"Duplicate plugin instance '{plugin.name}' for node '{plugin.node}'"
             )
         seen_plugins.add(identity)
+
+    _validate_provider_plugins(providers, plugins)
 
     # Parse routing
     routing_data = config_data.get("routing", {})
@@ -254,15 +269,55 @@ def _build_provider_config(provider_data: dict) -> ProviderConfig:
     if not model:
         raise ConfigurationError(f"Provider '{name}' must have a 'model'")
 
+    plugin_names = provider_data.get("plugins") or []
+    if not isinstance(plugin_names, list) or not all(
+        isinstance(item, str) for item in plugin_names
+    ):
+        raise ConfigurationError(
+            f"Provider '{name}' 'plugins' must be a list of plugin names"
+        )
+
     return ProviderConfig(
         name=name,
         type=provider_type,
         model=model,
         enabled=provider_data.get("enabled", True),
+        fallback=bool(provider_data.get("fallback", False)),
         metadata=provider_data.get("metadata", {}),
         settings=provider_data.get("settings", {}),
+        plugins=list(dict.fromkeys(plugin_names)),
         extra=provider_data.get("extra", {}),
     )
+
+
+def _validate_provider_plugins(
+    providers: list[ProviderConfig], plugins: list[PluginConfig]
+) -> None:
+    """Check every provider ``plugins`` entry names a postrouting/postresponse plugin.
+
+    Disabled plugins may be referenced (they simply never run). Raises
+    :class:`ConfigurationError` on unknown names and on names that only match
+    prerouting/standalone plugins, which apply to every request.
+    """
+    triggers_by_name: dict[str, set[str]] = {}
+    for plugin in plugins:
+        triggers_by_name.setdefault(plugin.name, set()).add(plugin.trigger)
+
+    for provider in providers:
+        for plugin_name in provider.plugins:
+            triggers = triggers_by_name.get(plugin_name)
+            if triggers is None:
+                raise ConfigurationError(
+                    f"Provider '{provider.name}' references unknown plugin "
+                    f"'{plugin_name}'"
+                )
+            if not triggers & _PROVIDER_PLUGIN_TRIGGERS:
+                allowed = ", ".join(sorted(_PROVIDER_PLUGIN_TRIGGERS))
+                raise ConfigurationError(
+                    f"Provider '{provider.name}' cannot attach plugin "
+                    f"'{plugin_name}' (trigger: {', '.join(sorted(triggers))}); "
+                    f"only {allowed} plugins can be attached to a provider"
+                )
 
 
 def _build_plugin_config(plugin_data: dict, trigger: str = "prerouting") -> PluginConfig:
@@ -270,15 +325,16 @@ def _build_plugin_config(plugin_data: dict, trigger: str = "prerouting") -> Plug
     
     Args:
         plugin_data: Plugin configuration dict
-        trigger: Plugin trigger phase - 'prerouting', 'postrouting', or 'postresponse'
-    
+        trigger: Plugin phase - 'prerouting', 'postrouting', 'postresponse', or
+            'standalone' (built but not run in any hook chain)
+
     Raises:
         ConfigurationError: If required fields missing or invalid
     """
     if trigger not in _PLUGIN_TRIGGERS:
+        allowed = ", ".join(f"'{t}'" for t in sorted(_PLUGIN_TRIGGERS))
         raise ConfigurationError(
-            "Invalid plugin trigger: "
-            f"{trigger}. Allowed values are 'prerouting', 'postrouting', and 'postresponse'"
+            f"Invalid plugin trigger: {trigger}. Allowed values are {allowed}"
         )
     
     name = plugin_data.get("name")

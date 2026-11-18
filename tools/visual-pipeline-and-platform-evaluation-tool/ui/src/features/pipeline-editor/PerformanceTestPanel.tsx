@@ -1,37 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MetadataJsonViewer } from "@/features/metadata/MetadataJsonViewer.tsx";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
+import {
+  VlmMetricsCharts,
+  type VlmMetricsPoint,
+} from "@/features/metrics/VlmMetricsCharts.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
+import { LivePipelineEvents } from "@/features/pipeline-editor/LivePipelineEvents.tsx";
 import {
   useFrozenMetrics,
   type FrozenSnapshotOverrides,
 } from "@/hooks/useFrozenMetrics";
+import { useMetricHistory } from "@/hooks/useMetricHistory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
-import { Button } from "@/components/ui/button";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsRight,
-  ExternalLink,
-} from "lucide-react";
-import { highlightJson } from "@/lib/jsonUtils";
+import type { PerformanceJobStatus, PipelineEvent } from "@/api/api.generated";
+import { ExternalLink } from "lucide-react";
 import "@/lib/hljs-theme.css";
 
 const MAX_JSON_LINES_PER_PIPELINE = 400;
-const METADATA_POLL_INTERVAL = 3000;
-
 type ConnectionState = "connecting" | "open" | "error" | "closed";
-
-type PerformanceJobStatusWithMetadata = {
-  metadata_stream_urls?: Record<string, string[]> | null;
-};
-
-/** Label shown in the pipeline tab: "job-short … pipeline-short" */
-const buildStreamLabel = (jobId: string, pipelineId: string): string => {
-  const shortJob = jobId.slice(0, 8);
-  const shortPipeline = pipelineId.replace(/^__graph-/, "").slice(0, 8);
-  return `${shortJob} / ${shortPipeline}`;
-};
 
 /** Shorten a stream URL to its last two meaningful path segments. */
 const shortenStreamUrl = (url: string): string => {
@@ -39,154 +26,50 @@ const shortenStreamUrl = (url: string): string => {
   return segments.length > 2 ? `…/${segments.slice(-2).join("/")}` : url;
 };
 
-const MetadataJsonViewer = ({
-  lines,
-  stale = false,
-}: {
-  lines: string[];
-  stale?: boolean;
-}) => {
-  const [currentIndex, setCurrentIndex] = useState(lines.length - 1);
-  const [followLatest, setFollowLatest] = useState(true);
-
-  useEffect(() => {
-    if (followLatest && lines.length > 0) {
-      setCurrentIndex(lines.length - 1);
-    }
-  }, [lines.length, followLatest]);
-
-  const goPrev = useCallback(() => {
-    setFollowLatest(false);
-    setCurrentIndex((i) => Math.max(0, i - 1));
-  }, []);
-
-  const goNext = useCallback(() => {
-    setCurrentIndex((i) => {
-      const next = Math.min(lines.length - 1, i + 1);
-      if (next === lines.length - 1) setFollowLatest(true);
-      return next;
-    });
-  }, [lines.length]);
-
-  const goLatest = useCallback(() => {
-    setFollowLatest(true);
-    setCurrentIndex(lines.length - 1);
-  }, [lines.length]);
-
-  const safeIndex =
-    lines.length > 0
-      ? Math.max(0, Math.min(currentIndex, lines.length - 1))
-      : 0;
-  const currentLine = lines[safeIndex] ?? "";
-  const highlightedHtml = useMemo(
-    () => (currentLine ? highlightJson(currentLine) : ""),
-    [currentLine],
-  );
-
-  if (lines.length === 0) {
-    return (
-      <div className="min-h-[100px] flex items-center justify-center border bg-muted/20 p-3">
-        <p className="text-sm text-muted-foreground">
-          Waiting for JSON entries...
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col space-y-2 min-w-0">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={goPrev}
-            disabled={safeIndex === 0}
-            aria-label="Previous entry"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={goNext}
-            disabled={safeIndex >= lines.length - 1}
-            aria-label="Next entry"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {safeIndex + 1} / {lines.length}
-        </span>
-        <Button
-          variant={followLatest ? "secondary" : "outline"}
-          size="sm"
-          onClick={goLatest}
-          className="text-xs gap-1 h-7"
-        >
-          <ChevronsRight className="h-3.5 w-3.5" />
-          Follow
-        </Button>
-      </div>
-      <pre
-        className={`min-h-[100px] max-h-[40vh] overflow-auto border p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-zinc-100 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 ${stale ? "border-2 dark:border-energy-blue/40 dark:shadow-energy-blue/20 dark:ring-1 dark:ring-energy-blue/20 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20 shadow-lg" : ""}`}
-      >
-        <code
-          className="hljs"
-          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-        />
-      </pre>
-    </div>
-  );
-};
-
-const collectMetadataStreams = (
-  jobs: (Record<string, unknown> & PerformanceJobStatusWithMetadata)[],
-): Record<string, string> => {
-  const result: Record<string, string> = {};
-  for (const job of jobs) {
-    const jobId = job.id as string;
-    const urls = job.metadata_stream_urls;
-    if (!urls) continue;
-    for (const [pipelineId, streamUrls] of Object.entries(urls)) {
-      if (!Array.isArray(streamUrls) || streamUrls.length === 0) continue;
-      const raw = streamUrls[0];
-      const url = raw && !raw.startsWith("/api/") ? `/api/v1${raw}` : raw;
-      result[`${jobId}::${pipelineId}`] = url;
-    }
-  }
-  return result;
-};
+const collectMetadataStreamUrls = (
+  urls: PerformanceJobStatus["metadata_stream_urls"] | undefined,
+): string[] =>
+  Object.values(urls ?? {})
+    .flat()
+    .filter(Boolean)
+    .map((raw) => (raw.startsWith("/api/") ? raw : `/api/v1${raw}`));
 
 type PerformanceTestPanelProps = {
   isRunning: boolean;
   completedVideoPath: string | null;
+  metadataStreamUrls?: PerformanceJobStatus["metadata_stream_urls"];
   pipelineId?: string;
   livePreviewEnabled?: boolean;
   videoOutputEnabled?: boolean;
   enableLatencyMetrics?: boolean;
   enableMetadata?: boolean;
+  isVlmPipeline?: boolean;
+  isAlertingVlmPipeline?: boolean;
   liveStreamUrl?: string | null;
   resultOverrides?: FrozenSnapshotOverrides | null;
+  events?: PipelineEvent[];
 };
 
 const PerformanceTestPanel = ({
   isRunning,
   completedVideoPath,
+  metadataStreamUrls: jobMetadataStreamUrls,
   pipelineId,
   livePreviewEnabled = false,
   videoOutputEnabled = false,
   enableLatencyMetrics = false,
   enableMetadata = true,
+  isVlmPipeline = false,
+  isAlertingVlmPipeline = false,
   liveStreamUrl,
   resultOverrides,
+  events,
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
+  const liveHistory = useMetricHistory();
   const prevIsRunningRef = useRef(false);
   const metadataSourcesRef = useRef<Record<string, EventSource>>({});
-  const metadataSourceUrlsRef = useRef<Record<string, string>>({});
   const [activeMainTab, setActiveMainTab] = useState("metadata");
   const [activeMetadataTab, setActiveMetadataTab] = useState<string | null>(
     null,
@@ -200,36 +83,32 @@ const PerformanceTestPanel = ({
   const [connectionErrors, setConnectionErrors] = useState<
     Record<string, string | null>
   >({});
+  // Last non-empty events list, kept visible after the job status stops polling.
+  const [displayedEvents, setDisplayedEvents] = useState<PipelineEvent[]>([]);
+
+  useEffect(() => {
+    if (events && events.length > 0) {
+      setDisplayedEvents(events);
+    }
+  }, [events]);
 
   // Frozen snapshot of metadata kept after the run finishes
   const [frozenMetadata, setFrozenMetadata] = useState<{
     lines: Record<string, string[]>;
-    entries: [string, string][];
+    urls: string[];
   } | null>(null);
 
-  // Poll all performance jobs to collect metadata stream URLs from ALL running jobs
-  const { data: allJobs } = useGetPerformanceStatusesQuery(undefined, {
-    pollingInterval: METADATA_POLL_INTERVAL,
-  });
-
-  const metadataStreamUrls = useMemo(() => {
-    if (!allJobs) return {};
-    const runningJobs = allJobs.filter((j) => j.state === "RUNNING");
-    return collectMetadataStreams(
-      runningJobs as (Record<string, unknown> &
-        PerformanceJobStatusWithMetadata)[],
-    );
-  }, [allJobs]);
-
-  const metadataEntries = useMemo(
-    () => Object.entries(metadataStreamUrls),
-    [metadataStreamUrls],
+  const metadataStreamUrls = useMemo(
+    () =>
+      isRunning && enableMetadata
+        ? collectMetadataStreamUrls(jobMetadataStreamUrls)
+        : [],
+    [isRunning, enableMetadata, jobMetadataStreamUrls],
   );
 
-  const closeMetadataSource = (pipelineKey: string) => {
-    metadataSourcesRef.current[pipelineKey]?.close();
-    delete metadataSourcesRef.current[pipelineKey];
-    delete metadataSourceUrlsRef.current[pipelineKey];
+  const closeMetadataSource = (streamUrl: string) => {
+    metadataSourcesRef.current[streamUrl]?.close();
+    delete metadataSourcesRef.current[streamUrl];
   };
 
   // Auto-switch to media tab when output video becomes available (only after pipeline finishes)
@@ -251,66 +130,72 @@ const PerformanceTestPanel = ({
     if (!wasRunning && isRunning) {
       startRecording();
       setFrozenMetadata(null);
+      setDisplayedEvents(events?.length ? events : []);
     } else if (wasRunning && !isRunning) {
       freezeSnapshot(resultOverrides);
+      const urls = Object.keys(metadataSourcesRef.current);
       setFrozenMetadata((prev) => {
         const hasLines = Object.values(metadataLines).some((l) => l.length > 0);
         if (!hasLines) return prev;
-        return { lines: { ...metadataLines }, entries: [...metadataEntries] };
+        return { lines: { ...metadataLines }, urls };
       });
     }
-  }, [isRunning, startRecording, freezeSnapshot, resultOverrides]);
+  }, [
+    isRunning,
+    startRecording,
+    freezeSnapshot,
+    resultOverrides,
+    events,
+    metadataLines,
+  ]);
 
   useEffect(() => {
-    if (metadataEntries.length === 0) {
-      setActiveMetadataTab(null);
+    if (metadataStreamUrls.length === 0) {
+      if (!frozenMetadata) {
+        setActiveMetadataTab(null);
+      }
       return;
     }
 
-    const availableKeys = new Set(
-      metadataEntries.map(([pipelineKey]) => pipelineKey),
-    );
+    const availableUrls = new Set(metadataStreamUrls);
 
-    Object.keys(metadataSourcesRef.current).forEach((pipelineKey) => {
-      if (!availableKeys.has(pipelineKey)) {
-        closeMetadataSource(pipelineKey);
+    Object.keys(metadataSourcesRef.current).forEach((streamUrl) => {
+      if (!availableUrls.has(streamUrl)) {
+        closeMetadataSource(streamUrl);
 
         setMetadataLines((prev) => {
           const next = { ...prev };
-          delete next[pipelineKey];
+          delete next[streamUrl];
           return next;
         });
         setConnectionStates((prev) => {
           const next = { ...prev };
-          delete next[pipelineKey];
+          delete next[streamUrl];
           return next;
         });
         setConnectionErrors((prev) => {
           const next = { ...prev };
-          delete next[pipelineKey];
+          delete next[streamUrl];
           return next;
         });
       }
     });
 
-    metadataEntries.forEach(([pipelineKey, streamUrl]) => {
-      const currentUrl = metadataSourceUrlsRef.current[pipelineKey];
-      if (currentUrl === streamUrl && metadataSourcesRef.current[pipelineKey]) {
+    metadataStreamUrls.forEach((streamUrl) => {
+      if (metadataSourcesRef.current[streamUrl]) {
         return;
       }
 
-      closeMetadataSource(pipelineKey);
-      setMetadataLines((prev) => ({ ...prev, [pipelineKey]: [] }));
-      setConnectionStates((prev) => ({ ...prev, [pipelineKey]: "connecting" }));
-      setConnectionErrors((prev) => ({ ...prev, [pipelineKey]: null }));
+      setMetadataLines((prev) => ({ ...prev, [streamUrl]: [] }));
+      setConnectionStates((prev) => ({ ...prev, [streamUrl]: "connecting" }));
+      setConnectionErrors((prev) => ({ ...prev, [streamUrl]: null }));
 
       const source = new EventSource(streamUrl);
-      metadataSourcesRef.current[pipelineKey] = source;
-      metadataSourceUrlsRef.current[pipelineKey] = streamUrl;
+      metadataSourcesRef.current[streamUrl] = source;
 
       source.onopen = () => {
-        setConnectionStates((prev) => ({ ...prev, [pipelineKey]: "open" }));
-        setConnectionErrors((prev) => ({ ...prev, [pipelineKey]: null }));
+        setConnectionStates((prev) => ({ ...prev, [streamUrl]: "open" }));
+        setConnectionErrors((prev) => ({ ...prev, [streamUrl]: null }));
       };
 
       source.onmessage = (event) => {
@@ -329,10 +214,10 @@ const PerformanceTestPanel = ({
         }
 
         setMetadataLines((prev) => {
-          const existing = prev[pipelineKey] ?? [];
+          const existing = prev[streamUrl] ?? [];
           return {
             ...prev,
-            [pipelineKey]: [...existing, ...incomingLines].slice(
+            [streamUrl]: [...existing, ...incomingLines].slice(
               -MAX_JSON_LINES_PER_PIPELINE,
             ),
           };
@@ -343,47 +228,64 @@ const PerformanceTestPanel = ({
         const isClosed = source.readyState === EventSource.CLOSED;
         setConnectionStates((prev) => ({
           ...prev,
-          [pipelineKey]: isClosed ? "closed" : "error",
+          [streamUrl]: isClosed ? "closed" : "error",
         }));
         setConnectionErrors((prev) => ({
           ...prev,
-          [pipelineKey]: isClosed
+          [streamUrl]: isClosed
             ? "Metadata stream closed"
             : "Metadata stream disconnected. Reconnecting...",
         }));
       };
     });
 
-    if (!activeMetadataTab || !availableKeys.has(activeMetadataTab)) {
-      setActiveMetadataTab(metadataEntries[0][0]);
+    if (!activeMetadataTab || !availableUrls.has(activeMetadataTab)) {
+      setActiveMetadataTab(metadataStreamUrls[0]);
     }
-  }, [activeMetadataTab, metadataEntries]);
+  }, [activeMetadataTab, frozenMetadata, metadataStreamUrls]);
 
   useEffect(() => {
     const metadataSources = metadataSourcesRef;
-    const metadataSourceUrls = metadataSourceUrlsRef;
 
     return () => {
-      Object.keys(metadataSources.current).forEach((pipelineKey) => {
-        metadataSources.current[pipelineKey]?.close();
-        delete metadataSources.current[pipelineKey];
-        delete metadataSourceUrls.current[pipelineKey];
+      Object.keys(metadataSources.current).forEach((streamUrl) => {
+        metadataSources.current[streamUrl]?.close();
+        delete metadataSources.current[streamUrl];
       });
     };
   }, []);
 
-  const hasMetadataStreams = metadataEntries.length > 0;
+  const hasMetadataStreams = metadataStreamUrls.length > 0;
   const hasStaleMetadata = !hasMetadataStreams && frozenMetadata !== null;
   const showMetadataTab = hasMetadataStreams || hasStaleMetadata;
 
-  const displayEntries = hasMetadataStreams
-    ? metadataEntries
-    : (frozenMetadata?.entries ?? []);
-  const displayLines = hasMetadataStreams
-    ? metadataLines
-    : (frozenMetadata?.lines ?? {});
+  const displayUrls = hasMetadataStreams
+    ? metadataStreamUrls
+    : (frozenMetadata?.urls ?? []);
+  const displayLines = useMemo(
+    () => (hasMetadataStreams ? metadataLines : (frozenMetadata?.lines ?? {})),
+    [frozenMetadata?.lines, hasMetadataStreams, metadataLines],
+  );
 
-  const metadataTabValue = activeMetadataTab ?? displayEntries[0]?.[0] ?? "";
+  const genAIMetricsData: VlmMetricsPoint[] = useMemo(
+    () =>
+      (isRunning ? liveHistory : frozenHistory)
+        .filter(
+          (point) =>
+            point.vlmTtftMs !== undefined ||
+            point.vlmTpotMs !== undefined ||
+            point.vlmGenerateDurationMs !== undefined,
+        )
+        .map((point) => ({
+          timestamp: point.timestamp,
+          ttft: point.vlmTtftMs ?? 0,
+          tpot: point.vlmTpotMs ?? 0,
+          totalLatency: point.vlmGenerateDurationMs ?? 0,
+        })),
+    [frozenHistory, isRunning, liveHistory],
+  );
+
+  const metadataTabValue = activeMetadataTab ?? displayUrls[0] ?? "";
 
   const hasMediaTab = livePreviewEnabled || videoOutputEnabled;
   const mediaTabLabel = livePreviewEnabled ? "Live Preview" : "Output Video";
@@ -391,28 +293,37 @@ const PerformanceTestPanel = ({
   const hasOutputVideo =
     !livePreviewEnabled && !isRunning && !!completedVideoPath;
   const showMetadataSection = enableMetadata && showMetadataTab;
-  const visibleTabCount =
-    (hasMediaTab ? 1 : 0) + (showMetadataSection ? 1 : 0);
-  const effectiveMainTab =
-    activeMainTab === "media" && !hasMediaTab
-      ? "metadata"
-      : activeMainTab === "metadata" && !showMetadataSection
-        ? hasMediaTab
-          ? "media"
-          : "metadata"
-        : activeMainTab;
+  const showSummaryStyles = !isRunning && frozenSummary !== null;
+
+  const availableMainTabs = useMemo(() => {
+    const tabs: string[] = [];
+    if (hasMediaTab) tabs.push("media");
+    if (showMetadataSection) tabs.push("metadata");
+    return tabs;
+  }, [hasMediaTab, showMetadataSection]);
+
+  // Snap `activeMainTab` back to the first available tab whenever the current
+  // one disappears (e.g. a metadata stream ends).
+  useEffect(() => {
+    if (
+      availableMainTabs.length > 0 &&
+      !availableMainTabs.includes(activeMainTab)
+    ) {
+      setActiveMainTab(availableMainTabs[0]);
+    }
+  }, [availableMainTabs, activeMainTab]);
 
   return (
     <div className="flex flex-col w-full h-full bg-background p-4 space-y-4 overflow-y-auto overflow-x-hidden min-w-0">
       <h2 className="text-lg font-semibold">Test pipeline</h2>
 
       <Tabs
-        value={effectiveMainTab}
+        value={activeMainTab}
         onValueChange={setActiveMainTab}
         className="flex flex-col min-w-0"
       >
-        {visibleTabCount > 1 && (
-          <TabsList>
+        {availableMainTabs.length > 1 && (
+          <TabsList className="grid w-full grid-flow-col auto-cols-fr">
             {hasMediaTab && (
               <TabsTrigger value="media">{mediaTabLabel}</TabsTrigger>
             )}
@@ -456,6 +367,16 @@ const PerformanceTestPanel = ({
                 ) : null}
               </div>
             )}
+
+            {displayedEvents.length > 0 && (
+              <LivePipelineEvents
+                events={displayedEvents}
+                isRunning={isRunning}
+                title="Video captions"
+                showTriggeredCount={!isVlmPipeline}
+                highlightAlerts={isAlertingVlmPipeline}
+              />
+            )}
           </TabsContent>
         )}
 
@@ -470,88 +391,28 @@ const PerformanceTestPanel = ({
               </p>
             )}
 
-          {showMetadataTab &&
-            displayEntries.length === 1 &&
-            (() => {
-              const [compositeKey, streamUrl] = displayEntries[0];
-              const lines = displayLines[compositeKey] ?? [];
-              const state = hasStaleMetadata
-                ? "closed"
-                : (connectionStates[compositeKey] ?? "connecting");
-              const error = hasStaleMetadata
-                ? null
-                : connectionErrors[compositeKey];
-              const isStreamActive =
-                !hasStaleMetadata && state !== "error" && state !== "closed";
-              return (
-                <div className="flex flex-col space-y-3 min-w-0">
-                  {isStreamActive && (
-                    <>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                          SSE: {state}
-                        </span>
-                      </div>
-                      <a
-                        href={streamUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                      >
-                        {shortenStreamUrl(streamUrl)}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                      {error && (
-                        <p className="text-xs text-destructive">{error}</p>
-                      )}
-                    </>
-                  )}
-                  <MetadataJsonViewer lines={lines} stale={hasStaleMetadata} />
-                </div>
-              );
-            })()}
-
-          {showMetadataTab && displayEntries.length > 1 && (
-            <Tabs value={metadataTabValue} onValueChange={setActiveMetadataTab}>
-              <TabsList className="w-full h-auto flex-wrap justify-start">
-                {displayEntries.map(([compositeKey]) => {
-                  const [jobId, pipelineId] = compositeKey.split("::");
-                  return (
-                    <TabsTrigger key={compositeKey} value={compositeKey}>
-                      {buildStreamLabel(jobId, pipelineId)}
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-
-              {displayEntries.map(([compositeKey, streamUrl], index) => {
-                const lines = displayLines[compositeKey] ?? [];
+            {showMetadataTab &&
+              displayUrls.length === 1 &&
+              (() => {
+                const streamUrl = displayUrls[0];
+                const lines = displayLines[streamUrl] ?? [];
                 const state = hasStaleMetadata
                   ? "closed"
-                  : (connectionStates[compositeKey] ?? "connecting");
+                  : (connectionStates[streamUrl] ?? "connecting");
                 const error = hasStaleMetadata
                   ? null
-                  : connectionErrors[compositeKey];
+                  : connectionErrors[streamUrl];
                 const isStreamActive =
                   !hasStaleMetadata && state !== "error" && state !== "closed";
-
                 return (
-                  <TabsContent
-                    key={compositeKey}
-                    value={compositeKey}
-                    className="space-y-3 mt-4"
-                  >
+                  <div className="flex flex-col space-y-3 min-w-0">
                     {isStreamActive && (
                       <>
                         <div className="flex items-center justify-between gap-2">
-                          <h3 className="text-sm font-medium text-muted-foreground">
-                            Stream {index + 1}
-                          </h3>
                           <span className="text-xs uppercase tracking-wide text-muted-foreground">
                             SSE: {state}
                           </span>
                         </div>
-
                         <a
                           href={streamUrl}
                           target="_blank"
@@ -561,35 +422,117 @@ const PerformanceTestPanel = ({
                           {shortenStreamUrl(streamUrl)}
                           <ExternalLink className="h-3 w-3" />
                         </a>
-
                         {error && (
                           <p className="text-xs text-destructive">{error}</p>
                         )}
                       </>
                     )}
-
                     <MetadataJsonViewer
                       lines={lines}
                       stale={hasStaleMetadata}
                     />
-                  </TabsContent>
+                  </div>
                 );
-              })}
-            </Tabs>
-          )}
+              })()}
+
+            {showMetadataTab && displayUrls.length > 1 && (
+              <Tabs
+                value={metadataTabValue}
+                onValueChange={setActiveMetadataTab}
+              >
+                <TabsList className="grid h-10 w-full grid-cols-[repeat(auto-fit,minmax(min(100%,7rem),1fr))] items-stretch gap-0 rounded-none border-b border-border bg-transparent p-0">
+                  {displayUrls.map((streamUrl, index) => {
+                    return (
+                      <TabsTrigger
+                        key={streamUrl}
+                        value={streamUrl}
+                        className="h-full w-full min-w-0 flex-1 self-stretch rounded-none border-0 border-b-2 border-transparent px-3 text-sm after:hidden data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                      >
+                        Stream {index + 1}
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+
+                {displayUrls.map((streamUrl, index) => {
+                  const lines = displayLines[streamUrl] ?? [];
+                  const state = hasStaleMetadata
+                    ? "closed"
+                    : (connectionStates[streamUrl] ?? "connecting");
+                  const error = hasStaleMetadata
+                    ? null
+                    : connectionErrors[streamUrl];
+                  const isStreamActive =
+                    !hasStaleMetadata &&
+                    state !== "error" &&
+                    state !== "closed";
+
+                  return (
+                    <TabsContent
+                      key={streamUrl}
+                      value={streamUrl}
+                      className="space-y-3 mt-4"
+                    >
+                      {isStreamActive && (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="text-sm font-medium text-muted-foreground">
+                              Stream {index + 1}
+                            </h3>
+                            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                              SSE: {state}
+                            </span>
+                          </div>
+
+                          <a
+                            href={streamUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            {shortenStreamUrl(streamUrl)}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+
+                          {error && (
+                            <p className="text-xs text-destructive">{error}</p>
+                          )}
+                        </>
+                      )}
+
+                      <MetadataJsonViewer
+                        lines={lines}
+                        stale={hasStaleMetadata}
+                      />
+                    </TabsContent>
+                  );
+                })}
+              </Tabs>
+            )}
           </TabsContent>
         )}
       </Tabs>
 
       {isRunning && (
-        <MetricsDashboard enableLatencyMetrics={enableLatencyMetrics} />
+        <MetricsDashboard enableLatencyMetrics={enableLatencyMetrics}>
+          {genAIMetricsData.length > 0 && (
+            <VlmMetricsCharts data={genAIMetricsData} />
+          )}
+        </MetricsDashboard>
       )}
       {!isRunning && frozenSummary && (
         <MetricsDashboard
           enableLatencyMetrics={enableLatencyMetrics}
           historyOverride={frozenHistory}
           metricsOverride={frozenSummary}
-        />
+        >
+          {genAIMetricsData.length > 0 && (
+            <VlmMetricsCharts
+              data={genAIMetricsData}
+              isSummary={showSummaryStyles}
+            />
+          )}
+        </MetricsDashboard>
       )}
     </div>
   );

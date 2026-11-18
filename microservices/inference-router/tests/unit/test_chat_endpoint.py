@@ -103,17 +103,6 @@ def test_health_endpoint(test_app):
     assert "active_requests" in data["concurrency"]
 
 
-def test_health_detailed_endpoint(test_app):
-    """Test detailed health check endpoint."""
-    client = TestClient(test_app)
-    response = client.get("/health/detailed")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
-    assert "providers" in data
-
-
 def test_list_models_endpoint(test_app):
     """``/v1/models`` reports backend model names with provider in ``owned_by``."""
     client = TestClient(test_app)

@@ -17,11 +17,18 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 │   │   └── routes/       # API route handlers (pipelines, models, jobs, etc.)
 │   ├── managers/         # Business logic managers (pipeline, camera, job)
 │   ├── pipelines/        # Built-in GStreamer pipeline definitions (YAML)
+│   ├── models/           # Model catalog (one YAML file per model, baked into image)
+│   ├── benchmarks/       # Built-in benchmark suite definitions (YAML)
+│   ├── db_seed.py        # Startup DB seeding from pipelines/, benchmarks/, models/
+│   ├── database.py       # Async SQLAlchemy engine/session setup
+│   ├── orm_models.py     # SQLAlchemy ORM models
 │   ├── benchmark.py      # Density benchmarking logic
-│   ├── pipeline_runner.py # Subprocess-based GStreamer pipeline executor
-│   ├── gst_runner.py     # Low-level GStreamer runner (called as subprocess)
+│   ├── dlsps2_runner.py  # Runs pipelines on DL Streamer Pipeline Server 2.0 (REST)
+│   ├── dlsps2_optimizer.py # Runs the DL Streamer pipeline optimizer on the server (REST)
+│   ├── pipeline_events.py # Live pipeline events read from JSON Lines files
+│   ├── pipeline_runner.py # Pipeline run result types
 │   ├── graph.py          # GStreamer pipeline graph representation
-│   ├── device.py         # OpenVINO device detection (CPU/GPU/NPU)
+│   ├── device.py         # Device list (CPU/GPU/NPU) from DLSPS 2.0
 │   ├── video_encoder.py  # Video encoding/live-streaming management
 │   ├── requirements.txt  # Production Python dependencies
 │   └── Dockerfile        # Multi-stage Docker image (prod/test)
@@ -101,15 +108,17 @@ make format      # Auto-format with ruff
 
 ### Individual Make Targets
 
-| Target          | Description                           |
-|-----------------|---------------------------------------|
-| `make build`    | Build all Docker images               |
-| `make run`      | Start all services via Docker Compose |
-| `make stop`     | Stop all services                     |
-| `make clean`    | Stop and remove containers/volumes    |
-| `make shell`    | Open shell in vippet container        |
-| `make shell-ui` | Open shell in UI container            |
-| `make test`     | Run tests in Docker                   |
+| Target              | Description                                                          |
+| ------------------- | -------------------------------------------------------------------- |
+| `make build`        | Build all Docker images (DLSPS 2.0 skipped if `DLSPS2_IMAGE` is set) |
+| `make run`          | Start all services via Docker Compose                                |
+| `make run-prebuilt` | Pull and start the published images (`latest` on main); never builds |
+| `make stop`         | Stop all services                                                    |
+| `make clean`        | Stop and remove containers/volumes                                   |
+| `make shell`        | Open shell in vippet container                                       |
+| `make shell-ui`     | Open shell in UI container                                           |
+| `make shell-dlsps`  | Open shell in DL Streamer Pipeline Server 2.0 container              |
+| `make test`         | Run tests in Docker                                                  |
 
 ## API
 
@@ -126,13 +135,15 @@ make generate_openapi
 
 ## Docker Compose Services
 
-| Service           | Description                               | Port |
-|-------------------|-------------------------------------------|------|
-| `vippet`          | Backend (FastAPI)                         | 7860 |
-| `vippet-ui`       | Frontend (Nginx)                          | 80   |
-| `mediamtx`        | RTSP server                               | 8554 |
-| `model-download`  | Model download microservice               | 8000 |
-| `metrics-manager` | Metrics collector                         | 9090 |
+| Service                      | Description                                                                  | Port                             |
+|------------------------------|------------------------------------------------------------------------------|----------------------------------|
+| `vippet`                     | Backend (FastAPI)                                                            | 7860                             |
+| `vippet-ui`                  | Frontend (Nginx)                                                             | 80                               |
+| `mediamtx`                   | RTSP server                                                                  | 8554                             |
+| `model-download`             | Model download microservice                                                  | 8000                             |
+| `metrics-manager`            | Metrics collector                                                            | 9090                             |
+| `dlstreamer-pipeline-server` | DL Streamer Pipeline Server 2.0; runs every pipeline                         | 8080, compose network only       |
+| `vippet-plugins`             | One-shot; copies `vippet/gst_plugins` to the `vippet-gst-plugins` volume     | -                                |
 
 Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automatically by `setup_env.sh`.
 
@@ -163,40 +174,58 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 
 ## Key Environment Variables (vippet service)
 
-| Variable                         | Description                                                  | Default                                                    |
-|----------------------------------|--------------------------------------------------------------|------------------------------------------------------------|
-| `APP_LOG_LEVEL`                  | Python logging level for the application                     | `INFO`                                                     |
-| `RUNNER_LOG_LEVEL`               | Logging level for gst_runner.py subprocess                   | `INFO`                                                     |
-| `WEB_SERVER_LOG_LEVEL`           | Logging level for uvicorn web server                         | `WARNING`                                                  |
-| `GST_DEBUG`                      | GStreamer native debug level (integer, 0-9)                  | `1`                                                        |
-| `MODELS_PATH`                    | Path to downloaded models                                    | `/models/output`                                           |
-| `SUPPORTED_MODELS_FILE`          | Path to supported_models.yaml                                | `/models/supported_models.yaml`                            |
-| `AUTO_VIDEO_DIR`                 | Path to auto-downloaded videos                               | `/videos/input/auto`                                       |
-| `UPLOADED_VIDEO_DIR`             | Path to user-uploaded videos                                 | `/videos/input/uploaded`                                   |
-| `DEFAULT_RECORDINGS_FILE`        | Path to the YAML listing recordings to auto-download         | `/videos/default_recordings.yaml`                          |
-| `UPLOAD_ALLOWED_EXTENSIONS`      | Comma-separated allow-list of upload file extensions         | `mp4,mkv,mov,avi,ts,264,avc,h265,hevc`                     |
-| `UPLOAD_ALLOWED_CONTAINERS`      | Comma-separated allow-list of upload container formats       | `mp4,mov,mkv,avi,mpegts,raw`                               |
-| `UPLOAD_ALLOWED_CODECS`          | Comma-separated allow-list of upload video codecs            | `h264,h265`                                                |
-| `UPLOAD_MAX_SIZE_BYTES`          | Maximum accepted upload body size in bytes                   | `2147483648` (2 GiB)                                       |
-| `OUTPUT_VIDEO_DIR`               | Path to output videos                                        | `/videos/output`                                           |
-| `UPLOADED_IMAGES_DIR`            | Path to user-uploaded image sets                             | `/images/input/uploaded`                                   |
-| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source`                      |
-| `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | Element names hidden from simplified pipeline view           | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` |
-| `LIVE_STREAM_SERVER_HOST`        | RTSP server hostname                                         | `mediamtx`                                                 |
-| `LIVE_STREAM_SERVER_PORT`        | RTSP server port                                             | `8554`                                                     |
-| `RTSPSRC_DEFAULT_LATENCY_MS`     | Default latency in ms for rtspsrc elements                   | `100`                                                      |
-| `COMPOSE_PROFILES`               | Hardware profile (cpu/gpu/npu)                               | Auto-detected                                              |
-| `PYTHONPATH`                     | Python module search path                                    | `/app`                                                     |
+| Variable                           | Description                                                  | Default                                                    |
+| ---------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------- |
+| `APP_LOG_LEVEL`                    | Python logging level for the application                     | `INFO`                                                     |
+| `WEB_SERVER_LOG_LEVEL`             | Logging level for uvicorn web server                         | `WARNING`                                                  |
+| `GST_DEBUG`                        | GStreamer native debug level (integer, 0-9)                  | `1`                                                        |
+| `MODELS_PATH`                      | Path to downloaded models                                    | `/models/output`                                           |
+| `AUTO_VIDEO_DIR`                   | Path to auto-downloaded videos                               | `/videos/input/auto`                                       |
+| `UPLOADED_VIDEO_DIR`               | Path to user-uploaded videos                                 | `/videos/input/uploaded`                                   |
+| `DEFAULT_RECORDINGS_FILE`          | Path to the YAML listing recordings to auto-download         | `/videos/default_recordings.yaml`                          |
+| `UPLOAD_ALLOWED_EXTENSIONS`        | Comma-separated allow-list of upload file extensions         | `mp4,mkv,mov,avi,ts,264,avc,h265,hevc`                     |
+| `UPLOAD_ALLOWED_CONTAINERS`        | Comma-separated allow-list of upload container formats       | `mp4,mov,mkv,avi,mpegts,raw`                               |
+| `UPLOAD_ALLOWED_CODECS`            | Comma-separated allow-list of upload video codecs            | `h264,h265`                                                |
+| `UPLOAD_MAX_SIZE_BYTES`            | Maximum accepted upload body size in bytes                   | `2147483648` (2 GiB)                                       |
+| `OUTPUT_VIDEO_DIR`                 | Path to output videos                                        | `/videos/output`                                           |
+| `UPLOADED_IMAGES_DIR`              | Path to user-uploaded image sets                             | `/images/input/uploaded`                                   |
+| `SIMPLE_VIEW_VISIBLE_ELEMENTS`     | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source,videoscale,sscape_*`  |
+| `SIMPLE_VIEW_INVISIBLE_ELEMENTS`   | Element names hidden from simplified pipeline view           | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` |
+| `LIVE_STREAM_SERVER_HOST`          | RTSP server hostname                                         | `mediamtx`                                                 |
+| `LIVE_STREAM_SERVER_PORT`          | RTSP server port                                             | `8554`                                                     |
+| `RTSPSRC_DEFAULT_LATENCY_MS`       | Default latency in ms for rtspsrc elements                   | `100`                                                      |
+| `RTSP_PROBE_TIMEOUT_S`             | Timeout in s for probing the codec of custom RTSP streams    | `5`                                                        |
+| `BENCHMARK_ENABLE_LATENCY_METRICS` | Enable DLStreamer latency tracer for benchmark test cases    | `true`                                                     |
+| `DLSPS2_BASE_URL`                  | DL Streamer Pipeline Server 2.0 REST base URL                | `http://dlstreamer-pipeline-server:8080`                   |
+| `DLSPS2_VERIFY_TLS`                | Verify the server's TLS certificate (https base URL)         | `false`                                                    |
+| `DLSPS2_OTEL`                      | Server exports its metrics to metrics-manager (OTLP)         | `true`                                                     |
+| `DLSPS2_OTEL_INTERVAL_MS`          | Server metrics export interval in milliseconds               | `1000`                                                     |
+| `DLSPS2_GST_TRACERS`               | Server `GST_TRACERS`; `latency_tracer` for latency metrics   | `latency_tracer(...,post-metrics=true)`; empty disables    |
+| `COMPOSE_PROFILES`                 | Hardware profile (cpu/gpu/npu)                               | Auto-detected                                              |
+| `PYTHONPATH`                       | Python module search path                                    | `/app`                                                     |
+
+Build and compose variables for the pipeline server: `DLSPS2_IMAGE` (use a published
+`intel/dlstreamer-pipeline-server:<tag>-2.0` image instead of building it), `DLSPS2_BASE_IMAGE` (base image of the
+source build, defaults to `DLSTREAMER_IMAGE`) and `DLSPS2_REST_SERVER_PORT` (port its REST API binds on the host with
+`GIGE=1`, default `8081`). `make run-prebuilt` uses `DLSPS2_IMAGE`, or `PREBUILT_DLSPS2_IMAGE` from the `Makefile`.
+The REST API is not published on the host otherwise.
 
 ## Important Notes for AI Agents
 
 - **Never modify** `shared/` directory contents in code — it's a runtime-mounted volume
 - The `vippet/` Python package uses relative imports — always run from the container context
-- GStreamer pipelines are executed as **subprocesses** via `gst_runner.py`, not directly in Python
-- Hardware device detection happens at startup via `device.py` (OpenVINO Core)
+- GStreamer pipelines run on **DL Streamer Pipeline Server 2.0** (`dlstreamer-pipeline-server`), sent over REST
+  by `dlsps2_runner.py`, one server instance per stream; they are not executed in the vippet process. The DL
+  Streamer pipeline optimizer runs on the server too, as a job started by `dlsps2_optimizer.py` (`POST /optimize`)
+- Hardware devices come from the DLSPS 2.0 `GET /devices` endpoint, read by
+  `device.py` on first use and cached
 - AI models are installed at runtime via the `model-download` microservice;
   vippet-app exposes `/api/v1/models` endpoints (and the UI Models page) to trigger installs
-- Video input sources: files from `shared/videos/input/`, USB cameras (`/dev/video*`), RTSP/ONVIF cameras
+- The model catalog lives in `vippet/models/` (one YAML file per model), baked into the
+  image at build time and synced insert-only into the DB at startup via `db_seed.py`;
+  adding/editing a model requires an image rebuild (`make build`), not just a restart
+- Video input sources: files from `shared/videos/input/`, USB cameras (`/dev/video*`), RTSP/ONVIF cameras,
+  custom RTSP URLs (validated by `vippet/rtsp_utils.py`, codec probed with `gst-discoverer-1.0`)
 
 ## Documentation Standards
 
@@ -208,18 +237,18 @@ Swagger/OpenAPI automatically renders markdown as beautiful documentation
 Example:
 
 ```python
-@app.route('/pipelines', methods=['POST']) 
+@app.route('/pipelines', methods=['POST'])
 def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     """
     # Create Pipeline
-    
+
     Create a new user-defined pipeline with automatic metadata generation.
-    
+
     ## Operation
     1. Enforce `USER_CREATED` source
     2. Delegate to `PipelineManager.add_pipeline()`
     3. Return generated pipeline ID
-    
+
     ## Auto-Generated Fields
     The backend automatically sets:
     - Pipeline ID (generated from name)
@@ -227,7 +256,7 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     - Variant IDs (generated from variant names)
     - Variant `read_only=False` for all variants
     - Pipeline `thumbnail=None` (user-created pipelines)
-    
+
     ## Request Body
     **`PipelineDefinition`** with:
     - `name` *(required)* - Non-empty pipeline name
@@ -235,7 +264,7 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     - `source` *(ignored)* - Forced to `USER_CREATED`
     - `tags` *(optional)* - List of categorization tags
     - `variants` *(required)* - List of `VariantCreate` objects
-    
+
     ## Response Codes
 
     | Code | Description |
@@ -253,7 +282,7 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     ### ❌ Failure
     - Invalid pipeline definition → 400
     - Unhandled error → 500
-    
+
     ## Examples
 
     ### Request
@@ -271,7 +300,7 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
       ]
     }
     ```
-    
+
     ### Success Response (201)
     ```json
     {
@@ -299,18 +328,18 @@ Example:
 def calculate_total(items, tax_rate=0.23):
     """
     Calculate total price including tax for given items.
-    
+
     Args:
         items (list): List of dictionaries containing item data with 'price' key
         tax_rate (float, optional): Tax rate as decimal. Defaults to 0.23.
-    
+
     Returns:
         float: Total price including tax, rounded to 2 decimal places
-    
+
     Raises:
         ValueError: If tax_rate is negative or items list is empty
         KeyError: If any item missing 'price' key
-    
+
     Example:
         >>> items = [{'price': 10.0}, {'price': 20.0}]
         >>> calculate_total(items, 0.20)
@@ -394,6 +423,8 @@ Optional[str]
 
 - **Models not found**: Install required models through the UI (Models page) or the `/api/v1/models` endpoints;
   vippet-app proxies installs to the `model-download` service
+- **New model not showing up**: `vippet/models/*.yaml` is baked into the image, not volume-mounted;
+  rebuild (`make build`) and restart, or use `make run-dev` (bind-mounts `vippet/`) for a restart-only workflow
 - **Permission denied on /dev/video***: Add user to `video` group
 - **GPU not detected**: Check `setup_env.sh` output and Docker GPU support
 - **Port conflicts**: Check if ports 80, 7860, 8554 are available

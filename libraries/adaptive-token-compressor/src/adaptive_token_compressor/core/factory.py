@@ -8,8 +8,8 @@ Public API (re-exported at package top level):
   - ``available_compressor_types() -> list[str]`` — known type names.
   - ``config_schema(type) -> dict`` — JSON Schema of the type's constructor params.
 
-Type names are the compressor classes' own ``.name`` values ("harness",
-"tool"). Compressor classes are imported **lazily** (only the requested type),
+Type names are the compressor classes' own ``.name`` values ("harness", "tool",
+"context"). Compressor classes are imported **lazily** (only the requested type),
 so ``import adaptive_token_compressor`` stays light and does not pull in the
 subpackages' heavy / optional dependencies (e.g. llmlingua). This is distinct
 from ``CompressionManager.register_compressor``, which attaches an *already
@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import types
 import typing
 from typing import Any
 
@@ -33,6 +34,7 @@ from .exceptions import ConfigError
 _REGISTRY: dict[str, tuple[str, str]] = {
     "harness": ("..harness.compressor", "HarnessCompressor"),
     "tool": ("..tool.compressor", "ToolCompressor"),
+    "context": ("..context.compressor", "ContextCompressor"),
 }
 
 # Python type -> JSON Schema primitive. ``bool`` is a distinct key from ``int``
@@ -80,6 +82,19 @@ def _annotation_to_schema(annotation: Any) -> dict:
     parameter types never break schema generation.
     """
     origin = typing.get_origin(annotation)
+    if origin in (list, tuple):
+        item_type = typing.get_args(annotation)[0]
+        return {"type": "array", "items": _annotation_to_schema(item_type)}
+    if origin in (typing.Union, types.UnionType):
+        members = typing.get_args(annotation)
+        arrays = [member for member in members if typing.get_origin(member) in (list, tuple)]
+        if len(arrays) == len(members) and arrays:
+            fragments = [_annotation_to_schema(member) for member in arrays]
+            if all(fragment == fragments[0] for fragment in fragments):
+                return fragments[0]
+        lists = [member for member in members if typing.get_origin(member) is list]
+        if len(members) == 2 and len(lists) == 1 and type(None) in members:
+            return {**_annotation_to_schema(lists[0]), "type": ["array", "null"]}
     if origin is typing.Literal:
         choices = list(typing.get_args(annotation))
         fragment: dict = {"enum": choices}
@@ -101,8 +116,7 @@ def config_schema(type: str) -> dict:
     Built by introspecting the class ``__init__`` signature (``inspect`` +
     ``typing.get_type_hints`` to resolve the modules' stringized annotations),
     so the schema stays in sync with the signature and new types are free.
-    Covers constructor params only — router-only fields (cache_size, metrics,
-    extra_config) are merged by the caller, not here.
+    Covers constructor parameters only.
     """
     cls = _resolve(type)
     hints = typing.get_type_hints(cls.__init__)
@@ -123,7 +137,8 @@ def config_schema(type: str) -> dict:
         if param.default is inspect.Parameter.empty:
             required.append(param_name)
         else:
-            fragment = {**fragment, "default": param.default}
+            default = list(param.default) if isinstance(param.default, tuple) else param.default
+            fragment = {**fragment, "default": default}
         properties[param_name] = fragment
 
     schema: dict = {

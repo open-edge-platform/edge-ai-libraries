@@ -3,18 +3,45 @@
 This page tracks releases of the Text To Speech microservice. The most
 recent release is listed first; older entries are preserved for history.
 
-## v1.1.0
+## Unreleased
 
-**Release Date:** August 2026
+**Documentation:**
+
+- Corrected the documented default model to Kokoro and clarified current
+  model/runtime device support, NPU limitations, and the Qwen3-TTS
+  dependency conflict. No runtime behavior changed. See
+  [Configuration > NPU](./get-started/configuration.md#npu).
+
+## Version 2026.2.0
+
+**Release Date:** September 9, 2026
 
 **New:**
 
-- Named voices selectable via the `voice` parameter, replacing raw
-  speaker index selection with human-readable identifiers.
+- Named voice selection through the `voice` parameter, replacing speaker-index
+  based selection with human-readable voice identifiers.
+- Voice discovery API (`GET /v1/audio/voices`), including available voices and
+  descriptions.
+- Configurable default voice support via `models.tts.default_speaker`.
+- Speaking-style instructions for Qwen3-TTS through the `instructions` request
+  field.
 
 **Improved:**
 
-- Faster synthesis with more natural prosody across supported voices.
+- Synthesis performance and speech quality: faster generation with more natural
+  prosody across supported voices.
+- OpenAI API compatibility retained for supported request fields and voice
+  handling.
+
+**Known Issues:**
+
+- English-only synthesis; unsupported languages return HTTP `400`.
+- The `model` request parameter is accepted for API compatibility but the
+  configured service model is always used.
+- Unknown voice names return HTTP `400`.
+- `models.tts.device: NPU` is not supported by any model. See
+  [Configuration > NPU](./get-started/configuration.md#npu) for the
+  exact behavior per model/runtime.
 
 ## v1.0.0
 

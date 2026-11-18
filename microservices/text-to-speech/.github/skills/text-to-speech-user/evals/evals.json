@@ -1,0 +1,174 @@
+{
+  "skill_name": "text-to-speech-user",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to generate a WAV greeting for my kiosk app from the text 'Welcome, please take a ticket.' using this service's API. Show me exactly how to call it and save the result to a file.",
+      "expected_output": "A correct single-response synthesis walkthrough using the right endpoint, port, and field names.",
+      "files": [],
+      "expectations": [
+        "Uses POST /v1/audio/speech with a JSON body containing input.",
+        "Uses port 8011 (not 8010 or 8000).",
+        "Does not claim model is required — it defaults from config.models.tts.name and may be omitted; if included, notes it does not select the model.",
+        "Shows saving raw audio/wav bytes to a .wav file (response_format=wav, the default).",
+        "Mentions the X-Session-ID response header."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "My app currently calls OpenAI's real text-to-speech API and requests response_format=mp3. I want to point it at this self-hosted service instead with minimal changes. What do I need to adjust?",
+      "expected_output": "A correct explanation that this service only supports wav/json formats, with a concrete migration fix.",
+      "files": [],
+      "expectations": [
+        "States that response_format only supports wav and json for this service, not mp3/opus/aac/flac/pcm.",
+        "Recommends changing the client to request wav (or json) instead of mp3.",
+        "Notes this service is OpenAI-compatible for the fields it supports, not a full superset of OpenAI's format list.",
+        "Suggests client-side transcoding after receiving WAV if MP3 output is a hard requirement.",
+        "Uses port 8011 in any example given."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I'm sending {\"model\": \"tts-1-hd\", \"input\": \"Hello\"} expecting this service to load the tts-1-hd model, but the response still sounds like whatever it was already using. Is this a bug?",
+      "expected_output": "A correct explanation that the model field is accepted for compatibility only and does not select the active model.",
+      "files": [],
+      "expectations": [
+        "States this is not a bug: model is accepted only for OpenAI API-shape compatibility.",
+        "States the service always uses whatever model is configured in config.yaml (models.tts.name), regardless of the request's model field.",
+        "Explains that changing the active model requires a deployment-side config change, not a per-request parameter.",
+        "Recommends GET /v1/audio/voices to confirm which model is actually active.",
+        "Does not suggest retrying with a different model string as a fix."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "My team told me our text-to-speech deployment uses Qwen3-TTS with voice_design, but I can't get a response from GET /health at all — not even an error, just nothing. Is my client code wrong, or is this a deployment issue?",
+      "expected_output": "A correct diagnosis that this is a known Qwen3-TTS startup dependency failure, not a client-side problem.",
+      "files": [],
+      "expectations": [
+        "States that Qwen3-TTS currently cannot start on any device (CPU, GPU, or NPU) due to a qwen-tts/transformers version conflict.",
+        "Explains this is a service-startup failure, not a per-request error, so no client-side request change will fix it.",
+        "Recommends checking the deployment's container logs for a qwen-tts not installed error to confirm.",
+        "Recommends SpeechT5 or Kokoro as the currently deployable alternatives to raise with the deployment owner.",
+        "Does not suggest the issue is a malformed request body or missing voice/instructions field."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I want to stream longer narration text so playback can start before the whole thing is synthesized. How do I consume this service's streaming endpoint correctly, and what should I do if I only ever get one event back?",
+      "expected_output": "A correct SSE streaming client walkthrough that also explains the single-event case is normal.",
+      "files": [],
+      "expectations": [
+        "Uses POST /v1/audio/speech/stream for streaming rather than the single-response endpoint.",
+        "Describes parsing data: {...} events and decoding audio_base64 per event.",
+        "States that the stream terminates with data: [DONE].",
+        "Explains that a backend without incremental decoding may emit exactly one event before [DONE], and this is expected, not a bug.",
+        "Mentions checking for an error key in an event instead of assuming every event carries audio."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "A streaming request for a string that's just a bunch of punctuation marks (something like '... !! ,,,') returns a stream that closes almost immediately with some kind of error payload instead of audio. Is the service broken?",
+      "expected_output": "A correct explanation of the no-pronounceable-characters edge case as expected behavior.",
+      "files": [],
+      "expectations": [
+        "States this is expected behavior, not a bug or dropped connection.",
+        "Identifies the cause as the input having no pronounceable characters after text normalization.",
+        "Describes the event shape as {\"error\": \"Input text contains no pronounceable characters\"} followed by [DONE].",
+        "Recommends validating/sanitizing input client-side before sending it if this case should be avoided.",
+        "Does not suggest retrying the same request will produce a different result."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I don't know whether the currently running deployment is SpeechT5 or Qwen, and I want to pass speaking-style instructions like 'speak cheerfully'. How do I find out whether that will even work before I try it?",
+      "expected_output": "A correct recommendation to check the active model first, with accurate per-model instructions support.",
+      "files": [],
+      "expectations": [
+        "Recommends calling GET /v1/audio/voices (or checking config.yaml) to determine the active model before composing the request.",
+        "States that SpeechT5 rejects instructions outright with HTTP 400.",
+        "States that Qwen custom_voice accepts instructions optionally.",
+        "States that Qwen voice_design requires instructions.",
+        "Does not claim instructions always works regardless of the deployed model."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "I requested voice: 'Morgan' against a SpeechT5 deployment and got a 400 error instead of it just using the default voice. Shouldn't unknown voices fall back automatically?",
+      "expected_output": "A correct explanation that unknown voice names are rejected, not silently defaulted, plus the correct way to discover valid names.",
+      "files": [],
+      "expectations": [
+        "States that an unknown voice name returns HTTP 400 rather than silently falling back to the default speaker.",
+        "Lists or references the seven bundled SpeechT5 voices (Ryan, Miles, Aaron, Nora, Elena, Kabir, Angus) or points to GET /v1/audio/voices for the authoritative list.",
+        "Mentions the CMU Arctic id aliases (e.g. bdl, jmk) are also accepted for SpeechT5.",
+        "Recommends omitting voice entirely if the default speaker is acceptable.",
+        "Does not claim this fallback behavior is a bug to be fixed client-side with retries."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "I set \"device\": \"NPU\" in my request to POST /v1/audio/speech, expecting it to just fall back to CPU if NPU isn't available, but I got an error instead. Shouldn't it gracefully degrade?",
+      "expected_output": "A correct explanation that unsupported/unavailable device selections are rejected outright by design, not silently downgraded.",
+      "files": [],
+      "expectations": [
+        "States the service validates the requested device against the configured runtime/model and the devices visible inside the container, and rejects unsupported or unavailable selections.",
+        "States this is deliberate — it never silently falls back to CPU.",
+        "Notes NPU specifically is accepted as a value but is not currently functional for any model in this service.",
+        "Recommends omitting the device field to use the deployment's configured default instead.",
+        "Does not claim this is a bug to report."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "I called GET /v1/audio/voices expecting fields named speakers and languages like some other services in this family use, but the response has different field names. What should I actually look for?",
+      "expected_output": "A correct description of this service's actual GET /v1/audio/voices response field names.",
+      "files": [],
+      "expectations": [
+        "States the response includes default_speaker, supported_speakers, and default_language fields.",
+        "Notes default_language is a single string, not a list.",
+        "Notes supported_speakers is a list.",
+        "Does not claim the response uses speakers or languages as field names.",
+        "Uses port 8011 in any example given."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "I requested voice: 'Morgan' against the default Kokoro deployment, expected an HTTP 400 like I'd seen documented, but instead got back a successful WAV response in a different voice than I asked for. Is the validation broken?",
+      "expected_output": "A correct explanation that Kokoro's unsupported-voice behavior is a silent fallback by design, unlike SpeechT5's HTTP 400.",
+      "files": [],
+      "expectations": [
+        "States that Kokoro does not reject an unsupported voice name the way SpeechT5 does.",
+        "Explains Kokoro logs a warning server-side and silently substitutes the configured/default Kokoro voice (or af_heart, or the first available voice) instead of returning an error.",
+        "States this is model-dependent behavior, not a validation bug: SpeechT5 returns HTTP 400 for the same situation.",
+        "Recommends GET /v1/audio/voices to confirm the active model and its supported_speakers before assuming a shared validation contract across models.",
+        "Does not claim this is unintended or something to report as broken."
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "My client sends a 6000-character input string to POST /v1/audio/speech expecting the documented 'HTTP 400 for over 5000 characters' behavior, but I'm actually getting a 422. Is my client handling the wrong status code, or is the documentation wrong?",
+      "expected_output": "A correct explanation that the length limit is enforced by Pydantic schema validation and returns 422, distinct from the service-level 400s.",
+      "files": [],
+      "expectations": [
+        "States that input over 5000 characters is a schema validation failure caught by Pydantic before the endpoint body runs, returning HTTP 422, not 400.",
+        "Explains 400 is reserved for service-level checks (language, voice, instructions, device) raised as a ValueError inside the endpoint after the request already parsed successfully.",
+        "States both 422 and 400 use the same OpenAI-compatible error envelope shape, so the status code is the distinguishing signal, not the body.",
+        "Recommends the client check for 422 (not 400) when handling the length-limit case.",
+        "Does not claim this is a server bug or inconsistency to report upstream."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "The deployment has pipeline.persist_outputs set to true. I'm using POST /v1/audio/speech/stream for a long narration and expected each phrase (or at least the final combined audio) to show up under storage/<session_id>/ afterward, but the directory is empty. Is persistence broken for streaming?",
+      "expected_output": "A correct explanation that streaming never persists to storage regardless of persist_outputs, unlike the non-streaming endpoint.",
+      "files": [],
+      "expectations": [
+        "States that POST /v1/audio/speech/stream never writes audio or metadata to storage, regardless of pipeline.persist_outputs.",
+        "States that only POST /v1/audio/speech (non-streaming) honors pipeline.persist_outputs and writes a WAV plus generation.json under storage/<session_id>/.",
+        "Clarifies that the session_id returned by the streaming endpoint is for correlation/latency tracking only, not a pointer to a saved file.",
+        "Does not claim this is a bug or missing feature to report.",
+        "Recommends switching to POST /v1/audio/speech if server-side persistence of the full audio is required."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,330 @@
+{
+  "metadata": {
+    "skill_name": "vss-deploy-helm",
+    "skill_path": "/home/intel/krishna/oep-eal/sample-applications/video-search-and-summarization/.github/skills/vss-deploy-helm",
+    "executor_model": "claude-sonnet-5",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-08-25T06:46:03Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 47.2,
+        "tokens": 264257,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides a Helm install command for release `vss` using `summary_override.yaml` followed by `user_values_override.yaml` in namespace `vss-deployment`.",
+          "passed": true,
+          "evidence": "response.md shows `helm install vss .` with `-f summary_override.yaml` then `-f user_values_override.yaml` and namespace set via `export NAMESPACE=vss-deployment` then `-n \"$NAMESPACE\"`."
+        },
+        {
+          "text": "Sets `global.vlmName` and lists the PostgreSQL, MinIO, and RabbitMQ username/password keys under `global.env`.",
+          "passed": true,
+          "evidence": "In the YAML snippet, `global.vlmName: \"Qwen/Qwen3-VL-4B-Instruct\"` is present, and under `global.env` it includes `POSTGRES_USER`, `POSTGRES_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `RABBITMQ_DEFAULT_USER`, and `RABBITMQ_DEFAULT_PASS`."
+        },
+        {
+          "text": "Keeps the plan summary-only by omitting search and vLLM override files and does not claim that the release was installed.",
+          "passed": true,
+          "evidence": "The override order is only `-f summary_override.yaml -f user_values_override.yaml`; it explicitly says `Do not add xeon_vllm_values.yaml` and notes search-only keys are not required. It also states `No cluster was contacted` and labels install command as `for reference, not executed`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 49.9,
+        "tokens": 266229,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides `helm uninstall vss -n vss-deployment` before reinstalling because the enabled subcharts and routing change.",
+          "passed": true,
+          "evidence": "response.md states \"...the existing release must be uninstalled first...\" because \"the enabled subcharts... and the nginx routing all change,\" and later lists `helm uninstall vss -n vss-deployment` before the install command."
+        },
+        {
+          "text": "Provides a reinstall command with `summary_override.yaml`, `search_override.yaml`, and `user_values_override.yaml` in that order.",
+          "passed": true,
+          "evidence": "response.md shows: `helm install vss . \\` then `-f summary_override.yaml`, `-f search_override.yaml`, `-f user_values_override.yaml` in that exact order."
+        },
+        {
+          "text": "Uses a multimodal `global.embeddingModelName` and reports `/summary/` and `/search/` as the dual UI routes.",
+          "passed": true,
+          "evidence": "response.md sets `global.embeddingModelName: \"CLIP/clip-vit-b-32\"` with note \"multimodal model required\" and lists routes `.../summary/` and `.../search/`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 47.8,
+        "tokens": 328625,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Shows a `kubectl get nodes -o json` resource-key discovery command that checks GPU/NPU-related allocatable keys.",
+          "passed": true,
+          "evidence": "response.md includes: `kubectl get nodes -o json | jq -r '.items[] | ... (.status.allocatable | to_entries | map(select(.key | test(\"gpu|npu|vpu|accel\";\"i\"))) ...'`, explicitly querying allocatable GPU/NPU-related keys."
+        },
+        {
+          "text": "Sets `global.devices.ovms.vlm.device` to `GPU` and `global.devices.ovms.llm.device` to `NPU`.",
+          "passed": true,
+          "evidence": "response.md YAML shows `global.devices.ovms.vlm.device: GPU` and `global.devices.ovms.llm.device: NPU`."
+        },
+        {
+          "text": "Provides separate `.key` values for the VLM and LLM resources and explains that non-CPU keys must match the cluster's discovered device-plugin resources.",
+          "passed": true,
+          "evidence": "response.md sets separate keys (`vlm.key: \"gpu.intel.com/i915\"`, `llm.key: \"npu.intel.com/accel\"`) and states: \"Every non-CPU `device` entry needs its own `.key`. `key` must exactly match a resource name the node advertises as `allocatable` (from the discovery command above)\"."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 52.1,
+        "tokens": 266034,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides a Helm install command using `unified_summary_search.yaml`, `xeon_vllm_values.yaml`, and `user_values_override.yaml` in that order.",
+          "passed": true,
+          "evidence": "response.md shows: \"helm install vss . \\\" followed by \"-f unified_summary_search.yaml\", \"-f xeon_vllm_values.yaml\", and \"-f user_values_override.yaml\" in that exact order (lines 115-119)."
+        },
+        {
+          "text": "Sets `global.vlmName` and uses a text model for `global.embeddingModelName` in unified mode.",
+          "passed": true,
+          "evidence": "response.md user_values_override checklist includes \"vlmName: \\\"Qwen/Qwen3-VL-4B-Instruct\\\"\" and \"embeddingModelName: \\\"QwenText/qwen3-embedding-0.6b\\\"\" with explicit note \"TEXT embedding model (unified mode requirement)\" (lines 43-46)."
+        },
+        {
+          "text": "Uses `xeon_vllm_values.yaml` to select the vLLM backend and keeps `user_values_override.yaml` last so user values take precedence.",
+          "passed": true,
+          "evidence": "response.md explains \"xeon_vllm_values.yaml \u2014 switches the summarization backend from OVMS to vLLM: vllm.enabled=true, ovms.enabled=false\" (lines 30-32), and both install/upgrade commands place \"-f user_values_override.yaml\" last (lines 118, 128)."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 88.4,
+        "tokens": 633530,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides a Helm install command for release `vss` using `summary_override.yaml` followed by `user_values_override.yaml` in namespace `vss-deployment`.",
+          "passed": true,
+          "evidence": "response.md includes: \"helm install vss . ... -f summary_override.yaml ... -f user_values_override.yaml ... -n vss-deployment\"."
+        },
+        {
+          "text": "Sets `global.vlmName` and lists the PostgreSQL, MinIO, and RabbitMQ username/password keys under `global.env`.",
+          "passed": true,
+          "evidence": "response.md defines `global.vlmName: \"Qwen/Qwen3-VL-4B-Instruct\"` and under `global.env` lists `POSTGRES_USER`, `POSTGRES_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `RABBITMQ_DEFAULT_USER`, and `RABBITMQ_DEFAULT_PASS`."
+        },
+        {
+          "text": "Keeps the plan summary-only by omitting search and vLLM override files and does not claim that the release was installed.",
+          "passed": true,
+          "evidence": "The override examples use `summary_override.yaml`, `ovms_override.yaml`, and `user_values_override.yaml` (no search/vLLM override files). The document states \"This is a plan only \u2014 no cluster was contacted\" and presents install as a future step: \"When ready to actually install against a cluster\"."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.67,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 102.0,
+        "tokens": 594458,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides `helm uninstall vss -n vss-deployment` before reinstalling because the enabled subcharts and routing change.",
+          "passed": true,
+          "evidence": "response.md includes uninstall before install: \"helm uninstall vss -n $my_namespace\" followed by \"helm install vss . ...\" and explains mode/subchart/routing differences in \"Why a clean reinstall\"."
+        },
+        {
+          "text": "Provides a reinstall command with `summary_override.yaml`, `search_override.yaml`, and `user_values_override.yaml` in that order.",
+          "passed": true,
+          "evidence": "response.md reinstall command is: \"helm install vss . \\\" then \"-f summary_override.yaml\", \"-f search_override.yaml\", \"-f user_values_override.yaml\" in that exact order."
+        },
+        {
+          "text": "Uses a multimodal `global.embeddingModelName` and reports `/summary/` and `/search/` as the dual UI routes.",
+          "passed": false,
+          "evidence": "response.md reports the routes correctly (\"/summary/\" and \"/search/\") but explicitly says to use a text embedding model and not multimodal/image (\"use a text embedding model ... not a multimodal/image-embedding model like `CLIP/clip-vit-b-32`\")."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6666666667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 65.9,
+        "tokens": 182997,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Shows a `kubectl get nodes -o json` resource-key discovery command that checks GPU/NPU-related allocatable keys.",
+          "passed": true,
+          "evidence": "response.md shows: \"kubectl get nodes -o json | jq -r ' ... {name: .metadata.name, allocatable: .status.allocatable} ... test(\\\"gpu|npu|intel\\\" ... )'\" under \"Step 2 \u2014 List allocatable resources on candidate nodes\"."
+        },
+        {
+          "text": "Sets `global.devices.ovms.vlm.device` to `GPU` and `global.devices.ovms.llm.device` to `NPU`.",
+          "passed": false,
+          "evidence": "response.md sets \"vlm.ovms.device: GPU\" and \"llm.ovms.device: NPU\", but does not set the expected keys under `global.devices.ovms`."
+        },
+        {
+          "text": "Provides separate `.key` values for the VLM and LLM resources and explains that non-CPU keys must match the cluster's discovered device-plugin resources.",
+          "passed": true,
+          "evidence": "response.md provides distinct placeholders `<GPU_RESOURCE_KEY>` and `<NPU_RESOURCE_KEY>` in both requests/limits, and explicitly states \"do not hardcode the keys... follow the discovery steps first\" and \"always confirm on your own cluster\" because plugin/resource names vary."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 50.0,
+        "tokens": 133256,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides a Helm install command using `unified_summary_search.yaml`, `xeon_vllm_values.yaml`, and `user_values_override.yaml` in that order.",
+          "passed": false,
+          "evidence": "The command shown is `helm upgrade --install ... -f values.yaml -f values-xeon-vllm-unified.yaml` and does not include `unified_summary_search.yaml`, `xeon_vllm_values.yaml`, or `user_values_override.yaml` in the required order."
+        },
+        {
+          "text": "Sets `global.vlmName` and uses a text model for `global.embeddingModelName` in unified mode.",
+          "passed": false,
+          "evidence": "No `global.vlmName` or `global.embeddingModelName` settings are provided; the output only gives generic keys like `vlm.backend`, `vlm.vllm.model`, and `embedding.model`."
+        },
+        {
+          "text": "Uses `xeon_vllm_values.yaml` to select the vLLM backend and keeps `user_values_override.yaml` last so user values take precedence.",
+          "passed": false,
+          "evidence": "The output uses `-f values.yaml -f values-xeon-vllm-unified.yaml` and never references `xeon_vllm_values.yaml` or `user_values_override.yaml` as the final override file."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 49.25,
+        "stddev": 2.2249,
+        "min": 47.2,
+        "max": 52.1
+      },
+      "tokens": {
+        "mean": 281286.25,
+        "stddev": 31571.6356,
+        "min": 264257,
+        "max": 328625
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5842,
+        "stddev": 0.4197,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 76.575,
+        "stddev": 23.1405,
+        "min": 50.0,
+        "max": 102.0
+      },
+      "tokens": {
+        "mean": 386060.25,
+        "stddev": 264458.9267,
+        "min": 133256,
+        "max": 633530
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.42",
+      "time_seconds": "-27.3",
+      "tokens": "-104774"
+    }
+  },
+  "notes": []
+}

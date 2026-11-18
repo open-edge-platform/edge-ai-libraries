@@ -44,6 +44,7 @@ describe('Redux Store', () => {
       expect(state).toHaveProperty('notifications');
       expect(state).toHaveProperty('summaries');
       expect(state).toHaveProperty('search');
+      expect(state).toHaveProperty('streams');
       expect(state).toHaveProperty('ui');
     });
 
@@ -78,7 +79,7 @@ describe('Redux Store', () => {
       
       expect(result).toEqual({
         videos: { videoList: [] },
-        search: { queries: [] }
+        search: { queries: [], triggerLoad: true }
         // ui should be deleted
       });
       expect(result).not.toHaveProperty('ui');
@@ -116,26 +117,42 @@ describe('Redux Store', () => {
       
       expect(result).toEqual({
         videos: { videoList: [] },
-        search: { queries: [] }
+        search: { queries: [], triggerLoad: true }
       });
       expect(result).not.toHaveProperty('ui');
     });
   });
 
   describe('saveToLocalStorage', () => {
-    it('should save state to localStorage', () => {
+    it('should save state to localStorage without the non-persisted slices', () => {
       const mockState = {
         videos: { videoList: [] },
         search: { queries: [] },
-        ui: { drawerOpen: false }
+        ui: { drawerOpen: false },
+        streams: { streams: [{ stream_id: 'a' }] }
       } as any;
-      
+
       saveToLocalStorage(mockState);
-      
+
+      // `ui` and `streams` are stripped before serialization, not merely
+      // ignored on load - otherwise every dispatch still writes them.
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'reduxStore', 
-        JSON.stringify(mockState)
+        'reduxStore',
+        JSON.stringify({
+          videos: { videoList: [] },
+          search: { queries: [] }
+        })
       );
+    });
+
+    it('should not persist live stream telemetry', () => {
+      saveToLocalStorage({
+        streams: { streams: [{ stream_id: 'cam-1' }] }
+      } as any);
+
+      const written = localStorageMock.setItem.mock.calls[0][1] as string;
+      expect(written).not.toContain('cam-1');
+      expect(written).not.toContain('streams');
     });
 
     it('should handle localStorage setItem throwing error', () => {
@@ -161,10 +178,13 @@ describe('Redux Store', () => {
 
     it('should handle undefined state', () => {
       saveToLocalStorage(undefined as any);
-      
+
+      // Spreading `undefined` yields `{}`, so an empty object is persisted
+      // rather than the literal string "undefined", which would throw on the
+      // next `loadFromLocalStorage`.
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'reduxStore', 
-        undefined
+        'reduxStore',
+        '{}'
       );
     });
   });
@@ -204,7 +224,7 @@ describe('Redux Store', () => {
       
       const state = testStore.getState();
       expect(state.videos).toEqual({ videoList: ['test'] });
-      expect(state.search).toEqual({ queries: ['test query'] });
+      expect(state.search).toEqual({ queries: ['test query'], triggerLoad: true });
     });
   });
 

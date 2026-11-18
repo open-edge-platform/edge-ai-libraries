@@ -255,6 +255,43 @@ class MilvusVectorStore(BaseVectorStore):
         logger.info("Deleted Milvus vectors for bucket %s (ok=%s)", bucket_name, deleted)
         return -1 if deleted else 0
 
+    def delete_embeddings_before(
+        self, bucket_name: str, video_id: str, cutoff_epoch: float
+    ) -> int:
+        """Delete a video's Milvus vectors older than ``cutoff_epoch``.
+
+        Identifiers are allowlist-validated and the cutoff is coerced to a float
+        before interpolation, so the ``expr`` string has no injection surface.
+        """
+        for name, value in (("bucket_name", bucket_name), ("video_id", video_id)):
+            if not value or not _SAFE_IDENTIFIER.match(value):
+                raise ValueError(f"Unsafe {name} for Milvus delete: {value!r}")
+        cutoff = float(cutoff_epoch)
+
+        self.connect()
+        expr = (
+            f'video_id == "{video_id}" and bucket_name == "{bucket_name}" '
+            f"and ingest_epoch < {cutoff}"
+        )
+        try:
+            deleted = self.store.delete(expr=expr)
+        except Exception as exc:
+            logger.error(
+                "Milvus retention delete failed for %s/%s: %s",
+                bucket_name,
+                video_id,
+                exc,
+            )
+            raise
+        logger.info(
+            "Pruned Milvus vectors for %s/%s older than %.0f (ok=%s)",
+            bucket_name,
+            video_id,
+            cutoff,
+            deleted,
+        )
+        return -1 if deleted else 0
+
     def health(self) -> dict:
         status = {"backend": "milvus", "collection": self.collection_name}
         try:

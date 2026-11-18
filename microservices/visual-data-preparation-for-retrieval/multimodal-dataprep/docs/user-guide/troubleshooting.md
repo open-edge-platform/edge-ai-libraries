@@ -1,12 +1,47 @@
 # Troubleshooting
 
+## Common issues
+
 - **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before launching Docker (required for both SDK and API modes).
-- **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
+- **Startup fails with "Object detection is enabled but no detection model is configured":** Set `MM_DATAPREP_DETECTION_MODEL_NAME` to a Hugging Face OpenVINO detection model repo (for example `OpenVINO/yolox_s-int8-ov`), or set `MM_DATAPREP_ENABLE_OBJECT_DETECTION=false`. A value outside the `OpenVINO/` namespace fails with "MM_DATAPREP_DETECTION_MODEL_NAME must be a Hugging Face model repo in the 'OpenVINO' namespace (OpenVINO/<repo>), got: ...".
+- **Object detection disabled unexpectedly (`detection_status: "not_loaded"` in `GET /v1/dataprep/health`):** The service keeps running without object crops when the detector cannot initialize; the logs explain why. Common causes:
+  - **Hugging Face download failed** – the selected model is downloaded on first use into `MM_DATAPREP_DETECTION_MODEL_DIR/<repo id>`. Ensure the host can reach `huggingface.co` (set `http_proxy`/`https_proxy`/`no_proxy` behind a proxy) and that the `DETECTION_MODELS_VOLUME_NAME` volume (default `dataprep-detection-models`) exists. For offline hosts, pre-populate the volume with the model's `*.xml`/`*.bin` files (or set `HF_HUB_OFFLINE=1` with a populated cache directory).
+  - **Unknown class in `MM_DATAPREP_DETECTION_CLASSES`** – every listed class must exist in the model's labels, otherwise the log reports "MM_DATAPREP_DETECTION_CLASSES contains classes not provided by <model>: ... Available classes: ...". Hugging Face OpenVINO models use underscores (for example `traffic_light`, `cell_phone`).
+  - **Not a detection model** – the repo must load as an OpenVINO Model API `DetectionModel`; otherwise the log reports "<model> is not an object detection model".
+  - **Unsupported device** – on NPU, check per-model support on the [OpenVINO Supported Models](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html) page and test the model; some architectures return no detections on NPU.
 - **API mode returns 502:** Verify the multimodal embedding service is healthy at `MULTIMODAL_EMBEDDING_ENDPOINT` (see `docker compose -f docker/compose-with-embedding.yaml ps`).
 - **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/media/process` instead.
 - **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `GPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`.
 - **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `NPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
 - **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.
+
+## Ingestion fails with "Pipeline made no progress"
+
+**Symptom.** A video ingestion request, or a batch job item, fails with an error such as:
+
+```text
+Pipeline made no progress for 300s while waiting for detection/embedding/storage
+to finish (MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S=300). A detection or embedding inference
+call is likely hung (for example a GPU hang); check device health or run
+detection/embedding on CPU.
+```
+
+**Why it happens.** A stall watchdog fails the job when no pipeline stage hands
+an item to the next one for `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` seconds
+(default `300`). This usually means a detection or embedding inference call
+never returned, for example after a GPU hang. Without the watchdog the job would
+stay `running` forever.
+
+**Fix.**
+
+- Check the accelerator: look for GPU hang or reset messages in `dmesg`, and
+  restart the container to recover the device.
+- If it keeps happening on one device, run the affected stage on CPU with
+  `MM_DATAPREP_DETECTION_DEVICE=CPU` or `MM_DATAPREP_EMBEDDING_DEVICE=CPU`.
+- If very slow hardware legitimately needs longer between stages, raise
+  `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S`. `0` disables the watchdog.
+
+Retry the ingestion after the fix.
 
 ## 4K/8K frames overflow the shared-memory block (worker timeout)
 
@@ -29,19 +64,22 @@ UserWarning: resource_tracker: There appear to be 1024 leaked shared_memory obje
 pre-allocated pool of fixed-size shared-memory blocks
 (`SharedMemoryPool` in `src/core/embedding/decoder.py`). Every decoded frame is
 written into **one** block as a raw RGB buffer of exactly `width × height × 3`
-bytes. The block size is controlled by `SDK_VIDEO_SHM_BLOCK_SIZE`, which defaults
+bytes. The block size is controlled by `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE`, which defaults
 to `6220800 = 1920 × 1080 × 3` (1080p). When a frame is larger than the block,
-the write into the too-small buffer fails inside the decode worker; the frame is
-never enqueued, so every downstream stage (detection → embed → store → result)
-sits on an empty queue and eventually the whole worker hits the Gunicorn timeout
-and is force-killed, orphaning the shared-memory blocks it had acquired.
+the decode worker rejects it and the request now fails fast with a
+`FrameTooLargeForPoolError` naming the required byte count.
 
-**Fix.** Set `SDK_VIDEO_SHM_BLOCK_SIZE` to at least `width × height × 3` for your
+> **Note:** Before 2026.3.0 this condition killed the decode thread silently, so
+> every downstream stage (detection → embed → store → result) sat on an empty
+> queue until the Gunicorn timeout force-killed the worker — the symptom shown
+> above. If you see the hang rather than a clear error, you are on an older image.
+
+**Fix.** Set `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` to at least `width × height × 3` for your
 highest-resolution source **before** sourcing the setup script (or bring the
 stack down and back up so the new value is applied):
 
-| Source resolution | Pixels (W × H) | Minimum `SDK_VIDEO_SHM_BLOCK_SIZE` (`W × H × 3`) |
-|---|---|---|
+| Source resolution | Pixels (W × H) | Minimum `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` (`W × H × 3`) |
+| --- | --- | --- |
 | 1080p (default) | 1920 × 1080 | `6220800` |
 | 4K UHD | 3840 × 2160 | `24883200` |
 | DCI 4K | 4096 × 2160 | `26542080` |
@@ -49,22 +87,23 @@ stack down and back up so the new value is applied):
 
 ```bash
 # Example: enable 4K ingestion (3840 x 2160 x 3 = 24883200 bytes per block)
-export SDK_VIDEO_SHM_BLOCK_SIZE=24883200
+export MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE=24883200
 source ./setup.sh          # or: source ./setup.sh --down && source ./setup.sh
 ```
 
 **Also budget the total shared memory.** The pool pre-allocates
-`SDK_VIDEO_SHM_MAX_BLOCKS × SDK_VIDEO_SHM_BLOCK_SIZE` bytes in the host `/dev/shm`
+`MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS × MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` bytes in the host `/dev/shm`
 (the container runs with `ipc: host`). With the default `512` blocks, 4K needs
 ≈ `12.7 GB` and 8K needs ≈ `51 GB` of `/dev/shm`. If the host cannot spare that
-much, lower `SDK_VIDEO_SHM_MAX_BLOCKS` to keep the product within your available
+much, lower `MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS` to keep the product within your available
 `/dev/shm` (check with `df -h /dev/shm`), for example:
 
 ```bash
-export SDK_VIDEO_SHM_BLOCK_SIZE=24883200   # 4K frame size
-export SDK_VIDEO_SHM_MAX_BLOCKS=128        # 128 x 24883200 ≈ 3.2 GB of /dev/shm
+export MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE=24883200   # 4K frame size
+export MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS=128        # 128 x 24883200 ≈ 3.2 GB of /dev/shm
 ```
 
-> **Tip:** Pick the block size from the **largest** resolution you will ingest.
+> [!TIP]
+> Pick the block size from the **largest** resolution you will ingest.
 > A larger-than-needed block size is safe (it only wastes memory); a smaller one
 > triggers the failure above. If you mix resolutions, size for the largest.

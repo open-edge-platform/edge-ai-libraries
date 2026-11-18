@@ -49,4 +49,21 @@ export const mockCameras: Camera[] = [
       best_profile: null,
     },
   },
+  {
+    device_id: "gige-camera-basler-12345678",
+    device_name: "Basler acA1920-25gc",
+    device_type: "GIGE",
+    details: {
+      ip: "192.168.10.50",
+      vendor: "Basler",
+      model: "acA1920-25gc",
+      serial: "12345678",
+      current_capture: {
+        pixel_format: "BayerRG8",
+        width: 1920,
+        height: 1080,
+        fps: 25,
+      },
+    },
+  },
 ];

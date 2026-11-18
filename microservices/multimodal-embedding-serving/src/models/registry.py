@@ -14,6 +14,7 @@ The registry supports various multimodal embedding models including:
 - SigLIP (Google's sigmoid-based CLIP)
 - BLIP2 (Salesforce's vision-language model)
 - CN-CLIP (Chinese CLIP variant)
+- GME (Qwen2-VL based text/image/fused embeddings, OpenVINO only)
 
 Each model type has its own handler class that implements the BaseEmbeddingModel
 interface, providing consistent text and image encoding capabilities.
@@ -26,8 +27,10 @@ from .handlers import (
     CNClipHandler,
     MobileCLIPHandler,
     SigLIPHandler,
+    SigLIPTransformersHandler,
     BLIP2Handler,
     QwenEmbeddingHandler,
+    GMEHandler,
 )
 from .config import get_model_config, list_available_models
 from ..utils import logger
@@ -39,8 +42,10 @@ MODEL_HANDLER_REGISTRY: Dict[str, Type[BaseEmbeddingModel]] = {
     "CNClipHandler": CNClipHandler,
     "MobileCLIPHandler": MobileCLIPHandler,
     "SigLIPHandler": SigLIPHandler,
+    "SigLIPTransformersHandler": SigLIPTransformersHandler,
     "BLIP2Handler": BLIP2Handler,
     "QwenEmbeddingHandler": QwenEmbeddingHandler,
+    "GMEHandler": GMEHandler,
 }
 
 

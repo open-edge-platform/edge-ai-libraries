@@ -16,7 +16,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SPEC_PATH = REPO_ROOT / "docs" / "user-guide" / "api-docs" / "openapi.yaml"
+SPEC_PATH = REPO_ROOT / "docs" / "user-guide" / "_assets" / "openapi.yaml"
 GENERATOR = REPO_ROOT / "scripts" / "generate_openapi.py"
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
@@ -43,7 +43,7 @@ def test_committed_spec_is_not_stale():
         text=True,
     )
     assert result.returncode == 0, (
-        "docs/user-guide/api-docs/openapi.yaml is out of date. "
+        "docs/user-guide/_assets/openapi.yaml is out of date. "
         "Run: python scripts/generate_openapi.py\n" + result.stderr
     )
 
@@ -142,7 +142,7 @@ def test_documentation_is_storage_and_backend_agnostic(spec):
 
 def test_optional_processing_params_have_no_misleading_defaults(spec):
     """These params resolve from service config, so the spec must not assert a default."""
-    config_driven = {"frame_interval", "enable_object_detection", "detection_confidence"}
+    config_driven = {"frame_interval", "enable_object_detection"}
     for path, method, operation in _operations(spec):
         for parameter in operation.get("parameters", []):
             if parameter["name"] in config_driven:

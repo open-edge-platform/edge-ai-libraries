@@ -40,8 +40,6 @@ This section shows how to build the Model Download microservice from source.
 
      ```bash
      export GETI_HOST=<GETI_HOST_ADDRESS>
-     export GETI_TOKEN=<GETI_ACCESS_TOKEN>
-     export GETI_SERVER_API_VERSION=v1
      export GETI_SERVER_SSL_VERIFY=False  #DEFAULT is FALSE
      ```
 
@@ -66,7 +64,11 @@ This section shows how to build the Model Download microservice from source.
      source scripts/run_service.sh up --plugins all --model-path tmp/models
    ```
 
-   > **Note:** Running the Docker container brings up the service and installs the dependencies for the available    plugins. See the details of the available options at the end of point 4 of the [quick start with setup script](../   get-started.md#4-launch-the-service-and-enable-the-plugins).
+   > [!NOTE]
+   > Running the Docker container brings up the service and installs the
+   > dependencies for the available plugins. See the details of the available
+   > options at the end of point 4 of the
+   > [quick start with setup script](../get-started.md#3-launch-the-service-and-enable-the-plugins).
 
 6. **Access the application**:
     - Open a browser and go to `http://<host-ip>:8200/api/v1/docs` to access the OpenAPI specification documentation for the application.

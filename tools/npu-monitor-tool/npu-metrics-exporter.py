@@ -36,7 +36,7 @@ from prometheus_client import (
 KB = 1024
 
 def load_npu_monitor():
-    """Dynamically load monitor classes from standalone npu-monitor-tool.py."""
+    """Dynamically load the standalone npu-monitor-tool.py module."""
     module_path = Path(__file__).resolve().parent / 'npu-monitor-tool.py'
     spec = spec_from_file_location('npu_monitor_tool', module_path)
     if spec is None or spec.loader is None:
@@ -44,9 +44,11 @@ def load_npu_monitor():
 
     module = module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.NpuMonitor
+    return module
 
-NpuMonitor = load_npu_monitor()
+npu_monitor_tool = load_npu_monitor()
+NpuMonitor = npu_monitor_tool.NpuMonitor
+noc_bandwidth_rate_mbs = npu_monitor_tool.noc_bandwidth_rate_mbs
 
 # NPU Monitor
 npu_mon = NpuMonitor()
@@ -103,6 +105,31 @@ metrics_map = {
     'NPU_TILE_CFG':  Metric(PromMetric.npu_tile_config),
 }
 
+def set_or_remove_gauge(metric_key, labelnames, labelvalues, val):
+    """Set the gauge sample for ``labelvalues``, or remove it when ``val`` is None.
+
+    ``None`` means the platform can't measure the value (e.g. no
+    ``npu_busy_time_us`` / ``npu_memory_utilization`` sysfs node). Instead of
+    exporting a fake 0, the sample is not set, and a sample set by an earlier
+    scrape is removed so Prometheus sees the series as absent.
+    """
+    metric = metrics_map[metric_key]
+    metric_name = metric.prom_metric.name
+    gauge = metrics.get(metric_name)
+    if val is None:
+        if gauge is not None:
+            try:
+                gauge.remove(*labelvalues)
+            except KeyError:
+                pass  # never set for these labels
+        return
+    if gauge is None:
+        gauge = Gauge(metric_name, metric.prom_metric.desc,
+                      labelnames=labelnames,
+                      registry=registry)
+        metrics[metric_name] = gauge
+    gauge.labels(*labelvalues).set(val)
+
 def process_npu_temperature():
     metric = metrics_map['NPU_TEMPERATURE']
     metric_name = metric.prom_metric.name
@@ -126,7 +153,7 @@ def process_npu_frequency():
     all_labelnames = ['dev_id']
     all_labelvalues = [f'{pciid}']
 
-    val = pu.get_display_freq_hz()
+    val = pu.get_freq_hz()
     if metric_name not in metrics:
         metrics[metric_name] = Gauge(metric_name, metric_desc,
                                     labelnames=all_labelnames,
@@ -136,26 +163,19 @@ def process_npu_frequency():
         metrics[metric_name].labels(*all_labelvalues).set(val)
 
 def process_npu_mem_util():
-    metric = metrics_map['NPU_MEM_UTIL']
-    metric_name = metric.prom_metric.name
-    metric_desc = metric.prom_metric.desc
     all_labelnames = ['dev_id']
     all_labelvalues = [f'{pciid}']
 
     mem_util = npu_mon.read_mem_util()
-    try:
-        mem_util_mb = int(mem_util) / KB / KB
-    except (TypeError, ValueError) as err:
-        LOG.warning('Failed to parse memory utilization: %s', err)
-        mem_util_mb = 0
+    mem_util_mb = None
+    if mem_util is not None:
+        try:
+            mem_util_mb = int(mem_util) / KB / KB
+        except (TypeError, ValueError) as err:
+            LOG.warning('Failed to parse memory utilization: %s', err)
 
-    if metric_name not in metrics:
-        metrics[metric_name] = Gauge(metric_name, metric_desc,
-                                    labelnames=all_labelnames,
-                                    registry=registry)
-        metrics[metric_name].labels(*all_labelvalues).set(mem_util_mb)
-    else:
-        metrics[metric_name].labels(*all_labelvalues).set(mem_util_mb)
+    # Unsupported (no sysfs node, e.g. MTL/ARL) or unreadable: export nothing.
+    set_or_remove_gauge('NPU_MEM_UTIL', all_labelnames, all_labelvalues, mem_util_mb)
 
 def process_npu_mem_bandwidth():
     global prev_mem_bandwidth_mb
@@ -179,8 +199,8 @@ def process_npu_mem_bandwidth():
     if prev_mem_bandwidth_mb is None or curr_mem_bandwidth_mb is None or delta_ts <= 0:
         bandwidth_mbps = 0.0
     else:
-        delta_mem_bandwidth_mb = curr_mem_bandwidth_mb - prev_mem_bandwidth_mb
-        bandwidth_mbps = max(0.0, delta_mem_bandwidth_mb / delta_ts)
+        # MB/s over the actual elapsed time, with 32-bit counter wrap corrected.
+        bandwidth_mbps = noc_bandwidth_rate_mbs(prev_mem_bandwidth_mb, curr_mem_bandwidth_mb, delta_ts)
 
     prev_mem_bandwidth_mb = curr_mem_bandwidth_mb
     prev_mem_bandwidth_ts = curr_mem_bandwidth_ts
@@ -198,15 +218,13 @@ def process_npu_utilization():
     global prev_time_ms
     global prev_busy_time
 
-    metric = metrics_map['NPU_UTIL']
-    metric_name = metric.prom_metric.name
-    metric_desc = metric.prom_metric.desc
     all_labelnames = ['dev_id']
     all_labelvalues = [f'{pciid}']
 
     curr_busy_time = npu_mon.read_busy_time()
     if prev_busy_time is None or curr_busy_time is None:
-        utilization = 0
+        # npu_busy_time_us not exposed (or unreadable): export nothing, not a fake 0.
+        utilization = None
     else:
         # delta is in micro-seconds, interval is in milli-seconds
         delta_busy_time = curr_busy_time - prev_busy_time
@@ -216,15 +234,9 @@ def process_npu_utilization():
         else:
             utilization = min(100, int(100 * delta_busy_time / interval_us))
 
-        prev_busy_time = curr_busy_time
+    prev_busy_time = curr_busy_time
 
-    if metric_name not in metrics:
-        metrics[metric_name] = Gauge(metric_name, metric_desc,
-                                    labelnames=all_labelnames,
-                                    registry=registry)
-        metrics[metric_name].labels(*all_labelvalues).set(utilization)
-    else:
-        metrics[metric_name].labels(*all_labelvalues).set(utilization)
+    set_or_remove_gauge('NPU_UTIL', all_labelnames, all_labelvalues, utilization)
 
 def process_npu_power():
     global curr_time_ms

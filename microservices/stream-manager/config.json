@@ -1,0 +1,7 @@
+{
+  "HTTPAddr": "0.0.0.0:8080",
+  "BufferLength": 30,
+  "StorageDir": "~/.local/share/stream-manager",
+  "ConcurrentRecorders": 15,
+  "RecordingStorageSize": 10
+}

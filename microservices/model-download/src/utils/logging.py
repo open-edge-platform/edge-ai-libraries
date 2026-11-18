@@ -60,6 +60,7 @@ else:
 
 structlog.configure(
     processors=processors,
+    logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
     cache_logger_on_first_use=True,  # Improve performance
 )
 

@@ -6,7 +6,9 @@ from typing import Iterator
 
 from components.asr_component import ASRComponent
 from components.ffmpeg.audio_preprocessing import chunk_by_silence
+from utils.asr_pool_config import POOL_FINAL, POOL_PREVIEW, resolve_pool_config
 from utils.config_loader import config
+from utils.openvino_runtime_validation import resolve_asr_device
 from utils.app_paths import get_session_dir
 from utils.storage_manager import StorageManager
 from utils.session_manager import generate_session_id
@@ -18,18 +20,58 @@ DELETE_CHUNK_AFTER_USE = getattr(config.pipeline, "delete_chunks_after_use", Tru
 SESSION_STATE_FILENAME = "session_state.json"
 
 class Pipeline:
-    def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None):
+    #: Valid values for the ``pool`` argument. ``"final"`` is the persisted,
+    #: caller-facing path; ``"preview"`` is the non-destructive realtime
+    #: snapshot path. The two keep separate ASR model instances.
+    POOL_FINAL = POOL_FINAL
+    POOL_PREVIEW = POOL_PREVIEW
+    #: Class default, so an instance made without __init__ still persists.
+    persist = True
+
+    def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None,
+                 diarization: bool | None = None, device: str | None = None, pool: str = POOL_FINAL,
+                 persist: bool = True):
+        """Build a transcription pipeline.
+
+        Args:
+            session_id: Existing session to attach to; generated when omitted.
+            temperature: ASR sampling temperature; falls back to config.
+            append_to_session: Accumulate this call's output into the session's
+                persisted ``session_state.json``. Controls persistence ONLY.
+            speaker_scope_id: Stable scope key for speaker enrollment.
+            diarization: Per-request narrowing override for diarization.
+            device: Per-request ASR device override (final pool only).
+            pool: Which ASR model pool to run on, ``"final"`` or ``"preview"``.
+                Chosen explicitly by the caller — never inferred from
+                ``append_to_session``, since a brand-new session's first
+                persisted call also has ``append_to_session=False`` and must
+                still run on the final model.
+            persist: Write the result to the session's state files. False makes
+                a final-pool call a pure decode, like a preview-pool call; the
+                caller then persists it with :meth:`append_precomputed`.
+        """
         logger.info("pipeline initialized")
         self.session_id = session_id or generate_session_id()
         self.append_to_session = append_to_session
+        self.pool = pool
+        self.persist = persist
         self.temperature = config.models.asr.temperature if temperature is None else temperature
+        # The preview pool may use a different model/device than the final
+        # pool; every key falls back to the main asr config when unset, so
+        # existing single-model deployments are unaffected. The per-request
+        # `device` override applies to the final pool only -- the preview pool
+        # is an internal latency optimisation, not a caller-selectable path.
+        pool_cfg = resolve_pool_config(pool, device_override=device)
+        self.asr_model_name = pool_cfg.name
         self.asr_component = ASRComponent(
             self.session_id,
-            provider=config.models.asr.provider,
-            model_name=config.models.asr.name,
-            device=config.models.asr.device,
+            provider=pool_cfg.provider,
+            model_name=pool_cfg.name,
+            device=resolve_asr_device(pool_cfg.provider, pool_cfg.name, pool_cfg.device),
             temperature=self.temperature,
             speaker_scope_id=speaker_scope_id,
+            diarization=diarization,
+            pool=pool,
         )
         self.sentiment_component = None
         if SENTIMENT_ENABLED:
@@ -45,7 +87,16 @@ class Pipeline:
             return self.sentiment_component.analyze(chunk_path)
         return {}
 
-    def _cleanup_chunk(self, chunk_path: str | None) -> None:
+    def _cleanup_chunk(self, chunk: dict | None) -> None:
+        """Delete a temporary chunk file produced by the chunker.
+
+        Skipped for ``passthrough`` chunks: those are not ffmpeg-derived
+        temporaries but the caller's own saved upload, which the storage
+        layer owns and other endpoints may still read.
+        """
+        if not chunk or chunk.get("passthrough"):
+            return
+        chunk_path = chunk.get("chunk_path")
         if DELETE_CHUNK_AFTER_USE and chunk_path and os.path.exists(chunk_path):
             os.remove(chunk_path)
 
@@ -140,7 +191,7 @@ class Pipeline:
 
         if not SENTIMENT_ENABLED:
             for chunk in self.asr_component.process(chunk_generator, language=language):
-                self._cleanup_chunk(chunk.get("chunk_path"))
+                self._cleanup_chunk(chunk)
                 yield chunk, {}
             return
 
@@ -150,7 +201,7 @@ class Pipeline:
                 chunk_path = chunk_transcription.get("chunk_path")
                 fut = pool.submit(self._run_sentiment, chunk_path)
                 sentiment = fut.result()
-                self._cleanup_chunk(chunk_path)
+                self._cleanup_chunk(chunk_transcription)
                 yield chunk_transcription, sentiment
 
     def _build_verbose_segment(self, segment_id: int, segment: dict, include_speaker: bool = False) -> dict:
@@ -246,8 +297,72 @@ class Pipeline:
                 recency_weight=getattr(config.sentiment, "recency_weight", 0.7),
                 peak_label=getattr(config.sentiment, "peak_label", "angry"),
             )
-        self._persist_session_outputs(detected_language, duration, final_text, all_segments, chunk_sentiments)
+        # Preview-pool calls are non-destructive scratch decodes and must never
+        # mutate the persisted session_state.json — otherwise the next REAL
+        # commit's _load_session_state() picks up the scratch call's
+        # non-cumulative duration/segments, corrupting its offset math. Final-pool
+        # calls always persist, including the first call of a brand-new session
+        # (append_to_session=False), which still owns the session's state file.
+        if self.pool != self.POOL_PREVIEW and self.persist:
+            self._persist_session_outputs(detected_language, duration, final_text, all_segments, chunk_sentiments)
         yield final_event
+
+    @classmethod
+    def append_precomputed(cls, session_id: str, utterance: dict, audio_duration: float) -> dict:
+        """Persist an utterance that was already transcribed, as transcribe() would.
+
+        Used by the realtime low-latency mode: when a full-buffer preview
+        already decoded exactly the audio being committed, the commit reuses
+        that result instead of decoding the same audio again.
+
+        Args:
+            session_id: Session whose state the utterance is appended to.
+            utterance: A transcribe() result for this utterance alone (no
+                session state), segment times relative to the utterance start.
+            audio_duration: Length of the committed audio in seconds. The
+                session duration advances by this, so later utterances get the
+                same time offset they would get after a normal decode.
+
+        Returns:
+            The cumulative session result, same shape as transcribe().
+        """
+        # No ASR model is needed here, so skip __init__ (which builds an
+        # ASRComponent and probes OpenVINO devices) and set only what the
+        # session-state helpers read.
+        self = cls.__new__(cls)
+        self.session_id = session_id
+        self.append_to_session = True
+        self.pool = POOL_FINAL
+        self.persist = True
+        self.temperature = config.models.asr.temperature
+        self._session_state = self._load_session_state()
+
+        base_duration = float(self._session_state.get("duration", 0.0))
+        segments = [dict(segment) for segment in self._session_state.get("segments", [])]
+        text_parts = [self._session_state["text"]] if self._session_state.get("text") else []
+        language = self._session_state.get("language") or utterance.get("language")
+        chunk_sentiments = list(self._session_state.get("chunk_sentiments", []))
+
+        text = (utterance.get("text") or "").strip()
+        if text:
+            text_parts.append(text)
+        for segment in utterance.get("segments") or []:
+            raw = {k: v for k, v in segment.items() if k not in ("id", "seek", "tokens", "temperature")}
+            segments.append(self._offset_segment(raw, base_duration))
+        duration = base_duration + max(0.0, float(audio_duration))
+        for segment in segments:
+            duration = max(duration, float(segment.get("end", 0.0)))
+
+        full_text = "\n".join(part for part in text_parts if part).strip()
+        result = {
+            "task": "transcribe",
+            "language": language,
+            "duration": round(duration, 3),
+            "text": full_text,
+            "segments": [self._build_verbose_segment(i, seg, include_speaker=True) for i, seg in enumerate(segments)],
+        }
+        self._persist_session_outputs(language, duration, full_text, segments, chunk_sentiments)
+        return result
 
     def transcribe(self, input, language: str | None = None) -> dict:
         detected_language = language or self._session_state.get("language")
@@ -294,6 +409,10 @@ class Pipeline:
                 peak_label=getattr(config.sentiment, "peak_label", "angry"),
             )
 
-        self._persist_session_outputs(detected_language, duration, full_text, segments, chunk_sentiments)
+        # Same guard as stream_transcribe() -- see comment there. A preview-pool
+        # call must be a pure read: it must not persist its own
+        # duration/segments over the real session's state.
+        if self.pool != self.POOL_PREVIEW and self.persist:
+            self._persist_session_outputs(detected_language, duration, full_text, segments, chunk_sentiments)
 
         return result

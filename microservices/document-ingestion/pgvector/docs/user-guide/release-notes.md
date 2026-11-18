@@ -1,12 +1,17 @@
 # Release Notes: Document Ingestion
 
-## Version 2026.2.0
+## Version 2026.3.0
 
-**Aug 6, 2026**
+**November 2026**
 
-**New**
+**Improved**
 
-- Bumps dependencies packages version
+- **MinIO Deployment**: replaced the MinIO image with a hardened Chainguard image pinned by digest, switched storage to a managed named Docker volume, and simplified the health check, removing the need for a host mount path.
+- **Text Chunking**: enabled tiktoken-based token counting for document and URL ingestion, since the transformers library is not installable alongside the pinned huggingface_hub version.
+- **Python Version and Dependencies**: raised the minimum supported Python version to 3.11 and refreshed dependencies to resolve known security vulnerabilities.
+- **Documentation**: standardized admonitions, cleaned up git clone instructions, updated system requirements, and made container registry and tag settings configurable in the get started guide.
+
+---
 
 ## Version 2026.1.0
 

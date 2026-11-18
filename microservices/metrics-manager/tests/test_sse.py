@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from prometheus_client.core import Metric as PrometheusMetric
+from prometheus_client.samples import Timestamp
 
 from app.sse import event_stream, fetch_metrics
 
@@ -33,13 +35,30 @@ class TestMetricsStreamEndpoint:
 
 class TestFetchMetrics:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("timestamp", "expected"),
+        [(0.0, 0), (Timestamp(1704067200, 123456789), 1704067200123)],
+    )
+    async def test_fetch_supports_zero_and_timestamp_objects(self, mocker, timestamp, expected):
+        family = PrometheusMetric("fps", "test", "gauge")
+        family.add_sample("fps", {}, 30, timestamp=timestamp)
+        mocker.patch("app.sse.text_string_to_metric_families", return_value=[family])
+        client = AsyncMock()
+        client.__aenter__.return_value = client
+        response = MagicMock()
+        client.get.return_value = response
+        mocker.patch("app.sse.httpx.AsyncClient", return_value=client)
+        result = json.loads(await fetch_metrics())
+        assert result["metrics"][0]["timestamp"] == expected
+
+    @pytest.mark.asyncio
     async def test_fetch_returns_json_with_timestamp_and_metrics(self):
         # Prometheus text format uses milliseconds for timestamps.
         # 1777463430000 ms in the text → prometheus_client returns 1777463430.0 s
         # → sse.py converts back to ms: int(1777463430.0 * 1000) = 1777463430000
         prometheus_text = (
-            '# HELP cpu_usage_user CPU usage\n'
-            '# TYPE cpu_usage_user gauge\n'
+            "# HELP cpu_usage_user CPU usage\n"
+            "# TYPE cpu_usage_user gauge\n"
             'cpu_usage_user{cpu="cpu-total"} 0.14 1777463430000\n'
         )
         mock_resp = MagicMock()
@@ -163,7 +182,7 @@ class TestEventStream:
 
         assert frame.startswith("data: ")
         assert frame.endswith("\n\n")
-        inner = json.loads(frame[len("data: "):-2])
+        inner = json.loads(frame[len("data: ") : -2])
         assert inner["timestamp"] == 1234
 
     @pytest.mark.asyncio
@@ -178,6 +197,6 @@ class TestEventStream:
                 await gen.aclose()
 
         assert frame.startswith("data: ")
-        inner = json.loads(frame[len("data: "):-2])
+        inner = json.loads(frame[len("data: ") : -2])
         assert "error" in inner
         assert "refused" in inner["error"]

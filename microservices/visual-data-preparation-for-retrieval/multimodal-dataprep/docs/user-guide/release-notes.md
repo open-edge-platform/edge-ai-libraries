@@ -1,10 +1,79 @@
 # Release Notes: Multimodal Data Preparation for Retrieval
 
+## Version 2026.3.0-rc1
+
+**Release Date**: November 6, 2026
+
+**New**:
+
+- **On-demand single-frame retrieval (`GET /media/frame`):** reconstruct one frame from already-stored media (an uploaded file or a live `segments/*.mp4` clip) and return it as raw `image/jpeg` or as base64 inside JSON. Frames are decoded on demand and never written back to storage. The endpoint is query-agnostic — it addresses a frame by `video_id`/`stream_id` + `timestamp` (+ an optional `crop_bbox` for `variant=crop`) — so a downstream agent can take the address straight from a `search-ms` result's `best_frame_info` and fetch the peak-scoring frame to hand to a VLM. In VSS this is also exposed through pipeline-manager at `GET /manager/frames`.
+- **Live (RTSP) stream ingestion as a managed resource:** the new `/media/streams` CRUD surface registers a camera and ingests it continuously on a background worker — create (single and batch), list with `state`/`tags` filters, inspect stats, pause/resume and reconfigure via `PATCH`, and delete (single and batch) with optional `purge_embeddings` / `purge_media`. Registrations are persisted and restored on restart, dropped sources reconnect with a bounded budget, and live embeddings are addressable through the existing media endpoints (`bucket_name` = `MM_DATAPREP_LIVE_STREAM_BUCKET`, `video_id` = `stream_id`).
+- **Playback media for live streams:** each stream records N-second MP4 segments (`MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS`, default 10), and every live embedding points at the segment covering its frame — so a retrieval hit on a live camera is playable.
+- **Live retention:** `MM_DATAPREP_LIVE_RETENTION_HOURS` (default `0` = keep forever) prunes live embeddings and media past the window; requires the new vector-store `delete_embeddings_before()` operation, implemented for both VDMS and Milvus.
+- **Live telemetry and health:** live sessions are recorded by `GET /telemetry`, and `GET /health` reports live-stream counts per state.
+- **External media correlation contract:** every live embedding now records `sensor_id` (stable identity of the physical source, settable at registration and defaulting to the `stream_id`), `capture_time` with an explicit `capture_time_source`, and `media_owner`. These let media stored by another service be matched back to an embedding without changing the decode or embedding path. See [Stream Manager Integration Readiness](../integration/stream-manager-readiness.md).
+- **Camera-clock capture timestamps for live streams:** `capture_time` is derived from each frame's PTS anchored to the best available clock, rather than from the ingest instant. This removes per-frame pipeline jitter and lets an independent consumer of the same RTSP feed resolve the same frame. The source degrades through `rtcp_sender_report` → `stream_anchored` → `ingest_estimated`, reported in `capture_time_source`; implausible camera clocks are rejected rather than trusted. Segment bucketing is unchanged and still uses ingest time. **In practice expect `stream_anchored`:** validation against a Hikvision DS-2CD1023G0E-I found the camera emits no RTCP at all — a raw probe saw 4316 RTP packets and 0 RTCP packets over 45 s on TCP, and none on UDP — so no client can recover an NTP mapping. Always branch on `capture_time_source` rather than assuming camera-clock accuracy.
+- **Camera clock-skew warning:** starting a live stream probes the device's HTTP `Date` header and logs a warning when its clock disagrees with the host by more than `MM_DATAPREP_LIVE_CLOCK_SKEW_WARN_SECONDS` (default 2). The check is vendor-neutral, sends no credentials, runs off the ingestion path, and never alters a stored timestamp — it surfaces the otherwise-invisible condition that makes a camera unusable as a shared time reference when correlating with an external recorder. It distinguishes genuine drift from embedded web servers that stamp local time but label it `GMT`. Disable with `MM_DATAPREP_LIVE_CLOCK_CHECK_ENABLED=false`.
+- **Object detection with Hugging Face OpenVINO models:** set `MM_DATAPREP_DETECTION_MODEL_NAME` to any object-detection model in the [Hugging Face `OpenVINO` namespace](https://huggingface.co/OpenVINO) supported by OpenVINO Model API, for example `OpenVINO/yolox_s-int8-ov`. Input size, NMS and class labels come from the model's own metadata, and only the selected model is downloaded on first use into `MM_DATAPREP_DETECTION_MODEL_DIR`. Detection runs on CPU, GPU or NPU; `OpenVINO/yolox_s-int8-ov`, `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are verified on all three.
+- **Detection class filter:** `MM_DATAPREP_DETECTION_CLASSES` (for example `person,car`) keeps only the listed classes. Names are checked against the model's labels at startup.
+- `GET /health` reports `detection_model`, `detection_device` and `detection_classes`.
+
+**Improved**:
+
+- **GPU driver install fails loudly:** the Dockerfile installs the Intel® GPU compute runtime `26.35.39758.10` (IGC `2.41.5`) directly instead of through `install_ubuntu_gpu_drivers.sh`, retries downloads, and fails the build if the Level Zero GPU driver or OpenCL ICD is missing. Versions are build arguments (`GPU_COMPUTE_RUNTIME_VERSION`, `GPU_IGC_VERSION`, `GPU_IGC_BUILD`, `GPU_GMMLIB_VERSION`).
+- Refreshed Python dependencies within the existing constraints to clear fixable image vulnerabilities.
+
+**Fixed**:
+
+- **Live streams now produce embeddings promptly.** Batches were only flushed once `MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE` sampled frames had accumulated, and the "drain whatever is left" path only runs at end-of-stream — which an RTSP source never reaches. A camera at 12.5 fps with `frame_interval=15` therefore produced nothing for roughly five minutes while pinning shared-memory blocks. Partially filled batches from live sources are now flushed once the oldest frame reaches `MM_DATAPREP_LIVE_BATCH_MAX_AGE_SECONDS` (default 20).
+- **Live stream statistics no longer stay at zero.** `frames_processed` and `embeddings_created` were only updated after the ingestion pipeline returned, which for a continuous stream never happens. Progress is now reported per stored batch, so `GET /media/streams/{stream_id}` reflects ingestion while it runs.
+- **Recorded live media is now downloadable.** `GET /media` lists live objects under `<stream_id>/segments/...`, but `GET /media/download` rejected the `/` in those paths and a bare `video_id` returned an arbitrary object — so a retrieval hit on a live camera could not be played back. The endpoint accepts a new `media_path` query parameter resolved strictly within the stream's own prefix.
+- **External correlation fields now reach the vector database.** `sensor_id`, `capture_time`, `capture_time_source`, and `media_owner` were computed per frame but were not part of the enforced canonical metadata contract, so they were stripped before storage and never appeared in retrieval results.
+- **Live sessions now appear in `GET /telemetry`.** Records were built with a `-1` "unknown" stream index that failed the non-negative schema constraint, so every live record was silently discarded; the counts were also reported as zero because the live pipeline does not surface totals at the top level of its result.
+- **Camera credentials no longer reach the service logs.** The decoder recorded the raw RTSP URL as the stream's source in the metadata it logs verbatim, disclosing any embedded `user:pass@`. That value is now redacted with the same helper used for API responses and vector metadata.
+- Live ingestion no longer stores embeddings under a placeholder identity (`RTSP_BUCKET` / `video_id=-1`), which made them impossible to list, filter, or delete.
+- **Ingestion no longer hangs on a stuck inference call.** If a detection or embedding inference never returned (for example after a GPU hang), the video job stayed `running` forever. A stall watchdog now fails the job when no pipeline stage makes progress for `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` seconds (default `300`, `0` disables it), with an error that names the stalled stage. See [Troubleshooting](troubleshooting.md).
+- **Ingestion no longer hangs when a decoder thread dies.** A frame larger than the shared-memory block size (for example 4K portrait video against the 1920x1080 default) killed the producer thread without signalling completion, leaving the request spinning forever and never returning. Decoder failures are now forwarded to the consumer and raised, and the request is rejected with `400 Bad Request` naming `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` and the required byte count instead of an opaque `500`. The failure path also shuts down the shared-memory pools, which previously leaked on every failed request.
+- **Concurrent embedding requests no longer abort the worker.** Two overlapping inference calls could overwrite each other's async completion callback, writing a result into a wrong-sized buffer and terminating the process with SIGABRT. Inference submission is now serialized per model instance and callback exceptions are re-raised in the submitting thread.
+- **ROI consolidation metadata is no longer shared between requests.** `merged_boxes_count` and `context_expansion_applied` were held on the shared detector, so overlapping requests could attach another frame's values to a crop. They are now kept per thread.
+- **ROI consolidation honours `0`.** `MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD=0` or `MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE=0` was silently replaced with `0.2`.
+
+**Upgrade Notes**:
+
+- **Breaking:** `POST /media/rtsp` has been removed. Register the source with
+  `POST /media/streams` instead; the call returns immediately with a `stream_id`
+  rather than holding the request open for the life of the stream, and
+  `DELETE /media/streams/{stream_id}` replaces client-disconnect as the stop
+  signal.
+- Live-stream registrations are stored in a PostgreSQL `live_streams` table
+  (`MM_DATAPREP_LIVE_STREAM_DB_*`). The standalone compose bundles a `postgres`
+  service; in the VSS stack the registry reuses the shared PostgreSQL instance.
+- Live ingestion grows the vector index indefinitely unless
+  `MM_DATAPREP_LIVE_RETENTION_HOURS` is set.
+- **Breaking:** `MM_DATAPREP_DETECTION_MODEL_NAME` has no default and is
+  required while object detection is enabled. It takes an `OpenVINO/<repo>`
+  Hugging Face id; GitHub YOLOX names such as `yolox_s` are rejected. Set
+  `MM_DATAPREP_ENABLE_OBJECT_DETECTION=false` to run without detection.
+- **Breaking:** `src/config.yaml` and `CONFIG_FILEPATH` have been removed; all
+  configuration is read from `MM_DATAPREP_*` environment variables.
+- **Breaking:** the `detection_confidence` request parameter has been removed
+  from the upload, process, image, batch, directory and live-stream APIs, and
+  live-stream responses no longer return it. The value was never applied per
+  request; the threshold is the service setting `MM_DATAPREP_DETECTION_CONFIDENCE`.
+  Requests that still send the field are accepted and the field is ignored.
+- `MM_DATAPREP_DETECTION_MODEL_DIR` now defaults to `/app/models/object-detection`
+  (was `/app/models/yolox`), and the Compose model volume is
+  `dataprep-detection-models` (`DETECTION_MODELS_VOLUME_NAME`,
+  `DETECTION_MODELS_MOUNT_PATH`). The old `dataprep-yolox-models` volume is no
+  longer used and can be removed.
+- Each detection model keeps its own license (for example YOLOX is Apache-2.0,
+  YOLO11 is AGPL-3.0); review the model card before use.
+
 ## Version 2026.2.0
 
-**Release Date:** August 4, 2026
+**Release Date**: September 9, 2026
 
-**New**
+**New**:
 
 - **Multimodal ingestion:** the service now ingests **images** alongside video. Images are embedded directly (no frame extraction) into the same shared vector space as video frames and text summaries, discriminated by a `content_type` (`video`/`image`/`text`) metadata field, enabling cross-modal search.
 - **Three image transports:** multipart binary (`POST /media/upload`), inline base64 and remote URL (`POST /media/ingest`, typed on a `type` discriminator; batch via `POST /media/ingest/batch`).
@@ -18,7 +87,7 @@
 - Added expanded NPU device support in setup/runtime configuration for per-component execution (`MM_DATAPREP_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`).
 - Added richer API/OpenAPI alignment updates for media processing and management endpoints.
 
-**Improved**
+**Improved**:
 
 - **Endpoints renamed `/videos/*` → `/media/*`** to reflect multimodal functionality (for example `/videos/upload` → `/media/upload`, `/videos/minio` → `/media/process`, `/videos/batch/{job_id}` → `/media/jobs/{job_id}`). Request/response field names (`video_id`, `video_name`, `video_url`) are unchanged for retriever compatibility.
 - **Backend-agnostic:** vector database (`vdms`/`milvus`) and object storage (`minio`/`local`) are each selected at startup behind a factory via `MM_DATAPREP_VECTORDB_BACKEND` / `MM_DATAPREP_STORAGE_BACKEND` — no code changes to switch. See [Pluggable Backends](pluggable-backends.md).
@@ -31,9 +100,11 @@
 - Simplified containerization flow by removing legacy dev/lint/report runtime paths and aligning setup scripts with a production-focused image flow.
 - Updated compose/setup defaults and docs to reflect current accelerator-oriented configuration behavior.
 
-**Fixed**
+**Fixed**:
 
 - Resolved a shared-memory pool deadlock: pool acquisition is now time-bounded and batch size is clamped to the pool capacity.
+- Fixed file-descriptor exhaustion (`[Errno 24] Too many open files`) in the shared-memory pool: each block held two open descriptors, so the frame and detected-crop pools together needed roughly 3000 and failed under a 1024-descriptor limit. Blocks now release their descriptor after allocation.
+- Fixed shared-memory segments leaking into `/dev/shm` when pool teardown hit an already-unlinked block; blocks are now unlinked independently.
 - Video processing is offloaded to a worker thread so long ingestions no longer block the event loop and stall `/health`.
 - Duplicate-upload policy is now enforced per item for batch-processed media (`POST /media/process/batch`), matching the single-media path.
 - Duplicate-upload conflicts no longer leave orphan tiles behind.
@@ -42,16 +113,16 @@
 - Fixed Milvus connection failures on existing collections, plus Milvus compose environment wiring and healthcheck.
 - Fixed request-schema compatibility issue in upload processing parameters for newer FastAPI/Pydantic combinations.
 
-**Upgrade Notes**
+**Upgrade Notes**:
 
 - Consumers of the old `/videos/*` paths must migrate to `/media/*`.
 - Environment variables not already prefixed with `MM_DATAPREP_` must be renamed (for example `MM_EMBEDDING_DEVICE` → `MM_DATAPREP_EMBEDDING_DEVICE`).
 
 ## Version 2026.1.0
 
-**June 17, 2026**
+**Release Date:** June 17, 2026
 
-**New**
+**New**:
 
 - Stage-separated embedding pipeline: decode → detect → embed → store stages run concurrently via bounded queues with back-pressure control.
 - Shared memory Zero-copy frame metadata transport via POSIX shared memory pool between pipeline stages.
@@ -59,7 +130,7 @@
 - Structured per-stream pipeline metrics: stage durations, throughput FPS, concurrency factor, and efficiency %. Runtime stats can be saved as JSON via `MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS=true`.
 - Configurable embedding pipeline via environment variables (seeded by `setup.sh`).
 
-**Improved**
+**Improved**:
 
 - Uploaded video bytes are processed directly from memory; no temp-file re-read after MinIO upload.
 - Batch embedding generation supports `metrics_out=True` to return inference timing alongside results.
@@ -67,12 +138,12 @@
 - Container healthcheck, raised `nofile` ulimits and `ipc: host` added to Docker Compose.
 - `get-started.md` updated with full environment variable reference and setup instructions.
 
-**Upgrade Notes**
+**Upgrade Notes**:
 
 - Telemetry schema: `TelemetryRecord.stages` and `.throughput` replaced by `pipeline_stats`, `stage_duration`, and `stage_throughput` dicts. `batch_index` is now 0-based; `stream_id` field added to `TelemetryBatchDetail` and `TelemetryCounts`. Update downstream telemetry consumers.
 - Docker / Kubernetes deployments must set `ipc: host` / `hostIPC: true` for the shared memory pipeline.
 
-*Validated configuration*
+*Validated configuration*:
 
 - *Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU, Intel® Core™ Ultra Processors (Series 2 and 3)*
 - *Vanilla Kubernetes Cluster*

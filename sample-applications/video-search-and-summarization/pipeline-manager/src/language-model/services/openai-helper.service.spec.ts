@@ -80,12 +80,12 @@ describe('OpenaiHelperService', () => {
     // LLM service should fall back to using the VLM model.
     expect(
       service.selectModel({
-        availableModels: ['Intel/neural-chat-7b', 'Qwen/Qwen2.5-VL-3B'],
+        availableModels: ['Intel/neural-chat-7b', 'Qwen/Qwen3-VL-4B'],
         configuredModelEnv: 'LLM_MODEL_NAME',
         serviceLabel: 'LLM summarization',
-        fallbackModelName: 'Qwen/Qwen2.5-VL-3B',
+        fallbackModelName: 'Qwen/Qwen3-VL-4B',
       }),
-    ).toBe('Qwen/Qwen2.5-VL-3B');
+    ).toBe('Qwen/Qwen3-VL-4B');
   });
 
   it('should fail when fallback model is not in available models', () => {
@@ -94,7 +94,7 @@ describe('OpenaiHelperService', () => {
         availableModels: ['Intel/neural-chat-7b', 'other-model'],
         configuredModelEnv: 'LLM_MODEL_NAME',
         serviceLabel: 'LLM summarization',
-        fallbackModelName: 'Qwen/Qwen2.5-VL-3B', // not in available models
+        fallbackModelName: 'Qwen/Qwen3-VL-4B', // not in available models
       }),
     ).toThrow(
       'Multiple models are available for LLM summarization. Configure LLM_MODEL_NAME.',
@@ -104,11 +104,11 @@ describe('OpenaiHelperService', () => {
   it('should prefer explicit config over fallback', () => {
     expect(
       service.selectModel({
-        availableModels: ['Intel/neural-chat-7b', 'Qwen/Qwen2.5-VL-3B'],
+        availableModels: ['Intel/neural-chat-7b', 'Qwen/Qwen3-VL-4B'],
         configuredModelName: 'Intel/neural-chat-7b',
         configuredModelEnv: 'LLM_MODEL_NAME',
         serviceLabel: 'LLM summarization',
-        fallbackModelName: 'Qwen/Qwen2.5-VL-3B',
+        fallbackModelName: 'Qwen/Qwen3-VL-4B',
       }),
     ).toBe('Intel/neural-chat-7b');
   });

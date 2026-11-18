@@ -36,7 +36,8 @@ Pipeline can be started by the following request. This would set the pipeline in
 to wait for images requests. Here is a sample request to queue the pipeline in asynchronous
 mode, i.e. `sync`:`false` (default if omitted).
 
-> **Note:** Source is not needed to start the pipeline, only destination and other parameters.
+> [!NOTE]
+> Source is not needed to start the pipeline, only destination and other parameters.
 > Destination is required only when `sync` config is set to `false`.
 
 ```sh
@@ -59,7 +60,8 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
 ```
 Once the pipeline has started, we would receive an instance id (e.g. `9b041988436c11ef8e690242c0a82003`). We can use this instance id to send inference requests for images as shown below. Replace the `{instance_id}` to the id you would have received as a response from the previous POST request.
 
-> **Note:** Only source section is needed for the image files to send infer requests. Make
+> [!NOTE]
+> Only source section is needed for the image files to send infer requests. Make
 > sure that DL Streamer Pipeline Server has access to the source file preferably by volume
 > mounting in `docker-compose.yml`.
 
@@ -72,7 +74,8 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection/{in
 }'
 ```
 
-> **Note:** The path `/home/pipeline-server/resources/images/classroom.jpg` in the above command
+> [!NOTE]
+> The path `/home/pipeline-server/resources/images/classroom.jpg` in the above command
 > is not a part of DL Streamer Pipeline Server docker image and is for the sake of explanation
 > only. If you would like to actually use this path (`classroom.jpg` image), it is available
 > in DL Streamer Pipeline Server's github repo, under the `resources` folder and should be
@@ -141,7 +144,8 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection/{in
 }'
 ```
 
-> **Note:**: The path in the above command `/home/pipeline-server/resources/images/classroom.jpg`
+> [!NOTE]
+> The path in the above command `/home/pipeline-server/resources/images/classroom.jpg`
 > is not a part of DL Streamer Pipeline Server docker image and is for the sake of explanation
 > only. If you would like to actually use this path (classroom.jpg image), it is available in
 > DL Streamer Pipeline Server's github repo, under the `resources` folder and should be

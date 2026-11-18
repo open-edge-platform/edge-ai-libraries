@@ -14,6 +14,11 @@ export class SearchEntity {
   @Column({ type: 'text', nullable: false })
   query: string;
 
+  // Query image (base64/data URL) for image-based searches; null for text queries.
+  // Persisted so watched/refetch re-runs can re-embed the same image.
+  @Column({ type: 'text', nullable: true })
+  image?: string | null;
+
   @Column({ type: 'boolean', default: false })
   watch: boolean;
 
@@ -39,6 +44,10 @@ export class SearchEntity {
   @Column({ type: 'text', nullable: true })
   timeFilterEnd?: string | null;
 
+  // Minimum peak score this query searches with; null = deployment default.
+  @Column({ type: 'float', nullable: true })
+  minPeakScore?: number | null;
+
   @Column('jsonb', { nullable: true })
   results: SearchResult[];
 
@@ -50,4 +59,10 @@ export class SearchEntity {
 
   @Column({ type: 'text', nullable: true })
   errorMessage?: string;
+
+  @Column({ type: 'text', nullable: true })
+  lastRefreshedAt?: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  resultsFingerprint?: string | null;
 }

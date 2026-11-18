@@ -4,9 +4,9 @@
   filename: license-plate-detection.mp4
 - url: "https://github.com/open-edge-platform/edge-ai-resources/raw/c13b8dbf23d514c2667d39b66615bd1400cb889d/videos/warehouse.avi"
   filename: warehouse.avi
-- url: "https://www.pexels.com/download/video/6891009"
+- url: "https://videos.pexels.com/video-files/6891009/6891009-uhd_3840_2160_30fps.mp4"
   filename: obj_classification.mp4
-- url: "https://www.pexels.com/download/video/3249935"
+- url: "https://videos.pexels.com/video-files/3249935/3249935-uhd_3840_2160_25fps.mp4"
   filename: age_prediction.mp4
 - url: "https://github.com/open-edge-platform/edge-ai-resources/raw/0d39322d6c6c578413cdf2a3d48c4e0978531e10/videos/smart_parking_720p_30fps.mp4"
   filename: metro_smart_parking.mp4
@@ -14,6 +14,9 @@
   filename: bears.mp4
 - url: "https://videos.pexels.com/video-files/1192116/1192116-sd_640_360_30fps.mp4"
   filename: traffic.mp4
-- url: "https://www.pexels.com/download/video/29969146"
+- url: "https://videos.pexels.com/video-files/29969146/12860935_2560_1440_30fps.mp4"
   filename: people-detection-and-tracking.mp4
-  
+- url: "https://videos.pexels.com/video-files/37247585/15779255_1280_720_60fps.mp4"
+  filename: crosswalk.mp4
+- url: "https://videos.pexels.com/video-files/30259587/12972413_1280_720_30fps.mp4"
+  filename: dangerous_traffic.mp4

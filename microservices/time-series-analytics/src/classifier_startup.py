@@ -7,7 +7,7 @@
 """Kapacitor service
 """
 
-import subprocess
+import subprocess  # nosec B404 # commands use argument lists with shell=False
 import os
 import os.path
 import time
@@ -20,13 +20,14 @@ import select
 import threading
 import tomlkit
 from influxdb import InfluxDBClient
+from common_utils import exec_command
 
 # Secure temporary directory management
 def get_secure_temp_dir():
     """Get a secure temporary directory path with proper permissions"""
     # Use system temp directory as base, but ensure it's secure
     base_temp = tempfile.gettempdir()
-    tmp_path = "/tmp"
+    tmp_path = "/tmp"  # nosec B108 # writable tmpfs mount in the read-only service container
     if os.path.exists(tmp_path) and os.access(tmp_path, os.W_OK):
         return tmp_path
     else:
@@ -40,6 +41,14 @@ FAILURE = -1
 KAPACITOR_PORT = 9092
 KAPACITOR_NAME = 'kapacitord'
 
+def secure_temp_path(*path_parts):
+    """Return a path under the service temporary directory."""
+    base_path = os.path.realpath(SECURE_TEMP_DIR)
+    candidate_path = os.path.realpath(os.path.join(base_path, *path_parts))
+    if os.path.commonpath((base_path, candidate_path)) != base_path:
+        raise ValueError("Deployment package path must remain within the temporary directory")
+    return candidate_path
+
 def kapacitor_daemon_logs(logger):
     """Read the kapacitor logs and print it to stdout
     """
@@ -49,8 +58,9 @@ def kapacitor_daemon_logs(logger):
             break
         else:
             time.sleep(1)
-    f = subprocess.Popen(['tail','-F',kapacitor_log_file],
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    f = subprocess.Popen(  # nosec B607 # fixed tail command resolved from the container PATH
+        ['tail', '-F', kapacitor_log_file], shell=False,  # nosec B603 # argument list, no shell
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     p = select.poll()
     p.register(f.stdout)
     while True:
@@ -77,15 +87,25 @@ class KapacitorClassifier():
     def check_udf_package(self, config, dir_name):
         """ Check if UDF deployment package is present in the container
         """
-        logger.info("Checking if UDF deployment package is present in the container...")
-        path = os.path.join(SECURE_TEMP_DIR, dir_name)
-        udf_dir = os.path.join(path, "udfs")
-        model_dir = os.path.join(path, "models")
-        tick_scripts_dir = os.path.join(path, "tick_scripts")
+        self.logger.info("Checking if UDF deployment package is present in the container...")
+        udf_config = config.get("udfs") if isinstance(config, dict) else None
+        udf_name = udf_config.get("name") if isinstance(udf_config, dict) else None
+        if not isinstance(udf_name, str) or not udf_name:
+            self.logger.error("UDF name is missing or invalid in configuration")
+            return False
+        try:
+            path = secure_temp_path(dir_name)
+            udf_dir = secure_temp_path(dir_name, "udfs")
+            model_dir = secure_temp_path(dir_name, "models")
+            tick_scripts_dir = secure_temp_path(dir_name, "tick_scripts")
+            udf_path = secure_temp_path(dir_name, "udfs", udf_name + ".py")
+            tick_script_path = secure_temp_path(dir_name, "tick_scripts", udf_name + ".tick")
+        except ValueError as err:
+            self.logger.error("Invalid UDF deployment package path: %s", err)
+            return False
         found_udf = False
         found_tick_scripts = False
         found_model = False
-        udf_name = config["udfs"]["name"]
 
 
         if not os.path.isdir(path):
@@ -95,19 +115,17 @@ class KapacitorClassifier():
                 udf_name
             )
             return False
-        if os.path.isdir(udf_dir) and os.path.isfile(os.path.join(udf_dir,
-                                                                  config['udfs']["name"] + ".py")):
+        if os.path.isdir(udf_dir) and os.path.isfile(udf_path):
             found_udf = True
 
-        tick_script_path = os.path.join(tick_scripts_dir, config['udfs']["name"] + ".tick")
         if os.path.isdir(tick_scripts_dir) and os.path.isfile(tick_script_path):
             found_tick_scripts = True
 
         # model file is optional
-        if "models" in config["udfs"].keys():
+        if "models" in udf_config:
             if os.path.isdir(model_dir):
                 for fname in os.listdir(model_dir):
-                    if fname.startswith(config['udfs']["name"]):
+                    if fname.startswith(udf_name):
                         found_model = True
                         break
         else:
@@ -115,13 +133,13 @@ class KapacitorClassifier():
         if not (found_model and found_udf and found_tick_scripts):
             missing_items = []
             if not found_model:
-                missing_items.append(f"model file for task {config['udfs']['name']}")
+                missing_items.append(f"model file for task {udf_name}")
                 self.logger.warning("Missing model")
             if not found_udf:
-                missing_items.append(f"udf file for task {config['udfs']['name']}")
+                missing_items.append(f"udf file for task {udf_name}")
                 self.logger.warning("Missing udf")
             if not found_tick_scripts:
-                missing_items.append(f"tick script for task {config['udfs']['name']}")
+                missing_items.append(f"tick script for task {udf_name}")
                 self.logger.warning("Missing tick script")
             self.logger.error(
                 "Missing " + ", ".join(missing_items) + 
@@ -136,15 +154,15 @@ class KapacitorClassifier():
         """ Install python package from udf/requirements.txt if exists
         """
 
-        python_package_requirement_file = os.path.join(SECURE_TEMP_DIR, dir_name, "udfs", "requirements.txt")
-        python_package_installation_path = os.path.join(SECURE_TEMP_DIR, "py_package")
-        status = subprocess.run(["mkdir", "-p", python_package_installation_path], check=False)
+        python_package_requirement_file = secure_temp_path(dir_name, "udfs", "requirements.txt")
+        python_package_installation_path = secure_temp_path("py_package")
+        status = exec_command(["mkdir", "-p", python_package_installation_path], check=False)
         if status.returncode != SUCCESS:
             self.logger.error("Failed to create directory %s for installing python packages.",
                               python_package_installation_path)
             return False
         if os.path.isfile(python_package_requirement_file):
-            status = subprocess.run([
+            status = exec_command([
                 "pip3", "install", "-r", python_package_requirement_file,
                 "--target", python_package_installation_path
             ], check=False)
@@ -185,8 +203,9 @@ class KapacitorClassifier():
                     os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] = "{}{}".format(
                         http_scheme, influxdb_hostname_port)
 
-            self.kapacitor_proc = subprocess.Popen(
-                ["kapacitord", "-hostname", kapacitor_url_hostname, "-config", kapacitor_conf]
+            self.kapacitor_proc = subprocess.Popen(  # nosec B607 # fixed daemon resolved from the container PATH
+                ["kapacitord", "-hostname", kapacitor_url_hostname, "-config", kapacitor_conf],
+                shell=False,  # nosec B603 # argument list, no shell
             )
 
             # Start a thread to reap the kapacitor process when it exits
@@ -249,7 +268,7 @@ class KapacitorClassifier():
             # Fallback when /proc is unavailable and ps exists.
             ps_path = shutil.which("ps")
             if ps_path:
-                out = subprocess.run(
+                out = exec_command(
                     [ps_path, "-eo", "stat=,comm=,args="],
                     stdout=subprocess.PIPE,
                     check=False,
@@ -310,6 +329,7 @@ class KapacitorClassifier():
         retry = 0
         kap_connectivity_retry = 10
         kap_retry = 0
+        task_enabled = False
         while not self.kapacitor_port_open(host_name):
             time.sleep(5)
             kap_retry = kap_retry + 1
@@ -319,27 +339,31 @@ class KapacitorClassifier():
 
         self.logger.info("Kapacitor Port is Open for Communication....")
 
-        path = os.path.join(SECURE_TEMP_DIR, dir_name, "tick_scripts")
+        try:
+            tick_script_path = secure_temp_path(dir_name, "tick_scripts", tick_script)
+        except ValueError as err:
+            self.logger.error("Invalid TICK script path: %s", err)
+            return False
         while retry < retry_count:
             define_pointcl_cmd = ["kapacitor", "-skipVerify", "define",
                                   task_name, "-tick",
-                                  os.path.join(path, tick_script)]
-
-            if subprocess.check_call(define_pointcl_cmd) == SUCCESS:
+                                  tick_script_path]
+            try:
+                exec_command(define_pointcl_cmd, check=True)
                 define_pointcl_cmd = ["kapacitor", "-skipVerify", "enable",
                                       task_name]
-                if subprocess.check_call(define_pointcl_cmd) == SUCCESS:
-                    self.logger.info("Kapacitor Tasks Enabled Successfully")
-                    self.logger.info("Kapacitor Initialized Successfully. "
-                                     "Ready to Receive the Data....")
-                    break
-
-                self.logger.info("ERROR:Cannot Communicate to Kapacitor.")
-            else:
-                self.logger.info("ERROR:Cannot Communicate to Kapacitor. ")
+                exec_command(define_pointcl_cmd, check=True)
+                self.logger.info("Kapacitor Tasks Enabled Successfully")
+                self.logger.info("Kapacitor Initialized Successfully. "
+                                 "Ready to Receive the Data....")
+                task_enabled = True
+                break
+            except (subprocess.CalledProcessError, OSError) as err:
+                self.logger.info("ERROR:Cannot Communicate to Kapacitor: %s", err)
             self.logger.info("Retrying Kapacitor Connection")
             time.sleep(0.0001)
             retry = retry + 1
+        return task_enabled
 
     def check_config(self, config):
         """Starting the udf based on the config
@@ -368,10 +392,11 @@ class KapacitorClassifier():
 
         if kapacitor_started:
             self.logger.info("Enabling %s", tick_script)
-            self.enable_classifier_task(kapacitor_url_hostname,
-                                        tick_script,
-                                        dir_name,
-                                        task_name)
+            if not self.enable_classifier_task(kapacitor_url_hostname,
+                                               tick_script,
+                                               dir_name,
+                                               task_name):
+                return "Failed to enable classifier task", FAILURE
         while True:
             time.sleep(1)
 
@@ -451,7 +476,7 @@ def classifier_startup(config):
         delete_old_subscription(secure_mode)
     conf_file = KAPACITOR_PROD if secure_mode else KAPACITOR_DEV
     # Copy the kapacitor conf file to the secure temp directory
-    dest_conf_path = os.path.join(SECURE_TEMP_DIR, conf_file) 
+    dest_conf_path = secure_temp_path(conf_file)
     shutil.copy("/app/config/" + conf_file, dest_conf_path)
     # Read the existing configuration
     with open(dest_conf_path, 'r', encoding='utf-8') as file:
@@ -482,12 +507,12 @@ def classifier_startup(config):
 
     udf_section[udf_name]['prog'] = 'python3'
 
-    udf_section[udf_name]['args'] = ["-u", os.path.join(SECURE_TEMP_DIR, dir_name, "udfs", udf_name + ".py")] 
+    udf_section[udf_name]['args'] = ["-u", secure_temp_path(dir_name, "udfs", udf_name + ".py")]
 
     udf_section[udf_name]['timeout'] = "60s"
     udf_section[udf_name]['env'] = {
-        'PYTHONPATH': f"{os.path.join(SECURE_TEMP_DIR, 'py_package')}:/app/kapacitor_python/:",
-        'MODEL_PATH': os.path.join(SECURE_TEMP_DIR, dir_name, "models", model_name),
+        'PYTHONPATH': f"{secure_temp_path('py_package')}:/app/kapacitor_python/:",
+        'MODEL_PATH': secure_temp_path(dir_name, "models", model_name),
         'DEVICE': device
     }
     if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():

@@ -1932,6 +1932,57 @@ parse_test_cases = [
             ],
         ),
     ),
+    # GigE Vision camera as source
+    ParseTestCase(
+        r"aravissrc camera-name=12345678 ! decodebin3 ! videoconvert ! video/x-raw ! openh264enc ! h264parse ! "
+        r"rtspclientsink protocols=tcp location=rtsp://mediamtx:8554/stream_pipeline-803f3975",
+        Graph(
+            nodes=[
+                Node(id="0", type="aravissrc", data={"camera-name": "12345678"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="videoconvert", data={}),
+                Node(id="3", type="video/x-raw", data={}),
+                Node(id="4", type="openh264enc", data={}),
+                Node(id="5", type="h264parse", data={}),
+                Node(
+                    id="6",
+                    type="rtspclientsink",
+                    data={
+                        "protocols": "tcp",
+                        "location": "rtsp://mediamtx:8554/stream_pipeline-803f3975",
+                    },
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="5", target="6"),
+            ],
+        ),
+        Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="source",
+                    data={"kind": InputKind.CAMERA, "source": "gige://12345678"},
+                ),
+                Node(
+                    id="6",
+                    type="rtspclientsink",
+                    data={
+                        "protocols": "tcp",
+                        "location": "rtsp://mediamtx:8554/stream_pipeline-803f3975",
+                    },
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="6"),
+            ],
+        ),
+    ),
 ]
 
 
@@ -3488,6 +3539,7 @@ class TestNegativeCases(unittest.TestCase):
         test_cases = [
             ("v4l2src", {"device": "/dev/video0"}),
             ("rtspsrc", {"location": "rtsp://example.com/stream"}),
+            ("aravissrc", {"camera-name": "12345678"}),
         ]
 
         for source_type, source_data in test_cases:
@@ -3718,6 +3770,42 @@ class TestGetRecommendedEncoderDevice(unittest.TestCase):
         # Should return CPU because iterating backwards finds node 3 first (no VAMemory)
         self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_CPU)
 
+    def test_ignores_sysmem_caps_on_other_tee_branch(self):
+        """Caps on a non-main tee branch must not override the main output path."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="2", type="tee", data={"name": "t"}),
+                Node(id="3", type="queue", data={}),
+                Node(id="4", type="fakesink", data={"name": "default_output_sink"}),
+                Node(id="5", type="vapostproc", data={}),
+                Node(
+                    id="6",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "width": "796"},
+                ),
+                Node(id="7", type="jpegenc", data={}),
+                Node(id="8", type="multifilesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="2", target="5"),
+                Edge(id="5", source="5", target="6"),
+                Edge(id="6", source="6", target="7"),
+                Edge(id="7", source="7", target="8"),
+            ],
+        )
+
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_GPU)
+
     def test_empty_graph(self):
         """Test that CPU encoder is recommended for an empty graph."""
         graph = Graph(nodes=[], edges=[])
@@ -3803,6 +3891,31 @@ class TestToSimpleView(unittest.TestCase):
                         str(i),
                         f"Edge {i} ID should be sequential: expected {str(i)}, got {actual_edge.id}",
                     )
+
+    def test_simple_view_includes_videoscale(self):
+        """Test that videoscale is retained as a user-facing simple-view step."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="videoscale", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        self.assertEqual(
+            [node.type for node in simple_view.nodes],
+            ["source", "videoscale", "fakesink"],
+        )
+        self.assertEqual(
+            [(edge.source, edge.target) for edge in simple_view.edges],
+            [("0", "1"), ("1", "2")],
+        )
 
     @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gvafpscounter,gvametapublish")
     def test_simple_view_with_invisible_elements(self):
@@ -5766,6 +5879,46 @@ class TestPrepareIntermediateOutputSinks(unittest.TestCase):
         result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
 
         self.assertIs(result, graph)
+
+    def test_multifilesink_preserves_printf_int_specifier(self):
+        """printf-style %05d in multifilesink location must survive slugify."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesink",
+                    data={"location": "/images/output/vlm_frame_%05d.jpeg"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        self.assertEqual(
+            result.nodes[0].data["location"],
+            "/output/dir/intermediate_stream000_vlm_frame_%05d.jpeg",
+        )
+
+    def test_filesink_preserves_bare_percent_d_specifier(self):
+        """A bare %d specifier must survive slugify as well."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesink",
+                    data={"location": "/tmp/frame_%d.png"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 3)
+
+        self.assertEqual(
+            result.nodes[0].data["location"],
+            "/output/dir/intermediate_stream003_frame_%d.png",
+        )
 
 
 class TestInjectMetadataFilePaths(unittest.TestCase):
@@ -7876,104 +8029,237 @@ class TestInternalMarkersStrippedFromPipelineDescription(unittest.TestCase):
         self.assertIn("num-buffers=10", description)
 
 
-class TestUploadedModelFallback(unittest.TestCase):
-    """Cover the ``ModelManager`` fallback added to ``_model_path_to_display_name``
-    and ``_model_display_name_to_path`` so uploaded (custom) models keep
-    working through the simple-graph / convert-to-advanced flow.
-    """
+class TestGigECameraSource(unittest.TestCase):
+    """GigE Vision cameras: ``gige://<camera-name>`` sources mapped to ``aravissrc``."""
 
-    def _node(self, model_value: str, model_proc: str | None = None) -> Node:
-        data: dict[str, str] = {"model": model_value}
-        if model_proc is not None:
-            data["model-proc"] = model_proc
-        return Node(id="n1", type="gvadetect", data=data)
-
-    # --- path -> display name ---------------------------------------
-
-    def test_path_to_display_name_falls_back_to_model_manager(self) -> None:
-        from graph import _model_path_to_display_name
-
-        node = self._node("/models/output/custom_uploaded_models/face-custom/model.xml")
-
-        yaml_manager = MagicMock()
-        yaml_manager.find_model_by_model_and_proc_path.return_value = None
-        mm = MagicMock()
-        mm.find_uploaded_model_by_path.return_value = MagicMock(
-            display_name="face-custom"
+    @staticmethod
+    def _advanced_graph() -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="v4l2src", data={"device": "/dev/video0"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
         )
 
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            _model_path_to_display_name([node])
-
-        self.assertEqual(node.data["model"], "face-custom")
-        # model-proc must be stripped after conversion.
-        self.assertNotIn("model-proc", node.data)
-        mm.find_uploaded_model_by_path.assert_called_once()
-
-    def test_path_to_display_name_empty_when_neither_resolves(self) -> None:
-        from graph import _model_path_to_display_name
-
-        node = self._node("/totally/unknown.xml")
-        yaml_manager = MagicMock()
-        yaml_manager.find_model_by_model_and_proc_path.return_value = None
-        mm = MagicMock()
-        mm.find_uploaded_model_by_path.return_value = None
-
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            _model_path_to_display_name([node])
-
-        self.assertEqual(node.data["model"], "")
-
-    # --- display name -> path ---------------------------------------
-
-    def test_display_name_to_path_falls_back_to_model_manager(self) -> None:
-        from graph import _model_display_name_to_path
-
-        node = self._node("my-uploaded-model")
-        yaml_manager = MagicMock()
-        yaml_manager.find_installed_model_by_display_name.return_value = None
-
-        uploaded = MagicMock()
-        uploaded.model_path_full = "/abs/path/my-uploaded-model.xml"
-        uploaded.model_proc_full = ""  # uploads have no model-proc
-        mm = MagicMock()
-        mm.find_installed_uploaded_model_by_display_name.return_value = uploaded
-
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            _model_display_name_to_path([node])
-
-        self.assertEqual(node.data["model"], "/abs/path/my-uploaded-model.xml")
-        # No model-proc must be injected when the model has none.
-        self.assertNotIn("model-proc", node.data)
-        mm.find_installed_uploaded_model_by_display_name.assert_called_once_with(
-            "my-uploaded-model"
+    @staticmethod
+    def _aravissrc_graph() -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="aravissrc", data={"camera-name": "192.168.1.50"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
         )
 
-    def test_display_name_to_path_raises_when_unknown_everywhere(self) -> None:
-        from graph import _model_display_name_to_path
+    def _apply_source(self, source: str) -> Graph:
+        advanced = self._advanced_graph()
+        simple = advanced.to_simple_view()
+        modified = Graph.from_dict(simple.to_dict())
+        for node in modified.nodes:
+            if node.type == "source":
+                node.data["source"] = source
+        return Graph.apply_simple_view_changes(
+            modified_simple=modified,
+            original_simple=simple,
+            original_advanced=advanced,
+        )
 
-        node = self._node("ghost-model")
-        yaml_manager = MagicMock()
-        yaml_manager.find_installed_model_by_display_name.return_value = None
-        mm = MagicMock()
-        mm.find_installed_uploaded_model_by_display_name.return_value = None
+    def test_gige_source_maps_to_aravissrc(self):
+        for camera_name in ("192.168.1.50", "Basler-acA1920-25gc-12345678"):
+            with self.subTest(camera_name=camera_name):
+                result = self._apply_source(f"gige://{camera_name}")
 
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            with self.assertRaises(ValueError) as cm:
-                _model_display_name_to_path([node])
-        self.assertIn("ghost-model", str(cm.exception))
+                self.assertEqual(result.nodes[0].type, "aravissrc")
+                self.assertEqual(result.nodes[0].data, {"camera-name": camera_name})
+                self.assertIn(
+                    f"aravissrc camera-name={camera_name} ! decodebin3",
+                    result.to_pipeline_description(),
+                )
+
+    def test_gige_source_without_camera_name_raises_error(self):
+        with self.assertRaises(ValueError) as cm:
+            self._apply_source("gige://")
+        self.assertIn("IP address or Aravis device ID", str(cm.exception))
+
+    def test_aravissrc_converted_to_generic_camera_source(self):
+        simple = self._aravissrc_graph().to_simple_view()
+
+        self.assertEqual(simple.nodes[0].type, "source")
+        self.assertEqual(
+            simple.nodes[0].data,
+            {"kind": InputKind.CAMERA, "source": "gige://192.168.1.50"},
+        )
+
+    @patch("graph.VideosManager")
+    def test_looping_not_supported_for_aravissrc(self, _mock_videos_cls):
+        with self.assertRaises(ValueError) as cm:
+            self._aravissrc_graph().apply_looping_modifications()
+        self.assertIn("aravissrc", str(cm.exception))
+
+    @patch("managers.camera_manager.CameraManager")
+    def test_determine_input_codec_returns_pixel_format(self, mock_manager_cls):
+        details = MagicMock()
+        details.current_capture.pixel_format = "BayerRG8"
+        mock_manager_cls.return_value.get_gige_camera_details_by_ip.return_value = (
+            details
+        )
+
+        codec = self._aravissrc_graph().determine_input_codec()
+
+        self.assertEqual(codec, "BayerRG8")
+        mock_manager_cls.return_value.get_gige_camera_details_by_ip.assert_called_once_with(
+            "192.168.1.50"
+        )
+
+    @patch("managers.camera_manager.CameraManager")
+    def test_determine_input_codec_unknown_camera_returns_none(self, mock_manager_cls):
+        mock_manager_cls.return_value.get_gige_camera_details_by_ip.return_value = None
+
+        self.assertIsNone(self._aravissrc_graph().determine_input_codec())
+
+    def test_bayer_format_replaces_decodebin3_with_bayer2rgb(self):
+        result = self._aravissrc_graph().apply_decodebin3_replacement(
+            codec="BayerRG8", target_device="CPU"
+        )
+
+        self.assertEqual(
+            [n.type for n in result.nodes],
+            ["aravissrc", "bayer2rgb", "videoconvert", "fakesink"],
+        )
+        self.assertIn(
+            "aravissrc camera-name=192.168.1.50 ! bayer2rgb ! videoconvert ! fakesink",
+            result.to_pipeline_description(),
+        )
+
+    def test_mono_format_replaces_decodebin3_with_videoconvert(self):
+        result = self._aravissrc_graph().apply_decodebin3_replacement(
+            codec="Mono8", target_device="CPU"
+        )
+
+        self.assertEqual(
+            [n.type for n in result.nodes],
+            ["aravissrc", "videoconvert", "fakesink"],
+        )
+
+
+class TestCustomRtspSource(unittest.TestCase):
+    """Custom (user-provided) RTSP URLs used as camera sources."""
+
+    URL = "rtsp://mediamtx:8554/custom"
+
+    @staticmethod
+    def _advanced_graph(location: str = "rtsp://mediamtx:8554/custom") -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="rtspsrc", data={"location": location}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+    def _apply_source(self, source: str) -> Graph:
+        advanced = Graph(
+            nodes=[
+                Node(id="0", type="v4l2src", data={"device": "/dev/video0"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+        simple = advanced.to_simple_view()
+        modified = Graph.from_dict(simple.to_dict())
+        for node in modified.nodes:
+            if node.type == "source":
+                node.data["source"] = source
+        return Graph.apply_simple_view_changes(
+            modified_simple=modified,
+            original_simple=simple,
+            original_advanced=advanced,
+        )
+
+    def test_custom_rtsp_url_maps_to_rtspsrc(self):
+        result = self._apply_source(f"  {self.URL} ")
+
+        self.assertEqual(result.nodes[0].type, "rtspsrc")
+        self.assertEqual(result.nodes[0].data, {"location": self.URL})
+        self.assertIn(
+            f"rtspsrc location={self.URL} ! decodebin3",
+            result.to_pipeline_description(),
+        )
+
+    def test_invalid_rtsp_url_in_simple_view_raises_error(self):
+        for source in [
+            "rtsp://host/stream ! filesink location=/tmp/x",
+            'rtsp://host/"stream"',
+            "rtsp://user:pass@host/stream",
+            "rtsp:///stream",
+        ]:
+            with self.subTest(source=source):
+                with self.assertRaises(ValueError) as cm:
+                    self._apply_source(source)
+                self.assertIn("Invalid RTSP source", str(cm.exception))
+
+    def test_validate_rtsp_sources_accepts_valid_url(self):
+        self._advanced_graph().validate_rtsp_sources()
+
+    def test_validate_rtsp_sources_rejects_invalid_url(self):
+        for location in ["rtsp://host/a,b", "http://host/stream", ""]:
+            with self.subTest(location=location):
+                with self.assertRaises(ValueError) as cm:
+                    self._advanced_graph(location).validate_rtsp_sources()
+                self.assertIn("rtspsrc element '0'", str(cm.exception))
+
+    @patch("graph.probe_rtsp_codec", return_value="h264")
+    @patch("managers.camera_manager.CameraManager")
+    def test_determine_input_codec_probes_unknown_stream(
+        self, mock_manager_cls, mock_probe
+    ):
+        manager = mock_manager_cls.return_value
+        manager.get_network_camera_details_by_rtsp_url.return_value = None
+        manager.get_encoding_for_rtsp_url.return_value = None
+
+        self.assertEqual(self._advanced_graph().determine_input_codec(), "h264")
+        mock_probe.assert_called_once_with(self.URL)
+
+    @patch("graph.probe_rtsp_codec", return_value=None)
+    @patch("managers.camera_manager.CameraManager")
+    def test_determine_input_codec_probe_failure_returns_none(
+        self, mock_manager_cls, mock_probe
+    ):
+        manager = mock_manager_cls.return_value
+        manager.get_network_camera_details_by_rtsp_url.return_value = None
+        manager.get_encoding_for_rtsp_url.return_value = None
+
+        self.assertIsNone(self._advanced_graph().determine_input_codec())
+        mock_probe.assert_called_once()
+
+    @patch("graph.probe_rtsp_codec")
+    @patch("managers.camera_manager.CameraManager")
+    def test_determine_input_codec_prefers_onvif_profile(
+        self, mock_manager_cls, mock_probe
+    ):
+        details = MagicMock()
+        details.best_profile.encoding = "H265"
+        mock_manager_cls.return_value.get_network_camera_details_by_rtsp_url.return_value = details
+
+        self.assertEqual(self._advanced_graph().determine_input_codec(), "H265")
+        mock_probe.assert_not_called()
 
 
 if __name__ == "__main__":

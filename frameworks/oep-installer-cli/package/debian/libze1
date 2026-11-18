@@ -1,0 +1,33 @@
+configure_libze1 () {
+  version="$(ensure_parse_value_option version --version=1.32.0 "$@")"
+  libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb"
+}
+
+debian_15_profile_libze1 () {
+  echo "curl"
+}
+
+debian_15_install_libze1 () {
+  configure_libze1 "$@"
+
+  if [[ " $* " = *"edge_pack"* ]]; then
+    echo "Let edge pack handle libze1" >&2
+  elif ensure_apt_is_installed libze1=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "libze1 is installed." >&2
+  else
+    local deb="/tmp/$(basename "$libze1_deb")"
+    ensure_fetch "$libze1_deb" "$deb" && {
+      ensure_apt install -y "$deb" || {
+        ensure_apt purge -y level-zero level-zero-devel libze1
+        ensure_apt install -y --no-install-recommends "$deb"
+      }
+    }
+    ensure_rm "$deb"
+  fi
+}
+
+debian_15_sbom_libze1 () {
+  [[ " $* " != *"edge_pack"* ]] || return 0
+  configure_libze1 "$@"
+  ensure_sbom_format pkg-list "$libze1_deb"
+}

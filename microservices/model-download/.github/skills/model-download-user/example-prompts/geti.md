@@ -2,11 +2,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
 Download a trained object-detection model from an Intel Geti server:
-- Configure the Geti host, API token, workspace, and TLS verification setting
+- Configure the Geti host and TLS verification setting
 - Enable the Geti plugin
-- Download the latest optimized OpenVINO IR model
-- Show how to request a specific model version
+- Download the latest OpenVINO-optimized model variant
+- Show how to request a specific model or variant ID
 - Submit the job and poll it until completion
 - Verify the downloaded artifacts
 
-Explain when to choose an optimized export instead of a base framework export.
+Explain when to choose an OpenVINO-optimized variant instead of the base pytorch/onnx variant.

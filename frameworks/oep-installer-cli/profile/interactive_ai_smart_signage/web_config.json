@@ -1,0 +1,25 @@
+{
+  "profile": {
+    "label": "Interactive AI Smart Signage",
+    "value": "interactive_ai_smart_signage",
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
+  "modules": [
+    {
+      "label": "Digital Signage",
+      "value": "digital_signage",
+      "startStop": true, 
+      "remove": true
+    }
+  ],
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-retail.html"
+  },
+  "resources": [
+    {
+      "text": "Digital Signage",
+      "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
+    }
+  ]
+}

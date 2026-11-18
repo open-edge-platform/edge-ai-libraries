@@ -15,6 +15,9 @@ services:
             SEARCH_ENDPOINT: http://${VS_HOST:-video-search}:8000
             SEARCH_DATAPREP_ENDPOINT: http://${MM_DATAPREP_HOST:-multimodal-dataprep}:8000
             SEARCH_FEATURE: "FEATURE_ON"
+            VS_INDEX_NAME: ${VS_INDEX_NAME}
+            # Default minimum peak score for searches (0-1, 0 = off)
+            SEARCH_MIN_PEAK_SCORE: ${SEARCH_MIN_PEAK_SCORE:-0}
 
     video-search:
         image: ${REGISTRY:-}video-search:${TAG:-latest}
@@ -54,13 +57,15 @@ services:
             BATCH_JOB_TIMEOUT_SECONDS: ${VS_BATCH_JOB_TIMEOUT_SECONDS:-3600}
             # Frame-to-Video Aggregation Settings
             AGGREGATION_ENABLED: ${AGGREGATION_ENABLED:-true}
-            AGGREGATION_SEGMENT_DURATION: ${AGGREGATION_SEGMENT_DURATION:-8}
+            AGGREGATION_SEGMENT_DURATION: ${AGGREGATION_SEGMENT_DURATION:-10}
             AGGREGATION_MIN_GAP: ${AGGREGATION_MIN_GAP:-0}
             AGGREGATION_MAX_RESULTS: ${AGGREGATION_MAX_RESULTS:-20}
             AGGREGATION_INITIAL_K: ${AGGREGATION_INITIAL_K:-1000}
             AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: ${AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS:-0}
             AGGREGATION_PREFER_FULL_FRAME_SEEK: ${AGGREGATION_PREFER_FULL_FRAME_SEEK:-true}
             AGGREGATION_FULL_FRAME_SEEK_BAND: ${AGGREGATION_FULL_FRAME_SEEK_BAND:-0.06}
+            # Default minimum peak score for direct callers (Pipeline Manager always sends one)
+            SEARCH_MIN_PEAK_SCORE: ${SEARCH_MIN_PEAK_SCORE:-0}
         restart: unless-stopped
         volumes:
             - '${VS_WATCHER_DIR:-/dev/null}:/tmp/watcher-dir'
@@ -110,6 +115,7 @@ services:
             MM_DATAPREP_OV_MODELS_DIR: ${OV_MODELS_DIR:-/app/ov_models}
             MM_DATAPREP_EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
             MM_DATAPREP_MAX_PARALLEL_WORKERS: ${MAX_PARALLEL_WORKERS:-}
+            MM_DATAPREP_VIDEO_FRAME_TRANSPORT: ${VIDEO_FRAME_TRANSPORT:-heap}
             MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS: ${SDK_VIDEO_SHM_MAX_BLOCKS:-512}
             MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE: ${SDK_VIDEO_SHM_BLOCK_SIZE:-6220800}
             MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE: ${SDK_VIDEO_EXTRACTION_BATCH_SIZE:-256}
@@ -118,6 +124,7 @@ services:
             MM_DATAPREP_DETECTION_WORKER_THREADS: ${SDK_DETECTION_WORKER_THREADS:-2}
             MM_DATAPREP_EMBED_WORKER_THREADS: ${SDK_EMBED_WORKER_THREADS:-2}
             MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S: ${SDK_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+            MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S: ${MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S:-300}
             MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS: ${SAVE_RUNTIME_PIPELINE_STATS:-false}
             MM_DATAPREP_ENABLE_TRACING: ${SDK_ENABLE_TRACING:-false}
             MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS: ${VIDEO_FRAME_DECODER_WORKERS:-2}
@@ -125,13 +132,34 @@ services:
 
             # Frame processing settings
             MM_DATAPREP_FRAME_INTERVAL: ${FRAME_INTERVAL:-15}
-            MM_DATAPREP_ENABLE_OBJECT_DETECTION: ${ENABLE_OBJECT_DETECTION:-true}
+            MM_DATAPREP_ENABLE_OBJECT_DETECTION: ${DATAPREP_ENABLE_OBJECT_DETECTION:-true}
             MM_DATAPREP_DETECTION_CONFIDENCE: ${DETECTION_CONFIDENCE:-0.85}
             MM_DATAPREP_FRAMES_TEMP_DIR: ${FRAMES_TEMP_DIR:-/tmp/dataprep}
 
-            # YOLOX model volume configuration for object detection
-            MM_DATAPREP_DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
+            # Live (RTSP) stream ingestion
+            # Retention defaults to 24h here rather than the service default of
+            # 0 (keep forever): a live stream writes continuously, so an
+            # unbounded index is a guaranteed disk-exhaustion path in a demo
+            # deployment. Set LIVE_RETENTION_HOURS=0 to keep everything.
+            # LIVE_STREAM_MAX_CONCURRENT caps simultaneously ingesting cameras;
+            # further registrations return 503.
+            MM_DATAPREP_LIVE_STREAM_ENABLED: ${LIVE_STREAM_ENABLED:-true}
+            MM_DATAPREP_LIVE_RETENTION_HOURS: ${LIVE_RETENTION_HOURS:-24}
+            MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT: ${LIVE_STREAM_MAX_CONCURRENT:-8}
+
+            # Live-stream registry persistence (reuses the shared PostgreSQL
+            # instance; the registry is a separate `live_streams` table).
+            MM_DATAPREP_LIVE_STREAM_DB_HOST: ${POSTGRES_HOST:-postgres-service}
+            MM_DATAPREP_LIVE_STREAM_DB_PORT: ${POSTGRES_HOST_PORT:-5432}
+            MM_DATAPREP_LIVE_STREAM_DB_NAME: ${POSTGRES_DB:-video_summary_db}
+            MM_DATAPREP_LIVE_STREAM_DB_USER: ${POSTGRES_USER}
+            MM_DATAPREP_LIVE_STREAM_DB_PASSWORD: ${POSTGRES_PASSWORD}
+
+            # Object detection (Hugging Face OpenVINO model, cached in a volume)
+            MM_DATAPREP_DETECTION_MODEL_DIR: ${DETECTION_MODELS_MOUNT_PATH:-/app/models/object-detection}
+            MM_DATAPREP_DETECTION_MODEL_NAME: ${DATAPREP_DETECTION_MODEL:-}
             MM_DATAPREP_DETECTION_DEVICE: ${DATAPREP_DETECTION_DEVICE:-CPU}
+            MM_DATAPREP_DETECTION_CLASSES: ${DATAPREP_DETECTION_CLASSES:-}
 
             # ROI consolidation settings
             # ROI_CONSOLIDATION_IOU_THRESHOLD: IoU threshold used to cluster ROIs (higher = stricter merging)
@@ -162,6 +190,8 @@ services:
         depends_on:
             minio-service:
                 condition: service_healthy
+            postgres-service:
+                condition: service_healthy
         healthcheck:
             test:
                 [
@@ -175,7 +205,7 @@ services:
             retries: 40
             start_period: 5s
         volumes:
-            - '${YOLOX_MODELS_VOLUME_NAME:-dataprep-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
+            - '${DETECTION_MODELS_VOLUME_NAME:-dataprep-detection-models}:${DETECTION_MODELS_MOUNT_PATH:-/app/models/object-detection}'
             - data-prep:/tmp/dataprep
             - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
@@ -194,6 +224,10 @@ services:
         container_name: multimodal-embedding-serving
         ports:
             - '${EMBEDDING_SERVER_PORT:-9777}:8000'
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 65535
         ipc: host
         environment:
             no_proxy: ${no_proxy},${MINIO_HOST:-minio-service},${MM_DATAPREP_HOST:-multimodal-dataprep},localhost
@@ -305,5 +339,5 @@ volumes:
         driver: local
     data-prep:
         driver: local
-    dataprep-yolox-models:
+    dataprep-detection-models:
         driver: local

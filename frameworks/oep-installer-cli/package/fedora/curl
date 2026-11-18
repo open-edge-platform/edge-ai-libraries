@@ -1,0 +1,8 @@
+
+fedora_05_install_curl () {
+  ensure_dnf_install_package curl ca-certificates
+}
+
+fedora_05_sbom_curl () {
+  ensure_sbom_format pkg-list curl ca-certificates
+}

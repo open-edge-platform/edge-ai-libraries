@@ -1,0 +1,28 @@
+version = 1
+
+[[annotations]]
+path = [
+    "CMakeLists.txt",
+    "cmake/sift_extractorConfig.cmake.in",
+    "cmake/sift_extractor.pc.in",
+    "README.md",
+    "REUSE.toml",
+    "third_party_programs.txt",
+    "docs/**",
+    "scripts/**",
+    "python/**",
+    "include/sift_extractor/**",
+    "src/**",
+    "tests/**",
+    "benchmarks/**",
+    "samples/**",
+]
+SPDX-FileCopyrightText = "2026 Intel Corporation"
+SPDX-License-Identifier = "Apache-2.0"
+
+# CudaSift-derived SYCL reference sources retain MIT terms in addition to the
+# Apache-2.0 packaging of this component; see third_party_programs.txt.
+[[annotations]]
+path = ["src/sycl_reference/**"]
+SPDX-FileCopyrightText = "2026 Intel Corporation"
+SPDX-License-Identifier = "Apache-2.0 AND MIT"

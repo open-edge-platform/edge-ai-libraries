@@ -45,15 +45,16 @@ models:
 
 The file must be a regular UTF-8 `.yaml`, `.yml` file no larger than 1 MiB.
 Unknown fields, an empty model list, and malformed or unsupported values make the whole file
-invalid. If `STARTUP_MODELS_CONFIG` is unset, startup downloads are disabled. If it names a
-missing, unreadable, or invalid file, the service logs an actionable
+invalid. Startup downloads are enabled only when `STARTUP_MODELS_CONFIG` names a configuration
+file. If it is unset, startup downloads are disabled. If it names a missing, unreadable, or
+invalid file, the service logs an actionable
 `startup_models_config_unusable` error, schedules no models from that file, and continues serving.
 For a valid file, a model that cannot be submitted logs `startup_model_submission_failed` without
 preventing later entries from being scheduled.
 
 Do not store credentials in this file. Supply credentials through the existing environment
 variables, including `HUGGINGFACEHUB_API_TOKEN` for gated Hugging Face models and
-`GETI_HOST`, `GETI_TOKEN`, and `GETI_WORKSPACE_ID` for Geti software.
+`GETI_HOST` for Geti 3.0 software.
 
 ## Docker Compose
 

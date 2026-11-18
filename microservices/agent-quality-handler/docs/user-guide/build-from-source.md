@@ -30,16 +30,23 @@ Update `uv.lock` after intentionally changing dependencies with `uv lock`.
 To build and start the default fallback deployment in one command:
 
 ```bash
-export STORAGE_SERVICE_URL=http://host.docker.internal:5001
-docker compose -f docker/compose.yaml up --build -d
+./start.sh --build
 ```
 
-For LLM mode:
+Deployment defaults, including `STORAGE_SERVICE_URL` and `LLM_MODE`, are
+maintained in the configuration section of [`start.sh`](../../start.sh).
+Existing environment values override those defaults.
+
+Stop the deployment while preserving named volumes:
 
 ```bash
-export STORAGE_SERVICE_URL=http://host.docker.internal:5001
-export LLM_MODE=llm
-docker compose -f docker/compose.yaml --profile llm up --build -d
+./start.sh down
+```
+
+Stop the deployment and remove its named volumes:
+
+```bash
+./start.sh clean
 ```
 
 The default deployment includes the agent and a private MQTT broker.
@@ -54,4 +61,5 @@ docker compose -f docker/compose.yaml ps
 curl http://localhost:5002/health
 ```
 
-There is no `setup.sh`, multi-file `compose.base.yaml` deployment, UI, or Nginx layer in this standalone service.
+There is no multi-file `compose.base.yaml` deployment, UI, or Nginx layer in
+this standalone service.

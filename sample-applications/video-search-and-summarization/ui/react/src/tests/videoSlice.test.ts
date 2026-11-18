@@ -56,7 +56,6 @@ const createMockVideo = (overrides?: Partial<Video>): Video => ({
   updatedAt: '2024-01-01T10:00:00Z',
   summaries: ['summary-1'],
   textEmbeddings: true,
-  videoEmbeddings: false,
   dataStore: {
     bucket: 'test-bucket',
     objectName: 'test-object',

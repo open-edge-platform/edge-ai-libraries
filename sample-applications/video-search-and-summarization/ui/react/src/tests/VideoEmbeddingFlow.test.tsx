@@ -12,6 +12,7 @@ const loadTagsMock = vi.fn();
 const axiosPostMock = vi.fn();
 const axiosGetMock = vi.fn();
 let suggestedTagsMock = ['tag1', 'tag2'];
+let videosMock: any[] = [];
 
 let VideoEmbeddingFlow: React.ComponentType<{ onClose?: () => void }>;
 
@@ -107,7 +108,7 @@ vi.mock('../redux/store', () => ({
         suggestedTags: suggestedTagsMock,
       },
       video: {
-        videos: [],
+        videos: videosMock,
       },
     }),
 }));
@@ -140,6 +141,7 @@ describe('VideoEmbeddingFlow', () => {
   beforeEach(async () => {
     vi.resetModules();
     suggestedTagsMock = ['tag1', 'tag2'];
+    videosMock = [];
     notifyMock.mockClear();
     dispatchMock.mockClear();
     videosLoadMock.mockReset();
@@ -360,5 +362,217 @@ describe('VideoEmbeddingFlow', () => {
     await waitFor(() => expect(createObjectURLSpy).toHaveBeenCalled());
     unmount();
     expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:http://localhost/mock');
+  });
+
+  describe('selecting recent uploads', () => {
+    const makeVideo = (videoId: string, fileName: string, tags: string[], createdAt: string) => ({
+      videoId,
+      name: fileName,
+      url: `videos/${fileName}`,
+      tags,
+      createdAt,
+      dataStore: { bucket: 'videos', fileName },
+    });
+
+    beforeEach(() => {
+      videosMock = [
+        makeVideo('v1', 'one.mp4', ['common', 'onlyOne'], '2026-01-03T00:00:00Z'),
+        makeVideo('v2', 'two.mp4', ['common', 'onlyTwo'], '2026-01-02T00:00:00Z'),
+        makeVideo('v3', 'three.mp4', [], '2026-01-01T00:00:00Z'),
+      ];
+    });
+
+    const toggle = (videoId: string) => userEvent.click(screen.getByTestId(`recent-video-${videoId}`));
+
+    it('toggles several recent uploads in and out of the selection', async () => {
+      renderFlow();
+      await toggle('v1');
+      await toggle('v2');
+
+      expect(screen.getByTestId('recent-video-v1')).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByTestId('recent-video-v2')).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByText('2 videosSelected')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Next' })).not.toBeDisabled();
+
+      await toggle('v1');
+      expect(screen.getByTestId('recent-video-v1')).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByText(/selectedVideo: two\.mp4/)).toBeInTheDocument();
+
+      await toggle('v2');
+      expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    });
+
+    // Copies of recent uploads get fresh ids: v1 -> v1-copy, etc.
+    const copyResponder =
+      (failIds: string[] = []) =>
+      (url: string) => {
+        const match = url.match(/\/videos\/([^/]+)\/copy$/);
+        if (!match) {
+          return null;
+        }
+        return failIds.includes(match[1])
+          ? Promise.reject(new Error(`copy failed for ${match[1]}`))
+          : Promise.resolve({ data: { videoId: `${match[1]}-copy` } });
+      };
+
+    it('shows that selected recent uploads are added again as new videos', async () => {
+      renderFlow();
+      await toggle('v1');
+
+      expect(screen.getByTestId('existing-copy-hint')).toHaveTextContent('existingAddedAsNewCopy');
+    });
+
+    it('copies several recent uploads, then embeds the copies through one batch job', async () => {
+      const onClose = vi.fn();
+      let batchBody: unknown = null;
+      const copy = copyResponder();
+      axiosPostMock.mockImplementation((url: string, body: unknown) => {
+        const copied = copy(url);
+        if (copied) {
+          return copied;
+        }
+        if (url.includes('search-embeddings-batch')) {
+          batchBody = body;
+          return Promise.resolve({ data: { job_id: 'job-9', accepted: 2 } });
+        }
+        return Promise.reject(new Error(`unexpected POST ${url}`));
+      });
+      axiosGetMock.mockResolvedValue({
+        data: { job_id: 'job-9', state: 'completed', total: 2, completed: 2, failed: 0, items: [] },
+      });
+
+      renderFlow({ onClose });
+      await toggle('v1');
+      await toggle('v2');
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      expect(screen.getByTitle('one.mp4')).toBeInTheDocument();
+      expect(screen.getByTitle('two.mp4')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'CreateVideoEmbedding' }));
+
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+      expect(axiosPostMock).toHaveBeenCalledWith('http://localhost:3000/videos/v1/copy', { tags: 'common' });
+      expect(axiosPostMock).toHaveBeenCalledWith('http://localhost:3000/videos/v2/copy', { tags: 'common' });
+      expect(axiosPostMock).toHaveBeenCalledTimes(3);
+      expect(batchBody).toEqual({ videoIds: ['v1-copy', 'v2-copy'], tags: 'common' });
+      expect(axiosGetMock).toHaveBeenCalledWith('http://localhost:3000/videos/search-embeddings-jobs/job-9');
+      expect(notifyMock).toHaveBeenCalledWith('CreatingEmbeddings success', notificationSeverity.SUCCESS);
+    });
+
+    it('embeds the copies that succeeded and reports the ones that could not be copied', async () => {
+      let batchBody: unknown = null;
+      const copy = copyResponder(['v3']);
+      axiosPostMock.mockImplementation((url: string, body: unknown) => {
+        const copied = copy(url);
+        if (copied) {
+          return copied;
+        }
+        batchBody = body;
+        return Promise.resolve({ data: { job_id: 'job-9', accepted: 1 } });
+      });
+      axiosGetMock.mockResolvedValue({
+        data: { job_id: 'job-9', state: 'completed', total: 1, completed: 1, failed: 0, items: [] },
+      });
+
+      renderFlow();
+      await toggle('v1');
+      await toggle('v3');
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'CreateVideoEmbedding' }));
+
+      await waitFor(() =>
+        expect(notifyMock).toHaveBeenCalledWith(
+          '1/2 success. videoUploadError: three.mp4: copy failed for v3',
+          notificationSeverity.ERROR,
+        ),
+      );
+      expect(batchBody).toEqual({ videoIds: ['v1-copy'] });
+    });
+
+    it('does not submit a batch when no recent upload could be copied', async () => {
+      axiosPostMock.mockImplementation(copyResponder(['v1', 'v2']));
+
+      renderFlow();
+      await toggle('v1');
+      await toggle('v2');
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'CreateVideoEmbedding' }));
+
+      await waitFor(() =>
+        expect(notifyMock).toHaveBeenCalledWith(
+          'videoUploadError: one.mp4: copy failed for v1; two.mp4: copy failed for v2',
+          notificationSeverity.ERROR,
+        ),
+      );
+      expect(axiosPostMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports per-video failures from the batch job', async () => {
+      const copy = copyResponder();
+      axiosPostMock.mockImplementation(
+        (url: string) => copy(url) ?? Promise.resolve({ data: { job_id: 'job-9', accepted: 2 } }),
+      );
+      axiosGetMock.mockResolvedValue({
+        data: {
+          job_id: 'job-9',
+          state: 'completed_with_errors',
+          total: 2,
+          completed: 1,
+          failed: 1,
+          items: [{ identifier: 'v3-copy', status: 'error', message: 'boom' }],
+        },
+      });
+
+      renderFlow();
+      await toggle('v1');
+      await toggle('v3');
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'CreateVideoEmbedding' }));
+
+      await waitFor(() =>
+        expect(notifyMock).toHaveBeenCalledWith(
+          '1/2 success. videoUploadError: v3-copy: boom',
+          notificationSeverity.ERROR,
+        ),
+      );
+    });
+
+    it('copies one recent upload, then embeds the copy with the single-video call', async () => {
+      const copy = copyResponder();
+      axiosPostMock.mockImplementation(
+        (url: string) => copy(url) ?? Promise.resolve({ data: { status: 'success', message: 'done' } }),
+      );
+
+      renderFlow();
+      await toggle('v2');
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'CreateVideoEmbedding' }));
+
+      await waitFor(() => expect(axiosPostMock).toHaveBeenCalledTimes(2));
+      expect(axiosPostMock).toHaveBeenNthCalledWith(1, 'http://localhost:3000/videos/v2/copy', {
+        tags: 'common,onlyTwo',
+      });
+      expect(axiosPostMock).toHaveBeenNthCalledWith(2, 'http://localhost:3000/videos/search-embeddings/v2-copy', {
+        tags: 'common,onlyTwo',
+      });
+      expect(axiosGetMock).not.toHaveBeenCalled();
+    });
+
+    it('does not embed anything when the single copy fails', async () => {
+      axiosPostMock.mockImplementation(copyResponder(['v2']));
+
+      renderFlow();
+      await toggle('v2');
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await userEvent.click(screen.getByRole('button', { name: 'CreateVideoEmbedding' }));
+
+      await waitFor(() => expect(notifyMock).toHaveBeenCalledWith('copy failed for v2', notificationSeverity.ERROR));
+      expect(axiosPostMock).toHaveBeenCalledTimes(1);
+    });
   });
 });

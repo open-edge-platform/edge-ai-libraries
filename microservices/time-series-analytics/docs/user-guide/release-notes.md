@@ -1,8 +1,50 @@
 # Release Notes: Time Series Analytics
 
-<!--## Version 2026.2-->
+## Version 2026.3
 
-<!--date TBD-->
+**December 2026**
+
+This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.8.7**, and **a smaller containerized image**, along with dependency updates and documentation improvements.
+
+**New**
+
+- **Pipeline status APIs**: added endpoints to stop a running UDF task and check its status without shutting down Kapacitor.
+
+**Improved**
+
+- **Kapacitor**: built version 1.8.7 from source and kept build tools out of the runtime image.
+- **Smaller Containerized image**: Removed not used dependencies and simplified driver installation.
+- **Dependencies**: updated Python runtime, test, and simulator dependencies, including FastAPI, scikit-learn, asyncua, and protobuf.
+- **Deployment images**: updated Docker image versions to 2026.3.0 and refreshed the Python base image.
+- **Validation**: added shell linting to CI and corrected ShellCheck findings in startup scripts.
+- **Documentation**: improved component cross-links, standardized admonitions, and updated release documentation.
+
+**Fixed**
+
+- **Configuration API**: corrected the restart field to use a non-nullable boolean in the API and OpenAPI schema.
+- **Swagger UI**: fixed the display of the optional restart parameter.
+- **Classifier startup**: resolved CodeQL findings in startup handling.
+
+**Removed**
+
+- **Helm deployment**: Helm charts have been retired and are no longer maintained or distributed starting with version 2026.3. Use Docker Compose for deployment.
+
+## Version 2026.2
+
+**Release Date:** September 9, 2026
+
+This release introduces **updated Intel GPU driver support**, **removed Model Registry integration**, and **hardened path handling**, along with dependency upgrades and documentation improvements.
+
+**Improved**:
+
+- **Intel GPU driver support**: Updated the Intel® GPU driver/compute-runtime stack to version `26.27.39122`, adding the corresponding install script logic for the new driver and IGC packages.
+- **Deployment simplification**: Removed leftover Model Registry integration references (`MODEL_REGISTRY_URL` environment variable and related config) from Docker Compose and Helm deployment artifacts, and updated unit tests to match.
+- **Security**: Bumped Kapacitor to `1.8.6`, `python-multipart` to `0.0.32`, and `setuptools` to `83.0.0` in `requirements.txt`.
+- **Documentation**: Updated release notes structure, GitHub branch references, and Helm deployment links across the user guide.
+
+**Fixed**:
+
+- **Path traversal hardening**: Added `sanitize_dir_name()` validation before deriving UDF working directories from configuration/environment input, addressing an SDLe-reported vulnerability in `classifier_startup.py`.
 
 ## Version 2026.1
 

@@ -144,7 +144,12 @@ indexing, and audio analysis.
 
   Microservices providing a multi-level, temporal-enhanced approach to generate high quality summaries for video files, especially for long videos.
 
-### Data Preparation and Retrieval 
+- [Sensor Manager](./microservices/sensor-manager)
+
+  Microservice discovering USB and ONVIF network cameras and describing
+  their best capture configurations and RTSP media profiles.
+
+### Data Preparation and Retrieval
 
 Efficient data management and retrieval are crucial for AI performance
 and scalability. This group offers components for dataset curation,
@@ -166,6 +171,13 @@ vector search, and document ingestion across multimodal data. 
 
   Splits/segments video streams into chunks, supporting batch and
   pipeline-based analytics.
+
+### Developer Tools and SDKs
+
+- [OEP SDK Manager](./tools/oep-sdk-manager)
+
+  Discover and install SDKs for Intel edge AI development using an interactive
+  selector, installation scripts, and SDK-specific tutorials.
 
 ### Benchmarking Tools 
 
@@ -222,6 +234,19 @@ building blocks for manufacturing and factory automation applications. 
   real-time sensor and industrial device data; supports both edge
   analytics and integration with operational systems.
      
+### Computer Vision Primitives
+
+Cross-use-case vision building blocks that are not tied to a single robotics
+or media pipeline. These components expose installable C++ (and optional
+Python) APIs for feature extraction and related primitives on Intel CPUs/GPUs.
+
+- [SIFT Extractor](./libraries/sift-extractor)
+
+  SIFT feature extraction and matching for Intel CPUs and GPUs, with OpenCL
+  and SYCL backends, optional Python bindings, and OpenCV type adapters.
+  Suited to image registration, localization, reconstruction, inspection,
+  and retrieval.
+
 ### Robotics Libraries
 
 Optimized libraries for robotic perception, localization, mapping,
@@ -281,9 +306,17 @@ to help users get started quickly and understand integration patterns: 
   configure hardware, and validate platform readiness for Intel-based
   edge devices.
 
-> Visit the [Edge AI Suites](https://github.com/open-edge-platform/edge-ai-suites)
-  repository for a broader set of sample applications targeted at
-  specific industry segments. 
+> [!NOTE]
+> Visit the Edge AI Suites repositories for a broader set of sample applications targeted at
+> specific industry segments:
+>
+> - [Metro AI Suite](https://github.com/open-edge-platform/metro-ai-suite)
+> - [Manufacturing AI Suite](https://github.com/open-edge-platform/manufacturing-ai-suite)
+> - [Retail AI Suite](https://github.com/intel-retail/)
+> - [Robotics AI Suite](https://github.com/open-edge-platform/robotics-ai-suite)
+> - [Education AI Suite](https://github.com/open-edge-platform/education-ai-suite)
+> - [Health and Life Sciences AI Suite](https://github.com/open-edge-platform/health-and-life-sciences-ai-suite)
+> - [Federal and Aerospace AI Suite](https://github.com/open-edge-platform/federal-and-aerospace-ai-suite)
      
 ### Edge Analytics Microservices
 
@@ -380,6 +413,11 @@ The **Edge AI Libraries** project is licensed under the [APACHE 2.0](./LICENSE) 
 | Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/develop/LICENSE) |
 | Deep Learning Streamer | [MIT License](https://github.com/open-edge-platform/dlstreamer/blob/main/LICENSE) |
 
-Some of the software maintained under the Edge AI Libraries repository is intended for
-demonstration and reference purposes only. For more information, refer to
+## Intended Use
+
+Unless stated otherwise, software maintained under the Edge AI Libraries repository is intended
+for demonstration and reference purposes only.
+Certain features, such as authentication, TLS termination, and external access controls are
+assumed to be covered at the infrastructure level.
+For more information, refer to
 [Notes on Usage](https://docs.openedgeplatform.intel.com/dev/OEP-articles/notes-on-usage.html).

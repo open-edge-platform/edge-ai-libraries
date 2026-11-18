@@ -124,7 +124,9 @@ def build_app() -> FastAPI:
     # happens in ``initialize()``, which we call from the startup hook below.
     router = RouterOrchestrator(config, telemetry=telemetry)
 
-    max_concurrency = int(os.environ.get("GATEWAY_MAX_CONCURRENCY", "3"))
+    # Unlimited by default; set GATEWAY_MAX_CONCURRENCY to a positive integer
+    # to cap concurrent in-flight requests (excess requests get HTTP 429).
+    max_concurrency = int(os.environ.get("GATEWAY_MAX_CONCURRENCY") or "0")
     app = create_app(
         router,
         config,
@@ -227,8 +229,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-concurrency",
         type=int,
-        default=3,
-        help="Max concurrent requests (0 = unlimited)",
+        default=int(os.environ.get("GATEWAY_MAX_CONCURRENCY") or "0"),
+        help=(
+            "Max concurrent requests (default: unlimited; 0 = unlimited; "
+            "set GATEWAY_MAX_CONCURRENCY to override)"
+        ),
     )
     return parser.parse_args()
 

@@ -171,7 +171,7 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "border-border/50 bg-background grid min-w-[8rem] items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
+        "border-border/50 bg-background grid min-w-[8rem] items-start gap-1.5 border px-2.5 py-1.5 text-xs shadow-xl",
         className,
       )}
     >
@@ -292,7 +292,7 @@ function ChartLegendContent({
                 <itemConfig.icon />
               ) : (
                 <div
-                  className="h-2 w-2 shrink-0 rounded-[0.125rem]"
+                  className="h-2 w-2 shrink-0"
                   style={{
                     backgroundColor: item.color,
                   }}

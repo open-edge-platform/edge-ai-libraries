@@ -34,6 +34,21 @@ describe('Config Module', () => {
     expect(config.FEATURE_MUX).toBeDefined();
   });
 
+  // FEATURE_CAMERA_CONFIG and NVR_API_BASE drive the NVR camera-configuration
+  // modal. They are unused by this app's own compose files but are set by the
+  // Metro AI Suite "Live Video Search" deployment, which ships this same UI
+  // image. Removing or renaming them silently breaks that app, so they are
+  // asserted here explicitly.
+  it('should export FEATURE_CAMERA_CONFIG as a string', () => {
+    expect(typeof config.FEATURE_CAMERA_CONFIG).toBe('string');
+    expect(config.FEATURE_CAMERA_CONFIG).toBeDefined();
+  });
+
+  it('should export NVR_API_BASE as a string', () => {
+    expect(typeof config.NVR_API_BASE).toBe('string');
+    expect(config.NVR_API_BASE).toBeDefined();
+  });
+
   it('should export all required config constants', () => {
     // Verify all expected exports are present
     expect(config).toHaveProperty('APP_URL');
@@ -42,11 +57,19 @@ describe('Config Module', () => {
     expect(config).toHaveProperty('FEATURE_SUMMARY');
     expect(config).toHaveProperty('FEATURE_SEARCH');
     expect(config).toHaveProperty('FEATURE_MUX');
+    expect(config).toHaveProperty('FEATURE_CAMERA_CONFIG');
+    expect(config).toHaveProperty('NVR_API_BASE');
+    expect(config).toHaveProperty('FEATURE_LIVE_STREAMS');
   });
 
-  it('should have exactly 6 exported constants', () => {
+  it('should export FEATURE_LIVE_STREAMS as a string', () => {
+    expect(typeof config.FEATURE_LIVE_STREAMS).toBe('string');
+    expect(config.FEATURE_LIVE_STREAMS).toBeDefined();
+  });
+
+  it('should have exactly 9 exported constants', () => {
     const exportedKeys = Object.keys(config);
-    expect(exportedKeys).toHaveLength(6);
+    expect(exportedKeys).toHaveLength(9);
     expect(exportedKeys).toEqual(
       expect.arrayContaining([
         'APP_URL',
@@ -54,7 +77,10 @@ describe('Config Module', () => {
         'SOCKET_APPEND',
         'FEATURE_SUMMARY',
         'FEATURE_SEARCH',
-        'FEATURE_MUX'
+        'FEATURE_MUX',
+        'FEATURE_CAMERA_CONFIG',
+        'NVR_API_BASE',
+        'FEATURE_LIVE_STREAMS'
       ])
     );
   });

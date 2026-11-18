@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from typing import List
+from typing import List, Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     DEFAULT_LEVEL_SIZES: List = [1, 6, -1]                  # chunk group size for each level, -1 means use single group
     ## Subtitle payload size limit (bytes) for inline text or decompressed b64gzip
     MAX_SUBTITLE_BYTES: int = Field(10 * 1024 * 1024, env="MAX_SUBTITLE_BYTES")  # default: 10MB
+    VIDEO_ALLOWED_PATHS: List[str] = Field(
+        default_factory=lambda: ["/app", "/tmp"],
+        env="VIDEO_ALLOWED_PATHS",
+    )
+    PROMPT_URL_ALLOWLIST: List[str] = Field(
+        default_factory=list,
+        env="PROMPT_URL_ALLOWLIST",
+    )
     
     ## Frame processing settings
     DEFAULT_PROCESS_FPS: float = Field(1, env="DEFAULT_PROCESS_FPS")
@@ -67,6 +75,15 @@ class Settings(BaseSettings):
     ## Model serving request settings
     MODEL_REQUEST_TIMEOUT: int = Field(300, env="MODEL_REQUEST_TIMEOUT")        # Seconds
     MODEL_MAX_RETRIES: int = Field(3, env="MODEL_MAX_RETRIES")
+    MODEL_SERVING_BACKEND: Literal["llm-scaler", "vllm-xpu", "ovms"] = Field(
+        "llm-scaler",
+        description="Model-serving backend used to select the video request encoding.",
+    )
+
+    @property
+    def VLM_VIDEO_FORMAT(self) -> Literal["vllm", "ovms"]:
+        """Video encoding derived from the backend, never from a format environment variable."""
+        return "ovms" if self.MODEL_SERVING_BACKEND == "ovms" else "vllm"
     
     # Inference parameters
     LLM_REMOVE_THINKING: bool = True

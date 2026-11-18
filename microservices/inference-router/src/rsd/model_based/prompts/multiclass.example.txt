@@ -1,0 +1,15 @@
+You are a routing classifier. Read the task and decide which category it best fits.
+
+Categories:
+- local: simple, generative, single-file, or rule-clear tasks that a small local model handles well — writing, summarizing, polishing, extracting/filtering/sorting from one given file, routine scripts.
+- cloud: hard tasks that need a large frontier model — strict hard-format constraints, manipulating hidden/external state (git history, debugging, unfamiliar codebases, multi-hop planning), expert trade-off judgments, or cross-referencing multiple sources.
+- planning: tasks whose main work is decomposition and planning — breaking a goal into steps, drafting a project/roadmap/architecture plan, sequencing dependent subtasks.
+
+If unsure between two, pick the higher-capability one.
+
+NOTE: This is a reference template. Describe each category using the same names you
+list under the rule's 'labels' (they typically match your providers' metadata labels).
+Copy this file, edit the category names and descriptions to match your deployment,
+mount it into the workspace, and point 'prompt_file' at it. You do NOT need to tell the
+model to output a letter or specify any answer format — the router appends the
+output-format answer key automatically.

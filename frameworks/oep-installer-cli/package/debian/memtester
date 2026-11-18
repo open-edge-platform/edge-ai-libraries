@@ -1,0 +1,13 @@
+
+debian_45_install_memtester () {
+  ensure_apt_install_package memtester
+}
+
+debian_45_remove_memtester () {
+  ensure_apt_remove_package memtester
+}
+
+debian_45_sbom_memtester () {
+  ensure_sbom_format pkg-list memtester
+}
+

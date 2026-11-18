@@ -34,6 +34,8 @@ not executed, because it exports env vars into the shell):
 
 Other `setup.sh` verbs: `config` (render config without starting), `--stop`
 (`--down`), `--clean-data`, `--help`. Use the `vss-deploy` skill to drive these.
+Every deployment also starts the **MCP tool server** (`docker/compose.mcp.yaml`)
+itself; it is brought down with `--stop`.
 
 ## Architecture at a Glance
 
@@ -58,13 +60,13 @@ gateway. Core services (see `docker/compose.*.yaml`):
 |---|---|
 | `setup.sh` | Deploy/stop/clean entrypoint; composes `docker/compose.*.yaml` by mode. |
 | `build.sh` | Build/push images from source (true source build; see `vss-build`). |
-| `docker/` | Per-concern Compose files (`compose.base`, `.summary`, `.search`, `.vllm`, `.ui`, `.telemetry`, `.gpu_ovms`). |
+| `docker/` | Per-concern Compose files (`compose.base`, `.summary`, `.search`, `.vllm`, `.ui`, `.telemetry`, `.gpu_ovms`, `.mcp`). |
 | `config/` | Runtime config; `config/nginx/` holds gateway routing (`nginx.conf`, `dual_ui.conf`, `singleton_ui.conf`). |
 | `pipeline-manager/` | NestJS/TypeScript orchestrator + `/manager` API. |
 | `search-ms/` | Python (Poetry, `^3.11`) video-search microservice. |
 | `video-ingestion/` | Python ingestion service. |
-| `mcp/` | MCP server exposing VSS Search to AI agents. |
-| `cli/` | Go (`go 1.23`) summarizer CLI. |
+| `mcp/` | MCP tool server exposing VSS search and summary to AI agents; runs with every VSS deployment (`docker/compose.mcp.yaml`). `mcp/compose.yaml` is a dev-only stack with MCP Inspector. |
+| `cli/` | Go (`go 1.26`) summarizer CLI. |
 | `ui/react/` | React front-end(s). |
 | `chart/` | Helm chart for Kubernetes deployment. |
 | `docs/` | User/developer documentation. |
@@ -73,7 +75,7 @@ gateway. Core services (see `docker/compose.*.yaml`):
 ## Tech Stack
 
 NestJS + TypeScript (pipeline-manager), Python 3.11 + Poetry (search-ms,
-video-ingestion, mcp), Go 1.23 (cli), React (ui), Docker Compose for local
+video-ingestion, mcp), Go 1.26 (cli), React (ui), Docker Compose for local
 deploy and Helm for Kubernetes. Inference via vLLM or OpenVINO Model Server.
 
 ## Conventions
@@ -98,7 +100,8 @@ relevant skill, then read that skill's `SKILL.md`.
 | Check health, detect running mode, or debug containers | `vss-troubleshoot` |
 | Build or push VSS Docker images | `vss-build` |
 | Summarize videos through Pipeline Manager | `vss-summarize-video` |
-| Upload, index, or search videos | `vss-search-index` |
+| Upload, index, or search videos (text or image) | `vss-search-index` |
+| Run, debug (MCP Inspector) or extend the MCP server | `vss-mcp-integration` |
 
 ## Skill Loading Rules
 

@@ -22,8 +22,9 @@ Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python
 
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 
-> **Note:** Detailed documentation for Deep Learning Streamer Pipeline Server can be found on
-[the documentation website](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer-pipeline-server/index.html).
+> [!NOTE]
+> Detailed documentation for Deep Learning Streamer Pipeline Server can be found on
+> [the documentation website](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer-pipeline-server/index.html).
 
 ## Architecture
 
@@ -42,8 +43,8 @@ Follow the steps in this section to quickly pull the latest pre-built Deep Learn
 - Clone the repository and change to the docker directory inside DL Streamer Pipeline Server project:
 
   ```sh
-    git clone <link-to-repository>
-    cd <path/to/dlstreamer-pipeline-server/docker>
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+    cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
   ```
 
 - Pull the image with the latest tag from registry:
@@ -94,7 +95,8 @@ Open another terminal and send the following curl request:
 }'
 ```
 
-> **Note:** Frame destinations support `overlay` and optional `overlay-properties`.
+> [!NOTE]
+> Frame destinations support `overlay` and optional `overlay-properties`.
 >
 > - If `"overlay": true`, frames are streamed with `gvawatermark` applied.
 > - If `"overlay": false`, frames are streamed without `gvawatermark`, and `frame.overlay-properties` is ignored.
@@ -158,9 +160,13 @@ Now you have successfully run the Deep Learning Streamer Pipeline Server contain
 
 ## Build from source
 
-You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the OpenVINO Model API and ROS2 on top of the optimized image.
+You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the OpenVINO Model API and ROS2 on top of the optimized image. The Geti SDK has not been included in DLSPS images since the 2026.3 release. Its upstream repository is archived and deprecated, is no longer maintained, supports Geti v2.x but not v3.0+, and reports known security issues. Geti-specific model download and inference features are therefore unavailable in these images.
 
-Note: Ensure to set the right values in the [.env file](./docker/.env) for building DL Streamer Pipeline Server optimized image and DL Streamer Pipeline Server extended image when you follow the below steps. The mentioned file has the necessary details written as comments.
+> [!NOTE]
+> Ensure to set the right values in the [.env file](./docker/.env) for building
+> DL Streamer Pipeline Server optimized image > and DL Streamer Pipeline Server
+> extended image when you follow the below steps. The mentioned file has the
+> necessary details written as comments.
 
 ### Prerequisites
 
@@ -185,7 +191,8 @@ Update the following lines in [.env file](./docker/.env) for choosing the right 
   BUILD_TARGET=
   ```
 
-  > **Note:** If you do not have access to the above mentioned `BASE_IMAGE`, then you can build [DL Streamer docker image from source](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/advanced_install/advanced_build_docker_image.md) and use it as `BASE_IMAGE` in the above mentioned `.env` file
+  > [!NOTE]
+  > If you do not have access to the above mentioned `BASE_IMAGE`, then you can build [DL Streamer docker image from source](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/advanced_install/advanced_build_docker_image.md) and use it as `BASE_IMAGE` in the above mentioned `.env` file
 
 ### Build Deep Learning Streamer Pipeline Server image and start container <a name="build-image-and-start-container"></a>
 

@@ -12,12 +12,15 @@ ViPPET provides two benchmarking modes for evaluating AI inference pipeline perf
     incremented by the same algorithm. See
     [Stream Density Testing](./benchmarking/density-testing.md) for details.
 
-Both modes share a common execution configuration and report results through the same job management system.
+  Both modes share a common execution configuration and report results through the same job management system.
+
+- **Benchmark Suites** - Run prepared suites containing set of performance tests of predefined pipelines.
 
 For detailed instructions, see:
 
 - [Performance Testing](./benchmarking/performance-testing.md)
 - [Stream Density Testing](./benchmarking/density-testing.md)
+- [Benchmark Suites](./benchmarking/benchmark-suites.md)
 - [Managing Jobs](./benchmarking/managing-jobs.md)
 
 ## Key concepts
@@ -35,10 +38,10 @@ For detailed instructions, see:
 ## Workflow overview
 
 1. **Configure** — Select pipelines, set stream counts or density parameters, and choose output options.
-2. **Run** — Start the test; ViPPET creates a job and begins executing pipelines as subprocesses.
-3. **Monitor** — Real-time system metrics (CPU, GPU, NPU, memory, power) and pipeline metrics (FPS)
+1. **Run** — Start the test; ViPPET creates a job and runs the pipelines on DL Streamer Pipeline Server 2.0.
+1. **Monitor** — Real-time system metrics (CPU, GPU, NPU, memory, power) and pipeline metrics (FPS)
    are displayed in the dashboard while the job runs.
-4. **Review results** — When the job completes, view final FPS and output videos in the job detail view.
+1. **Review results** — When the job completes, view final FPS and output videos in the job detail view.
 
 <!--hide_directive
 :::{toctree}
@@ -47,6 +50,8 @@ For detailed instructions, see:
 ./benchmarking/performance-testing
 ./benchmarking/density-testing
 ./benchmarking/managing-jobs
+./benchmarking/benchmark-export.md
+./benchmarking/benchmark-suites.md
 
 :::
 hide_directive-->

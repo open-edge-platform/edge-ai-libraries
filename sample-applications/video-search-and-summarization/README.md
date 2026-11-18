@@ -12,7 +12,7 @@ This foundational sample application provides four deployment modes:
 | Mode | Setup Command | Usage | Capability |
 |---|---|---|---|
 | 📝 Summary | `source setup.sh --summary` | Create concise summaries of long-form videos or live streams, automatically. | Combine insights from different data types using Generative AI Vision Language Models (VLMs), computer vision, and audio analysis. |
-| 🔍 Search | `source setup.sh --search` | Find specific content within large video datasets through natural language. | Extract and index visual, audio, and textual features from video frames using multimodal embedding models. Query using natural language. |
+| 🔍 Search | `source setup.sh --search` | Find specific content within large video datasets, or across live RTSP cameras, through natural language. | Extract and index visual, audio, and textual features from video frames using multimodal embedding models. Continuously index live RTSP camera streams. Query using natural language. |
 | 🔀 Dual UI | `source setup.sh --summary --search` | Run summarization and search side-by-side with separate UIs. | Both summary and search capabilities with independent UI instances. |
 | 🔗 Unified UI | `source setup.sh --summary-and-search` | Create summaries of videos and search for specific content in a single unified UI. | Search over video summary's text embeddings for more relevant results. |
 
@@ -36,7 +36,12 @@ The detailed documentation to help you get started, configure, and deploy the sa
   - [How to Build from Source](./docs/user-guide/build-from-source.md): How to build from source code.
   - [How to Deploy with Helm](./docs/user-guide/deploy-with-helm.md): How to deploy using the Helm chart.
 
+- **Features**
+  - [Geo Spatial Map View](./docs/user-guide/geo-spatial-map-view.md): Show search results as pins on a map.
+
 - **AI Agent Integration**
+  - [Agentic Video Analytics](./docs/user-guide/agentic-video-analytics.md): Use AI agents such as Claude Code, OpenClaw, and Hermes Agent with the VSS MCP server to review incidents, find people, track them across cameras, and get customized summaries.
+  - [Build Visual AI Agents with VSS](./docs/user-guide/visual-ai-agents.md): Build a visual AI agent: install Hermes with a model on OpenVINO Model Server, and connect it to the VSS MCP server on one Intel host.
   - [MCP Server](./docs/user-guide/mcp-server.md): Connect AI agents to VSS Search using the Model Context Protocol (MCP).
   - [Agent Skills](./AGENTS.md): Discover reusable VSS workflow skills for Codex, Copilot CLI, Claude Code, and other coding agents.
 

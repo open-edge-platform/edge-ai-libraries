@@ -17,18 +17,21 @@ import shutil
 import time
 import json
 import signal
-import subprocess
+import subprocess  # nosec B404 # used only for subprocess exception handling
 import threading
 import tarfile
 from typing import Optional
+from urllib.parse import quote
 import requests
 
 from fastapi import FastAPI, File, HTTPException, Response, status, Request, Query, BackgroundTasks, UploadFile
+from fastapi.openapi.docs import get_swagger_ui_html
 from pydantic import BaseModel
-from starlette.responses import JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse
 import uvicorn
 import classifier_startup
 from opcua_alerts import OpcuaAlerts
+from common_utils import exec_command
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
@@ -42,7 +45,23 @@ logging.basicConfig(
 logger = logging.getLogger()
 
 REST_API_ROOT_PATH = os.getenv('REST_API_ROOT_PATH', '/')
-app = FastAPI(root_path=REST_API_ROOT_PATH)
+app = FastAPI(root_path=REST_API_ROOT_PATH, docs_url=None)
+
+@app.get("/docs", include_in_schema=False)
+async def swagger_ui(request: Request):
+    root_path = request.scope.get("root_path", "").rstrip("/")
+    docs = get_swagger_ui_html(
+        openapi_url=f"{root_path}{app.openapi_url}",
+        oauth2_redirect_url=(
+            f"{root_path}{app.swagger_ui_oauth2_redirect_url}"
+            if app.swagger_ui_oauth2_redirect_url
+            else None
+        ),
+        title=f"{app.title} - Swagger UI",
+    )
+    css = "<style>.swagger-ui select option[value=''] { display: none; }</style>"
+    html = docs.body.decode("utf-8").replace("</head>", f"{css}</head>", 1)
+    return HTMLResponse(html)
 
 KAPACITOR_URL = os.getenv('KAPACITOR_URL', 'http://localhost:9092').rstrip('/')
 CONFIG_FILE = "/app/config.json"
@@ -171,8 +190,8 @@ def stop_kapacitor_service():
             task_id = tasks[0].get('id')
             print("Stopping Kapacitor tasks:", task_id)
             logger.info("Stopping Kapacitor tasks: %s", task_id)
-            subprocess.run(["kapacitor", "disable", task_id], check=False)
-            _kill_processes_by_name("kapacitord")
+            exec_command(["kapacitor", "disable", task_id], check=False)
+        _kill_processes_by_name("kapacitord")
     except subprocess.CalledProcessError as error:
         logger.error("Error stopping Kapacitor service: %s", error)
 
@@ -181,6 +200,64 @@ def restart_kapacitor():
     """Restart the Kapacitor service."""
     stop_kapacitor_service()
     start_kapacitor_service(config)
+
+
+@app.post("/stop_pipeline", responses={
+    409: {"description": "No UDF task is configured or the expected task does not match"},
+    502: {"description": "Kapacitor daemon failed to stop"},
+    503: {"description": "Kapacitor is unavailable"},
+})
+def stop_pipeline(expected_task_id: Optional[str] = None):
+    """Stop the Kapacitor daemon while retaining the configured UDF assets."""
+    task_id = config.get("udfs", {}).get("name")
+    if not isinstance(task_id, str) or not task_id:
+        raise HTTPException(status_code=409, detail="No UDF task is configured")
+    if expected_task_id is not None and expected_task_id != task_id:
+        raise HTTPException(status_code=409, detail="Configured UDF task does not match the requested task")
+
+    try:
+        stop_kapacitor_service()
+        deadline = time.monotonic() + 10
+        while True:
+            health = health_check(Response())
+            if health["status"] == "Kapacitor daemon is not running":
+                break
+            if time.monotonic() >= deadline:
+                raise HTTPException(status_code=502, detail="Kapacitor daemon did not stop")
+            time.sleep(0.1)
+    except requests.exceptions.RequestException as error:
+        raise HTTPException(status_code=503, detail="Kapacitor is unavailable") from error
+
+    return {"status": "success", "task_id": task_id}
+
+
+@app.get("/pipeline_status", responses={
+    409: {"description": "No UDF task is configured or the expected task does not match"},
+    502: {"description": "Kapacitor failed to retrieve the task"},
+    503: {"description": "Kapacitor is unavailable"},
+})
+def pipeline_status(expected_task_id: Optional[str] = None):
+    """Return the status of the configured UDF task."""
+    task_id = config.get("udfs", {}).get("name")
+    if not isinstance(task_id, str) or not task_id:
+        raise HTTPException(status_code=409, detail="No UDF task is configured")
+    if expected_task_id is not None and expected_task_id != task_id:
+        raise HTTPException(status_code=409, detail="Configured UDF task does not match the requested task")
+
+    try:
+        response = requests.get(
+            f"{KAPACITOR_URL}/kapacitor/v1/tasks/{quote(task_id, safe='')}", timeout=30,
+        )
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as error:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Kapacitor failed to retrieve the task: HTTP {error.response.status_code}",
+        ) from error
+    except requests.exceptions.RequestException as error:
+        raise HTTPException(status_code=503, detail="Kapacitor is unavailable") from error
+
+    return {"task_id": task_id, "status": response.json()["status"]}
 
 
 @app.get("/health")
@@ -390,9 +467,9 @@ async def receive_data(data_point: DataPoint):
 @app.get("/config")
 async def get_config(
     request: Request,
-    restart: Optional[bool] = Query(False,
-                                   description="Restart the Time Series Analytics "
-                                             "Microservice UDF deployment if true"),
+    restart: bool = Query(False,
+                          description="Restart the Time Series Analytics "
+                                      "Microservice UDF deployment if true"),
     background_tasks: BackgroundTasks = None):
     """
     Endpoint to retrieve the current configuration of the input service.
@@ -907,7 +984,7 @@ if __name__ == "__main__":  # pragma: no cover
     # Start the FastAPI server
     def run_server():
         """Run the FastAPI server."""
-        uvicorn.run(app, host="0.0.0.0", port=5000)
+        uvicorn.run(app, host="0.0.0.0", port=5000)  # nosec B104 # container API must listen on its network interface
 
     server_thread = threading.Thread(target=run_server)
     server_thread.start()

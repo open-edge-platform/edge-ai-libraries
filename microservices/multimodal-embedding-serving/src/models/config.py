@@ -157,6 +157,18 @@ MODEL_CONFIGS = {
             "image_probs": default_image_probs,
         },
     },
+    "MarketaJu": {
+        "siglip2-person-description-reid": {
+            "hf_model_id": "MarketaJu/siglip2-person-description-reid",
+            "revision": "196e5d6f384bde2d711ad07d432b762f777af747",
+            "processor_id": "google/siglip2-base-patch16-224",
+            "image_size": 224,
+            "max_length": 64,
+            "weight_format": "int8",
+            "handler_class": "SigLIPTransformersHandler",
+            "image_probs": default_image_probs,
+        },
+    },
     "SigLIP": {
         "siglip2-vit-b-16": {
             "model_name": "ViT-B-16-SigLIP2",
@@ -221,7 +233,41 @@ MODEL_CONFIGS = {
             "trust_remote_code": True,
         },
     },
+    "GME": {
+        "gme-qwen2-vl-2b-instruct": {
+            "hf_model_id": "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct",
+            # Precision comes from GME_PRECISION (int8 default, int4, fp32);
+            # non-INT8 packages get a "-<precision>" suffix on this directory.
+            "package_dir": "gme-qwen2-vl-2b-instruct-openvino",
+            "handler_class": "GMEHandler",
+        },
+    },
 }
+
+
+MODEL_ALIASES = {
+    "SigLIP/siglip2-person-description-reid": "MarketaJu/siglip2-person-description-reid",
+    "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct": "GME/gme-qwen2-vl-2b-instruct",
+}
+
+
+def resolve_model_id(model_id: str) -> str:
+    """
+    Return the registered "type/name" for a model ID, alias or bare name.
+
+    Raises:
+        ValueError: If the model is not registered
+    """
+    model_id = MODEL_ALIASES.get(model_id, model_id)
+    if "/" in model_id:
+        model_type, model_name = model_id.split("/", 1)
+        if model_name in MODEL_CONFIGS.get(model_type, {}):
+            return model_id
+    else:
+        for model_type, models in MODEL_CONFIGS.items():
+            if model_id in models:
+                return f"{model_type}/{model_id}"
+    raise ValueError(f"Model {model_id} not found")
 
 
 def get_model_config(model_id: str, device=None, ov_models_dir=None, use_openvino=None) -> dict:
@@ -229,7 +275,7 @@ def get_model_config(model_id: str, device=None, ov_models_dir=None, use_openvin
     Get model configuration by model ID with optional parameter overrides.
     
     Args:
-        model_id (str): Model identifier in format "type/name" or just "name"
+        model_id (str): Registered "type/name", Hugging Face ID, alias, or bare name
         device (str, optional): Device for inference (e.g., "CPU")
         ov_models_dir (str, optional): Directory for OpenVINO models
         use_openvino (bool, optional): Whether to use OpenVINO
@@ -240,6 +286,8 @@ def get_model_config(model_id: str, device=None, ov_models_dir=None, use_openvin
     Raises:
         ValueError: If model is not found
     """
+    model_id = MODEL_ALIASES.get(model_id, model_id)
+
     # Handle both "type/name" and "name" formats
     if "/" in model_id:
         model_type, model_name = model_id.split("/", 1)

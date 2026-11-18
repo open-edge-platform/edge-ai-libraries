@@ -1,0 +1,39 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: OEP SDK Manager Tests
+
+on: # yamllint disable-line rule:truthy
+  pull_request:
+    paths:
+      - 'tools/oep-sdk-manager/**'
+      - '.github/workflows/oep-sdk-manager-tests.yaml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/oep-sdk-manager/**'
+      - '.github/workflows/oep-sdk-manager-tests.yaml'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  offline-tests:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Verify ShellCheck availability
+        run: shellcheck --version
+      - name: Validate scripts and tutorials
+        run: bash tools/oep-sdk-manager/tests/run_tests.sh --offline
+      - name: Validate selector JavaScript syntax
+        run: |
+          node --check tools/oep-sdk-manager/docs/oep-sdk-manager-files/config.js
+          node --check tools/oep-sdk-manager/docs/oep-sdk-manager-files/iframe-resizer.js

@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 import types
 import builtins
 import asyncio
+from common_utils import assert_condition
 
 # Patch sys.modules for external dependencies
 sys.modules["classifier_startup"] = mock.Mock()
@@ -35,21 +36,21 @@ def test_health_check_running(monkeypatch):
         status_code = 200
     monkeypatch.setattr(main.requests, "get", lambda *a, **k: MockResponse())
     resp = client.get("/health")
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "kapacitor daemon is running"
+    assert_condition(resp.status_code == 200)
+    assert_condition(resp.json()["status"] == "Kapacitor daemon is running")
 
 def test_health_check_not_running(monkeypatch):
     def raise_conn_err(*a, **k):
         raise main.requests.exceptions.ConnectionError()
     monkeypatch.setattr(main.requests, "get", raise_conn_err)
     resp = client.get("/health")
-    assert resp.status_code == 503
-    assert "kapacitor daemon not running" in resp.json()["status"]
+    assert_condition(resp.status_code == 503)
+    assert_condition("Kapacitor daemon is not running" in resp.json()["status"])
 
 def test_receive_data_success(monkeypatch):
     class MockHealthResp:
-        def __getitem__(self, k): return "kapacitor daemon is running"
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "kapacitor daemon is running"})
+        def __getitem__(self, k): return "Kapacitor daemon is running"
+    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
     class MockResp:
         status_code = 204
         text = ""
@@ -61,8 +62,8 @@ def test_receive_data_success(monkeypatch):
         "timestamp": 1718000000000000000
     }
     resp = client.post("/input", json=data)
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "success"
+    assert_condition(resp.status_code == 200)
+    assert_condition(resp.json()["status"] == "success")
 
 def test_receive_data_kapacitor_down(monkeypatch):
     monkeypatch.setattr(main, "health_check", lambda r: {"status": "kapacitor daemon is not running"})
@@ -73,14 +74,160 @@ def test_receive_data_kapacitor_down(monkeypatch):
         "timestamp": 1718000000000000000
     }
     resp = client.post("/input", json=data)
-    assert resp.status_code == 503
-    assert "Kapacitor daemon is not running" in resp.json()["detail"]
+    assert_condition(resp.status_code == 503)
+    assert_condition("Kapacitor daemon is not running" in resp.json()["detail"])
 
 def test_get_config(monkeypatch):
     resp = client.get("/config")
-    assert resp.status_code == 200
-    assert "udfs" in resp.json()
-    assert "alerts" in resp.json()
+    assert_condition(resp.status_code == 200)
+    assert_condition("udfs" in resp.json())
+    assert_condition("alerts" in resp.json())
+
+@pytest.mark.parametrize("expected_task_id", [None, "udf_name"])
+def test_stop_pipeline_stops_daemon(monkeypatch, expected_task_id):
+    stop_daemon = mock.Mock()
+    monkeypatch.setattr(main, "stop_kapacitor_service", stop_daemon)
+    monkeypatch.setattr(
+        main, "health_check", lambda response: {"status": "Kapacitor daemon is not running"}
+    )
+
+    params = {"expected_task_id": expected_task_id} if expected_task_id else None
+    resp = client.post("/stop_pipeline", params=params)
+
+    assert_condition(resp.status_code == 200)
+    assert_condition(resp.json() == {"status": "success", "task_id": "udf_name"})
+    stop_daemon.assert_called_once_with()
+
+def test_stop_pipeline_preserves_task_id(monkeypatch):
+    task_id = "sensor/zone #1"
+    main.config["udfs"]["name"] = task_id
+    monkeypatch.setattr(main, "stop_kapacitor_service", mock.Mock())
+    monkeypatch.setattr(
+        main, "health_check", lambda response: {"status": "Kapacitor daemon is not running"}
+    )
+
+    resp = client.post("/stop_pipeline", params={"expected_task_id": task_id})
+
+    assert_condition(resp.status_code == 200)
+    assert_condition(resp.json() == {"status": "success", "task_id": task_id})
+
+def test_stop_pipeline_without_configured_task(monkeypatch):
+    main.config["udfs"] = {}
+    stop_daemon = mock.Mock()
+    monkeypatch.setattr(main, "stop_kapacitor_service", stop_daemon)
+
+    resp = client.post("/stop_pipeline")
+
+    assert_condition(resp.status_code == 409)
+    assert_condition(resp.json()["detail"] == "No UDF task is configured")
+    stop_daemon.assert_not_called()
+
+def test_stop_pipeline_rejects_different_configured_task(monkeypatch):
+    stop_daemon = mock.Mock()
+    monkeypatch.setattr(main, "stop_kapacitor_service", stop_daemon)
+
+    resp = client.post("/stop_pipeline", params={"expected_task_id": "other_task"})
+
+    assert_condition(resp.status_code == 409)
+    assert_condition(resp.json()["detail"] == "Configured UDF task does not match the requested task")
+    stop_daemon.assert_not_called()
+
+def test_stop_pipeline_reports_kapacitor_failures(monkeypatch):
+    stop_daemon = mock.Mock(side_effect=main.requests.exceptions.ConnectionError("Connection refused"))
+    monkeypatch.setattr(main, "stop_kapacitor_service", stop_daemon)
+
+    unavailable = client.post("/stop_pipeline")
+
+    assert_condition(unavailable.status_code == 503)
+    assert_condition(unavailable.json()["detail"] == "Kapacitor is unavailable")
+
+    stop_daemon.side_effect = None
+    monkeypatch.setattr(
+        main, "health_check", lambda response: {"status": "Kapacitor daemon is running"}
+    )
+    monkeypatch.setattr(
+        main, "time", types.SimpleNamespace(monotonic=mock.Mock(side_effect=[0, 10]))
+    )
+
+    rejected = client.post("/stop_pipeline")
+
+    assert_condition(rejected.status_code == 502)
+    assert_condition(rejected.json()["detail"] == "Kapacitor daemon did not stop")
+
+@pytest.mark.parametrize("task_status", ["enabled", "disabled"])
+@pytest.mark.parametrize("expected_task_id", [None, "udf_name"])
+def test_pipeline_status_reports_configured_task(monkeypatch, task_status, expected_task_id):
+    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
+    get_task = mock.Mock(return_value=mock.Mock(json=lambda: {"status": task_status}))
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    params = {"expected_task_id": expected_task_id} if expected_task_id else None
+    resp = client.get("/pipeline_status", params=params)
+
+    assert_condition(resp.status_code == 200)
+    assert_condition(resp.json() == {"task_id": "udf_name", "status": task_status})
+    get_task.assert_called_once_with("http://kapacitor:9092/kapacitor/v1/tasks/udf_name", timeout=30)
+
+def test_pipeline_status_quotes_task_id(monkeypatch):
+    task_id = "sensor/zone #1"
+    main.config["udfs"]["name"] = task_id
+    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
+    get_task = mock.Mock(return_value=mock.Mock(json=lambda: {"status": "enabled"}))
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    resp = client.get("/pipeline_status", params={"expected_task_id": task_id})
+
+    assert_condition(resp.status_code == 200)
+    assert_condition(resp.json() == {"task_id": task_id, "status": "enabled"})
+    get_task.assert_called_once_with(
+        "http://kapacitor:9092/kapacitor/v1/tasks/sensor%2Fzone%20%231", timeout=30,
+    )
+
+def test_pipeline_status_without_configured_task(monkeypatch):
+    main.config["udfs"] = {}
+    get_task = mock.Mock()
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    resp = client.get("/pipeline_status")
+
+    assert_condition(resp.status_code == 409)
+    assert_condition(resp.json()["detail"] == "No UDF task is configured")
+    get_task.assert_not_called()
+
+def test_pipeline_status_rejects_different_configured_task(monkeypatch):
+    get_task = mock.Mock()
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    resp = client.get("/pipeline_status", params={"expected_task_id": "other_task"})
+
+    assert_condition(resp.status_code == 409)
+    assert_condition(resp.json()["detail"] == "Configured UDF task does not match the requested task")
+    get_task.assert_not_called()
+
+def test_pipeline_status_reports_kapacitor_failures(monkeypatch):
+    get_task = mock.Mock(side_effect=main.requests.exceptions.ConnectionError("Connection refused"))
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    unavailable = client.get("/pipeline_status")
+
+    assert_condition(unavailable.status_code == 503)
+    assert_condition(unavailable.json()["detail"] == "Kapacitor is unavailable")
+
+    rejected_response = mock.Mock(status_code=404)
+    rejected_response.raise_for_status.side_effect = main.requests.exceptions.HTTPError(
+        response=rejected_response
+    )
+    get_task.side_effect = None
+    get_task.return_value = rejected_response
+
+    rejected = client.get("/pipeline_status")
+
+    assert_condition(rejected.status_code == 502)
+    assert_condition(rejected.json()["detail"] == "Kapacitor failed to retrieve the task: HTTP 404")
+def test_swagger_ui_hides_empty_select_option():
+    resp = client.get("/docs")
+    assert_condition(resp.status_code == 200)
+    assert_condition(".swagger-ui select option[value=''] { display: none; }" in resp.text)
 
 def test_get_config_with_restart(monkeypatch):
     called = {}
@@ -88,8 +235,8 @@ def test_get_config_with_restart(monkeypatch):
         called["restart"] = True
     monkeypatch.setattr(main, "restart_kapacitor", fake_restart)
     resp = client.get("/config?restart=true")
-    assert resp.status_code == 200
-    assert "udfs" in resp.json()
+    assert_condition(resp.status_code == 200)
+    assert_condition("udfs" in resp.json())
 
 def test_post_config(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
@@ -98,8 +245,8 @@ def test_post_config(monkeypatch):
         "alerts": {}
     }
     resp = client.post("/config", json=data)
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "success"
+    assert_condition(resp.status_code == 200)
+    assert_condition(resp.json()["status"] == "success")
 
 def test_json_to_line_protocol_tags():
     dp = main.DataPoint(
@@ -109,7 +256,7 @@ def test_json_to_line_protocol_tags():
         timestamp=1234567890
     )
     line = main.json_to_line_protocol(dp)
-    assert line.startswith("test,a=b,c=d x=1,y=2 1234567890")
+    assert_condition(line.startswith("test,a=b,c=d x=1,y=2 1234567890"))
 
 def test_json_to_line_protocol_no_tags():
     dp = main.DataPoint(
@@ -118,7 +265,7 @@ def test_json_to_line_protocol_no_tags():
         timestamp=123
     )
     line = main.json_to_line_protocol(dp)
-    assert line == "test x=1 123"
+    assert_condition(line == "test x=1 123")
 
 def test_start_kapacitor_service_calls_classifier_startup(monkeypatch):
     called = {}
@@ -127,49 +274,58 @@ def test_start_kapacitor_service_calls_classifier_startup(monkeypatch):
     monkeypatch.setattr(main.classifier_startup, "classifier_startup", fake_classifier_startup)
     test_cfg = {"foo": "bar"}
     main.start_kapacitor_service(test_cfg)
-    assert called["called"] == test_cfg
+    assert_condition(called["called"] == test_cfg)
 
 def test_stop_kapacitor_service_not_running(monkeypatch, caplog):
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "kapacitor daemon is not running"})
+    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is not running"})
     logs = []
     def fake_info(msg):
         logs.append(msg)
     monkeypatch.setattr(main.logger, "info", fake_info)
     main.stop_kapacitor_service()
-    assert any("Kapacitor daemon is not running." in l for l in logs)
+    assert_condition(any("Kapacitor daemon is not running." in l for l in logs))
 
-def test_stop_kapacitor_service_success(monkeypatch):
+@pytest.mark.parametrize("tasks", [[{"id": "task1"}], []])
+def test_stop_kapacitor_service_success(monkeypatch, tasks):
     # health_check returns running
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "kapacitor daemon is running"})
+    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
     # Mock requests.get to return a fake task list
     class FakeResp:
         def json(self):
-            return {"tasks": [{"id": "task1"}]}
+            return {"tasks": tasks}
     monkeypatch.setattr(main.requests, "get", lambda url, **kwargs: FakeResp())
     # Track subprocess.run calls
     calls = []
-    def fake_run(cmd, check):
+    def fake_run(cmd, check, *, shell, **kwargs):
+        assert_condition(shell is False)
         calls.append((tuple(cmd), check))
     monkeypatch.setattr(main.subprocess, "run", fake_run)
+    # Track kill-by-name calls instead of subprocess pkill
+    killed = []
+    monkeypatch.setattr(main, "_kill_processes_by_name", lambda name: killed.append(name))
     # Mock logger
     monkeypatch.setattr(main.logger, "info", lambda *args, **kwargs: None)
     main.stop_kapacitor_service()
-    assert (("kapacitor", "disable", "task1"), False) in calls
-    assert (("pkill", "-9", "kapacitord"), False) in calls
+    if tasks:
+        assert_condition((("kapacitor", "disable", "task1"), False) in calls)
+    else:
+        assert_condition(not calls)
+    assert_condition("kapacitord" in killed)
 
 def test_stop_kapacitor_service_subprocess_error(monkeypatch):
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "kapacitor daemon is running"})
+    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
     class FakeResp:
         def json(self):
             return {"tasks": [{"id": "task1"}]}
     monkeypatch.setattr(main.requests, "get", lambda url, **kwargs: FakeResp())
-    def fake_run(cmd, check):
+    def fake_run(cmd, check, *, shell, **kwargs):
+        assert_condition(shell is False)
         raise main.subprocess.CalledProcessError(1, cmd)
     monkeypatch.setattr(main.subprocess, "run", fake_run)
     errors = []
     monkeypatch.setattr(main.logger, "error", lambda msg, *args, **kwargs: errors.append(msg))
     main.stop_kapacitor_service()
-    assert any("Error stopping Kapacitor service" in e for e in errors)
+    assert_condition(any("Error stopping Kapacitor service" in e for e in errors))
 
 def test_restart_kapacitor_calls_stop_and_start(monkeypatch):
     called = {"stop": False, "start": False}
@@ -177,15 +333,15 @@ def test_restart_kapacitor_calls_stop_and_start(monkeypatch):
     monkeypatch.setattr(main, "start_kapacitor_service", lambda cfg: called.update({"start": cfg}))
     main.config["foo"] = "bar"
     main.restart_kapacitor()
-    assert called["stop"] is True
-    assert called["start"] == main.config
+    assert_condition(called["stop"] is True)
+    assert_condition(called["start"] == main.config)
 
 def test_health_check_status_running_204(monkeypatch):
     class MockResponse:
         status_code = 204
     monkeypatch.setattr(main.requests, "get", lambda *a, **k: MockResponse())
     response = main.health_check(main.Response())
-    assert response == {"status": "kapacitor daemon is running"}
+    assert_condition(response == {"status": "Kapacitor daemon is running"})
 
 def test_health_check_status_not_running(monkeypatch):
     class MockResponse:
@@ -193,7 +349,7 @@ def test_health_check_status_not_running(monkeypatch):
     monkeypatch.setattr(main.requests, "get", lambda *a, **k: MockResponse())
     resp_obj = main.Response()
     response = main.health_check(resp_obj)
-    assert response == {"status": "kapacitor daemon is not running properly"}
+    assert_condition(response == {"status": "Kapacitor daemon is not running"})
 
 
 def test_health_check_request_exception(monkeypatch):
@@ -202,8 +358,8 @@ def test_health_check_request_exception(monkeypatch):
     monkeypatch.setattr(main.requests, "get", raise_req_err)
     resp_obj = main.Response()
     response = main.health_check(resp_obj)
-    assert response == {"status": "An error occurred while checking the service"}
-    assert resp_obj.status_code == main.status.HTTP_503_SERVICE_UNAVAILABLE
+    assert_condition(response == {"status": "An error occurred while checking the service"})
+    assert_condition(resp_obj.status_code == main.status.HTTP_503_SERVICE_UNAVAILABLE)
 
 def test_receive_alert_success(monkeypatch):
     # Patch OpcuaAlerts and its methods
@@ -222,9 +378,9 @@ def test_receive_alert_success(monkeypatch):
     main.OPCUA_SEND_ALERT = None
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "success"
-    assert resp.json()["message"] == "Alert received"
+    assert_condition(resp.status_code == 200)
+    assert_condition(resp.json()["status"] == "success")
+    assert_condition(resp.json()["message"] == "Alert received")
     mock_instance.initialize_opcua.assert_awaited()
     mock_instance.send_alert_to_opcua.assert_awaited()
 
@@ -244,7 +400,7 @@ def test_receive_alert_reinitialize_on_server_change(monkeypatch):
     main.OPCUA_SEND_ALERT = mock_instance
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
-    assert resp.status_code == 200
+    assert_condition(resp.status_code == 200)
     mock_instance.initialize_opcua.assert_awaited()
     mock_instance.send_alert_to_opcua.assert_awaited()
 
@@ -264,7 +420,7 @@ def test_receive_alert_reinitialize_on_not_connected(monkeypatch):
     main.OPCUA_SEND_ALERT = mock_instance
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
-    assert resp.status_code == 200
+    assert_condition(resp.status_code == 200)
     mock_instance.initialize_opcua.assert_awaited()
     mock_instance.send_alert_to_opcua.assert_awaited()
 
@@ -284,17 +440,17 @@ def test_receive_alert_update_node_id_and_namespace(monkeypatch):
     main.OPCUA_SEND_ALERT = mock_instance
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
-    assert resp.status_code == 200
-    assert mock_instance.node_id == main.config["alerts"]["opcua"]["node_id"]
-    assert mock_instance.namespace == main.config["alerts"]["opcua"]["namespace"]
+    assert_condition(resp.status_code == 200)
+    assert_condition(mock_instance.node_id == main.config["alerts"]["opcua"]["node_id"])
+    assert_condition(mock_instance.namespace == main.config["alerts"]["opcua"]["namespace"])
 
 def test_receive_alert_opcua_not_configured(monkeypatch):
     # Remove opcua from config
     main.config["alerts"] = {}
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
-    assert resp.status_code == 400
-    assert "OPC UA alerts are not configured" in resp.json()["detail"]
+    assert_condition(resp.status_code == 400)
+    assert_condition("OPC UA alerts are not configured" in resp.json()["detail"])
 
 def test_receive_alert_initialize_opcua_fails(monkeypatch):
     # Simulate exception during initialize_opcua
@@ -311,8 +467,8 @@ def test_receive_alert_initialize_opcua_fails(monkeypatch):
     main.config["alerts"] = {"opcua": {"opcua_server": "opc.tcp://localhost:4840", "node_id": "ns=2;i=2", "namespace": 2}}
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
-    assert resp.status_code == 500
-    assert "Failed to initialize OPC UA client" in resp.json()["detail"]
+    assert_condition(resp.status_code == 500)
+    assert_condition("Failed to initialize OPC UA client" in resp.json()["detail"])
 
 def test_receive_alert_send_alert_fails(monkeypatch):
     # Simulate exception during send_alert_to_opcua
@@ -330,8 +486,8 @@ def test_receive_alert_send_alert_fails(monkeypatch):
     main.OPCUA_SEND_ALERT = None
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
-    assert resp.status_code == 500
-    assert "Failed to send alert" in resp.json()["detail"]
+    assert_condition(resp.status_code == 500)
+    assert_condition("Failed to send alert" in resp.json()["detail"])
 
 @pytest.mark.asyncio
 async def test_get_config_returns_full_config(monkeypatch):
@@ -340,7 +496,7 @@ async def test_get_config_returns_full_config(monkeypatch):
         query_params = {}
     # Should return the whole config
     result = await main.get_config(DummyRequest())
-    assert result == main.config
+    assert_condition(result == main.config)
 
 @pytest.mark.asyncio
 async def test_get_config_filters_by_query(monkeypatch):
@@ -349,7 +505,7 @@ async def test_get_config_filters_by_query(monkeypatch):
         query_params = {"udfs": "1"}
     result = await main.get_config(DummyRequest())
     # Should only return the filtered key
-    assert result == {"udfs": main.config["udfs"]}
+    assert_condition(result == {"udfs": main.config["udfs"]})
 
 @pytest.mark.asyncio
 async def test_get_config_removes_restart_param(monkeypatch):
@@ -357,7 +513,7 @@ async def test_get_config_removes_restart_param(monkeypatch):
     class DummyRequest:
         query_params = {"restart": "true", "udfs": "1"}
     result = await main.get_config(DummyRequest())
-    assert result == {"udfs": main.config["udfs"]}
+    assert_condition(result == {"udfs": main.config["udfs"]})
 
 @pytest.mark.asyncio
 async def test_get_config_restart_triggers_background_task(monkeypatch):
@@ -368,7 +524,7 @@ async def test_get_config_restart_triggers_background_task(monkeypatch):
     class DummyRequest:
         query_params = {}
     await main.get_config(DummyRequest(), restart=True, background_tasks=DummyBackgroundTasks())
-    assert called.get("restart") is True
+    assert_condition(called.get("restart") is True)
 
 @pytest.mark.asyncio
 async def test_get_config_restart_no_background_task(monkeypatch):
@@ -415,7 +571,7 @@ def test_main_run_server_thread(monkeypatch):
     monkeypatch.setattr(builtins, "open", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
     # Run the block and check warning is logged
     try:
-        exec(
+        exec(  # nosec B102 # fixed test script with mocked dependencies, no untrusted input
             "def run_server():\n"
             "    uvicorn.run(app, host='0.0.0.0', port=5000)\n"
             "server_thread = threading.Thread(target=run_server)\n"
@@ -433,9 +589,9 @@ def test_main_run_server_thread(monkeypatch):
             "    logger.error(f'Time Series Analytics Microservice failure - {e}')\n",
             main_mod.__dict__
         )
-    except Exception:
+    except Exception:  # nosec B110 # test verifies the warning below after running the mocked script
         pass
-    assert any("config.json file not found" in l for l in logs)
+    assert_condition(any("config.json file not found" in l for l in logs))
 
 def test_main_config_load_and_loop(monkeypatch):
     # Patch open to return a dummy file-like object
@@ -468,7 +624,7 @@ def test_main_config_load_and_loop(monkeypatch):
     main_mod.__name__ = "__main__"
     # Run the block and check info log
     try:
-        exec(
+        exec(  # nosec B102 # fixed test script with mocked dependencies, no untrusted input
             "def run_server():\n"
             "    uvicorn.run(app, host='0.0.0.0', port=5000)\n"
             "server_thread = threading.Thread(target=run_server)\n"
@@ -488,8 +644,8 @@ def test_main_config_load_and_loop(monkeypatch):
         )
     except KeyboardInterrupt:
         pass
-    assert any("App configuration loaded successfully" in l for l in logs)
-    assert any("kapacitor started" in l for l in logs)
+    assert_condition(any("App configuration loaded successfully" in l for l in logs))
+    assert_condition(any("kapacitor started" in l for l in logs))
 
 def test_main_config_load_exception(monkeypatch):
     # Patch open to raise generic Exception
@@ -515,7 +671,7 @@ def test_main_config_load_exception(monkeypatch):
     main_mod.__name__ = "__main__"
     # Run the block and check error log
     try:
-        exec(
+        exec(  # nosec B102 # fixed test script with mocked dependencies, no untrusted input
             "def run_server():\n"
             "    uvicorn.run(app, host='0.0.0.0', port=5000)\n"
             "server_thread = threading.Thread(target=run_server)\n"
@@ -533,9 +689,9 @@ def test_main_config_load_exception(monkeypatch):
             "    logger.error(f'Time Series Analytics Microservice failure - {e}')\n",
             main_mod.__dict__
         )
-    except Exception:
+    except Exception:  # nosec B110 # test verifies the error log below after running the mocked script
         pass
-    assert any("Time Series Analytics Microservice failure" in l for l in logs)
+    assert_condition(any("Time Series Analytics Microservice failure" in l for l in logs))
 
 
 def test_post_config_success(monkeypatch):
@@ -545,10 +701,10 @@ def test_post_config_success(monkeypatch):
         "alerts": {"opcua": {"opcua_server": "opc.tcp://localhost:4840", "node_id": "ns=2;i=2", "namespace": 2}}
     }
     resp = client.post("/config", json=data)
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "success"
-    assert main.config["udfs"]["name"] == "udf_name"
-    assert "opcua" in main.config["alerts"]
+    assert_condition(resp.status_code == 200)
+    assert_condition(resp.json()["status"] == "success")
+    assert_condition(main.config["udfs"]["name"] == "udf_name")
+    assert_condition("opcua" in main.config["alerts"])
 
 def test_post_config_alerts_optional(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
@@ -557,10 +713,9 @@ def test_post_config_alerts_optional(monkeypatch):
         # alerts omitted
     }
     resp = client.post("/config", json=data)
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "success"
-    assert main.config["udfs"]["model"] == "model_name"
-    assert main.config["alerts"] == {}
+    assert_condition(resp.status_code == 200)
+    assert_condition(resp.json()["status"] == "success")
+    assert_condition(main.config["udfs"]["model"] == "model_name")
 
 def test_post_config_invalid_json(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
@@ -572,8 +727,8 @@ def test_post_config_invalid_json(monkeypatch):
         alerts = {}
     with pytest.raises(main.HTTPException) as exc:
         asyncio.run(main.config_file_change(DummyConfig(), mock.Mock()))
-    assert exc.value.status_code == 422
-    assert "Missing key 'name' in udfs" in exc.value.detail
+    assert_condition(exc.value.status_code == 422)
+    assert_condition("Missing key 'name' in udfs" in exc.value.detail)
 
 def test_post_config_missing_key(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
@@ -585,8 +740,8 @@ def test_post_config_missing_key(monkeypatch):
         alerts = {}
     with pytest.raises(main.HTTPException) as exc:
         asyncio.run(main.config_file_change(DummyConfig(), mock.Mock()))
-    assert exc.value.status_code == 422
-    assert "Missing key 'name' in udfs" in exc.value.detail
+    assert_condition(exc.value.status_code == 422)
+    assert_condition("Missing key 'name' in udfs" in exc.value.detail)
 
 def test_post_config_triggers_background_task(monkeypatch):
     called = {}
@@ -601,7 +756,7 @@ def test_post_config_triggers_background_task(monkeypatch):
         "alerts": {}
     }
     resp = client.post("/config", json=data)
-    assert resp.status_code == 200
+    assert_condition(resp.status_code == 200)
     # The background task is always added in the endpoint, so this is implicitly tested by no error
 
 

@@ -1,0 +1,13 @@
+
+fedora_99_profile_edge_base () {
+  echo "core_types system_inspection system_summary"
+  case "$1" in
+  bootstrap) # all components
+    echo "edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
+    ;;
+  *)
+    configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu" "$@"
+    ;;
+  esac
+}
+

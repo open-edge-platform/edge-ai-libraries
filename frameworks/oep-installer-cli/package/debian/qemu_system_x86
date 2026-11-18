@@ -1,0 +1,9 @@
+
+debian_45_install_qemu_system_x86 () {
+  ensure_apt_install_package qemu-system-x86
+}
+
+debian_45_sbom_qemu_system_x86 () {
+  ensure_sbom_format pkg-list eqmu-system-x86
+}
+

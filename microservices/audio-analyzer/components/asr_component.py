@@ -1,4 +1,5 @@
 import time
+import re
 
 from components.base_component import PipelineComponent
 import os
@@ -6,15 +7,72 @@ from utils.config_loader import config
 from utils.latency_store import asr_latency
 from utils.storage_manager import StorageManager
 from utils.app_paths import get_session_dir
-from components.asr.openai.whisper import Whisper as OA_Whisper
-from components.asr.openvino.whisper import Whisper as OV_Whisper
-from components.asr.openvino_genai.whisper import Whisper as OVGenAIWhisper
-from components.asr.whispercpp.whisper import WhisperCpp
 import logging
+import threading
 logger = logging.getLogger(__name__)
 
 ENABLE_DIARIZATION = config.models.asr.diarization
 DELETE_CHUNK_AFTER_USE = config.pipeline.delete_chunks_after_use
+
+# Whisper (every backend, including OpenVINO GenAI) hallucinates common subtitle
+# phrases such as "Thank you" on silence / non-speech audio — typically the
+# trailing silence captured after the speaker stops talking. Segments whose
+# entire text matches one of these is dropped. Used when the config does not
+# supply models.asr.hallucination_phrases.
+_DEFAULT_HALLUCINATION_PHRASES = [
+    "thank you",
+    "thank you very much",
+    "thanks for watching",
+    "thank you for watching",
+    "please subscribe",
+    "subscribe",
+    "you",
+    "bye",
+]
+
+_NORMALIZE_RE = re.compile(r"[^\w\s]", re.UNICODE)
+
+
+def _normalize_transcript_text(text: str) -> str:
+    """Lowercase, drop punctuation, and collapse whitespace for phrase matching."""
+    return " ".join(_NORMALIZE_RE.sub(" ", text.lower()).split())
+
+
+def _collapse_repeated_phrases(text: str) -> str:
+    """Fold consecutive repeated word sequences (window 1-8 words) down to one.
+
+    Whisper — notably the OpenVINO GenAI backend, which has no decoder-level
+    repetition guard — can emit the same phrase multiple times back to back
+    ("What are ions? What are ions?"). Applied to a fixpoint so runs of three
+    or more (not just doubles) are fully collapsed.
+    """
+    if len(text.split()) < 2:
+        return text
+
+    def _one_pass(words: list[str]) -> list[str]:
+        result: list[str] = []
+        i = 0
+        while i < len(words):
+            found = False
+            max_window = min(8, (len(words) - i) // 2)
+            for w in range(max_window, 0, -1):
+                if words[i:i + w] == words[i + w:i + 2 * w]:
+                    result.extend(words[i:i + w])
+                    i += 2 * w
+                    found = True
+                    break
+            if not found:
+                result.append(words[i])
+                i += 1
+        return result
+
+    current = text.split()
+    for _ in range(8):  # bounded fixpoint — collapses triples/quadruples too
+        collapsed = _one_pass(current)
+        if collapsed == current:
+            break
+        current = collapsed
+    return " ".join(current)
 
 _diar_cfg = getattr(config.models, "diarization", None)
 _identity_cfg = getattr(_diar_cfg, "identity", None)
@@ -43,8 +101,35 @@ def _is_diarization_auth_error(exc: Exception) -> bool:
 
 class ASRComponent(PipelineComponent):
 
-    _model = None
-    _config = None
+    # Model instances cached per (pool, model_config_key), not one shared
+    # singleton and not one slot per pool.
+    #
+    # Two pools: a dedicated "preview" ASR (rolling realtime preview ticks,
+    # called repeatedly on a growing buffer) and a separate "final" ASR
+    # (persisted commits and the file-based endpoint). Some OpenVINO GenAI
+    # WhisperPipeline backends (confirmed with distil-whisper/distil-small.en
+    # on NPU) corrupt internal generation state when ONE shared instance
+    # processes calls of very different audio lengths back-to-back, so the two
+    # kinds of call never share a pipeline instance.
+    #
+    # Within a pool the cache is keyed by the resolved model config, because
+    # the per-request `device` override means two concurrent callers can ask
+    # the same pool for different models/devices. A single slot per pool would
+    # make them evict each other and rebuild a WhisperPipeline (seconds) on
+    # every alternation.
+    #
+    # The cache is intentionally unbounded and never evicts. Its size is capped
+    # by configuration, not by traffic: entries are keyed by
+    # (pool, provider, model, device, ...), and only `device` is caller-
+    # supplied -- restricted by validation to CPU/GPU/NPU. The practical
+    # ceiling is therefore 2 pools x 3 devices, with at most 2 distinct models
+    # (final + preview). Loaded models are kept for the process lifetime
+    # because rebuilding one costs seconds on the request path, which is what
+    # this cache exists to avoid. If a future change lets callers select the
+    # model name as well, this must become a bounded LRU -- at that point the
+    # key space stops being enumerable from config.
+    _models: dict[tuple, object] = {}
+    _models_lock = threading.Lock()
     # Shared across all ASRComponent instances/sessions — keyed by session_id
     # internally — so primary-speaker identity persists across chunk calls
     # for the same session regardless of which ASRComponent instance handles
@@ -57,6 +142,17 @@ class ASRComponent(PipelineComponent):
 
     @staticmethod
     def _resolve_backend(provider: str, model_name: str, device: str):
+        # NOTE: backend classes are imported lazily, one provider at a time,
+        # rather than unconditionally at module load (as they were before).
+        # components/asr/openai/whisper.py and components/asr/openvino/whisper.py
+        # both import the `whisper` (openai-whisper) package at their own module
+        # level, so importing all four backends eagerly here forced openai-whisper
+        # (and its torch/transformers/tiktoken dependency chain) to be installed
+        # for every deployment, even ones that only ever use the openvino-genai
+        # provider. Deferring the import to the point of actual selection mirrors
+        # the existing lazy-import pattern already used for diarization/sentiment
+        # below, and allows a slim image to omit the openai/whispercpp provider
+        # dependencies entirely as long as they are never selected at runtime.
         normalized_provider = provider.lower()
         normalized_model_name = model_name.lower()
         requested_device = str(device)
@@ -69,21 +165,41 @@ class ASRComponent(PipelineComponent):
             requested_device = "CPU"
 
         if normalized_provider == "openai" and "whisper" in normalized_model_name:
+            from components.asr.openai.whisper import Whisper as OA_Whisper
             return OA_Whisper, (normalized_provider, normalized_model_name, requested_device.lower()), requested_device.lower()
 
         if normalized_provider == "openvino" and "whisper" in normalized_model_name:
             use_ov_genai = bool(getattr(getattr(config, "app", None), "use_ov_genai", False))
-            backend_cls = OVGenAIWhisper if use_ov_genai else OV_Whisper
+            if use_ov_genai:
+                from components.asr.openvino_genai.whisper import Whisper as OVGenAIWhisper
+                backend_cls = OVGenAIWhisper
+            else:
+                from components.asr.openvino.whisper import Whisper as OV_Whisper
+                backend_cls = OV_Whisper
             return backend_cls, (normalized_provider, normalized_model_name, requested_device.upper(), use_ov_genai), requested_device.upper()
 
         if normalized_provider == "whispercpp" and "whisper" in normalized_model_name:
+            from components.asr.whispercpp.whisper import WhisperCpp
             return WhisperCpp, (normalized_provider, normalized_model_name, requested_device.upper()), requested_device.upper()
+
+        if normalized_provider == "funasr" and "paraformer" in normalized_model_name:
+            # Optional Chinese/English provider. Imported lazily so funasr stays
+            # an opt-in dependency (requirements-cjk.txt) — the default image and
+            # existing Whisper/OpenVINO consumers never import it.
+            from components.asr.funasr.paraformer import Paraformer
+
+            return Paraformer, (normalized_provider, normalized_model_name, requested_device.lower()), requested_device.lower()
 
         raise ValueError(f"Unsupported ASR provider/model: {normalized_provider}/{normalized_model_name}")
 
-    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0, speaker_scope_id=None):
+    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0,
+                 speaker_scope_id=None, diarization: bool | None = None, pool: str = "final"):
 
         self.session_id = session_id
+        # Which model-instance pool this component's calls use (see the
+        # _models docstring above). Passed down explicitly from Pipeline;
+        # never inferred from append_to_session.
+        self.pool_key = pool
         # Scope key for speaker enrollment. Stays stable for a whole
         # conversation, whereas session_id is regenerated for every utterance —
         # enrolling per utterance would re-derive the reference voice from the
@@ -92,16 +208,48 @@ class ASRComponent(PipelineComponent):
         self.temperature = temperature
         self.provider = provider
         self.model_name = model_name
-        self.enable_diarization = ENABLE_DIARIZATION
+        # Per-request override, narrowing only: a caller may switch diarization
+        # OFF for a chunk it does not need speaker labels for (e.g. kiosk-core's
+        # intermediate "preview" chunks, where only the final chunk is
+        # diarized), but may not switch it ON when the service is not
+        # configured for it — the models would not be loaded.
+        self.enable_diarization = (
+            ENABLE_DIARIZATION if diarization is None else (ENABLE_DIARIZATION and bool(diarization))
+        )
         self.all_segments = []
 
+        # Backend-agnostic hallucination-phrase filter. Runs on the final text
+        # of every provider, so it also covers the OpenVINO GenAI backend which
+        # exposes no per-segment confidence signals for the openai-style filter.
+        _asr_cfg = getattr(config.models, "asr", None)
+        self.hallucination_phrase_filter = bool(getattr(_asr_cfg, "hallucination_phrase_filter", True))
+        _configured_phrases = getattr(_asr_cfg, "hallucination_phrases", None) or _DEFAULT_HALLUCINATION_PHRASES
+        self._hallucination_phrases = {
+            _normalize_transcript_text(p) for p in _configured_phrases if p and str(p).strip()
+        }
+        # Repetition control shared by every backend. The openai backend also
+        # applies this in its own decoder path; the OpenVINO GenAI backend has
+        # no repetition guard at all, so this component-level pass is what stops
+        # duplicated phrases ("What are ions? What are ions?") on that backend.
+        # >1.0 enables filtering, matching the openai backend's semantics.
+        self.repetition_penalty = float(getattr(_asr_cfg, "repetition_penalty", 1.0) or 1.0)
+
         backend_cls, model_config_key, resolved_device = self._resolve_backend(provider, model_name, device)
+        cache_key = (self.pool_key, model_config_key)
 
-        if ASRComponent._model is None or ASRComponent._config != model_config_key:
-            ASRComponent._model = backend_cls(model_name.lower(), resolved_device, None)
-            ASRComponent._config = model_config_key
+        with ASRComponent._models_lock:
+            if cache_key not in ASRComponent._models:
+                # Pass the CONFIGURED name, not model_config_key's lower-cased
+                # form. Backends derive their on-disk model directory from this
+                # string (OVGenAIWhisper -> get_asr_model_path(model_name)), and
+                # ensure_model exported that directory under the configured
+                # spelling. Lower-casing here would look for e.g.
+                # "nvidia_canary-180m-flash" when the export created
+                # "nvidia_Canary-180M-Flash". Case is normalized for the cache
+                # KEY only, where it just de-duplicates equivalent configs.
+                ASRComponent._models[cache_key] = backend_cls(model_name, resolved_device, None)
 
-        self.asr = ASRComponent._model
+        self.asr = ASRComponent._models[cache_key]
 
         self.pyannote_diarizer = None
         if self.enable_diarization:
@@ -175,6 +323,18 @@ class ASRComponent(PipelineComponent):
                     "Startup aborted: models.asr.diarization=true requires successful diarization "
                     f"initialization. Cause: {exc}"
                 ) from exc
+
+    def _is_hallucination_phrase(self, text: str) -> bool:
+        """True when the whole segment text is a known Whisper silence hallucination."""
+        if not self.hallucination_phrase_filter or not self._hallucination_phrases:
+            return False
+        return _normalize_transcript_text(text) in self._hallucination_phrases
+
+    def _clean_segment_text(self, text: str) -> str:
+        """Collapse repeated phrases within one segment when filtering is enabled."""
+        if self.repetition_penalty <= 1.0:
+            return text
+        return _collapse_repeated_phrases(text)
 
     def process(self, input_generator, language: str | None = None):
 
@@ -260,6 +420,7 @@ class ASRComponent(PipelineComponent):
                             )
 
                     transcribed_lines = []
+                    prev_norm = None
                     logger.info(
                         "[DIARIZATION] session=%s | whisper produced %d segment(s)",
                         self.session_id,
@@ -267,9 +428,13 @@ class ASRComponent(PipelineComponent):
                     )
 
                     for idx, sent in enumerate(source_segments):
-                        text = sent["text"].strip()
-                        if not text:
+                        text = self._clean_segment_text(sent["text"].strip())
+                        if not text or self._is_hallucination_phrase(text):
                             continue
+                        norm = _normalize_transcript_text(text)
+                        if self.repetition_penalty > 1.0 and norm and norm == prev_norm:
+                            continue
+                        prev_norm = norm
 
                         if use_per_segment_enrollment:
                             speaker = sent.get("speaker")
@@ -354,10 +519,15 @@ class ASRComponent(PipelineComponent):
                 else:
                     if transcription.get("segments"):
                         transcribed_lines = []
+                        prev_norm = None
                         for sent in transcription["segments"]:
-                            text = sent["text"].strip()
-                            if not text:
+                            text = self._clean_segment_text(sent["text"].strip())
+                            if not text or self._is_hallucination_phrase(text):
                                 continue
+                            norm = _normalize_transcript_text(text)
+                            if self.repetition_penalty > 1.0 and norm and norm == prev_norm:
+                                continue
+                            prev_norm = norm
 
                             start = float(sent["start"]) + float(chunk_data.get("start_time", 0.0))
                             end = float(sent["end"]) + float(chunk_data.get("start_time", 0.0))

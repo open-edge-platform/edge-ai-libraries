@@ -11,6 +11,9 @@ import { SearchModal, SearchModalProps } from '../components/PopupModal/SearchMo
 import { SearchReducers } from '../redux/search/searchSlice.ts';
 import i18n from '../utils/i18n';
 
+// The query text area; the minimum peak score box is a second textbox.
+const QUERY_PLACEHOLDER = 'Red bus or white plane...';
+
 // Create mock dispatch
 const mockDispatch = vi.fn();
 
@@ -27,6 +30,8 @@ const createMockStore = () => {
         suggestedTags: [],
         unreads: [],
         triggerLoad: false,
+        // Loaded, so opening the modal does not dispatch LoadSearchConfig.
+        searchConfig: { minPeakScoreDefault: 0 },
       },
     },
   });
@@ -82,13 +87,13 @@ describe('SearchModal Component test suite', () => {
   it('should render the text area for search input', () => {
     renderComponent();
     
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(QUERY_PLACEHOLDER)).toBeInTheDocument();
   });
 
   it('should update text input when typing in textarea', async () => {
     renderComponent();
     
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     fireEvent.change(textArea, { target: { value: 'test search query' } });
     
     expect(textArea).toHaveValue('test search query');
@@ -117,11 +122,18 @@ describe('SearchModal Component test suite', () => {
     }
   });
 
+  it('should show the minimum peak score filter switched off by default', () => {
+    renderComponent();
+
+    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByText('No score limit. All matches are returned.')).toBeInTheDocument();
+  });
+
   it('should dispatch SearchAdd and close modal when search is submitted', async () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
     
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     fireEvent.change(textArea, { target: { value: 'test query' } });
     
     const searchButton = screen.getByText('Search');
@@ -137,7 +149,7 @@ describe('SearchModal Component test suite', () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
     
-    const textArea = screen.getByRole('textbox') as HTMLTextAreaElement;
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER) as HTMLTextAreaElement;
     fireEvent.change(textArea, { target: { value: 'test query' } });
     
     const searchButton = screen.getByText('Search');
@@ -148,23 +160,119 @@ describe('SearchModal Component test suite', () => {
     });
   });
 
-  it('should handle empty search submission', async () => {
+  it('should not submit or close the modal on empty search submission', async () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
-    
+
     const searchButton = screen.getByText('Search');
     fireEvent.click(searchButton);
-    
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a search query to continue.')).toBeInTheDocument();
+    });
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
+  });
+
+  it('should not submit a whitespace-only query', async () => {
+    const closeModalMock = vi.fn();
+    renderComponent({ closeModal: closeModalMock });
+
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
+    fireEvent.change(textArea, { target: { value: '   ' } });
+    fireEvent.click(screen.getByText('Search'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a search query to continue.')).toBeInTheDocument();
+    });
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
+  });
+
+  it('should clear the empty-query warning once the user types', async () => {
+    renderComponent();
+
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
+    fireEvent.click(screen.getByText('Search'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a search query to continue.')).toBeInTheDocument();
+    });
+
+    fireEvent.change(textArea, { target: { value: 'a query' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Enter a search query to continue.')).not.toBeInTheDocument();
+    });
+  });
+
+  it('should submit the search when Enter is pressed in the textarea', async () => {
+    const closeModalMock = vi.fn();
+    renderComponent({ closeModal: closeModalMock });
+
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
+    fireEvent.change(textArea, { target: { value: 'enter key query' } });
+    fireEvent.keyDown(textArea, { key: 'Enter' });
+
     await waitFor(() => {
       expect(mockDispatch).toHaveBeenCalled();
       expect(closeModalMock).toHaveBeenCalled();
     });
   });
 
+  it('should not submit when Shift+Enter is pressed', async () => {
+    const closeModalMock = vi.fn();
+    renderComponent({ closeModal: closeModalMock });
+
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
+    fireEvent.change(textArea, { target: { value: 'multi line query' } });
+    fireEvent.keyDown(textArea, { key: 'Enter', shiftKey: true });
+
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
+  });
+
+  it('should not submit on Enter while an IME composition is active', async () => {
+    const closeModalMock = vi.fn();
+    renderComponent({ closeModal: closeModalMock });
+
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
+    fireEvent.change(textArea, { target: { value: 'composing' } });
+    fireEvent.keyDown(textArea, { key: 'Enter', isComposing: true });
+
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
+  });
+
+  it('should warn instead of submitting when Enter is pressed with an empty query', async () => {
+    const closeModalMock = vi.fn();
+    renderComponent({ closeModal: closeModalMock });
+
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
+    fireEvent.keyDown(textArea, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a search query to continue.')).toBeInTheDocument();
+    });
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
+  });
+
+  it('should open the date-added tooltip upwards so it is not clipped by the modal', () => {
+    const { container } = renderComponent();
+
+    // The time filter is the last field in a scrolling modal body, so a
+    // downward tooltip gets cut off by the body's bottom edge.
+    // Scoped to the legend: the modal's close button has its own tooltip.
+    expect(container.querySelector('legend .cds--tooltip')).toHaveClass(
+      'cds--popover--top-start',
+    );
+  });
+
   it('should respect maxLength attribute on textarea', () => {
     renderComponent();
     
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     expect(textArea).toHaveAttribute('maxlength', '250');
   });
 
@@ -182,19 +290,19 @@ describe('SearchModal Component test suite', () => {
     expect(screen.getByText('Cancel')).toBeInTheDocument();
   });
 
-  it('should handle textarea ref correctly', () => {
+  it('should keep the text area available after submitting', () => {
     renderComponent();
-    
-    const textArea = screen.getByRole('textbox');
+
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     expect(textArea).toBeInTheDocument();
-    
-    // Type in the textarea and then simulate search to trigger reset
+
+    // Type in the (controlled) text area and submit to trigger a reset.
     fireEvent.change(textArea, { target: { value: 'test' } });
-    
+
     const searchButton = screen.getByText('Search');
     fireEvent.click(searchButton);
-    
-    // The ref-based reset should work
-    expect(textArea).toBeInTheDocument();
+
+    // The text area remains mounted (no image), ready for the next query.
+    expect(screen.getByPlaceholderText(QUERY_PLACEHOLDER)).toBeInTheDocument();
   });
 });

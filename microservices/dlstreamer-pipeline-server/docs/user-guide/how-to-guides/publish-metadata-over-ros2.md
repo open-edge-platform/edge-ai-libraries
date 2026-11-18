@@ -47,7 +47,8 @@ Pull DL Streamer Pipeline Server extended image from [dockerhub](https://hub.doc
             }
         }'
     ```
-> **Note:** In the above command, do `"publish_frame": true` to send encoded frame as a part
+> [!NOTE]
+> In the above command, do `"publish_frame": true` to send encoded frame as a part
 > of metadata over ROS2.
 
 ## Subscribe (Example)

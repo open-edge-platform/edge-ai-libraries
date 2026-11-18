@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Compression backend: protocol + Lingua HTTP client + noop."""
+"""Compression backend protocol, TokenPrune HTTP client and no-op implementation."""
 from __future__ import annotations
 
 import logging
@@ -9,7 +9,7 @@ import requests
 from typing import Protocol, runtime_checkable
 
 from .exceptions import BackendError
-from .health import HealthState, HealthStatus
+from .health import HealthStatus
 
 logger = logging.getLogger("adaptive_token_compressor.core.backends")
 
@@ -34,23 +34,23 @@ class CompressionBackend(Protocol):
     def health_check(self, *, timeout: float = 5.0) -> HealthStatus: ...
 
 
-class LinguaHTTPBackend:
+class TokenPruneBackend:
 
-    # Historical prefix kept so existing caches stay valid.
-    cache_tag: str = "lingua"
+    # Backend identity used by the shared cache.
+    cache_tag: str = "token_prune"
 
     def __init__(
         self,
         *,
-        lingua_url: str = "http://localhost:8001/compress",
+        compress_server_url: str = "http://localhost:8001/compress",
         timeout: float = 60.0,
         health_endpoint: str | None = None,
     ) -> None:
-        self._lingua_url = lingua_url
+        self._compress_server_url = compress_server_url
         self._timeout = timeout
         # None → derive f"{base}/health"
         if health_endpoint is None:
-            base = lingua_url.rstrip("/compress").rstrip("/")
+            base = compress_server_url.rstrip("/compress").rstrip("/")
             health_endpoint = f"{base}/health"
         self._health_endpoint = health_endpoint
 
@@ -74,9 +74,9 @@ class LinguaHTTPBackend:
             payload["mode"] = mode
         if force_tokens is not None:
             payload["force_tokens"] = force_tokens
-        component = f"backend@{self._lingua_url}"
+        component = f"backend@{self._compress_server_url}"
         try:
-            resp = requests.post(self._lingua_url, json=payload, timeout=self._timeout)
+            resp = requests.post(self._compress_server_url, json=payload, timeout=self._timeout)
             resp.raise_for_status()
         except requests.RequestException as e:
             logger.warning("Backend request failed for %s: %s", component, type(e).__name__)
@@ -97,7 +97,7 @@ class LinguaHTTPBackend:
         return result
 
     def health_check(self, *, timeout: float = 5.0) -> HealthStatus:
-        component = f"backend@{self._lingua_url}"
+        component = f"backend@{self._compress_server_url}"
         try:
             resp = requests.get(self._health_endpoint, timeout=timeout)
             resp.raise_for_status()
@@ -129,20 +129,3 @@ class NoopBackend:
 
     def health_check(self, *, timeout: float = 5.0) -> HealthStatus:
         return HealthStatus.healthy("noop_backend")
-
-
-def build_backend(
-    compressor_backend: str,
-    *,
-    lingua_url: str,
-    timeout: float,
-) -> CompressionBackend:
-    """Construct the backend selected by `compressor_backend` ("lingua"), which
-    satisfies the `CompressionBackend` protocol. An unknown backend name raises
-    ValueError; callers wrap it as ConfigError.
-    """
-    if compressor_backend == "lingua":
-        return LinguaHTTPBackend(lingua_url=lingua_url, timeout=timeout)
-    raise ValueError(
-        f"Unknown compressor_backend {compressor_backend!r}; expected 'lingua'"
-    )

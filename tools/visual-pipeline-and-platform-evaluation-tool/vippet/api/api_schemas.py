@@ -1,8 +1,23 @@
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
 
 from enum import Enum
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+_HUB_MODEL_NAME_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def _is_valid_hub_model_name(name: str) -> bool:
+    """Allow a plain model name or an ``owner/name`` hub repo id.
+
+    Each segment must start with an alphanumeric character, which also
+    rejects path-traversal segments (``.``, ``..``) and empty segments.
+    """
+    segments = name.split("/")
+    return len(segments) <= 2 and all(
+        _HUB_MODEL_NAME_SEGMENT_RE.match(segment) for segment in segments
+    )
 
 
 # # Enums based on OpenAPI schema
@@ -81,6 +96,12 @@ class TestJobState(str, Enum):
     ```
     """
 
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class AudioJobState(str, Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
@@ -177,22 +198,32 @@ class DeviceFamily(str, Enum):
 
 class ModelCategory(str, Enum):
     """
-    **Model category for classification, detection, or GenAI tasks.**
+    **Model category for classification, detection, and other supported tasks.**
 
     ## Values
-    - `CLASSIFICATION` - Classification model
-    - `DETECTION` - Detection model
-    - `GENAI` - Generative AI model (for example VLM)
+    - `IMAGE_CLASSIFICATION` - Image classification model
+    - `OBJECT_DETECTION` - Object detection model
+    - `IMAGE_SEGMENTATION` - Image segmentation model
+    - `POSE_ESTIMATION` - Pose estimation model
+    - `VISION_LANGUAGE_MODELS` - Vision-language model (for example VLM)
+    - `LARGE_LANGUAGE_MODELS` - Large language model (text-only, for example LLM)
+    - `AUTOMATIC_SPEECH_RECOGNITION` - Automatic speech recognition model
+    - `TEXT_TO_SPEECH` - Text-to-speech synthesis model
 
     ### Example
     ```json
-    "detection"
+    "object_detection"
     ```
     """
 
-    CLASSIFICATION = "classification"
-    DETECTION = "detection"
-    GENAI = "genai"
+    IMAGE_CLASSIFICATION = "image_classification"
+    OBJECT_DETECTION = "object_detection"
+    IMAGE_SEGMENTATION = "image_segmentation"
+    POSE_ESTIMATION = "pose_estimation"
+    VISION_LANGUAGE_MODELS = "vision_language_models"
+    LARGE_LANGUAGE_MODELS = "large_language_models"
+    AUTOMATIC_SPEECH_RECOGNITION = "automatic_speech_recognition"
+    TEXT_TO_SPEECH = "text_to_speech"
 
 
 class OptimizationType(str, Enum):
@@ -327,6 +358,7 @@ class CameraType(str, Enum):
     ## Values
     - `USB` - USB camera connected directly to the system
     - `NETWORK` - Network camera accessible via IP protocols
+    - `GIGE` - GigE Vision machine vision camera
 
     ### Example
     ```json
@@ -336,6 +368,7 @@ class CameraType(str, Enum):
 
     USB = "USB"
     NETWORK = "NETWORK"
+    GIGE = "GIGE"
 
 
 class HealthResponse(BaseModel):
@@ -370,13 +403,17 @@ class StatusResponse(BaseModel):
     - `status` - Current application status (STARTING, INITIALIZING, READY, or SHUTDOWN)
     - `message` - Optional message describing current activity or initialization progress
     - `ready` - True if application is ready to serve API requests
+    - `version` - Build version (image tag / release string) of the running application
+    - `revision` - Git commit hash of the source tree the running image was built from, suffixed with "-dirty" if the working tree had uncommitted changes at build time (e.g. "a1b2c3d" or "a1b2c3d-dirty"); "unknown" if unavailable
 
     ### Example
     ```json
     {
       "status": "ready",
       "message": null,
-      "ready": true
+      "ready": true,
+      "version": "2026.3.0",
+      "revision": "a1b2c3d"
     }
     ```
     """
@@ -384,6 +421,8 @@ class StatusResponse(BaseModel):
     status: AppStatus
     message: Optional[str]
     ready: bool
+    version: str
+    revision: str
 
 
 class Node(BaseModel):
@@ -1357,6 +1396,9 @@ class ExecutionConfig(BaseModel):
     - `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:
       - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)
       - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints
+    - `pinned_cpu_cores` - Logical CPU ids (as reported by `GET /devices` in `cpu_topology.cores[].cpu`)
+      the GStreamer subprocess is restricted to. Empty list (default) means no pinning — the
+      pipeline may use every CPU available to the service.
 
     ### Example (disabled output, no runtime limit)
     ```json
@@ -1391,6 +1433,15 @@ class ExecutionConfig(BaseModel):
     }
     ```
 
+    ### Example (pinned to the first four logical CPUs)
+    ```json
+    {
+      "output_mode": "disabled",
+      "max_runtime": 0,
+      "pinned_cpu_cores": [0, 1, 2, 3]
+    }
+    ```
+
     """
 
     output_mode: OutputMode = Field(
@@ -1409,14 +1460,35 @@ class ExecutionConfig(BaseModel):
     enable_latency_metrics: bool = Field(
         default=False,
         description=(
-            "When true, activates the DLStreamer `latency_tracer` in "
-            "pipeline-only mode with a 1000 ms interval by setting "
-            "`GST_DEBUG=GST_TRACER:7` (appended if already set) and "
-            "`GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on "
-            "the GStreamer subprocess environment. When false (default), "
-            "neither environment variable is modified."
+            "When true, the job reports DLStreamer `latency_tracer` samples "
+            "per stream in `latency_tracer_metrics`. This flag does not "
+            "start the tracer: DL Streamer Pipeline Server runs it for every "
+            "pipeline when configured server-wide (`DLSPS2_GST_TRACERS` with "
+            "`post-metrics=true`, and `DLSPS2_OTEL=true`), and ViPPET only "
+            "reads the samples the server exports to metrics-manager. If the "
+            "server is not configured that way, the test runs without "
+            "latency metrics and the job's `details` say so. When false "
+            "(default), no latency samples are read."
         ),
     )
+    pinned_cpu_cores: List[int] = Field(
+        default_factory=list,
+        description=(
+            "Logical CPU ids the pipeline is pinned to, as "
+            "reported by `GET /devices` in `cpu_topology.cores[].cpu`. An "
+            "empty list (default) disables pinning and lets the pipeline run "
+            "on every CPU available to the service. Ids are de-duplicated and "
+            "sorted; ids the service itself cannot run on are rejected."
+        ),
+    )
+
+    @field_validator("pinned_cpu_cores")
+    @classmethod
+    def _normalize_pinned_cpu_cores(cls, cpus: List[int]) -> List[int]:
+        """De-duplicate, sort and reject negative logical CPU ids."""
+        if any(cpu < 0 for cpu in cpus):
+            raise ValueError("pinned_cpu_cores must not contain negative CPU ids.")
+        return sorted(set(cpus))
 
 
 class PerformanceTestSpec(BaseModel):
@@ -1702,6 +1774,12 @@ class BenchmarkTestCaseRun(BaseModel):
     media_usage: float | None
     memory_usage: float | None
     power_usage: float | None
+    latency_avg_ms: float | None
+    latency_avg_stddev_ms: float | None
+    latency_max_ms: float | None
+    latency_max_stddev_ms: float | None
+    latency_min_ms: float | None
+    latency_min_stddev_ms: float | None
     score_total: float | None
     score_performance: float | None
     score_efficiency: float | None
@@ -1778,11 +1856,10 @@ class LatencyMetrics(BaseModel):
     """
     **Last observed DLStreamer `latency_tracer` sample for a single stream.**
 
-    Each value is extracted from a single
-    `latency_tracer_pipeline_interval` line emitted by the
-    `latency_tracer` (one such line per stream per interval ~1000 ms).
-    Only the most recent sample per stream is kept; history is not
-    reported here.
+    Each value merges the `latency_tracer` windows of one stream over one
+    DL Streamer Pipeline Server export period (`DLSPS2_OTEL_INTERVAL_MS`,
+    1000 ms by default, so usually one tracer window). Only the most
+    recent sample per stream is kept; history is not reported here.
 
     All timing fields are in milliseconds. `fps` reported by the tracer
     is intentionally **not** included because FPS is already exposed on
@@ -1790,11 +1867,15 @@ class LatencyMetrics(BaseModel):
     `gvafpscounter`).
 
     ## Attributes
-    - `interval_ms` - Length of the measurement window, in milliseconds
-    - `avg_ms` - Average frame latency over the window, in milliseconds
+    - `interval_ms` - Total length of the tracer windows in the sample, in milliseconds
+    - `avg_ms` - Mean frame latency over the window, in milliseconds
     - `min_ms` - Minimum frame latency observed in the window, in milliseconds
     - `max_ms` - Maximum frame latency observed in the window, in milliseconds
-    - `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds
+    - `latency_ms` - **Deprecated.** Mean time between output frames in the window, in milliseconds (frame period, `1000 / fps`). It is **not** a frame latency; use `avg_ms` (mean) and `max_ms`
+
+    A frame's latency is the time from the moment the source element
+    outputs the frame to the moment the frame is pushed into the sink;
+    the sink's own work is excluded.
 
     ### Example
     ```json
@@ -1810,29 +1891,70 @@ class LatencyMetrics(BaseModel):
 
     interval_ms: float = Field(
         ...,
-        description="Length of the measurement window reported by the tracer, in ms.",
+        description=(
+            "Total length of the tracer windows merged into this sample, "
+            "in ms (about one export period)."
+        ),
         examples=[1000.25],
     )
     avg_ms: float = Field(
         ...,
-        description="Average frame latency over the window, in ms.",
+        description=(
+            "Mean per-frame latency over the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[364.31],
     )
     min_ms: float = Field(
         ...,
-        description="Minimum frame latency observed in the window, in ms.",
+        description=(
+            "Minimum per-frame latency in the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[0.004],
     )
     max_ms: float = Field(
         ...,
-        description="Maximum frame latency observed in the window, in ms.",
+        description=(
+            "Maximum per-frame latency in the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[529.26],
     )
     latency_ms: float = Field(
         ...,
-        description="Current end-to-end latency reported by the tracer, in ms.",
+        description=(
+            "Deprecated: mean time between output frames in the window, "
+            "in ms (frame period, = 1000 / fps). It is NOT a frame "
+            "latency - use `avg_ms` (mean) and `max_ms`."
+        ),
         examples=[21.28],
+        deprecated=True,
     )
+
+
+class PipelineEvent(BaseModel):
+    """
+    **Live event observed while a performance test pipeline is running.**
+
+    ## Attributes
+    - `timestamp_ms` - Wall-clock time the event was observed, in ms since epoch
+    - `source` - Event origin, e.g. `proximity-trigger` or `vlm`
+    - `text` - Human-readable description of the event (or the VLM answer). Truncated to 4096 characters, with `... [truncated]` appended when the original was longer
+    - `element` - Name of the emitting GStreamer element, when known
+    - `pts_seconds` - Stream position the event refers to, in seconds, when known
+    - `prompt` - Prompt that produced a VLM answer (`source` = `vlm`), when known. Truncated to 1024 characters, with `... [truncated]` appended when the original was longer
+    """
+
+    timestamp_ms: int
+    source: str
+    text: str
+    element: Optional[str] = None
+    pts_seconds: Optional[float] = None
+    prompt: Optional[str] = None
 
 
 class TestsJobStatus(BaseModel):
@@ -1847,6 +1969,7 @@ class TestsJobStatus(BaseModel):
     - `details` - List of human-readable messages explaining why the job reached its current state. Cleared when the job transitions to a new state, then new entries are appended. Examples: ["Pipeline completed successfully"], ["Cancelled by user"], ["Cancelled by user", "Pipeline exited with non-zero exit code: 1"], ["Pipeline runtime error: ..."]
     - `total_fps` - Total FPS across all streams (may be null)
     - `per_stream_fps` - Average FPS per stream (may be null)
+    - `min_stream_fps` - FPS of the slowest stream (null when per-stream FPS is not available)
     - `total_streams` - Number of active streams (may be null)
     - `streams_per_pipeline` - List of pipeline IDs with stream counts (each entry contains: id (pipeline identifier: variant path or synthetic graph ID) and streams (number of streams for this pipeline))
     - `video_output_paths` - Mapping from pipeline id to list of output file paths (keys use the same id format as streams_per_pipeline entries)
@@ -1865,16 +1988,27 @@ class TestsJobStatus(BaseModel):
     total_streams: int | None
     streams_per_pipeline: list[PipelineStreamSpec] | None
     video_output_paths: dict[str, list[str]] | None
+    min_stream_fps: float | None = Field(
+        default=None,
+        description=(
+            "FPS of the slowest stream. A density test passes a stream count "
+            "only if this reaches `fps_floor`. `null` when no per-stream FPS "
+            "was measured; `per_stream_fps` is then the only measure."
+        ),
+        examples=[27.5],
+    )
     latency_tracer_metrics: dict[str, LatencyMetrics] | None = Field(
         default=None,
         description=(
             "Last observed DLStreamer `latency_tracer` sample per stream, "
             "keyed by `stream_id` (`{source_name}__{sink_name}`). `null` "
-            "when the job was executed with "
-            "`execution_config.enable_latency_metrics=false` (the tracer "
-            "was not started at all). An empty object `{}` means the "
-            "tracer was active but produced no samples — for example when "
-            "the pipeline exited before the first 1000 ms interval closed."
+            "when no latency samples were read: the job was executed with "
+            "`execution_config.enable_latency_metrics=false`, or latency "
+            "was requested but DL Streamer Pipeline Server runs without the "
+            "latency tracer (the job's `details` then say so). An empty "
+            "object `{}` means samples were read but none arrived — for "
+            "example when the pipeline stopped before the server's first "
+            "export."
         ),
     )
 
@@ -1884,16 +2018,25 @@ class PerformanceJobStatus(TestsJobStatus):
     **Status of a performance test job.**
 
     Inherits all fields from TestsJobStatus and adds live_stream_urls and
-    metadata_stream_urls for live-streaming output mode support.
+    metadata_stream_urls for live-streaming output mode support, plus events
+    carrying recent live pipeline events.
 
     ## Attributes
-    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
     - `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)
+    - `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer
     """
 
     live_stream_urls: Optional[Dict[str, str]]
     metadata_stream_urls: Optional[Dict[str, list[str]]]
+    events: list[PipelineEvent] = Field(
+        default_factory=list,
+        description=(
+            "Most recent live pipeline events (oldest first, bounded), e.g. "
+            "a `gvaproximitytrigger_py` trigger firing or a `gvagenai` answer."
+        ),
+    )
 
 
 class DensityJobStatus(TestsJobStatus):
@@ -1905,10 +2048,31 @@ class DensityJobStatus(TestsJobStatus):
     live-streaming output mode (only disabled or file modes are allowed).
 
     ## Attributes
-    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     """
 
     pass
+
+
+class AudioJobSummary(BaseModel):
+    id: str
+    pipeline_id: str
+    pipeline_name: str
+    operation: Literal["speech_to_text", "text_to_speech"]
+    variant_id: str
+    variant_name: str
+    device: Literal["CPU", "GPU", "NPU"]
+    state: AudioJobState
+    created_at: datetime
+    modified_at: datetime
+    service_round_trip_ms: float | None = None
+    artifact_available: bool
+    error: str | None = None
+
+
+class AudioJobStatus(AudioJobSummary):
+    transcript: str | None = None
+    artifact_url: str | None = None
 
 
 class PerformanceJobSummary(BaseModel):
@@ -2088,6 +2252,96 @@ class ValidationJobSummary(BaseModel):
     request: PipelineValidation
 
 
+class CpuCoreType(str, Enum):
+    """
+    **Type of a logical CPU on an Intel processor.**
+
+    ## Values
+    - `P` - Performance core on a hybrid processor
+    - `E` - Efficient core on a hybrid processor
+    - `LPE` - Low-power efficient core on a hybrid processor
+    - `UNIFORM` - Core of a non-hybrid processor, where all cores are the same type
+
+    ### Example
+    ```json
+    "P"
+    ```
+    """
+
+    P = "P"
+    E = "E"
+    LPE = "LPE"
+    UNIFORM = "UNIFORM"
+
+
+class CpuTopologySource(str, Enum):
+    """
+    **Method used to determine the CPU core types.**
+
+    ## Values
+    - `sysfs_pmu` - Hybrid PMU CPU lists in Linux sysfs (`cpu_core`, `cpu_atom`, `cpu_lowpower`)
+    - `sysfs_cache` - Cache topology in Linux sysfs, used when the hybrid PMU lists are missing
+    - `uniform` - Non-hybrid processor; every core is `UNIFORM`
+
+    ### Example
+    ```json
+    "sysfs_pmu"
+    ```
+    """
+
+    SYSFS_PMU = "sysfs_pmu"
+    SYSFS_CACHE = "sysfs_cache"
+    UNIFORM = "uniform"
+
+
+class CpuCore(BaseModel):
+    """
+    **One online logical CPU and its core type.**
+
+    ## Attributes
+    - `cpu` - Logical CPU id, as used for CPU affinity (for example `taskset -c`)
+    - `core_type` - Core type of this CPU
+    - `core_id` - Lowest logical CPU id among its SMT siblings; hyper-threads of one physical core share it
+
+    ### Example
+    ```json
+    {"cpu": 0, "core_type": "P", "core_id": 0}
+    ```
+    """
+
+    cpu: int
+    core_type: CpuCoreType
+    core_id: int
+
+
+class CpuTopology(BaseModel):
+    """
+    **Core types of all online logical CPUs of the host.**
+
+    ## Attributes
+    - `is_hybrid` - True when the CPUs are classified into `P`, `E` or `LPE` types
+    - `source` - Method used to determine the core types
+    - `cores` - Online logical CPUs sorted by id
+
+    ### Example
+    ```json
+    {
+      "is_hybrid": true,
+      "source": "sysfs_pmu",
+      "cores": [
+        {"cpu": 0, "core_type": "P", "core_id": 0},
+        {"cpu": 6, "core_type": "E", "core_id": 6},
+        {"cpu": 14, "core_type": "LPE", "core_id": 14}
+      ]
+    }
+    ```
+    """
+
+    is_hybrid: bool
+    source: CpuTopologySource
+    cores: list[CpuCore]
+
+
 class Device(BaseModel):
     """
     **Hardware device description used by multiple APIs.**
@@ -2101,6 +2355,8 @@ class Device(BaseModel):
     - `device_type` - High level device type (INTEGRATED or DISCRETE)
     - `device_family` - Hardware family (CPU, GPU, NPU)
     - `gpu_id` - Optional GPU index when applicable; null for non-GPU devices
+    - `cpu_topology` - Core types of the host CPUs for the CPU device; null for other devices
+      or when they cannot be determined
 
     ### Example
     ```json
@@ -2109,7 +2365,8 @@ class Device(BaseModel):
       "full_device_name": "Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)",
       "device_type": "INTEGRATED",
       "device_family": "GPU",
-      "gpu_id": 0
+      "gpu_id": 0,
+      "cpu_topology": null
     }
     ```
     """
@@ -2119,6 +2376,7 @@ class Device(BaseModel):
     device_type: DeviceType
     device_family: DeviceFamily
     gpu_id: Optional[int]
+    cpu_topology: CpuTopology | None = None
 
 
 class ModelInstallStatus(str, Enum):
@@ -2154,7 +2412,7 @@ class ModelSource(str, Enum):
     - `HUGGINGFACE` - HuggingFace Hub
     - `ULTRALYTICS` - Ultralytics model zoo
     - `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models
-    - `OMZ` - OpenVINO Open Model Zoo (handled locally by vippet-app)
+    - `OMZ` - OpenVINO Open Model Zoo
     - `CUSTOM` - User-uploaded model
 
     ### Example
@@ -2168,6 +2426,26 @@ class ModelSource(str, Enum):
     PIPELINE_ZOO_MODELS = "pipeline-zoo-models"
     OMZ = "omz"
     CUSTOM = "custom"
+
+
+class ModelGated(str, Enum):
+    """
+    **Hugging Face gating mode of a model.**
+
+    ## Values
+    - `FALSE` - Not gated, anyone can download the model
+    - `AUTO` - Gated, access is granted automatically after accepting the license
+    - `MANUAL` - Gated, access must be approved manually by the model authors
+
+    ### Example
+    ```json
+    "auto"
+    ```
+    """
+
+    FALSE = "false"
+    AUTO = "auto"
+    MANUAL = "manual"
 
 
 class ModelDownloadJobState(str, Enum):
@@ -2239,8 +2517,8 @@ class Model(BaseModel):
     """
     **Description of a single supported model exposed by the models API.**
 
-    Lists every model known to vippet-app: both entries from
-    `supported_models.yaml` (regardless of whether they are installed) and
+    Lists every model known to vippet-app: both entries from the model
+    catalog (`vippet/models/*.yaml`, seeded into the DB at startup) and
     user-uploaded models. Use `install_status` to know if the model is
     ready to use, and `used_by_pipelines` to know whether installing it is
     recommended (non-empty list means at least one predefined pipeline
@@ -2254,20 +2532,22 @@ class Model(BaseModel):
     ## Attributes
     - `name` - Internal model identifier used by the backend
     - `display_name` - Human-readable model name suitable for UI
-    - `category` - Logical model category (`classification`, `detection`, `genai`) or null when unknown
+    - `category` - Logical model category (`image_classification`, `object_detection`, `image_segmentation`, `pose_estimation`, `vision_language_models`, `large_language_models`, `automatic_speech_recognition`, `text_to_speech`) or null when unknown
     - `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)
     - `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)
     - `variants` - Selectable variants of this model (one per precision and optional model-proc)
     - `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation
-    - `default` - Whether the model is marked as a default install candidate in `supported_models.yaml`. Used by the Models page to pre-select recommended models in the bulk-install UI.
+    - `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.
     - `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)
+    - `link` - URL of the model page on its upstream hub (currently Hugging Face only), or null
+    - `gated` - Hugging Face gating mode (`false`, `auto`, `manual`), or null when unknown or not applicable
 
     ### Example
     ```json
     {
       "name": "yolo11n",
       "display_name": "YOLO 11n 640x640",
-      "category": "detection",
+      "category": "object_detection",
       "source": "ultralytics",
       "install_status": "installed",
       "variants": [
@@ -2275,13 +2555,22 @@ class Model(BaseModel):
         {"name": "yolo11n_FP16", "display_name": "YOLO 11n 640x640 (FP16)", "precision": "FP16"}
       ],
       "used_by_pipelines": ["smart-nvr", "goods-detection"],
-      "unsupported_devices": null
+      "unsupported_devices": null,
+      "link": null
     }
     ```
     """
 
     name: str = Field(..., description="Internal model identifier.")
     display_name: str = Field(..., description="Human-readable model name.")
+    description: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description=(
+            "Human-readable explanation of what the model "
+            "detects or classifies, or null when not provided."
+        ),
+    )
     category: Optional[ModelCategory] = Field(
         default=None,
         description="Logical model category, or null when unknown.",
@@ -2308,10 +2597,9 @@ class Model(BaseModel):
     default: bool = Field(
         default=False,
         description=(
-            "Whether the model is marked as a default install "
-            "candidate in supported_models.yaml. The Models page uses "
-            "this flag to pre-select recommended models in the bulk-"
-            "install UI."
+            "Whether at least one predefined pipeline references this "
+            "model. The Models page uses this flag to pre-select "
+            "recommended models in the bulk-install UI."
         ),
     )
     unsupported_devices: Optional[str] = Field(
@@ -2319,6 +2607,20 @@ class Model(BaseModel):
         description=(
             "Comma-separated list of devices on which the model "
             "cannot run (e.g. 'NPU'), or null when no restrictions exist."
+        ),
+    )
+    link: Optional[str] = Field(
+        default=None,
+        description=(
+            "URL of the model page on its upstream hub (currently only "
+            "Hugging Face), or null when not available."
+        ),
+    )
+    gated: Optional[ModelGated] = Field(
+        default=None,
+        description=(
+            "Hugging Face gating mode, or null when unknown or not "
+            "applicable (non-Hugging Face models)."
         ),
     )
 
@@ -2339,7 +2641,7 @@ class ModelUploadResponse(BaseModel):
       "model": {
         "name": "my-custom-detector",
         "display_name": "My Custom Detector",
-        "category": "detection",
+        "category": "object_detection",
         "source": "custom",
         "install_status": "installed",
         "variants": [{"name": "my-custom-detector", "display_name": "My Custom Detector (FP32)", "precision": "FP32"}],
@@ -2357,7 +2659,7 @@ class ModelDownloadRequest(BaseModel):
     """
     **Request body for starting a batch of model download jobs.**
 
-    Each name must match an entry in `supported_models.yaml`. Names are
+    Each name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are
     validated as a unique set: duplicates are rejected with 422 so the
     per-name map returned by the endpoint stays unambiguous. An empty
     list is also rejected (`min_length=1`).
@@ -2366,8 +2668,19 @@ class ModelDownloadRequest(BaseModel):
     name — and the per-model status is returned in
     `ModelDownloadJobResponse.jobs[name]`.
 
+    When `hub` is set, names not found in the catalog are downloaded from
+    that hub (names as returned by `POST /models/list`) and registered in
+    the catalog together with every installed precision. Supported hubs:
+    `ultralytics` (category derived from the name suffix) and
+    `huggingface` (category must be provided via `category`, since
+    HuggingFace repo ids have no fixed naming convention to derive it
+    from).
+
     ## Attributes
     - `names` - List of supported-model names to install. Must be non-empty and unique.
+    - `hub` - Optional upstream hub for names not in the catalog.
+    - `category` - Required when `hub` is `huggingface`; ignored otherwise.
+    - `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.
 
     ### Example
     ```json
@@ -2385,6 +2698,25 @@ class ModelDownloadRequest(BaseModel):
         ),
         examples=[["yolo11n", "yolov8n"]],
     )
+    hub: ModelSource | None = Field(
+        default=None,
+        description="Upstream hub used for names not found in the model catalog.",
+        examples=["ultralytics"],
+    )
+    category: ModelCategory | None = Field(
+        default=None,
+        description=(
+            "Model category, required when `hub` is `huggingface` (ignored "
+            "for other hubs)."
+        ),
+    )
+    gated: ModelGated | None = Field(
+        default=None,
+        description=(
+            "Gating mode of the hub model, stored on the registered model "
+            "(null when unknown)."
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_unique_names(self) -> "ModelDownloadRequest":
@@ -2394,6 +2726,9 @@ class ModelDownloadRequest(BaseModel):
         for name in self.names:
             if not name:
                 raise ValueError("Model names must be non-empty strings.")
+            # Hub names become filesystem path segments.
+            if self.hub is not None and not _is_valid_hub_model_name(name):
+                raise ValueError(f"Invalid hub model name: {name!r}")
             if name in seen:
                 duplicates.append(name)
             seen.add(name)
@@ -2402,6 +2737,49 @@ class ModelDownloadRequest(BaseModel):
                 f"Duplicate model names are not allowed: {sorted(set(duplicates))}"
             )
         return self
+
+
+class ModelHubListRequest(BaseModel):
+    """Request body for searching models in an upstream model hub."""
+
+    hub: str = Field(..., description="Model hub to search, such as huggingface.")
+    filters: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Hub-specific listing filters, such as author, search, or tags.",
+    )
+    limit: int = Field(default=50, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+    override_credentials: dict[str, str] | None = Field(
+        default=None,
+        description="Optional Base64-encoded connection overrides for this request.",
+    )
+
+
+class ModelHubListResponse(BaseModel):
+    """Paginated results returned by an upstream model hub.
+
+    Some hubs (for example HuggingFace) cannot report a `total` count
+    cheaply; callers must then paginate using `has_more`/`next_offset`
+    instead of computing a page count from `total`.
+    """
+
+    hub: str
+    items: list[dict[str, Any]]
+    count: int | None = Field(
+        default=None, description="Number of items returned in this response."
+    )
+    total: int | None = Field(
+        default=None,
+        description="Total number of items available, when the hub reports it.",
+    )
+    limit: int
+    offset: int
+    has_more: bool | None = Field(
+        default=None, description="Whether another page is available."
+    )
+    next_offset: int | None = Field(
+        default=None, description="Offset to request the next page, when available."
+    )
 
 
 class ModelDownloadJobItem(BaseModel):
@@ -3126,18 +3504,59 @@ class NetworkCameraDetails(CameraDetails):
     best_profile: Optional["CameraProfileInfo"] = None
 
 
+class GigECapture(BaseModel):
+    """
+    **Capture configuration currently set on a GigE Vision camera.**
+
+    ## Attributes
+    - `pixel_format` - GenICam pixel format (e.g., "Mono8", "BayerRG8")
+    - `width` - Frame width in pixels
+    - `height` - Frame height in pixels
+    - `fps` - Acquisition frame rate
+    """
+
+    pixel_format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+
+
+class GigECameraDetails(CameraDetails):
+    """
+    **GigE Vision camera details.**
+
+    Identity fields may be missing when the camera could not be opened during
+    discovery (e.g. it is streaming to another application).
+
+    ## Attributes
+    - `ip` - IP address of the camera
+    - `vendor` - Camera vendor name (optional)
+    - `model` - Camera model name (optional)
+    - `serial` - Camera serial number (optional)
+    - `current_capture` - Capture configuration currently set on the camera (optional)
+    """
+
+    ip: str
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    current_capture: Optional[GigECapture] = None
+
+
 class Camera(BaseModel):
     """
-    **Camera device information supporting both USB and network cameras.**
+    **Camera device information supporting USB, network and GigE Vision cameras.**
 
     Common attributes apply to all camera types. Type-specific details are stored
-    in the details field which contains either USBCameraDetails or NetworkCameraDetails.
+    in the details field which contains USBCameraDetails, NetworkCameraDetails
+    or GigECameraDetails.
 
     ## Attributes
     - `device_id` - Unique identifier for the camera
     - `device_name` - Human-readable camera name
-    - `device_type` - Type of camera (USB or NETWORK)
-    - `details` - Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK)
+    - `device_type` - Type of camera (USB, NETWORK or GIGE)
+    - `details` - Type-specific camera details (USBCameraDetails for USB,
+      NetworkCameraDetails for NETWORK, GigECameraDetails for GIGE)
 
     ### Example (USB Camera)
     ```json
@@ -3187,12 +3606,33 @@ class Camera(BaseModel):
       }
     }
     ```
+
+    ### Example (GigE Vision Camera)
+    ```json
+    {
+      "device_id": "gige-camera-basler-12345678",
+      "device_name": "Basler acA1920-25gc",
+      "device_type": "GIGE",
+      "details": {
+        "ip": "192.168.1.50",
+        "vendor": "Basler",
+        "model": "acA1920-25gc",
+        "serial": "12345678",
+        "current_capture": {
+          "pixel_format": "BayerRG8",
+          "width": 1920,
+          "height": 1080,
+          "fps": 25.0
+        }
+      }
+    }
+    ```
     """
 
     device_id: str
     device_name: str
     device_type: CameraType
-    details: Union[USBCameraDetails, NetworkCameraDetails]
+    details: Union[USBCameraDetails, NetworkCameraDetails, GigECameraDetails]
 
 
 class CameraProfilesRequest(BaseModel):

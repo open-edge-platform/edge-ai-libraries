@@ -4,12 +4,15 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
 from api.routes.cameras import router as cameras_router
+from managers.camera_manager import CameraServiceError
 from internal_types import (
     InternalCamera,
     InternalCameraType,
     InternalUSBCameraDetails,
     InternalNetworkCameraDetails,
     InternalCameraProfileInfo,
+    InternalGigECameraDetails,
+    InternalGigECapture,
 )
 
 
@@ -100,6 +103,60 @@ class TestCamerasAPI(unittest.TestCase):
         self.assertIsInstance(data, list)
         self.assertEqual(len(data), 0)
         mock_manager.discover_all_cameras.assert_called_once()
+
+    @patch("api.routes.cameras.CameraManager")
+    def test_get_cameras_returns_gige_cameras(self, mock_camera_manager_cls):
+        """
+        Test GET /cameras returns GigE cameras with and without known identity.
+        """
+        mock_manager = MagicMock()
+        mock_manager.discover_all_cameras.return_value = [
+            InternalCamera(
+                device_id="gige-camera-basler-12345678",
+                device_name="Basler acA1920-25gc",
+                device_type=InternalCameraType.GIGE,
+                details=InternalGigECameraDetails(
+                    ip="192.168.1.50",
+                    vendor="Basler",
+                    model="acA1920-25gc",
+                    serial="12345678",
+                    current_capture=InternalGigECapture(
+                        pixel_format="Mono8", width=1920, height=1080, fps=25.0
+                    ),
+                ),
+            ),
+            InternalCamera(
+                device_id="gige-camera-unknown",
+                device_name="GigE Camera 192.168.1.51",
+                device_type=InternalCameraType.GIGE,
+                details=InternalGigECameraDetails(ip="192.168.1.51"),
+            ),
+        ]
+        mock_camera_manager_cls.return_value = mock_manager
+
+        response = self.client.get("/cameras")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual([c["device_type"] for c in data], ["GIGE", "GIGE"])
+        self.assertEqual(
+            data[0]["details"],
+            {
+                "ip": "192.168.1.50",
+                "vendor": "Basler",
+                "model": "acA1920-25gc",
+                "serial": "12345678",
+                "current_capture": {
+                    "pixel_format": "Mono8",
+                    "width": 1920,
+                    "height": 1080,
+                    "fps": 25.0,
+                },
+            },
+        )
+        self.assertEqual(data[1]["details"]["ip"], "192.168.1.51")
+        self.assertIsNone(data[1]["details"]["serial"])
+        self.assertIsNone(data[1]["details"]["current_capture"])
 
     @patch("api.routes.cameras.CameraManager")
     def test_get_cameras_returns_usb_cameras(self, mock_camera_manager_cls):
@@ -429,8 +486,8 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         mock_manager = MagicMock()
-        mock_manager.load_camera_profiles.side_effect = ValueError(
-            "Invalid camera_id format"
+        mock_manager.load_camera_profiles.side_effect = CameraServiceError(
+            400, "Invalid camera_id format"
         )
         mock_camera_manager_cls.return_value = mock_manager
 
@@ -455,8 +512,8 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         mock_manager = MagicMock()
-        mock_manager.load_camera_profiles.side_effect = ConnectionError(
-            "Camera not reachable"
+        mock_manager.load_camera_profiles.side_effect = CameraServiceError(
+            404, "Camera not reachable"
         )
         mock_camera_manager_cls.return_value = mock_manager
 
@@ -482,7 +539,9 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         mock_manager = MagicMock()
-        mock_manager.load_camera_profiles.side_effect = Exception("unauthorized access")
+        mock_manager.load_camera_profiles.side_effect = CameraServiceError(
+            401, "Failed to load profiles - invalid credentials"
+        )
         mock_camera_manager_cls.return_value = mock_manager
 
         # Act
@@ -501,56 +560,56 @@ class TestCamerasAPI(unittest.TestCase):
         self.assertIn("invalid credentials", data["detail"])
 
     @patch("api.routes.cameras.CameraManager")
-    def test_load_camera_profiles_authentication_error(self, mock_camera_manager_cls):
+    def test_load_camera_profiles_service_unavailable(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/{camera_id}/profiles returns 401 for authentication error.
+        Test POST /cameras/{camera_id}/profiles returns 500 when sensor-manager is unavailable.
         """
         # Arrange
         mock_manager = MagicMock()
-        mock_manager.load_camera_profiles.side_effect = Exception(
-            "authentication failed"
+        mock_manager.load_camera_profiles.side_effect = CameraServiceError(
+            500, "Camera service unavailable"
         )
         mock_camera_manager_cls.return_value = mock_manager
 
         # Act
         request_body = {
             "username": "admin",
-            "password": "wrongpassword",
+            "password": "admin123",
         }
         response = self.client.post(
             "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert
-        self.assertEqual(response.status_code, 401)
-        data = response.json()
-        self.assertIn("detail", data)
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Camera service unavailable")
 
     @patch("api.routes.cameras.CameraManager")
-    def test_load_camera_profiles_credentials_error(self, mock_camera_manager_cls):
+    def test_load_camera_profiles_maps_other_service_errors_to_500(
+        self, mock_camera_manager_cls
+    ):
         """
-        Test POST /cameras/{camera_id}/profiles returns 401 for credentials error.
+        Test POST /cameras/{camera_id}/profiles maps unexpected sensor-manager codes to 500.
         """
         # Arrange
         mock_manager = MagicMock()
-        mock_manager.load_camera_profiles.side_effect = Exception(
-            "invalid credentials provided"
+        mock_manager.load_camera_profiles.side_effect = CameraServiceError(
+            422, "Invalid camera request"
         )
         mock_camera_manager_cls.return_value = mock_manager
 
         # Act
         request_body = {
             "username": "admin",
-            "password": "wrongpassword",
+            "password": "admin123",
         }
         response = self.client.post(
             "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert
-        self.assertEqual(response.status_code, 401)
-        data = response.json()
-        self.assertIn("detail", data)
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Invalid camera request")
 
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_unexpected_error(self, mock_camera_manager_cls):

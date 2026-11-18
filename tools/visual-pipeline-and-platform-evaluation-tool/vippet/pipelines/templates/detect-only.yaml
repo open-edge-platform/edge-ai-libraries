@@ -23,6 +23,8 @@ variants:
       queue !
       gvafpscounter starting-frame=100 !
       gvawatermark !
+      gvametaconvert add-empty-results=true !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
   - name: GPU
     pipeline_description: >-
@@ -42,6 +44,8 @@ variants:
       queue !
       gvafpscounter starting-frame=100 !
       gvawatermark !
+      gvametaconvert add-empty-results=true !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
   - name: NPU
     pipeline_description: >-
@@ -60,4 +64,6 @@ variants:
       queue !
       gvafpscounter starting-frame=100 !
       gvawatermark !
+      gvametaconvert add-empty-results=true !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false

@@ -11,8 +11,6 @@ from src.common.schema import (
 	TelemetryCounts,
 	TelemetryProcessingConfig,
 	TelemetryRecord,
-	TelemetryStageTiming,
-	TelemetryThroughput,
 	TelemetryTimestamps,
 	TelemetryVideoMetadata,
 )
@@ -33,63 +31,22 @@ def _format_timestamp(epoch_seconds: float) -> str:
 	)
 
 
-def _build_stage_timings(
-	*,
-	frame_extraction_seconds: float,
-	detection_seconds: float,
-	embedding_seconds: float,
-	embedding_inference_seconds: float,
-	storage_seconds: float,
-	total_wall_seconds: float,
-) -> List[TelemetryStageTiming]:
-	stages: List[tuple[str, float]] = [
-		("extraction", frame_extraction_seconds),
-		("detection", detection_seconds),
-		("embedding", embedding_seconds),
-		("embedding_inference", embedding_inference_seconds),
-		("storage", storage_seconds),
-	]
-	safe_wall = max(total_wall_seconds, 1e-9)
-
-	extraction_seconds_safe = max(frame_extraction_seconds, 0.0)
-	extraction_pct = min(_safe_div(extraction_seconds_safe, safe_wall) * 100.0, 100.0)
-
-	parallel_budget_seconds = max(safe_wall - extraction_seconds_safe, 0.0)
-	parallel_scale_pct = _safe_div(parallel_budget_seconds, safe_wall) * 100.0
-	parallel_total = sum(
-		max(seconds, 0.0)
-		for name, seconds in stages
-		if name not in ("extraction", "embedding_inference")
-	)
-
-	results: List[TelemetryStageTiming] = []
-	for name, seconds in stages:
-		pct: float
-		if name == "extraction":
-			pct = extraction_pct
-		else:
-			if parallel_total > 0 and parallel_scale_pct > 0:
-				pct = min(
-					_safe_div(max(seconds, 0.0), parallel_total) * parallel_scale_pct,
-					100.0,
-				)
-			else:
-				pct = 0.0
-		results.append(
-			TelemetryStageTiming(name=name, seconds=seconds, percent_of_total=pct)
-		)
-	return results
-
-
 def _convert_batches(raw_batches: Iterable[Dict[str, Any]]) -> List[TelemetryBatchDetail]:
 	details: List[TelemetryBatchDetail] = []
 	for idx, batch in enumerate(raw_batches, start=1):
 		details.append(
 			TelemetryBatchDetail(
-				stream_id=batch.get("stream_id", -1),
-				batch_index=batch.get("batch_id", -1),
-				input_frames=batch.get("batch_size", -1),
-				items_after_detection=batch.get("total", 0) - batch.get("batch_size", 0),
+				# These mirror non-negative schema fields; a -1 "unknown" sentinel
+				# would fail validation and discard the entire telemetry record.
+				stream_id=batch.get("stream_id", 0),
+				batch_index=batch.get("batch_id", idx),
+				input_frames=batch.get("batch_size", 0),
+				# Extra items detection contributed on top of the input frames.
+				# Clamped: a batch that stored fewer items than it ingested would
+				# otherwise go negative and invalidate the record.
+				items_after_detection=max(
+					0, batch.get("total", 0) - batch.get("batch_size", 0)
+				),
 				detection_seconds=float(batch.get("stats", {}).get("detect")[2]),
 				embedding_seconds=float(batch.get("stats", {}).get("embed")[2]),
 				embedding_infer_seconds=float(batch.get("stats", {}).get("embed_inference_time", 0.0)),

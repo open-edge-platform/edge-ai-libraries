@@ -75,8 +75,7 @@ export const metrics = createSlice({
       state.lastMessage = action.payload;
       try {
         const parsed = JSON.parse(action.payload) as
-          | MetricsMessage
-          | MetricsErrorMessage;
+          MetricsMessage | MetricsErrorMessage;
         if ("error" in parsed) {
           state.error = parsed.error;
           state.isConnected = false;
@@ -174,7 +173,7 @@ export const selectCpuMetrics = (state: RootState) => {
   );
   const cpuFrequencyMetric = findMetric(
     state.metrics.metrics,
-    "cpu_frequency_avg_frequency",
+    "cpu_frequency_avg_frequency_hz",
   );
   const cpuTempMetric = findMetric(
     state.metrics.metrics,
@@ -184,7 +183,7 @@ export const selectCpuMetrics = (state: RootState) => {
   return {
     user: userMetric?.value ?? 0,
     idle: idleMetric?.value ?? 0,
-    avgFrequency: (cpuFrequencyMetric?.value ?? 0) / 1_000_000,
+    avgFrequency: (cpuFrequencyMetric?.value ?? 0) / 1_000_000_000,
     temp: cpuTempMetric?.value,
   };
 };
@@ -216,6 +215,38 @@ export const selectLatencyMetrics = (state: RootState) => {
   return { avgMs, minMs, maxMs };
 };
 
+/** Per-inference VLM metrics reported by `gvagenai` (metrics=true). */
+export const selectVlmMetrics = (state: RootState) => {
+  const jobId = state.metrics.activeJobId;
+  const labelMatcher = jobId
+    ? (l: Record<string, string>) => l.job_id === jobId
+    : undefined;
+  const ttftMs = findMetric(
+    state.metrics.metrics,
+    "vlm_metrics_ttft_ms",
+    labelMatcher,
+  )?.value;
+  const tpotMs = findMetric(
+    state.metrics.metrics,
+    "vlm_metrics_tpot_ms",
+    labelMatcher,
+  )?.value;
+  const generateDurationMs = findMetric(
+    state.metrics.metrics,
+    "vlm_metrics_generate_duration_ms",
+    labelMatcher,
+  )?.value;
+
+  if (
+    ttftMs === undefined &&
+    tpotMs === undefined &&
+    generateDurationMs === undefined
+  )
+    return undefined;
+
+  return { ttftMs, tpotMs, generateDurationMs };
+};
+
 export const selectNpuMetric = (state: RootState) =>
   findMetric(state.metrics.metrics, "npu_utilization")?.value;
 
@@ -224,11 +255,17 @@ export const selectNpuMetrics = (state: RootState) => {
     state.metrics.metrics,
     "npu_utilization",
   )?.value;
-  const frequency = findMetric(state.metrics.metrics, "npu_frequency")?.value;
-  const power = findMetric(state.metrics.metrics, "npu_power")?.value;
+  // npu_frequency_hz is reported in Hz; the UI displays MHz.
+  const frequencyHz = findMetric(
+    state.metrics.metrics,
+    "npu_frequency_hz",
+  )?.value;
+  const frequency =
+    frequencyHz !== undefined ? frequencyHz / 1_000_000 : undefined;
+  const power = findMetric(state.metrics.metrics, "npu_power_w")?.value;
   const temperature = findMetric(
     state.metrics.metrics,
-    "npu_temperature",
+    "npu_temperature_c",
   )?.value;
 
   return { utilization, frequency, power, temperature };
@@ -241,15 +278,17 @@ export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
     (l) => l.gpu_id === gpuId,
   );
 
-  const gpuFrequencyMetric = findMetric(
+  // Multi-tile GPUs (e.g. gt0 render + gt1 media) report one series per
+  // tile; show the primary (lowest-named) tile, as earlier releases did.
+  const gpuFrequencyMetric = filterMetrics(
     state.metrics.metrics,
-    "gpu_frequency",
-    (l) => l.gpu_id === gpuId && l.type === "cur_freq",
-  );
+    "gpu_frequency_cur_freq_hz",
+    (l) => l.gpu_id === gpuId,
+  ).sort((a, b) => (a.labels.tile ?? "").localeCompare(b.labels.tile ?? ""))[0];
 
   const gpuPowerMetrics = filterMetrics(
     state.metrics.metrics,
-    "gpu_power",
+    "gpu_power_power_w",
     (l) => l.gpu_id === gpuId,
   );
 
@@ -286,7 +325,7 @@ export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
     videoEnhance: findEngineUsage(["video-enhance", "vecs"]),
     frequency:
       gpuFrequencyMetric?.value !== undefined
-        ? gpuFrequencyMetric.value / 1000
+        ? gpuFrequencyMetric.value / 1_000_000_000
         : undefined,
     gpuPower: findPowerValue("gpu_cur_power"),
     pkgPower: findPowerValue("pkg_cur_power"),

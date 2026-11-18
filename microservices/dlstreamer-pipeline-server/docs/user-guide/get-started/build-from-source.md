@@ -1,10 +1,14 @@
 # Build from Source
 
 You can build either an optimized or an extended DL Streamer Pipeline Server image (for both
-Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the
-OpenVINO™ Model API and ROS2 on top of the optimized image.
+Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the OpenVINO™ Model
+API and ROS2 on top of the optimized image. The Geti SDK is not included. Its [upstream
+repository](https://github.com/open-edge-platform/geti-sdk) is archived and deprecated, is no
+longer maintained, supports Geti v2.x but not v3.0+, and reports known security issues. Therefore,
+Geti-specific model download and inference features are unavailable in these images.
 
-> **Note:** Ensure to set the right values in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`
+> [!NOTE]
+> Ensure to set the right values in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`
 > file for building DL Streamer Pipeline Server optimized image and DL Streamer Pipeline Server
 > extended image when you follow the below steps. The mentioned file has the necessary details
 > written as comments.
@@ -42,7 +46,8 @@ also for naming the image that gets built:
     BUILD_TARGET=
     ```
 
-> **Note:** If you do not have access to the above mentioned `BASE_IMAGE`, then you can build
+> [!NOTE]
+> If you do not have access to the above mentioned `BASE_IMAGE`, then you can build
 > [DL Streamer docker image from source](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/advanced_install/advanced_build_docker_image.html)
 > and use it as `BASE_IMAGE` in the above mentioned `.env` file.
 

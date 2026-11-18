@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Troubleshooting
 
 ## Containers have started but the application is not working
@@ -39,6 +44,16 @@ This should resolve OpenCV-related dependency issues and allow the summary stack
 2. If you recently changed `MULTIMODAL_EMBEDDING_MODEL` or `TEXT_EMBEDDING_MODEL`, re-run ingestion so embeddings are recreated with the new dimensions. You can clean existing data with `source setup.sh --clean-data` and then bring the application back up with `source setup.sh --search`.
 3. Review the supported embedding models and their dimensions in [Supported Models for Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before switching models.
 
+## Model-download cache permission errors
+
+**Problem**: Setup stops before the model-download container becomes healthy, with `Failed to initialize cache` and `Permission denied` for `/opt/models/.model-download-cache/uv`.
+
+**Cause**: The container runs as a non-root user whose UID can differ from the host user. Adding the host group to the container does not grant write access to a host directory that is not group-writable.
+
+**Solution**: Use the updated `setup.sh`. It places the UV dependency cache in the container's `/tmp/model-download-cache/uv`, which is discarded when the transient container is removed. Downloaded models remain persistent in the host's `ov_models/` directory.
+
+Before starting model-download, setup assigns `ov_models/` to the host user's primary group and grants that group read, write, and traversal access. It stops with an error if this preparation fails. For an existing model tree owned by another user, have its owner or administrator grant the intended shared group access to the affected directories and files, then retry. Do not run model-download as root or make the model directory world-writable.
+
 ## VLM Microservice Model Loading Issues
 
 **Problem**: VLM microservice fails to load or save models with permission errors, or you see errors related to model access in the logs.
@@ -76,7 +91,8 @@ This should resolve OpenCV-related dependency issues and allow the summary stack
    source setup.sh --search
    ```
 
-> **Note:** Removing the `ov-models` or `docker_ov-models` volume will delete any previously cached or converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
+> [!NOTE]
+> Removing the `ov-models` or `docker_ov-models` volume will delete any previously cached or converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
 
 **Prevention**: This issue has been fixed in the current version of the VLM microservice Dockerfile. New installations will automatically create the volume with correct permissions.
 
@@ -102,10 +118,10 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
    source setup.sh --down
    ```
 
-2. Set a larger VLM model (e.g., upgrade from 3B to 7B parameters):
+2. Set a larger VLM model (e.g., upgrade from 4B to 9B parameters):
 
    ```bash
-   export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"
+   export VLM_MODEL_NAME="OpenVINO/Qwen3.5-9B-int4-ov"
    ```
 
 3. Restart the application:
@@ -116,10 +132,11 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
 
 **Alternative Models to Try**:
 
-- For CPU: `Qwen/Qwen2.5-VL-7B-Instruct` (larger version)
-- For GPU: Consider other supported VLM models with higher parameter counts
+- For OVMS on CPU or GPU: `OpenVINO/Qwen3.5-9B-int4-ov` (larger version) or `OpenVINO/gemma-4-E4B-it-int8-ov`
+- For vLLM: `Qwen/Qwen3-VL-8B-Instruct` (larger version)
 
-> **Note:** Larger models will require more system resources (RAM or VRAM) and may have longer inference times, but typically provide more accurate and coherent summaries.
+> [!NOTE]
+> Larger models will require more system resources (RAM or VRAM) and may have longer inference times, but typically provide more accurate and coherent summaries.
 
 ## Final Summary Stuck or OVMS Container Stopped
 
@@ -186,25 +203,51 @@ Alternatively, switch to a model with a larger context window.
 
 ## VLM Workload Fails on NPU
 
-**Problem**: The VLM model fails to load or run when `VLM_TARGET_DEVICE` or `LLM_TARGET_DEVICE` is set to `NPU`.
+**Problem**: Chunk captioning fails, or OVMS fails to load or run the model, when `VLM_TARGET_DEVICE` is set to `NPU`.
 
-**Cause**: Not all VLM/LLM models are compatible with NPU execution. NPU support depends on the model architecture and the OpenVINO™ version installed.
+**Cause**: The VLM is not supported on NPU for VSS. NPU vision-language pipelines accept only one image per request, while VSS sends several frames per chunk. Only the final-summary LLM can run on NPU.
 
 **Symptoms**:
 
 - OVMS container crashes or fails to start when targeting NPU
 - Inference errors or unsupported-operation messages in OVMS logs
-- Model conversion succeeds but inference produces errors
+- Chunk captioning requests fail while the model is loaded
 
 **Solution**:
 
-1. Verify that your model is listed on the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page for NPU execution.
-2. If the model is not supported on NPU, switch to a supported model or fall back to CPU/GPU:
+1. Run the VLM on CPU or GPU:
 
    ```bash
-   export VLM_TARGET_DEVICE="CPU"
+   export VLM_TARGET_DEVICE="GPU"
    source setup.sh --summary
    ```
+
+2. To use the NPU, move only the final-summary LLM to it with a text-only `-cw-` model. See [Final Summary Fails or Is Cut Short with the LLM on NPU](#final-summary-fails-or-is-cut-short-with-the-llm-on-npu).
+
+## Final Summary Fails or Is Cut Short with the LLM on NPU
+
+**Problem**: With `LLM_TARGET_DEVICE=NPU`, setup stops with `LLM_TARGET_DEVICE=NPU needs a text-only LLM`, the final or audio summary fails, or the summary ends mid-sentence.
+
+**Cause**: An NPU LLM is compiled for a fixed prompt length (`OVMS_NPU_MAX_PROMPT_LEN`, default `8192` tokens) and response length (`OVMS_NPU_MIN_RESPONSE_LEN`, default `1024`). OVMS rejects longer prompts with `Input length exceeds the maximum allowed length` and cuts longer output without an error. Vision-language models on NPU cannot have their prompt limit raised, so they are rejected for the LLM role.
+
+**Solution**:
+
+1. Use a text-only LLM on NPU, for example `OVMS_LLM_MODEL_NAME=OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov` or `OpenVINO/Qwen3-8B-int4-cw-ov`, or move the LLM to GPU/CPU.
+2. Leave `PM_LLM_MAX_CONTEXT_LENGTH` and `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` unset so the setup script sizes them to the NPU limits, or lower them below the values printed in the `NPU LLM limits` log line.
+3. For long, speech-heavy videos, raise the limit (for example `export OVMS_NPU_MAX_PROMPT_LEN=16384`, which needs about 20 GB of system memory for `Phi-3.5-mini-instruct`) or disable audio. On systems with 16 GB of memory or less, lower it to `4096` if OVMS fails to load the model on NPU. A single audio transcript longer than the prompt budget is sent in one request and fails on NPU.
+
+On Helm, set `ovms.env.OVMS_NPU_MAX_PROMPT_LEN` and `ovms.env.OVMS_NPU_MIN_RESPONSE_LEN`, then restart the OVMS pod.
+
+## OpenVINO Model Download Fails with `Failed to download llm model`
+
+**Problem**: Setup stops with `cannot be downloaded for NPU` or `is an NPU-optimized channel-wise repo`, or the model download fails with `ValueError: ('Failed to download llm model', 'OpenVINO/...')`.
+
+**Cause**: The model-download service pulls a pre-converted `OpenVINO/*` repo only when the repo matches the target device. NPU needs an NPU-optimized channel-wise repo whose name contains `-cw-`. CPU and GPU need a repo without `-cw-`. On a mismatch, the service tries to convert the repo instead, which fails for `OpenVINO/*` repos.
+
+**Solution**:
+
+1. On NPU, use a `-cw-` repo, for example `OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov` instead of `OpenVINO/Phi-3.5-mini-instruct-int4-gq-ov`.
+2. On CPU or GPU, use the variant without `-cw-`, for example `OpenVINO/Phi-3.5-mini-instruct-int4-ov`.
 
 ## GPU Out-of-Resources When Loading Multiple Models
 
@@ -238,6 +281,91 @@ Alternatively, switch to a model with a larger context window.
    source setup.sh --summary
    ```
 
+## vLLM XPU Fails to Start with "No available memory for the cache blocks"
+
+**Problem**: With `ENABLE_VLLM_GPU=true`, the `vllm-xpu-service` container never becomes healthy and restarts in a loop. The logs end with:
+
+```text
+INFO [gpu_worker.py:640] Available KV cache memory: -1.66 GiB
+ValueError: No available memory for the cache blocks. Try increasing `gpu_memory_utilization` ...
+```
+
+A related variant appears once the KV cache is positive but still too small:
+
+```text
+ValueError: To serve at least one request with the model's max seq len (32000),
+(4.39 GiB KV cache is needed, which is larger than the available KV cache memory (0.93 GiB)
+```
+
+Because `pipeline-manager` waits on `vllm-xpu-service` being healthy, `pipeline-manager`, `nginx`, and the UI stay in `Created` state and the application never comes up.
+
+**Cause**: The GPU does not have enough memory for all three consumers at once — model weights, vision-encoder activations, and KV cache. vLLM reserves `total_memory x VLLM_GPU_MEM`, subtracts weights and activations, and uses whatever is left for KV cache. `Qwen/Qwen3-VL-4B-Instruct` in `bfloat16` needs about 8.6 GB for weights alone, and the vision encoder profiles against a full-size image (16384 encoder tokens by default), which costs several GB more. This fits on a 24 GB Arc Pro B60 but not on a 12 GB card such as the Arc B580.
+
+**Solution**: Check how much memory your GPU actually reports, then reduce one or more of the three consumers.
+
+1. Confirm the device and its total memory:
+
+   ```bash
+   docker run --rm --device /dev/dri:/dev/dri --group-add "$(getent group render | cut -d: -f3)" \
+     --entrypoint python3 vllm/vllm-openai-xpu:v0.31.0 -c \
+     "import torch; p = torch.xpu.get_device_properties(0); print(p.name, round(p.total_memory/1024**3, 2), 'GiB')"
+   ```
+
+2. Apply the fixes below, cheapest first, then restart with `source setup.sh --down` followed by your usual `setup.sh` command.
+
+   - **Use the FP8 checkpoint** — the single biggest win. This halves the weight footprint from 8.6 GB to 5.9 GB with no change to context length:
+
+     ```bash
+     export VLM_MODEL_NAME="Qwen/Qwen3-VL-4B-Instruct-FP8"
+     ```
+
+   - **Cap the image size** — the vision encoder, not the weights, is usually the largest remaining consumer. `VLLM_MM_MAX_PIXELS` is expressed in pixels and defaults to `16777216`:
+
+     ```bash
+     export VLLM_MM_MAX_PIXELS=401408
+     ```
+
+     **How to choose a value.** vLLM sizes the encoder on the *worst-case* frame the cap allows, not on your actual frames:
+
+     ```text
+     worst_case_tokens = VLLM_MM_MAX_PIXELS / 1024
+     encoder_budget    = max(VLLM_MAX_NUM_BATCHED_TOKENS, worst_case_tokens)
+     ```
+
+     The `1024` is `(patch_size x merge_size)^2`, which is `(16 x 2)^2` for Qwen3-VL. Encoder memory scales with `encoder_budget`, so the cap is the main lever — but only down to the `VLLM_MAX_NUM_BATCHED_TOKENS` floor (`2048` by default). Below that it frees no further memory and only downscales frames more.
+
+     | `VLLM_MM_MAX_PIXELS` | Worst-case tokens | A 1920x1080 frame becomes |
+     | -------------------- | ----------------- | ------------------------- |
+     | `16777216` (default) | 16384 | 1920x1088, unchanged |
+     | `401408` | 392 | 832x448 |
+     | `262144` | 256 | 672x384 |
+
+     The cap is a pixel-area budget, so the resulting dimensions follow the aspect ratio of the source frame. It limits the resolution of each frame, not how many frames you send — the default `PM_MULTI_FRAME_COUNT=12` works unchanged. Lowering it trades caption detail for memory, so raise it again if captions become too vague.
+
+   - **Lower the context length** — the error message tells you exactly how much KV cache one request at `VLLM_MAX_MODEL_LEN` requires. Scale the value down by the ratio of available to needed memory:
+
+     ```bash
+     export VLLM_MAX_MODEL_LEN=24000
+     ```
+
+   - **Raise the memory fraction** — only a small gain, and setting it too close to `1.0` risks out-of-memory errors during inference rather than at startup:
+
+     ```bash
+     export VLLM_GPU_MEM=0.95
+     ```
+
+**Working configurations** on a 12 GB Intel Arc B580, using `vllm/vllm-openai-xpu:v0.31.0`:
+
+| Model | `VLLM_GPU_MEM` | `VLLM_MAX_MODEL_LEN` | `VLLM_MM_MAX_PIXELS` | Usable context |
+| ----- | -------------- | -------------------- | -------------------- | -------------- |
+| `Qwen3-VL-4B-Instruct-FP8` | `0.95` | `24000` | `401408` | 25,659 tokens |
+| `Qwen3-VL-4B-Instruct` (bf16) | `0.95` | `8192` | `401408` | 10,496 tokens |
+
+The first row is the recommended recipe, and all four of its settings are required: weakening any single one — leaving the memory fraction at `0.9`, dropping the pixel cap, keeping `32000` context, or reverting to `bfloat16` — still fails to start on this card. The second row shows `bfloat16` remains usable if you accept a much shorter context instead of switching to FP8.
+
+> [!NOTE]
+> Only vLLM on Intel Arc GPUs is affected. The CPU vLLM backend and the default OVMS backend size their caches differently and are unaffected by these variables.
+
 ## Embedding Fails on NPU/GPU in Kubernetes (Device Permission)
 
 **Problem**: On a Helm deployment, video embedding fails when `multimodal-embedding-ms` or `multimodal-dataprep` is configured for `NPU` (or `GPU`), even though the device plugin granted the resource and `/dev/accel` (or `/dev/dri`) is mounted in the pod. The UI may show a generic embedding failure.
@@ -268,7 +396,8 @@ Alternatively, switch to a model with a larger context window.
 
 3. Re-deploy (or `helm upgrade`) and confirm the pod now lists `['CPU','NPU']` (or `GPU`) and loads the model on the accelerator.
 
-> **Note:** Nodes are heterogeneous, so the gid can differ per node. The chart cannot auto-detect it (templates render client-side), which is why `global.accelGroupIds` is an explicit override. On first GPU/NPU start the model is compiled and cached to `ovCacheDir` (`/app/ov_models/ov_cache`); allow the DataPrep `startupProbe` budget to complete this one-time compile.
+> [!NOTE]
+> Nodes are heterogeneous, so the gid can differ per node. The chart cannot auto-detect it (templates render client-side), which is why `global.accelGroupIds` is an explicit override. On first GPU/NPU start the model is compiled and cached to `ovCacheDir` (`/app/ov_models/ov_cache`); allow the DataPrep `startupProbe` budget to complete this one-time compile.
 
 ## OVMS KV Cache Exhaustion
 
@@ -307,7 +436,7 @@ Increase the KV cache size by setting the `OVMS_CACHE_SIZE_GB` environment varia
 | Integrated GPU (iGPU) | 25 % of system RAM | [2, 6] GB |
 | Discrete GPU (dGPU) | 33 % of dedicated VRAM | [2, 16] GB |
 
-The setup script automatically detects the GPU type using the OpenVINO™ runtime. Setting `OVMS_CACHE_SIZE_GB` overrides the dynamic calculation for all device types.
+The setup script detects a discrete GPU by reading its dedicated VRAM from sysfs; if none is found, an Intel GPU at PCI address `0000:00:02.0` is treated as an iGPU. Setting `OVMS_CACHE_SIZE_GB` overrides the dynamic calculation for all device types.
 
 ```bash
 # Example: set KV cache to 8 GB
@@ -317,7 +446,29 @@ source setup.sh --summary   # or --search
 
 The updated cache size is applied to the existing model configuration on the next run — no re-export is required.
 
-> **Note:** On integrated GPUs (iGPU), memory is shared with the system. Setting a very large cache size may leave insufficient memory for model weights and cause `CL_OUT_OF_RESOURCES` errors. Start with modest increases (e.g., 4 → 6 → 8 GB) and monitor both cache usage and GPU memory utilization.
+> [!NOTE]
+> On integrated GPUs (iGPU), memory is shared with the system. Setting a very large cache size may leave insufficient memory for model weights and cause `CL_OUT_OF_RESOURCES` errors. Start with modest increases (e.g., 4 → 6 → 8 GB) and monitor both cache usage and GPU memory utilization.
+
+## OVMS Fails to Start with `reserved_la_bytes <= budget_in_bytes`
+
+**Problem**: `setup.sh` stops with `dependency failed to start: container ... ovms-service ... exited` (sometimes exit code `139`), or the OVMS logs show:
+
+```text
+Error during llm node initialization ... Check 'reserved_la_bytes <= budget_in_bytes' failed
+```
+
+**Cause**: Hybrid linear-attention models such as Qwen3.5 reserve a fixed recurrent state for every sequence OVMS may batch (`max_num_seqs` in `graph.pbtxt`), and this reservation comes out of the KV cache budget (`cache_size`). For example, Qwen3.5-4B needs about 25 MB per sequence, so `max_num_seqs: 256` (about 6.3 GB) does not fit the 6 GB integrated-GPU cache.
+
+**Solution**: `setup.sh` sets `max_num_seqs` to the larger of 16 and `PM_VLM_CONCURRENT + PM_LLM_CONCURRENT`. Pipeline Manager never sends more concurrent requests than that, and any extra requests queue. The value is written to newly downloaded models and patched into existing `graph.pbtxt` files on the next run, so no re-export is required. To override it:
+
+```bash
+export OVMS_MAX_NUM_SEQS=8
+source setup.sh --summary
+```
+
+Alternatively, increase `OVMS_CACHE_SIZE_GB` if the device has memory to spare.
+
+On Helm, the OVMS download init containers apply `ovms.env.OVMS_MAX_NUM_SEQS` (default `16`) and `ovms.env.OVMS_CACHE_SIZE_GB` the same way. Restart the OVMS pod after changing them.
 
 ## 4K/8K Video Ingestion Stalls with a Worker Timeout
 
@@ -368,7 +519,21 @@ The updated cache size is applied to the existing model configuration on the nex
    source setup.sh --search
    ```
 
-> **Note:** Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/docs/user-guide/get-started.md#advanced-tuning).
+> [!NOTE]
+> Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/docs/user-guide/get-started.md#advanced-tuning).
+
+## Video Embedding Fails with "Pipeline made no progress"
+
+**Problem**: Embedding a video in `--search` or `--dual` mode fails after a few minutes, and the `multimodal-dataprep` logs show `Pipeline made no progress for 300s while ... (MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S=300)`. The video's `searchEmbeddings` is `false`, unless an earlier run already succeeded.
+
+**Cause**: A detection or embedding inference call in DataPrep never returned, usually because of a GPU hang. A stall watchdog fails the ingestion when no pipeline stage makes progress for `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` seconds (default `300`), instead of leaving it in progress forever.
+
+**Solution**:
+
+1. Check the host for GPU hang or reset messages with `sudo dmesg | grep -i -E "hang|reset"`, and restart `multimodal-dataprep` to recover the device.
+2. If it recurs, run the affected stage on CPU: set `DATAPREP_DETECTION_DEVICE=CPU` or `DATAPREP_EMBEDDING_DEVICE=CPU` and redeploy.
+3. Raise `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` only if slow hardware legitimately needs longer between stages; `0` disables the watchdog. On Helm, set `multimodaldataprep.sdkPipeline.pipelineStallTimeoutS`.
+4. Retry with `POST /manager/videos/search-embeddings/{videoId}`.
 
 ## Accuracy of search results
 

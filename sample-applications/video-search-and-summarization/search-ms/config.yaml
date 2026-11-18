@@ -14,7 +14,7 @@ aggregation:
   strategy: "temporal_segment_clustering"
   
   # Segment duration in seconds for temporal clustering
-  segment_duration_seconds: 8  # AGGREGATION_SEGMENT_DURATION
+  segment_duration_seconds: 10  # AGGREGATION_SEGMENT_DURATION
   
   # Minimum gap between segments from same video (Metro AI Suite inspired)
   min_temporal_gap_seconds: 0  # AGGREGATION_MIN_GAP
@@ -48,7 +48,7 @@ aggregation:
 # These can be overridden via environment variables:
 #
 # AGGREGATION_ENABLED=true
-# AGGREGATION_SEGMENT_DURATION=8
+# AGGREGATION_SEGMENT_DURATION=10
 # AGGREGATION_MIN_GAP=0
 # AGGREGATION_MAX_RESULTS=20
 # AGGREGATION_INITIAL_K=1000
@@ -64,13 +64,13 @@ aggregation:
 # Example Docker Compose Override:
 # environment:
 #   - AGGREGATION_ENABLED=true
-#   - AGGREGATION_SEGMENT_DURATION=8
+#   - AGGREGATION_SEGMENT_DURATION=10
 #   - AGGREGATION_MIN_GAP=0
 #   - AGGREGATION_MAX_RESULTS=20
 #   - AGGREGATION_INITIAL_K=1000
 
 # Performance Notes:
-# - segment_duration_seconds: 8 seconds provides good balance for traffic videos
+# - segment_duration_seconds: 10 seconds provides good balance for traffic videos
 # - min_temporal_gap_seconds: 0 seconds prevents duplicate nearby results (can be increased if needed)
 # - initial_k: 1000 ensures sufficient frames for good aggregation
 # - length_normalization prevents bias toward longer videos

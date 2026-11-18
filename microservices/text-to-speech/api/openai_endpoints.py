@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse, Response
 from api.error_responses import openai_error_response
 from dto.speech_dto import SpeechRequest
 from pipeline import Pipeline
+from utils.config_loader import config
+from utils.device_validation import resolve_tts_device
 from utils.session_manager import generate_session_id
 
 
@@ -23,7 +25,12 @@ def generate_speech(request: SpeechRequest):
 
     try:
         request.validate_for_service()
-        pipeline = Pipeline(session_id=generate_session_id())
+        device = resolve_tts_device(
+            config.models.tts.runtime,
+            config.models.tts.name,
+            request.device or config.models.tts.device,
+        )
+        pipeline = Pipeline(session_id=generate_session_id(), device=device)
         result = pipeline.synthesize(
             text=request.input,
             language=request.language,
@@ -31,6 +38,12 @@ def generate_speech(request: SpeechRequest):
             instructions=request.instructions,
         )
     except ValueError as exc:
+        # Previously silent: a 400 here dropped the reply's audio with no
+        # trace of why. Logged as a warning (not .exception) since ValueErrors
+        # here are expected client-input rejections, not bugs — but the
+        # message is needed to tell "bad request" apart from "our validation
+        # is wrong" after the fact.
+        logger.warning("Speech synthesis rejected input: %s", exc)
         return openai_error_response(400, str(exc), code="invalid_request")
     except RuntimeError as exc:
         logger.exception("Speech synthesis runtime failure")

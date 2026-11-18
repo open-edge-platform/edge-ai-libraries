@@ -154,6 +154,7 @@ jobs:
           scan-scope: "all"  
           output-format: "txt" 
           fail-on-findings: "true"
+          severity-level: "HIGH"
           paths: "microservices/visual-data-preparation-for-retrieval/"
           report_suffix: "-bandit-visual-data-preparation-CT161"
           

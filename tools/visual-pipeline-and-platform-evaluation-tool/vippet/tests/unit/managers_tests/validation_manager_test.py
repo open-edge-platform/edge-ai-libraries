@@ -10,6 +10,7 @@ from internal_types import (
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
+from managers.execution_coordinator import ExecutionCoordinator
 from managers.validation_manager import ValidationManager
 from pipeline_runner import PipelineResult
 
@@ -42,7 +43,7 @@ class TestValidationManager(unittest.TestCase):
     The tests focus on:
       * job creation and initial state,
       * status and summary retrieval,
-      * interaction with PipelineRunner,
+      * interaction with Dlsps2PipelineRunner,
       * input validation and error paths.
 
     Validation jobs cannot be cancelled by the user.
@@ -54,10 +55,14 @@ class TestValidationManager(unittest.TestCase):
     def setUp(self):
         """Reset singleton state before each test."""
         ValidationManager._instance = None
+        # Workers are mocked out here, so they never release their execution
+        # lease; drop the coordinator to keep tests independent.
+        ExecutionCoordinator._instance = None
 
     def tearDown(self):
         """Reset singleton state after each test."""
         ValidationManager._instance = None
+        ExecutionCoordinator._instance = None
 
     def _build_internal_validation(
         self, parameters: dict | None = None
@@ -89,7 +94,7 @@ class TestValidationManager(unittest.TestCase):
           * convert the internal Graph to a pipeline description,
           * create a new InternalValidationJob with RUNNING state,
           * store Graph object in internal state,
-          * start a background worker thread that uses PipelineRunner.
+          * start a background worker thread that uses Dlsps2PipelineRunner.
         """
         manager = ValidationManager()
 
@@ -122,7 +127,7 @@ class TestValidationManager(unittest.TestCase):
 
         mock_execute.assert_called_once()
         called_job_id, called_pipe_desc, called_max_rt, called_hard_to = (
-            mock_execute.call_args[0]
+            mock_execute.call_args[0][:4]
         )
         self.assertEqual(called_job_id, job_id)
         self.assertEqual(called_pipe_desc, "filesrc ! decodebin3 ! autovideosink")
@@ -148,7 +153,7 @@ class TestValidationManager(unittest.TestCase):
         with patch.object(manager, "_execute_validation") as mock_execute:
             manager.run_validation(internal_request)
 
-        _, _, max_rt, hard_timeout = mock_execute.call_args[0]
+        _, _, max_rt, hard_timeout = mock_execute.call_args[0][:4]
         self.assertEqual(max_rt, 10)
         self.assertEqual(hard_timeout, 70)
 
@@ -188,11 +193,42 @@ class TestValidationManager(unittest.TestCase):
 
         self.assertIn("greater than or equal to 1", str(ctx.exception))
 
+    def test_run_validation_rejects_invalid_rtsp_location(self):
+        """An rtspsrc location that could alter the pipeline should raise ValueError."""
+        manager = ValidationManager()
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {
+                        "id": "0",
+                        "type": "rtspsrc",
+                        "data": {"location": "rtsp://host/a ! filesink location=/x"},
+                    },
+                    {"id": "1", "type": "decodebin3", "data": {}},
+                    {"id": "2", "type": "fakesink", "data": {}},
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                ],
+            }
+        )
+
+        with patch.object(manager, "_execute_validation") as mock_execute:
+            with self.assertRaises(ValueError) as ctx:
+                manager.run_validation(
+                    InternalPipelineValidation(pipeline_graph=graph, parameters=None)
+                )
+
+        self.assertIn("Invalid RTSP location", str(ctx.exception))
+        mock_execute.assert_not_called()
+        self.assertEqual(manager.jobs, {})
+
     # ------------------------------------------------------------------
     # _execute_validation behaviour
     # ------------------------------------------------------------------
 
-    @patch("managers.validation_manager.PipelineRunner")
+    @patch("managers.validation_manager.Dlsps2PipelineRunner")
     def test_execute_validation_marks_job_completed_on_success(self, mock_runner_cls):
         """On successful validation (exit_code=0, no stderr), job should be COMPLETED."""
         manager = ValidationManager()
@@ -209,7 +245,7 @@ class TestValidationManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        # Mock PipelineRunner returning valid result (exit_code=0, empty stderr)
+        # Mock the runner returning valid result (exit_code=0, empty stderr)
         mock_runner = MagicMock()
         mock_runner.run.return_value = PipelineResult(
             exit_code=0, stderr=[], stdout=["Pipeline parsed successfully."]
@@ -229,7 +265,7 @@ class TestValidationManager(unittest.TestCase):
         self.assertTrue(updated.is_valid)
         self.assertIsNotNone(updated.end_time)
 
-    @patch("managers.validation_manager.PipelineRunner")
+    @patch("managers.validation_manager.Dlsps2PipelineRunner")
     def test_execute_validation_marks_job_failed_on_invalid_pipeline(
         self, mock_runner_cls
     ):
@@ -252,8 +288,8 @@ class TestValidationManager(unittest.TestCase):
         mock_runner.run.return_value = PipelineResult(
             exit_code=1,
             stderr=[
-                "gst_runner - ERROR - no element foo",
-                "gst_runner - ERROR - some other error",
+                "no element foo",
+                "some other error",
             ],
             stdout=[],
         )
@@ -278,7 +314,7 @@ class TestValidationManager(unittest.TestCase):
         self.assertTrue(any("no element foo" in d for d in updated.details))
         self.assertFalse(updated.is_valid)
 
-    @patch("managers.validation_manager.PipelineRunner")
+    @patch("managers.validation_manager.Dlsps2PipelineRunner")
     def test_execute_validation_sets_failed_on_exception(self, mock_runner_cls):
         """Unexpected exception should mark job as FAILED with error in details list."""
         manager = ValidationManager()
@@ -312,7 +348,7 @@ class TestValidationManager(unittest.TestCase):
         self.assertTrue(len(updated.details) > 0)
         self.assertIn("runner exploded", updated.details[0])
 
-    @patch("managers.validation_manager.PipelineRunner")
+    @patch("managers.validation_manager.Dlsps2PipelineRunner")
     def test_execute_validation_marks_job_failed_without_stderr_entries(
         self, mock_runner_cls
     ):

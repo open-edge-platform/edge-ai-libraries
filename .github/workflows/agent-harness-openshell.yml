@@ -1,0 +1,306 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: "[Agent Harness] OpenShell quality gates"
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - frameworks/agent-harness-install/**
+      - .github/workflows/agent-harness-openshell.yml
+      - .github/scripts/agent-harness-required-gate.mjs
+  workflow_dispatch:
+    inputs:
+      live:
+        description: Run sandbox lifecycle tests on the prepared runner
+        type: boolean
+        default: false
+      model:
+        description: Exact model ID already served by the runner's IR (required for live tests)
+        type: string
+        default: ""
+
+permissions: {}
+
+jobs:
+  changes:
+    name: Agent Harness change detection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.result.outputs.relevant }}
+    steps:
+      - name: Detect component changes
+        id: filter
+        if: github.event_name == 'pull_request' && github.event.pull_request.changed_files < 3000
+        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+        with:
+          filters: |
+            harness:
+              - 'frameworks/agent-harness-install/**'
+              - '.github/workflows/agent-harness-openshell.yml'
+              - '.github/scripts/agent-harness-required-gate.mjs'
+      - name: Publish change decision
+        id: result
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+          FILTER_RESULT: ${{ steps.filter.outputs.harness }}
+        run: |
+          set -euo pipefail
+          # The PR files API is limited to 3000 files; large PRs run all checks.
+          if [[ "$EVENT_NAME" != pull_request ]] || (( CHANGED_FILES >= 3000 )); then
+            echo 'relevant=true' >>"$GITHUB_OUTPUT"
+          else
+            case "$FILTER_RESULT" in
+              true|false) echo "relevant=$FILTER_RESULT" >>"$GITHUB_OUTPUT" ;;
+              *) echo '::error::Missing or invalid component change decision'; exit 1 ;;
+            esac
+          fi
+
+  static:
+    name: Agent Harness static analysis
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.21.0
+      - name: Install ShellCheck
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/shellcheck-v0.11.0.linux.x86_64.tar.xz"
+          curl --fail --location --retry 3 --proto '=https' \
+            https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz \
+            --output "$archive"
+          printf '%s  %s\n' \
+            8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198 "$archive" \
+            | sha256sum --check
+          tar -xJf "$archive" -C "$RUNNER_TEMP" shellcheck-v0.11.0/shellcheck
+          export PATH="$RUNNER_TEMP/shellcheck-v0.11.0:$PATH"
+          echo "$RUNNER_TEMP/shellcheck-v0.11.0" >>"$GITHUB_PATH"
+          shellcheck --version
+      - name: ShellCheck production scripts (zero diagnostics)
+        working-directory: frameworks/agent-harness-install
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' files < <(find . -type d \( -name test -o -name tests -o -name node_modules -o -name .venv \) -prune -o -type f -name '*.sh' -print0)
+          ((${#files[@]} > 0))
+          shellcheck --source-path=SCRIPTDIR --severity=style "${files[@]}"
+      - name: JavaScript syntax (production only)
+        working-directory: frameworks/agent-harness-install
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' files < <(find . -type d \( -name test -o -name tests -o -name node_modules -o -name .venv \) -prune -o -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -print0)
+          ((${#files[@]} > 0))
+          for file in "${files[@]}"; do
+            node --check "$file"
+          done
+
+  offline:
+    name: OpenShell offline gate
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.21.0
+      - name: Shell syntax
+        id: syntax
+        working-directory: frameworks/agent-harness-install
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            bash -n "$file"
+          done < <(find scripts openshell test -name '*.sh' -print0)
+          bash -n install.sh
+          bash -n uninstall.sh
+          mkdir -p "$RUNNER_TEMP/openshell-offline"
+      - name: Installer runtime regression
+        id: runtime
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          bash test/installer-runtime-test.sh | tee "$RUNNER_TEMP/openshell-offline/runtime.tap"
+      - name: OpenShell startup, runtime and boundaries
+        id: core
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          HARNESS_TEST_SKIP_NESTED=1 bash test/openshell-test.sh | tee "$RUNNER_TEMP/openshell-offline/core.tap"
+      - name: Managed inference regression
+        id: inference
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          bash test/managed-inference-test.sh | tee "$RUNNER_TEMP/openshell-offline/inference.tap"
+      - name: Model lifecycle and CLI regression
+        id: lifecycle
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          bash test/model-lifecycle-test.sh | tee "$RUNNER_TEMP/openshell-offline/lifecycle.tap"
+      - name: Agent model defaults
+        id: defaults
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          node --test --test-reporter=tap test/model-defaults-test.mjs | tee "$RUNNER_TEMP/openshell-offline/defaults.tap"
+      - name: TAP reporting regression
+        id: reporting
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          node --test --test-reporter=tap test/tap-summary-test.mjs test/validate-local-openshell-test.mjs | tee "$RUNNER_TEMP/openshell-offline/reporting.tap"
+      - name: Publish offline test summary
+        if: always()
+        working-directory: frameworks/agent-harness-install
+        env:
+          TEST_STEP_OUTCOMES: '{"runtime":"${{ steps.runtime.outcome }}","core":"${{ steps.core.outcome }}","inference":"${{ steps.inference.outcome }}","lifecycle":"${{ steps.lifecycle.outcome }}","defaults":"${{ steps.defaults.outcome }}","reporting":"${{ steps.reporting.outcome }}"}'
+        run: node test/tap-summary.mjs "$RUNNER_TEMP/openshell-offline"
+      - name: Upload offline TAP reports
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: openshell-offline-results
+          path: ${{ runner.temp }}/openshell-offline/
+          if-no-files-found: warn
+          retention-days: 14
+
+  hermes:
+    name: Hermes image runtime gate
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.21.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - name: Build production Hermes image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: frameworks/agent-harness-install
+          file: frameworks/agent-harness-install/openshell/Dockerfile
+          build-args: HARNESS_AGENT=hermes
+          tags: harness-hermes-validation
+          load: true
+          push: false
+          cache-from: type=gha,scope=agent-harness-hermes
+          cache-to: type=gha,scope=agent-harness-hermes,mode=max
+      - name: Validate model defaults in the real Hermes runtime
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --tmpfs /tmp:rw,nosuid,nodev,size=256m \
+            --mount "type=bind,source=$PWD/test/model-defaults-test.mjs,target=/opt/harness/model-defaults-test.mjs,readonly" \
+            --env HARNESS_TEST_REQUIRE_HERMES=1 \
+            --env HARNESS_TEST_MODEL_CONFIG=/opt/harness/model-config.mjs \
+            harness-hermes-validation \
+            node --test --test-reporter=tap /opt/harness/model-defaults-test.mjs \
+            | tee "$RUNNER_TEMP/hermes-defaults.tap"
+          node test/tap-summary.mjs --require-no-skips "$RUNNER_TEMP/hermes-defaults.tap"
+      - name: Upload Hermes runtime TAP report
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: hermes-runtime-results
+          path: ${{ runner.temp }}/hermes-defaults.tap
+          if-no-files-found: warn
+          retention-days: 14
+
+  required:
+    name: Agent Harness required static gate
+    if: always()
+    needs: [changes, static]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.21.0
+      - name: Test required-gate decisions
+        run: node --test frameworks/agent-harness-install/test/required-gate-test.mjs
+      - name: Require expected static-analysis outcome
+        env:
+          CHANGE_RESULT: ${{ needs.changes.result }}
+          RELEVANT: ${{ needs.changes.outputs.relevant }}
+          STATIC_RESULT: ${{ needs.static.result }}
+        run: node .github/scripts/agent-harness-required-gate.mjs
+
+  live:
+    name: OpenShell prepared-runner gate
+    if: github.event_name == 'workflow_dispatch' && inputs.live
+    needs: [static, offline, hermes]
+    # Never run arbitrary pull-request code automatically on a privileged runner.
+    environment: openshell-validation
+    runs-on: [self-hosted, linux, openshell-validation]
+    concurrency:
+      group: agent-harness-openshell-live
+      cancel-in-progress: false
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      HARNESS_RUN_OPENSHELL_INTEGRATION: "1"
+      HARNESS_LLM_MODEL: ${{ inputs.model }}
+      HARNESS_IR_CONTAINER: ${{ vars.OPENSHELL_IR_CONTAINER || 'agent-harness-install-ir' }}
+      HARNESS_IR_PORT: ${{ vars.OPENSHELL_IR_PORT || '8010' }}
+      HARNESS_OPENSHELL_GATEWAY: ${{ vars.OPENSHELL_GATEWAY || 'openshell' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Isolated sandbox lifecycle regression
+        working-directory: frameworks/agent-harness-install
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash test/openshell-integration-test.sh | tee "$RUNNER_TEMP/openshell-integration.tap"
+      - name: Upload integration TAP report
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: openshell-integration-results
+          path: ${{ runner.temp }}/openshell-integration.tap
+          if-no-files-found: warn
+          retention-days: 14

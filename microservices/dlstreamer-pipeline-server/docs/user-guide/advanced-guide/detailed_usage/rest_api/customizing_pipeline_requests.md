@@ -19,7 +19,8 @@ Pipeline requests sent to Pipeline Server REST API are JSON documents that have 
 
 Below is a sample request using curl to start an `user_defined_pipelines/pallet_defect_detection` pipeline that analyzes the video warehouse.avi and sends its results to `/tmp/results.jsonl`.
 
-> **Note:** Files specified as a source or destination need to be accessible from within the DL Streamer Pipeline Server container. Local files and directories can be volume mounted using standard docker volume mounted options in docker compose file i.e [WORKDIR/docker/docker-compose.yml].
+> [!NOTE]
+> Files specified as a source or destination need to be accessible from within the DL Streamer Pipeline Server container. Local files and directories can be volume mounted using standard docker volume mounted options in docker compose file i.e [WORKDIR/docker/docker-compose.yml].
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
@@ -72,7 +73,8 @@ Some of the common video sources are:
 - IP Camera (RTSP Source)
 - Web Camera
 
-> **Note:** See [Source Abstraction](./defining_pipelines.md#source-abstraction) to learn about GStreamer source elements set per request.
+> [!NOTE]
+> See [Source Abstraction](./defining_pipelines.md#source-abstraction) to learn about GStreamer source elements set per request.
 
 ### File Source
 
@@ -147,7 +149,8 @@ The request `source` object would be updated to:
 
 Depending on the configuration of your media source, during development and troubleshooting you may issue Pipeline Server requests that include RTSP URIs formatted as `rtsp://<user>:<password>@<ip_address>:<port>/<server_url>` where `<user>` and `<password>` are authentication credentials needed to connect to the stream/device at `<ip_address>`.
 
-> **Warning**: Keep in mind that basic authentication does not provide a secure method to access source inputs and to verify visual, metadata, and logged outputs. For this reason basic authentication is not recommended for production deployments, please use with caution.
+> [!WARNING]
+> Keep in mind that basic authentication does not provide a secure method to access source inputs and to verify visual, metadata, and logged outputs. For this reason basic authentication is not recommended for production deployments, please use with caution.
 
 ## Setting source properties
 
@@ -173,7 +176,8 @@ For example, to set property `buffer-size` on urisourcebin, source section can b
 
 For example, if you'd like to set `ntp-sync` property of the `rtspsrc` element to synchronize timestamps across RTSP source(s).
 
-> **Note:** This feature, enabled via GStreamer `source-setup` callback signal is only supported for `urisourcebin` element.
+> [!NOTE]
+> This feature, enabled via GStreamer `source-setup` callback signal is only supported for `urisourcebin` element.
 
 ```json
 {
@@ -345,14 +349,60 @@ Steps for visualizing output over RTSP assuming Pipeline Server and your VLC cli
    The following parameters can be optionally used to customize the stream:
 
    - path (required): custom string to uniquely identify the stream
+   - encoding (default `mjpeg`): video codec used to encode the RTSP stream. Supported values are `mjpeg` and `h264`. See [H.264 RTSP Streaming](#h264-rtsp-streaming) below for details on the `h264` option.
    - cache-length (default 30): number of frames to buffer in rtsp pipeline.
-   - encoding-quality (default 85): jpeg encoding quality (0 - 100). Lower values increase compression but sacrifice quality.
+   - encoding-quality (default 85): jpeg encoding quality (0 - 100). Lower values increase compression but sacrifice quality. Only applies when `encoding` is `mjpeg`.
+   - encode-bitrate (default 4000000, i.e. 4 Mbps): target bitrate, in bits per second, used by the H.264 software encoder (`openh264enc`). Only applies when `encoding` is `h264` and the frame buffer is a regular system-memory buffer; ignored for GPU/VA-API buffers (see note below).
    - sync-with-source: rate limit processing pipeline to encoded frame rate (e.g. 30 fps). Can be set to either `true` or `false`.
    - sync-with-destination (default True): block processing pipeline if rtsp pipeline is blocked.
 
-   > **Note:** If the RTSP stream playback is choppy this may be due to
+   > [!NOTE]
+   > If the RTSP stream playback is choppy this may be due to
    > network bandwidth. Decreasing the encoding-quality or increasing the
    > cache-length can help.
+
+#### H.264 RTSP Streaming
+
+By default, RTSP frame destinations are encoded as MJPEG. To instead encode the stream as H.264 (lower bandwidth, broader downstream-client/recorder compatibility), set `"encoding": "h264"` in the `frame` destination block. This is opt-in and does not change the default behavior of existing pipeline requests that omit `encoding`.
+
+```bash
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
+'Content-Type: application/json' -d \
+'{
+    "source": {
+        "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
+        "type": "uri"
+    },
+    "destination": {
+        "metadata": {
+            "type": "file",
+            "format": "json-lines",
+            "path": "/tmp/results.jsonl"
+        },
+        "frame": {
+            "type": "rtsp",
+            "path": "pallet-defect-detection-h264",
+            "encoding": "h264",
+            "encode-bitrate": 4000000
+        }
+    },
+    "parameters": {
+        "detection-properties": {
+            "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
+            "device": "CPU"
+        }
+    }
+}'
+```
+
+View the stream the same way as MJPEG, with an RTSP client such as VLC, at `rtsp://localhost:8554/pallet-defect-detection-h264`.
+
+Encoder selection is automatic and depends on the memory type of the frames produced upstream:
+
+- System-memory buffers (e.g. `device: CPU`) use the software encoder `openh264enc`. `encode-bitrate` applies directly here, in bits/sec.
+- VASurface/DMABuf/VAMemory GPU buffers (e.g. `device: GPU`) use the hardware encoder `vah264enc` for better performance. `vah264enc`'s own bitrate property is in kbit/s rather than bits/sec, so `encode-bitrate` is intentionally **not** applied to it; it runs at its own default rate-control settings instead.
+
+If an unsupported value is passed for `encoding`, Pipeline Server logs a warning and falls back to `mjpeg`.
 
 ### WebRTC
 
@@ -404,7 +454,8 @@ Use the following parameters to customize the request:
 - sync-with-source: rate limit processing pipeline to encoded frame rate (e.g. 30 fps). Can be set to either `true` or `false`.
 - sync-with-destination (default True): block processing pipeline if WebRTC pipeline is blocked.
 
-> **Note:** If WebRTC stream playback is choppy this may be due to
+> [!NOTE]
+> If WebRTC stream playback is choppy this may be due to
 > network bandwidth. Increasing the
 > cache-length can help.
 

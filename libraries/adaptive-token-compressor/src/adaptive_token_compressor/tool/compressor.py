@@ -40,7 +40,7 @@ report for the full evidence). They stay in the API for reproducibility.
                         `_INLINE_DELTA_REPLAY_REMINDER` persists+replays that
                         reminder at each user-query offset instead.
 
-`accumulate` (cross-cutting flag, default False). Per-turn prediction changes
+`accumulate` (cross-cutting flag, default True). Per-turn prediction changes
 the tool set across turns of one conversation (measured: ~60% of turn
 transitions differ), and since the chat template renders tools at the FRONT of
 the prompt, every change breaks the prefix cache. With accumulate=True the
@@ -58,6 +58,22 @@ FRONT (cacheable) AND stable, whereas user_tail traded cacheability (tools moved
 to the never-reused tail) for stability. accumulate does NOT help the
 trailing-carrier placements — their tool block sits after the growing
 conversation and is missed every turn regardless of accumulation order.
+
+`resident_tools` (default "auto") applies ONLY to `user_inline_delta`.
+"auto" keeps the first valid function tool from the conversation's first
+usable request resident in subsequent turns, even if request tool order changes.
+None or [] disables residency; a list of names keeps the matching request
+tools resident in schema order. All other placements, including `schema`,
+ignore this setting after validating its value. Conversation identity and
+LRU capacity match accumulation; tool availability and schemas must stay
+unchanged within a conversation. The predictor still sees the full schema —
+hiding resident tools from it makes the model pad its list with long-tail
+stand-ins (e.g. `process` for `exec`) — and resident names are dropped from its
+output; selection, accumulation and delta carriers cover the rest.
+`result.tools` contains the resident set; deltas carry the pool only. Keeping
+it non-empty avoids omitting the structured tools field from the backend
+request. An empty pool prediction sends the resident set alone — no
+full-schema fallback.
 """
 from __future__ import annotations
 
@@ -80,9 +96,16 @@ from .message_extractors import (
     extract_skill_content,
     extract_skills,
 )
-from .predictor import HTTPToolPredictor, ToolCandidate, ToolPredictor
+from .predictor import (
+    HTTPToolPredictor,
+    RerankerToolPredictor,
+    ToolCandidate,
+    ToolDefinition,
+    ToolPredictor,
+)
 from .prompts import (
     BASE_PROMPT,
+    TOOL_COUNT_RULES,
     FOCUS_FIVE_TOOL_PROMPT,
     build_dynamic_prediction_prompt,
     build_static_prediction_prompt,
@@ -90,6 +113,12 @@ from .prompts import (
 from .tool_descriptions import DEFAULT_TOOL_DESCRIPTIONS, build_dynamic_tool_descriptions
 
 logger = logging.getLogger("adaptive_token_compressor.tool.compressor")
+
+# Selection defaults when neither `score_threshold` nor `top_k` is given. The
+# reranker's 1+4p scores are not calibrated across workloads, so it ranks
+# instead of thresholding; 20 is the BFCL e2e-validated K for ~28-tool pools.
+_DEFAULT_SCORE_THRESHOLD: float = 2.0
+_DEFAULT_RERANKER_TOP_K: int = 20
 
 
 def filter_tools(
@@ -159,6 +188,27 @@ def order_tools_by_names(
         if tool is not None:
             ordered.append(tool)
     return ordered
+
+
+def split_resident_tools(
+    tools: list[dict],
+    resident_names: frozenset[str],
+) -> tuple[list[dict], list[dict]]:
+    """Split `tools` into (resident, pool), both in schema order. Resident tools
+    match `resident_names` (lower-cased); everything else is the prediction
+    pool. With no resident names the pool is `tools` itself."""
+    if not resident_names:
+        return [], tools
+    resident: list[dict] = []
+    pool: list[dict] = []
+    for tool in tools:
+        func = tool.get("function") if isinstance(tool, dict) else None
+        name = func.get("name") if isinstance(func, dict) else None
+        if isinstance(name, str) and name.strip().lower() in resident_names:
+            resident.append(tool)
+        else:
+            pool.append(tool)
+    return resident, pool
 
 
 # Tool list line shape inside `## Tooling`: "- read: Read file contents".
@@ -302,9 +352,23 @@ class ToolCompressor:
         *,
         predictor_url: str,
         predictor_model: str = "Qwen/Qwen3.6-35B-A3B",
-        score_threshold: float = 2.0,
+        predictor_backend: Literal["generative", "reranker"] = "generative",
+        # Fallback for weak predictor models that cannot reliably emit the
+        # score JSON on their own; not recommended otherwise.
+        # TODO: the schema makes the model write every tool name on every
+        # request, which dominates latency (~4 s for 22 tools on gemma-3-1b).
+        # Emit a positional score array instead and map it back to names.
+        predictor_json_schema: bool = False,
+        predictor_max_input_tokens: int | None = None,
+        predictor_max_output_tokens: int = 256,
+        # Both None -> backend default: generative thresholds at 2.0, reranker
+        # keeps the top 20. An explicit `top_k` overrides `score_threshold`.
+        score_threshold: float | None = None,
+        top_k: int | None = None,
         timeout: int = 120,
         prompt_mode: Literal["static", "dynamic"] = "dynamic",
+        # Dynamic-prompt tool-count rule: small=5-7, medium=5-10, high=7-15.
+        tool_count_level: Literal["small", "medium", "high"] = "small",
         tool_descriptions_mode: Literal["static", "dynamic"] = "dynamic",
         placement: Literal[
             "schema", "user_tail", "system_tail",
@@ -312,11 +376,28 @@ class ToolCompressor:
         ] = "schema",
         accumulate: bool = True,
         accumulate_max_conversations: int = 1024,
+        # Only user_inline_delta uses residency: "auto" pins the first tool,
+        # None / [] disables residency, and names pin matching request tools.
+        resident_tools: list[str] | Literal["auto"] | None = "auto",
     ) -> None:
         if prompt_mode not in ("static", "dynamic"):
             raise ConfigError(
                 f"ToolCompressor: prompt_mode must be 'static' or 'dynamic', "
                 f"got {prompt_mode!r}"
+            )
+        if tool_count_level not in TOOL_COUNT_RULES:
+            raise ConfigError(
+                "ToolCompressor: tool_count_level must be 'small', 'medium', "
+                f"or 'high', got {tool_count_level!r}"
+            )
+        # Only the dynamic, non-schema prompt carries this rule; reject a
+        # non-default level that would otherwise be silently ignored.
+        if tool_count_level != "small" and (
+            prompt_mode != "dynamic" or predictor_json_schema
+        ):
+            raise ConfigError(
+                "ToolCompressor: tool_count_level requires prompt_mode='dynamic' "
+                "and predictor_json_schema=False"
             )
         if tool_descriptions_mode not in ("static", "dynamic"):
             raise ConfigError(
@@ -339,26 +420,81 @@ class ToolCompressor:
                 "accumulate=True (it emits per-turn tool deltas over the "
                 "conversation's running union)."
             )
-        if not (1.0 <= score_threshold <= 5.0):
+        if resident_tools is not None and resident_tools != "auto":
+            if not isinstance(resident_tools, (list, tuple)) or not all(
+                isinstance(n, str) and n.strip() for n in resident_tools
+            ):
+                raise ConfigError(
+                    "ToolCompressor: resident_tools must be 'auto', None, or a "
+                    f"list of non-empty tool names, got {resident_tools!r}"
+                )
+        if score_threshold is not None and not (1.0 <= score_threshold <= 5.0):
             raise ConfigError(
                 f"ToolCompressor: score_threshold must be in [1.0, 5.0], "
                 f"got {score_threshold!r}"
             )
+        if top_k is not None and top_k <= 0:
+            raise ConfigError(
+                f"ToolCompressor: top_k must be > 0 when set, got {top_k!r}"
+            )
         if timeout <= 0:
             raise ConfigError(f"ToolCompressor: timeout must be > 0, got {timeout!r}")
+        if predictor_backend not in ("generative", "reranker"):
+            raise ConfigError(
+                "ToolCompressor: predictor_backend must be 'generative' or "
+                f"'reranker', got {predictor_backend!r}"
+            )
+        if predictor_json_schema:
+            if predictor_backend != "generative":
+                raise ConfigError(
+                    "ToolCompressor: predictor_json_schema requires "
+                    "predictor_backend='generative'"
+                )
+            # The schema requires a score for every tool, which contradicts
+            # FOCUS_FIVE_TOOL_PROMPT's hard-coded "EXACTLY 5 to 10 tools".
+            if prompt_mode != "dynamic":
+                raise ConfigError(
+                    "ToolCompressor: predictor_json_schema requires "
+                    "prompt_mode='dynamic'"
+                )
 
-        self._predictor: ToolPredictor = HTTPToolPredictor(
-            url=predictor_url,
-            model=predictor_model,
-            timeout=timeout,
-        )
+        if predictor_backend == "reranker":
+            self._predictor: ToolPredictor = RerankerToolPredictor(
+                url=predictor_url, model=predictor_model, timeout=timeout,
+                max_input_tokens=predictor_max_input_tokens,
+            )
+        else:
+            self._predictor = HTTPToolPredictor(
+                url=predictor_url,
+                model=predictor_model,
+                timeout=timeout,
+                enforce_json_schema=predictor_json_schema,
+                max_output_tokens=predictor_max_output_tokens,
+            )
+        self._predictor_json_schema = predictor_json_schema
+        if score_threshold is None and top_k is None:
+            if predictor_backend == "reranker":
+                top_k = _DEFAULT_RERANKER_TOP_K
+            else:
+                score_threshold = _DEFAULT_SCORE_THRESHOLD
         self._score_threshold = score_threshold
+        self._top_k = top_k
         self._prompt_template = (
             FOCUS_FIVE_TOOL_PROMPT if prompt_mode == "static" else BASE_PROMPT
         )
         self._prompt_mode = prompt_mode
+        self._tool_count_level = tool_count_level
         self._tool_descriptions_mode = tool_descriptions_mode
         self._placement = placement
+        self._auto_resident = (
+            resident_tools == "auto" and placement == "user_inline_delta"
+        )
+        self._resident_names: frozenset[str] = (
+            frozenset(n.strip().lower() for n in resident_tools)
+            if placement == "user_inline_delta"
+            and isinstance(resident_tools, (list, tuple))
+            else frozenset()
+        )
         # Cumulative-append mode: accumulate the predicted tool set per
         # conversation (union, append-only, never remove/reorder) so each turn's
         # tool block strictly extends the previous turn's — prefix-cache stable
@@ -368,6 +504,8 @@ class ToolCompressor:
         self._accum_lock = threading.Lock()
         # conversation_key -> ordered list of lower-cased tool names
         self._accum: "OrderedDict[str, list[str]]" = OrderedDict()
+        # conversation_key -> first auto-resident name; shares _accum_lock.
+        self._auto_residents: "OrderedDict[str, str]" = OrderedDict()
         # user_inline placement state: conversation_key -> ordered list of
         # (offset, carrier_content), where offset = number of *incoming*
         # (client) messages that precede the carrier. The client's history is
@@ -382,6 +520,34 @@ class ToolCompressor:
         # conversation_key -> offsets (captured on user turns) after which the
         # reminder is re-spliced. Shares _inline_lock; bounded LRU.
         self._inline_reminder: "OrderedDict[str, list[int]]" = OrderedDict()
+
+    def _resolve_resident_names(
+        self, tools: list[dict], messages: list[dict]
+    ) -> frozenset[str]:
+        if not self._auto_resident:
+            return self._resident_names
+        key = self._conversation_key(messages)
+        with self._accum_lock:
+            resident = self._auto_residents.get(key)
+            if resident is not None:
+                self._auto_residents.move_to_end(key)
+                return frozenset((resident,))
+            for tool in tools:
+                if not isinstance(tool, dict) or tool.get("type") != "function":
+                    continue
+                function = tool.get("function")
+                name = function.get("name") if isinstance(function, dict) else None
+                if isinstance(name, str) and name.strip():
+                    resident = name.strip().lower()
+                    self._auto_residents[key] = resident
+                    while len(self._auto_residents) > self._accum_max:
+                        self._auto_residents.popitem(last=False)
+                    return frozenset((resident,))
+        logger.warning(
+            "ToolCompressor: resident_tools='auto' found no valid function tool "
+            "in the request"
+        )
+        return frozenset()
 
     def _resolve_tool_descriptions(self, tools: list[dict]) -> str:
         if self._tool_descriptions_mode == "static":
@@ -410,6 +576,8 @@ class ToolCompressor:
             skills=skills,
             call_history=call_history,
             skill_content=skill_content,
+            score_all=self._predictor_json_schema,
+            tool_count_level=self._tool_count_level,
         )
 
     @staticmethod
@@ -493,6 +661,7 @@ class ToolCompressor:
         *,
         record: bool = True,
         record_reminder: bool = False,
+        replace_same_offset: bool = True,
     ) -> tuple[list[dict], int]:
         """Persist this turn's carrier and re-splice all stored carriers at their
         offsets. Returns (messages, carrier_count). Offsets stay valid because
@@ -501,13 +670,21 @@ class ToolCompressor:
         `record=False` (delta turns with no NEW tools): don't append a carrier,
         only replay stored ones. `record_reminder=True` (replay-reminder user
         turns): also anchor a constant reminder at offset=len, replayed like a
-        carrier. Both streams replay regardless of this turn's record flags."""
+        carrier. Both streams replay regardless of this turn's record flags.
+
+        `replace_same_offset`: a re-sent request at the same offset (e.g. a
+        client retry) replaces the last carrier. Correct for `user_inline`,
+        whose carrier is the full filtered set; must be False for
+        `user_inline_delta`, whose carrier holds only tools NEW to the union —
+        replacing it would drop the earlier delta's tools from the prompt for
+        good, since they are already in the union and never re-sent."""
         key = self._conversation_key(messages)
         offset = len(messages)
         with self._inline_lock:
             entries = list(self._inline.get(key, []))
             if record:
-                if entries and entries[-1][0] == offset:
+                if (replace_same_offset and entries
+                        and entries[-1][0] == offset):
                     entries[-1] = (offset, carrier_content)  # same turn → replace
                 else:
                     entries.append((offset, carrier_content))
@@ -604,6 +781,18 @@ class ToolCompressor:
         task_idx, task_text = task_info
         original_tool_count = len(ctx.tools)
 
+        # Resident tools are always sent; the predictor still scores the full
+        # schema, and resident names are dropped from its output below.
+        resident_names = self._resolve_resident_names(ctx.tools, ctx.messages)
+        resident_tools, pool_tools = split_resident_tools(ctx.tools, resident_names)
+        if resident_tools and not pool_tools:
+            return self._skipped_result(
+                ctx,
+                skip_reason="all_tools_resident",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                tokens_before=tokens_before,
+            )
+
         # Always extract — the dynamic prompt builder uses these; the static
         # builder ignores them. Pure-function calls, low cost.
         skills = extract_skills(ctx.messages)
@@ -619,9 +808,46 @@ class ToolCompressor:
         )
 
         try:
-            candidates, raw_meta = self._predictor.predict(
-                task_text, system_prompt=system_prompt,
-            )
+            if isinstance(self._predictor, RerankerToolPredictor):
+                tool_definitions = []
+                for tool in ctx.tools:
+                    function = tool.get("function") if isinstance(tool, dict) else None
+                    if not isinstance(function, dict):
+                        continue
+                    name = function.get("name")
+                    if not isinstance(name, str) or not name.strip():
+                        continue
+                    description = function.get("description")
+                    parameters = function.get("parameters")
+                    tool_definitions.append(ToolDefinition(
+                        name=name,
+                        description=description if isinstance(description, str) else "",
+                        parameters=parameters if isinstance(parameters, dict) else None,
+                    ))
+                candidates, raw_meta = self._predictor.predict(
+                    task_text,
+                    system_prompt=system_prompt,
+                    tool_definitions=tool_definitions,
+                )
+            elif self._predictor_json_schema:
+                tool_names = [
+                    function["name"]
+                    for tool in ctx.tools
+                    if isinstance(tool, dict)
+                    and isinstance((function := tool.get("function")), dict)
+                    and isinstance(function.get("name"), str)
+                    and function["name"].strip()
+                ]
+                candidates, raw_meta = self._predictor.predict(
+                    task_text,
+                    system_prompt=system_prompt,
+                    tool_names=tool_names,
+                )
+            else:
+                candidates, raw_meta = self._predictor.predict(
+                    task_text,
+                    system_prompt=system_prompt,
+                )
         except PredictorError as e:
             logger.warning("Predictor failed: %s", type(e).__name__)
             duration_ms = (time.perf_counter() - start) * 1000
@@ -644,9 +870,23 @@ class ToolCompressor:
                 metrics=metrics,
             )
 
-        predicted: list[ToolCandidate] = [
-            c for c in candidates if c.score >= self._score_threshold
-        ]
+        # The predictor scored the full schema; resident tools are already
+        # sent, so drop them before top-k so they don't take pool slots.
+        selectable = [
+            candidate
+            for candidate in candidates
+            if candidate.name not in resident_names
+        ] if resident_tools else candidates
+        if self._top_k is not None:
+            predicted = sorted(
+                selectable, key=lambda candidate: candidate.score, reverse=True
+            )[:self._top_k]
+        else:
+            predicted = [
+                candidate
+                for candidate in selectable
+                if candidate.score >= self._score_threshold
+            ]
         predicted_names = [c.name for c in predicted]
 
         # Cumulative-append mode: merge this turn's prediction into the
@@ -660,7 +900,12 @@ class ToolCompressor:
             effective_names = predicted_names
             newly_added = predicted_names
 
-        if not effective_names:
+        if not effective_names and resident_tools:
+            # No long-tail tool needed (yet): the resident set alone. No full-
+            # schema fallback — that would put the whole pool back every turn.
+            filtered_tools = []
+            no_prediction_fallback = False
+        elif not effective_names:
             # Nothing scored above threshold. For schema placement, forward the
             # full tool schema unchanged (safe fallback). For trailing-carrier
             # placements, keep the placement CONSISTENT: relocate the full
@@ -679,6 +924,7 @@ class ToolCompressor:
                     "compressed_tool_count": original_tool_count,
                     "filtered_count": 0,
                     "score_threshold": self._score_threshold,
+                    "top_k": self._top_k,
                     "predicted_count": 0,
                     "skills_found": len(skills),
                     "call_history_length": len(call_history),
@@ -698,13 +944,16 @@ class ToolCompressor:
         elif self._accumulate:
             # Emit in ACCUMULATED order so each turn's block strictly extends
             # the previous turn's (prefix-cache stable across turns).
-            filtered_tools = order_tools_by_names(ctx.tools, effective_names)
+            filtered_tools = order_tools_by_names(pool_tools, effective_names)
             no_prediction_fallback = False
         else:
-            filtered_tools = filter_tools(ctx.tools, predicted_names)
+            filtered_tools = filter_tools(pool_tools, predicted_names)
             no_prediction_fallback = False
 
-        tokens_after = count_tools_tokens(filtered_tools)
+        # Resident tools lead the `tools` field in schema order; the pool's
+        # selection follows (schema) or travels in carriers (user_inline_delta).
+        sent_tools = resident_tools + filtered_tools if resident_tools else filtered_tools
+        tokens_after = count_tools_tokens(sent_tools)
 
         # Apply placement. Trailing-carrier variants clear `result.tools` so
         # the chat template doesn't ALSO render a `<tools>` block in system,
@@ -746,19 +995,22 @@ class ToolCompressor:
                     {"role": "user", "content": render_tools_block(filtered_tools)}
                 ]
             else:
-                delta_tools = order_tools_by_names(ctx.tools, newly_added)
+                delta_tools = order_tools_by_names(pool_tools, newly_added)
                 carrier_content = render_tools_block(delta_tools)
                 result_messages, inline_carrier_count = (
                     self._record_and_reconstruct_inline(
                         ctx.messages, carrier_content, record=bool(delta_tools),
                         record_reminder=record_reminder,
+                        # Delta carriers must append: replacing one at a
+                        # re-sent offset would lose its tools (see docstring).
+                        replace_same_offset=False,
                     )
                 )
             result_messages = self._inject_inline_delta_hints(
                 result_messages,
                 add_reminder=(is_user_turn and not replay),
             )
-            result_tools: list[dict] | None = None
+            result_tools: list[dict] | None = resident_tools or None
         elif self._placement in ("user_tail", "system_tail"):
             carrier_content = render_tools_block(filtered_tools)
             carrier_role = "system" if self._placement == "system_tail" else "user"
@@ -773,7 +1025,7 @@ class ToolCompressor:
             result_tools: list[dict] | None = None
         else:
             result_messages = ctx.messages
-            result_tools = filtered_tools
+            result_tools = sent_tools
 
         duration_ms = (time.perf_counter() - start) * 1000
 
@@ -787,9 +1039,10 @@ class ToolCompressor:
             skip_reason=None,
             details={
                 "original_tool_count": original_tool_count,
-                "compressed_tool_count": len(filtered_tools),
-                "filtered_count": original_tool_count - len(filtered_tools),
+                "compressed_tool_count": len(sent_tools),
+                "filtered_count": original_tool_count - len(sent_tools),
                 "score_threshold": self._score_threshold,
+                "top_k": self._top_k,
                 "predicted_count": len(predicted_names),
                 "predicted_tools": predicted_names,
                 "placement": self._placement,
@@ -806,6 +1059,7 @@ class ToolCompressor:
                 "call_history_length": len(call_history),
                 "candidates": list(candidates),
                 "predictor_meta": raw_meta,
+                **({"resident_count": len(resident_tools)} if resident_tools else {}),
             },
         )
 

@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "intersections": {
+    "intersection_1": {
+      "label": "Intersection 1",
+      "lat": 37.51358,
+      "lon": -122.25591,
+      "cameras": {
+        "intersection_1-camera1": { "direction": "south" },
+        "intersection_1-camera2": { "direction": "west" },
+        "intersection_1-camera3": { "direction": "north" },
+        "intersection_1-camera4": { "direction": "east" }
+      }
+    },
+    "intersection_2": {
+      "label": "Intersection 2",
+      "lat": 37.48522,
+      "lon": -122.23635,
+      "cameras": {
+        "intersection_2-camera1": { "direction": "south" },
+        "intersection_2-camera2": { "direction": "west" },
+        "intersection_2-camera3": { "direction": "north" },
+        "intersection_2-camera4": { "direction": "east" }
+      }
+    }
+  }
+}

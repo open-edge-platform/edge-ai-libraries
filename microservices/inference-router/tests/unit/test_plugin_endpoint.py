@@ -424,3 +424,47 @@ def test_plugin_write_is_atomic_and_leaves_no_temp_file(
     assert response.status_code == 200
     # No stray temp file survives a successful atomic rename.
     assert list(tmp_path.glob("*.tmp")) == []
+
+def _config_with_attached_plugin() -> RouterConfig:
+    config = _build_config(
+        plugins=[
+            PluginConfig(name="attached", node="dummy_logger", trigger="postrouting", settings={})
+        ]
+    )
+    config.providers[0].plugins = ["attached"]
+    return config
+
+
+def test_plugin_update_preserves_provider_attachments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_config_runtime, "RouterOrchestrator", FakeOrchestrator)
+    config_path = tmp_path / "config.yaml"
+    config = _config_with_attached_plugin()
+    _write_config(config_path, config)
+    client = make_test_client(config=config, config_path=config_path)
+
+    response = client.post("/v1/plugins/dummy_logger/attached", json={"settings": {"label": "x"}})
+
+    assert response.status_code == 200
+    assert client.app.state.config.providers[0].plugins == ["attached"]
+
+
+def test_plugin_update_rejects_detaching_by_moving_to_prerouting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_config_runtime, "RouterOrchestrator", FakeOrchestrator)
+    config_path = tmp_path / "config.yaml"
+    config = _config_with_attached_plugin()
+    _write_config(config_path, config)
+    client = make_test_client(config=config, config_path=config_path)
+
+    moved = client.post("/v1/plugins/dummy_logger/attached", json={"trigger": "prerouting"})
+    deleted = client.delete("/v1/plugins/dummy_logger/attached")
+
+    assert moved.status_code == 400
+    assert "cannot attach plugin 'attached'" in moved.json()["detail"]
+    assert deleted.status_code == 400
+    assert "unknown plugin 'attached'" in deleted.json()["detail"]
+    persisted = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert [p["name"] for p in persisted["plugins"]["postrouting"]] == ["attached"]

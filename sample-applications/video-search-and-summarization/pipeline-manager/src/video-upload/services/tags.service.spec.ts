@@ -151,4 +151,35 @@ describe('TagsService', () => {
       expect(tagsDbService.createMany).toHaveBeenCalledWith(newTags);
     });
   });
+  describe('onStreamTags', () => {
+    it('registers unseen live stream tags, trimmed', async () => {
+      tagsDbService.readAll.mockResolvedValue(mockExistingTags);
+      tagsDbService.createMany.mockResolvedValue([]);
+
+      await service.onStreamTags([' cam-lobby ', 'existing-tag-1', '']);
+
+      expect(tagsDbService.createMany).toHaveBeenCalledWith(['cam-lobby']);
+    });
+
+    it('skips the database once the tags are registered', async () => {
+      tagsDbService.readAll.mockResolvedValue([]);
+      tagsDbService.createMany.mockResolvedValue([]);
+
+      await service.onStreamTags(['cam-lobby']);
+      await service.onStreamTags(['cam-lobby']);
+
+      expect(tagsDbService.readAll).toHaveBeenCalledTimes(1);
+    });
+
+    it('logs a failed write and retries on the next report', async () => {
+      tagsDbService.readAll.mockRejectedValueOnce(new Error('db down'));
+      tagsDbService.readAll.mockResolvedValue([]);
+      tagsDbService.createMany.mockResolvedValue([]);
+
+      await expect(service.onStreamTags(['cam-lobby'])).resolves.toBeUndefined();
+      await service.onStreamTags(['cam-lobby']);
+
+      expect(tagsDbService.createMany).toHaveBeenCalledWith(['cam-lobby']);
+    });
+  });
 });

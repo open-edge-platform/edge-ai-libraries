@@ -17,13 +17,34 @@
 # syntax=docker/dockerfile:1.7
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:2026.2.0-ubuntu24-rc1 AS prod
+ARG DLSTREAMER_IMAGE=intel/dlstreamer:2026.3.0-ubuntu24-rc1
+
+# Aravis GStreamer plugin (aravissrc, GigE Vision cameras) for DL Streamer Pipeline Server 2.0,
+# whose image does not include it. The plugin and libaravis go to gst_plugins/aravis/, which the
+# vippet-plugins service copies to the volume the server loads plugins from. The plugin's RUNPATH
+# is set to $ORIGIN, so it finds libaravis next to it without changes to the server's
+# LD_LIBRARY_PATH. Built in a separate stage so that patchelf does not end up in the image.
+FROM ${DLSTREAMER_IMAGE} AS aravis
+USER root
+ENV DEBIAN_FRONTEND=noninteractive
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install --yes --no-install-recommends libaravis-0.8-0 patchelf && \
+    mkdir -p /out/aravis && \
+    cp -L /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstaravis.0.8.so \
+        /usr/lib/x86_64-linux-gnu/libaravis-0.8.so.0 /out/aravis/ && \
+    patchelf --set-rpath '$ORIGIN' /out/aravis/libgstaravis.0.8.so
+
+FROM ${DLSTREAMER_IMAGE} AS prod
 
 # Switch to root user to install dependencies
 USER root
 
 # Set environment variable to non-interactive mode (avoids some prompts)
 ENV DEBIAN_FRONTEND=noninteractive
+
 
 # Install necessary dependencies
 # BuildKit cache mounts keep apt downloads/metadata between builds. The
@@ -32,7 +53,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update && \
-    apt-get install --yes --no-install-recommends yq v4l-utils
+    apt-get install --yes --no-install-recommends yq libaravis-0.8-0
+
+# Expose only the Aravis plugin (aravissrc, GigE Vision cameras): the system GStreamer plugin
+# directory also holds core plugins that would shadow the DLStreamer ones.
+RUN mkdir -p /usr/local/lib/vippet-gst-plugins && \
+    ln -s /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstaravis.0.8.so /usr/local/lib/vippet-gst-plugins/
+
+# Where the one-shot vippet-plugins service mounts the vippet-gst-plugins volume (see
+# compose.yml). A new named volume takes the owner of the folder it is mounted on, so
+# dlstreamer can copy the custom elements into it.
+RUN install -d -o dlstreamer -g dlstreamer /plugins
 
 # Remove kernel headers inherited from base image (not needed at runtime,
 # source of CVE-2026-* critical vulnerabilities reported by Trivy).
@@ -43,9 +74,7 @@ USER dlstreamer
 
 # Set GStreamer plugin path (original GST_PLUGIN_PATH ends with a colon, so there is no need to add one here)
 ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/
-
-# Add DLSOptimizer scripts to PYTHONPATH
-ENV PYTHONPATH=$PYTHONPATH:/opt/intel/dlstreamer/scripts/optimizer/
+ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH:/usr/local/lib/vippet-gst-plugins
 
 # Set the working directory inside the container
 WORKDIR /home/dlstreamer/vippet
@@ -55,40 +84,16 @@ ENV VIRTUAL_ENV=/home/dlstreamer/.venv
 RUN python3 -m venv --system-site-packages $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Secondary virtualenv dedicated to ``openvino-dev[onnx]==2024.6.0``
-# (omz_downloader / omz_converter). It pulls its own matching
-# ``openvino==2024.6.0`` so it never collides with the OpenVINO 2026.x
-# runtime installed in $VIRTUAL_ENV. Built without --system-site-packages
-# to fully isolate the two stacks.
-ENV OMZ_VIRTUAL_ENV=/home/dlstreamer/.omz-venv
-
 # Copy the requirements files into the container
 COPY --chown=dlstreamer:dlstreamer vippet/requirements.txt /home/dlstreamer/vippet/requirements.txt
-COPY --chown=dlstreamer:dlstreamer vippet/requirements-omz.txt /home/dlstreamer/vippet/requirements-omz.txt
 
-# Install the production runtime dependencies into the main venv and the
-# OMZ tooling into its own isolated venv.
-#
 # A BuildKit cache mount keeps pip's HTTP/wheel cache between builds. The
 # cache lives outside the image layer, so runtime image size is unchanged.
 # ``mode=0777`` lets the non-root ``dlstreamer`` user write to it without
 # needing to know its uid/gid at build time.
 RUN --mount=type=cache,target=/tmp/pip-cache,mode=0777,sharing=locked \
     PIP_CACHE_DIR=/tmp/pip-cache \
-    pip3 install --disable-pip-version-check -r requirements.txt && \
-    python3 -m venv $OMZ_VIRTUAL_ENV && \
-    PIP_CACHE_DIR=/tmp/pip-cache \
-    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check \
-        -r requirements-omz.txt && \
-    # Security override: bump ``onnx`` past the cap that ``openvino-dev``
-    # 2024.6.0 (archived upstream) inherited. Fixes CVE-2026-27489 (HIGH),
-    # CVE-2026-28500 and CVE-2026-34446. ``--upgrade`` + explicit version
-    # is required because the resolver would otherwise honor the cap, and
-    # we deliberately keep transitive deps intact (no --no-deps) so onnx's
-    # own runtime requirements (protobuf, numpy) are satisfied.
-    PIP_CACHE_DIR=/tmp/pip-cache \
-    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check \
-        --upgrade "onnx>=1.21.0"
+    pip3 install --disable-pip-version-check -r requirements.txt
 
 # Copy the Python scripts and configuration files into the container
 COPY --chown=dlstreamer:dlstreamer \
@@ -97,8 +102,21 @@ COPY --chown=dlstreamer:dlstreamer \
     /home/dlstreamer/vippet/
 
 COPY --chown=dlstreamer:dlstreamer vippet/pipelines/ /home/dlstreamer/vippet/pipelines
+COPY --chown=dlstreamer:dlstreamer vippet/benchmarks/ /home/dlstreamer/vippet/benchmarks
+COPY --chown=dlstreamer:dlstreamer vippet/models/ /home/dlstreamer/vippet/models
 COPY --chown=dlstreamer:dlstreamer vippet/api/ /home/dlstreamer/vippet/api
 COPY --chown=dlstreamer:dlstreamer vippet/managers/ /home/dlstreamer/vippet/managers
+COPY --chown=dlstreamer:dlstreamer vippet/gst_plugins/ /home/dlstreamer/vippet/gst_plugins
+COPY --chown=dlstreamer:dlstreamer --from=aravis /out/aravis/ /home/dlstreamer/vippet/gst_plugins/aravis
+
+# Build-time release identifiers. Injected via --build-arg (see compose.yml,
+# which sources VIPPET_VERSION from DOCKER_TAG and VIPPET_REVISION from the
+# git commit hash). Left empty when not provided; app_version.py falls back
+# to "unknown" at runtime in that case.
+ARG VIPPET_VERSION
+ARG VIPPET_REVISION
+ENV VIPPET_VERSION=${VIPPET_VERSION}
+ENV VIPPET_REVISION=${VIPPET_REVISION}
 
 # Make scripts executable
 RUN chmod +x ./entrypoint.sh

@@ -41,7 +41,6 @@ class BatchItem:
     video_id: Optional[str] = None
     frame_interval: int = 15
     enable_object_detection: bool = True
-    detection_confidence: float = 0.85
     tags: List[str] = field(default_factory=list)
     # Set when the media is referenced in place instead of copied into storage
     # (``store_copy=false`` directory ingest): the container-visible path the

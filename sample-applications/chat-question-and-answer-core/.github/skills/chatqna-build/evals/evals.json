@@ -16,10 +16,10 @@
         {
             "id": 2,
             "prompt": "Build OpenVINO GPU backend variant for chatqna.",
-            "expected_output": "Uses the OpenVINO Dockerfile with USE_GPU build argument for the GPU variant and preserves canonical image naming.",
+            "expected_output": "Uses the OpenVINO Dockerfile build flow for the GPU-capable variant and preserves canonical image naming.",
             "files": [],
             "expectations": [
-                "Uses docker build with --build-arg USE_GPU=true.",
+                "Uses docker build without requiring a USE_GPU build argument.",
                 "Builds with docker/Dockerfile as source of truth for OpenVINO backend.",
                 "Tags resulting backend image as ${REGISTRY}chatqna:${BACKEND_TAG}.",
                 "Mentions that reusing the same BACKEND_TAG can overwrite local variant tags."
@@ -68,7 +68,6 @@
             "files": [],
             "expectations": [
                 "Uses docker build -t ${REGISTRY}chatqna:${BACKEND_TAG} -f docker/Dockerfile . for CPU path.",
-                "Does not include --build-arg USE_GPU=true for this request.",
                 "Does not switch to docker/Dockerfile.ollama for this request."
             ]
         },

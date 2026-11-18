@@ -11,11 +11,29 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody, ApiParam, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
-import { SearchQueryDTO, SearchShimQuery, RefetchBodyDTO, WatchBodyDTO } from '../model/search.model';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBody,
+  ApiParam,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
+import {
+  SearchQueryDTO,
+  SearchShimQuery,
+  RefetchBodyDTO,
+  WatchBodyDTO,
+} from '../model/search.model';
 import { SearchStateService } from '../services/search-state.service';
 import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
+import { SearchRefreshConfigService } from '../services/search-refresh-config.service';
+import { SearchImageService } from '../services/search-image.service';
+import { SearchConfigService } from '../services/search-config.service';
+import { FeaturesService } from 'src/features/features.service';
 import { lastValueFrom } from 'rxjs';
 
 import { v4 as uuidV4 } from 'uuid';
@@ -27,7 +45,51 @@ export class SearchController {
     private $search: SearchStateService,
     private $searchDB: SearchDbService,
     private $searchShim: SearchShimService,
+    private $feature: FeaturesService,
+    private $refreshConfig: SearchRefreshConfigService,
+    private $searchImage: SearchImageService,
+    private $searchConfig: SearchConfigService,
   ) {}
+
+  private static isNonBlank(value: unknown): value is string {
+    return typeof value === 'string' && value.trim().length > 0;
+  }
+
+  /**
+   * Validate that exactly one search input is given and return the query
+   * image as base64/data URL, or `null` for a text search. An `imageUrl`
+   * is resolved from the object store here, so everything downstream keeps
+   * handling a single inline-image form.
+   */
+  private async resolveSearchImage(
+    reqBody: SearchQueryDTO,
+  ): Promise<string | null> {
+    const hasImage = SearchController.isNonBlank(reqBody.image);
+    const hasImageUrl = SearchController.isNonBlank(reqBody.imageUrl);
+    const hasText = SearchController.isNonBlank(reqBody.query);
+    if (hasImage && hasImageUrl) {
+      throw new BadRequestException(
+        'Provide either an image or an imageUrl, not both.',
+      );
+    }
+    if ((hasImage || hasImageUrl) && hasText) {
+      throw new BadRequestException(
+        'Provide either a text query or an image, not both.',
+      );
+    }
+    if (!hasImage && !hasImageUrl && !hasText) {
+      throw new BadRequestException('Search query cannot be empty.');
+    }
+    if ((hasImage || hasImageUrl) && !this.$feature.isImageSearchEnabled()) {
+      throw new BadRequestException(
+        'Image search is not supported in this deployment mode.',
+      );
+    }
+    if (hasImageUrl) {
+      return await this.$searchImage.resolveToDataUrl(reqBody.imageUrl!);
+    }
+    return hasImage ? reqBody.image! : null;
+  }
 
   @Get('')
   @ApiOperation({ summary: 'Get all search queries' })
@@ -43,31 +105,76 @@ export class SearchController {
     return await this.$searchDB.readAllWatched();
   }
 
+  @Get('refresh-config')
+  @ApiOperation({
+    summary: 'Get the auto-refresh configuration for watched search queries',
+  })
+  @ApiOkResponse({
+    description:
+      'Effective auto-refresh settings applied to watched (checked) queries',
+  })
+  getRefreshConfig() {
+    return this.$refreshConfig.getConfig();
+  }
+
+  @Get('config')
+  @ApiOperation({
+    summary: 'Get search settings such as the default minimum peak score',
+  })
+  @ApiOkResponse({
+    description:
+      '`minPeakScoreDefault`: minimum peak score used when a query sets none (0 = off)',
+  })
+  getSearchConfig() {
+    return this.$searchConfig.getConfig();
+  }
+
   @Get(':queryId')
   @ApiOperation({ summary: 'Get a search query by ID' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query',
+  })
   @ApiOkResponse({ description: 'Search query details' })
   async getQuery(@Param() params: { queryId: string }) {
-    return await this.$searchDB.read(params.queryId);
+    return await this.$search.getQuery(params.queryId);
   }
 
   @Post('')
   @ApiOperation({ summary: 'Add a new search query' })
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search query created' })
+  @ApiBadRequestResponse({ description: 'Search query is empty or invalid' })
+  @ApiNotFoundResponse({ description: 'imageUrl does not refer to a stored image' })
   async addQuery(@Body() reqBody: SearchQueryDTO) {
+    const image = await this.resolveSearchImage(reqBody);
+    const minPeakScore = this.$searchConfig.parseMinPeakScore(
+      reqBody.minPeakScore,
+    );
+
     try {
       let tags: string[] = [];
 
-      const searchQuery = reqBody.query;
+      const searchQuery = reqBody.query ?? '';
 
       if (reqBody.tags && reqBody.tags.length > 0) {
         tags = reqBody.tags.split(',').map((tag) => tag.trim());
       }
 
-      const query = await this.$search.newQuery(searchQuery, tags, reqBody.timeFilter);
+      const query = await this.$search.newQuery(
+        searchQuery,
+        tags,
+        reqBody.timeFilter,
+        image,
+        minPeakScore,
+      );
       return query;
     } catch (error) {
+      // Preserve explicit client errors (e.g. unsupported mode / bad input).
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       Logger.error('Error adding query', error);
       throw new BadRequestException('Error adding query');
     }
@@ -75,11 +182,25 @@ export class SearchController {
 
   @Post(':queryId/refetch')
   @ApiOperation({ summary: 'Refetch search results for a query' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query to refetch' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query to refetch',
+  })
   @ApiBody({ type: RefetchBodyDTO, required: false })
   @ApiOkResponse({ description: 'Search query refetched' })
-  async refetchQuery(@Param() params: { queryId: string }, @Body() body?: RefetchBodyDTO) {
-    const res = await this.$search.reRunQuery(params.queryId, body?.timeFilter);
+  async refetchQuery(
+    @Param() params: { queryId: string },
+    @Body() body?: RefetchBodyDTO,
+  ) {
+    const minPeakScore = this.$searchConfig.parseMinPeakScore(
+      body?.minPeakScore,
+    );
+    const res = await this.$search.reRunQuery(
+      params.queryId,
+      body?.timeFilter,
+      minPeakScore,
+    );
     return res;
   }
 
@@ -87,7 +208,14 @@ export class SearchController {
   @ApiOperation({ summary: 'Execute a one-off search query' })
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search results' })
+  @ApiBadRequestResponse({ description: 'Search query is empty or invalid' })
+  @ApiNotFoundResponse({ description: 'imageUrl does not refer to a stored image' })
   async searchQuery(@Body() reqBody: SearchQueryDTO) {
+    const image = await this.resolveSearchImage(reqBody);
+    const minPeakScore = this.$searchConfig.resolveMinPeakScore(
+      this.$searchConfig.parseMinPeakScore(reqBody.minPeakScore),
+    );
+
     const normalized = this.$search.buildTimeFilterRange(reqBody.timeFilter);
     const tags = reqBody.tags
       ? reqBody.tags
@@ -96,40 +224,60 @@ export class SearchController {
           .filter((tag) => tag.length > 0)
       : [];
     const queryShim: SearchShimQuery = {
-      query: reqBody.query,
       query_id: uuidV4(),
+      min_peak_score: minPeakScore,
     };
     if (tags.length > 0) {
       queryShim.tags = tags;
+    }
+    if (image) {
+      queryShim.image_base64 = image;
+    } else {
+      queryShim.query = reqBody.query;
     }
     if (normalized.range) {
       queryShim.time_filter = normalized.range;
     }
     const res = await lastValueFrom(this.$searchShim.search([queryShim]));
-    return res.data;
+    const data = res.data;
+    // Same join the persisted-query path applies, so a one-off search hit
+    // is playable without a separate GET /videos round trip.
+    for (const body of data?.results ?? []) {
+      body.results = await this.$search.enrichResultsWithVideos(body.results);
+    }
+    return data;
   }
 
   @Patch(':queryId/watch')
   @ApiOperation({ summary: 'Toggle watch status for a search query' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query',
+  })
   @ApiBody({ type: WatchBodyDTO })
   @ApiOkResponse({ description: 'Watch status updated' })
-  watchQuery(
-    @Param() params: { queryId: string },
-    @Body() body: WatchBodyDTO,
-  ) {
+  watchQuery(@Param() params: { queryId: string }, @Body() body: WatchBodyDTO) {
     if (!Object.prototype.hasOwnProperty.call(body, 'watch')) {
       throw new BadRequestException('Watch property is required');
     }
 
+    const minPeakScore = this.$searchConfig.parseMinPeakScore(
+      body.minPeakScore,
+    );
+
     return body.watch
-      ? this.$search.addToWatch(params.queryId)
-      : this.$search.removeFromWatch(params.queryId);
+      ? this.$search.addToWatch(params.queryId, minPeakScore)
+      : this.$search.removeFromWatch(params.queryId, minPeakScore);
   }
 
   @Delete(':queryId')
   @ApiOperation({ summary: 'Delete a search query' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query to delete' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query to delete',
+  })
   @ApiOkResponse({ description: 'Search query deleted' })
   async deleteQuery(@Param() params: { queryId: string }) {
     return await this.$searchDB.remove(params.queryId);

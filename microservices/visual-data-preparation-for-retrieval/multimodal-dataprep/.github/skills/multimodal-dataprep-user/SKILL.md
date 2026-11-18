@@ -5,7 +5,8 @@ description: >
   repository checkout. Use for configuring VDMS or Milvus vector storage,
   MinIO or local media storage, checking service dependencies, and ingesting,
   listing, streaming, or deleting videos and images; submitting batch jobs;
-  adding text-summary embeddings; and inspecting telemetry. This service
+  registering and managing live RTSP camera streams; adding text-summary
+  embeddings; and inspecting telemetry. This service
   prepares retrieval data but does not execute semantic search. Use
   multimodal-dataprep-dev for source changes, tests, or image builds.
 ---
@@ -25,7 +26,7 @@ Paths are relative to
 
 | Resource | Read when |
 |---|---|
-| `docs/user-guide/api-reference.md` and `docs/user-guide/api-docs/openapi.yaml` | Constructing media, image, batch, summary, download, delete, or telemetry requests |
+| `docs/user-guide/api-reference.md` and `docs/user-guide/_assets/openapi.yaml` | Constructing media, image, batch, live-stream, summary, download, delete, or telemetry requests |
 | `docs/user-guide/get-started.md` | Configuring devices, detection, batching, duplicate policy, or environment variables |
 | `docs/user-guide/pluggable-backends.md` | Selecting VDMS/Milvus or MinIO/local and diagnosing backend behavior |
 | `docs/user-guide/telemetry-metrics.md` | Reading ingestion telemetry or configuring Metrics Manager |
@@ -51,6 +52,11 @@ Use `MM_DATAPREP_VECTORDB_BACKEND` (`vdms` or `milvus`) and
 `MM_DATAPREP_STORAGE_BACKEND` (`minio` or `local`) for custom deployments.
 Keep the service, retriever, and collection naming consistent.
 
+Milvus collection names must match `[A-Za-z_][A-Za-z0-9_]*`, so the default
+hyphenated VDMS name (`INDEX_NAME=video-rag`) is invalid on Milvus. The Milvus
+compose file sets `MM_DATAPREP_DB_COLLECTION` from `MILVUS_INDEX_NAME`
+(default `video_rag`); keep any override underscore-only.
+
 ## 2. Obtain deployment files
 
 In a repository checkout, run from the microservice root.
@@ -71,12 +77,21 @@ Also fetch `docker/compose-milvus.yaml` or
 
 ## 3. Start the prebuilt stack
 
-Never commit credentials. For the default VDMS + MinIO deployment:
+Never commit credentials. In runbooks, keep `MINIO_ROOT_USER`,
+`MINIO_ROOT_PASSWORD`, `EMBEDDING_MODEL_NAME`, and
+`MM_DATAPREP_DETECTION_MODEL_NAME` as the `<...>` placeholders below; do not
+substitute sample usernames, passwords, or model names. The detection model has
+no default: `setup.sh` refuses to continue without it unless
+`MM_DATAPREP_ENABLE_OBJECT_DETECTION=false`. For the
+default VDMS + MinIO deployment:
 
 ```bash
 export MINIO_ROOT_USER='<user>'
 export MINIO_ROOT_PASSWORD='<strong-password>'
-export EMBEDDING_MODEL_NAME='CLIP/clip-vit-b-32'
+export EMBEDDING_MODEL_NAME='<embedding-model>'   # a supported model ID
+export MM_DATAPREP_DETECTION_MODEL_NAME='OpenVINO/<repo>'   # a Hugging Face OpenVINO detection model, e.g. OpenVINO/yolox_s-int8-ov
+# Also verified on CPU/GPU/NPU: OpenVINO/yolox_tiny-fp16-ov (lightest), OpenVINO/yolox_l-int8-ov (more accurate), OpenVINO/YOLO11n-fp16-ov (AGPL-3.0)
+# export MM_DATAPREP_DETECTION_CLASSES='person,car'   # optional class filter
 export REGISTRY_URL='docker.io/intel'
 export TAG='latest'
 
@@ -135,8 +150,18 @@ curl -fsS -X POST \
   -F 'file=@/path/to/image.jpg;type=image/jpeg'
 ```
 
-For inline base64 or remote HTTP(S) images, use `POST /media/ingest`. For media
-already in the selected storage backend, use `POST /media/process`.
+For inline base64 or remote HTTP(S) images, post JSON to `POST /media/ingest`
+with a typed source: `type` is `image_url` (plus `image_url`) or `image_base64`
+(plus `image_base64`). Tags go in the JSON body, and the service fetches the URL
+itself:
+
+```bash
+curl -fsS -X POST 'http://localhost:6007/v1/dataprep/media/ingest' \
+  -H 'Content-Type: application/json' \
+  -d '{"type": "image_url", "image_url": "https://example.com/camera.jpg", "tags": ["camera-2"]}'
+```
+
+For media already in the selected storage backend, use `POST /media/process`.
 
 Asynchronous workflows:
 
@@ -149,14 +174,51 @@ Asynchronous workflows:
   `metadata` / `meta/<basename>.json` sidecars for user-defined filterable
   fields)
 - `GET /media/jobs/{job_id}`
-- `DELETE /media/jobs/{job_id}` to request cancellation
+- HTTP `DELETE` on `/media/jobs/{job_id}` to request cancellation
 
-Clean-up: `DELETE /media/{bucket_name}/{video_id}` removes one item,
-`DELETE /media/{bucket_name}` clears a whole bucket (storage + embeddings).
+Clean-up is destructive, so get explicit user confirmation first: an HTTP
+`DELETE` on `/media/{bucket_name}/{video_id}` erases one item, and on
+`/media/{bucket_name}` it clears a whole bucket (storage + embeddings).
 
 Read the API reference for exact request schemas and configured batch limits.
 
-## 6. Add a text summary
+## 6. Ingest a live RTSP stream
+
+A live camera is registered as a resource, not a request: the call returns at
+once and a background worker keeps ingesting until the stream is paused or
+deleted.
+
+```bash
+# Register and start ingesting
+curl -fsS -X POST 'http://localhost:6007/v1/dataprep/media/streams' \
+  -H 'Content-Type: application/json' \
+  -d '{"stream_url": "rtsp://camera-1.local:554/stream1", "stream_name": "lobby-cam", "tags": ["lobby"]}'
+
+# Watch progress (state, frames processed, reconnects, last error)
+curl -fsS 'http://localhost:6007/v1/dataprep/media/streams'
+
+# Pause / resume without losing the registration
+curl -fsS -X PATCH 'http://localhost:6007/v1/dataprep/media/streams/<stream_id>' \
+  -H 'Content-Type: application/json' -d '{"state": "paused"}'
+
+# Stop and deregister (add ?purge_embeddings=true&purge_media=true to erase data)
+curl -fsS -X DELETE 'http://localhost:6007/v1/dataprep/media/streams/<stream_id>'
+```
+
+Notes:
+
+- Live embeddings and recorded media use `bucket_name` =
+  `MM_DATAPREP_LIVE_STREAM_BUCKET` (default `live-streams`) and
+  `video_id` = `stream_id`, so `GET /media`, `GET /media/download`, and the
+  per-item media deletion endpoint (section 8) work on live data too.
+- Credentials in an RTSP URL are used to connect but never returned or logged.
+- Live ingestion grows the index forever unless
+  `MM_DATAPREP_LIVE_RETENTION_HOURS` is set.
+- `MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT` (default `8`) caps simultaneous
+  streams; further registrations return `503`.
+- Purging a stream's embeddings or media is destructive — confirm first.
+
+## 7. Add a text summary
 
 Use the `video_id` returned by media listing/job results and its bucket:
 
@@ -175,7 +237,7 @@ curl -fsS -X POST 'http://localhost:6007/v1/dataprep/summary' \
 
 The selected model must support text embeddings.
 
-## 7. Manage and observe
+## 8. Manage and observe
 
 ```bash
 curl -fsS 'http://localhost:6007/v1/dataprep/media'
@@ -204,12 +266,16 @@ the direct source for detailed per-ingestion stage timings.
 
 | Symptom | Action |
 |---|---|
-| API is unavailable | Inspect `docker compose ... ps` and DataPrep logs; initial model/YOLOX downloads can take time |
+| API is unavailable | Inspect `docker compose ... ps` and DataPrep logs; initial embedding/detection model downloads can take time |
 | `embedding_client_status` is `not_loaded` or `error` | Verify `EMBEDDING_MODEL_NAME`, model compatibility, device access, and startup logs |
-| Dimension mismatch | Use a fresh collection compatible with the selected model; never wipe an existing collection without confirmation |
+| Dimension mismatch | Use a fresh collection compatible with the selected model; get explicit user confirmation before wiping an existing collection |
 | Milvus connection failure behind a proxy | Use `docker/compose-milvus.yaml` and ensure Milvus/etcd/in-cluster addresses bypass proxies |
 | MinIO authentication failure | Verify the effective `MM_DATAPREP_MINIO_*` values and reuse the same credentials across restarts |
 | Large upload returns 413 | Identify the rejecting proxy/server from headers and logs; stage media in storage and call `/media/process` |
 | Duplicate upload returns 409 | `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false` is enforcing content-hash deduplication |
-| Object crops are absent | Check whether YOLOX downloaded and whether detection is enabled on a supported device |
+| Object crops are absent | Check `detection_status` in `/health` (`not_loaded` means the Hugging Face download failed, a class in `MM_DATAPREP_DETECTION_CLASSES` is not in the model's labels, or the model is not a detection model; logs say which) and that detection is enabled on a supported device |
+| Startup fails with `no detection model is configured` | Set `MM_DATAPREP_DETECTION_MODEL_NAME`, or set `MM_DATAPREP_ENABLE_OBJECT_DETECTION=false` |
 | Local directory ingest is rejected | Keep `dir_path` beneath `MM_DATAPREP_INGEST_DATA_ROOT`; traversal outside that root is intentionally blocked |
+| Live stream registration returns 503 | The concurrency limit is reached (`MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT`) or live ingestion is disabled |
+| Live stream sits in `reconnecting` or `error` | Read `last_error` from `GET /media/streams/{stream_id}`; check camera reachability from inside the container and the reconnect budget |
+| Live streams vanish after a restart | Ensure the PostgreSQL registry (`MM_DATAPREP_LIVE_STREAM_DB_*`) is reachable and its data volume is persisted |

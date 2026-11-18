@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Clock, Cpu, Gauge, Gpu } from "lucide-react";
 import { useTheme } from "next-themes";
 import { MetricCard } from "@/features/metrics/MetricCard.tsx";
@@ -28,10 +28,12 @@ import { useAppSelector } from "@/store/hooks.ts";
 import { selectHasNPU } from "@/store/reducers/devices.ts";
 
 interface MetricsDashboardProps {
+  children?: ReactNode;
   className?: string;
   forceDark?: boolean;
   useDemoStyles?: boolean;
   enableLatencyMetrics?: boolean;
+  showVideoMetrics?: boolean;
   historyOverride?: MetricHistoryPoint[];
   metricsOverride?: {
     fps: number;
@@ -46,10 +48,12 @@ interface MetricsDashboardProps {
 }
 
 export const MetricsDashboard = ({
+  children,
   className = "",
   forceDark = false,
   useDemoStyles = false,
   enableLatencyMetrics = false,
+  showVideoMetrics = true,
   historyOverride,
   metricsOverride,
 }: MetricsDashboardProps) => {
@@ -246,7 +250,8 @@ export const MetricsDashboard = ({
     metricsOverride?.latencyMax !== undefined;
 
   const showLatencySection =
-    enableLatencyMetrics || hasLatencyData || hasSummaryLatency;
+    showVideoMetrics &&
+    (enableLatencyMetrics || hasLatencyData || hasSummaryLatency);
 
   const latencyYAxisMax = getRecentYAxisMax(
     latencyData.map((point) => Math.max(point.avg, point.min, point.max)),
@@ -319,19 +324,21 @@ export const MetricsDashboard = ({
       }`}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <MetricCard
-          title={isSummary ? "Frame Rate Average" : "Frame Rate"}
-          value={metrics.fps}
-          unit="fps"
-          icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
-          isSummary={isSummary}
-          forceDark={forceDark}
-          useDemoStyles={useDemoStyles}
-          summaryCardClassName={summaryCardClassName}
-          summaryIconClassName={summaryIconClassName}
-          summaryTitleClassName={summaryTitleClassName}
-          summaryUnitClassName={summaryUnitClassName}
-        />
+        {showVideoMetrics && (
+          <MetricCard
+            title={isSummary ? "Frame Rate Average" : "Frame Rate"}
+            value={metrics.fps}
+            unit="fps"
+            icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+            summaryCardClassName={summaryCardClassName}
+            summaryIconClassName={summaryIconClassName}
+            summaryTitleClassName={summaryTitleClassName}
+            summaryUnitClassName={summaryUnitClassName}
+          />
+        )}
         {!isSummary && (
           <MetricCard
             title="CPU Usage"
@@ -398,16 +405,16 @@ export const MetricsDashboard = ({
         )}
       </div>
 
-      <div
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2"
-      >
-        <FrameRateChart
-          data={fpsData}
-          yAxisMax={fpsYAxisMax}
-          isSummary={isSummary}
-          forceDark={forceDark}
-          useDemoStyles={useDemoStyles}
-        />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {showVideoMetrics && (
+          <FrameRateChart
+            data={fpsData}
+            yAxisMax={fpsYAxisMax}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+          />
+        )}
         <CpuUsageChart
           data={cpuData}
           isSummary={isSummary}
@@ -525,6 +532,7 @@ export const MetricsDashboard = ({
             useDemoStyles={useDemoStyles}
           />
         )}
+        {children}
       </div>
     </div>
   );

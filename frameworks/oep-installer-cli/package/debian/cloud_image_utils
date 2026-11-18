@@ -1,0 +1,13 @@
+
+debian_45_install_cloud_image_utils () {
+  ensure_apt_install_package cloud-image-utils
+}
+
+debian_45_remove_cloud_image_utils () {
+  ensure_apt_remove_package cloud-image-utils
+}
+
+debian_45_sbom_cloud_image_utils () {
+  ensure_sbom_format pkg-list cloud-image-utils
+}
+

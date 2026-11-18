@@ -35,7 +35,7 @@ class Settings:
 
     # ADK / LLM backend
     AGENT_MODE: bool = _bool("AGENT_MODE", True)
-    LLM_URL: str = os.getenv("LLM_URL", "http://ovms-llm:8000/v3")
+    LLM_URL: str = os.getenv("LLM_URL", "http://ovms-llm:9000/v3")
     LLM_REPO: str = os.getenv("LLM_MODEL", "OpenVINO/Phi-4-mini-instruct-int4-ov")
     LLM_MODEL: str = LLM_REPO.split("/")[-1]
     LLM_TIMEOUT: float = _float("LLM_TIMEOUT", 10.0)

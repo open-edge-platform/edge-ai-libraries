@@ -3,6 +3,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
+from common_utils import assert_condition
 import pytest
 import json
 from fastapi.testclient import TestClient
@@ -30,18 +31,19 @@ def invalid_config():
 
 def test_load_opcua_config_success(valid_config):
     alerts = OpcuaAlerts(valid_config)
-    node_id, namespace, opcua_server = alerts.load_opcua_config()
-    assert node_id == "123"
-    assert namespace == "2"
-    assert opcua_server == "opc.tcp://localhost:4840"
+    with patch("socket.gethostbyname", return_value="127.0.0.1"):
+        node_id, namespace, opcua_server = alerts.load_opcua_config()
+    assert_condition(node_id == "123")
+    assert_condition(namespace == "2")
+    assert_condition(opcua_server == "opc.tcp://127.0.0.1:4840")
 
 def test_load_opcua_config_failure(invalid_config, caplog):
     alerts = OpcuaAlerts(invalid_config)
     node_id, namespace, opcua_server = alerts.load_opcua_config()
-    assert node_id is None
-    assert namespace is None
-    assert opcua_server is None
-    assert "Fetching app configuration failed" in caplog.text
+    assert_condition(node_id is None)
+    assert_condition(namespace is None)
+    assert_condition(opcua_server is None)
+    assert_condition("Fetching app configuration failed" in caplog.text)
 
 @pytest.mark.asyncio
 async def test_connect_opcua_client_success(valid_config):
@@ -52,7 +54,7 @@ async def test_connect_opcua_client_success(valid_config):
         MockClient.return_value = mock_client_instance
         mock_client_instance.connect.return_value = None
         result = await alerts.connect_opcua_client("false")
-        assert result is True
+        assert_condition(result is True)
         mock_client_instance.connect.assert_awaited_once()
 
 @pytest.mark.asyncio
@@ -66,7 +68,7 @@ async def test_connect_opcua_client_secure_mode(valid_config):
         mock_client_instance.set_security_string.return_value = None
         mock_client_instance.set_user.return_value = None
         result = await alerts.connect_opcua_client("true")
-        assert result is True
+        assert_condition(result is True)
         mock_client_instance.set_security_string.assert_called()
         mock_client_instance.set_user.assert_called_with("admin")
         mock_client_instance.connect.assert_awaited_once()
@@ -82,24 +84,25 @@ async def test_connect_opcua_client_failure(valid_config):
         # Patch sys.exit to prevent exiting test runner
         with patch("opcua_alerts.sys.exit") as mock_exit:
             result = await alerts.connect_opcua_client("false", max_retries=2)
-            assert result is False or result is None
-            assert mock_client_instance.connect.await_count == 2
+            assert_condition(result is False or result is None)
+            assert_condition(mock_client_instance.connect.await_count == 2)
 
 @pytest.mark.asyncio
 async def test_connect_opcua_client_no_server(valid_config):
     alerts = OpcuaAlerts(valid_config)
     alerts.opcua_server = None
     result = await alerts.connect_opcua_client("false")
-    assert result is None
+    assert_condition(result is None)
 
 @pytest.mark.asyncio
 async def test_initialize_opcua_success(valid_config):
     alerts = OpcuaAlerts(valid_config)
-    with patch.object(alerts, "connect_opcua_client", new=AsyncMock(return_value=True)):
+    with patch.object(alerts, "connect_opcua_client", new=AsyncMock(return_value=True)), \
+         patch("socket.gethostbyname", return_value="127.0.0.1"):
         await alerts.initialize_opcua()
-        assert alerts.node_id == "123"
-        assert alerts.namespace == "2"
-        assert alerts.opcua_server == "opc.tcp://localhost:4840"
+        assert_condition(alerts.node_id == "123")
+        assert_condition(alerts.namespace == "2")
+        assert_condition(alerts.opcua_server == "opc.tcp://127.0.0.1:4840")
 
 @pytest.mark.asyncio
 async def test_initialize_opcua_failure(valid_config):
@@ -125,7 +128,7 @@ async def test_send_alert_to_opcua_no_client(valid_config, caplog):
     alerts = OpcuaAlerts(valid_config)
     alerts.client = None
     await alerts.send_alert_to_opcua("test")
-    assert "OPC UA client is not initialized." in caplog.text
+    assert_condition("OPC UA client is not initialized." in caplog.text)
 
 @pytest.mark.asyncio
 async def test_send_alert_to_opcua_exception(valid_config):
@@ -135,27 +138,26 @@ async def test_send_alert_to_opcua_exception(valid_config):
     alerts.client.get_node.side_effect = Exception("fail")
     with pytest.raises(Exception) as excinfo:
         await alerts.send_alert_to_opcua("test")
-    assert "Failed to send alert to OPC UA server node" in str(excinfo.value)
+    assert_condition("Failed to send alert to OPC UA server node" in str(excinfo.value))
 
 @pytest.mark.asyncio
 async def test_is_connected_true(valid_config):
     alerts = OpcuaAlerts(valid_config)
     alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
     alerts.client = MagicMock()
-    mock_node = AsyncMock()
-    alerts.client.get_node.return_value = mock_node
-    mock_node.read_value.return_value = "some_value"
+    alerts.client.uaclient.protocol.state = "open"
+    alerts.client.check_connection = AsyncMock(return_value=None)
     result = await alerts.is_connected()
-    assert result is True
-    alerts.client.get_node.assert_called_with("ns=2;i=123")
-    mock_node.read_value.assert_awaited_once()
+    assert_condition(result is True)
+    alerts.client.check_connection.assert_awaited_once()
 
 @pytest.mark.asyncio
 async def test_is_connected_false(valid_config, caplog):
     alerts = OpcuaAlerts(valid_config)
     alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
     alerts.client = MagicMock()
-    alerts.client.get_node.side_effect = Exception("fail")
+    alerts.client.uaclient.protocol.state = "open"
+    alerts.client.check_connection = AsyncMock(side_effect=Exception("fail"))
     result = await alerts.is_connected()
-    assert result is False
-    assert "Error checking OPC UA connection status" in caplog.text
+    assert_condition(result is False)
+    assert_condition("Error checking OPC UA connection status" in caplog.text)

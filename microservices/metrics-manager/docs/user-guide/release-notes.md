@@ -1,8 +1,52 @@
 # Release Notes: Metrics Manager
 
-<!--## Version 2026.2.0-->
+## Version 2026.3.0-dev
 
-<!--date TBD-->
+**Release Date:** TBD
+
+**Changed (breaking):**
+
+- **NPU Frequency Reported in Hz**: The Prometheus metric `npu_frequency` (line-protocol field `frequency`) keeps its name but now carries the NPU (DPU) clock in **raw Hz** (e.g. `1.95e+09` for 1950 MHz). It previously carried the MHz number (e.g. `1950`) under a Hz name, i.e. a value 1e6 too small (and 25% low on Arrow Lake, see below). The value is decoded by the new `PmtTelemetry.get_freq_hz()` with the same per-buttress PLL-ratio formula as the `intel_vpu` kernel driver (`ivpu_hw_btrs.c`), without the kernel's truncation to whole MHz. The misleading `get_freq()` (documented as MHz but returning MHz/500 on Meteor Lake, Lunar Lake and Panther Lake) and `get_display_freq_hz()` getters were removed. Dashboards and queries that treated `npu_frequency` as MHz must divide by `1e6` (or use a Hz unit such as Grafana `rothz`).
+- **NPU Monitor CLI CSV Frequency in Hz**: The CSV written by the bundled `npu_monitor_tool` CLI (`--csv`) keeps its `frequency` column name, but the column now holds the clock in Hz instead of the MHz number.
+
+**New:**
+
+- **Hardware Telemetry Collectors (opt-in)**: Nine collectors, each enabled by its own `ENABLE_*` environment variable (or `config.enable*` Helm value), expose additional Intel hardware metrics through the existing Prometheus endpoint: CPU package power, per-core frequency, temperature and C-state residency (`ENABLE_RAPL_POWER`), platform (`psys`) power (`ENABLE_PSYS_POWER`), DRAM bandwidth (`ENABLE_DRAM_BW`), disk I/O (`ENABLE_DISK_IO`), network and NIC statistics (`ENABLE_NET_IO`), per-device interrupts (`ENABLE_INTERRUPTS`), high-frequency temperature statistics (`ENABLE_TEMP_STATS`), GPU throttle state (`ENABLE_GPU_THROTTLE`) and turbostat diagnostics (`ENABLE_TURBOSTAT`). **All are off by default**, so these optional collectors add no metrics unless enabled, including for deployments that mount their own `telegraf.conf`. The additional NPU `power_state` field and the NPU changes described above are independent of these toggles. See [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md).
+- **NPU `power_state`**: `npu_reader.py` now also reports the NPU PCI power state as `npu_power_state` (D0=0, D1=1, D2=2, D3hot=3, D3cold=4, unknown=-1). This adds one field to the existing `npu` measurement.
+- **`host-nic-telemetry` Compose profile**: Opt-in `metrics-manager-host-nic` service that runs with host networking so the network collector reports the host's physical NICs. The default bridge deployment is unchanged.
+- **Optional `perf` build variant**: New `INSTALL_PERF` build argument installs `linux-perf` (GPL-2.0, about 150 MB), required only for DRAM bandwidth collection. It is off by default and not in the published image.
+
+**Improved:**
+
+- **Telegraf configuration directory**: Telegraf now also loads `/etc/telegraf/active.d`, which the entrypoint assembles at startup from the enabled drop-ins in `telegraf.d/`. With every toggle off the directory is empty.
+- **Safer optional collectors**: Turbostat is skipped with a warning when its binary or `/dev/cpu/0/msr` is not usable, and the DRAM bandwidth, RAPL and GPU throttle readers idle and log their reason instead of failing.
+
+**Fixed:**
+
+- **Arrow Lake NPU Frequency**: Arrow Lake now uses the MTL buttress formula (`ratio * 50 MHz * 2 / 3`), matching the `intel_vpu` kernel driver, instead of the LNL formula that under-reported the clock by 25%.
+- **NPU Bandwidth Rate**: `npu_bandwidth` is now an MB/s rate (NoC bandwidth counter delta divided by the actual elapsed sampling interval) instead of the raw delta per ~1 s polling loop, so polling jitter no longer skews it. A single wrap of the underlying 32-bit counter between two samples is corrected instead of being reported as a large negative value. A counter reset, or more than one wrap within one interval, can't be detected.
+- **NPU Monitor CLI Output**: The bundled `npu_monitor_tool` CLI now displays the NPU clock in `[MHz]` (previously the MHz number labelled `[Hz]`). Its console and CSV `bandwidth` are now an MB/s rate over the actual elapsed time; previously they were the raw per-interval delta, divided by 1024 (GB) whenever the cumulative counter exceeded 1024, so the CSV column mixed MB and GB. The CSV `utilization` and `memory_usage` cells are now empty (console `N/A`) instead of `0` / `-1.00` when the platform can't measure them.
+- **No More Fake Sentinel Values**: `npu_utilization` is omitted from the emitted sample (instead of a fake `0`) when `npu_busy_time_us` isn't exposed by the platform or can't be read. `npu_memory_mb` is omitted (instead of a fake `-1`) on platforms before Panther Lake (Meteor Lake, Arrow Lake, Lunar Lake), and on Panther Lake when the `npu_memory_utilization` node is missing or can't be read. Consumers should treat a missing field as "not measured", not as a real zero/negative reading.
+
+## Version 2026.2.0
+
+**Release Date:** September 9, 2026
+
+**New:**
+
+- **Platform & Device Capabilities API**: New `GET /api/v1/capabilities` endpoint returns a structured snapshot of the host platform and its compute devices (CPU, GPU, NPU, memory, storage, media codecs). Two detail profiles are available via `?profile=`: `minimal` (default) for a high-level summary and `expanded` for a full technical inventory. Enables workload placement without shelling out to platform-specific tools.
+- **Software Capabilities Export**: The capabilities snapshot reports the software stack on each detected compute device (drivers, runtimes, supported precisions, media codecs), enabling capability-aware model and pipeline placement across heterogeneous edge fleets.
+- **Hardware Discovery Tooling Bundled**: The runtime image ships `dmidecode`, `pciutils` (`lspci`), `util-linux` (`lsblk`), and `hwinfo` for out-of-the-box capability detection with no extra host packages or sidecar containers.
+- **Optional OpenVINO™ Build Variant**: New `openvino` extra in `pyproject.toml` and `INSTALL_OPENVINO` Docker build argument. When enabled, adds `vainfo` and `intel-media-va-driver` for VAAPI codec detection, while keeping the default image lean.
+
+**Improved:**
+
+- **Telegraf 1.38.4 Built from Source**: Compiled from the upstream `v1.38.4` tag using a digest-pinned Go 1.26.4 toolchain. Patches vulnerable bundled dependencies (`rclone` → 1.73.5, `go-billy` → 5.9.0), remediating known CVEs and producing a fully reproducible build.
+- **qmassa 2.1.0 and qmmd 0.2.0**: Installed with `cargo install --locked --git … --tag …` from upstream instead of crates.io, preventing build failures from yanked versions and bringing the latest Intel® GPU telemetry improvements.
+- **Security Hardening**: Several attack-surface reductions in the production image: `supervisor` installed via `pip` (4.3.0), `perl-base` purged, `curl` removed (healthcheck replaced with a Python one-liner), and supervisord's Unix socket configured with an explicit user/password placeholder.
+- **Build and Developer Loop**: Go module and build caches added to the `Dockerfile`, with leaner service startup/shutdown in `Makefile` and `compose.yaml` for shorter `make test` and `docker compose up/down` turnaround.
+- **Documentation**: Capabilities endpoint documented in the API reference, updated system requirements, corrected links and release-branch references, improved cross-linking, and an expanded troubleshooting section.
+- **Test Coverage**: New tests for the capabilities endpoint and response model, plus additional route and application wiring tests.
 
 ## Version 2026.1.0
 
@@ -65,8 +109,6 @@
 
 None at this release. See GitHub issues for feature requests and discussions.
 
----
-
 ## Version 2026.0.1
 
 **Release Date:** May 5, 2026
@@ -81,8 +123,6 @@ None at this release. See GitHub issues for feature requests and discussions.
   - SSE client (`Accept: text/event-stream`) → raw stream
   - **Impact**: Single endpoint works for both browsers and programmatic clients
 
----
-
 ## Version 2026.0.0
 
 **Release Date:** April 1, 2026
@@ -96,23 +136,20 @@ None at this release. See GitHub issues for feature requests and discussions.
   - Prometheus-compatible output (`GET /metrics`, `:9273/metrics`)
   - Real-time SSE streaming (`GET /metrics/stream`)
 
----
-
 ## Versions and Dependencies
 
 ### Current Image
 
-- Intel® Metrics Manager **2026.1.0**
-- Telegraf **1.37.3** (system metrics agent)
+- Intel® Metrics Manager **2026.2.0**
+- Telegraf **1.39.3** (system metrics agent)
 - qmassa **1.3.1** (Intel® GPU telemetry via named pipe)
 - qmmd **0.1.1** _(optional)_ — Lightweight Prometheus GPU exporter (bundled but **not started by default**; use only if you need a separate GPU metrics port)
 - Intel® NPU telemetry via bundled `npu_monitor_tool` / `npu_reader`
 - Python **3.12** runtime + FastAPI service
 - supervisord process supervisor
 
+> [!NOTE]
 > **Note on qmmd:** The default Metrics Manager already collects GPU metrics via `qmassa_reader.py` and Telegraf. Enable qmmd only if you need a standalone Prometheus exporter on a separate port. See [Environment Variables](./get-started/environment-variables.md#optional-components) for details.
-
----
 
 ## Support Matrix
 
@@ -122,8 +159,6 @@ None at this release. See GitHub issues for feature requests and discussions.
 | Kubernetes   | 1.25+   | Via Helm chart                         |
 | Python       | 3.12    | Included in image                      |
 | Linux Kernel | 5.4+    | Required for system metrics collection |
-
----
 
 ## Migration Guide
 
@@ -143,8 +178,6 @@ No breaking changes. All existing endpoints remain compatible.
 3. Restart: `docker compose up -d`
 4. No data migration needed (in-memory store)
 
----
-
 ## Supporting Resources
 
 - [Get Started Guide](./get-started.md)
@@ -152,8 +185,6 @@ No breaking changes. All existing endpoints remain compatible.
 - [Environment Variables](./get-started/environment-variables.md)
 - [How It Works](./how-it-works.md)
 - [Troubleshooting](./troubleshooting.md)
-
----
 
 ## Disclaimer
 

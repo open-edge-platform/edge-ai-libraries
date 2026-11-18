@@ -1,0 +1,12 @@
+
+fedora_70_install_nodejs () {
+  ensure_dnf_install_package nodejs
+}
+
+fedora_70_remove_nodejs () {
+  ensure_dnf_remove_package nodejs
+}
+
+fedora_70_sbom_nodejs () {
+  ensure_sbom_format pkg-list nodejs
+}

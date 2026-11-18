@@ -2,11 +2,11 @@
 
 ## Version 2026.2
 
-<!--date TBD-->
+**Release Date**: September 9, 2026
 
 This release moves the pipeline to **on-device AI services** and adds runtime-extensible prompt tasks and subtitle-aware summarization.
 
-**New:**
+**New**:
 
 - **On-device AI Services**: vLLM-IPEX-serving and multilevel-video-understanding run locally on a single Intel® PTL 358H host with shared system RAM — no discrete accelerator or remote inference cluster. A single `Qwen3.5-35B-A3B` model serves both the VLM (captioning) and LLM (aggregation) roles from one OpenAI-compatible endpoint.
 - **Dynamic prompt tasks**: register/update/delete custom summarization tasks at runtime via the `/v1/tasks` API. Two built-in tasks ship by default — `summary` (English) and `summary_zh` (Chinese); everything else is user-registered.

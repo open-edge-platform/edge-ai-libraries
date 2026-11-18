@@ -1,0 +1,12 @@
+docconf
+out
+venv_edge-manage-docs
+cmd
+dict.txt
+Makefile
+requirements.txt
+VERSION
+docs/conf.py
+docs/substitutions.txt
+docs/_static/logo.svg
+docs/_static/one-edge-platform-login-title.png

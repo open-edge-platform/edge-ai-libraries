@@ -1,0 +1,12 @@
+
+fedora_30_install_gcc () {
+  ensure_dnf_install_package gcc gcc-c++
+}
+
+fedora_30_remove_gcc () {
+  ensure_dnf_remove_package gcc gcc-c++
+}
+
+fedora_30_sbom_gcc () {
+  ensure_sbom_format pkg-list gcc gcc-c++
+}

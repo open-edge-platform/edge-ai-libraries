@@ -1,0 +1,13 @@
+
+fedora_30_install_stress_ng () {
+  ensure_dnf_install_package stress-ng
+}
+
+fedora_30_remove_stress_ng () {
+  ensure_dnf_remove_package stress-ng
+}
+
+fedora_30_sbom_stress_ng () {
+  ensure_sbom_format pkg-list stress-ng
+}
+

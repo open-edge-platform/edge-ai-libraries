@@ -1,0 +1,13 @@
+
+fedora_80_profile_anomalib () {
+  :
+}
+
+fedora_80_install_anomalib () {
+  install_anomalib "$@"
+}
+
+fedora_80_remove_anomalib () {
+  remove_anomalib "$@"
+}
+

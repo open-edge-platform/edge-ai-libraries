@@ -1,0 +1,8 @@
+
+fedora_10_install_gnupg2 () {
+  ensure_dnf_install_package gnupg2
+}
+
+fedora_10_sbom_gnupg2 () {
+  ensure_sbom_format pkg-list gnupg2
+}

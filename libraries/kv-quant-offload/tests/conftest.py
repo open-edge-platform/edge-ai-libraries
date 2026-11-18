@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 import struct
 import time
 from dataclasses import dataclass, asdict, field
@@ -25,13 +26,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-# Production config (Qwen3.5-9B, integration/vllm/vllm-start.sh). Qwen3.5-9B
-# is a hybrid linear/full-attention model (32 decoder layers total, 3:1
-# linear:full-attention ratio); both layer types are quantized through this
-# codec, so PROD_NUM_LAYERS reflects the full decoder depth for multi-layer
-# replay scenarios. Single-layer correctness tests pass their own explicit
-# num_layers=1 and don't reference this constant.
-PROD_NUM_LAYERS = 32
+# Production config (Qwen3.5-9B). Per-group layers = 8 (1 attention + 3 Mamba groups); multi-layer perf shapes are in serde_helpers.
 PROD_NUM_KV_HEADS = 4
 PROD_HEAD_DIM = 256
 PROD_H_MERGED = PROD_NUM_KV_HEADS * PROD_HEAD_DIM  # 1024
@@ -104,7 +99,7 @@ def kv_chunk(dtype):
 
 
 # ---------------------------------------------------------------------------
-# Production-config (Qwen3-8B) helpers
+# Production-config helpers
 # ---------------------------------------------------------------------------
 
 def make_paged_kvcache(
@@ -276,10 +271,7 @@ def quant_dequant_roundtrip(
 # ---------------------------------------------------------------------------
 # XPU quant/dequant roundtrip helper
 # ---------------------------------------------------------------------------
-# kvweave_quant_xpu has no scale_id table (quantize/dequantize return/consume
-# the scale blob directly) and no num_threads knob (GPU parallelism is
-# implicit in the SYCL kernel), so this is not just a device= variant of
-# quant_dequant_roundtrip() above — it calls a structurally simpler API.
+# kvweave_quant_xpu has no scale_id table and no num_threads knob, so this uses a simpler API than quant_dequant_roundtrip().
 
 def _xpu_ready() -> bool:
     return kvweave_quant_xpu is not None and hasattr(torch, "xpu") and torch.xpu.is_available()
@@ -456,7 +448,7 @@ def perf_collector():
     results = []
     yield results
     if results:
-        out_path = Path(__file__).parent / "perf_results.json"
+        out_path = Path(os.environ.get("KVWEAVE_PERF_RESULTS", Path(__file__).parent / "perf_results.json"))
         with open(out_path, "w") as f:
             json.dump([asdict(r) for r in results], f, indent=2)
         print(f"\n[perf] Results written to {out_path}")

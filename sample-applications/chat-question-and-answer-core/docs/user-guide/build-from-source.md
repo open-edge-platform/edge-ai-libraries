@@ -8,7 +8,7 @@ If you want to build the images via `docker compose`, please refer to the sectio
 
 Once all the images are built, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
 
-> **Note:**
+> [!NOTE]
 >
 > - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). This guide recommends using prebuilt images on Edge Microvisor Toolkit.
 
@@ -28,25 +28,17 @@ To build the Docker image for the `Chat Q&A Core` application, follow these step
 
    - **OpenVINO™ toolkit framework**
 
-     - CPU-only inferencing (Default Configuration):
+     - Build image:
 
        ```bash
        docker build -t chatqna:latest -f docker/Dockerfile .
        ```
 
-       This build the image using OpenVINO toolkit to support CPU-based inferencing, suitable for hardware setups without GPU support.
-
-     - GPU-enabled inferencing (Intel GPUs support):
-
-       ```bash
-       docker build -t chatqna:latest --build-arg USE_GPU=true -f docker/Dockerfile .
-       ```
-
-       This build the image using OpenVINO toolkit with additional GPU support for accelerated inferencing. It remains compatible with CPU-only systems, offering flexibility across different hardware setups.
+       This build the image using OpenVINO toolkit and includes GPU and NPU driver installation by default.
 
    - **Ollama framework**
 
-     - CPU-only inferencing
+     - Build image (CPU-only inferencing):
 
         ```bash
         docker build -t chatqna:latest -f docker/Dockerfile.ollama .
@@ -108,21 +100,12 @@ This guide explains how to build the images using the `compose.yaml` file via th
 
    - **OpenVINO™ toolkit framework**
 
-     - CPU-only setup (Default):
+     - Support CPU, GPU and NPU devices (Default):
 
        ```bash
        export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
        source scripts/setup_env.sh
        ```
-
-     - GPU-enabled setup:
-
-       ```bash
-       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-       source scripts/setup_env.sh -d gpu
-       ```
-
-       ℹ️ The `-d gpu` flag enables the GPU-DEVICE profile required for GPU-based execution.
 
    - **Ollama framework**
 
@@ -156,21 +139,13 @@ After building the images for the `Chat Q&A Core` application, you can run the a
 
    - **OpenVINO™ toolkit framework**
 
-     - CPU-only setup (Default):
+     - Support CPU, GPU and NPU devices (Default):
 
        ```bash
+       # HF Token is mandatory for gated or private model. Else, it can be skipped.
        export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
        source scripts/setup_env.sh
        ```
-
-     - GPU-enabled setup:
-
-       ```bash
-       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-       source scripts/setup_env.sh -d gpu
-       ```
-
-       ℹ️ The `-d gpu` flag enables the GPU-DEVICE profile required for GPU-based execution.
 
    - **Ollama framework**
 

@@ -77,6 +77,7 @@ ViPPET Overview <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/v
 ./user-guide/model-management
 ./user-guide/pipeline-management
 ./user-guide/benchmarking
+./user-guide/voice-conversion
 
 :::
 

@@ -6,7 +6,7 @@ import responses
 
 from adaptive_token_compressor.core.backends import (
     CompressionBackend,
-    LinguaHTTPBackend,
+    TokenPruneBackend,
     NoopBackend,
 )
 from adaptive_token_compressor.core.exceptions import BackendError
@@ -19,8 +19,8 @@ from adaptive_token_compressor.core.health import HealthState
 
 
 class TestCompressionBackendProtocol:
-    def test_runtime_checkable_lingua_backend(self):
-        backend = LinguaHTTPBackend()
+    def test_runtime_checkable_token_prune_backend(self):
+        backend = TokenPruneBackend()
         assert isinstance(backend, CompressionBackend)
 
     def test_runtime_checkable_noop_backend(self):
@@ -68,38 +68,38 @@ class TestNoopBackend:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LinguaHTTPBackend.__init__
+# TokenPruneBackend.__init__
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class TestLinguaHTTPBackendInit:
-    def test_default_lingua_url(self):
-        backend = LinguaHTTPBackend()
-        assert backend._lingua_url == "http://localhost:8001/compress"
+class TestTokenPruneBackendInit:
+    def test_default_compress_server_url(self):
+        backend = TokenPruneBackend()
+        assert backend._compress_server_url == "http://localhost:8001/compress"
 
-    def test_custom_lingua_url(self):
-        backend = LinguaHTTPBackend(lingua_url="http://example.com:9000/compress")
-        assert backend._lingua_url == "http://example.com:9000/compress"
+    def test_custom_compress_server_url(self):
+        backend = TokenPruneBackend(compress_server_url="http://example.com:9000/compress")
+        assert backend._compress_server_url == "http://example.com:9000/compress"
 
-    def test_health_endpoint_derived_from_lingua_url(self):
-        backend = LinguaHTTPBackend(lingua_url="http://example.com:8001/compress")
+    def test_health_endpoint_derived_from_compress_server_url(self):
+        backend = TokenPruneBackend(compress_server_url="http://example.com:8001/compress")
         assert backend._health_endpoint == "http://example.com:8001/health"
 
     def test_health_endpoint_explicit(self):
-        backend = LinguaHTTPBackend(health_endpoint="http://custom.com/status")
+        backend = TokenPruneBackend(health_endpoint="http://custom.com/status")
         assert backend._health_endpoint == "http://custom.com/status"
 
     def test_health_endpoint_strips_trailing_slash_and_compress(self):
-        backend = LinguaHTTPBackend(lingua_url="http://example.com:8001/compress/")
+        backend = TokenPruneBackend(compress_server_url="http://example.com:8001/compress/")
         assert backend._health_endpoint == "http://example.com:8001/health"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LinguaHTTPBackend.compress — success paths
+# TokenPruneBackend.compress — success paths
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class TestLinguaHTTPBackendCompressSuccess:
+class TestTokenPruneBackendCompressSuccess:
     @responses.activate
     def test_compressed_prompt_returned(self):
         responses.post(
@@ -107,7 +107,7 @@ class TestLinguaHTTPBackendCompressSuccess:
             json={"compressed_prompt": "short prompt"},
             status=200,
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         result = backend.compress("original long prompt", rate=0.5)
         assert result == "short prompt"
 
@@ -118,7 +118,7 @@ class TestLinguaHTTPBackendCompressSuccess:
             json={"compressed_text": "short text"},
             status=200,
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         result = backend.compress("original", rate=0.6)
         assert result == "short text"
 
@@ -129,7 +129,7 @@ class TestLinguaHTTPBackendCompressSuccess:
             json={"compressed_prompt": "A", "compressed_text": "B"},
             status=200,
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         result = backend.compress("original", rate=0.5)
         assert result == "A"
 
@@ -139,7 +139,7 @@ class TestLinguaHTTPBackendCompressSuccess:
             "http://localhost:8001/compress",
             json={"compressed_prompt": "ok"},
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         backend.compress(
             "text", rate=0.4, force_reserve_digit=True, digit_neighbor_radius=2
         )
@@ -160,7 +160,7 @@ class TestLinguaHTTPBackendCompressSuccess:
             "http://localhost:8001/compress",
             json={"compressed_prompt": "ok"},
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         backend.compress("text", rate=0.5)
         import json
 
@@ -170,22 +170,22 @@ class TestLinguaHTTPBackendCompressSuccess:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LinguaHTTPBackend.compress — error paths
+# TokenPruneBackend.compress — error paths
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class TestLinguaHTTPBackendCompressErrors:
+class TestTokenPruneBackendCompressErrors:
     @responses.activate
     def test_http_500_raises_backend_error(self):
         responses.post("http://localhost:8001/compress", status=500)
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         with pytest.raises(BackendError, match="backend request failed"):
             backend.compress("text", rate=0.5)
 
     @responses.activate
     def test_http_404_raises_backend_error(self):
         responses.post("http://localhost:8001/compress", status=404)
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         with pytest.raises(BackendError, match="backend request failed"):
             backend.compress("text", rate=0.5)
 
@@ -197,14 +197,14 @@ class TestLinguaHTTPBackendCompressErrors:
         responses.post(
             "http://localhost:8001/compress", body=req_lib.Timeout("Connection timeout")
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         with pytest.raises(BackendError, match="backend request failed"):
             backend.compress("text", rate=0.5)
 
     @responses.activate
     def test_invalid_json_raises_backend_error(self):
         responses.post("http://localhost:8001/compress", body="not json", status=200)
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         with pytest.raises(BackendError, match="backend returned invalid response"):
             backend.compress("text", rate=0.5)
 
@@ -215,7 +215,7 @@ class TestLinguaHTTPBackendCompressErrors:
             json={"compressed_prompt": ""},
             status=200,
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         with pytest.raises(BackendError, match="missing compressed_prompt"):
             backend.compress("text", rate=0.5)
 
@@ -226,17 +226,17 @@ class TestLinguaHTTPBackendCompressErrors:
             json={"other_field": "x"},
             status=200,
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         with pytest.raises(BackendError, match="missing compressed_prompt"):
             backend.compress("text", rate=0.5)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LinguaHTTPBackend.health_check
+# TokenPruneBackend.health_check
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class TestLinguaHTTPBackendHealthCheck:
+class TestTokenPruneBackendHealthCheck:
     @responses.activate
     def test_status_ok_returns_healthy(self):
         responses.get(
@@ -244,7 +244,7 @@ class TestLinguaHTTPBackendHealthCheck:
             json={"status": "ok", "model": "llmlingua2"},
             status=200,
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         status = backend.health_check()
         assert status.state is HealthState.HEALTHY
         assert "backend@http://localhost:8001/compress" in status.component
@@ -253,7 +253,7 @@ class TestLinguaHTTPBackendHealthCheck:
     def test_failure_message_does_not_expose_exception_details(self):
         secret = "https://user:secret@example.test/health"
         responses.get("http://localhost:8001/health", body=RuntimeError(secret))
-        status = LinguaHTTPBackend().health_check()
+        status = TokenPruneBackend().health_check()
         assert status.state is HealthState.UNHEALTHY
         assert status.message == "backend unavailable"
         assert secret not in status.message
@@ -265,7 +265,7 @@ class TestLinguaHTTPBackendHealthCheck:
             json={"status": "loading"},
             status=200,
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         status = backend.health_check()
         assert status.state is HealthState.DEGRADED
         assert "status=loading" in status.message
@@ -273,7 +273,7 @@ class TestLinguaHTTPBackendHealthCheck:
     @responses.activate
     def test_http_500_returns_unhealthy(self):
         responses.get("http://localhost:8001/health", status=500)
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         status = backend.health_check()
         assert status.state is HealthState.UNHEALTHY
 
@@ -284,13 +284,13 @@ class TestLinguaHTTPBackendHealthCheck:
         responses.get(
             "http://localhost:8001/health", body=req_lib.ConnectionError("Connection refused")
         )
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         status = backend.health_check()
         assert status.state is HealthState.UNHEALTHY
 
     @responses.activate
     def test_custom_timeout_passed(self):
         responses.get("http://localhost:8001/health", json={"status": "ok"})
-        backend = LinguaHTTPBackend()
+        backend = TokenPruneBackend()
         status = backend.health_check(timeout=1.0)
         assert status.state is HealthState.HEALTHY

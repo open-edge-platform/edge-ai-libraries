@@ -1,7 +1,12 @@
 import time
-import types
 import unittest
 from unittest.mock import patch, MagicMock
+
+from dlsps2_optimizer import (
+    Dlsps2OptimizeResult,
+    Dlsps2OptimizerCancelled,
+    Dlsps2OptimizerError,
+)
 
 from graph import Graph
 from internal_types import (
@@ -12,9 +17,16 @@ from internal_types import (
     InternalPipelineRequestOptimize,
     InternalVariant,
 )
+from managers.execution_coordinator import (
+    PIPELINE_EXECUTION_GROUP,
+    ExecutionCoordinator,
+    ExecutionLease,
+    JobExecutionConflictError,
+)
 from managers.optimization_manager import (
     OptimizationManager,
     OptimizationRunner,
+    PipelineOptimizationResult,
 )
 from utils import get_current_timestamp
 
@@ -97,10 +109,14 @@ class TestOptimizationManager(unittest.TestCase):
     def setUp(self):
         """Reset singleton state before each test."""
         OptimizationManager._instance = None
+        # Workers are mocked out here, so they never release their execution
+        # lease; drop the coordinator to keep tests independent.
+        ExecutionCoordinator._instance = None
 
     def tearDown(self):
         """Reset singleton state after each test."""
         OptimizationManager._instance = None
+        ExecutionCoordinator._instance = None
 
     # ------------------------------------------------------------------
     # Singleton tests
@@ -124,7 +140,7 @@ class TestOptimizationManager(unittest.TestCase):
 
     def _make_internal_request(
         self,
-        opt_type: InternalOptimizationType = InternalOptimizationType.PREPROCESS,
+        opt_type: InternalOptimizationType = InternalOptimizationType.OPTIMIZE,
         parameters=None,
     ) -> InternalPipelineRequestOptimize:
         """Helper to create an internal optimization request for testing."""
@@ -189,7 +205,7 @@ class TestOptimizationManager(unittest.TestCase):
 
             job = manager.jobs[job_id]
             self.assertIsInstance(job.request, InternalPipelineRequestOptimize)
-            self.assertEqual(job.request.type, InternalOptimizationType.PREPROCESS)
+            self.assertEqual(job.request.type, InternalOptimizationType.OPTIMIZE)
             self.assertEqual(job.state, InternalOptimizationJobState.RUNNING)
             self.assertIsInstance(job.start_time, int)
             self.assertIsNone(job.end_time)
@@ -200,12 +216,18 @@ class TestOptimizationManager(unittest.TestCase):
                 job.original_pipeline_graph_simple, variant.pipeline_graph_simple
             )
 
+            # The runner is registered with the job, so it can be cancelled
+            # before the background worker starts.
+            self.assertIsInstance(manager.runners[job_id], OptimizationRunner)
+
             # Background worker must be started with correct arguments
             mock_execute.assert_called_once()
             call_args = mock_execute.call_args[0]
             self.assertEqual(call_args[0], job_id)
-            self.assertIsInstance(call_args[1], str)  # pipeline description
-            self.assertIsInstance(call_args[2], InternalPipelineRequestOptimize)
+            self.assertIs(call_args[1], manager.runners[job_id])
+            self.assertIsInstance(call_args[2], str)  # pipeline description
+            self.assertIsInstance(call_args[3], InternalPipelineRequestOptimize)
+            self.assertEqual(call_args[4], variant.name)
 
     def test_run_optimization_uses_variant_graphs(self):
         """
@@ -339,7 +361,7 @@ class TestOptimizationManager(unittest.TestCase):
         manager = OptimizationManager()
         graph = _create_test_graph()
         request = self._make_internal_request(
-            InternalOptimizationType.PREPROCESS,
+            InternalOptimizationType.OPTIMIZE,
             parameters={"foo": "bar"},
         )
 
@@ -361,478 +383,313 @@ class TestOptimizationManager(unittest.TestCase):
         self.assertIsInstance(summary, InternalOptimizationJobSummary)
         self.assertEqual(summary.id, job_id)
         self.assertIsInstance(summary.request, InternalPipelineRequestOptimize)
-        self.assertEqual(summary.request.type, InternalOptimizationType.PREPROCESS)
+        self.assertEqual(summary.request.type, InternalOptimizationType.OPTIMIZE)
         self.assertEqual(summary.request.parameters, {"foo": "bar"})
+
+    # ------------------------------------------------------------------
+    # Unsupported types
+    # ------------------------------------------------------------------
+
+    def test_run_optimization_preprocess_ignores_durations(self):
+        """PREPROCESS runs no search, so its durations are not validated."""
+        manager = OptimizationManager()
+        variant = _create_internal_variant()
+        request = self._make_internal_request(
+            InternalOptimizationType.PREPROCESS, parameters={"search_duration": "abc"}
+        )
+
+        with patch.object(manager, "_execute_optimization") as mock_execute:
+            job_id = manager.run_optimization(variant, request)
+
+        self.assertIn(job_id, manager.jobs)
+        mock_execute.assert_called_once()
+
+    def test_run_optimization_rejects_invalid_durations(self):
+        """Invalid durations are rejected before a job is created or the lease is taken."""
+        manager = OptimizationManager()
+        variant = _create_internal_variant()
+        cases = {
+            "search_duration": ["abc", None, 0, -5, "inf", "nan", [30]],
+            "sample_duration": ["", 0, float("inf")],
+        }
+        with patch.object(manager, "_execute_optimization") as mock_execute:
+            for name, values in cases.items():
+                for value in values:
+                    with self.subTest(name=name, value=value):
+                        request = self._make_internal_request(parameters={name: value})
+
+                        with self.assertRaisesRegex(ValueError, f"Parameter '{name}'"):
+                            manager.run_optimization(variant, request)
+
+            self.assertEqual(manager.jobs, {})
+            mock_execute.assert_not_called()
 
     # ------------------------------------------------------------------
     # _execute_optimization behaviour
     # ------------------------------------------------------------------
 
-    @patch("managers.optimization_manager.Graph")
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_preprocess_completes_successfully(
-        self, mock_runner_cls, mock_graph_cls
-    ):
-        """
-        _execute_optimization should:
-          * call OptimizationRunner.run_preprocessing,
-          * update job state to COMPLETED,
-          * store optimized pipeline description and Graph objects,
-          * store details as list with success message.
-        """
-        manager = OptimizationManager()
-
+    def _add_running_job(
+        self, manager: OptimizationManager, job_id: str, parameters=None
+    ) -> MagicMock:
+        """Register a RUNNING OPTIMIZE job with a mocked runner and return the runner."""
         graph = _create_test_graph()
-        request = self._make_internal_request()
-
-        job_id = "job-preprocess"
-        job = InternalOptimizationJobStatus(
+        manager.jobs[job_id] = InternalOptimizationJobStatus(
             id=job_id,
             original_pipeline_graph=graph,
             original_pipeline_graph_simple=graph,
             original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=request,
+            request=self._make_internal_request(parameters=parameters),
             state=InternalOptimizationJobState.RUNNING,
             start_time=int(time.time() * 1000),
         )
-        manager.jobs[job_id] = job
-
-        mock_runner = MagicMock()
-        mock_result = MagicMock()
-        mock_result.optimized_pipeline_description = (
-            "filesrc ! decodebin3 ! videoconvert ! autovideosink"
+        runner = MagicMock(spec=OptimizationRunner)
+        runner.is_cancelled.return_value = False
+        runner.run_optimization.return_value = PipelineOptimizationResult(
+            optimized_pipeline_description="optimized ! sink", total_fps=55.5
         )
-        mock_result.total_fps = None
-        mock_runner.run_preprocessing.return_value = mock_result
-        mock_runner.is_cancelled.return_value = False
-        mock_runner_cls.return_value = mock_runner
+        manager.runners[job_id] = runner
+        return runner
 
+    def _execute(
+        self,
+        manager: OptimizationManager,
+        job_id: str,
+        runner: MagicMock,
+        variant_name: str = "",
+        lease: ExecutionLease | None = None,
+    ) -> None:
+        manager._execute_optimization(
+            job_id,
+            runner,
+            pipeline_description="filesrc ! decodebin3 ! sink",
+            optimization_request=manager.jobs[job_id].request,
+            variant_name=variant_name,
+            execution_lease=lease,
+        )
+
+    @patch("managers.optimization_manager.Graph")
+    def test_execute_optimization_completes_with_both_views_and_fps(
+        self, mock_graph_cls
+    ):
+        """A completed run stores the pipeline, both Graph views and the FPS."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(
+            manager, "job-ok", parameters={"search_duration": 42, "sample_duration": 7}
+        )
         mock_optimized_graph = MagicMock(spec=Graph)
         mock_simple_graph = MagicMock(spec=Graph)
         mock_optimized_graph.to_simple_view.return_value = mock_simple_graph
         mock_graph_cls.from_pipeline_description.return_value = mock_optimized_graph
 
-        manager._execute_optimization(
-            job_id,
-            pipeline_description="filesrc ! decodebin3 ! sink",
-            optimization_request=request,
-        )
+        self._execute(manager, "job-ok", runner)
 
-        updated = manager.jobs[job_id]
+        updated = manager.jobs["job-ok"]
         self.assertEqual(updated.state, InternalOptimizationJobState.COMPLETED)
         self.assertEqual(updated.details, ["Optimization completed successfully"])
         self.assertIsNotNone(updated.end_time)
-        self.assertEqual(
-            updated.optimized_pipeline_description,
-            "filesrc ! decodebin3 ! videoconvert ! autovideosink",
-        )
+        self.assertEqual(updated.total_fps, 55.5)
+        self.assertEqual(updated.optimized_pipeline_description, "optimized ! sink")
         self.assertEqual(updated.optimized_pipeline_graph, mock_optimized_graph)
         self.assertEqual(updated.optimized_pipeline_graph_simple, mock_simple_graph)
-        self.assertNotIn(job_id, manager.runners)
-        mock_runner.run_preprocessing.assert_called_once()
-
-    @patch("managers.optimization_manager.Graph")
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_preprocess_generates_simple_view(
-        self, mock_runner_cls, mock_graph_cls
-    ):
-        """_execute_optimization should generate simple view Graph from optimized pipeline."""
-        manager = OptimizationManager()
-
-        graph = _create_test_graph()
-        request = self._make_internal_request()
-
-        job_id = "job-simple-view"
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=request,
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),
+        mock_graph_cls.from_pipeline_description.assert_called_once_with(
+            "optimized ! sink"
         )
-        manager.jobs[job_id] = job
-
-        mock_runner = MagicMock()
-        mock_result = MagicMock()
-        mock_result.optimized_pipeline_description = "filesrc ! decodebin3 ! sink"
-        mock_result.total_fps = None
-        mock_runner.run_preprocessing.return_value = mock_result
-        mock_runner.is_cancelled.return_value = False
-        mock_runner_cls.return_value = mock_runner
-
-        mock_graph_instance = MagicMock(spec=Graph)
-        mock_simple_graph_instance = MagicMock(spec=Graph)
-        mock_graph_instance.to_simple_view.return_value = mock_simple_graph_instance
-        mock_graph_cls.from_pipeline_description.return_value = mock_graph_instance
-
-        manager._execute_optimization(
-            job_id,
-            pipeline_description="filesrc ! decodebin3 ! sink",
-            optimization_request=request,
-        )
-
-        updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.COMPLETED)
-        self.assertEqual(updated.optimized_pipeline_graph, mock_graph_instance)
-        self.assertEqual(
-            updated.optimized_pipeline_graph_simple, mock_simple_graph_instance
-        )
-        mock_graph_instance.to_simple_view.assert_called_once()
-
-    @patch("managers.optimization_manager.Graph")
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_optimize_generates_both_views(
-        self, mock_runner_cls, mock_graph_cls
-    ):
-        """_execute_optimization for OPTIMIZE should generate both Graph views."""
-        manager = OptimizationManager()
-
-        graph = _create_test_graph()
-        request = self._make_internal_request(
-            InternalOptimizationType.OPTIMIZE,
-            parameters={"search_duration": 10, "sample_duration": 2},
-        )
-
-        job_id = "job-both-views"
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=request,
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),
-        )
-        manager.jobs[job_id] = job
-
-        mock_runner = MagicMock()
-        mock_result = MagicMock()
-        mock_result.optimized_pipeline_description = "optimized ! sink"
-        mock_result.total_fps = 75.0
-        mock_runner.run_optimization.return_value = mock_result
-        mock_runner.is_cancelled.return_value = False
-        mock_runner_cls.return_value = mock_runner
-
-        mock_optimized_graph = MagicMock(spec=Graph)
-        mock_simple_graph = MagicMock(spec=Graph)
-        mock_optimized_graph.to_simple_view.return_value = mock_simple_graph
-        mock_graph_cls.from_pipeline_description.return_value = mock_optimized_graph
-
-        manager._execute_optimization(
-            job_id,
-            pipeline_description="filesrc ! decodebin3 ! sink",
-            optimization_request=request,
-        )
-
-        updated = manager.jobs[job_id]
-        self.assertEqual(updated.total_fps, 75.0)
-        self.assertIsNotNone(updated.optimized_pipeline_graph)
-        self.assertIsNotNone(updated.optimized_pipeline_graph_simple)
-
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_graph_conversion_exception_sets_error(
-        self, mock_runner_cls
-    ):
-        """If Graph.from_pipeline_description fails, job should be marked as FAILED."""
-        manager = OptimizationManager()
-
-        graph = _create_test_graph()
-        request = self._make_internal_request()
-
-        job_id = "job-graph-error"
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=request,
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),
-        )
-        manager.jobs[job_id] = job
-
-        mock_runner = MagicMock()
-        mock_result = MagicMock()
-        mock_result.optimized_pipeline_description = "filesrc ! decodebin3 ! sink"
-        mock_result.total_fps = None
-        mock_runner.run_preprocessing.return_value = mock_result
-        mock_runner.is_cancelled.return_value = False
-        mock_runner_cls.return_value = mock_runner
-
-        with patch("managers.optimization_manager.Graph") as mock_graph_cls:
-            mock_graph_cls.from_pipeline_description.side_effect = RuntimeError(
-                "Graph conversion failed"
-            )
-
-            manager._execute_optimization(
-                job_id,
-                pipeline_description="filesrc ! decodebin3 ! sink",
-                optimization_request=request,
-            )
-
-        updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
-        self.assertIsNotNone(updated.details)
-        if updated.details:
-            self.assertIn("Graph conversion failed", updated.details)
-
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_validates_optimization_type(self, mock_runner_cls):
-        """_execute_optimization should validate that optimization type is known."""
-        manager = OptimizationManager()
-
-        graph = _create_test_graph()
-
-        invalid_request = types.SimpleNamespace(type="INVALID_TYPE", parameters=None)
-
-        job_id = "job-invalid-opt-type"
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=invalid_request,  # type: ignore[arg-type]
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),
-        )
-        manager.jobs[job_id] = job
-
-        manager._execute_optimization(
-            job_id,
-            pipeline_description="filesrc ! decodebin3 ! sink",
-            optimization_request=invalid_request,  # type: ignore[arg-type]
-        )
-
-        updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
-        self.assertIsNotNone(updated.details)
-
-    @patch("managers.optimization_manager.Graph")
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_optimize_uses_parameters_and_sets_fps(
-        self, mock_runner_cls, mock_graph_cls
-    ):
-        """
-        For InternalOptimizationType.OPTIMIZE:
-          * custom parameters must be forwarded to OptimizationRunner.run_optimization,
-          * resulting total_fps must be stored on the job,
-          * details should be a list with success message.
-        """
-        manager = OptimizationManager()
-
-        graph = _create_test_graph()
-        request = self._make_internal_request(
-            InternalOptimizationType.OPTIMIZE,
-            parameters={"search_duration": 42, "sample_duration": 7},
-        )
-
-        job_id = "job-optimize"
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=request,
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),
-        )
-        manager.jobs[job_id] = job
-
-        mock_runner = MagicMock()
-        mock_result = MagicMock()
-        mock_result.optimized_pipeline_description = "optimized-pipeline ! sink"
-        mock_result.total_fps = 55.5
-        mock_runner.run_optimization.return_value = mock_result
-        mock_runner.is_cancelled.return_value = False
-        mock_runner_cls.return_value = mock_runner
-
-        mock_optimized_graph = MagicMock(spec=Graph)
-        mock_simple_graph = MagicMock(spec=Graph)
-        mock_optimized_graph.to_simple_view.return_value = mock_simple_graph
-        mock_graph_cls.from_pipeline_description.return_value = mock_optimized_graph
-
-        manager._execute_optimization(
-            job_id,
-            pipeline_description="filesrc ! decodebin3 ! sink",
-            optimization_request=request,
-        )
-
-        updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.COMPLETED)
-        self.assertEqual(updated.details, ["Optimization completed successfully"])
-        self.assertEqual(updated.total_fps, 55.5)
-        self.assertEqual(
-            updated.optimized_pipeline_description, "optimized-pipeline ! sink"
-        )
-
-        mock_runner.run_optimization.assert_called_once_with(
+        runner.run_optimization.assert_called_once_with(
             pipeline_description="filesrc ! decodebin3 ! sink",
             search_duration=42,
             sample_duration=7,
             allowed_devices=None,
         )
+        self.assertNotIn("job-ok", manager.runners)
+
+    @patch("managers.optimization_manager.Graph")
+    def test_execute_optimization_uses_default_durations(self, mock_graph_cls):
+        """Missing parameters fall back to the default search and sample durations."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(manager, "job-defaults")
+
+        self._execute(manager, "job-defaults", runner)
+
+        kwargs = runner.run_optimization.call_args.kwargs
+        self.assertEqual(kwargs["search_duration"], 300)
+        self.assertEqual(kwargs["sample_duration"], 10)
+
+    @patch("managers.optimization_manager.Graph")
+    def test_execute_optimization_converts_numeric_string_durations(
+        self, mock_graph_cls
+    ):
+        """Numeric strings are accepted, like max-runtime of validation jobs."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(
+            manager,
+            "job-strings",
+            parameters={"search_duration": "30", "sample_duration": "2.5"},
+        )
+
+        self._execute(manager, "job-strings", runner)
+
+        kwargs = runner.run_optimization.call_args.kwargs
+        self.assertEqual(kwargs["search_duration"], 30.0)
+        self.assertEqual(kwargs["sample_duration"], 2.5)
+        self.assertIsInstance(kwargs["search_duration"], float)
+
+    @patch("managers.optimization_manager.Graph")
+    def test_execute_optimization_cancel_after_server_job_ended_marks_failed(
+        self, mock_graph_cls
+    ):
+        """A cancel that lands after the server job ended still wins over the result."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(manager, "job-late-cancel")
+        runner.is_cancelled.return_value = True
+
+        self._execute(manager, "job-late-cancel", runner)
+
+        updated = manager.jobs["job-late-cancel"]
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertEqual(updated.details, ["Cancelled by user"])
+        self.assertIsNone(updated.optimized_pipeline_description)
+        self.assertIsNone(updated.total_fps)
+
+    @patch("managers.optimization_manager.Graph")
+    def test_execute_optimization_maps_variant_name_to_allowed_devices(
+        self, mock_graph_cls
+    ):
+        """CPU/GPU/NPU variant names restrict the search; other names do not."""
+        cases = {
+            "CPU": ["CPU"],
+            "gpu": ["GPU"],
+            " Npu ": ["NPU"],
+            "GPU_NPU": None,
+            "my-pipeline": None,
+        }
+        for variant_name, expected in cases.items():
+            with self.subTest(variant_name=variant_name):
+                manager = OptimizationManager()
+                runner = self._add_running_job(manager, f"job-{variant_name}")
+
+                self._execute(manager, f"job-{variant_name}", runner, variant_name)
+
+                self.assertEqual(
+                    runner.run_optimization.call_args.kwargs["allowed_devices"],
+                    expected,
+                )
+
+    @patch("managers.optimization_manager.Graph")
+    def test_execute_optimization_preprocess_completes_without_fps(
+        self, mock_graph_cls
+    ):
+        """PREPROCESS uses the runner's preprocessing, never the optimizer search."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(manager, "job-preprocess")
+        manager.jobs["job-preprocess"].request = self._make_internal_request(
+            InternalOptimizationType.PREPROCESS
+        )
+        runner.run_preprocessing.return_value = PipelineOptimizationResult(
+            optimized_pipeline_description="preprocessed ! sink"
+        )
+
+        self._execute(manager, "job-preprocess", runner, variant_name="CPU")
+
+        updated = manager.jobs["job-preprocess"]
+        self.assertEqual(updated.state, InternalOptimizationJobState.COMPLETED)
+        self.assertEqual(updated.optimized_pipeline_description, "preprocessed ! sink")
+        self.assertIsNone(updated.total_fps)
+        runner.run_preprocessing.assert_called_once_with("filesrc ! decodebin3 ! sink")
+        runner.run_optimization.assert_not_called()
+
+    def test_execute_optimization_graph_conversion_exception_sets_error(self):
+        """If Graph.from_pipeline_description fails, job should be marked as FAILED."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(manager, "job-graph-error")
+
+        with patch("managers.optimization_manager.Graph") as mock_graph_cls:
+            mock_graph_cls.from_pipeline_description.side_effect = RuntimeError(
+                "Graph conversion failed"
+            )
+            self._execute(manager, "job-graph-error", runner)
+
+        updated = manager.jobs["job-graph-error"]
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertEqual(updated.details, ["Graph conversion failed"])
+        self.assertIsNone(updated.optimized_pipeline_description)
+
+    def test_execute_optimization_dlsps_error_sets_error_and_releases(self):
+        """A failed DLSPS job marks the job FAILED, drops the runner and frees the lease."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(manager, "job-dlsps-error")
+        runner.run_optimization.side_effect = Dlsps2OptimizerError(
+            "Optimizer job x failed on DLSPS 2.0: no element gvadetect"
+        )
+        lease = ExecutionCoordinator().acquire(
+            job_id="job-dlsps-error",
+            job_kind="optimization",
+            groups=[PIPELINE_EXECUTION_GROUP],
+        )
+
+        self._execute(manager, "job-dlsps-error", runner, lease=lease)
+
+        updated = manager.jobs["job-dlsps-error"]
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertEqual(
+            updated.details,
+            ["Optimizer job x failed on DLSPS 2.0: no element gvadetect"],
+        )
+        self.assertNotIn("job-dlsps-error", manager.runners)
+        # The lease is free again, so another job can take it.
+        ExecutionCoordinator().acquire(
+            job_id="next", job_kind="optimization", groups=[PIPELINE_EXECUTION_GROUP]
+        )
+
+    def test_execute_optimization_cancelled_job_marks_failed(self):
+        """A cancelled run is always FAILED with the 'Cancelled by user' detail."""
+        manager = OptimizationManager()
+        runner = self._add_running_job(manager, "job-cancelled")
+        runner.run_optimization.side_effect = Dlsps2OptimizerCancelled("cancelled")
+
+        self._execute(manager, "job-cancelled", runner)
+
+        updated = manager.jobs["job-cancelled"]
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertEqual(updated.details, ["Cancelled by user"])
+        self.assertIsNone(updated.optimized_pipeline_graph)
 
     # ------------------------------------------------------------------
-    # Variant-name -> allowed devices mapping
+    # cancel_job
     # ------------------------------------------------------------------
 
-    def _run_optimize_with_variant_name(
-        self, mock_runner_cls, mock_graph_cls, variant_name: str
-    ) -> MagicMock:
-        """
-        Helper to run _execute_optimization with InternalOptimizationType.OPTIMIZE
-        and a given variant_name. Returns the mocked runner so the caller can
-        inspect run_optimization call arguments.
-        """
+    def test_cancel_job_unknown_returns_not_found(self):
+        """Cancelling an unknown job fails with a 'not found' message."""
+        success, message = OptimizationManager().cancel_job("missing")
+
+        self.assertFalse(success)
+        self.assertIn("not found", message)
+
+    def test_cancel_job_running_cancels_runner(self):
+        """Cancelling a RUNNING job cancels its runner."""
         manager = OptimizationManager()
-        graph = _create_test_graph()
-        request = self._make_internal_request(
-            InternalOptimizationType.OPTIMIZE,
-            parameters={"search_duration": 10, "sample_duration": 2},
-        )
+        runner = self._add_running_job(manager, "job-run")
 
-        job_id = f"job-variant-{variant_name}"
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=request,
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),
-        )
-        manager.jobs[job_id] = job
+        success, message = manager.cancel_job("job-run")
 
-        mock_runner = MagicMock()
-        mock_result = MagicMock()
-        mock_result.optimized_pipeline_description = "optimized ! sink"
-        mock_result.total_fps = 10.0
-        mock_runner.run_optimization.return_value = mock_result
-        mock_runner.is_cancelled.return_value = False
-        mock_runner_cls.return_value = mock_runner
+        self.assertTrue(success)
+        self.assertIn("cancelled", message)
+        runner.cancel.assert_called_once()
 
-        mock_optimized_graph = MagicMock(spec=Graph)
-        mock_simple_graph = MagicMock(spec=Graph)
-        mock_optimized_graph.to_simple_view.return_value = mock_simple_graph
-        mock_graph_cls.from_pipeline_description.return_value = mock_optimized_graph
-
-        manager._execute_optimization(
-            job_id,
-            pipeline_description="filesrc ! decodebin3 ! sink",
-            optimization_request=request,
-            variant_name=variant_name,
-        )
-
-        return mock_runner
-
-    @patch("managers.optimization_manager.Graph")
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_cpu_variant_passes_cpu_allowed_devices(
-        self, mock_runner_cls, mock_graph_cls
-    ):
-        """Variant name "CPU" (case-insensitive) should pass allowed_devices=["CPU"]."""
-        for name in ("CPU", "cpu", "Cpu"):
-            mock_runner_cls.reset_mock()
-            mock_graph_cls.reset_mock()
-            mock_runner = self._run_optimize_with_variant_name(
-                mock_runner_cls, mock_graph_cls, name
-            )
-            mock_runner.run_optimization.assert_called_once()
-            kwargs = mock_runner.run_optimization.call_args.kwargs
-            self.assertEqual(kwargs.get("allowed_devices"), ["CPU"])
-
-    @patch("managers.optimization_manager.Graph")
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_gpu_variant_passes_gpu_allowed_devices(
-        self, mock_runner_cls, mock_graph_cls
-    ):
-        """Variant name "GPU" (case-insensitive) should pass allowed_devices=["GPU"]."""
-        mock_runner = self._run_optimize_with_variant_name(
-            mock_runner_cls, mock_graph_cls, "gpu"
-        )
-        mock_runner.run_optimization.assert_called_once()
-        kwargs = mock_runner.run_optimization.call_args.kwargs
-        self.assertEqual(kwargs.get("allowed_devices"), ["GPU"])
-
-    @patch("managers.optimization_manager.Graph")
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_npu_variant_passes_npu_allowed_devices(
-        self, mock_runner_cls, mock_graph_cls
-    ):
-        """Variant name "NPU" (case-insensitive) should pass allowed_devices=["NPU"]."""
-        mock_runner = self._run_optimize_with_variant_name(
-            mock_runner_cls, mock_graph_cls, "NPU"
-        )
-        mock_runner.run_optimization.assert_called_once()
-        kwargs = mock_runner.run_optimization.call_args.kwargs
-        self.assertEqual(kwargs.get("allowed_devices"), ["NPU"])
-
-    @patch("managers.optimization_manager.Graph")
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_other_variant_passes_none_allowed_devices(
-        self, mock_runner_cls, mock_graph_cls
-    ):
-        """Any non-device variant name should leave allowed_devices as None."""
-        for name in ("my-pipeline", "default", "", "CPU+GPU"):
-            mock_runner_cls.reset_mock()
-            mock_graph_cls.reset_mock()
-            mock_runner = self._run_optimize_with_variant_name(
-                mock_runner_cls, mock_graph_cls, name
-            )
-            mock_runner.run_optimization.assert_called_once()
-            kwargs = mock_runner.run_optimization.call_args.kwargs
-            self.assertIsNone(kwargs.get("allowed_devices"))
-
-    @patch("managers.optimization_manager.Graph")
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_preprocess_ignores_variant_name(
-        self, mock_runner_cls, mock_graph_cls
-    ):
-        """PREPROCESS type must not call run_optimization and must not pass allowed_devices."""
+    def test_cancel_job_finished_returns_not_running(self):
+        """Cancelling a job that already ended fails with a 'not running' message."""
         manager = OptimizationManager()
-        graph = _create_test_graph()
-        request = self._make_internal_request(InternalOptimizationType.PREPROCESS)
+        runner = self._add_running_job(manager, "job-done")
+        manager.jobs["job-done"].state = InternalOptimizationJobState.COMPLETED
+        manager.runners.pop("job-done")
 
-        job_id = "job-preprocess-variant"
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=request,
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),
-        )
-        manager.jobs[job_id] = job
+        success, message = manager.cancel_job("job-done")
 
-        mock_runner = MagicMock()
-        mock_result = MagicMock()
-        mock_result.optimized_pipeline_description = "filesrc ! decodebin3 ! sink"
-        mock_result.total_fps = None
-        mock_runner.run_preprocessing.return_value = mock_result
-        mock_runner.is_cancelled.return_value = False
-        mock_runner_cls.return_value = mock_runner
-
-        mock_optimized_graph = MagicMock(spec=Graph)
-        mock_simple_graph = MagicMock(spec=Graph)
-        mock_optimized_graph.to_simple_view.return_value = mock_simple_graph
-        mock_graph_cls.from_pipeline_description.return_value = mock_optimized_graph
-
-        manager._execute_optimization(
-            job_id,
-            pipeline_description="filesrc ! decodebin3 ! sink",
-            optimization_request=request,
-            variant_name="CPU",
-        )
-
-        # PREPROCESS path must not call run_optimization at all
-        mock_runner.run_optimization.assert_not_called()
-        mock_runner.run_preprocessing.assert_called_once()
+        self.assertFalse(success)
+        self.assertIn("not running", message)
+        runner.cancel.assert_not_called()
 
     def test_resolve_allowed_devices_mapping(self):
-        """_resolve_allowed_devices should map known device names case-insensitively."""
+        """_resolve_allowed_devices maps only exact CPU/GPU/NPU names."""
         self.assertEqual(OptimizationManager._resolve_allowed_devices("CPU"), ["CPU"])
         self.assertEqual(OptimizationManager._resolve_allowed_devices("cpu"), ["CPU"])
         self.assertEqual(OptimizationManager._resolve_allowed_devices("Gpu"), ["GPU"])
@@ -841,203 +698,50 @@ class TestOptimizationManager(unittest.TestCase):
         self.assertIsNone(OptimizationManager._resolve_allowed_devices("default"))
         self.assertIsNone(OptimizationManager._resolve_allowed_devices("my-pipeline"))
 
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_cancelled_job_marks_failed(self, mock_runner_cls):
-        """If the runner reports cancellation, job state should become FAILED with cancellation details as list."""
-        manager = OptimizationManager()
-
-        graph = _create_test_graph()
-        request = self._make_internal_request()
-
-        job_id = "job-cancelled"
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=request,
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),
-        )
-        manager.jobs[job_id] = job
-
-        mock_runner = MagicMock()
-        mock_runner.run_preprocessing.return_value = MagicMock(
-            optimized_pipeline_description="irrelevant"
-        )
-        mock_runner.is_cancelled.return_value = True
-        mock_runner_cls.return_value = mock_runner
-
-        with patch("managers.optimization_manager.Graph"):
-            manager._execute_optimization(
-                job_id,
-                pipeline_description="filesrc ! decodebin3 ! sink",
-                optimization_request=request,
-            )
-
-        updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
-        self.assertEqual(updated.details, ["Cancelled by user"])
-        self.assertIsNotNone(updated.end_time)
-
-    def test_execute_optimization_unknown_type_sets_error(self):
-        """Unsupported optimization type should result in FAILED state."""
-        manager = OptimizationManager()
-        graph = _create_test_graph()
-
-        invalid_request = types.SimpleNamespace(type="SOMETHING-ELSE", parameters=None)
-
-        job_id = "job-invalid-type"
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=invalid_request,  # type: ignore[arg-type]
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),
-        )
-        manager.jobs[job_id] = job
-
-        with patch("managers.optimization_manager.OptimizationRunner"):
-            manager._execute_optimization(
-                job_id,
-                pipeline_description="filesrc ! decodebin3 ! sink",
-                optimization_request=invalid_request,  # type: ignore[arg-type]
-            )
-
-        updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
-        self.assertIsNotNone(updated.details)
-
-    @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_exception_sets_error_and_cleans_runner(
-        self, mock_runner_cls
-    ):
-        """
-        Any unexpected exception from the runner should:
-          * remove the runner from manager.runners,
-          * mark the job as FAILED with the exception message in details list.
-        """
-        manager = OptimizationManager()
-        graph = _create_test_graph()
-        request = self._make_internal_request()
-
-        job_id = "job-exception"
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            original_pipeline_description="filesrc ! decodebin3 ! sink",
-            request=request,
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),
-        )
-        manager.jobs[job_id] = job
-
-        mock_runner = MagicMock()
-        mock_runner.run_preprocessing.side_effect = RuntimeError("boom")
-        mock_runner_cls.return_value = mock_runner
-
-        with patch("managers.optimization_manager.Graph"):
-            manager._execute_optimization(
-                job_id,
-                pipeline_description="filesrc ! decodebin3 ! sink",
-                optimization_request=request,
-            )
-
-        updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
-        self.assertIsInstance(updated.details, list)
-        self.assertTrue(len(updated.details) > 0)
-        self.assertIn("boom", updated.details[0])
-        self.assertNotIn(job_id, manager.runners)
-
 
 class TestOptimizationRunner(unittest.TestCase):
-    """
-    Focused tests for OptimizationRunner.
+    """OptimizationRunner delegates to the DLSPS 2.0 optimizer client."""
 
-    The external optimizer module is replaced by a dummy module injected
-    into sys.modules so we never import the real optimizer during tests.
-    """
-
-    def setUp(self) -> None:
-        self.fake_optimizer = types.SimpleNamespace()
-        self.fake_optimizer.preprocess_pipeline = lambda pipeline: pipeline.upper()
-
-        class FakeDLSOptimizer:
-            def __init__(self) -> None:
-                # Track set_allowed_devices calls so tests can assert them
-                self.allowed_devices_calls: list[list[str]] = []
-
-            def set_sample_duration(self, duration: int) -> None:
-                pass
-
-            def set_allowed_devices(self, devices: list[str]) -> None:
-                # Record the call for later assertions
-                self.allowed_devices_calls.append(list(devices))
-
-            def optimize_for_fps(self, pipeline: str, search_duration: int = 300):
-                return (pipeline + " ! OPTIMIZED", 99.9)
-
-        self.FakeDLSOptimizer = FakeDLSOptimizer
-        # Single shared instance so tests can inspect it after the run
-        self._fake_opt_instance = FakeDLSOptimizer()
-        self.fake_optimizer.DLSOptimizer = lambda: self._fake_opt_instance
-
-        self.optimizer_patcher = patch.dict(
-            "sys.modules", {"optimizer": self.fake_optimizer}
+    @patch("managers.optimization_manager.Dlsps2Optimizer")
+    def test_run_optimization_forwards_to_dlsps_and_maps_result(self, mock_cls):
+        mock_cls.return_value.optimize.return_value = Dlsps2OptimizeResult(
+            pipeline="best ! sink", fps=99.0
         )
-        self.optimizer_patcher.start()
 
-    def tearDown(self) -> None:
-        self.optimizer_patcher.stop()
+        result = OptimizationRunner().run_optimization(
+            "orig ! sink",
+            search_duration=60,
+            sample_duration=5,
+            allowed_devices=["GPU"],
+        )
 
-    def test_run_preprocessing_uses_optimizer_and_returns_result(self):
-        runner = OptimizationRunner()
-        result = runner.run_preprocessing("a ! b ! c")
+        mock_cls.return_value.optimize.assert_called_once_with(
+            "orig ! sink",
+            search_duration=60,
+            sample_duration=5,
+            allowed_devices=["GPU"],
+        )
+        self.assertEqual(result.optimized_pipeline_description, "best ! sink")
+        self.assertEqual(result.total_fps, 99.0)
 
-        self.assertEqual(result.optimized_pipeline_description, "A ! B ! C")
+    @patch("managers.optimization_manager.Dlsps2Optimizer")
+    def test_run_preprocessing_forwards_to_dlsps(self, mock_cls):
+        mock_cls.return_value.preprocess.return_value = "preprocessed ! sink"
+
+        result = OptimizationRunner().run_preprocessing("orig ! sink")
+
+        mock_cls.return_value.preprocess.assert_called_once_with("orig ! sink")
+        self.assertEqual(result.optimized_pipeline_description, "preprocessed ! sink")
         self.assertIsNone(result.total_fps)
 
-    def test_run_optimization_uses_optimizer_and_returns_result(self):
+    @patch("managers.optimization_manager.Dlsps2Optimizer")
+    def test_cancel_delegates_to_client(self, mock_cls):
         runner = OptimizationRunner()
-        result = runner.run_optimization(
-            "pipeline", search_duration=10, sample_duration=2
-        )
+        mock_cls.return_value.is_cancelled.return_value = True
 
-        self.assertEqual(result.optimized_pipeline_description, "pipeline ! OPTIMIZED")
-        self.assertEqual(result.total_fps, 99.9)
-        # No allowed_devices argument -> set_allowed_devices must NOT be called
-        self.assertEqual(self._fake_opt_instance.allowed_devices_calls, [])
-
-    def test_run_optimization_forwards_allowed_devices(self):
-        """When allowed_devices is provided, set_allowed_devices must be called once with that list."""
-        runner = OptimizationRunner()
-        runner.run_optimization(
-            "pipeline",
-            search_duration=10,
-            sample_duration=2,
-            allowed_devices=["CPU"],
-        )
-        self.assertEqual(self._fake_opt_instance.allowed_devices_calls, [["CPU"]])
-
-    def test_run_optimization_does_not_call_set_allowed_devices_when_none(self):
-        """When allowed_devices is None, set_allowed_devices must not be called."""
-        runner = OptimizationRunner()
-        runner.run_optimization(
-            "pipeline",
-            search_duration=10,
-            sample_duration=2,
-            allowed_devices=None,
-        )
-        self.assertEqual(self._fake_opt_instance.allowed_devices_calls, [])
-
-    def test_cancel_and_is_cancelled(self):
-        runner = OptimizationRunner()
-        self.assertFalse(runner.is_cancelled())
         runner.cancel()
+
+        mock_cls.return_value.cancel.assert_called_once()
         self.assertTrue(runner.is_cancelled())
 
 
@@ -1049,31 +753,17 @@ class TestOptimizationManagerWithVariant(unittest.TestCase):
     def setUp(self):
         """Reset singleton state before each test."""
         OptimizationManager._instance = None
+        # Workers are mocked out here, so they never release their execution
+        # lease; drop the coordinator to keep tests independent.
+        ExecutionCoordinator._instance = None
 
     def tearDown(self):
         """Reset singleton state after each test."""
         OptimizationManager._instance = None
+        ExecutionCoordinator._instance = None
 
-    def test_run_optimization_stores_variant_graph_objects(self):
-        """InternalVariant's Graph objects should be stored directly in job."""
-        manager = OptimizationManager()
-
-        variant = _create_internal_variant("GPU")
-        request = InternalPipelineRequestOptimize(
-            type=InternalOptimizationType.PREPROCESS, parameters=None
-        )
-
-        with patch.object(manager, "_execute_optimization"):
-            job_id = manager.run_optimization(variant, request)
-
-            job = manager.jobs[job_id]
-            self.assertEqual(job.original_pipeline_graph, variant.pipeline_graph)
-            self.assertEqual(
-                job.original_pipeline_graph_simple, variant.pipeline_graph_simple
-            )
-
-    def test_run_optimization_with_different_variants(self):
-        """Different variants can be optimized independently."""
+    def test_run_optimization_rejects_second_concurrent_job(self):
+        """A second optimization is rejected while the first still holds the lease."""
         manager = OptimizationManager()
 
         cpu_variant = _create_internal_variant("CPU")
@@ -1084,12 +774,58 @@ class TestOptimizationManagerWithVariant(unittest.TestCase):
         )
 
         with patch.object(manager, "_execute_optimization"):
-            job_id_1 = manager.run_optimization(cpu_variant, request)
-            job_id_2 = manager.run_optimization(gpu_variant, request)
+            job_id = manager.run_optimization(cpu_variant, request)
 
-            self.assertNotEqual(job_id_1, job_id_2)
-            self.assertIn(job_id_1, manager.jobs)
-            self.assertIn(job_id_2, manager.jobs)
+            with self.assertRaises(JobExecutionConflictError):
+                manager.run_optimization(gpu_variant, request)
+
+        self.assertEqual(list(manager.jobs), [job_id])
+        self.assertEqual(list(manager.runners), [job_id])
+
+    def test_run_optimization_rejects_invalid_rtsp_location(self):
+        """An invalid rtspsrc location is rejected without taking the execution lease."""
+        manager = OptimizationManager()
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {
+                        "id": "0",
+                        "type": "rtspsrc",
+                        "data": {"location": "rtsp://host/a ! filesink location=/x"},
+                    },
+                    {"id": "1", "type": "decodebin3", "data": {}},
+                    {"id": "2", "type": "fakesink", "data": {}},
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                ],
+            }
+        )
+        timestamp = get_current_timestamp()
+        variant = InternalVariant(
+            id="variant-cpu",
+            name="CPU",
+            read_only=False,
+            pipeline_graph=graph,
+            pipeline_graph_simple=graph,
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+        request = InternalPipelineRequestOptimize(
+            type=InternalOptimizationType.OPTIMIZE, parameters=None
+        )
+
+        with patch.object(manager, "_execute_optimization") as mock_execute:
+            with self.assertRaises(ValueError) as ctx:
+                manager.run_optimization(variant, request)
+
+            self.assertIn("Invalid RTSP location", str(ctx.exception))
+            mock_execute.assert_not_called()
+            self.assertEqual(manager.jobs, {})
+
+            # The lease was not taken, so a valid job can start right away.
+            manager.run_optimization(_create_internal_variant("GPU"), request)
 
     def test_run_optimization_calls_to_pipeline_description(self):
         """run_optimization should call to_pipeline_description on variant's graph."""
@@ -1097,18 +833,14 @@ class TestOptimizationManagerWithVariant(unittest.TestCase):
 
         variant = _create_internal_variant()
         request = InternalPipelineRequestOptimize(
-            type=InternalOptimizationType.PREPROCESS, parameters=None
+            type=InternalOptimizationType.OPTIMIZE, parameters=None
         )
 
         with patch.object(manager, "_execute_optimization") as mock_execute:
             manager.run_optimization(variant, request)
 
-            # Verify to_pipeline_description was called
             mock_graph: MagicMock = variant.pipeline_graph  # type: ignore[assignment]
             mock_graph.to_pipeline_description.assert_called_once()
-
-            # Verify _execute_optimization received the pipeline description string
-            call_args = mock_execute.call_args
-            pipeline_desc = call_args[0][1]
-            self.assertIsInstance(pipeline_desc, str)
-            self.assertGreater(len(pipeline_desc), 0)
+            self.assertEqual(
+                mock_execute.call_args[0][2], "filesrc ! decodebin3 ! autovideosink"
+            )

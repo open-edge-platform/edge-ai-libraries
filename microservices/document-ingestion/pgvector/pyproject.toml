@@ -6,7 +6,7 @@ authors = []
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 av = "13.1.0"
 beautifulsoup4 = "4.12.3"
 boto3 = "1.40.19"

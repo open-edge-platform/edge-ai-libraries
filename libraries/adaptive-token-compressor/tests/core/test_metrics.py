@@ -93,8 +93,8 @@ class TestCompressorMetricsProperties:
 
 
 class TestCompressionScope:
-    def test_values(self):
-        assert {s.value for s in CompressionScope} == {"harness", "tool"}
+    def test_three_values(self):
+        assert {s.value for s in CompressionScope} == {"harness", "tool", "context"}
 
     def test_string_compatible(self):
         # str subclass — comparable to plain strings
@@ -174,7 +174,8 @@ class TestCountMessagesTokens:
         assert count_messages_tokens(msgs, roles=()) == 0
 
     def test_assistant_tool_calls_counted(self):
-        # tool_calls must contribute to the before/after token delta.
+        # ContextCompressor's args-summarization invariant: tool_calls must
+        # contribute to before/after delta.
         with_calls = [
             {
                 "role": "assistant",

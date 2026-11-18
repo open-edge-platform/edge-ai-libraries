@@ -1,0 +1,81 @@
+
+configure_kernel_module_essential () {
+  local ver=""
+
+  # 1) Primary source: /proc/version
+  local barner="${1:-"$(< /proc/version 2>/dev/null||true)"}"
+  if [ -n "$barner" ]; then
+    # - Pick the first top-level "( ... )" group that mentions a compiler.
+    # - Within it, keep only depth-1 text (drop nested "(Ubuntu ...)", "(GCC)", ...)
+    #   and stop at the first depth-1 comma (", GNU ld ...", ", LLD ...").
+    # - Version = first standalone X.Y[.Z] token in that cleaned text.
+    ver=$(LC_ALL=C awk '{
+      s = $0; depth = 0
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (c == "(") {
+          depth++
+          if (depth == 1) { full = ""; clean = ""; cut = 0 }
+          else full = full c
+          continue
+        }
+        if (c == ")") {
+          if (depth == 1) {
+            if (full ~ /gcc|GCC|clang/) { found = 1; break }
+          } else if (depth > 1) full = full c
+            if (depth > 0) depth--
+            continue
+        }
+        if (depth >= 1) full = full c
+        if (depth == 1 && !cut) {
+          if (c == ",") cut = 1
+          else clean = clean c
+        }
+      }
+      # Fallback: no balanced group matched; use the whole line
+      if (!found) { full = s; clean = s; gsub(/\([^()]*\)/, " ", clean) }
+
+      kind = (clean ~ /clang/ && clean !~ /gcc|GCC/) ? "clang" : "gcc"
+      if (match(clean, /(^|[ \t])[0-9]+\.[0-9]+(\.[0-9]+)?/)) {
+        v = substr(clean, RSTART, RLENGTH)
+        gsub(/^[ \t]+/, "", v)
+        print kind, v
+      }
+    }' <<< "$barner")
+
+    case $ver in
+    gcc\ *)   echo "${ver#gcc }"; return 0 ;;
+    clang\ *) echo "kernel built with clang ${ver#clang }, not gcc" >&2; return 2 ;;
+    esac
+  fi
+
+  # 2) Fallback: kernel config (CONFIG_GCC_VERSION=110400 / CONFIG_CC_VERSION_TEXT)
+  local cfg n
+  for cfg in "/boot/config-$(uname -r)" /proc/config.gz "/lib/modules/$(uname -r)/build/.config"; do
+    [[ -r $cfg ]] || continue
+    local reader=cat
+    [[ $cfg == *.gz ]] && reader=zcat
+
+    n=$($reader "$cfg" 2>/dev/null | sed -n 's/^CONFIG_GCC_VERSION=\([0-9]\+\)$/\1/p')
+    if [[ -n $n && $n -gt 0 ]]; then
+      echo "$(( n / 10000 )).$(( n / 100 % 100 )).$(( n % 100 ))"
+      return 0
+    fi
+
+    if $reader "$cfg" 2>/dev/null | grep -q '^CONFIG_CC_IS_CLANG=y'; then
+      echo "kernel built with clang, not gcc" >&2
+      return 2
+    fi
+
+    ver=$($reader "$cfg" 2>/dev/null | sed -n 's/^CONFIG_CC_VERSION_TEXT="\(.*\)"$/\1/p')
+    if [[ -n $ver ]]; then
+      configure_kernel_gcc "($ver)"
+      return 0
+    fi
+  done
+
+  echo "unable to determine kernel gcc version" >&2
+  return 1
+}
+
+

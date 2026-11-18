@@ -1,0 +1,12 @@
+
+fedora_30_install_git () {
+  ensure_dnf_install_package git ca-certificates
+}
+
+fedora_30_remove_git () {
+  ensure_dnf_remove_package git
+}
+
+fedora_30_sbom_git () {
+  ensure_sbom_format pkg-list git ca-certificates
+}

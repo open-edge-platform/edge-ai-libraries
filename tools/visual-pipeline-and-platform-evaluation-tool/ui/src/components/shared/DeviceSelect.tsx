@@ -1,6 +1,13 @@
 import { useAppSelector } from "@/store/hooks";
 import { selectDevices } from "@/store/reducers/devices";
 import type { Device } from "@/api/api.generated.ts";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 interface DeviceSelectProps {
@@ -21,23 +28,28 @@ const DeviceSelect = ({ value, onChange, className }: DeviceSelectProps) => {
     `${device.device_name}: ${device.full_device_name}`;
 
   return (
-    <select
-      value={formatDeviceName(value)}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(
-        "w-full text-xs border border-input bg-background px-2 py-1",
-        className,
-      )}
-    >
-      {devices.map((device) => {
-        const formattedName = formatDeviceName(device.device_name);
-        return (
-          <option key={device.device_name} value={formattedName}>
-            {formatDeviceDisplayName(device)}
-          </option>
-        );
-      })}
-    </select>
+    <Select value={formatDeviceName(value)} onValueChange={onChange}>
+      <SelectTrigger
+        size="sm"
+        className={cn("w-full bg-background text-xs md:text-xs", className)}
+      >
+        <SelectValue placeholder="Select device" />
+      </SelectTrigger>
+      <SelectContent>
+        {devices.map((device) => {
+          const formattedName = formatDeviceName(device.device_name);
+          return (
+            <SelectItem
+              key={device.device_name}
+              value={formattedName}
+              className="text-xs"
+            >
+              {formatDeviceDisplayName(device)}
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
   );
 };
 

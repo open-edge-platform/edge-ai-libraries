@@ -31,7 +31,7 @@ class TokenBucket:
     last_update: float = field(default_factory=time.monotonic)
     refill_rate: float = field(init=False)  # tokens per second
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.tokens = float(self.capacity)
         settings = get_settings()
         # Refill rate: requests_per_minute / 60 = tokens per second
@@ -102,7 +102,8 @@ class RateLimiter:
             # Remove buckets that have been full for a while (inactive clients)
             cutoff = now - self._cleanup_interval
             stale_keys = [
-                ip for ip, bucket in self.buckets.items()
+                ip
+                for ip, bucket in self.buckets.items()
                 if bucket.last_update < cutoff and bucket.tokens >= bucket.capacity
             ]
             for key in stale_keys:
@@ -145,9 +146,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     # - /:        root health page
     EXEMPT_PATHS = {"/health", "/api/health", "/metrics", "/"}
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         settings = get_settings()
 
         # Skip if rate limiting is disabled

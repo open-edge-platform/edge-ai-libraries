@@ -1,0 +1,9 @@
+{
+  "id": "local-content",
+  "type": "object",
+  "backend": "filesystem",
+  "options": {
+    "root": "/workspace/content"
+  },
+  "description": "Asset content, inside the engine workspace"
+}

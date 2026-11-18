@@ -17,6 +17,14 @@ services:
       - "${RENDER_GID:-992}"
     environment:
       HF_HOME: /app/text-to-speech/.cache/huggingface
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      ftp_proxy: ${ftp_proxy:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      FTP_PROXY: ${FTP_PROXY:-}
+      no_proxy: ${no_proxy:-}
+      NO_PROXY: ${NO_PROXY:-}
     volumes:
       - ./config.yaml:/app/text-to-speech/config.yaml:ro
       - text_to_speech_models:/app/text-to-speech/models
@@ -25,8 +33,7 @@ services:
     # Model warmup on GPU can take a while; override the image healthcheck
     # so connection-refused during boot doesn't trip `unhealthy`.
     healthcheck:
-      test: ["CMD", "python3", "-c",
-             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8011/health', timeout=5).read()"]
+      test: [ "CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8011/health', timeout=5).read()" ]
       interval: 15s
       timeout: 10s
       start_period: 240s

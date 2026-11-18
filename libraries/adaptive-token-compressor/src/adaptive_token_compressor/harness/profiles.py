@@ -91,7 +91,7 @@ OPENCLAW_PROFILE: CompressorProfile = CompressorProfile(
 
 
 # ---------------------------------------------------------------------------
-# GENERIC — fallback for non-router prompts
+# GENERIC — fallback for unrecognized prompt formats
 # ---------------------------------------------------------------------------
 
 GENERIC_PROFILE: CompressorProfile = CompressorProfile(

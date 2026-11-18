@@ -94,6 +94,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /v1/embeddings:
+    post:
+      tags:
+      - Embeddings
+      summary: Create embeddings (OpenAI-compatible)
+      description: 'OpenAI-compatible text embeddings, for clients that speak the
+        OpenAI API.
+
+
+        Accepts a string or a list of strings and returns one embedding per input
+
+        in ``data[].embedding``. Inputs are embedded as documents. ``usage`` is not
+
+        tracked and is always reported as 0.'
+      operationId: create_openai_embeddings_v1_embeddings_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenAIEmbeddingRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAIEmbeddingResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     CurrentModelResponse:
@@ -128,6 +162,7 @@ components:
           - $ref: '#/components/schemas/VideoBase64Input'
           - $ref: '#/components/schemas/VideoFileInput'
           - $ref: '#/components/schemas/FramesBatchInput'
+          - $ref: '#/components/schemas/FusedInput'
           title: Input
         encoding_format:
           type: string
@@ -165,6 +200,82 @@ components:
       - type
       - frames_manifest_path
       title: FramesBatchInput
+    FusedImageBase64:
+      properties:
+        type:
+          type: string
+          const: image_base64
+          title: Type
+        image_base64:
+          type: string
+          title: Image Base64
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - image_base64
+      title: FusedImageBase64
+      description: Image of a fused item, as base64 (optionally a data URL).
+    FusedImageUrl:
+      properties:
+        type:
+          type: string
+          const: image_url
+          title: Type
+        image_url:
+          type: string
+          title: Image Url
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - image_url
+      title: FusedImageUrl
+      description: Image of a fused item, downloaded from a URL.
+    FusedInput:
+      properties:
+        type:
+          type: string
+          const: fused
+          title: Type
+        items:
+          items:
+            $ref: '#/components/schemas/FusedItem'
+          type: array
+          minItems: 1
+          title: Items
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - items
+      title: FusedInput
+      description: "Input model for image+text pairs embedded jointly (models with\
+        \ supports_fused only).\n\nAttributes:\n    type: Input type identifier, exactly\
+        \ \"fused\"\n    items: Non-empty list of (text, image) pairs; one embedding\
+        \ per item, in order"
+    FusedItem:
+      properties:
+        text:
+          type: string
+          title: Text
+        image:
+          oneOf:
+          - $ref: '#/components/schemas/FusedImageUrl'
+          - $ref: '#/components/schemas/FusedImageBase64'
+          title: Image
+          discriminator:
+            propertyName: type
+            mapping:
+              image_base64: '#/components/schemas/FusedImageBase64'
+              image_url: '#/components/schemas/FusedImageUrl'
+      additionalProperties: false
+      type: object
+      required:
+      - text
+      - image
+      title: FusedItem
+      description: One (text, image) pair embedded jointly into one vector.
     HTTPValidationError:
       properties:
         detail:
@@ -234,6 +345,9 @@ components:
         supports_video:
           type: boolean
           title: Supports Video
+        supports_fused:
+          type: boolean
+          title: Supports Fused
       type: object
       required:
       - model
@@ -241,6 +355,7 @@ components:
       - supports_text
       - supports_image
       - supports_video
+      - supports_fused
       title: ModelCapabilitiesResponse
     ModelsResponse:
       properties:
@@ -263,6 +378,104 @@ components:
       - available_models
       - total_models
       title: ModelsResponse
+    OpenAIEmbeddingData:
+      properties:
+        object:
+          type: string
+          const: embedding
+          title: Object
+          default: embedding
+        index:
+          type: integer
+          title: Index
+        embedding:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: string
+          title: Embedding
+      type: object
+      required:
+      - index
+      - embedding
+      title: OpenAIEmbeddingData
+    OpenAIEmbeddingRequest:
+      properties:
+        model:
+          type: string
+          title: Model
+        input:
+          anyOf:
+          - type: string
+          - items:
+              type: string
+            type: array
+          title: Input
+        encoding_format:
+          type: string
+          enum:
+          - float
+          - base64
+          title: Encoding Format
+          default: float
+        dimensions:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Dimensions
+        user:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User
+      type: object
+      required:
+      - model
+      - input
+      title: OpenAIEmbeddingRequest
+      description: 'OpenAI-compatible embeddings request (text only).
+
+
+        Every input is embedded as a document (``embed_documents``): the OpenAI
+
+        protocol has no query/document distinction.'
+    OpenAIEmbeddingResponse:
+      properties:
+        object:
+          type: string
+          const: list
+          title: Object
+          default: list
+        data:
+          items:
+            $ref: '#/components/schemas/OpenAIEmbeddingData'
+          type: array
+          title: Data
+        model:
+          type: string
+          title: Model
+        usage:
+          $ref: '#/components/schemas/OpenAIUsage'
+      type: object
+      required:
+      - data
+      - model
+      - usage
+      title: OpenAIEmbeddingResponse
+    OpenAIUsage:
+      properties:
+        prompt_tokens:
+          type: integer
+          title: Prompt Tokens
+        total_tokens:
+          type: integer
+          title: Total Tokens
+      type: object
+      required:
+      - prompt_tokens
+      - total_tokens
+      title: OpenAIUsage
     TextInput:
       properties:
         type:

@@ -16,7 +16,8 @@ PLCopen Motion Control provides real-time capabilities to the kernel with PREEMP
 
    ![package download](../../../assets/images/apt-update-2.png)
 
-   > **Tip**: If the APT package manager is unable to connect to the repositories, follow these APT troubleshooting tips:
+   > [!TIP]
+   > If the APT package manager is unable to connect to the repositories, follow these APT troubleshooting tips:
    >
    > - Make sure that the system has network connectivity.
    > - Make sure that the ports `80` and `8080` are not blocked by a firewall.

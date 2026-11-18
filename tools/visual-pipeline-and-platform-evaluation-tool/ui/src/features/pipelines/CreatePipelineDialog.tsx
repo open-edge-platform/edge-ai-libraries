@@ -233,7 +233,7 @@ export const CreatePipelineDialog = ({
         setOpen(false);
         reset();
         toast.success("Pipeline created successfully");
-        navigate(`/pipelines/${response.id}/${variantName}`);
+        navigate(`/pipelines/vision/${response.id}/${variantName}`);
       }
     } catch (error) {
       if (isAsyncJobError(error)) {
@@ -283,7 +283,7 @@ export const CreatePipelineDialog = ({
         setSelectedTemplate(null);
         toast.success("Pipeline created successfully");
         const variantId = variants[0]?.id || "default";
-        navigate(`/pipelines/${response.id}/${variantId}`);
+        navigate(`/pipelines/vision/${response.id}/${variantId}`);
       }
     } catch (error) {
       handleApiError(error, "Failed to create pipeline from template");
@@ -668,16 +668,23 @@ export const CreatePipelineDialog = ({
                             </SelectTrigger>
                             <SelectContent>
                               {models
-                                ?.filter(
-                                  (model) => model.category === "detection",
+                                ?.filter((model) =>
+                                  [
+                                    "object_detection",
+                                    "image_segmentation",
+                                    "pose_estimation",
+                                  ].includes(model.category ?? ""),
                                 )
                                 .flatMap((model) =>
                                   (model.variants ?? [])
                                     .filter((variant) => variant.installed)
                                     .map((variant) => (
                                       <SelectItem
-                                        key={variant.display_name}
+                                        key={`${model.name}:${variant.name}`}
                                         value={variant.display_name}
+                                        description={
+                                          model.description ?? undefined
+                                        }
                                       >
                                         {variant.display_name}
                                       </SelectItem>
@@ -715,15 +722,19 @@ export const CreatePipelineDialog = ({
                                   {models
                                     ?.filter(
                                       (model) =>
-                                        model.category === "classification",
+                                        model.category ===
+                                        "image_classification",
                                     )
                                     .flatMap((model) =>
                                       (model.variants ?? [])
                                         .filter((variant) => variant.installed)
                                         .map((variant) => (
                                           <SelectItem
-                                            key={variant.display_name}
+                                            key={`${model.name}:${variant.name}`}
                                             value={variant.display_name}
+                                            description={
+                                              model.description ?? undefined
+                                            }
                                           >
                                             {variant.display_name}
                                           </SelectItem>

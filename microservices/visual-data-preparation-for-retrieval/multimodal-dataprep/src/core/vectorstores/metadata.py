@@ -24,10 +24,11 @@ the backend-specific adaptation lives in that backend's store module, not here.
 
 The field names below are kept in sync with what the pipeline actually emits
 (the ``FrameMetadata`` dataclass in ``core.embedding.embedding_helper``, the
-detected-crop update in the same module, and the text/summary metadata in
-``endpoints.document_processing.process_text``). A retriever consuming the data
-maps these to its own query schema; the VDMS retriever field names are one such
-mapping, not the contract itself.
+detected-crop update in the same module, the text/summary metadata in
+``endpoints.document_processing.process_text``, and the live-stream fields added
+by ``core.live.worker``). A retriever consuming the data maps these to its own
+query schema; the VDMS retriever field names are one such mapping, not the
+contract itself.
 """
 
 from __future__ import annotations
@@ -83,6 +84,26 @@ CANONICAL_FIELDS: List[str] = [
     "content_type",
     "video_start_time",
     "video_end_time",
+    # live (RTSP) stream fields (present only for live ingestion).
+    # Deliberately prefixed: the decoder emits transient ``stream_id`` /
+    # ``stream_name`` keys (the AV stream index and codec name) that must keep
+    # being dropped by the projection below.
+    "live_stream_id",
+    "live_stream_name",
+    "stream_url",            # ALWAYS the credential-redacted URL
+    "is_live",
+    "segment_id",
+    "segment_start_time",
+    "wall_clock_time",
+    "ingest_epoch",          # epoch seconds; filterable for retention sweeps
+    # External media correlation (live ingestion). These describe *what* the
+    # frame is of and *when it happened*, independent of where this service put
+    # its own copy, so a downstream consumer can match an embedding against a
+    # recording owned by another service (e.g. a stream manager).
+    "sensor_id",             # stable logical source identity; outlives live_stream_id
+    "capture_time",          # RFC 3339 UTC capture instant (NOT the ingest instant)
+    "capture_time_source",   # trust tier for capture_time; sets the match tolerance
+    "media_owner",           # who owns the playable media this embedding points at
 ]
 
 # O(1) membership set used by the adapters' projection step.

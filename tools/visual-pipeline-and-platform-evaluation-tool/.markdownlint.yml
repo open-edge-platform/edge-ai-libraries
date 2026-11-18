@@ -19,13 +19,15 @@ MD025:
   # Ignore the front matter title.  Pages still need a top level header (#).
   front_matter_title: ""
 MD029:
-  style: ordered
+  style: one
 MD033:
   allowed_elements:
     - ref  # allow hugo relative reference links
     - br  # allow mermaid <br> to create new line
     - a  # allow anchors created by protoc-gen-doc and similar tools
     - img  # allow images - needed if you need to define a size
+    - picture  # allow responsive images
+    - source  # allow responsive image sources
     - span  # allow span tags - needed if you need to highlight text in color
 MD060:
   style: aligned

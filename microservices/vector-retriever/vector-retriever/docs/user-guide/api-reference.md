@@ -94,7 +94,8 @@ Base64-encoded image input:
 ]
 ```
 
-> **Note:** `query` and `image` are mutually exclusive. Providing both in the same query block returns a `422` validation error. When using `image`, the response `query` field is set to `[image_url]` or `[image_base64]` to indicate the input modality.
+> [!NOTE]
+> `query` and `image` are mutually exclusive. Providing both in the same query block returns a `422` validation error. When using `image`, the response `query` field is set to `[image_url]` or `[image_base64]` to indicate the input modality.
 
 ### Quick contract reference
 
@@ -106,6 +107,7 @@ Top-level request fields:
 | `query` | string | Conditional | User search text. Required unless `image` is provided. Mutually exclusive with `image`. |
 | `image` | object | Conditional | Image input for visual similarity search. Required unless `query` is provided. Mutually exclusive with `query`. Uses discriminated union with `type` field (`image_url` or `image_base64`). |
 | `top_k` | integer | No | Result count cap for this query. |
+| `min_score` | number | No | Minimum similarity score. Items scoring below it are dropped before the `top_k` cut, so every returned item clears it. Uses the same higher-is-more-similar scale the results are ranked by (for example inner product or cosine). Omit to disable. |
 | `where` | object | No | Primary filter grammar object. |
 | `explain_filters` | boolean | No | When true, response includes backend filter payload and rewrite details. |
 | `tags` | string[] | No | Legacy alias; normalized to `where(field="tags", op="contains_any", value=[...])`. |

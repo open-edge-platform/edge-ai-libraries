@@ -1,0 +1,13 @@
+
+debian_80_profile_anomalib () {
+  echo "python3_venv edge_base git"
+}
+
+debian_80_install_anomalib () {
+  install_anomalib "$@"
+}
+
+debian_80_remove_anomalib () {
+  remove_anomalib "$@"
+}
+

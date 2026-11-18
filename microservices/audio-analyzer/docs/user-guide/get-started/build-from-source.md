@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Build From Source
 
 This page covers building the Audio Analyzer microservice from source.
@@ -12,8 +15,9 @@ from Docker Hub without rebuilding, see
 
 ## Build the Docker Image
 
-The repository ships a `Dockerfile` and a `docker-compose.yml`. The
-compose file declares both `image:` and `build:` for the service:
+The repository ships `docker/Dockerfile` (Ubuntu 24.04-based, multi-stage)
+and a `docker-compose.yml`. The compose file declares both `image:` and
+`build:` for the service:
 
 - `docker compose pull && docker compose up -d` runs the prebuilt
   image from Docker Hub.
@@ -26,11 +30,40 @@ docker compose build
 docker compose up -d
 ```
 
-To build the image directly with `docker`:
+To build the image directly with `docker` (run from `audio-analyzer/`,
+note the `-f` flag since the Dockerfile lives under `docker/`, not at
+the repository root):
 
 ```bash
-docker build -t audio-analyzer:local .
+docker build -f docker/Dockerfile -t audio-analyzer:local .
 ```
+
+By default this builds the `full` image variant with GPU/NPU runtime
+packages included (`IMAGE_VARIANT=full`, `INSTALL_GPU_NPU_RUNTIME=true`),
+matching what `docker compose build` produces. For a smaller CPU-only,
+default-ASR-only image, pass `--build-arg IMAGE_VARIANT=slim
+--build-arg INSTALL_GPU_NPU_RUNTIME=false` explicitly.
+
+### Optional Chinese/English FunASR Provider
+
+The `funasr` ASR provider (Paraformer models for Chinese/English
+transcription) is **not installed by default** in either the `slim` or
+`full` variant, to keep the standard image unchanged for existing
+consumers. To add it, build with:
+
+```bash
+docker build -f docker/Dockerfile -t audio-analyzer:full-cjk \
+    --build-arg INSTALL_CJK=true .
+```
+
+This installs the extra dependencies listed in `requirements-cjk.txt`
+(`funasr`, `modelscope`, etc.) on top of whichever `IMAGE_VARIANT` is
+selected. The CJK variant also retains `setuptools` to provide the
+`distutils.version` compatibility module required by FunASR on Python 3.12.
+The build verifies that Paraformer is registered before producing the image.
+See [`funasr` provider notes](./configuration.md#asr-provider-notes)
+for the corresponding `config.yaml` settings
+(`models.asr.provider: funasr`, `models.asr.name: paraformer-zh | paraformer-en | paraformer-online`).
 
 The Compose setup bind-mounts `config.yaml` and stores model, chunk,
 storage, and Hugging Face cache data in named Docker volumes
@@ -53,8 +86,22 @@ python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+```
+
+A standalone process downloads the configured models into its `models/`
+directory on first start (set `HF_TOKEN` for gated diarization models, and
+install `requirements-cjk.txt` for FunASR). From the same `audio-analyzer/`
+directory:
+
+```bash
+mkdir -p models
 python main.py
 ```
+
+To source snapshots from a shared Model Download service instead, set
+`AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` and point `models_base_path` at the storage
+that service writes to. Native OpenAI Whisper and optional sentiment retain
+their direct-download setup.
 
 ## Verifying the Build
 

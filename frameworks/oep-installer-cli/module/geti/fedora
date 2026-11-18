@@ -1,0 +1,21 @@
+
+fedora_90_profile_geti () {
+  echo "podman_docker edge_base"
+}
+
+fedora_90_install_geti () {
+  install_geti "$@"
+}
+
+fedora_90_start_geti () {
+  start_geti "$@"
+}
+
+fedora_90_stop_geti () {
+  stop_geti "$@"
+}
+
+fedora_90_remove_geti () {
+  remove_geti "$@"
+}
+

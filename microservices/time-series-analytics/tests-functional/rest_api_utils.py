@@ -7,10 +7,13 @@
 import pytest
 import requests
 import time
-import subprocess
 import json
 import os
 import copy
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
+from common_utils import assert_condition, exec_command
 
 # Read the config.json file
 TS_DIR = os.path.join(os.getcwd(), "..")
@@ -19,8 +22,8 @@ with open(os.path.join(TS_DIR, "config.json")) as f:
 print(config_file)
 
 def run_command(command):
-    """Run a shell command and return the output."""
-    result = subprocess.run(command, capture_output=True, text=True)
+    """Run a shell-free command and return the output."""
+    result = exec_command(command, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"Command failed: {command}\n{result.stderr}")
     return result
@@ -35,8 +38,8 @@ def health_check(port):
     url = f"http://localhost:{port}/health"
     try:
         response = requests.get(url, timeout=10)
-        assert response.status_code == 200
-        assert response.json() == {"status": "Kapacitor daemon is running"}
+        assert_condition(response.status_code == 200)
+        assert_condition(response.json() == {"status": "Kapacitor daemon is running"})
     except Exception as e:
         pytest.fail(f"Health check failed: {e}")
 
@@ -49,8 +52,8 @@ def opcua_alerts(port):
     try:
         url = f"http://localhost:{port}/opcua_alerts"
         response = requests.post(url, json=alert_message, timeout=10)
-        assert response.status_code == 400
-        assert response.json() == {'detail': 'OPC UA alerts are not configured in the service'}
+        assert_condition(response.status_code == 400)
+        assert_condition(response.json() == {'detail': 'OPC UA alerts are not configured in the service'})
     except Exception as e:
         pytest.fail(f"Failed to post OPC UA alerts: {e}")
 
@@ -71,8 +74,8 @@ def input_endpoint(port):
     try:
         url = f"http://localhost:{port}/input"
         response = requests.post(url, json=input_data, timeout=10)
-        assert response.status_code == 200
-        assert response.json() == {"status": "success", "message": "Data sent to Time Series Analytics microservice"}
+        assert_condition(response.status_code == 200)
+        assert_condition(response.json() == {"status": "success", "message": "Data sent to Time Series Analytics microservice"})
     except Exception as e:
         pytest.fail(f"Failed to post valid input data: {e}")
 
@@ -93,16 +96,16 @@ def input_endpoint_invalid_data(port):
     try:
         url = f"http://localhost:{port}/input"
         response = requests.post(url, json=input_data, timeout=10)
-        assert response.status_code == 400
-        assert "unable to parse 'point_data temperature=invalid_value" in response.json().get("detail", "")
+        assert_condition(response.status_code == 400)
+        assert_condition("unable to parse 'point_data temperature=invalid_value" in response.json().get("detail", ""))
     except Exception as e:
         pytest.fail(f"Failed to post invalid input data: {e}")
     input_data["fields"]["temperature"] = ""
     try:
         url = f"http://localhost:{port}/input"
         response = requests.post(url, json=input_data, timeout=10)
-        assert response.status_code == 400
-        assert "missing field value" in response.json().get("detail", "")
+        assert_condition(response.status_code == 400)
+        assert_condition("missing field value" in response.json().get("detail", ""))
     except Exception as e:
         pytest.fail(f"Failed to post no input data: {e}")
 
@@ -123,8 +126,8 @@ def input_endpoint_no_data(port):
     try:
         url = f"http://localhost:{port}/input"
         response = requests.post(url, json=input_data, timeout=10)
-        assert response.status_code == 400
-        assert "missing field value" in response.json().get("detail", "")
+        assert_condition(response.status_code == 400)
+        assert_condition("missing field value" in response.json().get("detail", ""))
     except Exception as e:
         pytest.fail(f"Failed to post no input data: {e}")
 
@@ -136,9 +139,9 @@ def get_config_endpoint(port):
     url = f"http://localhost:{port}/config"
     try:
         response = requests.get(url, timeout=10)
-        assert response.status_code == 200
+        assert_condition(response.status_code == 200)
         print("get config =", response.json())
-        assert response.json() == config_file
+        assert_condition(response.json() == config_file)
     except Exception as e:
         pytest.fail(f"Failed to get config data: {e}")
 
@@ -164,8 +167,8 @@ def upload_tar_file(port):
     try:
         with open(tar_path, "rb") as tf:
             response = requests.post(url, files={"file": ("temperature_classifier.tar", tf, "application/x-tar")}, timeout=30)
-        assert response.status_code == 200
-        assert response.json().get("status") == "success"
+        assert_condition(response.status_code == 200)
+        assert_condition(response.json().get("status") == "success")
     except Exception as e:
         pytest.fail(f"Failed to upload tar file: {e}")
 
@@ -185,8 +188,8 @@ def update_config(port):
                                  headers={"accept": "application/json",
                                           "Content-Type": "application/json"},
                                  timeout=10)
-        assert response.status_code == 200
-        assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
+        assert_condition(response.status_code == 200)
+        assert_condition(response.json() == {"status": "success", "message": "Configuration updated successfully"})
     except Exception as e:
         pytest.fail(f"Failed to update config: {e}")
 
@@ -198,12 +201,12 @@ def post_config_endpoint(port, command):
     url = f"http://localhost:{port}/config"
     try:
         response = requests.post(url, json=config_file, timeout=10)
-        assert response.status_code == 200
-        assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
+        assert_condition(response.status_code == 200)
+        assert_condition(response.json() == {"status": "success", "message": "Configuration updated successfully"})
         time.sleep(10)  # Wait for the configuration to be applied
         output = run_command(command)
         output = output.stdout + output.stderr
-        assert "Kapacitor daemon process has exited and was reaped." in output
+        assert_condition("Kapacitor daemon process has exited and was reaped." in output)
     except Exception as e:
         pytest.fail(f"Failed to post config data: {e}")
 
@@ -263,17 +266,17 @@ def concurrent_api_requests(port):
 
             health_status_code = [200, 500, 503, 400]
             health_status_json = [{"status": "Kapacitor daemon is running"}, {"status": "Kapacitor daemon is not running"}]
-            assert get_health_result[0] in health_status_code
-            assert json.loads(get_health_result[1]) in health_status_json
-            assert get_config_result[0] == 200
-            assert json.loads(get_config_result[1]) == config_file or json.loads(get_config_result[1]) == config_file_alerts
-            assert post_alert_result[0] == 400
-            assert post_alert_result[1] == {'detail': 'OPC UA alerts are not configured in the service'}
-            assert future_post_input.result()[0] == 200 or future_post_input.result()[0] == 503
-            assert future_post_input.result()[1] == {"status": "success", "message": "Data sent to Time Series Analytics microservice"} or \
-                future_post_input.result()[1] == {'status': 'Kapacitor daemon is not running'}
-            assert future_post_config.result()[0] == 200
-            assert future_post_config.result()[1] == {"status": "success", "message": "Configuration updated successfully"}
+            assert_condition(get_health_result[0] in health_status_code)
+            assert_condition(json.loads(get_health_result[1]) in health_status_json)
+            assert_condition(get_config_result[0] == 200)
+            assert_condition(json.loads(get_config_result[1]) == config_file or json.loads(get_config_result[1]) == config_file_alerts)
+            assert_condition(post_alert_result[0] == 400)
+            assert_condition(post_alert_result[1] == {'detail': 'OPC UA alerts are not configured in the service'})
+            assert_condition(future_post_input.result()[0] == 200 or future_post_input.result()[0] == 503)
+            assert_condition(future_post_input.result()[1] == {"status": "success", "message": "Data sent to Time Series Analytics microservice"} or \
+                future_post_input.result()[1] == {'status': 'Kapacitor daemon is not running'})
+            assert_condition(future_post_config.result()[0] == 200)
+            assert_condition(future_post_config.result()[1] == {"status": "success", "message": "Configuration updated successfully"})
         except Exception as e:
             pytest.fail(f"Concurrent API requests failed: {e}")
 
@@ -287,12 +290,12 @@ def post_invalid_config_endpoint(port, command):
     invalid_config_data["udfs"]["name"] = "udf_classifier"
     try:
         response = requests.post(url, json=invalid_config_data, timeout=10)
-        assert response.status_code == 422
+        assert_condition(response.status_code == 422)
         response_json = response.json()
-        assert "UDF deployment package validation failed" in response_json.get("detail", "")
+        assert_condition("UDF deployment package validation failed" in response_json.get("detail", ""))
         time.sleep(15)  # Wait for the configuration to be applied
         output = run_command(command)
         output = output.stdout + output.stderr
-        assert "UDF deployment package directory udf_classifier does not exist. Please check and upload/copy the UDF deployment package." in output
+        assert_condition("UDF deployment package directory udf_classifier does not exist. Please check and upload/copy the UDF deployment package." in output)
     except Exception as e:
         pytest.fail(f"Failed to post config data: {e}")

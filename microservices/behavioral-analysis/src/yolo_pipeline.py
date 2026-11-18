@@ -74,13 +74,20 @@ async def extract_poses(
 
         logger.debug(f"Entity {entity_id}: frame {i+1} — detected {kp_result.xy.shape[0]} persons")
 
-        # Take the highest-confidence detection (largest person, typically)
-        # YOLO output is sorted by score after NMS.
-        kp_xy = kp_result.xy[0]    # (17, 2)
-        kp_conf = kp_result.conf[0]  # (17,)
+        # Prefer the highest-bbox-score detection (index 0) for tracking
+        # consistency across frames. Fall back to best keypoint confidence
+        # only when index 0 has degraded keypoints (e.g. all-zero on NPU).
+        mean_conf_0 = float(kp_result.conf[0].mean())
+        if mean_conf_0 >= conf_threshold:
+            best_idx = 0
+        else:
+            mean_confs = kp_result.conf.mean(axis=1)  # (N,)
+            best_idx = int(mean_confs.argmax())
+        kp_xy = kp_result.xy[best_idx]    # (17, 2)
+        kp_conf = kp_result.conf[best_idx]  # (17,)
         mean_conf = float(kp_conf.mean())
 
-        logger.debug(f"Entity {entity_id}: frame {i+1} — Person 0: mean_conf={mean_conf:.3f}, kp_conf range [{kp_conf.min():.3f}, {kp_conf.max():.3f}]")
+        logger.debug(f"Entity {entity_id}: frame {i+1} — Person {best_idx}: mean_conf={mean_conf:.3f}, kp_conf range [{kp_conf.min():.3f}, {kp_conf.max():.3f}]")
 
         if mean_conf < conf_threshold:
             logger.debug(

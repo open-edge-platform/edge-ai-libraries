@@ -10,9 +10,9 @@ import logging
 import pkgutil
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Type
 
-from src.config import PluginConfig
+from src.config import PluginConfig, ProviderConfig
 from src.exceptions import ConfigurationError
 from src.models import ChatCompletionRequest, ChatCompletionResponse
 from src.plugins.base import PluginSchemaError, PluginBaseNode
@@ -39,18 +39,52 @@ def get_request_id() -> Optional[str]:
 
 
 class PluginManager:
-    """Runs request plugins in configured order."""
+    """Runs request plugins in configured order.
+
+    Postrouting/postresponse plugins may be scoped to providers: a plugin whose
+    name is in ``provider_scopes`` runs only when the request's provider is one
+    of the mapped names; unscoped plugins run for every provider. Prerouting
+    plugins always run (the provider is not chosen yet).
+    """
 
     def __init__(
         self,
         prerouting_plugins: List[PluginBaseNode],
         postrouting_plugins: List[PluginBaseNode],
         postresponse_plugins: List[PluginBaseNode],
+        standalone_plugins: List[PluginBaseNode] | None = None,
+        provider_scopes: Dict[str, FrozenSet[str]] | None = None,
     ):
         self.prerouting_plugins = prerouting_plugins
         self.postrouting_plugins = postrouting_plugins
         self.postresponse_plugins = postresponse_plugins
-        self.plugins = prerouting_plugins + postrouting_plugins + postresponse_plugins
+        # ``standalone`` plugins are built and discoverable (routes, settings) but are
+        # deliberately absent from every hook list, so no request/response chain
+        # ever runs them. They are still in ``self.plugins`` for lookup/finalizers.
+        self.standalone_plugins = standalone_plugins or []
+        self.plugins = (
+            prerouting_plugins
+            + postrouting_plugins
+            + postresponse_plugins
+            + self.standalone_plugins
+        )
+        # plugin name → providers it is attached to (absent = all providers).
+        self.provider_scopes = provider_scopes or {}
+
+    def _runs_for(self, plugin: PluginBaseNode, provider_name: str | None) -> bool:
+        """Whether a postrouting/postresponse plugin applies to ``provider_name``."""
+        scope = self.provider_scopes.get(plugin.name)
+        return scope is None or provider_name in scope
+
+    def plugins_for_provider(
+        self, provider_name: str | None, trigger: str
+    ) -> List[PluginBaseNode]:
+        """The ``postrouting``/``postresponse`` chain run for ``provider_name``."""
+        plugins = {
+            "postrouting": self.postrouting_plugins,
+            "postresponse": self.postresponse_plugins,
+        }[trigger]
+        return [p for p in plugins if self._runs_for(p, provider_name)]
 
     async def process_prerouting_request(
         self, request: ChatCompletionRequest, **kwargs: Any
@@ -62,21 +96,39 @@ class PluginManager:
         return current
 
     async def process_postrouting_request(
-        self, request: ChatCompletionRequest, **kwargs: Any
+        self,
+        request: ChatCompletionRequest,
+        *,
+        provider_name: str | None = None,
+        **kwargs: Any,
     ) -> ChatCompletionRequest:
-        """Run postrouting plugins sequentially in configured order."""
+        """Run the postrouting plugins for ``provider_name`` in configured order.
+
+        With ``provider_name=None`` only plugins not attached to a provider run.
+        """
         current = request
-        for plugin in self.postrouting_plugins:
-            current = await plugin.process_request(current, **kwargs)
+        for plugin in self.plugins_for_provider(provider_name, "postrouting"):
+            current = await plugin.process_request(
+                current, provider_name=provider_name, **kwargs
+            )
         return current
 
     async def process_postresponse_response(
-        self, response: ChatCompletionResponse, **kwargs: Any
+        self,
+        response: ChatCompletionResponse,
+        *,
+        provider_name: str | None = None,
+        **kwargs: Any,
     ) -> ChatCompletionResponse:
-        """Run postresponse plugins sequentially in configured order."""
+        """Run the postresponse plugins for ``provider_name`` in configured order.
+
+        With ``provider_name=None`` only plugins not attached to a provider run.
+        """
         current = response
-        for plugin in self.postresponse_plugins:
-            current = await plugin.process_response(current, **kwargs)
+        for plugin in self.plugins_for_provider(provider_name, "postresponse"):
+            current = await plugin.process_response(
+                current, provider_name=provider_name, **kwargs
+            )
         return current
 
     async def process_request(
@@ -257,24 +309,50 @@ def build_plugin(plugin_config: PluginConfig) -> PluginBaseNode:
     return plugin
 
 
-def create_plugin_manager(plugin_configs: List[PluginConfig]) -> PluginManager:
-    """Create plugin manager from config while preserving list order."""
+def _provider_scopes(
+    provider_configs: List[ProviderConfig],
+) -> Dict[str, FrozenSet[str]]:
+    """Invert providers' ``plugins`` lists into plugin name → provider names.
+
+    Disabled providers still claim their plugins, so disabling a provider does
+    not turn its attached plugins into run-for-everyone ones.
+    """
+    scopes: Dict[str, set] = {}
+    for provider in provider_configs:
+        for plugin_name in provider.plugins:
+            scopes.setdefault(plugin_name, set()).add(provider.name)
+    return {name: frozenset(providers) for name, providers in scopes.items()}
+
+
+def create_plugin_manager(
+    plugin_configs: List[PluginConfig],
+    provider_configs: List[ProviderConfig] | None = None,
+) -> PluginManager:
+    """Create plugin manager from config while preserving list order.
+
+    ``provider_configs`` supplies the provider → plugin attachments (each
+    provider's ``plugins``) that scope postrouting/postresponse plugins.
+    """
     _discover_plugin_modules()
     prerouting_plugins: List[PluginBaseNode] = []
     postrouting_plugins: List[PluginBaseNode] = []
     postresponse_plugins: List[PluginBaseNode] = []
+    standalone_plugins: List[PluginBaseNode] = []
+    trigger_buckets = {
+        "prerouting": prerouting_plugins,
+        "postrouting": postrouting_plugins,
+        "postresponse": postresponse_plugins,
+        "standalone": standalone_plugins,
+    }
     for plugin_config in plugin_configs:
         if not plugin_config.enabled:
             logger.info("Plugin disabled: %s", plugin_config.name)
             continue
 
         plugin = build_plugin(plugin_config)
-        if plugin_config.trigger == "prerouting":
-            prerouting_plugins.append(plugin)
-        elif plugin_config.trigger == "postrouting":
-            postrouting_plugins.append(plugin)
-        else:
-            postresponse_plugins.append(plugin)
+        # Unknown triggers are rejected at config-load time; default to prerouting
+        # defensively for any direct caller that bypassed the loader.
+        trigger_buckets.get(plugin_config.trigger, prerouting_plugins).append(plugin)
         logger.info(
             "Loaded plugin: %s (%s, trigger=%s)",
             plugin_config.name,
@@ -283,7 +361,9 @@ def create_plugin_manager(plugin_configs: List[PluginConfig]) -> PluginManager:
         )
 
     # Run each node's finalizer once with all instances of that node.
-    all_plugins = prerouting_plugins + postrouting_plugins + postresponse_plugins
+    all_plugins = (
+        prerouting_plugins + postrouting_plugins + postresponse_plugins + standalone_plugins
+    )
     by_node: Dict[str, List[PluginBaseNode]] = {}
     for plugin in all_plugins:
         by_node.setdefault(plugin.plugin_type(), []).append(plugin)
@@ -296,4 +376,20 @@ def create_plugin_manager(plugin_configs: List[PluginConfig]) -> PluginManager:
         except Exception as exc:
             logger.warning("Node finalizer failed for %r: %s", node, exc)
 
-    return PluginManager(prerouting_plugins, postrouting_plugins, postresponse_plugins)
+    scopes = _provider_scopes(provider_configs or [])
+    for plugin in postrouting_plugins + postresponse_plugins:
+        if plugin.name in scopes:
+            logger.info(
+                "Plugin %s (%s) attached to providers: %s",
+                plugin.name,
+                plugin.trigger,
+                sorted(scopes[plugin.name]),
+            )
+
+    return PluginManager(
+        prerouting_plugins,
+        postrouting_plugins,
+        postresponse_plugins,
+        standalone_plugins,
+        provider_scopes=scopes,
+    )

@@ -103,6 +103,27 @@ export class SearchDbService {
     return this.searchRepo.save(search);
   }
 
+  /**
+   * Records that a query was refreshed, optionally storing the fingerprint of
+   * the result set that was observed. Used by the auto-refresh scheduler both
+   * when results changed and when they did not, so staleness ordering and
+   * per-query rate limiting stay accurate without rewriting the results blob.
+   */
+  async markRefreshed(
+    queryId: string,
+    fingerprint?: string | null,
+  ): Promise<SearchEntity | null> {
+    const search = await this.read(queryId);
+    if (!search) {
+      return null;
+    }
+    search.lastRefreshedAt = new Date().toISOString();
+    if (fingerprint !== undefined) {
+      search.resultsFingerprint = fingerprint;
+    }
+    return this.searchRepo.save(search);
+  }
+
   async updateWatch(queryId: string, watch: boolean) {
     const search = await this.read(queryId);
     if (!search) {

@@ -112,8 +112,8 @@ def test_process_stored_video_rejects_duplicate_before_embedding(storage, strict
 
     monkeypatch.setattr(
         processors,
-        "read_config",
-        lambda *_, **__: {"metadata_local_temp_dir": "/tmp/dataprep/metadata"},
+        "get_config",
+        lambda: {"metadata_temp_dir": "/tmp/dataprep/metadata"},
     )
     monkeypatch.setattr(
         processors,

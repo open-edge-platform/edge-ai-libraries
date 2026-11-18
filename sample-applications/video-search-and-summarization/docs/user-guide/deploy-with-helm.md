@@ -80,15 +80,15 @@ Update or edit the values in YAML file as follows:
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
 | `global.registry` | Single-source image registry override for all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, multimodal-dataprep, multimodal-embedding-serving, vector-retriever). Leave empty to keep each subchart's own default. | `""` or `my-registry.example.com/vss/` |
-| `global.tag` | Single-source image tag override for the VSS service images above. Leave empty to keep each subchart's own default tag. | `""` or `2026.2.0-rc1` |
+| `global.tag` | Single-source image tag override for the VSS service images above. Leave empty to keep each subchart's own default tag. | `""` or `2026.3.0-rc1` |
 | `global.pullPolicy` | Image pull policy override for the VSS service images above. Leave empty to keep each subchart's default (`IfNotPresent`). Set to `Always` to force a fresh pull on every pod start (e.g. when reusing a mutable tag). | `""`, `Always`, or `IfNotPresent` |
 | `global.metricsManager.enabled` | Deploy Metrics Manager and enable direct DataPrep metric publishing | `true` or `false` |
 | `global.keepPvc` | PVC gets deleted by default once helm is uninstalled. Set this to true to persist PVC (helps avoid delay due to model re-downloads when re-installing chart). | `true` or `false` |
 | `global.huggingfaceToken` | Your Hugging Face API token | `<your-huggingface-token>` |
 | `global.proxy.http_proxy` | HTTP proxy if required | `http://proxy-example.com:000` |
 | `global.proxy.https_proxy` | HTTPS proxy if required | `http://proxy-example.com:000` |
-| `global.vlmName` | VLM model to be used by OVMS or vLLM for captioning and summarization | `Qwen/Qwen3-VL-4B-Instruct` (CPU) or `OpenVINO/Phi-3.5-vision-instruct-int8-ov` (GPU) |
-| `global.llmName` | Optional separate LLM model for final summarization (OVMS split-model mode). Leave empty for shared-model mode. | `Qwen/Qwen3-4B-Instruct-2507` (CPU) or `Qwen/Qwen3-4B-Instruct-2507` (GPU) or `OpenVINO/Qwen3-8B-int4-cw-ov` (NPU) |
+| `global.vlmName` | VLM model to be used by OVMS or vLLM for captioning and summarization | OVMS (CPU or GPU): `OpenVINO/Qwen3.5-4B-int8-ov`; also `OpenVINO/gemma-4-E4B-it-int8-ov`, `OpenVINO/Qwen3.5-4B-int4-ov`, `OpenVINO/Qwen3.5-9B-int4-ov`. vLLM: `Qwen/Qwen3-VL-4B-Instruct` |
+| `global.llmName` | Optional separate LLM model for final summarization (OVMS split-model mode). Leave empty for shared-model mode. | CPU or GPU: `OpenVINO/Qwen3-4B-int8-ov`; also `OpenVINO/Qwen3-4B-int4-ov`, `OpenVINO/phi-4-int4-ov`, `OpenVINO/Qwen3-8B-int4-ov`. NPU: `OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov`; also `OpenVINO/Qwen3-8B-int4-cw-ov` |
 | `global.env.POSTGRES_USER` | PostgreSQL user | `<your-postgres-user>` |
 | `global.env.POSTGRES_PASSWORD` | PostgreSQL password | `<your-postgres-password>` |
 | `global.env.MINIO_ROOT_USER` | MinIO server user name | `<your-minio-user>` (at least 3 characters) |
@@ -99,6 +99,8 @@ Update or edit the values in YAML file as follows:
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
 | `global.env.MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` | Duplicate-upload policy for `multimodal-dataprep`. `true` keeps historical behavior (accept content-identical re-uploads). `false` rejects duplicate-content uploads with HTTP `409`. | `true` (default) or `false` |
 | `global.embeddingModelName` | Embedding model used by Multimodal Embedding MS, DataPrep, and Video Search. Use a multimodal model for search-only and dual mode (e.g., `CLIP/clip-vit-b-32`) or a text embedding model for unified mode (e.g., `QwenText/qwen3-embedding-0.6b`). | `CLIP/clip-vit-b-32` or `QwenText/qwen3-embedding-0.6b` |
+| `multimodaldataprep.frameProcessing.detectionModelName` | Hugging Face OpenVINO object detection model (`OpenVINO/<repo>`, see [huggingface.co/OpenVINO](https://huggingface.co/OpenVINO)) used by DataPrep in search and dual modes; `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are also verified on CPU, GPU and NPU. Only this model is downloaded, into `detectionModelDir` (default `/app/models/object-detection`). Required unless `multimodaldataprep.frameProcessing.enableObjectDetection` is `false` (`unified_summary_search.yaml` sets it to `false`, since unified mode embeds summary text only); the chart raises an error if it is empty. Review the model card license. | `OpenVINO/yolox_s-int8-ov` |
+| `multimodaldataprep.frameProcessing.detectionClasses` | _(Optional)_ Comma-separated class filter for DataPrep object detection (case-insensitive; must match the model's labels, e.g. `traffic_light`; see the [COCO classes](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml)). Empty keeps all classes. | `person,car` |
 | `global.vectordbBackend` | Active vector database backend used by `multimodal-dataprep` and `vector-retriever`. | `vdms` (default) or `milvus` |
 | `global.devices.multimodalEmbedding.device` | Device for multimodal-embedding service | `CPU`, `GPU`, or `NPU` |
 | `global.devices.multimodalEmbedding.key` | K8s resource key for accelerator (required when device=GPU/NPU) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
@@ -106,13 +108,19 @@ Update or edit the values in YAML file as follows:
 | `global.devices.multimodalDataprep.embedding.key` | K8s resource key for DataPrep embedding accelerator (required when embedding.device=GPU/NPU) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
 | `global.devices.multimodalDataprep.detection.device` | Device for DataPrep object-detection execution | `CPU`, `GPU`, or `NPU` |
 | `global.devices.multimodalDataprep.detection.key` | K8s resource key for DataPrep detection accelerator (required when detection.device=GPU/NPU) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
-| `global.devices.ovms.vlm.device` | Device for OVMS VLM model | `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` |
-| `global.devices.ovms.vlm.key` | K8s resource key (required when device is GPU/NPU/HETERO) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
+| `global.devices.ovms.vlm.device` | Device for OVMS VLM model. NPU is not supported for the VLM (one image per request). | `CPU`, `GPU`, or `HETERO:GPU,CPU` |
+| `global.devices.ovms.vlm.key` | K8s resource key (required when device is GPU/HETERO) | `gpu.intel.com/i915` or `gpu.intel.com/xe` |
 | `global.devices.ovms.llm.device` | Device for OVMS LLM model (split-model mode) | `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` |
 | `global.devices.ovms.llm.key` | K8s resource key (required when device is GPU/NPU/HETERO) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
 | `global.accelGroupIds` | Host group ids owning the accelerator device nodes (`/dev/dri` for GPU, `/dev/accel` for NPU). Added to the pod `supplementalGroups` when a service uses GPU/NPU so the non-root container user can open the device. Host-specific — override to match the target node. | `[992]` |
 | `ovms.env.VLM_WEIGHT_FORMAT` | Override weight format for VLM model conversion | `int4` or `int8` (auto-detected if not set) |
 | `ovms.env.LLM_WEIGHT_FORMAT` | Override weight format for LLM model conversion | `int4` or `int8` (auto-detected if not set) |
+| `ovms.env.OVMS_MAX_NUM_SEQS` | OVMS `max_num_seqs` written to each model's `graph.pbtxt`, for new downloads and models already on the volume. Keep it at or above `pipelinemanager.env.VLM_CONCURRENT` + `LLM_CONCURRENT`. | `16` (default when empty) |
+| `ovms.env.OVMS_CACHE_SIZE_GB` | OVMS KV cache size in GB written to each model's `graph.pbtxt`. Applies to both VLM and LLM. | Empty (default): `0`, dynamic allocation |
+| `ovms.env.OVMS_NPU_MAX_PROMPT_LEN` | Maximum prompt tokens written to the `graph.pbtxt` `plugin_config` of a text-only LLM on NPU. When the OVMS LLM device is `NPU` and `pipelinemanager.env.MAX_CONTEXT_LENGTH` is empty, Pipeline Manager's prompt budget becomes `(value - 256) * 2` characters. | `8192` (default when empty) |
+| `ovms.env.OVMS_NPU_MIN_RESPONSE_LEN` | Response tokens reserved beyond the prompt for an LLM on NPU; output past the prompt and response limits is cut without an error. When the OVMS LLM device is `NPU` and `pipelinemanager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS` is empty, it is used as the completion cap. | `1024` (default when empty) |
+| `pipelinemanager.env.MAX_CONTEXT_LENGTH` | Character budget for each summarization prompt. | Empty (default): `90000`, or derived from `OVMS_NPU_MAX_PROMPT_LEN` for an NPU LLM |
+| `pipelinemanager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS` | Final-summary completion token cap. | Empty (default): `4000`, or `OVMS_NPU_MIN_RESPONSE_LEN` for an NPU LLM |
 | `ovms.enabled` | Enable OVMS as the inference backend (default: true in summary mode) | `true` or `false` |
 | `vllm.enabled` | Enable vLLM as the inference backend (alternative to OVMS) | `true` or `false` |
 | `pipelinemanager.env.USE_VLLM` | Set to `CONFIG_ON` when using vLLM backend | `CONFIG_OFF` (default) or `CONFIG_ON` |
@@ -120,9 +128,12 @@ Update or edit the values in YAML file as follows:
 | `pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | Default for audio transcript summarization. When enabled, the full audio transcript is summarized by the LLM and included in the final video summary. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
 | `pipelinemanager.env.PRODUCE_FINAL_SUMMARY` | Default for producing a final video summary. When enabled, chunk summaries are consolidated into a single video summary via map-reduce. When disabled, only per-chunk summaries are generated. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
 | `pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS` | Timeout in milliseconds for search dataprep operations (video embedding pipeline). Increase for large videos or slow hardware. | `600000` (default, 10 minutes) |
+| `pipelinemanager.env.SEARCH_MIN_PEAK_SCORE` and `videosearch.env.SEARCH_MIN_PEAK_SCORE` | Default minimum peak score (0-1) for search; frames below it are dropped at retrieval. A query's `minPeakScore` overrides it. Keep both values equal. | `0` (default, filter off) |
+| `multimodaldataprep.liveStream.maxConcurrent` | Maximum live RTSP cameras ingesting at once. Registering more returns `503`. | `8` (default) |
+| `multimodaldataprep.sdkPipeline.pipelineStallTimeoutS` | Fail a DataPrep video ingestion when no pipeline stage makes progress for this many seconds (for example a GPU hang). `0` disables the watchdog. | `300` (default) |
 | `videoingestion.odModelName` | Name of object detection model (generic YOLO id from the model-download ultralytics hub) used during video ingestion | `yolov8l` |
 | `metricsmanager.image.repository` | Metrics Manager image repository | `docker.io/intel/metrics-manager` |
-| `metricsmanager.image.tag` | Metrics Manager image tag | `2026.2.0-20260715-weekly` |
+| `metricsmanager.image.tag` | Metrics Manager image tag | `2026.2.0` |
 
 > **`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` override:** You do **not** need to put this in `user_values_override.yaml`. You can set it directly at install/upgrade time with `--set`, for example:
 >
@@ -131,11 +142,13 @@ Update or edit the values in YAML file as follows:
 >   --set global.env.MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false -n $my_namespace
 > ```
 
-> **Tip:** Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
+> [!TIP]
+> Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
 
 > **DataPrep device override precedence:** `global.devices.multimodalDataprep.embedding.device` and `global.devices.multimodalDataprep.detection.device` are set independently in `user_values_override.yaml`. Each defaults to `CPU`; set `GPU`/`NPU` (with the matching resource `key`) to offload that component.
 
-> **Note:** `multimodal-embedding-ms` and `multimodal-dataprep` now use independent PVCs for model/cache data by default, so their device settings can be configured independently.
+> [!NOTE]
+> `multimodal-embedding-ms` and `multimodal-dataprep` now use independent PVCs for model/cache data by default, so their device settings can be configured independently.
 
 > **Single-source image override:** Set `global.registry`, `global.tag`, and `global.pullPolicy` once to apply across all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, multimodal-dataprep, multimodal-embedding-serving, vector-retriever) instead of overriding each subchart. Leave any of them empty to keep that subchart's own default. Set `global.pullPolicy: Always` when you reuse a mutable tag and need a fresh pull on every pod start.
 
@@ -159,8 +172,8 @@ Update or edit the values in YAML file as follows:
 >
 > ```yaml
 > global:
->   vlmName: "OpenVINO/Phi-3.5-vision-instruct-int8-ov"
->   llmName: "OpenVINO/Qwen3-8B-int4-cw-ov"
+>   vlmName: "OpenVINO/Qwen3.5-4B-int8-ov"
+>   llmName: "OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov"
 >   devices:
 >     ovms:
 >       vlm:
@@ -170,6 +183,8 @@ Update or edit the values in YAML file as follows:
 >         device: NPU
 >         key: "npu.intel.com/accel"
 > ```
+>
+> The LLM on NPU must be a text-only, NPU-optimized `-cw-` model (`global.llmName`), such as `OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov` or `OpenVINO/Qwen3-8B-int4-cw-ov`. The VLM is not supported on NPU. If a vision-language model serves the LLM role on NPU, the OVMS download init container fails with an error. The NPU prompt limits and the derived Pipeline Manager budget are controlled by `ovms.env.OVMS_NPU_MAX_PROMPT_LEN` and `ovms.env.OVMS_NPU_MIN_RESPONSE_LEN`.
 
 ### 3. Build Helm Dependencies
 
@@ -195,13 +210,15 @@ We will install the Helm chart in a new namespace. Create a shell variable to re
    kubectl create namespace $my_namespace
    ```
 
-> **Note:** All subsequent steps assume that you have `my_namespace` variable set and accessible on your shell with the desired namespace as its value.
+> [!NOTE]
+> All subsequent steps assume that you have `my_namespace` variable set and accessible on your shell with the desired namespace as its value.
 
 ### 5. Deploy the Helm Chart
 
 At present, there are multiple deployment modes for **Video Search and Summarization Application**. We will learn how to deploy each use-case using the Helm chart.
 
-> **Note:** Before switching to a different use-case always stop the current running use-case's application stack (if any) by uninstalling the chart : `helm uninstall vss -n $my_namespace`. This is not required if you are installing the Helm chart for the first time.
+> [!NOTE]
+> Before switching to a different use-case always stop the current running use-case's application stack (if any) by uninstalling the chart : `helm uninstall vss -n $my_namespace`. This is not required if you are installing the Helm chart for the first time.
 
 #### **Use Case 1: Video Summarization with OVMS (Default - CPU)**
 
@@ -213,7 +230,8 @@ helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_
 
 This is the default and recommended deployment mode. OVMS hosts the VLM model specified in `global.vlmName` and uses it for both chunk-wise captioning and final summarization (shared-model mode).
 
-> **Note:** When deploying OVMS, the service may take longer to start on first run due to model conversion. Subsequent starts are faster as models are cached.
+> [!NOTE]
+> When deploying OVMS, the service may take longer to start on first run due to model conversion. Subsequent starts are faster as models are cached.
 
 #### **Use Case 1a: OVMS with Separate LLM Model (Split-Model Mode)**
 
@@ -221,8 +239,8 @@ To use a separate LLM model for final summarization while using VLM for captioni
 
 ```yaml
 global:
-  vlmName: "Qwen/Qwen3-VL-4B-Instruct"
-  llmName: "Qwen/Qwen3-4B-Instruct-2507"
+  vlmName: "OpenVINO/Qwen3.5-4B-int8-ov"
+  llmName: "OpenVINO/Qwen3-4B-int8-ov"
 ```
 
 Then deploy:
@@ -242,7 +260,7 @@ To enable GPU acceleration for OVMS, configure the device settings and model in 
 
 ```yaml
 global:
-  vlmName: "OpenVINO/Phi-3.5-vision-instruct-int8-ov"
+  vlmName: "OpenVINO/Qwen3.5-4B-int8-ov"
   devices:
     ovms:
       vlm:
@@ -256,7 +274,8 @@ Then deploy:
 helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
-> **Note:** GPU deployment requires the Intel device plugin to be installed on your cluster. Verify your GPU node label with `kubectl describe node <node-name>` and set the appropriate `key` value accordingly.
+> [!NOTE]
+> GPU deployment requires the Intel device plugin to be installed on your cluster. Verify your GPU node label with `kubectl describe node <node-name>` and set the appropriate `key` value accordingly.
 
 ##### Discovering Available Device Resource Keys
 
@@ -282,11 +301,12 @@ kubectl describe node <node-name> | grep -A20 "Allocatable:" | grep -E "gpu|npu|
 | Intel Discrete GPU (Arc/Flex) | `gpu.intel.com/xe` |
 | Intel NPU (AI Boost) | `npu.intel.com/accel` |
 
-> **Tip:** If no GPU/NPU resources appear, ensure the Intel device plugin is installed. See [Intel Device Plugins for Kubernetes](https://github.com/intel/intel-device-plugins-for-kubernetes).
->
+> [!TIP]
+> If no GPU/NPU resources appear, ensure the Intel device plugin is installed. See [Intel Device Plugins for Kubernetes](https://github.com/intel/intel-device-plugins-for-kubernetes).
+> 
 > **Split-device note:** When using different devices for VLM and LLM (e.g., GPU + NPU), ensure at least one node in your cluster has **both** resources available. The pod will only schedule on nodes that satisfy all resource requests.
->
-> **NPU Support:** Not all models support NPU execution. Verify model and hardware compatibility at the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
+> 
+> **NPU Support:** Only the OVMS LLM (`global.devices.ovms.llm.device`) can run on NPU, with a text-only `-cw-` model. The VLM is not supported on NPU, because NPU vision-language pipelines accept only one image per request while VSS sends several frames per chunk.
 
 ##### Model Weight Format
 
@@ -310,9 +330,10 @@ ovms:
     LLM_WEIGHT_FORMAT: "int8"
 ```
 
-> **Note:** Models from the `OpenVINO/` namespace (e.g., `OpenVINO/Phi-3.5-vision-instruct-int8-ov`) are pre-converted and do not undergo weight format conversion. The weight format in the model name indicates its native format.
->
-> **Storage Model Names:** Converted models are stored with device and weight format in the path (e.g., `Qwen_Qwen2.5-VL-3B-Instruct_GPU_int4`). Changing the device or weight format creates a new conversion, preserving existing models.
+> [!NOTE]
+> Models from the `OpenVINO/` namespace (e.g., `OpenVINO/Qwen3.5-4B-int8-ov`) are pre-converted and do not undergo weight format conversion. The chart uses the precision in the model name (`int4`, `int8`, `fp16`, or `fp32`) instead of the device default or `*_WEIGHT_FORMAT`. `-nf4-ov` models fail at render time because model-download cannot fetch them. NPU always uses `int4`.
+> 
+> **Storage Model Names:** Models are stored with the device in the name (e.g., `OpenVINO_Qwen3.5-4B-int8-ov_GPU`); models converted from other namespaces also carry the weight format (e.g., `<org>_<model>_GPU_int4`). Changing the device or weight format creates a new copy, preserving existing models.
 
 #### **Use Case 2: Video Summarization with vLLM (CPU-based)**
 
@@ -336,9 +357,35 @@ helm install vss . -f summary_override.yaml -f xeon_vllm_values.yaml -f user_val
 - The vLLM container requires at least 128Gi of memory for typical LLM models
 - Cache storage must be configured (default 80Gi PVC for model cache)
 
-> **Model Selection:** vLLM uses the model specified in `global.vlmName`. Ensure the model is compatible with vLLM and available on Hugging Face. Update `global.huggingfaceToken` if using private models.
+> **Model Selection:** vLLM uses the model specified in `global.vlmName`. Set `global.vlmName: "Qwen/Qwen3-VL-4B-Instruct"`. Ensure the model is compatible with vLLM and available on Hugging Face. Update `global.huggingfaceToken` if using private models.
 >
 > **Performance Tip:** vLLM's performance scales with available CPU cores. If you have nodes with different CPU counts, consider using node affinity to deploy vLLM on high-CPU nodes.
+
+#### **Use Case 2a: vLLM with Intel Arc GPU Acceleration (XPU)**
+
+To run vLLM on an Intel Arc or Arc Pro GPU instead of the CPU, substitute `arc_vllm_values.yaml` for `xeon_vllm_values.yaml`. This is the Kubernetes equivalent of the `docker/compose.vllm.xpu.yaml` Compose overlay.
+
+```bash
+helm install vss . -f summary_override.yaml -f arc_vllm_values.yaml -f user_values_override.yaml -n $my_namespace
+```
+
+**Prerequisites:**
+
+- The [Intel GPU device plugin](https://github.com/intel/intel-device-plugins-for-kubernetes) must be installed on the cluster so the GPU is advertised as a schedulable resource. Confirm the resource key your nodes expose with `kubectl get nodes -o jsonpath='{.items[*].status.allocatable}'` — it is `gpu.intel.com/i915` on i915 kernels and `gpu.intel.com/xe` on newer Xe kernels.
+- `/dev/dri` must exist on the GPU node.
+- `global.accelGroupIds` must list the host group IDs that own `/dev/dri` (check with `ls -ln /dev/dri`). These are added to the pod's `supplementalGroups` so the container user can open the device, mirroring `group_add` in Compose. The chart default is `992`.
+
+**XPU-specific values:**
+
+| Key | Description | Default |
+| --- | --- | --- |
+| `vllm.device` | Selects the vLLM backend. `XPU` switches to the Intel GPU image and arguments. | `CPU` |
+| `vllm.gpu.key` | Device plugin resource key. **Required** when `device` is `XPU`; the chart fails rendering if it is empty. | `gpu.intel.com/i915` |
+| `vllm.model.gpuMemoryUtilization` | Fraction of GPU memory vLLM may reserve for weights, activations, and KV cache. | `0.8` |
+| `vllm.model.mmMaxPixels` | Maximum pixels per frame. Caps frame resolution, not frame count. | `16777216` |
+
+> [!IMPORTANT]
+> **GPUs with less than 16 GB (for example Intel Arc B580, 12 GB):** the defaults above fail to start with `No available memory for the cache blocks`. Use the FP8 checkpoint together with the reduced settings commented at the bottom of `arc_vllm_values.yaml`; all of them are required together. See [Troubleshooting](./troubleshooting.md#vllm-xpu-fails-to-start-with-no-available-memory-for-the-cache-blocks) for the sizing formula and how to derive values for other cards.
 
 #### **Use Case 3: Video Search Only**
 
@@ -354,14 +401,15 @@ To deploy the same search stack on the Milvus backend (equivalent to `VECTORDB_B
 helm install vss . -f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
+> [!IMPORTANT]
 > **Important — clear persisted data when switching backends:** embeddings live only in the vector database, but uploaded videos and their metadata live in MinIO and the Pipeline Manager's PostgreSQL database, which are backed by PVCs shared across backends. Switching `global.vectordbBackend` without clearing them leaves the previously ingested videos visible in the UI while the new backend holds no embeddings for them, so search returns nothing for those videos. Uninstall the chart, delete the PVCs, then reinstall:
->
+> 
 > ```bash
 > helm uninstall vss -n $my_namespace
 > kubectl delete pvc --all -n $my_namespace
 > helm install vss . -f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml -n $my_namespace
 > ```
->
+> 
 > `kubectl delete pvc --all` also removes the model-cache PVCs, so the first start after this re-downloads and re-converts the models. To keep those, delete only the data PVCs (MinIO, PostgreSQL, dataprep and the vector database) instead — list them with `kubectl get pvc -n $my_namespace`. Alternatively, re-ingest every video after the switch instead of clearing the PVCs.
 
 #### **Use Case 4: Unified Video Search and Summarization**
@@ -411,8 +459,8 @@ kubectl get pods -n $my_namespace
 
 2. Ensure all containers in each pod are _Ready_. As all pods are running single container only, this is typically denoted by mentioning **1/1** in the **READY** column.
 
-> **Important:**
->
+> [!IMPORTANT]
+> 
 > - When deployed for first time, it may take up-to around 50 Mins to bring all the pods/containers in running and ready state, as several containers try to download models which can take a while. The time to bring up all the pods depends on several factors including but not limited to node availability, node load average, network speed, compute availability, etc.
 > - If you want to persist the downloaded models and avoid delays pertaining to model downloads when re-installing the charts, set the `global.keepPvc` value to `true` in `user_values_override.yaml` file before installing the chart.
 
@@ -618,4 +666,5 @@ scrape_configs:
     metrics_path: '/ovms/metrics'
 ```
 
-> **Note:** Metrics are only available when OVMS is enabled (`ovms.enabled=true`). When using vLLM backend, this endpoint is not available.
+> [!NOTE]
+> Metrics are only available when OVMS is enabled (`ovms.enabled=true`). When using vLLM backend, this endpoint is not available.

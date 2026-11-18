@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import os
 from threading import Thread
 from collections import namedtuple
 
@@ -16,8 +17,24 @@ from src.server.common.utils import logging
 from src.server.rtsp.gstreamer_rtsp_factory import GStreamerRtspFactory
 # pylint: enable=wrong-import-position
 
-Stream = namedtuple('stream', ['source', 'caps', 'overlay', 'overlay_properties'])
-Stream.__new__.__defaults__ = (None, None, True, None)
+# The RTSP server serves every client (and waits for every media to be prepared) on the threads of its thread pool,
+# and GStreamer's default is ONE thread. A stream whose media never gets prepared (for example a pipeline that stopped
+# feeding its appsrc) then blocks that thread for the whole prepare timeout (20 s) per request, and every other
+# client, including the other cameras' streams, waits behind it; clients that retry (a relay re-pulling a stream) keep
+# the thread blocked for good. More threads keep one bad stream from stopping the others.
+DEFAULT_RTSP_MAX_THREADS = 8
+
+
+def _max_threads():
+    try:
+        value = int(os.getenv("RTSP_SERVER_MAX_THREADS", str(DEFAULT_RTSP_MAX_THREADS)))
+    except ValueError:
+        value = DEFAULT_RTSP_MAX_THREADS
+    return value if value == -1 or value >= 1 else DEFAULT_RTSP_MAX_THREADS     # -1 = unlimited
+
+
+Stream = namedtuple('stream', ['source', 'caps', 'overlay', 'overlay_properties', 'encoding'])
+Stream.__new__.__defaults__ = (None, None, True, None, 'mjpeg')
 
 class GStreamerRtspServer():
     def __init__(self, port):
@@ -27,31 +44,78 @@ class GStreamerRtspServer():
         self._port = port
         self._server = GstRtspServer.RTSPServer()
         self._server.set_service(str(port))
+        self._server.get_thread_pool().set_max_threads(_max_threads())
         self._context = None
         self._mainloop = None
         self._mount_points = self._server.get_mount_points()
         self._streams = {}
+        self._factories = {}
         self._thread = None
-        self._factory = GStreamerRtspFactory(self)
-        self._factory.set_shared(True)
 
     def check_if_path_exists(self, rtsp_path):
         if rtsp_path in self._streams:
             self._logger.error("RTSP Stream at {} already exists, use different path".format(rtsp_path))
             raise Exception("RTSP Stream at {} already exists, use different path".format(rtsp_path))
 
-    def add_stream(self, identifier, rtsp_path, caps, source, overlay, overlay_properties=None):
-        self._streams[rtsp_path] = Stream(source, caps, overlay, overlay_properties)
-        self._mount_points.add_factory(rtsp_path, self._factory)
+    def add_stream(self, identifier, rtsp_path, stream):
+        """Register a stream for the given RTSP path.
+
+        `stream` is a `Stream` namedtuple instance describing the source,
+        caps, overlay settings and encoding to mount at `rtsp_path`.
+        """
+        self._streams[rtsp_path] = stream
+        # One factory per stream. A shared factory caches its media by path, and a media outlives its pipeline until
+        # its RTSP session times out (60 s by default), so a pipeline restarted on the same path was handed the old
+        # media, which nothing feeds any more: DESCRIBE/PLAY succeed but no video arrives.
+        factory = GStreamerRtspFactory(self)
+        factory.set_shared(True)
+        factory.set_eos_shutdown(True)      # drop the media as soon as its pipeline ends
+        self._factories[rtsp_path] = factory
+        self._mount_points.add_factory(rtsp_path, factory)
         url = "rtsp:://<host ip>:{}{}".format(self._port, rtsp_path)
         self._logger.info("Created RTSP Stream for instance {} at {}".format(identifier, url))
 
-    def remove_stream(self, rtsp_path):
+    def remove_stream(self, rtsp_path, owner=None):
+        """Unregister `rtsp_path`. With `owner`, only if that destination still owns the stream: a pipeline that
+        stopped can release its path before it has finished tearing down, and a new pipeline may already own it."""
         self._logger.debug(
             "Removing RTSP Stream: {}".format(rtsp_path))
-        if rtsp_path in self._streams:
+        stream = self._streams.get(rtsp_path)
+        if stream is not None and (owner is None or stream.source is owner):
             self._mount_points.remove_factory(rtsp_path)
+            self._factories.pop(rtsp_path, None)
             del self._streams[rtsp_path]
+            self._close_clients(rtsp_path)
+
+    def _close_clients(self, rtsp_path):
+        """Close the connections of the clients that are playing `rtsp_path`.
+
+        A client keeps its RTSP session open after the stream ended, and a relay that keeps it alive (MediaMTX does)
+        never learns that no video arrives any more: it stays "ready" on the dead session and never pulls the
+        restarted stream. Closing the connection makes the client reconnect to whatever is mounted at the path.
+        """
+        keep = GstRtspServer.RTSPFilterResult.KEEP
+        remove = GstRtspServer.RTSPFilterResult.REMOVE
+
+        def plays_path(client):
+            found = []
+
+            def check_session(_client, session):
+                def check_media(_session, session_media):
+                    if session_media.matches(rtsp_path):
+                        found.append(True)
+                    return keep
+
+                session.filter(check_media)
+                return keep
+
+            client.session_filter(check_session)
+            return bool(found)
+
+        try:
+            self._server.client_filter(lambda _server, client: remove if plays_path(client) else keep)
+        except Exception as exc:    # pylint: disable=broad-except
+            self._logger.warning("Could not close the RTSP clients of {}: {}".format(rtsp_path, exc))
 
     def get_source(self, rtsp_path):
         if rtsp_path in self._streams:
@@ -79,7 +143,7 @@ class GStreamerRtspServer():
             self._logger.info("Stopping Gstreamer RTSP Server")
             for rtsp_path in list(self._streams):
                 self.remove_stream(rtsp_path)
-            self._factory = None
+            self._factories = None
             self._streams = None
             if self._mainloop:
                 self._mainloop.quit()

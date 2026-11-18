@@ -1,0 +1,587 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Multi-pipeline GStreamer worker for DLSPS 2.0.
+
+A long-lived process that can host multiple concurrent GStreamer
+pipelines, each identified by an ``instance_id``, within a single OS
+process. ``pipeline_manager.py`` launches exactly one instance of this
+worker (shared by every pipeline instance); a pipeline is validated first
+by :mod:`core.gst_validator` before ever being submitted here.
+
+Protocol
+--------
+Control commands are read from stdin, one JSON object per line::
+
+    {"cmd": "start", "instance_id": "<id>", "pipeline": "<gst-launch string>", "warmup_frames": 0}
+    {"cmd": "stop", "instance_id": "<id>"}
+    {"cmd": "shutdown"}
+
+Status events are written to stdout, one JSON object per line::
+
+    {"instance_id": "<id>", "event": "started"}
+    {"instance_id": "<id>", "event": "fps", "avg_fps": 30.0, "last_fps": 29.4, "frame_interval": 1.023, "frame_count": 912, "frame_count_time": 1767225601.5}
+    {"instance_id": "<id>", "event": "eos"}
+    {"instance_id": "<id>", "event": "error", "reason": "..."}
+    {"instance_id": "<id>", "event": "stopped"}
+    {"instance_id": "<id>", "event": "metric", "kind": "latency-window", "element": "<name>", "fields": {...}}
+
+``metric`` events forward the ``dlstreamer/*`` element messages that DL Streamer
+posts on the pipeline bus; see :mod:`core.metrics` for the kinds and fields. Bus
+messages are forwarded in the order they were posted, so the last latency window,
+which ``latency_tracer`` posts when EOS reaches a sink, precedes ``eos``, and
+``stopped`` follows both.
+"""
+
+import json
+import logging
+import os
+import sys
+import threading
+import time
+from dataclasses import dataclass, field
+from typing import Dict, Optional
+
+# When launched directly as a subprocess, sys.path[0] is the "core"
+# directory rather than "src". Add the parent "src" directory so that the
+# "core.publishers" package can be imported for sink-element registration.
+_SRC_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
+
+import gi  # pyright: ignore[reportMissingImports]
+
+gi.require_version("Gst", "1.0")
+gi.require_version("GObject", "2.0")
+from gi.repository import Gst, GLib  # noqa: E402 # pyright: ignore[reportMissingImports]
+
+from core.metrics import METRIC_MESSAGE_PREFIX, metric_event  # noqa: E402
+
+logger = logging.getLogger("gst_worker")
+
+# How often (seconds) each hosted pipeline's own frame counter is turned
+# into an fps event, and the size of the "last_fps" window.
+_FPS_POLL_INTERVAL_SECONDS = 1
+
+
+def _plain_value(value):
+    """Turn a Gst.ValueArray or Gst.ValueList, which JSON would only stringify, into a list."""
+    for type_name in ("ValueArray", "ValueList"):
+        gst_type = getattr(Gst, type_name, None)
+        if isinstance(gst_type, type) and isinstance(value, gst_type):
+            return [_plain_value(item) for item in value]
+    return value
+
+
+def _metric_event(instance_id: str, message) -> Optional[dict]:
+    """Convert a ``dlstreamer/*`` element message into a ``metric`` event, else None."""
+    structure = message.get_structure()
+    if structure is None:
+        return None
+    name = structure.get_name()
+    if not name.startswith(METRIC_MESSAGE_PREFIX):
+        return None
+    fields = {}
+    for index in range(structure.n_fields()):
+        field_name = structure.nth_field_name(index)
+        try:
+            fields[field_name] = _plain_value(structure.get_value(field_name))
+        except TypeError:
+            # A GType gi cannot convert (e.g. GstValueArray without the gst-python overrides) loses one field only.
+            logger.debug("Skipping field %s of %s: unsupported type", field_name, name)
+    element = message.src.get_name() if message.src else None
+    return metric_event(instance_id, element, name, fields)
+
+
+def _emit(payload: dict) -> None:
+    """Write one JSON status line to stdout and flush immediately."""
+    # default=str: a forwarded bus-message field of a type JSON cannot encode must not break the event stream.
+    sys.stdout.write(json.dumps(payload, default=str) + "\n")
+    sys.stdout.flush()
+
+
+def _emit_start_failure(instance_id: str, reason: str) -> None:
+    """Report a start that failed before a pipeline was registered: an error, then the terminal stopped."""
+    _emit({"instance_id": instance_id, "event": "error", "reason": reason})
+    _emit({"instance_id": instance_id, "event": "stopped"})
+
+
+class _JsonLogFormatter(logging.Formatter):
+    """Format each log record as a single JSON line on stderr.
+
+    ``pipeline_manager.py`` reads this worker's stderr and needs to know
+    each record's actual severity so it can re-log it at the same level in
+    the parent process (an INFO line must not be surfaced as an ERROR).
+    Encoding as JSON (rather than a "name - LEVEL - message" text format)
+    keeps this robust even for messages that contain embedded newlines.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        return json.dumps({
+            "level": record.levelname,
+            "name": record.name,
+            "message": record.getMessage(),
+        })
+
+
+@dataclass
+class _Instance:
+    """State tracked for a single pipeline hosted by this worker."""
+
+    instance_id: str
+    pipeline: Gst.Pipeline
+    warmup_frames: int = 0
+    bus: Optional[Gst.Bus] = field(default=None, repr=False)
+    bus_handler_id: int = 0
+    fps_source: Optional[GLib.Source] = field(default=None, repr=False)
+    # (pad, probe_id) pairs; removed on teardown so the pad stops referencing this instance.
+    probes: list = field(default_factory=list, repr=False)
+    # Self-computed FPS state. frame_count is incremented from the
+    # GStreamer streaming thread (inside the pad probe callback) and read
+    # from the shared main loop thread (inside the poll timer), hence the
+    # lock. frame_count resets every poll (drives the windowed "last_fps");
+    # total_frame_count never resets (drives the cumulative "avg_fps").
+    # frames_after_warmup counts frames that have arrived after warmup_frames
+    # threshold, used for avg_fps calculation.
+    frame_count: int = 0
+    total_frame_count: int = 0
+    frames_after_warmup: int = 0
+    first_frame_sent: bool = False  # Flag to emit firstframe event only once
+    frame_count_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    start_time: float = field(default_factory=time.monotonic)
+    warmup_frame_time: float = field(default_factory=time.monotonic)
+    last_poll_time: float = field(default_factory=time.monotonic)
+
+
+class GstWorker:
+    """Hosts and manages multiple concurrent GStreamer pipelines in one process."""
+
+    def __init__(self) -> None:
+        self._instances: Dict[str, _Instance] = {}
+        self._lock = threading.RLock()
+        # One main loop, shared by every hosted pipeline, running for the
+        # lifetime of the worker process.
+        self._loop: Optional[GLib.MainLoop] = None
+        self._loop_thread: Optional[threading.Thread] = None
+
+    # ------------------------------------------------------------------
+    # GStreamer / logging setup
+    # ------------------------------------------------------------------
+
+    def initialize(self) -> None:
+        """Initialize GStreamer once for the lifetime of this worker process."""
+        Gst.init(None)
+        version = Gst.version()
+        logger.info(
+            "GStreamer initialized — version: %d.%d.%d",
+            version.major,
+            version.minor,
+            version.micro,
+        )
+        try:
+            from core.publishers import register_all  # noqa: PLC0415
+
+            register_all()
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Publisher element registration failed: %s", exc)
+
+        Gst.debug_remove_log_function(None)
+        Gst.debug_add_log_function(self._gst_log_bridge, None)
+
+        self._loop = GLib.MainLoop.new(None, False)
+        self._loop_thread = threading.Thread(
+            target=self._run_loop, name="glib-mainloop", daemon=True
+        )
+        self._loop_thread.start()
+
+    def _run_loop(self) -> None:
+        """Thread body: run the single main loop shared by every pipeline."""
+        try:
+            self._loop.run()
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Shared GLib main loop terminated unexpectedly")
+
+    def _gst_log_bridge(self, category, level, file, function, line, obj, message, user_data) -> None:
+        """GStreamer log callback: plain passthrough to the worker's own logger.
+
+        Checks the target Python log level *before* touching ``message``:
+        ``message.get()`` does GStreamer's own printf-style formatting in C,
+        which isn't free, and this callback fires for every log message
+        across every hosted pipeline. No point paying for that when the
+        result would just be filtered out by the logger anyway.
+        """
+        if level <= Gst.DebugLevel.ERROR:
+            py_level = logging.ERROR
+        elif level <= Gst.DebugLevel.WARNING:
+            py_level = logging.WARNING
+        elif level <= Gst.DebugLevel.INFO:
+            py_level = logging.INFO
+        else:
+            py_level = logging.DEBUG
+
+        if not logger.isEnabledFor(py_level):
+            return
+
+        text = message.get()
+        text = text.replace("\r", " ").replace("\n", " ")
+        logger.log(py_level, "%s", text)
+
+    @staticmethod
+    def _fps_probe_pad(pipeline: Gst.Pipeline, element_name: str) -> Optional[Gst.Pad]:
+        """Return the named element's first sink pad, or its first src pad if it has none."""
+        elem = pipeline.get_by_name(element_name)
+        if elem is None:
+            return None
+        for iterate in (elem.iterate_sink_pads, elem.iterate_src_pads):
+            result, pad = iterate().next()
+            if result == Gst.IteratorResult.OK:
+                return pad
+        return None
+
+    @staticmethod
+    def _attach_fps_probes(pipeline: Gst.Pipeline, inst: "_Instance", fps_element: Optional[str] = None) -> int:
+        """Attach a buffer-counting probe that counts exactly one frame per
+        buffer flowing through the pipeline.
+
+        If ``fps_element`` is given, the probe goes on that element's pad
+        instead of the terminal sink.
+
+        Uses ``iterate_sinks()`` (elements with no linked src pad, i.e. the
+        actual terminal element(s) of the pipeline) but only attaches the
+        probe to the FIRST such sink pad found, not every one.
+
+        Normally there is only one terminal sink anyway. However,
+        ``config.compat.apply_destination()`` fans a single stream out to
+        multiple destinations via a ``tee`` when more than one destination is
+        requested -- each branch ends in its own terminal sink, and since a
+        ``tee`` duplicates every buffer to all of its branches, each branch
+        receives the exact same frames at the exact same rate. Counting on
+        every terminal sink would therefore count the same logical frame once
+        per destination (e.g. 3 destinations would report 3x the real fps);
+        counting on just the first one still counts every frame exactly once
+        regardless of how many destinations it's duplicated to.
+
+        Returns the number of probes attached (0 or 1).
+        """
+        if fps_element:
+            pad = GstWorker._fps_probe_pad(pipeline, fps_element)
+            if pad is None:
+                return 0
+            inst.probes.append((pad, pad.add_probe(Gst.PadProbeType.BUFFER, GstWorker._on_buffer_probe, inst)))
+            return 1
+        sinks_iter = pipeline.iterate_sinks()
+        while True:
+            result, elem = sinks_iter.next()
+            if result != Gst.IteratorResult.OK:
+                break
+            pads_iter = elem.iterate_sink_pads()
+            while True:
+                pad_result, pad = pads_iter.next()
+                if pad_result != Gst.IteratorResult.OK:
+                    break
+                inst.probes.append((pad, pad.add_probe(Gst.PadProbeType.BUFFER, GstWorker._on_buffer_probe, inst)))
+                return 1
+        return 0
+
+    @staticmethod
+    def _on_buffer_probe(pad, info, inst: "_Instance"):
+        """Pad probe callback: count one frame. Runs on a streaming thread."""
+        with inst.frame_count_lock:
+            if not inst.first_frame_sent:
+                # Emit firstframe event exactly once when first frame arrives (Unix epoch time)
+                _emit({
+                    "instance_id": inst.instance_id,
+                    "event": "firstframe",
+                    "first_frame_time": time.time(),
+                })
+                inst.first_frame_sent = True
+                # Start fps polling window from first frame (so fps is accurate from frame 1)
+                inst.last_poll_time = time.monotonic()
+            inst.frame_count += 1
+            inst.total_frame_count += 1
+            # Count frames after warmup threshold for avg_fps calculation
+            if inst.total_frame_count >= inst.warmup_frames:
+                if inst.frames_after_warmup == 0:
+                    inst.warmup_frame_time = time.monotonic()
+                inst.frames_after_warmup += 1
+        return Gst.PadProbeReturn.OK
+
+    def _poll_fps(self, inst: "_Instance") -> bool:
+        """GLib timeout callback: emit this instance's own last/avg FPS.
+
+        ``last_fps`` covers just the window since the previous poll (about
+        _FPS_POLL_INTERVAL_SECONDS) and is emitted during both warmup and
+        steady state. ``avg_fps`` covers the pipeline after warmup frames are
+        excluded (measured from first frame after warmup) and is only emitted
+        once warmup is complete.
+
+        ``frame_count`` is every frame counted since the first one, warmup
+        included, and ``frame_count_time`` the Unix epoch time it was read at.
+        Both are emitted on every poll after the first frame, also when the
+        window has no frames, so a client can compute the FPS between any
+        two polls, including the seconds in which a bursty pipeline passes
+        no frames.
+
+        Returns GLib.SOURCE_CONTINUE to keep firing every
+        _FPS_POLL_INTERVAL_SECONDS until the pipeline's main loop exits.
+
+        Also called one last time from ``_teardown`` (on a different thread)
+        to flush a final fps event for pipelines stopped/aborted before this
+        timer ever got to fire on its own; ``last_poll_time`` is therefore
+        read and updated under ``frame_count_lock``.
+        """
+        now = time.monotonic()
+        with inst.frame_count_lock:
+            read_at = time.time()
+            window_count = inst.frame_count
+            inst.frame_count = 0
+            total_count = inst.total_frame_count
+            counting = inst.first_frame_sent
+            frames_after = inst.frames_after_warmup
+            window_elapsed = now - inst.last_poll_time
+            inst.last_poll_time = now
+            # avg_fps is calculated only from frames after warmup period
+            total_elapsed = now - inst.warmup_frame_time if frames_after > 0 else 0
+
+        payload = {
+            "instance_id": inst.instance_id,
+            "event": "fps",
+        }
+
+        # Always emit last_fps when we have frames in the window (works during warmup)
+        if window_elapsed > 0 and window_count > 0:
+            payload["last_fps"] = window_count / window_elapsed
+            payload["frame_interval"] = window_elapsed
+
+        # Emit avg_fps only after warmup is complete
+        if total_elapsed > 0 and frames_after > 0:
+            payload["avg_fps"] = frames_after / total_elapsed
+
+        if counting:
+            payload["frame_count"] = total_count
+            payload["frame_count_time"] = read_at
+
+        if len(payload) > 2:  # More than just instance_id and event keys
+            _emit(payload)
+
+        return GLib.SOURCE_CONTINUE
+
+    # ------------------------------------------------------------------
+    # Pipeline lifecycle
+    # ------------------------------------------------------------------
+
+    def start(self, instance_id: str, pipeline_description: str, warmup_frames: int = 0, fps_element: Optional[str] = None) -> None:
+        """Parse and start a new pipeline hosted by this worker.
+
+        Bus watches and the FPS-poll timer are attached to the shared
+        default ``GLib.MainContext`` (serviced by the one long-lived main
+        loop thread started in :meth:`initialize`) rather than a private
+        context/loop pair, so starting a pipeline never spawns a new
+        long-lived thread.
+
+        Args:
+            instance_id: Unique identifier for this pipeline instance.
+            pipeline_description: GStreamer launch string describing the pipeline.
+            warmup_frames: Number of frames to skip before starting avg_fps calculation.
+        """
+        with self._lock:
+            if instance_id in self._instances:
+                _emit({"instance_id": instance_id, "event": "error", "reason": "duplicate instance_id"})
+                return
+
+        try:
+            pipeline = Gst.parse_launch(pipeline_description)
+        except Exception as exc:  # noqa: BLE001
+            _emit_start_failure(instance_id, f"parse failed: {exc!r}")
+            return
+
+        if not isinstance(pipeline, Gst.Pipeline):
+            _emit_start_failure(instance_id, "pipeline description did not produce a Gst.Pipeline")
+            return
+
+        try:
+            pipeline.set_property("name", instance_id)
+        except Exception as exc:  # noqa: BLE001
+            _emit_start_failure(instance_id, f"invalid instance_id as Gst name: {exc!r}")
+            return
+
+        if fps_element and GstWorker._fps_probe_pad(pipeline, fps_element) is None:
+            _emit_start_failure(instance_id, f"fps_element {fps_element!r} not found in pipeline")
+            return
+
+        inst = _Instance(instance_id=instance_id, pipeline=pipeline, warmup_frames=warmup_frames)
+
+        with self._lock:
+            self._instances[instance_id] = inst
+
+        bus = pipeline.get_bus()
+        bus.add_signal_watch()
+        inst.bus = bus
+
+        def _on_message(_bus, message):
+            mtype = message.type
+            if mtype == Gst.MessageType.ERROR:
+                err, debug = message.parse_error()
+                _emit({
+                    "instance_id": instance_id,
+                    "event": "error",
+                    "reason": err.message,
+                    "source": message.src.get_name() if message.src else None,
+                    "debug": debug,
+                })
+                self._teardown_async(instance_id)
+            elif mtype == Gst.MessageType.EOS:
+                _emit({"instance_id": instance_id, "event": "eos"})
+                self._teardown_async(instance_id)
+            elif mtype == Gst.MessageType.ELEMENT:
+                event = _metric_event(instance_id, message)
+                if event is not None:
+                    _emit(event)
+            return True
+
+        inst.bus_handler_id = bus.connect("message", _on_message)
+
+        # Count frames ourselves via pad probes on this pipeline's own
+        # sink element(s), then turn that into avg/last FPS values on a
+        # timer attached to the shared default context. Frame counting is
+        # still fully isolated per instance — no shared/native aggregation.
+        self._attach_fps_probes(pipeline, inst, fps_element)
+        inst.start_time = time.monotonic()
+        fps_source = GLib.timeout_source_new_seconds(_FPS_POLL_INTERVAL_SECONDS)
+        fps_source.set_callback(self._poll_fps, inst)
+        fps_source.attach(None)
+        inst.fps_source = fps_source
+
+        pipeline.set_state(Gst.State.PLAYING)
+        _emit({"instance_id": instance_id, "event": "started"})
+
+    def stop(self, instance_id: str) -> None:
+        """Request a graceful stop of one hosted pipeline (does not affect others)."""
+        with self._lock:
+            known = instance_id in self._instances
+        if not known:
+            # A start that failed never registers a pipeline, so there is nothing to tear down.
+            _emit({"instance_id": instance_id, "event": "stopped"})
+            return
+        self._teardown_async(instance_id)
+
+    def _teardown_async(self, instance_id: str) -> None:
+        """Tear down one instance on a short-lived, dedicated thread.
+
+        ``Gst.State.NULL`` transitions can block for a noticeable amount of
+        time, so teardown must never run inline on the shared main loop
+        thread — doing so would stall bus/timer dispatch for every *other*
+        hosted pipeline. A stop request and a racing EOS/ERROR bus message
+        can both try to tear down the same instance; popping it from
+        ``self._instances`` under the lock makes only one of them win.
+        """
+        threading.Thread(
+            target=self._teardown,
+            args=(instance_id,),
+            name=f"teardown-{instance_id[:8]}",
+            daemon=True,
+        ).start()
+
+    def _teardown(self, instance_id: str) -> None:
+        with self._lock:
+            inst = self._instances.pop(instance_id, None)
+        if inst is None:
+            return  # already torn down by a racing stop/EOS/error
+
+        if inst.fps_source is not None:
+            inst.fps_source.destroy()
+        # Flush a final fps event now, covering whatever frames/time the
+        # periodic timer above hasn't reported yet. Without this, a pipeline
+        # stopped/aborted within the first _FPS_POLL_INTERVAL_SECONDS of
+        # running never gets a single "fps" event and reports 0 fps even
+        # though it was processing frames.
+        self._poll_fps(inst)
+        if inst.bus is not None:
+            try:
+                inst.bus.disconnect(inst.bus_handler_id)
+            except Exception:  # noqa: BLE001
+                pass
+            inst.bus.remove_signal_watch()
+        inst.pipeline.set_state(Gst.State.NULL)
+
+        # Each GstBus owns a GstPoll socketpair (2 fds), and probe/timer callbacks hold the instance; drop all of them.
+        for pad, probe_id in inst.probes:
+            pad.remove_probe(probe_id)
+        inst.probes.clear()
+        inst.bus = None
+        inst.fps_source = None
+        del inst.pipeline
+        _emit({"instance_id": instance_id, "event": "stopped"})
+
+    def shutdown(self) -> None:
+        """Stop every hosted pipeline, then stop the shared main loop."""
+        with self._lock:
+            instance_ids = list(self._instances.keys())
+
+        threads = [
+            threading.Thread(target=self._teardown, args=(instance_id,), daemon=True)
+            for instance_id in instance_ids
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+
+        if self._loop is not None:
+            self._loop.quit()
+        if self._loop_thread is not None:
+            self._loop_thread.join(timeout=5)
+
+    # ------------------------------------------------------------------
+    # Control loop (reads commands from stdin)
+    # ------------------------------------------------------------------
+
+    def run(self) -> int:
+        """Initialize GStreamer, then process control commands until shutdown."""
+        self.initialize()
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                command = json.loads(line)
+            except json.JSONDecodeError as exc:
+                logger.error("Invalid control command (not JSON): %s (%r)", line, exc)
+                continue
+
+            cmd = command.get("cmd")
+            if cmd == "start":
+                self.start(
+                    command["instance_id"],
+                    command["pipeline"],
+                    warmup_frames=command.get("warmup_frames", 0),
+                    fps_element=command.get("fps_element"),
+                )
+            elif cmd == "stop":
+                self.stop(command["instance_id"])
+            elif cmd == "shutdown":
+                break
+            else:
+                logger.error("Unknown command: %s", command)
+
+        self.shutdown()
+        return 0
+
+
+def main() -> int:
+    # Native code (e.g. gvafpscounter) writes to fd 1, so the event channel gets a private fd and fd 1 goes to stderr.
+    sys.stdout.flush()
+    sys.stdout = os.fdopen(os.dup(1), "w", buffering=1)
+    os.dup2(2, 1)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(_JsonLogFormatter())
+    level = getattr(logging, os.environ.get("APP_LOG_LEVEL", "INFO").upper(), logging.INFO)
+    logging.basicConfig(level=level, handlers=[handler])
+    worker = GstWorker()
+    return worker.run()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

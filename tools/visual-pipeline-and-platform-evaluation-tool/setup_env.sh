@@ -1,30 +1,49 @@
 #!/bin/bash
 
 # This script automatically detects the available device (NPU, GPU, or CPU)
-# and writes COMPOSE_PROFILES, RENDER_GROUP_ID, and DOCKER_TAG to the .env file.
+# and writes COMPOSE_PROFILES, RENDER_GROUP_ID, DOCKER_TAG, PREBUILT_TAG, and GIT_REVISION
+# to the .env file. DOCKER_TAG and PREBUILT_TAG can be overridden from the environment.
 
-VERSION=2026.2.0-rc1
+VERSION=2026.3.0-rc1
+# Published images run by `make run-prebuilt`: `latest` on main, the release version on a release branch.
+if [[ "$VERSION" == *-dev ]]; then DEFAULT_PREBUILT_TAG=latest; else DEFAULT_PREBUILT_TAG="$VERSION"; fi
 COMPOSE_PROFILES=""
 RENDER_GROUP_ID=""
-TIMESERIES_ANALYTICS_MICROSERVICE_IMAGE_SUFFIX="2026.2.0"
-TIMESERIES_ANALYTICS_MICROSERVICE_WEEKLY_BUILD_DATE="20260721"
+TIMESERIES_ANALYTICS_MICROSERVICE_IMAGE_SUFFIX="2026.3.0-rc1"
+TIMESERIES_ANALYTICS_MICROSERVICE_WEEKLY_BUILD_DATE=""
+# GID of the host 'video' group, required by sensor-manager to open /dev/video* devices
+VIDEO_GID="$(getent group video | cut -d: -f3)"
+VIDEO_GID="${VIDEO_GID:-44}"
+
+# Git commit hash for the currently checked-out source tree, exposed via
+# GET /status as VIPPET_REVISION (see Dockerfile / compose.yml / app_version.py).
+# Falls back to "unknown" when not run from within a git repository (e.g. an
+# extracted source tarball). Suffixed with "-dirty" when the working tree
+# has uncommitted changes, so it stays visually distinct from a clean build.
+# This is a monorepo, so the dirty check is scoped to this tool's own
+# directory (via the pathspec "-- .") and does not trigger on changes
+# elsewhere in the repository.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GIT_REVISION="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+if [ "$GIT_REVISION" != "unknown" ] && [ -n "$(git -C "$SCRIPT_DIR" status --porcelain -- . 2>/dev/null)" ]; then
+    GIT_REVISION="${GIT_REVISION}-dirty"
+fi
 
 # Get host IP addresses as a comma-separated list
 HOST_IPS="$(hostname -I | xargs | tr ' ' ',')"
 
 # Check for NPU device
-if compgen -G "/dev/accel*" > /dev/null; then
+if compgen -G "/dev/accel/accel*" > /dev/null; then
     # NPU device found, using NPU profile and render group
     COMPOSE_PROFILES="npu"
     RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+elif [ -c /dev/dxg ]; then
+    COMPOSE_PROFILES="gpu-wsl"
+    RENDER_GROUP_ID=""
 elif compgen -G "/dev/dri/render*" > /dev/null; then
     # GPU device found, using GPU profile and render group
     COMPOSE_PROFILES="gpu"
     RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
-elif [ -c /dev/dxg ]; then
-    # WSL GPU device found, using WSL GPU profile
-    COMPOSE_PROFILES="gpu-wsl"
-    RENDER_GROUP_ID=""
 else
     # No NPU or GPU device found, falling back to CPU
     echo "No GPU or NPU device was found in the system, so only CPU will be used. This may be because the appropriate drivers have not been installed."
@@ -38,9 +57,12 @@ cat > .env <<EOF
 HOST_IPS=${HOST_IPS}
 COMPOSE_PROFILES=${COMPOSE_PROFILES}
 RENDER_GROUP_ID=${RENDER_GROUP_ID}
-DOCKER_TAG=${VERSION}
+DOCKER_TAG=${DOCKER_TAG:-${VERSION}}
+PREBUILT_TAG=${PREBUILT_TAG:-${DEFAULT_PREBUILT_TAG}}
+GIT_REVISION=${GIT_REVISION}
 IMAGE_SUFFIX=${TIMESERIES_ANALYTICS_MICROSERVICE_IMAGE_SUFFIX}
 WEEKLY_BUILD_DATE=${TIMESERIES_ANALYTICS_MICROSERVICE_WEEKLY_BUILD_DATE}
 TIMESERIES_UID=2999
 TIMESERIES_USER_NAME=timeseries_user
+VIDEO_GID=${VIDEO_GID}
 EOF

@@ -8,6 +8,38 @@
 #include <string>
 #include <vector>
 
+// ---------------------------------------------------------------------------
+// Component-level performance profiling (opt-in, off by default).
+//
+// Opt-in per-stage profiling (KVWEAVE_QUANT_PROFILE=1 or
+// quant_profile_set_enabled(true)). When enabled, always uses the multi-kernel
+// global-memory path so each stage is timed separately; results are numerically
+// unchanged. When disabled: fused single-kernel for chunk_size <= MAX_SLM_CHUNK,
+// otherwise the multi-kernel global-memory path, with no added overhead.
+// ---------------------------------------------------------------------------
+enum class QuantStage {
+    LoadGather = 0,
+    Hadamard,
+    ReduceQuantize,
+    Pack4bit,
+    Unpack4bit,
+    DequantLoad,
+    HadamardInverse,
+    PrecondWriteback,
+    Count
+};
+
+struct QuantStageStat {
+    const char* name;
+    uint64_t total_ns;
+    uint64_t calls;
+};
+
+void quant_profile_set_enabled(bool enabled);
+bool quant_profile_is_enabled();
+void quant_profile_reset();
+std::vector<QuantStageStat> quant_profile_snapshot();
+
 struct sycl_quantization_args {
     int qbit;
     int blocks_num;
@@ -18,8 +50,31 @@ struct sycl_quantization_args {
     bool asym;
     std::string scaling_method;
 
-    const int32_t* perm = nullptr;   // device pointer, length = hadamard_size
-    const float*   signs = nullptr;  // device pointer, length = hadamard_size
+    // Number of layers stacked contiguously in src/dst (element_count spans
+    // all of them). Each layer is quantized independently with its own
+    // scale/zero-point. Default 1.
+    int64_t num_layers = 1;
+
+    // > 0: src is fused [num_layers / fused_src_head_num, tokens,
+    // fused_src_head_num * head_dim] and is read per (layer, head) unit in
+    // place; dst/scales keep the split [num_layers, tokens, head_dim] layout.
+    // Quantize only; per_channel/per_token only.
+    int64_t fused_src_head_num = 0;
+
+    // Dequantize counterpart: > 0 writes dst as fused [num_layers /
+    // fused_dst_head_num, tokens, fused_dst_head_num * head_dim] while src and
+    // scales keep the split layout. per_channel/per_token only.
+    int64_t fused_dst_head_num = 0;
+
+    // Preconditioning: forward permutation P and sign-flip diagonal D for
+    // H·D·P·x, used as-is (gather) by the global-memory path.
+    const int32_t* perm = nullptr;   // device pointer, length = chunk_size
+    const float*   signs = nullptr;  // device pointer, length = chunk_size
+
+    // inv_perm = argsort(perm), signs_reordered = signs[inv_perm]; used by the
+    // SLM path to read/write src/dst in coalesced order and permute only into SLM.
+    const int32_t* inv_perm = nullptr;        // device pointer, length = chunk_size
+    const float*   signs_reordered = nullptr; // device pointer, length = chunk_size
 };
 
 // Quantize KV cache data on XPU.

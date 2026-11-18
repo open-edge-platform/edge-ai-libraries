@@ -2,6 +2,7 @@ import csv
 import io
 import logging
 import time
+from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, Response
@@ -587,6 +588,12 @@ async def export_benchmark_suite_run_csv(
             "media",
             "memory",
             "power",
+            "latency_avg_ms",
+            "latency_avg_stddev_ms",
+            "latency_max_ms",
+            "latency_max_stddev_ms",
+            "latency_min_ms",
+            "latency_min_stddev_ms",
             "status",
         ]
 
@@ -637,13 +644,26 @@ async def export_benchmark_suite_run_csv(
                         test_row.media_usage,
                         test_row.memory_usage,
                         test_row.power_usage,
+                        test_row.latency_avg_ms,
+                        test_row.latency_avg_stddev_ms,
+                        test_row.latency_max_ms,
+                        test_row.latency_max_stddev_ms,
+                        test_row.latency_min_ms,
+                        test_row.latency_min_stddev_ms,
                         status.value,
                     ]
                 )
 
             writer.writerow([])
 
-        filename = f"{suite.slug}-run-{suite_run.id}.csv"
+        timestamp = (
+            datetime.fromtimestamp(suite_run.start_time / 1000).strftime(
+                "%Y-%m-%d-%H-%M-%S"
+            )
+            if suite_run.start_time is not None
+            else "unknown"
+        )
+        filename = f"{suite.slug}-results-{timestamp}-{suite_run.id}.csv"
         return Response(
             content=output.getvalue(),
             media_type="text/csv",
@@ -801,6 +821,12 @@ async def get_benchmark_suite_run_by_id(
                     media_usage=row.media_usage,
                     memory_usage=row.memory_usage,
                     power_usage=row.power_usage,
+                    latency_avg_ms=row.latency_avg_ms,
+                    latency_avg_stddev_ms=row.latency_avg_stddev_ms,
+                    latency_max_ms=row.latency_max_ms,
+                    latency_max_stddev_ms=row.latency_max_stddev_ms,
+                    latency_min_ms=row.latency_min_ms,
+                    latency_min_stddev_ms=row.latency_min_stddev_ms,
                     score_total=row.score_total,
                     score_performance=row.score_performance,
                     score_efficiency=row.score_efficiency,
@@ -1045,6 +1071,12 @@ async def get_benchmark_test_run_by_id(
             media_usage=test_case_run.media_usage,
             memory_usage=test_case_run.memory_usage,
             power_usage=test_case_run.power_usage,
+            latency_avg_ms=test_case_run.latency_avg_ms,
+            latency_avg_stddev_ms=test_case_run.latency_avg_stddev_ms,
+            latency_max_ms=test_case_run.latency_max_ms,
+            latency_max_stddev_ms=test_case_run.latency_max_stddev_ms,
+            latency_min_ms=test_case_run.latency_min_ms,
+            latency_min_stddev_ms=test_case_run.latency_min_stddev_ms,
             score_total=test_case_run.score_total,
             score_performance=test_case_run.score_performance,
             score_efficiency=test_case_run.score_efficiency,

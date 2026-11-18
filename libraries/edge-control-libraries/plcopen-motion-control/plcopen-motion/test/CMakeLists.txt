@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2025 Intel Corporation
 if(TEST)
+  # With PLOT enabled, each ordinary test records subject-specific PNG plots
+  # in its working directory. XML results list them in the plot_files property.
+  # test_plot.hpp shares trace rendering, including stacked FB signal panels.
   # Create scurve test executable
   add_executable(offline_scurve_test offline_scurve_test.cpp)
   target_link_libraries(offline_scurve_test
@@ -54,6 +57,28 @@ if(TEST)
     )
   endif()
 
+  # Create MC_Stop with PLCopen blending test executable
+  add_executable(mc_stop_blending_test mc_stop_blending_test.cpp)
+  if(SRC_BUILD)
+    target_link_libraries(mc_stop_blending_test
+      rtm_fb_com
+      rtm_fb_pub
+      rtm_fb_pri
+      ${GTEST_BOTH_LIBRARIES}
+      ${PYTHON_LIBRARIES}
+      -lpthread
+    )
+  else()
+    target_link_libraries(mc_stop_blending_test
+      rtm_fb_com
+      rtm_fb_pub
+      ${RTMOTION_FB_PRIVATE_LIBRARY}
+      ${GTEST_BOTH_LIBRARIES}
+      ${PYTHON_LIBRARIES}
+      -lpthread
+    )
+  endif()
+
   # Create IO operation function block test executable
   add_executable(io_operation_test io_operation_test.cpp)
   if(SRC_BUILD)
@@ -77,7 +102,7 @@ if(TEST)
   endif()
 
   # Install test executables
-  install(TARGETS offline_scurve_test online_scurve_test planner_test function_block_test io_operation_test
+  install(TARGETS offline_scurve_test online_scurve_test planner_test function_block_test mc_stop_blending_test io_operation_test
           RUNTIME DESTINATION ${INSTALL_BINDIR}
   )
 endif(TEST)

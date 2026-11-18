@@ -1,0 +1,30 @@
+This file contains the list of third party software ("third party programs")
+that sift-extractor depends on or includes, together with their required
+notices and/or license terms. This third party software, even if included with
+the distribution of the Intel software, may be governed by separate license
+terms, including third party license terms and open source software license
+terms.
+
+sift-extractor itself is licensed under Apache-2.0 (see LICENSES/Apache-2.0.txt).
+
+===========================================================
+
+1) Scale-Invariant Feature Transform (SIFT)
+   Author: David G. Lowe
+   Reference: David G. Lowe, "Distinctive Image Features from Scale-Invariant
+   Keypoints," International Journal of Computer Vision, vol. 60, no. 2,
+   pp. 91-110, 2004.
+
+   This component implements the SIFT feature extraction and matching method
+   described in the work above. The algorithm is used for research and
+   product evaluation; citation of the original publication is requested by
+   the author.
+
+===========================================================
+
+2) CudaSift (SYCL reference mechanics baseline)
+   Upstream: https://github.com/Celebrandil/CudaSift
+   Commit: 7bbfacf (MIT License)
+
+   Portions of src/sycl_reference/ are derived from CudaSift and retain the
+   original MIT license terms. See LICENSES/MIT.txt for the full license text.

@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Opt-in: copy to /etc/metrics-manager/telegraf.d/temperature.conf and restart
+# metrics-manager-telegraf.service. The ordinary 1s package temperature remains
+# available; this adds 100ms samples and 1s min/max/mean.
+
+[[inputs.temp]]
+  interval = "100ms"
+  name_override = "temp_highres"
+
+[[processors.starlark]]
+  namepass = ["temp_highres"]
+  source = '''
+def apply(metric):
+    return metric if metric.tags.get("sensor", "").startswith("coretemp_package_id_") else None
+'''
+
+[[aggregators.basicstats]]
+  namepass = ["temp_highres"]
+  period = "1s"
+  drop_original = false
+  stats = ["min", "max", "mean"]

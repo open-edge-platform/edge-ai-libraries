@@ -9,9 +9,9 @@
 #               (intel/metrics-manager:<X.Y.Z>      = Docker image,
 #                intel/metrics-manager:<X.Y.Z>-helm = Helm chart).
 # `appVersion`  Default container image tag the chart will deploy.
-#               Always equal to ./VERSION at the repository root.
+#               Validated application release, versioned independently.
 #
-# Both fields are kept in sync by `make bump NEW=...`.
+# Update both fields explicitly after validating a new application release.
 apiVersion: v2
 name: metrics-manager
 description: |
@@ -21,8 +21,8 @@ description: |
   with a FastAPI REST surface and a Server-Sent Events stream suitable
   for live dashboards.
 type: application
-version: 2026.1.0-helm
-appVersion: "2026.1.0"
+version: 2026.3.0-helm
+appVersion: "2026.3.0"
 keywords:
   - metrics
   - telemetry

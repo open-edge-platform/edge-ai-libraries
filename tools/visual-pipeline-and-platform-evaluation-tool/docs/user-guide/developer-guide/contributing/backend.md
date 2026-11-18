@@ -2,7 +2,8 @@
 
 The ViPPET backend lives in [`vippet/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet).
 It is a Python 3.12 / FastAPI service that exposes a REST API on port `7860`,
-orchestrates GStreamer + DL Streamer pipelines as subprocesses, runs
+orchestrates GStreamer + DL Streamer pipelines that run on DL Streamer
+Pipeline Server 2.0 (the `dlstreamer-pipeline-server` service), runs
 benchmarks, and proxies model installation to the `model-download`
 microservice.
 
@@ -35,7 +36,7 @@ vippet/
 ├── managers/             # Business logic; thread-safe singletons
 │   ├── pipeline_manager.py
 │   ├── pipeline_template_manager.py
-│   ├── camera_manager.py
+│   ├── camera_manager.py # Client of the sensor-manager microservice
 │   ├── model_manager.py
 │   ├── metadata_manager.py
 │   ├── optimization_manager.py
@@ -43,17 +44,24 @@ vippet/
 │   ├── app_state_manager.py
 │   └── tests_manager.py
 ├── pipelines/            # Built-in GStreamer pipeline YAMLs + loader
+├── models/               # Model catalog, one YAML file per model
+├── benchmarks/           # Benchmark suite YAMLs + loader
 ├── graph.py              # In-memory pipeline graph (parse / serialize / simple view)
-├── pipeline_runner.py    # Subprocess-based pipeline executor
-├── gst_runner.py         # Low-level GStreamer runner (invoked as subprocess)
+├── dlsps2_runner.py      # Runs pipelines on DL Streamer Pipeline Server 2.0 (REST)
+├── dlsps2_optimizer.py   # Runs the DL Streamer pipeline optimizer on the server (REST)
+├── pipeline_events.py    # Live pipeline events read back from JSON Lines files
+├── pipeline_runner.py    # Pipeline run result types
 ├── benchmark.py          # Density benchmarking
 ├── video_encoder.py      # Encoding / live-streaming sub-pipelines
 ├── video_decoder.py      # Decoder selection / caps building
-├── device.py             # OpenVINO device detection (CPU/GPU/NPU)
-├── camera.py             # Camera enumeration helpers
+├── device.py             # Device list (CPU/GPU/NPU) from DLSPS 2.0
+├── cpu_topology.py       # CPU core types (P/E/LPE) from Linux sysfs
 ├── videos.py             # Input/output video management
 ├── images.py             # Image set management
-├── models.py             # Supported models catalog
+├── models.py             # In-memory read cache of the models/model_variants DB tables
+├── orm_models.py         # SQLAlchemy ORM models (pipelines, benchmarks, models)
+├── database.py           # Async SQLAlchemy engine/session setup, schema creation
+├── db_seed.py            # Startup DB seeding from pipelines/*.yaml, benchmarks/*.yaml, models/*.yaml
 ├── resources.py          # Shared resource managers (labels, scripts, model-procs)
 ├── utils.py              # Generic helpers (ids, timestamps, slugify, ...)
 ├── internal_types.py     # Internal dataclasses used between managers
@@ -69,23 +77,34 @@ A few invariants worth knowing:
   Create them with `Manager()`, do not pass instances around.
 - The `vippet/` package uses **relative imports** and is meant to be run from
   the container context (`PYTHONPATH=/app`). Tests run inside the same image.
-- GStreamer pipelines are **not** executed in-process. `pipeline_runner.py`
-  builds a command line and starts `gst_runner.py` as a subprocess.
-- OpenVINO™ device detection (`device.py`) happens at startup and drives
-  which hardware profile (`cpu`, `gpu`, `npu`) is selected at compose time.
+- GStreamer pipelines are **not** executed in-process. `dlsps2_runner.py`
+  sends every pipeline to DL Streamer Pipeline Server 2.0 over REST, one
+  server instance per stream. `dlsps2_optimizer.py` runs the DL Streamer
+  pipeline optimizer as a server job (`POST /optimize`).
+- `setup_env.sh` selects the Compose hardware profile (`cpu`, `gpu`, `npu`, `gpu-wsl`).
+  `device.py` reads the available inference devices from the server's
+  `GET /devices` on first use and caches them; they determine the devices
+  listed by the API and the pipeline variants loaded at startup.
+- The model catalog (`vippet/models/*.yaml`, one file per model) is copied
+  into the image at build time, not runtime-mounted. `db_seed.py` syncs it
+  into the `models`/`model_variants` DB tables at startup, insert-only:
+  existing rows are never updated or removed when a YAML file changes.
+  Adding or editing a model file therefore requires an image rebuild
+  (`make build`) unless you are running with `compose.dev.yml`, which
+  bind-mounts the whole `vippet/` source tree (a restart is then enough).
 
 ## Tech stack
 
-| Layer            | Technology                                          |
-| ---------------- | --------------------------------------------------- |
-| Language         | Python 3.12                                         |
-| Web framework    | FastAPI + uvicorn                                   |
-| Validation       | Pydantic v2                                         |
-| AI inference     | OpenVINO™ 2025.x, DL Streamer 2026.x, GStreamer 1.0 |
-| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol      |
-| Containerization | Docker Compose (profiles: `cpu`, `gpu`, `npu`)      |
-| Lint / type      | ruff, pyright (strict)                              |
-| Tests            | unittest + coverage (unit), pytest (functional)     |
+| Layer            | Technology                                           |
+| ---------------- | ---------------------------------------------------- |
+| Language         | Python 3.12                                          |
+| Web framework    | FastAPI + uvicorn                                    |
+| Validation       | Pydantic v2                                          |
+| AI inference     | OpenVINO™ 2025.x, DL Streamer 2026.x, GStreamer 1.0  |
+| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol       |
+| Containerization | Docker Compose                                       |
+| Lint / type      | ruff, pyright (strict)                               |
+| Tests            | unittest + coverage (unit), pytest (functional)      |
 
 ## Local development loop
 
@@ -156,9 +175,12 @@ def process(data: list[dict[str, int]] | None) -> bool:
 - Acquire a logger with `logging.getLogger(__name__)` (or a stable
   manager-specific name such as `"PipelineManager"`).
 - Levels are configured by environment variables:
-  `APP_LOG_LEVEL` (application), `RUNNER_LOG_LEVEL` (`gst_runner.py`
-  subprocess), `WEB_SERVER_LOG_LEVEL` (uvicorn), `GST_DEBUG` (GStreamer
-  native, integer `0-9`).
+  `APP_LOG_LEVEL` (application), `WEB_SERVER_LOG_LEVEL` (uvicorn),
+  `GST_DEBUG` (GStreamer native, integer `0-9`).
+- Pipelines run in the `dlstreamer-pipeline-server` container, which has
+  its own `APP_LOG_LEVEL` and `GST_DEBUG` in `compose.yml`. Read its log
+  with `docker logs dlstreamer-pipeline-server`, or open a shell in it with
+  `make shell-dlsps`.
 
 ## Tests
 
@@ -213,10 +235,11 @@ Prerequisites:
   `VIPPET_BASE_URL` environment variable.
 - The models the tests rely on must already be **installed** through the
   Models page in the UI (or the `/api/v1/models` endpoints):
-  - `make test-smoke` needs the default models (those marked
-    `default: true` in `shared/models/supported_models.yaml`).
-  - `make test-full` needs **all** models listed in
-    `shared/models/supported_models.yaml`.
+  - `make test-smoke` needs the default-recommended models (those with
+    `default: true` in the API response, computed from models referenced
+    by at least one predefined pipeline).
+  - `make test-full` needs **all** models defined under
+    `vippet/models/*.yaml` (one YAML file per model).
 
 Tests that depend on optional hardware adapt automatically: pipeline
 variants are selected from the devices reported by `/devices`, and USB
@@ -293,14 +316,14 @@ change, the most common cause is that one of these two steps was skipped.
 ## Adding a new route, quick checklist
 
 1. Add or extend a Pydantic model in `vippet/api/api_schemas.py`.
-2. Create the handler in `vippet/api/routes/<resource>.py` (or a new
+1. Create the handler in `vippet/api/routes/<resource>.py` (or a new
    module, registered in `vippet/api/main.py`).
-3. Use `async def`, type hints, and a markdown docstring with response
+1. Use `async def`, type hints, and a markdown docstring with response
    codes and examples.
-4. Delegate business logic to the appropriate manager, keep route
+1. Delegate business logic to the appropriate manager, keep route
    handlers thin.
-5. Add unit tests under `vippet/tests/unit/api_tests/`.
-6. Run `make lint test`, then `make generate_openapi`, then
+1. Add unit tests under `vippet/tests/unit/api_tests/`.
+1. Run `make lint test`, then `make generate_openapi`, then
    `cd ui && npm run generate:api`.
 
 ## Important constraints

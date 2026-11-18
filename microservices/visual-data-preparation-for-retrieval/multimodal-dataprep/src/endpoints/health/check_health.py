@@ -45,17 +45,42 @@ async def check_health() -> HealthResponse:
     # Report the active storage backend.
     health_status["storage_backend"] = settings.STORAGE_BACKEND
 
+    # Report live-stream ingestion status so a monitor can spot a camera that
+    # silently moved to 'error' without polling every stream.
+    health_status["live_streams_enabled"] = settings.LIVE_STREAM_ENABLED
+    if settings.LIVE_STREAM_ENABLED:
+        try:
+            from src.core.live import get_live_stream_manager
+
+            health_status["live_streams"] = get_live_stream_manager().counts()
+        except Exception:  # pragma: no cover - health must never fail on this
+            health_status["live_streams"] = {"total": 0}
+
     try:
         from src.core.utils.config_utils import get_config
 
         detection_config = get_config().get("object_detection", {})
-        health_status["detection_model"] = detection_config.get("model_name") or "yolox_s"
-        health_status["detection_device"] = (
-            detection_config.get("device") or settings.DETECTION_DEVICE or "CPU"
-        )
+        detection_enabled = bool(detection_config.get("enabled"))
+        health_status["detection_model"] = detection_config.get("model_name")
+        health_status["detection_device"] = detection_config.get("device") or "CPU"
+        classes = detection_config.get("classes")
+        health_status["detection_classes"] = list(classes) if classes else None
     except Exception:
-        health_status["detection_model"] = "yolox_s"
+        detection_enabled = bool(settings.ENABLE_OBJECT_DETECTION)
+        health_status["detection_model"] = settings.DETECTION_MODEL_NAME
         health_status["detection_device"] = settings.DETECTION_DEVICE or "CPU"
+
+    try:
+        from src.core.embedding.embedding_helper import _global_detector
+
+        if not detection_enabled:
+            health_status["detection_status"] = "disabled"
+        else:
+            health_status["detection_status"] = (
+                "ready" if _global_detector is not None else "not_loaded"
+            )
+    except Exception:
+        health_status["detection_status"] = "not_loaded"
 
     # Check whether the embedding client is preloaded
     try:

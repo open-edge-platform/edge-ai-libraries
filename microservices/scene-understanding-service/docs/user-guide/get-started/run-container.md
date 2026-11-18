@@ -71,6 +71,20 @@ they resolve each other by container name. Behavioral analysis is integrated
 over MQTT (topics `ba/requests` / `ba/results`) — no direct URL wiring is
 needed.
 
+## Docker Network
+
+The bundled `docker-compose.yml` attaches the service to the Scenescape Docker
+network so it can resolve the broker and REST API hostnames. The network is
+controlled by two variables (set them in `.env` or the shell):
+
+| Variable                      | Default                 | Description                                           |
+| ----------------------------- | ----------------------- | ----------------------------------------------------- |
+| `SCENESCAPE_NETWORK_NAME`     | `scenescape_scenescape` | Shared Docker network name (see `docker network ls`). |
+| `SCENESCAPE_NETWORK_EXTERNAL` | `false`                 | `true` requires the network to already exist.         |
+
+With the default `false`, Compose creates the network if it is missing, or
+joins it if the Scenescape deployment already created it.
+
 ## Start
 
 ```bash

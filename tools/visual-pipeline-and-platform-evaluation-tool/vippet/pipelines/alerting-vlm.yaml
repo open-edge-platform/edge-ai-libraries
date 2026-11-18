@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: Alerting VLM
+definition: >
+  Traffic safety pipeline that streams video while a vision-language model
+  detects and briefly describes dangerous behavior by road users.
+tags:
+  - GenAi
+  - Safety and Security
+thumbnail: images/alerting-vlm.png
+type: vision
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location=/videos/input/auto/dangerous_traffic.mp4 !
+      decodebin3 !
+      tee name=t !
+      queue !
+      videoconvert !
+      fakesink name=default_output_sink sync=false async=false
+      t. !
+      queue leaky=downstream max-size-buffers=1 !
+      videoconvert !
+      video/x-raw,format=RGB !
+      gvagenai
+        model-path=/models/output/openvino_models/cpu/INT4/google/gemma-3-4b-it
+        device=CPU
+        prompt="Can you see any dangerous behavior by road users on the road? Answer Yes or No, and briefly describe the event."
+        generation-config="max_new_tokens=128"
+        frame-rate=1
+        chunk-size=4
+        metrics=true !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=10 !
+      fakesink sync=false async=false
+  - name: GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/auto/dangerous_traffic.mp4 !
+      parsebin !
+      avdec_h264 !
+      tee name=t !
+      queue !
+      videoconvert !
+      fakesink name=default_output_sink sync=false async=false
+      t. !
+      queue leaky=downstream max-size-buffers=1 !
+      videoconvert !
+      video/x-raw,format=RGB !
+      gvagenai
+        model-path=/models/output/openvino_models/gpu/INT4/google/gemma-3-4b-it
+        device=GPU
+        prompt="Can you see any dangerous behavior by road users on the road? Answer Yes or No, and briefly describe the event."
+        generation-config="max_new_tokens=128"
+        frame-rate=1
+        chunk-size=4
+        metrics=true !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=10 !
+      fakesink sync=false async=false

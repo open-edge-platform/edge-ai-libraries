@@ -1,17 +1,17 @@
 # Release Notes: Document Summarization Sample Application
 
-## Version 2026.2.0
+## Version 2026.3.0
 
-<!--date TBD-->
+**November 2026**
 
-**Fixed:**
+**Improved**
 
-- Added NLTK_DATA environment variable and improved NLTK corpus download with quiet mode and fail-fast error handling during image builds
+- **OpenVINO Model Server Upgrade**: upgraded OpenVINO Model Server to 2026.3 across Docker Compose, Helm charts, setup scripts, and model export instructions.
+- **Default LLM Model**: changed the default LLM from microsoft/Phi-4 to Qwen/Qwen3-4B-Instruct-2507 in the Makefile, Helm values, and documentation.
+- **Security**: updated package versions and the container image to address known security vulnerabilities.
+- **Documentation**: standardized admonitions and updated references and branch checkout instructions in the user guide.
 
-**Known Issues:**
-
-- EMF Deployment package is not supported.
-- Summary time depends on the size and complexity (image, tables, cross references) of the document.
+---
 
 ## Version 2026.1.0
 

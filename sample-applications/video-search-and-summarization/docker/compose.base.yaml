@@ -47,6 +47,7 @@ services:
       MINIO_HOST: ${MINIO_HOST:-minio-service}
       MINIO_PORT: ${MINIO_PORT:-80}
       MINIO_BUCKET: ${PM_MINIO_BUCKET:-video-summary}
+      PM_PUBLIC_BASE_URL: ${PM_PUBLIC_BASE_URL:-}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       DB_HOST: ${POSTGRES_HOST:-postgres-service}
@@ -66,13 +67,31 @@ services:
       SEARCH_DATAPREP_POLL_MAX_RETRIES: ${SEARCH_DATAPREP_POLL_MAX_RETRIES:-3}
       SEARCH_DATAPREP_POLL_TIMEOUT_MS: ${SEARCH_DATAPREP_POLL_TIMEOUT_MS:-10000}
       SEARCH_DATAPREP_POLL_RETRY_DELAY_MS: ${SEARCH_DATAPREP_POLL_RETRY_DELAY_MS:-500}
+      SEARCH_QUERY_TIMEOUT_MS: ${SEARCH_QUERY_TIMEOUT_MS:-30000}
+      # Auto-refresh of watched ("checked") search queries. New embeddings mark
+      # the index dirty; watched queries are re-run on this cadence only when
+      # something new was indexed since the previous refresh.
+      SEARCH_WATCH_REFRESH_ENABLED: ${SEARCH_WATCH_REFRESH_ENABLED:-true}
+      SEARCH_WATCH_REFRESH_INTERVAL_MS: ${SEARCH_WATCH_REFRESH_INTERVAL_MS:-10000}
+      SEARCH_WATCH_REFRESH_QUIET_PERIOD_MS: ${SEARCH_WATCH_REFRESH_QUIET_PERIOD_MS:-2000}
+      SEARCH_WATCH_REFRESH_BATCH_SIZE: ${SEARCH_WATCH_REFRESH_BATCH_SIZE:-10}
+      SEARCH_WATCH_REFRESH_MIN_QUERY_INTERVAL_MS: ${SEARCH_WATCH_REFRESH_MIN_QUERY_INTERVAL_MS:-10000}
+      SEARCH_WATCH_REFRESH_MAX_QUERIES_PER_TICK: ${SEARCH_WATCH_REFRESH_MAX_QUERIES_PER_TICK:-50}
+      # Intersection locations for Map View: intersections API first, file as fallback.
+      GEO_API_URL: ${GEO_API_URL:-}
+      GEO_FALLBACK_FILE: /app/config/geo-intersections.json
+      GEO_REFRESH_MS: ${GEO_REFRESH_MS:-60000}
+      GEO_TIMEOUT_MS: ${GEO_TIMEOUT_MS:-3000}
+    volumes:
+      - ${GEO_INTERSECTIONS_FILE:-../config/geo-intersections.json}:/app/config/geo-intersections.json:ro
     restart: unless-stopped
     user: "0:0"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
+      interval: 5s
       timeout: 10s
-      retries: 3
+      retries: 60
+      start_period: 15s
     networks:
       - vs_network
 

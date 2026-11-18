@@ -7,10 +7,10 @@
       "id": 1,
       "name": "bringup-and-health",
       "prompt": "Give me an exact runbook to start Intel Multimodal DataPrep with the default prebuilt VDMS and MinIO stack and verify readiness. Do not launch containers.",
-      "expected_output": "Exports placeholder MinIO credentials and an embedding model, sources setup.sh --nosetup, starts docker/compose.yaml with --no-build, requires embedding_client_status=preloaded, and checks MinIO and VDMS separately.",
+      "expected_output": "Exports placeholder MinIO credentials, an embedding model and a detection model, sources setup.sh --nosetup, starts docker/compose.yaml with --no-build, requires embedding_client_status=preloaded, and checks MinIO and VDMS separately.",
       "expectations": [
         "Uses the intel/multimodal-dataprep prebuilt image through setup.sh --nosetup and docker compose --no-build",
-        "Uses placeholder values for MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, and EMBEDDING_MODEL_NAME",
+        "Uses placeholder values for MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, EMBEDDING_MODEL_NAME, and MM_DATAPREP_DETECTION_MODEL_NAME",
         "Checks GET /v1/dataprep/health for embedding_client_status=preloaded",
         "Separately checks MinIO and VDMS reachability"
       ]

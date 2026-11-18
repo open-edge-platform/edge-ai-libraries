@@ -4,9 +4,8 @@
 """Tests for app/main.py."""
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
-from app.main import CorrelationIdMiddleware, app
+from app.main import CorrelationIdMiddleware
 from app.metrics import reset_service_metrics
 
 
@@ -34,6 +33,20 @@ class TestCorrelationIdMiddlewareException:
 
         metrics = get_service_metrics()
         assert metrics.failed_requests == 1
+
+
+@pytest.mark.asyncio
+async def test_lifespan_closes_store_when_context_raises(mocker):
+    from app.main import app, lifespan
+
+    store = mocker.AsyncMock()
+    store.get_stats.return_value = {}
+    mocker.patch("app.main.get_metrics_store", return_value=store)
+    mocker.patch("app.main.setup_logging")
+    with pytest.raises(RuntimeError, match="lifecycle failure"):
+        async with lifespan(app):
+            raise RuntimeError("lifecycle failure")
+    store.close.assert_awaited_once()
 
 
 class TestRootAndStatsEndpoints:

@@ -19,6 +19,13 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # ---------------------------------------------------------------------------
+# Feature toggles
+# ---------------------------------------------------------------------------
+option(GENCAMSRC_ENABLE_HW_TIMESTAMP_META
+    "Attach the camera-reported hardware timestamp to each buffer as a \
+GstReferenceTimestampMeta (caps 'timestamp/x-hardware')" OFF)
+
+# ---------------------------------------------------------------------------
 # Platform-specific preprocessor defines and compile options
 # ---------------------------------------------------------------------------
 if(WIN32)

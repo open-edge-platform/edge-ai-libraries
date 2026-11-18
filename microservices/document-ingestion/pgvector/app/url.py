@@ -193,11 +193,12 @@ def ingest_url_to_pgvector(url_list: List[str]) -> dict:
         separators=get_separators(),
     )
 
+    # transformers isn't installable alongside pinned huggingface_hub 1.x, so use tiktoken based counting
     embedder = OpenAIEmbeddings(
         openai_api_key="EMPTY",
         openai_api_base=str(config.TEI_ENDPOINT_URL),
         model=config.EMBEDDING_MODEL_NAME,
-        tiktoken_enabled=False,
+        tiktoken_enabled=True,
     )
 
     invalid_urls = 0

@@ -16,7 +16,7 @@ Use the Video Search and Summarization (VSS) sample application to search throug
 This foundational sample application provides three modes:
 
 | Mode | Use To | Capability |
-|---|---|---|
+| --- | --- | --- |
 | Video Search ([overview](./how-it-works.md#video-search) and [how it works](./how-it-works/video-search.md)) | Find specific content within large video datasets through natural language. | Extract and index visual, audio, and textual features from video frames using the LangChain framework, multimodal embedding models, and agentic reasoning. Query using natural language or multi-modal models. |
 | Video Summarization ([overview](./how-it-works.md#video-summarization) and [how it works](./how-it-works/video-summarization.md)) | Create concise summaries of long-form videos or live streams, automatically. | Improve searchability. Combine insights from different data types using Generative AI Vision Language Models (VLMs), computer vision, and audio analysis. |
 | Combined Video Search and Summarization ([overview](./how-it-works.md#video-search-and-summarization) and [how it works](./how-it-works/video-search-and-summarization.md)) | Find specific content and create concise summaries of videos - ideal for a comprehensive video analysis. | Search quickly and directly over generated video summaries. Using the summary as a knowledge base makes the search results more relevant and accurate. |
@@ -35,7 +35,12 @@ along with the required microservices are as follows.
   - [How to Deploy with Helm](./deploy-with-helm.md): How to deploy using the Helm chart.
 
 - **AI Agents Integration**
+  - [Agentic Video Analytics](./agentic-video-analytics.md): Use AI agents such as Claude Code, OpenClaw, and Hermes Agent with the VSS MCP server and skills to review incidents, find people, track them across cameras, and get customized summaries.
+  - [Build Visual AI Agents with VSS](./visual-ai-agents.md): Build a visual AI agent: install Hermes with a model on OpenVINO Model Server, and connect it to the VSS MCP server on one Intel host.
   - [MCP Server](./mcp-server.md): Connect AI agents and IDE extensions to VSS using the Model Context Protocol (MCP).
+
+- **Features**
+  - [Geo Spatial Map View](./geo-spatial-map-view.md): Show search results as pins on a map.
 
 - **API Reference**
   - [API Reference](./api-reference.md): Comprehensive reference for the available REST API endpoints.
@@ -54,7 +59,10 @@ deploy-with-helm
 Deploy VSS with vLLM <helm-installation-vLLM-guide>
 directory-watcher-guide
 api-reference
+agentic-video-analytics
+visual-ai-agents
 mcp-server
+geo-spatial-map-view
 troubleshooting
 Release Notes <./release-notes.md>
 

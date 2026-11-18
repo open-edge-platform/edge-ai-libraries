@@ -119,6 +119,50 @@ def test_query_endpoint_returns_batch_payload(monkeypatch):
     assert payload["errors"] == []
 
 
+def test_query_endpoint_isolates_invalid_items_in_batch(monkeypatch):
+    """One malformed query must not 422 the whole batch: valid queries still run
+    and each invalid item is reported as a per-query VALIDATION_ERROR."""
+
+    seen_query_ids = []
+
+    async def _fake_execute_batch(requests):
+        seen_query_ids.extend(req.query_id for req in requests)
+        return (
+            [
+                QueryResultBlock(
+                    query_id="ok",
+                    query="a cat",
+                    count=0,
+                    items=[],
+                    applied_filters=AppliedFilters(),
+                )
+            ],
+            [],
+        )
+
+    monkeypatch.setattr(main_module, "execute_batch", _fake_execute_batch)
+
+    client = TestClient(app)
+    response = client.post(
+        "/query",
+        json=[
+            {"query_id": "ok", "query": "a cat"},
+            {"query_id": "bad", "query": ""},
+            {"query_id": "nomod"},
+        ],
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    # Only the valid query reached the executor.
+    assert seen_query_ids == ["ok"]
+    assert [block["query_id"] for block in payload["results"]] == ["ok"]
+    # Both invalid items are surfaced as per-query errors.
+    error_ids = sorted(err["query_id"] for err in payload["errors"])
+    assert error_ids == ["bad", "nomod"]
+    assert all(err["code"] == "VALIDATION_ERROR" for err in payload["errors"])
+
+
 def test_query_endpoint_uses_single_request_start_log(caplog, monkeypatch):
     """Query requests should log one shared request-entry line plus completion details."""
 

@@ -3,7 +3,7 @@
 
 services:
   ovms-service:
-    image: openvino/model_server:2026.1-gpu
+    image: openvino/model_server:2026.4.1-gpu
     devices:
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
       # NPU device passthrough (preserved from base when GPU enabled)

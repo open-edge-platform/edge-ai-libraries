@@ -31,7 +31,7 @@ Recognized by `setup.py` when building the `kvweave.kvweave_quant` extension
 | `KVWEAVE_ISA` | `avx2` | Instruction set to compile the CPU kernels against. `avx2` is the safe default for client CPUs. Set `avx512` only on hosts confirmed to support AVX-512 FP16/BF16 — using it on unsupported hardware makes Python terminate with "Illegal instruction". |
 | `KVWEAVE_COMPILER` | `default` | Set `icpx` to build with the Intel oneAPI DPC++ compiler instead of the system default compiler. Requires `icpx` in `PATH`. |
 | `KVWEAVE_MULTITHREAD` | `1` | Set `0` to disable OpenMP multithreading in the CPU kernels. |
-| `KVWEAVE_XPU` | `0` | Set `1` to also build `kvweave.kvweave_quant_xpu`, the standalone SYCL/DPC++ quantize/dequantize kernels for Intel GPUs. Requires the Intel oneAPI DPC++ compiler (`icpx`) in `PATH` and a PyTorch build with XPU support; forces `CC=icx`/`CXX=icpx` regardless of `KVWEAVE_COMPILER`. This module is standalone — it is not wired into the LMCache serde/codec path. |
+| `KVWEAVE_XPU` | `0` | Set `1` to also build `kvweave.kvweave_quant_xpu`, the SYCL/DPC++ quantize/dequantize kernels for Intel GPUs. Requires the Intel oneAPI DPC++ compiler (`icpx`) in `PATH` and a PyTorch build with XPU support; forces `CC=icx`/`CXX=icpx` regardless of `KVWEAVE_COMPILER`. The LMCache integration Dockerfile (`integration/lmcache/vllm/docker/Dockerfile`) sets this by default so `LMCACHE_MP_KVWEAVE_QUANT_DEVICE=xpu` has a module to import; building `kvweave` standalone (e.g. via `pip install .` directly) still defaults to CPU-only unless you set this yourself. |
 
 ### Building with `icpx` (`KVWEAVE_COMPILER=icpx` or `KVWEAVE_XPU=1`)
 
@@ -96,19 +96,51 @@ Performance benchmarks are marked `perf` and deselected by default; pass
 | Variable | Default | Meaning |
 |---|---|---|
 | `IMAGE_NAME` | `kv-quant-offload-vllm-xpu:latest` | Docker image tag to build/run. |
-| `MODEL_PATH` | `/models` | Host directory mounted read-only at `/models` in the container. |
-| `MODEL` | `Qwen3.5-9B` | Model path/name under `MODEL_PATH`, passed to vLLM as `/models/${MODEL}`. |
-| `SERVE` | same as `MODEL` | Served model name exposed by the OpenAI-compatible API. |
+| `MODEL_PATH` | `/models` | Host directory (not a model file) mounted read-only at `/models` in the container. Use a plain directory path without a trailing `/`. |
+| `MODEL` | `Qwen3.5-9B` | Model directory name under `MODEL_PATH`, passed to vLLM as `/models/${MODEL}`. Use the bare name, without a leading or trailing `/` and not an absolute path. |
+| `SERVE` | same as `MODEL` | Served model name exposed by the OpenAI-compatible API. Use the bare name, without `/`; clients must send exactly this value as `model`. |
 | `TP` | `1` | Tensor parallel size. |
-| `GPU_MEM_UTIL` | `0.86` | vLLM `--gpu-memory-utilization`. |
+| `GPU_MEM_UTIL` | `0.8` | vLLM `--gpu-memory-utilization`. |
 | `MAX_MODEL_LEN` | `8192` | vLLM `--max-model-len`. |
+| `DTYPE` | `float16` | vLLM `--dtype`. |
+| `QUANTIZATION` | `fp8` | vLLM `--quantization` (model weight quantization, unrelated to KVWeave KV-cache quantization). |
+| `DEBUG` | `False` | Enable vLLM `VLLM_SERVER_DEV_MODE`. |
+| `VLLM_BLOCK_SIZE_OVERRIDE` | (unset) | Force LMCache `--chunk-size`, vLLM `--block-size` and `max_num_batched_tokens` (e.g. `256` for dense models). Unset: calculated automatically. |
+| `MAX_NUM_BATCHED_TOKENS` | (unset) | vLLM `max_num_batched_tokens`. Unset: the block size. |
+| `HOST_BIND_ADDRESS` | `127.0.0.1` | Host address the container ports are published on. |
 | `HOST_PORT` | `8000` | Host port mapped to the container's vLLM API port (8000). |
+| `LMCACHE_MP_HOST` | `tcp://localhost` | LMCache MP host URI inside the container. |
 | `LMCACHE_MP_PORT` | `6555` | LMCache MP server port. |
 | `LMCACHE_MP_HTTP_PORT` | `8090` | LMCache MP HTTP healthcheck port. |
+| `LMCACHE_MP_MQ_TIMEOUT` | `600` | LMCache MP message timeout, in seconds. |
+| `LMCACHE_MP_HEARTBEAT_INTERVAL` | `15` | LMCache MP heartbeat interval, in seconds. |
 | `LMCACHE_MP_L1_SIZE_GB` | `5` | LMCache L1 (host memory) tier size, in GB. |
+| `LMCACHE_MP_L2_ENABLE` | `true` | Enable the LMCache L2 filesystem adapter (backed by `${MODEL_PATH}/lmcache_disk`). |
+| `LMCACHE_MP_EVICTION_POLICY` | `LRU` | L1 eviction policy. |
+| `LMCACHE_MP_EVICTION_TRIGGER_WATERMARK` | `0.7` | L1 eviction trigger watermark. |
+| `LMCACHE_MP_EVICTION_RATIO` | `0.3` | L1 eviction ratio. |
+| `LMCACHE_MP_SUPPORTED_TRANSFER_MODE` | `auto` | LMCache server transfer mode. |
+| `LMCACHE_MP_TRANSFER_MODE` | `engine_driven` | LMCache transfer mode. |
+| `LMCACHE_MP_SHM_NAME` | `lmcache_l1_pool_server` | LMCache server shared-memory pool name. |
+| `LMCACHE_MP_L1_KVWEAVE_QUANT` | `1` | Master switch for KVWeave L1 quantization. |
+| `LMCACHE_MP_KVWEAVE_QUANT_DEVICE` | `xpu` | Quantization hardware: `xpu` (SYCL kernels) or `cpu` (OpenMP kernels). `xpu` requires an image built with `KVWEAVE_XPU=1` (the Dockerfile sets it). |
 | `FORCE_BUILD` | `0` | See [FORCE_BUILD](#force_build) below. |
 | `DOCKER_BUILD_OPTS` | (empty) | Extra args appended to the `docker build` invocation. |
 | `DOCKER_RUN_OPTS` | (empty) | Extra args appended to the `docker run` invocation. |
+
+#### `MODEL_PATH` / `MODEL` / `SERVE` format
+
+`MODEL_PATH` is mounted as `/models`, and the model is loaded from
+`/models/${MODEL}`. Do not add `/` to any of the three values: a leading `/`
+in `MODEL` produces `/models//...`, an absolute path in `MODEL` points to a
+non-existent location, and a `/` in `SERVE` changes the model name exposed
+by the API.
+
+For example, with the model stored in `/models/Qwen3.5-9B` on the host:
+
+```bash
+MODEL_PATH=/models MODEL=Qwen3.5-9B SERVE=Qwen3.5-9B bash integration/lmcache/vllm/vllm-start.sh
+```
 
 ### `FORCE_BUILD`
 

@@ -1,0 +1,15 @@
+{
+  "name": "graph_docs",
+  "database_id": "local-nebula",
+  "collection_name": "docs_graph_extracted",
+  "operator_options": {
+    "asset_types": ["okf", "document"],
+    "external_extractor": {
+      "url": "http://okf-extractor:8080",
+      "api_key": "CHANGE_ME",
+      "timeout": 3600,
+      "trigger": {"mode": "auto", "debounce_seconds": 15},
+      "options": {}
+    }
+  }
+}

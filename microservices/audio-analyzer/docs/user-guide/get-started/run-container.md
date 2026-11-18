@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Run With Docker Compose
 
 Use this path to run the service in a container using the prebuilt image
@@ -10,6 +13,15 @@ To rebuild the image from source instead of pulling, see the
 
 - Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see the [Configuration Guide](./configuration.md).
 - The Compose setup bind-mounts `config.yaml` and stores model, chunk, storage, and Hugging Face cache data in named Docker volumes (`audio_analyzer_models`, `audio_analyzer_chunks`, `audio_analyzer_storage`, `audio_analyzer_cache`). Nothing is written into the source tree.
+- Audio Analyzer downloads the configured model snapshots onto the persistent
+  models volume on first start (Whisper sources and pyannote from Hugging Face,
+  FunASR from ModelScope) and reuses them afterwards. Set
+  `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` to source them from a shared Model Download
+  REST service instead; see
+  [Where model snapshots come from](../get-started.md#where-model-snapshots-come-from).
+- Behind a proxy, export `http_proxy`/`https_proxy` (or their uppercase forms)
+  before running Compose so the first-start model downloads can reach the hubs.
+  The same applies to `no_proxy`.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
 - For Intel NPU acceleration, set `ACCEL_MOUNT_PATH` in your local `.env` (or export it before running Compose) to the host NPU device node. The host path is machine-specific; on some Meteor Lake systems it is `/dev/accel/accel0`.
 - Compose maps the configurable host path `${ACCEL_MOUNT_PATH}` to the fixed container path `/dev/accel/accel0` expected by the OpenVINO NPU stack.
@@ -40,6 +52,38 @@ In resolved Compose output, confirm device mapping under `services.audio-analyze
 - The container runs as UID/GID `1000:1000` (baked into the image). The named volumes are initialized with that ownership, so no host UID/GID configuration is required.
 - The image reference is `${REGISTRY}/audio-analyzer:${RELEASE_TAG}`, both read from `.env`. Defaults are `REGISTRY=intel` and the committed `RELEASE_TAG` pins the current release.
 
+### GPU Setup and Verification (Optional)
+
+`/dev/dri` is passed through automatically, so GPU inference needs no device
+mapping changes. Two things are still required:
+
+1. Set `models.asr.device: GPU` in `config.yaml` (see the
+   [Configuration Guide](./configuration.md)), or pass `device=GPU` per
+   request on `/v1/audio/transcriptions`.
+2. Export `RENDER_GID` so the container's app user is a member of the host's
+   `render` group and can open the GPU device node:
+
+   ```bash
+   export RENDER_GID=$(stat -c '%g' /dev/dri/renderD128)
+   docker compose up -d
+   ```
+
+Verification:
+
+```bash
+docker compose exec audio-analyzer python3 -c "import openvino as ov; print([str(d).upper() for d in ov.Core().available_devices])"
+curl --noproxy '*' http://127.0.0.1:8010/api/v1/models
+```
+
+The first command must include `GPU` when GPU is configured as the default
+device. If the host has no `/dev/dri` node (no Intel iGPU present), select
+CPU **and** remove the `/dev/dri:/dev/dri` line from
+`services.audio-analyzer.devices` in `docker-compose.yml` (or run the image
+directly with `docker run`, omitting any `--device`/`devices:` mapping) —
+setting `models.asr.device: CPU` in `config.yaml` alone does not prevent
+Compose from still trying to map `/dev/dri`, which fails container creation
+on a GPU-less host regardless of the configured device.
+
 ### Speaker Diarization Setup (Optional)
 
 If you plan to enable speaker diarization by setting `models.asr.diarization: true` in `config.yaml`:
@@ -51,13 +95,16 @@ If you plan to enable speaker diarization by setting `models.asr.diarization: tr
    ```bash
    HF_TOKEN=hf_your_token_here
    ```
-4. Restart the container:
+4. Recreate Audio Analyzer; it downloads the newly enabled models on start:
    ```bash
-   docker compose up -d
+   docker compose up -d --force-recreate audio-analyzer
    ```
 
-Without a valid `HF_TOKEN` and gate acceptance, speaker diarization will not initialize. The service
-continues running, logs a warning, and disables diarization for that session.
+Without valid credentials and gate acceptance on the first download, Audio
+Analyzer does not start with missing diarization models. Inspect
+`docker compose logs audio-analyzer` after a failed initial deployment.
+Already provisioned, validated snapshots do not require a token or downloader API
+to load locally.
 If diarization is disabled in `config.yaml`, `HF_TOKEN` is not required.
 
 ### MinIO (External Object Storage)
@@ -82,8 +129,10 @@ are not automatically injected into the container unless referenced there.
 To supply MinIO settings to the running container, either:
 
 - Edit the bind-mounted `config.yaml` directly (`minio.endpoint`,
-  `minio.access_key`, `minio.secret_key`, `minio.secure`) and
-  `docker compose restart audio-analyzer`; or
+  `minio.access_key`, `minio.secret_key`, `minio.secure`) and run
+  `docker compose up -d --force-recreate` (see the
+  [config.yaml reload note](./configuration.md#load-order) — `restart`
+  alone is not guaranteed to pick up the edit); or
 - Add the `AUDIO_ANALYZER__MINIO__*` variables under
   `services.audio-analyzer.environment` in `docker-compose.yml` so Compose
   passes them into the container.
@@ -178,8 +227,14 @@ docker compose logs -f audio-analyzer
 If you changed only `config.yaml`:
 
 ```bash
-docker compose restart audio-analyzer
+docker compose up -d --force-recreate
 ```
+
+`docker compose restart` is **not guaranteed** to pick up a `config.yaml`
+edit: Docker's single-file bind mount follows the file's inode, and most
+editors (and tools like `sed -i`) replace the file rather than writing it
+in place, leaving a plain `restart` serving the stale config. Use
+`--force-recreate` to be safe.
 
 To pull a newer release tag, edit `RELEASE_TAG` in `.env`, then:
 

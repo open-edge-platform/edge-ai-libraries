@@ -13,7 +13,8 @@ resources on the RTSP protocol.
 
 You can either start a RTSP server to feed video or you can use RTSP stream from a camera and accordingly update the `uri` key in `source` section of request.
 
-> **Note:** Add `RTSP_CAMERA_IP=<ip_address>` as an [environment variable](../get-started/environment-variables.md#rtsp-related-config)
+> [!NOTE]
+> Add `RTSP_CAMERA_IP=<ip_address>` as an [environment variable](../get-started/environment-variables.md#rtsp-related-config)
 > in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`. This
 > is the IP address of the RTSP camera or the system where the RTSP stream is started.
 

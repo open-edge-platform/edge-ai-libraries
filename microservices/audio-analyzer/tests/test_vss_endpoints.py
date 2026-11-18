@@ -217,5 +217,132 @@ class SrtFormatTests(unittest.TestCase):
         self.assertEqual(format_srt([]), "")
 
 
+class VssTranscriptionFailureStatusCodeTests(unittest.TestCase):
+    """Review point #10: a failed transcription must not report HTTP 200."""
+
+    def test_failed_transcription_returns_500_not_200(self):
+        with patch("main.ensure_model"), patch("main.preload_models"), \
+             patch("api.custom_endpoints.Pipeline") as mock_pipeline_cls:
+            mock_pipeline_cls.return_value.transcribe.side_effect = RuntimeError("boom")
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                saved_path = os.path.join(tmpdir, "clip.wav")
+                with open(saved_path, "wb") as handle:
+                    handle.write(b"fake-audio")
+
+                with patch("api.custom_endpoints.save_audio_file", return_value=("clip.wav", saved_path)):
+                    with TestClient(main.app) as client:
+                        response = client.post(
+                            "/transcriptions",
+                            data={},
+                            files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                        )
+
+        self.assertEqual(response.status_code, 500)
+        body = response.json()
+        self.assertEqual(body["status"], "failed")
+
+
+class VssDeviceModelValidationTests(unittest.TestCase):
+    """Review point #11: device/model_name must be honored or rejected, not ignored."""
+
+    def test_rejects_unsupported_device_literal(self):
+        with patch("main.ensure_model"), patch("main.preload_models"):
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/transcriptions",
+                    data={"device": "TPU"},
+                    files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Unsupported device", response.json()["error"]["message"])
+
+    def test_rejects_mismatched_model_name(self):
+        with patch("main.ensure_model"), patch("main.preload_models"):
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/transcriptions",
+                    data={"model_name": "not-the-configured-model"},
+                    files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Unsupported model_name", response.json()["error"]["message"])
+
+    def test_matching_model_name_is_accepted(self):
+        fake_result = {"task": "transcribe", "language": "en", "duration": 1.0, "text": "hi", "segments": []}
+
+        with patch("main.ensure_model"), patch("main.preload_models"), \
+             patch("api.custom_endpoints.Pipeline") as mock_pipeline_cls:
+            mock_pipeline_cls.return_value.transcribe.return_value = fake_result
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                saved_path = os.path.join(tmpdir, "clip.wav")
+                with open(saved_path, "wb") as handle:
+                    handle.write(b"fake-audio")
+
+                with patch("api.custom_endpoints.save_audio_file", return_value=("clip.wav", saved_path)):
+                    with TestClient(main.app) as client:
+                        response = client.post(
+                            "/transcriptions",
+                            data={"model_name": config.models.asr.name},
+                            files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_valid_device_is_forwarded_to_pipeline(self):
+        fake_result = {"task": "transcribe", "language": "en", "duration": 1.0, "text": "hi", "segments": []}
+
+        with patch("main.ensure_model"), patch("main.preload_models"), \
+             patch("api.custom_endpoints.Pipeline") as mock_pipeline_cls:
+            mock_pipeline_cls.return_value.transcribe.return_value = fake_result
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                saved_path = os.path.join(tmpdir, "clip.wav")
+                with open(saved_path, "wb") as handle:
+                    handle.write(b"fake-audio")
+
+                with patch("api.custom_endpoints.save_audio_file", return_value=("clip.wav", saved_path)):
+                    with TestClient(main.app) as client:
+                        response = client.post(
+                            "/transcriptions",
+                            data={"device": "cpu"},
+                            files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_pipeline_cls.assert_called_once()
+        self.assertEqual(mock_pipeline_cls.call_args.kwargs.get("device"), "CPU")
+
+    def test_device_override_accepted_when_configured_provider_is_uppercase(self):
+        """A differently-cased configured provider (e.g. `OPENVINO`, as the
+        rest of the pipeline already tolerates via resolve_asr_device()'s own
+        normalization) must not make a valid device override look
+        "incompatible" and get rejected with a spurious HTTP 400."""
+        fake_result = {"task": "transcribe", "language": "en", "duration": 1.0, "text": "hi", "segments": []}
+
+        with patch("main.ensure_model"), patch("main.preload_models"), \
+             patch("api.custom_endpoints.Pipeline") as mock_pipeline_cls, \
+             patch.object(config.models.asr, "provider", config.models.asr.provider.upper()):
+            mock_pipeline_cls.return_value.transcribe.return_value = fake_result
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                saved_path = os.path.join(tmpdir, "clip.wav")
+                with open(saved_path, "wb") as handle:
+                    handle.write(b"fake-audio")
+
+                with patch("api.custom_endpoints.save_audio_file", return_value=("clip.wav", saved_path)):
+                    with TestClient(main.app) as client:
+                        response = client.post(
+                            "/transcriptions",
+                            data={"device": "cpu"},
+                            files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                        )
+
+        self.assertEqual(response.status_code, 200)
+
+
 if __name__ == "__main__":
     unittest.main()

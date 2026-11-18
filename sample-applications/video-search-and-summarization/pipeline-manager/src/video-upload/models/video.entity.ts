@@ -33,9 +33,6 @@ export class VideoEntity {
   textEmbeddings?: boolean;
 
   @Column({ nullable: true })
-  videoEmbeddings?: boolean;
-
-  @Column({ nullable: true })
   searchEmbeddings?: boolean;
 
   @Column('jsonb', { nullable: true })

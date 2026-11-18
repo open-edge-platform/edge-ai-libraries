@@ -8,16 +8,16 @@ common point through which the vector databases are imported and used.
 
 Supported backends:
 
-| Concern        | Setting             | Supported values        | Default |
-|----------------|---------------------|-------------------------|---------|
-| Vector database| `MM_DATAPREP_VECTORDB_BACKEND`  | `vdms`, `milvus`        | `vdms`  |
-| Object storage | `MM_DATAPREP_STORAGE_BACKEND`   | `minio`, `local`        | `minio` |
+| Concern         | Setting                        | Supported values | Default |
+| --------------- | ------------------------------ | ---------------- | ------- |
+| Vector database | `MM_DATAPREP_VECTORDB_BACKEND` | `vdms`, `milvus` | `vdms`  |
+| Object storage  | `MM_DATAPREP_STORAGE_BACKEND`  | `minio`, `local` | `minio` |
 
 The defaults (`vdms` + `minio`) reproduce the historical behavior of this service.
 
 ## Architecture
 
-```
+```text
 src/core/
   vectorstores/
     base.py         # BaseVectorStore ABC: connect, add_embeddings,
@@ -89,16 +89,16 @@ on a name collision, so user metadata can never shadow the contract.
 
 ### Vector database
 
-| Variable           | Applies to | Description                                                        |
-|--------------------|------------|--------------------------------------------------------------------|
-| `MM_DATAPREP_VECTORDB_BACKEND` | all        | `vdms` (default) or `milvus`.                                       |
+| Variable                       | Applies to | Description                                                        |
+| ------------------------------ | ---------- | ------------------------------------------------------------------ |
+| `MM_DATAPREP_VECTORDB_BACKEND` | all        | `vdms` (default) or `milvus`.                                      |
 | `MM_DATAPREP_DB_COLLECTION`    | all        | Collection/index name.                                             |
 | `MM_DATAPREP_VDB_METRIC_TYPE`  | all        | Similarity metric (`IP` default, `L2`).                            |
 | `MM_DATAPREP_VDB_INDEX_TYPE`   | milvus     | Index type (e.g. `FLAT`).                                          |
 | `MM_DATAPREP_VDMS_VDB_HOST`    | vdms       | VDMS host.                                                         |
 | `MM_DATAPREP_VDMS_VDB_PORT`    | vdms       | VDMS port.                                                         |
 | `MM_DATAPREP_MILVUS_URI`       | milvus     | Full URI (e.g. `http://host:19530`). Overrides host/port when set. |
-| `MM_DATAPREP_MILVUS_HOST`      | milvus     | Milvus host (used when `MM_DATAPREP_MILVUS_URI` is unset).                     |
+| `MM_DATAPREP_MILVUS_HOST`      | milvus     | Milvus host (used when `MM_DATAPREP_MILVUS_URI` is unset).         |
 | `MM_DATAPREP_MILVUS_PORT`      | milvus     | Milvus port (default `19530`).                                     |
 
 > **Milvus proxy note:** disable any HTTP proxy for the Milvus host
@@ -110,14 +110,14 @@ on a name collision, so user metadata can never shadow the contract.
 
 ### Storage
 
-| Variable             | Applies to | Description                                          |
-|----------------------|------------|------------------------------------------------------|
-| `MM_DATAPREP_STORAGE_BACKEND`    | all        | `minio` (default) or `local`.                        |
-| `MM_DATAPREP_MINIO_ENDPOINT`     | minio      | MinIO endpoint (`host:port`).                        |
-| `MM_DATAPREP_MINIO_ACCESS_KEY`   | minio      | MinIO access key.                                    |
-| `MM_DATAPREP_MINIO_SECRET_KEY`   | minio      | MinIO secret key.                                    |
-| `MM_DATAPREP_MINIO_SECURE`       | minio      | Use HTTPS (`true`/`false`).                          |
-| `MM_DATAPREP_LOCAL_STORAGE_PATH` | local      | Root directory; each bucket maps to a subdirectory.  |
+| Variable                         | Applies to | Description                                         |
+| -------------------------------- | ---------- | --------------------------------------------------- |
+| `MM_DATAPREP_STORAGE_BACKEND`    | all        | `minio` (default) or `local`.                       |
+| `MM_DATAPREP_MINIO_ENDPOINT`     | minio      | MinIO endpoint (`host:port`).                       |
+| `MM_DATAPREP_MINIO_ACCESS_KEY`   | minio      | MinIO access key.                                   |
+| `MM_DATAPREP_MINIO_SECRET_KEY`   | minio      | MinIO secret key.                                   |
+| `MM_DATAPREP_MINIO_SECURE`       | minio      | Use HTTPS (`true`/`false`).                         |
+| `MM_DATAPREP_LOCAL_STORAGE_PATH` | local      | Root directory; each bucket maps to a subdirectory. |
 
 ## Running with the Milvus backend
 
@@ -203,12 +203,12 @@ by a separate `retriever-milvus` service.
    metadata schema. The Milvus retriever/app must map canonical fields →
    its query schema, for example:
 
-   | Legacy retriever field | Canonical dataprep field                           |
-   |------------------------|----------------------------------------------------|
-   | `file_path`            | `source_path` (directory ingest) / `video_url` / `video_rel_url` |
-   | `video_pin_second`     | `timestamp`                                        |
-   | `timestamp`            | `date_time` / `upload_timestamp`                   |
-   | `label`                | `label` (detection crops)                          |
+   | Legacy retriever field | Canonical dataprep field                                                                       |
+   | ---------------------- | ---------------------------------------------------------------------------------------------- |
+   | `file_path`            | `source_path` (directory ingest) / `video_url` / `video_rel_url`                               |
+   | `video_pin_second`     | `timestamp`                                                                                    |
+   | `timestamp`            | `date_time` / `upload_timestamp`                                                               |
+   | `label`                | `label` (detection crops)                                                                      |
    | `type`                 | `content_type` (`video` / `image` / `text`); `frame_type` distinguishes full frames from crops |
 
    Legacy per-file sidecar keys (for example `camera`) are ingested as user

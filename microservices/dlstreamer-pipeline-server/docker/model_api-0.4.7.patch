@@ -1,0 +1,25 @@
+diff --git a/models/ssd.py b/models/ssd.py
+--- a/models/ssd.py
++++ b/models/ssd.py
+@@ -133,7 +133,9 @@
+             DetectionResult: Parsed model outputs.
+         """
+         bboxes = outputs[self.bboxes_layer]
+-        bboxes = bboxes.squeeze(0)
++        # Check if size is 1 - from geti openvino wrapper 1.8
++        if bboxes.shape[0] == 1:
++            bboxes = bboxes.squeeze(0)
+         scores = bboxes[:, 4]
+         bboxes = bboxes[:, :4]
+         bboxes[:, 0::2] /= self.input_size[0]
+@@ -142,7 +144,9 @@
+             labels = outputs[self.labels_layer]
+         else:
+             labels = np.full(len(bboxes), self.default_label, dtype=bboxes.dtype)
+-        labels = labels.squeeze(0)
++        # Check if size is 1 - from geti openvino wrapper 1.8
++        if labels.shape[0] == 1:
++            labels = labels.squeeze(0)
+ 
+         return DetectionResult(
+             bboxes=bboxes,

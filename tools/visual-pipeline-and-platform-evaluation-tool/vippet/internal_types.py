@@ -147,8 +147,7 @@ class InternalModelSource(str, Enum):
         HUGGINGFACE: HuggingFace Hub.
         ULTRALYTICS: Ultralytics model zoo.
         PIPELINE_ZOO_MODELS: OpenVINO Pipeline Zoo models.
-        OMZ: OpenVINO Open Model Zoo (handled locally by vippet-app
-            until the ``models`` container is removed).
+        OMZ: OpenVINO Open Model Zoo.
         CUSTOM: User-uploaded model.
     """
 
@@ -164,14 +163,24 @@ class InternalModelCategory(str, Enum):
     Internal representation of model category.
 
     Values:
-        CLASSIFICATION: Classification model.
-        DETECTION: Detection model.
-        GENAI: Generative AI model (e.g. VLM/LLM).
+        IMAGE_CLASSIFICATION: Image classification model.
+        OBJECT_DETECTION: Object detection model.
+        IMAGE_SEGMENTATION: Image segmentation model.
+        POSE_ESTIMATION: Pose estimation model.
+        VISION_LANGUAGE_MODELS: Vision-language model (e.g. VLM).
+        LARGE_LANGUAGE_MODELS: Large language model (text-only, e.g. LLM).
+        AUTOMATIC_SPEECH_RECOGNITION: Automatic speech recognition model.
+        TEXT_TO_SPEECH: Text-to-speech synthesis model.
     """
 
-    CLASSIFICATION = "classification"
-    DETECTION = "detection"
-    GENAI = "genai"
+    IMAGE_CLASSIFICATION = "image_classification"
+    OBJECT_DETECTION = "object_detection"
+    IMAGE_SEGMENTATION = "image_segmentation"
+    POSE_ESTIMATION = "pose_estimation"
+    VISION_LANGUAGE_MODELS = "vision_language_models"
+    LARGE_LANGUAGE_MODELS = "large_language_models"
+    AUTOMATIC_SPEECH_RECOGNITION = "automatic_speech_recognition"
+    TEXT_TO_SPEECH = "text_to_speech"
 
 
 class InternalModelDownloadJobState(str, Enum):
@@ -198,10 +207,12 @@ class InternalCameraType(str, Enum):
     Values:
         USB: USB camera connected directly to the system.
         NETWORK: Network camera accessible via IP protocols.
+        GIGE: GigE Vision machine vision camera.
     """
 
     USB = "USB"
     NETWORK = "NETWORK"
+    GIGE = "GIGE"
 
 
 class InternalOutputMode(str, Enum):
@@ -519,13 +530,15 @@ class InternalLatencyMetrics:
     Attributes:
         interval_ms: Length of the measurement window reported by the
             tracer (``interval`` field, milliseconds).
-        avg_ms: Average frame latency over the window (``avg``, ms).
+        avg_ms: Mean frame latency over the window (``avg``, ms): from
+            the source element's output to the push into the sink.
         min_ms: Minimum frame latency observed in the window
             (``min``, ms).
         max_ms: Maximum frame latency observed in the window
             (``max``, ms).
-        latency_ms: Current end-to-end latency reported by the tracer
-            (``latency``, ms).
+        latency_ms: Deprecated. The tracer's ``latency`` field: the mean
+            time between output frames (``1000 / fps``, ms), not a frame
+            latency. Use ``avg_ms`` and ``max_ms`` instead.
     """
 
     interval_ms: float
@@ -533,6 +546,22 @@ class InternalLatencyMetrics:
     min_ms: float
     max_ms: float
     latency_ms: float
+
+
+@dataclass
+class InternalPipelineEvent:
+    """
+    Live event observed during a performance run (mirrors
+    ``pipeline_runner.PipelineEvent``), e.g. a proximity trigger firing
+    or a VLM (``gvagenai``) answer.
+    """
+
+    timestamp_ms: int
+    source: str
+    text: str
+    element: str | None = None
+    pts_seconds: float | None = None
+    prompt: str | None = None
 
 
 @dataclass
@@ -544,15 +573,19 @@ class InternalExecutionConfig:
         output_mode: Mode for pipeline output generation.
         max_runtime: Maximum runtime in seconds (0 = run until EOS).
         metadata_mode: Mode for metadata publishing via gvametapublish elements.
-        enable_latency_metrics: When True, the GStreamer subprocess runs with
-            the DLStreamer `latency_tracer` active in pipeline-only mode with
-            a 1000 ms interval. Defaults to False (tracer disabled).
+        enable_latency_metrics: When True, the job reads the latency samples
+            DLSPS 2.0 exports to metrics-manager, if the server runs the
+            DLStreamer `latency_tracer` (see ``dlsps2_latency_configured``).
+            Defaults to False (no latency samples read).
+        pinned_cpu_cores: Logical CPU ids the pipeline is pinned to on
+            DLSPS 2.0. Empty (default) means no pinning.
     """
 
     output_mode: InternalOutputMode
     max_runtime: float
     metadata_mode: InternalMetadataMode
     enable_latency_metrics: bool = False
+    pinned_cpu_cores: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -621,17 +654,20 @@ class InternalPerformanceJobStatus:
         details: List of human-readable messages for the current state. Cleared on state transition.
         total_fps: Total FPS across all streams.
         per_stream_fps: Average FPS per stream.
+        min_stream_fps: FPS of the slowest stream, or None when the
+            runner reports totals only.
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
         live_stream_urls: Mapping from pipeline ID to live stream URL.
         latency_tracer_metrics: Last observed latency_tracer sample per
             stream, keyed by ``stream_id`` (``"{source_name}__{sink_name}"``).
-            ``None`` when the job was executed with
-            ``execution_config.enable_latency_metrics=False`` (tracer was
-            not started at all); an empty dict means the tracer was
-            active but no samples were produced (e.g. the pipeline
-            exited before the first interval).
+            ``None`` when no latency samples were read: the job was executed
+            with ``execution_config.enable_latency_metrics=False``, or the
+            server runs without the latency tracer; an empty dict means
+            samples were read but none arrived (e.g. the pipeline stopped
+            before the server's first export).
+        events: Most recent live pipeline events (oldest first), bounded.
     """
 
     id: str
@@ -642,12 +678,14 @@ class InternalPerformanceJobStatus:
     details: list[str] = field(default_factory=list)
     total_fps: float | None = None
     per_stream_fps: float | None = None
+    min_stream_fps: float | None = None
     total_streams: int | None = None
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
     live_stream_urls: dict[str, str] | None = None
     metadata_stream_urls: dict[str, list[str]] | None = None
     latency_tracer_metrics: dict[str, InternalLatencyMetrics] | None = None
+    events: list[InternalPipelineEvent] = field(default_factory=list)
 
 
 @dataclass
@@ -678,14 +716,17 @@ class InternalDensityJobStatus:
         details: List of human-readable messages for the current state. Cleared on state transition.
         total_fps: Total FPS across all streams.
         per_stream_fps: Average FPS per stream.
+        min_stream_fps: FPS of the slowest stream in the reported run, or
+            None when the runner reports totals only.
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
         latency_tracer_metrics: Last observed latency_tracer sample per
             stream, keyed by ``stream_id`` (``"{source_name}__{sink_name}"``).
-            ``None`` when the job was executed with
-            ``execution_config.enable_latency_metrics=False``; an empty
-            dict means the tracer was active but produced no samples.
+            ``None`` when no latency samples were read: the job was executed
+            with ``execution_config.enable_latency_metrics=False``, or the
+            server runs without the latency tracer; an empty dict means
+            samples were read but none arrived.
     """
 
     id: str
@@ -696,6 +737,7 @@ class InternalDensityJobStatus:
     details: list[str] = field(default_factory=list)
     total_fps: float | None = None
     per_stream_fps: float | None = None
+    min_stream_fps: float | None = None
     total_streams: int | None = None
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
@@ -1040,21 +1082,63 @@ class InternalNetworkCameraDetails:
 
 
 @dataclass
+class InternalGigECapture:
+    """
+    Internal GigE Vision camera capture configuration (as currently set on the camera).
+
+    Attributes:
+        pixel_format: GenICam pixel format (e.g. "Mono8", "BayerRG8").
+        width: Frame width in pixels.
+        height: Frame height in pixels.
+        fps: Acquisition frame rate.
+    """
+
+    pixel_format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+
+
+@dataclass
+class InternalGigECameraDetails:
+    """
+    Internal GigE Vision camera details.
+
+    Attributes:
+        ip: IP address of the camera.
+        vendor: Camera vendor name.
+        model: Camera model name.
+        serial: Camera serial number.
+        current_capture: Capture configuration currently set on the camera.
+    """
+
+    ip: str
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    current_capture: Optional[InternalGigECapture] = None
+
+
+@dataclass
 class InternalCamera:
     """
-    Internal camera device information supporting both USB and network cameras.
+    Internal camera device information supporting USB, network and GigE cameras.
 
     Attributes:
         device_id: Unique identifier for the camera.
         device_name: Human-readable camera name.
-        device_type: Type of camera (USB or NETWORK).
+        device_type: Type of camera (USB, NETWORK or GIGE).
         details: Type-specific camera details.
     """
 
     device_id: str
     device_name: str
     device_type: InternalCameraType
-    details: Union[InternalUSBCameraDetails, InternalNetworkCameraDetails]
+    details: Union[
+        InternalUSBCameraDetails,
+        InternalNetworkCameraDetails,
+        InternalGigECameraDetails,
+    ]
 
 
 @dataclass
@@ -1104,15 +1188,16 @@ class InternalModelVariant:
 @dataclass
 class InternalSupportedModel:
     """
-    Internal representation of one entry in ``supported_models.yaml``
-    enriched with runtime state (install status, recommendation).
+    Internal representation of one model in the catalog
+    (``vippet/models/*.yaml``, seeded into the DB at startup) enriched
+    with runtime state (install status, recommendation).
 
     The route layer maps this into the API ``Model`` schema.
 
     Attributes:
         name: Unique internal identifier of the model.
         display_name: Human-readable name shown in the UI.
-        category: Model category (classification/detection/genai).
+        category: Model category (classification/detection/genai/voice).
         source: Origin hub of the model (huggingface, ultralytics, ...).
         precisions: Internal precision records (with filesystem paths)
             used by the install-status / registry logic. **Not exposed
@@ -1124,14 +1209,20 @@ class InternalSupportedModel:
             installing / failed).
         used_by_pipelines: List of predefined-pipeline ids that reference
             this model. Empty list means the model is not recommended.
-        default: Whether this model is marked as a default choice in
-            ``supported_models.yaml`` (internal-only; not exposed via API).
+        default: Whether at least one predefined pipeline references this
+            model (mirrors ``used_by_pipelines``; internal-only, not exposed via API).
         unsupported_devices: Comma-separated string of devices on which
             the model cannot run (e.g. "NPU"). ``None`` when no
             restrictions exist.
-        download_request: Body fragment (or full body) to POST to the
-            model-download microservice in order to install this model.
-            ``None`` when no automated download is wired up yet.
+        download_request: Body fragment to POST to the model-download
+            microservice in order to install this model. ``None`` when no
+            automated download is wired up yet.
+        description: Human-readable explanation of what the model
+            detects/classifies. ``None`` when not provided in the YAML.
+        link: URL of the model page on its upstream hub (currently only
+            Hugging Face). ``None`` when not provided in the YAML.
+        gated: Hugging Face gating mode (``"false"``, ``"auto"`` or
+            ``"manual"``). ``None`` when unknown or not applicable.
     """
 
     name: str
@@ -1145,6 +1236,9 @@ class InternalSupportedModel:
     default: bool = False
     unsupported_devices: str | None = None
     download_request: dict[str, Any] | None = None
+    description: str | None = None
+    link: str | None = None
+    gated: str | None = None
 
 
 @dataclass
@@ -1165,12 +1259,15 @@ class InternalModelUploadSpec:
             model-download).
         original_filename: Original filename provided by the client,
             kept only for logging.
+        description: Optional human-readable explanation of what the
+            model detects/classifies. ``None`` when not provided.
     """
 
     model_name: str
     category: InternalModelCategory
     file_path: str
     original_filename: str
+    description: str | None = None
 
 
 @dataclass
@@ -1179,7 +1276,7 @@ class InternalModelDownloadRequest:
     Internal representation of a model download request.
 
     Attributes:
-        name: Supported model name (must exist in supported_models.yaml).
+        name: Supported model name (must exist in the model catalog).
     """
 
     name: str
@@ -1191,7 +1288,7 @@ class InternalModelDownloadJobStatus:
     Internal state of a single model download job.
 
     Mirrors the optimization/validation job pattern: no cancellation, jobs
-    live in memory only. ``external_job_ids`` is kept internal and is not
+    live in memory only. ``external_job_id`` is kept internal and is not
     exposed by the API.
 
     Attributes:
@@ -1207,8 +1304,8 @@ class InternalModelDownloadJobStatus:
             (or by the local OMZ downloader).
         model_path: Absolute filesystem path to the installed model,
             populated only when the job completes successfully.
-        external_job_ids: Job ids returned by the model-download
-            microservice; not exposed via the API (internal only).
+        external_job_id: Job id returned by the model-download microservice;
+            not exposed via the API (internal only).
     """
 
     id: str
@@ -1220,7 +1317,7 @@ class InternalModelDownloadJobStatus:
     details: list[str] = field(default_factory=list)
     progress_message: str | None = None
     model_path: str | None = None
-    external_job_ids: list[str] = field(default_factory=list)
+    external_job_id: str | None = None
 
 
 @dataclass

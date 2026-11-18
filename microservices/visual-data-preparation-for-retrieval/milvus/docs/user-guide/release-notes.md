@@ -1,8 +1,7 @@
 # Release Notes: Visual Data Preparation for Retrieval - Milvus
 
-## Current Release
+## Version 2025.2.0
 
-**Version**: 2025.2.0 \
 **Release Date**: 10 Dec 2025
 
 **Features**:

@@ -32,6 +32,7 @@ jobs:
       document-summarization_changed: ${{ steps.filter.outputs.document-summarization }}
       video-summarization_changed: ${{ steps.filter.outputs.video-summarization }}
       visual-pipeline-platform-tool_changed: ${{ steps.filter.outputs.visual-pipeline-platform-tool }}
+      oep-sdk-manager_changed: ${{ steps.filter.outputs.oep-sdk-manager }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -68,6 +69,19 @@ jobs:
               - 'sample-applications/video-search-and-summarization/docs/**'
             visual-pipeline-platform-tool:
               - 'tools/visual-pipeline-and-platform-evaluation-tool/docs/**'
+            oep-sdk-manager:
+              - 'tools/oep-sdk-manager/docs/**'
+              - '.github/workflows/docs-reusable-workflow.yaml'
+              - '.github/workflows/documentation-check.yaml'
+
+  build_oep-sdk-manager:
+    permissions:
+      contents: read
+    needs: filter
+    if: ${{ needs.filter.outputs.oep-sdk-manager_changed == 'true' }}
+    uses: ./.github/workflows/docs-reusable-workflow.yaml
+    with:
+      docs_directory: tools/oep-sdk-manager
 
   build_plcopen-motion-control:
     permissions:

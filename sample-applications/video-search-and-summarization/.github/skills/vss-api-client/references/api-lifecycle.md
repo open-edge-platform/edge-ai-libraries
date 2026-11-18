@@ -44,7 +44,11 @@ Typical response:
 Related reads:
 
 - `GET /videos` (`/manager/videos`) returns `{ "videos": [ ... ] }`.
-- `GET /videos/{videoId}` returns `{ "video": { "videoId", "name", "url", "tags", "createdAt", "updatedAt", ... } }` or 404.
+- `GET /videos/{videoId}` returns `{ "video": { "videoId", "name", "url", "tags", "createdAt", "updatedAt", "searchEmbeddings", "textEmbeddings", ... } }` or 404.
+  - `searchEmbeddings`: `true` once frame embeddings exist (never downgraded by a later failed run), `false` if DataPrep rejected the request or the batch item failed, `null` if never requested. A client-side timeout leaves it unchanged.
+  - `textEmbeddings`: `true` once a summary chunk caption was embedded (`--unified`, `--dual`), otherwise `null`.
+  - Uploaded videos only; live cameras report progress through `GET /streams`.
+- `POST /videos/{videoId}/copy` adds an uploaded video again as a new video (new `videoId`, same name, file copied inside the object store) and returns `{ "videoId": "<new id>" }`. The copy needs its own embeddings. With `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false`, embedding the copy returns `409` and the copy is removed.
 
 ## Start summarization
 
@@ -185,6 +189,27 @@ The OpenAPI spec shows a nested shape - ignore it. The actual NestJS model is fl
 
 ---
 
+## Search images: `POST /search/images`, `DELETE /search/images/{imageId}`
+
+Upload a query image for image search (`--search`/`--dual` only; 400 otherwise).
+Multipart field `image`; `.jpg`/`.jpeg`/`.png`/`.webp` whose bytes match the
+extension; at most 2 MB (413), wrong type 415. Stored in the Pipeline Manager
+MinIO bucket under `search-images/`.
+
+```json
+{
+  "imageId": "3f1c...e9.jpg",
+  "imageUrl": "http://<HOST_IP>:12345/datastore/<bucket>/search-images/3f1c...e9.jpg",
+  "imagePath": "/datastore/<bucket>/search-images/3f1c...e9.jpg",
+  "contentType": "image/jpeg",
+  "size": 48213
+}
+```
+
+The host in `imageUrl` comes from `PM_PUBLIC_BASE_URL` (set by `setup.sh`),
+else the request's forwarded host. `DELETE` returns 400 for a malformed id and
+404 when the image does not exist.
+
 ## One-off search: `POST /search/query`
 
 Through nginx: `POST /manager/search/query`. Result returned immediately; nothing persisted.
@@ -193,7 +218,9 @@ Through nginx: `POST /manager/search/query`. Result returned immediately; nothin
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `query` | string | **yes** | Natural-language search text. |
+| `query` | string | one of three | Natural-language search text. |
+| `image` | string | one of three | Base64 or data URL image (`--search`/`--dual` only). |
+| `imageUrl` | string | one of three | `imageUrl`, `imagePath` or `imageId` from `POST /search/images`; loaded from MinIO by Pipeline Manager. Other URLs return 400, deleted images 404. |
 | `tags` | string | no | Comma-separated (e.g. `"outdoor,night"`). Accepted, **not forwarded** - no tag filtering on this path. Use managed `POST /search` or direct search-ms for tag filtering. |
 | `timeFilter` | object | no | Only `value`+`unit` produce a forwarded range. `start`, `end`, `source` are accepted but ignored here. |
 
@@ -297,6 +324,11 @@ curl -sS "http://localhost:12345/manager/search/$QUERY_ID" | python3 -m json.too
 curl -sS -X PATCH "http://localhost:12345/manager/search/$QUERY_ID/watch" \
   -H 'Content-Type: application/json' -d '{"watch": true}'
 
+# Watch, gated by score: only frames scoring >= 0.3 are ranked on each refresh
+# (saved on the query; a changed value re-runs it right away)
+curl -sS -X PATCH "http://localhost:12345/manager/search/$QUERY_ID/watch" \
+  -H 'Content-Type: application/json' -d '{"watch": true, "minPeakScore": 0.3}'
+
 # Refetch with stored filter
 curl -sS -X POST "http://localhost:12345/manager/search/$QUERY_ID/refetch"
 
@@ -353,3 +385,84 @@ Example:
 ```bash
 curl -X POST http://localhost:12345/manager/videos/search-embeddings/$VIDEO_ID
 ```
+
+The outcome is recorded on the video: `GET /manager/videos/$VIDEO_ID` returns `.video.searchEmbeddings` as `true` on success and `false` on failure.
+
+---
+
+## Live RTSP streams
+
+Available only when Pipeline Manager has a DataPrep endpoint configured
+(`STREAMS_DATAPREP_ENDPOINT`, falling back to `SEARCH_DATAPREP_ENDPOINT`). In
+summary-only mode that value is empty and every route below returns `503`.
+Pipeline Manager proxies these to the Multimodal DataPrep `/media/streams`
+API; it holds no stream state of its own.
+
+Through nginx, prefix each path with `/manager`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/streams` | Register and start one RTSP camera; returns `stream_id` |
+| `POST` | `/streams/batch` | Register several cameras, per-item accept/reject |
+| `GET` | `/streams` | List streams; filter with `state=` and repeated `tags=` |
+| `GET` | `/streams/{streamId}` | One stream: config, state, stats, last error |
+| `PATCH` | `/streams/{streamId}` | Update tags, frame interval, detection settings, description, or `state` (`paused`/`running`) |
+| `DELETE` | `/streams/{streamId}` | Stop and deregister; `purge_embeddings` / `purge_media` flags |
+| `DELETE` | `/streams` | Bulk delete by `stream_ids` |
+
+The `stream_url` is **not** updatable — delete and re-create instead.
+Responses always carry the **redacted** URL (no `user:pass@`), so a credentialed
+URL is never echoed back, logged, or persisted by Pipeline Manager.
+
+Example:
+
+```bash
+HOST=http://localhost:12345
+
+STREAM_ID=$(curl -s -X POST "$HOST/manager/streams" \
+  -H 'Content-Type: application/json' \
+  -d '{"stream_url":"rtsp://camera-host:554/stream","stream_name":"lobby-cam","tags":["lobby"]}' \
+  | jq -r .stream.stream_id)
+
+curl -s "$HOST/manager/streams/$STREAM_ID" | jq .
+curl -s -X PATCH "$HOST/manager/streams/$STREAM_ID" \
+  -H 'Content-Type: application/json' -d '{"state":"paused"}' | jq .
+curl -s -X DELETE "$HOST/manager/streams/$STREAM_ID?purge_embeddings=true&purge_media=true" | jq .
+```
+
+UI clients additionally emit `streams:subscribe` on the websocket while a
+stream view is open and receive `streams:sync` snapshots; the server only polls
+DataPrep while at least one subscriber is present.
+
+## Map locations: `GET /geo/intersections`
+
+Locations for the search UI's Geo Spatial Map View. Through nginx, prefix the
+path with `/manager`. With nothing configured it returns `source: "none"` and
+no intersections.
+
+```bash
+curl -s http://localhost:12345/manager/geo/intersections | jq .
+```
+
+```json
+{
+  "source": "geo-api",
+  "stale": false,
+  "fetchedAt": "2026-11-05T08:30:00.000Z",
+  "intersections": {
+    "intersection_1": {
+      "label": "Intersection 1",
+      "lat": 37.5,
+      "lon": -122.2,
+      "cameras": {
+        "intersection_1-camera1": { "label": "intersection_1-south", "direction": "south" }
+      }
+    }
+  }
+}
+```
+
+- `source`: `geo-api` (from `GEO_API_URL`), `fallback` (the locations file) or `none`.
+- `stale`: `true` when `GEO_API_URL` is set but its last request failed, so the
+  last copy or the file is served.
+- `fetchedAt`: time of the last refresh; `null` when `source` is `none`.

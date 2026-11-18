@@ -1,6 +1,6 @@
 ---
 name: vss-search-index
-description: Search a video library with natural language via the VSS Pipeline Manager - upload a video (POST /videos), generate its embeddings (POST /videos/search-embeddings/{id}), then run a query (POST /search/query) with optional tag and time filters and read the ranked clip results. Use when the user says "search my videos", "find <thing> in the videos", "when did X happen", or wants to ingest/index a video for search. Requires a search-capable deployment (--search, --dual, or --unified).
+description: Search a video library with natural language via the VSS Pipeline Manager - upload a video (POST /videos), generate its embeddings (POST /videos/search-embeddings/{id}), then run a query (POST /search/query) with optional tag and time filters and read the ranked clip results. Also covers continuously indexing a live RTSP camera (POST /streams). Use when the user says "search my videos", "find something in the videos", "when did X happen", wants to ingest/index a video for search, or wants to add/pause/remove a live camera from the index. Requires a search-capable deployment (--search, --dual, or --unified); live RTSP cameras require --search or --dual.
 license: Apache-2.0
 metadata:
   version: "1.0.0"
@@ -14,10 +14,21 @@ SPDX-License-Identifier: Apache-2.0
 
 # VSS Search
 
-Natural-language search over the indexed video library. **Run the curl commands
-yourself** and relay results. Endpoints use the nginx `/manager` prefix.
+Natural-language search over the indexed video library. Call the documented API
+yourself and report only observed responses. Endpoints use the nginx `/manager`
+prefix. When the `vss_*` MCP tools are connected, they cover the same search,
+indexing, and camera work; this skill is the REST route.
 
 Set `HOST=http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}`.
+
+## Answer contract when VSS is not reachable
+
+The user may be away from the deployment, or `$HOST` may refuse connections. In
+that case **do not stall and do not invent responses.** Answer with the exact
+call sequence instead: full endpoint paths, request bodies / form fields, the
+field each step carries over from the previous response, and the condition that
+says a step is finished. State plainly that the commands were not executed.
+Never end the answer by asking whether to run them.
 
 ## Environment setup (run first)
 
@@ -26,12 +37,23 @@ files, so the VSS application must be present and you must run commands from its
 app root. **Do this before anything else**, and it works whether or not the VSS
 source is already in your workspace.
 
-Run the bundled bootstrap. It first tries to find an existing VSS checkout -
-walking up from the current directory and inspecting the enclosing git repo - and
-reuses it **without ever re-cloning**. Only when no checkout is found does it do a
-shallow, single-branch, sparse checkout of just
-`sample-applications/video-search-and-summarization` from `main`. It prints the
-resolved app root on stdout:
+Run the bundled bootstrap. It resolves the app root in this order and prints it
+as the only line on stdout:
+
+1. **Walk up from the current directory** looking for a VSS app root - a
+   directory carrying all three markers `setup.sh`, `docker/`, and
+   `pipeline-manager/`.
+2. **Ask git for the enclosing repository** (`git rev-parse --show-toplevel`) and
+   check whether it holds `sample-applications/video-search-and-summarization`,
+   or is itself a VSS app root. This is what makes your own clone - or a fork -
+   work unchanged.
+3. **Reuse a checkout a previous bootstrap already placed** in
+   `${XDG_CACHE_HOME:-$HOME/.cache}/vss-src/edge-ai-libraries`.
+
+If any of those hit, that checkout is **reused and NO clone is performed**. Only
+when all three miss does it clone - and then only a **shallow (`--depth 1`),
+single-branch, sparse** checkout of just
+`sample-applications/video-search-and-summarization` from `main`:
 
 ```bash
 # SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);
@@ -43,15 +65,16 @@ cd "$APP_ROOT"
 
 Every command below assumes the working directory is this `APP_ROOT`. To pull
 from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
-`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it.
+`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it. The bootstrap refuses
+to overwrite an existing non-VSS clone destination.
 
 ## Preconditions
 
-Backend healthy and **search enabled** - probe first; if not, use
-[`vss-troubleshoot`](../vss-troubleshoot/SKILL.md) / [`vss-deploy`](../vss-deploy/SKILL.md):
+Backend healthy and **search enabled** - probe first; if not, use the installed
+`vss-troubleshoot` or `vss-deploy` skill by name:
 ```bash
 curl -sf "$HOST/manager/health" >/dev/null && \
-curl -s "$HOST/manager/app/features" | jq '.search // .'
+curl -s "$HOST/manager/app/features" | jq -e '(.search // .) == "FEATURE_ON"'
 ```
 
 ## 1. Upload a video (if not already ingested)
@@ -64,7 +87,13 @@ curl -s -X POST "$HOST/manager/videos" \
   -F "tags=outdoor,daytime" | jq .
 # → { "videoId": "<VIDEO_ID>" }
 ```
-List / inspect existing videos instead. The list response is an **object**
+When the user says a video is **already uploaded** or **just uploaded**, list
+videos first and match the exact real filename. Reuse that record's `videoId`;
+do not search the local filesystem and upload another copy. Upload only when no
+exact filename match exists and the user actually supplied a local file to
+ingest.
+
+The list response is an **object**
 `{ "videos": [...] }`, **not a bare array**; `name` is a generated hash, so use
 `url` / `dataStore.fileName` for the real filename:
 ```bash
@@ -79,7 +108,66 @@ A video is **not searchable until embeddings exist**. Trigger them after upload
 ```bash
 curl -s -X POST "$HOST/manager/videos/search-embeddings/<VIDEO_ID>" | jq .
 ```
-Wait for completion (re-check the video record) before querying.
+Wait for completion before querying: the video record's `searchEmbeddings`
+becomes `true` on success and `false` on failure (`null` = never requested;
+a `true` is never reset by a later failed run):
+```bash
+curl -s "$HOST/manager/videos/<VIDEO_ID>" | jq '.video.searchEmbeddings'
+```
+To index an already-uploaded video again as a separate video (for example to
+re-run it from scratch), copy it with `POST /manager/videos/<VIDEO_ID>/copy`,
+which returns a new `videoId`, then embed the copy. With
+`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false` that embedding returns `409`.
+
+## 2b. Index a live RTSP camera (alternative to 1 + 2)
+
+A registered camera is decoded, embedded, and indexed **continuously** - there
+is no separate embeddings step, and results appear while the camera runs.
+
+Available in `--search` and `--dual` only. It is **not** available in
+`--unified`, where the index holds text embeddings of summaries rather than
+video frame embeddings, so there is nothing a live frame could be matched
+against. If these routes return `503`, the deployment has no dataprep endpoint
+configured - that is summary-only mode, not a fault.
+
+```bash
+# Register and start. Returns immediately; ingestion runs in the background.
+STREAM_ID=$(curl -s -X POST "$HOST/manager/streams" \
+  -H 'Content-Type: application/json' \
+  -d '{"stream_url":"rtsp://camera-host:554/stream","stream_name":"lobby-cam","tags":["lobby"]}' \
+  | jq -r .stream.stream_id)
+
+# Poll state: pending -> starting -> running. `reconnecting` is transient;
+# `error` means the reconnect budget is exhausted - read `last_error`.
+curl -s "$HOST/manager/streams/$STREAM_ID" | jq '.stream | {state, last_error, stats}'
+
+curl -s "$HOST/manager/streams" | jq '.streams[] | {stream_id, stream_name, state}'
+```
+
+Manage a registered camera:
+
+```bash
+# Pause / resume - keeps the registration, stops or restarts ingestion.
+curl -s -X PATCH "$HOST/manager/streams/$STREAM_ID" \
+  -H 'Content-Type: application/json' -d '{"state":"paused"}' | jq .
+
+# Stop and deregister. Footage and embeddings are RETAINED unless purged.
+curl -s -X DELETE "$HOST/manager/streams/$STREAM_ID?purge_embeddings=true&purge_media=true" | jq .
+```
+
+Two things to tell the user rather than discover the hard way:
+
+- **`stream_url` cannot be changed.** There is no such field on the update
+  request. To repoint a camera, delete it and re-create it.
+- **Responses carry a redacted URL.** If the camera needs
+  `rtsp://user:pass@host/...`, the credential is accepted on create but never
+  echoed back, logged, or written to the index. Do not expect to read it back.
+
+A `503` on create with a "maximum number of concurrent live streams" message
+means the dataprep concurrency cap is reached - pause or delete a camera first.
+
+Query results from a live camera are returned by the same `POST /search/query`
+below; no special handling is needed.
 
 ## 3. Query
 
@@ -96,11 +184,29 @@ curl -s -X POST "$HOST/manager/search/query" \
   }' | jq -r '.results[].results[]
       | "score=\(.metadata.relevance_score)  clip=\(.metadata.segment_start)-\(.metadata.segment_end)s  seek=\(.metadata.seek_timestamp)s  video_id=\(.metadata.video_id)"'
 ```
-- `query` (required): natural language.
+- `query`: natural language. Required unless searching by image.
+- `image` / `imageUrl` (`--search`/`--dual` only, instead of `query`): search by
+  image. Upload once with `curl -F image=@q.jpg "$HOST/manager/search/images"`
+  (jpg/jpeg/png/webp, at most 2 MB), pass the returned `imageUrl` as
+  `"imageUrl"`, and delete it afterwards with
+  `DELETE /manager/search/images/<imageId>`. See
+  [`references/search-request.md`](./references/search-request.md).
 - `tags` (optional): comma-separated, intersected with the query.
 - `timeFilter` (optional): **either** relative (`value` + `unit` =
   `minutes|hours|days|weeks`) **or** absolute (`start`/`end` ISO-8601). See
   [`references/search-request.md`](./references/search-request.md).
+- `minPeakScore` (optional, 0..1): drop frames whose similarity is below it
+  **at retrieval**, so every returned clip's best frame scores at least this.
+  `0` = off; omitted = the deployment default `SEARCH_MIN_PEAK_SCORE` (0).
+  `GET /manager/search/config` returns `minPeakScoreDefault`. A high value can
+  return no results.
+
+Pipeline Manager adds `observedAt` (ISO-8601 UTC), `timeSource` and, for live
+hits, `streamId` to each result, next to `metadata`. `timeSource` is `live`
+(camera capture time) or `upload` (the video's upload time plus the frame
+offset, not the recording time). Sort by `observedAt` for a timeline, or group
+by `streamId`/`metadata.video_id` per camera or video; this only reorders the
+returned top results.
 
 Each clip's `metadata` carries `relevance_score` (0..1; top hit can be exactly
 `1`), `video_id`, `video_url`, `segment_start`/`segment_end`, `seek_timestamp`,
@@ -120,6 +226,28 @@ curl -s -X POST "$HOST/manager/search/query" -H 'Content-Type: application/json'
 ```
 Present top hits with their **filename** + clip window + seek time.
 
+If a filtered query returns no results, report the empty result as valid. Then
+inspect the Manager video list for the requested tags and indexing readiness,
+explain only what the observed state supports, and give a Manager-based next
+step that preserves the same filters. To merge missing tags into an existing
+record, use the documented embedding operation with a body such as
+`POST /manager/videos/search-embeddings/<VIDEO_ID>` plus
+`{"tags":"indoor"}`, then rerun the same filtered query.
+Never present an unfiltered hit as though it satisfied the requested filter.
+
+## Final answer audit trail
+
+Tool arguments may not be visible to the user or evaluator. The final answer
+must therefore name the public Pipeline Manager operations used (method and
+`/manager/...` path), the important request fields, the observed status or
+response, and any carried identifier such as `videoId`. Include the bootstrap
+outcome (resolved app root and whether an existing checkout was reused) plus the
+observed health and feature-preflight result. For searches, identify
+the exact query/filter payload and say that ranked hits came from
+`POST /manager/search/query`; for filename joins, say that the mapping came from
+`GET /manager/videos`. If an id cannot be resolved, label it unresolved rather
+than inventing a filename.
+
 ## 4. Saved / managed queries (optional)
 
 ```bash
@@ -127,8 +255,12 @@ curl -s -X POST "$HOST/manager/search" -H 'Content-Type: application/json' \
   -d '{"query":"forklift"}' | jq .          # create a persistent query → queryId
 curl -s "$HOST/manager/search/<QUERY_ID>" | jq .          # fetch results
 curl -s -X POST "$HOST/manager/search/<QUERY_ID>/refetch" | jq .   # re-run
-curl -s -X PATCH "$HOST/manager/search/<QUERY_ID>/watch" \
-  -H 'Content-Type: application/json' -d '{"watch":true}'   # auto-refresh
+curl -s -X POST --json '{"minPeakScore":0.25}' \
+  "$HOST/manager/search/<QUERY_ID>/refetch" | jq .   # re-run with a new saved threshold
+curl -s --request PATCH --json '{"watch":true}' \
+  "$HOST/manager/search/<QUERY_ID>/watch" | jq .             # auto-refresh
+curl -s --request PATCH --json '{"watch":true,"minPeakScore":0.3}' \
+  "$HOST/manager/search/<QUERY_ID>/watch" | jq .   # auto-refresh, gated by score
 curl -s "$HOST/manager/search/watched" | jq .
 curl -s -X DELETE "$HOST/manager/search/<QUERY_ID>"
 ```

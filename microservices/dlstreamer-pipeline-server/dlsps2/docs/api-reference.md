@@ -1,0 +1,1237 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# DL Streamer Pipeline Server 2.0 – REST API Reference
+
+**API version: 2.0.0 (Alpha)**
+
+> **Work in progress.** DLSPS 2.0 is an alpha release. Endpoints, request bodies,
+> and response shapes may change without notice.
+
+DLSPS 2.0 exposes a REST API for starting, monitoring, and stopping
+DL Streamer (GStreamer) pipeline instances. The service runs on
+[FastAPI](https://fastapi.tiangolo.com/) and listens on port `8080` by default.
+To change the port, set the `REST_SERVER_PORT` environment variable.
+
+Base URL example: `http://<host>:8080`
+
+## Interactive Documentation
+
+FastAPI generates an OpenAPI 3 specification at runtime. Use it as the
+authoritative schema for the version you are running:
+
+| Path | Description |
+|------|-------------|
+| `GET /openapi.json` | OpenAPI 3 specification (JSON). |
+| `GET /docs` | Swagger UI. |
+| `GET /redoc` | ReDoc UI. |
+
+## Endpoint Summary
+
+| Method | Path | Description | New in 2.0 |
+|--------|------|-------------|:----------:|
+| `GET` | [/pipelines](#get-pipelines) | List the pipeline definitions loaded from `config.json`. | |
+| `POST` | [/pipelines](#post-pipelines) | Start a pipeline from an inline GStreamer launch string. | Yes |
+| `POST` | [/pipelines/{name}/{version}](#post-pipelinesnameversion) | **Legacy (1.0) API.** Start a named pipeline defined in `config.json`. See the [DLSPS 1.0 REST API reference](../../docs/user-guide/advanced-guide/detailed_usage/rest_api/restapi_reference_guide.md). | |
+| `GET` | [/pipelines/status](#get-pipelinesstatus) | Return the status of all pipeline instances. | |
+| `GET` | [/pipelines/{instance_id}](#get-pipelinesinstance_id) | Return the status and configuration of a pipeline instance. | |
+| `GET` | [/pipelines/{instance_id}/status](#get-pipelinesinstance_idstatus) | Return the status of a pipeline instance. | |
+| `DELETE` | [/pipelines/{instance_id}](#delete-pipelinesinstance_id) | Stop a running pipeline instance. | |
+| `POST` | [/validate](#post-validate) | Validate a pipeline without starting it. | Yes |
+| `GET` | [/validate/status](#get-validatestatus) | Return the status of all validation requests. | Yes |
+| `GET` | [/validate/status/{validation_id}](#get-validatestatusvalidation_id) | Return the status of a specific validation request. | Yes |
+| `POST` | [/optimize](#post-optimize) | Start an asynchronous pipeline optimization job. | Yes |
+| `POST` | [/optimize/preprocess](#post-optimizepreprocess) | Apply the optimizer's known element substitutions to a pipeline without searching. | Yes |
+| `GET` | [/optimize/status](#get-optimizestatus) | Return the status of all optimizer jobs. | Yes |
+| `GET` | [/optimize/status/{job_id}](#get-optimizestatusjob_id) | Return the progress of an optimizer job. | Yes |
+| `GET` | [/optimize/result/{job_id}](#get-optimizeresultjob_id) | Return the optimizer result (partial while running). | Yes |
+| `DELETE` | [/optimize/{job_id}](#delete-optimizejob_id) | Cancel a running optimizer job. | Yes |
+| `GET` | [/elements](#get-elements) | List available GStreamer elements. | Yes |
+| `GET` | [/devices](#get-devices) | List OpenVINO devices and read-only properties discovered at startup. | Yes |
+| `GET` | [/elements/{element_name}](#get-elementselement_name) | Get details about a specific GStreamer element. | Yes |
+
+### Differences from DLSPS 1.0
+
+- `POST /pipelines` is new. Use it to submit a raw `gst-launch` pipeline string
+  without defining it in `config.json` first.
+- Instance IDs are UUID strings, for example
+  `3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f`.
+- `POST` start endpoints return a JSON object `{"instance_id": "<uuid>"}`.
+- Status responses include new fields:
+  - `frame_fps`: Current (instantaneous) frames per second.
+  - `frame_interval`: Time window in seconds for the `frame_fps` measurement.
+  - `frame_count` and `frame_count_time`: Frames counted since the first frame,
+    and the Unix epoch time of that count.
+  - `first_frame_time`: Unix epoch time when the first frame was received.
+  - They do not include `avg_pipeline_latency`, which 2.0 does not track yet.
+- Automatic pipeline restart on error or EOS is new. Pass `restart_config` in the
+  start request to enable it with configurable max attempts and backoff delay.
+- Pipeline instances can now be in the `RESTARTING` state (waiting for backoff before
+  an automatic restart attempt).
+- 2.0 does not implement the following 1.0 endpoints:
+  - `POST /pipelines/{name}/{version}/{instance_id}`: `image_ingestor` requests.
+  - `POST /pipelines/{name}/{version}/{instance_id}/models`: model registry deployment.
+- `DELETE /pipelines/{instance_id}` now works on `QUEUED`, `RUNNING`, `STOPPING`, and `RESTARTING` instances.
+  A `QUEUED` instance is cancelled and never starts.
+  A `RUNNING` instance moves to `STOPPING`, and reaches `ABORTED` only after its pipeline is confirmed torn down.
+  Repeating `DELETE` on a `STOPPING` instance is accepted and does not send another stop.
+
+## Pipeline Instance Lifecycle
+
+When you start a pipeline, the API returns immediately. Validation and launch
+run in the background.
+
+```mermaid
+stateDiagram-v2
+    [*] --> QUEUED: POST /pipelines or POST /pipelines/{name}/{version}
+    QUEUED --> RUNNING: validation passed, pipeline playing
+    QUEUED --> ERROR: validation failed
+    QUEUED --> ABORTED: DELETE /pipelines/{instance_id}
+    RUNNING --> COMPLETED: end of stream, pipeline torn down
+    RUNNING --> ERROR: runtime error, pipeline torn down
+    RUNNING --> STOPPING: DELETE /pipelines/{instance_id}
+    STOPPING --> ABORTED: pipeline torn down
+    RUNNING --> RESTARTING: pipeline torn down, restart enabled
+    RESTARTING --> RUNNING: restart attempt submitted
+    RESTARTING --> ERROR: max attempts reached
+    RESTARTING --> ABORTED: DELETE /pipelines/{instance_id}
+```
+
+| State | Description |
+|-------|-------------|
+| `QUEUED` | The instance was accepted and is being validated or submitted to the worker. |
+| `RUNNING` | The pipeline is playing. |
+| `STOPPING` | A client requested a stop. The pipeline is still being torn down. |
+| `RESTARTING` | The previous run was torn down, and automatic restart is scheduled (waiting for backoff delay). |
+| `COMPLETED` | The pipeline reached end of stream. |
+| `ERROR` | Validation or execution failed. The `message` field contains the error. |
+| `ABORTED` | A client stopped the pipeline with `DELETE /pipelines/{instance_id}`. Reported only after the pipeline is confirmed torn down. |
+
+Automatic restart is decided only after a run is fully torn down, so a restart never
+starts while the previous run is still alive. A run that failed or reached EOS restarts
+only if `restart_config` is enabled and `max_attempts` has not been reached.
+
+A malformed pipeline string still returns `200` with an `instance_id`. The
+instance then moves to `ERROR`. To detect failures, poll
+`GET /pipelines/{instance_id}/status`.
+
+## Error Responses
+
+Errors use the standard FastAPI format:
+
+```json
+{
+  "detail": "Instance 'abc' not found"
+}
+```
+
+| Status | Meaning |
+|--------|---------|
+| `400 Bad Request` | The request is invalid, for example an empty `pipeline` string. |
+| `404 Not Found` | The pipeline instance or named pipeline does not exist. |
+| `409 Conflict` | The instance is `COMPLETED`, `ERROR`, or `ABORTED`, so it cannot be stopped. |
+| `422 Unprocessable Entity` | The request body failed schema validation, for example a missing required field or wrong type. |
+| `500 Internal Server Error` | A named pipeline request could not be converted into a pipeline. |
+| `503 Service Unavailable` | The pipeline manager is not initialized, or no `config.json` is loaded (named pipeline API only). |
+
+---
+
+## `GET` /pipelines
+
+Returns the pipeline catalog: the named pipelines from `config.json` that you
+can start with [`POST /pipelines/{name}/{version}`](#post-pipelinesnameversion).
+Running instances are not included. To list instances, use
+[`GET /pipelines/status`](#get-pipelinesstatus).
+
+If no `config.json` is loaded, this endpoint returns an empty list.
+
+### Responses
+
+#### `200 OK`: array of [PipelineDefinition](#pipelinedefinition)
+
+```json
+[
+  {
+    "name": "user_defined_pipelines",
+    "version": "pallet_defect_detection",
+    "type": "GStreamer",
+    "description": "DL Streamer Pipeline Server pipeline",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "detection-properties": {
+          "element": {
+            "name": "detection",
+            "format": "element-properties"
+          }
+        }
+      }
+    }
+  }
+]
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/pipelines
+```
+
+---
+
+## `POST` /pipelines
+
+**New in 2.0.** Starts a pipeline instance from an inline GStreamer pipeline
+description in `gst-launch-1.0` syntax.
+
+This endpoint does not substitute `{auto_source}` placeholders. It also does
+not translate `source`, `destination`, or `parameters`. The server runs the
+string exactly as submitted.
+
+### Request Body: [StartPipelineRequest](#startpipelinerequest)
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `pipeline` | string | Yes | - | GStreamer launch string. Must not be empty or whitespace-only. |
+| `validate_pipeline` | boolean | No | `true` | Whether to validate the pipeline before starting. Set to `false` to skip validation. |
+| `cpu_cores` | array[int] | No | - | CPU core indices to pin this pipeline to (e.g., `[0, 1, 2]`). |
+| `warmup_frames` | integer | No | `0` | Number of initial frames excluded from `avg_fps`. `frame_fps` is still reported during warmup. |
+| `fps_element` | string | No | - | Name of the element whose input buffers are counted for `frame_fps`, `avg_fps` and `frame_count` (e.g., `detect`). Defaults to the terminal sink. If the name is not in the pipeline, the instance moves to `ERROR`. |
+| `restart_config` | [RestartConfig](#restartconfig) | No | - | Configuration for automatic pipeline restart on error or EOS. |
+
+```json
+{
+  "pipeline": "filesrc location=/home/pipeline-server/resources/videos/sample.mp4 ! decodebin3 ! gvadetect model=/home/pipeline-server/resources/models/yolo/model.xml device=CPU ! gvametaconvert ! gvametapublish method=file file-path=/tmp/results.jsonl file-format=json-lines ! fakesink sync=false",
+  "validate_pipeline": true,
+  "cpu_cores": null,
+  "warmup_frames": 0,
+  "restart_config": {
+    "enabled": true,
+    "max_attempts": 5,
+    "backoff_seconds": 30
+  }
+}
+```
+
+### Responses
+
+#### `200 OK`: [StartPipelineResponse](#startpipelineresponse)
+
+```json
+{
+  "instance_id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f"
+}
+```
+
+#### `400 Bad Request`
+
+```json
+{
+  "detail": "pipeline must not be empty"
+}
+```
+
+#### `422 Unprocessable Entity`
+
+Returned when the `pipeline` field is missing or is not a string.
+
+### Examples
+
+**Basic request (validation enabled by default):**
+```bash
+curl -X POST http://localhost:8080/pipelines \
+  -H 'Content-Type: application/json' \
+  -d '{"pipeline": "videotestsrc num-buffers=300 ! videoconvert ! fakesink"}'
+```
+
+**Skip validation for a pipeline:**
+```bash
+curl -X POST http://localhost:8080/pipelines \
+  -H 'Content-Type: application/json' \
+  -d '{"pipeline": "videotestsrc num-buffers=300 ! videoconvert ! fakesink", "validate_pipeline": false}'
+```
+
+**Enable automatic restart on error or EOS:**
+```bash
+curl -X POST http://localhost:8080/pipelines \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "pipeline": "filesrc location=/tmp/video.mp4 ! decodebin3 ! fakesink",
+    "validate_pipeline": true,
+    "restart_config": {
+      "enabled": true,
+      "max_attempts": 5,
+      "backoff_seconds": 30
+    }
+  }'
+```
+
+---
+
+## `POST` /pipelines/{name}/{version}
+
+> **Legacy (1.0) API.** DLSPS 2.0 keeps this endpoint for backward
+> compatibility. For the path parameters, request body, `config.json` pipeline
+> definitions, and examples, refer to the
+> [DLSPS 1.0 REST API reference](../../docs/user-guide/advanced-guide/detailed_usage/rest_api/restapi_reference_guide.md)
+> and the [DLSPS 1.0 documentation](../../docs/user-guide/index.md).
+
+In DLSPS 2.0, this endpoint returns a
+[StartPipelineResponse](#startpipelineresponse) object:
+`{"instance_id": "<uuid>"}`.
+
+---
+
+## `GET` /pipelines/status
+
+Returns the status of every pipeline instance known to the server, including
+completed, errored, and aborted instances.
+
+### Responses
+
+#### `200 OK`: array of [PipelineStatus](#pipelinestatus)
+
+```json
+[
+  {
+    "id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f",
+    "state": "RUNNING",
+    "avg_fps": 29.87,
+    "frame_fps": 30.02,
+    "frame_interval": 1.023,
+    "frame_count": 1243,
+    "frame_count_time": 1791366042.081,
+    "start_time": 1791366000.123,
+    "first_frame_time": 1791366000.456,
+    "elapsed_time": 42.51,
+    "message": ""
+  },
+  {
+    "id": "9b2e7a10-4c3d-4f5e-8a6b-1c2d3e4f5a6b",
+    "state": "ERROR",
+    "avg_fps": 0.0,
+    "frame_fps": 0.0,
+    "frame_interval": 0.0,
+    "frame_count": 0,
+    "frame_count_time": null,
+    "start_time": null,
+    "first_frame_time": null,
+    "elapsed_time": null,
+    "message": "validation failed: no element \"badelement\""
+  }
+]
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/pipelines/status
+```
+
+---
+
+## `GET` /pipelines/{instance_id}
+
+Returns the status fields of a pipeline instance, plus its pipeline
+configuration and the original request.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `instance_id` | string | Yes | Pipeline instance identifier (UUID). |
+
+### Responses
+
+#### `200 OK`: [PipelineSummary](#pipelinesummary)
+
+Example for an instance started with `POST /pipelines/{name}/{version}`:
+
+```json
+{
+  "id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f",
+  "state": "RUNNING",
+  "avg_fps": 29.87,
+  "frame_fps": 30.02,
+  "frame_interval": 1.023,
+  "frame_count": 1243,
+  "frame_count_time": 1791366042.081,
+  "start_time": 1791366000.123,
+  "first_frame_time": 1791366000.456,
+  "elapsed_time": 42.51,
+  "message": "",
+  "type": "GStreamer",
+  "launch_command": "urisourcebin uri=file:///home/pipeline-server/resources/videos/warehouse.avi ! decodebin3 ! gvadetect name=detection model=... device=CPU ! gvametaconvert ! gvametapublish name=destination method=file file-path=/tmp/results.jsonl file-format=json-lines ! fakesink",
+  "name": "user_defined_pipelines",
+  "version": "pallet_defect_detection",
+  "request": {
+    "source": {
+      "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
+      "type": "uri"
+    },
+    "destination": {
+      "metadata": {
+        "type": "file",
+        "path": "/tmp/results.jsonl",
+        "format": "json-lines",
+        "publish_frame": false
+      }
+    }
+  }
+}
+```
+
+For instances started with `POST /pipelines`, the `name`, `version`, and
+`request` fields are `null`.
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Instance '3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f' not found"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/pipelines/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f
+```
+
+---
+
+## `GET` /pipelines/{instance_id}/status
+
+Returns only the runtime status of a pipeline instance, without
+configuration or request data.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `instance_id` | string | Yes | Pipeline instance identifier (UUID). |
+
+### Responses
+
+#### `200 OK`: [PipelineStatus](#pipelinestatus)
+
+```json
+{
+  "id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f",
+  "state": "COMPLETED",
+  "avg_fps": 29.91,
+  "frame_fps": 0.0,
+  "frame_interval": 0.0,
+  "frame_count": 1786,
+  "frame_count_time": 1791366060.161,
+  "start_time": 1791366000.123,
+  "first_frame_time": 1791366000.456,
+  "elapsed_time": 60.04,
+  "message": ""
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Instance '3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f' not found"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/pipelines/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f/status
+```
+
+---
+
+## `DELETE` /pipelines/{instance_id}
+
+Requests a graceful stop of a queued, running, or restarting pipeline instance. A `QUEUED`
+instance is cancelled and never starts. A `RUNNING` instance moves to `STOPPING`. The shared
+worker tears down the pipeline, and the state changes to `ABORTED` only after teardown is
+confirmed. Other running pipelines are not affected. A `RESTARTING` instance (waiting for the
+backoff delay before an automatic restart) is aborted at once, which cancels the pending restart.
+A repeated request on a `STOPPING` instance is accepted and does not send another stop.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `instance_id` | string | Yes | Pipeline instance identifier (UUID). |
+
+### Responses
+
+#### `200 OK`: [StopPipelineResponse](#stoppipelineresponse)
+
+```json
+{
+  "instance_id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f"
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Instance '3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f' not found"
+}
+```
+
+#### `409 Conflict`
+
+Returned when the instance is `COMPLETED`, `ERROR`, or already `ABORTED`, so it cannot be stopped.
+
+```json
+{
+  "detail": "Instance '3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f' cannot be stopped (state: COMPLETED)"
+}
+```
+
+### Example
+
+```bash
+curl -X DELETE http://localhost:8080/pipelines/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f
+```
+
+---
+## `GET` /elements
+
+Lists all available GStreamer elements installed on the system.
+
+### Responses
+
+#### `200 OK`: array of [ElementInfo](#elementinfo)
+
+```json
+[
+  {
+    "name": "videotestsrc",
+    "plugin": "videotestsrc",
+    "description": "Video test source"
+  },
+  {
+    "name": "fakesink",
+    "plugin": "fakesink",
+    "description": "Fake video sink"
+  },
+  {
+    "name": "videoconvert",
+    "plugin": "videoconvert",
+    "description": "Convert video formats"
+  }
+]
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/elements
+```
+
+---
+
+## `GET` /elements/{element_name}
+
+Returns detailed information about a specific GStreamer element, including
+factory properties, pad templates, and capabilities.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `element_name` | string | Yes | GStreamer element name (e.g., `xingmux`, `videotestsrc`). |
+
+### Responses
+
+#### `200 OK`: [ElementDetailResponse](#elementdetailresponse)
+
+```json
+{
+  "name": "gvadetect",
+  "plugin": "videoanalytics",
+  "description": "Object detection (generates GstVideoRegionOfInterestMeta)",
+  "details": "Factory Details:\n  Rank                     none (0)\n  Long-name                Object detection (generates GstVideoRegionOfInterestMeta)\n  Klass                    Video\n  Description              Performs object detection using SSD-like (including MobileNet-V1/V2 and ResNet), YOLOv5 - YOLO11, YOLOX and FasterRCNN-like object detection models.\n  Author                   Intel Corporation\n\nPlugin Details:\n  Name                     videoanalytics\n  Description              Deep Learning Streamer elements\n  Filename                 /opt/intel/dlstreamer/lib/libgstvideoanalytics.so\n  Version                  2026.1.0\n  License                  MIT/X11\n  Source module            dlstreamer\n  Binary package           Deep Learning Streamer elements\n  Origin URL               https://github.com/open-edge-platform/dlstreamer/tree/main\n\nGObject\n +----GInitiallyUnowned\n       +----GstObject\n             +----GstElement\n                   +----GstBaseTransform\n                         +----GvaBaseInference\n                               +----GstGvaDetect\n...[Pad Templates, Properties, and Element Configuration Details]..."
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "GStreamer element 'badelement' not found"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/elements/gvadetect
+```
+
+---
+## `GET` /devices
+
+Lists the OpenVINO devices available inside the DLSPS runtime, with their
+read-only properties (for example `FULL_DEVICE_NAME`, `DEVICE_TYPE`,
+`DEVICE_ARCHITECTURE`, `DEVICE_ID`, `OPTIMIZATION_CAPABILITIES`). The list is
+probed once at service startup and cached, so this endpoint reads memory only
+and does not interfere with running pipelines. Restart the service to refresh it.
+
+### Responses
+
+#### `200 OK`: array of [DeviceInfo](#deviceinfo)
+
+```json
+[
+  {
+    "name": "CPU",
+    "properties": {
+      "FULL_DEVICE_NAME": "Intel(R) Core(TM) Ultra processor",
+      "DEVICE_TYPE": "INTEGRATED",
+      "DEVICE_ARCHITECTURE": "intel64"
+    }
+  },
+  {
+    "name": "GPU",
+    "properties": {
+      "FULL_DEVICE_NAME": "Intel(R) Graphics [0x7d55] (iGPU)",
+      "DEVICE_TYPE": "INTEGRATED",
+      "DEVICE_ID": "0"
+    }
+  }
+]
+```
+
+#### `503 Service Unavailable`
+
+Returned when OpenVINO device discovery failed or did not run at startup.
+
+```json
+{
+  "detail": "OpenVINO device discovery unavailable"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/devices
+```
+
+---
+
+## Schemas
+
+### StartPipelineRequest
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `pipeline` | string | Yes | - | GStreamer launch string. |
+| `validate_pipeline` | boolean | No | `true` | Whether to validate the pipeline before starting. |
+| `cpu_cores` | array[int] | No | - | CPU core indices to pin this pipeline to. |
+| `warmup_frames` | integer | No | `0` | Number of initial frames excluded from `avg_fps`. `frame_fps` is still reported during warmup. |
+| `fps_element` | string | No | - | Name of the element whose input buffers are counted for FPS. Defaults to the terminal sink. |
+| `restart_config` | [RestartConfig](#restartconfig) | No | - | Configuration for automatic pipeline restart on error or EOS. |
+
+### RestartConfig
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `enabled` | boolean | Yes | - | Whether to enable automatic restart. |
+| `max_attempts` | integer | No | `5` | Maximum number of restart attempts. |
+| `backoff_seconds` | integer | No | `30` | Seconds to wait between restart attempts. |
+
+### StartPipelineResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `instance_id` | string | UUID of the new pipeline instance. |
+
+### StopPipelineResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `instance_id` | string | UUID of the instance that was asked to stop. |
+
+### PipelineStatus
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Instance UUID. |
+| `state` | string | One of `QUEUED`, `RUNNING`, `STOPPING`, `RESTARTING`, `COMPLETED`, `ERROR`, `ABORTED`. |
+| `avg_fps` | number | Average frames per second over the frames received after the first `warmup_frames` frames, measured from the first counted frame. `0.0` until warmup completes. |
+| `frame_fps` | number | Current (instantaneous) frames per second. |
+| `frame_interval` | number | Time window in seconds for the current `frame_fps` measurement. |
+| `frame_count` | integer | Frames counted since the first frame, warmup frames included. Updated about every second, also when no frames arrive, and once more when the instance stops. The FPS between two status reads is the difference of `frame_count` divided by the difference of `frame_count_time`; unlike `frame_fps`, it includes the seconds in which no frames arrive. Starts again from `0` when the instance restarts. |
+| `frame_count_time` | number or null | Unix epoch time in seconds when `frame_count` was read. `null` until the first frame arrives. |
+| `start_time` | number or null | Unix epoch start time in seconds. `null` until the instance is running. |
+| `first_frame_time` | number or null | Unix epoch time when the first frame was received. `null` until the first frame arrives. |
+| `elapsed_time` | number or null | Seconds the instance has been running, or ran in total if it has stopped. `null` until it starts. |
+| `stop_time` | number or null | Unix epoch time when the run ended. `null` while it is running. |
+| `message` | string | Error details when `state` is `ERROR`. Otherwise an empty string. |
+
+### PipelineSummary
+
+Contains all [PipelineStatus](#pipelinestatus) fields plus the following:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Always `GStreamer`. |
+| `launch_command` | string or null | The GStreamer launch string that was executed, after source, destination, and parameter substitution. |
+| `name` | string or null | Pipeline name from the URL path. `null` for `POST /pipelines` instances. |
+| `version` | string or null | Pipeline version from the URL path. `null` for `POST /pipelines` instances. |
+| `request` | object or null | The original request body, with `null` fields omitted and defaults filled in. `null` for `POST /pipelines` instances. |
+
+### PipelineDefinition
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Always `user_defined_pipelines`. |
+| `version` | string | The `name` of the pipeline entry in `config.json`. |
+| `type` | string | Always `GStreamer`. |
+| `description` | string | Always `DL Streamer Pipeline Server pipeline`. |
+| `parameters` | object or null | The pipeline's `parameters` JSON Schema fragment from `config.json`, with `null` fields omitted. |
+
+---
+
+## `POST` /validate
+
+**New in 2.0.** Validates a GStreamer pipeline without starting it. The validation
+runs in the background; poll `GET /validate/status/{validation_id}` for the result.
+
+### Request Body: [ValidateRequest](#validaterequest)
+
+| Field | Type | Required | Description |
+|-------|------|:--------:|-------------|
+| `pipeline` | string | Yes | GStreamer launch string. Must not be empty or whitespace-only. |
+
+```json
+{
+  "pipeline": "videotestsrc num-buffers=300 ! videoconvert ! fakesink"
+}
+```
+
+### Responses
+
+#### `200 OK`: [ValidateResponse](#validateresponse)
+
+```json
+{
+  "validation_id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f"
+}
+```
+
+#### `400 Bad Request`
+
+```json
+{
+  "detail": "pipeline must not be empty"
+}
+```
+
+### Example
+
+```bash
+curl -X POST http://localhost:8080/validate \
+  -H 'Content-Type: application/json' \
+  -d '{"pipeline": "videotestsrc ! videoconvert ! fakesink"}'
+```
+
+---
+
+## `GET` /validate/status
+
+Returns the status of all validation requests.
+
+### Responses
+
+#### `200 OK`: array of [ValidationStatus](#validationstatus)
+
+```json
+[
+  {
+    "validation_id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f",
+    "state": "VALID",
+    "message": ""
+  },
+  {
+    "validation_id": "9b2e7a10-4c3d-4f5e-8a6b-1c2d3e4f5a6b",
+    "state": "QUEUED",
+    "message": ""
+  },
+  {
+    "validation_id": "5d7e8f9a-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+    "state": "INVALID",
+    "message": "no element \"badelement\""
+  }
+]
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/validate/status
+```
+
+---
+
+## `GET` /validate/status/{validation_id}
+
+Returns the status of a specific validation request.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `validation_id` | string | Yes | Validation request identifier (UUID). |
+
+### Responses
+
+#### `200 OK`: [ValidationStatus](#validationstatus)
+
+```json
+{
+  "validation_id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f",
+  "state": "VALID",
+  "message": ""
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Validation '3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f' not found"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/validate/status/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f
+```
+
+---
+
+---
+
+## Optimization
+
+**New in 2.0.** Searches for a faster version of a GStreamer pipeline by running
+DL Streamer's pipeline optimizer as an asynchronous job. Each job runs in its own
+worker subprocess, so candidate pipelines never run inside the API server process.
+
+Rules:
+
+- Only **one** optimizer job may run at a time. Submitting while a job is running returns `409 Conflict`.
+- **Do not run optimization while other pipelines are running.** Other pipelines use the same devices and skew the measured FPS, so the optimal pipeline may not be the best one on an idle system.
+- `search_duration` is the time budget for searching candidates. The worker stops starting new candidates after this time. The candidate being sampled when the budget ends is completed.
+- `sample_duration` is the time each candidate pipeline is measured.
+- `mode` selects what is optimized: `fps` maximizes frames per second, `power` minimizes power use. `power` requires `power_metrics_endpoint`.
+- `optimization_profile` selects a preset. `coarse` (sample 5 s, search 15 s, no batch or nireq search) and `fine` (sample 5 s, search 50 s, batch sizes `1, 4, 8`, nireq sizes `4, 8`) override `search_duration`, `sample_duration`, `batch_sizes`, and `nireq_sizes`. `default` uses the request values.
+- `maximize_streams` packs as many parallel streams as possible within `fps_limit` or `power_limit`. It requires one of them.
+- **Partial results:** the optimizer reports each candidate as it is evaluated. While a job is `RUNNING`, `GET /optimize/result/{job_id}` returns the best pipeline found so far and the candidates evaluated so far, with `"final": false`.
+- **Cancel:** `DELETE /optimize/{job_id}` stops the job. The job ends in state `CANCELLED` and keeps the partial results found before cancellation.
+- Job state is kept in memory. Results are lost when the server restarts.
+
+## `POST` /optimize
+
+Starts an optimizer job and returns immediately. Poll `GET /optimize/status/{job_id}` for progress and `GET /optimize/result/{job_id}` for results.
+
+### Request Body: [OptimizeRequest](#optimizerequest)
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `pipeline` | string | Yes | - | GStreamer launch string to optimize. Must not be empty or whitespace-only. Pipelines containing `tee` are rejected by the optimizer. |
+| `mode` | string | No | `fps` | `fps` or `power`. `power` requires `power_metrics_endpoint`. |
+| `optimization_profile` | string | No | `default` | `coarse`, `fine`, or `default`. `coarse` and `fine` override `search_duration`, `sample_duration`, `batch_sizes`, and `nireq_sizes`. |
+| `search_duration` | number | No | `300` | Seconds to search for a better pipeline. Must be greater than 0. Overridden by `coarse` (15) and `fine` (50). |
+| `sample_duration` | number | No | `10` | Seconds each candidate pipeline is measured. Must be greater than 0. Overridden by `coarse` and `fine` (5). |
+| `detection_threshold` | number | No | `0.95` | Minimum detection quality a candidate must keep relative to the baseline. Must be between 0 and 1. |
+| `fps_limit` | number | No | - | Minimum FPS every valid candidate must reach. Must be greater than 0. |
+| `power_limit` | number | No | - | Maximum power in watts a valid candidate may use. Must be greater than 0. |
+| `power_metrics_endpoint` | string | Conditional | - | Metrics Manager endpoint used to read power. Required when `mode` is `power`. |
+| `enable_cross_stream_batching` | boolean | No | `false` | Batch inference across streams. |
+| `maximize_streams` | boolean | No | `false` | Maximize the number of parallel streams. Requires `fps_limit` or `power_limit`. |
+| `batch_sizes` | array of integer | No | optimizer default | Batch sizes to try. Each value must be a positive integer. Overridden by profiles. |
+| `nireq_sizes` | array of integer | No | optimizer default | Inference request counts to try. Each value must be a positive integer. Overridden by profiles. |
+| `allowed_devices` | array of string | No | all detected devices | Devices the optimizer may use, for example `["CPU", "GPU"]`. Must be a non-empty list of names when provided. |
+
+```json
+{
+  "pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=CPU ! gvafpscounter ! fakesink",
+  "mode": "fps",
+  "optimization_profile": "default",
+  "search_duration": 300,
+  "sample_duration": 10,
+  "fps_limit": 25,
+  "maximize_streams": true,
+  "allowed_devices": ["CPU", "GPU"]
+}
+```
+
+```json
+{
+  "pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=CPU ! gvafpscounter ! fakesink",
+  "mode": "power",
+  "power_metrics_endpoint": "http://metrics-manager:8080/metrics",
+  "power_limit": 60
+}
+```
+
+### Responses
+
+#### `200 OK`: [OptimizeResponse](#optimizeresponse)
+
+```json
+{
+  "job_id": "7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d"
+}
+```
+
+#### `400 Bad Request`
+
+```json
+{
+  "detail": "pipeline must not be empty"
+}
+```
+
+#### `409 Conflict`
+
+Another optimizer job is still running.
+
+```json
+{
+  "detail": "optimizer job 7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d is still running"
+}
+```
+
+### Example
+
+```bash
+curl -X POST http://localhost:8080/optimize \
+  -H 'Content-Type: application/json' \
+  -d '{"pipeline": "videotestsrc ! videoconvert ! gvafpscounter ! fakesink", "search_duration": 120, "sample_duration": 5}'
+```
+
+---
+
+## `GET` /optimize/status
+
+Returns the status of all optimizer jobs.
+
+### Responses
+
+#### `200 OK`: array of [OptimizeStatusResponse](#optimizestatusresponse)
+
+```json
+[
+  {
+    "job_id": "7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d",
+    "state": "COMPLETED",
+    "final": true,
+    "message": "",
+    "mode": "fps",
+    "candidates_evaluated": 12,
+    "baseline_fps": 41.2,
+    "best_fps": 58.7,
+    "elapsed_time": 302.114
+  }
+]
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/optimize/status
+```
+
+---
+
+## `GET` /optimize/status/{job_id}
+
+Returns the progress of a specific optimizer job.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `job_id` | string | Yes | Optimizer job identifier (UUID). |
+
+### Responses
+
+#### `200 OK`: [OptimizeStatusResponse](#optimizestatusresponse)
+
+```json
+{
+  "job_id": "7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d",
+  "state": "RUNNING",
+  "final": false,
+  "message": "",
+  "candidates_evaluated": 4,
+  "baseline_fps": 41.2,
+  "best_fps": 49.9,
+  "elapsed_time": 61.5
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Optimizer job 7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d not found"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/optimize/status/7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d
+```
+
+---
+
+## `GET` /optimize/result/{job_id}
+
+Returns the optimizer result. While the job is running, the result is partial: `best` is the best pipeline found so far and `candidates` lists the candidates evaluated so far. Check `final` to know whether the result is complete.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `job_id` | string | Yes | Optimizer job identifier (UUID). |
+
+### Responses
+
+#### `200 OK`: [OptimizeResultResponse](#optimizeresultresponse)
+
+```json
+{
+  "job_id": "7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d",
+  "state": "COMPLETED",
+  "final": true,
+  "message": "",
+  "baseline": {
+    "pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=CPU ! gvafpscounter ! fakesink",
+    "fps": 41.2,
+    "metrics": {"fps": 41.2, "detections": 1830, "power": null}
+  },
+  "best": {
+    "pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=GPU ! gvafpscounter ! fakesink",
+    "fps": 58.7,
+    "metrics": {"fps": 58.7, "detections": 1830, "power": null}
+  },
+  "candidates": [
+    {
+      "pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=GPU ! gvafpscounter ! fakesink",
+      "fps": 58.7,
+      "metrics": {"fps": 58.7, "detections": 1830, "power": null}
+    }
+  ]
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Optimizer job 7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d not found"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/optimize/result/7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d
+```
+
+---
+
+## `POST` /optimize/preprocess
+
+Applies the DL Streamer optimizer's `preprocess_pipeline` substitutions to a pipeline. Each substitution replaces a known element combination with a more performant alternative. No pipeline is run, so the call returns quickly. It runs in a subprocess and times out after 30 seconds.
+
+### Request body
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `pipeline` | string | Yes | GStreamer pipeline string. Must not be empty. |
+
+### Responses
+
+#### `200 OK`
+
+```json
+{
+  "processed_pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=CPU ! gvafpscounter ! fakesink"
+}
+```
+
+#### `400 Bad Request`
+
+Returned when `pipeline` is empty.
+
+#### `503 Service Unavailable`
+
+Returned when the optimizer cannot be run or times out. The `detail` field gives the reason.
+
+### Example
+
+```bash
+curl -X POST http://localhost:8080/optimize/preprocess \
+  -H 'Content-Type: application/json' \
+  -d '{"pipeline": "filesrc location=/videos/sample.mp4 ! decodebin ! gvadetect model=/models/yolo.xml ! gvafpscounter ! fakesink"}'
+```
+
+## `DELETE` /optimize/{job_id}
+
+Cancels a running optimizer job. The cancel is asynchronous: poll `GET /optimize/status/{job_id}` until `final` is `true`. Partial results remain available from `GET /optimize/result/{job_id}`.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `job_id` | string | Yes | Optimizer job identifier (UUID). |
+
+### Responses
+
+#### `200 OK`
+
+```json
+{
+  "job_id": "7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d",
+  "message": "cancel requested"
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Optimizer job 7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d not found"
+}
+```
+
+#### `409 Conflict`
+
+The job is not running.
+
+```json
+{
+  "detail": "Optimizer job 7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d is not running"
+}
+```
+
+### Example
+
+```bash
+curl -X DELETE http://localhost:8080/optimize/7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d
+```
+
+---
+
+## Optimization Schemas
+
+### OptimizeRequest
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `pipeline` | string | Yes | - | GStreamer launch string. |
+| `mode` | string | No | `fps` | `fps` or `power`. `power` requires `power_metrics_endpoint`. |
+| `optimization_profile` | string | No | `default` | `coarse`, `fine`, or `default`. Profiles override timing, batch, and nireq values. |
+| `search_duration` | number | No | `300` | Search time budget in seconds. |
+| `sample_duration` | number | No | `10` | Seconds per candidate measurement. |
+| `detection_threshold` | number | No | `0.95` | Detection quality threshold, between 0 and 1. |
+| `fps_limit` | number | No | - | Minimum FPS for valid candidates. |
+| `power_limit` | number | No | - | Maximum power in watts for valid candidates. |
+| `power_metrics_endpoint` | string | Conditional | - | Metrics Manager endpoint. Required for `power` mode. |
+| `enable_cross_stream_batching` | boolean | No | `false` | Batch inference across streams. |
+| `maximize_streams` | boolean | No | `false` | Maximize parallel streams. Requires `fps_limit` or `power_limit`. |
+| `batch_sizes` | array of integer | No | optimizer default | Batch sizes to try. |
+| `nireq_sizes` | array of integer | No | optimizer default | Inference request counts to try. |
+| `allowed_devices` | array of string | No | all detected devices | Devices the optimizer may use. |
+
+### OptimizeResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `job_id` | string | UUID of the optimizer job. |
+
+### OptimizeStatusResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `job_id` | string | Optimizer job UUID. |
+| `state` | string | One of `RUNNING`, `COMPLETED`, `CANCELLED`, `ERROR`. |
+| `final` | boolean | `true` once the job has stopped. |
+| `message` | string | Reason for `CANCELLED` or `ERROR`. Otherwise empty string. |
+| `mode` | string | `fps` or `power`. |
+| `candidates_evaluated` | integer | Number of candidates evaluated so far. |
+| `baseline_fps` | number or null | FPS of the original pipeline. |
+| `best_fps` | number or null | FPS of the best pipeline found so far. |
+| `elapsed_time` | number | Seconds since the job started. |
+
+### OptimizeResultResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `job_id` | string | Optimizer job UUID. |
+| `state` | string | One of `RUNNING`, `COMPLETED`, `CANCELLED`, `ERROR`. |
+| `final` | boolean | `false` while running (partial result). |
+| `message` | string | Reason for `CANCELLED` or `ERROR`. |
+| `mode` | string | `fps` or `power`. |
+| `baseline` | object or null | Original pipeline with `pipeline`, `fps`, `power`, and `metrics`. `power` is null unless the metrics endpoint reports it. |
+| `best` | object or null | Best pipeline found so far with `pipeline`, `fps`, `power`, and `metrics`. |
+| `candidates` | array | Candidates evaluated so far, each with `pipeline`, `fps`, `power`, and `metrics`. |
+
+## Validation Schemas
+
+### ValidateRequest
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `pipeline` | string | Yes | - | GStreamer launch string. |
+
+### ValidateResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `validation_id` | string | UUID of the validation request. |
+
+### ValidationStatus
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `validation_id` | string | Validation request UUID. |
+| `state` | string | One of `QUEUED`, `VALID`, `INVALID`. |
+| `message` | string | Error reason if state is `INVALID`. Otherwise empty string. |
+
+### ElementInfo
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | GStreamer element name (e.g., `videotestsrc`). |
+| `plugin` | string | Plugin group name that provides this element (e.g., `videotestsrc`). |
+| `description` | string | One-line human-readable description of the element. |
+
+### ElementDetailResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | GStreamer element name. |
+| `plugin` | string | Plugin group name. |
+| `description` | string | One-line description. |
+| `details` | string | Full output from `gst-inspect-1.0`, including factory properties, pad templates, capabilities, and element hierarchy. |
+
+### DeviceInfo
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | OpenVINO device name (for example `CPU`, `GPU`, `NPU`). |
+| `properties` | object | Read-only OpenVINO properties of the device, keyed by property name. Values are JSON-safe; enum values are shown by name. |

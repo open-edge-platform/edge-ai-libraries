@@ -23,6 +23,9 @@ import { TagEntity } from './video-upload/models/tags.entity';
 import { SummaryModule } from './summary/summary.module';
 import { HealthModule } from './health/health.module';
 import { DataPrepModule } from './data-prep/data-prep.module';
+import { StreamsModule } from './streams/streams.module';
+import { FramesModule } from './frames/frames.module';
+import { GeoModule } from './geo/geo.module';
 
 const OpenTelemetryModuleConfig = OpenTelemetryModule.forRoot({
   metrics: {
@@ -58,6 +61,9 @@ const OpenTelemetryModuleConfig = OpenTelemetryModule.forRoot({
     SummaryModule,
     HealthModule,
     DataPrepModule,
+    StreamsModule,
+    FramesModule,
+    GeoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

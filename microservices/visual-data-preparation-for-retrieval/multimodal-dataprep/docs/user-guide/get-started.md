@@ -1,6 +1,6 @@
 # Get Started
 
-The **Multimodal DataPrep microservice** builds and stores frame-level, image, and text embeddings in the configured vector database — VDMS by default, or Milvus — while preserving the raw assets in the configured object storage — MinIO by default, or the local filesystem. This guide explains how to launch the service, configure runtime options, and exercise the primary APIs. Backend selection is covered in [Pluggable Backends](pluggable-backends.md); this walkthrough uses the default VDMS + MinIO stack.
+The **Multimodal DataPrep microservice** builds and stores frame-level, image, and text embeddings in the configured vector database — VDMS by default, or Milvus — while preserving the raw assets in the configured object storage — MinIO by default, or the local filesystem. This guide explains how to launch the service, configure runtime options, and exercise the primary APIs. Backend selection is covered in [Pluggable Backends](./pluggable-backends.md); this walkthrough uses the default VDMS + MinIO stack.
 
 ## Configuration and Setup
 
@@ -10,14 +10,14 @@ Multimodal DataPrep ships with Docker Compose manifests (`docker/compose*.yaml`)
 
 Before you begin, ensure the following:
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
 
 ## Environment Variables
 
-The table below lists the core configuration knobs. `setup.sh` seeds defaults, but you can override them before sourcing the script. The defaults below assume the **VDMS + MinIO** backends; to run against **Milvus** or **local filesystem** storage, set the backend selectors below and see [Pluggable Backends](pluggable-backends.md) for the full backend-specific reference.
+The table below lists the core configuration knobs. `setup.sh` seeds defaults, but you can override them before sourcing the script. The defaults below assume the **VDMS + MinIO** backends; to run against **Milvus** or **local filesystem** storage, set the backend selectors below and see [Pluggable Backends](./pluggable-backends.md) for the full backend-specific reference.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
@@ -30,7 +30,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_LOCAL_STORAGE_PATH` | Optional | `/tmp/dataprep/storage` | Root directory for the `local` storage backend; each bucket maps to a subdirectory. Used only when `STORAGE_BACKEND=local`. |
 | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | ✅ | _(none)_ | Credentials used to bootstrap MinIO. Required only when `STORAGE_BACKEND=minio`. |
 | `MM_DATAPREP_MINIO_ENDPOINT` | ✅ | `minio-server:9000` | Host:port string DataPrep uses to communicate with MinIO from inside the container. Required only when `STORAGE_BACKEND=minio`. |
-| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | ✅ | `video-summary` (via `setup.sh`) | Destination bucket for uploaded media and generated manifests. Override with `MM_DATAPREP_PM_MINIO_BUCKET` when running alongside pipeline-manager. |
+| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | ✅ | `video-summary` (via `setup.sh`) | Destination bucket for uploaded media and generated manifests. When running alongside pipeline-manager, set it to the same bucket pipeline-manager uses. |
 | `MM_DATAPREP_VDMS_VDB_HOST` / `MM_DATAPREP_VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. Used only when `VECTORDB_BACKEND=vdms`. |
 | `MM_DATAPREP_DB_COLLECTION` | ✅ | `video-rag-test` | Vector-database collection/index that stores embeddings and metadata (applies to both VDMS and Milvus). |
 | `MM_DATAPREP_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by the in-process embedding pipeline (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
@@ -41,7 +41,28 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for parallel workers when auto-scaling is too aggressive for the host. |
 | `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` | Optional | `true` | When `false`, an upload whose byte content is identical to an already-ingested video is rejected with `409 Conflict`. Detection is content-based (SHA-256) and applies to `/media/upload`, `/media/upload/batch`, `/media/ingest-dir`, `/media/process`, and `/media/process/batch` (per item, reported in the job status). |
 | `MM_DATAPREP_FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
-| `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
+| `MM_DATAPREP_LIVE_STREAM_ENABLED` | Optional | `true` | Enables the live (RTSP) stream CRUD endpoints and their background workers. |
+| `MM_DATAPREP_LIVE_STREAM_DB_HOST` | Optional | `localhost` | PostgreSQL host for the live-stream registry. Registrations survive a restart. |
+| `MM_DATAPREP_LIVE_STREAM_DB_PORT` | Optional | `5432` | PostgreSQL port for the live-stream registry. |
+| `MM_DATAPREP_LIVE_STREAM_DB_NAME` | Optional | `dataprep` | PostgreSQL database holding the `live_streams` registry table. |
+| `MM_DATAPREP_LIVE_STREAM_DB_USER` | Optional | `postgres` | PostgreSQL user for the live-stream registry. |
+| `MM_DATAPREP_LIVE_STREAM_DB_PASSWORD` | Optional | `postgres` | PostgreSQL password for the live-stream registry. |
+| `MM_DATAPREP_LIVE_STREAM_BUCKET` | Optional | `live-streams` | Bucket (or local directory) holding recorded live segments. Live embeddings use this as their `bucket_name`. |
+| `MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT` | Optional | `8` | Maximum simultaneously ingesting streams. Further `POST /media/streams` calls return `503`. |
+| `MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS` | Optional | `10` | Length of each recorded MP4 playback segment. |
+| `MM_DATAPREP_LIVE_STORE_SEGMENTS` | Optional | `true` | Record MP4 segments (remuxed, not re-encoded) for playback. |
+| `MM_DATAPREP_LIVE_BATCH_MAX_AGE_SECONDS` | Optional | `20` | Flush a partially filled frame batch from a live source once its oldest frame reaches this age. A live stream never reaches end-of-stream, so without this the pipeline waits for a full `MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE` batch before producing any embedding. `0` disables the timer. |
+| `MM_DATAPREP_LIVE_RECONNECT_INTERVAL_SECONDS` | Optional | `5` | Delay between reconnect attempts after a live source drops. |
+| `MM_DATAPREP_LIVE_RECONNECT_MAX_ATTEMPTS` | Optional | `10` | Reconnect budget before a stream is marked `error`. `0` retries forever. |
+| `MM_DATAPREP_LIVE_RECONNECT_WINDOW_SECONDS` | Optional | `60` | Healthy-session duration after which the reconnect budget resets. |
+| `MM_DATAPREP_LIVE_RETENTION_HOURS` | Optional | `0` | Retention window for live embeddings and media. `0` keeps everything forever — the index then grows without bound. |
+| `MM_DATAPREP_LIVE_RETENTION_SWEEP_MINUTES` | Optional | `15` | How often the retention sweeper runs when retention is enabled. |
+| `MM_DATAPREP_LIVE_CLOCK_CHECK_ENABLED` | Optional | `true` | On starting a live stream, probe the camera's HTTP `Date` header and log a warning when its clock is adrift from the host. Purely diagnostic — ingestion timestamps always come from the host clock. |
+| `MM_DATAPREP_LIVE_CLOCK_SKEW_WARN_SECONDS` | Optional | `2` | Camera-to-host drift, in seconds, above which the clock check warns. |
+| `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles object-detection crop extraction. |
+| `MM_DATAPREP_DETECTION_MODEL_NAME` | ✅ (when detection is enabled) | _(none)_ | Hugging Face OpenVINO detection model repo, for example `OpenVINO/yolox_s-int8-ov`; `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are also verified on CPU, GPU and NPU (see [Device selection](#device-selection-mm_dataprep_embedding_device-mm_dataprep_detection_device) and <https://huggingface.co/OpenVINO>). Only the `OpenVINO/` namespace is accepted, and the model must be an object-detection model supported by OpenVINO Model API. The image ships no detection models: only the selected one is downloaded on first use into `MM_DATAPREP_DETECTION_MODEL_DIR/<repo id>` and reused from the volume afterwards. Each model keeps its own license (for example YOLOX is Apache-2.0, YOLO11 is AGPL-3.0); review the model card. |
+| `MM_DATAPREP_DETECTION_CLASSES` | Optional | _(empty)_ | Comma-separated class filter, for example `person,car`. Case-insensitive; spaces and hyphens are normalized to `_` (Hugging Face OpenVINO models use labels such as `traffic_light`, `cell_phone`). The tested OpenVINO detection models use the 80 [COCO classes](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml); the model's own labels are authoritative. Classes the model does not have make detector initialization fail, and the error lists the available classes. __Empty keeps all classes__. |
+| `MM_DATAPREP_DETECTION_MODEL_DIR` | Optional | `/app/models/object-detection` | Download/cache directory for detection models (backed by the `dataprep-detection-models` volume). |
 | `MM_DATAPREP_DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
 | `MM_DATAPREP_ROI_CONSOLIDATION_ENABLED` | Optional | `false` | Enables ROI consolidation (merging overlapping detections). |
 | `MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD` | Optional | `0.2` | IoU threshold used to group overlapping boxes into a single ROI. |
@@ -55,6 +76,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_DETECTION_WORKER_THREADS` | Optional | `2` | Local thread count used by object-detection worker stage. |
 | `MM_DATAPREP_EMBED_WORKER_THREADS` | Optional | `2` | Local thread count used by embedding worker stage. |
 | `MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S` | Optional | `1.0` | Timeout in seconds for pipeline queue reads before retry loops. |
+| `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` | Optional | `300` | Fails a video ingestion when no pipeline stage makes progress for this many seconds (for example a detection or embedding inference hung by a GPU hang), instead of leaving the job `running` forever. `0` disables the watchdog. |
 | `MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS` | Optional | `false` | Persist batch/stream runtime stats JSON artifacts for debugging and profiling. |
 | `MM_DATAPREP_ENABLE_TRACING` | Optional | `false` | Enables trace emission for decode/detect/embed/store stages. |
 | `MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS` | Optional | `2` | Number of decoder workers used in frame extraction utilities. |
@@ -72,7 +94,8 @@ device. Each variable defaults to `CPU` when unset:
 - `MM_DATAPREP_EMBEDDING_DEVICE` — device for the in-process embedding pipeline.
 - `MM_DATAPREP_DETECTION_DEVICE` — device for object detection.
 
-> **Important:** These variables are read directly by the DataPrep container. You
+> [!IMPORTANT]
+> These variables are read directly by the DataPrep container. You
 > can `source` a setup script (which exports the `CPU` defaults) or set them
 > explicitly before running `docker compose up`.
 
@@ -94,6 +117,17 @@ export MM_DATAPREP_DETECTION_DEVICE=CPU
 
 When targeting `NPU`, confirm the selected model supports NPU inference via the
 [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+For detection, these models have been verified on CPU, GPU and NPU:
+
+| Model | License | Notes |
+|---|---|---|
+| `OpenVINO/yolox_s-int8-ov` | Apache-2.0 | Recommended default; balanced accuracy and speed, fastest on CPU and NPU |
+| `OpenVINO/yolox_tiny-fp16-ov` | Apache-2.0 | Lightest; fastest on GPU |
+| `OpenVINO/yolox_l-int8-ov` | Apache-2.0 | Higher accuracy (more and smaller objects) at a higher compute cost; best on GPU or NPU |
+| `OpenVINO/YOLO11n-fp16-ov` | AGPL-3.0 | Small YOLO11 model; review the AGPL-3.0 terms before use |
+
+On GPU, the FP16 variants of YOLOX (for example `OpenVINO/yolox_s-fp16-ov`) run faster
+than the INT8 variants. Verify other models on your target device before relying on them.
 
 > **Running everything on NPU:** Setting both embedding and detection to `NPU`
 > (via `MM_DATAPREP_EMBEDDING_DEVICE=NPU` and `MM_DATAPREP_DETECTION_DEVICE=NPU`) is
@@ -107,7 +141,6 @@ When targeting `NPU`, confirm the selected model supports NPU inference via the
 
 Additional environment variables are available for high-throughput scenarios:
 
-- `MM_DATAPREP_ENABLE_PARALLEL_PIPELINE` (default `true`) — disable to force single-threaded embedding.
 - `MM_DATAPREP_MAX_PARALLEL_WORKERS` — hard cap on worker threads (auto-calculated when unset).
 - `MM_DATAPREP_OV_PERFORMANCE_MODE`, `OV_PERFORMANCE_HINT_NUM_REQUESTS`, `OV_NUM_STREAMS` — forward performance hints to OpenVINO when running on CPU or GPU.
 - `MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS`, `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` — tune shared-memory capacity for frame transport.
@@ -123,51 +156,46 @@ export MINIO_ROOT_USER="minioadmin"
 export MINIO_ROOT_PASSWORD="minioadmin"
 export MM_DATAPREP_EMBEDDING_DEVICE="CPU"
 export MM_DATAPREP_DETECTION_DEVICE="CPU"
+export MM_DATAPREP_DETECTION_MODEL_NAME="OpenVINO/yolox_s-int8-ov"
 source ./setup.sh --nosetup
 ```
 
-> **Tip:** When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MM_DATAPREP_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings without any additional flags.
+> [!TIP]
+> When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MM_DATAPREP_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings without any additional flags.
 
 ## ROI consolidation (optional)
 
 ROI consolidation merges overlapping detections into a single crop and optionally expands that crop for more context. This can reduce duplicate crops and improve embedding coverage when multiple detections overlap the same object.
 
-Enable it via environment variable (recommended for quick toggles):
+To enable it:
 
 ```bash
 export MM_DATAPREP_ROI_CONSOLIDATION_ENABLED=true
 ```
 
-Or configure it in `src/config.yaml` under `object_detection.roi_consolidation`:
+The following environment variables control ROI consolidation:
 
-- `enabled`: Master switch for ROI consolidation logic.
-- `iou_threshold`: IoU threshold used to cluster overlapping boxes. IoU is $\frac{\text{intersection area}}{\text{union area}}$ for two boxes; higher values mean only tighter overlaps merge, lower values merge more aggressively.
-- `class_aware`: When `true`, only boxes of the same class can be merged. When `false`, overlapping boxes across classes can merge (useful for mixed-class clusters).
-- `context_scale`: Expand merged ROI by this fraction of its size. Higher values include more surrounding context; lower values keep crops tighter to the merged box.
+- `MM_DATAPREP_ROI_CONSOLIDATION_ENABLED`: Master switch for ROI consolidation logic.
+- `MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD`: IoU threshold used to cluster overlapping boxes. IoU is $\frac{\text{intersection area}}{\text{union area}}$ for two boxes; higher values mean only tighter overlaps merge, lower values merge more aggressively.
+- `MM_DATAPREP_ROI_CONSOLIDATION_CLASS_AWARE`: When `true`, only boxes of the same class can be merged. When `false`, overlapping boxes across classes can merge (useful for mixed-class clusters).
+- `MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE`: Expand merged ROI by this fraction of its size. Higher values include more surrounding context; lower values keep crops tighter to the merged box.
 
 Use `source ./setup.sh --conf` to print the resolved Docker Compose configuration with your overrides applied.
 
-## Supporting Resources
-
-- [Overview](Overview.md)
-- [Architecture Overview](./overview-architecture.md)
-- [Media Ingestion Flow](./media-ingestion-flow.md) - Detailed flow diagrams of the video and image processing pipelines
-- [API Reference](api-reference.md)
-- [System Requirements](system-requirements.md)
-
 ## Quick Start with Docker
 
-> **Important:** Do not run `docker build` directly against `docker/Dockerfile` from the `multimodal-dataprep` directory. Always execute `./build.sh` so the build uses the `microservices/` context and includes the local `multimodal-embedding-serving` source dependency.
+> [!IMPORTANT]
+> Do not run `docker build` directly against `docker/Dockerfile` from the `multimodal-dataprep` directory. Always execute `./build.sh` so the build uses the `microservices/` context and includes the local `multimodal-embedding-serving` source dependency.
 
-The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
+The user has an option to either [build the docker images](./get-started/build-from-source.md#steps-to-build) or use prebuilt images as documented below.
 
 **Configure the registry**:
-   The Multimodal DataPrep microservice uses the registry URL and tag to pull the required image.
+The Multimodal DataPrep microservice uses the registry URL and tag to pull the required image.
 
-    ```bash
-    export REGISTRY_URL=intel
-    export TAG=latest
-    ```
+```bash
+export REGISTRY_URL=intel
+export TAG=latest
+```
 
 1. **Clone the repository and enter the project.**
 
@@ -182,9 +210,16 @@ The user has an option to either [build the docker images](./how-to-build-from-s
    export MINIO_ROOT_USER="minioadmin"
    export MINIO_ROOT_PASSWORD="minioadmin"
    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+   export MM_DATAPREP_DETECTION_MODEL_NAME="OpenVINO/yolox_s-int8-ov"   # any https://huggingface.co/OpenVINO detection model
+   # Also verified on CPU/GPU/NPU: OpenVINO/yolox_tiny-fp16-ov (lightest), OpenVINO/yolox_l-int8-ov (more accurate),
+   # OpenVINO/YOLO11n-fp16-ov (AGPL-3.0)
+   # Optional: keep only some classes (COCO class names: https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml)
+   # export MM_DATAPREP_DETECTION_CLASSES="person,car"
    ```
 
-   For text-only scenarios replace the last line with:
+   Object detection has no default model. Set `MM_DATAPREP_DETECTION_MODEL_NAME`, or set `MM_DATAPREP_ENABLE_OBJECT_DETECTION=false` to skip object crops. The selected model is downloaded from Hugging Face on first start; for offline hosts, pre-populate the `dataprep-detection-models` volume (or set `HF_HUB_OFFLINE=1` with a populated cache directory).
+
+   For text-only scenarios replace the `EMBEDDING_MODEL_NAME` line with:
 
    ```bash
    export EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
@@ -252,7 +287,6 @@ curl -X POST "http://localhost:6007/v1/dataprep/media/ingest" \
   -d '{"type": "image_url", "image_url": "https://example.com/cat.jpg"}'
 ```
 
-
 ### Process an existing video in MinIO
 
 ```bash
@@ -318,11 +352,21 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
    - The MinIO console (`http://localhost:6011`) shows the raw asset, thumbnails, and crops.
 3. Inspect the vector database to verify entries in the `video-rag-test` collection (for the default VDMS backend, use `vdms_cli` or a custom client; for Milvus, use a Milvus client such as `pymilvus` or Attu).
 
-## Troubleshooting
+## Supporting Resources
 
-- **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before sourcing `setup.sh` or set `MM_DATAPREP_EMBEDDING_MODEL_NAME` in the container environment before launching Docker.
-- **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
-- **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/media/process` instead.
-- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `GPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`.
-- **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `NPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
-- **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `MM_DATAPREP_OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.
+- [Overview](index.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [Architecture Overview](./how-it-works-architecture.md)
+- [Media Ingestion Flow](./how-it-works-ingestion-flow.md) - Detailed flow diagrams of the video and image processing pipelines
+- [API Reference](./api-reference.md)
+- [Troubleshooting](./troubleshooting.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started/system-requirements.md
+./get-started/build-from-source.md
+
+:::
+hide_directive-->

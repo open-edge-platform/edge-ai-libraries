@@ -1,0 +1,49 @@
+
+configure_edge_pack_base_realtime () {
+  configure_edge_pack "$@"
+  version="$(ensure_parse_value_option version "$@")"
+  [ -n "$version" ] || {
+    case "$ID$VERSION_ID$(uname -r)" in
+    ubuntu26.04*realtime*) version="1.0";;
+    *)
+      echo "Unsupported realtime platform $ID $VERSION_ID kernel $(uname -r)" >&2
+      echo "Fallback to edge_pack_base_standard" >&2
+      return 3;;
+    esac
+  }
+}
+
+debian_41_profile_edge_pack_base_realtime () {
+  configure_edge_pack_base_realtime "$@" 2> /dev/null && 
+    echo "edge_pack" || echo "edge_pack_base_standard"
+}
+
+debian_41_group_edge_pack_base_realtime () {
+  echo "render:992 video:44"
+}
+
+debian_41_install_edge_pack_base_realtime () {
+  configure_edge_pack_base_realtime "$@" || return 0
+  if ensure_apt_is_installed intel-edge-base-realtime && ! ensure_parse_reinstall "$@"; then
+    echo "intel-edge-base-realtime is installed." >&2
+  else
+    ensure_prop set installed/edge_pack_base_realtime/owned true
+    ensure_apt purge --auto-remove -y intel-edge-base-realtime onevpl-tools || true
+    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" || true
+    ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')"
+  fi
+  [ -c /dev/dri/renderD128 ]
+  ensure_group_add $(debian_40_group_edge_pack_base_realtime)
+}
+
+debian_41_remove_edge_pack_base_realtime () {
+  configure_edge_pack_base_realtime "$@" || return 0
+  [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0
+  ensure_apt purge --auto-remove -y intel-edge-base-realtime || true
+}
+
+debian_41_sbom_edge_pack_base_realtime () {
+  configure_edge_pack_base_realtime "$@" 2> /dev/null || return 0
+  sbom_edge_pack_repo_entries "$@"
+  ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*"
+}

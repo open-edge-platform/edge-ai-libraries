@@ -1,8 +1,12 @@
-{{- $kind := .Values.controller.kind | default "Deployment" -}}
+{{/* SPDX-FileCopyrightText: (C) 2026 Intel Corporation */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "metrics-manager.validate" . -}}
+{{- $kind := .Values.controller.kind -}}
 apiVersion: apps/v1
 kind: {{ $kind }}
 metadata:
   name: {{ include "metrics-manager.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "metrics-manager.labels" . | nindent 4 }}
 spec:
@@ -22,9 +26,12 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        {{- if .Values.telegraf.config }}
+        {{- if or .Values.telegraf.config (not .Values.hardware.telemetry.enabled) }}
         # Roll the pod when the bundled telegraf.conf changes.
         checksum/telegraf-config: {{ include (print $.Template.BasePath "/configmap-telegraf.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.telegraf.extraConfigs }}
+        checksum/telegraf-dropins: {{ include (print $.Template.BasePath "/configmap-dropins.yaml") . | sha256sum }}
         {{- end }}
         {{- /*
           Legacy AppArmor annotation - emitted on Kubernetes < 1.30 when
@@ -37,6 +44,9 @@ spec:
         {{- $apparmorNativeAnn := or (.Values.securityContext.appArmorProfileForce) (and (ge $kubeMajorAnn 1) (ge $kubeMinorAnn 30)) }}
         {{- if and .Values.securityContext.appArmorProfile (not $apparmorNativeAnn) }}
         {{- $type := .Values.securityContext.appArmorProfile.type | default "" }}
+        {{- if .Values.hardware.telemetry.enabled }}
+        {{- $type = "Unconfined" }}
+        {{- end }}
         {{- if eq $type "Unconfined" }}
         container.apparmor.security.beta.kubernetes.io/metrics-manager: unconfined
         {{- else if eq $type "RuntimeDefault" }}
@@ -50,7 +60,18 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "metrics-manager.serviceAccountName" . }}
-      hostPID: {{ .Values.pod.hostPID }}
+      hostPID: {{ if .Values.hardware.telemetry.enabled }}true{{ else }}{{ .Values.pod.hostPID }}{{ end }}
+      securityContext:
+        fsGroup: {{ .Values.pod.fsGroup }}
+        {{- if or (and .Values.hardware.telemetry.enabled .Values.hardware.gpu.enabled) .Values.pod.supplementalGroups }}
+        supplementalGroups:
+          {{- if and .Values.hardware.telemetry.enabled .Values.hardware.gpu.enabled }}
+          - {{ .Values.hardware.gpuRenderGroup }}
+          {{- end }}
+          {{- with .Values.pod.supplementalGroups }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+        {{- end }}
       hostNetwork: {{ .Values.pod.hostNetwork }}
       {{- /*
         dnsPolicy:
@@ -94,9 +115,16 @@ spec:
           image: {{ include "metrics-manager.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
-            privileged: {{ .Values.securityContext.privileged }}
-            runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
-            readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+            privileged: {{ if .Values.hardware.telemetry.enabled }}true{{ else }}{{ .Values.securityContext.privileged }}{{ end }}
+            allowPrivilegeEscalation: {{ if .Values.hardware.telemetry.enabled }}true{{ else }}{{ .Values.securityContext.allowPrivilegeEscalation }}{{ end }}
+            runAsNonRoot: {{ if .Values.hardware.telemetry.enabled }}false{{ else }}{{ .Values.securityContext.runAsNonRoot }}{{ end }}
+            runAsUser: {{ if .Values.hardware.telemetry.enabled }}0{{ else }}{{ .Values.securityContext.runAsUser }}{{ end }}
+            runAsGroup: {{ if .Values.hardware.telemetry.enabled }}0{{ else }}{{ .Values.securityContext.runAsGroup }}{{ end }}
+            readOnlyRootFilesystem: {{ if .Values.hardware.telemetry.enabled }}false{{ else }}{{ .Values.securityContext.readOnlyRootFilesystem }}{{ end }}
+            {{- with .Values.securityContext.capabilities }}
+            capabilities:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
             {{- /*
               appArmorProfile is a native field starting with Kubernetes
               1.30. On older API servers it is silently dropped or rejected,
@@ -113,11 +141,19 @@ spec:
             {{- $apparmorNative := or (.Values.securityContext.appArmorProfileForce) (and (ge $kubeMajor 1) (ge $kubeMinor 30)) }}
             {{- if and .Values.securityContext.appArmorProfile $apparmorNative }}
             appArmorProfile:
+              {{- if .Values.hardware.telemetry.enabled }}
+              type: Unconfined
+              {{- else }}
               {{- toYaml .Values.securityContext.appArmorProfile | nindent 14 }}
+              {{- end }}
             {{- end }}
             {{- with .Values.securityContext.seccompProfile }}
             seccompProfile:
+              {{- if $.Values.hardware.telemetry.enabled }}
+              type: Unconfined
+              {{- else }}
               {{- toYaml . | nindent 14 }}
+              {{- end }}
             {{- end }}
           ports:
             - name: metrics
@@ -136,6 +172,10 @@ spec:
               value: {{ .Values.service.telegrafPort | quote }}
             - name: TELEGRAF_HTTP_PORT
               value: {{ .Values.service.telegrafHttpPort | quote }}
+            - name: TELEGRAF_HTTP_ENDPOINT
+              value: {{ printf "http://localhost:%v/write" .Values.service.telegrafHttpPort | quote }}
+            - name: PROMETHEUS_TELEGRAF_ENDPOINT
+              value: {{ printf "http://localhost:%v" .Values.service.telegrafPort | quote }}
             - name: LOG_LEVEL
               value: {{ .Values.config.logLevel | quote }}
             - name: LOG_FORMAT
@@ -146,12 +186,32 @@ spec:
               value: {{ .Values.config.metricsRetentionSeconds | quote }}
             - name: MAX_METRICS_BATCH_SIZE
               value: {{ .Values.config.maxMetricsBatchSize | quote }}
+            - name: HARDWARE_TELEMETRY_ENABLED
+              value: {{ and .Values.hardware.telemetry.enabled .Values.hardware.gpu.enabled | quote }}
+            - name: QMASSA_FIFO_PATH
+              value: /tmp/qmassa.fifo
             - name: METRICS_MANAGER_HOSTNAME
+              {{- if .Values.config.hostnameOverride }}
               value: {{ .Values.config.hostnameOverride | quote }}
+              {{- else if .Values.hardware.telemetry.enabled }}
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+              {{- else }}
+              value: ""
+              {{- end }}
             - name: CUSTOM_METRICS_DIR
               value: /app/custom-metrics
             - name: TELEGRAF_CONFIG_PATH
               value: /etc/telegraf/telegraf.conf
+            {{- range $key, $env := include "metrics-manager.collectorOptions" . | fromYaml }}
+            - name: {{ $env }}
+              value: {{ index $.Values.config $key | toString | quote }}
+            {{- end }}
+            - name: TURBOSTAT_BIN
+              value: /usr/local/bin/turbostat
+            - name: TURBOSTAT_INTERVAL
+              value: {{ .Values.config.turbostatInterval | toString | quote }}
             {{- with .Values.config.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -168,20 +228,42 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.hardware.telemetry.enabled }}
             - name: sys
               mountPath: /sys
               readOnly: true
             - name: run
               mountPath: /run
               readOnly: true
-            {{- if .Values.hardware.gpu.enabled }}
+            {{- end }}
+            {{- if and .Values.hardware.telemetry.enabled .Values.hardware.gpu.enabled }}
             - name: dev-dri
               mountPath: /dev/dri
             {{- end }}
-            {{- if .Values.telegraf.config }}
+            {{- if and .Values.hardware.telemetry.enabled .Values.hardware.npu.enabled }}
+            - name: dev-accel
+              mountPath: /dev/accel
+            {{- end }}
+            {{- if and .Values.hardware.telemetry.enabled .Values.hardware.msr.enabled }}
+            - name: dev-cpu
+              mountPath: /dev/cpu
+            {{- end }}
+            {{- if and .Values.hardware.telemetry.enabled .Values.hardware.turbostat.hostPath }}
+            - name: turbostat
+              mountPath: /usr/local/bin/turbostat
+              readOnly: true
+            {{- end }}
+            {{- if or .Values.telegraf.config (not .Values.hardware.telemetry.enabled) }}
             - name: telegraf-config
               mountPath: /etc/telegraf/telegraf.conf
               subPath: telegraf.conf
+              readOnly: true
+            {{- end }}
+            {{- if .Values.telegraf.extraConfigs }}
+            - name: telegraf-dropins
+              mountPath: /etc/telegraf/telegraf.d
               readOnly: true
             {{- end }}
             {{- if and .Values.customMetrics.enabled (ne .Values.customMetrics.storage "none") }}
@@ -189,6 +271,9 @@ spec:
               mountPath: /app/custom-metrics
             {{- end }}
       volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.hardware.telemetry.enabled }}
         - name: sys
           hostPath:
             path: /sys
@@ -197,15 +282,39 @@ spec:
           hostPath:
             path: /run
             type: Directory
-        {{- if .Values.hardware.gpu.enabled }}
+          {{- end }}
+          {{- if and .Values.hardware.telemetry.enabled .Values.hardware.gpu.enabled }}
         - name: dev-dri
           hostPath:
             path: /dev/dri
         {{- end }}
-        {{- if .Values.telegraf.config }}
+        {{- if and .Values.hardware.telemetry.enabled .Values.hardware.npu.enabled }}
+        - name: dev-accel
+          hostPath:
+            path: /dev/accel
+            type: Directory
+        {{- end }}
+        {{- if and .Values.hardware.telemetry.enabled .Values.hardware.msr.enabled }}
+        - name: dev-cpu
+          hostPath:
+            path: /dev/cpu
+            type: Directory
+        {{- end }}
+        {{- if and .Values.hardware.telemetry.enabled .Values.hardware.turbostat.hostPath }}
+        - name: turbostat
+          hostPath:
+            path: {{ .Values.hardware.turbostat.hostPath | quote }}
+            type: File
+        {{- end }}
+        {{- if or .Values.telegraf.config (not .Values.hardware.telemetry.enabled) }}
         - name: telegraf-config
           configMap:
             name: {{ include "metrics-manager.fullname" . }}-telegraf
+        {{- end }}
+        {{- if .Values.telegraf.extraConfigs }}
+        - name: telegraf-dropins
+          configMap:
+            name: {{ include "metrics-manager.fullname" . }}-dropins
         {{- end }}
         {{- if and .Values.customMetrics.enabled (ne .Values.customMetrics.storage "none") }}
         - name: custom-metrics

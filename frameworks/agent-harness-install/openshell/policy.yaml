@@ -1,0 +1,23 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+version: 1
+# Network access is supplied separately by the attached inference provider profile.
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /bin
+    - /usr
+    - /lib
+    - /lib64
+    - /etc
+    - /proc
+    - /dev/urandom
+    - /opt/harness
+  read_write:
+    - /home/node
+    - /sandbox
+    - /tmp
+    - /dev/null
+landlock:
+  # Compatibility varies by host kernel; this does not guarantee uniform filesystem isolation.
+  compatibility: best_effort

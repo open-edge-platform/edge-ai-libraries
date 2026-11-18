@@ -1,6 +1,6 @@
 ---
 name: vss-deploy-helm
-description: Use this skill whenever a developer needs to deploy VSS to Kubernetes, helm install VSS, configure values.yaml for VSS, or run VSS on k8s with GPU/vLLM for the video-search-and-summarization sample app. This skill is especially useful when translating Docker Compose/setup.sh modes (--summary, --search, --summary-and-search/--unified, dual UI, ENABLE_VLLM, OVMS GPU/NPU) into the actual Helm chart override files and values keys. Prefer this skill for VSS Helm install/upgrade/troubleshooting even if the user only says “put VSS on k8s” or “make values.yaml for VSS”.
+description: Use this skill whenever a developer needs to deploy VSS to Kubernetes, helm install VSS, configure values.yaml for VSS, or run VSS on k8s with GPU/vLLM for the video-search-and-summarization sample app. This skill is especially useful when translating Docker Compose/setup.sh modes (--summary, --search, --summary-and-search/--unified, dual UI, ENABLE_VLLM, ENABLE_VLLM_GPU, OVMS GPU/NPU) into the actual Helm chart override files and values keys, including running vLLM on an Intel Arc GPU (XPU). Prefer this skill for VSS Helm install/upgrade/troubleshooting even if the user only says “put VSS on k8s” or “make values.yaml for VSS”.
 ---
 
 # VSS Helm deploy
@@ -9,6 +9,15 @@ Use this workflow for the VSS sample app Helm chart at `sample-applications/vide
 
 If the user asks to map Compose or `setup.sh` settings to Helm values, read `references/helm-values-map.md`.
 
+## Answer contract when the cluster is not reachable
+
+The user may be planning ahead, or `kubectl`/the cluster/the chart may be
+unavailable here. In that case **do not stall and do not invent output.** Answer
+with the exact command sequence instead: the bootstrap step, the override files
+to stack in order, the values the operator must fill in, the `helm install` /
+`helm upgrade` command with its namespace, and how to verify. State plainly that
+the commands were not executed. Never end the answer by asking whether to run them.
+
 ## Environment setup (run first)
 
 This skill drives the Video Search & Summarization app through its real source
@@ -16,12 +25,23 @@ files, so the VSS application must be present and you must run commands from its
 app root. **Do this before anything else**, and it works whether or not the VSS
 source is already in your workspace.
 
-Run the bundled bootstrap. It first tries to find an existing VSS checkout -
-walking up from the current directory and inspecting the enclosing git repo - and
-reuses it **without ever re-cloning**. Only when no checkout is found does it do a
-shallow, single-branch, sparse checkout of just
-`sample-applications/video-search-and-summarization` from `main`. It prints the
-resolved app root on stdout:
+Run the bundled bootstrap. It resolves the app root in this order and prints it
+as the only line on stdout:
+
+1. **Walk up from the current directory** looking for a VSS app root - a
+   directory carrying all three markers `setup.sh`, `docker/`, and
+   `pipeline-manager/`.
+2. **Ask git for the enclosing repository** (`git rev-parse --show-toplevel`) and
+   check whether it holds `sample-applications/video-search-and-summarization`,
+   or is itself a VSS app root. This is what makes your own clone - or a fork -
+   work unchanged.
+3. **Reuse a checkout a previous bootstrap already placed** in
+   `${XDG_CACHE_HOME:-$HOME/.cache}/vss-src/edge-ai-libraries`.
+
+If any of those hit, that checkout is **reused and NO clone is performed**. Only
+when all three miss does it clone - and then only a **shallow (`--depth 1`),
+single-branch, sparse** checkout of just
+`sample-applications/video-search-and-summarization` from `main`:
 
 ```bash
 # SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);
@@ -33,7 +53,8 @@ cd "$APP_ROOT"
 
 Every command below assumes the working directory is this `APP_ROOT`. To pull
 from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
-`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it.
+`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it. The bootstrap refuses
+to overwrite an existing non-VSS clone destination.
 
 ## Prerequisites
 
@@ -70,15 +91,15 @@ global:
   usePvc: true
   keepPvc: true
   huggingfaceToken: "hf_..."   # needed for gated/private Hugging Face models
-  vlmName: "Qwen/Qwen3-VL-4B-Instruct"
-  llmName: ""                  # optional OVMS split-model summarization model
+  vlmName: "OpenVINO/Qwen3.5-4B-int8-ov"  # OVMS; vLLM needs a HF checkpoint, e.g. Qwen/Qwen3-VL-4B-Instruct
+  llmName: ""                  # optional OVMS split-model LLM, e.g. OpenVINO/Qwen3-4B-int8-ov
   embeddingModelName: ""       # set per mode below
   modelDownload:
     image:
       repository: intel/model-download
-      tag: "2026.2.0-ww30"
+      tag: "latest"
       pullPolicy: IfNotPresent
-    ovmsReleaseTag: "v2026.1"
+    ovmsReleaseTag: "v2026.4.1"
   proxy:
     http_proxy: ""
     https_proxy: ""
@@ -127,10 +148,12 @@ Use exactly these chart override files:
 |---|---|---|
 | `source setup.sh --summary` | `-f summary_override.yaml -f user_values_override.yaml` | `rabbitmq`, `ovms`, `videoingestion`, `audioanalyzer`, `summaryui`; `pipelinemanager.env.SUMMARY_FEATURE=FEATURE_ON` |
 | `--summary` with `ENABLE_VLLM=true` | `-f summary_override.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml` | summary mode plus `vllm.enabled=true`, `ovms.enabled=false`, `pipelinemanager.env.USE_VLLM=CONFIG_ON` |
+| `--summary` with `ENABLE_VLLM_GPU=true` | `-f summary_override.yaml -f arc_vllm_values.yaml -f user_values_override.yaml` | same as above but `vllm.device=XPU`: Intel Arc GPU image, `/dev/dri` mount, GPU device-plugin resource |
 | `source setup.sh --search` | `-f search_override.yaml -f user_values_override.yaml` | `multimodalembeddingms`, `multimodaldataprep`, `vdmsvectordb`, `vectorretriever`, `videosearch`, `searchui`; `global.vdmsIndexName=video_frame_embeddings` |
 | `VECTORDB_BACKEND=milvus` + `source setup.sh --search` | `-f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml` | switches search backend to Milvus (`global.vectordbBackend=milvus`), enables `milvusstandalone`, disables `vdmsvectordb`, keeps `multimodaldataprep` + `vectorretriever` + `videosearch` |
 | `--summary-and-search` / `--all` / `--unified` | `-f unified_summary_search.yaml -f user_values_override.yaml` | combined search+summary in one `summaryui` named `unified-ui`; `global.vdmsIndexName=video_summary_embeddings` |
 | unified with vLLM | `-f unified_summary_search.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml` | unified mode plus vLLM backend |
+| unified with vLLM on Arc GPU | `-f unified_summary_search.yaml -f arc_vllm_values.yaml -f user_values_override.yaml` | unified mode plus vLLM on the XPU backend |
 | dual separate UIs | `-f summary_override.yaml -f search_override.yaml -f user_values_override.yaml` | both `summaryui` and `searchui`; nginx routes `/summary/` and `/search/` |
 
 Embedding model rule:
@@ -194,10 +217,10 @@ helm uninstall vss -n "$NAMESPACE"
 
 ## 4. GPU/NPU and vLLM values
 
-OVMS GPU VLM example:
+OVMS GPU VLM example (the VLM runs on CPU or GPU only; NPU is not supported for it):
 ```yaml
 global:
-  vlmName: "OpenVINO/Phi-3.5-vision-instruct-int8-ov"
+  vlmName: "OpenVINO/Qwen3.5-4B-int8-ov"
   devices:
     ovms:
       vlm:
@@ -211,8 +234,8 @@ global:
 OVMS split model, e.g. GPU VLM + NPU LLM:
 ```yaml
 global:
-  vlmName: "OpenVINO/Phi-3.5-vision-instruct-int8-ov"
-  llmName: "OpenVINO/Qwen3-8B-int4-cw-ov"
+  vlmName: "OpenVINO/Qwen3.5-4B-int8-ov"
+  llmName: "OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov"  # NPU LLM: text-only -cw- repo
   devices:
     ovms:
       vlm:
@@ -223,8 +246,12 @@ global:
         key: "npu.intel.com/accel"
 ovms:
   env:
-    VLM_WEIGHT_FORMAT: ""   # auto: CPU int8, GPU/NPU int4
+    VLM_WEIGHT_FORMAT: ""   # auto: CPU int8, GPU int4; OpenVINO/*-<fmt>-ov repos use <fmt>
     LLM_WEIGHT_FORMAT: ""
+    OVMS_MAX_NUM_SEQS: ""   # empty = 16; keep >= VLM_CONCURRENT + LLM_CONCURRENT
+    OVMS_CACHE_SIZE_GB: ""  # empty = 0 (dynamic KV cache)
+    OVMS_NPU_MAX_PROMPT_LEN: ""    # empty = 8192; NPU LLM must be text-only
+    OVMS_NPU_MIN_RESPONSE_LEN: ""  # empty = 1024
 ```
 
 Search GPU for embedding/dataprep:
@@ -257,10 +284,6 @@ vllm:
     size: 80Gi
   env:
     vllmCpuKvCacheSpace: "48"
-    vllmRpcTimeout: "100000"
-    vllmAllowLongMaxModelLen: "1"
-    vllmEngineIterationTimeoutS: "120"
-    vllmCpuNumReservedCpu: "0"
     vllmLoggingLevel: "INFO"
   model:
     dtype: bfloat16
@@ -278,6 +301,32 @@ vllm:
 ```
 
 Prefer using `xeon_vllm_values.yaml` rather than hand-setting all of this; it also sets `pipelinemanager.env.USE_VLLM=CONFIG_ON` and resource requests for dependent services.
+
+vLLM on an Intel Arc GPU (XPU) — the Helm equivalent of `ENABLE_VLLM_GPU=true`
+and `docker/compose.vllm.xpu.yaml`:
+```yaml
+vllm:
+  enabled: true
+  device: XPU                      # CPU (default) or XPU
+  gpu:
+    key: "gpu.intel.com/i915"      # required when device is XPU
+    devicePath: /dev/dri
+  model:
+    enforceEager: true             # required on the XPU backend
+    gpuMemoryUtilization: "0.8"
+    mmMaxPixels: 16777216          # caps frame resolution, not frame count
+```
+
+Setting `device: XPU` selects the `vllm/vllm-openai-xpu` image, mounts `/dev/dri`
+into the pod, requests the GPU device-plugin resource in both requests and
+limits, applies `global.accelGroupIds` as the pod's `supplementalGroups`, and
+drops the CPU-only `VLLM_CPU_KVCACHE_SPACE`. Rendering fails fast if
+`vllm.gpu.key` is empty. Note this key is separate from `global.devices.*`,
+which only configures OVMS and the search services.
+
+Prefer `arc_vllm_values.yaml` over hand-setting these; it also lowers
+`pipelinemanager.env.VLM_CONCURRENT`/`LLM_CONCURRENT` for a single-card host and
+carries a commented recipe for GPUs with less than 16 GB.
 
 ## 5. Upgrade safely
 
@@ -349,6 +398,18 @@ curl http://localhost:8081/ovms/metrics
 
 - Helm fails with missing credentials: fill `global.env.POSTGRES_USER`, `global.env.POSTGRES_PASSWORD`, `global.env.MINIO_ROOT_USER`, `global.env.MINIO_ROOT_PASSWORD`, `global.env.RABBITMQ_DEFAULT_USER`, `global.env.RABBITMQ_DEFAULT_PASS`.
 - Helm fails with GPU key errors: set `global.devices.*.key` for every non-CPU device.
+- Helm fails with `vllm.gpu.key is required when vllm.device is XPU`: set
+  `vllm.gpu.key` to the key your Intel GPU device plugin advertises
+  (`gpu.intel.com/i915` or `gpu.intel.com/xe`).
+- vLLM XPU pod stays `Pending`: no node advertises `vllm.gpu.key`. Confirm the
+  Intel GPU device plugin is installed and the key matches the node's allocatable
+  resources.
+- vLLM XPU pod crash-loops with `No available memory for the cache blocks`: the
+  GPU is too small for the current settings. Use the FP8 checkpoint and the
+  reduced `vllm.model.*` values commented in `arc_vllm_values.yaml`; see
+  `docs/user-guide/troubleshooting.md` for the sizing formula.
+- vLLM XPU pod cannot open the device: `global.accelGroupIds` does not match the
+  host gids owning `/dev/dri` (check with `ls -ln /dev/dri`).
 - Model download job/init container fails: inspect the specific model-download
   log, verify `global.modelDownload.image`, proxy/token values, model id, device
   support, and available model storage before debugging the main container.

@@ -46,10 +46,7 @@ The service starts on port **8200** and exposes its API at `http://localhost:820
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `GETI_HOST` | Yes | Geti server URL (e.g. `https://geti.example.com`) |
-| `GETI_TOKEN` | Yes | Geti API access token |
-| `GETI_WORKSPACE_ID` | Yes | Workspace ID from Geti UI |
 | `GETI_SERVER_SSL_VERIFY` | No | Set `False` to disable SSL verification (default: `False`) |
-| `GETI_SERVER_API_VERSION` | No | API version (default: `v1`) |
 
 ### Service
 
@@ -84,8 +81,11 @@ source scripts/run_service.sh up --plugins all --model-path $PWD/models
 | `geti` | Download from Intel Geti platform |
 | `pipeline-zoo-models` | Download DL Streamer pipeline-zoo models |
 | `hls` | Download healthcare AI models |
+| `omz` | Download + convert Open Model Zoo models |
+| `remote-url` | Download a tarball archive from an allowlisted URL |
 
-> **Note:** Enabling a plugin activates its virtual environment and dependencies
+> [!NOTE]
+> Enabling a plugin activates its virtual environment and dependencies
 > inside the container. Unused plugins add startup time — only enable what you need.
 
 ---

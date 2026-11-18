@@ -2,9 +2,23 @@
 
 This microservice supports features based on the requirements of Video Search and Summarization sample application, which uses this microservice. Refer to Video Search and Summarization [release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/release-notes.html) for release details of this microservice.
 
+## Version 2026.3.0-rc1
+
+**Release Date:** November 6, 2026
+
+**Improved:**
+
+- Bumped the Intel® compute-runtime GPU driver to `26.35.39758.10` with IGC `2.41.5`; the NPU driver stays at `1.38.0` with Level Zero loader `1.32.0`.
+- The GPU user-space stack is installed directly in the Dockerfile instead of through `scripts/install_ubuntu_gpu_drivers.sh` (removed). Downloads retry and fail on HTTP errors, and the build fails if the Level Zero GPU driver or OpenCL ICD is missing, so an image can no longer ship without GPU support. Versions are build arguments (`GPU_COMPUTE_RUNTIME_VERSION`, `GPU_IGC_VERSION`, `GPU_IGC_BUILD`, `GPU_GMMLIB_VERSION`), replacing `INSTALL_DRIVER_VERSION`.
+- Refreshed Python dependencies within the existing constraints to clear fixable image vulnerabilities.
+
+**Upgrade Notes:**
+
+- Custom builds that passed `--build-arg INSTALL_DRIVER_VERSION=...` should use the `GPU_*` build arguments instead.
+
 ## Version 2026.2.0
 
-**Release Date:** August 4, 2026
+**Release Date:** September 9, 2026
 
 **New:**
 
@@ -18,11 +32,24 @@ This microservice supports features based on the requirements of Video Search an
 - Improved OpenVINO™ static-shape batching behavior across image/text handlers (CLIP, SigLIP, MobileCLIP, CN-CLIP, BLIP2) to better support accelerator targets.
 - Model conversion now stages output in a temporary directory and surfaces conversion errors instead of leaving a partially written model on disk.
 - Refactored `CLIPHandler` error handling during OpenVINO™ conversion.
-- Bumped Intel® compute-runtime GPU driver to `26.18.38308` and NPU driver to `1.35.0`; advanced the `optimum-intel` pin and `av` (17→18).
+- Bumped Intel® compute-runtime GPU driver to `26.31.39395` and NPU driver to `1.38.0` (with the matching Level Zero loader `1.32.0`); advanced OpenVINO™ to `2026.4.0` with the paired NNCF `3.4.0`, the `optimum-intel` pin, and `av` (17→18).
 - Refreshed dependency version constraints and lock files.
 - Updated API docs and reference material for current endpoints and payloads, including optional request-field behavior clarifications.
 - Improved outbound media/proxy handling compatibility for newer `httpx` versions.
 - Documentation formatting fixes; 2025 release notes split into a separate document.
+
+**Fixed:**
+
+- Fixed file-descriptor exhaustion (`[Errno 24] Too many open files`) that failed video embedding requests with HTTP 500 at large `VIDEO_FRAME_BATCH_SIZE`; shared-memory pool blocks no longer each hold two open descriptors, and the container raises `nofile` to 65536.
+- Fixed shared-memory segments leaking into `/dev/shm` when pool teardown hit an already-unlinked block; blocks are now unlinked independently.
+- Fixed GPU batch-size defaults in `setup.sh` never applying: values were assigned before the device was tested, so GPU deployments silently ran at CPU batch sizes. Defaults are now resolved per device, and explicit values still take precedence.
+- Fixed `QwenText/*` models failing to start on `EMBEDDING_DEVICE=NPU`. The exported IR is dynamic on both batch and sequence length, which the NPU compiler rejects (`expected exactly 1 dynamic output bound dimension, got 2`). The handler now reshapes the model to a static shape before compiling, chunks larger request batches at inference time, and caches the compiled blob per device/shape.
+- Fixed long text losing its tail on `QwenText/*` on NPU. Input beyond the compiled sequence length was truncated, and because the discarded remainder did not affect the vector at all, documents sharing a long prefix produced near-identical embeddings. Such text is now split into overlapping chunks that are embedded and combined into a single vector, weighted so each token counts exactly once. Set `EMBEDDING_CHUNK_LONG_TEXT=false` to restore truncation. CPU and GPU are unaffected.
+- `EMBEDDING_STATIC_SEQ_LEN` is now restricted to validated values (`128`–`8192`, powers of two), rounding other values up rather than compiling an arbitrary shape. See [QwenText Models on NPU](./qwentext-on-npu.md).
+
+**Upgrade Notes:**
+
+- GPU deployments now default to `INFER_BATCH_SIZE=32` and `VIDEO_FRAME_BATCH_SIZE=256` (previously `16`/`64` in practice), the fastest measured combination for CLIP ViT-B/32. Export either variable before sourcing `setup.sh` to keep the old values.
 
 ## Version 2026.1.0
 

@@ -99,9 +99,10 @@ Key Features:
 :hidden:
 
 ./get-started.md
-./policy-based-router.md
+./routing.md
 ./plugin.md
 ./api-reference.md
+Backend probes - advanced setup <./probe.md>
 Release Notes <./release-notes.md>
 
 :::

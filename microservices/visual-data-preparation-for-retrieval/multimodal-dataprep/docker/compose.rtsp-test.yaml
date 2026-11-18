@@ -1,47 +1,70 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-# Helper stack to exercise POST /v1/dataprep/media/rtsp.
-# Publishes a looping local video as an RTSP stream on the same network as the
-# multimodal-dataprep stack (docker_default) so the dataprep container can reach
-# rtsp://rtsp-server:8554/test.
+# Helper stack to exercise live-stream ingestion (POST /v1/dataprep/media/streams).
+# Publishes looping local videos as RTSP streams on the same Docker network as the
+# multimodal-dataprep stack, so the dataprep container can reach them by container
+# name: rtsp://rtsp-server:8554/cam-1 (and cam-2, cam-3).
+#
+# Three publishers let batch registration, filtering and bulk delete run against
+# distinct sources. Publishers remux (-c copy), so sources must already be H.264.
 #
 # Usage:
-#   docker compose -f docker/compose.yaml up -d
-#   RTSP_TEST_VIDEO=/home/intel/workbench/video/original.mp4 \
-#     docker compose -f docker/compose.rtsp-test.yaml up -d
+#   # 1. Point at a directory of H.264 videos and pick one file (required).
+#   #    VIDEO_2 / VIDEO_3 are optional and fall back to VIDEO_1.
+#   export RTSP_TEST_VIDEO_DIR=/path/to/videos
+#   export RTSP_TEST_VIDEO_1=video-1.mp4
+#
+#   # 2. Join the network the dataprep stack is already on:
+#   #      docker inspect <dataprep-container> \
+#   #        --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+#   export RTSP_TEST_NETWORK=docker_vs_network
+#
+#   # 3. Up, register, down:
+#   docker compose -p rtsp-test -f docker/compose.rtsp-test.yaml up -d
+#   curl -X POST http://localhost:${MM_DATAPREP_HOST_PORT:-6007}/v1/dataprep/media/streams \
+#     -H 'Content-Type: application/json' \
+#     -d '{"stream_url": "rtsp://rtsp-server:8554/cam-1", "stream_name": "cam-1"}'
+#   docker compose -p rtsp-test -f docker/compose.rtsp-test.yaml down
+
+x-no-proxy: &no-proxy
+  no_proxy: ${no_proxy:-},rtsp-server,localhost
+  NO_PROXY: ${no_proxy:-},rtsp-server,localhost
+
+x-publisher: &publisher
+  image: jrottenberg/ffmpeg:6.1-alpine
+  restart: unless-stopped
+  environment: *no-proxy
+  depends_on:
+    - rtsp-server
+  volumes:
+    - ${RTSP_TEST_VIDEO_DIR:?set RTSP_TEST_VIDEO_DIR to a directory of H.264 videos}:/videos:ro
 
 services:
   rtsp-server:
     image: bluenviron/mediamtx:1.18.2
     container_name: rtsp-server
     restart: unless-stopped
-    networks:
-      - default
-    environment:
-      no_proxy: ${no_proxy:-},rtsp-server,localhost
-      NO_PROXY: ${no_proxy:-},rtsp-server,localhost
+    environment: *no-proxy
     ports:
       - "${RTSP_HOST_PORT:-8554}:8554"
 
-  rtsp-publisher:
-    image: jrottenberg/ffmpeg:6.1-alpine
-    container_name: rtsp-publisher
-    restart: "no"
-    networks:
-      - default
-    environment:
-      no_proxy: ${no_proxy:-},rtsp-server,localhost
-      NO_PROXY: ${no_proxy:-},rtsp-server,localhost
-    depends_on:
-      - rtsp-server
-    volumes:
-      - ${RTSP_TEST_VIDEO:-/home/intel/workbench/video/original.mp4}:/videos/test.mp4:ro
-    command: >
-      -re -stream_loop ${RTSP_STREAM_LOOP:--1} -i /videos/test.mp4
-      -c copy -f rtsp rtsp://rtsp-server:8554/test
+  rtsp-publisher-1:
+    <<: *publisher
+    container_name: rtsp-publisher-1
+    command: -re -stream_loop ${RTSP_STREAM_LOOP:--1} -i "/videos/${RTSP_TEST_VIDEO_1:?set RTSP_TEST_VIDEO_1 to a filename inside RTSP_TEST_VIDEO_DIR}" -c copy -f rtsp -rtsp_transport tcp rtsp://rtsp-server:8554/cam-1
+
+  rtsp-publisher-2:
+    <<: *publisher
+    container_name: rtsp-publisher-2
+    command: -re -stream_loop ${RTSP_STREAM_LOOP:--1} -i "/videos/${RTSP_TEST_VIDEO_2:-${RTSP_TEST_VIDEO_1}}" -c copy -f rtsp -rtsp_transport tcp rtsp://rtsp-server:8554/cam-2
+
+  rtsp-publisher-3:
+    <<: *publisher
+    container_name: rtsp-publisher-3
+    command: -re -stream_loop ${RTSP_STREAM_LOOP:--1} -i "/videos/${RTSP_TEST_VIDEO_3:-${RTSP_TEST_VIDEO_1}}" -c copy -f rtsp -rtsp_transport tcp rtsp://rtsp-server:8554/cam-3
 
 networks:
   default:
-    name: docker_default
+    name: ${RTSP_TEST_NETWORK:-docker_default}
     external: true

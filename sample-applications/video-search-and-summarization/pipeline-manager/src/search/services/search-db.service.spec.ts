@@ -5,7 +5,11 @@ import { SearchDbService } from './search-db.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SearchEntity } from '../model/search.entity';
-import { SearchQuery, SearchQueryStatus, SearchResult } from '../model/search.model';
+import {
+  SearchQuery,
+  SearchQueryStatus,
+  SearchResult,
+} from '../model/search.model';
 
 describe('SearchDbService', () => {
   let service: SearchDbService;
@@ -33,7 +37,9 @@ describe('SearchDbService', () => {
     }).compile();
 
     service = module.get<SearchDbService>(SearchDbService);
-    repository = module.get(getRepositoryToken(SearchEntity)) as jest.Mocked<Repository<SearchEntity>>;
+    repository = module.get(getRepositoryToken(SearchEntity)) as jest.Mocked<
+      Repository<SearchEntity>
+    >;
   });
 
   it('should be defined', () => {
@@ -82,7 +88,10 @@ describe('SearchDbService', () => {
       } as SearchEntity;
 
       jest.spyOn(service, 'read').mockResolvedValue(mockSearch);
-      repository.save.mockResolvedValue({ ...mockSearch, queryStatus: status } as SearchEntity);
+      repository.save.mockResolvedValue({
+        ...mockSearch,
+        queryStatus: status,
+      } as SearchEntity);
 
       const result = await service.updateQueryStatus(queryId, status);
 
@@ -98,7 +107,10 @@ describe('SearchDbService', () => {
       const queryId = 'non-existent-id';
       jest.spyOn(service, 'read').mockResolvedValue(null);
 
-      const result = await service.updateQueryStatus(queryId, SearchQueryStatus.IDLE);
+      const result = await service.updateQueryStatus(
+        queryId,
+        SearchQueryStatus.IDLE,
+      );
 
       expect(result).toBeNull();
     });
@@ -113,7 +125,10 @@ describe('SearchDbService', () => {
       } as SearchEntity;
 
       jest.spyOn(service, 'read').mockResolvedValue(mockSearch);
-      repository.save.mockResolvedValue({ ...mockSearch, queryStatus: status } as SearchEntity);
+      repository.save.mockResolvedValue({
+        ...mockSearch,
+        queryStatus: status,
+      } as SearchEntity);
 
       await service.updateQueryStatus(queryId, status);
 
@@ -132,9 +147,17 @@ describe('SearchDbService', () => {
       } as SearchEntity;
 
       jest.spyOn(service, 'read').mockResolvedValue(mockSearch);
-      repository.save.mockResolvedValue({ ...mockSearch, queryStatus: status, errorMessage } as SearchEntity);
+      repository.save.mockResolvedValue({
+        ...mockSearch,
+        queryStatus: status,
+        errorMessage,
+      } as SearchEntity);
 
-      const result = await service.updateQueryStatusWithError(queryId, status, errorMessage);
+      const result = await service.updateQueryStatusWithError(
+        queryId,
+        status,
+        errorMessage,
+      );
 
       expect(service.read).toHaveBeenCalledWith(queryId);
       expect(mockSearch.queryStatus).toBe(status);
@@ -148,7 +171,11 @@ describe('SearchDbService', () => {
       const queryId = 'non-existent-id';
       jest.spyOn(service, 'read').mockResolvedValue(null);
 
-      const result = await service.updateQueryStatusWithError(queryId, SearchQueryStatus.ERROR, 'Error message');
+      const result = await service.updateQueryStatusWithError(
+        queryId,
+        SearchQueryStatus.ERROR,
+        'Error message',
+      );
 
       expect(result).toBeNull();
     });
@@ -232,8 +259,8 @@ describe('SearchDbService', () => {
     it('should add results to existing search', async () => {
       const queryId = 'test-query-id';
       const mockResults: SearchResult[] = [
-        { 
-          id: 'result-1', 
+        {
+          id: 'result-1',
           page_content: 'test content',
           type: 'test',
           metadata: {
@@ -260,8 +287,8 @@ describe('SearchDbService', () => {
             video_remote_path: '/remote/path',
             video_url: 'http://test.com/video',
             year: 2025,
-            relevance_score: 0.95
-          }
+            relevance_score: 0.95,
+          },
         },
       ];
       const mockSearch = {
@@ -276,7 +303,10 @@ describe('SearchDbService', () => {
       } as SearchEntity;
 
       jest.spyOn(service, 'read').mockResolvedValue(mockSearch);
-      repository.save.mockResolvedValue({ ...mockSearch, results: mockResults } as SearchEntity);
+      repository.save.mockResolvedValue({
+        ...mockSearch,
+        results: mockResults,
+      } as SearchEntity);
 
       const result = await service.addResults(queryId, mockResults);
 
@@ -300,6 +330,45 @@ describe('SearchDbService', () => {
     });
   });
 
+  describe('markRefreshed', () => {
+    it('should record the refresh time and fingerprint', async () => {
+      const queryId = 'test-query-id';
+      const mockSearch = { queryId, watch: true } as SearchEntity;
+
+      jest.spyOn(service, 'read').mockResolvedValue(mockSearch);
+      repository.save.mockResolvedValue(mockSearch);
+
+      await service.markRefreshed(queryId, 'fingerprint-1');
+
+      expect(mockSearch.lastRefreshedAt).toBeDefined();
+      expect(mockSearch.resultsFingerprint).toBe('fingerprint-1');
+      expect(repository.save).toHaveBeenCalledWith(mockSearch);
+    });
+
+    it('should keep the existing fingerprint when none is supplied', async () => {
+      const queryId = 'test-query-id';
+      const mockSearch = {
+        queryId,
+        watch: true,
+        resultsFingerprint: 'existing',
+      } as SearchEntity;
+
+      jest.spyOn(service, 'read').mockResolvedValue(mockSearch);
+      repository.save.mockResolvedValue(mockSearch);
+
+      await service.markRefreshed(queryId);
+
+      expect(mockSearch.resultsFingerprint).toBe('existing');
+      expect(mockSearch.lastRefreshedAt).toBeDefined();
+    });
+
+    it('should return null when search not found', async () => {
+      jest.spyOn(service, 'read').mockResolvedValue(null);
+
+      await expect(service.markRefreshed('missing')).resolves.toBeNull();
+    });
+  });
+
   describe('updateWatch', () => {
     it('should update watch status', async () => {
       const queryId = 'test-query-id';
@@ -310,7 +379,10 @@ describe('SearchDbService', () => {
       } as SearchEntity;
 
       jest.spyOn(service, 'read').mockResolvedValue(mockSearch);
-      repository.save.mockResolvedValue({ ...mockSearch, watch } as SearchEntity);
+      repository.save.mockResolvedValue({
+        ...mockSearch,
+        watch,
+      } as SearchEntity);
 
       const result = await service.updateWatch(queryId, watch);
 
@@ -347,7 +419,10 @@ describe('SearchDbService', () => {
       } as SearchEntity;
 
       jest.spyOn(service, 'read').mockResolvedValue(mockSearch);
-      repository.save.mockResolvedValue({ ...mockSearch, ...partialUpdate } as SearchEntity);
+      repository.save.mockResolvedValue({
+        ...mockSearch,
+        ...partialUpdate,
+      } as SearchEntity);
 
       const result = await service.update(queryId, partialUpdate);
 

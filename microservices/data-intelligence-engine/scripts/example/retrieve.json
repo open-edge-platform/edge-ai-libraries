@@ -1,0 +1,9 @@
+{
+  "query": "What does Intel Edge AI offer for retail?",
+  "libraries": ["docs"],
+  "asset_pool_ids": [],
+  "top_k": 5,
+  "retriever_type": "rrf",
+  "include_graph_trace": true,
+  "postprocess": {"processor_type": "reranker", "top_n": 3}
+}

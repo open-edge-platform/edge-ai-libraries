@@ -232,6 +232,30 @@ class TestAPI:
         
         logger.info(f"✅ No match confirmed - status: {result['status']}, frames: {result['frames_submitted']}")
 
+    def test_04_no_frames_returns_custom_400(self):
+        """Test API with no frames in request - should return custom 400 error schema."""
+        logger.info("Test: No frames provided to batch endpoint")
+
+        form_data = {
+            "entity_id": "test_person_no_frames",
+            "pattern_id": "shelf_to_waist",
+            "vlm_enabled": "false",
+        }
+
+        response = requests.post(API_ENDPOINT, data=form_data, timeout=REQUEST_TIMEOUT)
+
+        assert response.status_code == 400, \
+            f"Expected 400 when no frames are provided, got {response.status_code}: {response.text}"
+
+        payload = response.json()
+        assert "detail" in payload, f"Expected error payload with detail key, got: {payload}"
+        assert payload["detail"]["error_code"] == "NO_FRAMES_PROVIDED", \
+            f"Expected NO_FRAMES_PROVIDED, got {payload['detail']}"
+        assert payload["detail"]["message"] == "At least 1 frame required", \
+            f"Unexpected error message: {payload['detail']}"
+
+        logger.info("✅ No-frames request returns custom 400 error schema")
+
 # Test fixture to ensure frames are generated before running tests
 @pytest.fixture(scope="session", autouse=True)
 def ensure_test_frames():

@@ -6,6 +6,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+import utils.openvino_runtime_validation as runtime_validation
 from utils.openvino_runtime_validation import (
     validate_asr_runtime_configuration,
     validate_openvino_npu_runtime,
@@ -54,7 +55,17 @@ def _cfg(asr_provider="openai", asr_device="CPU", asr_model_name="whisper-small"
     )
 
 
-def _install_fake_openvino(monkeypatch, available_devices, compile_error=None):
+@pytest.fixture(autouse=True)
+def _fresh_device_probe_cache(monkeypatch):
+    """Start every test with an empty device probe cache.
+
+    The cache is process-wide, so a probe that succeeded in one test would
+    otherwise skip the probe in a later test that expects it to fail.
+    """
+    monkeypatch.setattr(runtime_validation, "_PROBED_DEVICES", set(), raising=False)
+
+
+def _install_fake_openvino(monkeypatch, available_devices, compile_error=None, compile_calls=None):
     fake_ov = ModuleType("openvino")
     fake_op = ModuleType("openvino.op")
 
@@ -63,6 +74,8 @@ def _install_fake_openvino(monkeypatch, available_devices, compile_error=None):
             self.available_devices = list(available_devices)
 
         def compile_model(self, _model, _device):
+            if compile_calls is not None:
+                compile_calls.append(_device)
             if compile_error is not None:
                 raise RuntimeError(compile_error)
             return object()
@@ -155,6 +168,26 @@ def test_validate_asr_runtime_configuration_accepts_openvino_gpu_when_available(
     validate_asr_runtime_configuration(_cfg(asr_provider="openvino", asr_device="GPU"))
 
 
+def test_validate_asr_runtime_configuration_rechecks_device_visibility(monkeypatch):
+    available_devices = ["CPU", "GPU"]
+    _install_fake_openvino(monkeypatch, available_devices=available_devices)
+
+    config = _cfg(asr_provider="openvino", asr_device="GPU")
+    validate_asr_runtime_configuration(config)
+    available_devices.remove("GPU")
+
+    with pytest.raises(RuntimeError, match="not visible in this runtime"):
+        validate_asr_runtime_configuration(config)
+
+
+def test_validate_asr_runtime_configuration_accepts_indexed_gpu(monkeypatch):
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "GPU.0"])
+
+    validate_asr_runtime_configuration(
+        _cfg(asr_provider="openvino", asr_device="GPU", asr_model_name="whisper-base")
+    )
+
+
 def test_validate_asr_runtime_configuration_accepts_openvino_cpu_when_available(monkeypatch):
     _install_fake_openvino(monkeypatch, available_devices=["CPU", "GPU"])
 
@@ -199,6 +232,55 @@ def test_validate_runtime_configuration_validates_sentiment_npu(monkeypatch):
             sentiment_device="NPU",
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# Device probe cache: resolve_asr_device() runs on every Pipeline(), so the
+# probe compile must run once per device, not once per request.
+# ---------------------------------------------------------------------------
+
+def test_device_probe_compiles_once_per_device(monkeypatch):
+    compile_calls = []
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "GPU"], compile_calls=compile_calls)
+
+    config = _cfg(asr_provider="openvino", asr_device="GPU")
+    for _ in range(3):
+        validate_asr_runtime_configuration(config)
+
+    assert compile_calls == ["GPU"]
+
+
+def test_device_probe_cache_is_per_device(monkeypatch):
+    compile_calls = []
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "GPU", "NPU"], compile_calls=compile_calls)
+
+    validate_asr_runtime_configuration(_cfg(asr_provider="openvino", asr_device="GPU"))
+    validate_asr_runtime_configuration(_cfg(asr_provider="openvino", asr_device="GPU"))
+    validate_asr_runtime_configuration(_cfg(asr_provider="openvino", asr_device="NPU"))
+    validate_asr_runtime_configuration(_cfg(asr_provider="openvino", asr_device="NPU"))
+
+    assert compile_calls == ["GPU", "NPU"]
+
+
+def test_failed_device_probe_is_retried_then_cached(monkeypatch):
+    compile_calls = []
+    _install_fake_openvino(
+        monkeypatch,
+        available_devices=["CPU", "NPU"],
+        compile_error="NPU not ready",
+        compile_calls=compile_calls,
+    )
+    config = _cfg(asr_provider="openvino", asr_device="NPU")
+    with pytest.raises(RuntimeError, match="NPU not ready"):
+        validate_asr_runtime_configuration(config)
+
+    # The device recovers: the next call probes again and succeeds, and only
+    # then is the result cached.
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "NPU"], compile_calls=compile_calls)
+    validate_asr_runtime_configuration(config)
+    validate_asr_runtime_configuration(config)
+
+    assert compile_calls == ["NPU", "NPU"]
 
 
 # ---------------------------------------------------------------------------

@@ -13,6 +13,10 @@ from unittest.mock import MagicMock, patch
 from managers.metadata_manager import (
     FILE_CREATION_TIMEOUT,
     METADATA_DIR,
+    SSE_KEEPALIVE_INTERVAL,
+    SSE_PADDING_BYTES,
+    _SSE_KEEPALIVE,
+    _SSE_PREAMBLE,
     MetadataManager,
     _MetadataFile,
     _MetadataJob,
@@ -387,6 +391,15 @@ class TestMetadataManager(unittest.TestCase):
         manager = MetadataManager()
         manager.stop_tailing("unknown-job")  # should not raise
 
+    def test_is_tailing_tracks_job_lifecycle(self):
+        """is_tailing should be True only between register_job and stop_tailing."""
+        manager = MetadataManager()
+        self.assertFalse(manager.is_tailing("job-1"))
+        self._register(manager, "job-1", {"p": ["/tmp/a.json"]})
+        self.assertTrue(manager.is_tailing("job-1"))
+        manager.stop_tailing("job-1")
+        self.assertFalse(manager.is_tailing("job-1"))
+
     def test_get_snapshot_returns_empty_for_unknown_job(self):
         """get_snapshot for an unregistered job should return []."""
         manager = MetadataManager()
@@ -501,7 +514,8 @@ class TestMetadataManager(unittest.TestCase):
                 collected = []
                 async for item in gen:
                     collected.append(item)
-                    break  # stop after the first item
+                    if len(collected) == 2:  # preamble + first record
+                        break
                 return collected
 
             task = asyncio.create_task(_collect_one())
@@ -514,7 +528,7 @@ class TestMetadataManager(unittest.TestCase):
             return await asyncio.wait_for(task, timeout=2.0)
 
         result = asyncio.run(run())
-        self.assertEqual(result, [line])
+        self.assertEqual(result, [_SSE_PREAMBLE, line])
 
     def test_stream_events_terminates_immediately_on_stop_with_no_lines(self):
         """stream_events should stop cleanly when stop() is called with no data."""
@@ -538,7 +552,29 @@ class TestMetadataManager(unittest.TestCase):
             return await asyncio.wait_for(task, timeout=2.0)
 
         result = asyncio.run(run())
-        self.assertEqual(result, [])
+        self.assertEqual(result, [_SSE_PREAMBLE])
+
+    def test_stream_events_starts_with_padded_comment(self):
+        """The first event must be a padded comment large enough to defeat buffering."""
+        self.assertTrue(_SSE_PREAMBLE.startswith(":"))
+        self.assertTrue(_SSE_PREAMBLE.endswith("\n\n"))
+        self.assertGreater(len(_SSE_PREAMBLE), len(_SSE_KEEPALIVE))
+        self.assertGreaterEqual(len(_SSE_KEEPALIVE), SSE_PADDING_BYTES)
+
+    def test_stream_events_closes_for_subscriber_arriving_after_stop(self):
+        """A stream opened after stop_tailing must end instead of hanging forever."""
+        manager = MetadataManager()
+        self._register(manager, "job-1", {"p": ["/tmp/a.json"]})
+        manager.stop_tailing("job-1")
+
+        async def collect() -> list:
+            items = []
+            async for item in manager.stream_events("job-1", 0):
+                items.append(item)
+            return items
+
+        result = asyncio.run(asyncio.wait_for(collect(), timeout=2.0))
+        self.assertEqual(result, [_SSE_PREAMBLE])
 
 
 class TestModuleConstants(unittest.TestCase):
@@ -547,6 +583,15 @@ class TestModuleConstants(unittest.TestCase):
     def test_file_creation_timeout_is_positive(self):
         """FILE_CREATION_TIMEOUT should be a positive number."""
         self.assertGreater(FILE_CREATION_TIMEOUT, 0)
+
+    def test_sse_keepalive_interval_survives_proxy_idle_timeouts(self):
+        """Keepalives must be frequent enough to keep buffering proxies flushing."""
+        self.assertGreater(SSE_KEEPALIVE_INTERVAL, 0)
+        self.assertLessEqual(SSE_KEEPALIVE_INTERVAL, 15)
+
+    def test_sse_padding_clears_typical_proxy_block_buffer(self):
+        """Padding must exceed the ~4 KiB intermediary buffer measured in ITEP-93483."""
+        self.assertGreaterEqual(SSE_PADDING_BYTES, 4096)
 
     def test_metadata_dir_is_normalized_path(self):
         """METADATA_DIR should be a normalised absolute-style string (no trailing sep)."""

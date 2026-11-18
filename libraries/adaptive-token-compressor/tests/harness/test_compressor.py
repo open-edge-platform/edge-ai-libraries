@@ -47,7 +47,7 @@ def make_openclaw_prompt() -> str:
 class FakeBackend:
     """Mock backend that returns predictable compressed text."""
 
-    cache_tag = "lingua"
+    cache_tag = "token_prune"
 
     def __init__(self, suffix: str = " [compressed]"):
         self._suffix = suffix
@@ -67,7 +67,7 @@ class FakeBackend:
 class FailingBackend:
     """Mock backend that always raises BackendError."""
 
-    cache_tag = "lingua"
+    cache_tag = "token_prune"
 
     def compress(self, text, *, rate, force_tokens=None, force_reserve_digit=False, digit_neighbor_radius=0):
         raise BackendError(
@@ -345,7 +345,7 @@ class TestCacheBehavior:
 
         Prefix-cache stability contract: same input produces byte-identical
         output across arbitrary repetitions. With cache injected, the cache
-        absorbs any non-determinism in the backend (real lingua's BERT can
+        absorbs any non-determinism in the backend (real compress-server's BERT can
         have floating-point edge wobble across batches/restarts).
         """
         comp = HarnessCompressor(profile="generic", compress_min_chars=100)
@@ -649,10 +649,10 @@ class TestQuantumLockRealBehavior:
 
         QuantumLock's value lives at the LLM provider's prefix-cache layer
         (vLLM / SGLang / Anthropic — keyed on token prefix), NOT in our
-        lingua HTTP cache (keyed on full-text MD5). After stabilize() the
+        compress-server HTTP cache (keyed on full-text MD5). After stabilize() the
         text is `<stable prefix> + <appendix containing originals>`; the
         appendices differ between requests, so the full-text MD5 differs,
-        so the lingua HTTP cache misses by design. What QuantumLock
+        so the compress-server HTTP cache misses by design. What QuantumLock
         guarantees is that the *prefix* (before the appendix) is
         byte-identical across requests with different dynamic values —
         which is what an LLM provider's prefix cache keys on.
@@ -752,8 +752,8 @@ class TestQuantumLockRealBehavior:
 @pytest.mark.skipif(not HAS_CLAW_COMPACTOR, reason="claw-compactor not installed")
 class TestQuantumLockAppendixBypass:
     """`HarnessCompressor._compress_message_content` strips the QLock appendix
-    before sectioning so lingua never shreds it, then reattaches it byte-for-
-    byte. Without the bypass, lingua's BERT treats the ``<!-- ... -->`` /
+    before sectioning so compress-server never shreds it, then reattaches it byte-for-
+    byte. Without the bypass, compress-server's BERT treats the ``<!-- ... -->`` /
     ``unix_ts: ...`` lines as low-importance text and breaks the appendix →
     original-value mapping.
     """
@@ -773,7 +773,7 @@ class TestQuantumLockAppendixBypass:
         from claw_compactor.fusion.base import FusionContext
         from claw_compactor.fusion.quantum_lock import QuantumLock
 
-        # NoopBackend isolates the bypass logic from any lingua noise.
+        # NoopBackend isolates the bypass logic from any compress-server noise.
         comp = HarnessCompressor(
             profile="generic", compress_min_chars=100, enable_quantum_lock=True
         )
@@ -810,7 +810,7 @@ class TestQuantumLockAppendixBypass:
         # full sectioning + compression path, not the min_chars short-circuit.
         body = (
             "Document body with arbitrary prose that should be sent to "
-            "lingua as a single unit. " * 20
+            "compress-server as a single unit. " * 20
         )
         fake_appendix = (
             "\n---\n" + APPENDIX_START
@@ -852,17 +852,17 @@ class TestQuantumLockAppendixBypass:
 
 
 @pytest.mark.skipif(not HAS_CLAW_COMPACTOR, reason="claw-compactor not installed")
-class TestQuantumLockAppendixBypassRealLingua:
-    """Same contract verified against a running lingua server.
+class TestQuantumLockAppendixBypassRealCompressServer:
+    """Same contract verified against a running compress server.
 
-    Skipped when the server is unreachable. Without the bypass, real lingua
+    Skipped when the server is unreachable. Without the bypass, real compress-server
     on `rate=0.5` deletes the `<!-- ... -->` markers and individual
     ``unix_ts: ...`` lines; the assertions below would fail. With the
-    bypass, the appendix is invisible to lingua and survives byte-for-byte.
+    bypass, the appendix is invisible to compress-server and survives byte-for-byte.
     """
 
-    LINGUA_URL = os.environ.get(
-        "LINGUA_INTEGRATION_URL", "http://localhost:8001/compress"
+    COMPRESS_SERVER_URL = os.environ.get(
+        "COMPRESS_SERVER_INTEGRATION_URL", "http://localhost:8001/compress"
     )
 
     @staticmethod
@@ -875,16 +875,16 @@ class TestQuantumLockAppendixBypassRealLingua:
         except Exception:
             return False
 
-    def test_appendix_survives_real_lingua_compression(self):
-        if not self._server_reachable(self.LINGUA_URL):
-            pytest.skip(f"Lingua server not reachable at {self.LINGUA_URL}")
+    def test_appendix_survives_real_compress_server_compression(self):
+        if not self._server_reachable(self.COMPRESS_SERVER_URL):
+            pytest.skip(f"Compress Server not reachable at {self.COMPRESS_SERVER_URL}")
 
         from claw_compactor.fusion.base import FusionContext
         from claw_compactor.fusion.quantum_lock import QuantumLock
 
         comp = HarnessCompressor(
             profile="generic",
-            lingua_url=self.LINGUA_URL,
+            compress_server_url=self.COMPRESS_SERVER_URL,
             compress_min_chars=100,
             compress_rate=0.5,
             enable_quantum_lock=True,

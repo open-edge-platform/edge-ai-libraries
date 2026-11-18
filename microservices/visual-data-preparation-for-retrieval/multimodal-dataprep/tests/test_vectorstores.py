@@ -88,6 +88,49 @@ def test_canonical_fields_present():
         assert required in CANONICAL_FIELDS
 
 
+def test_every_frame_metadata_field_is_canonical():
+    """Guard against emitting a field the storage contract silently drops.
+
+    ``FrameMetadata`` is what the pipeline actually produces per frame. Any
+    field declared there but missing from :data:`CANONICAL_FIELDS` is computed
+    and then thrown away by ``project_to_canonical`` before it reaches the
+    vector store -- a silent data-loss bug rather than a visible failure. The
+    only legitimate exclusion is the caller-metadata carrier key, which is
+    flattened rather than persisted under its own name.
+    """
+    import dataclasses
+
+    from src.core.embedding.embedding_helper import FrameMetadata
+    from src.core.vectorstores.metadata import CUSTOM_METADATA_KEY
+
+    declared = {f.name for f in dataclasses.fields(FrameMetadata)}
+    dropped = declared - set(CANONICAL_FIELDS) - {CUSTOM_METADATA_KEY}
+    assert not dropped, f"FrameMetadata fields would be silently dropped: {sorted(dropped)}"
+
+
+@pytest.mark.parametrize("backend", ["vdms", "milvus"])
+def test_external_correlation_fields_survive_storage(backend):
+    """The stream-manager correlation fields must reach the vector store.
+
+    These are the only fields that let a consumer match an embedding to a
+    recording owned by another service, so losing them defeats the purpose of
+    capturing them at all.
+    """
+    metadata = {
+        "video_id": "stream-1",
+        "bucket_name": "live-streams",
+        "sensor_id": "front-door-cam",
+        "capture_time": "2026-09-29T04:39:34.229365+00:00",
+        "capture_time_source": "rtcp_sender_report",
+        "media_owner": "self",
+    }
+    cleaned = _make_store(backend).clean_metadata(metadata)
+    assert cleaned["sensor_id"] == "front-door-cam"
+    assert cleaned["capture_time"] == "2026-09-29T04:39:34.229365+00:00"
+    assert cleaned["capture_time_source"] == "rtcp_sender_report"
+    assert cleaned["media_owner"] == "self"
+
+
 def _make_store(backend):
     if backend == "vdms":
         from src.core.vectorstores.vdms_store import VDMSVectorStore
@@ -224,23 +267,73 @@ def test_vdms_delete_embeddings_uses_constraints(monkeypatch):
     from src.core.vectorstores.vdms_store import VDMSVectorStore
 
     store = VDMSVectorStore(host="h", port="1", collection_name="c")
-    captured = {}
+    queries = []
 
-    class FakeVideoDB:
-        def delete(self, constraints=None, **kwargs):
-            captured["constraints"] = constraints
-            return True
+    class FakeClient:
+        def query(self, q):
+            queries.append(q)
+            # First call deletes a batch, second reports nothing left.
+            returned = 3 if len(queries) == 1 else 0
+            return [{"FindDescriptor": {"returned": returned, "status": 0}}], []
 
-    store.video_db = FakeVideoDB()
+    store.client = FakeClient()
     monkeypatch.setattr(store, "connect", lambda: None)
+    index_updates = []
+    monkeypatch.setattr(store, "update_index", lambda: index_updates.append(True))
 
     result = store.delete_embeddings("bucket-a", "video-1")
-    # VDMS cannot report an exact count -> -1 on success.
-    assert result == -1
-    assert captured["constraints"] == {
+
+    # Real deleted count is now returned (batched delete loops until empty).
+    assert result == 3
+    # The delete must carry the _deletion keyword plus the match constraints,
+    # target the collection's descriptor set, and be bounded by a limit.
+    first = queries[0][0]["FindDescriptor"]
+    assert first["set"] == "c"
+    assert first["constraints"] == {
         "video_id": ["==", "video-1"],
         "bucket_name": ["==", "bucket-a"],
+        "_deletion": ["==", 1],
     }
+    assert first["results"]["limit"] >= 1
+    # Looped until a batch returned 0.
+    assert len(queries) == 2
+    # Index persisted once after deletions.
+    assert index_updates == [True]
+
+
+def test_vdms_delete_embeddings_returns_zero_when_nothing_matches(monkeypatch):
+    from src.core.vectorstores.vdms_store import VDMSVectorStore
+
+    store = VDMSVectorStore(host="h", port="1", collection_name="c")
+
+    class FakeClient:
+        def query(self, q):
+            return [{"FindDescriptor": {"entities": [], "returned": 0, "status": 0}}], []
+
+    store.client = FakeClient()
+    monkeypatch.setattr(store, "connect", lambda: None)
+    monkeypatch.setattr(store, "update_index", lambda: None)
+
+    # No descriptors matched -> 0 deleted, no index update needed.
+    assert store.delete_embeddings("bucket-a", "missing") == 0
+
+
+def test_vdms_delete_embeddings_raises_on_backend_failure(monkeypatch):
+    """A FailedCommand (e.g. OutOfJournalSpace) must surface, not be swallowed."""
+    from src.core.vectorstores.vdms_store import VDMSVectorStore
+
+    store = VDMSVectorStore(host="h", port="1", collection_name="c")
+
+    class FakeClient:
+        def query(self, q):
+            return [{"FailedCommand": "Transaction", "info": "OutOfJournalSpace"}], []
+
+    store.client = FakeClient()
+    monkeypatch.setattr(store, "connect", lambda: None)
+    monkeypatch.setattr(store, "update_index", lambda: None)
+
+    with pytest.raises(RuntimeError, match="OutOfJournalSpace"):
+        store.delete_embeddings("bucket-a", "video-1")
 
 
 def test_milvus_delete_embeddings_builds_safe_expr(monkeypatch):
@@ -300,3 +393,107 @@ def test_milvus_delete_embeddings_rejects_unsafe_identifiers(monkeypatch, bucket
 
     with pytest.raises(ValueError):
         store.delete_embeddings(bucket, vid)
+
+
+# --------------------------- VDMS connection serialization -----------------
+def test_vdms_lock_is_reentrant():
+    """Nested serialized calls on one thread must not self-deadlock.
+
+    Mirrors the real nesting (``add_embeddings`` -> ``connect`` and
+    ``_delete_by_constraints`` -> ``update_index``), which relies on the lock
+    being an ``RLock``.
+    """
+    from src.core.vectorstores.vdms_concurrency import serialize_vdms_calls
+
+    @serialize_vdms_calls
+    def inner():
+        return "ok"
+
+    @serialize_vdms_calls
+    def outer():
+        return inner()
+
+    assert outer() == "ok"
+
+
+def test_vdms_concurrent_insert_and_delete_are_serialized(monkeypatch):
+    """A concurrent insert and delete must never interleave on the shared socket.
+
+    Without serialization, ``add_from`` and ``FindDescriptor`` queries overlap on
+    the single non-thread-safe ``VDMS_Client`` connection and desync its framing,
+    which deadlocked the live-ingestion pipeline in production.
+    """
+    import threading
+    import time
+
+    from src.core.vectorstores.vdms_store import VDMSVectorStore
+
+    store = VDMSVectorStore(host="h", port="1", collection_name="c")
+    monkeypatch.setattr(store, "connect", lambda: None)
+    monkeypatch.setattr(store, "update_index", lambda: None)
+
+    active = 0
+    max_active = 0
+    meter = threading.Lock()
+
+    def enter():
+        nonlocal active, max_active
+        with meter:
+            active += 1
+            max_active = max(max_active, active)
+
+    def leave():
+        nonlocal active
+        with meter:
+            active -= 1
+
+    class FakeVideoDB:
+        def add_from(self, texts, embeddings, metadatas, ids, batch_size):
+            enter()
+            time.sleep(0.02)
+            leave()
+            return ids
+
+        def check_and_update_properties(self):
+            pass
+
+    class FakeClient:
+        def query(self, q):
+            enter()
+            time.sleep(0.02)
+            leave()
+            # Report nothing left so the delete loop exits after one pass.
+            return [{"FindDescriptor": {"returned": 0, "status": 0}}], []
+
+    store.video_db = FakeVideoDB()
+    store.client = FakeClient()
+
+    errors: list = []
+
+    def do_inserts():
+        try:
+            for _ in range(5):
+                store.add_embeddings(
+                    texts=["t"], embeddings=[[0.1, 0.2]], metadatas=[{"video_id": "v"}]
+                )
+        except Exception as exc:  # pragma: no cover - surfaces thread failure
+            errors.append(exc)
+
+    def do_deletes():
+        try:
+            for _ in range(5):
+                store.delete_embeddings("bucket", "v")
+        except Exception as exc:  # pragma: no cover - surfaces thread failure
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=do_inserts),
+        threading.Thread(target=do_deletes),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, f"worker threads raised: {errors}"
+    assert max_active == 1, f"VDMS calls overlapped (max concurrency {max_active})"

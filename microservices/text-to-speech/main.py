@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from api.custom_endpoints import router as custom_router
 from api.error_responses import build_openai_error, openai_error_response
 from api.openai_endpoints import router as openai_router
+from api.streaming_endpoints import router as streaming_router
 from pipeline import Pipeline
 from utils.config_loader import config
 from utils.ensure_model import ensure_model
@@ -49,8 +50,16 @@ def _clear_storage_on_startup() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _clear_storage_on_startup()
-    ensure_model()
-    preload_models()
+    try:
+        ensure_model()
+        preload_models()
+    except Exception as exc:
+        logger.warning(
+            "TTS model is unavailable. "
+            "Startup will be retried by the container runtime: %s",
+            exc,
+        )
+        raise
 
     # GPU warmup: compile kernels before the app starts serving traffic.
     try:
@@ -80,6 +89,7 @@ app.add_middleware(
 )
 
 app.include_router(openai_router)
+app.include_router(streaming_router)
 app.include_router(custom_router)
 
 

@@ -603,4 +603,203 @@ describe('VideoGroupsView Component', () => {
       expect(getVideoUrl).toBeDefined();
     });
   });
+
+  describe('Multiple results per video', () => {
+    it('should render every hit when one video matches at several timestamps', () => {
+      const mockResults = [12.26, 33.53, 59.8].map((timestamp, index) =>
+        createMockSearchResult({
+          id: `result-${index + 1}`,
+          metadata: {
+            ...createMockSearchResult().metadata,
+            video_id: 'video-1',
+            tags: 'ceramic',
+            timestamp,
+            relevance_score: 0.9 - index * 0.1,
+          },
+        }),
+      );
+
+      const store = createMockStore(mockResults);
+      const { container } = renderWithProviders(<VideoGroupsView />, store);
+
+      // All three hits must stay visible, not collapse into a single card.
+      expect(container.querySelectorAll('video')).toHaveLength(3);
+      expect(screen.getByText('Relevance Score: 0.900')).toBeInTheDocument();
+      expect(screen.getByText('Relevance Score: 0.800')).toBeInTheDocument();
+      expect(screen.getByText('Relevance Score: 0.700')).toBeInTheDocument();
+
+      // The group is one video but three results.
+      expect(screen.getByRole('heading', { name: /ceramic.*1.*videos.*3.*results/ })).toBeInTheDocument();
+    });
+
+    it('should keep all hits across several videos sharing a tag', () => {
+      const mockResults = [
+        ...[10, 20, 30].map((timestamp, index) =>
+          createMockSearchResult({
+            id: `a-${index}`,
+            metadata: {
+              ...createMockSearchResult().metadata,
+              video_id: 'video-1',
+              tags: 'action',
+              timestamp,
+              relevance_score: 0.9,
+            },
+          }),
+        ),
+        ...[15, 25].map((timestamp, index) =>
+          createMockSearchResult({
+            id: `b-${index}`,
+            metadata: {
+              ...createMockSearchResult().metadata,
+              video_id: 'video-2',
+              tags: 'action',
+              timestamp,
+              relevance_score: 0.8,
+            },
+          }),
+        ),
+      ];
+
+      const store = createMockStore(mockResults);
+      const { container } = renderWithProviders(<VideoGroupsView />, store);
+
+      expect(container.querySelectorAll('video')).toHaveLength(5);
+      expect(screen.getByRole('heading', { name: /action.*2.*videos.*5.*results/ })).toBeInTheDocument();
+    });
+
+    it('should show the timestamp of each hit', () => {
+      const mockResults = [
+        createMockSearchResult({
+          id: 'result-1',
+          metadata: {
+            ...createMockSearchResult().metadata,
+            video_id: 'video-1',
+            tags: 'action',
+            timestamp: 75.5,
+            relevance_score: 0.9,
+          },
+        }),
+        createMockSearchResult({
+          id: 'result-2',
+          metadata: {
+            ...createMockSearchResult().metadata,
+            video_id: 'video-1',
+            tags: 'action',
+            timestamp: 5,
+            relevance_score: 0.8,
+          },
+        }),
+      ];
+
+      const store = createMockStore(mockResults);
+      renderWithProviders(<VideoGroupsView />, store);
+
+      expect(screen.getByText('01:15')).toBeInTheDocument();
+      expect(screen.getByText('00:05')).toBeInTheDocument();
+    });
+
+    it('should sort hits from the same video by relevance descending', () => {
+      const mockResults = [0.5, 0.95, 0.75].map((relevance_score, index) =>
+        createMockSearchResult({
+          id: `result-${index}`,
+          metadata: {
+            ...createMockSearchResult().metadata,
+            video_id: 'video-1',
+            tags: 'action',
+            timestamp: index * 10,
+            relevance_score,
+          },
+        }),
+      );
+
+      const store = createMockStore(mockResults);
+      renderWithProviders(<VideoGroupsView />, store);
+
+      const relevanceScores = screen.getAllByText(/Relevance Score:/);
+      expect(relevanceScores[0]).toHaveTextContent('Relevance Score: 0.950');
+      expect(relevanceScores[1]).toHaveTextContent('Relevance Score: 0.750');
+      expect(relevanceScores[2]).toHaveTextContent('Relevance Score: 0.500');
+    });
+  });
+
+  describe('Group by camera / video', () => {
+    const storeWith = (results: SearchResult[], sortBy: 'relevance' | 'newest' | 'oldest') =>
+      configureStore({
+        reducer: {
+          search: (
+            state = {
+              searchQueries: [
+                {
+                  queryId: 'q',
+                  query: 'q',
+                  watch: false,
+                  results,
+                  queryStatus: 'idle' as any,
+                  tags: [],
+                  createdAt: '',
+                  updatedAt: '',
+                  topK: 10,
+                  sortBy,
+                },
+              ],
+              unreads: [],
+              selectedQuery: 'q',
+              triggerLoad: false,
+              suggestedTags: [],
+            },
+            _action,
+          ) => state,
+          videos: (state = { videos: [], status: 'ready' as any }, _action) => state,
+          streams: (state = { streams: [{ stream_id: 'cam-1', stream_name: 'Front Door' }] }, _action) => state,
+        },
+      });
+
+    const live = (id: string, observedAt: string, score: number) =>
+      createMockSearchResult({
+        id,
+        streamId: 'cam-1',
+        timeSource: 'live',
+        observedAt,
+        video: undefined as any,
+        metadata: { ...createMockSearchResult().metadata, video_id: 'cam-1', relevance_score: score },
+      });
+    const upload = (id: string, videoId: string, name: string, observedAt: string, score: number) =>
+      createMockSearchResult({
+        id,
+        timeSource: 'upload',
+        observedAt,
+        video: { ...createMockSearchResult().video, videoId, name },
+        metadata: { ...createMockSearchResult().metadata, video_id: videoId, relevance_score: score },
+      });
+
+    it('groups live hits by camera name and uploads by video, most recent group first', () => {
+      const results = [
+        upload('u1', 'video-1', 'Clip A', '2026-01-01T10:00:00Z', 0.9),
+        live('l1', '2026-01-03T10:00:00Z', 0.5),
+        upload('u2', 'video-2', 'Clip B', '2026-01-02T10:00:00Z', 0.8),
+        live('l2', '2026-01-04T10:00:00Z', 0.4),
+      ];
+      renderWithProviders(<VideoGroupsView groupBy='camera' />, storeWith(results, 'newest'));
+
+      expect(screen.getByText('Results by Camera / Video')).toBeInTheDocument();
+      const groups = screen.getAllByTestId('result-group');
+      const headings = groups.map((group) => group.querySelector('h3')?.textContent);
+      expect(headings[0]).toMatch(/^Front Door.*Live.*2 results/);
+      expect(headings[1]).toMatch(/^Clip B.*Video.*1 results/);
+      expect(headings[2]).toMatch(/^Clip A.*Video.*1 results/);
+
+      // Newest first inside the group: 0.4 (Jan 4) before 0.5 (Jan 3).
+      const frontDoor = groups[0].textContent ?? '';
+      expect(frontDoor.indexOf('0.400')).toBeLessThan(frontDoor.indexOf('0.500'));
+    });
+
+    it('labels live hits with capture time and uploads with upload time and offset', () => {
+      const u1 = upload('u1', 'video-1', 'A', '2026-01-01T10:00:05Z', 0.9);
+      u1.video = { ...u1.video, createdAt: '2026-01-01T10:00:00Z' };
+      const results = [live('l1', '2026-01-03T10:00:00Z', 0.5), u1];
+      renderWithProviders(<VideoGroupsView groupBy='camera' />, storeWith(results, 'relevance'));
+      const labels = screen.getAllByTestId('observed-time').map((el) => el.textContent);
+      expect(labels).toEqual(['Captured {{time}}', 'Uploaded {{time}} · at {{offset}}']);
+    });
+  });
 });

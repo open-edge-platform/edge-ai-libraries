@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+import asyncio
 import logging
 import os
 import threading
@@ -8,15 +12,24 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
+from audio_assets import AudioAssetsManager
+from api.dependencies.audio_jobs import shutdown_audio_pipeline_job_manager
 from api.middleware import InitializationMiddleware
 from api.routes import health
+from app_version import VIPPET_VERSION
+from cpu_topology import get_cpu_topology
 from database import close_db, init_db
+from dlsps2_optimizer import cancel_leftover_optimizations
+from dlsps2_runner import stop_leftover_instances
 from images import ImagesManager
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
+from managers.audio_pipeline_manager import get_audio_pipeline_manager
 from managers.model_manager import ModelManager
 from managers.pipeline_manager import PipelineManager
 from managers.pipeline_template_manager import PipelineTemplateManager
+from models import SupportedModelsManager
+from pipeline_events import remove_event_folders
 from videos import VideosManager
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -50,6 +63,17 @@ for _noisy in ("httpx", "httpcore"):
     )
 
 
+def _release_pipeline_execution() -> None:
+    """Stop leftover DLSPS 2.0 instances and optimizer jobs, delete live-event folders.
+
+    Runs when vippet starts and when it stops, so a vippet process that ended
+    mid-run leaves no pipeline holding devices and no event files behind.
+    """
+    stop_leftover_instances()
+    cancel_leftover_optimizations()
+    remove_event_folders()
+
+
 def _initialize_in_background(app: FastAPI) -> None:
     """
     Initialize application resources in background thread.
@@ -64,9 +88,22 @@ def _initialize_in_background(app: FastAPI) -> None:
             InternalAppStatus.INITIALIZING, "Downloading videos and loading metadata..."
         )
 
+        # Read the CPU core types once so they are logged at startup and
+        # cached for GET /devices.
+        get_cpu_topology()
+
+        # Before the TS conversion below starts pipelines on DLSPS 2.0.
+        _release_pipeline_execution()
+
         # Initialize VideosManager - downloads videos, scans files,
         # extracts metadata, and converts to TS format
         VideosManager()
+
+        # Install bundled recordings used by Audio pipeline presets.
+        AudioAssetsManager()
+
+        # Load and validate read-only Audio pipeline definitions.
+        get_audio_pipeline_manager()
 
         # Initialize ImagesManager - ensures the uploaded image-set
         # root directory exists with the right permissions before any
@@ -79,9 +116,9 @@ def _initialize_in_background(app: FastAPI) -> None:
         # Initialize PipelineTemplateManager - loads pipeline templates
         PipelineTemplateManager()
 
-        # Initialize ModelManager - reads supported_models.yaml and the
-        # installed-models registry. Must run after PipelineManager so
-        # that ``GET /models`` can compute ``used_by_pipelines``.
+        # Initialize ModelManager - the model-catalog cache itself was
+        # already warmed in the lifespan (before PipelineManager loaded
+        # predefined pipelines); this just sets up job bookkeeping.
         ModelManager()
 
         # Register remaining routers after VideosManager, PipelineManager, and PipelineTemplateManager are initialized
@@ -118,6 +155,7 @@ def register_routers(app: FastAPI) -> None:
         timeseries,
         videos,
         cameras,
+        voice,
     )
 
     # Include routers from different modules
@@ -137,6 +175,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
     app.include_router(images.router, prefix="/images", tags=["images"])
     app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
+    app.include_router(voice.router, prefix="/voice", tags=["voice"])
 
 
 @asynccontextmanager
@@ -154,6 +193,12 @@ async def lifespan(app: FastAPI):
     # Initialize database before serving requests that depend on sessions.
     await init_db()
 
+    # Warm the model-catalog cache before PipelineManager loads predefined
+    # pipelines in the background thread below: pipeline ingestion resolves
+    # each node's model file path to a display name via
+    # SupportedModelsManager, so the cache must already reflect the DB.
+    await SupportedModelsManager().reload_async()
+
     # Start initialization in background thread
     init_thread = threading.Thread(
         target=_initialize_in_background,
@@ -167,6 +212,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Application shutting down...")
+    await shutdown_audio_pipeline_job_manager()
+    await asyncio.to_thread(_release_pipeline_execution)
     await close_db()
     app_state_manager.set_status(InternalAppStatus.SHUTDOWN)
 
@@ -175,7 +222,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Visual Pipeline and Platform Evaluation Tool API",
     description="API for Visual Pipeline and Platform Evaluation Tool",
-    version="1.0.0",
+    version=VIPPET_VERSION,
     root_path="/api/v1",
     # without explicitly setting servers to the same value as root_path,
     # generating openapi schema would omit whole servers section in vippet.json

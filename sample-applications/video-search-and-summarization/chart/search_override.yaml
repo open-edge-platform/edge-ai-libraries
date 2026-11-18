@@ -2,6 +2,8 @@ multimodalembeddingms:
   enabled: true
 multimodaldataprep:
   enabled: true
+  liveStream:
+    enabled: true
 vdmsvectordb:
   enabled: true
 vectorretriever:
@@ -25,3 +27,4 @@ searchui:
     summary: "FEATURE_OFF"
     search: "FEATURE_ON"
     mux: "ATOMIC"
+    liveStreams: "FEATURE_ON"

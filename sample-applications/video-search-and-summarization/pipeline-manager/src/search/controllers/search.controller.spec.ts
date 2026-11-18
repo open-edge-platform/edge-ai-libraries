@@ -6,6 +6,11 @@ import { SearchController } from './search.controller';
 import { SearchStateService } from '../services/search-state.service';
 import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
+import { FeaturesService } from 'src/features/features.service';
+import { SearchRefreshConfigService } from '../services/search-refresh-config.service';
+import { SearchImageService } from '../services/search-image.service';
+import { SearchConfigService } from '../services/search-config.service';
+import { ConfigService } from '@nestjs/config';
 import { of } from 'rxjs';
 
 jest.mock('uuid', () => ({
@@ -17,15 +22,20 @@ describe('SearchController', () => {
   let searchStateService: jest.Mocked<SearchStateService>;
   let searchDbService: jest.Mocked<SearchDbService>;
   let searchShimService: jest.Mocked<SearchShimService>;
+  let featuresService: jest.Mocked<FeaturesService>;
+  let searchImageService: jest.Mocked<SearchImageService>;
 
   const mockQuery = {
     queryId: 'test-query-123',
     query: 'test search query',
     tags: ['tag1', 'tag2'],
-    results: []
+    results: [],
   };
 
-  const mockQueries = [mockQuery, { queryId: 'query2', query: 'another query', results: [] }];
+  const mockQueries = [
+    mockQuery,
+    { queryId: 'query2', query: 'another query', results: [] },
+  ];
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -35,6 +45,7 @@ describe('SearchController', () => {
           provide: SearchStateService,
           useValue: {
             getQueries: jest.fn().mockResolvedValue(mockQueries),
+            getQuery: jest.fn().mockResolvedValue(mockQuery),
             newQuery: jest.fn().mockResolvedValue(mockQuery),
             reRunQuery: jest.fn().mockResolvedValue(mockQuery),
             addToWatch: jest.fn().mockResolvedValue(true),
@@ -43,31 +54,72 @@ describe('SearchController', () => {
               selection: null,
               range: null,
             }),
-          }
+            enrichResultsWithVideos: jest
+              .fn()
+              .mockImplementation((results) => Promise.resolve(results)),
+          },
         },
         {
           provide: SearchDbService,
           useValue: {
             readAllWatched: jest.fn().mockResolvedValue([mockQuery]),
             read: jest.fn().mockResolvedValue(mockQuery),
-            remove: jest.fn().mockResolvedValue(true)
-          }
+            remove: jest.fn().mockResolvedValue(true),
+          },
         },
         {
           provide: SearchShimService,
           useValue: {
-            search: jest.fn().mockReturnValue(
-              of({ data: { results: [{ id: '1', content: 'test result' }] } })
-            )
-          }
-        }
-      ]
+            search: jest
+              .fn()
+              .mockReturnValue(
+                of({
+                  data: { results: [{ id: '1', content: 'test result' }] },
+                }),
+              ),
+          },
+        },
+        {
+          provide: FeaturesService,
+          useValue: {
+            isImageSearchEnabled: jest.fn().mockReturnValue(true),
+          },
+        },
+        {
+          provide: SearchRefreshConfigService,
+          useValue: {
+            getConfig: jest.fn().mockReturnValue({
+              enabled: true,
+              intervalMs: 10000,
+              quietPeriodMs: 2000,
+              batchSize: 10,
+              minQueryIntervalMs: 10000,
+              maxQueriesPerTick: 50,
+            }),
+          },
+        },
+        {
+          provide: SearchImageService,
+          useValue: {
+            resolveToDataUrl: jest
+              .fn()
+              .mockResolvedValue('data:image/png;base64,UE5H'),
+          },
+        },
+        SearchConfigService,
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(undefined) },
+        },
+      ],
     }).compile();
 
     controller = module.get<SearchController>(SearchController);
     searchStateService = module.get(SearchStateService);
     searchDbService = module.get(SearchDbService);
     searchShimService = module.get(SearchShimService);
+    featuresService = module.get(FeaturesService);
+    searchImageService = module.get(SearchImageService);
   });
 
   it('should be defined', () => {
@@ -77,7 +129,7 @@ describe('SearchController', () => {
   describe('getQueries', () => {
     it('should return all queries', async () => {
       const result = await controller.getQueries();
-      
+
       expect(result).toEqual(mockQueries);
       expect(searchStateService.getQueries).toHaveBeenCalled();
     });
@@ -86,7 +138,7 @@ describe('SearchController', () => {
   describe('getWatchedQueries', () => {
     it('should return watched queries', async () => {
       const result = await controller.getWatchedQueries();
-      
+
       expect(result).toEqual([mockQuery]);
       expect(searchDbService.readAllWatched).toHaveBeenCalled();
     });
@@ -96,54 +148,127 @@ describe('SearchController', () => {
     it('should return a specific query by ID', async () => {
       const queryId = 'test-query-123';
       const result = await controller.getQuery({ queryId });
-      
+
       expect(result).toEqual(mockQuery);
-      expect(searchDbService.read).toHaveBeenCalledWith(queryId);
+      expect(searchStateService.getQuery).toHaveBeenCalledWith(queryId);
     });
   });
 
   describe('addQuery', () => {
+    it.each([
+      ['missing', {}],
+      ['empty', { query: '' }],
+      ['whitespace-only', { query: '   ' }],
+    ])('should reject a %s search query', async (_description, reqBody) => {
+      await expect(controller.addQuery(reqBody)).rejects.toThrow(
+        new BadRequestException('Search query cannot be empty.'),
+      );
+      expect(searchStateService.newQuery).not.toHaveBeenCalled();
+    });
+
+    it('should reject a search with both text and image input', async () => {
+      await expect(
+        controller.addQuery({
+          query: 'person walking',
+          image: 'data:image/jpeg;base64,abc',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Provide either a text query or an image, not both.',
+        ),
+      );
+      expect(searchStateService.newQuery).not.toHaveBeenCalled();
+    });
+
+    it('should resolve imageUrl and persist the image-only query', async () => {
+      await controller.addQuery({
+        imageUrl: '/video-summary/search-images/x.png',
+      });
+
+      expect(searchImageService.resolveToDataUrl).toHaveBeenCalledWith(
+        '/video-summary/search-images/x.png',
+      );
+      expect(searchStateService.newQuery).toHaveBeenCalledWith(
+        '',
+        [],
+        undefined,
+        'data:image/png;base64,UE5H',
+        undefined,
+      );
+    });
+
+    it('should reject a search with both image and imageUrl', async () => {
+      await expect(
+        controller.addQuery({
+          image: 'data:image/jpeg;base64,abc',
+          imageUrl: '/video-summary/search-images/x.png',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Provide either an image or an imageUrl, not both.',
+        ),
+      );
+      expect(searchImageService.resolveToDataUrl).not.toHaveBeenCalled();
+    });
+
+    it('should reject a search with both text and imageUrl', async () => {
+      await expect(
+        controller.addQuery({
+          query: 'forklift',
+          imageUrl: '/video-summary/search-images/x.png',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Provide either a text query or an image, not both.',
+        ),
+      );
+    });
+
     it('should add a new query without tags', async () => {
       const reqBody = {
-        query: 'new test query'
+        query: 'new test query',
       };
-      
+
       const result = await controller.addQuery(reqBody);
-      
+
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', [], undefined);
+      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', [], undefined, null, undefined);
     });
 
     it('should add a new query with tags', async () => {
       const reqBody = {
         query: 'new test query',
-        tags: 'tag1, tag2, tag3'
+        tags: 'tag1, tag2, tag3',
       };
-      
+
       const result = await controller.addQuery(reqBody);
-      
+
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', ['tag1', 'tag2', 'tag3'], undefined);
+      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', ['tag1', 'tag2', 'tag3'], undefined, null, undefined);
     });
 
     it('should handle empty tags string', async () => {
       const reqBody = {
         query: 'new test query',
-        tags: ''
+        tags: '',
       };
-      
+
       const result = await controller.addQuery(reqBody);
-      
+
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', [], undefined);
+      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', [], undefined, null, undefined);
     });
 
     it('should handle error when adding query', async () => {
-      searchStateService.newQuery.mockRejectedValueOnce(new Error('Database error'));
-      
+      searchStateService.newQuery.mockRejectedValueOnce(
+        new Error('Database error'),
+      );
+
       const reqBody = { query: 'failing query' };
-      
-      await expect(controller.addQuery(reqBody)).rejects.toThrow(BadRequestException);
+
+      await expect(controller.addQuery(reqBody)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -151,23 +276,91 @@ describe('SearchController', () => {
     it('should refetch a query by ID', async () => {
       const queryId = 'test-query-123';
       const result = await controller.refetchQuery({ queryId });
-      
+
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.reRunQuery).toHaveBeenCalledWith(queryId, undefined);
+      expect(searchStateService.reRunQuery).toHaveBeenCalledWith(
+        queryId,
+        undefined,
+        undefined,
+      );
+    });
+
+    it('should pass a minPeakScore override to reRunQuery', async () => {
+      const queryId = 'test-query-123';
+      await controller.refetchQuery({ queryId }, { minPeakScore: 0.35 });
+
+      expect(searchStateService.reRunQuery).toHaveBeenCalledWith(
+        queryId,
+        undefined,
+        0.35,
+      );
+    });
+
+    it.each([[-0.1], [1.5], ['0.3'], [Number.NaN]])(
+      'should reject an invalid minPeakScore %p on refetch',
+      async (minPeakScore) => {
+        await expect(
+          controller.refetchQuery(
+            { queryId: 'test-query-123' },
+            { minPeakScore: minPeakScore as any },
+          ),
+        ).rejects.toThrow(BadRequestException);
+        expect(searchStateService.reRunQuery).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  describe('getSearchConfig', () => {
+    it('should report the default minimum peak score', () => {
+      expect(controller.getSearchConfig()).toEqual({ minPeakScoreDefault: 0 });
     });
   });
 
   describe('searchQuery', () => {
+    it.each([
+      ['missing', {}],
+      ['empty', { query: '' }],
+      ['whitespace-only', { query: '   ' }],
+    ])('should reject a %s search query', async (_description, reqBody) => {
+      await expect(controller.searchQuery(reqBody)).rejects.toThrow(
+        new BadRequestException('Search query cannot be empty.'),
+      );
+      expect(searchShimService.search).not.toHaveBeenCalled();
+    });
+
     it('should perform a direct search query', async () => {
       const reqBody = { query: 'direct search query' };
-      
+
       const result = await controller.searchQuery(reqBody);
-      
-      expect(result).toEqual({ results: [{ id: '1', content: 'test result' }] });
-      expect(searchShimService.search).toHaveBeenCalledWith([{
+
+      expect(result).toEqual({
+        results: [{ id: '1', content: 'test result' }],
+      });
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        {
+          query: 'direct search query',
+          query_id: expect.any(String),
+          min_peak_score: 0,
+        },
+      ]);
+    });
+
+    it('should forward a request minPeakScore to the search service', async () => {
+      await controller.searchQuery({
         query: 'direct search query',
-        query_id: expect.any(String)
-      }]);
+        minPeakScore: 0.25,
+      });
+
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        expect.objectContaining({ min_peak_score: 0.25 }),
+      ]);
+    });
+
+    it('should reject an out-of-range minPeakScore', async () => {
+      await expect(
+        controller.searchQuery({ query: 'q', minPeakScore: 2 }),
+      ).rejects.toThrow(BadRequestException);
+      expect(searchShimService.search).not.toHaveBeenCalled();
     });
 
     it('should include tags in direct search payload', async () => {
@@ -175,11 +368,14 @@ describe('SearchController', () => {
 
       await controller.searchQuery(reqBody);
 
-      expect(searchShimService.search).toHaveBeenCalledWith([{
-        query: 'direct search query',
-        query_id: expect.any(String),
-        tags: ['red', 'ketchup'],
-      }]);
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        {
+          query: 'direct search query',
+          query_id: expect.any(String),
+          min_peak_score: 0,
+          tags: ['red', 'ketchup'],
+        },
+      ]);
     });
 
     it('should include absolute time_filter in direct search payload', async () => {
@@ -205,15 +401,76 @@ describe('SearchController', () => {
 
       await controller.searchQuery(reqBody);
 
-      expect(searchShimService.search).toHaveBeenCalledWith([{
-        query: 'direct search query',
-        query_id: expect.any(String),
-        tags: ['red'],
-        time_filter: {
-          start: '2026-06-24T05:00:00.000Z',
-          end: '2026-06-24T06:00:00.000Z',
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        {
+          query: 'direct search query',
+          query_id: expect.any(String),
+          min_peak_score: 0,
+          tags: ['red'],
+          time_filter: {
+            start: '2026-06-24T05:00:00.000Z',
+            end: '2026-06-24T06:00:00.000Z',
+          },
         },
+      ]);
+    });
+
+    it('should send an imageUrl search as the resolved base64 image', async () => {
+      await controller.searchQuery({
+        imageUrl: 'http://192.168.1.10:12345/datastore/video-summary/search-images/x.png',
+      });
+
+      expect(searchImageService.resolveToDataUrl).toHaveBeenCalledWith(
+        'http://192.168.1.10:12345/datastore/video-summary/search-images/x.png',
+      );
+      expect(searchShimService.search).toHaveBeenCalledWith([{
+        query_id: expect.any(String),
+        min_peak_score: 0,
+        image_base64: 'data:image/png;base64,UE5H',
       }]);
+    });
+
+    it('should reject imageUrl search when image search is disabled', async () => {
+      featuresService.isImageSearchEnabled.mockReturnValueOnce(false);
+
+      await expect(
+        controller.searchQuery({ imageUrl: '/video-summary/search-images/x.png' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(searchImageService.resolveToDataUrl).not.toHaveBeenCalled();
+      expect(searchShimService.search).not.toHaveBeenCalled();
+    });
+
+    it('should reject image search when disabled', async () => {
+      featuresService.isImageSearchEnabled.mockReturnValueOnce(false);
+
+      await expect(
+        controller.searchQuery({ image: 'base64-image' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(searchShimService.search).not.toHaveBeenCalled();
+    });
+
+    it('enriches each nested hit with video/playback info before returning', async () => {
+      const hit = { id: 'r1', metadata: { video_id: 'video-1' } };
+      searchShimService.search.mockReturnValueOnce(
+        of({
+          data: {
+            results: [
+              { query_id: 'q1', results: [hit] },
+            ],
+          },
+        }) as any,
+      );
+      const enrichedHit = { ...hit, videoPlaybackUrl: '/bucket/video-1/source.mp4' };
+      searchStateService.enrichResultsWithVideos.mockResolvedValueOnce([
+        enrichedHit,
+      ] as any);
+
+      const result = await controller.searchQuery({ query: 'forklift' });
+
+      expect(searchStateService.enrichResultsWithVideos).toHaveBeenCalledWith([
+        hit,
+      ]);
+      expect(result.results[0].results).toEqual([enrichedHit]);
     });
   });
 
@@ -221,38 +478,64 @@ describe('SearchController', () => {
     it('should add query to watch when watch is true', async () => {
       const queryId = 'test-query-123';
       const body = { watch: true };
-      
+
       const result = await controller.watchQuery({ queryId }, body);
-      
+
       expect(result).toBe(true);
-      expect(searchStateService.addToWatch).toHaveBeenCalledWith(queryId);
+      expect(searchStateService.addToWatch).toHaveBeenCalledWith(
+        queryId,
+        undefined,
+      );
+    });
+
+    it('should pass a valid minPeakScore through', async () => {
+      await controller.watchQuery(
+        { queryId: 'q1' },
+        { watch: true, minPeakScore: 0.3 },
+      );
+
+      expect(searchStateService.addToWatch).toHaveBeenCalledWith('q1', 0.3);
+    });
+
+    it('should reject an out-of-range minPeakScore', () => {
+      expect(() =>
+        controller.watchQuery(
+          { queryId: 'q1' },
+          { watch: true, minPeakScore: 1.5 },
+        ),
+      ).toThrow(BadRequestException);
+      expect(searchStateService.addToWatch).not.toHaveBeenCalled();
     });
 
     it('should remove query from watch when watch is false', async () => {
       const queryId = 'test-query-123';
       const body = { watch: false };
-      
+
       const result = await controller.watchQuery({ queryId }, body);
-      
+
       expect(result).toBe(true);
-      expect(searchStateService.removeFromWatch).toHaveBeenCalledWith(queryId);
+      expect(searchStateService.removeFromWatch).toHaveBeenCalledWith(
+        queryId,
+        undefined,
+      );
     });
 
     it('should throw BadRequestException when watch property is missing', () => {
       const queryId = 'test-query-123';
       const body = {} as any;
-      
-      expect(() => controller.watchQuery({ queryId }, body))
-        .toThrow(BadRequestException);
+
+      expect(() => controller.watchQuery({ queryId }, body)).toThrow(
+        BadRequestException,
+      );
     });
   });
 
   describe('deleteQuery', () => {
     it('should delete a query by ID', async () => {
       const queryId = 'test-query-123';
-      
+
       const result = await controller.deleteQuery({ queryId });
-      
+
       expect(result).toBe(true);
       expect(searchDbService.remove).toHaveBeenCalledWith(queryId);
     });
@@ -260,17 +543,23 @@ describe('SearchController', () => {
 
   describe('error handling', () => {
     it('should handle service errors gracefully', async () => {
-      searchDbService.read.mockRejectedValueOnce(new Error('Service error'));
-      
-      await expect(controller.getQuery({ queryId: 'failing-query' }))
-        .rejects.toThrow('Service error');
+      searchStateService.getQuery.mockRejectedValueOnce(
+        new Error('Service error'),
+      );
+
+      await expect(
+        controller.getQuery({ queryId: 'failing-query' }),
+      ).rejects.toThrow('Service error');
     });
 
     it('should handle watch service errors', async () => {
-      searchStateService.addToWatch.mockRejectedValueOnce(new Error('Watch error'));
-      
-      await expect(controller.watchQuery({ queryId: 'test' }, { watch: true }))
-        .rejects.toThrow('Watch error');
+      searchStateService.addToWatch.mockRejectedValueOnce(
+        new Error('Watch error'),
+      );
+
+      await expect(
+        controller.watchQuery({ queryId: 'test' }, { watch: true }),
+      ).rejects.toThrow('Watch error');
     });
   });
 });

@@ -51,8 +51,6 @@ OVMS_RELEASE_TAG="v2025.4.1"
 # Environment variables to pass (host mode)
 HF_TOKEN="${HUGGINGFACEHUB_API_TOKEN:-${HF_TOKEN:-}}"
 GETI_HOST="${GETI_HOST:-}"
-GETI_TOKEN="${GETI_TOKEN:-}"
-GETI_WORKSPACE_ID="${GETI_WORKSPACE_ID:-}"
 
 # HLS default URLs
 HLS_3D_POSE_CHECKPOINT_URL="https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/human-pose-estimation-3d-0001/human-pose-estimation-3d.tar.gz"
@@ -263,8 +261,6 @@ start_service_host() {
     fi
     if [[ -n "$GETI_HOST" ]]; then
         DOCKER_ENV_ARGS+=(-e "GETI_HOST=${GETI_HOST}")
-        DOCKER_ENV_ARGS+=(-e "GETI_TOKEN=${GETI_TOKEN}")
-        DOCKER_ENV_ARGS+=(-e "GETI_WORKSPACE_ID=${GETI_WORKSPACE_ID}")
     fi
     if [[ "${HUB,,}" == "hls" ]]; then
         DOCKER_ENV_ARGS+=(-e "HLS_3D_POSE_CHECKPOINT_URL=${HLS_3D_POSE_CHECKPOINT_URL}")

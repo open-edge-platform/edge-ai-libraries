@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 
 from src.common import logger, settings
 from src.common.schema import DataPrepResponse, StatusEnum
+from src.core.live import get_live_stream_manager, get_retention_sweeper, get_throughput_aggregator
 from src.core.metrics_manager import start_metrics_publisher, stop_metrics_publisher
 from src.core.vectorstores import get_vector_store
 from src.endpoints import (
@@ -27,8 +28,10 @@ from src.endpoints import (
     check_health_router,
     delete_video_router,
     download_video_router,
+    get_frame_router,
     ingest_image_router,
     list_videos_router,
+    live_streams_router,
     process_document_router,
     process_minio_video_router,
     telemetry_router,
@@ -87,7 +90,7 @@ async def _run_startup_preloads() -> None:
     config = get_config()
     detection_config = config.get("object_detection", {})
     enable_detection = detection_config.get("enabled", True)
-    detection_confidence = detection_config.get("confidence_threshold", 0.85)
+    detection_confidence = detection_config.get("confidence_threshold")
 
     tasks: list[tuple[str, asyncio.Future]] = []
 
@@ -106,7 +109,6 @@ async def _run_startup_preloads() -> None:
                 asyncio.to_thread(
                     preload_object_detector,
                     enable_detection,
-                    detection_confidence,
                 )
             ),
         )
@@ -142,10 +144,46 @@ async def lifespan(app: FastAPI):
     await start_metrics_publisher()
     await _run_startup_preloads()
 
+    # Bring back live streams registered before the last restart. Restoration is
+    # logged stream by stream so an operator can see exactly what ingestion the
+    # service resumed on its own.
+    live_manager = None
+    retention_sweeper = None
+    throughput_aggregator = None
+    if settings.LIVE_STREAM_ENABLED:
+        try:
+            live_manager = get_live_stream_manager()
+            live_manager.restore()
+            retention_sweeper = get_retention_sweeper()
+            retention_sweeper.start()
+            throughput_aggregator = get_throughput_aggregator()
+            throughput_aggregator.start()
+        except Exception as exc:  # pragma: no cover - startup must stay resilient
+            logger.error("Live-stream restore failed: %s", exc)
+
     try:
         yield
     finally:
         await stop_metrics_publisher()
+
+        if throughput_aggregator is not None:
+            try:
+                throughput_aggregator.stop()
+            except Exception as exc:  # pragma: no cover - best effort logging
+                logger.error(f"Error stopping the live throughput aggregator: {exc}")
+
+        if retention_sweeper is not None:
+            try:
+                retention_sweeper.stop()
+            except Exception as exc:  # pragma: no cover - best effort logging
+                logger.error(f"Error stopping the live retention sweeper: {exc}")
+
+        if live_manager is not None:
+            try:
+                logger.info("Stopping live stream workers . . .")
+                live_manager.stop_all()
+            except Exception as exc:  # pragma: no cover - best effort logging
+                logger.error(f"Error stopping live stream workers: {exc}")
 
         # Flush/refresh the active vector store index before teardown. This is a
         # backend-agnostic call: VDMS persists its descriptor-set index, Milvus
@@ -186,8 +224,13 @@ OPENAPI_TAGS = [
     },
     {
         "name": "Media Management APIs",
-        "description": "List, download, and delete stored media together with their "
-        "embeddings.",
+        "description": "List, download, and delete stored media together with their " "embeddings.",
+    },
+    {
+        "name": "Live Stream APIs",
+        "description": "Register, inspect, update, pause/resume, and delete live "
+        "RTSP streams. Ingestion runs on background workers; source URLs are always "
+        "returned with their credentials redacted.",
     },
     {"name": "Status APIs", "description": "Service health and readiness."},
     {
@@ -208,9 +251,10 @@ and response contracts apply regardless of how the deployment is configured:
 - **Vector database** - the deployment's configured vector store. Embeddings, search
   metadata, and delete semantics are identical across backends.
 
-Optional processing parameters (`frame_interval`, `enable_object_detection`,
-`detection_confidence`) have no fixed schema default. When omitted, the service applies
-its own configured value, so the effective default is deployment specific.
+Optional processing parameters (`frame_interval`, `enable_object_detection`) have no
+fixed schema default. When omitted, the service applies its own configured value, so
+the effective default is deployment specific. The object detection confidence threshold
+is a service setting (`MM_DATAPREP_DETECTION_CONFIDENCE`) and is not set per request.
 
 All failures - including validation, not-found, duplicate, upstream, and internal
 errors - are returned using the same response envelope.
@@ -241,11 +285,11 @@ app.add_middleware(
 @app.exception_handler(HTTPException)
 async def custom_exception_handler(request, exc):
     """Custom exception handler for HTTP exceptions.
-    
+
     Args:
         request: The incoming request object
         exc: The HTTPException that was raised
-        
+
     Returns:
         JSONResponse: A standardized error response using DataPrepResponse format
     """
@@ -267,10 +311,14 @@ app.include_router(upload_and_process_video_router)
 app.include_router(batch_ingest_router)
 app.include_router(ingest_image_router)
 
+# Live (RTSP) stream lifecycle endpoints
+app.include_router(live_streams_router)
+
 # Telemetry endpoints
 app.include_router(telemetry_router)
 
 # Video management endpoints
 app.include_router(list_videos_router)
 app.include_router(download_video_router)
+app.include_router(get_frame_router)
 app.include_router(delete_video_router)

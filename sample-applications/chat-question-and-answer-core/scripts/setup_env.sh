@@ -3,11 +3,10 @@
 # This script sets up the environment for the Chat Question and Answer Core application.
 # It accepts two optional parameters:
 # -p or --path: Specify the model cache path (default is /tmp/model_cache/)
-# -d or --device: Specify the device (default is cpu)
 # Usage:
 # ./setup_env.sh
 # OR
-# ./setup_env.sh -p /path/to/model_cache -d gpu
+# ./setup_env.sh -p /path/to/model_cache
 
 # GPUs currently tested:
 # - Arc A770 dGPU
@@ -16,28 +15,24 @@
 
 # Default values
 MODEL_CACHE_PATH="/home/${USER}/model_cache/"
-DEVICE="CPU"
 PROFILES="OPENVINO"
 BACKEND="OPENVINO"
-BACKEND_HOST="chatqna-core-ov-cpu"
+BACKEND_HOST="chatqna-core-openvino"
 
 print_help() {
     echo "Usage: source setup.sh [options]"
     echo "Options:"
     echo "  -p, --path <path>       Specify the model cache path"
-    echo "  -d, --device <device>   Specify the device"
     echo "  -b, --backend <backend> Specify the backend (openvino or ollama)"
     echo "  -h, --help              Display this help message"
 }
 
 # Parse named arguments using getopts
 # -p for MODEL_CACHE_PATH
-# -d for DEVICE
 # -b for BACKEND
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -p|--path) MODEL_CACHE_PATH="$2"; shift ;;
-        -d|--device) DEVICE="$2"; shift ;;
         -b|--backend) BACKEND="$2"; shift ;;
         -h|--help)
             print_help
@@ -58,15 +53,6 @@ BACKEND=$(echo "$BACKEND" | tr '[:lower:]' '[:upper:]')
 # Check if BACKEND value is valid
 if [[ "$BACKEND" != "OPENVINO" && "$BACKEND" != "OLLAMA" ]]; then
     echo "Error: Unsupported backend: '$BACKEND'. Supported backends are 'openvino' or 'ollama'."
-    return 1
-fi
-
-
-# Convert DEVICE to uppercase to handle both uppercase and lowercase inputs
-DEVICE=$(echo "$DEVICE" | tr '[:lower:]' '[:upper:]')
-# Check if DEVICE value is valid
-if [[ "$DEVICE" != "CPU" && "$DEVICE" != "GPU" ]]; then
-    echo "Error: Invalid device value '$DEVICE'. Valid values are 'cpu' or 'gpu'."
     return 1
 fi
 
@@ -96,24 +82,19 @@ fi
 
 # Set environment variables based on the backend and device
 if [ "$BACKEND" == "OPENVINO" ]; then
-    if [ "$DEVICE" == "GPU" ]; then
-        # Check if render device exists
-        if compgen -G "/dev/dri/render*" > /dev/null; then
-            echo "GPU rendering device found. Getting the GID..."
-            export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
-            PROFILES="OPENVINO-GPU"
-            BACKEND_HOST="chatqna-core-ov-gpu"
-        else
-            echo -e "No GPU rendering device found. \nUse CPU processing instead..."
+    # Check if render device exists
+    if compgen -G "/dev/dri/render*" > /dev/null; then
+        echo "GPU device found."
+        if compgen -G "/dev/accel/accel*" > /dev/null; then
+            export NPU_DEVICE_PATH="$(compgen -G "/dev/accel/accel*" | head -n 1)"
+            echo "NPU device found."
         fi
     fi
 elif [ "$BACKEND" == "OLLAMA" ]; then
     PROFILES="OLLAMA"
     BACKEND_HOST="chatqna-core-ollama"
-    if [ "$DEVICE" == "GPU" ]; then
-        echo -e "Current ollama backend doesn't support GPU. Only CPU is supported."
-        echo -e "Use CPU processing..."
-    fi
+    echo -e "Current ollama backend doesn't support GPU. Only CPU is supported."
+    echo -e "Use CPU processing..."
 fi
 
 export USER_GROUP_ID=$(id -g ${USER})

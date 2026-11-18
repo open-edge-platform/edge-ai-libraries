@@ -1,9 +1,9 @@
-import type { Node } from "@/api/api.generated.ts";
+import type { Model, Node } from "@/api/api.generated.ts";
 
-const MODEL_DETAILS_SUFFIX_PATTERN =
-  // Model nodes may carry trailing details like "(FP16)" or
-  // [model-proc: ...]" which the models API does not expect.
-  /(?:\s*(?:\([^)]*\)|\[model-proc:[^[\]\n]*]?))+\s*$/i;
+const MODEL_DETAILS_SUFFIX_PATTERN = /\s*\(.*/;
+
+export const isGatedModel = (model: Pick<Model, "gated">): boolean =>
+  Boolean(model.gated) && model.gated !== "false";
 
 export const normalizeModelDisplayName = (value: string): string =>
   value.replace(MODEL_DETAILS_SUFFIX_PATTERN, "").trim();

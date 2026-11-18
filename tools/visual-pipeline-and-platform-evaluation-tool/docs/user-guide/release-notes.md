@@ -2,7 +2,62 @@
 
 Details about the changes, improvements, and known issues in this release of the application.
 
-## Current Release: [2026.1.0]
+## 2026.3.0
+
+**Release Date**: TBD
+
+**New**:
+
+- **Custom RTSP Streams**: Any RTSP stream can be used as pipeline input by selecting **Custom RTSP URL…**
+  for a camera source in the pipeline editor. The stream codec is detected automatically to pick a decoder
+  that matches the inference device.
+
+**Improved**:
+
+- **Performance Testing**: The performance test suite now runs through a single CLI command with dry-run and
+  report-only modes. Users can benchmark their own pipelines alongside the predefined ones. Each run produces
+  JSON, CSV, and HTML reports with system information and CPU/GPU/NPU KPIs.
+- **Pipeline Optimization on DL Streamer Pipeline Server**: The DL Streamer pipeline optimizer runs as a job on
+  DL Streamer Pipeline Server instead of inside the ViPPET backend, so candidate pipelines run on the same runtime and
+  devices as every other pipeline, and a crashing candidate no longer restarts the backend. The `preprocess`
+  optimization type also runs on the server. A running optimization job can be cancelled with
+  `DELETE /jobs/optimization/{job_id}`.
+
+---
+
+## 2026.2.0
+
+**Release Date**: September 9, 2026
+
+**New**:
+
+- **New Predefined Pipelines**: Added two new predefined pipelines — People Detection and Tracking
+  (using DeepSORT) and a Wind Turbine time-series anomaly detection pipeline.
+- **In-app Performance Benchmarking**: Preconfigured benchmark suites (Retail, Metro, Manufacturing) let
+  users run repeatable benchmark packs instead of assembling one-off performance tests. Each suite maps
+  workloads to specific pipelines and test cases (CPU/GPU/NPU at 1, 4, 8, and 12 streams). Launching a
+  suite starts an asynchronous orchestration job that runs test cases sequentially, tracks live progress,
+  and prevents concurrent suite runs. Results are aggregated into workload-level and suite-level scores
+  with performance, efficiency, and overall components. Individual test runs expose time-series charts for
+  frame rate, memory, and CPU usage; finished runs can be exported as CSV and PDF.
+- **Performance Testing**: Added a pytest-based performance testing suite for automated benchmarking of
+  ViPPET pipelines against a live instance. Driven by YAML presets (`quick`, `default`, `full`) and
+  environment variables, invoked via `make test-performance` or `pytest` directly, emitting JSON, CSV,
+  and interactive HTML Chart.js reports with FPS, utilization, and power charts.
+- **New VLM Models**: Added support for InternVL2-2B INT4 and MiniCPM-v4.5-8B INT4. New Ultralytics
+  models are also supported.
+- **Machine Vision Camera Support**: Added proof-of-concept support for GigE/GenICam-compliant machine
+  vision cameras using `gencamsrc` (generic GenICam) and `pylonsrc` (Basler GStreamer element) sources.
+  This POC will be integrated into the upcoming Sensor Manager microservice in the 2026.3 timeframe.
+- **Extended Density Benchmarking**: Users can now fix the stream count for one pipeline and automatically
+  increase the stream count for a second pipeline class until the platform limit is reached, enabling
+  scenarios such as measuring how many secondary analytics streams can run alongside a baseline workload.
+- **Sizing Tool Selection Guide**: Added a comparison table between Edge AI Sizing Tool and ViPPET to help
+  users choose the right tool, and aligned both tools in terms of look and feel.
+
+---
+
+## 2026.1.0
 
 **Release Date**: [2026-06-17]
 

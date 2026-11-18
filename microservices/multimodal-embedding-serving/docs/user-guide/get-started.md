@@ -17,13 +17,25 @@ This guide assumes basic familiarity with Docker commands and terminal usage.
 
 - **EMBEDDING_MODEL_NAME** - The model to use (e.g., "CLIP/clip-vit-b-16"). Refer to the [Supported Models](./supported-models.md) list for additional choices.
 - **EMBEDDING_DEVICE** - Device for inference (CPU/GPU/NPU, default: CPU)
-- **EMBEDDING_USE_OV** - Enable OpenVINO optimization (true/false, default: false)
-- **EMBEDDING_OV_MODELS_DIR** - Directory for OpenVINO models (default: ./ov-models)
+- **EMBEDDING_USE_OV** - Enable OpenVINO optimization (true/false, default: false; `setup.sh` sets it to `true` unless it is already set). GME models (`GME/*`) run only on OpenVINO and require `EMBEDDING_USE_OV=true` on every device; with `false`, the service fails to start.
+- **EMBEDDING_OV_MODELS_DIR** - OpenVINO model root. With `setup.sh` and Docker Compose, this is a **container path**, defaulting to `/app/ov_models`, not a host directory. See [Use a prepared GME OpenVINO model](#use-a-prepared-gme-openvino-model).
+- **GME_PRECISION** - Precision of GME models: `int8` (default), `int4` or `fp32`. Each precision is converted and stored separately; see [Use a prepared GME OpenVINO model](#use-a-prepared-gme-openvino-model).
+- **GME_QUERY_INSTRUCTION** - Task instruction in the prompt of GME queries (default: `Find an image or text that matches the given query.`). Documents are not affected.
 
 ### Model Handler Performance
 
-- **INFER_BATCH_SIZE** - Batch size for inference (default: 64). Compiles model to accept fixed batch input. Padding or split is done to accommodate dynamic input sizes.
+- **INFER_BATCH_SIZE** - Batch size for inference (default: 64; `setup.sh` overrides this to 16 on CPU/NPU and 32 on GPU). Compiles model to accept fixed batch input. Padding or split is done to accommodate dynamic input sizes.
 - **PREPROCESS_WORKERS** - Number of parallel preprocessing workers (default: min(16, cpu_count * 2)). Higher is better but yields diminishing returns if > number of CPU cores.
+
+### QwenText Models on NPU
+
+QwenText models require static-shape compilation on NPU and expose two
+additional variables (`EMBEDDING_STATIC_SEQ_LEN` and
+`EMBEDDING_CHUNK_LONG_TEXT`) that control the token budget and how longer text
+is handled. These apply only to the QwenText family on NPU and need no
+configuration by default.
+
+See [QwenText Models on NPU](./qwentext-on-npu.md).
 
 ### Video Frame Extraction
 
@@ -31,9 +43,14 @@ These variables control the video frame extraction pipeline performance and memo
 
 #### Extraction Performance
 
-- **VIDEO_FRAME_BATCH_SIZE** - Batch size for video frame extraction (default: 64)
+- **VIDEO_FRAME_BATCH_SIZE** - Batch size for video frame extraction (default: 64; `setup.sh` overrides this to 64 on CPU/NPU and 256 on GPU)
 - **VIDEO_FRAME_DECODER_WORKERS** - Number of workers for video frame decoding (default: 8)
 - **VIDEO_FRAME_QUEUE_SIZE** - Queue size for frame extraction pipeline (default: 32)
+
+The defaults above are the application's built-in values, which apply when the
+service runs without `setup.sh` (for example the SDK/wheel or a bare container).
+When you source `setup.sh`, it selects the batch sizes from `EMBEDDING_DEVICE`.
+Exporting either variable before sourcing `setup.sh` always takes precedence.
 
 #### Shared Memory Configuration
 
@@ -110,9 +127,12 @@ export VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER=2
 export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-16
 export EMBEDDING_USE_OV=true
 export EMBEDDING_DEVICE=GPU
-export INFER_BATCH_SIZE=64
 export PREPROCESS_WORKERS=16
 ```
+
+`EMBEDDING_DEVICE=GPU` already selects the tuned GPU batch sizes
+(`INFER_BATCH_SIZE=32`, `VIDEO_FRAME_BATCH_SIZE=256`), so set those two only to
+override the defaults.
 
 **Debug Mode with Detailed Logging**:
 
@@ -153,6 +173,87 @@ source setup.sh
 
 You can [build the Docker image](./get-started/build-from-source.md#steps-to-build) or pull a prebuilt image from the configured registry and tag. For prebuilt image, the `setup` script will configure the necessary variables to pull the right version of the image.
 
+### Use a prepared GME OpenVINO model
+
+On its first start, the service downloads the original GME checkpoint from
+Hugging Face and converts it to OpenVINO. To avoid that, for example on a host
+without Hugging Face access, convert the model beforehand and copy it into the
+service's model volume.
+
+`GME_PRECISION` selects the precision, for the conversion and for the service:
+`int8` (default), `int4` (fastest, lower accuracy) or `fp32` (original
+accuracy, slowest).
+
+Run the following from the microservice root, in one Bash terminal:
+
+1. Select the precision and build the image:
+
+   ```bash
+   export EMBEDDING_MODEL_NAME=GME/gme-qwen2-vl-2b-instruct
+   export GME_PRECISION=int8   # or int4, fp32
+   unset REGISTRY_URL PROJECT_NAME
+   export TAG=gme-local
+   source setup.sh
+   docker compose -f docker/compose.yaml build
+   ```
+
+2. Download the original checkpoint (about 9 GB). The download tool goes into
+   a temporary virtual environment, which is deleted once the checkpoint is on
+   disk. On Ubuntu, `python3 -m venv` needs the `python3-venv` package.
+
+   ```bash
+   python3 -m venv /tmp/hf-venv
+   /tmp/hf-venv/bin/pip install -U huggingface_hub
+   /tmp/hf-venv/bin/hf download Alibaba-NLP/gme-Qwen2-VL-2B-Instruct \
+     --include "*.json" --include "*.safetensors" --include "merges.txt" \
+     --local-dir ./gme-Qwen2-VL-2B-Instruct
+   rm -rf /tmp/hf-venv
+   ```
+
+3. Convert it to OpenVINO with
+   [`scripts/export_gme_ov.py`](../../scripts/export_gme_ov.py), which uses the
+   precision from `GME_PRECISION` and writes the model under `./gme-ov`:
+
+   ```bash
+   mkdir -p ./gme-ov
+   docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e GME_PRECISION \
+     -v "$PWD/gme-Qwen2-VL-2B-Instruct:/checkpoint:ro" -v "$PWD/gme-ov:/output" \
+     "multimodal-embedding-serving:$TAG" \
+     python scripts/export_gme_ov.py --checkpoint /checkpoint --output-dir /output
+   ```
+
+   If you already have a GME OpenVINO model, skip steps 2 and 3 and place it at
+   `./gme-ov/gme-qwen2-vl-2b-instruct-openvino` instead; for INT4 or FP32,
+   append `-int4` or `-fp32` to the directory name.
+
+4. Stop a running service and copy the model into the volume. The copy never
+   overwrites a model already in the volume; it fails with `File exists` instead:
+
+   ```bash
+   docker compose -f docker/compose.yaml stop multimodal-embedding-serving
+   set -o pipefail
+   tar -C ./gme-ov -cf - . |
+     docker compose -f docker/compose.yaml run --rm --no-deps -T \
+       --user root --entrypoint sh multimodal-embedding-serving -c '
+         set -eu
+         tar -xkf - -C /app/ov_models
+         chown -R appuser:appuser /app/ov_models
+       '
+   ```
+
+5. Start the service, with the same `GME_PRECISION`, and check it:
+
+   ```bash
+   docker compose -f docker/compose.yaml up -d --force-recreate
+   docker logs -f --tail=100 multimodal-embedding-serving   # wait for "GME loaded", then Ctrl+C
+   curl -fsS http://localhost:9777/health
+   ```
+
+   The log shows `Reusing existing GME OpenVINO package` and the precision.
+
+The model stays in the `ov-models` volume across container restarts and
+recreation; do not delete the volume.
+
 ## Running the Server with CPU
 
 ```bash
@@ -183,7 +284,21 @@ export EMBEDDING_DEVICE=GPU.0
 source setup.sh
 ```
 
-> **Note**: When `EMBEDDING_DEVICE=GPU` is set, `setup.sh` applies GPU-friendly defaults, including setting `EMBEDDING_USE_OV=true`.
+> [!NOTE]
+> When `EMBEDDING_DEVICE=GPU` is set, `setup.sh` applies GPU-friendly defaults, including setting `EMBEDDING_USE_OV=true`.
+
+> [!IMPORTANT]
+> To run a GME model on the integrated GPU of an Intel Core Ultra Series 3
+> (Panther Lake) processor, set `OV_PERFORMANCE_MODE=LATENCY`. `setup.sh` sets
+> `THROUGHPUT` for GPU, so export `LATENCY` again after `source setup.sh`:
+>
+> ```bash
+> export OV_PERFORMANCE_MODE=LATENCY
+> ```
+>
+> In `THROUGHPUT` mode on this GPU, GME image and image+text requests can hang,
+> while the host kernel log reports a reset of the `xe` driver's BCS engine.
+> Other GPUs are not affected.
 
 ### 3. Start the Service
 
@@ -201,6 +316,13 @@ curl --location --request GET 'http://localhost:9777/health'
 curl --location --request GET 'http://localhost:9777/model/capabilities'
 ```
 
+### 5. (Optional) Optimize GME on GPU
+
+For lower GME latency on an Intel GPU, use INT4 GME (`GME_PRECISION=int4`)
+together with an image whose OpenVINO
+GPU plugin is rebuilt with GME-specific optimization patches. See
+[Optimize GME on Intel GPU](./gme-embedding-optimization.md).
+
 ## Running the Server with NPU
 
 ### 1. Configure NPU Device
@@ -209,7 +331,8 @@ curl --location --request GET 'http://localhost:9777/model/capabilities'
 export EMBEDDING_DEVICE=NPU
 ```
 
-> **Note**: NPU support is model-dependent. Verify that the selected model is supported on NPU by checking the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html).
+> [!NOTE]
+> NPU support is model-dependent. Verify that the selected model is supported on NPU by checking the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html).
 
 ### 2. Run the Setup Script
 
@@ -217,7 +340,8 @@ export EMBEDDING_DEVICE=NPU
 source setup.sh
 ```
 
-> **Note**: When `EMBEDDING_DEVICE=NPU` is set, `setup.sh` automatically enables `EMBEDDING_USE_OV=true`.
+> [!NOTE]
+> When `EMBEDDING_DEVICE=NPU` is set, `setup.sh` automatically enables `EMBEDDING_USE_OV=true`.
 
 ### 3. Start the Service with docker compose
 
@@ -372,6 +496,28 @@ curl --location 'http://localhost:9777/embeddings' \
       "num_frames": 64
     },
     "video_base64": "<video base64 value here>"
+  }
+}'
+```
+
+### Fused Image + Text Embedding
+
+Each item's image and text are embedded jointly into one vector. Only models whose `/model/capabilities` reports `supports_fused: true` (GME) accept this input.
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "model": "GME/gme-qwen2-vl-2b-instruct",
+  "encoding_format": "float",
+  "input": {
+    "type": "fused",
+    "items": [
+      {
+        "text": "Figure 3: throughput under different loads",
+        "image": {"type": "image_base64", "image_base64": "<image base64 value here>"}
+      }
+    ]
   }
 }'
 ```

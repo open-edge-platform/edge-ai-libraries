@@ -4,7 +4,7 @@ import { FC, useEffect } from 'react';
 import SearchSidebar from './SearchSidebar';
 import SearchContent from './SearchContent';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
-import { SearchLoad, SearchSelector } from '../../redux/search/searchSlice';
+import { LoadRefreshConfig, SearchLoad, SearchSelector } from '../../redux/search/searchSlice';
 
 export const SearchMainContainer: FC = () => {
   const { triggerLoad } = useAppSelector(SearchSelector);
@@ -16,6 +16,12 @@ export const SearchMainContainer: FC = () => {
       dispatch(SearchLoad());
     }
   }, [triggerLoad]);
+
+  // Auto-refresh cadence is owned by the backend; fetch it once so the sidebar
+  // can describe the behavior accurately instead of hard-coding an interval.
+  useEffect(() => {
+    dispatch(LoadRefreshConfig());
+  }, [dispatch]);
 
   return (
     <>

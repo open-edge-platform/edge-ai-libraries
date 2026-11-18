@@ -12,11 +12,11 @@ in OpenVINO™ IR format and uploaded to the platform.
 The exact steps depend on the task type, but the typical workflow is:
 
 1. Create a project in Geti™ and choose the task type, such as classification, detection, or segmentation.
-2. Upload your training images or video frames and organize the dataset.
-3. Annotate the data using Geti™'s labeling tools, then review the annotations for quality and consistency.
-4. Start a training job and let Geti™ train the model on the labeled dataset.
-5. Evaluate the training results and, if needed, improve the dataset with more samples or corrected labels.
-6. Export the trained model in OpenVINO™ format and download the generated files.
+1. Upload your training images or video frames and organize the dataset.
+1. Annotate the data using Geti™'s labeling tools, then review the annotations for quality and consistency.
+1. Start a training job and let Geti™ train the model on the labeled dataset.
+1. Evaluate the training results and, if needed, improve the dataset with more samples or corrected labels.
+1. Export the trained model in OpenVINO™ format and download the generated files.
 
 After export, package the model files and upload them through the ViPPET model upload flow described in the
 [Model Management](../model-management.md) section.

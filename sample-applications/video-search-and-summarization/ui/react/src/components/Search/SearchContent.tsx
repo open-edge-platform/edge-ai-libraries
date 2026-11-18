@@ -1,34 +1,110 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { FC } from 'react';
+import { FC, useState } from 'react';
 import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { useTranslation } from 'react-i18next';
-import { Slider, Tag, Tooltip, Button, Accordion, AccordionItem } from '@carbon/react';
+import {
+  Tag,
+  Tooltip,
+  Button,
+  Dropdown,
+  Accordion,
+  AccordionItem,
+  Modal,
+  ModalBody,
+  InlineLoading,
+  SkeletonPlaceholder,
+  SkeletonText,
+} from '@carbon/react';
 import { RerunSearch, SearchActions, SearchSelector } from '../../redux/search/searchSlice';
-import { TimeFilterSelection } from '../../redux/search/search';
+import { ResultGroupBy, ResultSortBy, SearchResult, TimeFilterSelection } from '../../redux/search/search';
 import TimeFilterControl from './TimeFilterControl';
+import MinPeakScoreControl, { formatMinPeakScore, minPeakScoreOnValue } from './MinPeakScoreControl';
+import SearchOutputCountControl from './SearchOutputCountControl';
+import { FILTER_BODY_SLIDER_HEIGHT, FilterBody } from './FilterField';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { VideoTile } from '../../redux/search/VideoTile';
-import { UIActions, uiSelector } from '../../redux/ui/ui.slice';
 import VideoGroupsView from '../VideoGroups/VideoGroupsView';
 import TelemetryAccordion from './TelemetryAccordion';
+import { imageSearchEnabled } from '../../utils/featureFlags';
+import { GeoActions, geoSelector } from '../../redux/geo/geoSlice';
+import MapDrawer from '../MapView/MapDrawer';
+
+// Keying by clip identity rather than array position keeps unchanged tiles mounted when a
+// watched query refreshes, so their <video> elements are not torn down and reloaded.
+
+const searchResultKey = (result: SearchResult, index: number): string => {
+  const videoId = result?.metadata?.video_id;
+  const timestamp = result?.metadata?.timestamp;
+  if (videoId === undefined || timestamp === undefined) return `result-${index}`;
+  return `${videoId}-${timestamp}`;
+};
+
+// Column: query controls pinned on top at full width, results row below.
+const SearchContentLayout = styled.div`
+  display: flex;
+  flex-flow: column nowrap;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+`;
+
+// Query controls (settings, Map View / Sort / Group, interval). They stay at
+// full width when the map opens. max-height keeps an expanded settings panel
+// from taking the whole results area; the controls scroll on their own then.
+const QueryControls = styled.div`
+  flex: 0 0 auto;
+  width: 100%;
+  max-height: 50%;
+  overflow-x: hidden;
+  overflow-y: auto;
+`;
+
+// Row so the Map View drawer sits beside the results and squeezes only them
+// instead of overlapping.
+const ResultsRow = styled.div`
+  display: flex;
+  flex-flow: row nowrap;
+  flex: 1 1 0%;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+`;
 
 const QueryContentWrapper = styled.div`
   display: flex;
   flex-flow: column nowrap;
   align-items: flex-start;
   justify-content: flex-start;
-  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* The results panel owns the results scrollbar: tiles + telemetry flow
+     naturally and this wrapper scrolls as one unit. min-height:0 lets it shrink
+     to the results row so overflow actually scrolls instead of pushing the
+     layout past the viewport. */
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   .videos-container {
-    display: flex;
-    flex-flow: row wrap;
-    overflow-x: hidden;
-    overflow-y: auto;
+    display: grid;
+    /* Fixed-width columns so tiles keep a stable size and left-align instead of
+       stretching to fill the row when only a couple of results remain.
+       width:100% is required: this sits in an align-items:flex-start column
+       flex, so without a definite width the grid's auto-fill collapses to a
+       single column and tiles stack vertically. No internal overflow here: the
+       container grows to its natural height so tiles never shrink and lose their
+       playback controls; scrolling is handled by the panel above. */
+    width: 100%;
+    grid-template-columns: repeat(auto-fill, 20rem);
+    justify-content: start;
+    gap: 1rem;
+    padding: 1rem;
     .video-tile {
       position: relative;
-      width: 20rem;
-      margin: 1rem;
+      width: 100%;
       border: 1px solid rgba(0, 0, 0, 0.2);
       border-radius: 0.5rem;
       overflow: hidden;
@@ -38,57 +114,67 @@ const QueryContentWrapper = styled.div`
       .relevance {
         padding: 1rem;
       }
+      .result-tags {
+        margin-top: 0.5rem;
+      }
     }
   }
 `;
 
 const SettingsContainer = styled.div`
-  position: sticky;
   width: 100%;
-  top: 0;
-  z-index: 2;
   background-color: var(--color-sidebar);
   border-bottom: 1px solid var(--color-border);
   .cds--accordion__item {
     padding-inline-end: 0rem;
   }
+  /* Carbon reserves 25% on the right for text; the filter cards use the full
+     width, with a right gap mirroring the left one (padding + start-align margin). */
+  .cds--accordion__content {
+    padding-inline-end: 3rem;
+  }
 `;
 
 const SettingsBar = styled.div`
   display: flex;
-  align-items: stretch;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.75rem;
   padding: 1rem 0;
   width: 100%;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  container-type: inline-size;
 `;
 
-const SettingsSection = styled.div`
+const StatusRow = styled.div`
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  flex: 1 1 0;
-  /* min-width: 10rem; */
+`;
+
+/* Equal columns and gaps; stacks into one column when the panel is narrow. */
+const FilterGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+
+  @container (max-width: 46rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 `;
 
 const ControlCard = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: .1px solid #a8a8a8;
+  min-width: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #c6c6c6;
   border-radius: 0.5rem;
   background: #f4f4f4;
-`;
 
-const SliderBlock = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 8rem;
+  ${FilterBody} {
+    min-height: ${FILTER_BODY_SLIDER_HEIGHT};
+  }
 `;
-
 
 const QueryBar = styled.div`
   display: flex;
@@ -99,6 +185,12 @@ const QueryBar = styled.div`
   background-color: #f4f4f4;
   border-bottom: 1px solid var(--color-border);
   width: 100%;
+  /* Sticky so the query text + sort / group / Re-run controls stay reachable.
+     The Filters accordion above scrolls away first; once this bar reaches the
+     top of the scrolling content panel it pins there. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
 
   .query-label {
     font-weight: 600;
@@ -116,10 +208,39 @@ const QueryBar = styled.div`
     white-space: nowrap;
     max-width: 40rem;
   }
-`;
 
-const SliderLabel = styled.div`
-  margin-right: 1rem;
+  /* The sort/group menus are fixed-positioned (autoAlign) so they never
+     overflow this scroll panel and shift it sideways. autoAlign sizes each
+     menu to its trigger; the trigger is wide enough for the longest option,
+     so the menu sits exactly under it instead of Carbon's 18rem inline
+     minimum running past the panel's right edge. */
+  .cds--dropdown--inline {
+    min-inline-size: 10rem;
+    /* Carbon's inline dropdown is transparent and reads as plain text; give
+       it a field look so it is recognisable as a control. */
+    background-color: #ffffff;
+    border: 1px solid #8d8d8d;
+    border-radius: 4px;
+    transition:
+      background-color 0.11s,
+      border-color 0.11s;
+    &:hover {
+      background-color: #edf5ff;
+      border-color: #0f62fe;
+    }
+    &.cds--dropdown--open {
+      border-color: #0f62fe;
+    }
+    .cds--list-box__field {
+      padding-inline-start: 0.75rem;
+    }
+    .cds--list-box__menu-icon svg {
+      fill: #0f62fe;
+    }
+  }
+  .cds--dropdown--inline .cds--list-box__menu {
+    min-inline-size: 0;
+  }
 `;
 
 const IntervalNotice = styled.div`
@@ -202,9 +323,15 @@ const ErrorMessageWrapper = styled.div`
 `;
 
 export const QuerySettings: FC = () => {
-  const { selectedQuery, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
+  const { selectedQuery, isSelectedInProgress, isSelectedHasError, searchConfig } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
+
+  // Filters open/closed is tracked per query so expanding it on one search page
+  // does not leave it open on the others. Remembered per queryId while mounted.
+  const [openFiltersByQuery, setOpenFiltersByQuery] = useState<Record<string, boolean>>({});
+  const queryId = selectedQuery?.queryId;
+  const filtersOpen = queryId ? Boolean(openFiltersByQuery[queryId]) : false;
 
   const currentTimeFilter: TimeFilterSelection | null | undefined = selectedQuery?.timeFilter;
 
@@ -214,46 +341,46 @@ export const QuerySettings: FC = () => {
     dispatch(RerunSearch({ queryId: selectedQuery.queryId, timeFilter }));
   };
 
+  const minPeakScoreDefault = searchConfig?.minPeakScoreDefault ?? 0;
+
+  // The control only reports applied values (slider released, Enter, blur),
+  // so each one re-runs the query straight away.
+  const updateMinPeakScore = (minPeakScore: number) => {
+    if (!selectedQuery) return;
+    const change = { queryId: selectedQuery.queryId, minPeakScore };
+    dispatch(SearchActions.updateMinPeakScore(change));
+    dispatch(RerunSearch(change));
+  };
+
   return (
     <SettingsContainer>
       <Accordion align='start' size='sm'>
-        <AccordionItem title={t('filters', 'Filters')}>
+        <AccordionItem
+          title={t('filters', 'Filters')}
+          open={filtersOpen}
+          onHeadingClick={() => {
+            if (!queryId) return;
+            setOpenFiltersByQuery((prev) => ({ ...prev, [queryId]: !prev[queryId] }));
+          }}
+        >
           <SettingsBar>
-            <SettingsSection style={{ justifyContent: 'flex-start' }}>
-              {isSelectedInProgress && (
-                <Tag size='sm' type='blue'>
-                  {t('searchInProgress')}
-                </Tag>
-              )}
-              {isSelectedHasError && (
-                <Tag size='sm' type='red'>
-                  {t('searchError')}
-                </Tag>
-              )}
-            </SettingsSection>
+            {(isSelectedInProgress || isSelectedHasError) && (
+              <StatusRow>
+                {isSelectedInProgress && (
+                  <Tag size='sm' type='blue'>
+                    {t('searchInProgress')}
+                  </Tag>
+                )}
+                {isSelectedHasError && (
+                  <Tag size='sm' type='red'>
+                    {t('searchError')}
+                  </Tag>
+                )}
+              </StatusRow>
+            )}
 
-            <SettingsSection style={{ justifyContent: 'center' }}>
-              {selectedQuery && (
-                <ControlCard>
-                  <SliderBlock>
-                    <SliderLabel>{t('searchOutputCount', 'Search Output Count')}</SliderLabel>
-                    <Slider
-                      min={1}
-                      max={20}
-                      step={1}
-                      value={selectedQuery.topK}
-                      hideTextInput
-                      onChange={({ value }) => {
-                        dispatch(SearchActions.updateTopK({ queryId: selectedQuery.queryId, topK: value }));
-                      }}
-                    />
-                  </SliderBlock>
-                </ControlCard>
-              )}
-            </SettingsSection>
-
-            <SettingsSection style={{ justifyContent: 'flex-end' }}>
-              {selectedQuery && (
+            {selectedQuery && (
+              <FilterGrid>
                 <ControlCard>
                   <TimeFilterControl
                     key={selectedQuery.queryId}
@@ -261,10 +388,30 @@ export const QuerySettings: FC = () => {
                     onChange={updateTimeFilter}
                     idPrefix='time-filter'
                     size='sm'
+                    fullWidth
                   />
                 </ControlCard>
-              )}
-            </SettingsSection>
+                <ControlCard>
+                  <SearchOutputCountControl
+                    idPrefix='search-output-count'
+                    value={selectedQuery.topK}
+                    onChange={(topK) => {
+                      dispatch(SearchActions.updateTopK({ queryId: selectedQuery.queryId, topK }));
+                    }}
+                  />
+                </ControlCard>
+                <ControlCard>
+                  <MinPeakScoreControl
+                    key={`${selectedQuery.queryId}-${minPeakScoreDefault}`}
+                    value={selectedQuery.minPeakScore ?? minPeakScoreDefault}
+                    onValue={minPeakScoreOnValue(minPeakScoreDefault)}
+                    onChange={updateMinPeakScore}
+                    idPrefix='min-peak-score'
+                    fullWidth
+                  />
+                </ControlCard>
+              </FilterGrid>
+            )}
           </SettingsBar>
         </AccordionItem>
       </Accordion>
@@ -273,18 +420,58 @@ export const QuerySettings: FC = () => {
 };
 
 export const QueryInfo: FC = () => {
-  const { selectedQuery } = useAppSelector(SearchSelector);
+  const { selectedQuery, isSelectedRefreshing } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
+  const { hasIntersections, mapDrawerOpen } = useAppSelector(geoSelector);
   const { t } = useTranslation();
+  const [showImageModal, setShowImageModal] = useState(false);
 
   if (!selectedQuery) return null;
 
   return (
     <QueryBar>
       <span className='query-label'>{t('userQueryLabel', 'User Query:')}</span>
-      <Tooltip align='bottom' label={selectedQuery.query}>
-        <strong className='query-text'>{selectedQuery.query}</strong>
-      </Tooltip>
+      {selectedQuery.image ? (
+        <>
+          <img
+            src={selectedQuery.image}
+            alt={t('searchByImage', 'Uploaded image')}
+            onClick={() => setShowImageModal(true)}
+            style={{
+              maxWidth: '48px',
+              maxHeight: '48px',
+              borderRadius: '4px',
+              objectFit: 'cover',
+              cursor: 'pointer',
+            }}
+          />
+          <strong className='query-text'>{t('searchByImage', 'Uploaded image')}</strong>
+          <Modal
+            open={showImageModal}
+            onRequestClose={() => setShowImageModal(false)}
+            modalHeading={t('searchByImage', 'Uploaded image')}
+            passiveModal
+          >
+            <ModalBody>
+              <img
+                src={selectedQuery.image}
+                alt={t('searchByImage', 'Uploaded image')}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '70vh',
+                  objectFit: 'contain',
+                  display: 'block',
+                  margin: '0 auto',
+                }}
+              />
+            </ModalBody>
+          </Modal>
+        </>
+      ) : (
+        <Tooltip align='bottom' label={selectedQuery.query}>
+          <strong className='query-text'>{selectedQuery.query}</strong>
+        </Tooltip>
+      )}
       {selectedQuery.tags.length > 0 && (
         <TagsContainer>
           {selectedQuery.tags.map((tag, index) => (
@@ -295,18 +482,23 @@ export const QueryInfo: FC = () => {
         </TagsContainer>
       )}
       <span style={{ flex: 1 }}></span>
-      <Button
-        kind='ghost'
-        size='sm'
-        onClick={() => {
-          // toggle the grouped video view on/off
-          // eslint-disable-next-line no-console
-          console.log('Group by Tag button clicked (toggle)');
-          dispatch(UIActions.toggleVideoGroups());
-        }}
-      >
-        {t('GroupByTag')}
-      </Button>
+      {isSelectedRefreshing && (
+        <span data-testid='search-refreshing-indicator' style={{ marginRight: '0.5rem' }}>
+          <InlineLoading status='active' description={t('searchUpdating')} />
+        </span>
+      )}
+      {hasIntersections && (
+        <Button
+          kind='ghost'
+          size='sm'
+          aria-pressed={mapDrawerOpen}
+          aria-controls='map-drawer'
+          onClick={() => dispatch(GeoActions.toggleMapDrawer())}
+        >
+          {t('MapView', 'Map View')}
+        </Button>
+      )}
+      <ResultViewControls />
       <Button
         kind='ghost'
         size='sm'
@@ -320,42 +512,169 @@ export const QueryInfo: FC = () => {
   );
 };
 
+interface ViewOption<T extends string> {
+  id: T;
+  label: string;
+}
+
+/**
+ * Per-query sort and group pickers. Time sorts reorder only the results the
+ * search returned (ranked by relevance), not the whole library.
+ */
+export const ResultViewControls: FC = () => {
+  const { selectedQuery } = useAppSelector(SearchSelector);
+  const dispatch = useAppDispatch();
+  const { t } = useTranslation();
+  if (!selectedQuery) return null;
+
+  const sortItems: ViewOption<ResultSortBy>[] = [
+    { id: 'relevance', label: t('sortRelevance', 'Relevance') },
+    { id: 'newest', label: t('sortNewest', 'Newest first') },
+    { id: 'oldest', label: t('sortOldest', 'Oldest first') },
+  ];
+  const groupItems: ViewOption<ResultGroupBy>[] = [
+    { id: 'none', label: t('groupNone', 'No grouping') },
+    { id: 'tag', label: t('groupTag', 'Tag') },
+    { id: 'camera', label: t('groupCamera', 'Camera / video') },
+  ];
+  const sortBy = selectedQuery.sortBy ?? 'relevance';
+  const groupBy = selectedQuery.groupBy ?? 'none';
+  const queryId = selectedQuery.queryId;
+
+  return (
+    <>
+      <Dropdown
+        id='result-sort-by'
+        type='inline'
+        size='sm'
+        autoAlign
+        titleText={t('sortBy', 'Sort')}
+        label={t('sortBy', 'Sort')}
+        items={sortItems}
+        itemToString={(item) => (item ? item.label : '')}
+        selectedItem={sortItems.find((item) => item.id === sortBy)}
+        onChange={({ selectedItem }) => {
+          if (selectedItem) dispatch(SearchActions.setSortBy({ queryId, sortBy: selectedItem.id }));
+        }}
+      />
+      <Dropdown
+        id='result-group-by'
+        type='inline'
+        size='sm'
+        autoAlign
+        titleText={t('groupBy', 'Group')}
+        label={t('groupBy', 'Group')}
+        items={groupItems}
+        itemToString={(item) => (item ? item.label : '')}
+        selectedItem={groupItems.find((item) => item.id === groupBy)}
+        onChange={({ selectedItem }) => {
+          if (selectedItem) dispatch(SearchActions.setGroupBy({ queryId, groupBy: selectedItem.id }));
+        }}
+      />
+    </>
+  );
+};
+
 export const IntervalDisplay: FC = () => {
   const { selectedQuery } = useAppSelector(SearchSelector);
-  if (!selectedQuery || !selectedQuery.timeFilter || !selectedQuery.timeFilter.value || !selectedQuery.timeFilter.unit) {
+  const { t } = useTranslation();
+  if (!selectedQuery) {
     return null;
   }
 
-  const { value, unit } = selectedQuery.timeFilter;
-  const unitLabel = unit.charAt(0).toUpperCase() + unit.slice(1);
+  const notices: string[] = [];
+  const timeFilter = selectedQuery.timeFilter;
+  if (timeFilter && timeFilter.value && timeFilter.unit) {
+    const unitLabel = timeFilter.unit.charAt(0).toUpperCase() + timeFilter.unit.slice(1);
+    notices.push(`Time Range: Last ${timeFilter.value} ${unitLabel}`);
+  }
+  if (selectedQuery.minPeakScore && selectedQuery.minPeakScore > 0) {
+    notices.push(t('minPeakScoreDisplay', { value: formatMinPeakScore(selectedQuery.minPeakScore) }));
+  }
+  if (notices.length === 0) {
+    return null;
+  }
 
-  return <IntervalNotice>{`Time Range: Last ${value} ${unitLabel}`}</IntervalNotice>;
+  return <IntervalNotice>{notices.join(' · ')}</IntervalNotice>;
 };
 
 const NoQuerySelected: FC = () => <NothingSelectedWrapper></NothingSelectedWrapper>;
 
+// Sized through CSS rather than an inline `style` prop, since older @carbon/react
+// typings do not declare `style` on SkeletonPlaceholder.
+const SkeletonTile = styled.div`
+  width: 100%;
+
+  .cds--skeleton__placeholder {
+    width: 100%;
+    height: 10rem;
+  }
+`;
+
+const SearchResultsSkeleton: FC<{ count?: number }> = ({ count = 4 }) => (
+  <div className='videos-container' data-testid='search-results-skeleton'>
+    {Array.from({ length: count }, (_, index) => (
+      <div className='video-tile' key={`skeleton-${index}`}>
+        <SkeletonTile>
+          <SkeletonPlaceholder />
+        </SkeletonTile>
+        <div className='relevance'>
+          <SkeletonText width='60%' />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 const VideosContainer: FC = () => {
-  const { selectedQuery, selectedResults, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
+  const { selectedQuery, selectedResults, isSelectedInitialLoading, isSelectedHasError } =
+    useAppSelector(SearchSelector);
   const { t } = useTranslation();
 
   if (!selectedQuery) return null;
 
-  if (selectedResults.length === 0 && !isSelectedInProgress && !isSelectedHasError) {
+  if (isSelectedHasError) return null;
+
+  // First run has nothing worth preserving, so show placeholders instead of a blank pane.
+  // A refresh of a query that already has results deliberately falls through and keeps
+  // the existing tiles mounted - see the QueryInfo "updating" chip.
+  if (isSelectedInitialLoading) return <SearchResultsSkeleton />;
+
+  if (selectedResults.length === 0) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: '#525252', fontStyle: 'italic' }}>
-        <p>{t('noSearchResults', 'No videos found matching your search query.')}</p>
-        <p>{t('tryDifferentSearch', 'Try using different keywords or check if videos have been uploaded.')}</p>
+        <p>{t('noSearchResults', 'No videos found matching your search.')}</p>
+        <p>
+          {imageSearchEnabled
+            ? t(
+                'tryDifferentSearch',
+                'Try a different keyword or image, or check if videos have been uploaded.',
+              )
+            : t(
+                'tryDifferentSearchTextOnly',
+                'Try using different keywords or check if videos have been uploaded.',
+              )}
+        </p>
       </div>
     );
   }
 
-  if (isSelectedHasError) return null;
+  // Identical video/timestamp pairs (e.g. overlapping live-stream segments) would
+  // otherwise collide on the same React key. Duplicate keys break reconciliation and
+  // leak orphaned tiles on every result-set change (switching query tabs), inflating
+  // the visible count past the configured output limit. Suffix repeats so keys stay
+  // unique while unchanged tiles still keep their <video> elements mounted.
+  const seen = new Map<string, number>();
 
   return (
     <div className='videos-container'>
-      {selectedResults.map((_, index) => (
-        <VideoTile key={`result-${index}`} resultIndex={index} />
-      ))}
+      {selectedResults.map((result, index) => {
+        const baseKey = searchResultKey(result, index);
+        const occurrence = seen.get(baseKey) ?? 0;
+        seen.set(baseKey, occurrence + 1);
+        const key = occurrence === 0 ? baseKey : `${baseKey}-${occurrence}`;
+        return <VideoTile key={key} resultIndex={index} />;
+      })}
     </div>
   );
 };
@@ -379,24 +698,36 @@ const ErrorMessage: FC = () => {
 export const SearchContent: FC = () => {
   const hasSelectedQuery = useAppSelector((state) => Boolean(SearchSelector(state).selectedQuery));
   const isSelectedHasError = useAppSelector((state) => SearchSelector(state).isSelectedHasError);
-  const { showVideoGroups } = useAppSelector(uiSelector);
+  // Per-query grouping: read the selected query's own setting so grouping never
+  // leaks across search result pages.
+  const groupBy = useAppSelector((state) => SearchSelector(state).selectedQuery?.groupBy ?? 'none');
 
   return (
-    <>
-      <QueryContentWrapper>
-        {!hasSelectedQuery && <NoQuerySelected />}
+    <SearchContentLayout>
+      {hasSelectedQuery && (
+        <QueryControls>
+          <QuerySettings />
+          <QueryInfo />
+          <IntervalDisplay />
+        </QueryControls>
+      )}
+      <ResultsRow>
+        <QueryContentWrapper>
+          {!hasSelectedQuery && <NoQuerySelected />}
 
-        {hasSelectedQuery && (
-          <>
-            <QuerySettings />
-            <QueryInfo />
-            <IntervalDisplay />
-            {showVideoGroups ? <VideoGroupsView /> : isSelectedHasError ? <ErrorMessage /> : <VideosContainer />}
-          </>
-        )}
-        <TelemetryAccordion />
-      </QueryContentWrapper>
-    </>
+          {hasSelectedQuery &&
+            (groupBy !== 'none' ? (
+              <VideoGroupsView groupBy={groupBy} />
+            ) : isSelectedHasError ? (
+              <ErrorMessage />
+            ) : (
+              <VideosContainer />
+            ))}
+          <TelemetryAccordion />
+        </QueryContentWrapper>
+        <MapDrawer />
+      </ResultsRow>
+    </SearchContentLayout>
   );
 };
 

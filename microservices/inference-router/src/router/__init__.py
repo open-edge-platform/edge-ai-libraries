@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from src.rsd.decision import DecisionEngine, RouteDecision
+from src.rsd.engine.decision import DecisionEngine, RouteDecision
 from src.router.orchestrator import RouterOrchestrator
 
 from ..observability import Telemetry, InMemoryTelemetry, FileBasedTelemetry

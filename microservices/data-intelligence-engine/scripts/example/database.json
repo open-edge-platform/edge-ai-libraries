@@ -1,0 +1,9 @@
+{
+  "id": "local-milvus",
+  "type": "vector",
+  "backend": "milvus",
+  "options": {
+    "uri": "http://milvus-standalone:19530"
+  },
+  "description": "Local Milvus vector database"
+}

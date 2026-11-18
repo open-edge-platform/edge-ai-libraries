@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+name: yolo26s
+display_name: YOLO 26s
+description: "YOLO26 small object detector delivering real-time detection and classification of the 80 COCO object categories."
+source: public
+hub: ultralytics
+type: object_detection
+precisions:
+  - precision: INT8
+    model_path: ultralytics/public/yolo26s/INT8/yolo26s.xml
+    model_proc: ""
+  - precision: FP32
+    model_path: ultralytics/public/yolo26s/FP32/yolo26s.xml
+    model_proc: ""
+  - precision: FP16
+    model_path: ultralytics/public/yolo26s/FP16/yolo26s.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: yolo26s
+  config:
+    quantize: coco128

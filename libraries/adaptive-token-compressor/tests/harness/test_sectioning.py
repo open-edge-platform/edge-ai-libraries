@@ -147,7 +147,7 @@ class TestSplitterFilePathHeadings:
             workspace_path_pattern=r"/tmp/workspace"
         )
         splitter = SectionSplitter(config)
-        # Real router prompts always emit file-path headings as
+        # Attached project-context files use file-path headings as
         # ``## <workspace>/<filename>`` lines (project-context attachments).
         text = "Intro\n## /tmp/workspace/file.py\nFile content here"
         sections = splitter.split(text)

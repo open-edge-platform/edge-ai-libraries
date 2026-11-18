@@ -171,6 +171,22 @@ print('PASS:', r.texts[0])
 "
 ```
 
+## Coarse Segment Timestamps on NPU
+
+With `provider: openvino` and `device: NPU`, the OpenVINO GenAI backend runs
+Whisper with `return_timestamps` off. Each decoded audio chunk comes back as
+one segment that spans the whole chunk.
+
+This is intended. With timestamps on, the NPU Whisper pipeline returned
+corrupted text (repeated short fragments) or failed with
+`KV-Cache is full`. This was seen with OpenVINO GenAI 2026.1 and 2026.3.
+
+With diarization on, speaker labels follow the same chunks: two voices inside
+one chunk get one label.
+
+If you need per-phrase timestamps or speaker labels, use `device: CPU` or
+`device: GPU`.
+
 ## Invalid ASR Provider/Device Combination
 
 If startup fails with an error about `models.asr.provider` or

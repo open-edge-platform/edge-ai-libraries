@@ -19,7 +19,7 @@ from src.core.embedding import generate_image_embedding_from_content, generate_v
 from src.core.media import detect_media_kind
 from src.core.utils.common_utils import get_minio_client
 from src.core.utils.video_utils import get_video_from_minio
-from src.core.utils.config_utils import get_config, read_config
+from src.core.utils.config_utils import get_config
 from src.core.validation import sanitize_model
 
 router = APIRouter(tags=["Media Processing APIs"])
@@ -85,7 +85,6 @@ async def process_minio_video(
        - **video_id (str) :** The video ID (directory) containing the video (required)
        - **frame_interval (int) :** Extract every Nth frame for processing (range: 1-60; defaults to the service's configured frame_interval, 15 unless overridden)
        - **enable_object_detection (bool) :** Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)
-       - **detection_confidence (float) :** Confidence threshold for object detection (range: 0.1-1.0; defaults to the service's configured threshold, 0.85 unless overridden)
        - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
 
     #### Raises:
@@ -100,23 +99,14 @@ async def process_minio_video(
     """
 
     try:
-        raw_config = read_config(settings.CONFIG_FILEPATH, type="yaml")
-
-        # Not able to read config file is a fatal error.
-        if raw_config is None:
-            raise Exception(Strings.config_error)
-
         try:
             effective_config = get_config()
         except ValueError as cfg_err:
             logger.error(f"Failed to load effective configuration: {cfg_err}")
             raise
 
-        # Get directory paths from config file
-        videos_temp_dir = pathlib.Path(raw_config.get("videos_local_temp_dir", "/tmp/dataprep/videos"))
-        metadata_temp_dir = pathlib.Path(
-            raw_config.get("metadata_local_temp_dir", "/tmp/dataprep/metadata")
-        )
+        videos_temp_dir = pathlib.Path(effective_config["videos_temp_dir"])
+        metadata_temp_dir = pathlib.Path(effective_config["metadata_temp_dir"])
 
         # Sanitize the video request model
         video_request = sanitize_model(video_request)
@@ -131,10 +121,6 @@ async def process_minio_video(
             enable_object_detection = effective_config.get("enable_object_detection")
             if enable_object_detection is None:
                 enable_object_detection = settings.ENABLE_OBJECT_DETECTION
-        detection_confidence = (
-            video_request.detection_confidence
-            or effective_config.get("detection_confidence", 0.85)
-        )
         tags: List[str] = video_request.tags or []
         video_name = video_request.video_name
 
@@ -215,7 +201,6 @@ async def process_minio_video(
                 filename=filename,
                 video_name=video_name,
                 enable_object_detection=enable_object_detection,
-                detection_confidence=detection_confidence,
                 tags=tags,
                 telemetry_context=telemetry_context,
             )
@@ -229,7 +214,6 @@ async def process_minio_video(
                 metadata_temp_path=metadata_temp_dir,
                 frame_interval=frame_interval,
                 enable_object_detection=enable_object_detection,
-                detection_confidence=detection_confidence,
                 tags=tags,
                 telemetry_context=telemetry_context,
             )

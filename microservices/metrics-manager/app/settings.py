@@ -9,9 +9,9 @@ variable support and sensible defaults for production deployment.
 """
 
 from functools import lru_cache
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, TypeAdapter, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     service_name: str = Field(default="metrics-manager", description="Service name for logging")
     # Default mirrors the value in ./VERSION (single source of truth used by
     # the build / Makefile). Override at runtime via SERVICE_VERSION env var.
-    service_version: str = Field(default="2026.1.0", description="Service version")
+    service_version: str = Field(default="2026.3.0", description="Service version")
     environment: Literal["development", "staging", "production"] = Field(
         default="production", description="Deployment environment"
     )
@@ -49,9 +49,7 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         default="INFO", description="Logging level"
     )
-    log_format: Literal["json", "text"] = Field(
-        default="json", description="Log output format"
-    )
+    log_format: Literal["json", "text"] = Field(default="json", description="Log output format")
     log_include_timestamp: bool = Field(default=True, description="Include timestamp in logs")
 
     # CORS Configuration
@@ -59,7 +57,7 @@ class Settings(BaseSettings):
     cors_origins_raw: str = Field(
         default="*",
         validation_alias="CORS_ORIGINS",
-        description="Allowed CORS origins (comma-separated or JSON array)"
+        description="Allowed CORS origins (comma-separated or JSON array)",
     )
     cors_allow_credentials: bool = Field(default=False, description="Allow credentials")
 
@@ -72,16 +70,15 @@ class Settings(BaseSettings):
         - Comma-separated: "http://localhost:3000,http://example.com"
         - JSON array: '["*"]' or '["http://localhost:3000"]'
         """
-        v = self.cors_origins_raw
-        if not v or not v.strip():
+        v = self.cors_origins_raw.strip()
+        if not v:
             return ["*"]
         # Try JSON first
         if v.startswith("["):
-            import json
             try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                pass
+                return TypeAdapter(list[str]).validate_json(v, strict=True)
+            except ValidationError:
+                raise ValueError("CORS_ORIGINS must be a valid JSON array of strings") from None
         # Otherwise split by comma
         return [origin.strip() for origin in v.split(",") if origin.strip()]
 
@@ -110,14 +107,10 @@ class Settings(BaseSettings):
 
     # Prometheus Poller Configuration
     prometheus_poller_interval_ms: int = Field(
-        default=500,
-        ge=100,
-        le=5000,
-        description="Polling interval in milliseconds (100-5000)"
+        default=500, ge=100, le=5000, description="Polling interval in milliseconds (100-5000)"
     )
     prometheus_telegraf_endpoint: str = Field(
-        default="http://localhost:9273",
-        description="Telegraf Prometheus endpoint (system metrics)"
+        default="http://localhost:9273", description="Telegraf Prometheus endpoint (system metrics)"
     )
 
     # Security Configuration
@@ -144,7 +137,7 @@ class Settings(BaseSettings):
 
     @field_validator("log_level", mode="before")
     @classmethod
-    def normalize_log_level(cls, v: Any) -> str:
+    def normalize_log_level(cls, v: object) -> object:
         """Normalize log level to uppercase."""
         if isinstance(v, str):
             return v.upper()

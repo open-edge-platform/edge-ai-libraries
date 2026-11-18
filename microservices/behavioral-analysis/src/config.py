@@ -3,6 +3,7 @@
 """Configuration settings for BehavioralAnalysis Service."""
 
 import logging
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
@@ -49,7 +50,7 @@ class Settings(BaseSettings):
     # VLM settings
     vlm_endpoint: str = "http://ovms-vlm:8001"
     vlm_model_name: str = "Qwen/Qwen2.5-VL-7B-Instruct"
-    vlm_enabled: bool = True
+    vlm_enabled: bool = False
     vlm_timeout: float = 300.0
     # Max concurrent VLM requests in flight against ovms-vlm. Continuous
     # batching is fine but unbounded fan-in lets the cache and per-request
@@ -102,7 +103,7 @@ def load_pattern_config(path: str) -> dict[str, Any]:
 
 
 def apply_vlm_settings(settings: Settings, path: str) -> None:
-    """Override VLM settings from the patterns YAML if present."""
+    """Apply VLM settings from the patterns YAML unless the corresponding env var is explicitly set."""
     config_path = Path(path)
     if not config_path.exists():
         return
@@ -117,7 +118,6 @@ def apply_vlm_settings(settings: Settings, path: str) -> None:
     field_map = {
         "endpoint": "vlm_endpoint",
         "model_name": "vlm_model_name",
-        "enabled": "vlm_enabled",
         "timeout": "vlm_timeout",
         "max_tokens": "vlm_max_tokens",
         "temperature": "vlm_temperature",
@@ -126,9 +126,16 @@ def apply_vlm_settings(settings: Settings, path: str) -> None:
     }
     applied = []
     for yaml_key, settings_attr in field_map.items():
+        env_name = settings_attr.upper()
+        if os.getenv(env_name) is not None:
+            logger.info(
+                f"Skipping YAML override for {settings_attr}: environment variable {env_name} is set."
+            )
+            continue
+
         if yaml_key in vlm:
             setattr(settings, settings_attr, vlm[yaml_key])
             applied.append(f"{yaml_key}={vlm[yaml_key]}")
 
     if applied:
-        logger.info(f"VLM settings from config: {', '.join(applied)}")
+        logger.info(f"VLM settings applied from config: {', '.join(applied)}")

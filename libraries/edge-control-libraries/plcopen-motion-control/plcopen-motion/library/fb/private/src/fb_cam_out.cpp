@@ -14,6 +14,9 @@ namespace RTmotion
 {
 MC_ERROR_CODE FbCamOut::onRisingEdgeExecution()
 {
+  if (jerk_ == 0)
+    return mcErrorCodeMotionLimitUnset;
+
   axis_->setAxisState(mcContinuousMotion);
   velocity_     = axis_->toUserVel();
   acceleration_ = axis_->toUserAcc() < 10 ? 10 : axis_->toUserAcc();

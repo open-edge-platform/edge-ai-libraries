@@ -32,10 +32,11 @@ applications.
     cd edge-ai-libraries
 ```
 
-Note that you do not need to clone the entire repository. You can clone just the portion you
-are interested with. To see how ti do it, check out the
-[Contributing to Open Edge Platform](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning)
-article.
+> [!NOTE]
+> You do not need to clone the entire repository. You can clone just the portion you
+> are interested with. To see how to do it, check out the
+> [Contributing to Open Edge Platform](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning)
+> article.
 
 
 # How to Contribute

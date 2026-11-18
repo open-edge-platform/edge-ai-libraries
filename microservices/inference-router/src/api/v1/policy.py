@@ -4,7 +4,7 @@
 """v1 decision-policy management endpoints.
 
 A policy is a named, ordered list of strategies plus a combine ``criterion``
-(see :mod:`src.rsd.policy`). These endpoints treat each policy as an object and
+(see :mod:`src.rsd.engine.policy`). These endpoints treat each policy as an object and
 CRUD them over the on-disk ``policy.yaml``: all operations target the
 ``<workspace>`` copy, which must already exist, and writes are applied
 immediately by rebuilding the router's DecisionEngine (see
@@ -23,8 +23,8 @@ from src.api.v1._rsd_runtime import (
     workspace_rsd_path,
 )
 from src.exceptions import ConfigurationError
-from src.rsd.policy import build_decision_policy
-from src.rsd.strategy import load_strategy_definitions, resolve_strategy_file
+from src.rsd.engine.policy import build_decision_policy
+from src.rsd.engine.strategy import load_strategy_definitions, resolve_strategy_file
 from src.router.logging_utils import sanitize_for_log
 
 

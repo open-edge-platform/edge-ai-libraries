@@ -82,13 +82,30 @@ Use this flow when you want to build and start the experimental Time Series envi
 compose stack:
 
 1. Build the experimental images with `make build-experimental`.
-2. Start the services with `make run-experimental`.
-3. Stop them with `make stop-experimental` when testing is complete.
-4. Remove the generated containers and volumes with `make clean-experimental`.
+1. Start the services with `make run-experimental`.
+1. Stop them with `make stop-experimental` when testing is complete.
+1. Remove the generated containers and volumes with `make clean-experimental`.
 
 This keeps the experimental Time Series pipeline isolated behind the `compose.experimental.yml` override,
 layered on top of the standard `compose.yml` stack while still reusing the same hardware-specific profile
 selection from `setup_env.sh` and `.env`.
+
+## Voice Conversion
+
+The **Voice** page (`/voice`) provides independent speech-to-text and
+text-to-speech conversions, without a chat, conversation history, or kiosk-core.
+`make build`, `make run`, and `make stop` include ViPPET, audio-analyzer, and
+text-to-speech using the detected hardware profile. Stopping preserves named
+volumes.
+Under WSL 2, the detected `gpu-wsl` profile enables GPU inference for ASR and
+the backend's GPU (WSL) pipeline variants. SpeechT5 TTS uses CPU because measured
+WSL latency is lower than on the iGPU. The profile also configures WSL device
+access for Metrics Manager. Experimental Time Series Analytics still requires
+native `/dev/dri` access and a render group ID.
+See [WSL requirements](docs/user-guide/get-started/installation/system-requirements.md#windows-subsystem-for-linux-wsl)
+for prerequisites and GPU telemetry limitations.
+The [voice deployment guide](docs/user-guide/user-guide/voice-conversion.md)
+covers startup, browser microphone requirements, input limits, and storage.
 
 ## Learn More
 

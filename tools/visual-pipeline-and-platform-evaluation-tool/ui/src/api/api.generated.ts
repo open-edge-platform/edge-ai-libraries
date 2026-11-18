@@ -13,6 +13,7 @@ export const addTagTypes = [
   "videos",
   "images",
   "cameras",
+  "voice",
 ] as const;
 const injectedRtkApi = api
   .enhanceEndpoints({
@@ -117,6 +118,29 @@ const injectedRtkApi = api
         query: () => ({ url: `/devices` }),
         providesTags: ["devices"],
       }),
+      getAudioStatuses: build.query<
+        GetAudioStatusesApiResponse,
+        GetAudioStatusesApiArg
+      >({
+        query: () => ({ url: `/jobs/audio/status` }),
+        providesTags: ["jobs"],
+      }),
+      getAudioJobStatus: build.query<
+        GetAudioJobStatusApiResponse,
+        GetAudioJobStatusApiArg
+      >({
+        query: (queryArg) => ({ url: `/jobs/audio/${queryArg.jobId}/status` }),
+        providesTags: ["jobs"],
+      }),
+      stopAudioJob: build.mutation<StopAudioJobApiResponse, StopAudioJobApiArg>(
+        {
+          query: (queryArg) => ({
+            url: `/jobs/audio/${queryArg.jobId}`,
+            method: "DELETE",
+          }),
+          invalidatesTags: ["jobs"],
+        },
+      ),
       getPerformanceStatuses: build.query<
         GetPerformanceStatusesApiResponse,
         GetPerformanceStatusesApiArg
@@ -255,6 +279,16 @@ const injectedRtkApi = api
         query: (queryArg) => ({ url: `/jobs/optimization/${queryArg.jobId}` }),
         providesTags: ["jobs"],
       }),
+      stopOptimizationJob: build.mutation<
+        StopOptimizationJobApiResponse,
+        StopOptimizationJobApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/jobs/optimization/${queryArg.jobId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["jobs"],
+      }),
       getOptimizationJobStatus: build.query<
         GetOptimizationJobStatusApiResponse,
         GetOptimizationJobStatusApiArg
@@ -311,6 +345,17 @@ const injectedRtkApi = api
       getModels: build.query<GetModelsApiResponse, GetModelsApiArg>({
         query: () => ({ url: `/models` }),
         providesTags: ["models"],
+      }),
+      listHubModels: build.mutation<
+        ListHubModelsApiResponse,
+        ListHubModelsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/models/list`,
+          method: "POST",
+          body: queryArg.modelHubListRequest,
+        }),
+        invalidatesTags: ["models"],
       }),
       uploadModel: build.mutation<UploadModelApiResponse, UploadModelApiArg>({
         query: (queryArg) => ({
@@ -592,6 +637,50 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["cameras"],
       }),
+      listAudioPipelinesVoicePipelinesGet: build.query<
+        ListAudioPipelinesVoicePipelinesGetApiResponse,
+        ListAudioPipelinesVoicePipelinesGetApiArg
+      >({
+        query: () => ({ url: `/voice/pipelines` }),
+        providesTags: ["voice"],
+      }),
+      listAudioRecordingsVoiceRecordingsGet: build.query<
+        ListAudioRecordingsVoiceRecordingsGetApiResponse,
+        ListAudioRecordingsVoiceRecordingsGetApiArg
+      >({
+        query: () => ({ url: `/voice/recordings` }),
+        providesTags: ["voice"],
+      }),
+      getAudioRecordingVoiceRecordingsFilenameAudioGet: build.query<
+        GetAudioRecordingVoiceRecordingsFilenameAudioGetApiResponse,
+        GetAudioRecordingVoiceRecordingsFilenameAudioGetApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/recordings/${queryArg.filename}/audio`,
+        }),
+        providesTags: ["voice"],
+      }),
+      runAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPost:
+        build.mutation<
+          RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse,
+          RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiArg
+        >({
+          query: (queryArg) => ({
+            url: `/voice/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/runs`,
+            method: "POST",
+            body: queryArg.body,
+          }),
+          invalidatesTags: ["voice"],
+        }),
+      getAudioPipelineArtifactVoiceJobsJobIdArtifactGet: build.query<
+        GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiResponse,
+        GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/jobs/${queryArg.jobId}/artifact`,
+        }),
+        providesTags: ["voice"],
+      }),
     }),
     overrideExisting: false,
   });
@@ -655,6 +744,19 @@ export type ToDescriptionApiArg = {
 export type GetDevicesApiResponse =
   /** status 200 List of devices successfully retrieved. */ Device[];
 export type GetDevicesApiArg = void;
+export type GetAudioStatusesApiResponse =
+  /** status 200 Successful Response */ AudioJobSummary[];
+export type GetAudioStatusesApiArg = void;
+export type GetAudioJobStatusApiResponse =
+  /** status 200 Successful Response */ AudioJobStatus;
+export type GetAudioJobStatusApiArg = {
+  jobId: string;
+};
+export type StopAudioJobApiResponse =
+  /** status 200 Successful Response */ MessageResponse;
+export type StopAudioJobApiArg = {
+  jobId: string;
+};
 export type GetPerformanceStatusesApiResponse =
   /** status 200 Successful Response */ PerformanceJobStatus[];
 export type GetPerformanceStatusesApiArg = void;
@@ -732,6 +834,11 @@ export type GetOptimizationJobSummaryApiResponse =
 export type GetOptimizationJobSummaryApiArg = {
   jobId: string;
 };
+export type StopOptimizationJobApiResponse =
+  /** status 200 Cancellation requested */ MessageResponse;
+export type StopOptimizationJobApiArg = {
+  jobId: string;
+};
 export type GetOptimizationJobStatusApiResponse =
   /** status 200 Successful Response */ OptimizationJobStatus;
 export type GetOptimizationJobStatusApiArg = {
@@ -766,17 +873,22 @@ export type GetModelDownloadJobStatusApiArg = {
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
-export type UploadModelApiResponse = /** status 200 Successful Response */
-  | any
-  | /** status 201 Model uploaded successfully */ ModelUploadResponse;
+export type ListHubModelsApiResponse =
+  /** status 200 Successful Response */ ModelHubListResponse;
+export type ListHubModelsApiArg = {
+  modelHubListRequest: ModelHubListRequest;
+};
+export type UploadModelApiResponse =
+  /** status 200 Successful Response */
+  any | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
   /** status 200 Successful Response */
-    | any
-    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+  | any
+  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -928,6 +1040,45 @@ export type LoadCameraProfilesApiArg = {
   cameraId: string;
   cameraProfilesRequest: CameraProfilesRequest;
 };
+export type ListAudioPipelinesVoicePipelinesGetApiResponse =
+  /** status 200 Successful Response */ AudioPipelineResponse[];
+export type ListAudioPipelinesVoicePipelinesGetApiArg = void;
+export type ListAudioRecordingsVoiceRecordingsGetApiResponse =
+  /** status 200 Successful Response */ AudioRecordingResponse[];
+export type ListAudioRecordingsVoiceRecordingsGetApiArg = void;
+export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiResponse =
+  unknown;
+export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiArg = {
+  filename: string;
+};
+export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse =
+  /** status 202 Successful Response */ AudioPipelineJobStartResponse;
+export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiArg =
+  {
+    pipelineId: string;
+    variantId: string;
+    body:
+      | {
+          input: string;
+          voice:
+            | "Ryan"
+            | "Miles"
+            | "Aaron"
+            | "Nora"
+            | "Elena"
+            | "Kabir"
+            | "Angus";
+        }
+      | {
+          recording: string;
+          language: string;
+        };
+  };
+export type GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiResponse =
+  unknown;
+export type GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiArg = {
+  jobId: string;
+};
 export type HealthResponse = {
   healthy: boolean;
 };
@@ -936,6 +1087,8 @@ export type StatusResponse = {
   status: AppStatus;
   message: string | null;
   ready: boolean;
+  version: string;
+  revision: string;
 };
 export type BenchmarkTestCase = {
   id: number;
@@ -1014,6 +1167,12 @@ export type BenchmarkTestCaseRun = {
   media_usage: number | null;
   memory_usage: number | null;
   power_usage: number | null;
+  latency_avg_ms: number | null;
+  latency_avg_stddev_ms: number | null;
+  latency_max_ms: number | null;
+  latency_max_stddev_ms: number | null;
+  latency_min_ms: number | null;
+  latency_min_stddev_ms: number | null;
   score_total: number | null;
   score_performance: number | null;
   score_efficiency: number | null;
@@ -1077,6 +1236,12 @@ export type BenchmarkTestCaseRunDetails = {
   media_usage: number | null;
   memory_usage: number | null;
   power_usage: number | null;
+  latency_avg_ms: number | null;
+  latency_avg_stddev_ms: number | null;
+  latency_max_ms: number | null;
+  latency_max_stddev_ms: number | null;
+  latency_min_ms: number | null;
+  latency_min_stddev_ms: number | null;
   score_total: number | null;
   score_performance: number | null;
   score_efficiency: number | null;
@@ -1119,12 +1284,61 @@ export type PipelineDescription = {
 };
 export type DeviceType = "DISCRETE" | "INTEGRATED";
 export type DeviceFamily = "CPU" | "GPU" | "NPU";
+export type CpuTopologySource = "sysfs_pmu" | "sysfs_cache" | "uniform";
+export type CpuCoreType = "P" | "E" | "LPE" | "UNIFORM";
+export type CpuCore = {
+  cpu: number;
+  core_type: CpuCoreType;
+  core_id: number;
+};
+export type CpuTopology = {
+  is_hybrid: boolean;
+  source: CpuTopologySource;
+  cores: CpuCore[];
+};
 export type Device = {
   device_name: string;
   full_device_name: string;
   device_type: DeviceType;
   device_family: DeviceFamily;
   gpu_id: number | null;
+  cpu_topology?: CpuTopology | null;
+};
+export type AudioJobState =
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED";
+export type AudioJobSummary = {
+  id: string;
+  pipeline_id: string;
+  pipeline_name: string;
+  operation: "speech_to_text" | "text_to_speech";
+  variant_id: string;
+  variant_name: string;
+  device: "CPU" | "GPU" | "NPU";
+  state: AudioJobState;
+  created_at: string;
+  modified_at: string;
+  service_round_trip_ms?: number | null;
+  artifact_available: boolean;
+  error?: string | null;
+};
+export type AudioJobStatus = {
+  id: string;
+  pipeline_id: string;
+  pipeline_name: string;
+  operation: "speech_to_text" | "text_to_speech";
+  variant_id: string;
+  variant_name: string;
+  device: "CPU" | "GPU" | "NPU";
+  state: AudioJobState;
+  created_at: string;
+  modified_at: string;
+  service_round_trip_ms?: number | null;
+  artifact_available: boolean;
+  error?: string | null;
+  transcript?: string | null;
+  artifact_url?: string | null;
 };
 export type TestJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type PipelineStreamSpec = {
@@ -1136,16 +1350,24 @@ export type PipelineStreamSpec = {
   streams_ids?: string[];
 };
 export type LatencyMetrics = {
-  /** Length of the measurement window reported by the tracer, in ms. */
+  /** Total length of the tracer windows merged into this sample, in ms (about one export period). */
   interval_ms: number;
-  /** Average frame latency over the window, in ms. */
+  /** Mean per-frame latency over the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   avg_ms: number;
-  /** Minimum frame latency observed in the window, in ms. */
+  /** Minimum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   min_ms: number;
-  /** Maximum frame latency observed in the window, in ms. */
+  /** Maximum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   max_ms: number;
-  /** Current end-to-end latency reported by the tracer, in ms. */
+  /** Deprecated: mean time between output frames in the window, in ms (frame period, = 1000 / fps). It is NOT a frame latency - use `avg_ms` (mean) and `max_ms`. */
   latency_ms: number;
+};
+export type PipelineEvent = {
+  timestamp_ms: number;
+  source: string;
+  text: string;
+  element?: string | null;
+  pts_seconds?: number | null;
+  prompt?: string | null;
 };
 export type PerformanceJobStatus = {
   id: string;
@@ -1160,7 +1382,9 @@ export type PerformanceJobStatus = {
   video_output_paths: {
     [key: string]: string[];
   } | null;
-  /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples — for example when the pipeline exited before the first 1000 ms interval closed. */
+  /** FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure. */
+  min_stream_fps?: number | null;
+  /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when no latency samples were read: the job was executed with `execution_config.enable_latency_metrics=false`, or latency was requested but DL Streamer Pipeline Server runs without the latency tracer (the job's `details` then say so). An empty object `{}` means samples were read but none arrived — for example when the pipeline stopped before the server's first export. */
   latency_tracer_metrics?: {
     [key: string]: LatencyMetrics;
   } | null;
@@ -1170,6 +1394,8 @@ export type PerformanceJobStatus = {
   metadata_stream_urls: {
     [key: string]: string[];
   } | null;
+  /** Most recent live pipeline events (oldest first, bounded), e.g. a `gvaproximitytrigger_py` trigger firing or a `gvagenai` answer. */
+  events?: PipelineEvent[];
 };
 export type PerformanceJobSummary = {
   id: string;
@@ -1190,7 +1416,9 @@ export type DensityJobStatus = {
   video_output_paths: {
     [key: string]: string[];
   } | null;
-  /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples — for example when the pipeline exited before the first 1000 ms interval closed. */
+  /** FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure. */
+  min_stream_fps?: number | null;
+  /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when no latency samples were read: the job was executed with `execution_config.enable_latency_metrics=false`, or latency was requested but DL Streamer Pipeline Server runs without the latency tracer (the job's `details` then say so). An empty object `{}` means samples were read but none arrived — for example when the pipeline stopped before the server's first export. */
   latency_tracer_metrics?: {
     [key: string]: LatencyMetrics;
   } | null;
@@ -1288,12 +1516,21 @@ export type ModelDownloadJobSummary = {
   model_name: string;
   source: ModelSource;
 };
-export type ModelCategory = "classification" | "detection" | "genai";
+export type ModelCategory =
+  | "image_classification"
+  | "object_detection"
+  | "image_segmentation"
+  | "pose_estimation"
+  | "vision_language_models"
+  | "large_language_models"
+  | "automatic_speech_recognition"
+  | "text_to_speech";
 export type ModelInstallStatus =
   | "installed"
   | "not_installed"
   | "installing"
   | "failed";
+export type ModelGated = "false" | "auto" | "manual";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1309,6 +1546,8 @@ export type Model = {
   name: string;
   /** Human-readable model name. */
   display_name: string;
+  /** Human-readable explanation of what the model detects or classifies, or null when not provided. */
+  description?: string | null;
   /** Logical model category, or null when unknown. */
   category?: ModelCategory | null;
   /** Upstream hub the model is downloaded from. */
@@ -1319,10 +1558,44 @@ export type Model = {
   variants?: ModelVariant[];
   /** List of predefined-pipeline ids that reference this model. Non-empty means the model is recommended. */
   used_by_pipelines?: string[];
-  /** Whether the model is marked as a default install candidate in supported_models.yaml. The Models page uses this flag to pre-select recommended models in the bulk-install UI. */
+  /** Whether at least one predefined pipeline references this model. The Models page uses this flag to pre-select recommended models in the bulk-install UI. */
   default?: boolean;
   /** Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist. */
   unsupported_devices?: string | null;
+  /** URL of the model page on its upstream hub (currently only Hugging Face), or null when not available. */
+  link?: string | null;
+  /** Hugging Face gating mode, or null when unknown or not applicable (non-Hugging Face models). */
+  gated?: ModelGated | null;
+};
+export type ModelHubListResponse = {
+  hub: string;
+  items: {
+    [key: string]: any;
+  }[];
+  /** Number of items returned in this response. */
+  count?: number | null;
+  /** Total number of items available, when the hub reports it. */
+  total?: number | null;
+  limit: number;
+  offset: number;
+  /** Whether another page is available. */
+  has_more?: boolean | null;
+  /** Offset to request the next page, when available. */
+  next_offset?: number | null;
+};
+export type ModelHubListRequest = {
+  /** Model hub to search, such as huggingface. */
+  hub: string;
+  /** Hub-specific listing filters, such as author, search, or tags. */
+  filters?: {
+    [key: string]: any;
+  };
+  limit?: number;
+  offset?: number;
+  /** Optional Base64-encoded connection overrides for this request. */
+  override_credentials?: {
+    [key: string]: string;
+  } | null;
 };
 export type ModelUploadResponse = {
   /** Newly registered model entry. */
@@ -1332,6 +1605,7 @@ export type BodyUploadModel = {
   model_name: string;
   category: ModelCategory;
   file: string;
+  description?: string | null;
 };
 export type ModelDownloadJobItem = {
   /** Model name. */
@@ -1352,6 +1626,12 @@ export type ModelDownloadJobResponse = {
 export type ModelDownloadRequest = {
   /** List of supported-model names to install. Must be non-empty and unique. */
   names: string[];
+  /** Upstream hub used for names not found in the model catalog. */
+  hub?: ModelSource | null;
+  /** Model category, required when `hub` is `huggingface` (ignored for other hubs). */
+  category?: ModelCategory | null;
+  /** Gating mode of the hub model, stored on the registered model (null when unknown). */
+  gated?: ModelGated | null;
 };
 export type ModelStatusItem = {
   /** Internal model identifier. */
@@ -1499,8 +1779,10 @@ export type ExecutionConfig = {
   max_runtime?: number;
   /** Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints. */
   metadata_mode?: MetadataMode;
-  /** When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified. */
+  /** When true, the job reports DLStreamer `latency_tracer` samples per stream in `latency_tracer_metrics`. This flag does not start the tracer: DL Streamer Pipeline Server runs it for every pipeline when configured server-wide (`DLSPS2_GST_TRACERS` with `post-metrics=true`, and `DLSPS2_OTEL=true`), and ViPPET only reads the samples the server exports to metrics-manager. If the server is not configured that way, the test runs without latency metrics and the job's `details` say so. When false (default), no latency samples are read. */
   enable_latency_metrics?: boolean;
+  /** Logical CPU ids the pipeline is pinned to, as reported by `GET /devices` in `cpu_topology.cores[].cpu`. An empty list (default) disables pinning and lets the pipeline run on every CPU available to the service. Ids are de-duplicated and sorted; ids the service itself cannot run on are rejected. */
+  pinned_cpu_cores?: number[];
 };
 export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */
@@ -1635,7 +1917,7 @@ export type ImageInfo = {
   /** Image height in pixels, or null if it could not be read. */
   height?: number | null;
 };
-export type CameraType = "USB" | "NETWORK";
+export type CameraType = "USB" | "NETWORK" | "GIGE";
 export type V4L2BestCapture = {
   fourcc: string;
   width: number;
@@ -1660,11 +1942,24 @@ export type NetworkCameraDetails = {
   profiles: CameraProfileInfo[];
   best_profile?: CameraProfileInfo | null;
 };
+export type GigECapture = {
+  pixel_format?: string | null;
+  width?: number | null;
+  height?: number | null;
+  fps?: number | null;
+};
+export type GigECameraDetails = {
+  ip: string;
+  vendor?: string | null;
+  model?: string | null;
+  serial?: string | null;
+  current_capture?: GigECapture | null;
+};
 export type Camera = {
   device_id: string;
   device_name: string;
   device_type: CameraType;
-  details: UsbCameraDetails | NetworkCameraDetails;
+  details: UsbCameraDetails | NetworkCameraDetails | GigECameraDetails;
 };
 export type CameraAuthResponse = {
   /** Camera object with populated ONVIF profiles after successful authentication. */
@@ -1673,6 +1968,38 @@ export type CameraAuthResponse = {
 export type CameraProfilesRequest = {
   username: string;
   password: string;
+};
+export type AudioPipelineVariantResponse = {
+  id: string;
+  name: string;
+  device: "CPU" | "GPU" | "NPU";
+};
+export type AudioPipelineDefaultsResponse = {
+  audio?: string | null;
+  language?: string | null;
+  text?: string | null;
+  voice?: string | null;
+};
+export type AudioPipelineResponse = {
+  id: string;
+  name: string;
+  description: string;
+  type: "audio";
+  operation: "speech_to_text" | "text_to_speech";
+  tags: string[];
+  thumbnail?: string | null;
+  required_models: string[];
+  variants: AudioPipelineVariantResponse[];
+  defaults: AudioPipelineDefaultsResponse;
+};
+export type AudioRecordingResponse = {
+  filename: string;
+  duration_seconds: number;
+  audio_url: string;
+};
+export type AudioPipelineJobStartResponse = {
+  job_id: string;
+  status: "RUNNING" | "COMPLETED" | "FAILED";
 };
 export const {
   useGetHealthQuery,
@@ -1698,6 +2025,11 @@ export const {
   useToDescriptionMutation,
   useGetDevicesQuery,
   useLazyGetDevicesQuery,
+  useGetAudioStatusesQuery,
+  useLazyGetAudioStatusesQuery,
+  useGetAudioJobStatusQuery,
+  useLazyGetAudioJobStatusQuery,
+  useStopAudioJobMutation,
   useGetPerformanceStatusesQuery,
   useLazyGetPerformanceStatusesQuery,
   useGetPerformanceJobStatusQuery,
@@ -1727,6 +2059,7 @@ export const {
   useLazyGetOptimizationStatusesQuery,
   useGetOptimizationJobSummaryQuery,
   useLazyGetOptimizationJobSummaryQuery,
+  useStopOptimizationJobMutation,
   useGetOptimizationJobStatusQuery,
   useLazyGetOptimizationJobStatusQuery,
   useGetValidationStatusesQuery,
@@ -1743,6 +2076,7 @@ export const {
   useLazyGetModelDownloadJobStatusQuery,
   useGetModelsQuery,
   useLazyGetModelsQuery,
+  useListHubModelsMutation,
   useUploadModelMutation,
   useStartModelDownloadMutation,
   useCheckModelsStatusMutation,
@@ -1787,4 +2121,13 @@ export const {
   useGetCameraQuery,
   useLazyGetCameraQuery,
   useLoadCameraProfilesMutation,
+  useListAudioPipelinesVoicePipelinesGetQuery,
+  useLazyListAudioPipelinesVoicePipelinesGetQuery,
+  useListAudioRecordingsVoiceRecordingsGetQuery,
+  useLazyListAudioRecordingsVoiceRecordingsGetQuery,
+  useGetAudioRecordingVoiceRecordingsFilenameAudioGetQuery,
+  useLazyGetAudioRecordingVoiceRecordingsFilenameAudioGetQuery,
+  useRunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostMutation,
+  useGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,
+  useLazyGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,
 } = injectedRtkApi;
