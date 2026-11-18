@@ -7187,11 +7187,18 @@ system_scan_check_membank ()
 }
 system_scan_check_network_access () 
 { 
-    local check_urls=(http://connectivity-check.ubuntu.com https://apt.repos.intel.com) url;
+    local check_urls=(http://connectivity-check.ubuntu.com https://apt.repos.intel.com) url date_str;
     for url in "${check_urls[@]}";
     do
-        curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { 
-            [[ "$url" = https://* ]] && curl -k -fsSL --connect-timeout 10 $url > /dev/null && echo "Clock skewed" || echo "$url by $(id -un)";
+        curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null 2>&1 || { 
+            if [[ "$url" = https://* ]]; then
+                if date_str="$(curl -fsIk --max-time 10 $url 2> /dev/null | grep -i '^date:' | cut -f2- -d' ' | tr -d '\r')" && [ -n "$date_str" ]; then
+                    ensure_sudo date -u -s "@$(date -u -d "$date_str" +%s 2> /dev/null)" > /dev/null 2>&1 && curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null 2>&1 && continue || true;
+                fi;
+                echo "Clock skewed";
+                return 0;
+            fi;
+            echo "$url by $(id -un)";
             return 0
         };
     done;
