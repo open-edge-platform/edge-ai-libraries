@@ -990,7 +990,7 @@ export const Pipelines = () => {
                 );
                 const firstVariant = remainingVariants[0];
                 if (firstVariant) {
-                  navigate(`/pipelines/${id}/${firstVariant.id}`);
+                  navigate(`/pipelines/vision/${id}/${firstVariant.id}`);
                 } else {
                   navigate("/pipelines");
                 }
@@ -1028,6 +1028,7 @@ export const Pipelines = () => {
                     <PerformanceTestPanel
                       isRunning={jobStatus?.state === "RUNNING"}
                       completedVideoPath={completedVideoPath}
+                      metadataStreamUrls={jobStatus?.metadata_stream_urls}
                       livePreviewEnabled={livePreviewEnabled}
                       videoOutputEnabled={videoOutputEnabled}
                       enableLatencyMetrics={latencyMetricsEnabled}

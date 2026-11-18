@@ -143,7 +143,7 @@ def test_a_text_source_embeds_no_derived_caption():
     stream = _clip_with_caption()
     asset = SimpleNamespace(asset_id="a1", content=stream)
 
-    nodes = indexer.nodes_from(asset)
+    nodes = [node for node, _, _ in indexer.iter_node_items(asset)]
 
     assert nodes == [], "the only text block here is a derived caption"
 
@@ -159,7 +159,7 @@ def test_an_unfiltered_text_source_still_makes_a_filename_node_for_the_clip():
     stream = _clip_with_caption()
     asset = SimpleNamespace(asset_id="a1", content=stream)
 
-    nodes = indexer.nodes_from(asset)
+    nodes = [node for node, _, _ in indexer.iter_node_items(asset)]
 
     assert [node.id_ for node in nodes] == ["a1:0"]
 

@@ -14,8 +14,8 @@ docker-compose.yml
 docker-compose.yaml
 workspace/
 # Local virtual environments: the image installs its own dependencies.
-.venv/
-venv/
+**/.venv/
+**/venv/
 *.db
 *.md
 !README.md

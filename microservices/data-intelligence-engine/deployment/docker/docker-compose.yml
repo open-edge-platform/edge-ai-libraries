@@ -49,11 +49,13 @@ services:
       ENGINE_HOST: ${ENGINE_HOST:-0.0.0.0}
       ENGINE_PORT: ${ENGINE_CONTAINER_PORT:-16022}
       ENGINE_LOG_LEVEL: ${ENGINE_LOG_LEVEL:-INFO}
-      ENGINE_WORKSPACE: ${ENGINE_WORKSPACE:-/workspace}
-      ENGINE_UPLOAD_DIR: ${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE:-/workspace}/uploads}
+      ENGINE_WORKSPACE: ${ENGINE_WORKSPACE_CONTAINER_PATH:-/workspace}
+      # The uid has no passwd entry in the image; give libraries a writable home.
+      HOME: /tmp
+      ENGINE_UPLOAD_DIR: ${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE_CONTAINER_PATH:-/workspace}/uploads}
       # Shared by document, video, image, speech, rerank, and layout models.
       # Prepare all model artifacts here before starting the engine; no runtime downloads.
-      ENGINE_MODEL_ROOT_PATH: ${ENGINE_MODEL_ROOT_PATH:-${ENGINE_WORKSPACE:-/workspace}/models}
+      ENGINE_MODEL_ROOT_PATH: ${ENGINE_MODEL_ROOT_PATH:-${ENGINE_WORKSPACE_CONTAINER_PATH:-/workspace}/models}
       ENGINE_DOC_EMBEDDING_BACKEND: ${ENGINE_DOC_EMBEDDING_BACKEND:-local_openvino}
       ENGINE_DOC_EMBEDDING_MODEL_ID: ${ENGINE_DOC_EMBEDDING_MODEL_ID:-gme-Qwen2-VL-2B-Instruct-OV}
       ENGINE_DOC_EMBEDDING_DEVICE: ${ENGINE_DOC_EMBEDDING_DEVICE:-GPU}
@@ -61,12 +63,12 @@ services:
       ENGINE_DOC_EMBEDDING_API_KEY: ${ENGINE_DOC_EMBEDDING_API_KEY:-unused}
       ENGINE_VIDEO_EMBEDDING_BACKEND: ${ENGINE_VIDEO_EMBEDDING_BACKEND:-local_openvino}
       ENGINE_VIDEO_EMBEDDING_MODEL_ID: ${ENGINE_VIDEO_EMBEDDING_MODEL_ID:-viclip-b-fp16}
-      ENGINE_VIDEO_EMBEDDING_DEVICE: ${ENGINE_VIDEO_EMBEDDING_DEVICE:-CPU}
+      ENGINE_VIDEO_EMBEDDING_DEVICE: ${ENGINE_VIDEO_EMBEDDING_DEVICE:-GPU}
       ENGINE_IMAGE_EMBEDDING_BACKEND: ${ENGINE_IMAGE_EMBEDDING_BACKEND:-local_openvino}
       ENGINE_IMAGE_EMBEDDING_MODEL_ID: ${ENGINE_IMAGE_EMBEDDING_MODEL_ID:-gme-Qwen2-VL-2B-Instruct-OV}
-      ENGINE_IMAGE_EMBEDDING_DEVICE: ${ENGINE_IMAGE_EMBEDDING_DEVICE:-CPU}
+      ENGINE_IMAGE_EMBEDDING_DEVICE: ${ENGINE_IMAGE_EMBEDDING_DEVICE:-GPU}
       ENGINE_ASR_MODEL_ID: ${ENGINE_ASR_MODEL_ID:-whisper-small}
-      ENGINE_ASR_DEVICE: ${ENGINE_ASR_DEVICE:-CPU}
+      ENGINE_ASR_DEVICE: ${ENGINE_ASR_DEVICE:-GPU}
       # Empty means auto-detect; only an unset variable takes the default.
       ENGINE_ASR_LANGUAGE: ${ENGINE_ASR_LANGUAGE-zh}
       ENGINE_ASR_ENABLED: ${ENGINE_ASR_ENABLED:-true}
@@ -81,16 +83,18 @@ services:
       ENGINE_MEDIA_RERANK_DEVICE: ${ENGINE_MEDIA_RERANK_DEVICE:-GPU}
       ENGINE_MEDIA_RERANK_DOC_WORKERS: ${ENGINE_MEDIA_RERANK_DOC_WORKERS:-8}
       MEDIA_RERANK_VIDEO_MAX_FRAMES: ${MEDIA_RERANK_VIDEO_MAX_FRAMES:-8}
-      ENGINE_LAYOUT_DEVICE: ${ENGINE_LAYOUT_DEVICE:-CPU}
+      ENGINE_LAYOUT_DEVICE: ${ENGINE_LAYOUT_DEVICE:-GPU}
       ENGINE_GRAPH_VIEW_LIMIT: ${ENGINE_GRAPH_VIEW_LIMIT:-1500}
       no_proxy: *no_proxy_hosts
       NO_PROXY: *no_proxy_hosts
+    # Run as the host user so the bind-mounted workspace is writable without chown.
+    user: "${USER_UID:-1000}:${USER_GID:-1000}"
     ports:
       - "${ENGINE_PORT:-16022}:${ENGINE_CONTAINER_PORT:-16022}"
     volumes:
-      - ${ENGINE_WORKSPACE_PATH:-../../workspace}:${ENGINE_WORKSPACE:-/workspace}
+      - ${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}:${ENGINE_WORKSPACE_CONTAINER_PATH:-/workspace}
       # The extractor mounts this same directory for input/output file exchange.
-      - ${ENGINE_UPLOAD_PATH:-${ENGINE_WORKSPACE_PATH:-../../workspace}/uploads}:${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE:-/workspace}/uploads}
+      - ${ENGINE_UPLOAD_PATH:-${ENGINE_WORKSPACE_HOST_PATH:-../../workspace}/uploads}:${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE_CONTAINER_PATH:-/workspace}/uploads}
     devices:
       - "${ENGINE_GPU_DEVICE:-/dev/dri}:${ENGINE_GPU_DEVICE:-/dev/dri}"
     group_add:

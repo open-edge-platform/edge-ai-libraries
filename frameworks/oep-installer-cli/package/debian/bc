@@ -1,0 +1,12 @@
+
+debian_40_install_bc () {
+  ensure_apt_install_package bc
+}
+
+debian_40_remove_bc () {
+  ensure_apt_remove_package bc
+}
+
+debian_40_sbom_bc () {
+  ensure_sbom_format pkg-list bc
+}

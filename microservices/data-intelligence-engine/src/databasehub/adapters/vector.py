@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from abc import ABC, abstractmethod
-from typing import List, Sequence, Set
+from typing import List, Mapping, Sequence, Set
 
 from databasehub.models import VectorCollection
 from llama_index.core import StorageContext
@@ -44,6 +44,19 @@ class VectorAdapter(ABC):
     @abstractmethod
     def close(self) -> None:
         """Release the backend clients this adapter holds."""
+
+    def has_collection(self, collection: VectorCollection) -> bool:
+        raise NotImplementedError(f"{type(self).__name__} cannot inspect collections")
+
+    def load_nodes_where(
+        self, collection: VectorCollection, field: str, values: Sequence[str]
+    ) -> List[BaseNode]:
+        raise NotImplementedError(f"{type(self).__name__} cannot load records by metadata")
+
+    def update_embeddings(
+        self, collection: VectorCollection, embeddings: Mapping[str, Sequence[float]]
+    ) -> int:
+        raise NotImplementedError(f"{type(self).__name__} cannot update vectors in place")
 
     # --- liveness -------------------------------------------------------------
 

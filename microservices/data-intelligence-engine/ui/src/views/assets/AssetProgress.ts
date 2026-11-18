@@ -1,6 +1,6 @@
 // Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import type { Asset, IngestResult } from "../../api/console/type";
+import type { Asset, AssetPool, IngestResult } from "../../api/console/type";
 
 export interface AssetRow extends Asset {
   pending?: boolean;
@@ -19,6 +19,20 @@ interface ProgressEntry {
 export const isIndexing = (phase: Asset["materialization"]) =>
   phase === "materializing" || phase === "text_ready";
 
+export const isAssetDeletionBlocked = (asset: AssetRow, pools: AssetPool[]) =>
+  Boolean(
+    asset.pending ||
+    isIndexing(asset.materialization) ||
+    asset.materialization === "indexing" ||
+    pools.some(
+      (pool) =>
+        pool.asset_ids.includes(asset.id) &&
+        pool.source_statuses.some(
+          (status) => status.display_status === "indexing",
+        ),
+    ),
+  );
+
 export class AssetProgress {
   listed: Asset[] = [];
   entries = new Map<string, ProgressEntry>();
@@ -30,20 +44,22 @@ export class AssetProgress {
         .reverse()
         .sort((a, b) => Number(b.uploaded) - Number(a.uploaded))
         .map((entry) => ({
-        ...entry.asset,
-        pending: !entry.registered,
-        progressExpired: entry.expired,
-      })),
+          ...entry.asset,
+          pending: !entry.registered,
+          progressExpired: entry.expired,
+        })),
       ...this.listed.filter((asset) => !this.entries.has(asset.id)),
     ];
   }
 
   get trackedIds(): string[] {
     return [...this.entries]
-      .filter(([, entry]) => !entry.expired && (
-        isIndexing(entry.asset.materialization) ||
-        (!entry.registered && entry.asset.materialization === "ready")
-      ))
+      .filter(
+        ([, entry]) =>
+          !entry.expired &&
+          (isIndexing(entry.asset.materialization) ||
+            (!entry.registered && entry.asset.materialization === "ready")),
+      )
       .map(([id]) => id);
   }
 
@@ -57,7 +73,9 @@ export class AssetProgress {
       this.entries.set(id, {
         asset: {
           id,
-          name: path ? path.split(/[\\/]/).pop() || path : `Inline text ${id.slice(0, 8)}`,
+          name: path
+            ? path.split(/[\\/]/).pop() || path
+            : `Inline text ${id.slice(0, 8)}`,
           origin: path || "",
           kind: path ? "file" : "text",
           media_type: "",
@@ -104,9 +122,12 @@ export class AssetProgress {
         this.entries.delete(id);
         continue;
       }
-      const phase = phases && Object.prototype.hasOwnProperty.call(phases, id)
-        ? phases[id]
-        : listed ? listed.materialization : entry.asset.materialization;
+      const phase =
+        phases && Object.prototype.hasOwnProperty.call(phases, id)
+          ? phases[id]
+          : listed
+            ? listed.materialization
+            : entry.asset.materialization;
       entry.asset = { ...(listed || entry.asset), materialization: phase };
       if (listed) entry.registered = true;
       if (!isIndexing(phase) && (entry.registered || phase !== "ready"))
