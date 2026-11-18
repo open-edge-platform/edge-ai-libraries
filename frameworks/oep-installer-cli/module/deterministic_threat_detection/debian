@@ -1,5 +1,3 @@
-# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-# SPDX-License-Identifier: Apache-2.0
 
 configure_deterministic_threat_detection () {
   workspace="$(ensure_project_path)/federal-and-aerospace-ai-suite"
