@@ -190,7 +190,11 @@ class _Gme(MultimodalModel):
                 f"GME package at {str(runtime.model_dir)!r} embeds at "
                 f"{runtime.embedding_dim}, expected {GME_DIMENSION}"
             )
-        return MultimodalOVEmbedding(runtime, supported_roles=self.supported_roles)
+        return MultimodalOVEmbedding(
+            runtime,
+            supported_roles=self.supported_roles,
+            embed_batch_size=config.INGEST_BATCH_SIZE,
+        )
 
 
 MODELS: Sequence[MultimodalModel] = (
