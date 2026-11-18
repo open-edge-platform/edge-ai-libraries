@@ -269,7 +269,9 @@ for the setup. The following limitations apply:
 - **ViPPET is the server's only client.** When the `vippet` container starts or stops, it stops every pipeline
   still running on the server, including pipelines started on the server by other means.
 - **Stopping a run can take a few seconds.** If a run is stopped while the server is still validating it, the
-  server stops it only after the validation ends.
+  server stops it only after the validation ends. Every run, stopped or not, also ends only once the server has
+  torn down its pipelines, which ViPPET waits for up to 30 seconds, so the next test does not share a device
+  with them.
 - **Known issue: a VLM density test on CPU can make every later run fail.** The server runs all pipelines in
   one shared worker process, and each CPU VLM stream needs several gigabytes of memory. A density test of a
   VLM pipeline on CPU, such as Alerting VLM, can run that process out of memory, and every test, validation or

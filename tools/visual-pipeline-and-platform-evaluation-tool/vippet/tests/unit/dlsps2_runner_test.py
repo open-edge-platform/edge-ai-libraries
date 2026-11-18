@@ -334,6 +334,21 @@ class TestDlsps2RunnerValidation(Dlsps2RunnerTestBase):
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(len(fake.calls("DELETE")), 1)
 
+    def test_instance_teardown_is_waited_for(self):
+        fake = _FakeDlsps2(
+            [
+                {"state": "RUNNING"},
+                {"state": "STOPPING"},
+                {"state": "STOPPING"},
+                {"state": "ABORTED"},
+            ]
+        )
+
+        result = self._run(self._runner(), fake)
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(fake.statuses, [{"state": "ABORTED"}])
+
     def test_error_state_is_invalid_with_server_message(self):
         fake = _FakeDlsps2([{"state": "ERROR", "message": "no element foo"}])
 
@@ -801,6 +816,68 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
 
         self.assertIn("still queued", logs.output[0])
         self.assertEqual(len(fake.calls("DELETE")), 4)
+
+    def test_run_returns_once_stopped_instances_are_torn_down(self):
+        fake = _FakeStreamSet(
+            [[_running(30.0)]],
+            instance_states={"inst-1": ["STOPPING", "STOPPING", "ABORTED"]},
+        )
+
+        with self.assertNoLogs("dlsps2_runner", level="WARNING"):
+            result = self._run(self._runner(max_runtime=2), fake)
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(fake.instance_states["inst-1"], ["ABORTED"])
+
+    def test_cancel_waits_for_the_teardown(self):
+        runner = self._runner()
+
+        def cancel() -> list[dict]:
+            runner.cancel()
+            return [_running(30.0)]
+
+        fake = _FakeStreamSet(
+            [cancel], instance_states={"inst-1": ["STOPPING", "STOPPING", "ABORTED"]}
+        )
+
+        result = self._run(runner, fake)
+
+        self.assertTrue(result.cancelled)
+        self.assertEqual(fake.instance_states["inst-1"], ["ABORTED"])
+
+    def test_teardown_wait_is_bounded(self):
+        fake = _FakeStreamSet(
+            [[_running(30.0)]], instance_states={"inst-1": ["STOPPING"]}
+        )
+
+        with (
+            patch("dlsps2_runner.DLSPS2_TEARDOWN_TIMEOUT_S", 3),
+            self.assertLogs("dlsps2_runner", level="WARNING") as logs,
+        ):
+            result = self._run(self._runner(max_runtime=2), fake)
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn(
+            "DLSPS 2.0 instances still STOPPING after 3s: ['inst-1']",
+            logs.output[-1],
+        )
+
+    def test_invalid_launch_string_waits_for_the_other_validations(self):
+        fake = _FakeStreamSet(
+            [[_running(30.0)]],
+            validations=[
+                {"state": "INVALID", "message": "no element foo"},
+                {"state": "QUEUED"},
+                {"state": "QUEUED"},
+                {"state": "VALID"},
+            ],
+        )
+
+        with self.assertRaises(RuntimeError):
+            self._run_streams(self._runner(), fake)
+
+        self.assertEqual(fake.validations, [{"state": "VALID"}])
+        self.assertEqual(fake.pipeline_requests, [])
 
 
 class TestDlsps2RunnerFpsPush(unittest.TestCase):
@@ -1808,9 +1885,9 @@ class TestDlsps2RunnerLostInstance(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "no longer reports stream"):
             self._run(fake)
-        # The first poll fails the run; the second is the final read after the
-        # instances are stopped.
-        self.assertEqual(fake.status_polls, 2)
+        # The first poll fails the run; the second is the teardown wait, the
+        # third the final read after the instances are stopped.
+        self.assertEqual(fake.status_polls, 3)
         self.assertEqual(len(fake.calls("DELETE")), 2)
 
 
@@ -1851,6 +1928,8 @@ class TestStopLeftoverInstances(unittest.TestCase):
             if request.method == "DELETE":
                 deleted.append(request.url.path.rsplit("/", 1)[-1])
                 return httpx.Response(200)
+            if request.url.path != "/pipelines/status":
+                return httpx.Response(200, json={"state": "ABORTED"})
             return httpx.Response(
                 200,
                 json=[
@@ -1867,6 +1946,22 @@ class TestStopLeftoverInstances(unittest.TestCase):
 
         self.assertEqual(stopped, 3)
         self.assertEqual(sorted(deleted), ["queued", "run", "stopping"])
+
+    def test_teardown_wait_gets_what_is_left_of_the_budget(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "DELETE":
+                return httpx.Response(200)
+            if request.url.path == "/pipelines/status":
+                return httpx.Response(200, json=[{"id": "run", "state": "RUNNING"}])
+            return httpx.Response(200, json={"state": "STOPPING"})
+
+        with self._client(handler), self.assertLogs("dlsps2_runner", "WARNING") as logs:
+            stopped = dlsps2_runner.stop_leftover_instances(
+                timeout_s=0, base_url="http://d:8080"
+            )
+
+        self.assertEqual(stopped, 1)
+        self.assertIn("instances still STOPPING after 0.0s: ['run']", logs.output[-1])
 
     def test_unreachable_server_is_logged(self):
         def handler(request: httpx.Request) -> httpx.Response:

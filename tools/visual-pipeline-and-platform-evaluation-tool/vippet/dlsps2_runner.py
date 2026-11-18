@@ -23,7 +23,9 @@ modes:
   for each stream's ``frame_fps`` and ``frame_interval``; every instance is
   stopped with
   ``DELETE /pipelines/{id}`` once ``max_runtime`` elapses, all instances end,
-  or the caller cancels.
+  or the caller cancels. The run returns only once DLSPS has torn the
+  instances down and ended every validation the run started (or after
+  ``DLSPS2_TEARDOWN_TIMEOUT_S``), so the next run finds the devices free.
   The result carries the FPS of each stream, so callers can judge the
   slowest one.
 
@@ -119,6 +121,17 @@ DLSPS2_WARMUP_S: float = float(os.environ.get("DLSPS2_WARMUP_S", "5"))
 
 # How long to retry DELETE on instances still in validation (capped at 30 s by DLSPS).
 DLSPS2_STOP_TIMEOUT_S: float = float(os.environ.get("DLSPS2_STOP_TIMEOUT_S", "40"))
+
+# How long to wait for stopped instances to be torn down, and for validations a
+# run leaves behind to end, before the devices count as free. DLSPS keeps a
+# STOPPING instance until its worker confirms the teardown, and only logs one
+# that takes longer than 30 s.
+DLSPS2_TEARDOWN_TIMEOUT_S: float = float(
+    os.environ.get("DLSPS2_TEARDOWN_TIMEOUT_S", "30")
+)
+
+# Poll interval of that wait; a teardown usually takes well under a second.
+_TEARDOWN_POLL_S = 0.2
 
 # How often metrics-manager is read for the DLSPS-exported latency/VLM series,
 # seconds. Matches the default export interval, so every export reaches the chart.
@@ -379,7 +392,8 @@ def stop_leftover_instances(
     ``vippet`` is the server's only client, so when ``vippet`` starts or
     stops no instance should be running: one that is was started by a
     ``vippet`` process that ended mid-run, and it would hold devices and skew
-    every later measurement.
+    every later measurement. What is left of the budget after the stop is
+    spent waiting for the instances' teardown.
 
     Args:
         timeout_s: Overall budget, default ``DLSPS2_CLEANUP_TIMEOUT_S``.
@@ -390,6 +404,7 @@ def stop_leftover_instances(
     """
     if timeout_s is None:
         timeout_s = DLSPS2_CLEANUP_TIMEOUT_S
+    deadline = time.monotonic() + timeout_s
     runner = Dlsps2PipelineRunner(base_url=base_url)
     try:
         with httpx.Client(
@@ -409,6 +424,9 @@ def stop_leftover_instances(
                     active,
                 )
                 runner._stop_all(client, active, timeout_s)
+                runner._wait_stopped(
+                    client, active, max(0.0, deadline - time.monotonic())
+                )
             return len(active)
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
         logger.warning("Could not stop leftover DLSPS 2.0 instances: %s", exc)
@@ -634,7 +652,9 @@ class Dlsps2PipelineRunner:
         """Validate every command not validated yet, all at once.
 
         Uses ``POST /validate`` and polls ``GET /validate/status/{id}``.
-        Stops early, without raising, once the run is cancelled.
+        Stops early, without raising, once the run is cancelled. Validations
+        still without a verdict when it returns or raises are waited for
+        (see :meth:`_wait_validated`).
 
         Raises:
             RuntimeError: If a command is invalid, a request fails, or not
@@ -683,6 +703,9 @@ class Dlsps2PipelineRunner:
             raise RuntimeError(
                 f"Failed to validate pipeline on DLSPS 2.0: {self._error_detail(exc)}"
             ) from exc
+        finally:
+            if pending:
+                self._wait_validated(client, list(pending))
 
     def _status(self, client: httpx.Client, instance_id: str) -> dict:
         response = client.get(f"{self.base_url}/pipelines/{instance_id}/status")
@@ -777,6 +800,108 @@ class Dlsps2PipelineRunner:
                 "Failed to stop DLSPS 2.0 instance %s: %s", instance_id, exc
             )
         return True
+
+    def _wait_stopped(
+        self,
+        client: httpx.Client,
+        instance_ids: list[str],
+        timeout_s: float | None = None,
+    ) -> None:
+        """Wait until no instance is ``STOPPING``. Never raises.
+
+        DLSPS 2.0 answers ``DELETE`` of a running instance at once, but keeps
+        it ``STOPPING``, with its devices, until the pipeline is torn down.
+        Waiting keeps the caller's execution lease until then, so the next run
+        does not share the devices with it. A server without ``STOPPING``
+        never makes it wait.
+
+        Args:
+            client: DLSPS 2.0 client.
+            instance_ids: Instances already sent ``DELETE``.
+            timeout_s: Longest wait, default ``DLSPS2_TEARDOWN_TIMEOUT_S``.
+        """
+        self._wait_while(
+            client,
+            {iid: f"{self.base_url}/pipelines/{iid}/status" for iid in instance_ids},
+            "STOPPING",
+            "instances",
+            timeout_s,
+        )
+
+    def _wait_validated(
+        self,
+        client: httpx.Client,
+        validation_ids: list[str],
+        timeout_s: float | None = None,
+    ) -> None:
+        """Wait until no validation is ``QUEUED``. Never raises.
+
+        DLSPS 2.0 cannot cancel a validation, whose subprocess loads the
+        pipeline's models on their devices. Waiting keeps the caller's
+        execution lease until the validations a run leaves behind end.
+
+        Args:
+            client: DLSPS 2.0 client.
+            validation_ids: Validations without a verdict yet.
+            timeout_s: Longest wait, default ``DLSPS2_TEARDOWN_TIMEOUT_S``.
+        """
+        self._wait_while(
+            client,
+            {vid: f"{self.base_url}/validate/status/{vid}" for vid in validation_ids},
+            "QUEUED",
+            "validations",
+            timeout_s,
+        )
+
+    def _wait_while(
+        self,
+        client: httpx.Client,
+        status_urls: dict[str, str],
+        state: str,
+        what: str,
+        timeout_s: float | None,
+    ) -> None:
+        """Poll each status URL, keyed by id, until none reports ``state``.
+
+        A status DLSPS no longer knows (404) has ended. Logs, without
+        raising, when the wait times out or a request fails.
+        """
+        if timeout_s is None:
+            timeout_s = DLSPS2_TEARDOWN_TIMEOUT_S
+        deadline = time.monotonic() + timeout_s
+        pending = dict(status_urls)
+        while True:
+            try:
+                pending = {
+                    key: url
+                    for key, url in pending.items()
+                    if self._reports_state(client, url, state)
+                }
+            except (httpx.HTTPError, ValueError, AttributeError) as exc:
+                self.logger.warning(
+                    "Failed to wait for DLSPS 2.0 %s to leave %s: %s", what, state, exc
+                )
+                return
+            if not pending:
+                return
+            if time.monotonic() >= deadline:
+                self.logger.warning(
+                    "DLSPS 2.0 %s still %s after %ss: %s",
+                    what,
+                    state,
+                    timeout_s,
+                    sorted(pending),
+                )
+                return
+            time.sleep(_TEARDOWN_POLL_S)
+
+    @staticmethod
+    def _reports_state(client: httpx.Client, url: str, state: str) -> bool:
+        response = client.get(url)
+        if response.status_code == 404:
+            return False
+        response.raise_for_status()
+        return response.json().get("state") == state
 
     def _push_fps_metric(self, fps: float) -> None:
         """Fire-and-forget push of the current FPS value to metrics-manager.
@@ -1109,8 +1234,9 @@ class Dlsps2PipelineRunner:
         The pipeline is valid if it stays ``RUNNING`` for ``max_runtime`` seconds without error, or
         reaches ``COMPLETED`` (EOS) sooner. ``ERROR``/``ABORTED`` is invalid,
         and so is not reaching a verdict within ``hard_timeout``. The
-        instance is always stopped afterwards regardless of outcome, since a
-        validation check should never leave a pipeline running.
+        instance is always stopped afterwards regardless of outcome, and its
+        teardown waited for (see :meth:`_wait_stopped`), since a validation
+        check should never leave a pipeline running.
         """
         deadline = time.monotonic() + self.hard_timeout
         running_since: Optional[float] = None
@@ -1168,6 +1294,7 @@ class Dlsps2PipelineRunner:
                     time.sleep(self.poll_interval)
             finally:
                 self._stop(client, instance_id)
+                self._wait_stopped(client, [instance_id])
 
     # ------------------------------------------------------------------
     # Normal (performance and density) mode
@@ -1247,8 +1374,10 @@ class Dlsps2PipelineRunner:
         skip DLSPS's own per-instance validation and start together. All instances go to the unpinned worker. The run lasts
         ``max_runtime`` seconds from the moment every stream reports a
         ``first_frame_time`` (``0``: until every instance ends on its own),
-        or until :meth:`cancel`. Every instance is stopped before returning;
-        a cancel before or while the instances start starts no further one.
+        or until :meth:`cancel`. Every instance is stopped, and its teardown
+        waited for (see :meth:`_wait_stopped`), before returning, so the
+        caller's execution lease outlives the instances; a cancel before or
+        while the instances start starts no further one.
 
         DLSPS reports each stream's ``frame_fps`` over its last
         ``frame_interval`` seconds, and keeps both unchanged while no frames
@@ -1441,6 +1570,7 @@ class Dlsps2PipelineRunner:
                 finally:
                     if instances:
                         self._stop_all(client, list(instances.values()))
+                        self._wait_stopped(client, list(instances.values()))
                         try:
                             statuses.update(self._statuses(client, instances))
                         except httpx.HTTPError:
