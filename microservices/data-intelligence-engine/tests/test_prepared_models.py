@@ -298,7 +298,8 @@ def test_missing_or_corrupt_token_count_cache_fails_without_downloading(tmp_path
     monkeypatch.setattr(llama_index.core, "global_tokenizer", None)
     monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(tmp_path))
     key = hashlib.sha1(
-        b"https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken"
+        b"https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken",
+        usedforsecurity=False,
     ).hexdigest()
     if content is not None:
         (tmp_path / key).write_bytes(content)

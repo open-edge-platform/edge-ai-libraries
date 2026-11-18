@@ -6,6 +6,7 @@ configure_uav_mission_compute_sdk () {
   repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
   version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
+  wait_timeout=120
 }
 
 verify_uav_mission_compute_sdk () {
@@ -18,13 +19,22 @@ verify_uav_mission_compute_sdk () {
 }
 
 verify_uav_mission_compute_sdk_running () {
-  local expected running service
+  local expected running service output status
   expected="$(docker compose --profile sim-camera --profile observability config --services)" || return $?
   running="$(docker compose --profile sim-camera --profile observability ps --status running --services)" || return $?
   [ -n "$expected" ] || return 1
   while IFS= read -r service; do
     grep -Fxq -- "$service" <<< "$running" || return 1
   done <<< "$expected"
+  if output="$(curl --noproxy '*' --silent --show-error --output /dev/null --max-time 5 \
+    http://127.0.0.1:8080/ 2>&1)"; then
+    return 0
+  else
+    status=$?
+  fi
+  [ "$status" -ne 7 ] || return 1
+  printf '%s\n' "$output" >&2
+  return "$status"
 }
 
 uav_mission_compute_sdk_checkout () {
@@ -59,7 +69,7 @@ uav_mission_compute_sdk_checkout () {
 }
 
 debian_90_profile_uav_mission_compute_sdk () {
-  echo "docker_io edge_base git make"
+  echo "docker_io edge_base git make curl"
 }
 
 debian_90_install_uav_mission_compute_sdk () {
@@ -73,7 +83,7 @@ debian_90_install_uav_mission_compute_sdk () {
       return 3
     fi
     ensure_disk_size 20000 || return $?
-    ensure_ram_size 16000000 || return $?
+    ensure_ram_size 14680064 || return $? # 14GiB
     uav_mission_compute_sdk_checkout || return $?
     local source_commit
     source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?
@@ -101,30 +111,33 @@ debian_90_start_uav_mission_compute_sdk () {
   }
   cd "$sdk_path" || return $?
   sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
-  if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
-    ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?
-  fi
+  ensure_ports_open start uav_mission_compute_sdk "${used_ports[@]}" || return $?
   ensure_container_namespace start uav_mission_compute_sdk $(ensure_container_parse_yaml docker-compose.yml) || true
   if make up-sim-camera; then
     :
   else
     local rc=$?
-    make down || return $?
+    make down || true
+    ensure_prop remove started/uav_mission_compute_sdk/ports || true
     return "$rc"
   fi
-  local attempt
-  for ((attempt=0; attempt<24; attempt++)); do
+  local start_time=$SECONDS ready=0
+  while (( SECONDS - start_time < wait_timeout )); do
     if verify_uav_mission_compute_sdk_running; then
+      ready=1
       break
     fi
     sleep 5
   done
-  if [ "$attempt" -eq 24 ]; then
-    echo "Mission Compute SDK simulation did not start all expected services. Inspect Docker Compose logs in $sdk_path." >&2
-    make down || return $?
+  if [ "$ready" -ne 1 ]; then
+    echo "Mission Compute SDK readiness timed out (services or REST API). Inspect Docker Compose logs in $sdk_path." >&2
+    make down || true
+    ensure_prop remove started/uav_mission_compute_sdk/ports || true
     return 1
   fi
   ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?
+  echo "Docker Compose service status:"
+  docker compose --profile sim-camera --profile observability ps || return $?
   echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras"
   echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080"
   echo "@@HIGHLIGHT $installer_name stop uav_mission_compute_sdk"

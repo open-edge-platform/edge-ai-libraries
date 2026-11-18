@@ -1,33 +1,20 @@
 # Troubleshooting
 
-## 1. DL Streamer Optimizer takes a long time or causes the application to restart
+## 1. DL Streamer Optimizer takes a long time
 
-When using DL Streamer Optimizer from within ViPPET, optimization runs can be **long‑running**:
+Optimization runs are **long‑running**: it may take **5–6 minutes** (or more, depending on pipeline complexity and
+hardware) for DL Streamer Optimizer to explore variants and return an optimized pipeline.
 
-- It may take **5–6 minutes** (or more, depending on pipeline complexity and hardware) for DL Streamer Optimizer to explore
-  variants and return an optimized pipeline.
-
-In the current implementation, it can also happen that while DL Streamer Optimizer is searching for an optimized pipeline,
-the ViPPET application is **restarted**.
+The optimizer runs as a job on DL Streamer Pipeline Server, so the candidate pipelines run on the server's runtime and
+devices. A candidate that crashes fails only the optimization job; the ViPPET application keeps running. A running
+optimization job can be cancelled with `DELETE /api/v1/jobs/optimization/{job_id}`.
 
 For more information about DL Streamer Optimizer behavior and limitations, see the DL Streamer
 Optimizer limitations section in the DL Streamer documentation:
 [DL Streamer Optimizer limitations](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/optimizer.html#limitations).
 
-**If ViPPET is restarted while DL Streamer Optimizer is running:**
-
-- Any **in‑progress optimization job** is interrupted and its results are lost.
-- In the current release, an application restart **removes all user‑created pipelines and all types of jobs**
-  (tests, optimization runs, validation runs). Only predefined pipelines remain available after restart.
-- You may need to **recreate or reimport** your custom pipelines and re‑run your jobs after the application comes back.
-
-### Workaround for the DL Streamer Optimizer issue
-
-If this behavior is problematic in your environment (for example, it disrupts interactive work or automated
-  workflows), avoid using pipeline optimization and instead:
-
-- Use baseline, hand‑tuned pipelines.
-- Adjust parameters manually rather than relying on DL Streamer Optimizer.
+**If ViPPET or the server is restarted while DL Streamer Optimizer is running**, the optimization job is interrupted
+and its results are lost. When ViPPET starts or stops, it cancels any optimizer job still running on the server.
 
 ---
 
@@ -69,14 +56,14 @@ and rerun the jobs.
 
 ---
 
-## 5. Support limited to DL Streamer 2026.0.0 pipelines and models
+## 5. Support limited to DL Streamer 2026.3.0 pipelines and models
 
-ViPPET currently supports only pipelines and models that are supported by **DL Streamer 2026.0.0**.
+ViPPET currently supports only pipelines and models that are supported by **DL Streamer 2026.3.0**.
 
 For the full list of supported models, elements, and other details, see the DL Streamer release notes:
 [DL Streamer release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/release-notes.html)
 
-If a custom pipeline works correctly with DL Streamer 2026.0.0, it is expected to also work
+If a custom pipeline works correctly with DL Streamer 2026.3.0, it is expected to also work
 in ViPPET (see also the “Limited validation scope” limitation below).
 
 ---
@@ -88,9 +75,9 @@ Validation and testing in this release focused mainly on **sanity checks for pre
 For **custom pipelines**:
 
 - Their behavior in ViPPET is less explored and may vary.
-- However, if a custom pipeline is supported and works correctly with **DL Streamer 2026.0.0**,
+- However, if a custom pipeline is supported and works correctly with **DL Streamer 2026.3.0**,
   it is expected to behave similarly when run via ViPPET (see also “Support limited to
-  DL Streamer 2026.0.0 pipelines and models” above).
+  DL Streamer 2026.3.0 pipelines and models” above).
 
 ---
 
@@ -279,8 +266,6 @@ for the setup. The following limitations apply:
   collects latency metrics also runs for tests that do not ask for them, and can lower their FPS. For FPS
   measurements without the tracer, set `DLSPS2_GST_TRACERS=` (empty) before `make run`; tests that ask for
   latency metrics then run without them, and the job details say so.
-- **The pipeline optimizer runs in the `vippet` container, not on the server.** It does not see the custom
-  elements in `vippet/gst_plugins/`.
 - **ViPPET is the server's only client.** When the `vippet` container starts or stops, it stops every pipeline
   still running on the server, including pipelines started on the server by other means.
 - **Stopping a run can take a few seconds.** If a run is stopped while the server is still validating it, the
