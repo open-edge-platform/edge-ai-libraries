@@ -57,7 +57,7 @@ debian_90_start_edge_workloads_and_benchmarks () {
     mode="edge-ai-pipelines"
   elif ensure_parse_option --genai "$@"; then
     mode="genai-benchmarks"
-    ensure_disk_size 128000000 # 128 GB
+    ensure_disk_size 128000 # 128 GB
   fi
   echo "@@STEP Downloading for $mode"
   cd "$workspace/workloads/$mode"
