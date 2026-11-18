@@ -7,10 +7,14 @@ from pathlib import Path
 
 import yaml
 
-from managers.audio_pipeline_manager import (
-    AudioPipelineManager,
-    AudioPipelineOperation,
+from internal_types import (
+    InternalAudioPipeline,
+    InternalAudioPipelineDefaults,
+    InternalAudioPipelineOperation,
+    InternalAudioPipelineVariant,
+    InternalSpeechVoice,
 )
+from managers.audio_pipeline_manager import AudioPipelineManager
 
 
 DEFAULT_TEXT = (
@@ -80,7 +84,12 @@ class AudioPipelineManagerTests(unittest.TestCase):
             ["speech-to-text", "text-to-speech"],
         )
         self.assertEqual(pipelines[0].type, "audio")
-        self.assertEqual(pipelines[0].operation, AudioPipelineOperation.SPEECH_TO_TEXT)
+        self.assertIsInstance(pipelines[0], InternalAudioPipeline)
+        self.assertIsInstance(pipelines[0].variants[0], InternalAudioPipelineVariant)
+        self.assertIsInstance(pipelines[0].defaults, InternalAudioPipelineDefaults)
+        self.assertEqual(
+            pipelines[0].operation, InternalAudioPipelineOperation.SPEECH_TO_TEXT
+        )
         self.assertEqual(pipelines[0].defaults.audio, "sample.wav")
         self.assertEqual(
             [(variant.id, variant.device) for variant in pipelines[0].variants],
@@ -88,7 +97,7 @@ class AudioPipelineManagerTests(unittest.TestCase):
         )
         self.assertEqual(pipelines[0].required_models, ["Whisper Base"])
         self.assertEqual(pipelines[1].defaults.text, DEFAULT_TEXT)
-        self.assertEqual(pipelines[1].defaults.voice, "Ryan")
+        self.assertIs(pipelines[1].defaults.voice, InternalSpeechVoice.RYAN)
         self.assertEqual(
             [(variant.id, variant.device) for variant in pipelines[1].variants],
             [("cpu", "CPU"), ("gpu", "GPU")],
@@ -145,6 +154,31 @@ class AudioPipelineManagerTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "between 1 and 200"):
             AudioPipelineManager(self.pipeline_dir)
+
+    def test_loads_each_supported_speech_voice(self) -> None:
+        for voice in InternalSpeechVoice:
+            with self.subTest(voice=voice.value):
+                config = self.tts_config()
+                config["defaults"]["voice"] = voice.value
+                self.write_pipeline("text-to-speech.yaml", config)
+
+                pipeline = AudioPipelineManager(self.pipeline_dir).get_pipeline(
+                    "text-to-speech"
+                )
+
+                self.assertIsNotNone(pipeline)
+                assert pipeline is not None
+                self.assertIs(pipeline.defaults.voice, voice)
+
+    def test_rejects_invalid_speech_voice(self) -> None:
+        for voice in (None, "", "Unknown", "ryan", 1, ["Ryan"], {"name": "Ryan"}):
+            with self.subTest(voice=voice):
+                config = self.tts_config()
+                config["defaults"]["voice"] = voice
+                self.write_pipeline("text-to-speech.yaml", config)
+
+                with self.assertRaisesRegex(ValueError, "unsupported voice"):
+                    AudioPipelineManager(self.pipeline_dir)
 
     def test_rejects_unknown_fields(self) -> None:
         config = self.tts_config()

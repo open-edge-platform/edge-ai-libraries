@@ -11,9 +11,13 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 import api.api_schemas as schemas
 from api.dependencies.audio_jobs import get_audio_pipeline_job_manager
+from audio_errors import AudioJobNotFoundError, AudioJobNotRunningError
 from api.routes import voice
 from graph import Graph
 from internal_types import (
+    InternalAudioJobState,
+    InternalAudioPipelineJob,
+    InternalAudioPipelineOperation,
     InternalDensityJobStatus,
     InternalModelDownloadJobState,
     InternalModelDownloadJobStatus,
@@ -32,11 +36,6 @@ from internal_types import (
     InternalValidationJobSummary,
 )
 from api.routes.jobs import router as jobs_router
-from managers.audio_pipeline_job_manager import (
-    AudioPipelineJob,
-    AudioPipelineJobStatus,
-)
-from managers.audio_pipeline_manager import AudioPipelineOperation
 
 
 class TestAudioJobsAPI(unittest.TestCase):
@@ -60,15 +59,15 @@ class TestAudioJobsAPI(unittest.TestCase):
     def _make_audio_job(
         *,
         job_id: str = "audio-1",
-        operation: AudioPipelineOperation = AudioPipelineOperation.SPEECH_TO_TEXT,
-        status: AudioPipelineJobStatus = AudioPipelineJobStatus.COMPLETED,
+        operation: InternalAudioPipelineOperation = InternalAudioPipelineOperation.SPEECH_TO_TEXT,
+        status: InternalAudioJobState = InternalAudioJobState.COMPLETED,
         transcript: str | None = "private transcript",
         artifact_path: str | None = None,
         error: str | None = None,
-    ) -> AudioPipelineJob:
+    ) -> InternalAudioPipelineJob:
         now = datetime(2026, 10, 13, 12, 30, tzinfo=timezone.utc)
-        is_stt = operation is AudioPipelineOperation.SPEECH_TO_TEXT
-        return AudioPipelineJob(
+        is_stt = operation is InternalAudioPipelineOperation.SPEECH_TO_TEXT
+        return InternalAudioPipelineJob(
             id=job_id,
             pipeline_id="speech-to-text" if is_stt else "text-to-speech",
             pipeline_name="Speech to Text" if is_stt else "Text to Speech",
@@ -96,7 +95,7 @@ class TestAudioJobsAPI(unittest.TestCase):
         stt_job = self._make_audio_job()
         tts_job = self._make_audio_job(
             job_id="audio-2",
-            operation=AudioPipelineOperation.TEXT_TO_SPEECH,
+            operation=InternalAudioPipelineOperation.TEXT_TO_SPEECH,
             transcript=None,
             artifact_path="/private/output/audio-2.wav",
         )
@@ -119,7 +118,7 @@ class TestAudioJobsAPI(unittest.TestCase):
     def test_list_audio_jobs_includes_sanitized_error(self) -> None:
         self.manager.list_jobs.return_value = [
             self._make_audio_job(
-                status=AudioPipelineJobStatus.FAILED,
+                status=InternalAudioJobState.FAILED,
                 transcript=None,
                 error="Audio pipeline execution failed.",
             )
@@ -144,7 +143,7 @@ class TestAudioJobsAPI(unittest.TestCase):
 
     def test_get_tts_audio_job_status_includes_public_artifact_url(self) -> None:
         self.manager.get_job.return_value = self._make_audio_job(
-            operation=AudioPipelineOperation.TEXT_TO_SPEECH,
+            operation=InternalAudioPipelineOperation.TEXT_TO_SPEECH,
             transcript=None,
             artifact_path="/private/output/audio-1.wav",
         )
@@ -165,7 +164,7 @@ class TestAudioJobsAPI(unittest.TestCase):
         self.assertEqual(response.json(), {"detail": "Audio pipeline job not found."})
 
     def test_voice_run_is_visible_through_audio_jobs(self) -> None:
-        job = self._make_audio_job(status=AudioPipelineJobStatus.RUNNING)
+        job = self._make_audio_job(status=InternalAudioJobState.RUNNING)
         self.manager.start_job.return_value = job
         self.manager.list_jobs.return_value = [job]
 
@@ -183,7 +182,7 @@ class TestAudioJobsAPI(unittest.TestCase):
     def test_stop_audio_job_requests_cancellation(self) -> None:
         self.manager.cancel_job = AsyncMock(
             return_value=self._make_audio_job(
-                status=AudioPipelineJobStatus.COMPLETED, transcript=None
+                status=InternalAudioJobState.COMPLETED, transcript=None
             )
         )
 
@@ -195,7 +194,7 @@ class TestAudioJobsAPI(unittest.TestCase):
 
     def test_stop_audio_job_returns_404_for_unknown_id(self) -> None:
         self.manager.cancel_job = AsyncMock(
-            side_effect=ValueError("Audio pipeline job 'missing' not found.")
+            side_effect=AudioJobNotFoundError("Audio pipeline job 'missing' not found.")
         )
 
         response = self.client.delete("/jobs/audio/missing")
@@ -206,7 +205,7 @@ class TestAudioJobsAPI(unittest.TestCase):
 
     def test_stop_audio_job_returns_409_when_not_running(self) -> None:
         self.manager.cancel_job = AsyncMock(
-            side_effect=ValueError(
+            side_effect=AudioJobNotRunningError(
                 "Audio pipeline job 'audio-1' is not running (state: COMPLETED)."
             )
         )
@@ -215,6 +214,19 @@ class TestAudioJobsAPI(unittest.TestCase):
 
         self.assertEqual(response.status_code, 409)
         self.assertIn("not running", response.json()["message"])
+
+    def test_stop_audio_job_maps_exception_type_not_message(self) -> None:
+        for error, status_code in (
+            (AudioJobNotFoundError("missing"), 404),
+            (AudioJobNotRunningError("not found"), 409),
+        ):
+            with self.subTest(error=type(error).__name__):
+                self.manager.cancel_job = AsyncMock(side_effect=error)
+
+                response = self.client.delete("/jobs/audio/audio-1")
+
+                self.assertEqual(response.status_code, status_code)
+                self.assertEqual(response.json(), {"message": str(error)})
 
 
 class TestJobsAPI(unittest.TestCase):

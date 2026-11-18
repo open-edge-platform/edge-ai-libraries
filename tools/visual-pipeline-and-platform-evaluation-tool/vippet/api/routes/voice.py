@@ -1,119 +1,53 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
-import logging
 import os
 import re
-from time import perf_counter
-from typing import Annotated, BinaryIO, Literal, cast
+from typing import Annotated
 from urllib.parse import quote
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import ValidationError
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from audio_assets import AudioAssetsManager
+from audio_service_client import (
+    normalize_media_type,
+    normalize_upload_filename,
+)
+from audio_errors import (
+    AudioInputTooLargeError,
+    AudioPipelineError,
+    AudioPipelineNotFoundError,
+    AudioPipelineVariantNotFoundError,
+    AudioRecordingInputNotAcceptedError,
+    AudioRecordingNotFoundError,
+    AudioSTTInputNotAcceptedError,
+    AudioTTSInputNotAcceptedError,
+)
+from api import api_schemas as schemas
 from api.dependencies.audio_jobs import (
-    configure_audio_pipeline_job_manager_factory,
     get_audio_pipeline_job_manager,
     require_voice_available,
 )
-from managers.audio_pipeline_job_manager import (
-    AudioInputTooLargeError,
-    AudioPipelineJobManager,
-    AudioPipelineJobStatus,
-    AudioPipelineRecordingInput,
-    AudioPipelineSTTInput,
+from internal_types import (
+    InternalAudioJobState,
+    InternalAudioPipelineRecordingInput,
+    InternalAudioPipelineSTTInput,
 )
+from managers.audio_pipeline_job_manager import AudioPipelineJobManager
 from managers.audio_pipeline_manager import get_audio_pipeline_manager
 
 router = APIRouter(dependencies=[Depends(require_voice_available)])
-logger = logging.getLogger("api.routes.voice")
 
-MAX_RESPONSE_BYTES = 64 * 1024 * 1024
-MAX_ERROR_RESPONSE_BYTES = 8 * 1024
-TIMEOUT_SECONDS = 20 * 60
-AUDIO_ANALYZER_URL = os.getenv("AUDIO_ANALYZER_URL", "http://audio-analyzer:8010")
-TEXT_TO_SPEECH_URL = os.getenv("TEXT_TO_SPEECH_URL", "http://text-to-speech:8011")
-MEDIA_TYPE_PATTERN = re.compile(
-    r"[A-Za-z0-9!#$%&'*+.^_`|~-]+/[A-Za-z0-9!#$%&'*+.^_`|~-]+"
+
+_AUDIO_PIPELINE_RUN_REQUEST_SCHEMA = schemas.AudioPipelineRunRequest.model_json_schema()
+# Inline the voice enum because openapi_extra embeds this schema without its own
+# document root, leaving Pydantic's #/$defs/SpeechVoice reference unresolved.
+_AUDIO_PIPELINE_RUN_REQUEST_SCHEMA["properties"]["voice"] = (
+    _AUDIO_PIPELINE_RUN_REQUEST_SCHEMA.pop("$defs")["SpeechVoice"]
 )
-SAFE_AUDIO_VALIDATION_DETAILS = frozenset(
-    {
-        "No filename provided",
-        "Invalid file type",
-        "File too large",
-        "Uploaded file is empty",
-        "Uploaded file is not a valid audio file",
-    }
-)
-
-
-SpeechVoice = Literal["Ryan", "Miles", "Aaron", "Nora", "Elena", "Kabir", "Angus"]
-
-
-class TranscriptionResponse(BaseModel):
-    text: str = Field(max_length=16000)
-
-
-class AudioPipelineDefaultsResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    audio: str | None = None
-    language: str | None = None
-    text: str | None = None
-    voice: str | None = None
-
-
-class AudioPipelineVariantResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    name: str
-    device: Literal["CPU", "GPU", "NPU"]
-
-
-class AudioPipelineResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    name: str
-    description: str
-    type: Literal["audio"]
-    operation: Literal["speech_to_text", "text_to_speech"]
-    tags: list[str]
-    thumbnail: str | None = None
-    required_models: list[str]
-    variants: list[AudioPipelineVariantResponse]
-    defaults: AudioPipelineDefaultsResponse
-
-
-class AudioPipelineJobStartResponse(BaseModel):
-    job_id: str
-    status: Literal["RUNNING", "COMPLETED", "FAILED"]
-
-
-class AudioRecordingResponse(BaseModel):
-    filename: str
-    duration_seconds: float
-    audio_url: str
-
-
-class AudioRecordingRunRequest(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    recording: str = Field(min_length=1, max_length=255)
-    language: str = Field(pattern=r"^[a-z]{2}$")
-
-
-class AudioPipelineRunRequest(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    input: str = Field(min_length=1, max_length=200)
-    voice: SpeechVoice
 
 
 AUDIO_PIPELINE_RUN_OPENAPI = {
@@ -123,8 +57,8 @@ AUDIO_PIPELINE_RUN_OPENAPI = {
             "application/json": {
                 "schema": {
                     "oneOf": [
-                        AudioPipelineRunRequest.model_json_schema(),
-                        AudioRecordingRunRequest.model_json_schema(),
+                        _AUDIO_PIPELINE_RUN_REQUEST_SCHEMA,
+                        schemas.AudioRecordingRunRequest.model_json_schema(),
                     ]
                 }
             },
@@ -146,195 +80,48 @@ AUDIO_PIPELINE_RUN_OPENAPI = {
 }
 
 
-def normalize_upload_filename(filename: str | None) -> str:
-    basename = (filename or "").replace("\\", "/").rsplit("/", 1)[-1]
-    printable_basename = "".join(
-        character for character in basename if character.isprintable()
-    )
-    return printable_basename[-255:] or "audio"
-
-
-def normalize_media_type(content_type: str | None) -> str:
-    if (
-        content_type
-        and len(content_type) <= 127
-        and MEDIA_TYPE_PATTERN.fullmatch(content_type)
-    ):
-        return content_type
-    return "application/octet-stream"
-
-
-async def read_safe_error_detail(
-    response: httpx.Response, allowed_details: frozenset[str]
-) -> str | None:
-    content = bytearray()
-    async for chunk in response.aiter_bytes():
-        if len(content) + len(chunk) > MAX_ERROR_RESPONSE_BYTES:
-            return None
-        content.extend(chunk)
-    try:
-        payload = httpx.Response(response.status_code, content=bytes(content)).json()
-    except ValueError:
-        return None
-    if not isinstance(payload, dict):
-        return None
-    error = payload.get("error")
-    if not isinstance(error, dict):
-        return None
-    detail = error.get("message")
-    return detail if isinstance(detail, str) and detail in allowed_details else None
-
-
-def create_client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(
-        timeout=httpx.Timeout(TIMEOUT_SECONDS, connect=5.0),
-        trust_env=False,
-        follow_redirects=False,
-    )
-
-
-async def call_service(
-    url: str,
-    *,
-    files: dict[str, tuple[str, BinaryIO, str]] | None = None,
-    data: dict[str, str] | None = None,
-    json: dict[str, str] | None = None,
-    max_bytes: int = MAX_RESPONSE_BYTES,
-    rejected_detail: str = "The speech service rejected the input.",
-    safe_rejected_details: frozenset[str] = frozenset(),
-) -> tuple[httpx.Response, float]:
-    """Return the buffered upstream response and its round-trip time in ms."""
-    started_at = perf_counter()
-    try:
-        async with (
-            asyncio.timeout(TIMEOUT_SECONDS),
-            create_client() as client,
-            client.stream("POST", url, files=files, data=data, json=json) as upstream,
-        ):
-            if upstream.status_code in {400, 413, 422}:
-                safe_detail = (
-                    await read_safe_error_detail(upstream, safe_rejected_details)
-                    if safe_rejected_details
-                    else None
-                )
-                raise HTTPException(400, safe_detail or rejected_detail)
-            if upstream.status_code == 429:
-                raise HTTPException(503, "The speech service is busy. Try again later.")
-            if upstream.status_code != 200:
-                logger.warning("Speech service returned HTTP %s", upstream.status_code)
-                raise HTTPException(
-                    502, "The speech service failed to process the request."
-                )
-            content = bytearray()
-            async for chunk in upstream.aiter_bytes():
-                if len(content) + len(chunk) > max_bytes:
-                    raise HTTPException(
-                        502,
-                        "The speech service response exceeded the size limit.",
-                    )
-                content.extend(chunk)
-            result = httpx.Response(
-                200, content=bytes(content), headers=upstream.headers
-            )
-            return result, (perf_counter() - started_at) * 1000
-    except (httpx.TimeoutException, TimeoutError) as exc:
-        raise HTTPException(
-            504, "Speech conversion timed out. Try a shorter input."
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise HTTPException(503, "The speech service is unavailable.") from exc
-
-
-async def execute_transcription(
-    file: BinaryIO,
-    filename: str,
-    content_type: str,
-    language: str,
-    device: str,
-) -> tuple[str, float]:
-    upstream, service_round_trip_ms = await call_service(
-        f"{AUDIO_ANALYZER_URL.rstrip('/')}/v1/audio/transcriptions",
-        files={
-            "file": (
-                normalize_upload_filename(filename),
-                file,
-                normalize_media_type(content_type),
-            )
-        },
-        data={
-            "language": language,
-            "response_format": "json",
-            "temperature": "0",
-            "device": device,
-        },
-        max_bytes=128 * 1024,
-        rejected_detail="The selected speech-to-text device is unavailable.",
-        safe_rejected_details=SAFE_AUDIO_VALIDATION_DETAILS,
-    )
-    try:
-        result = TranscriptionResponse.model_validate(upstream.json())
-    except ValueError as exc:
-        raise HTTPException(
-            502, "The speech service returned an invalid transcription."
-        ) from exc
-    return result.text, service_round_trip_ms
-
-
-async def execute_synthesis(
-    text: str,
-    voice: str,
-    device: str,
-) -> tuple[bytes, float]:
-    upstream, service_round_trip_ms = await call_service(
-        f"{TEXT_TO_SPEECH_URL.rstrip('/')}/v1/audio/speech",
-        json={
-            "input": text,
-            "voice": voice,
-            "response_format": "wav",
-            "device": device,
-        },
-        rejected_detail="The selected text-to-speech device is unavailable.",
-    )
-    content = upstream.content
-    if (
-        upstream.headers.get("content-type", "").split(";")[0] != "audio/wav"
-        or len(content) < 44
-        or content[:4] != b"RIFF"
-        or content[8:12] != b"WAVE"
-    ):
-        raise HTTPException(502, "The speech service returned invalid audio.")
-    return content, service_round_trip_ms
-
-
-def _create_audio_pipeline_job_manager() -> AudioPipelineJobManager:
-    return AudioPipelineJobManager(
-        get_audio_pipeline_manager(),
-        AudioAssetsManager(),
-        execute_transcription,
-        execute_synthesis,
-    )
-
-
-configure_audio_pipeline_job_manager_factory(_create_audio_pipeline_job_manager)
-
 AudioJobManagerDependency = Annotated[
     AudioPipelineJobManager,
     Depends(get_audio_pipeline_job_manager),
 ]
 
 
-@router.get("/pipelines", response_model=list[AudioPipelineResponse])
-async def list_audio_pipelines() -> list[AudioPipelineResponse]:
+@router.get("/pipelines", response_model=list[schemas.AudioPipelineResponse])
+async def list_audio_pipelines() -> list[schemas.AudioPipelineResponse]:
+    """
+    # List Audio Pipelines
+
+    ## Operation
+    Return the read-only audio catalog, including variants and default inputs.
+
+    ## Response Codes
+    | Code | Description |
+    |------|-------------|
+    | 200 | Audio pipeline definitions |
+    | 503 | Voice initialization failed |
+    """
     return [
-        AudioPipelineResponse.model_validate(pipeline)
+        schemas.AudioPipelineResponse.model_validate(pipeline)
         for pipeline in get_audio_pipeline_manager().list_pipelines()
     ]
 
 
-@router.get("/recordings", response_model=list[AudioRecordingResponse])
-async def list_audio_recordings() -> list[AudioRecordingResponse]:
+@router.get("/recordings", response_model=list[schemas.AudioRecordingResponse])
+async def list_audio_recordings() -> list[schemas.AudioRecordingResponse]:
+    """
+    # List Audio Recordings
+
+    ## Operation
+    Return bundled recordings with their durations and public playback URLs.
+
+    ## Response Codes
+    | Code | Description |
+    |------|-------------|
+    | 200 | Available audio recordings |
+    | 503 | Voice initialization failed |
+    """
     return [
-        AudioRecordingResponse(
+        schemas.AudioRecordingResponse(
             filename=asset.filename,
             duration_seconds=asset.duration_seconds,
             audio_url=f"/api/v1/voice/recordings/{quote(asset.filename)}/audio",
@@ -345,6 +132,19 @@ async def list_audio_recordings() -> list[AudioRecordingResponse]:
 
 @router.get("/recordings/{filename}/audio", response_class=FileResponse)
 async def get_audio_recording(filename: str) -> FileResponse:
+    """
+    # Get Audio Recording
+
+    ## Parameters
+    - `filename`: Name of a registered recording, not an arbitrary file path.
+
+    ## Response Codes
+    | Code | Description |
+    |------|-------------|
+    | 200 | WAV recording with caching disabled |
+    | 404 | Recording does not exist |
+    | 503 | Voice initialization failed |
+    """
     asset = AudioAssetsManager().get_asset(filename)
     if asset is None or not os.path.isfile(asset.path):
         raise HTTPException(404, "Audio recording not found.")
@@ -357,7 +157,7 @@ async def get_audio_recording(filename: str) -> FileResponse:
 
 @router.post(
     "/pipelines/{pipeline_id}/variants/{variant_id}/runs",
-    response_model=AudioPipelineJobStartResponse,
+    response_model=schemas.AudioPipelineJobStartResponse,
     status_code=202,
     openapi_extra=AUDIO_PIPELINE_RUN_OPENAPI,
 )
@@ -366,7 +166,31 @@ async def run_audio_pipeline_variant(
     variant_id: str,
     request: Request,
     manager: AudioJobManagerDependency,
-) -> AudioPipelineJobStartResponse:
+) -> schemas.AudioPipelineJobStartResponse:
+    """
+    # Run Audio Pipeline Variant
+
+    ## Operation
+    Start an asynchronous speech-to-text or text-to-speech job on the selected
+    variant. Poll its status through the audio job endpoints.
+
+    ## Request Body
+    - JSON: `input` and `voice` for synthesis, or `recording` and `language`
+      for transcription of a registered recording.
+    - Multipart: `file` and a two-letter `language` for uploaded audio.
+
+    ## Response Codes
+    | Code | Description |
+    |------|-------------|
+    | 202 | Job ID and initial state |
+    | 400 | Pipeline does not accept the selected input type |
+    | 404 | Pipeline, variant, or recording does not exist |
+    | 409 | Pipeline cannot run with the supplied inputs |
+    | 413 | Audio upload exceeds the size limit |
+    | 415 | Unsupported request content type |
+    | 422 | Invalid request fields |
+    | 503 | Voice initialization failed |
+    """
     return await _start_audio_pipeline_request(
         request,
         manager,
@@ -380,15 +204,17 @@ async def _start_audio_pipeline_request(
     manager: AudioPipelineJobManager,
     pipeline_id: str,
     variant_id: str,
-) -> AudioPipelineJobStartResponse:
+) -> schemas.AudioPipelineJobStartResponse:
     media_type = request.headers.get("content-type", "").partition(";")[0].lower()
     if media_type == "application/json":
         body = await request.body()
         try:
-            tts_request = AudioPipelineRunRequest.model_validate_json(body)
+            tts_request = schemas.AudioPipelineRunRequest.model_validate_json(body)
         except ValidationError:
             try:
-                recording_request = AudioRecordingRunRequest.model_validate_json(body)
+                recording_request = (
+                    schemas.AudioRecordingRunRequest.model_validate_json(body)
+                )
             except ValidationError as exc:
                 raise HTTPException(422, "Invalid Audio pipeline run request.") from exc
             return await _start_audio_pipeline_job(
@@ -418,7 +244,7 @@ async def _start_audio_pipeline_request(
                 manager,
                 pipeline_id,
                 variant_id,
-                stt_input=AudioPipelineSTTInput(
+                stt_input=InternalAudioPipelineSTTInput(
                     file=upload.file,
                     filename=normalize_upload_filename(upload.filename),
                     content_type=normalize_media_type(upload.content_type),
@@ -434,16 +260,16 @@ async def _start_audio_pipeline_job(
     pipeline_id: str,
     variant_id: str,
     *,
-    tts_request: AudioPipelineRunRequest | None = None,
-    stt_input: AudioPipelineSTTInput | None = None,
-    recording_request: AudioRecordingRunRequest | None = None,
-) -> AudioPipelineJobStartResponse:
+    tts_request: schemas.AudioPipelineRunRequest | None = None,
+    stt_input: InternalAudioPipelineSTTInput | None = None,
+    recording_request: schemas.AudioRecordingRunRequest | None = None,
+) -> schemas.AudioPipelineJobStartResponse:
     try:
         if recording_request is not None:
             job = await manager.start_job(
                 pipeline_id,
                 variant_id,
-                recording_input=AudioPipelineRecordingInput(
+                recording_input=InternalAudioPipelineRecordingInput(
                     filename=recording_request.recording,
                     language=recording_request.language,
                 ),
@@ -459,39 +285,35 @@ async def _start_audio_pipeline_job(
                 pipeline_id,
                 variant_id,
                 input_text=tts_request.input,
-                voice=tts_request.voice,
+                voice=tts_request.voice.value,
             )
         else:
             raise HTTPException(422, "Invalid Audio pipeline run request.")
     except AudioInputTooLargeError as exc:
         raise HTTPException(413, "The input exceeds the upload limit.") from exc
-    except ValueError as exc:
-        message = str(exc)
-        if "Audio recording" in message and "not found" in message:
-            raise HTTPException(404, "Audio recording not found.") from exc
-        if "do not accept recording input" in message:
-            raise HTTPException(
-                400, "This Audio pipeline does not accept recording input."
-            ) from exc
-        if "variant" in message and "not found" in message:
-            raise HTTPException(404, "Audio pipeline variant not found.") from exc
-        if "not found" in message:
-            raise HTTPException(404, "Audio pipeline not found.") from exc
-        if "do not accept TTS overrides" in message:
-            raise HTTPException(
-                400, "This Audio pipeline does not accept TTS input."
-            ) from exc
-        if "do not accept STT input" in message:
-            raise HTTPException(
-                400, "This Audio pipeline does not accept STT input."
-            ) from exc
+    except AudioRecordingNotFoundError as exc:
+        raise HTTPException(404, "Audio recording not found.") from exc
+    except AudioPipelineVariantNotFoundError as exc:
+        raise HTTPException(404, "Audio pipeline variant not found.") from exc
+    except AudioPipelineNotFoundError as exc:
+        raise HTTPException(404, "Audio pipeline not found.") from exc
+    except AudioRecordingInputNotAcceptedError as exc:
+        raise HTTPException(
+            400, "This Audio pipeline does not accept recording input."
+        ) from exc
+    except AudioTTSInputNotAcceptedError as exc:
+        raise HTTPException(
+            400, "This Audio pipeline does not accept TTS input."
+        ) from exc
+    except AudioSTTInputNotAcceptedError as exc:
+        raise HTTPException(
+            400, "This Audio pipeline does not accept STT input."
+        ) from exc
+    except AudioPipelineError as exc:
         raise HTTPException(409, "Audio pipeline is unavailable.") from exc
-    return AudioPipelineJobStartResponse(
+    return schemas.AudioPipelineJobStartResponse(
         job_id=job.id,
-        status=cast(
-            Literal["RUNNING", "COMPLETED", "FAILED"],
-            job.status.value,
-        ),
+        status=schemas.AudioJobState(job.status.value),
     )
 
 
@@ -500,11 +322,25 @@ async def get_audio_pipeline_artifact(
     job_id: str,
     manager: AudioJobManagerDependency,
 ) -> FileResponse:
+    """
+    # Get Audio Pipeline Artifact
+
+    ## Parameters
+    - `job_id`: ID of a completed text-to-speech job.
+
+    ## Response Codes
+    | Code | Description |
+    |------|-------------|
+    | 200 | Generated WAV audio with caching disabled |
+    | 404 | Job does not exist |
+    | 409 | Job has no available audio artifact |
+    | 503 | Voice initialization failed |
+    """
     job = await manager.get_job(job_id)
     if job is None:
         raise HTTPException(404, "Audio pipeline job not found.")
     if (
-        job.status not in {AudioPipelineJobStatus.COMPLETED, "COMPLETED"}
+        job.status != InternalAudioJobState.COMPLETED
         or job.artifact_path is None
         or not os.path.isfile(job.artifact_path)
     ):

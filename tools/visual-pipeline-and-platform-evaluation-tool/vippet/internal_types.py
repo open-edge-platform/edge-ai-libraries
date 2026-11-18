@@ -11,7 +11,7 @@ rather than references, making them easier to work with in the execution layer.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, BinaryIO, Dict, List, Literal, Optional, Union
 
 from graph import Graph
 
@@ -61,6 +61,123 @@ class InternalAppStatus(str, Enum):
     INITIALIZING = "initializing"
     READY = "ready"
     SHUTDOWN = "shutdown"
+
+
+class InternalAudioJobState(str, Enum):
+    """Internal representation of an audio pipeline job state.
+
+    Values:
+        RUNNING: Speech conversion is in progress.
+        COMPLETED: Job finished, including cancellation without a result.
+        FAILED: Job execution failed.
+    """
+
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class InternalAudioPipelineOperation(str, Enum):
+    """Speech conversion operation performed by an audio pipeline."""
+
+    SPEECH_TO_TEXT = "speech_to_text"
+    TEXT_TO_SPEECH = "text_to_speech"
+
+
+class InternalSpeechVoice(str, Enum):
+    """Supported synthesis voices used by audio pipeline execution."""
+
+    RYAN = "Ryan"
+    MILES = "Miles"
+    AARON = "Aaron"
+    NORA = "Nora"
+    ELENA = "Elena"
+    KABIR = "Kabir"
+    ANGUS = "Angus"
+
+
+InternalAudioDevice = Literal["CPU", "GPU", "NPU"]
+
+
+@dataclass(frozen=True)
+class InternalAudioPipelineVariant:
+    """Audio pipeline variant targeting a supported inference device."""
+
+    id: str
+    name: str
+    device: InternalAudioDevice
+
+
+@dataclass(frozen=True)
+class InternalAudioPipelineDefaults:
+    """Default recording or synthesis inputs from an audio pipeline definition."""
+
+    audio: str | None = None
+    language: str | None = None
+    text: str | None = None
+    voice: InternalSpeechVoice | None = None
+
+
+@dataclass(frozen=True)
+class InternalAudioPipeline:
+    """Read-only audio pipeline definition shared by managers and API routes."""
+
+    id: str
+    name: str
+    description: str
+    type: str
+    operation: InternalAudioPipelineOperation
+    tags: list[str]
+    thumbnail: str | None
+    required_models: list[str]
+    variants: list[InternalAudioPipelineVariant]
+    defaults: InternalAudioPipelineDefaults
+
+
+@dataclass
+class InternalAudioPipelineJob:
+    """Mutable internal job record with metadata, state, and optional results.
+
+    Artifact paths are internal filesystem locations, not public download URLs.
+    Public manager methods return shallow copies rather than this stored record.
+    """
+
+    id: str
+    pipeline_id: str
+    pipeline_name: str
+    variant_id: str
+    variant_name: str
+    device: InternalAudioDevice
+    operation: InternalAudioPipelineOperation
+    status: InternalAudioJobState
+    created_at: datetime
+    modified_at: datetime
+    transcript: str | None = None
+    artifact_path: str | None = None
+    artifact_filename: str | None = None
+    service_round_trip_ms: float | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class InternalAudioPipelineSTTInput:
+    """Caller-owned upload stream and metadata to stage before background work.
+
+    The stream is copied from its current position without being closed here.
+    """
+
+    file: BinaryIO
+    filename: str
+    content_type: str
+    language: str
+
+
+@dataclass(frozen=True)
+class InternalAudioPipelineRecordingInput:
+    """Registered recording filename and language for speech recognition."""
+
+    filename: str
+    language: str
 
 
 class InternalTestJobState(str, Enum):
