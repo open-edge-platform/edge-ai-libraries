@@ -11,7 +11,11 @@
         </template>
         <template v-else>{{ $t("console.user") }}</template>
       </div>
-      <div class="message-content intel-markdown" @click="handleImageClick">
+      <div
+        v-if="message.content"
+        class="message-content intel-markdown"
+        @click="handleImageClick"
+      >
         <template v-for="(part, index) in contentParts" :key="index">
           <a-tooltip
             v-if="part.source"
@@ -139,6 +143,20 @@ const handleCopy = () => copy(stripThinking(props.message.content));
   display: flex;
   gap: 12px;
   margin-bottom: 28px;
+  &.assistant {
+    .message-author {
+      display: flex;
+      align-items: center;
+      min-height: 34px;
+      margin-bottom: 6px;
+    }
+    .error-wrap {
+      margin-top: 0;
+    }
+    .message-content ~ .error-wrap {
+      margin-top: 12px;
+    }
+  }
   &.user {
     justify-content: flex-end;
     .message-body {
