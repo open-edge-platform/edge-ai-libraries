@@ -111,7 +111,7 @@ usage() {
     HARNESS_BACKEND_NETWORK      Docker network joining OVMS + the Inference Router so they can reach each other by name (default: agent-harness-install-backend)
     MIN_NODE_VERSION
     HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --log_level DEBUG); not for per-model options such as --tool_parser
-    HARNESS_OVMS_TOOL_PARSER      Tool-call parser written into the served model's graph.pbtxt (e.g. hermes3), needed by agents that call tools
+    HARNESS_OVMS_TOOL_PARSER      Override the tool-call parser OVMS auto-detects from the model's chat template (e.g. hermes3, or none to disable); written into graph.pbtxt
     HARNESS_OVMS_EXPORTER         docker-pull (default) | export-model-py | model-download | hf-snapshot (see Known limitations)
     HARNESS_HF_MODEL_REVISION     Pin an exact HF revision (commit/tag/branch) for the hf-snapshot exporter
     HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt (export-model-py exporter only)

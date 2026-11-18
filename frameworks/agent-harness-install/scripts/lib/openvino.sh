@@ -30,13 +30,14 @@ HARNESS_BACKEND_NETWORK="${HARNESS_BACKEND_NETWORK:-agent-harness-install-backen
 # Extra OVMS *server* flags (e.g. "--log_level DEBUG"), appended to the
 # container's command line. Per-model options such as --tool_parser do not
 # belong here: OVMS rejects them when started from --config_path, so the
-# container crash-loops. See HARNESS_OVMS_TOOL_PARSER for tool calls.
+# container crash-loops. See HARNESS_OVMS_TOOL_PARSER to override the parser.
 HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
-# Tool-call parser for the served model (OVMS's per-model `tool_parser`
-# graph option, e.g. hermes3 for Qwen/Hermes-style <tool_call> output).
-# Agents that call tools need it; without it OVMS returns tool calls as
-# plain text. Written into the model's graph.pbtxt after export, so it works
-# with every exporter and on a re-run against an already exported model.
+# Override for OVMS's per-model `tool_parser` graph option. Since OVMS 2026.3
+# the server picks the parser from the chat template at startup (logged as
+# "Auto-detected tool_parser: ..."), so this is normally left empty. Set it
+# when the template is not recognised, to force another parser, or to "none"
+# to disable parsing. Written into the model's graph.pbtxt after export, so
+# it works with every exporter and on a re-run against an exported model.
 HARNESS_OVMS_TOOL_PARSER="${HARNESS_OVMS_TOOL_PARSER:-}"
 
 # Set HARNESS_LLM_ROUTER_ENDPOINT to point this installer's Inference Router
@@ -257,8 +258,8 @@ os.replace(tmp, path)
 # ensure_graph_tool_parser model_name parser -- makes the registered model's
 # graph.pbtxt name the given tool parser (HARNESS_OVMS_TOOL_PARSER). Looks
 # the model directory up in config.json, since exporters differ in layout.
-# Idempotent. Fatal on failure: an agent that was promised tool calls would
-# otherwise silently get them back as plain text.
+# Idempotent. Fatal on failure: a requested override that silently did not
+# apply would leave OVMS on its auto-detected parser.
 ensure_graph_tool_parser() {
   local model_name="$1" parser="$2" base_path graph out
   base_path="$(_ovms_config_base_path_for "${HARNESS_MODELS_DIR}/config.json" "$model_name")"
@@ -1137,8 +1138,9 @@ ensure_openvino_model_server() {
   case " $HARNESS_OVMS_EXTRA_ARGS " in
     *" --tool_parser"* | *" --reasoning_parser"*)
       error "HARNESS_OVMS_EXTRA_ARGS contains a per-model option (--tool_parser/--reasoning_parser)
-that OVMS rejects when started from --config_path. Set HARNESS_OVMS_TOOL_PARSER=<parser>
-instead; it is written into the model's graph.pbtxt." ;;
+that OVMS rejects when started from --config_path. OVMS picks the tool parser from the chat
+template by itself; to override it set HARNESS_OVMS_TOOL_PARSER=<parser> instead, which is
+written into the model's graph.pbtxt." ;;
   esac
   ensure_ovms_config
   ensure_ovms_models_readable

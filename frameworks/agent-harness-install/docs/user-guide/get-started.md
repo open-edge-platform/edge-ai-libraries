@@ -144,18 +144,29 @@ Options: `--non-interactive`, `--skip-gpu-check`, `--harness <name>`,
 ### Tool calls
 
 Agents that call tools need OVMS to parse the model's tool-call output into
-OpenAI-style `tool_calls`. That is a per-model option in the model's
-`graph.pbtxt`, not a server flag, so set it through the installer:
+OpenAI-style `tool_calls`. The OVMS release this installer serves with
+detects the right parser from the model's chat template at startup, so
+nothing needs to be set for Qwen3, Qwen2.5 and other recognised model
+families; the OVMS log shows which one it chose:
+
+```bash
+docker logs agent-harness-install-ovms 2>&1 | grep -i parser
+# ... Auto-detected tool_parser: hermes3
+```
+
+If the template is not recognised, the detected parser is wrong for the
+model, or parsing should be disabled, override it through the installer:
 
 ```bash
 HARNESS_OVMS_TOOL_PARSER=hermes3 ./install.sh --harness hermes --model OpenVINO/Qwen3-8B-int4-ov --non-interactive
+HARNESS_OVMS_TOOL_PARSER=none ./install.sh inference --model OpenVINO/Qwen3-8B-int4-ov --non-interactive
 ```
 
-The parser is written into the LLM block of the exported model's
-`graph.pbtxt` (also on a re-run with the same `--model` against an already
-exported model) before OVMS is restarted; a model whose graph has no LLM
-block (embeddings, reranking, speech) is rejected. Use the
-parser name OVMS documents for the model family (`hermes3` for Qwen3 and
+The parser is a per-model option, so it is written into the LLM block of the
+exported model's `graph.pbtxt` (also on a re-run with the same `--model`
+against an already exported model) before OVMS is restarted; a model whose
+graph has no LLM block (embeddings, reranking, speech) is rejected. Use a
+parser name OVMS documents for the model family (`hermes3` for Qwen and
 Hermes-style `<tool_call>` output). Passing `--tool_parser` through
 `HARNESS_OVMS_EXTRA_ARGS` is rejected: OVMS does not accept it when started
 from `--config_path`, and the container would crash-loop. With
