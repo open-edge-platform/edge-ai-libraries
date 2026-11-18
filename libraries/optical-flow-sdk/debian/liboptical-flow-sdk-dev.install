@@ -1,0 +1,5 @@
+usr/include/optical_flow_sdk/
+usr/lib/*/liboptical_flow_sdk.so
+usr/lib/*/cmake/optical_flow_sdk/
+usr/lib/*/pkgconfig/optical_flow_sdk.pc
+usr/share/optical-flow-sdk/samples/

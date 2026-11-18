@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.11", "numpy"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "optical-flow-sdk"
+version = "0.1.0"
+description = "Intel Optical Flow SDK — dense DIS / Farneback and sparse PyrLK"
+readme = "python/README.python.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Intel Corporation" }]
+dependencies = ["numpy>=1.23"]
+
+[tool.scikit-build]
+minimum-version = "0.10"
+cmake.build-type = "Release"
+# CMake installs optical_flow_sdk/ (__init__.py + _native) into the wheel.
+wheel.packages = []
+cmake.args = [
+  "-DOPTICALFLOW_ENABLE_CPU=ON",
+  "-DOPTICALFLOW_ENABLE_OPENCL=OFF",
+  "-DOPTICALFLOW_ENABLE_SYCL=OFF",
+  "-DOPTICALFLOW_BUILD_PYTHON=ON",
+  "-DOPTICALFLOW_BUILD_SHARED=OFF",
+  "-DOPTICALFLOW_BUILD_SAMPLES=OFF",
+  "-DOPTICALFLOW_BUILD_TESTS=OFF",
+  "-DOPTICALFLOW_BUILD_BENCHMARKS=OFF",
+  "-DOPTICALFLOW_BUILD_OPENCV_ADAPTER=OFF",
+  "-DOPTICALFLOW_ENABLE_OPENVINO=OFF",
+]
+sdist.include = [
+  "CMakeLists.txt",
+  "cmake/**",
+  "include/**",
+  "src/**",
+  "python/**",
+  "LICENSES/**",
+  "REUSE.toml",
+]
