@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sensor Manager API",
     description="Discovery and description of USB, ONVIF network and GigE Vision cameras.",
-    version="2026.3.0-dev",
+    version="2026.3.0-rc2",
     lifespan=lifespan,
 )
 app.include_router(health.router, prefix=API_PREFIX, tags=["health"])
