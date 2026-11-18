@@ -29,7 +29,7 @@ jobs:
           make pull-model image
       - name: Fetch sample images
         working-directory: libraries/star
-        run: python3 tests/sample_data/fetch_sample_data.py --count 10 --source picsum --output-dir tests/fixtures/sample_images
+        run: . .venv/bin/activate && python tests/sample_data/fetch_sample_data.py --count 10 --source picsum --output-dir tests/fixtures/sample_images
       - name: Build tests image
         working-directory: libraries/star
         run: make tests-image
