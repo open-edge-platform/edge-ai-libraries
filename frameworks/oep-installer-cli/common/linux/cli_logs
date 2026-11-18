@@ -1281,7 +1281,7 @@ act_panelled_logs_askpass () {
 if [ -n "$ASKPASS_ENV" ]; then
   printf '%s\n' "$ASKPASS_ENV"
 elif [ -e /dev/tty ]; then
-  exec 8<>/dev/tty 2>/dev/null || exit 1
+  { exec 8<>/dev/tty; } 2>/dev/null || exit 1
   rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
   saved=$(stty -g <&8) || exit 1
   # restore tty and clear the prompt row (cleanup only)

@@ -61,7 +61,7 @@
   "resources": [
     {
       "text": "Digital Signage",
-      "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
+      "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
     },
     {
       "text": "Loss Prevention",
@@ -73,11 +73,11 @@
     },
     {
       "text": "Store Wide Loss Prevention",
-      "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html"
+      "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html"
     },
     {
       "text": "Voice Enabled Interactions",
-      "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/voice-enabled-interactions/index.html"
+      "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/voice-enabled-interactions/index.html"
     }
   ]
 }

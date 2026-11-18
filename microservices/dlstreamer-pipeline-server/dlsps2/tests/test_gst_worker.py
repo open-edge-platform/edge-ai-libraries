@@ -49,6 +49,9 @@ class TestOnBufferProbe:
         mock_inst = MagicMock()
         mock_inst.frame_count = 0
         mock_inst.total_frame_count = 0
+        mock_inst.frames_after_warmup = 0
+        mock_inst.warmup_frames = 0
+        mock_inst.first_frame_sent = True
         mock_inst.frame_count_lock = threading.Lock()
 
         result = GstWorker._on_buffer_probe(None, None, mock_inst)
@@ -64,6 +67,9 @@ class TestOnBufferProbe:
         mock_inst = MagicMock()
         mock_inst.frame_count = 0
         mock_inst.total_frame_count = 0
+        mock_inst.frames_after_warmup = 0
+        mock_inst.warmup_frames = 0
+        mock_inst.first_frame_sent = True
         mock_inst.frame_count_lock = threading.Lock()
 
         for _ in range(10):
@@ -161,6 +167,8 @@ class TestPollFps:
             pipeline=MagicMock(),
             frame_count=frame_count,
             total_frame_count=total_frame_count,
+            frames_after_warmup=total_frame_count,
+            warmup_frame_time=now - total_elapsed,
             start_time=now - total_elapsed,
             last_poll_time=now - window_elapsed,
         )
@@ -221,6 +229,41 @@ class TestPollFps:
         mock_emit.assert_not_called()
 
 
+    def test_emits_frame_count_on_a_poll_without_frames(self):
+        """After the first frame every poll reports the running frame count and
+        when it was read, also when the window has no frames and warmup is not done."""
+        now = time.monotonic()
+        inst = _Instance(
+            instance_id="bursty",
+            pipeline=MagicMock(),
+            warmup_frames=1000,
+            frame_count=0,
+            total_frame_count=40,
+            first_frame_sent=True,
+            last_poll_time=now - 1.0,
+        )
+        worker = GstWorker()
+
+        before = time.time()
+        with patch("core.gst_worker._emit") as mock_emit:
+            worker._poll_fps(inst)
+
+        mock_emit.assert_called_once()
+        payload = mock_emit.call_args[0][0]
+        assert "last_fps" not in payload and "avg_fps" not in payload
+        assert payload["frame_count"] == 40
+        assert before <= payload["frame_count_time"] <= time.time()
+
+    def test_no_frame_count_before_the_first_frame(self):
+        inst = _Instance(instance_id="idle", pipeline=MagicMock())
+        worker = GstWorker()
+
+        with patch("core.gst_worker._emit") as mock_emit:
+            worker._poll_fps(inst)
+
+        mock_emit.assert_not_called()
+
+
 class TestTeardownFlushesFinalFps:
     """Test GstWorker._teardown: flushes one final "fps" event (via
     _poll_fps) before emitting "stopped", so pipelines stopped/aborted
@@ -238,6 +281,8 @@ class TestTeardownFlushesFinalFps:
             pipeline=MagicMock(),
             frame_count=5,
             total_frame_count=5,
+            frames_after_warmup=5,
+            warmup_frame_time=now - 0.2,
             start_time=now - 0.2,
             last_poll_time=now - 0.2,
         )
@@ -265,6 +310,58 @@ class TestTeardownFlushesFinalFps:
             worker._teardown("inst")
 
         fps_source.destroy.assert_called_once()
+
+    def test_releases_bus_timer_and_probes(self):
+        """After teardown the instance holds no bus, timer or pad probe,
+        so nothing keeps its GstBus (and its GstPoll socketpair) alive."""
+        pad = MagicMock()
+        probe_id = pad.add_probe.return_value
+        bus = MagicMock()
+        inst = _Instance(
+            instance_id="leak",
+            pipeline=MagicMock(),
+            bus=bus,
+            bus_handler_id=1,
+            fps_source=MagicMock(),
+            probes=[(pad, probe_id)],
+        )
+        worker = GstWorker()
+        with worker._lock:
+            worker._instances["leak"] = inst
+
+        with patch("core.gst_worker._emit"):
+            worker._teardown("leak")
+
+        pad.remove_probe.assert_called_once_with(probe_id)
+        bus.remove_signal_watch.assert_called_once()
+        assert inst.bus is None
+        assert inst.fps_source is None
+        assert inst.probes == []
+
+
+class TestStopUnknownInstance:
+    """Stop for an instance that never registered must still report "stopped"."""
+
+    def test_emits_stopped_for_unknown_instance(self):
+        worker = GstWorker()
+        with patch("core.gst_worker._emit") as mock_emit:
+            worker.stop("never-started")
+
+        mock_emit.assert_called_once_with({"instance_id": "never-started", "event": "stopped"})
+
+
+class TestFailedStartReportsStopped:
+    """A start that fails before registering a pipeline must still end with "stopped"."""
+
+    def test_parse_failure_emits_error_then_stopped(self):
+        worker = GstWorker()
+        with patch("core.gst_worker.Gst.parse_launch", side_effect=RuntimeError("boom")), \
+                patch("core.gst_worker._emit") as mock_emit:
+            worker.start("bad-start", "fakesrc ! fakesink")
+
+        events = [call.args[0] for call in mock_emit.call_args_list]
+        assert [e["event"] for e in events] == ["error", "stopped"]
+        assert all(e["instance_id"] == "bad-start" for e in events)
 
 
 class _FakeStructure:

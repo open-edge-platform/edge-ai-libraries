@@ -131,11 +131,13 @@ def test_missing_requested_version_falls_back_to_packaged_default(registry_parts
     assert result.classifier.bundle.version == 'v1'
 
 @pytest.mark.unit
-def test_artifact_cannot_shadow_packaged_version(registry_parts):
-    _artifact(registry_parts, 'v1')
-    with pytest.raises(ClassifierRegistryError, match='collision'):
-        registry_parts.registry.ensure(MODEL, 'v1')
-    assert registry_parts.registry.ensure(MODEL, 'default').origin == 'package'
+def test_seeded_artifact_copy_serves_the_packaged_version(registry_parts):
+    _artifact(registry_parts, 'v1')  # seeded by the deploy script
+    served = registry_parts.registry.ensure(MODEL, 'v1')
+    assert served.origin == 'artifacts'
+    assert registry_parts.registry.ensure(MODEL, 'default') is served  # one v1, kept in sync
+    listed = [(v.version, v.origin, v.error) for v in registry_parts.registry.versions(MODEL)]
+    assert listed == [('v1', 'artifacts', None)]
 
 @pytest.mark.unit
 def test_metadata_version_must_match_filename(registry_parts):

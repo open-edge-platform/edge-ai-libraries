@@ -635,29 +635,23 @@ def test_invalid_model_selection_returns_error(
 	gateway_client: GatewayTestClient,
 	stream: bool,
 ) -> None:
-	"""Additional test: Verify error handling for invalid model selection."""
-	got_response = False
-	response = None
-	try:
-		response = _chat(
+	"""Additional test: Verify error handling for invalid model selection.
+
+	Both modes must fail with HTTP 400 naming the unknown model — streaming
+	requests are routed before the SSE response starts, so they must not come
+	back as a 200 with an in-band error chunk.
+	"""
+	with pytest.raises(AssertionError) as exc_info:
+		_chat(
 			gateway_client,
 			stream=stream,
 			model="invalid-model-xyz",
 			messages=[{"role": "user", "content": "Test"}],
 			max_tokens=64,
 		)
-		got_response = True
-	except AssertionError as e:
-		# Non-streaming: gateway returns HTTP 400 → test client raises AssertionError
-		error_msg = str(e)
-		assert "Unknown model" in error_msg or "invalid" in error_msg.lower()
-
-	if got_response:
-		# Streaming: gateway returns HTTP 200 with the error embedded in SSE content
-		content = response["choices"][0]["message"].get("content", "")
-		assert "Unknown model" in content or "failed" in content.lower(), (
-			f"Expected error about unknown model in response content, got: {content}"
-		)
+	error_msg = str(exc_info.value)
+	assert "400" in error_msg, error_msg
+	assert "Unknown model" in error_msg, error_msg
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non-stream", "stream"])

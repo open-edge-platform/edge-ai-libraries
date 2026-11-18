@@ -16,7 +16,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adaptive-token-compressor"
-version = "0.1.0"
+version = "2026.3.0"
 description = "Adaptive token compression library: harness / tools / context compressors with shared metrics + manager."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -94,12 +94,13 @@ subcommand_stop () {
 subcommand_list () {
   local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} "
   local module_region_list=" ${_act_cache_modules[*]/#/--} "
-  local k v args=() mods=() cli_version="" sbom=0 margs=0
+  local k v args=() mods=() cli_version="" sbom=0 margs=0 tc=0
   for v in "$@"; do
     case "$v" in
     --help)
       echo "list options:"
       echo "  --cli-version <v>  save cli version in the SBOM header"
+      echo "  --test-coverage    show test coverage subset"
       echo "  --sbom             show component SBOM items"
       echo
       return 0
@@ -107,10 +108,29 @@ subcommand_list () {
     --sbom)
       sbom=1
       ;;
+    --test-coverage)
+      tc=1
+      ;;
     --cli-version=*)
       cli_version="${v#*=}" 
       ;;
     --cli-version)
+      ;;
+    --auto-completion|--auto-completion=*)
+      local data="@@INSTALLER_COMPLETION_TEXT@@" cmd state
+      [[ $data != @@* ]] || { echo "Completion data not rendered; run bootstrap" >&2; return 3; }
+      data="$(base64 -d <<< "$data")"
+      cmd=${v#--auto-completion}; cmd=${cmd#=}
+      if [ -z "$cmd" ]; then
+        grep -E '^(cmds|names)( |$)' <<< "$data"
+      else
+        # lines for this command, with the command field dropped
+        awk -v c="$cmd" '$1 != "cmds" && $1 != "names" && $2 == c { $2 = ""; sub(/  /, " "); sub(/ $/, ""); print }' <<< "$data"
+        state=$(awk -v c="$cmd" '$1 == "state" && $2 == c { print $3 }' <<< "$data")
+        [[ $state == installed || $state == started ]] &&
+          echo active $(ensure_prop find "$state/*" | cut -f2 -d/ | sort -u)
+      fi
+      return 0
       ;;
     *)
       if [ $margs -eq 1 ]; then
@@ -156,6 +176,7 @@ subcommand_list () {
       if [[ "/$0" = *"/rendered/"* ]]; then
         local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')"
         ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}"
+        ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')"
       fi
     fi
     ensure_sbom_format install-cmdline $installer_name install "${args[@]}"
@@ -170,7 +191,86 @@ subcommand_list () {
       echo "---"
     done
 
+  elif [ $tc -eq 1 ]; then
+
+    # warm up
+    if declare -F configure_edge_pack_kernel_image > /dev/null; then
+      configure_edge_pack_kernel_image $(act_extract_args install edge_pack_kernel_image "" "$@") > /dev/null 2>&1 || true
+      set -- "$@" --edge_pack_kernel_image --version="$version"
+    fi
+
+    local -A closure=() size=() target=() covered=()
+    local c h m candidates=()
+  
+    # closure of each candidate
+    for c in "${mods[@]}"; do
+      local comps=()
+      for h in $(act_find_deps install "$c" $(act_extract_args install "$c" "" "$@")); do
+        comps+=("${h#${installer_family}_*_install_}")
+      done
+      [ ${#comps[@]} -gt 0 ] || continue
+      closure[$c]=" ${comps[*]} "
+      size[$c]=${#comps[@]}
+      candidates+=("$c")
+      for m in "${comps[@]}"; do target[$m]=1; done
+    done
+  
+    if [ ${#target[@]} -eq 0 ]; then
+      echo "No installable components" >&2
+      return 3
+    fi
+  
+    # greedy set cover
+    local picked=() best best_gain best_size gain left=${#target[@]}
+    while [ $left -gt 0 ]; do
+      best="" best_gain=0 best_size=0
+      for c in $(printf '%s\n' "${candidates[@]}" | LC_ALL=C.UTF-8 sort); do
+        [[ " ${picked[*]} " != *" $c "* ]] || continue
+        gain=0
+        for m in ${closure[$c]}; do
+          [ -n "${covered[$m]:-}" ] || gain=$((gain+1))
+        done
+        if [ $gain -gt $best_gain ] || { [ $gain -eq $best_gain ] && [ $gain -gt 0 ] && [ ${size[$c]} -lt $best_size ]; }; then
+          best=$c best_gain=$gain best_size=${size[$c]}
+        fi
+      done
+      [ -n "$best" ] || break
+      picked+=("$best")
+      for m in ${closure[$best]}; do
+        [ -n "${covered[$m]:-}" ] || { covered[$m]=1; left=$((left-1)); }
+      done
+    done
+  
+    # prune redundant picks (largest first)
+    local -A cnt=()
+    for c in "${picked[@]}"; do
+      for m in ${closure[$c]}; do cnt[$m]=$(( ${cnt[$m]:-0} + 1 )); done
+    done
+    local final=() redundant
+    for c in $(for c in "${picked[@]}"; do echo "${size[$c]} $c"; done | sort -rn | cut -f2 -d' '); do
+      redundant=1
+      for m in ${closure[$c]}; do [ ${cnt[$m]} -gt 1 ] || { redundant=0; break; }; done
+      if [ $redundant -eq 1 ]; then
+        for m in ${closure[$c]}; do cnt[$m]=$(( cnt[$m] - 1 )); done
+      else
+        final+=("$c")
+      fi
+    done
+  
+    # report
+    local -A shown=()
+    {
+      for c in "${final[@]}"; do
+        local adds=()
+        for m in ${closure[$c]}; do
+          [ -n "${shown[$m]:-}" ] || { shown[$m]=1; adds+=("$m"); }
+        done
+        printf "|%s|+%d|[%s]\n" "$c" ${#adds[@]} "${adds[*]}"
+      done
+    } | ensure_columns
+
   else
+
     local all_cmds=(${_act_cache_cmds[*]})
     local profile_lines=() module_lines=()
 
@@ -241,10 +341,14 @@ subcommand_list () {
 }
 
 subcommand_setup () {
-  ensure_parse_option --help "$@" && return
+  if ensure_parse_option --help "$@"; then
+    echo "setup options:"
+    echo "  none"
+    echo
+    return 0
+  fi
 
   local installer_misc_functions=(@@INSTALLER_MISC_FUNCTIONS@@)
-  local installer_completion_text="@@INSTALLER_COMPLETION_TEXT@@"
   local installer_skill_text="@@INSTALLER_SKILL_TEXT@@"
 
   # reconstruct installer
@@ -263,10 +367,123 @@ EOF
   chmod a+rx "$installer_bin"
   echo "Installer reconstructed at ${installer_bin/#"$HOME"/"~"}"
 
-  # reconstruct bash completion
+  # bash completion: static logic; data parsed from "<bin> list --auto-completion"
   local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
+  local cname=${installer_name//-/_}
   mkdir -p "$(dirname "$completion_script")"
-  base64 -d > "$completion_script" <<< "$installer_completion_text" || {
+  sed -e "s/_openedge_cli_/_${cname}_/g" -e "s/@@NAME@@/$installer_name/g" > "$completion_script" <<'EOS' || {
+#!/bin/bash
+# logic is static; data is read (never evaluated) from "<bin> list --auto-completion[=cmd]"
+_openedge_cli_completion () {
+  local cur=$2 prev=${COMP_WORDS[COMP_CWORD-1]} bin cmd flags="" state="" kind rest i w s sec="" dev_used=0
+  local -a f picked=() sugg=() tmp=() out=() names=() active=()
+  local -A mods=() opts=() used=() valopt=() seen=()
+  COMPREPLY=()
+
+  bin=$(type -P "${COMP_WORDS[0]}") || return 0
+  cmd=${COMP_WORDS[1]}
+
+  # first word, or list: only cmds/names are needed
+  if (( COMP_CWORD == 1 )) || [ "$cmd" = list ]; then
+    local cmds="" all_names=""
+    while read -r kind rest; do
+      [[ $kind =~ ^[a-z]+$ && $rest =~ ^[A-Za-z0-9_@:=.,\ -]*$ ]] || continue
+      case "$kind" in
+      cmds)  cmds=$rest ;;
+      names) all_names=$rest ;;
+      esac
+    done < <("$bin" list --auto-completion 2>/dev/null)
+
+    if (( COMP_CWORD == 1 )); then
+      COMPREPLY=($(compgen -W "$cmds list setup resume --help" -- "$cur"))
+      return
+    fi
+    [ "$prev" = --cli-version ] && return
+    for ((i=2;i<COMP_CWORD;i++)); do used[${COMP_WORDS[i]}]=1; done
+    for s in --sbom --test-coverage --cli-version $all_names; do
+      [[ -v used[$s] ]] || out+=("$s")
+    done
+    COMPREPLY=($(compgen -W "${out[*]}" -- "$cur"))
+    return
+  fi
+
+  # per-command data in one call
+  [[ $cmd =~ ^[a-z_]+$ ]] || return 0
+  while read -r kind rest; do
+    [[ $kind =~ ^[a-z]+$ && $rest =~ ^[A-Za-z0-9_@:=.,\ -]*$ ]] || continue
+    read -r -a f <<< "$rest"
+    case "$kind" in
+    flags)  flags=$rest ;;
+    state)  state=${f[0]:-} ;;
+    active) active=("${f[@]}") ;;
+    mod)    [ ${#f[@]} -ge 1 ] && { mods[${f[0]}]=1; opts[${f[0]}]="${f[*]:1}"; } ;;
+    esac
+  done < <("$bin" list --auto-completion="$cmd" 2>/dev/null)
+  [ ${#mods[@]} -gt 0 ] || [ -n "$flags" ] || return 0
+
+  # options that take a value (--key <value> or --key=<value>)
+  for s in ${opts[*]}; do [[ $s == @value:* ]] && valopt[${s#@value:}]=1; done
+
+  # cursor on the value: let the user type it
+  [[ -n $prev && -v valopt[$prev] ]] && return
+  [[ $cur == "=" || $prev == "=" ]] && return
+
+  # walk words already typed
+  for ((i=2;i<COMP_CWORD;i++)); do
+    w=${COMP_WORDS[i]}
+    [[ -z $w || $w == "=" ]] && continue
+    if [[ ${COMP_WORDS[i+1]:-} == "=" ]]; then used[$w]=1; i=$((i+2)); continue; fi
+    [[ -v valopt[${COMP_WORDS[i-1]}] ]] && continue
+    used[$w]=1
+    if [[ $w == --?* && -v mods[${w#--}] ]]; then
+      sec=${w#--}
+    elif [[ -z $sec && -v mods[$w] ]]; then
+      picked+=("$w")
+    fi
+  done
+
+  # component names: all (install) or installed/started (start/stop/remove)
+  if [[ $state == installed || $state == started ]]; then
+    for s in "${active[@]}"; do [[ -v mods[$s] ]] && names+=("$s"); done
+  else
+    names=(${!mods[*]})
+  fi
+
+  # candidates
+  if [ -n "$sec" ]; then
+    sugg=(${opts[$sec]:-} "${picked[@]/#/--}")
+  else
+    sugg=($flags "${names[@]}" "${picked[@]/#/--}")
+    for w in "${picked[@]}"; do
+      for s in ${opts[$w]:-}; do
+        [[ -v valopt[$s] ]] || sugg+=("$s")
+      done
+    done
+  fi
+
+  # expand placeholders; offer only devices present on this host
+  for s in "${sugg[@]}"; do
+    case "$s" in
+    @value:*)    ;;
+    @device:gpu) [ -e /dev/dri/renderD128 ] && tmp+=(--gpu) ;;
+    @device:npu) [ -e /dev/accel/accel0 ]   && tmp+=(--npu) ;;
+    @device:cpu) tmp+=(--cpu) ;;
+    *)           tmp+=("$s") ;;
+    esac
+  done
+
+  # filter: already used, mutually exclusive devices, duplicates
+  [[ -v used[--cpu] || -v used[--gpu] || -v used[--npu] ]] && dev_used=1
+  for s in "${tmp[@]}"; do
+    [[ -v used[$s] || -v seen[$s] ]] && continue
+    [[ $dev_used -eq 1 && $s =~ ^--(cpu|gpu|npu)$ ]] && continue
+    seen[$s]=1
+    out+=("$s")
+  done
+  COMPREPLY=($(compgen -W "${out[*]}" -- "$cur"))
+}
+complete -F _openedge_cli_completion @@NAME@@
+EOS
     echo "Failed to write to $completion_script" >&2
     return 1
   }
@@ -283,6 +500,13 @@ EOF
 }
 
 subcommand_resume () {
+  if ensure_parse_option --help "$@"; then
+     echo "resume options:"
+     echo "  none"
+     echo
+     return 0
+  fi
+
   local args=($(ensure_prop get command))
   [[ ${#args[*]} -gt 0 ]] || {
     echo "Nothing to resume" >&2

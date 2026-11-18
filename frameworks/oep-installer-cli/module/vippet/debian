@@ -1,7 +1,7 @@
 
 configure_vippet () {
   workspace="$(ensure_project_path)/vippet"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository=https://github.com/open-edge-platform/edge-ai-libraries.git
   used_ports=(80 7860 8000 9090 8554 8889)
 }
@@ -22,8 +22,7 @@ debian_90_install_vippet () {
     ensure_ports_open install vippet "${used_ports[@]}"
     ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool
     cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
-    make build-onvif-discovery
-    docker compose -f compose.yml pull --ignore-buildable
+    make env-setup
   fi
   echo "@@HIGHLIGHT $installer_name start"
   echo "@@HIGHLIGHT $installer_name remove"
@@ -32,16 +31,20 @@ debian_90_install_vippet () {
 debian_90_start_vippet () {
   configure_vippet "$@"
   ensure_ports_open start vippet "${used_ports[@]}"
+  ensure_container_namespace start vippet $(ensure_container_parse_yaml "$workspace"/tools/visual-pipeline-and-platform-evaluation-tool/compose*.yml)
 
   cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
-  make run
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  make run-prebuilt
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_90_stop_vippet () {
   configure_vippet "$@"
-  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" && make stop || true
+  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" && {
+    make stop || true
+    ensure_container_cleanup $(ensure_container_parse_yaml compose*.yml)
+  } || true
 }
 
 debian_90_remove_vippet () {

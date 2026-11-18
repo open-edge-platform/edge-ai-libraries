@@ -1,0 +1,106 @@
+
+configure_edge_workloads_and_benchmarks () {
+  workspace="$(ensure_project_path)/edge-workloads-and-benchmarks"
+  version="$(ensure_parse_value_option version --version=9e0c35854b66746281e15671b12bc39f1842b189 "$@")"
+  repository=https://github.com/open-edge-platform/edge-workloads-and-benchmarks.git
+  used_ports=(8080)
+}
+
+verify_edge_workloads_and_benchmarks () {
+  [ -e "$workspace"/workloads/media-benchmarks/media/avc/apple_1080.h264 ]
+}
+
+debian_90_profile_edge_workloads_and_benchmarks () {
+  echo "docker_io make curl git edge_base jq lsb_release build_essential cmake wget python3_dev python3_venv ffmpeg cpuid bc gnupg apt_transport_https software_properties_common procps"
+}
+
+debian_90_install_edge_workloads_and_benchmarks () {
+  configure_edge_workloads_and_benchmarks "$@"
+  if verify_edge_workloads_and_benchmarks && ! ensure_parse_reinstall "$@"; then
+    echo "Edge-workloads-and-benchmarks is installed." >&2
+  else
+    ensure_ports_open install edge_workloads_and_benchmarks "${used_ports[@]}"
+    ensure_disk_size 16000  # 16 GB
+    ensure_ram_size 14680064  # 14 GiB
+
+    echo "@@STEP Cloning repository"
+    ensure_git_clone "$workspace" $version $repository
+
+    cd "$workspace"
+    make check
+
+    echo "@@STEP Downloading collateral"
+    cd "$workspace/workloads/media-benchmarks"
+    make collateral
+  fi
+
+  echo "@@HIGHLIGHT $installer_name start [--vision]"
+  echo "@@HIGHLIGHT $installer_name start [--media]"
+  echo "@@HIGHLIGHT $installer_name start [--ai]"
+  echo "@@HIGHLIGHT $installer_name start [--genai]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_edge_workloads_and_benchmarks () {
+  configure_edge_workloads_and_benchmarks "$@"
+  ensure_ports_open start edge_workloads_and_benchmarks "${used_ports[@]}"
+
+  cd "$workspace"
+
+  echo "@@STEP Downloading collateral"
+  local mode=media-benchmarks
+  if ensure_parse_option --vision "$@"; then
+    mode="vision-benchmarks"
+  elif ensure_parse_option --media "$@"; then
+    mode="media-benchmarks"
+  elif ensure_parse_option --ai "$@"; then
+    mode="edge-ai-pipelines"
+  elif ensure_parse_option --genai "$@"; then
+    mode="genai-benchmarks"
+    ensure_disk_size 128000 # 128 GB
+  fi
+  echo "@@STEP Downloading for $mode"
+  cd "$workspace/workloads/$mode"
+  make collateral
+
+  echo "@@STEP Starting $mode"
+  ensure_sudo make benchmarks
+
+  echo "@@STEP Creating report"
+  cd "$workspace"
+  ensure_sudo make report
+
+  echo "@@STEP Serving report"
+  local host_ip="$(ensure_ip)"
+  (
+    for fd in /proc/$BASHPID/fd/*; do
+      fd=${fd##*/}; (( fd > 2 )) && eval "exec $fd>&-"
+    done 2>/dev/null
+    cd tools/html
+    python3 -u -m http.server ${used_ports[0]} --bind $host_ip > serve.log 2>&1
+  ) < /dev/null > /dev/null 2>&1 &
+  disown
+  
+  echo "@@HIGHLIGHT URL: http://$host_ip:${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start [--vision]"
+  echo "@@HIGHLIGHT $installer_name start [--media]"
+  echo "@@HIGHLIGHT $installer_name start [--ai]"
+  echo "@@HIGHLIGHT $installer_name start [--genai]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_edge_workloads_and_benchmarks () {
+  configure_edge_workloads_and_benchmarks "$@"
+  cd "$workspace" && {
+    ensure_sudo pkill -f "http.server ${used_ports[0]}" || true
+  } || true
+}
+
+debian_90_remove_edge_workloads_and_benchmarks () {
+  debian_90_stop_edge_workloads_and_benchmarks "$@"
+  cd "$workspace" && {
+    ensure_sudo make clean-results || true
+    ensure_sudo make clean-all 
+  } || true
+  ensure_rm "$workspace"
+}

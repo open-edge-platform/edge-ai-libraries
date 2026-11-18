@@ -8,7 +8,7 @@ ensure_sudo () {
 
   # background process to persist sudo cache
   if [ -e /dev/tty ]; then
-    if : < /dev/tty 2>/dev/null; then
+    if { : < /dev/tty; } 2>/dev/null; then
       local ppid=$$
       local pid="$(ensure_prop get pids/sudo/pid$ppid)"
       if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
@@ -24,8 +24,7 @@ ensure_sudo () {
         ensure_prop remove pids/sudo/pid$ppid
       ) < /dev/null > /dev/null 2>&1 &
         pid=$!
-        ensure_prop create pids/sudo/pid$ppid
-        ensure_prop set pids/sudo/pid$ppid "$pid"
+        ensure_prop set pids/sudo/pid$ppid "$pid" --create
         disown $pid
       fi
     fi

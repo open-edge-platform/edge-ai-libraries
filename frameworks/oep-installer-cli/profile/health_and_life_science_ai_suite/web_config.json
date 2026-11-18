@@ -14,8 +14,8 @@
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-health-and-life-sciences.html"
   },
   "resources": [
-    { "text": "Multi-Modal Patient Monitoring", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/multi-modal-patient-monitoring/index.html" },
+    { "text": "Multi-Modal Patient Monitoring", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/multi-modal-patient-monitoring/index.html" },
     { "text": "NICU Warmer", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/nicu-warmer/index.html" },
-    { "text": "Surgical Instrument", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/surgical-instrument/index.html" }
+    { "text": "Surgical Instrument", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/surgical-instrument/index.html" }
   ]
 }

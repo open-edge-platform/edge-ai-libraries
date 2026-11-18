@@ -1,8 +1,0 @@
-
-ensure_license_use_model () {
-  local name="$1"
-  echo "@@LICENSE-ID ${name//[^A-Za-z0-9._-]/}"
-  echo "@@LICENSE-TITLE Download $name"
-  echo "By accepting, you agree to download and use the $name model in sample evaluation."
-}
-

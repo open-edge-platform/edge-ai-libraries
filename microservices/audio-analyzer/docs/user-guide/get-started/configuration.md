@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Configuration
 
 ## Load Order
@@ -56,19 +59,24 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 
 ## ASR Provider Notes
 
-- `openai`: uses `openai-whisper` and downloads PyTorch Whisper weights on first use.
+- `openai`: uses `openai-whisper` to download official PyTorch Whisper weights directly
+  into Audio Analyzer's model directory on first use; it does not use Model Download.
 - `openvino`: exports the configured Whisper model to OpenVINO IR under `models/openvino/...` and supports `CPU`, `GPU`, and `NPU` (when available and correctly configured).
 - `whispercpp`: downloads the matching whisper.cpp `ggml` model under `models/whispercpp/...` and runs on `CPU` only.
-- `funasr`: optional Chinese/English provider using Paraformer models
-  (`whisper-base`/`whisper-tiny`/etc. are not applicable; use
-  `models.asr.name: paraformer-zh | paraformer-en | paraformer-online`
-  instead). Runs on `CPU` only. Requires the optional dependencies in
-  `requirements-cjk.txt`, which are **not** installed in the default image —
-  build with `--build-arg INSTALL_CJK=true` (see
-  [Build From Source](./build-from-source.md#optional-chinese-english-funasr-provider)).
-  `models.asr.model_hub` (`modelscope` | `huggingface`) selects the download
-  source, and `models.asr.vad_model` / `models.asr.punc_model` configure the
-  companion voice-activity-detection and punctuation-restoration models.
+
+- `funasr`: loads Paraformer, VAD, and punctuation snapshots from ModelScope;
+  requires the optional `INSTALL_CJK=true` image build.
+
+Audio Analyzer provisions the snapshots this configuration selects on startup:
+it reuses valid snapshots on the models volume, requests missing ones from a
+shared Model Download REST service when `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` is
+set and reachable (optionally tuned with `AUDIO_ANALYZER_MODEL_DOWNLOAD_TIMEOUT_SEC`),
+and otherwise downloads them directly from Hugging Face / ModelScope.
+`AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD=false` forbids in-container downloads. See
+[Where model snapshots come from](../get-started.md#where-model-snapshots-come-from).
+OpenVINO conversion still runs in Audio Analyzer, using the local source snapshot;
+native OpenAI Whisper and optional sentiment keep their direct-download behavior.
+
 
 ### ASR Provider/Device Matrix
 

@@ -165,7 +165,12 @@ class GStreamerRtspDestination(AppDestination):
         if target is not None:
             target.end_of_stream()
 
-    def finish(self):
+    def release(self):
+        """End the stream and free its RTSP path, so a pipeline restarted on the same path can register it while this
+        pipeline is still shutting down (stopping the GStreamer pipeline can take seconds)."""
         self._end_stream()
         if self._rtsp_server:
-            self._rtsp_server.remove_stream(self._rtsp_path)
+            self._rtsp_server.remove_stream(self._rtsp_path, self)
+
+    def finish(self):
+        self.release()

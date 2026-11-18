@@ -2,8 +2,8 @@
 
 The ViPPET backend (the `vippet-app` service) is a Python application that exposes the REST API used by the
 UI, manages pipelines and models, and runs GStreamer / DL Streamer workloads on the underlying hardware. It is
-designed to keep request handling fast and non-blocking, while the actual media processing happens in isolated
-subprocesses.
+designed to keep request handling fast and non-blocking, while the actual media processing happens in a
+separate DL Streamer Pipeline Server 2.0 container.
 
 ## Core Stack
 
@@ -28,18 +28,31 @@ OpenVINO™. Available hardware (CPU / GPU / NPU) is probed at startup through t
 pipeline variants. The CPU entry also carries the core type (P, E, LPE) of every online logical CPU, read
 from Linux sysfs by `vippet/cpu_topology.py`.
 
-### Subprocess Pipeline Runner
+### Pipeline Execution on DL Streamer Pipeline Server 2.0
 
-The backend does not embed a GStreamer main loop in the API process. Instead, every pipeline run is launched
-as a separate subprocess through `pipeline_runner.py`, which spawns `gst_runner.py`. This keeps the API
-responsive, isolates native crashes, and allows multiple pipelines to run concurrently with independent logs
-and lifecycles.
+The backend does not run pipelines in its own process. Every pipeline run (validation, performance and density
+tests, benchmarks, and the conversion of videos to `.ts`) is sent over REST to DL Streamer Pipeline Server 2.0
+(the `dlstreamer-pipeline-server` service) by `Dlsps2PipelineRunner` in `vippet/dlsps2_runner.py`. Each stream
+runs as its own server instance; the runner polls the per-stream FPS and judges a run by its slowest stream.
+Before a performance or density run, the runner validates stream 0 of each pipeline once, with its file, stream
+and metadata outputs swapped for `fakesink` so the check leaves nothing behind, and then starts every stream
+without the server's own pre-check. When the backend starts and when it stops, it stops every instance still
+active on the server and deletes the live-event folders, since it is the server's only client.
+Latency and VLM metrics come from the server's OpenTelemetry export to `metrics-manager`. Live pipeline events
+(proximity triggers, VLM answers) are written by the pipelines as JSON Lines files into the shared metadata
+folder and read back by `vippet/pipeline_events.py`. `vippet/pipeline_runner.py` holds the result types shared
+by both modules.
+
+The device list (`vippet/device.py`) is read from the server's `GET /devices`, so it shows the devices pipelines
+actually run on. The DL Streamer pipeline optimizer still runs in the backend process.
 
 ### Docker Compose with Hardware Profiles
 
-The backend ships as a container and is composed with sibling services (`vippet-ui`, `mediamtx`,
-`model-download`, `metrics-manager`) via Docker Compose. Hardware capabilities are selected through
-`COMPOSE_PROFILES` (`cpu`, `gpu`, `npu`), which is auto-detected by `setup_env.sh`.
+The backend ships as a container and is composed with sibling services (`vippet-ui`,
+`dlstreamer-pipeline-server`, `mediamtx`, `model-download`, `metrics-manager`, `sensor-manager`,
+`audio-analyzer`, and `text-to-speech`) via Docker Compose. Hardware capabilities are selected through
+`COMPOSE_PROFILES` (`cpu`, `gpu`, `npu`, `gpu-wsl`), which is auto-detected by `setup_env.sh`.
+The WSL profile exposes `/dev/dxg` and read-only `/usr/lib/wsl` libraries instead of native DRM devices.
 
 ### Developer Tooling
 
@@ -56,8 +69,9 @@ The Python package under `vippet/` is organized in clear layers:
 - `vippet/api/` - FastAPI app, routers, request / response schemas, and middleware.
 - `vippet/managers/` - business logic and in-memory state (singletons, thread-safe where needed).
 - `vippet/pipelines/` - built-in pipeline definitions (YAML) and the loader that turns them into runtime objects.
-- `vippet/graph.py`, `vippet/pipeline_runner.py`, `vippet/gst_runner.py` - pipeline graph model,
-  subprocess orchestration, and the low-level GStreamer runner that is executed as a child process.
+- `vippet/graph.py`, `vippet/dlsps2_runner.py`, `vippet/pipeline_events.py`, `vippet/pipeline_runner.py` -
+  pipeline graph model, pipeline execution on DL Streamer Pipeline Server 2.0, live pipeline events, and the
+  run result types.
 - `vippet/device.py`, `vippet/cpu_topology.py`, `vippet/video_encoder.py`, `vippet/video_decoder.py`,
   `vippet/camera.py`, `vippet/images.py`, `vippet/videos.py` - hardware and media helpers used by managers and
   runners.
@@ -81,7 +95,7 @@ A typical request flows through these stages:
 1. The route handler delegates to a manager. Managers hold state and own all business rules.
 1. For long-running or media-bound work (optimization, validation, density / performance tests), the manager
 submits a job and returns a `job_id`. The actual execution happens in a worker thread that drives one or more
-subprocess-based runs of `gst_runner.py`.
+runs on DL Streamer Pipeline Server 2.0 through `Dlsps2PipelineRunner`.
 1. The UI polls the corresponding `/jobs/...` endpoint or subscribes to the SSE metrics stream for progress.
 
 ### Pipelines and Variants
@@ -209,6 +223,12 @@ paged snapshots and as live Server-Sent Events streams. Key methods: `register_j
 
 The backend does not run alone. It cooperates with a small set of sibling containers managed by Docker Compose:
 
+- **`dlstreamer-pipeline-server`** (DL Streamer Pipeline Server 2.0, built locally from
+  `microservices/dlstreamer-pipeline-server/dlsps2` unless `DLSPS2_IMAGE` names a published image) - runs
+  every pipeline the backend builds, reached at `DLSPS2_BASE_URL` (default
+  `http://dlstreamer-pipeline-server:8080`). It gets the same devices as the backend and loads the custom
+  elements of `vippet/gst_plugins/`, which the one-shot **`vippet-plugins`** service copies from the backend
+  image into the `vippet-gst-plugins` Docker volume.
 - **`vippet-ui`** - serves the React app and proxies `/api/v1/*`, `/metrics/*`, and `/docs` to the backend on port 7860.
 - **`mediamtx`** - RTSP server used for live preview streams. The backend publishes live encoded output
   to `rtsp://mediamtx:8554/<stream-name>` (configurable through `LIVE_STREAM_SERVER_HOST` /
@@ -225,7 +245,7 @@ The backend does not run alone. It cooperates with a small set of sibling contai
 ## Summary
 
 The ViPPET backend keeps a clear separation between a thin async FastAPI surface and a manager-centric
-business-logic layer, while pushing all heavy media work into isolated GStreamer subprocesses. Pipelines,
+business-logic layer, while pushing all heavy media work to DL Streamer Pipeline Server 2.0. Pipelines,
 models, cameras, jobs, and metrics each have a dedicated manager with a well-defined API, and the OpenAPI
 schema (browsable at `/docs`) is the contract that ties everything to the typed UI client. For day-to-day work
 on the backend, start with the [Backend contributing guide](../contributing/backend.md); to add a new

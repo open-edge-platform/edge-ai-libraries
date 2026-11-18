@@ -1,0 +1,153 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Layout Patterns — unified-ui-ux-builder reference</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2.5rem; border-bottom: 1px solid #ddd; padding-bottom: .3rem; }
+  .source, .rules-title { font-size: .85rem; color: #555; }
+  code { background: #f2f2f2; padding: 1px 4px; border-radius: 3px; }
+  ul { margin: .4rem 0; }
+  table { border-collapse: collapse; width: 100%; margin-top: .5rem; font-size: .9rem; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f5f5f5; }
+
+  /* ---- visual skeletons: real structure, not ASCII art ---- */
+  .diagram { border: 1px dashed #999; margin: .6rem 0; font-size: .8rem; }
+  .diagram * { box-sizing: border-box; }
+  .box { border: 1px solid #999; background: #fafafa; padding: 6px; }
+  .box small { display: block; color: #777; font-weight: normal; }
+
+  .app-shell { display: grid; grid-template-columns: 140px 1fr; grid-template-rows: 50px 1fr; height: 220px; }
+  .app-shell .sidebar { grid-row: 1 / 3; background: #eef2f7; }
+  .app-shell .header { background: #f5f5f5; }
+  .app-shell .content { background: #fff; }
+
+  .dashboard-grid { display: grid; grid-template-columns: 1fr 220px; height: 200px; }
+  .dashboard-grid .main { background: #fff; }
+  .dashboard-grid .side { background: #eef2f7; border-left: 1px solid #999; }
+
+  .dashboard-live { display: grid; grid-template-rows: 40px 1fr 30px; height: 230px; }
+  .dashboard-live .top { background: #f5f5f5; }
+  .dashboard-live .body { display: grid; grid-template-columns: 1fr 1fr; }
+  .dashboard-live .left { background: #fff; border-right: 1px solid #999; }
+  .dashboard-live .right { background: #eef2f7; }
+  .dashboard-live .footer { background: #f5f5f5; }
+
+  .split-panel { display: grid; grid-template-rows: 48px 1fr; height: 220px; }
+  .split-panel .top { background: #f5f5f5; }
+  .split-panel .body { display: grid; grid-template-columns: minmax(120px, 27%) 1fr; }
+  .split-panel .config { background: #fff; border-right: 1px solid #999; }
+  .split-panel .live { background: #eef2f7; }
+</style>
+</head>
+<body>
+
+<h1>Layout Patterns</h1>
+<ul>
+  <li>Page shells drawn <strong>only</strong> from the three reference apps (see <code>SKILL.md</code> &rarr; "Survey of the repo").</li>
+  <li>Pick the closest match below. Don't design a new page structure from scratch.</li>
+  <li><strong>Ask, don't assume:</strong> the mapping table at the bottom covers common resource shapes, but a real backend may expose more than one shape (e.g. a collection <em>and</em> a live stream). If the primary landing view isn't obvious, ask the user — redoing this later is expensive.</li>
+</ul>
+
+<h2>1. App Shell — sidebar + header + routed content (Stack A)</h2>
+<p class="source">Source: <code>visual-pipeline-and-platform-evaluation-tool/ui/src/components/Layout.tsx</code> + <code>Navigation.tsx</code></p>
+<div class="diagram app-shell">
+  <div class="box sidebar">Sidebar<small>icon nav, collapsible to icon-only</small></div>
+  <div class="box header">Header<small>sidebar-trigger | separator | page title | theme toggle (fixed 60px)</small></div>
+  <div class="box content">Main content<small>React Router &lt;Outlet/&gt;, scrollable, flex h-full overflow-auto</small></div>
+</div>
+<ul>
+  <li>Toaster (top-center) + a persistent "background jobs" widget overlay the whole shell.</li>
+  <li>Active nav item gets a <code>border-r-3</code> brand-colored accent.</li>
+  <li>Main content area: each route owns its own internal scrolling.</li>
+  <li>Use for any stack-A app with more than one page/section. Don't add a sidebar to a single-page app.</li>
+</ul>
+
+<h2>2. Dashboard Grid — content + side info panel (Stack A "Home" page)</h2>
+<p class="source">Source: <code>visual-pipeline-and-platform-evaluation-tool/ui/src/pages/Home.tsx</code></p>
+<div class="diagram dashboard-grid">
+  <div class="box main">Main region<small>flex-1 overflow-auto, p-4, space-y-8 — summary cards, list/table sections</small></div>
+  <div class="box side">Side panel<small>w-86, border-l, bg-sidebar — secondary/glanceable info (quick stats, recent items)</small></div>
+</div>
+<ul>
+  <li>Side panel: fixed width, sidebar-tinted background. Secondary content only, never primary.</li>
+  <li>Default shape for a stack-A "overview/operations" landing page.</li>
+</ul>
+
+<h2>3. Dashboard with left panel + live right panel (Stack B)</h2>
+<p class="source">Source: <code>education-ai-suite/smart-classroom/ui/src/components/common/Body.tsx</code></p>
+<div class="diagram dashboard-live">
+  <div class="box top">Top panel<small>screen switcher + conditional HeaderBar</small></div>
+  <div class="body">
+    <div class="box left">Left panel<small>content/controls</small></div>
+    <div class="box right">Right panel<small>analytics/results, collapsible via center arrow divider</small></div>
+  </div>
+  <div class="box footer">Footer</div>
+</div>
+<ul>
+  <li>No URL routing — local <code>activeScreen</code> state union (<code>'main' | 'content-search' | 'grading' | ...</code>); tool/full-screen states replace the body, not a route.</li>
+  <li>Right panel collapses via a draggable divider (<code>usePanelDividerX</code> hook) to <code>flex: 0</code>.</li>
+  <li>Responsive: <code>@media (max-width: 900px)</code> stacks to a single column.</li>
+  <li>Reports/history are slide-over panels over the whole workspace, not separate pages. Z-index: header <code>50</code>, toast <code>1100</code>, video <code>1000</code>, modal <code>9999</code>.</li>
+  <li>Use for a "process something, then show results alongside it" app (e.g. upload &rarr; transcript/summary/mindmap tabs).</li>
+</ul>
+
+<h2>4. Split Panel — config/control card + live preview (Stack C)</h2>
+<p class="source">Source: <code>live-video-captioning/app/ui/index.html</code> + <code>styles.css</code> (<code>.panels</code> grid)</p>
+<div class="diagram split-panel">
+  <div class="box top">Topbar<small>title | device/capability cards | chat toggle | theme toggle</small></div>
+  <div class="body">
+    <div class="box config">Config card<small>left: form controls + nested system-stats-card</small></div>
+    <div class="box live">Live layout<small>right: run cards, video/caption panels, empty-state hint</small></div>
+  </div>
+</div>
+<ul>
+  <li>CSS grid: <code>grid-template-columns: minmax(300px, 27%) minmax(0, 1fr);</code> — left is a fixed ~27%/min-300px config panel, right takes the rest and is the primary visual focus.</li>
+  <li>Right side renders one run card per active session/stream; shows <code>.empty-alert</code> when nothing is running.</li>
+  <li>Optional slide-over chat panel (RAG assistant), docked right, toggled from the header: <code>&lt;section class="chat-panel"&gt;</code> with a backdrop + dialog + iframe — not a modal library.</li>
+  <li>Use for any live feed/recording/session app (video, audio, sensor stream) with config controls alongside it.</li>
+</ul>
+
+<h2>Responsive rules (all three stacks)</h2>
+<ul>
+  <li><strong>Stack A:</strong> sidebar collapses to icon-only (never hidden); main content keeps independent scrolling at all widths.</li>
+  <li><strong>Stack B:</strong> two-panel workspace collapses to a single stacked column below <code>900px</code>.</li>
+  <li><strong>Stack C:</strong> left column has a <code>minmax(300px, 27%)</code> floor. No documented breakpoint below that — ask the user if it matters for their target devices before inventing one.</li>
+</ul>
+
+<h2>Choosing a layout for a new resource</h2>
+<table>
+  <tr><th>Backend resource shape</th><th>Stack A</th><th>Stack B</th><th>Stack C</th></tr>
+  <tr>
+    <td>Collection/list with CRUD (cameras, rules, documents)</td>
+    <td>App Shell page + Dashboard Grid</td>
+    <td>Left panel list/table inside the left-panel slot</td>
+    <td>Config card (left) listing/selecting items</td>
+  </tr>
+  <tr>
+    <td>Single long-lived session/stream (video, audio, sensor)</td>
+    <td>Dashboard Grid main region, or a dedicated route</td>
+    <td>Right-panel live view (video/transcript)</td>
+    <td>Split Panel (right side = live run)</td>
+  </tr>
+  <tr>
+    <td>Multi-page app with distinct sections</td>
+    <td>App Shell (sidebar nav)</td>
+    <td>Screen-state switch (<code>activeScreen</code>), no router</td>
+    <td>Not applicable — single-page. Recommend stack A if the app needs to grow multi-page.</td>
+  </tr>
+  <tr>
+    <td>Small single-purpose operational dashboard</td>
+    <td>Dashboard Grid</td>
+    <td>—</td>
+    <td>Split Panel</td>
+  </tr>
+</table>
+
+</body>
+</html>

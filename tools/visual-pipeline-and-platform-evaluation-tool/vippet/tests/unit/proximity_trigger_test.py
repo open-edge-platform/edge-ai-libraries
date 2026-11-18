@@ -4,8 +4,10 @@
 """Unit tests for the ``gvaproximitytrigger_py`` custom GStreamer element."""
 
 import importlib
+import json
 import os
 import sys
+import tempfile
 import unittest
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -213,6 +215,44 @@ class TestDoTransformIp(unittest.TestCase):
         with patch.object(self.trigger, "post_message") as post_message:
             self._run(has_rmeta=True, proximity=True)
         post_message.assert_not_called()
+
+    def test_writes_event_record_when_events_file_is_set(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "events.jsonl")
+            self.trigger.set_property("events-file", path)
+            self.trigger._last_distance = 12.3
+            with patch.object(self.trigger, "post_message") as post_message:
+                for _ in range(2):
+                    self.trigger._consecutive_count = self.trigger._frames - 1
+                    self._run(has_rmeta=True, proximity=True)
+            self.trigger.do_stop()
+
+            with open(path, encoding="utf-8") as f:
+                records = [json.loads(line) for line in f]
+        self.assertEqual(post_message.call_count, 2)
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[0]["source"], "proximity-trigger")
+        self.assertEqual(records[0]["element"], self.trigger.get_name())
+        self.assertIn("person near bicycle", records[0]["text"])
+        self.assertEqual(records[0]["pts-seconds"], 0.0)
+
+    def test_writes_no_file_without_events_file(self):
+        self.assertEqual(self.trigger.get_property("events-file"), "")
+        self.trigger._consecutive_count = self.trigger._frames - 1
+        with (
+            patch.object(self.trigger, "post_message"),
+            patch("builtins.open") as mock_open,
+        ):
+            self._run(has_rmeta=True, proximity=True)
+        mock_open.assert_not_called()
+
+    def test_unwritable_events_file_still_posts_the_message(self):
+        self.trigger.set_property("events-file", "/nonexistent-dir/events.jsonl")
+        self.trigger._consecutive_count = self.trigger._frames - 1
+        with patch.object(self.trigger, "post_message") as post_message:
+            result = self._run(has_rmeta=True, proximity=True)
+        self.assertEqual(result, Gst.FlowReturn.OK)
+        post_message.assert_called_once()
 
 
 if __name__ == "__main__":

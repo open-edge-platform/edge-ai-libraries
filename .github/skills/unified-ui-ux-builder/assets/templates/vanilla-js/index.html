@@ -1,0 +1,51 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!--
+  No build step for stack C: plain <script> tags in dependency order
+  (utils -> services -> components -> app). See
+  references/stack-and-scaffolding.md "Stack C" for how to serve this
+  directory (e.g. FastAPI StaticFiles mount).
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>App Name</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <h2>
+      <span id="appTitle">App Name</span>
+    </h2>
+    <div class="header-actions">
+      <button id="themeToggle" class="icon-button tooltip-btn" type="button" aria-label="Switch to light mode"
+        data-tooltip="Toggle theme">
+        &#9788;
+      </button>
+      <span id="connectionStatus" class="status-dot status-dot--disconnected" role="status">disconnected</span>
+    </div>
+  </header>
+
+  <main class="content">
+    <section class="card">
+      <h3>Panel A</h3>
+      <p>Replace with the app's primary control/config panel.</p>
+    </section>
+    <section class="card">
+      <h3>Panel B</h3>
+      <p>Replace with the app's results/output panel.</p>
+    </section>
+  </main>
+
+  <script src="/js/utils/theme.js"></script>
+  <script src="/js/services/api.js"></script>
+  <script src="/js/services/stream.js"></script>
+  <script src="/js/components/status-dot.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+
+</html>

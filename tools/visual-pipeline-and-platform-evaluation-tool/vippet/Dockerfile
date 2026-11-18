@@ -17,7 +17,26 @@
 # syntax=docker/dockerfile:1.7
 
 # Use DLStreamer as the base image
-ARG DLSTREAMER_IMAGE=intel/dlstreamer:latest
+ARG DLSTREAMER_IMAGE=intel/dlstreamer:2026.3.0-ubuntu24-rc1
+
+# Aravis GStreamer plugin (aravissrc, GigE Vision cameras) for DL Streamer Pipeline Server 2.0,
+# whose image does not include it. The plugin and libaravis go to gst_plugins/aravis/, which the
+# vippet-plugins service copies to the volume the server loads plugins from. The plugin's RUNPATH
+# is set to $ORIGIN, so it finds libaravis next to it without changes to the server's
+# LD_LIBRARY_PATH. Built in a separate stage so that patchelf does not end up in the image.
+FROM ${DLSTREAMER_IMAGE} AS aravis
+USER root
+ENV DEBIAN_FRONTEND=noninteractive
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install --yes --no-install-recommends libaravis-0.8-0 patchelf && \
+    mkdir -p /out/aravis && \
+    cp -L /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstaravis.0.8.so \
+        /usr/lib/x86_64-linux-gnu/libaravis-0.8.so.0 /out/aravis/ && \
+    patchelf --set-rpath '$ORIGIN' /out/aravis/libgstaravis.0.8.so
+
 FROM ${DLSTREAMER_IMAGE} AS prod
 
 # Switch to root user to install dependencies
@@ -40,6 +59,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # directory also holds core plugins that would shadow the DLStreamer ones.
 RUN mkdir -p /usr/local/lib/vippet-gst-plugins && \
     ln -s /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstaravis.0.8.so /usr/local/lib/vippet-gst-plugins/
+
+# Where the one-shot vippet-plugins service mounts the vippet-gst-plugins volume (see
+# compose.yml). A new named volume takes the owner of the folder it is mounted on, so
+# dlstreamer can copy the custom elements into it.
+RUN install -d -o dlstreamer -g dlstreamer /plugins
 
 # Remove kernel headers inherited from base image (not needed at runtime,
 # source of CVE-2026-* critical vulnerabilities reported by Trivy).
@@ -86,6 +110,7 @@ COPY --chown=dlstreamer:dlstreamer vippet/models/ /home/dlstreamer/vippet/models
 COPY --chown=dlstreamer:dlstreamer vippet/api/ /home/dlstreamer/vippet/api
 COPY --chown=dlstreamer:dlstreamer vippet/managers/ /home/dlstreamer/vippet/managers
 COPY --chown=dlstreamer:dlstreamer vippet/gst_plugins/ /home/dlstreamer/vippet/gst_plugins
+COPY --chown=dlstreamer:dlstreamer --from=aravis /out/aravis/ /home/dlstreamer/vippet/gst_plugins/aravis
 
 # Build-time release identifiers. Injected via --build-arg (see compose.yml,
 # which sources VIPPET_VERSION from DOCKER_TAG and VIPPET_REVISION from the
