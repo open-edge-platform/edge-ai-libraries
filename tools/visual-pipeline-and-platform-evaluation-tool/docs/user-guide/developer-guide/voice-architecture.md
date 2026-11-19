@@ -3,7 +3,7 @@
 
 # Audio Pipeline Architecture: STT, TTS and Metrics
 
-These diagrams describe the implemented Audio integration as of 2026-10-14.
+These diagrams describe the implemented Audio integration as of 2026-11-19.
 They follow the [C4 model](https://c4model.com/diagrams) at System Context,
 Container and Component levels only. Flow diagrams describe runtime behavior;
 there is no Code-level diagram.
@@ -38,14 +38,18 @@ flowchart TB
   vippet["ViPPET<br/>[Software system]<br/>Audio catalog, jobs and metrics"]:::internal
   asr["Audio Analyzer<br/>[External software system]<br/>Transcribes recordings"]:::external
   tts["Text to Speech<br/>[External software system]<br/>Synthesizes speech"]:::external
-  models["Model Download<br/>[External software system]<br/>Downloads and exports Voice models"]:::external
+  models["Model Download<br/>[External software system]<br/>Downloads catalog checkpoints"]:::external
   telemetry["Metrics Manager<br/>[External software system]<br/>Collects platform telemetry"]:::external
+  hub["Hugging Face Hub<br/>[External software system]<br/>Hosts Whisper Base and SpeechT5"]:::external
   operator -->|Uses web UI| vippet
   automation -->|Uses public Audio HTTP API| vippet
   vippet -->|Recording to transcript| asr
   vippet -->|Text to audio| tts
-  vippet -->|Requests Voice model installation| models
+  vippet -->|Requests catalog model installation| models
   vippet -->|Subscribes to platform metrics| telemetry
+  asr -->|Downloads its own model on first start| hub
+  tts -->|Downloads its own model on first start| hub
+  models -->|Downloads PyTorch checkpoints| hub
   classDef person fill:#08427b,color:#fff,stroke:#052e56
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
   classDef external fill:#666,color:#fff,stroke:#444
@@ -53,7 +57,9 @@ flowchart TB
 
 The operator uses the ViPPET UI, while automation uses the same ViPPET Audio API
 without a browser. Direct upstream API access is possible through published
-service ports, but bypasses the ViPPET proxy and its controls.
+service ports, but bypasses the ViPPET proxy and its controls. Audio Analyzer
+and Text to Speech provision their own models; the Model Download path only
+fills the ViPPET catalog (see [Flow: Voice Model Provisioning](#flow-voice-model-provisioning)).
 
 ## C4 Level 2: Containers
 
@@ -71,33 +77,39 @@ flowchart TB
   end
   asr["Audio Analyzer<br/>[External software system]<br/>Whisper Base / OpenVINO"]:::external
   tts["Text to Speech<br/>[External software system]<br/>SpeechT5 / OpenVINO"]:::external
-  downloader["Model Download<br/>[External software system :8000]<br/>OpenVINO download and export jobs"]:::external
-  modelstore[("Shared Voice model storage<br/>[External data store]<br/>shared/models/output/voice")]:::external
+  asrmodels[("voice_asr_models<br/>[External data store: named volume]<br/>Audio Analyzer OpenVINO models")]:::external
+  ttsmodels[("voice_tts_models<br/>[External data store: named volume]<br/>Text to Speech OpenVINO models")]:::external
+  hub["Hugging Face Hub<br/>[External software system]<br/>Model source"]:::external
+  downloader["Model Download<br/>[External software system :8000]<br/>Catalog download jobs"]:::external
+  modelstore[("Shared model storage<br/>[External data store]<br/>shared/models/output")]:::external
   audiostore[("Managed Audio storage<br/>[External data store]<br/>shared/audio input and output")]:::external
   telemetry["Metrics Manager<br/>[External software system]<br/>SSE, Telegraf and hardware collectors"]:::external
   operator -->|Browser interaction| spa
   automation -->|"Catalog and managed jobs<br/>HTTP JSON / multipart"| web
   api -->|"POST /v1/audio/transcriptions<br/>HTTP multipart :8010; JSON response"| asr
   api -->|"POST /v1/audio/speech<br/>HTTP JSON :8011; WAV response"| tts
-  api -->|"Start and poll model jobs<br/>HTTP JSON :8000"| downloader
-  api -->|"Reads catalog and installed state"| modelstore
+  api -->|"Start and poll catalog model jobs<br/>HTTP JSON :8000"| downloader
+  api -->|"Checks catalog checkpoint exists<br/>(sets Installed)"| modelstore
   api -->|"Reads registered STT input; atomically writes and serves TTS WAV"| audiostore
-  downloader -->|"Writes exported OpenVINO artifacts"| modelstore
-  asr -->|"Loads Whisper artifacts read-only"| modelstore
-  tts -->|"Loads SpeechT5 artifacts read-only"| modelstore
+  downloader -->|"Downloads PyTorch checkpoints"| hub
+  downloader -->|"Writes PyTorch checkpoints<br/>(not read by Voice services)"| modelstore
+  asr -->|"Downloads Whisper Base on first start"| hub
+  asr -->|"Exports, stores and loads OpenVINO model"| asrmodels
+  tts -->|"Downloads SpeechT5 on first start"| hub
+  tts -->|"Exports, stores and loads OpenVINO model"| ttsmodels
   web -->|"GET /metrics/stream<br/>HTTP / SSE :9090"| telemetry
   classDef person fill:#08427b,color:#fff,stroke:#052e56
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
   classDef external fill:#666,color:#fff,stroke:#444
 ```
 
-Nginx streams Voice request bodies without imposing a separate upload-size
-limit and disables response caching. The backend preserves upload metadata and
-streams the spooled file to Audio Analyzer, which owns input validation. The
-backend retains response-size and deadline limits. It forwards only known
-file-validation messages from bounded Audio Analyzer error responses; all other
-upstream details remain hidden. Environment HTTP proxy settings are not used for
-these calls.
+Nginx streams Voice request bodies and disables response caching. The backend
+stages each upload to a private temporary file, and the background job then
+streams that file to Audio Analyzer, which owns input validation. Upload limits
+are described in [Flow: Managed Speech to Text](#flow-managed-speech-to-text).
+The backend retains response-size and deadline limits. Upstream failures end the
+job as `FAILED` with a fixed error text; upstream details are only logged.
+Environment HTTP proxy settings are not used for these calls.
 
 ### Deployment and Storage Boundaries
 
@@ -105,13 +117,22 @@ these calls.
   loopback host address. Network reachability depends on the host/firewall;
   these bindings are not restricted to localhost by this configuration.
   Protect direct access with deployment-level access control and TLS.
-- The Models page starts ViPPET background jobs for Whisper Base and SpeechT5.
-  `ModelManager` forwards their OpenVINO requests to Model Download, polls the
-  returned job and tracks installed state. SpeechT5 installs one FP16 artifact.
-- Model Download exports device-neutral OpenVINO artifacts on CPU under
-  `shared/models/output/voice`. Audio Analyzer and Text to Speech mount the
-  shared model tree read-only and compile the selected artifact for the runtime
-  device when they load it.
+- Audio Analyzer and Text to Speech provision their own models. On first
+  start, each downloads its configured model from Hugging Face, exports it to
+  OpenVINO (Whisper Base with `int8` weights, SpeechT5 with `fp16`) and stores
+  it in its own named volume, `voice_asr_models` or `voice_tts_models`. Later
+  starts reuse the volume. Each service compiles the model for the configured
+  or per-request device when it loads it. Neither service mounts
+  `shared/models`. A first start needs Hugging Face access from the service
+  container; until provisioning completes, the service is not healthy (the
+  Compose health checks allow a 15-minute start period).
+- The Models page starts ViPPET background jobs for the `voice-whisper-base`
+  and `voice-speecht5` catalog entries. `ModelManager` forwards their Hugging
+  Face requests to Model Download with `download_path="."`, polls the returned
+  job, and marks a model Installed when its PyTorch checkpoint exists under
+  `shared/models/output/huggingface`. The Audio pipeline `required_models`
+  gate uses this state. The Voice services never read these checkpoints; see
+  [Known limitations](../user-guide/voice-conversion.md#known-limitations).
 - ASR keeps runtime cache, chunks and storage in `voice_asr_cache`,
   `voice_asr_chunks` and `voice_asr_storage`. Recordings/transcripts can persist
   in its storage volume; clear-on-startup is enabled, not a per-request retention
@@ -125,8 +146,10 @@ these calls.
   and STT transcripts are process-local. Uploaded or recorded managed STT input
   is copied to a UUID-named file in a private manager-owned temporary directory
   and removed after success, failure, cancellation, registration failure, or
-  shutdown. `make clean` removes generated TTS artifacts but preserves only the
-  managed default STT input. Browser results and per-conversion timings remain
+  shutdown. `make clean` removes generated TTS artifacts and the whole
+  `shared/audio/input` tree, but not named volumes; see the
+  [user guide](../user-guide/voice-conversion.md#deployment) for everything it
+  removes. Browser results and per-conversion timings remain
   in React state; blob URLs are revoked during cleanup.
 - Clients use the ViPPET API through Nginx. Run requests return `202`, then
   clients poll process-local job state.
@@ -231,8 +254,10 @@ flowchart TB
   end
   asr["Audio Analyzer<br/>[External software system]<br/>Transcription service :8010"]:::external
   tts["Text to Speech<br/>[External software system]<br/>Synthesis service :8011"]:::external
-  downloader["Model Download<br/>[External software system]<br/>OpenVINO plugin :8000"]:::external
-  modelstore[("Shared Voice model storage<br/>[External data store]<br/>OpenVINO artifacts")]:::external
+  downloader["Model Download<br/>[External software system]<br/>Hugging Face plugin :8000"]:::external
+  modelstore[("Shared model storage<br/>[External data store]<br/>shared/models/output PyTorch checkpoints")]:::external
+  asrmodels[("voice_asr_models<br/>[External data store: named volume]<br/>Audio Analyzer OpenVINO models")]:::external
+  ttsmodels[("voice_tts_models<br/>[External data store: named volume]<br/>Text to Speech OpenVINO models")]:::external
   audiostore[("Managed Audio storage<br/>[External data store]<br/>Registered STT input and UUID TTS output")]:::external
   web -->|"Catalog, managed starts and artifact"| voiceroutes
   web -->|"/api/v1/jobs/audio/*"| jobsroutes
@@ -242,11 +267,11 @@ flowchart TB
   adapter -->|"POST /v1/audio/speech<br/>HTTP JSON; WAV response"| tts
   assets -->|"Managed input read and atomic output write"| audiostore
   voiceroutes -->|"Completed TTS FileResponse"| audiostore
-  modelapi -->|"POST downloads; poll jobs"| downloader
-  modelapi -->|"Checks required artifacts"| modelstore
-  downloader -->|"Exports into voice target path"| modelstore
-  asr -->|"Loads model read-only"| modelstore
-  tts -->|"Loads model read-only"| modelstore
+  modelapi -->|"POST downloads with download_path=#quot;.#quot;; poll jobs"| downloader
+  modelapi -->|"Checks catalog checkpoint exists<br/>(sets Installed)"| modelstore
+  downloader -->|"Writes PyTorch checkpoints<br/>(not read by Voice services)"| modelstore
+  asr -->|"Provisions on first start and loads own model"| asrmodels
+  tts -->|"Provisions on first start and loads own model"| ttsmodels
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
   classDef external fill:#666,color:#fff,stroke:#444
 ```
@@ -269,48 +294,61 @@ Jobs expose service timing in `service_round_trip_ms`.
 Model routes and `ModelManager` remain separate from the Voice router but run
 in the same backend container.
 
-## Flow: Install Voice Models
+## Flow: Voice Model Provisioning
+
+Two independent paths provision Voice models. The catalog path decides whether
+the UI enables Run; the service path provides the models that actually run.
+Nothing orders or connects them.
 
 ```mermaid
 sequenceDiagram
   autonumber
   actor Operator
   participant UI as Models page / browser
-  participant Web as Nginx
   participant API as ViPPET ModelManager
   participant Catalog as Models DB
   participant Download as Model Download
-  participant Store as shared/models/output/voice
+  participant Store as shared/models/output
+  participant Hub as Hugging Face Hub
   participant Service as Audio Analyzer or Text to Speech
-  Operator->>UI: Install Whisper Base or SpeechT5
-  UI->>Web: POST /api/v1/models/download
-  Web->>API: Forward model names
-  API->>Catalog: Resolve requests, variants and current install state
-  API-->>Web: 202 Accepted with ViPPET job ID
-  Web-->>UI: Forward response
-  API->>Download: POST /api/v1/models/download?download_path=voice
-  Note over API,Download: Each catalog model starts one OpenVINO export
-  Download->>Store: Stage and publish complete OpenVINO artifacts
-  loop Until the external job completes or fails
-    API->>Download: GET /api/v1/jobs/{job_id}
-    Download-->>API: Processing, completed or failed
-    UI->>Web: Poll ViPPET model job status
-    Web->>API: Forward status request
-    API-->>Web: Download progress
-    Web-->>UI: Forward status response
+  participant Volume as voice_asr_models or voice_tts_models
+  par Catalog install (gates Run)
+    Operator->>UI: Install Whisper Base or SpeechT5
+    UI->>API: POST /api/v1/models/download through Nginx
+    API->>Catalog: Resolve download request and variants
+    API-->>UI: 202 Accepted with ViPPET job ID
+    API->>Download: POST /api/v1/models/download?download_path=.
+    Download->>Hub: Download PyTorch checkpoint
+    Download->>Store: Write huggingface/.../pytorch_model.bin
+    loop Until the external job completes or fails
+      API->>Download: GET /api/v1/jobs/{job_id}
+      Download-->>API: Processing, completed or failed
+      UI->>API: Poll ViPPET model job status through Nginx
+      API-->>UI: Download progress
+    end
+    API->>Store: Check catalog checkpoint exists
+    API->>Catalog: Persist variant and install state (Installed)
+    Note over UI,Catalog: Audio pipeline Run is enabled when required_models are Installed
+  and Service self-provisioning (used for inference)
+    Service->>Volume: Look for a complete model
+    alt First start or incomplete model
+      Service->>Hub: Download Whisper Base or SpeechT5
+      Service->>Service: Export to OpenVINO (int8 Whisper, fp16 SpeechT5)
+      Service->>Volume: Store exported model
+    end
+    Service->>Volume: Load model
+    Service->>Service: Compile for configured device and report healthy
   end
-  API->>Store: Verify required artifacts
-  API->>Catalog: Persist variant and install state
-  Note over API,Catalog: SpeechT5 is Installed when its FP16 artifact is complete
-  Note over Service,Store: Voice services must start after installation
-  Service->>Store: Load the selected artifact read-only
-  Service->>Service: Compile for configured or per-request device
+  Note over Store,Service: Voice services never read shared/models
 ```
 
-Voice services do not download models during startup. They preload models, so
-starting them before installation makes their health checks fail until the
-required artifacts exist and the services restart. Model Download stages
-exports before publishing complete artifacts; subsequent starts reuse them.
+The two paths share no state: starting the services before or after a catalog
+install makes no difference to them, and a service that fails to provision its
+model makes Audio jobs end as `FAILED` even when the catalog shows Installed.
+Health and network requirements are listed in
+[Deployment and Storage Boundaries](#deployment-and-storage-boundaries); the
+resulting duplicate download is described in
+[Known limitations](../user-guide/voice-conversion.md#known-limitations).
 
 ## Flow: Managed Speech to Text
 
@@ -329,8 +367,8 @@ sequenceDiagram
     API->>Jobs: start_job(pipeline, variant, recording)
   else Uploaded or recorded input
     Client->>Web: POST .../speech-to-text/variants/{variant}/runs with file and language
-    Web->>API: Stream multipart request without a separate size limit
-    API->>Jobs: Stage random temporary file and start_job(pipeline, variant, input)
+    Web->>API: Stream multipart request (Nginx limit 200 MiB)
+    API->>Jobs: Stage random temporary file (backend limit 200 MiB) and start_job(pipeline, variant, input)
   end
   Jobs-->>API: RUNNING job with UUID
   API-->>Web: 202 Accepted with job_id
@@ -343,8 +381,13 @@ sequenceDiagram
     Jobs->>Jobs: Open manager-owned temporary input
   end
   Jobs->>ASR: POST /v1/audio/transcriptions with WAV, language and device
-  ASR-->>Jobs: Transcription JSON
-  Jobs->>Jobs: Store transcript and timing; set COMPLETED; delete staged input
+  alt Success
+    ASR-->>Jobs: Transcription JSON
+    Jobs->>Jobs: Store transcript and timing, set COMPLETED, delete staged input
+  else Upstream rejection, unavailability, timeout or invalid response
+    ASR-->>Jobs: Error or no usable response
+    Jobs->>Jobs: Log reason, set FAILED with fixed error, delete staged input
+  end
   loop Until COMPLETED or FAILED
     Client->>Web: GET /api/v1/jobs/audio/{job_id}/status
     Web->>API: Forward status request
@@ -359,6 +402,13 @@ Managed STT accepts either a JSON body with a registered `recording` and a
 two-letter `language`, or multipart `file` and `language` fields for uploaded
 and recorded audio. The route stages multipart input before returning `202`; the
 job owns and deletes that temporary input on every terminal path and shutdown.
+Uploads are limited to 200 MiB in both places: Nginx applies
+`client_max_body_size 200m` to the whole multipart request and usually rejects
+an oversized upload first with its own HTML `413`; the backend applies
+`MAX_STT_UPLOAD_BYTES` to the file content while staging and returns a JSON
+`413`. Upstream errors occur after the `202` response, so the client sees them
+only as a `FAILED` job with the fixed error text
+`Audio pipeline execution failed.`.
 The completed transcript and job metadata are process-local and disappear when
 the backend restarts; no STT artifact is created.
 
@@ -382,9 +432,14 @@ sequenceDiagram
   Web-->>Client: Forward start response
   Jobs->>Jobs: Set RUNNING
   Jobs->>TTS: POST /v1/audio/speech with text, voice and device
-  TTS-->>Jobs: WAV body
-  Jobs->>Store: Write temporary file and atomically publish {job_id}.wav
-  Jobs->>Jobs: Store artifact path and timing; set COMPLETED
+  alt Success
+    TTS-->>Jobs: WAV body
+    Jobs->>Store: Write temporary file and atomically publish {job_id}.wav
+    Jobs->>Jobs: Store artifact path and timing, set COMPLETED
+  else Upstream rejection, unavailability, timeout or invalid response
+    TTS-->>Jobs: Error or no usable response
+    Jobs->>Jobs: Log reason, set FAILED with fixed error
+  end
   loop Until COMPLETED or FAILED
     Client->>Web: GET /api/v1/jobs/audio/{job_id}/status
     Web->>API: Forward status request
@@ -461,13 +516,19 @@ flowchart TB
 ```mermaid
 flowchart TD
     Start[Start independent conversion; clear its previous result and timings] --> Active{Outcome}
+    Active -->|Start request rejected by backend| StartError["HTTP 400, 404, 409, 415 or 422"]
+    Active -->|Upload above 200 MiB| TooLarge["HTTP 413 from Nginx as HTML, or from backend as JSON"]
+    StartError --> UIError
+    TooLarge --> UIError
     Active -->|202 with valid job_id| Accepted[Own accepted job and show run started]
     Accepted --> Poll[Poll Audio job status]
     Poll -->|COMPLETED without transcript or artifact| Cancelled[Show run cancelled notification]
     Poll -->|COMPLETED and still current| Apply[Apply transcript or download and apply TTS artifact]
     Apply --> Complete[Show run completed notification]
-    Poll -->|FAILED or request failure| UIError[Display safe inline error and persistent failure notification]
-    Active -->|Input validation or start failure| UIError
+    Poll -->|FAILED| JobFailed["Job error: Audio pipeline execution failed."]
+    Poll -->|Status or artifact request failure| UIError
+    JobFailed --> UIError[Display safe inline error and persistent failure notification]
+    Upstream["Background job: upstream rejection, busy or unavailable service, 20-minute deadline or httpx timeout, invalid or oversized response"] -->|Reason logged in backend only| JobFailed
     Active -->|Local recording or capture error| LocalError[Display safe inline error; no job notification]
     Active -->|Stop button| StopJob{Job already accepted?}
     StopJob -->|Yes| StopApi[DELETE /api/v1/jobs/audio/job_id cancels the backend task]
@@ -476,20 +537,19 @@ flowchart TD
     Active -->|Microphone Cancel| Abort[AbortController stops local recording]
     Active -->|Start replacement| Supersede[Abort and silently discard superseded response]
     Active -->|Navigate away| Unmount[Abort and silently discard on unmount]
-    Active -->|1210-second browser deadline| Deadline[Abort with timeout message]
+    Active -->|1210-second browser timer, including polling| Deadline["Stop polling with Conversion timed out."]
     Deadline --> UIError
-    Active -->|Backend or proxy failure| Status{Failure class}
-    Status -->|Invalid input| Input[400 or 422; oversized input 413]
-    Status -->|Upstream 400 / 413 / 422| Rejected[400 sanitized rejection]
-    Status -->|Upstream 429 or HTTP transport error| Unavailable[503 busy or unavailable]
-    Status -->|20-minute upstream deadline or httpx timeout| Timeout[504 timeout]
-    Status -->|Other upstream status, invalid payload or response too large| BadGateway[502 sanitized service failure]
-    Input --> UIError
-    Rejected --> UIError
-    Unavailable --> UIError
-    Timeout --> UIError
-    BadGateway --> UIError
+    Deadline -.->|No DELETE is sent| Orphan[Backend job keeps running and can still complete]
 ```
+
+Run requests return `202` as soon as the job is accepted. Only request
+validation, unknown pipelines, variants or recordings, an unavailable
+pipeline, and oversized uploads produce HTTP errors. Everything that happens
+while calling Audio Analyzer or Text to Speech happens inside the background
+job: the job manager logs the exception type and sanitized reason and sets the
+job to `FAILED` with the fixed error text `Audio pipeline execution failed.`.
+The adapter's internal status mapping (`400`, `502`, `503`, `504`) is not
+returned to clients.
 
 Stop on an accepted job cancels the managed backend task through
 `AudioPipelineJobManager.cancel_job`: the job moves to `COMPLETED` without a
@@ -499,10 +559,16 @@ uncommitted artifact are removed. It cannot guarantee that an already-started
 upstream inference stops. Navigating away does not cancel a managed job, which
 can still finish and persist its WAV. Backend contexts
 close resources on return or exceptions; their total upstream deadline is 20
-minutes, with a 5-second connection timeout. The browser and Nginx Voice
-read/send timeouts are 1210 seconds, allowing ten seconds beyond the backend
-deadline. Proxy-generated failures may differ from the backend's status mapping
-above.
+minutes, with a 5-second connection timeout.
+
+The browser keeps a 1210-second timer for the whole run, including polling.
+When it fires, the UI stops polling and shows `Conversion timed out.`, but it
+does not send `DELETE`, so the backend job keeps running and can still
+complete. The Nginx Voice read and send timeouts are also 1210 seconds; they
+apply only to the individual start, status and artifact requests, none of which
+wait for the conversion. Proxy-generated failures, such as the Nginx `413`
+described in [Flow: Managed Speech to Text](#flow-managed-speech-to-text), use
+Nginx's own response format.
 
 ## Implementation References
 
@@ -525,13 +591,23 @@ above.
   [model routes](../../../vippet/api/routes/models.py),
   [model manager](../../../vippet/managers/model_manager.py),
   [Whisper catalog entry](../../../vippet/models/voice-whisper-base.yaml),
-  [SpeechT5 catalog entry](../../../vippet/models/voice-speecht5.yaml) and
+  [SpeechT5 catalog entry](../../../vippet/models/voice-speecht5.yaml),
+  [Speech to Text](../../../vippet/pipelines/speech-to-text.yaml) and
+  [Text to Speech](../../../vippet/pipelines/text-to-speech.yaml) pipeline
+  definitions with `required_models`, and
   [catalog DB seeding](../../../vippet/db_seed.py).
+- Voice service model provisioning:
+  [Audio Analyzer](../../../../../microservices/audio-analyzer/utils/provision_models.py),
+  [Text to Speech](../../../../../microservices/text-to-speech/utils/ensure_model.py) and
+  [SpeechT5 preparation](../../../../../microservices/text-to-speech/utils/ensure_speecht5.py).
 - [Metrics stream](../../../ui/src/hooks/useMetricsStream.ts),
   [local chart history](../../../ui/src/hooks/useMetricHistory.ts) and
   [shared dashboard](../../../ui/src/features/metrics/MetricsDashboard.tsx).
 - [Nginx routing](../../../ui/nginx.conf),
-  [Compose configuration](../../../compose.yml) and
+  [Compose configuration](../../../compose.yml) with the
+  [GPU](../../../compose.gpu.yml), [NPU](../../../compose.npu.yml) and
+  [WSL GPU](../../../compose.gpu-wsl.yml) overrides,
+  [Make targets](../../../Makefile) and
   [system telemetry architecture](./metrics/system-performance.md).
 - [Voice user guide](../user-guide/voice-conversion.md),
   [backend regression tests](../../../vippet/tests/unit/api_tests/voice_test.py).
