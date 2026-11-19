@@ -116,11 +116,15 @@ curl -X POST http://localhost:8200/api/v1/models/list \
 | `has_more`    | bool \| null| Whether another page is available (derived from `total` when known, otherwise inferred)             |
 | `next_offset` | int \| null | Offset to use for the next page; only present when `has_more` is `true`                             |
 
+For Geti, each item's `metadata.training_status` contains the status returned by Geti (such as `successful`, `failed`, or `in_progress`), or null when unavailable. Models without variants remain in the listing unless a variant filter is applied.
+
 ---
 
 ### Download Models - `POST /api/v1/models/download`
 
 Downloads one or more models from supported hubs and optionally converts them to OpenVINO IR format. Requests are processed asynchronously; job IDs are returned immediately.
+
+For Geti, only models with a `successful` training status can be downloaded. Failed, in-progress, or unknown training status causes the job to fail with an explanatory error. A successfully trained model also needs a variant matching the requested format and precision; otherwise, the job fails with an error. If multiple projects have models with the same name, the service searches for a successfully trained model with a matching variant.
 
 **Query Parameter:**
 

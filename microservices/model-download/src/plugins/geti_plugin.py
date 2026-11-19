@@ -251,6 +251,26 @@ class GetiPlugin(ModelDownloadPlugin):
             return task.get("task_type")
         return task or project.get("task_type")
 
+    @staticmethod
+    def _training_status(model: Dict[str, Any]) -> Optional[str]:
+        training_info = model.get("training_info")
+        if not isinstance(training_info, dict):
+            return None
+        status = training_info.get("status")
+        return status if isinstance(status, str) and status else None
+
+    @staticmethod
+    def _training_status_error(status: Optional[str]) -> Optional[str]:
+        if status == "successful":
+            return None
+        if status == "failed":
+            return "Cannot download model: the requested model failed during training."
+        if status == "in_progress":
+            return "Cannot download model: model training is still in progress."
+        if status is None:
+            return "Cannot download model: Geti did not provide a valid training status."
+        return f"Cannot download model: training status is '{status}', not 'successful'."
+
     async def _list_models_async(self, session: _GetiSession, filters: Optional[Dict[str, Any]] = None,
                                  limit: int = 50, offset: int = 0) -> Dict[str, Any]:
         filters = filters or {}
@@ -288,6 +308,7 @@ class GetiPlugin(ModelDownloadPlugin):
                     "last_modified": model.get("last_updated", model.get("updated_at", model.get("creation_time"))),
                     "metadata": {"project_id": project["id"], "project_name": project["name"],
                                  "model_id": model.get("id"),
+                                 "training_status": self._training_status(model),
                                  "variants": [
                                      {"variant_id": variant.get("id", variant.get("variant_id")),
                                       "model_format": self._variant_format(variant),
@@ -319,16 +340,23 @@ class GetiPlugin(ModelDownloadPlugin):
         Returns:
             Tuple of (model_id, project_id, variant_id, error, ignored_fields).
         """
+        matching_error = None
         for project in await self.get_projects(session):
             for model in await self._get_project_models(session, project["id"]):
                 if str(model.get("name", "")).lower() != model_name.lower():
                     continue
+                status_error = self._training_status_error(self._training_status(model))
+                if status_error:
+                    if matching_error is None:
+                        matching_error = status_error
+                    continue
                 variants, ignored = self._filter_variants(self._variants(model), model_format, precision, extra_filters)
                 if not variants:
+                    matching_error = "No model variant matched the requested criteria."
                     continue
                 variant_id = variants[0].get("id", variants[0].get("variant_id"))
                 return model.get("id"), project["id"], variant_id, None, ignored
-        return None, None, None, f"Model not found: {model_name}", None
+        return None, None, None, matching_error or f"Model not found: {model_name}", None
 
     async def select_model_variant(self, model: Dict[str, Any], variant_id: Optional[str],
                                    precision: Optional[str], base_model_id: str,
@@ -357,6 +385,9 @@ class GetiPlugin(ModelDownloadPlugin):
                     f"model resolved by model_id/project_id (actual name: '{actual_name}'). "
                     f"Refusing to download to avoid silently fetching the wrong model."
                 ), None
+            status_error = self._training_status_error(self._training_status(detail))
+            if status_error:
+                return None, status_error, None
             variant, ignored = await self.select_model_variant(
                 detail, kwargs.get("variant_id"), kwargs.get("precision"), model_id,
                 kwargs.get("model_format"), kwargs.get("extra_filters"),
