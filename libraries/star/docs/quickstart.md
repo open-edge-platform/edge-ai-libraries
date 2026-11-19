@@ -30,6 +30,7 @@ not at the repository root. It must therefore be installed (or put on `PYTHONPAT
 repository root:
 
 ```bash
+source .venv/bin/activate         # venv created by `make pull-model` (or create your own)
 pip install -r requirements.txt
 pip install -e .                  # required: makes `semantic_img_comp` importable from anywhere
 
@@ -44,6 +45,9 @@ make pull-model
 ```
 
 which will download model, convert it to OpenVINO format and place in the default directory.
+
+> **Note:** `make pull-model` creates a virtual environment in `.venv` and installs the requirements there.
+> Activate it afterwards with `source .venv/bin/activate` before running the application locally.
 
 #### Make `avifenc` / `avifdec` available (required for AVIF codecs)
 
