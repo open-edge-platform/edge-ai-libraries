@@ -337,6 +337,28 @@ def _validate_result(data: Any, path: Path) -> None:
     if "config" in data:
         _check_config(data["config"], prefix)
 
+    if data.get("model_install") is not None:
+        _check_model_install(data["model_install"], prefix)
+
+
+_MODEL_INSTALL_KEYS = ("name", "display_name", "outcome", "reason")
+
+
+def _check_model_install(entries: Any, prefix: str) -> None:
+    """The optional ``model_install`` block: ``null`` or a list of outcomes."""
+    if not (
+        isinstance(entries, list)
+        and all(
+            isinstance(e, dict)
+            and all(isinstance(e.get(k), str) for k in _MODEL_INSTALL_KEYS)
+            for e in entries
+        )
+    ):
+        raise ReportInputError(
+            f"{prefix}model_install must be a list of objects with string "
+            f"{', '.join(_MODEL_INSTALL_KEYS)}"
+        )
+
 
 def _check_config(config: Any, prefix: str) -> None:
     """Structural check of the optional ``config`` block (older results have
@@ -873,6 +895,42 @@ def _build_config_section(runs: list[dict[str, Any]]) -> str:
     </div>"""
 
 
+def _build_model_install_section(runs: list[dict[str, Any]]) -> str:
+    """Models the CLI tried to install before each run; empty if none did."""
+    runs = [run for run in runs if run.get("model_install")]
+    if not runs:
+        return ""
+    multi_run = len(runs) > 1
+    headers = (("Run",) if multi_run else ()) + ("Model", "Outcome", "Reason")
+    rows = [
+        ((run["benchmark_id"],) if multi_run else ())
+        + (e["display_name"] or e["name"], e["outcome"], e["reason"] or "—")
+        for run in runs
+        for e in run["model_install"]
+    ]
+    return f"""
+    <div class="section cfg" id="model-install">
+      <div class="section-header"><h2>Model installation</h2></div>
+      {_html_table(headers, rows)}
+    </div>"""
+
+
+_MODEL_INSTALL_NAV = (
+    '<div class="sidebar-section" style="margin-top:12px">Models</div>'
+    '<a href="#model-install">Model installation</a>'
+)
+
+
+def _status_badge(status: str) -> str:
+    if status == "success":
+        return '<span class="badge pass">Pass</span>'
+    if status == "skipped":
+        return '<span class="badge warn">Skipped</span>'
+    if status == "error":
+        return '<span class="badge fail">Error</span>'
+    return '<span class="badge fail">Fail</span>'
+
+
 def generate_html_report(runs: list[dict[str, Any]]) -> str:
     """Generate a self-contained HTML benchmark report from one or more run dicts.
 
@@ -941,11 +999,7 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
         for r in cases_for_pipeline:
             variant_class = _slugify(r["variant"])
             variant_label = _esc(r["variant"])
-            status_badge = (
-                '<span class="badge pass">Pass</span>'
-                if r["status"] == "success"
-                else '<span class="badge fail">Fail</span>'
-            )
+            status_badge = _status_badge(r["status"])
             run_cell = f"<td>{_esc(r['run_id'])}</td>" if multi_run else ""
             row = f"""<tr>
                 {run_cell}
@@ -1026,6 +1080,7 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
     passed = sum(r["summary"].get("success", 0) for r in run_meta)
     failed = sum(r["summary"].get("failed", 0) for r in run_meta)
     skipped = sum(r["summary"].get("skipped", 0) for r in run_meta)
+    errors = sum(r["summary"].get("error", 0) for r in run_meta)
 
     chart_init_js = []
     for cid, cdata in chart_data_js.items():
@@ -1102,6 +1157,14 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
     )
 
     c_fail_class = "c-fail" if failed else ""
+    # Shown only when a run had errors, so reports without any keep their look.
+    errors_card = (
+        f'<div class="kpi-card c-fail"><span class="kval">{errors}</span>'
+        '<span class="klbl">Errors</span></div>'
+        if errors
+        else ""
+    )
+    model_install_section = _build_model_install_section(runs)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -1204,6 +1267,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
     <a href="#overview">Summary</a>
     <div class="sidebar-section" style="margin-top:12px">Pipelines</div>
     {"".join(f'<a href="#{_slugify(p)}">{_esc(p)}</a>' for p in pipelines)}
+    {_MODEL_INSTALL_NAV if model_install_section else ""}
     {_CONFIG_NAV if any("config" in run for run in runs) else ""}
   </nav>
   <main class="main">
@@ -1214,6 +1278,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
         <div class="kpi-card c-ok"><span class="kval">{passed}</span><span class="klbl">Passed</span></div>
         <div class="kpi-card {c_fail_class}"><span class="kval">{failed}</span><span class="klbl">Failed</span></div>
         <div class="kpi-card"><span class="kval">{skipped}</span><span class="klbl">Skipped</span></div>
+        {errors_card}
         <div class="kpi-card c-acc"><span class="kval">{len(pipelines)}</span><span class="klbl">Pipelines</span></div>
         <div class="kpi-card"><span class="kval">{pass_rate}</span><span class="klbl">Pass Rate</span></div>
       </div>
@@ -1222,6 +1287,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
       </div>
     </div>
     {"".join(pipeline_sections_html)}
+    {model_install_section}
     {_build_config_section(runs)}
   </main>
 </div>
