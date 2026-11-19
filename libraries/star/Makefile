@@ -27,6 +27,8 @@ tests-image: ## Build the Docker images for tests
 	docker build -t image-pipeline-tests -f Dockerfile.test .
 	git restore .dockerignore
 
+# if test images are not present in the folder, following command can pull images from the specified source
+# python3 tests/sample_data/fetch_sample_data.py --count 10 --source picsum --output-dir tests/fixtures/sample_images
 tests-run: ## Run the tests inside the container
 	docker run --rm image-pipeline-tests
 
