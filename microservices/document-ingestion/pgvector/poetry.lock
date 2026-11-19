@@ -4673,14 +4673,14 @@ files = [
 
 [[package]]
 name = "soupsieve"
-version = "2.9.1"
+version = "4.1.2"
 description = "A modern CSS selector implementation for Beautiful Soup."
 optional = false
-python-versions = ">=3.10"
+python-versions = ">=3.11.5"
 groups = ["main"]
 files = [
-    {file = "soupsieve-2.9.1-py3-none-any.whl", hash = "sha256:4f4477399246b7a0c720a88ca2454b11cd6bb9ae4c9d170140786e916776c14c"},
-    {file = "soupsieve-2.9.1.tar.gz", hash = "sha256:c33e6605bbc71dd628b00c632d58ae607c22bade247e52553928f83bbb75b4ba"},
+    {file = "soupsieve-4.1.2-py3-none-any.whl", hash = "sha256:96b4115212a3abee1f572d62da706cca090b088cb5effa278db5702122e63a2c"},
+    {file = "soupsieve-4.1.2.tar.gz", hash = "sha256:c6539a2638f26991463527337e39d630e3cbb86d024f52282a510535b8a7e09f"},
 ]
 
 [[package]]
@@ -5862,5 +5862,5 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 
 [metadata]
 lock-version = "2.1"
-python-versions = "^3.11"
-content-hash = "7637d18c6394f177051f8725c2c258a004733b4c522ffa2845e8cdb0f68fa843"
+python-versions = "^3.11.5"
+content-hash = "f720d4ba94c2af6cdd96ec329e353a63ea41c171c8f92aece3d35fc0c26dff20"
