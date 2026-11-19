@@ -202,8 +202,8 @@ harness, and shows their state:
 - An unsupported harness is skipped with a notice. Everything that can be
   checked in advance (Hermes CLI, Jaeger
   ownership and ports, the Router file settings and container) is checked
-  before either target is changed, and if the harness still fails the Router
-  change made by that command is reverted.
+  before telemetry settings are changed. If the harness still fails during
+  enable, the Router change made by that command is reverted.
 - Re-running `enable` keeps the saved harness `--backend`, `--endpoint` and
   `--content` unless you name them again, so `observability enable`
   later does not reset a Jaeger setup to `sqlite`. Naming only `--endpoint`

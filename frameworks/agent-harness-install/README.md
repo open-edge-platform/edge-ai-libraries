@@ -211,7 +211,7 @@ flowchart TD
     LOCK -- "show" --> SHOWN
     LOCK -- "enable: --backend,<br/>--endpoint, --content<br/>disable: --clean,<br/>--keep-jaeger<br/>(deployment lock held)" --> STATE
 
-    subgraph RT["Target: router"]
+    subgraph RT["Inference Router"]
         direction TB
         RCFG["Rewrite only the telemetry block<br/>of the Router config.yaml<br/>enable: file, disable: memory"]:::step
         RIR["Restart the Inference Router<br/>(reads config.yaml only at startup)"]:::step
@@ -228,7 +228,7 @@ flowchart TD
     end
     STATE --> RCFG
 
-    subgraph HT["Target: harness"]
+    subgraph HT["Hermes harness"]
         direction TB
         HCHK["Check: Hermes installed, host runtime?<br/>Otherwise skipped with a reason<br/>(OpenClaw, Deep Agents Code, OpenShell)"]:::decision
         HPLUG["hermes plugins install<br/>and enable hermes_otel"]:::agent
