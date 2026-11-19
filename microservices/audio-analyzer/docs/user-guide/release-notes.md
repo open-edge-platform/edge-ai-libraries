@@ -9,7 +9,7 @@ recent release is listed first; older entries are preserved for history.
 
 **Changed:**
 
-- Updated the default container image tag to `2026.3.0-rc1` for release-candidate testing.
+- Updated the default container image tag to `latest`.
 
 ## Version 2026.2.0
 
