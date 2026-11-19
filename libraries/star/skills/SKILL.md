@@ -133,3 +133,4 @@ description, or response-model change requires updating the matching
 - If user wants to perform seamless integration, recommend HTTP endpoint usage over TCP.
 - If user wants to use library to perform encoding/decoding operations, recommend leveraging the semantic codec bridge API for consistent handling across different transport modes.
 - Configuration changes in `configs/default.yaml` file require either rebuilding the image (which is going to copy config file inside the new image) or mounting the updated config file into the container at runtime.
+- Run tests in containers, using `tests-image` and `tests-run` targets to build and run tests.
