@@ -68,59 +68,6 @@ Settings are kept in `~/.agent-harness-install/metrics.json`, so Router config
 regeneration preserves them. See [Observability](./docs/user-guide/get-started.md#observability)
 for details.
 
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 55, "curve": "basis"}}}%%
-flowchart TD
-  classDef step fill:#EAF3FB,stroke:#0068B5,color:#0A2A43
-  classDef decision fill:#FFF6DD,stroke:#B38600,color:#4A3900
-  classDef agent fill:#EAF7EE,stroke:#2E7D32,color:#123D17
-  classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
-  classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray: 4 3
-
-  CMD(["./install.sh observability<br/>enable | disable | show"]):::step
-  LOCK{"Verb"}:::decision
-  SHOWN["show: read-only summary<br/>of the Router (/v1/metrics)<br/>and the Hermes store; no lock;<br/>prints the Jaeger UI URL"]:::step
-  STATE[("~/.agent-harness-install/metrics.json<br/>router.* and harness.* settings")]:::store
-
-  CMD --> LOCK
-  LOCK -- "show" --> SHOWN
-  LOCK -- "enable: --backend,<br/>--endpoint, --content<br/>disable: --clean,<br/>--keep-jaeger<br/>(deployment lock held)" --> STATE
-
-  subgraph RT["Inference Router"]
-    direction TB
-    RCFG["Rewrite only the telemetry block<br/>of the Router config.yaml<br/>enable: file, disable: memory"]:::step
-    RIR["Restart the Inference Router<br/>(reads config.yaml only at startup)"]:::step
-    RMEM[("memory (default)<br/>in-process counters<br/>reset to zero on every restart")]:::store
-    RJSONL[("file: telemetry.jsonl<br/>one JSON line per request: counts,<br/>tokens, latency; no prompt text")]:::store
-    RAPI["GET /v1/metrics<br/>memory: reads counters<br/>file: re-reads the whole file"]:::step
-    RCLR["Cleared by disable --clean,<br/>POST /v1/metrics/reset or uninstall<br/>Rotated to telemetry.jsonl.1 above<br/>a size limit; no database backend"]:::ext
-    RCFG --> RIR
-    RIR --> RMEM
-    RIR --> RJSONL
-    RMEM --> RAPI
-    RJSONL --> RAPI
-    RCLR -.-> RJSONL
-  end
-  STATE --> RCFG
-
-  subgraph HT["Hermes harness"]
-    direction TB
-    HCHK["Check: Hermes installed, host runtime?<br/>Otherwise skipped with a reason<br/>(OpenClaw, Deep Agents Code, OpenShell)"]:::decision
-    HPLUG["hermes plugins install<br/>and enable hermes_otel"]:::agent
-    HCFG["Write ~/.hermes/hermes_otel.yaml<br/>backend and content capture<br/>off, preview or full"]:::agent
-    HBE{"--backend"}:::decision
-    HSQL[("sqlite (default)<br/>hermes_otel_live.db<br/>emptied by --clean")]:::store
-    HJ["jaeger: managed container<br/>UI on 127.0.0.1:16686<br/>--keep-jaeger keeps it"]:::agent
-    HO["jaeger with --endpoint:<br/>your own Jaeger"]:::ext
-    HCHK --> HPLUG --> HCFG --> HBE
-    HBE --> HSQL
-    HBE --> HJ
-    HBE --> HO
-  end
-  RAPI ~~~ HCHK
-  STATE --> HCHK
-```
-
 ## Documentation
 
 - [Get Started](./docs/user-guide/get-started.md): install flow, usage and
