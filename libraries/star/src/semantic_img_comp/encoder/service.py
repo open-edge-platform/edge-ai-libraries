@@ -24,6 +24,7 @@ once, not once per stream.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from concurrent.futures import Future
 import logging
 import queue
@@ -45,6 +46,7 @@ from semantic_img_comp.utils.service_http import STREAM_ID_PATTERN as _STREAM_ID
 from semantic_img_comp.utils.service_http import install_common_endpoints
 
 LOGGER = logging.getLogger("semantic_img_comp.encoder.service")
+QUEUE_SIZE = 200
 
 
 class StreamCreateRequest(BaseModel):
@@ -85,6 +87,21 @@ class FrameAcceptedResponse(BaseModel):
     stream_id: str
 
 
+class FrameMetric(BaseModel):
+    """Per-image metrics captured from one EncodeResult, exposed via GET /v1/streams/{stream_id}/metrics."""
+    stream_id: str
+    img_idx: int
+    original_bytes: int
+    payload_bytes: int
+    compression_rate: Optional[float] = None
+    aggregated_compression_rate: Optional[float] = None
+    target_compression_rate: Optional[float] = None
+    compression_level: Optional[int] = None
+    fast_path_selected: bool
+    obj_detection_skipped: bool
+    timing_ms: dict[str, float] = Field(default_factory=dict)
+
+
 @dataclass
 class StreamState:
     stream_id: str
@@ -96,10 +113,12 @@ class StreamState:
     frames_processed: int = 0
     created_at: float = field(default_factory=time.monotonic)
     fps: float = 0.0
-    encode_queue: "queue.Queue" = field(default_factory=lambda: queue.Queue(maxsize=200))
+    encode_queue: "queue.Queue" = field(default_factory=lambda: queue.Queue(maxsize=QUEUE_SIZE))
     encoding_thread: Optional[threading.Thread] = None
-    ready_to_send_queue: "queue.Queue" = field(default_factory=lambda: queue.Queue(maxsize=200))
+    ready_to_send_queue: "queue.Queue" = field(default_factory=lambda: queue.Queue(maxsize=QUEUE_SIZE))
     sender_thread: Optional[threading.Thread] = None
+    metrics: "deque[FrameMetric]" = field(default_factory=lambda: deque(maxlen=QUEUE_SIZE))
+    metrics_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 def _post_frame_to_decoder(service: "EncoderService", state: StreamState) -> None:
@@ -180,6 +199,7 @@ def _stream_forwarder(service: "EncoderService", state: StreamState) -> None:
             })
             continue
 
+        service.record_metrics(state, result)
         state.ready_to_send_queue.put((result, client_sent_at, t_start))
 
 
@@ -283,6 +303,40 @@ class EncoderService:
             state.sender_thread.join(timeout=5.0)
         return True
 
+    def record_metrics(self, state: StreamState, result) -> None:
+        """Append one frame's per-image metrics from an EncodeResult to its stream's history (bounded to the last QUEUE_SIZE frames)."""
+        metric = FrameMetric(
+            stream_id=state.stream_id,
+            img_idx=result.img_data.img_idx,
+            original_bytes=result.img_data.org_jpeg_bytes,
+            payload_bytes=int(sum(result.size_log.values())),
+            compression_rate=result.comp_rate,
+            aggregated_compression_rate=result.aggregated_comp_rate,
+            target_compression_rate=result.tar_comp_rate,
+            compression_level=result.comp_level,
+            fast_path_selected=result.fast_path_selected,
+            obj_detection_skipped=result.obj_detection_skipped,
+            timing_ms=result.timing_ms or {},
+        )
+        with state.metrics_lock:
+            state.metrics.append(metric)
+        
+
+    def get_metric_for_image(self, stream_id: str, img_idx: int) -> FrameMetric:
+        """Look up one stream's metric for a specific image; raises KeyError if the stream or that image's metric is unknown."""
+        state = self.get_stream(stream_id)
+        with state.metrics_lock:
+            for metric in state.metrics:
+                if metric.img_idx == img_idx:
+                    return metric
+        raise KeyError(img_idx)
+
+    def get_metrics_for_stream(self, stream_id: str) -> list[FrameMetric]:
+        """Snapshot one stream's own metric history; raises KeyError if the stream is unknown."""
+        state = self.get_stream(stream_id)
+        with state.metrics_lock:
+            return list(state.metrics)
+
     def shutdown(self) -> None:
         self.http_client.close()
 
@@ -384,6 +438,23 @@ def create_app(service: EncoderService) -> FastAPI:
         # Encoding and the decoder forward happen off this request on the stream's
         # forwarder thread (see _stream_forwarder); this only confirms acceptance.
         return FrameAcceptedResponse(status="accepted", stream_id=stream_id)
+
+    @app.get("/v1/streams/{stream_id}/metrics", response_model=list[FrameMetric])
+    def get_metrics(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
+        try:
+            return service.get_metrics_for_stream(stream_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"unknown stream {stream_id}")
+
+    @app.get("/v1/streams/{stream_id}/metrics/{img_idx}", response_model=FrameMetric)
+    def get_metric_for_image(
+        stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN),
+        img_idx: int = ApiPath(...),
+    ):
+        try:
+            return service.get_metric_for_image(stream_id, img_idx)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"no metric for stream {stream_id} image {img_idx}")
 
     return app
 

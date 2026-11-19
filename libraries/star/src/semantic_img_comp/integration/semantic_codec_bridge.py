@@ -334,7 +334,7 @@ class SemanticCodecBridge:
                 self._processed_payload_bytes_total,
             )
 
-            LOGGER.info(
+            LOGGER.debug(
                 "Bridge compression metrics img_id=%s per_image_comp_rate=%s aggregated_comp_rate=%s",
                 img_id,
                 f"{per_image_comp_rate:.4f}" if per_image_comp_rate is not None else None,
