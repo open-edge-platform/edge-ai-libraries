@@ -41,9 +41,16 @@ debian_90_install_scenescape () {
 debian_90_start_scenescape () {
   configure_scenescape "$@"
   ensure_ports_open start scenescape "${used_ports[@]}"
-  ensure_container_namespace start scenescape $(ensure_container_parse_yaml "$workspace"/sample_data/compose/compose.*.yml)
 
   cd "$workspace"
+  ensure_container_namespace start scenescape $(
+    find . \( -path ./tests -o -path ./tools -o -path ./kubernetes -o -name .git \) -prune -o \
+       -type f \( -name 'compose*.y*ml' -o -name 'docker-compose*.y*ml' \) -print |
+    while read -r f; do
+      ensure_container_parse_yaml --project=scenescape "$f"
+    done | sort -u
+  )
+
   export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5)
   make init-secrets
   make demo-all DEMO_REBUILD_IMAGES=false
@@ -58,7 +65,13 @@ debian_90_stop_scenescape () {
   cd "$workspace" && {
     make demo-close || true
     make clean-all || true
-    ensure_container_cleanup $(ensure_container_parse_yaml sample_data/compose/compose.*.yml)
+    ensure_container_cleanup $(
+      find . \( -path ./tests -o -path ./tools -o -path ./kubernetes -o -name .git \) -prune -o \
+         -type f \( -name 'compose*.y*ml' -o -name 'docker-compose*.y*ml' \) -print |
+      while read -r f; do
+        ensure_container_parse_yaml --project=scenescape "$f"
+      done | sort -u
+    )
   } || true
 }
 

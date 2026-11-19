@@ -41,9 +41,12 @@ debian_90_install_smart_nvr () {
 debian_90_start_smart_nvr () {
   configure_smart_nvr "$@"
   ensure_ports_open start smart_nvr "${used_ports[@]}"
-  ensure_container_namespace start smart_nvr $(ensure_container_parse_yaml "$workspace"/smart-nvr/docker/*.yaml)
 
   cd "$workspace"/smart-nvr
+  ensure_container_namespace start smart_nvr $(ensure_container_parse_yaml docker/*.yaml) \
+      $(ensure_container_parse_yaml --project=smartnvr-mediamtx streamer/docker-compose.yml) \
+      $(ensure_container_parse_yaml ../metro-vision-ai-app-recipe/compose-scenescape.yml)
+
   . setup.sh start
 
   echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}"
@@ -54,7 +57,9 @@ debian_90_stop_smart_nvr () {
   configure_smart_nvr "$@"
   cd "$workspace"/smart-nvr && {
     . ./setup.sh stop || true
-    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml) \
+      $(ensure_container_parse_yaml --project=smartnvr-mediamtx streamer/docker-compose.yml) \
+      $(ensure_container_parse_yaml ../metro-vision-ai-app-recipe/compose-scenescape.yml)
   } || true
 }
 

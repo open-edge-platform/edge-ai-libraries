@@ -43,7 +43,7 @@ ensure_container_namespace () {
   done
 }
 
-# [--project=<name>] [yaml files]
+# [--project=<name>] [--with-external] [yaml files]
 ensure_container_parse_yaml () {
 python3 - "$@" <<'EOF'
 import os, re, sys, yaml
@@ -79,9 +79,10 @@ def host_ports(p):
   if not m: return []
   lo = int(m.group(1))
   return range(lo, int(m.group(2) or lo) + 1)
-cli_project, paths = None, []
+cli_project, paths, with_external = None, [], False
 for a in sys.argv[1:]:
   if a.startswith("--project="): cli_project = a.split("=", 1)[1]
+  elif a == "--with-external": with_external = True
   else: paths.append(a)
 services, networks, volumes, file_name = {}, {}, {}, None
 for path in paths:
@@ -119,8 +120,15 @@ for n, s in services.items():
 if needs_default: networks.setdefault("default", {})
 for kind, table in (("net", networks), ("vol", volumes)):
   for k, c in table.items():
-    if c.get("external"): continue                  # never ours to clean up
-    out(kind, resolve(c["name"]) if c.get("name") else f"{proj}_{k}")
+    ext = c.get("external")
+    if ext and not with_external: continue          # never ours to clean up
+    if isinstance(ext, dict) and ext.get("name"):   # legacy `external: {name: x}`
+      name = resolve(ext["name"])
+    elif c.get("name"):
+      name = resolve(c["name"])
+    else:
+      name = k if ext else f"{proj}_{k}"            # externals are not project-prefixed
+    out(kind, name)
 EOF
 }
 

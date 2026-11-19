@@ -157,7 +157,7 @@ debian_90_stop_uncrewed_aerial_vehicle_ground_station () {
   fi
   cd "$app_dir" && {
     make down-vss || true
-    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml) || true
   } || true
   ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/
 }
@@ -170,7 +170,7 @@ debian_90_remove_uncrewed_aerial_vehicle_ground_station () {
   fi
   cd "$app_dir" && {
     docker compose "${compose_files[@]}" down --volumes --remove-orphans || true
-    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml) || true
   } || true
   ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || true
   ensure_rm "$workspace" || return $?
