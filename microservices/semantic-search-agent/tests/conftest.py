@@ -11,7 +11,7 @@ def mock_vlm_backend():
     """Mock VLM backend for testing."""
     backend = AsyncMock()
     backend.name = "mock"
-    backend.is_available.return_value = True
+    backend.is_available = MagicMock(return_value=True)
     backend.generate_text.return_value = "YES"
     return backend
 
