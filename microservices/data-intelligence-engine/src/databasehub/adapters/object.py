@@ -32,6 +32,10 @@ class ObjectAdapter(ABC):
     def get(self, collection: ObjectCollection, key: str) -> bytes:
         """The bytes stored under `key`, or `KeyError` if there are none."""
 
+    def get_bounded(self, collection: ObjectCollection, key: str, max_bytes: int) -> bytes:
+        """Read at most max_bytes, failing before loading a larger object."""
+        raise NotImplementedError("bounded object reads are unavailable")
+
     @abstractmethod
     def delete(self, collection: ObjectCollection, key: str) -> None: ...
 

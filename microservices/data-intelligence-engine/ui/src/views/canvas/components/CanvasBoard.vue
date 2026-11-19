@@ -33,50 +33,74 @@
         <span>{{ visibleNodes.length }} / {{ nodeList.length }}</span>
       </div>
       <div class="inventory-list">
-        <section v-for="group in inventoryGroups" :key="group.kind" class="inventory-group">
+        <section
+          v-for="group in inventoryGroups"
+          :key="group.kind"
+          class="inventory-group"
+        >
           <button
             type="button"
             class="group-title"
             :aria-expanded="!collapsedGroups.includes(group.kind)"
             @click="handleToggleGroup(group.kind)"
           >
-            <RightOutlined :rotate="collapsedGroups.includes(group.kind) ? 0 : 90" />
+            <RightOutlined
+              :rotate="collapsedGroups.includes(group.kind) ? 0 : 90"
+            />
             <component :is="group.icon" :style="{ color: group.color }" />
             <strong>{{ $t(`console.${group.label}`) }}</strong>
             <span>{{ group.matched }} / {{ group.total }}</span>
           </button>
           <template v-if="!collapsedGroups.includes(group.kind)">
-              <button
-                v-for="node in group.nodes"
-                :key="node.key"
-                type="button"
-                draggable="true"
-                class="inventory-item"
-                :data-resource="node.key"
-                :style="{ '--resource-color': resourceCategories[node.kind].color }"
-                :class="{ selected: selectedKey === node.key, placed: !!positions[node.key] }"
-                :title="[
+            <button
+              v-for="node in group.nodes"
+              :key="node.key"
+              type="button"
+              draggable="true"
+              class="inventory-item"
+              :data-resource="node.key"
+              :style="{
+                '--resource-color': resourceCategories[node.kind].color,
+              }"
+              :class="{
+                selected: selection.key === node.key,
+                placed: !!positions[node.key],
+              }"
+              :title="
+                [
                   node.name,
-                  node.origin || [node.database, node.collection].filter(Boolean).join(' / ') || node.id,
-                  $te(`console.${node.status}`) ? $t(`console.${node.status}`) : node.status,
+                  node.origin ||
+                    [node.database, node.collection]
+                      .filter(Boolean)
+                      .join(' / ') ||
+                    node.id,
+                  $te(`console.${node.status}`)
+                    ? $t(`console.${node.status}`)
+                    : node.status,
                   node.error,
-                ].filter(Boolean).join('\n')"
-                @dragstart="handleInventoryDrag($event, node.key)"
-                @click="handleInventoryClick(node.key)"
-              >
-                <CanvasResource :node="node" compact />
-                <span
-                  v-if="positions[node.key]"
-                  class="placed-indicator"
-                  role="img"
-                  :aria-label="$t('console.onCanvas')"
-                  :title="$t('console.onCanvas')"
-                />
-                <PlusOutlined v-else />
-              </button>
+                ]
+                  .filter(Boolean)
+                  .join('\n')
+              "
+              @dragstart="handleInventoryDrag($event, node.key)"
+              @click="handleInventoryClick(node.key)"
+            >
+              <CanvasResource :node="node" compact />
+              <span
+                v-if="positions[node.key]"
+                class="placed-indicator"
+                role="img"
+                :aria-label="$t('console.onCanvas')"
+                :title="$t('console.onCanvas')"
+              />
+              <PlusOutlined v-else />
+            </button>
           </template>
         </section>
-        <a-empty v-if="!inventoryGroups.some((group) => group.matched)" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
+        <a-empty
+          v-if="!inventoryGroups.some((group) => group.matched)"
+          :image="Empty.PRESENTED_IMAGE_SIMPLE"
+        />
       </div>
       <p class="inventory-hint">
         <InfoCircleOutlined />
@@ -86,30 +110,52 @@
     <div class="board-workspace">
       <div class="board-toolbar">
         <a-space :size="6" align="center" wrap class="toolbar-group">
-          <a-button type="default" size="small" :aria-label="$t('console.zoomOut')" @click="handleZoomOut">
+          <a-button
+            type="default"
+            size="small"
+            :aria-label="$t('console.zoomOut')"
+            @click="handleZoomOut"
+          >
             <template #icon><MinusOutlined /></template>
             {{ $t("console.zoomOut") }}
           </a-button>
           <span class="zoom-label">{{ Math.round(zoom * 100) }}%</span>
-          <a-button type="default" size="small" :aria-label="$t('console.zoomIn')" @click="handleZoomIn">
+          <a-button
+            type="default"
+            size="small"
+            :aria-label="$t('console.zoomIn')"
+            @click="handleZoomIn"
+          >
             <template #icon><PlusOutlined /></template>
             {{ $t("console.zoomIn") }}
           </a-button>
           <a-tooltip :title="$t('console.fit')">
-            <a-button type="default" size="small" :aria-label="$t('console.fit')" @click="handleFit()">
+            <a-button
+              type="default"
+              size="small"
+              :aria-label="$t('console.fit')"
+              @click="handleFit()"
+            >
               <template #icon><FullscreenOutlined /></template>
               {{ $t("console.fit") }}
             </a-button>
           </a-tooltip>
         </a-space>
         <a-space :size="6" align="center" wrap class="toolbar-group">
-          <a-button type="default" size="small" @click="handlePlaceAll">{{ $t("console.placeAll") }}</a-button>
+          <a-button type="default" size="small" @click="handlePlaceAll">{{
+            $t("console.placeAll")
+          }}</a-button>
           <a-button type="default" size="small" @click="handleAutoLayout">
             <template #icon><PartitionOutlined /></template>
             {{ $t("console.autoLayout") }}
           </a-button>
           <a-tooltip :title="$t('console.clearCanvas')">
-            <a-button type="default" size="small" :aria-label="$t('console.clearCanvas')" @click="handleClear">
+            <a-button
+              type="default"
+              size="small"
+              :aria-label="$t('console.clearCanvas')"
+              @click="handleClear"
+            >
               <template #icon><ClearOutlined /></template>
               {{ $t("console.clearCanvas") }}
             </a-button>
@@ -143,7 +189,12 @@
                     :disabled="loading"
                     :aria-label="$t('console.linkFrom')"
                     :placeholder="$t('console.linkFrom')"
-                    :options="connectionNodes.map((node) => ({ value: node.key, label: node.name }))"
+                    :options="
+                      connectionNodes.map((node) => ({
+                        value: node.key,
+                        label: node.name,
+                      }))
+                    "
                   />
                 </div>
                 <div class="connection-field">
@@ -155,7 +206,12 @@
                     :disabled="loading"
                     :aria-label="$t('console.linkTo')"
                     :placeholder="$t('console.linkTo')"
-                    :options="targetNodes.map((node) => ({ value: node.key, label: node.name }))"
+                    :options="
+                      targetNodes.map((node) => ({
+                        value: node.key,
+                        label: node.name,
+                      }))
+                    "
                   />
                 </div>
                 <a-button
@@ -163,12 +219,17 @@
                   :loading="loading"
                   :disabled="!linkFrom || !linkTo"
                   @click="handleConnect"
-                >{{ $t("console.connect") }}</a-button>
+                  >{{ $t("console.connect") }}</a-button
+                >
               </div>
             </template>
           </a-popover>
         </a-space>
-        <div class="resource-legend" role="list" :aria-label="$t('console.resourceLegend')">
+        <div
+          class="resource-legend"
+          role="list"
+          :aria-label="$t('console.resourceLegend')"
+        >
           <span
             v-for="item in resourceCategoryList"
             :key="item.kind"
@@ -192,15 +253,34 @@
       >
         <div
           class="canvas-sizer"
-          :style="{ width: `${stageSize.width * zoom}px`, height: `${stageSize.height * zoom}px` }"
+          :style="{
+            width: `${stageSize.width * zoom}px`,
+            height: `${stageSize.height * zoom}px`,
+          }"
         >
           <div
             class="canvas-stage"
-            :style="{ width: `${stageSize.width}px`, height: `${stageSize.height}px`, transform: `scale(${zoom})` }"
+            :style="{
+              width: `${stageSize.width}px`,
+              height: `${stageSize.height}px`,
+              transform: `scale(${zoom})`,
+            }"
           >
-            <svg class="canvas-edges" :width="stageSize.width" :height="stageSize.height">
+            <svg
+              class="canvas-edges"
+              :width="stageSize.width"
+              :height="stageSize.height"
+            >
               <defs>
-                <marker :id="markerId" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <marker
+                  :id="markerId"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="5"
+                  markerHeight="5"
+                  orient="auto-start-reverse"
+                >
                   <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
                 </marker>
               </defs>
@@ -212,10 +292,19 @@
                     'pool-source': edge.from.startsWith('pool:'),
                     content: edge.content,
                     frozen: edge.frozen,
-                    failed: ['failed', 'extraction_failed'].includes(edge.status || ''),
-                    pending: edge.status && !['ready', 'failed', 'extraction_failed'].includes(edge.status),
-                    selected: selectedEdge?.from === edge.from && selectedEdge?.to === edge.to,
-                    related: edge.from === selectedKey || edge.to === selectedKey,
+                    failed: ['failed', 'extraction_failed'].includes(
+                      edge.status || '',
+                    ),
+                    pending:
+                      edge.status &&
+                      !['ready', 'failed', 'extraction_failed'].includes(
+                        edge.status,
+                      ),
+                    selected:
+                      selection.edge?.from === edge.from &&
+                      selection.edge?.to === edge.to,
+                    related:
+                      edge.from === selection.key || edge.to === selection.key,
                   }"
                   :marker-end="`url(#${markerId})`"
                 />
@@ -238,7 +327,14 @@
               :data-node="node.key"
               class="canvas-node"
               :class="{ 'drop-target': dropTarget === node.key }"
-              :style="{ left: `${positions[node.key].x}px`, top: `${positions[node.key].y}px`, width: `${NODE_WIDTH}px`, height: `${NODE_HEIGHT}px`, '--resource-color': resourceCategories[node.kind].color, '--node-port-y': `${NODE_PORT_Y}px` }"
+              :style="{
+                left: `${positions[node.key].x}px`,
+                top: `${positions[node.key].y}px`,
+                width: `${NODE_WIDTH}px`,
+                height: `${NODE_HEIGHT}px`,
+                '--resource-color': resourceCategories[node.kind].color,
+                '--node-port-y': `${NODE_PORT_Y}px`,
+              }"
               role="button"
               tabindex="0"
               :aria-label="node.name"
@@ -250,13 +346,20 @@
               @dragover.prevent.stop
               @drop.prevent.stop="handleDrop($event, node.key)"
             >
-              <CanvasResource :node="node" :selected="selectedKey === node.key" />
+              <CanvasResource
+                :node="node"
+                :selected="selection.key === node.key"
+                @show-linked="showLinked(node.key)"
+                @remove-node="handleRemoveNode(node.key)"
+              />
               <button
                 v-if="node.kind !== 'asset'"
                 type="button"
                 class="node-port left-port"
                 :aria-label="$t('console.linkPort', { name: node.name })"
-                @pointerdown.stop.prevent="handlePortPointerDown($event, node.key, 'left')"
+                @pointerdown.stop.prevent="
+                  handlePortPointerDown($event, node.key, 'left')
+                "
                 @click.stop
               />
               <button
@@ -264,7 +367,9 @@
                 type="button"
                 class="node-port right-port"
                 :aria-label="$t('console.linkPort', { name: node.name })"
-                @pointerdown.stop.prevent="handlePortPointerDown($event, node.key, 'right')"
+                @pointerdown.stop.prevent="
+                  handlePortPointerDown($event, node.key, 'right')
+                "
                 @click.stop
               />
             </div>
@@ -272,7 +377,9 @@
         </div>
         <div v-if="!visibleNodes.length" class="canvas-empty">
           <a-empty :description="$t('console.canvasHint')" />
-          <a-button @click.stop="handlePlaceAll">{{ $t("console.placeAll") }}</a-button>
+          <a-button @click.stop="handlePlaceAll">{{
+            $t("console.placeAll")
+          }}</a-button>
         </div>
       </div>
     </div>
@@ -283,27 +390,41 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Empty } from "ant-design-vue";
 import {
-  ClearOutlined, FullscreenOutlined, InfoCircleOutlined,
-  LinkOutlined, MinusOutlined, PartitionOutlined, PlusOutlined,
+  ClearOutlined,
+  FullscreenOutlined,
+  InfoCircleOutlined,
+  LinkOutlined,
+  MinusOutlined,
+  PartitionOutlined,
+  PlusOutlined,
   RightOutlined,
 } from "@ant-design/icons-vue";
-import { Local } from "@/utils/storage";
+import { Session } from "@/utils/storage";
 import { customNotification } from "@/utils/notification";
+import type { Library } from "@/api/console/type";
 import CanvasResource from "./CanvasResource.vue";
 import {
-  arrangeCanvasNodes, CANVAS_PADDING, COLUMN_STEP, MAX_AUTO_ASSETS,
-  NODE_HEIGHT, NODE_PORT_Y, NODE_WIDTH, ROW_STEP,
+  arrangeCanvasNodes,
+  CANVAS_PADDING,
+  COLUMN_STEP,
+  MAX_AUTO_ASSETS,
+  NODE_HEIGHT,
+  NODE_PORT_Y,
+  NODE_WIDTH,
+  ROW_STEP,
 } from "../ResourceModel";
 import type { CanvasEdge, CanvasNode, NodeKind, Position } from "../Type";
-import { resourceCategories, resourceCategoryList } from "../ResourcePresentation";
+import {
+  resourceCategories,
+  resourceCategoryList,
+} from "../ResourcePresentation";
 
 const props = defineProps<{
-  libraryId: string;
+  libraryData: Pick<Library, "id" | "name">;
   nodeList: CanvasNode[];
   edgeList: CanvasEdge[];
   loading: boolean;
-  selectedKey?: string;
-  selectedEdge?: CanvasEdge;
+  selection: { key: string; edge?: CanvasEdge };
 }>();
 const emit = defineEmits<{
   connect: [from: string, to: string];
@@ -313,6 +434,7 @@ const emit = defineEmits<{
   create: [kind: NodeKind, position?: Position, target?: CanvasNode];
   deselect: [];
   detach: [];
+  "remove-node": [key: string];
 }>();
 const { t } = useI18n();
 const handleCreate = (kind: NodeKind) => emit("create", kind);
@@ -330,24 +452,44 @@ const linkFrom = ref<string>();
 const linkTo = ref<string>();
 const linkControlsOpen = ref(false);
 const dropTarget = ref("");
-const linkPreview = ref<{ key: string; side: "left" | "right"; to: Position }>();
-const markerId = `canvas-arrow-${props.libraryId}`;
+const linkPreview = ref<{
+  key: string;
+  side: "left" | "right";
+  to: Position;
+}>();
+const markerId = `canvas-arrow-${props.libraryData.id}`;
+const layoutKey = `canvas.${props.libraryData.name}`;
 const isPosition = (value: unknown): value is Position =>
-  value !== null && typeof value === "object" &&
-  "x" in value && typeof value.x === "number" && Number.isFinite(value.x) && value.x >= 0 &&
-  "y" in value && typeof value.y === "number" && Number.isFinite(value.y) && value.y >= 0;
+  value !== null &&
+  typeof value === "object" &&
+  "x" in value &&
+  typeof value.x === "number" &&
+  Number.isFinite(value.x) &&
+  value.x >= 0 &&
+  "y" in value &&
+  typeof value.y === "number" &&
+  Number.isFinite(value.y) &&
+  value.y >= 0;
 const readLayout = (): Record<string, Position> | null => {
   try {
-    const saved: unknown = Local.get(`console.canvas.${props.libraryId}`);
+    const saved: unknown = Session.get(layoutKey);
     if (saved === null) return null;
     if (typeof saved !== "object" || Array.isArray(saved))
       throw new Error(t("console.invalidLayout"));
     const entries = Object.entries(saved);
-    if (!entries.every((entry): entry is [string, Position] => isPosition(entry[1])))
+    if (
+      !entries.every((entry): entry is [string, Position] =>
+        isPosition(entry[1]),
+      )
+    )
       throw new Error(t("console.invalidLayout"));
     return Object.fromEntries(entries);
   } catch (error) {
-    customNotification("warning", t("common.prompt"), `${t("console.invalidLayout")} ${error instanceof Error ? error.message : String(error)}`);
+    customNotification(
+      "warning",
+      t("common.prompt"),
+      `${t("console.invalidLayout")} ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 };
@@ -361,42 +503,68 @@ type DragState =
   | { mode: "link"; key: string }
   | { mode: "pan"; start: Position; origin: Position };
 const drag = ref<DragState>();
-const visibleNodes = computed(() => props.nodeList.filter((node) => positions.value[node.key]));
-const visibleKeys = computed(() => new Set(visibleNodes.value.map((node) => node.key)));
-const visibleEdges = computed(() => props.edgeList.filter((edge) =>
-  visibleKeys.value.has(edge.from) && visibleKeys.value.has(edge.to),
-));
+const visibleNodes = computed(() =>
+  props.nodeList.filter((node) => positions.value[node.key]),
+);
+const visibleKeys = computed(
+  () => new Set(visibleNodes.value.map((node) => node.key)),
+);
+const visibleEdges = computed(() =>
+  props.edgeList.filter(
+    (edge) =>
+      visibleKeys.value.has(edge.from) && visibleKeys.value.has(edge.to),
+  ),
+);
 const inventoryGroups = computed(() => {
   const query = searchName.value.trim().toLowerCase();
   return resourceCategoryList.map((category) => {
     const all = props.nodeList.filter((node) => node.kind === category.kind);
     const matched = all.filter((node) =>
-      [node.name, node.id, node.origin, node.database, node.collection, node.resourceType]
-        .some((value) => value?.toLowerCase().includes(query)),
+      [
+        node.name,
+        node.id,
+        node.origin,
+        node.database,
+        node.collection,
+        node.resourceType,
+      ].some((value) => value?.toLowerCase().includes(query)),
     );
     return {
-      ...category, total: all.length, matched: matched.length, nodes: matched,
+      ...category,
+      total: all.length,
+      matched: matched.length,
+      nodes: matched,
     };
   });
 });
-const connectionNodes = computed(() => props.nodeList.filter((node) =>
-  !node.content && !(node.kind === "source" && node.resourceType === "object"),
-));
+const connectionNodes = computed(() =>
+  props.nodeList.filter(
+    (node) =>
+      !node.content &&
+      !(node.kind === "source" && node.resourceType === "object"),
+  ),
+);
 const targetNodes = computed(() => {
   const from = props.nodeList.find((node) => node.key === linkFrom.value);
-  return connectionNodes.value.filter((node) => !from ||
-    (from.kind === "pool" ? node.kind !== "pool" : node.kind === "pool"),
+  return connectionNodes.value.filter(
+    (node) =>
+      !from ||
+      (from.kind === "pool" ? node.kind !== "pool" : node.kind === "pool"),
   );
 });
 const stageSize = computed(() => ({
   width: Math.max(
     viewSize.value.width / zoom.value,
-    ...visibleNodes.value.map((node) => positions.value[node.key].x + NODE_WIDTH + CANVAS_PADDING),
+    ...visibleNodes.value.map(
+      (node) => positions.value[node.key].x + NODE_WIDTH + CANVAS_PADDING,
+    ),
     1,
   ),
   height: Math.max(
     viewSize.value.height / zoom.value,
-    ...visibleNodes.value.map((node) => positions.value[node.key].y + NODE_HEIGHT + CANVAS_PADDING),
+    ...visibleNodes.value.map(
+      (node) => positions.value[node.key].y + NODE_HEIGHT + CANVAS_PADDING,
+    ),
     1,
   ),
 }));
@@ -407,23 +575,36 @@ const handleToggleGroup = (kind: NodeKind) => {
 };
 const saveLayout = () => {
   try {
-    Local.set(`console.canvas.${props.libraryId}`, positions.value);
+    Session.set(layoutKey, positions.value);
   } catch (error) {
-    customNotification("error", t("common.error"), `${t("console.layoutSaveFailed")} ${error instanceof Error ? error.message : String(error)}`);
+    customNotification(
+      "error",
+      t("common.error"),
+      `${t("console.layoutSaveFailed")} ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 };
 const placeNodes = (keys: string[], position?: Position) => {
   initialized = true;
   keys.forEach((key, index) => {
     if (positions.value[key]) return;
-    const column = resourceCategoryList.findIndex((category) => key.startsWith(`${category.kind}:`));
+    const column = resourceCategoryList.findIndex((category) =>
+      key.startsWith(`${category.kind}:`),
+    );
     const point = position
       ? { x: position.x, y: position.y + index * ROW_STEP }
-      : { x: CANVAS_PADDING + Math.max(0, column) * COLUMN_STEP, y: CANVAS_PADDING };
-    while (Object.values(positions.value).some((other) =>
-      Math.abs(other.x - point.x) < NODE_WIDTH + 12 &&
-      Math.abs(other.y - point.y) < NODE_HEIGHT + 12,
-    )) point.y += ROW_STEP;
+      : {
+          x: CANVAS_PADDING + Math.max(0, column) * COLUMN_STEP,
+          y: CANVAS_PADDING,
+        };
+    while (
+      Object.values(positions.value).some(
+        (other) =>
+          Math.abs(other.x - point.x) < NODE_WIDTH + 12 &&
+          Math.abs(other.y - point.y) < NODE_HEIGHT + 12,
+      )
+    )
+      point.y += ROW_STEP;
     positions.value[key] = point;
   });
   saveLayout();
@@ -437,14 +618,32 @@ const handleFit = async (initial = false) => {
     return;
   }
   const points = visibleNodes.value.map((node) => positions.value[node.key]);
-  const minX = Math.max(0, Math.min(...points.map((point) => point.x)) - CANVAS_PADDING);
-  const minY = Math.max(0, Math.min(...points.map((point) => point.y)) - CANVAS_PADDING);
-  const width = Math.max(...points.map((point) => point.x)) + NODE_WIDTH + CANVAS_PADDING - minX;
-  const height = Math.max(...points.map((point) => point.y)) + NODE_HEIGHT + CANVAS_PADDING - minY;
+  const minX = Math.max(
+    0,
+    Math.min(...points.map((point) => point.x)) - CANVAS_PADDING,
+  );
+  const minY = Math.max(
+    0,
+    Math.min(...points.map((point) => point.y)) - CANVAS_PADDING,
+  );
+  const width =
+    Math.max(...points.map((point) => point.x)) +
+    NODE_WIDTH +
+    CANVAS_PADDING -
+    minX;
+  const height =
+    Math.max(...points.map((point) => point.y)) +
+    NODE_HEIGHT +
+    CANVAS_PADDING -
+    minY;
   // Tall graphs should scroll on first load, not shrink their cards to unreadable sizes.
   zoom.value = Math.max(
     initial ? 0.75 : 0.25,
-    Math.min(1, area.clientWidth / width, initial ? 1 : area.clientHeight / height),
+    Math.min(
+      1,
+      area.clientWidth / width,
+      initial ? 1 : area.clientHeight / height,
+    ),
   );
   await nextTick();
   area.scrollTo(minX * zoom.value, minY * zoom.value);
@@ -457,10 +656,16 @@ const setZoom = async (value: number, event?: WheelEvent) => {
     x: event ? event.clientX - rect.left : area.clientWidth / 2,
     y: event ? event.clientY - rect.top : area.clientHeight / 2,
   };
-  const before = { x: (area.scrollLeft + anchor.x) / zoom.value, y: (area.scrollTop + anchor.y) / zoom.value };
+  const before = {
+    x: (area.scrollLeft + anchor.x) / zoom.value,
+    y: (area.scrollTop + anchor.y) / zoom.value,
+  };
   zoom.value = Math.max(0.25, Math.min(2, value));
   await nextTick();
-  area.scrollTo(before.x * zoom.value - anchor.x, before.y * zoom.value - anchor.y);
+  area.scrollTo(
+    before.x * zoom.value - anchor.x,
+    before.y * zoom.value - anchor.y,
+  );
 };
 const handleWheel = (event: WheelEvent) => {
   if (!event.ctrlKey && !event.metaKey) return;
@@ -468,18 +673,27 @@ const handleWheel = (event: WheelEvent) => {
   setZoom(zoom.value * (event.deltaY < 0 ? 1.1 : 1 / 1.1), event);
 };
 const handleAutoLayout = () => {
-  positions.value = { ...positions.value, ...arrangeCanvasNodes(visibleNodes.value, props.edgeList) };
+  positions.value = {
+    ...positions.value,
+    ...arrangeCanvasNodes(visibleNodes.value, props.edgeList),
+  };
   saveLayout();
   handleFit();
 };
 const handlePlaceAll = () => {
   const assets = props.nodeList.filter((node) => node.kind === "asset");
   placeNodes([
-    ...props.nodeList.filter((node) => node.kind !== "asset").map((node) => node.key),
+    ...props.nodeList
+      .filter((node) => node.kind !== "asset")
+      .map((node) => node.key),
     ...assets.slice(0, MAX_AUTO_ASSETS).map((node) => node.key),
   ]);
   if (assets.length > MAX_AUTO_ASSETS)
-    customNotification("info", t("common.prompt"), t("console.canvasAssetLimit", { count: MAX_AUTO_ASSETS }));
+    customNotification(
+      "info",
+      t("common.prompt"),
+      t("console.canvasAssetLimit", { count: MAX_AUTO_ASSETS }),
+    );
   handleAutoLayout();
 };
 const handleClear = () => {
@@ -492,8 +706,16 @@ const removeNode = (key: string) => {
   delete positions.value[key];
   saveLayout();
 };
+const handleRemoveNode = (key: string) => {
+  emit("remove-node", key);
+};
 const showLinked = (key: string) => {
-  placeNodes([key, ...props.edgeList.filter((edge) => edge.from === key || edge.to === key).flatMap((edge) => [edge.from, edge.to])]);
+  placeNodes([
+    key,
+    ...props.edgeList
+      .filter((edge) => edge.from === key || edge.to === key)
+      .flatMap((edge) => [edge.from, edge.to]),
+  ]);
   handleFit();
 };
 const handleInventoryClick = async (key: string) => {
@@ -502,8 +724,15 @@ const handleInventoryClick = async (key: string) => {
   await nextTick();
   const point = positions.value[key];
   viewport.value?.scrollTo({
-    left: Math.max(0, (point.x + NODE_WIDTH / 2) * zoom.value - viewport.value.clientWidth / 2),
-    top: Math.max(0, (point.y + NODE_HEIGHT / 2) * zoom.value - viewport.value.clientHeight / 2),
+    left: Math.max(
+      0,
+      (point.x + NODE_WIDTH / 2) * zoom.value - viewport.value.clientWidth / 2,
+    ),
+    top: Math.max(
+      0,
+      (point.y + NODE_HEIGHT / 2) * zoom.value -
+        viewport.value.clientHeight / 2,
+    ),
     behavior: "smooth",
   });
 };
@@ -515,17 +744,23 @@ const curve = (from: Position, to: Position) => {
   const offset = Math.max(40, Math.abs(to.x - from.x) / 2);
   return `M ${from.x} ${from.y} C ${from.x + offset} ${from.y}, ${to.x - offset} ${to.y}, ${to.x} ${to.y}`;
 };
-const getEdgePath = (edge: CanvasEdge) => curve(portPoint(edge.from, "right"), portPoint(edge.to, "left"));
+const getEdgePath = (edge: CanvasEdge) =>
+  curve(portPoint(edge.from, "right"), portPoint(edge.to, "left"));
 const previewPath = computed(() => {
   const preview = linkPreview.value;
   if (!preview) return "";
   const point = portPoint(preview.key, preview.side);
-  return preview.side === "right" ? curve(point, preview.to) : curve(preview.to, point);
+  return preview.side === "right"
+    ? curve(point, preview.to)
+    : curve(preview.to, point);
 });
 const toCanvas = (clientX: number, clientY: number): Position => {
   const area = viewport.value!;
   const rect = area.getBoundingClientRect();
-  return { x: (clientX - rect.left + area.scrollLeft) / zoom.value, y: (clientY - rect.top + area.scrollTop) / zoom.value };
+  return {
+    x: (clientX - rect.left + area.scrollLeft) / zoom.value,
+    y: (clientY - rect.top + area.scrollTop) / zoom.value,
+  };
 };
 const handleInventoryDrag = (event: DragEvent, key: string) => {
   event.dataTransfer?.setData("application/x-console-node", key);
@@ -533,26 +768,50 @@ const handleInventoryDrag = (event: DragEvent, key: string) => {
 const handleCreateDrag = (event: DragEvent, kind: NodeKind) => {
   event.dataTransfer?.setData("application/x-console-create", kind);
 };
-const relatedPosition = (kind: NodeKind, target: CanvasNode | undefined, fallback: Position): Position => {
+const relatedPosition = (
+  kind: NodeKind,
+  target: CanvasNode | undefined,
+  fallback: Position,
+): Position => {
   const anchor = target && positions.value[target.key];
-  if (!anchor || !target || (kind === "pool" ? target.kind === "pool" : target.kind !== "pool"))
+  if (
+    !anchor ||
+    !target ||
+    (kind === "pool" ? target.kind === "pool" : target.kind !== "pool")
+  )
     return fallback;
-  const offset = kind === "source" || (kind === "pool" && target.kind === "asset") ? COLUMN_STEP : -COLUMN_STEP;
+  const offset =
+    kind === "source" || (kind === "pool" && target.kind === "asset")
+      ? COLUMN_STEP
+      : -COLUMN_STEP;
   return { x: Math.max(CANVAS_PADDING, anchor.x + offset), y: anchor.y };
 };
 const handleDrop = (event: DragEvent, target?: string) => {
   const data = event.dataTransfer;
   if (!data || props.loading) return;
   const point = toCanvas(event.clientX, event.clientY);
-  const position = { x: Math.max(0, point.x - NODE_WIDTH / 2), y: Math.max(0, point.y - 20) };
+  const position = {
+    x: Math.max(0, point.x - NODE_WIDTH / 2),
+    y: Math.max(0, point.y - 20),
+  };
   const targetNode = props.nodeList.find((node) => node.key === target);
   if (Array.from(data.types).includes("Files")) {
-    emit("files", data, targetNode, relatedPosition("asset", targetNode, position));
+    emit(
+      "files",
+      data,
+      targetNode,
+      relatedPosition("asset", targetNode, position),
+    );
     return;
   }
   const creation = data.getData("application/x-console-create");
   if (creation === "asset" || creation === "pool" || creation === "source") {
-    emit("create", creation, relatedPosition(creation, targetNode, position), targetNode);
+    emit(
+      "create",
+      creation,
+      relatedPosition(creation, targetNode, position),
+      targetNode,
+    );
     return;
   }
   const key = data.getData("application/x-console-node");
@@ -585,25 +844,46 @@ const stopPointerTracking = () => {
 const handleNodePointerDown = (event: PointerEvent, key: string) => {
   if (event.button !== 0 || props.loading) return;
   event.preventDefault();
-  drag.value = { mode: "move", key, start: { x: event.clientX, y: event.clientY }, origin: { ...positions.value[key] } };
+  drag.value = {
+    mode: "move",
+    key,
+    start: { x: event.clientX, y: event.clientY },
+    origin: { ...positions.value[key] },
+  };
   startPointerTracking();
 };
-const handlePortPointerDown = (event: PointerEvent, key: string, side: "left" | "right") => {
+const handlePortPointerDown = (
+  event: PointerEvent,
+  key: string,
+  side: "left" | "right",
+) => {
   if (event.button !== 0 || props.loading) return;
   drag.value = { mode: "link", key };
   linkPreview.value = { key, side, to: portPoint(key, side) };
   startPointerTracking();
 };
 const handleBackgroundPointerDown = (event: PointerEvent) => {
-  if ((event.button !== 0 && event.button !== 1) || (event.target instanceof Element && event.target.closest(".canvas-empty"))) return;
+  if (
+    (event.button !== 0 && event.button !== 1) ||
+    (event.target instanceof Element && event.target.closest(".canvas-empty"))
+  )
+    return;
   event.preventDefault();
   const area = viewport.value!;
-  drag.value = { mode: "pan", start: { x: event.clientX, y: event.clientY }, origin: { x: area.scrollLeft, y: area.scrollTop } };
+  drag.value = {
+    mode: "pan",
+    start: { x: event.clientX, y: event.clientY },
+    origin: { x: area.scrollLeft, y: area.scrollTop },
+  };
   startPointerTracking();
 };
 const targetAt = (event: PointerEvent) => {
-  const element = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-node]");
-  return element && viewport.value?.contains(element) ? element.dataset.node : undefined;
+  const element = document
+    .elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>("[data-node]");
+  return element && viewport.value?.contains(element)
+    ? element.dataset.node
+    : undefined;
 };
 const handlePointerMove = (event: PointerEvent) => {
   const state = drag.value;
@@ -613,11 +893,17 @@ const handlePointerMove = (event: PointerEvent) => {
     dropTarget.value = targetAt(event) || "";
     return;
   }
-  const dx = event.clientX - state.start.x, dy = event.clientY - state.start.y;
+  const dx = event.clientX - state.start.x,
+    dy = event.clientY - state.start.y;
   if (Math.abs(dx) + Math.abs(dy) > 5) moved = true;
   if (!moved) return;
-  if (state.mode === "pan") viewport.value?.scrollTo(state.origin.x - dx, state.origin.y - dy);
-  else positions.value[state.key] = { x: Math.max(0, state.origin.x + dx / zoom.value), y: Math.max(0, state.origin.y + dy / zoom.value) };
+  if (state.mode === "pan")
+    viewport.value?.scrollTo(state.origin.x - dx, state.origin.y - dy);
+  else
+    positions.value[state.key] = {
+      x: Math.max(0, state.origin.x + dx / zoom.value),
+      y: Math.max(0, state.origin.y + dy / zoom.value),
+    };
 };
 const handlePointerUp = (event: PointerEvent) => {
   const state = drag.value;
@@ -628,9 +914,13 @@ const handlePointerUp = (event: PointerEvent) => {
     const point = positions.value[state.key];
     const target = visibleNodes.value.find((node) => {
       const other = positions.value[node.key];
-      return node.key !== state.key && point.x + NODE_WIDTH / 2 > other.x &&
+      return (
+        node.key !== state.key &&
+        point.x + NODE_WIDTH / 2 > other.x &&
         point.x + NODE_WIDTH / 2 < other.x + NODE_WIDTH &&
-        point.y + NODE_HEIGHT / 2 > other.y && point.y + NODE_HEIGHT / 2 < other.y + NODE_HEIGHT;
+        point.y + NODE_HEIGHT / 2 > other.y &&
+        point.y + NODE_HEIGHT / 2 < other.y + NODE_HEIGHT
+      );
     });
     if (target) {
       positions.value[state.key] = state.origin;
@@ -642,7 +932,8 @@ const handlePointerUp = (event: PointerEvent) => {
   stopPointerTracking();
 };
 const cancelDrag = () => {
-  if (drag.value?.mode === "move") positions.value[drag.value.key] = drag.value.origin;
+  if (drag.value?.mode === "move")
+    positions.value[drag.value.key] = drag.value.origin;
   stopPointerTracking();
 };
 const handleNodeClick = (event: MouseEvent, key: string) => {
@@ -657,37 +948,54 @@ const handleKeydown = (event: KeyboardEvent) => {
     linkControlsOpen.value = false;
     return;
   }
-  if (target?.closest("input, textarea, select, [contenteditable='true'], .connection-form")) return;
+  if (
+    target?.closest(
+      "input, textarea, select, [contenteditable='true'], .connection-form",
+    )
+  )
+    return;
   if (event.key === "Escape") {
     cancelDrag();
     emit("deselect");
   }
   if (event.key === "Delete" || event.key === "Backspace") {
-    if (props.selectedKey) {
+    if (props.selection.key) {
       event.preventDefault();
-      removeNode(props.selectedKey);
-      emit("deselect");
-    } else if (props.selectedEdge) {
+      handleRemoveNode(props.selection.key);
+    } else if (props.selection.edge) {
       event.preventDefault();
       emit("detach");
     }
   }
 };
-watch(linkFrom, () => { linkTo.value = undefined; });
-watch(() => props.nodeList, (nodes) => {
-  if (!initialized && nodes.length) {
-    const assets = nodes.filter((node) => node.kind === "asset");
-    const initial = nodes.filter((node) => node.kind !== "asset" || assets.length <= 40);
-    positions.value = arrangeCanvasNodes(initial, props.edgeList);
-    initialized = true;
-    saveLayout();
-  }
-  if (linkFrom.value && !nodes.some((node) => node.key === linkFrom.value)) linkFrom.value = undefined;
-  if (linkTo.value && !nodes.some((node) => node.key === linkTo.value)) linkTo.value = undefined;
-}, { immediate: true });
+watch(linkFrom, () => {
+  linkTo.value = undefined;
+});
+watch(
+  () => props.nodeList,
+  (nodes) => {
+    if (!initialized && nodes.length) {
+      const assets = nodes.filter((node) => node.kind === "asset");
+      const initial = nodes.filter(
+        (node) => node.kind !== "asset" || assets.length <= 40,
+      );
+      positions.value = arrangeCanvasNodes(initial, props.edgeList);
+      initialized = true;
+      saveLayout();
+    }
+    if (linkFrom.value && !nodes.some((node) => node.key === linkFrom.value))
+      linkFrom.value = undefined;
+    if (linkTo.value && !nodes.some((node) => node.key === linkTo.value))
+      linkTo.value = undefined;
+  },
+  { immediate: true },
+);
 onMounted(() => {
   resizeObserver = new ResizeObserver(([entry]) => {
-    viewSize.value = { width: entry.contentRect.width, height: entry.contentRect.height };
+    viewSize.value = {
+      width: entry.contentRect.width,
+      height: entry.contentRect.height,
+    };
   });
   if (viewport.value) resizeObserver.observe(viewport.value);
   window.addEventListener("keydown", handleKeydown);
@@ -938,7 +1246,10 @@ defineExpose({ placeNodes, removeNode, showLinked });
   min-height: 0;
   overflow: auto;
   background-color: var(--bg-main-color);
-  background-image: radial-gradient(var(--border-main-color) 1px, transparent 1px);
+  background-image: radial-gradient(
+    var(--border-main-color) 1px,
+    transparent 1px
+  );
   background-size: 18px 18px;
   cursor: grab;
   touch-action: none;
@@ -989,7 +1300,8 @@ defineExpose({ placeNodes, removeNode, showLinked });
   }
   &:hover {
     background: var(--resource-color);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--resource-color) 18%, transparent);
+    box-shadow: 0 0 0 4px
+      color-mix(in srgb, var(--resource-color) 18%, transparent);
   }
 }
 .canvas-edges {

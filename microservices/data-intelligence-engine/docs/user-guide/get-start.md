@@ -44,6 +44,16 @@ INT8 media reranker) under `workspace/models`, starts Milvus and the engine on
 port `16022`, and registers Milvus as `local-milvus`. Later runs only start the
 services.
 
+**GPU or CPU.** Every model runs on the Intel GPU (`/dev/dri`) by default. Pass
+`--cpu` to run every model on the CPU instead; a host without `/dev/dri` falls
+back to the CPU automatically. The choice is written to `deployment/docker/.env`
+as `ENGINE_*_DEVICE=CPU`, and values already in that file are kept.
+
+**Workspace path.** `quickstart.sh` mounts `workspace/` into the engine at its
+host path (`ENGINE_WORKSPACE_HOST_PATH`/`ENGINE_WORKSPACE_CONTAINER_PATH` in `deployment/docker/.env`),
+so stored `file_path` and `media_key` values are real paths other agents on the
+host can open. The engine runs as your user (`USER_UID`/`USER_GID`). Don't change the paths after ingesting; re-ingest if you do.
+
 If you do not want all the models, name the ones to prepare with `--models` on
 the first run. The text ingestion and retrieval in this guide need only GME,
 which embeds both the file and the query, so this is enough to run every step
@@ -77,7 +87,7 @@ cd scripts
 {
   "service": "engine",
   "status": "ok",
-  "workspace": "/workspace",
+  "workspace": "/path/to/data-intelligence-engine/workspace",
   "databases": 1,
   "asset_libraries": 0
 }
@@ -101,7 +111,7 @@ List the registrations with `./databases.sh read`. Each backend takes these
 |---|---|
 | `vector` / `milvus` | `uri` (required), e.g. `http://milvus-standalone:19530`; other keys, such as `token` or `db_name`, go to the Milvus client |
 | `graph` / `nebula` | `url` (required), e.g. `nebula://nebula-graphd:9669`; optional `username` (default `root`), `password` and `space` |
-| `object` / `filesystem` | `root` (required), a directory inside the container, e.g. `/workspace/content` |
+| `object` / `filesystem` | `root` (required), a directory inside the container, e.g. `<workspace>/content` (the host workspace path, see Step 1) |
 
 ## Step 2: Ingest a File
 

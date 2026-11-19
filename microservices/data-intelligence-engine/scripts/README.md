@@ -245,7 +245,7 @@ For media reranking, add `--rerank` or send JSON with `postprocess`:
 ```
 
 `top_k` sets candidate depth per serving source; `top_n` limits the final global
-result count after reranking. The model export, parity, machine review, annotation,
+result count after reranking. The model export, machine review, annotation,
 and frozen evaluation commands live in
 [text-to-media-retrieval.md](../docs/user-guide/text-to-media-retrieval.md#prepare-the-openvino-model)
 and use the Python tools in this directory.
