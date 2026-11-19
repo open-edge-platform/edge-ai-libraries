@@ -104,18 +104,19 @@ export const BenchmarkRunDetail = () => {
                 : `${benchmark.name} Results | ${formatTimestamp(runDetails.start_time)} (#${runDetails.id})`}
             </h1>
           </div>
-          {isActiveRun ? (
-            <div data-export-ignore>
-              <RunBenchmarkButton suiteSlug={benchmark.slug} />
-            </div>
-          ) : (
-            runDetails.status === "completed" && (
+          <div className="flex items-center gap-2">
+            {isActiveRun && (
+              <div data-export-ignore>
+                <RunBenchmarkButton suiteSlug={benchmark.slug} />
+              </div>
+            )}
+            {runDetails.status !== "running" && (
               <BenchmarkExportButton
                 benchmark={benchmark}
                 runDetails={runDetails}
               />
-            )
-          )}
+            )}
+          </div>
         </div>
         <div className="text-muted-foreground ml-14 flex items-center gap-2">
           <span>Status:</span>

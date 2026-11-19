@@ -85,7 +85,7 @@ export const BenchmarkExportButton = ({
     }
   };
 
-  if (runDetails.status !== "completed") {
+  if (runDetails.status === "running") {
     return null;
   }
 
