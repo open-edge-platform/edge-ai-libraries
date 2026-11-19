@@ -144,21 +144,21 @@ Options: `--non-interactive`, `--skip-gpu-check`, `--harness <name>`,
 ## Observability
 
 `observability` turns telemetry on or off for the Inference Router and the
-harness and shows its state. Every verb takes arguments:
+harness, and shows their state:
 
 ```bash
-./install.sh observability enable [--target all|harness|router] [--backend sqlite|jaeger] [--endpoint <url>] [--content off|preview|full]
-./install.sh observability disable [--target all|harness|router] [--clean | --keep-jaeger]
-./install.sh observability show [--target all|harness|router]
+./install.sh observability enable [--backend sqlite|jaeger] [--endpoint <url>] [--content off|preview|full]
+./install.sh observability disable [--clean | --keep-jaeger]
+./install.sh observability show
 ```
 
 | Verb | Arguments | What it controls |
 |---|---|---|
-| `enable` | `--target`, `--backend`, `--endpoint`, `--content` | How telemetry is collected (`--content`), and where it is stored or visualized (`--backend`, `--endpoint`) |
-| `disable` | `--target`, `--clean`, `--keep-jaeger` | Stops collection. `--clean` also deletes the collected data; `--keep-jaeger` leaves the managed Jaeger and its traces running |
-| `show` | `--target` | A CLI summary of what was collected, and the Jaeger UI address when Jaeger is the backend (Jaeger is the full trace view) |
+| `enable` | `--backend`, `--endpoint`, `--content` | How telemetry is collected (`--content`), and where it is stored or visualized (`--backend`, `--endpoint`) |
+| `disable` | `--clean`, `--keep-jaeger` | Stops collection. `--clean` also deletes the collected data; `--keep-jaeger` leaves the managed Jaeger and its traces running |
+| `show` | None | A CLI summary of what was collected, and the Jaeger UI address when Jaeger is the backend (Jaeger is the full trace view) |
 
-- `router`: switches the Inference Router telemetry backend to a JSONL file
+- The Inference Router telemetry backend switches to a JSONL file
   (`telemetry.jsonl` in the router workspace), restarts the router, and
   `show` reads `/v1/metrics`. `disable` reverts to the in-memory backend.
   The restart interrupts any request in flight, so run these between agent
@@ -199,13 +199,13 @@ harness and shows its state. Every verb takes arguments:
   `127.0.0.1:<OTLP port>`. A container created by an earlier unreleased build
   has no label: remove it with `docker rm -f agent-harness-install-jaeger`
   (or your `HARNESS_JAEGER_CONTAINER` name) first.
-- `--target all` (default) applies both; an unsupported harness is skipped
-  with a notice. Everything that can be checked in advance (Hermes CLI, Jaeger
+- An unsupported harness is skipped with a notice. Everything that can be
+  checked in advance (Hermes CLI, Jaeger
   ownership and ports, the Router file settings and container) is checked
   before either target is changed, and if the harness still fails the Router
   change made by that command is reverted.
 - Re-running `enable` keeps the saved harness `--backend`, `--endpoint` and
-  `--content` unless you name them again, so `observability enable --target all`
+  `--content` unless you name them again, so `observability enable`
   later does not reset a Jaeger setup to `sqlite`. Naming only `--endpoint`
   keeps the saved backend; a saved endpoint is reused only for the backend it
   was saved with.
@@ -221,8 +221,8 @@ harness and shows its state. Every verb takes arguments:
 | `observability disable --keep-jaeger` | Kept | Kept | Kept running |
 
 - `--clean` and `--keep-jaeger` conflict, since cleaning removes Jaeger's traces.
-  `--keep-jaeger` applies to the harness. A later `observability disable
-  --target harness` (or uninstall) removes the kept container; a later
+  `--keep-jaeger` applies to the harness. A later `observability disable`
+  (or uninstall) removes the kept container; a later
   `observability enable` that does not use Jaeger leaves it running.
 - The Hermes store is emptied in place, not deleted, so a running Hermes
   gateway keeps working. A Hermes session that is still running keeps adding
@@ -302,10 +302,10 @@ can start and manage that Jaeger for you.
 ### Router telemetry file
 
 The Inference Router supports exactly two telemetry backends, `memory` and
-`file`, and `observability enable --target router` selects `file`. Nothing leaves
+`file`; `observability enable` selects `file`. Nothing leaves
 the machine: the Router appends to a local file and does not export telemetry.
 
-| | `memory` (default) | `file` (after `observability enable --target router`) |
+| | `memory` (default) | `file` (after `observability enable`) |
 |---|---|---|
 | Storage | Router process memory | `telemetry.jsonl`, bind-mounted from the container's `/app/telemetry.jsonl` to `~/.agent-harness-install/inference-router/workspace/telemetry.jsonl` |
 | `GET /v1/metrics` | Reads the in-process counters | Re-reads and re-parses the whole file |
@@ -317,13 +317,13 @@ available. It holds no prompt or response text.
 
 What clears the file:
 
-- `./install.sh observability disable --target router --clean` (or `--target all`)
+- `./install.sh observability disable --clean`
   empties it after switching the Router back to `memory`.
 - `POST /v1/metrics/reset` on the Router truncates it.
-- Deleting it by hand is safe; the next `observability enable --target router`
+- Deleting it by hand is safe; the next `observability enable`
   recreates it with the right permissions.
 - Rotation: when the installer next prepares the file (an install, or
-  `observability enable --target router`) and it is larger than
+  `observability enable`) and it is larger than
   `HARNESS_IR_TELEMETRY_MAX_BYTES` (default 20 MiB; `0` turns rotation off),
   it is moved to `telemetry.jsonl.1` (mode 600) and a fresh file is started.
   Only one previous generation is kept, and `/v1/metrics` counts only the new
@@ -332,7 +332,7 @@ What clears the file:
 - `./uninstall.sh` removes it with the rest of the state directory, including
   with `--keep-models`, which only retains the models.
 
-`observability disable --target router` switches back to `memory` and restarts the
+`observability disable` switches back to `memory` and restarts the
 Router, so the live counters read zero, but it leaves the file in place unless
 you pass `--clean`. The kept file is restricted to owner-only (mode 600) since
 nothing writes it any more; a later `enable` reopens it as configured. If you

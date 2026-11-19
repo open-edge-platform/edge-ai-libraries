@@ -88,7 +88,6 @@ usage() {
     --help, -h                        Show this help message and exit
 
   Observability options (./install.sh observability ...):
-    --target <harness|router|all>      Block to act on (default: all); accepted by enable, disable and show
     --backend <sqlite|jaeger>          enable only; where the harness (Hermes + hermes-otel) sends telemetry. sqlite = local store
                                        only (default); jaeger = managed loopback Jaeger container, or your own Jaeger at --endpoint
     --endpoint <url>                   enable only; OTLP/HTTP traces URL of an existing Jaeger, e.g. http://host:4318/v1/traces

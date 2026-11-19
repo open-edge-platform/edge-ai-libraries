@@ -179,9 +179,9 @@ flowchart TD
 
 ### Telemetry
 
-`./install.sh observability enable|disable|show` controls telemetry for two
-independent blocks, chosen with `--target harness|router|all`. `enable` takes
-the collection and storage options (`--backend`, `--endpoint`, `--content`),
+`./install.sh observability enable|disable|show` manages telemetry for the
+Inference Router and Hermes harness. `enable` takes the
+collection and storage options (`--backend`, `--endpoint`, `--content`),
 `disable` can delete the collected data (`--clean`) or keep the managed
 Jaeger (`--keep-jaeger`), and `show` prints a CLI summary, with Jaeger as the
 full trace view. The Router
@@ -202,7 +202,7 @@ flowchart TD
     classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
     classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray: 4 3
 
-    CMD(["./install.sh observability<br/>enable | disable | show<br/>--target harness, router or all"]):::step
+    CMD(["./install.sh observability<br/>enable | disable | show"]):::step
     LOCK{"Verb"}:::decision
     SHOWN["show: read-only summary<br/>of the Router (/v1/metrics)<br/>and the Hermes store; no lock;<br/>prints the Jaeger UI URL"]:::step
     STATE[("~/.agent-harness-install/metrics.json<br/>router.* and harness.* settings")]:::store

@@ -292,13 +292,13 @@ cases; its own CI step) additionally runs the real `./install.sh observability .
 subprocess against stateful fake `docker`, `hermes`, `flock` and `curl`
 executables: the enable/disable round trip, `--keep-jaeger`, a foreign Jaeger
 container, an unreachable Docker daemon, an already-disabled plugin, the
-`--target all` disable ordering, rejection of unsafe input, and `--help` running
+combined disable ordering, rejection of unsafe input, and `--help` running
 no command. It checks exit
 codes and resulting state, not real containers.
 
 | Case reference | Test case | Objective / expected result |
 |---|---|---|
-| `parse_defaults` | Flag defaults and forms | Default to `--target all`, `sqlite` and content `off`; accept `--flag value` and `--flag=value`. |
+| `parse_defaults` | Flag defaults and forms | Check scope, `sqlite` and content `off` defaults; accept `--flag value` and `--flag=value`. |
 | `parse_rejections` | Invalid, unsafe and misplaced arguments | Reject bad targets, backends, content modes, endpoints with credentials or a query string, out-of-range ports, repeated and valueless flags. |
 | `router_toggle` | Router enable/disable | Rewrite only the telemetry block, create the JSONL file and restart the Router. |
 | `router_setting_survives_config_regeneration` | Config regeneration | Keep the chosen Router telemetry backend when the installer rewrites `config.yaml`. |
@@ -315,19 +315,19 @@ codes and resulting state, not real containers.
 | `router_state_is_unchanged_when_file_preparation_fails` | Router prerequisites | Leave the saved Router state unchanged when the file settings or Docker query fail. |
 | `disable_fails_when_the_plugin_cannot_be_disabled` | Plugin disable failure | Fail and keep config and state when Hermes is missing or `plugins disable` fails, unless the plugin lists as already disabled. |
 | `wal_checkpoint_busy_is_reported` | `--clean` with a busy store | Report that the write-ahead log may still hold deleted text. Skipped without `python3`. |
-| `all_target_rolls_the_router_back_when_the_harness_fails` | `--target all` failure handling | Validate harness options before the Router changes, and revert a Router change made by the command when the harness fails. |
-| `all_target_disable_reaches_the_router_after_a_harness_failure` | `--target all` disable | Still disable the Router when the harness cannot be disabled, and exit non-zero with the harness left enabled for a retry. |
+| `all_target_rolls_the_router_back_when_the_harness_fails` | Combined-target failure handling | Validate harness options before the Router changes, and revert a Router change made by the command when the harness fails. |
+| `all_target_disable_reaches_the_router_after_a_harness_failure` | Combined-target disable | Still disable the Router when the harness cannot be disabled, and exit non-zero with the harness left enabled for a retry. |
 | `plugin_source_is_validated` | Plugin reference | Accept a catalog name or `owner/repo[/plugin]`; reject anything else. |
 | `plugin_ref_pins_the_install` | Exact-commit pin | Accept only a full lowercase 40-character SHA and pass it to the plugin install as `--ref`. |
 | `router_file_is_not_world_writable` | Telemetry file mode | Use group-writable 664 (666 only when requested), refuse 664 when the primary group is root, and reject other modes. |
 | `router_enable_rejects_a_container_without_the_group` | Router created by an older installer | Fail before changing state when the container lacks the group needed to write the file. |
-| `all_target_fails_before_touching_the_harness` | `--target all` ordering | Check the Router first so a failure leaves the harness unchanged. |
+| `all_target_fails_before_touching_the_harness` | Combined-target ordering | Check the Router first so a failure leaves the harness unchanged. |
 | `host_gid_ignores_a_switched_primary_group` | Group id source | Use the account's primary group, not the current effective group after a re-run under another group. |
 | `remapped_docker_warns_about_the_664_file` | Rootless or remapped Docker | Warn that the 664 file may not be writable; stay silent for 666 and normal Docker. |
 | `router_file_is_rotated_when_large` | Rotation and cleaning | Rotate once above the size limit, keep one generation at mode 600, treat leading zeros as decimal, reject oversize values, remove the rotated file on `--clean` and never follow a symlink. |
 | `sqlite_warns_about_exporter_env` | Stray exporter variables | Warn that exporter variables in the shell may export traces despite `--backend sqlite`. |
 | `router_state_reverts_when_rewrite_fails` | Failed config rewrite | Restore the previous saved state. |
-| `unsupported_harness_is_reported` | Non-Hermes agent or OpenShell | Skip the harness with a reason while still applying the Router for `--target all`. |
+| `unsupported_harness_is_reported` | Non-Hermes agent or OpenShell | Skip the harness with a reason while still applying the Router. |
 | `dispatch` | Deployment locking | Skip the lock for `show`; take it for `enable` and `disable`, in any runtime. |
 | `show_surfaces_a_failed_plugin_load` | Plugin dependency import failure | Warn, with the `hermes gateway restart` remedy, when Hermes's error log shows the plugin's last load failed and no later load succeeded; stay quiet otherwise or while disabled. |
 | `enable_keeps_saved_harness_settings` | Re-running `enable` | Keep saved backend, endpoint and content unless named again. |
