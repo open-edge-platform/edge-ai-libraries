@@ -24,9 +24,8 @@ Quick start:
 
 ```bash
 cp .env.example .env        # copy and edit environment file
-cd docker
-docker compose build        # build the image
-docker compose up -d        # start containers (API on port 8080)
+make docker-build           # build the image
+make docker-up              # start containers (API on port 8080)
 curl http://localhost:8080/api/v1/health
 ```
 

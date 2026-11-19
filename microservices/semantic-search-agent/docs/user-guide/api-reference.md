@@ -6,7 +6,7 @@ Base URL: `http://localhost:8080/api/v1` (default).
 
 ## `GET /health`
 
-Checks whether the service is live and reports the current state of the VLM backend.
+Checks whether the service is live and reports whether the VLM backend is configured.
 
 ### Response
 
@@ -27,7 +27,7 @@ Checks whether the service is live and reports the current state of the VLM back
 | `service`        | string  | Service name.                                           |
 | `version`        | string  | Service version.                                        |
 | `vlm_backend`    | string  | Configured VLM backend (`ovms`, `openvino_local`, `openai`). |
-| `vlm_status`     | string  | `"connected"` if the backend is available, otherwise `"unavailable"`. |
+| `vlm_status`     | string  | `"connected"` if the backend is configured, otherwise `"unavailable"`. For the `ovms` backend this does not test network connectivity or model readiness, so `"connected"` does not confirm that inference works. |
 | `uptime_seconds` | float   | Seconds since the service started.                      |
 
 ---

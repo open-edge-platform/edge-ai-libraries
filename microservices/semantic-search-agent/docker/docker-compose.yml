@@ -22,30 +22,17 @@ services:
       - ./logs:/app/logs          # Logs directory
       - ${MODEL_DIR:-./models}:/models:ro  # For OpenVINO mode
     devices:
-      - /dev/dri:/dev/dri  # GPU access for OpenVINO
+      - /dev/dri:/dev/dri  # GPU access for OpenVINO; remove with group_add if the host has no GPU
     group_add:
       - video
+    # Settings come from the .env file in the service root (optional).
+    env_file:
+      - path: ../.env
+        required: false
     environment:
-      # App settings
-      - APP_NAME=${APP_NAME:-semantic-search-agent}
-      - APP_VERSION=${APP_VERSION:-2026.3.0-rc1}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      # Matching configuration
-      - DEFAULT_MATCHING_STRATEGY=${DEFAULT_MATCHING_STRATEGY:-hybrid}
-      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.85}
-      # VLM Backend: 'ovms' or 'openvino'
-      - VLM_BACKEND=${VLM_BACKEND:-ovms}
-      # OVMS settings (when VLM_BACKEND=ovms)
-      - OVMS_ENDPOINT=${OVMS_ENDPOINT:-http://oa_ovms_vlm:8000}
-      - OVMS_MODEL_NAME=${OVMS_MODEL_NAME:-Qwen/Qwen2.5-VL-7B-Instruct-ov-int8}
-      - OVMS_TIMEOUT=${OVMS_TIMEOUT:-60}
-      # OpenVINO settings (when VLM_BACKEND=openvino)
-      - OPENVINO_MODEL_PATH=${OPENVINO_MODEL_PATH:-/models/Qwen2.5-VL-7B-Instruct-ov-int8}
-      - OPENVINO_DEVICE=${OPENVINO_DEVICE:-GPU}
-      # Redis settings
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - CACHE_TTL=${CACHE_TTL:-3600}
+      # Fixed in-container ports; host ports are set through API_PORT and METRICS_PORT
+      - API_PORT=8080
+      - METRICS_PORT=9090
     networks:
       - semantic-net
     extra_hosts:
