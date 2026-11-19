@@ -14,23 +14,29 @@ Use this path to run the Semantic Search Agent in a container. The REST API is e
 
 ## Start the Service
 
-From the `semantic-search-agent/` directory:
+From the `microservices/semantic-search-agent/` directory:
 
 ```bash
 # Build the Docker image
-cd docker
-docker compose build
+make docker-build
 
 # Start containers in detached mode
-docker compose up -d
-```
-
-Or using the Makefile from the project root:
-
-```bash
-make docker-build
 make docker-up
 ```
+
+The Makefile selects the `.env` file in the project root automatically. To run Compose directly, pass the file explicitly from the `docker/` directory, because Compose does not read the parent directory by itself:
+
+```bash
+cd docker
+docker compose --env-file ../.env build
+docker compose --env-file ../.env up -d
+```
+
+Every variable in the `.env` file is passed to the container. The container listens on fixed ports `8080` and `9090`; `API_PORT` and `METRICS_PORT` change only the host ports.
+
+### Run without a GPU
+
+The Compose file maps the host GPU device `/dev/dri` into the container. If the host has no `/dev/dri` (for example, when using `exact` matching or a remote backend), remove the `devices` and `group_add` entries from `docker/docker-compose.yml` before starting the containers.
 
 ## Check Status
 
