@@ -71,7 +71,7 @@ to learn how to access this source image and the bundled source code files.
 
 ./get-started.md
 ./api-reference.md
-./get-started/third-party-sources.md
+./third-party-sources.md
 Release Notes <./release-notes.md>
 
 :::
