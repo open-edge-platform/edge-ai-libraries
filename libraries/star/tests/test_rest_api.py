@@ -295,3 +295,40 @@ def test_metrics_history_bounded_per_stream(cfg):
         assert metrics[-1].img_idx == total - 1
     finally:
         service.close_stream("bounded")
+
+
+def test_metrics_endpoint_bounded_to_queue_size(cfg):
+    """GET /metrics only ever returns up to QUEUE_SIZE entries, and GET /metrics/{img_idx}
+    404s once that image's metric has aged out of the bounded per-stream history."""
+    bridge = SemanticCodecBridge(cfg, encoder=Encoder(cfg))
+    service = EncoderService(cfg, decoder_url="http://decoder.local:8000", bridge=bridge)
+    app = create_encoder_app(service)
+
+    with TestClient(app) as client:
+        client.put("/v1/streams/s1")
+        state = service.get_stream("s1")
+
+        total = QUEUE_SIZE + 10
+        for img_idx in range(total):
+            service.record_metrics(state, _fake_encode_result(img_idx=img_idx))
+
+        resp = client.get("/v1/streams/s1/metrics")
+        assert resp.status_code == 200
+        metrics = resp.json()
+        assert len(metrics) == QUEUE_SIZE
+        assert [m["img_idx"] for m in metrics] == list(range(total - QUEUE_SIZE, total))
+
+        # Oldest entries were evicted by the bounded deque; the endpoint must 404 for them.
+        evicted_img_idx = total - QUEUE_SIZE - 1
+        assert client.get(f"/v1/streams/s1/metrics/{evicted_img_idx}").status_code == 404
+
+        # The oldest still-retained entry and the newest one both 200.
+        oldest_retained = client.get(f"/v1/streams/s1/metrics/{total - QUEUE_SIZE}")
+        assert oldest_retained.status_code == 200
+        assert oldest_retained.json()["img_idx"] == total - QUEUE_SIZE
+
+        newest = client.get(f"/v1/streams/s1/metrics/{total - 1}")
+        assert newest.status_code == 200
+        assert newest.json()["img_idx"] == total - 1
+
+        client.delete("/v1/streams/s1")
