@@ -535,6 +535,40 @@ On Helm, the OVMS download init containers apply `ovms.env.OVMS_MAX_NUM_SEQS` (d
 3. Raise `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` only if slow hardware legitimately needs longer between stages; `0` disables the watchdog. On Helm, set `multimodaldataprep.sdkPipeline.pipelineStallTimeoutS`.
 4. Retry with `POST /manager/videos/search-embeddings/{videoId}`.
 
+## QwenText Embedding Crashes on Nova Lake CPUs
+
+**Problem**: On Intel® Core™ Ultra processors code-named Nova Lake, `multimodal-embedding-serving` (and `multimodal-dataprep`, which embeds in-process) crash as soon as a `QwenText/qwen3-embedding-*` model starts inference on CPU. The model downloads, converts and loads, then the worker dies; the service never becomes healthy. `CLIP/*` models are not affected.
+
+**Symptoms**:
+
+- `multimodal-embedding-serving` logs show `Qwen model loaded successfully`, followed by `Worker (pid:<N>) was sent SIGSEGV!` and `Booting worker with pid: <N>`, repeating.
+- `--summary-and-search` (unified) mode never finishes indexing summaries, and search returns no results.
+
+**Cause**: A bug in the OpenVINO™ CPU plugin (releases up to 2026.4.1). Nova Lake processors support Intel® APX, and the CPU plugin's dynamic-quantization kernel for INT8-compressed weights, which the QwenText models use, has a register conflict when APX is enabled. It is fixed upstream in [openvinotoolkit/openvino#38042](https://github.com/openvinotoolkit/openvino/pull/38042), planned for OpenVINO™ 2026.5. Other processors are not affected.
+
+**Solution**: Run embedding on CPU with PyTorch instead of OpenVINO™. This is slower than OpenVINO™, so use it only on affected systems until a release built on OpenVINO™ 2026.5 is available.
+
+- **Docker Compose**: keep `DATAPREP_EMBEDDING_DEVICE`, `DATAPREP_DETECTION_DEVICE` and `MME_EMBEDDING_DEVICE` at their default `CPU` (`setup.sh` turns OpenVINO™ back on when any of them is `GPU` or `NPU`), then disable OpenVINO™ for embedding before starting the application:
+
+  ```bash
+  source setup.sh --down          # if the application is already running
+  export SDK_USE_OPENVINO=false
+  export EMBEDDING_USE_OV=false   # overrides a value left over from an earlier setup.sh run
+  source setup.sh --summary-and-search
+  ```
+
+- **Helm**: set both values in `user_values_override.yaml` (the `multimodalembeddingms` default of `embeddingUseOV: true` takes precedence over the global value), keep the embedding devices on `CPU`, and run `helm upgrade`:
+
+  ```yaml
+  global:
+    env:
+      SDK_USE_OPENVINO: false
+  multimodalembeddingms:
+    embeddingUseOV: false
+  ```
+
+To confirm the workaround, check that `GET /model/current` on `multimodal-embedding-serving` returns `"use_openvino": false` and that its logs no longer show `SIGSEGV`.
+
 ## Accuracy of search results
 
 The accuracy of search results vary based on the embedding model used, configuration on frame sampling, object detection enabled or disabled, and the diversity of the video contents. The user is encouraged to check on these aspects in case the accuracy of the search results is not found to be satisfactory. Note that higher accuracy is normally a tradeoff with performance. Some specific pointers are provided below:

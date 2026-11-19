@@ -30,6 +30,14 @@ The same `config.yaml` is used for both Docker and standalone runs. In Docker, `
 - `AUDIO_ANALYZER_ENV_FILE`: optional `.env` file to preload before config parsing
 - `AUDIO_ANALYZER_SERVER_HOST`: host used by `python main.py`
 - `AUDIO_ANALYZER_SERVER_PORT`: port used by `python main.py`
+- `HF_HUB_DISABLE_XET`: Docker Compose defaults to `1` so Hugging Face model
+  downloads use standard HTTP instead of Xet, avoiding cold-start stalls on
+  networks that cannot reach Xet services. Set `HF_HUB_DISABLE_XET=0` in `.env`
+  to re-enable Xet when those services are reachable.
+
+After changing Compose environment values, recreate the container with
+`docker compose up -d --force-recreate audio-analyzer`. A restart alone does
+not apply environment changes.
 
 Targeted config overrides use the `AUDIO_ANALYZER__...` prefix.
 
