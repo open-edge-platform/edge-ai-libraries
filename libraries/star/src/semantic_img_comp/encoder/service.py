@@ -52,13 +52,22 @@ QUEUE_SIZE = 200
 class StreamCreateRequest(BaseModel):
     # compression_level is only ever compared to 1 or 2 elsewhere (see
     # pipeline_manager.py / semantic_codec_bridge.py); bound it accordingly.
-    compression_level: int = Field(default=2, ge=1, le=2)
+    compression_level: int = Field(
+        default=2, ge=1, le=2,
+        description="Compression level to use for this stream: 1 (lower compression, higher quality) or 2 (higher compression).",
+    )
     # SDL443: client-supplied decoder_url is used to build outgoing requests
     # from this service (see _stream_forwarder); restrict to http(s)
     # to block non-HTTP schemes (file://, gopher://, etc.). This does not by
     # itself prevent SSRF to other internal hosts -- see evidence report.
-    decoder_url: Optional[str] = Field(default=None, max_length=2048)
-    decoder_stream_id: Optional[str] = Field(default=None, min_length=1, max_length=128, pattern=_STREAM_ID_PATTERN)
+    decoder_url: Optional[str] = Field(
+        default=None, max_length=2048,
+        description="Base URL of the decoder service to forward encoded payloads to",
+    )
+    decoder_stream_id: Optional[str] = Field(
+        default=None, min_length=1, max_length=128, pattern=_STREAM_ID_PATTERN,
+        description="Stream id to use on the decoder side; defaults to this stream's own id.",
+    )
 
     @field_validator("decoder_url")
     @classmethod
@@ -69,37 +78,41 @@ class StreamCreateRequest(BaseModel):
 
 
 class StreamCreatedResponse(BaseModel):
-    stream_id: str
-    decoder_url: str
-    decoder_stream_id: str
-    compression_level: int
+    stream_id: str = Field(description="Id of the created (or already existing) stream that is used as clientID.")
+    decoder_url: str = Field(description="Decoder base URL this stream forwards encoded payloads to.")
+    decoder_stream_id: str = Field(description="StreamID used on the decoder side.")
+    compression_level: int = Field(description="Compression level in effect for this stream - 1 (lower compression, higher quality) or 2 (higher compression).")
 
 
 class StreamStatsResponse(BaseModel):
-    stream_id: str
-    frames_processed: int
-    decoder_url: str
-    decoder_stream_id: str
+    stream_id: str = Field(description="Id of the stream that is used as clientID.")
+    frames_processed: int = Field(description="Sequence number of the most recently forwarded frame.")
+    decoder_url: str = Field(description="Decoder base URL this stream forwards encoded payloads to.")
+    decoder_stream_id: str = Field(description="Stream ID used on the decoder side.")
 
 
 class FrameAcceptedResponse(BaseModel):
-    status: str
-    stream_id: str
+    status: str = Field(description='Always "accepted"; the frame was queued for async encode + forward.')
+    stream_id: str = Field(description="ID of the stream the frame was submitted to.")
 
 
 class FrameMetric(BaseModel):
     """Per-image metrics captured from one EncodeResult, exposed via GET /v1/streams/{stream_id}/metrics."""
-    stream_id: str
-    img_idx: int
-    original_bytes: int
-    payload_bytes: int
-    compression_rate: Optional[float] = None
-    aggregated_compression_rate: Optional[float] = None
-    target_compression_rate: Optional[float] = None
-    compression_level: Optional[int] = None
-    fast_path_selected: bool
-    obj_detection_skipped: bool
-    timing_ms: dict[str, float] = Field(default_factory=dict)
+    stream_id: str = Field(description="ID of the stream this metric belongs to.")
+    img_idx: int = Field(description="Per-stream sequence number of the encoded image.")
+    original_bytes: int = Field(description="Size in bytes of the original (uncompressed) JPEG frame.")
+    payload_bytes: int = Field(description="Total size in bytes of the encoded payload sent to the decoder.")
+    compression_rate: Optional[float] = Field(default=None, description="Ratio of original to encoded size for this frame.")
+    aggregated_compression_rate: Optional[float] = Field(
+        default=None, description="Running average compression rate across frames processed so far for this client. Calculated from the start of the encoder to time point when this frame was processed.",
+    )
+    target_compression_rate: Optional[float] = Field(
+        default=None, description="Target compression rate this frame's encode attempted to hit.",
+    )
+    compression_level: Optional[int] = Field(default=None, description="Compression level (1 or 2) used to encode this frame.")
+    fast_path_selected: bool = Field(description="Whether the fast (lower-cost) encode path was used for this frame.")
+    obj_detection_skipped: bool = Field(description="Whether object detection was skipped for this frame (e.g. fast path).")
+    timing_ms: dict[str, float] = Field(default_factory=dict, description="Per-stage timing in milliseconds for this frame's encode.")
 
 
 @dataclass
@@ -379,7 +392,10 @@ def create_app(service: EncoderService) -> FastAPI:
     install_common_endpoints(app, LOGGER, max_body_bytes=max_body_bytes)
 
     @app.put("/v1/streams/{stream_id}", response_model=StreamCreatedResponse)
-    def put_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN), body: StreamCreateRequest = StreamCreateRequest()):
+    def put_stream(
+        stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="StreamID to create, or fetch if it already exists."),
+        body: StreamCreateRequest = StreamCreateRequest(),
+    ):
         state = service.get_or_create_stream(
             stream_id,
             compression_level=body.compression_level,
@@ -394,7 +410,7 @@ def create_app(service: EncoderService) -> FastAPI:
         )
 
     @app.get("/v1/streams/{stream_id}", response_model=StreamStatsResponse)
-    def get_stream_stats(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
+    def get_stream_stats(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to fetch metrics for.")):
         try:
             state = service.get_stream(stream_id)
         except KeyError:
@@ -407,7 +423,7 @@ def create_app(service: EncoderService) -> FastAPI:
         )
 
     @app.delete("/v1/streams/{stream_id}", status_code=204)
-    def delete_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
+    def delete_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="IIDd of the stream to close.")):
         if not service.close_stream(stream_id):
             raise HTTPException(status_code=404, detail=f"unknown stream {stream_id}")
         return Response(status_code=204)
@@ -415,8 +431,13 @@ def create_app(service: EncoderService) -> FastAPI:
     @app.post("/v1/streams/{stream_id}/frames", status_code=202, response_model=FrameAcceptedResponse)
     async def post_frame(
         request: Request,
-        stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN),
-        img_id: Optional[int] = Query(default=None),
+        stream_id: str = ApiPath(
+            ..., pattern=_STREAM_ID_PATTERN,
+            description="ID of the stream to submit the frame to; created automatically if it doesn't exist.",
+        ),
+        img_id: Optional[int] = Query(
+            default=None, description="Explicit per-client image sequence number; auto-incremented if omitted.",
+        ),
     ):
         jpeg_bytes = await request.body()
         if not jpeg_bytes:
@@ -440,7 +461,7 @@ def create_app(service: EncoderService) -> FastAPI:
         return FrameAcceptedResponse(status="accepted", stream_id=stream_id)
 
     @app.get("/v1/streams/{stream_id}/metrics", response_model=list[FrameMetric])
-    def get_metrics(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
+    def get_metrics(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to fetch metrics for.")):
         try:
             return service.get_metrics_for_stream(stream_id)
         except KeyError:
@@ -448,8 +469,8 @@ def create_app(service: EncoderService) -> FastAPI:
 
     @app.get("/v1/streams/{stream_id}/metrics/{img_idx}", response_model=FrameMetric)
     def get_metric_for_image(
-        stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN),
-        img_idx: int = ApiPath(...),
+        stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream."),
+        img_idx: int = ApiPath(..., description="Per-stream image sequence number to fetch the metric for."),
     ):
         try:
             return service.get_metric_for_image(stream_id, img_idx)

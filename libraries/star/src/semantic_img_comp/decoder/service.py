@@ -36,7 +36,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi import Path as ApiPath
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from semantic_img_comp.decoder.decoder import Decoder
 from semantic_img_comp.integration.semantic_codec_bridge import SemanticCodecBridge
@@ -54,19 +54,19 @@ _POLL_TICK_SEC = 0.05
 
 
 class StreamCreatedResponse(BaseModel):
-    stream_id: str
+    stream_id: str = Field(description="Id of the created (or already existing) stream.")
 
 
 class StreamStatsResponse(BaseModel):
-    stream_id: str
-    frames_received: int
-    buffer_depth: int
-    consumer_cursors: dict[str, int]
+    stream_id: str = Field(description="ID of the stream.")
+    frames_received: int = Field(description="Sequence number of the most recently received frame.")
+    buffer_depth: int = Field(description="Number of decoded frames currently held in the stream's ring buffer.")
+    consumer_cursors: dict[str, int] = Field(description="Per-consumer_id next-frame-seq cursor position.")
 
 
 class FrameAcceptedResponse(BaseModel):
-    frame_seq: int
-    img_idx: int
+    frame_seq: int = Field(description="Sequence number assigned to the decoded frame.")
+    img_idx: int = Field(description="Per-stream image index reported by the encoder.")
 
 
 _JPEG_FRAME_RESPONSES = {
@@ -230,12 +230,12 @@ def create_app(service: DecoderService) -> FastAPI:
     install_common_endpoints(app, LOGGER, max_body_bytes=max_body_bytes)
 
     @app.put("/v1/streams/{stream_id}", response_model=StreamCreatedResponse)
-    def put_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
+    def put_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="StreamID to create, or fetch if it already exists.")):
         service.get_or_create_stream(stream_id)
         return StreamCreatedResponse(stream_id=stream_id)
 
     @app.get("/v1/streams/{stream_id}", response_model=StreamStatsResponse)
-    def get_stream_stats(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
+    def get_stream_stats(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to fetch stats for.")):
         try:
             state = service.get_stream(stream_id)
         except KeyError:
@@ -248,13 +248,13 @@ def create_app(service: DecoderService) -> FastAPI:
         )
 
     @app.delete("/v1/streams/{stream_id}", status_code=204)
-    def delete_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
+    def delete_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to close.")):
         if not service.close_stream(stream_id):
             raise HTTPException(status_code=404, detail=f"unknown stream {stream_id}")
         return Response(status_code=204)
 
     @app.post("/v1/streams/{stream_id}/payloads", status_code=202, response_model=FrameAcceptedResponse)
-    async def post_payload(request: Request, stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
+    async def post_payload(request: Request, stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to ingest the payload into; created automatically if it doesn't exist.")):
         payload = await request.body()
         if not payload:
             raise HTTPException(status_code=400, detail="empty request body; expected a mux payload")
@@ -276,9 +276,9 @@ def create_app(service: DecoderService) -> FastAPI:
 
     @app.get("/v1/streams/{stream_id}/frames/next", responses=_JPEG_FRAME_RESPONSES)
     async def get_next_frame(
-        stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN),
-        consumer_id: str = Query(..., min_length=1, max_length=128),
-        wait_ms: int = Query(default=0, ge=0, le=30_000),
+        stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to poll."),
+        consumer_id: str = Query(..., min_length=1, max_length=128, description="Caller-chosen id identifying this consumer's own read cursor."),
+        wait_ms: int = Query(default=0, ge=0, le=30_000, description="Milliseconds to long-poll for a new frame before returning 204 if none is ready."),
     ):
         try:
             state = service.get_stream(stream_id)
@@ -291,7 +291,10 @@ def create_app(service: DecoderService) -> FastAPI:
         return Response(content=frame.jpeg_bytes, media_type="image/jpeg", headers=_frame_headers(frame))
 
     @app.get("/v1/streams/{stream_id}/frames/{frame_seq}", responses=_JPEG_FRAME_RESPONSES)
-    def get_frame_by_seq(frame_seq: int, stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
+    def get_frame_by_seq(
+        frame_seq: int = ApiPath(..., description="Frame sequence number to fetch."),
+        stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream."),
+    ):
         try:
             state = service.get_stream(stream_id)
         except KeyError:
