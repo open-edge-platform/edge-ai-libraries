@@ -102,7 +102,7 @@ make docker-run IMAGE=<your_image_name>:<tag>
 `make docker-run` publishes the container's port `8080` to a free host port.
 It prints the assigned port and the application and API documentation URLs after it starts.
 
-See [Host run options](./configuration.md#host-run-options) for configuration
+See [Container run options](./configuration.md#container-run-options) for configuration
 file and data mount options.
 
 Stop and remove the running container:
