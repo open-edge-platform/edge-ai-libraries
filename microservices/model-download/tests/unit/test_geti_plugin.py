@@ -109,6 +109,37 @@ async def test_list_models_includes_training_status_and_models_without_variants(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("requested_training_status,model_id,model_training_status", [
+    ("SUCCESSFUL", "model-1", "successful"),
+    ("failed", "model-2", "failed"),
+    ("in_progress", "model-3", "in_progress"),
+])
+async def test_list_models_filters_training_status_before_pagination(
+    rest_client, requested_training_status, model_id, model_training_status,
+):
+    plugin = GetiPlugin()
+    session = plugin._build_session({"GETI_HOST": "https://geti.test"})
+
+    result = await plugin._list_models_async(session, {"training_status": requested_training_status}, limit=1)
+
+    assert result["total"] == 1
+    assert [item["metadata"]["model_id"] for item in result["items"]] == [model_id]
+    assert result["items"][0]["metadata"]["training_status"] == model_training_status
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("requested_training_status", ["", ["successful"]])
+async def test_list_models_rejects_invalid_training_status_filter(rest_client, requested_training_status):
+    plugin = GetiPlugin()
+    session = plugin._build_session({"GETI_HOST": "https://geti.test"})
+
+    with pytest.raises(ValueError, match="training_status must be a non-empty string"):
+        await plugin._list_models_async(session, {"training_status": requested_training_status})
+
+    assert not rest_client
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("name,model_id,error", [
     ("Failed Detector", "model-2", "failed during training"),
     ("Training Detector", "model-3", "training is still in progress"),

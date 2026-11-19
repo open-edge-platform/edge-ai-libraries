@@ -18,7 +18,7 @@ DEFAULT_MODEL_FORMAT = "OpenVINO"
 DEFAULT_PRECISION = "FP16"
 GETI_LISTING_FILTER_FIELDS = [
     "project_id", "project_name", "model_name", "precision",
-    "model_format", "architecture", "variant_id",
+    "model_format", "architecture", "variant_id", "training_status",
 ]
 
 
@@ -275,6 +275,11 @@ class GetiPlugin(ModelDownloadPlugin):
                                  limit: int = 50, offset: int = 0) -> Dict[str, Any]:
         filters = filters or {}
         self._validate_listing_filters(filters)
+        requested_training_status = filters.get("training_status")
+        if requested_training_status is not None:
+            if not isinstance(requested_training_status, str) or not requested_training_status.strip():
+                raise ValueError("training_status must be a non-empty string.")
+            requested_training_status = requested_training_status.lower()
         projects = await self.get_projects(session, filters.get("project_id"))
         project_name = str(filters["project_name"]).lower() if filters.get("project_name") is not None else None
         model_name = str(filters["model_name"]).lower() if filters.get("model_name") is not None else None
@@ -289,6 +294,11 @@ class GetiPlugin(ModelDownloadPlugin):
                 if model_name and model_name not in str(model.get("name", "")).lower():
                     continue
                 if architecture and architecture not in str(model.get("architecture", "")).lower():
+                    continue
+                model_training_status = self._training_status(model)
+                if requested_training_status is not None and (
+                    model_training_status is None or model_training_status.lower() != requested_training_status
+                ):
                     continue
                 variants = self._variants(model)
                 if variant_id:
@@ -308,7 +318,7 @@ class GetiPlugin(ModelDownloadPlugin):
                     "last_modified": model.get("last_updated", model.get("updated_at", model.get("creation_time"))),
                     "metadata": {"project_id": project["id"], "project_name": project["name"],
                                  "model_id": model.get("id"),
-                                 "training_status": self._training_status(model),
+                                 "training_status": model_training_status,
                                  "variants": [
                                      {"variant_id": variant.get("id", variant.get("variant_id")),
                                       "model_format": self._variant_format(variant),
