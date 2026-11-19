@@ -55,7 +55,7 @@ curl -X POST http://localhost:8200/api/v1/models/list \
   -H "Content-Type: application/json" \
   -d '{
     "hub": "geti",
-    "filters": {"project_name": "detection", "precision": "FP16"},
+    "filters": {"project_name": "detection", "precision": "FP16", "training_status": "successful"},
     "limit": 10
   }'
 ```
@@ -77,7 +77,9 @@ curl -X POST http://localhost:8200/api/v1/models/list \
 | `huggingface`        | `author`, `search`, `tags`                                                                       |
 | `ultralytics`        | `search`                                                                                         |
 | `pipeline-zoo-models`| `search`                                                                                         |
-| `geti`               | `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id` |
+| `geti`               | `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id`, `training_status` |
+
+For Geti, `filters.training_status` takes a single non-empty string and matches the full status case-insensitively (for example, `successful`, `failed`, or `in_progress`). Omit it to include all statuses, including models whose status is unavailable.
 
 **Response:**
 
