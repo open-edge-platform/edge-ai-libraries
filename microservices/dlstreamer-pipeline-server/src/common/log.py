@@ -58,12 +58,12 @@ def get_logger(name):
     return logger
 
 
-# SDL423/T-005: dedicated audit trail for pipeline lifecycle actions
-# (start/stop/request), separate from general application logs so it can be
-# shipped/retained independently. Writes to stdout (captured by container
-# logging) and to AUDIT_LOG_PATH for in-container persistence. Defaults to the
-# app-owned pipeline_root scratch dir (not the shared, world-writable /tmp -
-# see CWE-377) matching the convention already used elsewhere in this service.
+# Dedicated audit trail for pipeline lifecycle actions (start/stop/request),
+# separate from general application logs so it can be shipped/retained
+# independently. Writes to stdout (captured by container logging) and to
+# AUDIT_LOG_PATH for in-container persistence. Defaults to the app-owned
+# pipeline_root scratch dir (not the shared, world-writable /tmp - see
+# CWE-377) matching the convention already used elsewhere in this service.
 AUDIT_LOG_PATH = os.environ.get('AUDIT_LOG_PATH', '/var/cache/pipeline_root/dlsps_audit.log')
 
 

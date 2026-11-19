@@ -4,8 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-"""File URI validation (threat model T-002 / SDL425 / SDL443 / SDL424) and
-file-destination permission hardening (threat model T-003 / SDL437).
+"""File URI validation and file-destination permission hardening.
 
 Fixes: 'source'/'destination' fields in pipeline start/execute requests accepted
 file:// URIs with no validation, allowing a client to read/write arbitrary
@@ -25,7 +24,7 @@ RESOURCES_BASE_DIR = pathlib.Path("/home/pipeline-server/resources")
 
 _FILE_URI_PREFIX = "file://"
 
-# T-003: owner read/write only - gvametapublish output files may contain
+# Owner read/write only - gvametapublish output files may contain
 # inference results and should not be world/group readable by default.
 _DESTINATION_FILE_MODE = 0o640
 
@@ -63,7 +62,7 @@ def validate_request_uris(request):
 
 
 def restrict_file_destination_permissions(request, logger=None):
-    """T-003: if the request's destination is a file (e.g. metapublish writing
+    """If the request's destination is a file (e.g. metapublish writing
     /tmp/results.jsonl), pre-create it with restrictive permissions (0640) so
     the GStreamer element that actually opens/writes it does not leave the
     file world/group readable. Best-effort - never blocks pipeline start.

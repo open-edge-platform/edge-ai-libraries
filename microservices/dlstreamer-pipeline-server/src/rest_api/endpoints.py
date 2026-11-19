@@ -23,7 +23,7 @@ NOT_IMPLEMENTED = 'Unsupported endpoint'
 
 
 def _client_ip():
-    """Best-effort client IP for SDL423/T-005 audit logging."""
+    """Best-effort client IP for audit logging."""
     try:
         return connexion.request.remote_addr
     except Exception:
@@ -31,7 +31,7 @@ def _client_ip():
 
 
 def _audit_log(action, name=None, version=None, instance_id=None):
-    """SDL423/T-005: structured, persistent audit entry for a pipeline lifecycle action."""
+    """Structured, persistent audit entry for a pipeline lifecycle action."""
     audit_logger.info(json.dumps({
         'audit': True,
         'action': action,
