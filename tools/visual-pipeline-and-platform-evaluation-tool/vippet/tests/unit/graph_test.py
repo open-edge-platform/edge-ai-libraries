@@ -5976,6 +5976,54 @@ class TestValidateBrokerMetadataPublishers(unittest.TestCase):
         self.assertIn("topic", str(ctx.exception))
 
 
+class TestUnifyAllElementNamesMqttClientId(unittest.TestCase):
+    """Explicit MQTT client IDs must be unique per pipeline and stream."""
+
+    @staticmethod
+    def _graph(publisher_data: dict[str, str]) -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="fakesrc", data={}),
+                Node(id="1", type="gvametapublish", data=publisher_data),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+    def test_explicit_client_id_is_unique_per_stream(self):
+        graph = self._graph(
+            {
+                "method": "mqtt",
+                "address": "mqtt-broker:1883",
+                "mqtt-client-id": "vippet",
+            }
+        )
+
+        first = graph.unify_all_element_names(0, 0)
+        second = graph.unify_all_element_names(0, 1)
+
+        self.assertEqual(first.nodes[1].data["mqtt-client-id"], "vippet_0_0")
+        self.assertEqual(second.nodes[1].data["mqtt-client-id"], "vippet_0_1")
+        self.assertEqual(graph.nodes[1].data["mqtt-client-id"], "vippet")
+
+    def test_empty_client_id_is_left_for_generation(self):
+        graph = self._graph({"method": "mqtt", "mqtt-client-id": ""})
+
+        result = graph.unify_all_element_names(0, 1)
+
+        self.assertEqual(result.nodes[1].data["mqtt-client-id"], "")
+
+    def test_missing_client_id_is_not_added(self):
+        graph = self._graph({"method": "mqtt"})
+
+        result = graph.unify_all_element_names(0, 1)
+
+        self.assertNotIn("mqtt-client-id", result.nodes[1].data)
+
+
 class TestInjectMetadataFilePaths(unittest.TestCase):
     """Test cases for Graph.inject_metadata_file_paths method."""
 

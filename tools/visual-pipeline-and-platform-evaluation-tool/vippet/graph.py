@@ -884,19 +884,27 @@ class Graph:
         """
         Unify all element names in the graph to ensure uniqueness across multiple pipelines.
 
+        Explicit ``mqtt-client-id`` values get the same suffix, because an MQTT
+        broker disconnects a client when another connects with the same ID.
+
         Args:
             pipeline_index: Index of the pipeline (used in new element name)
             stream_index: Index of the stream (used in new element name)
         """
         modified_graph = copy.deepcopy(self)
+        suffix = f"_{pipeline_index}_{stream_index}"
 
         for node in modified_graph.nodes:
             if "name" in node.data:
                 old_name = node.data["name"]
-                node.data["name"] = f"{old_name}_{pipeline_index}_{stream_index}"
+                node.data["name"] = f"{old_name}{suffix}"
                 logger.debug(
                     f"Unified element name in node {node.id}: {old_name} -> {node.data['name']}"
                 )
+
+            client_id = str(node.data.get("mqtt-client-id", "")).strip()
+            if node.type == "gvametapublish" and client_id:
+                node.data["mqtt-client-id"] = f"{client_id}{suffix}"
 
         return modified_graph
 
