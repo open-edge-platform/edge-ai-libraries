@@ -31,7 +31,7 @@ license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.11,<4.0"
+python = ">=3.11.5,<4.0"
 llama-index-core = ">=0.13.0"
 llama-index = ">0.13.0"
 fastapi = ">=0.115.2,<1.0"
