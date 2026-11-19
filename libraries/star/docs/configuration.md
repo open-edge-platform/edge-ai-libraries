@@ -243,12 +243,14 @@ How to use it:
 
 ## 5. OpenAPI HTTP spec
 
-To get specification for HTTP endpoints, you can run following commands to get spec in JSON format.
+To get specification for HTTP endpoints, you can run following commands to get spec in JSON format for current version:
 
 ```bash
 curl -fsS http://localhost:8001/openapi.json -o encoder-openapi.json
 curl -fsS http://localhost:8002/openapi.json -o decoder-openapi.json
 ```
+
+or see latest version of API for [encoder](./encoder-openapi.json) and [decoder](./decoder-openapi.json) in the documentation.
 
 To use HTTP endpoints, you have to create stream on encoder:
 
