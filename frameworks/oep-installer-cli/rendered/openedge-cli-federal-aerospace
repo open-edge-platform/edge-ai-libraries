@@ -3932,6 +3932,7 @@ debian_90_install_uncrewed_aerial_vehicle_ground_station ()
     ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/version || return $?;
     cd "$app_dir" || return $?;
     echo "Review $app_dir/.env and upstream LAN bindings before starting the application.";
+    make clean-vss-index || true;
     make init ACCEPT_VSS_MODELS=y || return $?;
     sed -i -e 's|^VSS_EMBEDDING_MODEL=[[:space:]]*$|VSS_EMBEDDING_MODEL=CLIP/clip-vit-b-32|' -e 's|^DATAPREP_DETECTION_MODEL=[[:space:]]*$|DATAPREP_DETECTION_MODEL=OpenVINO/yolox_s-int8-ov|' .env || return $?;
     make _check_vss_env || return $?;
@@ -4036,10 +4037,10 @@ debian_90_remove_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" && { 
-        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
-        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
-    } || true;
+    cd "$app_dir" || return $?;
+    make clean-vss-index || true;
+    docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true;
     ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || true;
     ensure_rm "$workspace" || return $?;
     ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/
@@ -4801,7 +4802,7 @@ ensure_hf_token ()
             echo "Invalid or unauthroized HF_TOKEN" 1>&2;
             return 3
         };
-        echo -e "${red}HF_TOKEN requried for downloading the following models:{reset}" 1>&2;
+        echo -e "${red}HF_TOKEN requried for downloading the following models:${reset}" 1>&2;
         echo "$*" 1>&2;
         local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}";
         [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}";
