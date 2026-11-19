@@ -45,13 +45,13 @@ By following this guide, you will learn how to:
 
    ```bash
    export REGISTRY="intel/"
-   export UI_TAG=core_2026.3.0-rc1
+   export UI_TAG=core_2026.3.0-rc2
 
    # For OpenVINO framework, set the following:
-   export BACKEND_TAG=core_2026.3.0-rc1
+   export BACKEND_TAG=core_2026.3.0-rc2
 
    # For those who prefer Ollama framework, set the following:
-   export BACKEND_TAG=core_ollama_2026.3.0-rc1
+   export BACKEND_TAG=core_ollama_2026.3.0-rc2
    ```
 
    Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.

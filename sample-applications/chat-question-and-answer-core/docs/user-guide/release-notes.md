@@ -1,6 +1,6 @@
 # Release Notes: Chat Q&A Core Sample Application
 
-## Version 2026.3.0-rc1
+## Version 2026.3.0-rc2
 
 **Release Date:** November 6, 2026
 
