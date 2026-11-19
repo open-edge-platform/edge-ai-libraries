@@ -1,372 +1,595 @@
 {
-    "openapi": "3.1.0",
-    "info": {
-        "title": "Semantic Encoder Service",
-        "version": "0.1.0"
-    },
-    "paths": {
-        "/healthz": {
-            "get": {
-                "summary": "Healthz",
-                "operationId": "healthz_healthz_get",
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {}
-                            }
-                        }
-                    }
-                }
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Semantic Encoder Service",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Healthz",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
             }
-        },
-        "/v1/streams/{stream_id}": {
-            "put": {
-                "summary": "Put Stream",
-                "operationId": "put_stream_v1_streams__stream_id__put",
-                "parameters": [
-                    {
-                        "name": "stream_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
-                            "title": "Stream Id"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/StreamCreateRequest",
-                                "default": {
-                                    "compression_level": 2
-                                }
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/StreamCreatedResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "get": {
-                "summary": "Get Stream Stats",
-                "operationId": "get_stream_stats_v1_streams__stream_id__get",
-                "parameters": [
-                    {
-                        "name": "stream_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
-                            "title": "Stream Id"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/StreamStatsResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "summary": "Delete Stream",
-                "operationId": "delete_stream_v1_streams__stream_id__delete",
-                "parameters": [
-                    {
-                        "name": "stream_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
-                            "title": "Stream Id"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "Successful Response"
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/streams/{stream_id}/frames": {
-            "post": {
-                "summary": "Post Frame",
-                "operationId": "post_frame_v1_streams__stream_id__frames_post",
-                "parameters": [
-                    {
-                        "name": "stream_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
-                            "title": "Stream Id"
-                        }
-                    },
-                    {
-                        "name": "img_id",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Img Id"
-                        }
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/FrameAcceptedResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+          }
         }
+      }
     },
-    "components": {
-        "schemas": {
-            "FrameAcceptedResponse": {
-                "properties": {
-                    "status": {
-                        "type": "string",
-                        "title": "Status"
-                    },
-                    "stream_id": {
-                        "type": "string",
-                        "title": "Stream Id"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "status",
-                    "stream_id"
-                ],
-                "title": "FrameAcceptedResponse"
+    "/v1/streams/{stream_id}": {
+      "put": {
+        "summary": "Put Stream",
+        "operationId": "put_stream_v1_streams__stream_id__put",
+        "parameters": [
+          {
+            "name": "stream_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+              "description": "StreamID to create, or fetch if it already exists.",
+              "title": "Stream Id"
             },
-            "HTTPValidationError": {
-                "properties": {
-                    "detail": {
-                        "items": {
-                            "$ref": "#/components/schemas/ValidationError"
-                        },
-                        "type": "array",
-                        "title": "Detail"
-                    }
-                },
-                "type": "object",
-                "title": "HTTPValidationError"
-            },
-            "StreamCreateRequest": {
-                "properties": {
-                    "compression_level": {
-                        "type": "integer",
-                        "maximum": 2.0,
-                        "minimum": 1.0,
-                        "title": "Compression Level",
-                        "default": 2
-                    },
-                    "decoder_url": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "maxLength": 2048
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Decoder Url"
-                    },
-                    "decoder_stream_id": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "maxLength": 128,
-                                "minLength": 1,
-                                "pattern": "^[A-Za-z0-9_\\-]{1,128}$"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Decoder Stream Id"
-                    }
-                },
-                "type": "object",
-                "title": "StreamCreateRequest"
-            },
-            "StreamCreatedResponse": {
-                "properties": {
-                    "stream_id": {
-                        "type": "string",
-                        "title": "Stream Id"
-                    },
-                    "decoder_url": {
-                        "type": "string",
-                        "title": "Decoder Url"
-                    },
-                    "decoder_stream_id": {
-                        "type": "string",
-                        "title": "Decoder Stream Id"
-                    },
-                    "compression_level": {
-                        "type": "integer",
-                        "title": "Compression Level"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "stream_id",
-                    "decoder_url",
-                    "decoder_stream_id",
-                    "compression_level"
-                ],
-                "title": "StreamCreatedResponse"
-            },
-            "StreamStatsResponse": {
-                "properties": {
-                    "stream_id": {
-                        "type": "string",
-                        "title": "Stream Id"
-                    },
-                    "frames_processed": {
-                        "type": "integer",
-                        "title": "Frames Processed"
-                    },
-                    "decoder_url": {
-                        "type": "string",
-                        "title": "Decoder Url"
-                    },
-                    "decoder_stream_id": {
-                        "type": "string",
-                        "title": "Decoder Stream Id"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "stream_id",
-                    "frames_processed",
-                    "decoder_url",
-                    "decoder_stream_id"
-                ],
-                "title": "StreamStatsResponse"
-            },
-            "ValidationError": {
-                "properties": {
-                    "loc": {
-                        "items": {
-                            "anyOf": [
-                                {
-                                    "type": "string"
-                                },
-                                {
-                                    "type": "integer"
-                                }
-                            ]
-                        },
-                        "type": "array",
-                        "title": "Location"
-                    },
-                    "msg": {
-                        "type": "string",
-                        "title": "Message"
-                    },
-                    "type": {
-                        "type": "string",
-                        "title": "Error Type"
-                    },
-                    "input": {
-                        "title": "Input"
-                    },
-                    "ctx": {
-                        "type": "object",
-                        "title": "Context"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "loc",
-                    "msg",
-                    "type"
-                ],
-                "title": "ValidationError"
+            "description": "StreamID to create, or fetch if it already exists."
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamCreateRequest",
+                "default": {
+                  "compression_level": 2
+                }
+              }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamCreatedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
         }
+      },
+      "get": {
+        "summary": "Get Stream Stats",
+        "operationId": "get_stream_stats_v1_streams__stream_id__get",
+        "parameters": [
+          {
+            "name": "stream_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+              "description": "ID of the stream to fetch metrics for.",
+              "title": "Stream Id"
+            },
+            "description": "ID of the stream to fetch metrics for."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamStatsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Stream",
+        "operationId": "delete_stream_v1_streams__stream_id__delete",
+        "parameters": [
+          {
+            "name": "stream_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+              "description": "IIDd of the stream to close.",
+              "title": "Stream Id"
+            },
+            "description": "IIDd of the stream to close."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/streams/{stream_id}/frames": {
+      "post": {
+        "summary": "Post Frame",
+        "operationId": "post_frame_v1_streams__stream_id__frames_post",
+        "parameters": [
+          {
+            "name": "stream_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+              "description": "ID of the stream to submit the frame to; created automatically if it doesn't exist.",
+              "title": "Stream Id"
+            },
+            "description": "ID of the stream to submit the frame to; created automatically if it doesn't exist."
+          },
+          {
+            "name": "img_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Explicit per-client image sequence number; auto-incremented if omitted.",
+              "title": "Img Id"
+            },
+            "description": "Explicit per-client image sequence number; auto-incremented if omitted."
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrameAcceptedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/streams/{stream_id}/metrics": {
+      "get": {
+        "summary": "Get Metrics",
+        "operationId": "get_metrics_v1_streams__stream_id__metrics_get",
+        "parameters": [
+          {
+            "name": "stream_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+              "description": "ID of the stream to fetch metrics for.",
+              "title": "Stream Id"
+            },
+            "description": "ID of the stream to fetch metrics for."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FrameMetric"
+                  },
+                  "title": "Response Get Metrics V1 Streams  Stream Id  Metrics Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/streams/{stream_id}/metrics/{img_idx}": {
+      "get": {
+        "summary": "Get Metric For Image",
+        "operationId": "get_metric_for_image_v1_streams__stream_id__metrics__img_idx__get",
+        "parameters": [
+          {
+            "name": "stream_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+              "description": "ID of the stream.",
+              "title": "Stream Id"
+            },
+            "description": "ID of the stream."
+          },
+          {
+            "name": "img_idx",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Per-stream image sequence number to fetch the metric for.",
+              "title": "Img Idx"
+            },
+            "description": "Per-stream image sequence number to fetch the metric for."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrameMetric"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
+  },
+  "components": {
+    "schemas": {
+      "FrameAcceptedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Always \"accepted\"; the frame was queued for async encode + forward."
+          },
+          "stream_id": {
+            "type": "string",
+            "title": "Stream Id",
+            "description": "ID of the stream the frame was submitted to."
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "stream_id"
+        ],
+        "title": "FrameAcceptedResponse"
+      },
+      "FrameMetric": {
+        "properties": {
+          "stream_id": {
+            "type": "string",
+            "title": "Stream Id",
+            "description": "ID of the stream this metric belongs to."
+          },
+          "img_idx": {
+            "type": "integer",
+            "title": "Img Idx",
+            "description": "Per-stream sequence number of the encoded image."
+          },
+          "original_bytes": {
+            "type": "integer",
+            "title": "Original Bytes",
+            "description": "Size in bytes of the original (uncompressed) JPEG frame."
+          },
+          "payload_bytes": {
+            "type": "integer",
+            "title": "Payload Bytes",
+            "description": "Total size in bytes of the encoded payload sent to the decoder."
+          },
+          "compression_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compression Rate",
+            "description": "Ratio of original to encoded size for this frame."
+          },
+          "aggregated_compression_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggregated Compression Rate",
+            "description": "Running average compression rate across frames processed so far for this client. Calculated from the start of the encoder to time point when this frame was processed."
+          },
+          "target_compression_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Compression Rate",
+            "description": "Target compression rate this frame's encode attempted to hit."
+          },
+          "compression_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compression Level",
+            "description": "Compression level (1 or 2) used to encode this frame."
+          },
+          "fast_path_selected": {
+            "type": "boolean",
+            "title": "Fast Path Selected",
+            "description": "Whether the fast (lower-cost) encode path was used for this frame."
+          },
+          "obj_detection_skipped": {
+            "type": "boolean",
+            "title": "Obj Detection Skipped",
+            "description": "Whether object detection was skipped for this frame (e.g. fast path)."
+          },
+          "timing_ms": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Timing Ms",
+            "description": "Per-stage timing in milliseconds for this frame's encode."
+          }
+        },
+        "type": "object",
+        "required": [
+          "stream_id",
+          "img_idx",
+          "original_bytes",
+          "payload_bytes",
+          "fast_path_selected",
+          "obj_detection_skipped"
+        ],
+        "title": "FrameMetric",
+        "description": "Per-image metrics captured from one EncodeResult, exposed via GET /v1/streams/{stream_id}/metrics."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "StreamCreateRequest": {
+        "properties": {
+          "compression_level": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Compression Level",
+            "description": "Compression level to use for this stream: 1 (lower compression, higher quality) or 2 (higher compression).",
+            "default": 2
+          },
+          "decoder_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decoder Url",
+            "description": "Base URL of the decoder service to forward encoded payloads to"
+          },
+          "decoder_stream_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_\\-]{1,128}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decoder Stream Id",
+            "description": "Stream id to use on the decoder side; defaults to this stream's own id."
+          }
+        },
+        "type": "object",
+        "title": "StreamCreateRequest"
+      },
+      "StreamCreatedResponse": {
+        "properties": {
+          "stream_id": {
+            "type": "string",
+            "title": "Stream Id",
+            "description": "Id of the created (or already existing) stream that is used as clientID."
+          },
+          "decoder_url": {
+            "type": "string",
+            "title": "Decoder Url",
+            "description": "Decoder base URL this stream forwards encoded payloads to."
+          },
+          "decoder_stream_id": {
+            "type": "string",
+            "title": "Decoder Stream Id",
+            "description": "StreamID used on the decoder side."
+          },
+          "compression_level": {
+            "type": "integer",
+            "title": "Compression Level",
+            "description": "Compression level in effect for this stream - 1 (lower compression, higher quality) or 2 (higher compression)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "stream_id",
+          "decoder_url",
+          "decoder_stream_id",
+          "compression_level"
+        ],
+        "title": "StreamCreatedResponse"
+      },
+      "StreamStatsResponse": {
+        "properties": {
+          "stream_id": {
+            "type": "string",
+            "title": "Stream Id",
+            "description": "Id of the stream that is used as clientID."
+          },
+          "frames_processed": {
+            "type": "integer",
+            "title": "Frames Processed",
+            "description": "Sequence number of the most recently forwarded frame."
+          },
+          "decoder_url": {
+            "type": "string",
+            "title": "Decoder Url",
+            "description": "Decoder base URL this stream forwards encoded payloads to."
+          },
+          "decoder_stream_id": {
+            "type": "string",
+            "title": "Decoder Stream Id",
+            "description": "Stream ID used on the decoder side."
+          }
+        },
+        "type": "object",
+        "required": [
+          "stream_id",
+          "frames_processed",
+          "decoder_url",
+          "decoder_stream_id"
+        ],
+        "title": "StreamStatsResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
 }
