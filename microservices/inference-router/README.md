@@ -17,7 +17,7 @@ endpoint.
 - Pre-routing, post-routing and post-response plugin hooks.
 - Optional prompt-compression plugins (tool-schema filtering, system-prompt
   compression, and experimental conversation-context compression) backed by
-  [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor).
+  [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor).
 - Per-provider telemetry for requests, tokens, latency, TTFT, and TPOT.
 - Environment variable expansion in configuration values.
 
@@ -142,7 +142,7 @@ Deploy the tool predictor for `tool` and the compress server for `harness`
 separately, then enable the desired plugins under `plugins` in your config. See
 [Optional: Compression Plugins](docs/user-guide/get-started.md#optional-compression-plugins)
 for plugin setup and the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
 repository for tool predictor and compress server setup.
 
 ## Learn More

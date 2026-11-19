@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Quick Start - Ephemeral Container
 
 This microservice can be run as an ephemeral (one-shot) container that downloads or converts a model and exits automatically. This is useful for CI/CD pipelines, pre-provisioning model caches, or scripted workflows.
@@ -83,7 +86,7 @@ curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 | Argument | Description | Default |
 |----------|-------------|---------|
 | `--model-path <path>` | Host path for model storage | `./models` |
-| `--image-tag <tag>` | Docker image tag | `latest` |
+| `--image-tag <tag>` | Docker image tag | `2026.3.0-rc1` |
 | `--plugins <list>` | Comma-separated plugins to enable | `all` |
 | `--ovms-release-tag <tag>` | OVMS release tag | `v2025.4.1` |
 
@@ -114,7 +117,7 @@ The log file contains structured sections:
 ===== Model Download Ephemeral Mode - Error Log =====
 Timestamp: 2026-05-22T12:46:17+05:30
 Command: source ./get_model.sh --model-name ... --hub ...
-Image: model-download:latest
+Image: model-download:2026.3.0-rc1
 Model Path: /home/user/models
 Plugins: huggingface,openvino
 

@@ -43,4 +43,4 @@
 
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
-- To perform decode and inference on GPU or NPU, please see [this document](./use-gpu-npu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/performance_guide.html).
+- To perform decode and inference on GPU or NPU, please see [this document](./use-gpu-npu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/dev_guide/performance_guide.html).

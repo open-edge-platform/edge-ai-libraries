@@ -44,6 +44,8 @@ class SourceSyncStatus:
     extraction_done: int = 0
     # Internal: latest pool revision that added work for this source; not in the public status.
     pending_revision: int = -1
+    reembed_pending: bool = False
+    reembed_asset_ids: List[str] = field(default_factory=list)
 
     @property
     def extraction_outdated(self) -> bool:
@@ -87,6 +89,23 @@ class SourceSyncStatus:
             asset_id for asset_id in dict.fromkeys(asset_ids) if asset_id not in known
         )
 
+    def mark_reembed(self) -> None:
+        stale = set(self.stale_asset_ids)
+        self.reembed_pending = True
+        self.reembed_asset_ids = [
+            asset_id for asset_id in self.indexed_asset_ids if asset_id not in stale
+        ]
+
+    def mark_reembedded(self, asset_ids: Collection[str]) -> None:
+        done = set(asset_ids)
+        self.reembed_asset_ids = [
+            asset_id for asset_id in self.reembed_asset_ids if asset_id not in done
+        ]
+
+    def finish_reembed(self) -> None:
+        self.reembed_pending = False
+        self.reembed_asset_ids = []
+
     def mark_failed(self, error: str) -> None:
         """Leaves `indexed_*` unchanged."""
         self.error = error
@@ -102,6 +121,7 @@ class SourceSyncStatus:
         self.stale_asset_ids = [
             asset_id for asset_id in self.stale_asset_ids if asset_id not in dropped
         ]
+        self.mark_reembedded(dropped)
 
 
 @dataclass
@@ -263,6 +283,14 @@ class AssetPool:
         )
         self.refresh_serving()
         return bool(held)
+
+    def replace_projection(self, projection: Projection) -> None:
+        source_id = projection.source.source_id
+        self.projections = tuple(
+            projection if p.source.source_id == source_id else p
+            for p in self.projections
+        )
+        self.refresh_serving()
 
     def thaw(self, projection: Projection) -> None:
         """Give a frozen binding its projection back."""

@@ -6,10 +6,10 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Branch or tag to checkout (default: main)'
+        description: 'Branch or tag to checkout (default: release-2026.3.0)'
         required: false
         type: string
-        default: 'main'
+        default: 'release-2026.3.0'
       test_pattern:
         description: 'Pytest pattern for tests to run (default: all tests)'
         required: false
@@ -18,10 +18,10 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: 'Branch or tag to checkout (default: main)'
+        description: 'Branch or tag to checkout (default: release-2026.3.0)'
         required: false
         type: string
-        default: 'main'
+        default: 'release-2026.3.0'
       test_pattern:
         description: 'Pytest pattern for tests to run (default: all tests)'
         required: false
@@ -43,7 +43,7 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         repository: ${{ github.repository }}
-        ref: ${{ inputs.tag || 'main' }}
+        ref: ${{ inputs.tag || 'release-2026.3.0' }}
         persist-credentials: false
     - name: Run time-series-analytics-microservices function tests
       env:

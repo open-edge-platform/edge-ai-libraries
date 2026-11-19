@@ -695,7 +695,7 @@ verify the installed files, not only the version.
 #### Configure optional telemetry with a script
 
 From the source checkout, edit
-[`native/metrics-options.conf`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/metrics-manager/native/metrics-options.conf)
+[`native/metrics-options.conf`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/metrics-manager/native/metrics-options.conf)
 in a repository checkout, then run the repository's helper:
 
 ```bash

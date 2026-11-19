@@ -1,0 +1,16 @@
+
+ensure_license_use_model () {
+  local name="$1"
+  local url="$2"
+  cat <<EOF
+@@LICENSE-ID ${name//[^A-Za-z0-9._-]/}
+@@LICENSE-TITLE $name Model License
+
+The $name model is used in the sample application. The model is subject to its license as follows:
+
+  $url
+
+Disclaimer: by downloading and using this model, you confirm that you accept the license terms and agree to comply with any applicable model-use and privacy requirements.
+EOF
+}
+

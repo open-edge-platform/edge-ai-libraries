@@ -9,7 +9,7 @@
 
 `./install.sh` automatically runs `./startup.sh` first, which
 installs/verifies `curl`/`git`, Docker, Node.js/npm (via `nvm`), and Python
-(venv + PyYAML) -- there's only one script to run. `startup.sh` is idempotent
+(venv + PyYAML) — there is only one script to run. `startup.sh` is idempotent
 (safe to re-run; skips whatever is already present) and can also be run on
 its own if you want finer-grained control (`--skip-base`, `--skip-docker`,
 `--skip-nodejs`, `--skip-python`) or want to pre-provision a host before
@@ -32,7 +32,7 @@ Notes on what it does with Docker:
   forwarded into the containers, and agent HTTP clients refuse to start with
   it. The error names the variable, never its value.
 - If it just added your user to the `docker` group, it restarts itself under
-  that group automatically, so no new terminal is needed. Only if that can't
+  that group automatically, so no new terminal is needed. Only if that cannot
   be done (`sg` and `sudo` both unavailable) does it exit with code `2` and
   ask you to open a new terminal (or run `newgrp docker`) and re-run.
 
@@ -40,8 +40,8 @@ Notes on what it does with Docker:
 
 1. **Host prep** — runs `startup.sh` (curl/git, Docker, Node.js, Python),
    then an Intel GPU check (PCI vendor `8086`, `i915`/`xe` driver,
-   `/dev/dri` render nodes, Level-Zero/OpenCL compute runtime readiness --
-   assumed already provisioned, e.g. via Edge Pack, not installed by this
+   `/dev/dri` render nodes, Level-Zero/OpenCL compute runtime readiness —
+   assumed already provisioned, e.g., via an Edge Pack, not installed by this
    step). Host users and groups are not modified: containers get render-node
    access through `--device` and `--group-add`.
 2. **Inference backend** — requires a model: pass `--model` (the installer
@@ -74,7 +74,7 @@ Notes on what it does with Docker:
 4. **Onboarding** — wires the installed agent to that endpoint and checks it:
    - **OpenClaw:** registers the endpoint as a custom `ovms` model provider
      (`openclaw config set models.providers.ovms …`), sets it as the default
-     model, and runs a smoke test. If `openclaw config set` fails (e.g. its
+     model, and runs a smoke test. If `openclaw config set` fails (e.g., its
      Gateway daemon is running), it prints the exact manual command instead.
    - **Deep Agents Code (`dcode`):** writes its provider config and runs a
      smoke test; the smoke test is reported as failed if dcode prints an
@@ -144,7 +144,7 @@ checksum-verified) on its own — there is no need to set
 `HARNESS_OVMS_EXPORTER`.
 
 | `--model-hub` | `--model` is | Extra input | Served to agents |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `openvino` (default) | Hugging Face id, `org/name` | `--model-precision`, `--model-device`; `HF_TOKEN` for gated models | yes |
 | `huggingface` | Hugging Face id, `org/name` | `--model-revision`; `HF_TOKEN` for gated models | only if the repo already contains an OVMS `graph.pbtxt` |
 | `remote-url` | plain name substituted for `{name}` | `--model-config '{"url":"https://…/{name}.tar"}'`; the URL must match Model Download's allowlist | only if the tarball contains a `graph.pbtxt` |
@@ -186,5 +186,15 @@ Other commands:
 ./install.sh skill <install|list|remove> [path|name]   # Hermes skills only
 ```
 
-See [Running without a checkout](running-without-a-checkout.md),
-and [Uninstall](uninstall.md) for the rest of the usage surface.
+See [Run Without a Checkout](./get-started/run-without-a-checkout.md),
+and [Uninstall](./get-started/uninstall.md) for the rest of the usage surface.
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started/run-without-a-checkout.md
+./get-started/uninstall.md
+
+:::
+hide_directive-->

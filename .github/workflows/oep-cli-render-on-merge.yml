@@ -83,7 +83,7 @@ jobs:
           ./openedge-cli bootstrap --family=debian \
             federal_and_aerospace_ai_suite_handheld \
             federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle \
-            federal_and_aerospace_ai_suite_mission_decision_support \
+            federal_and_aerospace_ai_suite_mission_sensing_service \
             --output rendered/openedge-cli-federal-aerospace
 
       - name: Commit and push if the rendered installer changed

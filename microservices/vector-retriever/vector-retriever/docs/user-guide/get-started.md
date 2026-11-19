@@ -143,7 +143,7 @@ export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
 hide_directive-->
 
 > [!NOTE]
-> For valid `EMBEDDING_MODEL_NAME` values, see the Multi Modal Embedding (MME) supported models list: [Supported Models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html).
+> For valid `EMBEDDING_MODEL_NAME` values, see the Multi Modal Embedding (MME) supported models list: [Supported Models](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/multimodal-embedding-serving/supported-models.html).
 
 `RETRIEVER_BACKEND` supports the following values: `vdms`, `milvus`, `pgvector`, and `faiss`.
 `setup.sh` defaults `EMBEDDINGS_ENDPOINT` to the local MME overlay unless you override it.
@@ -152,7 +152,7 @@ hide_directive-->
 
 ```bash
 export REGISTRY_URL=intel
-export TAG=latest
+export TAG=2026.3.0-rc1
 ```
 
 ### Optional Environment Variables

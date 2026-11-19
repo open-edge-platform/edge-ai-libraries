@@ -1,23 +1,25 @@
 
 # set/get properties
-# set <key> <value> [--prompt "Donwload model (y/n)?"]
+# set <key> <value> [--prompt "Donwload model (y/n)?"] [--create]
 # get <key> [--boolean] # normalize value to true/false
 ensure_prop () {
-  local op="$1" key_path="${2:?}" value="${3:-}"
+  local op="$1" key_rpath="${2:?}" value="${3:-}"
   local key_base="$(ensure_project_path)/${installer_name:?}"
+  local key_path="$key_base/$key_rpath"
   case "$op" in
-  find)    ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/) ;;
+  find)    
+    ( cd "$key_base" && find . -ipath "./$key_rpath" -print 2> /dev/null | cut -f2- -d/ ) ;;
   create)
-    mkdir -m 700 -p "$key_base/${key_path%/*}" ;;
+    mkdir -m 700 -p "${key_path%/*}" ;;
   remove)
-    if [ -f "$key_base/$key_path" ]; then
-      rm -f "$key_base/$key_path"
-    elif [[ "$key_path" = */ && -d "$key_base/${key_path%/}" ]]; then
-      rm -rf "$key_base/${key_path%/}"
+    if [ -f "$key_path" ]; then
+      rm -f "$key_path"
+    elif [[ "$key_rpath" = */ && -d "${key_path%/}" ]]; then
+      rm -rf "${key_path%/}"
     fi
     ;;
   get)
-    [ ! -r "$key_base/$key_path" ] || value="$(< "$key_base/$key_path")"
+    [ ! -r "$key_path" ] || value="$(< "$key_path")"
     if ensure_parse_option --boolean "$@"; then
       [[ " true yes t y a accept " = *" ${value,,} "* ]] && value="true" || value="false"
     fi
@@ -38,7 +40,10 @@ ensure_prop () {
         value="$("$askpass_helper" "$prompt" | tr -d '\n')"
       } 9< "$rundir"
     fi
-    ( umask 077; printf '%s' "$value" > "$key_base/$key_path" )
+    if ensure_parse_option --create "$@"; then
+      mkdir -m 700 -p "${key_path%/*}"
+    fi
+    ( umask 077; printf '%s' "$value" > "$key_path" )
     ;;
   esac
 }

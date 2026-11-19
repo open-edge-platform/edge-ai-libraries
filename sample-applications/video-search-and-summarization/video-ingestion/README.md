@@ -20,10 +20,7 @@ This project demonstrates video ingestion and processing using Deep Learning Str
 1. Clone the repo and change to `video_ingestion` component directory:
 
     ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
 
     cd edge-ai-libraries/sample-applications/video-search-and-summarization/video-ingestion
     ```
@@ -31,15 +28,16 @@ This project demonstrates video ingestion and processing using Deep Learning Str
 2. Download and convert the object detection model to OpenVINO IR format.
 
     The model is downloaded and converted in one shot by the [Model Download microservice](../../../microservices/model-download/README.md) running in **ephemeral mode**.
-    
+
     ```bash
     # Fetch the one-shot helper script (downloads the model-download image on first use)
-    curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/model-download/scripts/get_model.sh
+    curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.3.0/microservices/model-download/scripts/get_model.sh
 
     # Download + convert the default object detection model (yolov8l) into ./ov_models
     source ./get_model.sh \
       --model-name yolov8l \
       --hub ultralytics \
+      --image-tag 2026.3.0-rc1 \
       --plugins ultralytics \
       --download-path object-detection \
       --model-path ./ov_models
@@ -154,7 +152,7 @@ curl http://${host_ip}:${EVAM_HOST_PORT}/pipelines/user_defined_pipelines/object
 ```
 
 > [!NOTE]
-> 
+>
 > - You can tweak `frame`, `chunk_duration` and `frame_width` parameter in above curl request to get results with different accuracy. However, note that increasing the `frame` and `frame_width` will cause significant performance degradation.
 > - Also note, these parameters have a minimum and maximum allowed value defined. For any invalid value outside the allowed limit, the pipeline will fail. Please refer to `resources\conf\config.json` file to verify the permitted values for these parameters in JSON Schema.
 

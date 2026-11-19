@@ -53,7 +53,7 @@ as the only line on stdout:
 If any of those hit, that checkout is **reused and NO clone is performed**. Only
 when all three miss does it clone - and then only a **shallow (`--depth 1`),
 single-branch, sparse** checkout of just
-`sample-applications/video-search-and-summarization` from `main`:
+`sample-applications/video-search-and-summarization` from `release-2026.3.0`:
 
 ```bash
 # SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);

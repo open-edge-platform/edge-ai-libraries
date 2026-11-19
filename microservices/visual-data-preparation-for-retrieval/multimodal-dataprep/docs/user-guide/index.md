@@ -2,16 +2,16 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/README.md">
      Readme
   </a>
 </div>
 hide_directive-->
 
-Multimodal DataPrep is the ingestion and embedding service that powers the [Video Search and Summarization (VSS)](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html) and [Visual Search & Question-Answering (VSQA)](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/visual-search-question-and-answering/index.html) flows. It accepts raw media — **videos and images** — orchestrates enrichment (frame sampling for video, direct embedding for images, optional object detection for both), generates embeddings in-process, and stores both the derived embeddings and the original assets in a vector database and object storage. The service is **vector-database agnostic** (VDMS, Milvus) and **storage agnostic** (MinIO, local filesystem); backends are selected at startup with no code changes.
+Multimodal DataPrep is the ingestion and embedding service that powers the [Video Search and Summarization (VSS)](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/video-search-and-summarization/index.html) and [Visual Search & Question-Answering (VSQA)](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-suites/visual-search-question-and-answering/index.html) flows. It accepts raw media — **videos and images** — orchestrates enrichment (frame sampling for video, direct embedding for images, optional object detection for both), generates embeddings in-process, and stores both the derived embeddings and the original assets in a vector database and object storage. The service is **vector-database agnostic** (VDMS, Milvus) and **storage agnostic** (MinIO, local filesystem); backends are selected at startup with no code changes.
 
 The FastAPI application is mounted under the `/v1/dataprep` root path and exposes endpoints to ingest videos and images (binary upload, base64, or remote URL), process existing stored content, ingest in batches, attach human-authored summaries, and manage stored media.
 

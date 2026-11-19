@@ -63,11 +63,11 @@
       "id": 5,
       "prompt_file": "example-prompts/05-fresh-checkout-bootstrap.md",
       "prompt": "I only have this skills folder here, there's no video-search-and-summarization source checked out anywhere on this machine. Please get the source and build the VSS images from scratch for me.",
-      "expected_output": "Runs the bundled vss-bootstrap.sh from the skill directory to make the source available, explains that absent source triggers a shallow single-branch sparse checkout of only sample-applications/video-search-and-summarization from main, cd's into the resolved app root, runs `make build`, and verifies images.",
+      "expected_output": "Runs the bundled vss-bootstrap.sh from the skill directory to make the source available, explains that absent source triggers a shallow single-branch sparse checkout of only sample-applications/video-search-and-summarization from release-2026.3.0, cd's into the resolved app root, runs `make build`, and verifies images.",
       "files": [],
       "expectations": [
         "The answer runs the bundled scripts/vss-bootstrap.sh helper before any build command.",
-        "The answer states that when no checkout is found, the helper performs a shallow, single-branch sparse checkout from main.",
+        "The answer states that when no checkout is found, the helper performs a shallow, single-branch sparse checkout from release-2026.3.0.",
         "The answer states the checkout is limited to sample-applications/video-search-and-summarization rather than the full repository.",
         "The answer changes directory into the resolved APP_ROOT before running `make build`.",
         "The answer mentions VSS_REPO_URL, VSS_REPO_BRANCH, or VSS_CLONE_DIR only as optional bootstrap overrides, not as required flags."
@@ -91,13 +91,13 @@
       "id": 90,
       "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
       "prompt": "I need to cut a new build of the VSS app images tagged `nightly-2026-07-21`. Just build the app services from source with the default settings, no need to push anywhere - I'll test locally first.",
-      "expected_output": "Before doing anything else, runs the bundled scripts/vss-bootstrap.sh to resolve the VSS app root, even though the prompt never mentioned setup or cloning. The check inspects the enclosing git repo's remote (origin/upstream) to see if it already points at the official VSS repo or a fork of it, reusing that checkout with no re-clone if so, or otherwise performing a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before running `make build TAG=nightly-2026-07-21`.",
+      "expected_output": "Before doing anything else, runs the bundled scripts/vss-bootstrap.sh to resolve the VSS app root, even though the prompt never mentioned setup or cloning. The check inspects the enclosing git repo's remote (origin/upstream) to see if it already points at the official VSS repo or a fork of it, reusing that checkout with no re-clone if so, or otherwise performing a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from release-2026.3.0, then cd's into the resolved app root before running `make build TAG=nightly-2026-07-21`.",
       "files": [],
       "expectations": [
         "The answer runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as an unconditional first step, before building the requested images, even though the prompt never asked about setup, location, or cloning.",
         "The bootstrap check determines whether the current location is already a valid VSS checkout by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) to see if it points at the official open-edge-platform/edge-ai-libraries repo or a fork of it, not merely by checking for local marker files.",
         "If that remote check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the answer reuses it and performs NO re-clone.",
-        "If no valid checkout/remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the main branch (not a full-history, all-branches, or full-tree clone).",
+        "If no valid checkout/remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the release-2026.3.0 branch (not a full-history, all-branches, or full-tree clone).",
         "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running the skill's `make build TAG=nightly-2026-07-21` command for the requested build."
       ]
     }

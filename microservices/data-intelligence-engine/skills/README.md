@@ -9,7 +9,7 @@ writes the answer from them. The engine itself never generates an answer.
 
 | Skill | What it does | Files |
 |---|---|---|
-| [`knowledgebase`](knowledgebase/SKILL.md) | Retrieves the most relevant chunks for a question from an asset library and has the agent answer, summarize, compare or report from them | `SKILL.md`, `data_intelligence_engine` |
+| [`knowledgebase`](knowledgebase/SKILL.md) | Retrieves the most relevant chunks for a question from an asset library and has the agent answer, summarize, compare or report from them; `--include-media` additionally decodes image/video-frame visual evidence for visual questions | `SKILL.md`, `data_intelligence_engine`, `render_media.py` |
 
 The `data_intelligence_engine` wrapper sends one `POST /v1/retrieve` request with
 `curl`, the same request as [`scripts/retrieve.sh query`](../scripts/README.md#retrieval),
@@ -17,6 +17,27 @@ and prints the chunks as a numbered list. It needs only `bash` and `curl`; with
 `jq` installed the output is the numbered list, otherwise the raw JSON response.
 It does not need the engine's scripts, Python or a checkout of this repository, so
 the skill directory can be copied to the agent's host on its own.
+
+The optional `--include-media` flag sets the engine's `include_media_data` request
+field: the response's image/video-frame data URIs are decoded by `render_media.py`
+into files under a temporary `openclaw-media-*` directory, and stdout carries a
+media manifest with file paths instead of base64 data. This visual mode needs
+`python3` on the agent's host; the agent reads the decoded image files with its
+file-reading tool to answer visual questions.
+
+## Temporary media cleanup
+
+The wrapper deletes the raw response (base64) immediately after rendering, but
+the decoded JPGs must outlive the wrapper so the agent can read them. They are
+**not** removed automatically per call. Use [`cleanup_media.sh`](knowledgebase/cleanup_media.sh)
+to delete `openclaw-media-*` directories older than a TTL (default 24 hours,
+`--dry-run` to preview). Schedule it on the agent's host, for example:
+
+```cron
+0 3 * * * /path/to/skills/knowledgebase/cleanup_media.sh 24
+```
+
+Set `TMPDIR` in the cron environment if the agent's wrapper uses a custom one.
 
 ## Prerequisites
 
@@ -121,7 +142,7 @@ This section only adds the skill to an existing OpenClaw setup. It assumes:
 
 - OpenClaw is installed and onboarded, and `~/.openclaw/openclaw.json` and the
   agent workspace `~/.openclaw/workspace` exist. To install it, follow
-  [Set Up OpenClaw](https://github.com/open-edge-platform/metro-ai-suite/blob/main/enterprise-data-intelligence/docs/user-guide/get-started.md#3-set-up-openclaw)
+  [Set Up OpenClaw](https://github.com/open-edge-platform/metro-ai-suite/blob/release-2026.3.0/enterprise-data-intelligence/docs/user-guide/get-started.md#3-set-up-openclaw)
   (Node.js >= 22.14.0, `npm install -g openclaw@2026.5.6`, `openclaw onboard --install-daemon`).
 - A model provider is configured in `openclaw.json` and the agent already answers
   in `openclaw tui`. The model must support tool calls, because the skill works by

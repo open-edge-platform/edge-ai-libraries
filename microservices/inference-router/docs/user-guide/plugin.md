@@ -118,7 +118,7 @@ required; everything else has a safe default, so you override only what you need
 
 - `init()` — set up after the plugin instance's `settings` are validated; used to build
   clients, register with shared managers, and etc. (no-op).
-- `process_request(request, **kwargs)` — acts on the request; returns the possibly 
+- `process_request(request, **kwargs)` — acts on the request; returns the possibly
   modified request (passthrough). Overrides must keep `**kwargs`: at the
   `postrouting` stage the router passes `provider_name` (the provider chosen for
   the request) and `metrics_values={"provider": provider_name}`.
@@ -153,7 +153,7 @@ required; everything else has a safe default, so you override only what you need
 Source: [src/plugins/compressor.py](../../src/plugins/compressor.py).
 
 Reduces prompt tokens before the request reaches the backend, using the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
 library (bundled in the router image). One `compressor` node covers every
 compressor type; the type is chosen per instance through `settings.type`:
 
@@ -257,12 +257,12 @@ plugins:
 The two configurations trade off differently: the small model is faster but
 saves fewer tool tokens. `top_k` should be sized to the number of tools per
 request. See the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
 ToolCompressor configuration guide for measured results and how to choose K.
 
 The backing services, which are the compress server and tool predictor, are **not**
 part of the router — deploy them separately. See the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
 repository for deployment and per-compressor behavior.
 
 ### `provider_management` Plugin

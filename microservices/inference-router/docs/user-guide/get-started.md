@@ -450,7 +450,7 @@ Notes:
 
 The router can compress prompts before they reach the backend to cut token
 usage, via plugins based on the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor).
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor).
 Use the unified `compressor` node and select the compressor type with
 `settings.type`:
 
@@ -465,10 +465,10 @@ Use the unified `compressor` node and select the compressor type with
 
 The compress server and tool predictor are **not** part of the router.
 For deployment instructions, see the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
 repository.
 For detailed purpose and behavior of each compressor, see the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor) repository documentation.
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor) repository documentation.
 
 
 ### Configuration
@@ -558,7 +558,7 @@ plugins:
 The small model is faster but saves fewer tool tokens. Size `top_k` to the
 number of tools per request. For measured results and how to choose `top_k`,
 see the ToolCompressor configuration guide in the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
 repository.
 
 #### Selecting per-compressor metrics

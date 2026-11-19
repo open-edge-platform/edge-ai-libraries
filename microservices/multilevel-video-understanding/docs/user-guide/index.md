@@ -1,11 +1,14 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Multi-level Video Understanding Microservice
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/multilevel-video-understanding">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/microservices/multilevel-video-understanding">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/multilevel-video-understanding/README.md">
      Readme
   </a>
 </div>
@@ -22,7 +25,7 @@ Figure 1: Multi-level Video Understanding High-level Design
 
 Among all the components, `Multi-level Video Understanding` refers to this microservice.
 `Video Chunking` is a library implemented in this Open Edge Platform (OEP) suite:
-[video-chunking-utils](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/video-chunking-utils).
+[video-chunking-utils](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/video-chunking-utils).
 `Vision-Language Model Serving` and `Large Language Model Serving` are dependent
 services required by this microservice, running on OpenAI-compatible APIs.
 
@@ -77,7 +80,7 @@ The following models are validated by the service:
 | -------------------- | ------------------------------------ | ----------------------- | --------- |
 | Qwen/Qwen3.5-35B-A3B | Multimodal (serves VLM + LLM roles)  | ~35B total / ~3B active | [link](https://huggingface.co/Qwen/Qwen3.5-35B-A3B) |
 
-For the on-device deployment a single `Qwen3.5-35B-A3B` endpoint fills both the VLM and LLM roles. Any OpenAI-compatible serving is supported, so separate VLM and LLM models can still be configured via `VLM_BASE_URL` / `LLM_BASE_URL`.
+The on-device deployment defaults to a single `Qwen/Qwen3.6-35B-A3B` endpoint for both the VLM and LLM roles. This default is separate from the validated-model record above. Any OpenAI-compatible serving is supported, so separate VLM and LLM models can still be configured via `VLM_BASE_URL` / `LLM_BASE_URL`.
 
 ## Supporting Resources
 

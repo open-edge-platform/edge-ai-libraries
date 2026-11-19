@@ -56,8 +56,8 @@ explaining why each suppression is safe).
 ## Documentation
 
 User-facing docs live under
-[`docs/user-guide/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/time-series-analytics/docs/user-guide);
-[`release-notes.md`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/time-series-analytics/docs/user-guide/release-notes.md)
+[`docs/user-guide/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/microservices/time-series-analytics/docs/user-guide);
+[`release-notes.md`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/time-series-analytics/docs/user-guide/release-notes.md)
 and the `release-notes/` folder there hold the published release notes
 (separate from `CHANGELOG.md`, which is the repo-internal running log).
 Keep both in sync for a real release — `CHANGELOG.md` is the engineering

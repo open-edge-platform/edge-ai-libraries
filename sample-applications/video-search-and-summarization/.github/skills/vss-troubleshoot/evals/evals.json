@@ -84,13 +84,13 @@
       "id": 90,
       "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
       "prompt": "I ran `source setup.sh --summary-and-search` and the containers all say they're up, but hitting `http://localhost:12345` in the browser just spins and `curl http://localhost:12345/manager/health` times out with no response at all. Can you figure out why the gateway isn't answering and what's actually broken?",
-      "expected_output": "Before triaging the gateway timeout, the skill unconditionally runs its bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at the official open-edge-platform/edge-ai-libraries VSS repo or a fork of it and reuses that checkout if so, or otherwise performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before diagnosing the nginx/pipeline-manager health issue.",
+      "expected_output": "Before triaging the gateway timeout, the skill unconditionally runs its bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at the official open-edge-platform/edge-ai-libraries VSS repo or a fork of it and reuses that checkout if so, or otherwise performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from release-2026.3.0, then cd's into the resolved app root before diagnosing the nginx/pipeline-manager health issue.",
       "files": [],
       "expectations": [
         "The answer runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as an unconditional first step, before addressing the gateway/health-check problem, even though the prompt never mentioned setup, location, or cloning.",
         "The bootstrap check determines whether the current location is already a valid clone/checkout (or a fork) of the VSS project by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) to see if it points at the official open-edge-platform/edge-ai-libraries repo or a fork of it - not merely by checking for local marker files.",
         "If that remote check finds a valid existing checkout (own clone or a fork whose remote traces back to the official repo), the answer states it is reused with NO re-clone performed.",
-        "If no valid checkout/remote is found, the answer performs a shallow, single-branch, sparse checkout limited to sample-applications/video-search-and-summarization from the main branch.",
+        "If no valid checkout/remote is found, the answer performs a shallow, single-branch, sparse checkout limited to sample-applications/video-search-and-summarization from the release-2026.3.0 branch.",
         "The answer changes directory (`cd \"$APP_ROOT\"`) into the resolved app root before running any of the skill's real diagnostic commands for the requested task."
       ]
     }

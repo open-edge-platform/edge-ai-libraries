@@ -29,8 +29,8 @@ const validateModelArchive = async (
 ): Promise<PRE_UPLOAD_MESSAGES_TYPE | null> => {
   try {
     const zip = await JSZip.loadAsync(file);
-    const fileNames = Object.keys(zip.files).map(
-      (name) => name.split("/").pop()!,
+    const fileNames = Object.keys(zip.files).map((name) =>
+      name.split("/").pop()!,
     );
     const missing = REQUIRED_MODEL_FILES.filter(
       (required) => !fileNames.includes(required),

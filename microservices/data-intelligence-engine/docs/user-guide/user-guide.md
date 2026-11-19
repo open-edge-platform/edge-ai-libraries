@@ -240,7 +240,7 @@ The engine stages persisted content blocks/captions in `ENGINE_UPLOAD_DIR` and
 sends only relative file references to the extractor. Both services must mount
 the same writable upload folder (by default the workspace's uploads directory).
 The optional Compose stacks use the same `ENGINE_UPLOAD_PATH` host directory,
-defaulting to the uploads subdirectory of `ENGINE_WORKSPACE_PATH`. Relative
+defaulting to the uploads subdirectory of `ENGINE_WORKSPACE_HOST_PATH`. Relative
 paths let each process use its own absolute mount location.
 
 Extraction runs as a background **job**, not as part of syncing. A pool sync
@@ -548,28 +548,28 @@ graph retriever's options.
 | `ENGINE_MODEL_ROOT_PATH` | `$ENGINE_WORKSPACE/models` | Shared root for document, video, image, ASR, rerank, and layout models. An empty value also uses this default. |
 | `ENGINE_DOC_EMBEDDING_BACKEND` | `local_openvino` | Document/fused embedding backend: `local_openvino` or `remote_openai_compatible`. The runtime (GME, GenAI, or LlamaIndex fallback) is chosen from the model. |
 | `ENGINE_DOC_EMBEDDING_MODEL_ID` | `gme-Qwen2-VL-2B-Instruct-OV` | Document embedding model identifier; its final component names the local directory under the shared model root. |
-| `ENGINE_DOC_EMBEDDING_DEVICE` | `CPU` | OpenVINO document embedding device. |
+| `ENGINE_DOC_EMBEDDING_DEVICE` | `GPU` | OpenVINO document embedding device. |
 | `ENGINE_DOC_EMBEDDING_API_BASE` | empty | OpenAI-compatible document embedding endpoint. |
 | `ENGINE_DOC_EMBEDDING_API_KEY` | `unused` | API key for the OpenAI-compatible document embedding endpoint. |
 | `ENGINE_VIDEO_EMBEDDING_BACKEND` | `local_openvino` | Backend for prepared video packages. |
 | `ENGINE_VIDEO_EMBEDDING_MODEL_ID` | `viclip-b-fp16` | Standalone video package ID; alternatives `viclip-l-fp16` and `cosmos-224p-fp16`, with fp32 variants for all three. |
-| `ENGINE_VIDEO_EMBEDDING_DEVICE` | `CPU` | Video embedding device; set `GPU.0` explicitly for an Intel GPU. |
+| `ENGINE_VIDEO_EMBEDDING_DEVICE` | `GPU` | Video embedding device. |
 | `ENGINE_IMAGE_EMBEDDING_BACKEND` | `local_openvino` | Backend for standalone images and derived text. |
 | `ENGINE_IMAGE_EMBEDDING_MODEL_ID` | `gme-Qwen2-VL-2B-Instruct-OV` | Image/transcript model: the directory name under the shared root. Vendor-style IDs such as `Alibaba-NLP/gme-*` are rejected. |
-| `ENGINE_IMAGE_EMBEDDING_DEVICE` | `CPU` | Image and derived-text embedding device. |
+| `ENGINE_IMAGE_EMBEDDING_DEVICE` | `GPU` | Image and derived-text embedding device. |
 | `ENGINE_ASR_MODEL_ID` | `whisper-small` | Speech-recognition model directory under the shared root; the backend is fixed to `local_openvino`. |
-| `ENGINE_ASR_DEVICE` | `CPU` | Speech-recognition device. |
+| `ENGINE_ASR_DEVICE` | `GPU` | Speech-recognition device. |
 | `ENGINE_ASR_LANGUAGE` | `zh` | Whisper language; explicitly empty enables automatic detection. Compose preserves an empty value. |
 | `ENGINE_ASR_ENABLED` | `true` | Enable background transcription (`1`, `true`, `yes` are true). |
 | `ENGINE_VIDEO_SUMMARY_BASE_URL` | empty | Optional caption service; empty skips caption-task registration. |
-| `ENGINE_LAYOUT_DEVICE` | `CPU` | Layout inference device. |
+| `ENGINE_LAYOUT_DEVICE` | `GPU` | Layout inference device. |
 | `ENGINE_RERANK_BACKEND` | `local_openvino` | Backend for a text reranker such as `BAAI/bge-reranker-large`: `local_openvino` or `remote_openai_compatible`. |
 | `ENGINE_RERANK_MODEL_ID` | `Qwen3-VL-Reranker-2B-INT8-OV` | Default reranker when a request sets no `postprocess.reranker_model`: a directory under the shared root. The Qwen3-VL default scores document text, figures, images, video and audio transcripts together; set a text reranker such as `BAAI/bge-reranker-large` to rerank document-only requests with it. |
-| `ENGINE_RERANK_DEVICE` | `CPU` | OpenVINO reranker device. |
+| `ENGINE_RERANK_DEVICE` | `GPU` | OpenVINO reranker device. |
 | `ENGINE_RERANK_API_BASE` | empty | Remote rerank endpoint for the `remote_openai_compatible` backend (vLLM, TEI, or any Cohere/Jina-style `/rerank`); `/rerank` is appended unless already present. |
 | `ENGINE_RERANK_API_KEY` | `unused` | API key sent as `Authorization: Bearer` to the remote rerank endpoint. |
 | `ENGINE_MEDIA_RERANK_BACKEND` | `local_openvino` | Media reranker backend; `local_openvino` is the only supported value. |
-| `ENGINE_MEDIA_RERANK_MODEL_ID` | `Qwen3-VL-Reranker-2B-INT8-OV` | Multimodal reranker for text, image, video and audio-transcript candidates: the Qwen3-VL IR package directory under the shared model root (FP16: `Qwen3-VL-Reranker-2B-OV`). |
+| `ENGINE_MEDIA_RERANK_MODEL_ID` | `Qwen3-VL-Reranker-2B-INT8-OV` | Multimodal reranker for text, image, video and audio-transcript candidates: the Qwen3-VL IR package directory under the shared model root. |
 | `ENGINE_MEDIA_RERANK_DEVICE` | `GPU` | OpenVINO device for media reranking. |
 | `ENGINE_MEDIA_RERANK_DOC_WORKERS` | `8` | Workers loading candidate media before reranking (maximum 32). |
 | `MEDIA_RERANK_VIDEO_MAX_FRAMES` | `8` | Frames sampled per video candidate during media reranking. |
@@ -633,8 +633,9 @@ to be overwritten.
 |---|---|---|
 | `ENGINE_PORT` | `16022` | Published host port in Compose; the local Python process uses it as its listener port. |
 | `ENGINE_CONTAINER_PORT` | `16022` | Container listener, port-mapping target, and healthcheck port. |
-| `ENGINE_WORKSPACE_PATH` | `../../workspace` | Host bind-mount source, relative to the Compose directory. |
-| `ENGINE_WORKSPACE` | `/workspace` | Container bind-mount target; derived model paths follow it. |
+| `ENGINE_WORKSPACE_HOST_PATH` | `../../workspace` | Host bind-mount source, relative to the Compose directory. `quickstart.sh` sets it to the absolute workspace path. |
+| `ENGINE_WORKSPACE_CONTAINER_PATH` | `/workspace` | Container bind-mount target, passed to the engine as `ENGINE_WORKSPACE`; derived model paths follow it. `quickstart.sh` sets it equal to the host path. |
+| `USER_UID` / `USER_GID` | `1000` / `1000` | User the engine and extractor containers run as; `quickstart.sh` sets them to the current user. |
 | `ENGINE_NETWORK` | `data-intelligence-network` | Shared external network for all three stacks. |
 | `ENGINE_IMAGE` | `data-intelligence-engine:latest` | Engine image reference. |
 | `ENGINE_GPU_DEVICE` | `/dev/dri` | Host GPU device path passed through to the same container path. |
@@ -700,7 +701,7 @@ Compose overrides several model defaults for GPU deployment. Check
 The `remote_openai_compatible` backend sends document and query text to an
 OpenAI-compatible embedding server instead of loading a model in the engine
 process. GME served by the
-[multimodal-embedding-serving](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/multimodal-embedding-serving)
+[multimodal-embedding-serving](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/microservices/multimodal-embedding-serving)
 microservice (model `GME/gme-qwen2-vl-2b-instruct`) is one such server. Any
 server that implements `POST /v1/embeddings` also works.
 
@@ -910,9 +911,9 @@ Two common causes, both reported in the response body:
   ```
 
   A GPU-capable host should report `GPU` and not just `['CPU']`. Fix `.env`
-  and run `docker compose up -d` to recreate the container. Setting
-  `ENGINE_DOC_EMBEDDING_DEVICE=CPU` and `ENGINE_RERANK_DEVICE=CPU` is the
-  fallback if the host has no usable GPU.
+  and run `docker compose up -d` to recreate the container. Setting every
+  `ENGINE_*_DEVICE` variable to `CPU` (what `quickstart.sh --cpu` writes) is
+  the fallback if the host has no usable GPU.
 
 ## Source Map
 

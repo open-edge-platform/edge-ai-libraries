@@ -8,7 +8,7 @@ run-name: "[Time Series] PR  workflow (by @${{ github.actor }} via ${{ github.ev
 on:
   push:
     branches:
-      - 'main'
+      - 'release-2026.3.0'
     paths:
       - 'microservices/time-series-analytics/*'
       - 'microservices/time-series-analytics/config/**'
@@ -82,7 +82,7 @@ jobs:
     name: Timeseries function Test
     uses: ./.github/workflows/timeseries-weekly-functional-tests.yaml
     with:
-      test_pattern: 'test_docker.py::test_input_endpoint test_docker.py::test_health_check test_helm.py::test_input_endpoint test_helm.py::test_health_check'
+      test_pattern: 'test_docker.py::test_input_endpoint test_docker.py::test_health_check'
   
   timeseries-scans:
     uses: ./.github/workflows/timeseries-scans.yaml

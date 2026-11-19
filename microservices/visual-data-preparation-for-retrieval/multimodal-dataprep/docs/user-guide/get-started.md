@@ -194,13 +194,13 @@ The Multimodal DataPrep microservice uses the registry URL and tag to pull the r
 
 ```bash
 export REGISTRY_URL=intel
-export TAG=latest
+export TAG=2026.3.0-rc1
 ```
 
 1. **Clone the repository and enter the project.**
 
    ```bash
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.3.0
    cd edge-ai-libraries/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep
    ```
 

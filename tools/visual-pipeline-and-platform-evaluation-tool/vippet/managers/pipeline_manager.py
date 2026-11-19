@@ -452,6 +452,10 @@ class PipelineManager:
         for config_path in PipelineLoader.list():
             config = PipelineLoader.config(config_path)
 
+            # Audio pipelines have no GStreamer graph; AudioPipelineManager owns them.
+            if config.get("type") == "audio":
+                continue
+
             pipeline_name = config.get("name", "").strip()
             if not pipeline_name:
                 raise ValueError(
@@ -657,6 +661,9 @@ class PipelineManager:
 
             # Validate camera sources (rtspsrc, v4l2src), if present, are followed by decodebin3
             base_graph.validate_camera_sources_followed_by_decodebin3()
+
+            # Validate RTSP URLs of rtspsrc nodes (they may be user-provided)
+            base_graph.validate_rtsp_sources()
 
             # Validate all VA-accelerated inference elements share one GPU render node
             base_graph.validate_inference_devices_share_va_display()

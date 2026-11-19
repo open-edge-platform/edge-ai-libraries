@@ -1,7 +1,7 @@
 # Release Notes: Vector Retriever
 
 These release notes describe the Vector Retriever microservice. For sample-application
-integration context, see the [Video Search and Summarization release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/release-notes.html).
+integration context, see the [Video Search and Summarization release notes](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/video-search-and-summarization/release-notes.html).
 
 ## Version 2026.3.0-rc1
 

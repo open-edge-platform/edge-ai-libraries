@@ -1,7 +1,7 @@
 # UI end-to-end tests (Playwright)
 
 The ViPPET UI comes with a Playwright end-to-end test suite located in
-[`ui/tests/e2e/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/tests/e2e).
+[`ui/tests/e2e/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/tests/e2e).
 
 This page covers what a contributor needs in order to run the tests
 locally, wire them up in VS Code, extend them, and debug them on a
@@ -155,7 +155,7 @@ npx playwright show-trace ui/test-results/<test-dir>/trace.zip
 
 ## Continuous integration
 
-[`.github/workflows/vippet-ui-pr-workflow.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/.github/workflows/vippet-ui-pr-workflow.yaml)
+[`.github/workflows/vippet-ui-pr-workflow.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/.github/workflows/vippet-ui-pr-workflow.yaml)
 runs on every pull request that touches `tools/visual-pipeline-and-platform-evaluation-tool/ui/**`.
 
 | Job           | What it does                                                                                        | Local equivalent |

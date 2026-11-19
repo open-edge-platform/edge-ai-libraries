@@ -12,7 +12,7 @@
 #     clone is performed.
 #   * Otherwise the VSS application is fetched with a shallow, single-branch,
 #     sparse checkout of only
-#     `sample-applications/video-search-and-summarization` from `main`.
+#     `sample-applications/video-search-and-summarization` from `release-2026.3.0`.
 #
 # Output
 #   The resolved absolute VSS app root is printed on stdout as the ONLY stdout
@@ -21,7 +21,7 @@
 #
 # Environment overrides
 #   VSS_REPO_URL     Git URL to clone (default: upstream open-edge-platform).
-#   VSS_REPO_BRANCH  Branch to fetch (default: main).
+#   VSS_REPO_BRANCH  Branch to fetch (default: release-2026.3.0).
 #   VSS_CLONE_DIR    Where to place the checkout when cloning is required
 #                    (default: ${XDG_CACHE_HOME:-$HOME/.cache}/vss-src/edge-ai-libraries).
 #                    Existing non-VSS paths are never overwritten.
@@ -33,7 +33,7 @@
 set -euo pipefail
 
 REPO_URL="${VSS_REPO_URL:-https://github.com/open-edge-platform/edge-ai-libraries.git}"
-REPO_BRANCH="${VSS_REPO_BRANCH:-main}"
+REPO_BRANCH="${VSS_REPO_BRANCH:-release-2026.3.0}"
 CACHE_BASE="${XDG_CACHE_HOME:-$HOME/.cache}"
 CLONE_DIR="${VSS_CLONE_DIR:-$CACHE_BASE/vss-src/edge-ai-libraries}"
 VSS_SUBPATH="sample-applications/video-search-and-summarization"

@@ -42,7 +42,7 @@ endif
 
 # Image registry/tag, forwarded to scripts/run_service.sh (see docker/compose.yaml).
 REGISTRY ?= $(_env_REGISTRY)
-TAG ?= $(if $(_env_TAG),$(_env_TAG),latest)
+TAG ?= $(if $(_env_TAG),$(_env_TAG),2026.3.0-rc1)
 
 SERVICE_NAME := model-download
 
@@ -69,7 +69,7 @@ help:
 	@echo ""
 	@echo "Config:  edit .env (auto-created from .env.example on first"
 	@echo "         'make build'/'make deploy'/'make deploy-down')"
-	@echo "Secrets: export GETI_TOKEN=.. HUGGINGFACEHUB_API_TOKEN=.. etc. in"
+	@echo "Secrets: export HUGGINGFACEHUB_API_TOKEN=.. etc. in"
 	@echo "         your shell before running build/deploy (never store secrets in .env)"
 	@echo ""
 	@echo "Code Quality & Security Scans"

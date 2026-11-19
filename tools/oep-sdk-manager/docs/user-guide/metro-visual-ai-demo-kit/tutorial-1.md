@@ -414,5 +414,5 @@ After successfully setting up the AI Tolling system, consider these enhancements
 
 ## Supporting Resources
 
-- [DL Streamer Documentation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html)
+- [DL Streamer Documentation](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/dlstreamer/index.html)
 - [Metro AI Solutions](https://github.com/open-edge-platform/metro-ai-suite/tree/main)

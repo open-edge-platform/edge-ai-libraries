@@ -68,10 +68,6 @@ sbom_osrf_gazebo_ros2 () {
 
 debian_50_profile_ros2 () {
   echo "curl gnupg git software_properties_common lsb_release"
-  # --realtime (set by edge_base_robotics) supplies GPU/NPU prep via
-  # edge_pack_base_realtime instead; skip edge_base to avoid installing both
-  # the standard and real-time edge-pack base bundles together.
-  ensure_parse_option --realtime "$@" || echo "edge_base"
 }
 
 verify_ros2 () {
