@@ -1571,6 +1571,9 @@ class TestRecordPipelineEvent(unittest.TestCase):
 
     def setUp(self):
         TestsManager._instance = None
+        pipeline_manager_patcher = patch("managers.tests_manager.PipelineManager")
+        pipeline_manager_patcher.start()
+        self.addCleanup(pipeline_manager_patcher.stop)
 
     def test_events_are_appended_and_bounded(self):
         manager = TestsManager()
