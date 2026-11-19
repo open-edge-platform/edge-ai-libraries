@@ -1,7 +1,7 @@
 {
   "name": "vippet-ui",
   "private": true,
-  "version": "2026.3.0-dev",
+  "version": "2026.3.0-rc1",
   "type": "module",
   "scripts": {
     "dev": "vite",

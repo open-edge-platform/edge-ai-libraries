@@ -3,7 +3,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# agent-harness-install
+# Agent Harness Installer
 
 An installer that deploys an agent harness onto Intel hardware and wires it
 to a local, OpenAI-compatible inference endpoint.
@@ -12,7 +12,7 @@ The installer deploys one of three open-source agent projects, each
 published independently:
 
 | Agent | Verified package |
-|---|---|
+| --- | --- |
 | `openclaw` | npm `openclaw` — github.com/openclaw/openclaw |
 | `deepagents-code` | `dcode` (Deep Agents Code) — github.com/langchain-ai/deepagents |
 | `hermes` | Nous Research's official installer — github.com/NousResearch/hermes-agent (pinned installer script from the repo, not npm) |
@@ -24,7 +24,7 @@ directly to a model server. By default the Router sits in front of a local
 `/v3/chat/completions` endpoint on Intel Core Ultra iGPU and Arc (CRI)
 GPUs; the Router itself is the published `intel/inference-router` image.
 Setting `HARNESS_LLM_ROUTER_ENDPOINT` instead points the Router at any
-existing OpenAI-compatible endpoint you already operate (e.g. Ollama, vLLM,
+existing OpenAI-compatible endpoint you already operate (e.g., Ollama, vLLM,
 an internal gateway), with `HARNESS_LLM_ROUTER_API_KEY` as an optional bearer
 token. OVMS is not started in that case, and this installer never starts,
 stops, or health-checks that endpoint (`status` reports it as "routed
@@ -35,9 +35,9 @@ non-interactively without a selection.
 
 ## Agentic AI Security
 
-Explore [Agentic AI Security](docs/agentic-ai-security/README.md) for security
+Explore [Agentic AI Security](./docs/user-guide/agentic-ai-security.md) for security
 controls for agent deployments, starting with
-[Agent Sandboxing using OpenShell](docs/agentic-ai-security/agent-sandboxing.md).
+[Agent Sandboxing using OpenShell](./docs/user-guide/agentic-ai-security/agent-sandboxing.md).
 
 The `--runtime` option is **optional**. Interactive installation offers a choice
 of `host` or `openshell`; pressing Enter selects `host`. Non-interactive
@@ -50,267 +50,90 @@ configuration as a functional starting point. Fresh managed OpenShell deployment
 default to `OpenVINO/Qwen3.5-9B-int8-ov` when no explicit or reusable model
 selection exists, with model-tuning defaults for OpenClaw and Hermes. These
 sandbox defaults do not change host-mode model selection. See the
-[sandbox setup and policy boundaries](docs/agentic-ai-security/agent-sandboxing.md#getting-started)
+[sandbox setup and policy boundaries](./docs/user-guide/agentic-ai-security/agent-sandboxing.md#getting-started)
 for prerequisites and limitations.
 
-## How it works
-
-### Host-mode install flow
-
-`./install.sh` is the only command you run. It prepares the host, brings up
-the inference backend, installs the chosen agent, and wires the two together.
-The diagram below describes host mode; OpenShell's automatic model selection,
-sandbox lifecycle and onboarding are covered in the
-[Agent Sandboxing guide](docs/agentic-ai-security/agent-sandboxing.md).
-
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 45, "curve": "basis"}}}%%
-flowchart TD
-    classDef step fill:#EAF3FB,stroke:#0068B5,color:#0A2A43
-    classDef decision fill:#FFF6DD,stroke:#B38600,color:#4A3900
-    classDef agent fill:#EAF7EE,stroke:#2E7D32,color:#123D17
-    classDef done fill:#0068B5,stroke:#0068B5,color:#FFFFFF
-
-    START(["./install.sh [--harness agent] --model id"]):::step
-    CO{"Run from a<br/>source checkout?"}:::decision
-    CLONE["Fetch the pinned<br/>HARNESS_INSTALL_REF<br/>into a temp dir"]:::step
-    PAYLOAD["scripts/install.sh"]:::step
-
-    START --> CO
-    CO -- "yes" --> PAYLOAD
-    CO -- "no, standalone" --> CLONE --> PAYLOAD
-
-    subgraph PREP["Host preparation"]
-        direction TB
-        STARTUP["startup.sh<br/>curl and git, Docker, Node.js via nvm,<br/>Python venv and PyYAML"]:::step
-        GPU["Intel GPU check<br/>driver, /dev/dri render nodes, compute runtime<br/>no GPU: continues CPU-only"]:::step
-        STARTUP --> GPU
-    end
-    PAYLOAD --> STARTUP
-
-    subgraph S1["Step 1 of 3: Inference routing"]
-        direction TB
-        EXT{"External router<br/>endpoint set?"}:::decision
-        OVMS["Start OpenVINO Model Server<br/>Docker, GPU via --device"]:::step
-        EXPORT["Fetch --model from its hub (default: Hugging Face,<br/>converted to OpenVINO IR) and register it<br/>with OVMS when it has a graph.pbtxt"]:::step
-        IR["Pull and start the Inference Router<br/>intel/inference-router, in front of OVMS<br/>or of the external endpoint"]:::step
-        EXT -- "yes (OVMS is not started)" --> IR
-        EXT -- "no" --> OVMS --> EXPORT --> IR
-    end
-    GPU --> EXT
-
-    subgraph S2["Step 2 of 3: Agent install"]
-        direction TB
-        PICK{"HARNESS_AGENT"}:::decision
-        OC["OpenClaw<br/>npm install -g"]:::agent
-        DC["Deep Agents Code<br/>dcode installer"]:::agent
-        HM["Hermes<br/>official installer"]:::agent
-        PICK --> OC
-        PICK --> DC
-        PICK --> HM
-    end
-    IR --> PICK
-
-    subgraph S3["Step 3 of 3: Onboarding"]
-        direction TB
-        ONB["Point the agent at the endpoint<br/>OpenClaw and dcode: configure and smoke-test<br/>Hermes: print the endpoint to configure"]:::step
-    end
-    OC --> ONB
-    DC --> ONB
-    HM --> ONB
-
-    FINISH(["Installation complete"]):::done
-    ONB --> FINISH
-```
-
-Third-party downloads (the Hermes and dcode installers, Docker's convenience
-script) are fetched over HTTPS and verified against a SHA-256 before they run.
-The Hermes and dcode installers come from pinned upstream commits with their
-digests built in, so no flags are needed; the Docker convenience script still
-needs a digest or an explicit opt-out.
-
-### Runtime architecture
-
-Once installed, the agent talks to a single OpenAI-compatible endpoint. The
-Inference Router sits in front of OVMS (or of an external endpoint), and the
-local containers run on a dedicated Docker network. Published ports bind to
-127.0.0.1 by default; set `HARNESS_ADVERTISED_HOST` (a specific address) or
-`HARNESS_BIND_HOST=0.0.0.0` (all interfaces) to reach them from other machines.
-These LAN-publication overrides apply only to host mode; OpenShell mode
-reuses the existing loopback publication and private backend network, but
-requires inference ports to remain bound to `127.0.0.1` and validates the
-running deployment's bindings and, for managed OVMS, backend network.
-The diagram below shows the host-mode agent, not an OpenShell sandbox.
-Neither service authenticates inbound requests, and Docker-published ports
-bypass `ufw`, so restrict access with the `DOCKER-USER` iptables chain or bind
-to a specific interface address.
-
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 60, "curve": "basis"}}}%%
-flowchart TD
-    classDef host fill:#EAF3FB,stroke:#0068B5,color:#0A2A43
-    classDef box fill:#FFFFFF,stroke:#0068B5,color:#0A2A43
-    classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
-    classDef hw fill:#EAF7EE,stroke:#2E7D32,color:#123D17
-    classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray: 4 3
-
-    subgraph HOST["Intel host: Core Ultra iGPU or Arc, or CPU-only"]
-        direction TB
-        AGENT["Agent CLI<br/>OpenClaw, Deep Agents Code, or Hermes"]:::box
-        subgraph NET["Docker network: agent-harness-install-backend"]
-            direction TB
-            IRC["Inference Router<br/>#lt;host-ip#gt;:8010/v1"]:::box
-            OVMSC["OpenVINO Model Server<br/>#lt;host-ip#gt;:8000/v3"]:::box
-        end
-        MODELS[("OpenVINO models<br/>~/.agent-harness-install/models")]:::store
-        GPUD["Intel GPU<br/>/dev/dri render nodes"]:::hw
-    end
-    EXTR["External OpenAI-compatible endpoint<br/>HARNESS_LLM_ROUTER_ENDPOINT"]:::ext
-    REMOTE["Other machines on the network<br/>optional"]:::ext
-
-    AGENT -- "OpenAI-compatible API<br/>host-ip is 127.0.0.1 by default" --> IRC
-    IRC -- "container name" --> OVMSC
-    OVMSC --- MODELS
-    OVMSC -. "--device and --group-add" .-> GPUD
-    IRC -. "or, when HARNESS_LLM_ROUTER_ENDPOINT is set" .-> EXTR
-    REMOTE -. "only when HARNESS_ADVERTISED_HOST or HARNESS_BIND_HOST is set" .-> IRC
-    class HOST host
-```
-
-### Telemetry
+## Observability
 
 `./install.sh observability enable|disable|show` manages telemetry for the
-Inference Router and Hermes harness. `enable` takes the
-collection and storage options (`--backend`, `--endpoint`, `--content`),
-`disable` can delete the collected data (`--clean`) or keep the managed
-Jaeger (`--keep-jaeger`), and `show` prints a CLI summary, with Jaeger as the
-full trace view. The Router
-persists its counters and latencies to a JSONL file and serves them on
-`/v1/metrics`. The Hermes harness records per-turn traces through the
-`hermes-otel` plugin, to a local SQLite store and optionally to a Jaeger
-(managed, or your own at `--endpoint`). Harness telemetry is Hermes-only and unavailable in OpenShell
-sandboxes. Choices are kept in `~/.agent-harness-install/metrics.json`, so a
-later install that regenerates the Router's `config.yaml` preserves them. See
-[Observability](docs/user-guide/get-started.md#observability) for the options.
+Inference Router and Hermes harness. `enable` takes the collection and storage
+options (`--backend`, `--endpoint`, `--content`); `disable` can delete collected
+data (`--clean`) or keep the managed Jaeger (`--keep-jaeger`); `show` prints a
+CLI summary, with Jaeger providing the full trace view. The Router persists
+request counters and latencies to a JSONL file and serves them on `/v1/metrics`.
+Hermes records per-turn traces through the `hermes-otel` plugin in a local
+SQLite store and optionally exports them to a managed or external Jaeger.
+Harness telemetry is Hermes-only and unavailable in OpenShell sandboxes.
+Settings are kept in `~/.agent-harness-install/metrics.json`, so Router config
+regeneration preserves them. See [Observability](./docs/user-guide/get-started.md#observability)
+for details.
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 55, "curve": "basis"}}}%%
 flowchart TD
-    classDef step fill:#EAF3FB,stroke:#0068B5,color:#0A2A43
-    classDef decision fill:#FFF6DD,stroke:#B38600,color:#4A3900
-    classDef agent fill:#EAF7EE,stroke:#2E7D32,color:#123D17
-    classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
-    classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray: 4 3
+  classDef step fill:#EAF3FB,stroke:#0068B5,color:#0A2A43
+  classDef decision fill:#FFF6DD,stroke:#B38600,color:#4A3900
+  classDef agent fill:#EAF7EE,stroke:#2E7D32,color:#123D17
+  classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
+  classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray: 4 3
 
-    CMD(["./install.sh observability<br/>enable | disable | show"]):::step
-    LOCK{"Verb"}:::decision
-    SHOWN["show: read-only summary<br/>of the Router (/v1/metrics)<br/>and the Hermes store; no lock;<br/>prints the Jaeger UI URL"]:::step
-    STATE[("~/.agent-harness-install/metrics.json<br/>router.* and harness.* settings")]:::store
+  CMD(["./install.sh observability<br/>enable | disable | show"]):::step
+  LOCK{"Verb"}:::decision
+  SHOWN["show: read-only summary<br/>of the Router (/v1/metrics)<br/>and the Hermes store; no lock;<br/>prints the Jaeger UI URL"]:::step
+  STATE[("~/.agent-harness-install/metrics.json<br/>router.* and harness.* settings")]:::store
 
-    CMD --> LOCK
-    LOCK -- "show" --> SHOWN
-    LOCK -- "enable: --backend,<br/>--endpoint, --content<br/>disable: --clean,<br/>--keep-jaeger<br/>(deployment lock held)" --> STATE
+  CMD --> LOCK
+  LOCK -- "show" --> SHOWN
+  LOCK -- "enable: --backend,<br/>--endpoint, --content<br/>disable: --clean,<br/>--keep-jaeger<br/>(deployment lock held)" --> STATE
 
-    subgraph RT["Inference Router"]
-        direction TB
-        RCFG["Rewrite only the telemetry block<br/>of the Router config.yaml<br/>enable: file, disable: memory"]:::step
-        RIR["Restart the Inference Router<br/>(reads config.yaml only at startup)"]:::step
-        RMEM[("memory (default)<br/>in-process counters<br/>reset to zero on every restart")]:::store
-        RJSONL[("file: telemetry.jsonl<br/>one JSON line per request: counts,<br/>tokens, latency; no prompt text")]:::store
-        RAPI["GET /v1/metrics<br/>memory: reads counters<br/>file: re-reads the whole file"]:::step
-        RCLR["Cleared by disable --clean,<br/>POST /v1/metrics/reset or uninstall<br/>Rotated to telemetry.jsonl.1 above<br/>a size limit; no database backend"]:::ext
-        RCFG --> RIR
-        RIR --> RMEM
-        RIR --> RJSONL
-        RMEM --> RAPI
-        RJSONL --> RAPI
-        RCLR -.-> RJSONL
-    end
-    STATE --> RCFG
+  subgraph RT["Inference Router"]
+    direction TB
+    RCFG["Rewrite only the telemetry block<br/>of the Router config.yaml<br/>enable: file, disable: memory"]:::step
+    RIR["Restart the Inference Router<br/>(reads config.yaml only at startup)"]:::step
+    RMEM[("memory (default)<br/>in-process counters<br/>reset to zero on every restart")]:::store
+    RJSONL[("file: telemetry.jsonl<br/>one JSON line per request: counts,<br/>tokens, latency; no prompt text")]:::store
+    RAPI["GET /v1/metrics<br/>memory: reads counters<br/>file: re-reads the whole file"]:::step
+    RCLR["Cleared by disable --clean,<br/>POST /v1/metrics/reset or uninstall<br/>Rotated to telemetry.jsonl.1 above<br/>a size limit; no database backend"]:::ext
+    RCFG --> RIR
+    RIR --> RMEM
+    RIR --> RJSONL
+    RMEM --> RAPI
+    RJSONL --> RAPI
+    RCLR -.-> RJSONL
+  end
+  STATE --> RCFG
 
-    subgraph HT["Hermes harness"]
-        direction TB
-        HCHK["Check: Hermes installed, host runtime?<br/>Otherwise skipped with a reason<br/>(OpenClaw, Deep Agents Code, OpenShell)"]:::decision
-        HPLUG["hermes plugins install<br/>and enable hermes_otel"]:::agent
-        HCFG["Write ~/.hermes/hermes_otel.yaml<br/>backend and content capture<br/>off, preview or full"]:::agent
-        HBE{"--backend"}:::decision
-        HSQL[("sqlite (default)<br/>hermes_otel_live.db<br/>emptied by --clean")]:::store
-        HJ["jaeger: managed container<br/>UI on 127.0.0.1:16686<br/>--keep-jaeger keeps it"]:::agent
-        HO["jaeger with --endpoint:<br/>your own Jaeger"]:::ext
-        HCHK --> HPLUG --> HCFG --> HBE
-        HBE --> HSQL
-        HBE --> HJ
-        HBE --> HO
-    end
-    RAPI ~~~ HCHK
-    STATE --> HCHK
-```
-
-### OpenShell sandbox runtime
-
-For OpenShell, the agent runs in its own non-root sandbox. The attached
-inference provider grants access to IR; managed IR-to-OVMS traffic stays on a
-private Docker network. Agent UI access is forwarded privately on demand.
-See the [Agent Sandboxing guide](docs/agentic-ai-security/agent-sandboxing.md)
-for setup and security details.
-
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 60, "curve": "basis"}}}%%
-flowchart TD
-    classDef host fill:#EAF3FB,stroke:#0068B5,color:#0A2A43
-    classDef box fill:#FFFFFF,stroke:#0068B5,color:#0A2A43
-    classDef agent fill:#EAF7EE,stroke:#2E7D32,color:#123D17
-    classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
-    classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray:4 3
-
-    USER["User workstation<br/>OpenShell CLI or privately forwarded UI"]:::ext
-
-    subgraph HOST["Linux host"]
-        direction TB
-        subgraph SANDBOX["OpenShell sandbox: non-root agent"]
-            direction TB
-            AGENT["OpenClaw or Hermes"]:::agent
-            TOOLS["Agent tools and workspace<br/>sandbox filesystem policy"]:::box
-            AGENT --> TOOLS
-        end
-        GATEWAY["OpenShell gateway<br/>lifecycle and policy control"]:::box
-
-        subgraph INFERENCE["Shared inference: host loopback"]
-            direction LR
-            IR["Inference Router<br/>127.0.0.1:8010"]:::box
-            subgraph BACKEND["Private Docker network"]
-                direction LR
-                OVMS["OpenVINO Model Server"]:::box
-                MODEL[("Selected model<br/>GPU when available")]:::store
-                OVMS --> MODEL
-            end
-            IR --> OVMS
-        end
-    end
-
-    EXTERNAL["External inference endpoint<br/>optional route configured on IR"]:::ext
-    EGRESS["Web search, browsing, MCP<br/>additional policy required"]:::ext
-
-    USER -->|"OpenShell connect or UI tunnel"| AGENT
-    GATEWAY -. "creates and controls" .-> SANDBOX
-    AGENT -->|"Attached provider<br/>host.openshell.internal:8010/v1"| IR
-    IR -. "when externally configured" .-> EXTERNAL
-    AGENT -. "not allowed by default" .-> EGRESS
+  subgraph HT["Hermes harness"]
+    direction TB
+    HCHK["Check: Hermes installed, host runtime?<br/>Otherwise skipped with a reason<br/>(OpenClaw, Deep Agents Code, OpenShell)"]:::decision
+    HPLUG["hermes plugins install<br/>and enable hermes_otel"]:::agent
+    HCFG["Write ~/.hermes/hermes_otel.yaml<br/>backend and content capture<br/>off, preview or full"]:::agent
+    HBE{"--backend"}:::decision
+    HSQL[("sqlite (default)<br/>hermes_otel_live.db<br/>emptied by --clean")]:::store
+    HJ["jaeger: managed container<br/>UI on 127.0.0.1:16686<br/>--keep-jaeger keeps it"]:::agent
+    HO["jaeger with --endpoint:<br/>your own Jaeger"]:::ext
+    HCHK --> HPLUG --> HCFG --> HBE
+    HBE --> HSQL
+    HBE --> HJ
+    HBE --> HO
+  end
+  RAPI ~~~ HCHK
+  STATE --> HCHK
 ```
 
 ## Documentation
 
-- [Get Started](docs/user-guide/get-started.md): install flow, usage and
-  [model sources](docs/user-guide/get-started.md#model-sources) (Hugging Face,
+- [Get Started](./docs/user-guide/get-started.md): install flow, usage and
+  [model sources](./docs/user-guide/get-started.md#model-sources) (Hugging Face,
   Ollama, remote URL and the other Model Download hubs).
-- [Running Without a Checkout](docs/user-guide/running-without-a-checkout.md):
+- [Run Without a Checkout](./docs/user-guide/get-started/run-without-a-checkout.md):
   the standalone `curl | bash` bootstrap path.
-- [Uninstall](docs/user-guide/uninstall.md).
-- [Known Limitations](docs/user-guide/known-limitations.md).
+- [Uninstall](./docs/user-guide/get-started/uninstall.md).
+- [Known Limitations](./docs/user-guide/known-limitations.md).
 
 ## Layout
 
-```
+```text
 startup.sh                    prerequisite setup: installs/verifies curl/git, Docker, Node.js/npm, Python -- run automatically by install.sh, or standalone
 install.sh                   thin bootstrap (delegates to scripts/install.sh, or self-clones)
 uninstall.sh                  removes the Inference Router, OVMS, the installed agent, and state dir (models too, unless --keep-models)
@@ -326,11 +149,12 @@ scripts/lib/nodejs.sh         Node.js-via-nvm bootstrap
 scripts/lib/python-setup.sh   Python (venv + PyYAML) bootstrap
 scripts/lib/openvino.sh       OpenVINO Model Server (OpenAI-compatible inference)
 scripts/lib/inference-router.sh  Inference Router (always run in front of OVMS or an external endpoint; agents are wired to it, not to the model server directly)
-scripts/lib/agents.sh         agent-harness-install's agent catalog: openclaw / deepagents-code (dcode) / hermes
+scripts/lib/agents.sh         Agent Harness Installer's agent catalog: openclaw / deepagents-code (dcode) / hermes
 scripts/lib/harness-mcp.sh    registers an arbitrary MCP endpoint URL with an agent (Hermes and OpenClaw built in; others via HARNESS_MCP_REGISTER_CMD)
-scripts/lib/metrics.sh        `observability enable|disable|show`: Inference Router telemetry + Hermes hermes-otel plugin, optional managed Jaeger
+scripts/lib/metrics.sh       observability commands for Router and Hermes telemetry
 docs/user-guide/              usage documentation (see Documentation above)
-test/metrics-test.sh          unit tests for the observability command (docker/hermes stubbed)
+test/metrics-test.sh          observability behavior tests (Docker/Hermes stubbed)
+test/metrics-cli-test.sh      observability CLI entry-point tests
 test/smoke-test.sh            end-to-end smoke test suite (phased; see --list)
 test/full-flow-test.sh        full install -> real chat completion -> uninstall run, per agent
 ```
@@ -350,11 +174,11 @@ refuses to run the download unless you pin a digest or explicitly opt out.
 Source builds (the Inference Router, opt-in) and the Model Download script are pinned
 to full commit SHAs. The standalone-fetch
 bootstrap requires an explicit `HARNESS_INSTALL_REF` (a tag or commit) —
-see [Running Without a Checkout](docs/user-guide/running-without-a-checkout.md).
+see [Running Without a Checkout](./docs/user-guide/get-started/run-without-a-checkout.md).
 Uninstall is a plain bash script.
 
 ## Extending
 
 - `scripts/lib/gpu-intel.sh` only detects GPU/compute-runtime readiness; it
-  assumes drivers are already provisioned (e.g. via Edge Pack:
+  assumes drivers are already provisioned (e.g., via Edge Pack:
   github.com/open-edge-platform/edge-pack) rather than installing them.

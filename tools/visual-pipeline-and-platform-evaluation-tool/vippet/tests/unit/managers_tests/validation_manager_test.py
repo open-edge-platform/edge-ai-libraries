@@ -193,6 +193,37 @@ class TestValidationManager(unittest.TestCase):
 
         self.assertIn("greater than or equal to 1", str(ctx.exception))
 
+    def test_run_validation_rejects_invalid_rtsp_location(self):
+        """An rtspsrc location that could alter the pipeline should raise ValueError."""
+        manager = ValidationManager()
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {
+                        "id": "0",
+                        "type": "rtspsrc",
+                        "data": {"location": "rtsp://host/a ! filesink location=/x"},
+                    },
+                    {"id": "1", "type": "decodebin3", "data": {}},
+                    {"id": "2", "type": "fakesink", "data": {}},
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                ],
+            }
+        )
+
+        with patch.object(manager, "_execute_validation") as mock_execute:
+            with self.assertRaises(ValueError) as ctx:
+                manager.run_validation(
+                    InternalPipelineValidation(pipeline_graph=graph, parameters=None)
+                )
+
+        self.assertIn("Invalid RTSP location", str(ctx.exception))
+        mock_execute.assert_not_called()
+        self.assertEqual(manager.jobs, {})
+
     # ------------------------------------------------------------------
     # _execute_validation behaviour
     # ------------------------------------------------------------------
