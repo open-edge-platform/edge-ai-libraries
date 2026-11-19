@@ -77,7 +77,7 @@ encoder:
 # =========================
 # Pipeline manager setting
 # =========================
-pipeline_manager:
+pipeline_manager: 
   queue_backlog_threshold_1: 5             # queue < t1 => normal path (bg+obj), else evaluate next tier
   queue_backlog_threshold_2: 10            # t1 <= queue < t2 => fast bg + normal obj
   queue_backlog_threshold_3: 15            # t2 <= queue < t3 => fast bg + fast obj; queue >= t3 => skip obj detect + fast bg

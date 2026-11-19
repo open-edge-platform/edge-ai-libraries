@@ -36,6 +36,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi import Path as ApiPath
+from pydantic import BaseModel
 
 from semantic_img_comp.decoder.decoder import Decoder
 from semantic_img_comp.integration.semantic_codec_bridge import SemanticCodecBridge
@@ -50,6 +51,27 @@ _POLL_TICK_SEC = 0.05
 
 # SDL425/T-002: stream_id is also used here to build filesystem paths
 # (recon_images); see STREAM_ID_PATTERN in utils/service_http.py.
+
+
+class StreamCreatedResponse(BaseModel):
+    stream_id: str
+
+
+class StreamStatsResponse(BaseModel):
+    stream_id: str
+    frames_received: int
+    buffer_depth: int
+    consumer_cursors: dict[str, int]
+
+
+class FrameAcceptedResponse(BaseModel):
+    frame_seq: int
+    img_idx: int
+
+
+_JPEG_FRAME_RESPONSES = {
+    200: {"content": {"image/jpeg": {}}, "description": "Decoded JPEG frame."},
+}
 
 
 @dataclass
@@ -207,23 +229,23 @@ def create_app(service: DecoderService) -> FastAPI:
     max_body_bytes = service.cfg.dec.max_body_bytes
     install_common_endpoints(app, LOGGER, max_body_bytes=max_body_bytes)
 
-    @app.put("/v1/streams/{stream_id}")
+    @app.put("/v1/streams/{stream_id}", response_model=StreamCreatedResponse)
     def put_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
         service.get_or_create_stream(stream_id)
-        return {"stream_id": stream_id}
+        return StreamCreatedResponse(stream_id=stream_id)
 
-    @app.get("/v1/streams/{stream_id}")
+    @app.get("/v1/streams/{stream_id}", response_model=StreamStatsResponse)
     def get_stream_stats(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
         try:
             state = service.get_stream(stream_id)
         except KeyError:
             raise HTTPException(status_code=404, detail=f"unknown stream {stream_id}")
-        return {
-            "stream_id": stream_id,
-            "frames_received": state.frames_received,
-            "buffer_depth": len(state.buffer),
-            "consumer_cursors": dict(state.cursors),
-        }
+        return StreamStatsResponse(
+            stream_id=stream_id,
+            frames_received=state.frames_received,
+            buffer_depth=len(state.buffer),
+            consumer_cursors=dict(state.cursors),
+        )
 
     @app.delete("/v1/streams/{stream_id}", status_code=204)
     def delete_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
@@ -231,7 +253,7 @@ def create_app(service: DecoderService) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"unknown stream {stream_id}")
         return Response(status_code=204)
 
-    @app.post("/v1/streams/{stream_id}/payloads", status_code=202)
+    @app.post("/v1/streams/{stream_id}/payloads", status_code=202, response_model=FrameAcceptedResponse)
     async def post_payload(request: Request, stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
         payload = await request.body()
         if not payload:
@@ -250,9 +272,9 @@ def create_app(service: DecoderService) -> FastAPI:
             LOGGER.exception("malformed payload for stream %s", stream_id)
             raise HTTPException(status_code=422, detail="malformed payload") from exc
 
-        return {"frame_seq": frame.frame_seq, "img_idx": frame.img_idx}
+        return FrameAcceptedResponse(frame_seq=frame.frame_seq, img_idx=frame.img_idx)
 
-    @app.get("/v1/streams/{stream_id}/frames/next")
+    @app.get("/v1/streams/{stream_id}/frames/next", responses=_JPEG_FRAME_RESPONSES)
     async def get_next_frame(
         stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN),
         consumer_id: str = Query(..., min_length=1, max_length=128),
@@ -268,7 +290,7 @@ def create_app(service: DecoderService) -> FastAPI:
             return Response(status_code=204)
         return Response(content=frame.jpeg_bytes, media_type="image/jpeg", headers=_frame_headers(frame))
 
-    @app.get("/v1/streams/{stream_id}/frames/{frame_seq}")
+    @app.get("/v1/streams/{stream_id}/frames/{frame_seq}", responses=_JPEG_FRAME_RESPONSES)
     def get_frame_by_seq(frame_seq: int, stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
         try:
             state = service.get_stream(stream_id)

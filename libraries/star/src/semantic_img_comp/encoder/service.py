@@ -66,6 +66,25 @@ class StreamCreateRequest(BaseModel):
         return v
 
 
+class StreamCreatedResponse(BaseModel):
+    stream_id: str
+    decoder_url: str
+    decoder_stream_id: str
+    compression_level: int
+
+
+class StreamStatsResponse(BaseModel):
+    stream_id: str
+    frames_processed: int
+    decoder_url: str
+    decoder_stream_id: str
+
+
+class FrameAcceptedResponse(BaseModel):
+    status: str
+    stream_id: str
+
+
 @dataclass
 class StreamState:
     stream_id: str
@@ -305,7 +324,7 @@ def create_app(service: EncoderService) -> FastAPI:
     max_body_bytes = service.cfg.enc.max_body_bytes
     install_common_endpoints(app, LOGGER, max_body_bytes=max_body_bytes)
 
-    @app.put("/v1/streams/{stream_id}")
+    @app.put("/v1/streams/{stream_id}", response_model=StreamCreatedResponse)
     def put_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN), body: StreamCreateRequest = StreamCreateRequest()):
         state = service.get_or_create_stream(
             stream_id,
@@ -313,25 +332,25 @@ def create_app(service: EncoderService) -> FastAPI:
             decoder_url=body.decoder_url,
             decoder_stream_id=body.decoder_stream_id,
         )
-        return {
-            "stream_id": stream_id,
-            "decoder_url": state.decoder_url,
-            "decoder_stream_id": state.decoder_stream_id,
-            "compression_level": state.compression_level,
-        }
+        return StreamCreatedResponse(
+            stream_id=stream_id,
+            decoder_url=state.decoder_url,
+            decoder_stream_id=state.decoder_stream_id,
+            compression_level=state.compression_level,
+        )
 
-    @app.get("/v1/streams/{stream_id}")
+    @app.get("/v1/streams/{stream_id}", response_model=StreamStatsResponse)
     def get_stream_stats(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
         try:
             state = service.get_stream(stream_id)
         except KeyError:
             raise HTTPException(status_code=404, detail=f"unknown stream {stream_id}")
-        return {
-            "stream_id": stream_id,
-            "frames_processed": state.frames_processed,
-            "decoder_url": state.decoder_url,
-            "decoder_stream_id": state.decoder_stream_id,
-        }
+        return StreamStatsResponse(
+            stream_id=stream_id,
+            frames_processed=state.frames_processed,
+            decoder_url=state.decoder_url,
+            decoder_stream_id=state.decoder_stream_id,
+        )
 
     @app.delete("/v1/streams/{stream_id}", status_code=204)
     def delete_stream(stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN)):
@@ -339,7 +358,7 @@ def create_app(service: EncoderService) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"unknown stream {stream_id}")
         return Response(status_code=204)
 
-    @app.post("/v1/streams/{stream_id}/frames", status_code=202)
+    @app.post("/v1/streams/{stream_id}/frames", status_code=202, response_model=FrameAcceptedResponse)
     async def post_frame(
         request: Request,
         stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN),
@@ -364,10 +383,7 @@ def create_app(service: EncoderService) -> FastAPI:
 
         # Encoding and the decoder forward happen off this request on the stream's
         # forwarder thread (see _stream_forwarder); this only confirms acceptance.
-        return {
-            "status": "accepted",
-            "stream_id": stream_id,
-        }
+        return FrameAcceptedResponse(status="accepted", stream_id=stream_id)
 
     return app
 
