@@ -73,8 +73,8 @@ distributes; contact the ViPPET maintainers through the repository issue tracker
 2. BASE CONTAINER IMAGES
 ====================================================================================================
 
-intel/vippet-app            built FROM intel/dlstreamer (Ubuntu 24.04 based)
-intel/vippet-videogenerator built FROM intel/dlstreamer (Ubuntu 24.04 based)
+intel/vippet-app            built FROM intel/dlstreamer (Ubuntu 26.04 based)
+intel/vippet-videogenerator built FROM intel/dlstreamer (Ubuntu 26.04 based)
 intel/vippet-onvif-discovery built FROM python:3.14-slim (Debian based)
 intel/vippet-ui             built FROM node:24 (build stage only) and nginx:alpine (runtime)
 

@@ -76,7 +76,7 @@ configuration; change it with the camera vendor's tools if needed.
 
 Pipelines run on DL Streamer Pipeline Server 2.0, whose image does not include the Aravis GStreamer
 plugin (`aravissrc`). ViPPET ships the plugin with its custom elements, and the server loads it from
-the `vippet-gst-plugins` volume. The plugin comes from the `vippet` image (Ubuntu 24.04), so it works
+the `vippet-gst-plugins` volume. The plugin comes from the `vippet` image (Ubuntu 26.04), so it works
 with a server image on the same base, which the default deployment provides. See
 [Known limitations](../../troubleshooting.md#16-known-limitations-of-pipeline-execution-on-dl-streamer-pipeline-server-20).
 
