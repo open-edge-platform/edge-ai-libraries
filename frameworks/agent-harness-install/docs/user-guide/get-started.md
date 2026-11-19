@@ -38,6 +38,13 @@ Notes on what it does with Docker:
 
 ## What it does
 
+> **Models are downloaded by the installer.** You do not download or place a
+> model beforehand: `--model` makes the installer fetch it into
+> `~/.agent-harness-install/models` and register it with OVMS. The
+> model download size is large, and `./uninstall.sh` deletes the models by default; pass
+> `--keep-models` to retain the models and avoid re-downloading them on the
+> next install (see [Uninstall](./get-started/uninstall.md)).
+
 1. **Host prep** — runs `startup.sh` (curl/git, Docker, Node.js, Python),
    then an Intel GPU check (PCI vendor `8086`, `i915`/`xe` driver,
    `/dev/dri` render nodes, Level-Zero/OpenCL compute runtime readiness —
@@ -133,6 +140,23 @@ Options: `--non-interactive`, `--skip-gpu-check`, `--harness <name>`,
 `--model-revision <rev>`, `--model-type <type>`,
 `--model-precision <int4|int8|fp16|fp32>`, `--model-device <device>`; run
 `./install.sh --help` for the full list of options and environment variables.
+
+### Tool calls
+
+Agents that call tools need OVMS to parse the model's tool-call output into
+OpenAI-style `tool_calls`. OVMS 2026.3 and later detect the right parser from
+the model's chat template at startup, so nothing needs to be set for
+recognised model families; the OVMS log shows which one it chose:
+
+```bash
+docker logs agent-harness-install-ovms 2>&1 | grep -i parser
+# ... Auto-detected tool_parser: hermes3
+```
+
+The default `HARNESS_OVMS_IMAGE` is such a release. An older image has no
+auto-detection and returns tool calls as plain text. Passing `--tool_parser`
+through `HARNESS_OVMS_EXTRA_ARGS` is rejected: OVMS does not accept it when
+started from `--config_path`, and the container would crash-loop.
 
 ## Model sources
 
