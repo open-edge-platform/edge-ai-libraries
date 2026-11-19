@@ -43,7 +43,7 @@ Follow the steps in this section to quickly pull the latest pre-built Deep Learn
 - Clone the repository and change to the docker directory inside DL Streamer Pipeline Server project:
 
   ```sh
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.3.0
     cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
   ```
 

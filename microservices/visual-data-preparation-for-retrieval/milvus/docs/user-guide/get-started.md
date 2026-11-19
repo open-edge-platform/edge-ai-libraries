@@ -18,7 +18,7 @@
 Clone the source code repository if you do not have it:
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.3.0
 cd edge-ai-libraries/microservices
 ```
 
