@@ -870,6 +870,7 @@ class TestStartDownloadFromHub(_AsyncDBTestCase):
             "Vehicle Detector", "geti", InternalModelCategory.OBJECT_DETECTION
         )
         self.assertEqual(status, 202)
+        assert job_id is not None
         self.assertEqual(self.mgr._jobs[job_id].source.value, "geti")
         args = mock_thread_cls.call_args.kwargs["args"]
         self.assertEqual(
