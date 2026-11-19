@@ -50,7 +50,7 @@ Manual PTL checks are not proof that this automated suite passed.
 
 The suite does not provision missing shared inference, download a serving model
 or create a missing OpenShell gateway. Prepare these using the normal
-[installation guide](../docs/agentic-ai-security/agent-sandboxing.md#getting-started)
+[installation guide](../docs/user-guide/agentic-ai-security/agent-sandboxing.md#getting-started)
 before running it.
 
 ## Execute on a prepared Linux machine

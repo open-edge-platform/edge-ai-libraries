@@ -6,7 +6,7 @@ Use this path when you want to run the Semantic Search Agent directly on the hos
 
 ### Python Environment Setup
 
-From the `semantic-search-agent/` directory, create a virtual environment and install the required dependencies:
+From the `microservices/semantic-search-agent/` directory, create a virtual environment and install the required dependencies:
 
 ```bash
 # Create venv
@@ -73,7 +73,7 @@ Expected response:
 {
   "status": "healthy",
   "service": "semantic-search-agent",
-  "version": "2026.1.0",
+  "version": "2026.3.0-rc1",
   "vlm_backend": "ovms",
   "vlm_status": "connected",
   "uptime_seconds": 3.42
