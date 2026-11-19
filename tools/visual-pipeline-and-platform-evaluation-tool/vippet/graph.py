@@ -4130,6 +4130,18 @@ def _add_property_to_last_node(nodes: list[Node], token: _Token) -> None:
     logger.debug(f"Added property to node {nodes[-1].id}: {key}={value}")
 
 
+def _quote_if_spaced(value: object) -> str:
+    """Double-quote a property value that contains whitespace.
+
+    GStreamer launch syntax splits unquoted values at spaces; values that are
+    already quoted are left as they are.
+    """
+    text = str(value)
+    if text[:1] in ('"', "'") or not re.search(r"\s", text):
+        return text
+    return f'"{text}"'
+
+
 def _build_chain(
     start_id: str,
     node_by_id: dict[str, Node],
@@ -4230,7 +4242,7 @@ def _build_chain(
                 # declared in NODE_MODEL_SPECS for this node type (e.g. ``model-path``
                 # for ``gvagenai``). All other keys pass through unchanged.
                 output_key = spec.model_key if key == "model" else key
-                result_parts.append(f"{output_key}={value}")
+                result_parts.append(f"{output_key}={_quote_if_spaced(value)}")
 
         targets = edges_from.get(current_id, [])
         if not targets:
@@ -4308,6 +4320,10 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
             continue
 
         model_proc_path = node.data.get("model-proc", None)
+        # Paths with spaces are quoted in generated launch strings.
+        model_path = model_path.strip("\"'")
+        if model_proc_path is not None:
+            model_proc_path = model_proc_path.strip("\"'")
         # Match against every supported model (installed or not) so that
         # pipelines referencing a not-yet-installed model still get a
         # resolved display name. This lets ``used_by_pipelines`` in the

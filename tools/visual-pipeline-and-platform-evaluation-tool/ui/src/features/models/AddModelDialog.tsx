@@ -19,6 +19,7 @@ import { ENDPOINTS } from "@/api/apiEndpoints";
 import { CATEGORY_INFO } from "@/features/models/categoryInfo.ts";
 import { UltralyticsBrowser } from "@/features/models/UltralyticsBrowser.tsx";
 import { HGFBrowser } from "@/features/models/HGFBrowser.tsx";
+import { GetiBrowser } from "@/features/models/GetiBrowser.tsx";
 
 const MAX_DESCRIPTION_LENGTH = 200;
 
@@ -69,6 +70,7 @@ export const AddModelDialog = ({
             <TabsTrigger value="custom">Custom Model</TabsTrigger>
             <TabsTrigger value="ultralytics">Ultralytics Model</TabsTrigger>
             <TabsTrigger value="huggingface">HuggingFace Model</TabsTrigger>
+            <TabsTrigger value="geti">Geti Model</TabsTrigger>
           </TabsList>
           <TabsContent value="custom" className="mt-4 space-y-4">
             <p className="text-sm text-muted-foreground">
@@ -132,6 +134,9 @@ export const AddModelDialog = ({
           </TabsContent>
           <TabsContent value="huggingface" className="mt-4">
             <HGFBrowser onInstalled={() => setOpen(false)} />
+          </TabsContent>
+          <TabsContent value="geti" className="mt-4">
+            <GetiBrowser onInstalled={() => setOpen(false)} />
           </TabsContent>
         </Tabs>
       </DialogContent>

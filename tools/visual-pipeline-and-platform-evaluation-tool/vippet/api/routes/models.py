@@ -321,7 +321,7 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
 
     - **`names`** *(required)* - Non-empty list of unique supported-model
       names to install.
-    - **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`)
+    - **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`, `geti`)
       for names not in the catalog, as returned by `POST /models/list`.
       - `ultralytics`: when the download completes,
         `ultralytics/public/<name>/` is scanned for installed precisions
@@ -331,7 +331,11 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
       - `huggingface`: `category` is required (no naming convention to
         derive it from); `huggingface/<name>/` is scanned for the
         downloaded artefact.
-    - **`category`** *(optional)* - Required when `hub` is `huggingface`.
+      - `geti`: `category` is required; the model is resolved by name on
+        the configured Geti server, every OpenVINO precision it offers is
+        downloaded in parallel and `geti/<name>/` is scanned for the
+        installed precisions.
+    - **`category`** *(optional)* - Required when `hub` is `huggingface` or `geti`.
     - **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the
       hub listing; stored on the registered model, `null` when omitted.
 

@@ -764,6 +764,29 @@ class TestScanUltralyticsVariants(_ModelsPathTestCase):
         )
 
 
+class TestScanGetiVariants(_ModelsPathTestCase):
+    def test_returns_empty_when_model_dir_missing(self) -> None:
+        self.assertEqual(mm_module.scan_geti_variants("Vehicle Detector"), [])
+
+    def test_lowercases_name_and_uppercases_precision(self) -> None:
+        self._touch("geti", "vehicle detector", "fp16", "model.xml")
+
+        self.assertEqual(
+            mm_module.scan_geti_variants("Vehicle Detector"),
+            [("FP16", "geti/vehicle detector/fp16/model.xml")],
+        )
+
+    def test_ignores_non_precision_dirs_and_dirs_without_xml(self) -> None:
+        self._touch("geti", "det", "int8", "nested", "model.xml")
+        self._touch("geti", "det", "fp32", "model.bin")
+        self._touch("geti", "det", "notes", "model.xml")
+
+        self.assertEqual(
+            mm_module.scan_geti_variants("det"),
+            [("INT8", "geti/det/int8/nested/model.xml")],
+        )
+
+
 class TestGenaiAndXmlLookup(_ModelsPathTestCase):
     def test_find_genai_model_dir_in_root(self) -> None:
         self._touch("m", mm_module.GENAI_SENTINEL_FILE)
@@ -831,9 +854,47 @@ class TestStartDownloadFromHub(_AsyncDBTestCase):
         self.mgr._jobs_lock = threading.Lock()
 
     async def test_rejects_unsupported_hub(self) -> None:
-        job_id, status, _ = await self.mgr.start_download("x", "geti")
+        job_id, status, _ = await self.mgr.start_download("x", "omz")
         self.assertIsNone(job_id)
         self.assertEqual(status, 400)
+
+    async def test_geti_requires_category(self) -> None:
+        job_id, status, msg = await self.mgr.start_download("Vehicle Detector", "geti")
+        self.assertIsNone(job_id)
+        self.assertEqual(status, 400)
+        self.assertIn("category", msg)
+
+    @patch("managers.model_manager.threading.Thread")
+    async def test_geti_spawns_worker_with_category(self, mock_thread_cls) -> None:
+        job_id, status, _ = await self.mgr.start_download(
+            "Vehicle Detector", "geti", InternalModelCategory.OBJECT_DETECTION
+        )
+        self.assertEqual(status, 202)
+        self.assertEqual(self.mgr._jobs[job_id].source.value, "geti")
+        args = mock_thread_cls.call_args.kwargs["args"]
+        self.assertEqual(
+            args[:3],
+            (
+                job_id,
+                "Vehicle Detector",
+                {
+                    "hub": "geti",
+                    "name": "Vehicle Detector",
+                    "config": {"model_format": "openvino"},
+                },
+            ),
+        )
+        self.assertTrue(callable(args[3]))
+
+    @patch("managers.model_manager.threading.Thread")
+    async def test_geti_stores_compact_request_without_precision(
+        self, mock_thread_cls
+    ) -> None:
+        await self.mgr.start_download(
+            "Vehicle Detector", "geti", InternalModelCategory.OBJECT_DETECTION
+        )
+        download_request = mock_thread_cls.call_args.kwargs["args"][2]
+        self.assertEqual(download_request["config"], {"model_format": "openvino"})
 
     async def test_huggingface_requires_category(self) -> None:
         job_id, status, msg = await self.mgr.start_download(
@@ -936,8 +997,10 @@ class _FakeHttpxClient:
         post_response: _FakeResponse | None = None,
         get_responses: list[_FakeResponse] | None = None,
         raise_on: str | None = None,
+        post_responses: list[_FakeResponse] | None = None,
     ) -> None:
         self._post_response = post_response or _FakeResponse()
+        self._post_queue = list(post_responses or [])
         self._get_queue = list(get_responses or [])
         self._raise_on = raise_on
         self.posts: list[tuple[str, dict[str, Any]]] = []
@@ -955,6 +1018,8 @@ class _FakeHttpxClient:
         if self._raise_on == "post":
             raise httpx.HTTPError("simulated network error")
         self.posts.append((url, kwargs))
+        if self._post_queue:
+            return self._post_queue.pop(0)
         return self._post_response
 
     def get(self, url: str, **_kwargs: Any) -> _FakeResponse:
@@ -1052,7 +1117,7 @@ class TestExecuteRemoteDownload(unittest.TestCase):
             )
         job = self.mgr._jobs["job-1"]
         self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
-        self.assertIn("exactly one job id", job.details[0])
+        self.assertIn("job id", job.details[0])
 
     def test_fails_when_post_returns_multiple_job_ids(self) -> None:
         self._seed_job()
@@ -1065,7 +1130,7 @@ class TestExecuteRemoteDownload(unittest.TestCase):
             )
         job = self.mgr._jobs["job-1"]
         self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
-        self.assertIn("exactly one job id", job.details[0])
+        self.assertIn("job id", job.details[0])
 
     def test_treats_404_from_external_job_as_failure(self) -> None:
         self._seed_job()
@@ -1111,6 +1176,134 @@ class TestExecuteRemoteDownload(unittest.TestCase):
         job = self.mgr._jobs["job-1"]
         self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
         self.assertIn("timed out", job.details[0])
+
+    @staticmethod
+    def _geti_listing(*variants: tuple[str, str]) -> _FakeResponse:
+        return _FakeResponse(
+            json_body={
+                "items": [
+                    {
+                        "name": "YOLOX-Tiny (09e2b40d)",
+                        "metadata": {
+                            "variants": [
+                                {"model_format": fmt, "precision": precision}
+                                for fmt, precision in variants
+                            ]
+                        },
+                    }
+                ]
+            }
+        )
+
+    _GETI_REQUEST = {
+        "hub": "geti",
+        "name": "YOLOX-Tiny (09e2b40d)",
+        "config": {"model_format": "openvino"},
+    }
+
+    def test_geti_request_is_fanned_out_per_openvino_precision(self) -> None:
+        self._seed_job()
+        client = _FakeHttpxClient(
+            post_responses=[
+                self._geti_listing(
+                    ("openvino", "fp16"),
+                    ("onnx", "fp16"),
+                    ("openvino", "int8"),
+                    ("pytorch", "fp32"),
+                ),
+                _FakeResponse(json_body={"job_ids": ["ext-1", "ext-2"]}),
+            ],
+            get_responses=[
+                _FakeResponse(json_body={"status": "completed"}),
+                _FakeResponse(json_body={"status": "processing"}),
+                _FakeResponse(json_body={"status": "completed"}),
+            ],
+        )
+        on_success = MagicMock()
+        with patch("managers.model_manager.httpx.Client", return_value=client):
+            self.mgr._execute_remote_download(
+                "job-1", "YOLOX-Tiny (09e2b40d)", self._GETI_REQUEST, on_success
+            )
+
+        _, download_call = client.posts[1]
+        self.assertEqual(
+            download_call["json"]["models"],
+            [
+                {
+                    **self._GETI_REQUEST,
+                    "config": {"model_format": "openvino", "precision": p},
+                }
+                for p in ("fp16", "int8")
+            ],
+        )
+        self.assertEqual(self.mgr._jobs["job-1"].external_job_id, "ext-1,ext-2")
+        on_success.assert_called_once_with("job-1", "YOLOX-Tiny (09e2b40d)")
+
+    def test_geti_request_with_precision_is_not_expanded(self) -> None:
+        self._seed_job()
+        request = {
+            **self._GETI_REQUEST,
+            "config": {"model_format": "openvino", "precision": "int8"},
+        }
+        client = _FakeHttpxClient(
+            post_response=_FakeResponse(json_body={"job_ids": ["ext-1"]}),
+            get_responses=[_FakeResponse(json_body={"status": "completed"})],
+        )
+        with patch("managers.model_manager.httpx.Client", return_value=client):
+            self.mgr._execute_remote_download(
+                "job-1", "YOLOX-Tiny (09e2b40d)", request, MagicMock()
+            )
+        self.assertEqual(len(client.posts), 1)
+        self.assertEqual(client.posts[0][1]["json"], {"models": [request]})
+
+    def test_geti_without_openvino_precisions_fails_job(self) -> None:
+        self._seed_job()
+        client = _FakeHttpxClient(post_responses=[self._geti_listing(("onnx", "fp16"))])
+        with patch("managers.model_manager.httpx.Client", return_value=client):
+            self.mgr._execute_remote_download(
+                "job-1", "YOLOX-Tiny (09e2b40d)", self._GETI_REQUEST, MagicMock()
+            )
+        job = self.mgr._jobs["job-1"]
+        self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
+        self.assertIn("No OpenVINO precisions", job.details[0])
+
+    def test_geti_ignores_precisions_that_are_not_directory_safe(self) -> None:
+        self._seed_job()
+        client = _FakeHttpxClient(
+            post_responses=[
+                self._geti_listing(("openvino", "../x"), ("openvino", "fp32")),
+                _FakeResponse(json_body={"job_ids": ["ext-1"]}),
+            ],
+            get_responses=[_FakeResponse(json_body={"status": "completed"})],
+        )
+        with patch("managers.model_manager.httpx.Client", return_value=client):
+            self.mgr._execute_remote_download(
+                "job-1", "YOLOX-Tiny (09e2b40d)", self._GETI_REQUEST, MagicMock()
+            )
+        models = client.posts[1][1]["json"]["models"]
+        self.assertEqual([m["config"]["precision"] for m in models], ["fp32"])
+
+    def test_geti_failure_names_the_failed_precision(self) -> None:
+        self._seed_job()
+        client = _FakeHttpxClient(
+            post_responses=[
+                self._geti_listing(("openvino", "fp16"), ("openvino", "int8")),
+                _FakeResponse(json_body={"job_ids": ["ext-1", "ext-2"]}),
+            ],
+            get_responses=[
+                _FakeResponse(json_body={"status": "processing"}),
+                _FakeResponse(json_body={"status": "failed", "error": "boom"}),
+            ],
+        )
+        on_success = MagicMock()
+        with patch("managers.model_manager.httpx.Client", return_value=client):
+            self.mgr._execute_remote_download(
+                "job-1", "YOLOX-Tiny (09e2b40d)", self._GETI_REQUEST, on_success
+            )
+        job = self.mgr._jobs["job-1"]
+        self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
+        self.assertEqual(job.details, ["int8: boom"])
+        on_success.assert_not_called()
 
 
 # ----------------------------------------------------------------------

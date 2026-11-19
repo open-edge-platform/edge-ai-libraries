@@ -1,6 +1,8 @@
 import type { Model, Node } from "@/api/api.generated.ts";
 
-const MODEL_DETAILS_SUFFIX_PATTERN = /\s*\(.*/;
+// Variant labels are "<model> (<precision>)" plus an optional "[model-proc: ...]";
+// only that trailing group is stripped, model names may contain parentheses.
+const MODEL_DETAILS_SUFFIX_PATTERN = /\s*\([^()]*\)(?:\s*\[[^\]]*\])?\s*$/;
 
 export const isGatedModel = (model: Pick<Model, "gated">): boolean =>
   Boolean(model.gated) && model.gated !== "false";

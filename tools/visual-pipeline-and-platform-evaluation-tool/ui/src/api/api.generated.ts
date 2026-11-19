@@ -1483,6 +1483,7 @@ export type ModelSource =
   | "ultralytics"
   | "pipeline-zoo-models"
   | "omz"
+  | "geti"
   | "custom";
 export type ModelDownloadJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type ModelDownloadJobStatus = {
@@ -1613,7 +1614,7 @@ export type ModelDownloadRequest = {
   names: string[];
   /** Upstream hub used for names not found in the model catalog. */
   hub?: ModelSource | null;
-  /** Model category, required when `hub` is `huggingface` (ignored for other hubs). */
+  /** Model category, required when `hub` is `huggingface` or `geti` (ignored for other hubs). */
   category?: ModelCategory | null;
   /** Gating mode of the hub model, stored on the registered model (null when unknown). */
   gated?: ModelGated | null;
