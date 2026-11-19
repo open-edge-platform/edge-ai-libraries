@@ -177,8 +177,9 @@ harness, and shows their state:
   recreate it before enabling. The choice is saved only after the file is
   ready, so a failed `enable` leaves the previous setting in place.
 - `harness` (Hermes, host runtime): installs and enables the `hermes-otel`
-  plugin and writes `$HERMES_HOME/hermes_otel.yaml`. `--backend sqlite` keeps
-  records in the local store only; `jaeger` exports OTLP traces to a Jaeger
+  plugin and writes `$HERMES_HOME/hermes_otel.yaml`. For a fresh setup, the
+  backend defaults to `sqlite`, which keeps records in the local store only;
+  `jaeger` exports OTLP traces to a Jaeger
   all-in-one container managed by the installer (loopback only), or to your
   own Jaeger at `--endpoint` when given. `--content` controls
   prompt/response capture and defaults to `off`. Then run `hermes gateway
