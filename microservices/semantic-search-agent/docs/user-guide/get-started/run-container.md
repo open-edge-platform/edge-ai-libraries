@@ -14,7 +14,7 @@ Use this path to run the Semantic Search Agent in a container. The REST API is e
 
 ## Start the Service
 
-From the `semantic-search-agent/` directory:
+From the `microservices/semantic-search-agent/` directory:
 
 ```bash
 # Build the Docker image

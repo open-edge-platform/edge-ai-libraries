@@ -4,29 +4,38 @@ This section shows how to build the Semantic Search Agent from source code. Use 
 
 ## Prerequisites
 
-- Clone the repository and navigate to the `semantic-search-agent/` directory.
+- Docker Engine 24 or higher, with the Docker Compose tool v2.
+- Clone the repository and navigate to the `microservices/semantic-search-agent/` directory:
+
+  ```bash
+  git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+  cd edge-ai-libraries/microservices/semantic-search-agent
+  ```
+
 - Verify that the [system requirements](system-requirements.md) are met.
 
 ## Build the Docker Image
 
 The repository provides the `docker/Dockerfile` and `docker/docker-compose.yml` files. The Compose configuration builds the image from local source files.
 
-To build using the Makefile from the project root folder:
+To build using the Makefile from the `microservices/semantic-search-agent/` directory:
 
 ```bash
 make docker-build
 ```
 
-To build the image directly using the `docker` CLI:
+To build the image directly using the `docker` CLI, run the command from the same directory. The build context is `.` and must be this directory:
 
 ```bash
 docker build \
   --build-arg HTTP_PROXY=${HTTP_PROXY} \
   --build-arg HTTPS_PROXY=${HTTPS_PROXY} \
-  -t intel/semantic-search-agent:2026.1.0 \
+  -t intel/semantic-search-agent:2026.3.0-rc1 \
   -f docker/Dockerfile \
   .
 ```
+
+After the build completes, verify that the image exists with `docker images intel/semantic-search-agent`.
 
 This packages the application code, installs Python dependencies, and configures the container to run as a non-root user with User Identifier (UID) 1000.
 
