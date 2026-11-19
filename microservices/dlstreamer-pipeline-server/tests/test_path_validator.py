@@ -91,7 +91,7 @@ class TestRestrictFileDestinationPermissions:
     def test_restricts_mode_of_preexisting_file(self, tmp_path):
         target = tmp_path / "results.jsonl"
         target.touch()
-        os.chmod(target, 0o666)
+        os.chmod(target, 0o644)  # world-readable, less restrictive than the 0o640 we expect
         request = {"destination": {"metadata": {"type": "file", "path": str(target)}}}
 
         restrict_file_destination_permissions(request)
