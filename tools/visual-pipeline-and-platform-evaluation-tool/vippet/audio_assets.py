@@ -60,7 +60,6 @@ class AudioAssetsManager:
         for directory in (AUTO_AUDIO_DIR, OUTPUT_AUDIO_DIR):
             try:
                 os.makedirs(directory, mode=0o755, exist_ok=True)
-                os.chmod(directory, 0o755)
             except OSError as exc:
                 raise RuntimeError(
                     f"Failed to create audio directory '{directory}': {exc}"
