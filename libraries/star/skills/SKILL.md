@@ -32,8 +32,6 @@ libraries/star/
     ├── healthcheck.py             # HTTP_READY/TCP_READY flags + Docker HEALTHCHECK status server
     ├── integration/semantic_codec_bridge.py  # Generic API for encoding/decoding.
     └── utils/service_http.py      # install_common_endpoints: shared /healthz + exception handler
-└── src/semantic_img_comp/integration/
-    └── semantic_codec_bridge.py      # install_common_endpoints: shared /healthz + exception handler
 
 ```
 
@@ -45,9 +43,9 @@ libraries/star/
 | Encoder | `encoder` / `encoder-npu` | 8001 → 8000 | REST API (+ internal TCP forwarding to decoder:5000) |
 | DLStreamer pipeline server | `dlstreamer-pipeline-server(-gpu-npu)` | 8080 | Only started when `detector_backend: dlstreamer` in `configs/default.yaml` |
 
-Encoder/decoder container selection between CPU, GPU and NPU is automatic in the Makefile
-`encoder`/`decoder` targets based on `/dev/accel/accel0` presence — don't
-hardcode NPU vs CPU in new tooling, reuse `make decoder encoder`. To ensure that workload is running on selected device, modify `device` field in configuration.
+Encoder/decoder container selection CPU and iGPU/NPU is automatic in the Makefile
+`encoder`/`decoder` targets based on `/dev/accel/accel0` presence (which assumes that CPU always has iGPU if NPU is present) — don't
+hardcode device in new tooling, reuse `make decoder encoder`. To ensure that workload is running on selected device, modify `device` field in configuration.
 
 ## REST API Conventions
 
@@ -75,8 +73,6 @@ hardcode NPU vs CPU in new tooling, reuse `make decoder encoder`. To ensure that
   expected, don't try to "fix" it unless specifically asked.
 
 ## OpenAPI Drift Check (CI-Enforced)
-
-As agent, you are never to manually modify openAPI spec files. You can fetch the live spec from the running service, but any changes must be reflected in the committed `docs/*-openapi.json` snapshots.
 
 `docs/encoder-openapi.json` and `docs/decoder-openapi.json` are **committed
 snapshots** of each service's live `/openapi.json`. Any route, parameter,
@@ -130,10 +126,10 @@ description, or response-model change requires updating the matching
   untrusted — see the existing SDL443/SSRF-scoped comments before loosening
   validation.
 - In HTTP mode StreamID should be treated same way as clientID in TCP mode. If new modes of transport are added, ensure consistent handling of StreamID with respect to trust and validation.
-- You are limited only to STAR library and its defined interfaces for implementing new functionality. Modification of files outside the STAR library (`libraries/star`) are possible but only after approval from user.
+- New functionality must live in `libraries/star`; touching files outside it requires explicit user approval first.
 
 ## Additional Notes
 
 - If user wants to perform seamless integration, recommend HTTP endpoint usage over TCP.
 - If user wants to use library to perform encoding/decoding operations, recommend leveraging the semantic codec bridge API for consistent handling across different transport modes.
-- Configuration changes in `configuration/default.yaml` file require either rebuilding the image (which is going to copy config file inside the new image) or mounting the updated config file into the container at runtime.
+- Configuration changes in `configs/default.yaml` file require either rebuilding the image (which is going to copy config file inside the new image) or mounting the updated config file into the container at runtime.
