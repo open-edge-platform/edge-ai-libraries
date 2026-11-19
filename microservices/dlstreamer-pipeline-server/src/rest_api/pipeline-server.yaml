@@ -11,6 +11,8 @@ info:
   version: 2025.2.0
 servers:
   - url: /
+security:
+  - ApiKeyAuth: []
 paths:
   /models:
     get:
@@ -301,6 +303,12 @@ paths:
           description: Success
       x-openapi-router-controller: src.rest_api.endpoints.Endpoints
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      x-apikeyInfoFunc: src.rest_api.auth.apikey_auth
   schemas:
     AnyValue: {}
     Pipeline:

@@ -8,6 +8,7 @@ import connexion
 import requests
 import time
 import os
+import re
 from pydantic import ValidationError
 from http import HTTPStatus
 from src.common.log import get_logger
@@ -17,6 +18,31 @@ logger = get_logger('REST API Endpoints')
 
 BAD_REQUEST_RESPONSE = 'Invalid pipeline, version or instance'
 NOT_IMPLEMENTED = 'Unsupported endpoint'
+
+# SDL424: allowlist patterns for path identifiers. Reject anything else before
+# it reaches pipeline lookup/execution logic, and log rejects with source IP.
+_IDENTIFIER_PATTERN = re.compile(r'^[a-zA-Z0-9_.-]{1,128}$')
+# pipeline_manager.py generates instance_id via uuid.uuid1().hex (32 lowercase
+# hex chars, no dashes) - NOT the dashed 'format: uuid' the OpenAPI spec claims.
+_INSTANCE_ID_PATTERN = re.compile(r'^[0-9a-f]{1,64}$')
+
+
+def _client_ip():
+    """Best-effort client IP for SDL424 security logging."""
+    try:
+        return connexion.request.remote_addr
+    except Exception:
+        return 'unknown'
+
+
+def _valid_identifier(value):
+    """SDL424: allowlist + size check for name/version path params."""
+    return isinstance(value, str) and bool(_IDENTIFIER_PATTERN.match(value))
+
+
+def _valid_instance_id(value):
+    """SDL424: allowlist + size check for instance_id path params."""
+    return isinstance(value, str) and bool(_INSTANCE_ID_PATTERN.match(value))
 
 class Endpoints:
 
@@ -61,6 +87,9 @@ class Endpoints:
 
         :rtype: None
         """
+        if not _valid_identifier(name) or not _valid_identifier(version):
+            logger.warning('pipelines_name_version_get: invalid identifier from %s', _client_ip())
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         return (NOT_IMPLEMENTED, HTTPStatus.BAD_REQUEST)
 
 
@@ -78,6 +107,9 @@ class Endpoints:
 
         :rtype: None
         """
+        if not _valid_identifier(name) or not _valid_identifier(version) or not _valid_instance_id(instance_id):
+            logger.warning('pipelines_name_version_instance_id_delete: invalid identifier from %s', _client_ip())
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         return (NOT_IMPLEMENTED, HTTPStatus.BAD_REQUEST)
 
     def pipelines_instance_id_delete(instance_id):  # noqa: E501
@@ -90,6 +122,9 @@ class Endpoints:
 
         :rtype: None
         """
+        if not _valid_instance_id(instance_id):
+            logger.warning('pipelines_instance_id_delete: invalid instance_id from %s', _client_ip())
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         try:
             logger.debug("DELETE on /pipelines/{id}".format(id=instance_id))
             result = Endpoints.pipeline_server_manager.stop_instance(instance_id)
@@ -98,7 +133,7 @@ class Endpoints:
                 return result
             return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         except Exception as error:
-            logger.error('pipelines_instance_id_delete %s', error)
+            logger.error('pipelines_instance_id_delete %s (client %s)', error, _client_ip())
             return ('Unexpected error', HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
@@ -116,6 +151,9 @@ class Endpoints:
 
         :rtype: object
         """
+        if not _valid_identifier(name) or not _valid_identifier(version) or not _valid_instance_id(instance_id):
+            logger.warning('pipelines_name_version_instance_id_get: invalid identifier from %s', _client_ip())
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         return (NOT_IMPLEMENTED, HTTPStatus.BAD_REQUEST)
 
 
@@ -129,6 +167,9 @@ class Endpoints:
 
         :rtype: object
         """
+        if not _valid_instance_id(instance_id):
+            logger.warning('pipelines_instance_id_get: invalid instance_id from %s', _client_ip())
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         try:
             logger.debug("GET on /pipelines/{id}".format(id=instance_id))
             result, err = Endpoints.pipeline_server_manager.get_pipeline_instance_summary(instance_id)
@@ -136,7 +177,7 @@ class Endpoints:
                 return result
             return (err, HTTPStatus.BAD_REQUEST)
         except Exception as error:
-            logger.error('pipelines_instance_id_get %s', error)
+            logger.error('pipelines_instance_id_get %s (client %s)', error, _client_ip())
             return ('Unexpected error', HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
@@ -154,6 +195,9 @@ class Endpoints:
 
         :rtype: object
         """
+        if not _valid_identifier(name) or not _valid_identifier(version) or not _valid_instance_id(instance_id):
+            logger.warning('pipelines_name_version_instance_id_status_get: invalid identifier from %s', _client_ip())
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         return (NOT_IMPLEMENTED, HTTPStatus.BAD_REQUEST)
 
     def pipelines_status_get_all():  # noqa: E501
@@ -184,6 +228,9 @@ class Endpoints:
 
         :rtype: object
         """
+        if not _valid_instance_id(instance_id):
+            logger.warning('pipelines_instance_id_status_get: invalid instance_id from %s', _client_ip())
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         try:
             logger.debug("GET on /pipelines/{id}/status".format(id=instance_id))
             result = Endpoints.pipeline_server_manager.get_instance_status(instance_id)
@@ -192,7 +239,7 @@ class Endpoints:
                 return result
             return ('Invalid instance', HTTPStatus.BAD_REQUEST)
         except Exception as error:
-            logger.error('pipelines_instance_id_status_get %s', error)
+            logger.error('pipelines_instance_id_status_get %s (client %s)', error, _client_ip())
             return ('Unexpected error', HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def pipelines_name_version_post(name, version):  # noqa: E501
@@ -211,6 +258,10 @@ class Endpoints:
         :rtype: None
         """
 
+        if not _valid_identifier(name) or not _valid_identifier(version):
+            logger.warning('pipelines_name_version_post: invalid identifier from %s', _client_ip())
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
+
         logger.debug(
             "POST on /pipelines/{name}/{version}".format(name=name, version=str(version)))
         if connexion.request.is_json:
@@ -221,7 +272,7 @@ class Endpoints:
                     return pipeline_id
                 return (err, HTTPStatus.BAD_REQUEST)
             except Exception as error:
-                logger.exception('Exception in pipelines_name_version_post %s', error)
+                logger.exception('Exception in pipelines_name_version_post %s (client %s)', error, _client_ip())
                 return ('Unexpected error', HTTPStatus.INTERNAL_SERVER_ERROR)
 
         return('Invalid Request, Body must be valid JSON', HTTPStatus.BAD_REQUEST)
@@ -245,6 +296,10 @@ class Endpoints:
         :rtype: None
         """
 
+        if not _valid_identifier(name) or not _valid_identifier(version) or not _valid_instance_id(instance_id):
+            logger.warning('pipelines_name_version_instance_id_post: invalid identifier from %s', _client_ip())
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
+
         logger.debug(
             "POST on /pipelines/{name}/{version}/{instance_id}".format(name=name, version=str(version), instance_id=instance_id))
         if connexion.request.is_json:
@@ -255,7 +310,7 @@ class Endpoints:
                     return pipeline_id
                 return (err, HTTPStatus.BAD_REQUEST)
             except Exception as error:
-                logger.error('Exception in pipelines_name_version_instance_id_post %s', error)
+                logger.error('Exception in pipelines_name_version_instance_id_post %s (client %s)', error, _client_ip())
                 return ('Unexpected error', HTTPStatus.INTERNAL_SERVER_ERROR)
 
         return('Invalid Request, Body must be valid JSON', HTTPStatus.BAD_REQUEST)
