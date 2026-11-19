@@ -71,7 +71,7 @@ CSV_COLS = ["concurrency", "req_id", "audio_file", "status", "error",
             "e2e_latency_s", "upload_time_s", "decode_time_s", "ttft_s", "itl_s",
             "inference_time_s", "output_tokens", "total_chunks"]
 KPI_CSV_COLS = ["Audio_File_Size (mb)", "Audio_File_Duration (s)", "E2E_Latency (s)",
-                "TTFT (s)", "Inference_Time", "Output_Tokens"]
+                "TTFT (s)", "Inference_Time", "Output_Tokens", "RTF (latency/duration)"]
 METRICS = ["e2e_latency_s", "upload_time_s", "decode_time_s", "ttft_s", "itl_s",
            "inference_time_s", "output_tokens", "total_chunks"]
 
@@ -417,6 +417,9 @@ class Runner:
                                         ("Inference_Time", "inference_time_s"),
                                         ("Output_Tokens", "output_tokens")):
                         self.kpi_values[column].append(metrics[key])
+                    if duration:
+                        self.kpi_values["RTF (latency/duration)"].append(
+                            metrics["e2e_latency_s"] / duration)
         if self.text_fh is not None:
             _write_transcript(self.text_fh, self.conc, rec)
 
