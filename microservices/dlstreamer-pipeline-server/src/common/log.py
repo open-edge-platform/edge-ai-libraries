@@ -56,3 +56,39 @@ def get_logger(name):
     logger.addHandler(streamHandler)
 
     return logger
+
+
+# SDL423/T-005: dedicated audit trail for pipeline lifecycle actions
+# (start/stop/request), separate from general application logs so it can be
+# shipped/retained independently. Writes to stdout (captured by container
+# logging) and to AUDIT_LOG_PATH for in-container persistence. Defaults to the
+# app-owned pipeline_root scratch dir (not the shared, world-writable /tmp -
+# see CWE-377) matching the convention already used elsewhere in this service.
+AUDIT_LOG_PATH = os.environ.get('AUDIT_LOG_PATH', '/var/cache/pipeline_root/dlsps_audit.log')
+
+
+def get_audit_logger():
+    """Get the shared structured audit logger.
+
+    :return: Python logger configured for audit entries
+    """
+    logger = logging.getLogger('audit')
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    if not logger.handlers:
+        formatter = logging.Formatter("%(message)s")
+
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+
+        try:
+            file_handler = logging.FileHandler(AUDIT_LOG_PATH)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+        except OSError:
+            pass  # best-effort - audit entries still reach stdout
+
+    return logger
+

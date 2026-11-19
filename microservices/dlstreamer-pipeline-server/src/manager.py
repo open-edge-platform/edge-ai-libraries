@@ -25,6 +25,7 @@ from src.subscriber.image_ingestor import ImageIngestor
 from src.publisher.image_publisher import ImagePublisher
 from src.config import PipelineServerConfig
 from src.common.log import get_logger, LOG_LEVEL
+from src.server.path_validator import validate_request_uris, restrict_file_destination_permissions
 
 
 class PipelineInstance:
@@ -583,6 +584,13 @@ class PipelineServerManager:
             self.log.error(errmsg)
             return None, errmsg
 
+        if request is not None:
+            is_valid, uri_err = validate_request_uris(request)
+            if not is_valid:
+                self.log.warning("Rejected start_instance request: %s", uri_err)
+                return None, uri_err
+            restrict_file_destination_permissions(request, logger=self.log)
+
         launch_str = pipeline.pipeline_config.get("pipeline")
         
         MODEL_IDS_TO_SET={"gvadetect":[],"gvaclassify":[],"gvainference":[]}    # update instance_id once pipeline is started
@@ -633,7 +641,13 @@ class PipelineServerManager:
             # TODO: validate for name and version            
         except KeyError:
             return None, "Pipeline instance not found"
-        
+
+        is_valid, uri_err = validate_request_uris(request)
+        if not is_valid:
+            self.log.warning("Rejected execute_request_on_instance request: %s", uri_err)
+            return None, uri_err
+        restrict_file_destination_permissions(request, logger=self.log)
+
         try:
             data, err = pinstance.execute_request(instance_id, request,
                                                   REQUEST_PUT_TIMEOUT=5)
