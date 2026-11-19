@@ -475,7 +475,13 @@ components:
         metadata:
           type: object
           additionalProperties: true
-          description: Hub-specific extra metadata
+          description: >-
+            Hub-specific extra metadata. Example: For Hugging Face, `likes` and `downloads`
+            are reported by the hub, and `library_name` identifies the
+            model's library. These values are null when unavailable.
+            For Geti, `training_status` is the status
+            reported by Geti (for example, `successful`, `failed`, or `in_progress`),
+            or null when unavailable.
 
     ModelListRequest:
       type: object
@@ -581,13 +587,16 @@ paths:
         - `huggingface`: `author`, `search`, `tags`
         - `ultralytics`: `search`
         - `pipeline-zoo-models`: `search`
-        - `geti`: `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id`
+        - `geti`: `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id`, `training_status`
 
         For `huggingface`, `author` is the repository namespace and accepts a
         user, owner, or organization name (for example, `microsoft` or
         `meta-llama`).
 
-        For `geti`, listing requires `GETI_HOST` to be configured.
+        For `geti`, listing requires `GETI_HOST` to be configured. The optional
+        `training_status` filter takes a non-empty string and matches the full
+        status case-insensitively (for example, `successful`, `failed`, or
+        `in_progress`). Omit it or pass null to include all statuses.
 
         Use `GET /api/v1/plugins` to discover each plugin's `listing_filter_fields`.
 
@@ -610,7 +619,7 @@ paths:
                   filters:
                     author: microsoft
                     search: phi
-                  limit: 10
+                  limit: 1
                   offset: 0
               ultralytics_models:
                 summary: List Ultralytics models
@@ -629,12 +638,13 @@ paths:
                   limit: 10
                   offset: 0
               geti_models:
-                summary: List Geti™ models
+                summary: List successfully trained Geti models
                 value:
                   hub: geti
                   filters:
-                    project_name: detection
+                    project_name: Pallet Defect Detection
                     precision: FP16
+                    training_status: successful
                   limit: 10
                   offset: 0
       responses:
@@ -644,6 +654,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ModelListResponse"
+              examples:
+                huggingface_models:
+                  summary: Hugging Face listing with download and like counts
+                  value:
+                    hub: huggingface
+                    items:
+                      - name: microsoft/Phi-3-mini-4k-instruct
+                        owner: microsoft
+                        precisions: [BF16]
+                        tags: [transformers, safetensors, phi3, text-generation, nlp, code, conversational, custom_code, en, fr, "license:mit", eval-results, text-generation-inference, endpoints_compatible, "deploy:sagemaker", "region:us"]
+                        model_type: text-generation
+                        last_modified: "2025-12-10T20:22:18+00:00"
+                        metadata:
+                          downloads: 317278
+                          likes: 1492
+                          library_name: null
+                        license: mit
+                        gated: false
+                        requires_token: false
+                    count: 1
+                    limit: 1
+                    offset: 0
+                    has_more: true
+                    next_offset: 1
+                geti_models:
+                  summary: Geti listing with training status
+                  value:
+                    hub: geti
+                    items:
+                      - name: YOLOX-S (ff43ddac)
+                        owner: Pallet Defect Detection
+                        model_type: detection
+                        metadata:
+                          project_id: 663aa9cc-077d-4029-87fd-28f420c5b891
+                          project_name: Pallet Defect Detection
+                          model_id: ff43ddac-78dd-4f8c-88ed-d45ecf94e0c3
+                          training_status: successful
+                          variants:
+                            - variant_id: 1d3ea463-3392-488e-ab1f-9602326c612d
+                              model_format: openvino
+                              precision: fp16
+                            - variant_id: 9f0fe054-3366-40f3-b281-85f095cfc4a6
+                              model_format: onnx
+                              precision: fp16
+                          architecture: object-detection-yolox-s
+                    count: 1
+                    total: 1
+                    limit: 10
+                    offset: 0
+                    has_more: false
         "400":
           description: Invalid pagination parameters, unknown hub, or hub not activated
         "401":
