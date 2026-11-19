@@ -1,7 +1,7 @@
 # Audio Analyzer Benchmarking
 
 This guide covers how the Audio Analyzer microservice is benchmarked: what is measured, how it
-is measured, how to run the scripts, and the results so far.
+is measured, how to run the scripts.
 
 ## Contents
 
@@ -47,7 +47,6 @@ measurements into percentile statistics (mean, min, max, p50, p90, p99).
 | Protocol | HTTP multipart upload, then `text/event-stream` | WebSocket, JSON events, base64 PCM16 |
 | Use case | File or batch transcription with progressive output | Live captioning or a voice agent (speech-end → final text) |
 | Load model | Closed loop with N concurrent workers, swept over `--concurrency` | One live stream per input file, run in sequence |
-| Default input | `data/philosophy_10_russell_128kb.mp3` (~900 s, MP3) | `data/realtime/1272-141231.wav` (239.8 s, 16 kHz mono, LibriSpeech dev-clean) |
 | Metadata | `GET /v1/model-info` (provider, model, device, weight format) | Same, plus server VAD settings from `transcription_session.created` |
 | System metrics | CPU, GPU, NPU, memory, and temperature during measured runs only | Same |
 
@@ -67,7 +66,7 @@ measurements into percentile statistics (mean, min, max, p50, p90, p99).
 
 1. **Discover the deployment.** Each script reads `GET /v1/model-info` and records the served
    ASR provider, model, device, and weight format in `summary.json`, so every result is tied to
-   a known configuration. The request always uses the OpenAI alias `model=whisper-1`.
+   a known configuration.
 2. **Prepare inputs before any timing.**
    - SSE: each file in `data/` is read into memory once. `ffprobe` records its duration, codec,
      sample rate, channels, and bit rate.
