@@ -449,6 +449,41 @@ class TestPipelineServerManager:
         assert error == "Failed to execute request"
         pipeline_server_manager.log.exception.assert_called_once_with("Failed to execute request.instance_123 Execution error")
 
+    def test_start_instance_rejects_path_traversal_source_uri(self, pipeline_server_manager, mocker):
+        pipeline_server_manager._PIPELINES = {"mock_version": MagicMock()}
+        pipeline_server_manager.log = MagicMock()
+        malicious_request = {"source": {"type": "uri", "uri": "file:///etc/passwd"}}
+
+        instance_id, err = pipeline_server_manager.start_instance("mock_name", "mock_version", malicious_request)
+
+        assert instance_id is None
+        assert "source" in err
+        pipeline_server_manager._PIPELINES["mock_version"].start.assert_not_called()
+        pipeline_server_manager.log.warning.assert_called_once()
+
+    def test_start_instance_allows_valid_source_uri(self, pipeline_server_manager):
+        pipeline_server_manager._PIPELINES = {"mock_version": MagicMock()}
+        pipeline_server_manager._PIPELINES["mock_version"].pipeline_config = {"pipeline": "gvadetect"}
+        pipeline_server_manager._GVAELEMENT_MODEL_INSTANCE_ID = {"gvadetect": {}, "gvaclassify": {}, "gvainference": {}}
+        pipeline_server_manager._PIPELINES["mock_version"].start.return_value = "instance_id"
+        valid_request = {"source": {"type": "uri", "uri": "file:///home/pipeline-server/resources/videos/x.mp4"}}
+
+        instance_id, err = pipeline_server_manager.start_instance("mock_name", "mock_version", valid_request)
+
+        assert instance_id == "instance_id"
+        assert err is None
+
+    def test_execute_request_on_instance_rejects_path_traversal_destination(self, pipeline_server_manager):
+        malicious_request = {"destination": {"uri": "file:///etc/shadow"}}
+        pipeline_server_manager.log = MagicMock()
+
+        result, error = pipeline_server_manager.execute_request_on_instance(
+            "test_name", "1.0", "instance_123", malicious_request)
+
+        assert result is None
+        assert "destination" in error
+        pipeline_server_manager.log.warning.assert_called_once()
+
     def test_stop_pipelines(self, mocker, pipeline_server_manager):
         pipeline_instance = MagicMock(is_running=True)
         pipeline_server_manager._PIPELINES = {
