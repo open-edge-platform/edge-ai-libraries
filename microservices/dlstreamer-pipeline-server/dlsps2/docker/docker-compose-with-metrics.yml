@@ -50,7 +50,7 @@ services:
     volumes:
       - ./mosquitto:/mosquitto/config:ro
     ports:
-      - "${MQTT_PORT:-1883}:1883"
+      - "127.0.0.1:${MQTT_PORT:-1883}:1883" # MQTT is internal-only; bind to localhost, not all host interfaces
     networks:
       - app_network
     restart: unless-stopped
