@@ -7,7 +7,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: data_intelligence_engine "question" [--library NAME] [--pool ID] [--top-k N]
-                                [--media LIST] [--rerank N]
+                                [--media LIST] [--rerank N] [--include-media]
 
 Retrieves the most relevant knowledge base chunks from the Data Intelligence
 Engine (POST /v1/retrieve). The engine returns source text only; it does not
@@ -22,6 +22,12 @@ Options:
                   (default: $KB_TARGET_MEDIA, or every modality)
   --rerank N      rerank the candidates and keep the best N (default: $KB_RERANK_TOP_N,
                   or no reranking)
+  --include-media also retrieve visual evidence (include_media_data:true):
+                  image/video-frame data URIs are decoded to files in a temp
+                  directory; stdout carries a manifest with file paths (never
+                  the data URIs themselves). Use for visual questions.
+  --list-pools    list the library's asset pools and indexed asset types, then exit
+                  (run this first when you are unsure which pool to search)
 
 Environment:
   KB_ENGINE_URL       engine base URL (default: $ENGINE_URL, or
@@ -151,6 +157,8 @@ library_given=false
 top_k="5"
 media="${KB_TARGET_MEDIA:-}"
 rerank="${KB_RERANK_TOP_N:-}"
+include_media="0"
+list_pools="0"
 pools=()
 query_parts=()
 
@@ -182,6 +190,14 @@ while [[ $# -gt 0 ]]; do
       rerank="$2"
       shift 2
       ;;
+    --include-media)
+      include_media="1"
+      shift
+      ;;
+    --list-pools)
+      list_pools="1"
+      shift
+      ;;
     --)
       shift
       query_parts+=("$@")
@@ -199,7 +215,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 query="${query_parts[*]}"
-if [[ -z "${query//[[:space:]]/}" ]]; then
+if [[ "$list_pools" == "0" && -z "${query//[[:space:]]/}" ]]; then
   echo "Error: query text cannot be empty." >&2
   exit 2
 fi
@@ -250,6 +266,27 @@ if [[ -z "$library" ]]; then
   fi
 fi
 
+if [[ "$list_pools" == "1" ]]; then
+  if ! response=$(engine_get "/v1/libraries"); then
+    printf '%s\n' "$response" >&2
+    exit 1
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    printf '%s\n' "$response"
+    exit 0
+  fi
+  jq -r --arg lib "$library" '
+    .[] | select(.name == $lib or .id == $lib) |
+    "Library: \(.name)",
+    "Asset pools (pass --pool ID to search one; omit --pool to search ALL pools):",
+    (.asset_pools[]? | "  \(.id)  \(.name)"),
+    "Indexed asset types by source:",
+    (.sources[]? | select(.operator_options.asset_types != null) |
+      "  \(.name): \(.operator_options.asset_types | join(", "))")
+  ' <<<"$response"
+  exit 0
+fi
+
 media_json=""
 if [[ -n "$media" ]]; then
   IFS=',' read -r -a media_list <<<"$media"
@@ -263,8 +300,11 @@ if [[ -n "$rerank" ]]; then
   postprocess_json=",\"postprocess\":{\"processor_type\":\"reranker\",\"top_n\":$rerank}"
 fi
 
-payload=$(printf '{"query":"%s","libraries":["%s"],"asset_pool_ids":[%s],"top_k":%s,"target_media":[%s]%s}' \
-  "$(json_escape "$query")" "$(json_escape "$library")" "$pools_json" "$top_k" "$media_json" "$postprocess_json")
+include_media_json=false
+[[ "$include_media" == "1" ]] && include_media_json=true
+
+payload=$(printf '{"query":"%s","libraries":["%s"],"asset_pool_ids":[%s],"top_k":%s,"target_media":[%s]%s,"include_media_data":%s}' \
+  "$(json_escape "$query")" "$(json_escape "$library")" "$pools_json" "$top_k" "$media_json" "$postprocess_json" "$include_media_json")
 
 if ! response=$(curl \
   --silent \
@@ -277,6 +317,25 @@ if ! response=$(curl \
   "${engine_url}/v1/retrieve"); then
   printf '%s\n' "$response" >&2
   exit 1
+fi
+
+if [[ "$include_media" == "1" ]]; then
+  # Media mode: never stream raw JSON (it contains base64 data URIs). Split the
+  # response into numbered chunks plus a media manifest with decoded files.
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: --include-media requires python3 to decode media data URIs." >&2
+    exit 127
+  fi
+  script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+  media_dir=$(mktemp -d "${TMPDIR:-/tmp}/openclaw-media-XXXXXX")
+  printf '%s' "$response" >"$media_dir/response.json"
+  if ! python3 "$script_dir/render_media.py" "$media_dir"; then
+    echo "Error: failed to render media evidence; raw response kept in $media_dir" >&2
+    exit 1
+  fi
+  # The raw response holds base64 payloads; do not leave it around.
+  rm -f "$media_dir/response.json"
+  exit 0
 fi
 
 if ! command -v jq >/dev/null 2>&1; then

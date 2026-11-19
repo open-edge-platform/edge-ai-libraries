@@ -18,7 +18,7 @@ the built-in defaults. It ignores unknown field names.
 
 This page lists each setting, its purpose, and its default value.
 
-## config.json fields
+## config.json Fields
 
 | Field | Type | Unit | Default | Purpose |
 | --- | --- | --- | --- | --- |
@@ -40,12 +40,11 @@ This page lists each setting, its purpose, and its default value.
 }
 ```
 
-### Where Stream Manager looks for config.json
+> [!NOTE]
+> By default, Stream Manager reads `config.json` from the current directory.
+> Use the options described in the following sections to select a different file.
 
-By default, Stream Manager reads `config.json` from the current directory.
-Use the options described in the following sections to select a different file.
-
-## Host run options
+## Host Run Options
 
 When you build from source, use this option with `make run` or `make start`:
 
@@ -59,10 +58,10 @@ make run CONFIG_FILE=/path/to/config.json
 
 If you omit `CONFIG_FILE`, these Make targets use the default configuration file.
 
-See [Build From Source](build-from-source.md) for build instructions
+See [Build From Source](./build-from-source.md) for build instructions
 and instructions to run the application on the host.
 
-## Container run options
+## Container Run Options
 
 Use these options with `make docker-run`:
 
@@ -102,9 +101,9 @@ the corresponding settings in `config.json`:
 
 The Docker volume `stream-manager-data` or the selected host directory is mounted at `/data`
 inside the container. Do not try to change the listen port or storage path through a mounted
-`config.json` — it will have no effect.
+`config.json` as it will have no effect.
 To change these values, use environment overrides with `docker run`.
 `make docker-run` does not provide options for these overrides.
 
-See [Get Started](get-started.md) and [Build From Source](build-from-source.md) for how
+See [Get Started](../get-started.md) and [Build From Source](./build-from-source.md) for how
 to run Stream Manager with a custom `config.json`.

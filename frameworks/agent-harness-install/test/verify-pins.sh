@@ -16,7 +16,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 agents_sh="${repo_root}/scripts/lib/agents.sh"
 
 pin() {
-  sed -n "s/^$1=\"\(.*\)\"\$/\1/p" "$agents_sh" | head -1
+  # Accepts both NAME="value" and the env-overridable NAME="${NAME:-value}".
+  sed -n "s/^$1=\"\(.*\)\"\$/\1/p" "$agents_sh" | head -1 | sed "s/^\${$1:-\(.*\)}\$/\1/"
 }
 
 sha256_of() {

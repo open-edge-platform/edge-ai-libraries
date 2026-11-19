@@ -342,31 +342,37 @@ provider was selected.
 
 ## Model-Based Routing
 
-`ModelBasedRule` runs a small classifier model on the router host against the last user message, and returns a **routing zone** index: the strategy's index-keyed `provider_selector` maps each zone to a provider (for example `0` -> local, `1` -> cloud). 
+`ModelBasedRule` utilizes the idea of "LLM as Jev": it runs a small language model on the router host as a decision model that generates no text.
 
-### Quick Start
+The classifier's prompt is in the form of a binary file, which stores either a soft prompt or a hard prompt. 
 
-1. Download the default backbone model (see
-   [Prepare the Classifier Model](#prepare-the-classifier-model)):
+### Soft Prompt
 
-   ```bash
-   hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen3.5-2B-FP16
-   export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
-   ```
+A soft prompt a set of pre-trained vectors with respect to a dataset and routing task. Router packs the vector and store it in a binary file with `rcv` as appendix.
 
-2. Label your providers `local` and `cloud` in `config.yaml`.
+For example, current default version of soft prompt was trained on RouterBench Dataset, with the ability to route a query to cloud or local provider based on the complexity. 
 
-3. Select the built-in policy in `config.yaml`:
+Train your own soft prompt will be available in next realese.
 
-   ```yaml
-   routing:
-     policy: ModelBased
-   ```
+By default each backbone is shipped with one version of soft prompt in `src/rsd/model_based/prompts/<backbone>/v1.rcv` of the image; Docker deployments copy it to `workspace/artifacts/router/<backbone>/v1.rcv`.
 
-4. Start or redeploy the router and confirm that the log shows
-   `Preloaded 1 ModelBasedRule classifier(s) for the active policy`.
+### Hard Prompt
 
-The built-in `ModelBased` policy runs the `ModelBasedRouting` strategy:
+Previous method of using text prompt is still available, router will accept the text prompt and package it into an `rcv` file for further process.
+
+Use below API to upload a hard prompt:
+
+```bash
+POST /v1/strategies/{name}
+{
+  "rules": [{"type": "ModelBasedRule", "param": {"text": "<prompt content>", "threshold": 0.7}}],
+  "provider_selector": {"label": {"0": "local", "1": "cloud", "2": "planning"}}
+}
+```
+
+### Quick Start: Route by Complexity
+
+The built-in `ModelBased` policy fits a deployment with one **local** model and one **cloud** model: simple requests go to the local model, hard ones to the cloud. It runs the `ModelBasedRouting` strategy, which uses the trained soft prompt `v1`, `in strategy.yaml`:
 
 ```yaml
 strategies:
@@ -379,15 +385,116 @@ strategies:
         1: cloud
 ```
 
+1. Download the backbone and start the router.:
+
+   ```bash
+   hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen3.5-2B-FP16
+   export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
+   bash scripts/deploy_docker.sh
+   ```
+
+2. Label your providers `local` and `cloud`, and activate the policy.
+
+3. Send requests and see where they go. For example:
+   ```bash
+   curl http://localhost:8000/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -d '{"model": "auto", "messages": [{"role": "user", "content": "Polish this sentence: we was late to the meeting."}]}'
+
+   docker logs inference-router 2>&1 | grep "Request completed" | tail -5
+   # ... provider=<local-provider>, reason=StrategyExecutor: strategy 'ModelBasedRouting' matched for provider '<local-provider>' ...
+   ```
+
+Typical decisions of the soft prompt:
+
+| Request | Category |
+| --- | --- |
+| Polish this paragraph for clarity. | `local` |
+| Summarize this article in three bullet points. | `local` |
+| Find the race condition in this Go worker pool and fix it. | `cloud` |
+| Design a sharded database schema for a global e-commerce site and justify the trade-offs. | `cloud` |
+
+### Multi-class Routing
+
+Model based rule is now supporting multi-class routing. You may write a prompt that describes the categories or train a soft prompt (in next release); the router packs it into a classifier version and routes each category to a provider.
+
+#### Prompt Example
+
+Below is an example for API payload to upload a multi-class prompt:
+
+```bash
+curl http://localhost:8000/v1/strategies/MultiClassRouting \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rules": [{"type": "ModelBasedRule", "param": {
+      "text": "You are a routing classifier. Read the task and decide which category it best fits.\n\nCategories:\n- local: simple, generative, single-file, or rule-clear tasks that a small local model handles well — writing, summarizing, polishing, extracting/filtering/sorting from one given file, routine scripts.\n- cloud: hard tasks that need a large frontier model — strict hard-format constraints, manipulating hidden/external state (git history, debugging, unfamiliar codebases, multi-hop planning), expert trade-off judgments, or cross-referencing multiple sources.\n- planning: tasks whose main work is decomposition and planning — breaking a goal into steps, drafting a project/roadmap/architecture plan, sequencing dependent subtasks.\n\nIf unsure between two, pick the higher-capability one.",
+      "threshold": 0.7
+    }}],
+    "provider_selector": {"label": {"0": "local", "1": "cloud", "2": "planning"}}
+  }'
+```
+
+#### Provider Example
+
+Each category is routed through provider_selector.label to the providers who contain that label, and a provider may carry several labels. 
+
+For example, in the case above, providers could be configed below in config.yaml:
+
+```yaml
+providers:
+  - name: "vllm-local"
+    type: "hosted_vllm"
+    model: "Qwen/Qwen3.5-9B"
+    enabled: true
+    metadata:
+      labels:
+        - "local"
+      cost: 0
+    settings:
+      endpoint: "http://localhost:5000/v1"
+      timeout: 300.0
+      auth:
+        scheme: "none"
+        api_key: null
+        custom_headers: {}
+
+  - name: "openai-cloud"
+    type: "openai"
+    model: "gpt-4o"
+    enabled: true
+    metadata:
+      labels: # multi label example
+        - "cloud"
+        - "planning"
+      cost: 5
+    settings:
+      endpoint: "https://api.openai.com/v1"
+      timeout: 300.0
+      auth:
+        scheme: "bearer"
+        api_key: "${OPENAI_API_KEY}"
+
+routing:
+  policy: MultiClass    
+```
+
+This leads to below category and provider relationship:
+
+| Category | `provider_selector.label` | Provider |
+| --- | --- | --- |
+| `local` | `0: local` | `vllm-local` |
+| `cloud` | `1: cloud` | `openai-cloud` |
+| `planning` | `2: planning` | `openai-cloud` |
+
 ### Prepare the Classifier Model
 
 #### Supported Backbones
 
-| Backbone key (`model`) | Base model | Packaged version | IR path variable |
-| --- | --- | --- | --- |
-| `qwen35-2b` (default) | `Qwen/Qwen3.5-2B` | `v1` | `IR_OV_MODEL_QWEN35_2B`, or `IR_OV_MODEL` |
-| `qwen3-0.6b` | `Qwen/Qwen3-0.6B` | `v1` | `IR_OV_MODEL_QWEN3_0P6B`, or `IR_OV_MODEL` when `IR_BACKBONE=qwen3-0.6b` |
-| `llama3-1b` | `meta-llama/Llama-3.2-1B-Instruct` | `v1` | `IR_OV_MODEL_LLAMA3_1B`, or `IR_OV_MODEL` when `IR_BACKBONE=llama3-1b` |
+| Backbone (`IR_BACKBONE`) | Base model | Packaged version |
+| --- | --- | --- |
+| `qwen35-2b` (default) | `Qwen/Qwen3.5-2B` | `v1` |
+| `qwen3-0.6b` | `Qwen/Qwen3-0.6B` | `v1` |
+| `llama3-1b` | `meta-llama/Llama-3.2-1B-Instruct` | `v1` |
 
 #### Download
 
@@ -402,7 +509,8 @@ export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
 
 # Qwen3-0.6B
 hf download OpenVINO/Qwen3-0.6B-fp16-ov --local-dir /opt/models/Qwen3-0.6B-FP16
-export IR_OV_MODEL_QWEN3_0P6B=/opt/models/Qwen3-0.6B-FP16
+export IR_OV_MODEL=/opt/models/Qwen3-0.6B-FP16
+export IR_BACKBONE=qwen3-0.6b
 ```
 
 There is no prebuilt FP16 IR for Llama-3.2-1B-Instruct, so convert it once
@@ -414,63 +522,36 @@ pip install "optimum-intel[openvino]"
 # Llama-3.2-1B-Instruct
 optimum-cli export openvino --model meta-llama/Llama-3.2-1B-Instruct \
     --weight-format fp16 /opt/models/Llama-3.2-1B-Instruct-FP16
-export IR_OV_MODEL_LLAMA3_1B=/opt/models/Llama-3.2-1B-Instruct-FP16
+export IR_OV_MODEL=/opt/models/Llama-3.2-1B-Instruct-FP16
+export IR_BACKBONE=llama3-1b
 ```
 
-### Configure the Router
+### When to Use Smaller Backbone
 
-Model-based routing is configured with environment variables:
+Use `qwen3-0.6b` (or `llama3-1b`) when memory or latency matters more than accuracy, for example use below command to switch to qwen3-0.6b:
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `IR_OV_MODEL` | none | IR directory of the default backbone |
-| `IR_OV_MODEL_QWEN35_2B`, `IR_OV_MODEL_QWEN3_0P6B`, `IR_OV_MODEL_LLAMA3_1B` | none | IR directory of a specific backbone; takes precedence over `IR_OV_MODEL` |
-| `IR_BACKBONE` | `qwen35-2b` | Backbone used by rules that set no `model` |
-| `IR_DEVICE` | `GPU` | OpenVINO device; falls back to the CPU if no GPU is available |
-| `IR_ARTIFACTS_DIR` | `artifacts/router` (relative to the working directory) | Location of your own classifier versions |
-| `IR_CACHE_SIZE` | `256` | Per-classifier cache of recent query results; `0` disables it |
-| `IR_FP_MIN_COS` | `0.98` | Minimum fingerprint cosine similarity accepted when checking a version against the backbone |
-| `IR_SWAP_MODE` | `load_first` | Policy switch order: `load_first` keeps the old classifiers until the new ones are ready; `unload_first` releases them first to save memory |
+```bash
+hf download OpenVINO/Qwen3-0.6B-fp16-ov --local-dir /opt/models/Qwen3-0.6B-FP16
+export IR_OV_MODEL=/opt/models/Qwen3-0.6B-FP16
+export IR_BACKBONE=qwen3-0.6b
 
-**Docker Compose**: export `IR_OV_MODEL` and, optionally, `IR_DEVICE` on the
-host before running `scripts/deploy_docker.sh`. Put the other `IR_*` variables in `workspace/.env`.
-
-### Classifier Versions
-
-A classifier version file holds a prompt, either a trained soft prompt or a text system prompt. The packaged `v1` versions are soft.
-
-- **Packaged**: `v1` for each backbone, shipped in
-  `src/rsd/model_based/prompts/<backbone>/v1.rcv`. `default` always means this
-  file.
-- **From prompt text**: POST a strategy whose `ModelBasedRule` sets `param.text`
-  (plus optional `labels` and `threshold`). The router packs a hard version
-  into `<IR_ARTIFACTS_DIR>/<backbone>/vN.rcv`.
-- **Your own**: Train your own version of classifier will be available next release.
-
-### Multi-class Routing
-
-Multi-class routing classifies each request into one of your own categories,
-and the category's zone index selects the provider.
-
-- The categories default to the values of `provider_selector.label` -- zone
-  `i` is the category routed to `label[i]` -- so you write each name once.
-- No multi-class strategy ships by default; add one to the `strategy.yaml` in
-  your workspace and reference it from a policy, as below.
-
-```yaml
-strategies:
-  - name: MultiClassModelBasedRouting
-    rules:
-      - type: ModelBasedRule
-        param:
-          prompt_file: multiclass_prompt.txt
-          threshold: 0.7
-    provider_selector:
-      label:
-        0: local
-        1: cloud
-        2: planning
+bash scripts/deploy_docker.sh --down && bash scripts/deploy_docker.sh
 ```
+
+Check that the new backbone is serving:
+
+```bash
+docker logs inference-router 2>&1 | grep -E "Compiled backbone|Preloaded"
+# Compiled backbone /models/ov-classifier on GPU (hidden=1024, ...)
+# Preloaded 1 ModelBasedRule classifier(s) for the active policy
+curl -s http://localhost:8000/v1/strategies/ModelBasedRouting | jq '.rules[0].prompt_info.status'
+```
+
+Other `IR_*` settings of model-based routing keep their defaults -- for example
+`IR_ARTIFACTS_DIR=artifacts/router`, `IR_CACHE_SIZE=256`, `IR_FP_MIN_COS=0.98` and
+`IR_SWAP_MODE=load_first`; to change one, add
+it to the router's `environment:` in `deployment/docker/docker-compose-ui.yml` (or
+`docker-compose.yml` with `--standalone`) and redeploy.
 
 ## Files to Edit
 
@@ -480,5 +561,5 @@ src/rsd/policy.yaml                Built-in policy definitions
 <workspace>/strategy.yaml          Replaces the built-in strategies when present
 <workspace>/policy.yaml            Replaces the built-in policies when present
 config.yaml                        Runtime providers and active policy
-<IR_ARTIFACTS_DIR>/<backbone>/vN.rcv   Your own classifier versions
+<IR_ARTIFACTS_DIR>/<backbone>/vN.rcv   Classifier versions (Docker: workspace/artifacts/router/)
 ```

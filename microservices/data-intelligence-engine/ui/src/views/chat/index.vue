@@ -1,7 +1,10 @@
 <!-- Copyright (C) 2026 Intel Corporation; SPDX-License-Identifier: Apache-2.0 -->
 <template>
   <div v-if="libraryData" class="chat-container">
-    <section class="conversation-wrap" :class="{ 'is-empty': !messages.length }">
+    <section
+      class="conversation-wrap"
+      :class="{ 'is-empty': !messages.length, 'has-evidence': !!result }"
+    >
       <div class="conversation-header">
         <div class="conversation-title">
           <div class="chat-icon"><RobotOutlined /></div>
@@ -32,6 +35,10 @@
           </a-button>
         </a-space>
       </div>
+      <div class="testing-notice" role="note">
+        <ExclamationCircleFilled />
+        <span>{{ $t("console.chatInternalTesting") }}</span>
+      </div>
       <div class="chat-log-wrap">
         <div
           ref="chatLog"
@@ -54,12 +61,14 @@
               <ArrowRightOutlined />
             </a-button>
           </div>
-          <MessageItem
-            v-for="(message, index) in messages"
-            :key="index"
-            :message="message"
-            @citation="handleCitation"
-          />
+          <div v-if="messages.length" class="chat-thread">
+            <MessageItem
+              v-for="(message, index) in messages"
+              :key="index"
+              :message="message"
+              @citation="handleCitation"
+            />
+          </div>
         </div>
         <a-button
           v-if="showScrollToBottom"
@@ -167,6 +176,7 @@ import {
   ArrowRightOutlined,
   DatabaseOutlined,
   DeleteOutlined,
+  ExclamationCircleFilled,
   FileSearchOutlined,
   FileTextOutlined,
   RobotOutlined,
@@ -357,6 +367,24 @@ onUnmounted(() => controller?.abort());
   flex-wrap: wrap;
   flex-shrink: 0;
 }
+.testing-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--color-warning);
+  background: var(--color-warningBg);
+  color: var(--color-warning-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  flex-shrink: 0;
+  .anticon {
+    color: var(--color-error);
+    font-size: 16px;
+    line-height: 20px;
+  }
+}
 .conversation-title {
   display: flex;
   gap: 12px;
@@ -388,6 +416,21 @@ onUnmounted(() => controller?.abort());
   overflow-y: auto;
   padding: 26px;
   height: 100%;
+}
+.chat-thread,
+.composer-input,
+.composer-wrap > p {
+  width: 100%;
+  max-width: 1040px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.conversation-wrap.has-evidence {
+  .chat-thread,
+  .composer-input,
+  .composer-wrap > p {
+    max-width: none;
+  }
 }
 .chat-log-wrap {
   position: relative;
@@ -463,7 +506,7 @@ onUnmounted(() => controller?.abort());
   flex-shrink: 0;
   padding: 16px 24px;
   > p {
-    margin: 10px 0 0;
+    margin: 10px auto 0;
     font-size: 11px;
     color: var(--font-tip-color);
     text-align: center;
@@ -580,6 +623,9 @@ onUnmounted(() => controller?.abort());
   .conversation-header,
   .composer-wrap {
     padding: 14px;
+  }
+  .testing-notice {
+    padding: 10px 14px;
   }
   .chat-log {
     padding: 16px;

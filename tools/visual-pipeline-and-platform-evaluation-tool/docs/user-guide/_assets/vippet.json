@@ -3,7 +3,7 @@
   "info": {
     "title": "Visual Pipeline and Platform Evaluation Tool API",
     "description": "API for Visual Pipeline and Platform Evaluation Tool",
-    "version": "2026.3.0-dev"
+    "version": "2026.3.0-rc1"
   },
   "servers": [
     {
@@ -39,7 +39,7 @@
           "health"
         ],
         "summary": "Application Status",
-        "description": "**Detailed status endpoint for monitoring initialization progress.**\n\n## Operation\nReturns the current application status, including initialization state,\nprogress messages, and readiness for serving API requests.\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\n**StatusResponse** with:\n- `status` - Current application status (`starting`, `initializing`, `ready`, `shutdown`)\n- `message` - Optional message describing current activity\n- `ready` - `true` if application is ready to serve API requests\n- `version` - Build version (image tag / release string) of the running application\n- `revision` - Git commit hash of the source tree the running image was built from,\n  suffixed with `-dirty` if the working tree had uncommitted changes at build time\n  (e.g. `a1b2c3d` or `a1b2c3d-dirty`); `unknown` if unavailable\n\n## Conditions\n\n### \u2705 Success\n- Application is running and status can be retrieved\n\n## Examples\n\n### Response (During Initialization)\n```json\n{\n  \"status\": \"initializing\",\n  \"message\": \"Loading video metadata...\",\n  \"ready\": false,\n  \"version\": \"2026.2.0-rc2\",\n  \"revision\": \"a1b2c3d\"\n}\n```\n\n### Response (When Ready)\n```json\n{\n  \"status\": \"ready\",\n  \"message\": null,\n  \"ready\": true,\n  \"version\": \"2026.2.0-rc2\",\n  \"revision\": \"a1b2c3d\"\n}\n```",
+        "description": "**Detailed status endpoint for monitoring initialization progress.**\n\n## Operation\nReturns the current application status, including initialization state,\nprogress messages, and readiness for serving API requests.\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\n**StatusResponse** with:\n- `status` - Current application status (`starting`, `initializing`, `ready`, `shutdown`)\n- `message` - Optional message describing current activity\n- `ready` - `true` if application is ready to serve API requests\n- `version` - Build version (image tag / release string) of the running application\n- `revision` - Git commit hash of the source tree the running image was built from,\n  suffixed with `-dirty` if the working tree had uncommitted changes at build time\n  (e.g. `a1b2c3d` or `a1b2c3d-dirty`); `unknown` if unavailable\n\n## Conditions\n\n### \u2705 Success\n- Application is running and status can be retrieved\n\n## Examples\n\n### Response (During Initialization)\n```json\n{\n  \"status\": \"initializing\",\n  \"message\": \"Loading video metadata...\",\n  \"ready\": false,\n  \"version\": \"2026.3.0\",\n  \"revision\": \"a1b2c3d\"\n}\n```\n\n### Response (When Ready)\n```json\n{\n  \"status\": \"ready\",\n  \"message\": null,\n  \"ready\": true,\n  \"version\": \"2026.3.0\",\n  \"revision\": \"a1b2c3d\"\n}\n```",
         "operationId": "get_status",
         "responses": {
           "200": {
@@ -1708,6 +1708,67 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Cancel a running optimization job",
+        "description": "**Cancel a running optimization job.**\n\n## Operation\n\nCancels the job's optimizer run on DL Streamer Pipeline Server. The job\nthen ends as `FAILED` with the detail `Cancelled by user`; the\ncandidates evaluated so far are discarded.\n\n## Path Parameters\n\n- `job_id`: Identifier of the optimization job to cancel\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | Job was RUNNING and cancellation was requested |\n| 404  | Job does not exist |\n| 409  | Job exists but is not RUNNING |",
+        "operationId": "stop_optimization_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancellation requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Optimization job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Optimization job not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/jobs/optimization/{job_id}/status": {
@@ -2206,7 +2267,7 @@
           "models"
         ],
         "summary": "Start one or more model download jobs",
-        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`, `geti`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n  - `geti`: `category` is required; the model is resolved by name on\n    the configured Geti server, every OpenVINO precision it offers is\n    downloaded in parallel and `geti/<name>/` is scanned for the\n    installed precisions.\n- **`category`** *(optional)* - Required when `hub` is `huggingface` or `geti`.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
+        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`, `geti`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n  - `geti`: `category` is required; the model is resolved by name on\n    the configured Geti server, every OpenVINO precision it offers is\n    downloaded in parallel and `geti/<name>/` is scanned for the\n    installed precisions.\n- **`category`** *(optional)* - Required when `hub` is `huggingface` or `geti`.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
         "operationId": "start_model_download",
         "requestBody": {
           "content": {
@@ -2820,7 +2881,7 @@
           "pipelines"
         ],
         "summary": "Optimize Variant",
-        "description": "**Start asynchronous optimization job for a pipeline variant.**\n\n## Operation\n1. Validate that pipeline and variant exist\n2. Delegate to `OptimizationManager.run_optimization()` with variant\n3. Return generated job ID\n\n> **Note:** Optimization works with both read-only (PREDEFINED) and user-created variants.\n> The optimization job uses the variant's graphs as input but does not modify the original variant.\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline containing the variant\n- `variant_id` - ID of the variant to optimize\n\n## Request Body\n**`PipelineRequestOptimize`** with:\n- `type` *(required)* - Optimization type: `\"preprocess\"` or `\"optimize\"`\n- `parameters` *(optional)* - Optimizer-specific options, e.g.:\n  ```json\n  {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n  ```\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `OptimizationJobResponse` with `job_id` of created job |\n| 404 | `MessageResponse` - Pipeline or variant with given IDs do not exist |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- Variant's graph can be converted to a launch string\n- OptimizationManager starts a background job\n\n### \u274c Failure\n- Another execution job is already running \u2192 409\n- Unknown pipeline or variant ID \u2192 404\n- Unhandled exception in pipeline/variant lookup or job creation \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"type\": \"optimize\",\n  \"parameters\": {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"opt789\"\n}\n```",
+        "description": "**Start asynchronous optimization job for a pipeline variant.**\n\n## Operation\n1. Validate that pipeline and variant exist\n2. Delegate to `OptimizationManager.run_optimization()` with variant\n3. Return generated job ID\n\n> **Note:** Optimization works with both read-only (PREDEFINED) and user-created variants.\n> The optimization job uses the variant's graphs as input but does not modify the original variant.\n\nThe optimizer runs on DL Streamer Pipeline Server, so candidate pipelines run on\nthe server's runtime and devices. A variant named `CPU`, `GPU` or `NPU` restricts\nthe search to that device. Cancel a running job with\n`DELETE /jobs/optimization/{job_id}`.\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline containing the variant\n- `variant_id` - ID of the variant to optimize\n\n## Request Body\n**`PipelineRequestOptimize`** with:\n- `type` *(required)* - Optimization type: `\"preprocess\"` or `\"optimize\"`\n- `parameters` *(optional)* - Optimizer-specific options, e.g.:\n  ```json\n  {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n  ```\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `OptimizationJobResponse` with `job_id` of created job |\n| 400 | `MessageResponse` - For `optimize`, `search_duration` or `sample_duration` is not a number greater than 0 |\n| 404 | `MessageResponse` - Pipeline or variant with given IDs do not exist |\n| 409 | `MessageResponse` - Another execution job is already running |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- Variant's graph can be converted to a launch string\n- OptimizationManager starts a background job\n\n### \u274c Failure\n- Another execution job is already running \u2192 409\n- Unknown pipeline or variant ID \u2192 404\n- For `optimize`, `search_duration` or `sample_duration` not a number greater than 0 \u2192 400\n  (numeric strings such as `\"30\"` are accepted)\n- Unhandled exception in pipeline/variant lookup or job creation \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"type\": \"optimize\",\n  \"parameters\": {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"opt789\"\n}\n```",
         "operationId": "optimize_variant",
         "parameters": [
           {
@@ -2859,6 +2920,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OptimizationJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid optimization parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             }
@@ -8732,7 +8803,7 @@
           "revision"
         ],
         "title": "StatusResponse",
-        "description": "**Response model for status endpoint.**\n\nProvides detailed information about application initialization state\nand readiness to serve requests.\n\n## Attributes\n- `status` - Current application status (STARTING, INITIALIZING, READY, or SHUTDOWN)\n- `message` - Optional message describing current activity or initialization progress\n- `ready` - True if application is ready to serve API requests\n- `version` - Build version (image tag / release string) of the running application\n- `revision` - Git commit hash of the source tree the running image was built from, suffixed with \"-dirty\" if the working tree had uncommitted changes at build time (e.g. \"a1b2c3d\" or \"a1b2c3d-dirty\"); \"unknown\" if unavailable\n\n### Example\n```json\n{\n  \"status\": \"ready\",\n  \"message\": null,\n  \"ready\": true,\n  \"version\": \"2026.2.0-rc2\",\n  \"revision\": \"a1b2c3d\"\n}\n```"
+        "description": "**Response model for status endpoint.**\n\nProvides detailed information about application initialization state\nand readiness to serve requests.\n\n## Attributes\n- `status` - Current application status (STARTING, INITIALIZING, READY, or SHUTDOWN)\n- `message` - Optional message describing current activity or initialization progress\n- `ready` - True if application is ready to serve API requests\n- `version` - Build version (image tag / release string) of the running application\n- `revision` - Git commit hash of the source tree the running image was built from, suffixed with \"-dirty\" if the working tree had uncommitted changes at build time (e.g. \"a1b2c3d\" or \"a1b2c3d-dirty\"); \"unknown\" if unavailable\n\n### Example\n```json\n{\n  \"status\": \"ready\",\n  \"message\": null,\n  \"ready\": true,\n  \"version\": \"2026.3.0\",\n  \"revision\": \"a1b2c3d\"\n}\n```"
       },
       "TestJobResponse": {
         "properties": {

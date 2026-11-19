@@ -1217,6 +1217,55 @@ def get_optimization_job_status(job_id: str):
     return _optimization_job_to_api_status(internal_status)
 
 
+@router.delete(
+    "/optimization/{job_id}",
+    operation_id="stop_optimization_job",
+    summary="Cancel a running optimization job",
+    responses={
+        200: {
+            "description": "Cancellation requested",
+            "model": schemas.MessageResponse,
+        },
+        404: {
+            "description": "Optimization job not found",
+            "model": schemas.MessageResponse,
+        },
+        409: {
+            "description": "Optimization job not running",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+def stop_optimization_job(job_id: str):
+    """
+    **Cancel a running optimization job.**
+
+    ## Operation
+
+    Cancels the job's optimizer run on DL Streamer Pipeline Server. The job
+    then ends as `FAILED` with the detail `Cancelled by user`; the
+    candidates evaluated so far are discarded.
+
+    ## Path Parameters
+
+    - `job_id`: Identifier of the optimization job to cancel
+
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 200  | Job was RUNNING and cancellation was requested |
+    | 404  | Job does not exist |
+    | 409  | Job exists but is not RUNNING |
+    """
+    success, message = OptimizationManager().cancel_job(job_id)
+    response = schemas.MessageResponse(message=message)
+    if success:
+        return response
+    status_code = 404 if "not found" in message.lower() else 409
+    return JSONResponse(content=response.model_dump(), status_code=status_code)
+
+
 @router.get(
     "/validation/status",
     operation_id="get_validation_statuses",

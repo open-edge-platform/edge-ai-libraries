@@ -1,6 +1,6 @@
 // Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import type { Library, SourceStatus } from "@/api/console/type";
+import type { Library, Source, SourceStatus } from "@/api/console/type";
 import type { AssetRow } from "../assets/AssetProgress";
 import type { CanvasEdge, CanvasNode, Position } from "./Type";
 import { getAssetKind } from "../assets/AssetUtils";
@@ -25,6 +25,29 @@ const readinessOrder = [
 ];
 const isFrozen = (binding: SourceStatus) =>
   ["DEGRADE", "DISABLED"].includes(binding.effective_state);
+
+export function getSourceDisplayStatus(
+  library: Library,
+  source: Source,
+): string {
+  if (!source.enabled) return "DISABLED";
+  if (!source.reconciled) return "unreconciled";
+  if (source.id === library.default_content_source_id) return "reconciled";
+  const pools = library.asset_pools.filter((pool) =>
+    pool.source_statuses.some((binding) => binding.source_id === source.id),
+  );
+  if (!pools.length) return "reconciled";
+  const bindings = pools.flatMap((pool) =>
+    pool.source_statuses.filter(
+      (binding) => binding.source_id === source.id && !isFrozen(binding),
+    ),
+  );
+  return bindings.length
+    ? readinessOrder.find((state) =>
+        bindings.some((binding) => binding.display_status === state),
+      ) || "ready"
+    : "DEGRADE";
+}
 
 export function buildCanvasNodes(
   library: Library,
@@ -77,28 +100,13 @@ export function buildCanvasNodes(
       const pools = library.asset_pools.filter((pool) =>
         pool.source_statuses.some((binding) => binding.source_id === source.id),
       );
-      const bindings = pools.flatMap((pool) =>
-        pool.source_statuses.filter(
-          (binding) => binding.source_id === source.id && !isFrozen(binding),
-        ),
-      );
-      let status = "reconciled";
-      if (!source.enabled) status = "DISABLED";
-      else if (!source.reconciled) status = "unreconciled";
-      else if (!content && pools.length) {
-        status = bindings.length
-          ? readinessOrder.find((state) =>
-              bindings.some((binding) => binding.display_status === state),
-            ) || "ready"
-          : "DEGRADE";
-      }
       return {
         key: `source:${source.id}`,
         id: source.id,
         name: source.name || source.id,
         kind: "source",
         resourceType: source.type,
-        status,
+        status: getSourceDisplayStatus(library, source),
         validationStatus: source.reconciled ? "reconciled" : "unreconciled",
         database: source.database_id,
         collection: source.collection_name,
