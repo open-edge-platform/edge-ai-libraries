@@ -61,8 +61,7 @@ To use your own configuration file:
 make run CONFIG_FILE=/path/to/config.json
 ```
 
-See [Container run options](./configuration.md#container-run-options) for defaults and
-host data directory settings.
+See [Container run options](./configuration.md#container-run-options) for default settings.
 
 ## Build and Run a Container Image
 
