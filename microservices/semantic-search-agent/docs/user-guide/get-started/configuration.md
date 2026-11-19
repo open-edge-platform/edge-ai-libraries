@@ -1,26 +1,31 @@
 # Configuration Guide
 
-The Semantic Search Agent uses environment variables or the `.env` file at the project root folder, for all configurations. You do not need a YAML subscription file; data sources are JSON files under the `config/` folder.
+The Semantic Search Agent is configured with environment variables, the `.env` file at the project root folder, and the bundled `config/service_config.yaml` file. Data sources are JSON files under the `config/` folder.
 
 ## Load Order
 
 The service loads the configuration in the following order:
 
-1. **Environment Variables or the `.env` file**: Loaded via Pydantic Settings on startup. Environment variables take precedence over `.env` file values.
-2. **Configuration JSON Files**: The ComparisonEngine loads `config/inventory.json` and `config/orders.json` lazily on the first use and caches them in memory for the lifetime of the process.
+1. **Environment variables**: Highest precedence.
+2. **`.env` file**: Loaded from the working directory (the project root folder) through Pydantic Settings on startup. Values here are overridden by real environment variables.
+3. **`config/service_config.yaml`**: Bundled with the service and loaded automatically when present. Its values are used only for settings that are not set in the environment or the `.env` file.
+4. **Built-in defaults**: Used for any setting that none of the sources above defines.
+5. **Configuration JSON Files**: The ComparisonEngine loads `config/inventory.json` and `config/orders.json` lazily on the first use and caches them in memory for the lifetime of the process.
 
 ---
 
 ## Environment Variables
 
-You can set all variables as real environment variables or place them in the `.env` file at the project root folder.
+You can set all variables as real environment variables or place them in the `.env` file at the project root folder. A value set in either place overrides the same setting in `config/service_config.yaml`.
+
+When you run with Docker Compose, the `.env` file at the project root folder is passed to the container, so every variable in it takes effect.
 
 ### Service Settings
 
 | Variable           | Default                  | Description                                            |
 | ------------------ | ------------------------ | ------------------------------------------------------ |
 | `SERVICE_NAME`     | `semantic-search-agent`  | Service name reported in health and logs.              |
-| `SERVICE_VERSION`  | `2026.3.0-rc1`               | Service version reported in health responses.          |
+| `SERVICE_VERSION`  | `2026.3.0-rc1`           | Service version reported in health responses.          |
 | `LOG_LEVEL`        | `INFO`                   | Logging level: `DEBUG`, `INFO`, `WARNING`, or `ERROR`. |
 | `API_PORT`         | `8080`                   | Port the FastAPI server listens on.                    |
 | `METRICS_PORT`     | `9090`                   | Port for the Prometheus `/metrics` endpoint.           |
@@ -70,6 +75,8 @@ Required when `VLM_BACKEND=openai` and strategy is `semantic` or `hybrid`.
 | `OPENAI_API_KEY`     | *(empty)*      | OpenAI API key. ⚠️ Required.                                |
 | `OPENAI_MODEL`       | `gpt-4o-mini`  | OpenAI model identifier to use for inference.               |
 | `OPENAI_MAX_TOKENS`  | `100`          | Maximum tokens to generate per API call.                    |
+
+The `openai` Python package is included in `requirements.txt` and in the Docker image.
 
 ### Cache Settings
 
