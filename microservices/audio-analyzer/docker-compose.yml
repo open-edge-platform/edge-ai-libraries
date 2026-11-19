@@ -29,7 +29,7 @@ services:
         FTP_PROXY: ${FTP_PROXY:-}
         no_proxy: ${no_proxy:-}
         NO_PROXY: ${NO_PROXY:-}
-    image: ${REGISTRY:-intel}/audio-analyzer:${RELEASE_TAG:-latest}
+    image: ${REGISTRY:-intel}/audio-analyzer:${RELEASE_TAG:-2026.3.0-rc1}
     container_name: audio-analyzer
     # Hardcoded to match the image's baked-in app user and the
     # ownership of the named volumes. Do not change.
@@ -41,6 +41,7 @@ services:
       - "${RENDER_GID:-992}"
     environment:
       HF_HOME: /app/audio_analyzer/.cache/huggingface
+      HF_HUB_DISABLE_XET: ${HF_HUB_DISABLE_XET:-1}
       # Model snapshots (Whisper source, FunASR via ModelScope, diarization)
       # are downloaded by Audio Analyzer itself on first start and kept on the
       # models volume. To source them from a shared Model Download REST
