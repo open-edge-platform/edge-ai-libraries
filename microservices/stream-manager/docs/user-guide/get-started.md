@@ -12,7 +12,7 @@ image `intel/stream-manager:latest`.
 - `make`.
 - `curl`.
 
-## Run the application
+## Run the Application
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/stream-manager/Makefile | make -f - docker-run
@@ -48,7 +48,7 @@ curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 > The `make` command sets a custom shared memory size of the container.
 > This avoids issues of buffer failures when multiple streams are buffered simultaneously.
 
-## Options to run the application
+## Options to Run the Application
 
 Set `DATA_DIR` to store data in a host directory instead of the default Docker volume:
 
@@ -67,7 +67,19 @@ curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 ```
 
 You can use both options in the same command.
-See [Container run options](configuration.md#container-run-options) for all options
-and [Configuration](configuration.md#configjson-fields) for the configuration file settings.
+See [Container run options](./get-started/configuration.md#container-run-options) for all options
+and [Configuration](./get-started/configuration.md#configjson-fields) for the configuration file settings.
 
-See [API Reference](api-docs/api-reference.md) for all available endpoints.
+See [API Reference](./api-reference.md) for all available endpoints.
+
+If you prefer to build from source, see [Build From Source](./get-started/build-from-source.md).
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started/configuration.md
+./get-started/build-from-source.md
+
+:::
+hide_directive-->
