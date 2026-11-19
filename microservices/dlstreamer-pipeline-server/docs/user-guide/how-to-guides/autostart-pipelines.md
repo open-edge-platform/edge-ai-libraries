@@ -39,7 +39,7 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
 > the required parameters to start the pipeline is already mentioned in the pipeline config above.
 
   ```sh
-  curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{}'
+  curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{}'
   ```
 
 

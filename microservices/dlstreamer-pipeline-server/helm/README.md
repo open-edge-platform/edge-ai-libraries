@@ -10,6 +10,7 @@
     env:
         http_proxy: # example: http_proxy: http://proxy.example.com:891
         https_proxy: # example: http_proxy: http://proxy.example.com:891
+        REST_API_KEY: # required - set to a strong, unique value; REST API rejects all requests if unset
     images:
         dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:2025.2.0-ubuntu22
     ```
@@ -20,7 +21,7 @@
 - The resources such as video and model are copied into `dlstreamer-pipeline-server` pod by `initContainers`.
 - Send the curl command to start the pallet defect detection pipeline
     ``` sh
-        curl http://localhost:30007/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+        curl http://localhost:30007/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" -d '{
             "source": {
                 "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
                 "type": "uri"

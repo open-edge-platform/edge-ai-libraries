@@ -71,7 +71,7 @@ We need to volume mount the sample config file into dlstreamer-pipeline-server s
 - In the pipeline string in the above config files, we have added GPU/NPU specific elements/properties for decoding and inferencing on GPU/NPU backend. Now, start the pipeline with a curl request:
 
   ```sh
-  curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+  curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
       "source": {
           "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
           "type": "uri"

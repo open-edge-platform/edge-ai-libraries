@@ -47,6 +47,7 @@ Update the below fields in `values.yaml` file in the Helm chart:
   env:
     http_proxy: # example: http_proxy: http://proxy.example.com:891
     https_proxy: # example: http_proxy: http://proxy.example.com:891
+    REST_API_KEY: # required - set to a strong, unique value; REST API rejects all requests if unset
   images:
     dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:2026.2.0-ubuntu22
   ```
@@ -72,7 +73,7 @@ It comprises of a source file path which is `warehouse.avi`, a destination, with
 Open another terminal and send the following curl request:
 
 ```sh
-  curl http://localhost:30007/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+  curl http://localhost:30007/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" -d '{
     "source": {
       "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
       "type": "uri"

@@ -25,7 +25,7 @@ Similar to default DL Streamer Pipeline Server pipeline, it publishes metadata t
 RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:8554/pallet-defect-detection`.
 
 ```sh
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" -d '{
     "source": {
         "uri": "rtsp://<ip_address>:<port>/<server_url>",
         "type": "uri"

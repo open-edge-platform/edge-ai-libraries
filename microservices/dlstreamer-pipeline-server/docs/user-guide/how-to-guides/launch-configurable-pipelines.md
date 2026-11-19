@@ -47,7 +47,7 @@ To learn more on setting frame destination, refer to this [section](../advanced-
 Here is a sample REST request for the default pipeline (same as above sample) which has placeholders for `source`, `destination` and `parameters`. A video file within the container is specified as source, file is set as metadata destination, RTSP is specified for frame destination and the gvadetect element parameters such as model and device are provided under the parameters section. The model and video files are already provided as DL Streamer Pipeline Server samples.
 
 ```sh
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
     "source": {
         "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
         "type": "uri"

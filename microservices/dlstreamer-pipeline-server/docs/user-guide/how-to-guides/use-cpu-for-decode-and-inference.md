@@ -21,7 +21,7 @@
 - In the pipeline string in the above config file, we have added CPU specific elements/properties for decoding and inferencing on CPU backend. We will now start the pipeline with a curl request
 
     ```sh
-    curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+    curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
         "source": {
             "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
             "type": "uri"

@@ -41,7 +41,7 @@ mode, i.e. `sync`:`false` (default if omitted).
 > Destination is required only when `sync` config is set to `false`.
 
 ```sh
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" -d '{
     "sync": false,
     "destination": {
         "metadata": {
@@ -66,7 +66,7 @@ Once the pipeline has started, we would receive an instance id (e.g. `9b04198843
 > mounting in `docker-compose.yml`.
 
 ```sh
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection/{instance_id} -X POST -H 'Content-Type: application/json' -d '{
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection/{instance_id} -X POST -H 'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" -d '{
     "source": {
         "path": "/home/pipeline-server/resources/images/classroom.jpg",
         "type": "file"
@@ -119,7 +119,7 @@ Follow [this tutorial](./change-dlstreamer-pipeline.md) to launch DL Streamer Pi
 
 Pipeline for sync mode can be started by sending the following curl request:
 ```sh
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" -d '{
     "sync": true,
     "parameters": {
         "detection-properties": {
@@ -134,7 +134,7 @@ Once the pipeline is queued, we will receive an instance id. Use this instance i
 inference requests for images as shown below.
 
 ```sh
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection/{instance_id} -X POST -H 'Content-Type: application/json' -d '{
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection/{instance_id} -X POST -H 'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" -d '{
     "source": {
         "path": "/home/pipeline-server/resources/images/classroom.jpg",
         "type": "file"

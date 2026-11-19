@@ -6,6 +6,12 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
 - **REST_SERVER_PORT (Integer)**  - Port on which REST Server is hosted
   - Example: `REST_SERVER_PORT=8080`
 
+### REST API authentication
+- **REST_API_KEY (String)** - Required. Shared secret clients must send in the `X-Api-Key` header on every REST
+  API request. If unset, the server rejects all requests (fail-closed). Generate a strong, unique value
+  (e.g. `openssl rand -hex 32`) and keep it out of source control.
+  - Example: `REST_API_KEY=<your-generated-key>`
+
 ### RTSP related config
 - **ENABLE_RTSP (Boolean)** - Set to `true` to enable RTSP. Set to `false` to disable RTSP
   - Example: `ENABLE_RTSP=true`

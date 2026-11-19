@@ -36,7 +36,7 @@ how to use the GST element `timecodestamper` that adds timestamps to frames.
 3. Open another terminal and run the following curl command to start the pipeline.
 
    ```sh
-   curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+   curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
        "source": {
            "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
            "type": "uri"

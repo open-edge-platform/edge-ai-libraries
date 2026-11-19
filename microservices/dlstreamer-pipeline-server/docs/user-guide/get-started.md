@@ -48,9 +48,9 @@ Once the container is up, we will send a pipeline request to DL Streamer Pipelin
 We will send the below curl request to run the inference.
 It comprises of a source file path, which is `warehouse.avi` in this case, a destination, with metadata directed to a json fine in `/tmp/resuts.jsonl`, and frames streamed over RTSP with the ID `pallet_defect_detection`. Additionally, we will also provide the GETi model path that would be used for detecting defective boxes on the video file.
 
-Open another terminal and send the following curl request
+Open another terminal and send the following curl request (replace `$REST_API_KEY` with the value you set in `docker/.env`)
 ``` sh
-    curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+    curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" -d '{
     "source": {
         "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
         "type": "uri"
@@ -92,12 +92,12 @@ To check the pipeline status and stop the pipeline send the following requests,
 
  - view the pipeline status that you triggered in the above step.
    ```sh
-    curl --location -X GET http://localhost:8080/pipelines/status
+    curl --location -X GET http://localhost:8080/pipelines/status -H "X-Api-Key: $REST_API_KEY"
    ```
 
  - stop a running pipeline instance,
    ```sh
-    curl --location -X DELETE http://localhost:8080/pipelines/{instance_id}
+    curl --location -X DELETE http://localhost:8080/pipelines/{instance_id} -H "X-Api-Key: $REST_API_KEY"
    ```
 
 Now you have successfully run the DL Streamer Pipeline Server container, sent a curl request to start a pipeline within the microservice which runs the Geti based pallet defect detection model on a sample warehouse video. Then, you have also looked into the status of the pipeline to see if everything worked as expected and eventually stopped the pipeline as well.

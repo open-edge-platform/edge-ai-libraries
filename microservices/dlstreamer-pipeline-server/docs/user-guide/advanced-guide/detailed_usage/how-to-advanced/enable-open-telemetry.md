@@ -57,7 +57,7 @@ To run it on GPU/NPU you must first grant the container user access to GPU/NPU d
     ```
 - Open another terminal and start a pipeline in DL Streamer Pipeline Server.
     ```sh
-        curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+        curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
         "source": {
             "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
             "type": "uri"

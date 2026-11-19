@@ -89,7 +89,7 @@ Add below configuration as part of REST request to enable publishing to the mqtt
 ### Sample REST request
 
 ```sh
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
                 "source": {
                     "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
                     "type": "uri"
@@ -143,7 +143,7 @@ Upon completing the broker and subscriber setup, refer to the below steps to con
 - Sample REST request with configuration for secure connection
 
     ```sh
-    curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+    curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
                 "source": {
                     "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
                     "type": "uri"

@@ -30,7 +30,7 @@ Assuming broker is running in the same host over port `1883`, replace the `<SYST
 RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:8554/pallet_defect_detection`.
 
 ```sh
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" -d '{
                 "source": {
                     "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
                     "type": "uri"

@@ -38,7 +38,7 @@ The service starts on port **8080** (REST API) and **8554** (RTSP output).
 ### Verify Service is Running
 
 ```bash
-curl http://localhost:8080/pipelines
+curl http://localhost:8080/pipelines -H "X-Api-Key: $REST_API_KEY"
 # Returns JSON array of available pipeline definitions
 ```
 
@@ -92,6 +92,7 @@ volumes:
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `REST_SERVER_PORT` | `8080` | REST API port |
+| `REST_API_KEY` | *(none)* | Required - shared secret clients send in the `X-Api-Key` header; server rejects all requests if unset |
 | `ENABLE_RTSP` | `true` | Enable RTSP frame streaming |
 | `RTSP_PORT` | `8554` | RTSP output port |
 | `PIPELINE_SERVER_USER` | `intelmicroserviceuser` | Container user |
@@ -194,6 +195,7 @@ namespace: apps
 env:
   LOG_LEVEL: "INFO"
   REST_SERVER_PORT: "8080"
+  REST_API_KEY: ""        # required - set to a strong, unique value
   ENABLE_RTSP: "true"
 
 gpu:

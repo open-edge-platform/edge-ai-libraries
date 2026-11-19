@@ -68,7 +68,7 @@ To enable HTTPS for DL Streamer Pipeline Server, you'll need to provide the nece
     Example `curl` command to start a pipeline:
     ```bash
     cd <WORKDIR>/Certificates/ssl_server
-    sudo curl --cacert ca.crt --key client.key --cert client.crt https://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+    sudo curl --cacert ca.crt --key client.key --cert client.crt https://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
       "source": {
         "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
         "type": "uri"

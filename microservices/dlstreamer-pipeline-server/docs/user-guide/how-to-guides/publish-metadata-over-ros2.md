@@ -27,7 +27,7 @@ Pull DL Streamer Pipeline Server extended image from [dockerhub](https://hub.doc
     ```
 - Open another terminal and start a pipeline in DL Streamer Pipeline Server with the below curl command. This would publish the pipeline output metadata over ROS2.
     ```sh
-        curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+        curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
             "source": {
                 "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
                 "type": "uri"

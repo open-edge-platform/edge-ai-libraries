@@ -65,7 +65,7 @@ Ensure that the changes made to the `config.json` are reflected in the container
 Now to start this pipeline, run below Curl request
 
 ```sh
-curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
     "source": {
         "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
         "type": "uri"

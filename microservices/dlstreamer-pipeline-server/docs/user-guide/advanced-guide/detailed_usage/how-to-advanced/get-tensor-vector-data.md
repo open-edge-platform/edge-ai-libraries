@@ -45,7 +45,7 @@ Follow the below steps to publish tensor vector data along with other metadata v
 5. Once started, send the following curl command to launch the pipeline:
 
    ```sh
-   curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+   curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" -d '{
        "source": {
            "uri": "file:///home/pipeline-server/resources/videos/person-bicycle-car-detection.mp4",
            "type": "uri"

@@ -42,7 +42,8 @@ with the following variables. Add the corresponding IP address in place of
      import json
      url = "http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection"
      headers = {
-         "Content-Type": "application/json"
+         "Content-Type": "application/json",
+         "X-Api-Key": "<your-REST_API_KEY-value>"
      }
      data = {
          "source": {
@@ -84,6 +85,7 @@ with the following variables. Add the corresponding IP address in place of
      #!/bin/bash
      curl -X POST http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection \
        -H "Content-Type: application/json" \
+       -H "X-Api-Key: $REST_API_KEY" \
        -d '{
              "source": {
                  "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
@@ -134,7 +136,7 @@ with the following variables. Add the corresponding IP address in place of
      ```python
      import requests
      url = "http://localhost:8080/pipelines/<instance-id>"
-     response = requests.delete(url)
+     response = requests.delete(url, headers={"X-Api-Key": "<your-REST_API_KEY-value>"})
      print(f"Status Code: {response.status_code}")
      print(f"Response Body: {response.text}")
      ```
@@ -150,7 +152,7 @@ with the following variables. Add the corresponding IP address in place of
      ```sh
      #!/bin/bash
      URL="http://localhost:8080/pipelines/<instance-id>"
-     curl --location -X DELETE "$URL"
+     curl --location -X DELETE "$URL" -H "X-Api-Key: $REST_API_KEY"
      ```
 
      Execute the shell script as follows:

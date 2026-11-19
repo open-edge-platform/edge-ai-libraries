@@ -24,7 +24,8 @@ Below is a sample request using curl to start an `user_defined_pipelines/pallet_
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-'Content-Type: application/json' -d \
+'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" \
+-d \
 '{
     "source": {
         "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
@@ -82,7 +83,8 @@ The following example shows a media `source` from a video file in GitHub:
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-'Content-Type: application/json' -d \
+'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" \
+-d \
 '{
     "source": {
         "uri": "https://github.com/intel-iot-devkit/sample-videos/blob/master/person-bicycle-car-detection.mp4?raw=true",
@@ -108,7 +110,8 @@ A local file can also be used as a source. In the following example, `warehouse.
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-'Content-Type: application/json' -d \
+'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" \
+-d \
 '{
     "source": {
         "uri": "file:///tmp/warehouse.avi",
@@ -211,7 +214,8 @@ Below is an example for JSON format
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-'Content-Type: application/json' -d \
+'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" \
+-d \
 '{
     "source": {
         "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
@@ -261,7 +265,8 @@ Steps to run MQTT:
 
    ```bash
    curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-   'Content-Type: application/json' -d \
+   'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" \
+   -d \
    '{
      "source": {
          "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
@@ -318,7 +323,8 @@ Steps for visualizing output over RTSP assuming Pipeline Server and your VLC cli
 
    ```bash
    curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-   'Content-Type: application/json' -d \
+   'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" \
+   -d \
    '{
        "source": {
            "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
@@ -367,7 +373,8 @@ By default, RTSP frame destinations are encoded as MJPEG. To instead encode the 
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-'Content-Type: application/json' -d \
+'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" \
+-d \
 '{
     "source": {
         "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
@@ -414,7 +421,8 @@ If an unsupported value is passed for `encoding`, Pipeline Server logs a warning
 
    ```bash
    curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-   'Content-Type: application/json' -d \
+   'Content-Type: application/json' -H "X-Api-Key: $REST_API_KEY" \
+   -d \
    '{
        "source": {
            "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
@@ -488,7 +496,8 @@ Any or all of the parameters defined i.e detection-device, detection-model-insta
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-'Content-Type: application/json' -d \
+'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" \
+-d \
 '{
   "source": {
       "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
@@ -520,7 +529,8 @@ Tags are pieces of information specified at the time of request, stored with fra
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-'Content-Type: application/json' -d \
+'Content-Type: application/json' -H \"X-Api-Key: $REST_API_KEY\" \
+-d \
 '{
     "source": {
         "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
