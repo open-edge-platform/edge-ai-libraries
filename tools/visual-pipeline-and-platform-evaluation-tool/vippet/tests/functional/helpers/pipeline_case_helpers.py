@@ -123,10 +123,17 @@ def collect_pipeline_cases(session: requests.Session) -> list[PipelineCase]:
     return cases
 
 
+_DEFAULT_INSTALL_HINT: str = (
+    "Install them through POST /models/download (or the UI Models page) to "
+    "enable this case."
+)
+
+
 def wrap_cases_for_pytest(
     cases: list[PipelineCase],
     missing_models_by_pipeline: dict[str, set[str]],
     skip_missing_models: bool = True,
+    install_hint: str = _DEFAULT_INSTALL_HINT,
 ) -> tuple[list[PipelineCase | object], list[str]]:
     """Return ``(params, ids)`` ready for ``pytest.mark.parametrize``.
 
@@ -134,7 +141,9 @@ def wrap_cases_for_pytest(
     installed are wrapped in ``pytest.param(..., marks=pytest.mark.skip(reason=...))``
     so the pytest report shows an explicit ``SKIPPED`` with the missing
     model names. When false, those cases are passed through unchanged and
-    are allowed to fail at runtime.
+    are allowed to fail at runtime. ``install_hint`` ends the skip reason and
+    tells the user how to install the models (the performance suite points
+    at its CLI option instead of the raw API).
     """
     params: list[PipelineCase | object] = []
     ids: list[str] = []
@@ -143,9 +152,7 @@ def wrap_cases_for_pytest(
         if missing and skip_missing_models:
             reason = (
                 f"Pipeline {case.pipeline_name!r} requires model(s) that are "
-                f"not installed: {sorted(missing)}. Install them through "
-                f"POST /models/download (or the UI Models page) to enable "
-                f"this case."
+                f"not installed: {sorted(missing)}. {install_hint}"
             )
             params.append(pytest.param(case, marks=pytest.mark.skip(reason=reason)))
         else:

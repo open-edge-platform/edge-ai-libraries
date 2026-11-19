@@ -492,6 +492,110 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         # Scheduled, not skipped (the run outcome itself is not under test).
         self.assertNotIn("[lpr_cpu_x1] SKIPPED", out)
 
+    @staticmethod
+    def _outcome_env(outcome: str, reason: str = "") -> dict[str, str]:
+        return {
+            "PERF_MODEL_INSTALL_OUTCOME": json.dumps(
+                [
+                    {
+                        "name": "lprnet",
+                        "display_name": "LPR Net",
+                        "outcome": outcome,
+                        "reason": reason,
+                    }
+                ]
+            )
+        }
+
+    def test_skipped_missing_model_runs_get_an_install_hint(self) -> None:
+        completed = self._run("COMPLETED")
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self._assert_in_order(
+            out,
+            "[lpr_cpu_x1] SKIPPED",
+            "Model installation",
+            "1 run(s) were skipped because the models they need are not installed",
+            "a direct pytest run never does",
+            "Benchmark artefacts",
+        )
+        # The skip reason itself points at the CLI option.
+        run_dir = self._run_dir()
+        report = json.loads((run_dir / f"{run_dir.name}.json").read_text("utf-8"))
+        self.assertIsNone(report["model_install"])
+        (lpr,) = [tc for tc in report["test_cases"] if tc["pipeline_id"] == "lpr"]
+        self.assertEqual(lpr["status"], "skipped")
+        self.assertIn('PERF_ARGS="--install-missing-models=yes"', lpr["error"])
+        self.assertNotIn("POST /models/download", lpr["error"])
+
+    def test_failed_model_install_is_an_error(self) -> None:
+        completed = self._run(
+            "COMPLETED",
+            extra_env=self._outcome_env(
+                "failed", "Check your Hugging Face access token"
+            ),
+        )
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 1, out + completed.stderr)
+        self._assert_in_order(
+            out,
+            "[object_detection_cpu_x1] PASSED",
+            "[lpr_cpu_x1] ERROR",
+            "Model installation",
+            "Model installation: 1 failed",
+            "Benchmark artefacts",
+        )
+        self.assertIn(
+            "model 'LPR Net' failed to install: Check your Hugging Face access token",
+            out,
+        )
+        self.assertNotIn("run(s) were skipped because", out)
+        run_dir = self._run_dir()
+        report = json.loads((run_dir / f"{run_dir.name}.json").read_text("utf-8"))
+        self.assertEqual(report["summary"]["error"], 1)
+        self.assertEqual(report["model_install"][0]["outcome"], "failed")
+        lpr = [tc for tc in report["test_cases"] if tc["pipeline_id"] == "lpr"]
+        self.assertEqual([tc["status"] for tc in lpr], ["error"])
+        self.assertIn("failed to install", lpr[0]["error"])
+
+    def test_failed_install_is_an_error_even_without_skipping(self) -> None:
+        completed = self._run(
+            "COMPLETED",
+            skip_missing_models=False,
+            extra_env=self._outcome_env("timed_out", "still installing after 1s"),
+        )
+        self.assertIn("[lpr_cpu_x1] ERROR", completed.stdout)
+
+    def test_interrupted_install_is_skipped(self) -> None:
+        completed = self._run(
+            "COMPLETED", extra_env=self._outcome_env("interrupted", "x")
+        )
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self.assertIn("[lpr_cpu_x1] SKIPPED", out)
+        run_dir = self._run_dir()
+        report = json.loads((run_dir / f"{run_dir.name}.json").read_text("utf-8"))
+        (lpr,) = [tc for tc in report["test_cases"] if tc["pipeline_id"] == "lpr"]
+        self.assertEqual(lpr["status"], "skipped")
+        self.assertIn("waiting was interrupted (Ctrl-C)", lpr["error"])
+
+    def test_declined_install_keeps_the_missing_models_skip(self) -> None:
+        completed = self._run(
+            "COMPLETED", extra_env=self._outcome_env("declined", "declined")
+        )
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self.assertIn("[lpr_cpu_x1] SKIPPED", out)
+        self.assertIn("Model installation: 1 declined", out)
+
+    def test_invalid_install_outcome_env_exits_2(self) -> None:
+        completed = self._run(
+            "COMPLETED", extra_env={"PERF_MODEL_INSTALL_OUTCOME": "{oops"}
+        )
+        self.assertEqual(completed.returncode, 2, completed.stdout)
+        self.assertIn("PERF_MODEL_INSTALL_OUTCOME is not a valid", completed.stderr)
+        self.assertNotIn("Traceback", completed.stdout + completed.stderr)
+
     def test_failure_without_results_is_not_reported_as_not_run(self) -> None:
         completed = self._run("COMPLETED", pipelines="[od]", post_status=422)
         out = completed.stdout

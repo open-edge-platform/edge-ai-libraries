@@ -11,13 +11,22 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock, patch
 
+import httpx
+
 from tests.performance.perf_helpers import cli
 from tests.performance.perf_helpers import reporters
 from tests.performance.perf_helpers.matrix import MatrixFilters, build_matrix
+from tests.performance.perf_helpers.model_install import (
+    ENV_MODEL_INSTALL,
+    ModelOutcome,
+    Outcome,
+    decode_outcomes,
+)
 from tests.performance.perf_helpers.preflight import PreflightError
 from tests.performance.perf_helpers.reporters import generate_html_report
 from tests.performance.perf_helpers.settings import (
@@ -36,6 +45,63 @@ _PIPELINES = [
     {"id": "lpr", "name": "LPR", "variants": [{"id": "3", "name": "CPU"}]},
     {"id": "sp", "name": "Parking", "variants": [{"id": "4", "name": "CPU"}]},
 ]
+
+_MODELS = [
+    {
+        "name": "lprnet",
+        "display_name": "LPR Net",
+        "source": "omz",
+        "install_status": "not_installed",
+        "used_by_pipelines": ["lpr"],
+    }
+]
+
+
+class _Api:
+    """Fake ViPPET model endpoints; records every request."""
+
+    def __init__(
+        self, models: list[dict[str, Any]] | None = None, models_status: int = 200
+    ) -> None:
+        self.models = _MODELS if models is None else models
+        self.models_status = models_status
+        self.requests: list[tuple[str, str]] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        self.requests.append((request.method, path))
+        if path.endswith("/models"):
+            return httpx.Response(self.models_status, json=self.models)
+        if request.method == "POST" and path.endswith("/models/download"):
+            names = json.loads(request.content)["names"]
+            return httpx.Response(
+                202,
+                json={
+                    "jobs": {
+                        n: {
+                            "name": n,
+                            "job_id": "j1",
+                            "status_code": 202,
+                            "message": "",
+                        }
+                        for n in names
+                    }
+                },
+            )
+        if path.endswith("/jobs/models/j1/status"):
+            return httpx.Response(200, json={"state": "COMPLETED", "details": []})
+        return httpx.Response(404, json={"message": "not found"})
+
+    def factory(self) -> Callable[[], httpx.Client]:
+        return lambda: httpx.Client(transport=httpx.MockTransport(self))
+
+    @property
+    def posts(self) -> list[str]:
+        return [path for method, path in self.requests if method == "POST"]
+
+
+def _api_client(**kwargs: Any) -> Callable[[], httpx.Client]:
+    return _Api(**kwargs).factory()
 
 
 def _parse(*argv: str) -> Any:
@@ -115,6 +181,25 @@ class TestParser(unittest.TestCase):
     def test_unset_flags_do_not_override(self) -> None:
         self.assertEqual(cli.cli_overrides(_parse()), {})
 
+    def test_model_install_flags(self) -> None:
+        ns = _parse("--install-missing-models", "yes", "--model-install-timeout", "90")
+        self.assertEqual(
+            cli.cli_overrides(ns),
+            {
+                "benchmark.models.install": "yes",
+                "benchmark.models.install_timeout_seconds": 90,
+            },
+        )
+        for argv in (
+            ["--install-missing-models", "maybe"],
+            ["--model-install-timeout", "0"],
+            ["--model-install-timeout", "1.5"],
+        ):
+            with self.subTest(argv=argv):
+                with self.assertRaises(SystemExit):
+                    with patch("sys.stderr", io.StringIO()):
+                        _parse(*argv)
+
     def test_invalid_values_rejected(self) -> None:
         for argv in (
             ["--streams", "0"],
@@ -173,6 +258,7 @@ class TestDryRun(unittest.TestCase):
             self.settings,
             discover=self._discover,
             preflight=preflight,
+            client_factory=_api_client(),
             stdout=out,
             stderr=err,
         )
@@ -202,6 +288,7 @@ class TestDryRun(unittest.TestCase):
             settings,
             discover=self._discover,
             preflight=Mock(),
+            client_factory=_api_client(),
             stdout=out,
             stderr=io.StringIO(),
         )
@@ -227,6 +314,7 @@ class TestDryRun(unittest.TestCase):
             self.settings,
             discover=Mock(),
             preflight=Mock(side_effect=PreflightError("down")),
+            client_factory=_api_client(),
             stdout=io.StringIO(),
             stderr=err,
         )
@@ -239,6 +327,7 @@ class TestDryRun(unittest.TestCase):
             self.settings,
             discover=Mock(side_effect=RuntimeError("boom")),
             preflight=Mock(),
+            client_factory=_api_client(),
             stdout=io.StringIO(),
             stderr=err,
         )
@@ -260,6 +349,7 @@ class TestDryRun(unittest.TestCase):
                 MatrixFilters.from_settings(settings),
             ),
             preflight=Mock(),
+            client_factory=_api_client(),
             stdout=out,
             stderr=io.StringIO(),
         )
@@ -271,6 +361,257 @@ class TestDryRun(unittest.TestCase):
         from tests.performance.perf_helpers import matrix
 
         self.assertIs(cli.format_matrix, matrix.format_matrix)
+
+
+class TestDryRunInstallPlan(unittest.TestCase):
+    def setUp(self) -> None:
+        self.settings = resolve_settings("default", env={})
+
+    def _discover(self, settings: Any) -> Any:
+        return build_matrix(
+            _PIPELINES,
+            [{"device_family": "CPU"}],
+            {"lpr": {"LPR Net"}},
+            MatrixFilters.from_settings(settings),
+        )
+
+    def _dry_run(self, api: _Api, settings: Any = None, tty: bool = False) -> Any:
+        out, err = io.StringIO(), io.StringIO()
+        rc = cli.run_dry_run(
+            settings or self.settings,
+            discover=self._discover,
+            preflight=Mock(),
+            client_factory=api.factory(),
+            stdin_is_tty=lambda: tty,
+            stdout=out,
+            stderr=err,
+        )
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_prints_plan_and_never_installs(self) -> None:
+        api = _Api()
+        rc, out, _ = self._dry_run(api)
+        self.assertEqual(rc, 0)
+        matrix_part, plan_part = out.split("\nModel installation\n")
+        self.assertIn("Matrix:", matrix_part)
+        self.assertIn("LPR Net  omz", plan_part)
+        self.assertIn("By installing you accept the license terms", plan_part)
+        self.assertIn("stdin is not a terminal", plan_part)
+        self.assertEqual(api.posts, [])
+
+    def test_mode_effect_follows_the_setting(self) -> None:
+        yes = resolve_settings(
+            "default", env={}, cli_overrides={"benchmark.models.install": "yes"}
+        )
+        _, out, _ = self._dry_run(_Api(), settings=yes)
+        self.assertIn("installs these models without asking", out)
+        _, out, _ = self._dry_run(_Api(), tty=True)
+        self.assertIn("asks before installing", out)
+
+    def test_empty_plan_is_one_line(self) -> None:
+        installed = [dict(_MODELS[0], install_status="installed")]
+        rc, out, _ = self._dry_run(_Api(models=installed))
+        self.assertEqual(rc, 0)
+        self.assertIn("Every model the selected runs need is installed.", out)
+        self.assertNotIn("--install-missing-models", out)
+
+    def test_models_failure_exits_2(self) -> None:
+        rc, _, err = self._dry_run(_Api(models_status=500))
+        self.assertEqual(rc, 2)
+        self.assertIn("reading its inventory", err)
+
+
+class TestModelInstallStep(unittest.TestCase):
+    def setUp(self) -> None:
+        self.settings = resolve_settings(
+            "default", env={}, cli_overrides={"benchmark.stream_counts": [1]}
+        )
+
+    def _discover(self, settings: Any) -> Any:
+        return build_matrix(
+            _PIPELINES,
+            [{"device_family": "CPU"}],
+            {"lpr": {"LPR Net"}},
+            MatrixFilters.from_settings(settings),
+        )
+
+    def _step(
+        self,
+        *,
+        ask: bool,
+        answer: str | None = None,
+        settings: Any = None,
+        api: _Api | None = None,
+        preflight: Any = None,
+        discover: Any = None,
+    ) -> tuple[int, Any, str, str, _Api, list[str]]:
+        api = api or _Api()
+        prompts: list[str] = []
+
+        def input_fn(text: str) -> str:
+            prompts.append(text)
+            if answer is None:
+                raise AssertionError("must not prompt")
+            return answer
+
+        out, err = io.StringIO(), io.StringIO()
+        rc, outcomes = cli.run_model_install(
+            settings or self.settings,
+            ask=ask,
+            discover=discover or self._discover,
+            preflight=preflight or Mock(),
+            client_factory=api.factory(),
+            input_fn=input_fn,
+            installer_options={"sleep": lambda _: None},
+            stdout=out,
+            stderr=err,
+        )
+        return rc, outcomes, out.getvalue(), err.getvalue(), api, prompts
+
+    def test_accepting_installs_and_returns_outcomes(self) -> None:
+        rc, outcomes, out, _, api, prompts = self._step(ask=True, answer="y")
+        self.assertEqual(rc, 0)
+        self.assertEqual(prompts, ["Install 1 model(s) now? [y/N] "])
+        self.assertEqual(api.posts, ["/api/v1/models/download"])
+        self.assertEqual(
+            outcomes, [ModelOutcome("lprnet", "LPR Net", Outcome.INSTALLED)]
+        )
+        self.assertIn("Model installation", out)
+        self.assertIn("[model-install] LPR Net: installed", out)
+
+    def test_declining_installs_nothing(self) -> None:
+        rc, outcomes, out, _, api, _ = self._step(ask=True, answer="")
+        self.assertEqual(rc, 0)
+        self.assertEqual(api.posts, [])
+        self.assertEqual([o.outcome for o in outcomes], [Outcome.DECLINED])
+        self.assertIn("Not installing", out)
+
+    def test_yes_never_prompts(self) -> None:
+        rc, outcomes, _, _, api, prompts = self._step(ask=False)
+        self.assertEqual(rc, 0)
+        self.assertEqual(prompts, [])
+        self.assertEqual(api.posts, ["/api/v1/models/download"])
+        self.assertEqual([o.outcome for o in outcomes], [Outcome.INSTALLED])
+
+    def test_readiness_check_is_quiet_unless_waiting_or_failing(self) -> None:
+        def preflight(*_: Any, report: Callable[[str], None]) -> None:
+            report("[pre-flight] GET http://x/health: OK (HTTP 200)")
+            report("[pre-flight] GET http://x/status: WAITING (starting)")
+            report("[pre-flight] GET http://x/status: READY (HTTP 200)")
+
+        _, _, out, err, _, _ = self._step(ask=False, preflight=preflight)
+        self.assertEqual(
+            err.strip(), "[pre-flight] GET http://x/status: WAITING (starting)"
+        )
+        self.assertNotIn("pre-flight", out)
+
+    def test_preflight_failure_exits_2(self) -> None:
+        rc, outcomes, _, err, api, _ = self._step(
+            ask=False, preflight=Mock(side_effect=PreflightError("down"))
+        )
+        self.assertEqual((rc, outcomes), (2, None))
+        self.assertIn("error: down", err)
+        self.assertEqual(api.requests, [])
+
+    def test_discovery_failure_exits_2(self) -> None:
+        rc, outcomes, _, err, _, _ = self._step(
+            ask=False, discover=Mock(side_effect=RuntimeError("boom"))
+        )
+        self.assertEqual((rc, outcomes), (2, None))
+        self.assertIn("reading its inventory", err)
+
+    def test_unknown_filter_ids_skip_the_step(self) -> None:
+        settings = resolve_settings(
+            "default", env={}, cli_overrides={"benchmark.pipelines": ["nope"]}
+        )
+        rc, outcomes, out, _, api, _ = self._step(ask=False, settings=settings)
+        self.assertEqual((rc, outcomes), (0, None))
+        self.assertEqual(api.requests, [])
+        self.assertEqual(out, "")
+
+    def test_unknown_filter_ids_with_warn_still_offer(self) -> None:
+        settings = resolve_settings(
+            "default",
+            env={},
+            cli_overrides={
+                "benchmark.pipelines": ["lpr", "nope"],
+                "benchmark.filters.on_unknown_id": "warn",
+            },
+        )
+        rc, outcomes, _, _, _, _ = self._step(ask=False, settings=settings)
+        self.assertEqual(rc, 0)
+        self.assertEqual([o.name for o in outcomes], ["lprnet"])
+
+
+class TestMainInstallStep(unittest.TestCase):
+    def _main(
+        self, mode: str, *, tty: bool, step: Any = None
+    ) -> tuple[int, Mock, Mock]:
+        step = step or Mock(return_value=(0, []))
+        runner = Mock(return_value=0)
+        with (
+            patch.dict(os.environ, {}, clear=False),
+            patch.object(cli, "run_model_install", step),
+            patch.object(cli, "run_pytest", runner),
+            patch.object(cli, "_stdin_is_tty", return_value=tty),
+            patch("sys.stderr", io.StringIO()),
+        ):
+            os.environ.pop("PERF_INSTALL_MISSING_MODELS", None)
+            rc = cli.main(["--config", "quick", "--install-missing-models", mode])
+        return rc, step, runner
+
+    def test_no_never_runs_the_step(self) -> None:
+        rc, step, runner = self._main("no", tty=True)
+        self.assertEqual(rc, 0)
+        step.assert_not_called()
+        self.assertEqual(runner.call_args.kwargs["extra_env"], {})
+
+    def test_ask_without_terminal_behaves_like_no(self) -> None:
+        _, step, runner = self._main("ask", tty=False)
+        step.assert_not_called()
+        runner.assert_called_once()
+
+    def test_ask_with_terminal_prompts(self) -> None:
+        _, step, _ = self._main("ask", tty=True)
+        self.assertIs(step.call_args.kwargs["ask"], True)
+
+    def test_yes_installs_without_terminal(self) -> None:
+        _, step, _ = self._main("yes", tty=False)
+        self.assertIs(step.call_args.kwargs["ask"], False)
+
+    def test_outcome_is_passed_to_pytest(self) -> None:
+        outcome = ModelOutcome("m", "M", Outcome.FAILED, "no token")
+        _, _, runner = self._main(
+            "yes", tty=False, step=Mock(return_value=(0, [outcome]))
+        )
+        extra_env = runner.call_args.kwargs["extra_env"]
+        self.assertEqual(decode_outcomes(extra_env[ENV_MODEL_INSTALL]), [outcome])
+
+    def test_skipped_step_passes_no_outcome(self) -> None:
+        _, _, runner = self._main("yes", tty=False, step=Mock(return_value=(0, None)))
+        self.assertEqual(runner.call_args.kwargs["extra_env"], {})
+
+    def test_step_failure_stops_the_run(self) -> None:
+        rc, _, runner = self._main("yes", tty=False, step=Mock(return_value=(2, None)))
+        self.assertEqual(rc, 2)
+        runner.assert_not_called()
+
+    def test_ctrl_c_at_the_prompt_aborts(self) -> None:
+        rc, _, runner = self._main(
+            "ask", tty=True, step=Mock(side_effect=KeyboardInterrupt)
+        )
+        self.assertEqual(rc, 130)
+        runner.assert_not_called()
+
+    def test_env_exported_by_discovery_does_not_reach_pytest(self) -> None:
+        def step(*_: Any, **__: Any) -> tuple[int, list[Any]]:
+            os.environ["VIPPET_BASE_URL"] = "http://exported/api/v1"
+            return 0, []
+
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("VIPPET_BASE_URL", None)
+            _, _, runner = self._main("yes", tty=False, step=step)
+        self.assertNotIn("VIPPET_BASE_URL", runner.call_args.kwargs["base_env"])
 
 
 _RESULT: dict[str, Any] = {
@@ -605,6 +946,26 @@ class TestRunPytest(unittest.TestCase):
         # Same sources as the CLI's own resolution, so the artefact is accurate.
         self.assertEqual(dict(seen["reloaded"].sources), dict(settings.sources))
         self.assertEqual(seen["reloaded"].sources["vippet.base_url"], "cli")
+
+    def test_model_outcome_env_comes_only_from_the_cli(self) -> None:
+        seen: list[dict[str, str]] = []
+
+        def runner(cmd: list[str], env: dict[str, str], check: bool) -> Any:
+            seen.append(env)
+            return subprocess.CompletedProcess(cmd, 0)
+
+        layer = {"config": None, "overrides": {}}
+        stale = {ENV_MODEL_INSTALL: "[stale]"}
+        cli.run_pytest(layer, [], base_env=stale, runner=runner)
+        cli.run_pytest(
+            layer,
+            [],
+            base_env=stale,
+            extra_env={ENV_MODEL_INSTALL: "[]"},
+            runner=runner,
+        )
+        self.assertNotIn(ENV_MODEL_INSTALL, seen[0])
+        self.assertEqual(seen[1][ENV_MODEL_INSTALL], "[]")
 
     def test_perf_dir_always_passed_before_passthrough(self) -> None:
         test_file = str(cli.PERF_DIR / "test_pipeline_performance.py")

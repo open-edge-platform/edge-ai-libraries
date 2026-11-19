@@ -13,7 +13,8 @@ Every configurable key is declared once in :data:`SPECS`. The pytest
 :func:`resolve_settings`, so the two entry points cannot drift apart.
 
 The YAML layer can also be a result artefact (its JSON file or run
-directory): its recorded ``config.values`` are then used as that layer.
+directory): its recorded ``config.values`` are then used as that layer,
+except :data:`NOT_REPLAYED_KEYS`, which keep their default.
 
 This module has no import-time side effects and does not touch the network.
 """
@@ -50,6 +51,11 @@ _PRESET_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 OUTPUT_MODES: tuple[str, ...] = ("disabled", "file", "live_stream")
 RESULT_FORMAT_CHOICES: tuple[str, ...] = ("json", "csv")
+MODEL_INSTALL_MODES: tuple[str, ...] = ("ask", "yes", "no")
+
+# Settings that a result artefact records but never replays: a replayed run
+# must not install models just because the recorded run was allowed to.
+NOT_REPLAYED_KEYS: frozenset[str] = frozenset({"benchmark.models.install"})
 
 SOURCE_DEFAULT = "default"
 SOURCE_YAML = "yaml"
@@ -400,6 +406,29 @@ SPECS: tuple[SettingSpec, ...] = (
         env="PERF_ON_UNKNOWN_ID",
         choices=("fail", "warn"),
     ),
+    SettingSpec(
+        "benchmark.models.install",
+        "--install-missing-models",
+        "choice",
+        "ask",
+        "Before the benchmark, install the models the selected runs need: "
+        "'ask' prompts when stdin is a terminal (otherwise behaves like "
+        "'no'), 'yes' installs without asking, 'no' never installs. Only the "
+        "CLI installs; a direct pytest run never does.",
+        env="PERF_INSTALL_MISSING_MODELS",
+        choices=MODEL_INSTALL_MODES,
+    ),
+    SettingSpec(
+        "benchmark.models.install_timeout_seconds",
+        "--model-install-timeout",
+        "int",
+        3600,
+        "Longest wait for all model installs together, in whole seconds; "
+        "models still installing then count as failed.",
+        env="PERF_MODEL_INSTALL_TIMEOUT",
+        minimum=1,
+        metavar="SECONDS",
+    ),
     # --- metrics ---
     SettingSpec(
         "metrics.metrics_url",
@@ -736,6 +765,8 @@ def resolve_settings(
     raw = _read_config(config_path)
     if config_path.suffix.lower() == ".json":
         yaml_values = _parse_result_values(raw, config_path)
+        for key in NOT_REPLAYED_KEYS:
+            yaml_values.pop(key, None)
     else:
         yaml_values = _parse_yaml(raw, config_path)
 

@@ -16,6 +16,7 @@ Covers three previously-reported issues in the --report-only HTML renderer:
 """
 
 import copy
+import json
 import shutil
 import tempfile
 import unittest
@@ -267,6 +268,71 @@ class TestLoadResultErrorHandling(unittest.TestCase):
 
         with self.assertRaises(ReportInputError):
             load_result(resolved)
+
+
+class TestModelInstallAndErrors(unittest.TestCase):
+    def _result(self, **extra: Any) -> dict[str, Any]:
+        result = copy.deepcopy(_BASE_RESULT)
+        result.update(extra)
+        return result
+
+    def test_model_install_section_is_escaped(self) -> None:
+        result = self._result(
+            model_install=[
+                {
+                    "name": "m",
+                    "display_name": "<b>Model</b>",
+                    "outcome": "failed",
+                    "reason": "<script>alert(1)</script>",
+                }
+            ]
+        )
+        html = generate_html_report([result])
+        self.assertIn('id="model-install"', html)
+        self.assertIn('href="#model-install"', html)
+        self.assertIn("&lt;b&gt;Model&lt;/b&gt;", html)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", html)
+        self.assertNotIn("<script>alert(1)</script>", html)
+
+    def test_no_section_without_install_outcome(self) -> None:
+        for value in (None, []):
+            with self.subTest(value=value):
+                html = generate_html_report([self._result(model_install=value)])
+                self.assertNotIn('id="model-install"', html)
+
+    def test_error_status_gets_its_own_badge_and_card(self) -> None:
+        result = self._result()
+        result["test_cases"][0]["status"] = "error"
+        result["summary"] = {
+            "total": 1,
+            "success": 0,
+            "failed": 0,
+            "skipped": 0,
+            "error": 1,
+        }
+        html = generate_html_report([result])
+        self.assertIn('<span class="badge fail">Error</span>', html)
+        self.assertIn('<span class="klbl">Errors</span>', html)
+        self.assertNotIn(
+            '<span class="klbl">Errors</span>', generate_html_report([_BASE_RESULT])
+        )
+
+    def test_invalid_model_install_block_is_rejected(self) -> None:
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        for value in (
+            "x",
+            [{"name": "m"}],
+            [{"name": "m", "display_name": "M", "outcome": "failed", "reason": 1}],
+        ):
+            with self.subTest(value=value):
+                path = tmp / "r.json"
+                path.write_text(
+                    json.dumps(self._result(model_install=value)),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(ReportInputError, "model_install"):
+                    load_result(path)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,10 @@
 
 Console output of a normal run, in order: ViPPET readiness -> discovered
 hardware -> benchmark matrix -> per-test status -> pytest summary ->
-benchmark artefacts.
+model installation (outcome and install hint) -> benchmark artefacts.
+
+pytest never prompts and never installs models: the CLI does that before it
+starts pytest and passes the outcome in ``PERF_MODEL_INSTALL_OUTCOME``.
 """
 
 import contextlib
@@ -24,6 +27,17 @@ from typing import Any
 from dataclasses import dataclass, field
 from perf_helpers.hw_monitor import HardwareMonitor
 from perf_helpers.job_outcome import describe_missing_hw_samples
+from perf_helpers.model_install import (
+    ENV_MODEL_INSTALL,
+    MODEL_INSTALL_ERROR_MARK,
+    SKIP_REASON_HINT,
+    ModelInstallError,
+    ModelOutcome,
+    decode_outcomes,
+    describe_skipped_for_missing_models,
+    format_outcomes,
+    install_problem,
+)
 from perf_helpers.preflight import (
     describe_discovery_error,
     fetch_capabilities,
@@ -62,6 +76,16 @@ except SettingsError as exc:
     # ConftestImportFailure and prints a traceback with exit code 4.
     # SystemExit is a BaseException and is not wrapped.
     print(f"error: invalid performance config: {exc}", file=sys.stderr)
+    raise SystemExit(2) from None
+
+# Outcome of the CLI's model installation step; None for a direct pytest run
+# (or when the CLI skipped the step). Same exit as an invalid config.
+try:
+    _MODEL_INSTALL: list[ModelOutcome] | None = decode_outcomes(
+        os.environ.get(ENV_MODEL_INSTALL)
+    )
+except ModelInstallError as exc:
+    print(f"error: {exc}", file=sys.stderr)
     raise SystemExit(2) from None
 
 # Propagate perf config to env vars consumed by functional helpers. This must
@@ -130,6 +154,12 @@ _LATEST_LINK_ERROR: str | None = None
 # pytest_generate_tests into a collection error with a traceback.
 _FILTER_PROBLEM: tuple[str, bool] | None = None
 
+# Pipelines whose runs are skipped because their models are not installed
+# (and no install was attempted for them), and how many such runs were
+# reported as skipped. Used for the install hint in the terminal summary.
+_MISSING_MODEL_SKIP_PIPELINES: set[str] = set()
+_MISSING_MODEL_SKIPS: int = 0
+
 
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
 _QUICK_VARIANTS: set[str] = {"CPU", "GPU"}
@@ -159,6 +189,11 @@ def pytest_configure(config: pytest.Config) -> None:
     ``--log-file`` or ``log_file`` given by the user is left untouched.
     """
     global _RUN_ACTIVE, _RUN_DIR_WARNING
+    config.addinivalue_line(
+        "markers",
+        f"{MODEL_INSTALL_ERROR_MARK}(reason): the run's model failed to "
+        "install; reported as ERROR with the reason",
+    )
     if config.getoption("collectonly", False) or config.getoption("help", False):
         return
     _RUN_ACTIVE = True
@@ -470,9 +505,55 @@ def _discover_case_params() -> _DiscoveredCases:
     cases = [PipelineCase(**dataclasses.asdict(case)) for case in matrix.included]
     missing = {pid: set(models) for pid, models in matrix.missing_models.items()}
     params, ids = wrap_cases_for_pytest(
-        cases, missing, skip_missing_models=SKIP_MISSING_MODELS
+        cases,
+        missing,
+        skip_missing_models=SKIP_MISSING_MODELS,
+        install_hint=SKIP_REASON_HINT,
     )
+    _apply_model_install_outcome(cases, params, missing)
     return _DiscoveredCases(params, ids, matrix.known_pipeline_ids, matrix=matrix)
+
+
+def _apply_model_install_outcome(
+    cases: list[PipelineCase],
+    params: list[PipelineCase | object],
+    missing: dict[str, set[str]],
+) -> None:
+    """Mark runs whose missing model failed to install (ERROR) or is still
+    installing after an interrupted wait (SKIPPED), in place.
+
+    A failed install is an ERROR even with ``skip_missing_models: false``:
+    the install failure is the more useful explanation. Declined models (and
+    runs of a direct pytest run) keep the plain missing-models skip.
+    """
+    for index, case in enumerate(cases):
+        missing_names = missing.get(case.pipeline_id)
+        if not missing_names:
+            continue
+        problem = install_problem(missing_names, _MODEL_INSTALL or [])
+        if problem is None:
+            if SKIP_MISSING_MODELS:
+                _MISSING_MODEL_SKIP_PIPELINES.add(case.pipeline_id)
+            continue
+        kind, reason = problem
+        if kind == "error":
+            mark = getattr(pytest.mark, MODEL_INSTALL_ERROR_MARK)(reason=reason)
+        elif SKIP_MISSING_MODELS:
+            mark = pytest.mark.skip(reason=reason)
+        else:
+            continue
+        params[index] = pytest.param(case, marks=mark)
+
+
+@pytest.fixture(autouse=True)
+def _error_if_model_install_failed(request: pytest.FixtureRequest) -> None:
+    """Turn a run whose model failed to install into an ERROR (setup failure)."""
+    marker = request.node.get_closest_marker(MODEL_INSTALL_ERROR_MARK)
+    if marker is not None:
+        pytest.fail(
+            str(marker.kwargs.get("reason") or "a required model failed to install"),
+            pytrace=False,
+        )
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
@@ -568,15 +649,38 @@ def pytest_report_collectionfinish(
     return []
 
 
+def _write_model_install_summary(terminalreporter: Any) -> None:
+    """The CLI's install outcome, and how to install models that are missing."""
+    lines: list[tuple[str, dict[str, bool]]] = []
+    if _MODEL_INSTALL:
+        lines.extend(
+            (line, {}) for line in format_outcomes(_MODEL_INSTALL).splitlines()
+        )
+    if _MISSING_MODEL_SKIPS:
+        lines.append(
+            (
+                describe_skipped_for_missing_models(_MISSING_MODEL_SKIPS),
+                {"yellow": True},
+            )
+        )
+    if not lines:
+        return
+    terminalreporter.section("Model installation", sep="-")
+    for line, markup in lines:
+        terminalreporter.write_line(line, **markup)
+
+
 def pytest_terminal_summary(
     terminalreporter: Any, exitstatus: int, config: pytest.Config
 ) -> None:
     """List this run's directory, reports, log and ``latest`` link.
 
     Also explains why no reports were written, and shows report/link errors.
+    The model installation outcome comes first.
     """
     if not _RUN_ACTIVE or _DISCOVERED_CASES is None:
         return
+    _write_model_install_summary(terminalreporter)
     rows: list[tuple[str, Path]] = []
     if _RUN_DIR.is_dir():
         rows.append(("Directory", _RUN_DIR))
@@ -681,9 +785,16 @@ def results_collector(
                 "success": sum(1 for r in results if r["status"] == "success"),
                 "failed": sum(1 for r in results if r["status"] == "failed"),
                 "skipped": n_skipped,
+                "error": sum(1 for r in results if r["status"] == "error"),
             },
             "hardware": hw_families,
             "system_info": system_info,
+            # None when no model installation was attempted by the CLI.
+            "model_install": (
+                None
+                if _MODEL_INSTALL is None
+                else [outcome.to_dict() for outcome in _MODEL_INSTALL]
+            ),
             "config": build_config_block(
                 SETTINGS,
                 matrix=_DISCOVERED_CASES.matrix if _DISCOVERED_CASES else None,
@@ -725,13 +836,17 @@ _RESULTS_COLLECTOR_REF: list[list[dict[str, Any]]] = []
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:  # type: ignore[type-arg]
-    """Capture skipped perf tests into the results collector."""
+    """Capture skipped perf tests and setup errors into the results collector.
+
+    A setup error is e.g. a run whose model failed to install; it is recorded
+    with status ``error`` so the reports show it next to the other runs.
+    """
+    global _MISSING_MODEL_SKIPS
     if call.when != "setup":
         return
     if call.excinfo is None:
         return
-    if not call.excinfo.errisinstance(pytest.skip.Exception):
-        return
+    is_skip = call.excinfo.errisinstance(pytest.skip.Exception)
     if not any(m.name == "perf" for m in item.iter_markers()):
         return
 
@@ -751,7 +866,13 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
         if vals:
             actual_case = vals[0]
 
-    skip_reason = str(call.excinfo.value)
+    reason = str(call.excinfo.value)
+    if (
+        is_skip
+        and actual_case is not None
+        and actual_case.pipeline_id in _MISSING_MODEL_SKIP_PIPELINES
+    ):
+        _MISSING_MODEL_SKIPS += 1
 
     entry = {
         "pipeline_name": actual_case.pipeline_name if actual_case else "unknown",
@@ -759,14 +880,14 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
         "variant_name": actual_case.device_family if actual_case else "",
         "variant_id": actual_case.variant_id if actual_case else "",
         "streams": stream_count,
-        "status": "skipped",
+        "status": "skipped" if is_skip else "error",
         "total_fps": None,
         "per_stream_fps": None,
         "result": None,
         "hw_metrics": {"sample_count": 0},
         "duration_seconds": 0,
         "job_id": "",
-        "error": skip_reason,
+        "error": reason,
     }
 
     if _RESULTS_COLLECTOR_REF:
