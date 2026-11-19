@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: tests-image tests-run image dirs decoder encoder run rm dlstreamer-up dlstreamer-down certs certs-trust certs-clean fuzz-services pull-model
+.PHONY: tests-image tests-run image dirs decoder encoder run rm dlstreamer-up dlstreamer-down certs certs-trust certs-clean fuzz-services pull-model check-openapi-specs
 
 .DEFAULT_GOAL := image
 
@@ -94,6 +94,9 @@ fuzz-services: image dirs ## Fuzz the encoder/decoder REST services using RESTle
 			--no_ssl \
 			--no_results_analyzer || exit 1; \
 	done
+
+check-openapi-specs: dirs ## Deploy encoder/decoder and fail if their live OpenAPI spec drifted from docs/
+	./scripts/check_openapi_specs.sh
 
 help: ## Show this help
 	@awk ' \

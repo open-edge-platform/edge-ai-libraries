@@ -1,0 +1,403 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Semantic Decoder Service",
+        "version": "0.1.0"
+    },
+    "paths": {
+        "/healthz": {
+            "get": {
+                "summary": "Healthz",
+                "operationId": "healthz_healthz_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/streams/{stream_id}": {
+            "put": {
+                "summary": "Put Stream",
+                "operationId": "put_stream_v1_streams__stream_id__put",
+                "parameters": [
+                    {
+                        "name": "stream_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+                            "title": "Stream Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StreamCreatedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "summary": "Get Stream Stats",
+                "operationId": "get_stream_stats_v1_streams__stream_id__get",
+                "parameters": [
+                    {
+                        "name": "stream_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+                            "title": "Stream Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StreamStatsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete Stream",
+                "operationId": "delete_stream_v1_streams__stream_id__delete",
+                "parameters": [
+                    {
+                        "name": "stream_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+                            "title": "Stream Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/streams/{stream_id}/payloads": {
+            "post": {
+                "summary": "Post Payload",
+                "operationId": "post_payload_v1_streams__stream_id__payloads_post",
+                "parameters": [
+                    {
+                        "name": "stream_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+                            "title": "Stream Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FrameAcceptedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/streams/{stream_id}/frames/next": {
+            "get": {
+                "summary": "Get Next Frame",
+                "operationId": "get_next_frame_v1_streams__stream_id__frames_next_get",
+                "parameters": [
+                    {
+                        "name": "stream_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+                            "title": "Stream Id"
+                        }
+                    },
+                    {
+                        "name": "consumer_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128,
+                            "title": "Consumer Id"
+                        }
+                    },
+                    {
+                        "name": "wait_ms",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 30000,
+                            "minimum": 0,
+                            "default": 0,
+                            "title": "Wait Ms"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Decoded JPEG frame.",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            },
+                            "image/jpeg": {}
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/streams/{stream_id}/frames/{frame_seq}": {
+            "get": {
+                "summary": "Get Frame By Seq",
+                "operationId": "get_frame_by_seq_v1_streams__stream_id__frames__frame_seq__get",
+                "parameters": [
+                    {
+                        "name": "frame_seq",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Frame Seq"
+                        }
+                    },
+                    {
+                        "name": "stream_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_\\-]{1,128}$",
+                            "title": "Stream Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Decoded JPEG frame.",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            },
+                            "image/jpeg": {}
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "FrameAcceptedResponse": {
+                "properties": {
+                    "frame_seq": {
+                        "type": "integer",
+                        "title": "Frame Seq"
+                    },
+                    "img_idx": {
+                        "type": "integer",
+                        "title": "Img Idx"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "frame_seq",
+                    "img_idx"
+                ],
+                "title": "FrameAcceptedResponse"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "StreamCreatedResponse": {
+                "properties": {
+                    "stream_id": {
+                        "type": "string",
+                        "title": "Stream Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stream_id"
+                ],
+                "title": "StreamCreatedResponse"
+            },
+            "StreamStatsResponse": {
+                "properties": {
+                    "stream_id": {
+                        "type": "string",
+                        "title": "Stream Id"
+                    },
+                    "frames_received": {
+                        "type": "integer",
+                        "title": "Frames Received"
+                    },
+                    "buffer_depth": {
+                        "type": "integer",
+                        "title": "Buffer Depth"
+                    },
+                    "consumer_cursors": {
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "type": "object",
+                        "title": "Consumer Cursors"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stream_id",
+                    "frames_received",
+                    "buffer_depth",
+                    "consumer_cursors"
+                ],
+                "title": "StreamStatsResponse"
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "ctx": {
+                        "type": "object",
+                        "title": "Context"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}
