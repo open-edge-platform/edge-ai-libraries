@@ -61,7 +61,7 @@ To use your own configuration file:
 make run CONFIG_FILE=/path/to/config.json
 ```
 
-See [Container run options](./configuration.md#container-run-options) for default settings.
+See [Host run options](./configuration.md#host-run-options) for default settings.
 
 ## Build and Run a Container Image
 
@@ -85,7 +85,7 @@ make docker-build IMAGE=<your_image_name>:<tag>
 
 > [!IMPORTANT]
 > The third-party source archives are provided in a separate source image.
-> See [Third-Party Sources](./third-party-sources.md) for instructions to copy
+> See [Third-Party Sources](../third-party-sources.md) for instructions to copy
 > FFmpeg, its dependencies, and base image source files.
 
 Run the image you built, or a published image you already have:

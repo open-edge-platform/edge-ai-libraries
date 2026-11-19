@@ -72,13 +72,14 @@ and [Configuration](./get-started/configuration.md#configjson-fields) for the co
 
 See [API Reference](./api-reference.md) for all available endpoints.
 
+If you prefer to build from source, see [Build From Source](./get-started/build-from-source.md).
+
 <!--hide_directive
 :::{toctree}
 :hidden:
 
 ./get-started/configuration.md
 ./get-started/build-from-source.md
-./get-started/third-party-sources.md
 
 :::
 hide_directive-->

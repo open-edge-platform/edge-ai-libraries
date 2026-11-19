@@ -51,5 +51,5 @@ docker stop stream-manager
 
 Stream Manager includes FFmpeg and other third-party libraries.
 A separate source image is provided which contains source archives, license notices,
-and build records. See [Third-Party Sources](./docs/user-guide/get-started/third-party-sources.md)
+and build records. See [Third-Party Sources](./docs/user-guide/third-party-sources.md)
 to learn how to access this source image and the bundled source code files.
