@@ -279,6 +279,16 @@ const injectedRtkApi = api
         query: (queryArg) => ({ url: `/jobs/optimization/${queryArg.jobId}` }),
         providesTags: ["jobs"],
       }),
+      stopOptimizationJob: build.mutation<
+        StopOptimizationJobApiResponse,
+        StopOptimizationJobApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/jobs/optimization/${queryArg.jobId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["jobs"],
+      }),
       getOptimizationJobStatus: build.query<
         GetOptimizationJobStatusApiResponse,
         GetOptimizationJobStatusApiArg
@@ -822,6 +832,11 @@ export type GetOptimizationStatusesApiArg = void;
 export type GetOptimizationJobSummaryApiResponse =
   /** status 200 Successful Response */ OptimizationJobSummary;
 export type GetOptimizationJobSummaryApiArg = {
+  jobId: string;
+};
+export type StopOptimizationJobApiResponse =
+  /** status 200 Cancellation requested */ MessageResponse;
+export type StopOptimizationJobApiArg = {
   jobId: string;
 };
 export type GetOptimizationJobStatusApiResponse =
@@ -2044,6 +2059,7 @@ export const {
   useLazyGetOptimizationStatusesQuery,
   useGetOptimizationJobSummaryQuery,
   useLazyGetOptimizationJobSummaryQuery,
+  useStopOptimizationJobMutation,
   useGetOptimizationJobStatusQuery,
   useLazyGetOptimizationJobStatusQuery,
   useGetValidationStatusesQuery,

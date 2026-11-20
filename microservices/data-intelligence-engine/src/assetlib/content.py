@@ -60,6 +60,10 @@ class ContentStore:
         adapter, collection = self._bind(source)
         return adapter.get(collection, key)
 
+    def get_blob_bounded(self, source: Source, key: str, max_bytes: int) -> bytes:
+        adapter, collection = self._bind(source)
+        return adapter.get_bounded(collection, key, max_bytes)
+
     def exists(self, source: Source, key: str) -> bool:
         adapter, collection = self._bind(source)
         return adapter.exists(collection, key)

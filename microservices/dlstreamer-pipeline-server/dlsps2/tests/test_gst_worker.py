@@ -229,6 +229,41 @@ class TestPollFps:
         mock_emit.assert_not_called()
 
 
+    def test_emits_frame_count_on_a_poll_without_frames(self):
+        """After the first frame every poll reports the running frame count and
+        when it was read, also when the window has no frames and warmup is not done."""
+        now = time.monotonic()
+        inst = _Instance(
+            instance_id="bursty",
+            pipeline=MagicMock(),
+            warmup_frames=1000,
+            frame_count=0,
+            total_frame_count=40,
+            first_frame_sent=True,
+            last_poll_time=now - 1.0,
+        )
+        worker = GstWorker()
+
+        before = time.time()
+        with patch("core.gst_worker._emit") as mock_emit:
+            worker._poll_fps(inst)
+
+        mock_emit.assert_called_once()
+        payload = mock_emit.call_args[0][0]
+        assert "last_fps" not in payload and "avg_fps" not in payload
+        assert payload["frame_count"] == 40
+        assert before <= payload["frame_count_time"] <= time.time()
+
+    def test_no_frame_count_before_the_first_frame(self):
+        inst = _Instance(instance_id="idle", pipeline=MagicMock())
+        worker = GstWorker()
+
+        with patch("core.gst_worker._emit") as mock_emit:
+            worker._poll_fps(inst)
+
+        mock_emit.assert_not_called()
+
+
 class TestTeardownFlushesFinalFps:
     """Test GstWorker._teardown: flushes one final "fps" event (via
     _poll_fps) before emitting "stopped", so pipelines stopped/aborted

@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Stateless retrieval and optional postprocessing endpoint."""
 
+import asyncio
 import logging
+import time
 from collections import OrderedDict
 from itertools import zip_longest
 from typing import Optional
@@ -21,7 +23,7 @@ from core.manager import registry
 from core.postprocessor import is_media_reranker
 from core.retrievers import RETRIEVER_TYPES, build_pool_retriever, graph_search_of, pool_asset_scope
 from schemas import GraphTrace, RetrieveRequest, RetrieveResult
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from llama_index.core.vector_stores.types import (
@@ -33,8 +35,9 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/v1/retrieve", response_model=RetrieveResult)
-async def retrieve(body: RetrieveRequest):
+async def retrieve(body: RetrieveRequest, request: Request = None):
     """Retrieve across libraries, then optionally postprocess the merged set."""
+    started = time.monotonic()
     if not body.query.strip() or not 1 <= body.top_k <= 100:
         raise HTTPException(status_code=400, detail="nonempty query and top_k between 1 and 100 are required")
     if body.postprocess is not None and (body.postprocess.top_n is None or body.postprocess.top_n < 1):
@@ -129,7 +132,25 @@ async def retrieve(body: RetrieveRequest):
         metadata = chunk.metadata
         key = (metadata.get("library"), metadata.get("pool_id"))
         retrieved_ids_by_scope.setdefault(key, set()).add(chunk.id)
+    media_diagnostics = None
+    if body.include_media_data:
+        from core.media_inputs import enrich_media
+
+        retrieval_ms = round((time.monotonic() - started) * 1000, 2)
+        preparation = asyncio.create_task(enrich_media(chunks, {lib.name: lib for lib in asset_libraries}))
+        try:
+            while not preparation.done():
+                if request is not None and await request.is_disconnected():
+                    raise asyncio.CancelledError()
+                await asyncio.wait({preparation}, timeout=.1)
+            media_diagnostics = await preparation
+            media_diagnostics["retrieval_ms"] = retrieval_ms
+        finally:
+            if not preparation.done():
+                preparation.cancel()
+                await asyncio.gather(preparation, return_exceptions=True)
     return RetrieveResult(
+        media_diagnostics=media_diagnostics,
         query=body.query,
         libraries=[asset_library.name for asset_library in asset_libraries],
         retrieved_chunks=retrieved_chunks,
