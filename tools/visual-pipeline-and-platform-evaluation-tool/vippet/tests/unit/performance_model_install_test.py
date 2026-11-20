@@ -550,6 +550,14 @@ class TestInstaller(_InstallerMixin):
         outcome = self.install(api, mi.InstallPlan((_planned("a"),)))[0]
         self.assertEqual(outcome.outcome, mi.Outcome.FAILED)
         self.assertIn("POST /models/download failed: ConnectError", outcome.reason)
+        self.assertNotIn("may have started", outcome.reason)
+
+    def test_post_timeout_says_the_download_may_have_started(self) -> None:
+        api = _FakeApi(post_error=httpx.ReadTimeout("slow"))
+        outcome = self.install(api, mi.InstallPlan((_planned("a"),)))[0]
+        self.assertEqual(outcome.outcome, mi.Outcome.FAILED)
+        self.assertIn("POST /models/download failed: ReadTimeout", outcome.reason)
+        self.assertIn("ViPPET may have started the download anyway", outcome.reason)
 
     def test_unsafe_job_id_is_not_used_in_a_url(self) -> None:
         body = {"jobs": {"a": {"name": "a", "job_id": "../../x", "status_code": 202}}}
@@ -576,6 +584,94 @@ class TestInstaller(_InstallerMixin):
         self.assertIn("continues on the server", outcomes["a"].reason)
         self.assertEqual(outcomes["b"].outcome, mi.Outcome.INSTALLED)
         self.assertEqual(self.clock.sleeps, [2.0, 2.0, 2.0, 1.0])
+
+    def test_stalled_polls_do_not_outlast_the_install_timeout(self) -> None:
+        # Every poll hangs for its whole read timeout, then times out.
+        requests: list[tuple[str, float, float]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            read_timeout = request.extensions["timeout"]["read"]
+            requests.append((request.url.path, self.clock.now, read_timeout))
+            if request.method == "POST":
+                return httpx.Response(202, json=_accepted("a", "b"))
+            self.clock.now += read_timeout
+            raise httpx.ReadTimeout("stalled")
+
+        start = self.clock.now
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            outcomes = mi.ModelInstaller(
+                client=client,
+                base_url=_BASE,
+                poll_interval=2,
+                timeout_seconds=10,
+                request_timeout=600,
+                report=self.lines.append,
+                monotonic=self.clock.monotonic,
+                sleep=self.clock.sleep,
+            ).install(mi.InstallPlan((_planned("a"), _planned("b"))))
+        self.assertEqual([o.outcome for o in outcomes], [mi.Outcome.TIMED_OUT] * 2)
+        self.assertLessEqual(self.clock.now - start, 10)
+        for path, sent_at, read_timeout in requests:
+            with self.subTest(path=path, sent_at=sent_at):
+                self.assertGreater(read_timeout, 0)
+                self.assertLessEqual(read_timeout, start + 10 - sent_at)
+
+    def test_lookups_after_409_are_bounded_by_the_install_timeout(self) -> None:
+        api = _FakeApi(
+            download_status=207,
+            download_body={
+                "jobs": {"a": {"status_code": 409, "message": "already there"}}
+            },
+            models=[{"name": "a", "install_status": "installed"}],
+        )
+        timeouts: list[float] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            timeouts.append(request.extensions["timeout"]["read"])
+            return api(request)
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            outcome = mi.ModelInstaller(
+                client=client,
+                base_url=_BASE,
+                poll_interval=2,
+                timeout_seconds=3,
+                request_timeout=600,
+                report=self.lines.append,
+                monotonic=self.clock.monotonic,
+                sleep=self.clock.sleep,
+            ).install(mi.InstallPlan((_planned("a"),)))[0]
+        self.assertEqual(outcome.outcome, mi.Outcome.INSTALLED)
+        self.assertEqual(
+            api.paths(), ["/models/download", "/jobs/models/status", "/models"]
+        )
+        self.assertEqual(timeouts, [3, 3, 3])
+
+    def test_no_lookup_after_409_when_submission_used_the_budget(self) -> None:
+        paths: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            paths.append(request.url.path)
+            self.clock.now += request.extensions["timeout"]["read"]  # slow
+            return httpx.Response(
+                207, json={"jobs": {"a": {"status_code": 409, "message": "busy"}}}
+            )
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            outcome = mi.ModelInstaller(
+                client=client,
+                base_url=_BASE,
+                poll_interval=2,
+                timeout_seconds=3,
+                request_timeout=600,
+                report=self.lines.append,
+                monotonic=self.clock.monotonic,
+                sleep=self.clock.sleep,
+            ).install(mi.InstallPlan((_planned("a"),)))[0]
+        self.assertEqual(outcome.outcome, mi.Outcome.TIMED_OUT)
+        self.assertEqual(paths, ["/api/v1/models/download"])
+        self.assertIn("ran out before ViPPET could be asked", outcome.reason)
+        self.assertNotIn("still installing", outcome.reason)
 
     def test_progress_lines_only_on_change_plus_summary_every_60s(self) -> None:
         states = [_job("RUNNING", progress_message="downloading")] * 70

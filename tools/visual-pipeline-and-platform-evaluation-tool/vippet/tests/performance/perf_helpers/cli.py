@@ -81,6 +81,32 @@ EXIT_USAGE = 2
 EXIT_INTERRUPTED = 130
 LATEST_LINK_NAME = "latest"
 
+# pytest options (after ``--``) with which pytest runs no test: it only
+# collects, lists or explains. Installing models first would only cost time.
+_PYTEST_NO_TEST_OPTIONS: frozenset[str] = frozenset(
+    {
+        "--collect-only",
+        "--co",
+        "-h",
+        "--help",
+        "--version",
+        "-V",
+        "--fixtures",
+        "--funcargs",
+        "--fixtures-per-test",
+        "--markers",
+        "--cache-show",
+        "--setup-plan",
+        "--setup-only",
+    }
+)
+
+
+def _pytest_runs_no_test(pytest_args: Sequence[str]) -> bool:
+    # pytest accepts no abbreviated options, so exact names suffice; only
+    # --cache-show takes an optional value (--cache-show=GLOB).
+    return any(arg.split("=", 1)[0] in _PYTEST_NO_TEST_OPTIONS for arg in pytest_args)
+
 
 def _stdin_is_tty() -> bool:
     try:
@@ -661,7 +687,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     base_env = dict(os.environ)
     extra_env: dict[str, str] = {}
     action = install_action(settings["benchmark.models.install"], _stdin_is_tty())
-    if action != "skip":
+    if action != "skip" and not _pytest_runs_no_test(pytest_args):
         try:
             rc, outcomes = run_model_install(settings, ask=action == "prompt")
         except KeyboardInterrupt:

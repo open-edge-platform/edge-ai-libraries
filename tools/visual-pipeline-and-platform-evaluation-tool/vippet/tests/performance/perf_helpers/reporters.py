@@ -897,10 +897,12 @@ def _build_config_section(runs: list[dict[str, Any]]) -> str:
 
 def _build_model_install_section(runs: list[dict[str, Any]]) -> str:
     """Models the CLI tried to install before each run; empty if none did."""
+    # Decided on all compared runs: with one installing run of several, the
+    # Run column still tells which run the outcomes belong to.
+    multi_run = len(runs) > 1
     runs = [run for run in runs if run.get("model_install")]
     if not runs:
         return ""
-    multi_run = len(runs) > 1
     headers = (("Run",) if multi_run else ()) + ("Model", "Outcome", "Reason")
     rows = [
         ((run["benchmark_id"],) if multi_run else ())

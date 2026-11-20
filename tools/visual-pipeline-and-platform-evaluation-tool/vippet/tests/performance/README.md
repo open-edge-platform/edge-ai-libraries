@@ -117,7 +117,8 @@ By installing you accept the license terms of each model's upstream source.
 The models are installed through ViPPET (`POST /models/download`) and their jobs are
 polled until all have finished. A line is printed when a model's state changes, and a
 summary every 60 s. `--model-install-timeout` (`benchmark.models.install_timeout_seconds`,
-`PERF_MODEL_INSTALL_TIMEOUT`, default 3600 s) bounds the wait for all models together.
+`PERF_MODEL_INSTALL_TIMEOUT`, default 3600 s) bounds the wait for all models together;
+each request to ViPPET is cut short so that it does not run past it.
 
 | Model outcome                         | Runs that need the model                                                  |
 |---------------------------------------|---------------------------------------------------------------------------|
@@ -136,7 +137,10 @@ Before the plan, the CLI quietly checks that ViPPET is ready (it prints only `WA
 `FAILED` lines; pytest's own check follows in full) and reads its inventory; if that fails
 it exits with `2` before pytest starts. If a filter id is unknown and `on_unknown_id` is
 `fail`, nothing is installed and pytest reports the bad id (exit `4`). When every model
-the selected runs need is installed, the step prints a single line and no plan.
+the selected runs need is installed, the step prints a single line and no plan. The step
+is skipped when the pytest arguments after `--` run no test: `--collect-only`/`--co`,
+`-h`/`--help`, `-V`/`--version`, `--fixtures`/`--funcargs`, `--fixtures-per-test`,
+`--markers`, `--cache-show`, `--setup-plan` or `--setup-only`.
 
 The outcome is shown in the console section **Model installation**, and recorded in the
 result JSON (`model_install`) and the HTML report. Direct pytest never prompts and never
