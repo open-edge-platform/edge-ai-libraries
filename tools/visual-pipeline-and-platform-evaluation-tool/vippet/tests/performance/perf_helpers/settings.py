@@ -27,7 +27,7 @@ import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args
 from urllib.parse import urlparse
 
 import yaml
@@ -51,7 +51,8 @@ _PRESET_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 OUTPUT_MODES: tuple[str, ...] = ("disabled", "file", "live_stream")
 RESULT_FORMAT_CHOICES: tuple[str, ...] = ("json", "csv")
-MODEL_INSTALL_MODES: tuple[str, ...] = ("ask", "yes", "no")
+InstallMode = Literal["ask", "yes", "no"]
+MODEL_INSTALL_MODES: tuple[InstallMode, ...] = get_args(InstallMode)
 
 # Settings that a result artefact records but never replays: a replayed run
 # must not install models just because the recorded run was allowed to.

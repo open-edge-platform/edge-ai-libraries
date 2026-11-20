@@ -30,11 +30,12 @@ import unicodedata
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
 from .matrix import Matrix, format_table
+from .settings import InstallMode
 
 # Set by the CLI for its pytest subprocess: JSON list of model outcomes.
 ENV_MODEL_INSTALL: str = "PERF_MODEL_INSTALL_OUTCOME"
@@ -60,6 +61,10 @@ INSTALL_HINT: str = (
     "ViPPET UI Models page"
 )
 SKIP_REASON_HINT: str = f"{INSTALL_HINT}, to enable this case."
+SECTION_HEADER: str = f"{'-' * 30} Model installation {'-' * 30}"
+NOTHING_TO_INSTALL: str = (
+    "Model installation: every model the selected runs need is installed."
+)
 
 
 class ModelInstallError(ValueError):
@@ -92,8 +97,14 @@ _ESCAPE_SEQUENCE_RE = re.compile(
 def clean_text(value: Any, max_length: int = 300) -> str:
     """Return *value* as one line of printable text.
 
-    Removes terminal escape sequences and control/format characters, folds
-    whitespace and truncates to *max_length* characters.
+    Args:
+        value: Untrusted value, usually text from the server; ``None`` gives
+            an empty string.
+        max_length: Longest result; longer text is cut and ends in ``...``.
+
+    Returns:
+        The text without terminal escape sequences and control/format
+        characters, with whitespace folded to single spaces.
     """
     if value is None:
         return ""
@@ -116,6 +127,14 @@ def _clean_link(value: Any) -> str:
 
 
 def format_duration(seconds: float) -> str:
+    """Format *seconds* compactly, e.g. ``5s``, ``1m05s`` or ``1h02m05s``.
+
+    Args:
+        seconds: Duration; fractions are dropped and negatives count as 0.
+
+    Returns:
+        The formatted duration.
+    """
     seconds = max(0, int(seconds))
     if seconds < 60:
         return f"{seconds}s"
@@ -168,8 +187,6 @@ class InstallPlan:
 
 
 def _gated_value(value: Any) -> str:
-    if value is True:
-        return "auto"
     text = str(value or "").strip().lower()
     return text if text in _GATED_VALUES else ""
 
@@ -181,6 +198,13 @@ def build_plan(models: Iterable[Mapping[str, Any]], matrix: Matrix) -> InstallPl
     ``matrix.included`` uses it (``used_by_pipelines``), so ``--pipelines``,
     ``--variants`` and the host's device families limit the plan. Models
     that are already ``installing`` are planned as "wait only".
+
+    Args:
+        models: The ``GET /models`` payload (untrusted; text is cleaned).
+        matrix: The benchmark matrix; only its included runs count.
+
+    Returns:
+        The plan, sorted by display name.
     """
     runs_per_pipeline: dict[str, int] = {}
     streams = len(matrix.stream_counts) or 1
@@ -224,7 +248,14 @@ def build_plan(models: Iterable[Mapping[str, Any]], matrix: Matrix) -> InstallPl
 
 
 def format_plan(plan: InstallPlan) -> str:
-    """Render the plan: table, notes for gated models and the license footer."""
+    """Render the plan: table, notes for gated models and the license footer.
+
+    Args:
+        plan: The install plan.
+
+    Returns:
+        The rendered plan, or one sentence when the plan is empty.
+    """
     if not plan.models:
         return "Every model the selected runs need is installed."
     rows = [
@@ -275,6 +306,14 @@ def format_plan(plan: InstallPlan) -> str:
 
 
 def prompt_text(plan: InstallPlan) -> str:
+    """Return the yes/no question for a non-empty *plan*.
+
+    Args:
+        plan: The install plan.
+
+    Returns:
+        The question, ending in ``[y/N] ``.
+    """
     download = len(plan.to_download)
     waiting = len(plan.already_installing)
     if download and waiting:
@@ -287,22 +326,52 @@ def prompt_text(plan: InstallPlan) -> str:
     return f"Wait for {waiting} model(s) that are already installing? [y/N] "
 
 
-def describe_mode_effect(mode: str, stdin_is_tty: bool) -> str:
-    """What a benchmark run would do with the plan (for ``--dry-run``)."""
+InstallAction = Literal["prompt", "install", "skip"]
+
+
+def install_action(mode: InstallMode, stdin_is_tty: bool) -> InstallAction:
+    """Decide what a benchmark run does with the models it is missing.
+
+    Args:
+        mode: The ``benchmark.models.install`` setting.
+        stdin_is_tty: Whether stdin is a terminal the user can answer from.
+
+    Returns:
+        ``prompt`` (``ask`` on a terminal), ``install`` (``yes``) or ``skip``
+        (``no``, or ``ask`` without a terminal, which must never block).
+    """
     if mode == "yes":
+        return "install"
+    if mode == "ask" and stdin_is_tty:
+        return "prompt"
+    return "skip"
+
+
+def describe_mode_effect(mode: InstallMode, stdin_is_tty: bool) -> str:
+    """Describe what a benchmark run would do with the plan (for ``--dry-run``).
+
+    Args:
+        mode: The ``benchmark.models.install`` setting.
+        stdin_is_tty: Whether stdin is a terminal.
+
+    Returns:
+        One sentence naming the setting and its effect on this terminal.
+    """
+    action = install_action(mode, stdin_is_tty)
+    if action == "install":
         return (
             "With --install-missing-models=yes a run installs these models "
             "without asking."
+        )
+    if action == "prompt":
+        return (
+            "With --install-missing-models=ask (default) a run asks before "
+            "installing these models."
         )
     if mode == "no":
         return (
             "With --install-missing-models=no a run does not install them; "
             "the runs that need them are skipped."
-        )
-    if stdin_is_tty:
-        return (
-            "With --install-missing-models=ask (default) a run asks before "
-            "installing these models."
         )
     return (
         "With --install-missing-models=ask (default) a run does not install "
@@ -333,6 +402,14 @@ class ModelOutcome:
 
 
 def declined(plan: InstallPlan) -> list[ModelOutcome]:
+    """Return a ``declined`` outcome for every model of *plan*.
+
+    Args:
+        plan: The plan the user declined.
+
+    Returns:
+        One outcome per model, in plan order.
+    """
     return [
         ModelOutcome(m.name, m.display_name, Outcome.DECLINED, "declined at the prompt")
         for m in plan.models
@@ -340,14 +417,31 @@ def declined(plan: InstallPlan) -> list[ModelOutcome]:
 
 
 def encode_outcomes(outcomes: Sequence[ModelOutcome]) -> str:
+    """Encode *outcomes* for :data:`ENV_MODEL_INSTALL`.
+
+    Args:
+        outcomes: The install outcomes.
+
+    Returns:
+        A JSON list that :func:`decode_outcomes` reads back.
+    """
     return json.dumps([o.to_dict() for o in outcomes])
 
 
 def decode_outcomes(raw: str | None) -> list[ModelOutcome] | None:
-    """Parse :data:`ENV_MODEL_INSTALL`; ``None`` when it is unset or empty.
+    """Parse the value of :data:`ENV_MODEL_INSTALL`.
 
     The value is checked strictly (size, shape, outcome names) and its text
     is cleaned again, because the environment is not trusted either.
+
+    Args:
+        raw: The env value, or ``None`` when it is unset.
+
+    Returns:
+        The outcomes, or ``None`` when the value is unset or empty.
+
+    Raises:
+        ModelInstallError: The value is not a valid outcome list.
     """
     if not raw:
         return None
@@ -385,22 +479,39 @@ def decode_outcomes(raw: str | None) -> list[ModelOutcome] | None:
     return outcomes
 
 
+@dataclass(frozen=True)
+class InstallProblem:
+    """What happens to a run because of a model install outcome."""
+
+    kind: Literal["error", "skip"]
+    """``error``: report the run as ERROR; ``skip``: skip it."""
+    reason: str
+
+
 def install_problem(
     missing_display_names: Iterable[str], outcomes: Iterable[ModelOutcome]
-) -> tuple[str, str] | None:
+) -> InstallProblem | None:
     """Decide what happens to a run whose models are missing.
 
-    Returns ``("error", reason)`` when one of its models failed to install or
-    timed out, ``("skip", reason)`` when waiting for one was interrupted, and
-    ``None`` otherwise (declined, or no install attempted: today's skip).
+    Missing names come raw from ``GET /models``; the outcome names were
+    cleaned by the CLI. Both sides are cleaned the same way before matching.
+
+    Args:
+        missing_display_names: Display names of the run's missing models.
+        outcomes: Install outcomes handed over by the CLI.
+
+    Returns:
+        An ``error`` problem when one of the run's models failed to install or
+        timed out, a ``skip`` problem when waiting for one was interrupted,
+        and ``None`` otherwise (declined, or no install attempted: the
+        default missing-models skip applies).
     """
     by_display = {o.display_name: o for o in outcomes}
-    relevant = [
-        by_display[name] for name in sorted(missing_display_names) if name in by_display
-    ]
+    cleaned = sorted({clean_text(name) for name in missing_display_names})
+    relevant = [by_display[name] for name in cleaned if name in by_display]
     failed = [o for o in relevant if o.outcome in ERROR_OUTCOMES]
     if failed:
-        return (
+        return InstallProblem(
             "error",
             "; ".join(
                 f"model {o.display_name!r} failed to install: {o.reason}"
@@ -410,7 +521,7 @@ def install_problem(
     interrupted = [o for o in relevant if o.outcome == Outcome.INTERRUPTED]
     if interrupted:
         names = ", ".join(repr(o.display_name) for o in interrupted)
-        return (
+        return InstallProblem(
             "skip",
             f"model(s) {names} were still installing when waiting was "
             "interrupted (Ctrl-C); the download continues on the server. "
@@ -420,6 +531,14 @@ def install_problem(
 
 
 def format_outcomes(outcomes: Sequence[ModelOutcome]) -> str:
+    """Render the install outcomes: a count per outcome and a table.
+
+    Args:
+        outcomes: The install outcomes.
+
+    Returns:
+        The rendered outcomes.
+    """
     if not outcomes:
         return "No model installation was needed."
     counts = {o: sum(1 for x in outcomes if x.outcome == o) for o in Outcome}
@@ -431,7 +550,25 @@ def format_outcomes(outcomes: Sequence[ModelOutcome]) -> str:
     return f"Model installation: {summary}\n{table}"
 
 
-def describe_skipped_for_missing_models(count: int) -> str:
+def describe_skipped_for_missing_models(
+    count: int, outcomes: Sequence[ModelOutcome] | None = None
+) -> str:
+    """Explain runs that were skipped because their models are not installed.
+
+    Args:
+        count: Number of runs skipped for missing models.
+        outcomes: Install outcomes handed over by the CLI, or ``None`` when
+            no install step ran.
+
+    Returns:
+        A hint that tells the user how to install the models. When the user
+        declined at the prompt it says so instead of the generic hint.
+    """
+    if outcomes and any(o.outcome == Outcome.DECLINED for o in outcomes):
+        return (
+            f"{count} run(s) were skipped because you declined installing their "
+            "models. Rerun with --install-missing-models=yes, or answer y."
+        )
     return (
         f"{count} run(s) were skipped because the models they need are not "
         f"installed. {INSTALL_HINT}. Only the CLI installs models; a direct "
@@ -447,7 +584,20 @@ def describe_skipped_for_missing_models(count: int) -> str:
 def fetch_models(
     client: httpx.Client, base_url: str, request_timeout: float
 ) -> list[dict[str, Any]]:
-    """Return ``GET /models``. Raises ``httpx.HTTPError`` or ``ValueError``."""
+    """Read the model list.
+
+    Args:
+        client: HTTP client, owned by the caller.
+        base_url: ViPPET API base URL.
+        request_timeout: Timeout of the request, in seconds.
+
+    Returns:
+        The objects of ``GET /models``; other entries are dropped.
+
+    Raises:
+        httpx.HTTPError: The request failed or returned an error status.
+        ValueError: The response is not a JSON list.
+    """
     response = client.get(f"{base_url.rstrip('/')}/models", timeout=request_timeout)
     response.raise_for_status()
     payload = response.json()
@@ -477,6 +627,27 @@ class _Job:
 
 
 @dataclass
+class _InstallState:
+    """Progress of one :meth:`ModelInstaller.install` call."""
+
+    start: float
+    jobs: dict[str, _Job] = field(default_factory=dict)
+    """Models still being waited for, by model name."""
+    outcomes: dict[str, ModelOutcome] = field(default_factory=dict)
+    """Models with a final outcome, by model name."""
+
+    def resolve(self, model: PlannedModel, outcome: Outcome, reason: str = "") -> None:
+        """Record the final outcome of *model* and stop waiting for it."""
+        self.jobs.pop(model.name, None)
+        self.outcomes[model.name] = ModelOutcome(
+            model.name, model.display_name, outcome, reason
+        )
+
+    def count(self, outcome: Outcome) -> int:
+        return sum(1 for o in self.outcomes.values() if o.outcome == outcome)
+
+
+@dataclass
 class ModelInstaller:
     """Start the downloads of a plan and wait for them.
 
@@ -494,32 +665,37 @@ class ModelInstaller:
     monotonic: Callable[[], float] = time.monotonic
     sleep: Callable[[float], None] = time.sleep
     summary_interval: float = SUMMARY_INTERVAL_SECONDS
-    _start: float = field(default=0.0, init=False)
 
     @property
     def _api(self) -> str:
         return self.base_url.rstrip("/")
 
-    def _elapsed(self) -> str:
-        return format_duration(self.monotonic() - self._start)
+    def _elapsed(self, state: _InstallState) -> str:
+        return format_duration(self.monotonic() - state.start)
 
     def _say(self, text: str) -> None:
         self.report(f"{_LOG_PREFIX} {text}")
 
     def install(self, plan: InstallPlan) -> list[ModelOutcome]:
-        self._start = self.monotonic()
-        outcomes: dict[str, ModelOutcome] = {}
-        jobs: dict[str, _Job] = {}
+        """Install the models of *plan* and wait until each has an outcome.
+
+        Args:
+            plan: The models to download, and those already installing that
+                only need to be waited for.
+
+        Returns:
+            One outcome per model of the plan, in plan order.
+        """
+        state = _InstallState(start=self.monotonic())
         try:
-            self._submit(plan, jobs, outcomes)
-            self._attach_running_jobs(jobs, outcomes)
-            self._wait(jobs, outcomes)
+            self._submit(plan, state)
+            self._attach_running_jobs(state)
+            self._wait(state)
         except KeyboardInterrupt:
             for model in plan.models:
-                if model.name not in outcomes:
-                    outcomes[model.name] = ModelOutcome(
-                        model.name,
-                        model.display_name,
+                if model.name not in state.outcomes:
+                    state.resolve(
+                        model,
                         Outcome.INTERRUPTED,
                         "waiting was interrupted (Ctrl-C); the download may "
                         "still be running on the server",
@@ -529,26 +705,17 @@ class ModelInstaller:
                 "continue on the server. Continuing with the models installed "
                 "so far; press Ctrl-C again to abort the benchmark."
             )
-        return [outcomes[m.name] for m in plan.models]
+        return [state.outcomes[m.name] for m in plan.models]
 
     # -- steps ---------------------------------------------------------------
 
-    def _fail(
-        self, outcomes: dict[str, ModelOutcome], model: PlannedModel, reason: str
-    ) -> None:
-        outcomes[model.name] = ModelOutcome(
-            model.name, model.display_name, Outcome.FAILED, reason
-        )
+    def _fail(self, state: _InstallState, model: PlannedModel, reason: str) -> None:
+        state.resolve(model, Outcome.FAILED, reason)
         self._say(f"{model.display_name}: FAILED: {reason}")
 
-    def _submit(
-        self,
-        plan: InstallPlan,
-        jobs: dict[str, _Job],
-        outcomes: dict[str, ModelOutcome],
-    ) -> None:
+    def _submit(self, plan: InstallPlan, state: _InstallState) -> None:
         for model in plan.already_installing:
-            jobs[model.name] = _Job(model)
+            state.jobs[model.name] = _Job(model)
         to_download = plan.to_download
         if not to_download:
             return
@@ -565,7 +732,7 @@ class ModelInstaller:
                 f"POST /models/download failed: {type(exc).__name__}: {clean_text(exc)}"
             )
             for model in to_download:
-                self._fail(outcomes, model, reason)
+                self._fail(state, model, reason)
             return
 
         items = body.get("jobs") if isinstance(body, dict) else None
@@ -575,14 +742,14 @@ class ModelInstaller:
                 f"{response.status_code}): {_response_message(response)}"
             )
             for model in to_download:
-                self._fail(outcomes, model, reason)
+                self._fail(state, model, reason)
             return
 
         for model in to_download:
             item = items.get(model.name)
             if not isinstance(item, dict):
                 self._fail(
-                    outcomes,
+                    state,
                     model,
                     f"ViPPET returned no result for this model (HTTP "
                     f"{response.status_code})",
@@ -592,14 +759,14 @@ class ModelInstaller:
             job_id = item.get("job_id")
             message = clean_text(item.get("message")) or "no message"
             if code == 202 and isinstance(job_id, str) and _JOB_ID_RE.match(job_id):
-                jobs[model.name] = _Job(model, job_id)
+                state.jobs[model.name] = _Job(model, job_id)
                 self._say(f"{model.display_name}: download started")
             elif code == 409:
                 # Already installed or already downloading: resolved below.
-                jobs[model.name] = _Job(model)
+                state.jobs[model.name] = _Job(model)
             else:
                 self._fail(
-                    outcomes,
+                    state,
                     model,
                     f"ViPPET rejected the download (HTTP {code}): {message}",
                 )
@@ -609,29 +776,15 @@ class ModelInstaller:
         response.raise_for_status()
         return response.json()
 
-    def _attach_running_jobs(
-        self, jobs: dict[str, _Job], outcomes: dict[str, ModelOutcome]
-    ) -> None:
-        """Find the running job of every model that has no job id yet."""
-        pending = [job for job in jobs.values() if job.job_id is None]
-        if not pending:
-            return
-        try:
-            listed = self._get_json("/jobs/models/status")
-            if not isinstance(listed, list):
-                raise ValueError("expected a list")
-        except (httpx.HTTPError, ValueError) as exc:
-            for job in pending:
-                del jobs[job.model.name]
-                self._fail(
-                    outcomes,
-                    job.model,
-                    "cannot look up its running download (GET /jobs/models/status: "
-                    f"{type(exc).__name__}: {clean_text(exc)})",
-                )
-            return
+    def _running_jobs(self) -> dict[str, str]:
+        """Return the newest RUNNING job id per model name.
 
-        running: dict[str, dict[str, Any]] = {}
+        Raises ``httpx.HTTPError`` or ``ValueError``.
+        """
+        listed = self._get_json("/jobs/models/status")
+        if not isinstance(listed, list):
+            raise ValueError("expected a list")
+        newest: dict[str, tuple[float, str]] = {}
         for entry in listed:
             if not (
                 isinstance(entry, dict)
@@ -641,45 +794,68 @@ class ModelInstaller:
                 and _JOB_ID_RE.match(entry["id"])
             ):
                 continue
-            current = running.get(entry["model_name"])
             start = entry.get("start_time")
             start = start if isinstance(start, (int, float)) else 0
-            if current is None or start > current["_start"]:
-                running[entry["model_name"]] = {"id": entry["id"], "_start": start}
+            current = newest.get(entry["model_name"])
+            if current is None or start > current[0]:
+                newest[entry["model_name"]] = (start, entry["id"])
+        return {name: job_id for name, (_, job_id) in newest.items()}
+
+    def _attach_running_jobs(self, state: _InstallState) -> None:
+        """Find the running job of every model that has no job id yet."""
+        pending = [job for job in state.jobs.values() if job.job_id is None]
+        if not pending:
+            return
+        try:
+            running = self._running_jobs()
+        except (httpx.HTTPError, ValueError) as exc:
+            for job in pending:
+                self._fail(
+                    state,
+                    job.model,
+                    "cannot look up its running download (GET /jobs/models/status: "
+                    f"{type(exc).__name__}: {clean_text(exc)})",
+                )
+            return
 
         installed: set[str] | None = None
+        lookup_error = ""
         for job in pending:
-            found = running.get(job.model.name)
-            if found is not None:
-                job.job_id = found["id"]
+            job_id = running.get(job.model.name)
+            if job_id is not None:
+                job.job_id = job_id
                 self._say(
                     f"{job.model.display_name}: already downloading, waiting for it"
                 )
                 continue
             if installed is None:
-                installed = self._installed_names()
-            del jobs[job.model.name]
-            if job.model.name in installed:
-                outcomes[job.model.name] = ModelOutcome(
-                    job.model.name,
-                    job.model.display_name,
-                    Outcome.INSTALLED,
-                    "already installed",
+                try:
+                    installed = self._installed_names()
+                except (httpx.HTTPError, ValueError) as exc:
+                    installed = set()
+                    lookup_error = f"{type(exc).__name__}: {clean_text(exc)}"
+            if lookup_error:
+                self._fail(
+                    state,
+                    job.model,
+                    "ViPPET reported it as already installed or downloading, but "
+                    "it has no running download, and this tool cannot check "
+                    f"whether it is installed (GET /models: {lookup_error})",
                 )
+            elif job.model.name in installed:
+                state.resolve(job.model, Outcome.INSTALLED, "already installed")
                 self._say(f"{job.model.display_name}: already installed")
             else:
                 self._fail(
-                    outcomes,
+                    state,
                     job.model,
                     "ViPPET reported it as already installed or downloading, but "
                     "it is not installed and no running download was found",
                 )
 
     def _installed_names(self) -> set[str]:
-        try:
-            models = fetch_models(self.client, self.base_url, self.request_timeout)
-        except (httpx.HTTPError, ValueError):
-            return set()
+        """Names ViPPET reports as installed. Raises on HTTP or JSON errors."""
+        models = fetch_models(self.client, self.base_url, self.request_timeout)
         return {
             m["name"]
             for m in models
@@ -687,18 +863,15 @@ class ModelInstaller:
             and str(m.get("install_status") or "").lower() == _INSTALLED
         }
 
-    def _wait(self, jobs: dict[str, _Job], outcomes: dict[str, ModelOutcome]) -> None:
-        if not jobs:
+    def _wait(self, state: _InstallState) -> None:
+        if not state.jobs:
             return
-        deadline = self._start + self.timeout_seconds
+        deadline = state.start + self.timeout_seconds
         last_summary = self.monotonic()
-        while jobs:
-            for name, job in list(jobs.items()):
-                outcome = self._poll(job)
-                if outcome is not None:
-                    outcomes[name] = outcome
-                    del jobs[name]
-            if not jobs:
+        while state.jobs:
+            for job in list(state.jobs.values()):
+                self._poll(state, job)
+            if not state.jobs:
                 return
             now = self.monotonic()
             if now >= deadline:
@@ -706,35 +879,38 @@ class ModelInstaller:
                     f"still installing after {format_duration(self.timeout_seconds)} "
                     "(--model-install-timeout); the download continues on the server"
                 )
-                for name, job in jobs.items():
-                    outcomes[name] = ModelOutcome(
-                        name, job.model.display_name, Outcome.TIMED_OUT, reason
-                    )
+                for job in list(state.jobs.values()):
+                    state.resolve(job.model, Outcome.TIMED_OUT, reason)
                     self._say(f"{job.model.display_name}: TIMED OUT: {reason}")
-                jobs.clear()
                 return
             if now - last_summary >= self.summary_interval:
                 last_summary = now
-                self._say(self._summary(jobs, outcomes))
+                self._say(self._summary(state))
             self.sleep(min(self.poll_interval, deadline - now))
 
-    def _summary(self, jobs: dict[str, _Job], outcomes: dict[str, ModelOutcome]) -> str:
-        installed = sum(1 for o in outcomes.values() if o.outcome == Outcome.INSTALLED)
-        failed = sum(1 for o in outcomes.values() if o.outcome != Outcome.INSTALLED)
+    def _summary(self, state: _InstallState) -> str:
+        installed = state.count(Outcome.INSTALLED)
+        failed = len(state.outcomes) - installed
         return (
-            f"{installed} installed, {failed} failed, {len(jobs)} still installing "
-            f"(elapsed {self._elapsed()} of {format_duration(self.timeout_seconds)})"
+            f"{installed} installed, {failed} failed, {len(state.jobs)} still "
+            f"installing (elapsed {self._elapsed(state)} of "
+            f"{format_duration(self.timeout_seconds)})"
         )
 
-    def _note(self, job: _Job, state: str, progress: str) -> None:
+    def _note(
+        self, state: _InstallState, job: _Job, status: str, progress: str
+    ) -> None:
         """Print a line only when the model's state or progress changed."""
-        if (state, progress) == (job.state, job.progress):
+        if (status, progress) == (job.state, job.progress):
             return
-        job.state, job.progress = state, progress
+        job.state, job.progress = status, progress
         detail = f" - {progress}" if progress else ""
-        self._say(f"{job.model.display_name}: {state}{detail} ({self._elapsed()})")
+        self._say(
+            f"{job.model.display_name}: {status}{detail} ({self._elapsed(state)})"
+        )
 
-    def _poll(self, job: _Job) -> ModelOutcome | None:
+    def _poll(self, state: _InstallState, job: _Job) -> None:
+        """Poll *job* once; resolve its model when the job has finished."""
         model = job.model
         try:
             response = self.client.get(
@@ -743,35 +919,50 @@ class ModelInstaller:
             )
         except httpx.HTTPError as exc:
             # Transient: keep waiting until the overall timeout.
-            self._note(job, "POLL FAILED", f"{type(exc).__name__}: {clean_text(exc)}")
-            return None
+            self._note(
+                state, job, "POLL FAILED", f"{type(exc).__name__}: {clean_text(exc)}"
+            )
+            return
         if response.status_code == 404:
-            reason = "the download job disappeared from ViPPET (was ViPPET restarted?)"
-            self._say(f"{model.display_name}: FAILED: {reason}")
-            return ModelOutcome(model.name, model.display_name, Outcome.FAILED, reason)
+            self._fail(
+                state,
+                model,
+                "the download job disappeared from ViPPET (was ViPPET restarted?)",
+            )
+            return
         try:
             response.raise_for_status()
             payload = response.json()
             if not isinstance(payload, dict):
                 raise ValueError("expected an object")
         except (httpx.HTTPError, ValueError) as exc:
-            self._note(job, "POLL FAILED", f"{type(exc).__name__}: {clean_text(exc)}")
-            return None
+            self._note(
+                state, job, "POLL FAILED", f"{type(exc).__name__}: {clean_text(exc)}"
+            )
+            return
 
-        state = clean_text(payload.get("state"), max_length=40)
-        if state == "COMPLETED":
-            self._say(f"{model.display_name}: installed ({self._elapsed()})")
-            return ModelOutcome(model.name, model.display_name, Outcome.INSTALLED)
-        if state == "FAILED":
+        status = clean_text(payload.get("state"), max_length=40)
+        if status == "COMPLETED":
+            state.resolve(model, Outcome.INSTALLED)
+            self._say(f"{model.display_name}: installed ({self._elapsed(state)})")
+            return
+        if status == "FAILED":
             # Only the last entry: earlier RUNNING details hold internal
             # request URLs and bodies.
             details = payload.get("details")
             last = details[-1] if isinstance(details, list) and details else ""
-            reason = clean_text(last, max_length=500) or "download failed (no details)"
-            self._say(f"{model.display_name}: FAILED: {reason}")
-            return ModelOutcome(model.name, model.display_name, Outcome.FAILED, reason)
-        self._note(job, state or "UNKNOWN", clean_text(payload.get("progress_message")))
-        return None
+            self._fail(
+                state,
+                model,
+                clean_text(last, max_length=500) or "download failed (no details)",
+            )
+            return
+        self._note(
+            state,
+            job,
+            status or "UNKNOWN",
+            clean_text(payload.get("progress_message")),
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -780,7 +971,15 @@ class ModelInstaller:
 
 
 def confirm(text: str, input_fn: Callable[[str], str] = input) -> bool:
-    """Ask a yes/no question; anything but y/yes (or EOF) means no."""
+    """Ask a yes/no question.
+
+    Args:
+        text: The question.
+        input_fn: Reads the answer.
+
+    Returns:
+        ``True`` for y/yes (any case); anything else, and EOF, means no.
+    """
     try:
         answer = input_fn(text)
     except EOFError:
@@ -796,10 +995,24 @@ def offer_and_install(
     input_fn: Callable[[str], str] = input,
     report: Callable[[str], None] = print,
 ) -> list[ModelOutcome]:
-    """Print the plan, ask if needed, install, and return the outcomes."""
-    report(format_plan(plan))
+    """Print the plan, ask if needed, install, and return the outcomes.
+
+    Args:
+        plan: The install plan.
+        ask: Prompt before installing; otherwise install without asking.
+        install: Installs the plan (usually :meth:`ModelInstaller.install`).
+        input_fn: Reads the answer to the prompt.
+        report: Prints one line of output.
+
+    Returns:
+        One outcome per planned model; empty when nothing is missing (one
+        line is printed then, with no section header).
+    """
     if not plan.models:
+        report(NOTHING_TO_INSTALL)
         return []
+    report(SECTION_HEADER)
+    report(format_plan(plan))
     if ask:
         if not confirm(prompt_text(plan), input_fn):
             report(

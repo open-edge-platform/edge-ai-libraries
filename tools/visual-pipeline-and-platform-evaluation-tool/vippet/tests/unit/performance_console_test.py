@@ -586,7 +586,13 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         out = completed.stdout
         self.assertEqual(completed.returncode, 0, out + completed.stderr)
         self.assertIn("[lpr_cpu_x1] SKIPPED", out)
-        self.assertIn("Model installation: 1 declined", out)
+        self._assert_in_order(
+            out,
+            "Model installation: 1 declined",
+            "1 run(s) were skipped because you declined installing their models. "
+            "Rerun with --install-missing-models=yes, or answer y.",
+        )
+        self.assertNotIn("a direct pytest run never does", out)
 
     def test_invalid_install_outcome_env_exits_2(self) -> None:
         completed = self._run(

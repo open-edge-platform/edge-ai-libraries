@@ -27,6 +27,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
@@ -48,6 +49,7 @@ from .model_install import (
     encode_outcomes,
     fetch_models,
     format_plan,
+    install_action,
     offer_and_install,
 )
 from .preflight import (
@@ -300,6 +302,7 @@ def _default_preflight(
     request_timeout: float,
     *,
     report: Callable[[str], None] = print,
+    verbose: bool = True,
 ) -> None:
     """Open an HTTP client and run the real ViPPET readiness check."""
     with httpx.Client(headers={"Accept": "application/json"}) as client:
@@ -310,7 +313,52 @@ def _default_preflight(
             request_timeout,
             client=client,
             report=report,
+            verbose=verbose,
         )
+
+
+def _ready_matrix(
+    settings: ResolvedSettings,
+    *,
+    preflight: Callable[..., None],
+    discover: Callable[[ResolvedSettings], Matrix],
+    stderr: TextIO | None,
+    verbose: bool,
+) -> Matrix | None:
+    """Wait until ViPPET is ready, then discover the matrix.
+
+    Pre-flight lines go to *stderr*. On failure the reason is printed there
+    and ``None`` is returned; the caller exits with
+    ``FATAL_PREFLIGHT_EXIT_CODE``.
+    """
+    base_url = settings["vippet.base_url"]
+    try:
+        preflight(
+            base_url,
+            settings["vippet.readiness_timeout_seconds"],
+            settings["vippet.poll_interval"],
+            settings["vippet.timeout"],
+            report=lambda line: print(line, file=stderr, flush=True),
+            verbose=verbose,
+        )
+        return discover(settings)
+    except PreflightError as exc:
+        print(f"error: {exc}", file=stderr)
+    except Exception as exc:  # report any discovery failure, never crash
+        print(f"error: {describe_discovery_error(exc, base_url)}", file=stderr)
+    return None
+
+
+def _read_models(
+    client: httpx.Client, settings: ResolvedSettings, stderr: TextIO | None
+) -> list[dict[str, Any]] | None:
+    """Return ``GET /models``, or print why it failed and return ``None``."""
+    base_url = settings["vippet.base_url"]
+    try:
+        return fetch_models(client, base_url, settings["vippet.timeout"])
+    except (httpx.HTTPError, ValueError) as exc:
+        print(f"error: {describe_discovery_error(exc, base_url)}", file=stderr)
+        return None
 
 
 def run_dry_run(
@@ -323,31 +371,36 @@ def run_dry_run(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
-    """Print settings, the resolved matrix and the model install plan.
+    """Print the settings, the resolved matrix and the model install plan.
 
     Never submits a job, never prompts and never installs a model.
+
+    Args:
+        settings: The resolved settings.
+        discover: Builds the matrix from the live ViPPET inventory.
+        preflight: The readiness check (see :func:`wait_for_vippet_ready`).
+        client_factory: Opens the HTTP client used to read ``GET /models``.
+        stdin_is_tty: Tells whether a real run could prompt on this terminal.
+        stdout: Stream for the report; defaults to ``sys.stdout``.
+        stderr: Stream for pre-flight lines and errors; defaults to
+            ``sys.stderr``.
+
+    Returns:
+        ``0``, or ``FATAL_PREFLIGHT_EXIT_CODE`` (2) when ViPPET is not ready
+        or its inventory cannot be read.
     """
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
     print(format_settings(settings), file=stdout)
     print("", file=stdout)
-    base_url = settings["vippet.base_url"]
-    try:
-        preflight(
-            base_url,
-            settings["vippet.readiness_timeout_seconds"],
-            settings["vippet.poll_interval"],
-            settings["vippet.timeout"],
-            report=lambda line: print(line, file=stderr),
-        )
-        matrix = discover(settings)
-        with client_factory() as client:
-            models = fetch_models(client, base_url, settings["vippet.timeout"])
-    except PreflightError as exc:
-        print(f"error: {exc}", file=stderr)
+    matrix = _ready_matrix(
+        settings, preflight=preflight, discover=discover, stderr=stderr, verbose=True
+    )
+    if matrix is None:
         return FATAL_PREFLIGHT_EXIT_CODE
-    except Exception as exc:  # report any discovery failure, never crash
-        print(f"error: {describe_discovery_error(exc, base_url)}", file=stderr)
+    with client_factory() as client:
+        models = _read_models(client, settings, stderr)
+    if models is None:
         return FATAL_PREFLIGHT_EXIT_CODE
     print(
         format_matrix(
@@ -372,21 +425,6 @@ def run_dry_run(
 # --------------------------------------------------------------------------- #
 # Model installation before the pytest run
 # --------------------------------------------------------------------------- #
-
-
-def _problems_only(stream: TextIO | None) -> Callable[[str], None]:
-    """Readiness reporter that prints only waiting and failure lines.
-
-    pytest runs its own (visible) readiness check right after this one.
-    """
-
-    def report(line: str) -> None:
-        if "WAITING" in line or "FAILED" in line:
-            print(line, file=stream, flush=True)
-
-    return report
-
-
 def run_model_install(
     settings: ResolvedSettings,
     *,
@@ -395,37 +433,45 @@ def run_model_install(
     preflight: Callable[..., None] = _default_preflight,
     client_factory: Callable[[], httpx.Client] = _default_client,
     input_fn: Callable[[str], str] = input,
-    installer_options: Mapping[str, Any] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> tuple[int, list[ModelOutcome] | None]:
     """Offer to install the models the selected runs need, before pytest.
 
-    Returns ``(exit_code, outcomes)``. ``outcomes`` is ``None`` when the step
-    was skipped because pytest will abort on invalid filter ids anyway.
-    A failed readiness check or discovery ends the run with exit code 2,
-    exactly as ``--dry-run`` does.
+    The readiness check is quiet (only WAITING and FAILED lines), because
+    pytest runs its own visible one right after this step.
+
+    Args:
+        settings: The resolved settings.
+        ask: Prompt before installing (``ask`` on a terminal); otherwise
+            install without asking (``yes``).
+        discover: Builds the matrix from the live ViPPET inventory.
+        preflight: The readiness check (see :func:`wait_for_vippet_ready`).
+        client_factory: Opens the HTTP client for the model endpoints.
+        input_fn: Reads the answer to the prompt.
+        sleep: Waits between job polls.
+        stdout: Stream for the plan and progress; defaults to ``sys.stdout``.
+        stderr: Stream for pre-flight lines and errors; defaults to
+            ``sys.stderr``.
+
+    Returns:
+        ``(exit_code, outcomes)``. A failed readiness check or discovery
+        returns ``(FATAL_PREFLIGHT_EXIT_CODE, None)``, as ``--dry-run`` does.
+        ``outcomes`` is also ``None`` when the step was skipped because
+        pytest will abort on invalid filter ids anyway.
+
+    Raises:
+        KeyboardInterrupt: Ctrl-C at the prompt (``main`` exits with 130).
+            Ctrl-C while waiting is handled by the installer.
     """
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
-    base_url = settings["vippet.base_url"]
-    request_timeout = settings["vippet.timeout"]
-    try:
-        preflight(
-            base_url,
-            settings["vippet.readiness_timeout_seconds"],
-            settings["vippet.poll_interval"],
-            request_timeout,
-            report=_problems_only(stderr),
-        )
-        matrix = discover(settings)
-    except PreflightError as exc:
-        print(f"error: {exc}", file=stderr)
+    matrix = _ready_matrix(
+        settings, preflight=preflight, discover=discover, stderr=stderr, verbose=False
+    )
+    if matrix is None:
         return FATAL_PREFLIGHT_EXIT_CODE, None
-    except Exception as exc:  # report any discovery failure, never crash
-        print(f"error: {describe_discovery_error(exc, base_url)}", file=stderr)
-        return FATAL_PREFLIGHT_EXIT_CODE, None
-
     if settings["benchmark.filters.on_unknown_id"] == "fail" and (
         find_unknown_filter_ids(
             MatrixFilters.from_settings(settings), matrix.known_pipeline_ids
@@ -439,23 +485,24 @@ def run_model_install(
         print(text, file=stdout, flush=True)
 
     with client_factory() as client:
-        try:
-            plan = build_plan(fetch_models(client, base_url, request_timeout), matrix)
-        except (httpx.HTTPError, ValueError) as exc:
-            print(f"error: {describe_discovery_error(exc, base_url)}", file=stderr)
+        models = _read_models(client, settings, stderr)
+        if models is None:
             return FATAL_PREFLIGHT_EXIT_CODE, None
-        report(f"{'-' * 30} Model installation {'-' * 30}")
         installer = ModelInstaller(
             client=client,
-            base_url=base_url,
+            base_url=settings["vippet.base_url"],
             poll_interval=settings["vippet.poll_interval"],
             timeout_seconds=settings["benchmark.models.install_timeout_seconds"],
-            request_timeout=request_timeout,
+            request_timeout=settings["vippet.timeout"],
             report=report,
-            **dict(installer_options or {}),
+            sleep=sleep,
         )
         outcomes = offer_and_install(
-            plan, ask=ask, install=installer.install, input_fn=input_fn, report=report
+            build_plan(models, matrix),
+            ask=ask,
+            install=installer.install,
+            input_fn=input_fn,
+            report=report,
         )
     return EXIT_OK, outcomes
 
@@ -557,9 +604,20 @@ def run_pytest(
 
     The resolved values are deliberately not exported as env vars: pytest
     would then report them as coming from the environment instead of from
-    the YAML file or CLI flag they really came from. *extra_env* carries
-    data for pytest that only the CLI produces, such as the model install
-    outcome; a stale outcome inherited from the caller's env is dropped.
+    the YAML file or CLI flag they really came from.
+
+    Args:
+        cli_layer: ``--config`` and the setting flags, passed to pytest in
+            ``PERF_CLI_LAYER``.
+        pytest_args: Arguments after ``--``, passed to pytest unchanged.
+        base_env: Environment to start from; defaults to ``os.environ``.
+        extra_env: Data for pytest that only the CLI produces, such as the
+            model install outcome. A stale outcome inherited from
+            *base_env* is always dropped.
+        runner: Runs the command (``subprocess.run``).
+
+    Returns:
+        pytest's exit code.
     """
     env = dict(os.environ if base_env is None else base_env)
     env.pop(ENV_MODEL_INSTALL, None)
@@ -602,10 +660,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     # settings into os.environ, which must not reach pytest (see run_pytest).
     base_env = dict(os.environ)
     extra_env: dict[str, str] = {}
-    mode = settings["benchmark.models.install"]
-    if mode == "yes" or (mode == "ask" and _stdin_is_tty()):
+    action = install_action(settings["benchmark.models.install"], _stdin_is_tty())
+    if action != "skip":
         try:
-            rc, outcomes = run_model_install(settings, ask=mode == "ask")
+            rc, outcomes = run_model_install(settings, ask=action == "prompt")
         except KeyboardInterrupt:
             print("\naborted (Ctrl-C)", file=sys.stderr)
             return EXIT_INTERRUPTED
