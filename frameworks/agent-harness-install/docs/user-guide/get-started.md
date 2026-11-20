@@ -1,3 +1,11 @@
+<!--hide_directive
+```{eval-rst}
+.. meta::
+   :description: Install an agent harness on Intel hardware with the Agent Harness Installer, wire it to a local OpenAI-compatible inference endpoint, and choose a model source.
+   :keywords: Agent Harness Installer, install.sh, OpenClaw, Deep Agents Code, Hermes, OpenVINO Model Server, Inference Router, model sources
+```
+hide_directive-->
+
 <!--
   Copyright (C) 2026 Intel Corporation
   SPDX-License-Identifier: Apache-2.0
@@ -22,7 +30,7 @@ installing anything:
 Notes on what it does with Docker:
 
 - If `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` (either case) are set, it also
-  writes them into the Docker daemon's own systemd config
+  writes them into the Docker daemon's own systemd configuration
   (`/etc/systemd/system/docker.service.d/http-proxy.conf`, root-only) so the
   daemon can pull images through the proxy, and restarts the daemon when that
   changes. This needs sudo; without it the step is skipped with a warning.
@@ -36,14 +44,15 @@ Notes on what it does with Docker:
   be done (`sg` and `sudo` both unavailable) does it exit with code `2` and
   ask you to open a new terminal (or run `newgrp docker`) and re-run.
 
-## What it does
+## What It Does
 
+> [!NOTE]
 > **Models are downloaded by the installer.** You do not download or place a
 > model beforehand: `--model` makes the installer fetch it into
-> `~/.agent-harness-install/models` and register it with OVMS. The
+> `~/.agent-harness-install/models` and register it with OpenVINO™ Model Server (OVMS). The
 > model download size is large, and `./uninstall.sh` deletes the models by default; pass
 > `--keep-models` to retain the models and avoid re-downloading them on the
-> next install (see [Uninstall](uninstall.md)).
+> next install (see [Uninstall](./get-started/uninstall.md)).
 
 1. **Host prep** — runs `startup.sh` (curl/git, Docker, Node.js, Python),
    then an Intel GPU check (PCI vendor `8086`, `i915`/`xe` driver,
@@ -53,18 +62,18 @@ Notes on what it does with Docker:
    access through `--device` and `--group-add`.
 2. **Inference backend** — requires a model: pass `--model` (the installer
    prompts for it on a terminal and fails otherwise, unless a model is already
-   exported from an earlier run). Starts OpenVINO Model Server (Docker, GPU
+   exported from an earlier run). Starts OpenVINO™ Model Server (Docker, GPU
    passthrough) and fetches that model from its hub
    (see [Model sources](#model-sources)). By default a Hugging Face id such
-   as `org/name` is converted to OpenVINO IR via OVMS's own "-py" Docker image
+   as `org/name` is converted to OpenVINO™ IR via OVMS's own "-py" Docker image
    in `--pull` mode — unlike plain `optimum-cli`, that also generates the
    MediaPipe graph OVMS's `/v3/chat/completions` endpoint needs. Pre-converted
    `OpenVINO/*` models are only downloaded, by the same OVMS image that serves
    them. For gated
    Hugging Face models, export `HF_TOKEN` first. Set
    `HARNESS_OVMS_EXPORTER=export-model-py` or `=hf-snapshot` (a plain
-   download, no conversion, for HF repos already published as ready-to-serve
-   OpenVINO IR) for alternate exporters (see
+   download, no conversion, for Hugging Face repositories already published as ready-to-serve
+   OpenVINO™ IR) for alternate exporters (see
    [Known limitations](known-limitations.md)). Always also starts the
    **Inference Router** (IR) — every inference request goes through it. The
    router is the published `intel/inference-router` image, pulled once
@@ -83,11 +92,11 @@ Notes on what it does with Docker:
      (`openclaw config set models.providers.ovms …`), sets it as the default
      model, and runs a smoke test. If `openclaw config set` fails (e.g., its
      Gateway daemon is running), it prints the exact manual command instead.
-   - **Deep Agents Code (`dcode`):** writes its provider config and runs a
+   - **Deep Agents Code (`dcode`):** writes its provider configuration and runs a
      smoke test; the smoke test is reported as failed if dcode prints an
      error, even when it exits 0.
    - **Hermes:** prints the endpoint and where to point a provider in its
-     own config (`~/.hermes/config.yaml`); there is no automated smoke test.
+     own configuration (`~/.hermes/config.yaml`); there is no automated smoke test.
      If Hermes already points at this endpoint with a different model name
      than the one served, it warns and prints the
      `hermes config set model.default <name>` fix.
@@ -109,7 +118,7 @@ For example, with a small Hugging Face model (any supported model works):
 ./install.sh --harness openclaw --model Qwen/Qwen2.5-0.5B-Instruct
 ```
 
-The model is served under its name without the organisation prefix, so the
+The model is served under its name without the organization prefix, so the
 command above serves `Qwen2.5-0.5B-Instruct`. The Inference Router matches
 model names exactly: a client that requests `Qwen/Qwen2.5-0.5B-Instruct` gets
 `Unknown model`. The installer prints the served name after the install, and
@@ -141,11 +150,11 @@ Options: `--non-interactive`, `--skip-gpu-check`, `--harness <name>`,
 `--model-precision <int4|int8|fp16|fp32>`, `--model-device <device>`; run
 `./install.sh --help` for the full list of options and environment variables.
 
-## Model sources
+## Model Sources
 
 `--model` is the model's name as its hub names it, and `--model-hub` says
 which hub to fetch it from. Without `--model-hub` the hub is `openvino`: a
-Hugging Face id that is converted to OpenVINO IR. Any other hub selects the
+Hugging Face id that is converted to OpenVINO™ IR. Any other hub selects the
 Model Download service's ephemeral container (`get_model.sh`, pinned and
 checksum-verified) on its own — there is no need to set
 `HARNESS_OVMS_EXPORTER`.
@@ -153,13 +162,13 @@ checksum-verified) on its own — there is no need to set
 | `--model-hub` | `--model` is | Extra input | Served to agents |
 | --- | --- | --- | --- |
 | `openvino` (default) | Hugging Face id, `org/name` | `--model-precision`, `--model-device`; `HF_TOKEN` for gated models | yes |
-| `huggingface` | Hugging Face id, `org/name` | `--model-revision`; `HF_TOKEN` for gated models | only if the repo already contains an OVMS `graph.pbtxt` |
+| `huggingface` | Hugging Face id, `org/name` | `--model-revision`; `HF_TOKEN` for gated models | only if the repository already contains an OVMS `graph.pbtxt` |
 | `remote-url` | plain name substituted for `{name}` | `--model-config '{"url":"https://…/{name}.tar"}'`; the URL must match Model Download's allowlist | only if the tarball contains a `graph.pbtxt` |
 | `ollama` | `name`, `name:tag`, or a namespaced reference such as `hf.co/user/repo:tag` | | no (OVMS cannot load Ollama models yet) |
 | `ultralytics` | model name or a comma-separated list | `--model-config '{"quantize":"coco128"}'` for INT8 | no |
-| `geti` | Geti project name | `GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID` | no |
+| `geti` | Geti™ project name | `GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID` | no |
 | `pipeline-zoo-models`, `omz` | model name or a comma-separated list | | no |
-| `hls` | any label | `--model-type 3d-pose`, `rppg` or `ai-ecg` | no |
+| `hls` | any label | `--model-type 3d-pose`, `rppg`, or `ai-ecg` | no |
 
 A model is served — registered with OVMS and wired to the Inference Router
 — only when the download contains an OVMS `graph.pbtxt`. Everything else is
@@ -193,7 +202,7 @@ Other commands:
 ./install.sh skill <install|list|remove> [path|name]   # Hermes skills only
 ```
 
-See [Run Without a Checkout](./get-started/run-without-a-checkout.md),
+See [Run Without a Checkout](./get-started/run-without-a-checkout.md)
 and [Uninstall](./get-started/uninstall.md) for the rest of the usage surface.
 
 <!--hide_directive
