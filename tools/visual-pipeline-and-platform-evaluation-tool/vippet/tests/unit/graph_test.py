@@ -8029,6 +8029,33 @@ class TestInternalMarkersStrippedFromPipelineDescription(unittest.TestCase):
         self.assertIn("num-buffers=10", description)
 
 
+class TestWhitespaceValuesQuoted(unittest.TestCase):
+    """Property values with whitespace must be quoted in launch strings."""
+
+    @staticmethod
+    def _description(location: str) -> str:
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="identity", data={"location": location}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+        return graph.to_pipeline_description()
+
+    def test_value_with_spaces_and_parentheses_is_quoted(self) -> None:
+        path = "/models/output/geti/yolox-tiny (09e2b40d)/fp16/model.xml"
+        self.assertIn(f'location="{path}"', self._description(path))
+
+    def test_value_without_whitespace_is_unchanged(self) -> None:
+        self.assertIn("location=/tmp/foo.mp4", self._description("/tmp/foo.mp4"))
+
+    def test_already_quoted_value_is_not_quoted_twice(self) -> None:
+        description = self._description('"/tmp/a b.mp4"')
+        self.assertIn('location="/tmp/a b.mp4"', description)
+        self.assertNotIn('""', description)
+
+
 class TestGigECameraSource(unittest.TestCase):
     """GigE Vision cameras: ``gige://<camera-name>`` sources mapped to ``aravissrc``."""
 
