@@ -895,6 +895,56 @@ dcode_refuses_foreign_env() {
   ln -s "$HOME/elsewhere" "$env" || { echo "# skipped: symlinks unavailable"; return 0; }
   expect_failure 'symlink' metrics_enable_harness
   [[ "$(cat "$HOME/elsewhere")" == keep ]]
+  # Variables outside an existing managed block, with or without spaces before '=', are refused too.
+  rm -f "$env"
+  metrics_enable_harness
+  printf 'OTEL_SERVICE_NAME = mine\n' >>"$env"
+  expect_failure 'did not write' metrics_enable_harness
+}
+
+openclaw_disable_needs_installer_ownership() {
+  agent_fixture openclaw
+  mkdir -p "$HOME/oc-stub"
+  echo enabled >"$HOME/oc-stub/plugin"
+  echo true >"$HOME/oc-stub/otel"
+  # No recorded enable: the user's own exporter and plugin stay as they are.
+  metrics_disable_harness
+  refute grep -Fq 'openclaw config set' "$ACTIONS"
+  refute grep -Fq 'openclaw disable' "$ACTIONS"
+  [[ "$(cat "$HOME/oc-stub/otel")" == true ]]
+}
+
+only_one_harness_exporter_is_recorded() {
+  agent_fixture deepagents-code
+  local out
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  # Another agent cannot be enabled while dcode's exporter is on.
+  M_AGENT=openclaw
+  expect_failure 'enabled for Deep Agents Code' metrics_enable_harness
+  refute grep -Fq 'openclaw install' "$ACTIONS"
+  # Show and disable follow the recorded owner, whichever agent is selected.
+  out="$(metrics_show_harness 2>&1)"
+  grep -Fq 'Enabled for Deep Agents Code' <<<"$out"
+  M_AGENT=openclaw
+  metrics_disable_harness
+  refute grep -Fq 'LANGSMITH_TRACING' "$DEEPAGENTS_HOME/.env" 2>/dev/null
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
+  M_AGENT=openclaw
+  metrics_enable_harness
+  [[ "$(metrics_state_get harness.agent)" == openclaw ]]
+}
+
+openclaw_failed_enable_can_be_disabled() {
+  agent_fixture openclaw
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_write_openclaw_otel_config() { return 1; }
+  expect_failure '' metrics_enable_harness
+  [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.agent)" == openclaw ]]
+  : >"$ACTIONS"
+  metrics_disable_harness
+  grep -Fxq 'openclaw config set diagnostics.otel.enabled false' "$ACTIONS"
+  grep -Fxq 'receiver stop' "$ACTIONS"
 }
 
 receiver_stores_filtered_spans() {
@@ -973,7 +1023,7 @@ def run(agent, content, body_fn):
     return rows(db)
 
 
-prompt = {"gen_ai.prompt": "x" * 500, "openclaw.model": "m"}
+prompt = {"gen_ai.prompt": "x" * 500, "gen_ai.tool.call.arguments": "y" * 500, "gen_ai.system_instructions": "z" * 500, "openclaw.model": "m"}
 oc = request(span("openclaw.run", prompt), span("openclaw.model.call", {}, status=2), span("http.noise", {}))
 
 
@@ -987,6 +1037,12 @@ def oc_body(port):
     assert post(port, b"{}", "application/json") == 415
     assert post(port, oc, path="/other") == 404
     assert post(port, b"\xff\xff") == 400
+    # A negative length or an oversized chunk is refused before any body is read.
+    for extra, tail in ((b"Content-Length: -1\r\n", b""), (b"Transfer-Encoding: chunked\r\n", b"ffffffff\r\n")):
+        s = socket.create_connection(("127.0.0.1", port), timeout=5)
+        s.sendall(b"POST /v1/traces HTTP/1.1\r\nHost: x\r\nContent-Type: application/x-protobuf\r\n" + extra + b"\r\n" + tail)
+        assert b" 400 " in s.recv(64), extra
+        s.close()
 
 
 for content in ("off", "preview", "full"):
@@ -998,10 +1054,12 @@ for content in ("off", "preview", "full"):
     assert "openclaw.model" in run_row[3]
     if content == "off":
         assert "gen_ai.prompt" not in run_row[3]
+        assert "gen_ai.tool.call.arguments" not in run_row[3] and "gen_ai.system_instructions" not in run_row[3]
     elif content == "preview":
         assert "x" * 200 in run_row[3] and "x" * 201 not in run_row[3]
+        assert "y" * 200 in run_row[3] and "y" * 201 not in run_row[3]
     else:
-        assert "x" * 500 in run_row[3]
+        assert "x" * 500 in run_row[3] and "y" * 500 in run_row[3]
 
 dc = request(
     span("agent", {}),
@@ -1073,4 +1131,7 @@ run_case 'OpenClaw with Jaeger, preview rejected, a foreign diagnostics exporter
 run_case 'dcode .env block is managed, replaced in place and removed without touching user lines' dcode_env_block_lifecycle
 run_case 'dcode refuses a .env with its own tracing variables or a symlink' dcode_refuses_foreign_env
 run_case 'OTLP receiver decodes, filters and stores spans per agent and content mode' receiver_stores_filtered_spans
+run_case 'OpenClaw disable only touches an exporter this installer enabled' openclaw_disable_needs_installer_ownership
+run_case 'one harness exporter is recorded; enable for another agent is refused and disable follows the owner' only_one_harness_exporter_is_recorded
+run_case 'a failed OpenClaw enable is recorded so disable can clean it up' openclaw_failed_enable_can_be_disabled
 finish_tests

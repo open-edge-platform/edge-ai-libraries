@@ -43,7 +43,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 49 |
+| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 52 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -311,8 +311,11 @@ codes and resulting state, not real containers.
 | `openclaw_enable_disable` | OpenClaw lifecycle (stub CLI) | Install the plugin once, merge the `diagnostics` config pointing at the receiver with content capture on, start the receiver; disable turns the exporter and plugin off and stops the receiver; a later enable re-enables the installed plugin without a second install. |
 | `openclaw_jaeger_and_foreign_exporter` | OpenClaw with Jaeger and a foreign exporter | Point the exporter at the Jaeger OTLP base URL and stop the receiver; refuse to overwrite a `diagnostics.otel` exporter this installer did not set up; reject `--content preview` with Jaeger. |
 | `dcode_env_block_lifecycle` | dcode `.env` block | Write the managed block (placeholder key, receiver endpoint, `LANGSMITH_HIDE_*` for content `off`), keep user lines and mode 600, switch to Jaeger, then remove only the block on disable. |
-| `dcode_refuses_foreign_env` | dcode `.env` with its own tracing variables or a symlink | Refuse before any side effect and leave the file untouched. |
-| `receiver_stores_filtered_spans` | OTLP receiver | Decode hand-built OTLP protobuf (plain, chunked and gzip bodies), keep only the spans each agent needs, honour the content modes, answer 415 for JSON and 404 for other paths. |
+| `dcode_refuses_foreign_env` | dcode `.env` with its own tracing variables or a symlink | Refuse before any side effect and leave the file untouched, including variables outside an existing managed block (with or without spaces before `=`). |
+| `receiver_stores_filtered_spans` | OTLP receiver | Decode hand-built OTLP protobuf (plain, chunked and gzip bodies), keep only the spans each agent needs, honour the content modes, answer 415 for JSON and 404 for other paths, drop tool arguments and system instructions unless content is on, and answer 400 for a negative `Content-Length` or an oversized chunk. |
+| `openclaw_disable_needs_installer_ownership` | OpenClaw disable without a recorded enable | Leave the user's own exporter and plugin alone. |
+| `only_one_harness_exporter_is_recorded` | Two agents, one exporter | Refuse to enable another agent while one owns the exporter; `show` and `disable` follow the recorded owner. |
+| `openclaw_failed_enable_can_be_disabled` | OpenClaw enable that fails midway | Record the enable first so `disable` turns the exporter off and stops the receiver. |
 | `foreign_jaeger_is_never_reused_or_removed` | Jaeger ownership | Refuse to reuse, and leave in place on removal, a same-named container without the installer's label. |
 | `docker_query_failure_is_not_absence` | Docker query failure | Fail instead of treating a failed container query as an absent container. |
 | `rejected_endpoint_is_not_echoed` | Endpoint errors | Never print the rejected endpoint, which may carry credentials. |

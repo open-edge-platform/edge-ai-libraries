@@ -44,6 +44,9 @@ CONTENT_KEYS = {
     "gen_ai.completion",
     "gen_ai.input.messages",
     "gen_ai.output.messages",
+    "gen_ai.system_instructions",
+    "gen_ai.tool.call.arguments",
+    "gen_ai.tool.call.result",
     "input.value",
     "output.value",
 }
@@ -235,15 +238,15 @@ def read_body(handler):
         body = b""
         while True:
             size = int((handler.rfile.readline(64).split(b";")[0].strip() or b"0"), 16)
+            if size < 0 or size > MAX_BODY - len(body):
+                raise ValueError("body too large")
             if size == 0:
                 handler.rfile.readline()
                 return body
             body += handler.rfile.read(size)
             handler.rfile.readline()
-            if len(body) > MAX_BODY:
-                raise ValueError("body too large")
     size = int(handler.headers.get("Content-Length") or 0)
-    if size > MAX_BODY:
+    if size < 0 or size > MAX_BODY:
         raise ValueError("body too large")
     return handler.rfile.read(size)
 

@@ -256,7 +256,8 @@ installed). Each agent keeps its own exporter; the installer only configures it.
   first (`openclaw gateway stop`) and start it again afterwards. An existing
   `diagnostics.otel` exporter that this installer did not configure is not
   overwritten. `disable` sets `diagnostics.otel.enabled` to `false` and disables
-  the plugin; the plugin stays installed.
+  the plugin; the plugin stays installed. It only does so for an exporter this
+  installer enabled, and `./uninstall.sh` turns that exporter off too.
 - **Deep Agents Code:** new sessions read the `.env` block; restart any running
   session. `.env` is the only file touched, and your other lines are kept.
   `enable` refuses when `.env` already sets `LANGSMITH_*` or `OTEL_*` variables
@@ -265,6 +266,9 @@ installed). Each agent keeps its own exporter; the installer only configures it.
   present; nothing is sent to LangSmith. With `--content off` it also sets
   `LANGSMITH_HIDE_INPUTS` and `LANGSMITH_HIDE_OUTPUTS`. `disable` removes the
   block, and the file when nothing else is left in it.
+- **One exporter at a time:** the installer records which agent owns the
+  exporter. `enable` for another agent is refused until `disable`, and `show`
+  and `disable` act on the recorded agent whichever one is selected.
 - **`--backend sqlite` for OpenClaw and Deep Agents Code:** the agents export
   OTLP, so the installer starts a small loopback-only receiver
   (`scripts/lib/metrics-otlp-receiver.py`, Python 3.8+, standard library only)

@@ -638,11 +638,9 @@ ${METRICS_OPENCLAW_GATEWAY_HINT}"
 }
 
 metrics_disable_openclaw() {
-  local installed=""
-  if [[ "$(metrics_state_get harness.enabled)" != true ]]; then
-    command_exists openclaw && openclaw plugins list --json 2>/dev/null | grep -Fq '"diagnostics-otel"' && installed=1
-    [[ -n "$installed" ]] || return 0
-  fi
+  # Only an exporter this installer enabled is turned off; one the user set up
+  # themselves is left alone even when its plugin is installed.
+  [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.agent)" == openclaw ]] || return 0
   command_exists openclaw \
     || error "OpenClaw CLI not found on PATH, so its telemetry cannot be disabled and may keep exporting.
 Run 'openclaw config set diagnostics.otel.enabled false --strict-json' yourself or fix PATH, then retry."
@@ -671,8 +669,10 @@ metrics_check_dcode_env() {
   env="$(metrics_dcode_env_file)"
   [[ ! -L "$home" ]] || error "dcode data directory ${home} is a symlink."
   [[ ! -L "$env" ]] || error "Refusing to write through a symlink: ${env}"
-  if [[ -f "$env" ]] && ! metrics_dcode_env_has_block "$env" \
-    && grep -Eq '^[[:space:]]*(export[[:space:]]+)?(LANGSMITH_[A-Z_]+|OTEL_[A-Z_]+)=' "$env"; then
+  # Always scan what is outside the managed block, so a variable added later is caught too.
+  if [[ -f "$env" ]] \
+    && metrics_strip_dcode_env_block "$env" \
+      | grep -Eq '^[[:space:]]*(export[[:space:]]+)?(LANGSMITH_|OTEL_)[A-Za-z0-9_]*[[:space:]]*='; then
     error "${env} already sets LANGSMITH_*/OTEL_* variables that this installer did not write; move them aside and re-run."
   fi
 }
@@ -740,8 +740,33 @@ ${block}"
   fi
 }
 
+# metrics_harness_owner -- the agent whose exporter this installer has enabled
+# (empty when none). State from before agents were recorded means Hermes.
+metrics_harness_owner() {
+  local owner
+  if [[ "$(metrics_state_get harness.enabled)" == true ]]; then
+    owner="$(metrics_state_get harness.agent)"
+    printf '%s' "${owner:-hermes}"
+  fi
+}
+
+# Disable and show act on the recorded owner, not on whichever agent is selected now.
+metrics_adopt_harness_owner() {
+  local owner
+  owner="$(metrics_harness_owner)"
+  if [[ -n "$owner" && "$owner" != "$M_AGENT" ]]; then
+    info "Harness telemetry is enabled for $(agent_display_name "$owner"), not $(agent_display_name "$M_AGENT"); using that."
+    M_AGENT="$owner"
+  fi
+}
+
 metrics_enable_harness_preflight() {
+  local owner
   export PATH="$HOME/.local/bin:$PATH"
+  owner="$(metrics_harness_owner)"
+  if [[ -n "$owner" && "$owner" != "$M_AGENT" ]]; then
+    error "Harness telemetry is enabled for $(agent_display_name "$owner"); disable it first ('./install.sh observability disable --target harness'), then enable it for $(agent_display_name "$M_AGENT")."
+  fi
   case "$M_AGENT" in
     hermes)
       command_exists hermes || error "Hermes CLI not found on PATH. Install it first: ./install.sh --harness hermes --model <model>
@@ -798,6 +823,8 @@ metrics_enable_harness() {
   case "$M_AGENT" in
     hermes) metrics_write_hermes_otel_config "$backend" "$endpoint" "$content" "$managed" ;;
     openclaw | deepagents-code)
+      # Recorded before the first change, so a failed enable can still be disabled.
+      if [[ "$M_AGENT" == openclaw ]]; then metrics_state_set harness.enabled true harness.agent openclaw; fi
       # The receiver is up before the agent is pointed at it, so no span is lost.
       if [[ "$backend" == sqlite ]]; then
         metrics_receiver_start "$(metrics_receiver_agent_key "$M_AGENT")" "$(metrics_harness_store "$M_AGENT")" "$content"
@@ -861,6 +888,7 @@ Run 'hermes plugins disable hermes_otel' yourself or fix PATH, then retry."
 metrics_disable_harness() {
   local keep_jaeger=false endpoint store
   export PATH="$HOME/.local/bin:$PATH"
+  metrics_adopt_harness_owner
   store="$(metrics_harness_store "$M_AGENT")"
   endpoint="$(metrics_state_get harness.endpoint)"
   # Nothing is removed or recorded until the exporter is really off: a failure
@@ -1071,6 +1099,7 @@ metrics_show_harness() {
     return 0
   fi
   export PATH="$HOME/.local/bin:$PATH"
+  metrics_adopt_harness_owner
   name="$(agent_display_name "$M_AGENT")"
   home="$(metrics_hermes_home)"
   enabled="$(metrics_state_get harness.enabled)"
