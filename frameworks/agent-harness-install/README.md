@@ -53,6 +53,21 @@ sandbox defaults do not change host-mode model selection. See the
 [sandbox setup and policy boundaries](./docs/user-guide/agentic-ai-security/agent-sandboxing.md#getting-started)
 for prerequisites and limitations.
 
+## Observability
+
+`./install.sh observability enable|disable|show` manages telemetry for the
+Inference Router and Hermes harness. `enable` takes the collection and storage
+options (`--backend`, `--endpoint`, `--content`); `disable` can delete collected
+data (`--clean`) or keep the managed Jaeger (`--keep-jaeger`); `show` prints a
+CLI summary, with Jaeger providing the full trace view. The Router persists
+request counters and latencies to a JSONL file and serves them on `/v1/metrics`.
+Hermes records per-turn traces through the `hermes-otel` plugin in a local
+SQLite store and optionally exports them to a managed or external Jaeger.
+Harness telemetry is Hermes-only and unavailable in OpenShell sandboxes.
+Settings are kept in `~/.agent-harness-install/metrics.json`, so Router config
+regeneration preserves them. See [Observability](./docs/user-guide/get-started.md#observability)
+for details.
+
 ## Documentation
 
 - [Get Started](./docs/user-guide/get-started.md): install flow, usage and
@@ -83,7 +98,10 @@ scripts/lib/openvino.sh       OpenVINO Model Server (OpenAI-compatible inference
 scripts/lib/inference-router.sh  Inference Router (always run in front of OVMS or an external endpoint; agents are wired to it, not to the model server directly)
 scripts/lib/agents.sh         Agent Harness Installer's agent catalog: openclaw / deepagents-code (dcode) / hermes
 scripts/lib/harness-mcp.sh    registers an arbitrary MCP endpoint URL with an agent (Hermes and OpenClaw built in; others via HARNESS_MCP_REGISTER_CMD)
+scripts/lib/metrics.sh       observability commands for Router and Hermes telemetry
 docs/user-guide/              usage documentation (see Documentation above)
+test/metrics-test.sh          observability behavior tests (Docker/Hermes stubbed)
+test/metrics-cli-test.sh      observability CLI entry-point tests
 test/smoke-test.sh            end-to-end smoke test suite (phased; see --list)
 test/full-flow-test.sh        full install -> real chat completion -> uninstall run, per agent
 ```
