@@ -2,7 +2,7 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.1.0/microservices/inference-router">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/microservices/inference-router">
      GitHub
   </a>
 </div>
@@ -25,7 +25,7 @@ provider that LiteLLM tool supports.
 Key Features:
 
 - OpenAI-Compatible API:
-  
+
   This endpoint substitutes the OpenAI `/v1/chat/completions` endpoint,
   and supports both streaming and non-streaming responses. It forwards
   standard request parameters, including `temperature`, `max_tokens`,
@@ -37,7 +37,7 @@ Key Features:
   by provider name, or let the router pick automatically by setting
   `model: "auto"`. Routing strategies and policies live in `src/rsd` and
   are pluggable.
-  
+
 - Pluggable Hooks:
 
   Pre-routing, post-routing, and post-response plugin hooks allow custom
@@ -55,7 +55,7 @@ Key Features:
 ## How It Works
 
 1. Request Ingress:
-   
+
    A client sends an OpenAI-format chat completion request to the router's
    /v1/chat/completions endpoint. The router uses the `model` value to
    route to a specific backend or configured provider target. If `model`
