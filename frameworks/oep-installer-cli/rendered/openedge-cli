@@ -2646,6 +2646,10 @@ configure_esq_telemetry_mods ()
         fi;
     done
 }
+configure_ffmpeg () 
+{ 
+    packages=(ffmpeg "$(apt-cache search libx264-16* | head -n1 | cut -f1 -d' ')")
+}
 configure_geti () 
 { 
     workspace="$(ensure_project_path)/geti";
@@ -5533,7 +5537,8 @@ debian_70_install_edge_pack_media_gst ()
 }
 debian_70_install_ffmpeg () 
 { 
-    ensure_apt_install_package ffmpeg
+    configure_ffmpeg "$@";
+    ensure_apt_install_package "${packages[@]}"
 }
 debian_70_install_mediamtx () 
 { 
@@ -5619,7 +5624,8 @@ debian_70_remove_edge_pack_media_gst ()
 }
 debian_70_remove_ffmpeg () 
 { 
-    ensure_apt_remove_package ffmpeg
+    configure_ffmpeg "$@";
+    ensure_apt_remove_package "${packages[@]}"
 }
 debian_70_remove_mediamtx () 
 { 
@@ -5655,7 +5661,8 @@ debian_70_sbom_edge_pack_media_gst ()
 }
 debian_70_sbom_ffmpeg () 
 { 
-    ensure_sbom_format pkg-list ffmpeg
+    configure_ffmpeg "$@";
+    ensure_sbom_format pkg-list "${packages[@]}"
 }
 debian_70_sbom_nodejs () 
 { 
@@ -5847,9 +5854,9 @@ debian_85_start_video_search_and_summarization ()
 { 
     configure_video_search_and_summarization "$@";
     ensure_ports_open start video_search_and_summarization "${used_ports[@]}";
-    ensure_container_namespace start video_search_and_summarization $(ensure_container_parse_yaml "$workspace"/sample-applications/video-search-and-summarization/docker/*.yaml);
-    configure_video_search_and_summarization_gated;
     cd "$workspace"/sample-applications/video-search-and-summarization;
+    ensure_container_namespace start video_search_and_summarization $(ensure_container_parse_yaml docker/compose*.yaml video-ingestion/docker/compose.yaml);
+    configure_video_search_and_summarization_gated;
     . ./setup.sh --search-and-summary;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${APP_HOST_PORT}";
     echo "@@HIGHLIGHT stop|remove"
@@ -5865,7 +5872,7 @@ debian_85_stop_video_search_and_summarization ()
     cd "$workspace"/sample-applications/video-search-and-summarization && { 
         . ./setup.sh --stop || true;
         . ./setup.sh --clean-data || true;
-        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/compose*.yaml video-ingestion/docker/compose.yaml)
     } || true
 }
 debian_90_install_agentic_predictive_maintenance_pipeline () 
@@ -7201,7 +7208,7 @@ debian_90_profile_stationary_robot_vision ()
 }
 debian_90_profile_surgical_instrument () 
 { 
-    echo "edge_base docker_io git make python3_venv gnupg wget"
+    echo "edge_base docker_io git make python3_venv gnupg wget ffmpeg curl lsb_release"
 }
 debian_90_profile_suspicious_activity_detection () 
 { 
@@ -7479,13 +7486,12 @@ debian_90_remove_uncrewed_aerial_vehicle_ground_station ()
         echo "uncrewed_aerial_vehicle_ground_station is not installed." 1>&2;
         return 1;
     fi;
-    cd "$app_dir" || return $?;
-    make clean-vss-index || true;
-    docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
-    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true;
-    ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/ || true;
-    ensure_rm "$workspace" || return $?;
-    ensure_prop remove installed/uncrewed_aerial_vehicle_ground_station/
+    cd "$app_dir" && { 
+        make clean-vss-index || true;
+        docker compose "${compose_files[@]}" down --volumes --remove-orphans || true;
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml)
+    } || true;
+    ensure_rm "$workspace"
 }
 debian_90_remove_uncrewed_aerial_vehicle_vision_analytics () 
 { 
@@ -8041,8 +8047,10 @@ debian_90_start_scenescape ()
 { 
     configure_scenescape "$@";
     ensure_ports_open start scenescape "${used_ports[@]}";
-    ensure_container_namespace start scenescape $(ensure_container_parse_yaml "$workspace"/sample_data/compose/compose.*.yml);
     cd "$workspace";
+    ensure_container_namespace start scenescape $(find . \( -path ./tests -o -path ./tools -o -path ./kubernetes -o -name .git \) -prune -o -type f \( -name 'compose*.y*ml' -o -name 'docker-compose*.y*ml' \) -print | while read -r f; do
+    ensure_container_parse_yaml --project=scenescape "$f";
+done | sort -u);
     export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5);
     make init-secrets;
     make demo-all DEMO_REBUILD_IMAGES=false;
@@ -8086,8 +8094,8 @@ debian_90_start_smart_nvr ()
 { 
     configure_smart_nvr "$@";
     ensure_ports_open start smart_nvr "${used_ports[@]}";
-    ensure_container_namespace start smart_nvr $(ensure_container_parse_yaml "$workspace"/smart-nvr/docker/*.yaml);
     cd "$workspace"/smart-nvr;
+    ensure_container_namespace start smart_nvr $(ensure_container_parse_yaml docker/*.yaml) $(ensure_container_parse_yaml --project=smartnvr-mediamtx streamer/docker-compose.yml) $(ensure_container_parse_yaml ../metro-vision-ai-app-recipe/compose-scenescape.yml);
     . setup.sh start;
     echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT $installer_name stop|remove"
@@ -8671,7 +8679,9 @@ debian_90_stop_scenescape ()
     cd "$workspace" && { 
         make demo-close || true;
         make clean-all || true;
-        ensure_container_cleanup $(ensure_container_parse_yaml sample_data/compose/compose.*.yml)
+        ensure_container_cleanup $(find . \( -path ./tests -o -path ./tools -o -path ./kubernetes -o -name .git \) -prune -o -type f \( -name 'compose*.y*ml' -o -name 'docker-compose*.y*ml' \) -print | while read -r f; do
+    ensure_container_parse_yaml --project=scenescape "$f";
+done | sort -u)
     } || true
 }
 debian_90_stop_smart_intersection () 
@@ -8696,7 +8706,7 @@ debian_90_stop_smart_nvr ()
     configure_smart_nvr "$@";
     cd "$workspace"/smart-nvr && { 
         . ./setup.sh stop || true;
-        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml) $(ensure_container_parse_yaml --project=smartnvr-mediamtx streamer/docker-compose.yml) $(ensure_container_parse_yaml ../metro-vision-ai-app-recipe/compose-scenescape.yml)
     } || true
 }
 debian_90_stop_smart_parking () 
@@ -8732,7 +8742,7 @@ debian_90_stop_suspicious_activity_detection ()
     cd "$workspace"/suspicious-activity-detection && { 
         make down || true;
         make clean-all || true;
-        ensure_container_cleanup $(ensure_container_parse_yaml docker/docker-compose*.yaml ../scenescape/docker-compose.yaml)
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/docker-compose*.yaml ../scenescape/docker-compose.yaml) --with-external
     } || true
 }
 debian_90_stop_take_away () 
@@ -8764,9 +8774,8 @@ debian_90_stop_uncrewed_aerial_vehicle_ground_station ()
     fi;
     cd "$app_dir" && { 
         make down-vss || true;
-        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml docker-compose-mediamtx.yml) || true
-    } || true;
-    ensure_prop remove started/uncrewed_aerial_vehicle_ground_station/
+        ensure_container_cleanup $(ensure_container_parse_yaml docker-compose*.yml) || true
+    } || true
 }
 debian_90_stop_uncrewed_aerial_vehicle_vision_analytics () 
 { 
@@ -9251,9 +9260,10 @@ def host_ports(p):
   if not m: return []
   lo = int(m.group(1))
   return range(lo, int(m.group(2) or lo) + 1)
-cli_project, paths = None, []
+cli_project, paths, with_external = None, [], False
 for a in sys.argv[1:]:
   if a.startswith("--project="): cli_project = a.split("=", 1)[1]
+  elif a == "--with-external": with_external = True
   else: paths.append(a)
 services, networks, volumes, file_name = {}, {}, {}, None
 for path in paths:
@@ -9291,8 +9301,15 @@ for n, s in services.items():
 if needs_default: networks.setdefault("default", {})
 for kind, table in (("net", networks), ("vol", volumes)):
   for k, c in table.items():
-    if c.get("external"): continue                  # never ours to clean up
-    out(kind, resolve(c["name"]) if c.get("name") else f"{proj}_{k}")
+    ext = c.get("external")
+    if ext and not with_external: continue          # never ours to clean up
+    if isinstance(ext, dict) and ext.get("name"):   # legacy `external: {name: x}`
+      name = resolve(ext["name"])
+    elif c.get("name"):
+      name = resolve(c["name"])
+    else:
+      name = k if ext else f"{proj}_{k}"            # externals are not project-prefixed
+    out(kind, name)
 EOF
 
 }
