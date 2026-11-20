@@ -10,54 +10,48 @@ import { ENDPOINTS } from "@/api/apiEndpoints";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import { formatElapsedTimeSeconds } from "@/lib/timeUtils.ts";
 import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { useAppDispatch } from "@/store/hooks";
 import { toast } from "sonner";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
-import { Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { Download, ExternalLink, Loader2 } from "lucide-react";
 
 const SAMPLE_DOWNLOAD_LABELS = {
   available: "Download",
-  queued: "Downloading",
-  downloading: "Downloading",
-  downloaded: "Downloaded",
   failed: "Retry",
-  conflict: "Name conflict",
 };
-
-const HEVC_CONVERSION_LABELS = {
-  not_converted: "Convert to HEVC",
-  queued: "Queued",
-  converting: "Converting",
-  converted: "Saved as H.265",
-  failed: "Retry HEVC conversion",
-  conflict: "Name conflict",
-};
+const SAMPLE_POLL_INTERVAL_MS = 2000;
+const SAMPLE_POLL_MAX_ATTEMPTS = 900;
 
 export const Videos = () => {
   const { data: videos, isSuccess, isLoading } = useGetVideosQuery();
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [bulkCurrentFilename, setBulkCurrentFilename] = useState<string | null>(
+    null,
+  );
   const [trackedDownloads, setTrackedDownloads] = useState<string[]>([]);
   const [startingDownloads, setStartingDownloads] = useState<string[]>([]);
   const [trackedConversions, setTrackedConversions] = useState<string[]>([]);
-  const [startingConversions, setStartingConversions] = useState<string[]>([]);
-  const { data: sampleVideos = [] } = useGetDefaultVideoRecordingsQuery(
-    undefined,
-    {
+  const { data: sampleVideos = [], refetch: refetchSampleVideos } =
+    useGetDefaultVideoRecordingsQuery(undefined, {
       pollingInterval:
-        trackedDownloads.length > 0 || trackedConversions.length > 0 ? 2000 : 0,
-    },
-  );
+        trackedDownloads.length > 0 ||
+        trackedConversions.length > 0 ||
+        isBulkProcessing
+          ? 2000
+          : 0,
+    });
   const dispatch = useAppDispatch();
   const [checkVideoExists] = useLazyCheckVideoInputExistsQuery();
   const [startDefaultVideoDownload] = useStartDefaultVideoDownloadMutation();
@@ -65,6 +59,14 @@ export const Videos = () => {
     useStartDefaultVideoHevcConversionMutation();
   const { registerJobGroup, unregisterJobGroup, updateJobs } =
     useBackgroundJobs();
+  const isUnmountedRef = useRef(false);
+
+  useEffect(() => {
+    isUnmountedRef.current = false;
+    return () => {
+      isUnmountedRef.current = true;
+    };
+  }, []);
 
   // Register this component as a job group
   useEffect(() => {
@@ -126,6 +128,9 @@ export const Videos = () => {
           );
           toast.info("Sample video download started.");
         } else if (result.status === "downloaded") {
+          setTrackedDownloads((current) =>
+            Array.from(new Set([...current, filename])),
+          );
           dispatch(api.util.invalidateTags(["videos"]));
           toast.info("This sample video is already downloaded.");
         }
@@ -140,11 +145,8 @@ export const Videos = () => {
     [dispatch, startDefaultVideoDownload],
   );
 
-  const handleHevcConversion = useCallback(
+  const handlePostDownloadProcessing = useCallback(
     async (filename: string) => {
-      setStartingConversions((current) =>
-        Array.from(new Set([...current, filename])),
-      );
       try {
         const result = await startDefaultVideoHevcConversion({
           defaultVideoConversionRequest: { filename },
@@ -153,43 +155,135 @@ export const Videos = () => {
           setTrackedConversions((current) =>
             Array.from(new Set([...current, filename])),
           );
-          toast.info("HEVC conversion started.");
         } else if (result.status === "converted") {
           dispatch(api.util.invalidateTags(["videos"]));
-          toast.success(`Saved ${result.hevc_filename}.`);
         }
       } catch {
-        toast.error("Could not convert the sample video to HEVC.");
-      } finally {
-        setStartingConversions((current) =>
-          current.filter((name) => name !== filename),
-        );
+        toast.error("Could not prepare the sample video.");
+        dispatch(api.util.invalidateTags(["videos"]));
       }
     },
     [dispatch, startDefaultVideoHevcConversion],
   );
 
+  const bulkCandidates = sampleVideos.filter(
+    (video) => video.status !== "conflict" && video.status !== "downloaded",
+  );
+
+  const handleDownloadAll = useCallback(async () => {
+    if (bulkCandidates.length === 0 || isBulkProcessing) return;
+    setIsBulkProcessing(true);
+    let completed = 0;
+    let failed = 0;
+
+    const waitForVideo = async (
+      filename: string,
+      isFinished: (video: (typeof sampleVideos)[number]) => boolean,
+    ) => {
+      for (let attempt = 0; attempt < SAMPLE_POLL_MAX_ATTEMPTS; attempt += 1) {
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, SAMPLE_POLL_INTERVAL_MS),
+        );
+        if (isUnmountedRef.current) throw new Error("Page closed");
+        const recordings = await refetchSampleVideos().unwrap();
+        const video = recordings.find((item) => item.filename === filename);
+        if (!video) throw new Error("Sample video is no longer listed");
+        if (isFinished(video)) return video;
+      }
+      throw new Error("Timed out waiting for the sample video");
+    };
+
+    try {
+      for (const candidate of bulkCandidates) {
+        if (isUnmountedRef.current) return;
+        setBulkCurrentFilename(candidate.filename);
+        try {
+          let video = candidate;
+          if (video.status !== "downloaded") {
+            await startDefaultVideoDownload({
+              defaultVideoDownloadRequest: { filename: video.filename },
+            }).unwrap();
+            // "available" after the start means the backend lost the job, e.g. after a restart.
+            video = await waitForVideo(candidate.filename, (current) =>
+              ["downloaded", "failed", "conflict", "available"].includes(
+                current.status,
+              ),
+            );
+            if (video.status !== "downloaded") {
+              throw new Error("Video download failed");
+            }
+          }
+
+          if (video.conversion_status !== "converted") {
+            await startDefaultVideoHevcConversion({
+              defaultVideoConversionRequest: { filename: video.filename },
+            }).unwrap();
+            video = await waitForVideo(candidate.filename, (current) =>
+              ["converted", "failed", "conflict", "not_converted"].includes(
+                current.conversion_status,
+              ),
+            );
+            if (video.conversion_status !== "converted") {
+              throw new Error("HEVC conversion failed");
+            }
+          }
+          completed += 1;
+        } catch {
+          if (isUnmountedRef.current) return;
+          failed += 1;
+        }
+      }
+
+      dispatch(api.util.invalidateTags(["videos"]));
+      if (failed > 0) {
+        toast.warning(`${completed} video(s) ready; ${failed} failed.`);
+      } else {
+        toast.success(`${completed} video(s) ready.`);
+      }
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkCurrentFilename(null);
+    }
+  }, [
+    bulkCandidates,
+    dispatch,
+    isBulkProcessing,
+    refetchSampleVideos,
+    startDefaultVideoDownload,
+    startDefaultVideoHevcConversion,
+  ]);
+
   useEffect(() => {
     if (trackedDownloads.length === 0) return;
     const finished = trackedDownloads.every((filename) => {
       const sample = sampleVideos.find((video) => video.filename === filename);
-      return sample?.status === "downloaded" || sample?.status === "failed";
+      return ["downloaded", "failed", "conflict"].includes(
+        sample?.status ?? "",
+      );
     });
     if (!finished) return;
 
-    const failed = trackedDownloads.filter(
+    const failed = trackedDownloads.filter((filename) =>
+      ["failed", "conflict"].includes(
+        sampleVideos.find((video) => video.filename === filename)?.status ?? "",
+      ),
+    );
+    const downloaded = trackedDownloads.filter(
       (filename) =>
         sampleVideos.find((video) => video.filename === filename)?.status ===
-        "failed",
+        "downloaded",
     );
     setTrackedDownloads([]);
     dispatch(api.util.invalidateTags(["videos"]));
+    downloaded.forEach(
+      (filename) => void handlePostDownloadProcessing(filename),
+    );
     if (failed.length > 0) {
       toast.error(`Could not download ${failed.length} sample video(s).`);
     } else {
       toast.success("Sample video download completed.");
     }
-  }, [dispatch, sampleVideos, trackedDownloads]);
+  }, [dispatch, handlePostDownloadProcessing, sampleVideos, trackedDownloads]);
 
   useEffect(() => {
     if (trackedConversions.length === 0) return;
@@ -201,30 +295,13 @@ export const Videos = () => {
     });
     if (!finished) return;
 
-    const failed = trackedConversions.filter((filename) => {
-      const status = sampleVideos.find(
-        (video) => video.filename === filename,
-      )?.conversion_status;
-      return status === "failed" || status === "conflict";
-    });
-    const converted = trackedConversions
-      .map((filename) =>
-        sampleVideos.find((video) => video.filename === filename),
-      )
-      .filter((video) => video?.conversion_status === "converted");
     setTrackedConversions([]);
     dispatch(api.util.invalidateTags(["videos"]));
-    if (failed.length > 0) {
-      toast.error(
-        `Could not convert ${failed.length} sample video(s) to HEVC.`,
-      );
-    } else if (converted.length > 0) {
-      toast.success(`Saved ${converted[0]?.hevc_filename} as H.265.`);
-    }
   }, [dispatch, sampleVideos, trackedConversions]);
 
   const filteredVideos =
     isSuccess && videos ? filterOutTransportStreams(videos) : [];
+  const sampleFilenames = new Set(sampleVideos.map((video) => video.filename));
   if (isLoading) {
     return (
       <div className="h-full overflow-auto">
@@ -242,6 +319,23 @@ export const Videos = () => {
         </p>
       </div>
 
+      <div className="sticky top-0 z-10 mb-3 flex items-center justify-end gap-3 border-b bg-background py-3">
+        <Button
+          size="sm"
+          disabled={bulkCandidates.length === 0 || isBulkProcessing}
+          onClick={handleDownloadAll}
+        >
+          {isBulkProcessing ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Download className="size-4" />
+          )}
+          {isBulkProcessing
+            ? `Processing ${bulkCurrentFilename ?? "videos"}...`
+            : `Download all videos (${bulkCandidates.length})`}
+        </Button>
+      </div>
+
       <MultiFileUploader
         accept="video/*"
         maxSize={2 * 1024 * 1024 * 1024} // 2 GB
@@ -256,9 +350,9 @@ export const Videos = () => {
 
       <section className="mb-10">
         <div className="mb-4">
-          <h2 className="text-xl font-semibold">Sample videos</h2>
+          <h2 className="text-xl font-semibold">Videos</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Download sample clips individually when you need them.
+            Download sample clips or open available videos.
           </p>
         </div>
 
@@ -266,8 +360,7 @@ export const Videos = () => {
           <p className="font-medium">Pexels sample video terms</p>
           <p className="mt-1 text-muted-foreground">
             Some clips are from Pexels. Attribution is not required under its
-            current license, but bulk or systematic copying is restricted, so
-            download Pexels clips individually. Review the{" "}
+            current license. Review the{" "}
             <a
               className="inline-flex items-center gap-1 text-foreground underline underline-offset-4"
               href="https://www.pexels.com/license/"
@@ -288,22 +381,21 @@ export const Videos = () => {
             .
           </p>
         </div>
-        <p className="mb-3 text-sm text-muted-foreground">
-          HEVC conversion uses the DLSPS VA-API encoder and requires an
-          available Intel GPU.
-        </p>
-
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>File name</TableHead>
-              <TableHead>Source</TableHead>
+              <TableHead>Resolution</TableHead>
+              <TableHead>Codec</TableHead>
+              <TableHead>Duration</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sampleVideos.map((video) => {
+              const availableVideo = filteredVideos.find(
+                (item) => item.filename === video.filename,
+              );
               const isPending =
                 video.status === "queued" || video.status === "downloading";
               const isStartingThisDownload = startingDownloads.includes(
@@ -311,116 +403,123 @@ export const Videos = () => {
               );
               const isDownloaded = video.status === "downloaded";
               const hasNameConflict = video.status === "conflict";
+              const isBulkCurrent =
+                isBulkProcessing && bulkCurrentFilename === video.filename;
+              const isDownloading =
+                isPending ||
+                isStartingThisDownload ||
+                (isBulkCurrent && !isDownloaded);
               const isConverting =
-                video.conversion_status === "queued" ||
-                video.conversion_status === "converting";
-              const isStartingThisConversion = startingConversions.includes(
-                video.filename,
-              );
-              const hasConversionConflict =
-                video.conversion_status === "conflict";
-              const isConverted = video.conversion_status === "converted";
+                isDownloaded &&
+                (video.conversion_status === "queued" ||
+                  video.conversion_status === "converting" ||
+                  (isBulkCurrent && video.conversion_status !== "converted"));
               return (
-                <TableRow key={video.filename}>
-                  <TableCell className="font-medium">
-                    {video.filename}
-                  </TableCell>
-                  <TableCell>{video.source}</TableCell>
-                  <TableCell className="capitalize">
-                    {video.status.replaceAll("_", " ")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {isDownloaded ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={
-                          isConverting ||
-                          isStartingThisConversion ||
-                          isConverted ||
-                          hasConversionConflict
-                        }
-                        onClick={() => handleHevcConversion(video.filename)}
+                <TableRow key={video.filename} className="odd:bg-muted/30">
+                  <TableCell>
+                    {availableVideo?.path ? (
+                      <a
+                        className="font-medium underline underline-offset-4"
+                        href={`/assets/videos/input/${availableVideo.path}`}
+                        target="_blank"
+                        rel="noreferrer"
                       >
-                        {isConverting || isStartingThisConversion ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : isConverted || hasConversionConflict ? null : (
-                          <RefreshCw className="size-4" />
-                        )}
-                        {HEVC_CONVERSION_LABELS[video.conversion_status]}
-                      </Button>
+                        {video.filename}
+                      </a>
+                    ) : (
+                      <span className="font-medium">{video.filename}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {availableVideo
+                      ? `${availableVideo.width}x${availableVideo.height}`
+                      : "-"}
+                  </TableCell>
+                  <TableCell>{availableVideo?.codec ?? "-"}</TableCell>
+                  <TableCell>
+                    {availableVideo
+                      ? formatElapsedTimeSeconds(availableVideo.duration)
+                      : "-"}
+                  </TableCell>
+                  <TableCell>
+                    {availableVideo?.source === "uploaded" ? (
+                      <Badge variant="secondary">Uploaded</Badge>
+                    ) : isConverting ? (
+                      <Badge variant="secondary">
+                        <Loader2 className="animate-spin" />
+                        Converting
+                      </Badge>
+                    ) : isDownloaded ? (
+                      <Badge variant="success">Downloaded</Badge>
+                    ) : isDownloading ? (
+                      <Badge variant="secondary">
+                        <Loader2 className="animate-spin" />
+                        Downloading
+                      </Badge>
+                    ) : hasNameConflict ? (
+                      <Badge variant="destructive">Name conflict</Badge>
                     ) : (
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={
-                          isPending || isStartingThisDownload || hasNameConflict
-                        }
+                        disabled={isBulkProcessing}
                         onClick={() => handleDownload(video.filename)}
                       >
-                        {isPending || isStartingThisDownload ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : hasNameConflict ? null : (
-                          <Download className="size-4" />
-                        )}
-                        {SAMPLE_DOWNLOAD_LABELS[video.status]}
+                        <Download className="size-4" />
+                        {video.status === "failed"
+                          ? SAMPLE_DOWNLOAD_LABELS.failed
+                          : SAMPLE_DOWNLOAD_LABELS.available}
                       </Button>
                     )}
                   </TableCell>
                 </TableRow>
               );
             })}
+            {filteredVideos
+              .filter((video) => !sampleFilenames.has(video.filename))
+              .map((video) => (
+                <TableRow key={video.filename} className="odd:bg-muted/30">
+                  <TableCell className="font-medium">
+                    {video.path ? (
+                      <a
+                        className="underline underline-offset-4"
+                        href={`/assets/videos/input/${video.path}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {video.filename}
+                      </a>
+                    ) : (
+                      video.filename
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {video.width}x{video.height}
+                  </TableCell>
+                  <TableCell>{video.codec}</TableCell>
+                  <TableCell>
+                    {formatElapsedTimeSeconds(video.duration)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        video.source !== "uploaded" && video.codec === "h265"
+                          ? "success"
+                          : "secondary"
+                      }
+                    >
+                      {video.source === "uploaded"
+                        ? "Uploaded"
+                        : video.codec === "h265"
+                          ? "Downloaded"
+                          : "Available"}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </section>
-
-      {filteredVideos.length > 0 ? (
-        <Table className="mb-10">
-          <TableCaption>A list of loaded videos.</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[25%]">File name</TableHead>
-              <TableHead>Resolution</TableHead>
-              <TableHead>Number of frames</TableHead>
-              <TableHead>Codec</TableHead>
-              <TableHead>Duration</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredVideos.map((video) => (
-              <TableRow key={video.filename}>
-                <TableCell className="font-medium max-w-0">
-                  <div className="truncate" title={video.filename}>
-                    {video.filename}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {video.width}x{video.height}
-                </TableCell>
-                <TableCell>{video.frame_count}</TableCell>
-                <TableCell>{video.codec}</TableCell>
-                <TableCell>
-                  {formatElapsedTimeSeconds(video.duration)}
-                </TableCell>
-                <TableCell>
-                  <video
-                    src={`/assets/videos/input/${video.path}`}
-                    controls
-                    className="w-48 h-auto"
-                  >
-                    Your browser does not support the video tag.
-                  </video>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <div className="text-center py-10 text-muted-foreground">
-          No videos uploaded yet. Upload your first video above.
-        </div>
-      )}
     </div>
   );
 };

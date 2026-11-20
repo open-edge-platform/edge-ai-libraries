@@ -247,13 +247,14 @@ async def get_default_video_recordings():
             else "GitHub" if hostname.endswith("github.com")
             else hostname
         )
-        if manager.default_video_exists(filename):
-            status = schemas.DefaultVideoDownloadState.DOWNLOADED
-        elif statuses.get(filename) in (
+        # A file being moved into place is visible before the download finishes.
+        if statuses.get(filename) in (
             schemas.DefaultVideoDownloadState.QUEUED,
             schemas.DefaultVideoDownloadState.DOWNLOADING,
         ):
             status = statuses[filename]
+        elif manager.default_video_exists(filename):
+            status = schemas.DefaultVideoDownloadState.DOWNLOADED
         elif manager.filename_exists(filename):
             status = schemas.DefaultVideoDownloadState.CONFLICT
         else:
@@ -308,11 +309,7 @@ async def get_default_video_recordings():
             "model": schemas.DefaultVideoDownloadResponse,
         },
         404: {"description": "A requested filename is not in the sample manifest."},
-        409: {
-            "description": (
-                "A filename conflict or concurrent Pexels download exists."
-            ),
-        },
+        409: {"description": "A filename conflict exists."},
     },
 )
 async def start_default_video_download(
@@ -325,41 +322,20 @@ async def start_default_video_download(
     if recording is None:
         raise HTTPException(status_code=404, detail="Unknown sample video filename")
 
-    is_pexels = (
-        urlparse(recording["url"]).hostname.lower().endswith(".pexels.com")
-    )
     with _default_video_download_lock:
-        active_pexels = {
-            filename
-            for filename, status in _default_video_download_status.items()
-            if filename in recordings
-            and urlparse(recordings[filename]["url"])
-            .hostname.lower()
-            .endswith(".pexels.com")
-            and status
-            in (
-                schemas.DefaultVideoDownloadState.QUEUED,
-                schemas.DefaultVideoDownloadState.DOWNLOADING,
-            )
-        }
-        if manager.default_video_exists(body.filename):
-            status = schemas.DefaultVideoDownloadState.DOWNLOADED
-            accepted = False
-        elif _default_video_download_status.get(body.filename) in (
+        if _default_video_download_status.get(body.filename) in (
             schemas.DefaultVideoDownloadState.QUEUED,
             schemas.DefaultVideoDownloadState.DOWNLOADING,
         ):
             status = _default_video_download_status[body.filename]
             accepted = False
+        elif manager.default_video_exists(body.filename):
+            status = schemas.DefaultVideoDownloadState.DOWNLOADED
+            accepted = False
         elif manager.filename_exists(body.filename):
             raise HTTPException(
                 status_code=409,
                 detail="A video with this sample filename already exists",
-            )
-        elif is_pexels and active_pexels:
-            raise HTTPException(
-                status_code=409,
-                detail="Another Pexels video is already downloading",
             )
         else:
             status = schemas.DefaultVideoDownloadState.QUEUED

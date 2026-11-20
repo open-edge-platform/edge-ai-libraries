@@ -632,6 +632,8 @@ class Graph:
 
                 if "location" in node.data:
                     location = node.data["location"]
+                    if not location:
+                        raise ValueError(_missing_input_video_message(location))
 
                     # Ensure TS file exists before using it
                     ts_path = videos_manager.get_ts_path(location)
@@ -649,7 +651,7 @@ class Graph:
 
                         if source_path is None:
                             raise ValueError(
-                                f"Cannot find source video '{source_filename}' for TS conversion."
+                                _missing_input_video_message(source_filename)
                             )
 
                         ts_path = videos_manager.ensure_ts_file(source_path)
@@ -4530,6 +4532,18 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
                 logger.debug(f"Video path not found: {path}")
 
 
+def _missing_input_video_message(name: str) -> str:
+    if not name:
+        return (
+            "No input video is selected. Download or upload a video on the "
+            "Videos page, then select it in the pipeline Input node."
+        )
+    return (
+        f"Input video '{name}' is not available. Download or upload it on the "
+        "Videos page, then select it in the pipeline Input node."
+    )
+
+
 def _input_video_name_to_path(nodes: list[Node]) -> None:
     """
     Convert logical video filenames back into absolute paths for file-based source nodes.
@@ -4576,9 +4590,7 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
 
             path = VideosManager().get_video_path(name)
             if not path:
-                raise ValueError(
-                    f"Node {node.id}. {node.type}: can't map '{key}={name}' to video path"
-                )
+                raise ValueError(_missing_input_video_message(name))
 
             node.data[key] = path
             logger.debug(f"Converted video filename to path: {name} -> {path}")

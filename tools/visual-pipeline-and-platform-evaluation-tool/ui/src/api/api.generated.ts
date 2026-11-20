@@ -679,6 +679,24 @@ const injectedRtkApi = api
         }),
         providesTags: ["voice"],
       }),
+      listSampleAudioRecordingsVoiceSampleRecordingsGet: build.query<
+        ListSampleAudioRecordingsVoiceSampleRecordingsGetApiResponse,
+        ListSampleAudioRecordingsVoiceSampleRecordingsGetApiArg
+      >({
+        query: () => ({ url: `/voice/sample-recordings` }),
+        providesTags: ["voice"],
+      }),
+      downloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPost:
+        build.mutation<
+          DownloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPostApiResponse,
+          DownloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPostApiArg
+        >({
+          query: (queryArg) => ({
+            url: `/voice/sample-recordings/${queryArg.filename}/download`,
+            method: "POST",
+          }),
+          invalidatesTags: ["voice"],
+        }),
       runAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPost:
         build.mutation<
           RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse,
@@ -1082,6 +1100,15 @@ export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiResponse =
 export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiArg = {
   filename: string;
 };
+export type ListSampleAudioRecordingsVoiceSampleRecordingsGetApiResponse =
+  /** status 200 Successful Response */ SampleAudioRecordingResponse[];
+export type ListSampleAudioRecordingsVoiceSampleRecordingsGetApiArg = void;
+export type DownloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPostApiResponse =
+  /** status 200 Successful Response */ SampleAudioRecordingResponse;
+export type DownloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPostApiArg =
+  {
+    filename: string;
+  };
 export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse =
   /** status 202 Successful Response */ AudioPipelineJobStartResponse;
 export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiArg =
@@ -2061,6 +2088,14 @@ export type AudioRecordingResponse = {
   duration_seconds: number;
   audio_url: string;
 };
+export type SampleAudioRecordingResponse = {
+  filename: string;
+  gender: "F" | "M";
+  format: string;
+  sample_rate: string;
+  description: string;
+  downloaded: boolean;
+};
 export type AudioPipelineJobStartResponse = {
   job_id: string;
   status: "RUNNING" | "COMPLETED" | "FAILED";
@@ -2194,6 +2229,9 @@ export const {
   useLazyListAudioRecordingsVoiceRecordingsGetQuery,
   useGetAudioRecordingVoiceRecordingsFilenameAudioGetQuery,
   useLazyGetAudioRecordingVoiceRecordingsFilenameAudioGetQuery,
+  useListSampleAudioRecordingsVoiceSampleRecordingsGetQuery,
+  useLazyListSampleAudioRecordingsVoiceSampleRecordingsGetQuery,
+  useDownloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPostMutation,
   useRunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostMutation,
   useGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,
   useLazyGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,

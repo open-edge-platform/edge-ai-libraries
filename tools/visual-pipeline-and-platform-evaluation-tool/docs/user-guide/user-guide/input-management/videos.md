@@ -13,22 +13,17 @@ You can also upload your own videos to use as pipeline input. The maximum allowe
 ## Downloading sample videos
 
 The **Sample videos** table lists the sample clips and their source. Download clips individually
-when needed. Pexels clips are limited to one per download request because Pexels restricts bulk or
-systematic copying. The application no longer downloads sample videos automatically at startup.
+when needed, or click **Download all videos** to download and convert to HEVC every sample
+clip that is not ready yet, one after another. The application no longer downloads sample videos
+automatically at startup.
+If a pipeline's input video is not available, the pipeline editor shows a warning and disables
+**Run** until you download the video and select it in the Input node.
 If an uploaded video already uses a sample filename, ViPPET keeps the uploaded file and disables that
 sample download to avoid a filename collision.
 
 Some clips are provided by Pexels. Attribution is not required under the current Pexels License, but
 other restrictions apply. Review the [Pexels License](https://www.pexels.com/license/) and
 [Terms of Service](https://www.pexels.com/terms-of-service/) before using the clips.
-
-## Converting a sample to HEVC
-
-After downloading a sample, choose **Convert to HEVC** in its **Action** column to create a separate
-`*_h265.mp4` copy. The original remains unchanged, and the converted video appears in the available
-videos list for use as pipeline input. Conversion runs through DLSPS using its VA-API `vah265enc`
-element, so the DLSPS service must have access to an Intel GPU. The bundled DLSPS image does not
-include a software HEVC encoder fallback.
 
 ## Uploading a video
 

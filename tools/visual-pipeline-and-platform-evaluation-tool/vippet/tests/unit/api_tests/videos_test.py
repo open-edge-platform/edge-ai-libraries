@@ -168,6 +168,50 @@ class TestVideosAPI(unittest.TestCase):
             ],
         )
 
+    def test_get_default_video_recordings_reports_download_in_progress(self):
+        videos_route._default_video_download_status["sample.mp4"] = (
+            videos_route.schemas.DefaultVideoDownloadState.DOWNLOADING
+        )
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.get_default_recordings.return_value = [
+                {
+                    "filename": "sample.mp4",
+                    "url": "https://example.test/sample.mp4",
+                }
+            ]
+            manager.default_video_exists.return_value = True
+            manager.default_hevc_filename.return_value = "sample_h265.mp4"
+            manager.get_video.return_value = None
+            manager.filename_exists.return_value = False
+
+            response = self.client.get("/videos/default-recordings")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()[0]["status"], "downloading")
+
+    def test_start_default_video_download_reports_download_in_progress(self):
+        videos_route._default_video_download_status["sample.mp4"] = (
+            videos_route.schemas.DefaultVideoDownloadState.DOWNLOADING
+        )
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.get_default_recordings.return_value = [
+                {
+                    "filename": "sample.mp4",
+                    "url": "https://example.test/sample.mp4",
+                }
+            ]
+            manager.default_video_exists.return_value = True
+
+            response = self.client.post(
+                "/videos/download-default", json={"filename": "sample.mp4"}
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "downloading")
+        manager.download_default_video.assert_not_called()
+
     def test_start_hevc_conversion_for_downloaded_default(self):
         with patch("api.routes.videos.VideosManager") as manager_class:
             manager = manager_class.return_value
@@ -269,7 +313,7 @@ class TestVideosAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         manager.download_default_video.assert_not_called()
 
-    def test_start_default_video_download_rejects_parallel_pexels_download(self):
+    def test_start_default_video_download_allows_parallel_pexels_download(self):
         videos_route._default_video_download_status["one.mp4"] = (
             videos_route.schemas.DefaultVideoDownloadState.QUEUED
         )
@@ -287,14 +331,15 @@ class TestVideosAPI(unittest.TestCase):
             ]
             manager.default_video_exists.return_value = False
             manager.filename_exists.return_value = False
+            manager.download_default_video.return_value = True
 
             response = self.client.post(
                 "/videos/download-default",
                 json={"filename": "two.mp4"},
             )
 
-        self.assertEqual(response.status_code, 409)
-        manager.download_default_video.assert_not_called()
+        self.assertEqual(response.status_code, 202)
+        manager.download_default_video.assert_called_once_with("two.mp4")
 
     def test_start_default_video_download_rejects_uploaded_filename_conflict(self):
         with patch("api.routes.videos.VideosManager") as manager_class:
