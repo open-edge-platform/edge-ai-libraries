@@ -113,6 +113,11 @@ const toPayloadFilters = (filters: GetiFilters): Record<string, string> =>
       .filter(([, value]) => value !== ""),
   );
 
+const toRequestFilters = (filters: GetiFilters): Record<string, string> => ({
+  ...toPayloadFilters(filters),
+  training_status: "successful",
+});
+
 export const GetiBrowser = ({ onInstalled }: GetiBrowserProps) => {
   const dispatch = useAppDispatch();
   const installedModels = useAppSelector(selectModels);
@@ -206,7 +211,7 @@ export const GetiBrowser = ({ onInstalled }: GetiBrowserProps) => {
         const response = await listHubModels({
           modelHubListRequest: {
             hub: "geti",
-            filters: toPayloadFilters(filters),
+            filters: toRequestFilters(filters),
             limit: ITEMS_PER_PAGE,
             offset,
           },
@@ -244,7 +249,7 @@ export const GetiBrowser = ({ onInstalled }: GetiBrowserProps) => {
           const response = await listHubModels({
             modelHubListRequest: {
               hub: "geti",
-              filters: toPayloadFilters(filters),
+              filters: toRequestFilters(filters),
               limit: FETCH_ALL_PAGE_SIZE,
               offset: pageOffset,
             },
