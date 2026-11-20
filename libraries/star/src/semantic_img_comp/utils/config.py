@@ -145,6 +145,9 @@ class EncConfig:
     mono_2bit_drop1bit_fill_gray_level: int = 128
     # SDL443/T-004: reject encoder-service request bodies larger than this before buffering them.
     max_body_bytes: int = 25 * 1024 * 1024  # 25 MiB, generous upper bound for one raw JPEG frame
+    # Max frames/metrics retained per stream (encoder-service queues, decoder-service ring
+    # buffer) before the oldest is evicted. Overridable via --stream-buffer-size.
+    stream_buffer_size: int = 200
 
 
 @dataclass
@@ -769,6 +772,7 @@ def load_config(config_path: Optional[str] = None) -> Config:
                 EncConfig.mono_2bit_drop1bit_neighbor_k,
             ),
             max_body_bytes=_get_non_negative_int(enc_raw, "max_body_bytes", EncConfig.max_body_bytes),
+            stream_buffer_size=_get_non_negative_int(enc_raw, "stream_buffer_size", EncConfig.stream_buffer_size),
         ),
         pipeline_manager=PipelineManagerConfig(
             queue_backlog_threshold_1=queue_threshold_1,

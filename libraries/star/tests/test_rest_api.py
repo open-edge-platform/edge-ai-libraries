@@ -29,7 +29,6 @@ from semantic_img_comp.decoder.decoder import Decoder  # noqa: E402
 from semantic_img_comp.decoder.service import DecoderService, create_app as create_decoder_app  # noqa: E402
 from semantic_img_comp.encoder.encoder import Encoder  # noqa: E402
 from semantic_img_comp.encoder.service import (  # noqa: E402
-    QUEUE_SIZE,
     EncoderService,
     create_app as create_encoder_app,
 )
@@ -280,52 +279,54 @@ def test_metrics_are_isolated_per_stream(cfg):
 
 
 def test_metrics_history_bounded_per_stream(cfg):
-    """Each stream's metrics history is capped at QUEUE_SIZE entries, oldest evicted first."""
+    """Each stream's metrics history is capped at stream_buffer_size entries, oldest evicted first."""
     bridge = SemanticCodecBridge(cfg, encoder=Encoder(cfg))
     service = EncoderService(cfg, decoder_url="http://decoder.local:8000", bridge=bridge)
+    queue_size = service.stream_buffer_size
     state = service.get_or_create_stream("bounded")
     try:
-        total = QUEUE_SIZE + 10
+        total = queue_size + 10
         for img_idx in range(total):
             service.record_metrics(state, _fake_encode_result(img_idx=img_idx))
 
         metrics = service.get_metrics_for_stream("bounded")
-        assert len(metrics) == QUEUE_SIZE
-        assert metrics[0].img_idx == total - QUEUE_SIZE
+        assert len(metrics) == queue_size
+        assert metrics[0].img_idx == total - queue_size
         assert metrics[-1].img_idx == total - 1
     finally:
         service.close_stream("bounded")
 
 
 def test_metrics_endpoint_bounded_to_queue_size(cfg):
-    """GET /metrics only ever returns up to QUEUE_SIZE entries, and GET /metrics/{img_idx}
+    """GET /metrics only ever returns up to stream_buffer_size entries, and GET /metrics/{img_idx}
     404s once that image's metric has aged out of the bounded per-stream history."""
     bridge = SemanticCodecBridge(cfg, encoder=Encoder(cfg))
     service = EncoderService(cfg, decoder_url="http://decoder.local:8000", bridge=bridge)
+    queue_size = service.stream_buffer_size
     app = create_encoder_app(service)
 
     with TestClient(app) as client:
         client.put("/v1/streams/s1")
         state = service.get_stream("s1")
 
-        total = QUEUE_SIZE + 10
+        total = queue_size + 10
         for img_idx in range(total):
             service.record_metrics(state, _fake_encode_result(img_idx=img_idx))
 
         resp = client.get("/v1/streams/s1/metrics")
         assert resp.status_code == 200
         metrics = resp.json()
-        assert len(metrics) == QUEUE_SIZE
-        assert [m["img_idx"] for m in metrics] == list(range(total - QUEUE_SIZE, total))
+        assert len(metrics) == queue_size
+        assert [m["img_idx"] for m in metrics] == list(range(total - queue_size, total))
 
         # Oldest entries were evicted by the bounded deque; the endpoint must 404 for them.
-        evicted_img_idx = total - QUEUE_SIZE - 1
+        evicted_img_idx = total - queue_size - 1
         assert client.get(f"/v1/streams/s1/metrics/{evicted_img_idx}").status_code == 404
 
         # The oldest still-retained entry and the newest one both 200.
-        oldest_retained = client.get(f"/v1/streams/s1/metrics/{total - QUEUE_SIZE}")
+        oldest_retained = client.get(f"/v1/streams/s1/metrics/{total - queue_size}")
         assert oldest_retained.status_code == 200
-        assert oldest_retained.json()["img_idx"] == total - QUEUE_SIZE
+        assert oldest_retained.json()["img_idx"] == total - queue_size
 
         newest = client.get(f"/v1/streams/s1/metrics/{total - 1}")
         assert newest.status_code == 200

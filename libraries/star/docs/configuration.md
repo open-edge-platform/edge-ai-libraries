@@ -29,7 +29,7 @@ This chapter shows all possible flags that can be configured on encoder/decoder 
 | `--decoder-url` | URL | none | encoder | Base URL of the decoder's REST service to forward encoded payloads to, e.g. `http://decoder:8000`. Falls back to the `DECODER_URL` env var. **Required** for `--role encoder`. |
 | `--service-host` | string | `0.0.0.0` | both | Bind address for the REST service side. |
 | `--service-port` | int `1..65535` | `8000` | both | Bind port for the REST service side. |
-| `--stream-buffer-size` | int | `200` | decoder | Max decoded frames retained per stream (REST service side) before the oldest is evicted. |
+| `--stream-buffer-size` | int | `encoder.stream_buffer_size` (`200`) | encoder, decoder | Max frames/metrics retained per stream (REST service side) before the oldest is evicted. |
 
 CLI values always override the corresponding YAML keys. Exit codes: `0` success, `2` bad
 arguments / missing paths, `1` runtime error or interrupt.

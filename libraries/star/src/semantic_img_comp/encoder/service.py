@@ -46,7 +46,11 @@ from semantic_img_comp.utils.service_http import STREAM_ID_PATTERN as _STREAM_ID
 from semantic_img_comp.utils.service_http import install_common_endpoints
 
 LOGGER = logging.getLogger("semantic_img_comp.encoder.service")
-QUEUE_SIZE = 200
+
+# Fallback for StreamState's own field defaults (only hit if a StreamState is
+# constructed without explicit queue sizes); real streams always get their size
+# from EncoderService.stream_buffer_size, itself read from cfg.enc.stream_buffer_size.
+_DEFAULT_STREAM_BUFFER_SIZE = 200
 
 
 class StreamCreateRequest(BaseModel):
@@ -126,11 +130,11 @@ class StreamState:
     frames_processed: int = 0
     created_at: float = field(default_factory=time.monotonic)
     fps: float = 0.0
-    encode_queue: "queue.Queue" = field(default_factory=lambda: queue.Queue(maxsize=QUEUE_SIZE))
+    encode_queue: "queue.Queue" = field(default_factory=lambda: queue.Queue(maxsize=_DEFAULT_STREAM_BUFFER_SIZE))
     encoding_thread: Optional[threading.Thread] = None
-    ready_to_send_queue: "queue.Queue" = field(default_factory=lambda: queue.Queue(maxsize=QUEUE_SIZE))
+    ready_to_send_queue: "queue.Queue" = field(default_factory=lambda: queue.Queue(maxsize=_DEFAULT_STREAM_BUFFER_SIZE))
     sender_thread: Optional[threading.Thread] = None
-    metrics: "deque[FrameMetric]" = field(default_factory=lambda: deque(maxlen=QUEUE_SIZE))
+    metrics: "deque[FrameMetric]" = field(default_factory=lambda: deque(maxlen=_DEFAULT_STREAM_BUFFER_SIZE))
     metrics_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -236,6 +240,7 @@ class EncoderService:
         self.cfg = cfg
         self.fps = fps
         self.default_decoder_url = decoder_url.rstrip("/")
+        self.stream_buffer_size = getattr(cfg.enc, "stream_buffer_size", _DEFAULT_STREAM_BUFFER_SIZE)
         self.logger = setup_logger(
             name="encoder-service", cfg=cfg
         )
@@ -272,6 +277,9 @@ class EncoderService:
                 decoder_stream_id=decoder_stream_id or stream_id,
                 compression_level=compression_level,
                 fps=self.fps,
+                encode_queue=queue.Queue(maxsize=self.stream_buffer_size),
+                ready_to_send_queue=queue.Queue(maxsize=self.stream_buffer_size),
+                metrics=deque(maxlen=self.stream_buffer_size),
             )
             state.encoding_thread = threading.Thread(
                 target=_stream_forwarder,
@@ -317,7 +325,7 @@ class EncoderService:
         return True
 
     def record_metrics(self, state: StreamState, result) -> None:
-        """Append one frame's per-image metrics from an EncodeResult to its stream's history (bounded to the last QUEUE_SIZE frames)."""
+        """Append one frame's per-image metrics from an EncodeResult to its stream's history (bounded to stream_buffer_size frames)."""
         metric = FrameMetric(
             stream_id=state.stream_id,
             img_idx=result.img_data.img_idx,
