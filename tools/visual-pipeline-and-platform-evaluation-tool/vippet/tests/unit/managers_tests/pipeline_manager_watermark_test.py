@@ -49,12 +49,18 @@ _DLSPS2_ELEMENTS = [
 _elements_patcher = patch(
     "explore.GstInspector._get_dlsps2_elements", return_value=_DLSPS2_ELEMENTS
 )
+# Loading predefined pipelines checks every variant against the DLSPS 2.0
+# device list: keep all variants instead of asking the server.
+_variant_supported_patcher = patch(
+    "managers.pipeline_manager.is_variant_supported", return_value=True
+)
 
 
 def setUpModule() -> None:
-    """Install the VideosManager and element-list patches before any test runs."""
+    """Install the VideosManager, element-list and variant patches before any test runs."""
     global _videos_manager_patcher
     _elements_patcher.start()
+    _variant_supported_patcher.start()
     mock_instance = MagicMock()
     mock_instance.get_video_filename.side_effect = _mock_get_video_filename
     mock_instance.get_video_path.side_effect = _mock_get_video_path
@@ -70,6 +76,7 @@ def tearDownModule() -> None:
     """Remove the patches after the module's tests finish."""
     global _videos_manager_patcher
     _elements_patcher.stop()
+    _variant_supported_patcher.stop()
     if _videos_manager_patcher is not None:
         _videos_manager_patcher.stop()
         _videos_manager_patcher = None

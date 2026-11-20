@@ -6,11 +6,13 @@ end-to-end latency and VLM generation metrics.
 ## Throughput
 
 Pipelines run on DL Streamer Pipeline Server 2.0 (DLSPS), one server instance per stream. The server counts the
-frames of each instance at one terminal sink and reports them as `frame_fps` over the last `frame_interval`
-seconds in `GET /pipelines/{id}/status`. That sink is the one parsed last, so before starting an instance ViPPET
-moves one branch to the end of the launch string: the branch with `gvafpscounter` if exactly one branch has it and
-ends in a sink, otherwise the branch that ends in the stream's main sink. In a VLM pipeline whose `gvafpscounter`
-sits after `gvagenai`, the FPS is therefore the rate of the VLM branch, not of the decode branch beside it.
+frames of each instance at one element and reports them as `frame_fps` over the last `frame_interval` seconds in
+`GET /pipelines/{id}/status`. ViPPET names that element as `fps_element` when it starts an instance: the
+stream's `gvafpscounter` if it has exactly one, given the name `vippet_fps_counter` if it has none, otherwise the
+stream's main sink. A server that ignores `fps_element` counts at the sink parsed last, so ViPPET also moves one
+branch to the end of the launch string: the branch with `gvafpscounter` if exactly one branch has it and ends in
+a sink, otherwise the branch that ends in the stream's main sink. In a VLM pipeline whose `gvafpscounter` sits
+after `gvagenai`, the FPS is therefore the rate of the VLM branch, not of the decode branch beside it.
 `Dlsps2PipelineRunner` (`vippet/dlsps2_runner.py`) polls the status of each instance every
 `DLSPS2_POLL_INTERVAL_S` seconds (default `1`). After a warm-up of `DLSPS2_WARMUP_S` seconds (default `5`, at
 most half the run), counted from the moment every stream has reported its first frame, it sums each stream's
