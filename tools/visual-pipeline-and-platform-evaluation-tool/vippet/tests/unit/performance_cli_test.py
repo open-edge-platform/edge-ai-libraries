@@ -107,7 +107,8 @@ class TestParser(unittest.TestCase):
             for action in parser._actions
             if action.option_strings and action.option_strings[0] != "-h"
         )
-        help_text = parser.format_help()
+        with patch.dict(os.environ, {"NO_COLOR": "1"}):
+            help_text = parser.format_help()
         # First occurrence after the usage block: "  --flag" starts a help entry.
         positions = [help_text.index(f"\n  {flag}") for flag in flags]
         self.assertEqual(positions, sorted(positions))

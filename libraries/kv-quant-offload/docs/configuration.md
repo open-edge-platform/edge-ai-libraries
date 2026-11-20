@@ -112,6 +112,8 @@ Performance benchmarks are marked `perf` and deselected by default; pass
 | `LMCACHE_MP_HOST` | `tcp://localhost` | LMCache MP host URI inside the container. |
 | `LMCACHE_MP_PORT` | `6555` | LMCache MP server port. |
 | `LMCACHE_MP_HTTP_PORT` | `8090` | LMCache MP HTTP healthcheck port. |
+| `LMCACHE_MP_HTTP_HOST` | `127.0.0.1` | Bind address of the LMCache MP HTTP server inside the container. |
+| `LMCACHE_EXPOSE_HTTP` | `0` | `vllm-start.sh` only. `1` publishes the LMCache HTTP port on `HOST_BIND_ADDRESS` (required by `tests/vllm-bench-two-waves.sh`). The MP request port is never published. |
 | `LMCACHE_MP_MQ_TIMEOUT` | `600` | LMCache MP message timeout, in seconds. |
 | `LMCACHE_MP_HEARTBEAT_INTERVAL` | `15` | LMCache MP heartbeat interval, in seconds. |
 | `LMCACHE_MP_L1_SIZE_GB` | `5` | LMCache L1 (host memory) tier size, in GB. |

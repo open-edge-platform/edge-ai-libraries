@@ -24,9 +24,8 @@ Quick start:
 
 ```bash
 cp .env.example .env        # copy and edit environment file
-cd docker
-docker compose build        # build the image
-docker compose up -d        # start containers (API on port 8080)
+make docker-build           # build the image
+make docker-up              # start containers (API on port 8080)
 curl http://localhost:8080/api/v1/health
 ```
 
@@ -64,7 +63,7 @@ Expected response:
 {
   "status": "healthy",
   "service": "semantic-search-agent",
-  "version": "2026.1.0",
+  "version": "2026.3.0-rc1",
   "vlm_backend": "ovms",
   "vlm_status": "connected",
   "uptime_seconds": 5.12

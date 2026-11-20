@@ -586,7 +586,14 @@ _install_openshell_agent() {
   fi
   openshell status -g "$gateway" || error "OpenShell gateway is not available."
   image="agent-harness-${agent}-openshell:local"
-  docker build --build-arg "HARNESS_AGENT=$agent" \
+  # The image reuses agents.sh's installers, so a Hermes pin override must
+  # reach the build; validated here so a bad pair fails before the build.
+  local -a pin_args=()
+  if [[ "$agent" == hermes && -n "${HERMES_PIN_OVERRIDE:-}" ]]; then
+    validate_hermes_pin
+    pin_args=(--build-arg "HERMES_PINNED_COMMIT=$HERMES_PINNED_COMMIT" --build-arg "HERMES_PINNED_SHA256=$HERMES_PINNED_SHA256")
+  fi
+  docker build --build-arg "HARNESS_AGENT=$agent" "${pin_args[@]}" \
     --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg http_proxy --build-arg https_proxy \
     -f "${SCRIPT_DIR}/openshell/Dockerfile" -t "$image" "$SCRIPT_DIR" \
     || error "Could not build the ${agent} sandbox image. Ownership record retained at ${dir}."

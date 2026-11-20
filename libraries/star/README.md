@@ -33,9 +33,9 @@ The toolbox can be driven in **four different ways**:
    wires the bridge, including per-frame logging,
    compression-level selection, and level-0 JPEG passthrough.
 
-3. **HTTP-based service.** that implements `SemanticCodecBridge` and exposes HTTP endpoints to user that allow to send and receive images using HTTP. See [configuration](docs/configuration.md#5-openapi-http-spec) for the HTTP API reference.
+3. **HTTP-based service.** that implements `SemanticCodecBridge` and exposes HTTP endpoints to user that allow to send and receive images using HTTP. See [configuration](./docs/user-guide/configuration.md#5-openapi-http-spec) for the HTTP API reference.
 
-4. **TCP-based service.** that implements `SemanticCodecBridge` and exposes TCP socket to user that allow to send and receive images using TCP. Socket support multiple clients and can be used as reference. See [configuration](docs/configuration.md#1-cli-reference-python--m-semantic_img_compmain) for the TCP API reference.
+4. **TCP-based service.** that implements `SemanticCodecBridge` and exposes TCP socket to user that allow to send and receive images using TCP. Socket support multiple clients and can be used as reference. See [configuration](./docs/user-guide/configuration.md#1-cli-reference-python--m-semantic_img_compmain) for the TCP API reference.
 
 All paths share the exact same encoder, decoder, configuration, adaptive pipeline manager, and
 log schema, so results obtained in direct-path mode carry over to a streamed deployment.
@@ -210,7 +210,7 @@ semantic-img-comp/
     ├── integration/               # <- plug an external streaming source in here
     │   ├── semantic_codec_bridge.py    # in-memory JPEG <-> payload <-> image API
     │   └── semantic_image_manager.py   # ImageManager adapter over the bridge
-    │   └── dlstreamer_client.py        # Impementation of client to offload 
+    │   └── dlstreamer_client.py        # Impementation of client to offload
     inference to DLStreamer
     ├── image_feeder/
     │   └── feeder.py   # Implementation of ImageFeeder for direct file transfer

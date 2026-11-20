@@ -14,6 +14,21 @@ from graph import (
 )
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 
+# Pipelines run on DLSPS 2.0, which these tests do not reach: decoder and
+# encoder selection sees no server elements instead of asking the server.
+_elements_patcher = patch("explore.GstInspector._get_gst_elements", return_value=[])
+
+
+def setUpModule() -> None:
+    """Install the element-list patch before any test runs."""
+    _elements_patcher.start()
+
+
+def tearDownModule() -> None:
+    """Remove the element-list patch after the module's tests finish."""
+    _elements_patcher.stop()
+
+
 # Create mock instances for SupportedModelsManager and VideosManager
 mock_models_manager_instance = MagicMock()
 mock_videos_manager_instance = MagicMock()

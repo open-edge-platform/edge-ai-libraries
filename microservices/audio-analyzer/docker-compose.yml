@@ -41,6 +41,7 @@ services:
       - "${RENDER_GID:-992}"
     environment:
       HF_HOME: /app/audio_analyzer/.cache/huggingface
+      HF_HUB_DISABLE_XET: ${HF_HUB_DISABLE_XET:-1}
       # Model snapshots (Whisper source, FunASR via ModelScope, diarization)
       # are downloaded by Audio Analyzer itself on first start and kept on the
       # models volume. To source them from a shared Model Download REST
