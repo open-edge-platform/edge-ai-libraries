@@ -56,14 +56,18 @@ for prerequisites and limitations.
 ## Observability
 
 `./install.sh observability enable|disable|show` manages telemetry for the
-Inference Router and Hermes harness. `enable` takes the collection and storage
+Inference Router and the installed harness (Hermes, OpenClaw or Deep Agents
+Code). `enable` takes the collection and storage
 options (`--backend`, `--endpoint`, `--content`); `disable` can delete collected
 data (`--clean`) or keep the managed Jaeger (`--keep-jaeger`); `show` prints a
 CLI summary, with Jaeger providing the full trace view. The Router persists
 request counters and latencies to a JSONL file and serves them on `/v1/metrics`.
-Hermes records per-turn traces through the `hermes-otel` plugin in a local
-SQLite store and optionally exports them to a managed or external Jaeger.
-Harness telemetry is Hermes-only and unavailable in OpenShell sandboxes.
+Each agent records per-turn traces through its own OpenTelemetry exporter (the
+`hermes-otel` plugin, OpenClaw's `diagnostics-otel` plugin, dcode's LangSmith
+SDK in OTel mode) into a local SQLite store, and optionally exports them to a
+managed or external Jaeger. For OpenClaw and dcode a small loopback OTLP
+receiver fills the local store.
+Harness telemetry is unavailable in OpenShell sandboxes.
 Settings are kept in `~/.agent-harness-install/metrics.json`, so Router config
 regeneration preserves them. See [Observability](./docs/user-guide/get-started.md#observability)
 for details.
@@ -98,9 +102,10 @@ scripts/lib/openvino.sh       OpenVINO Model Server (OpenAI-compatible inference
 scripts/lib/inference-router.sh  Inference Router (always run in front of OVMS or an external endpoint; agents are wired to it, not to the model server directly)
 scripts/lib/agents.sh         Agent Harness Installer's agent catalog: openclaw / deepagents-code (dcode) / hermes
 scripts/lib/harness-mcp.sh    registers an arbitrary MCP endpoint URL with an agent (Hermes and OpenClaw built in; others via HARNESS_MCP_REGISTER_CMD)
-scripts/lib/metrics.sh       observability commands for Router and Hermes telemetry
+scripts/lib/metrics.sh       observability commands for Router and harness telemetry
+scripts/lib/metrics-otlp-receiver.py  loopback OTLP receiver behind --backend sqlite for OpenClaw and dcode
 docs/user-guide/              usage documentation (see Documentation above)
-test/metrics-test.sh          observability behavior tests (Docker/Hermes stubbed)
+test/metrics-test.sh          observability behavior tests (Docker and agent CLIs stubbed)
 test/metrics-cli-test.sh      observability CLI entry-point tests
 test/smoke-test.sh            end-to-end smoke test suite (phased; see --list)
 test/full-flow-test.sh        full install -> real chat completion -> uninstall run, per agent
