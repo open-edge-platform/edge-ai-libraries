@@ -463,7 +463,7 @@ class TestModelInstallStep(unittest.TestCase):
             preflight=preflight or Mock(),
             client_factory=api.factory(),
             input_fn=input_fn,
-            installer_options={"sleep": lambda _: None},
+            sleep=lambda _: None,
             stdout=out,
             stderr=err,
         )
@@ -494,13 +494,24 @@ class TestModelInstallStep(unittest.TestCase):
         self.assertEqual(api.posts, ["/api/v1/models/download"])
         self.assertEqual([o.outcome for o in outcomes], [Outcome.INSTALLED])
 
-    def test_readiness_check_is_quiet_unless_waiting_or_failing(self) -> None:
-        def preflight(*_: Any, report: Callable[[str], None]) -> None:
-            report("[pre-flight] GET http://x/health: OK (HTTP 200)")
+    def test_empty_plan_prints_one_line(self) -> None:
+        installed = [dict(_MODELS[0], install_status="installed")]
+        rc, outcomes, out, _, _, _ = self._step(ask=True, api=_Api(models=installed))
+        self.assertEqual((rc, outcomes), (0, []))
+        self.assertEqual(
+            out,
+            "Model installation: every model the selected runs need is installed.\n",
+        )
+
+    def test_readiness_check_is_quiet_and_reports_to_stderr(self) -> None:
+        calls: list[dict[str, Any]] = []
+
+        def preflight(*_: Any, report: Callable[[str], None], **kwargs: Any) -> None:
+            calls.append(kwargs)
             report("[pre-flight] GET http://x/status: WAITING (starting)")
-            report("[pre-flight] GET http://x/status: READY (HTTP 200)")
 
         _, _, out, err, _, _ = self._step(ask=False, preflight=preflight)
+        self.assertEqual(calls, [{"verbose": False}])
         self.assertEqual(
             err.strip(), "[pre-flight] GET http://x/status: WAITING (starting)"
         )

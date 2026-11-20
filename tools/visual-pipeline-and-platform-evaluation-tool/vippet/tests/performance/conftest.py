@@ -535,11 +535,10 @@ def _apply_model_install_outcome(
             if SKIP_MISSING_MODELS:
                 _MISSING_MODEL_SKIP_PIPELINES.add(case.pipeline_id)
             continue
-        kind, reason = problem
-        if kind == "error":
-            mark = getattr(pytest.mark, MODEL_INSTALL_ERROR_MARK)(reason=reason)
+        if problem.kind == "error":
+            mark = getattr(pytest.mark, MODEL_INSTALL_ERROR_MARK)(reason=problem.reason)
         elif SKIP_MISSING_MODELS:
-            mark = pytest.mark.skip(reason=reason)
+            mark = pytest.mark.skip(reason=problem.reason)
         else:
             continue
         params[index] = pytest.param(case, marks=mark)
@@ -659,7 +658,9 @@ def _write_model_install_summary(terminalreporter: Any) -> None:
     if _MISSING_MODEL_SKIPS:
         lines.append(
             (
-                describe_skipped_for_missing_models(_MISSING_MODEL_SKIPS),
+                describe_skipped_for_missing_models(
+                    _MISSING_MODEL_SKIPS, _MODEL_INSTALL
+                ),
                 {"yellow": True},
             )
         )

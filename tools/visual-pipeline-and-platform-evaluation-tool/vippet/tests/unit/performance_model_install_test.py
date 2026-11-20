@@ -84,6 +84,7 @@ class _FakeApi:
         jobs_list: Any = (),
         job_states: dict[str, list[dict[str, Any]]] | None = None,
         models: Any = (),
+        models_status: int = 200,
         post_error: Exception | None = None,
     ) -> None:
         self.download_status = download_status
@@ -91,6 +92,7 @@ class _FakeApi:
         self.jobs_list = list(jobs_list)
         self.job_states = job_states or {}
         self.models = list(models)
+        self.models_status = models_status
         self.post_error = post_error
         self.requests: list[tuple[str, str, Any]] = []
 
@@ -105,7 +107,7 @@ class _FakeApi:
         if path == "/jobs/models/status":
             return httpx.Response(200, json=self.jobs_list)
         if path == "/models":
-            return httpx.Response(200, json=self.models)
+            return httpx.Response(self.models_status, json=self.models)
         match = re.fullmatch(r"/jobs/models/([^/]+)/status", path)
         if match and match.group(1) in self.job_states:
             states = self.job_states[match.group(1)]
@@ -357,7 +359,13 @@ class TestPrompt(unittest.TestCase):
     def test_empty_plan_never_prompts(self) -> None:
         outcomes, prompts, installs, text = self._offer(mi.InstallPlan(), ask=True)
         self.assertEqual((outcomes, prompts, installs), ([], [], []))
-        self.assertEqual(text, "Every model the selected runs need is installed.")
+        self.assertEqual(
+            text, "Model installation: every model the selected runs need is installed."
+        )
+
+    def test_non_empty_plan_starts_with_a_section_header(self) -> None:
+        _, _, _, text = self._offer(mi.InstallPlan((_planned("a"),)), ask=False)
+        self.assertTrue(text.startswith("-" * 30 + " Model installation " + "-" * 30))
 
     def test_declining_installs_nothing(self) -> None:
         plan = mi.InstallPlan((_planned("a"),))
@@ -503,6 +511,21 @@ class TestInstaller(_InstallerMixin):
         self.assertEqual(outcomes["done"].reason, "already installed")
         self.assertEqual(outcomes["ghost"].outcome, mi.Outcome.FAILED)
         self.assertIn("no running download was found", outcomes["ghost"].reason)
+
+    def test_409_with_failing_model_lookup_says_the_lookup_failed(self) -> None:
+        body = {
+            "jobs": {
+                "a": {"name": "a", "job_id": None, "status_code": 409, "message": "x"}
+            }
+        }
+        api = _FakeApi(download_status=409, download_body=body, models_status=500)
+        outcome = self.install(api, mi.InstallPlan((_planned("a"),)))[0]
+        self.assertEqual(outcome.outcome, mi.Outcome.FAILED)
+        self.assertIn(
+            "cannot check whether it is installed (GET /models:", outcome.reason
+        )
+        self.assertIn("HTTPStatusError", outcome.reason)
+        self.assertNotIn("no running download was found", outcome.reason)
 
     def test_already_installing_models_are_waited_for_without_post(self) -> None:
         api = _FakeApi(
@@ -674,16 +697,33 @@ class TestInstallProblem(unittest.TestCase):
         ]
 
     def test_failed_and_timed_out_are_errors(self) -> None:
-        kind, reason = mi.install_problem({"Failed", "Slow", "Busy"}, self._outcomes())  # type: ignore[misc]
-        self.assertEqual(kind, "error")
-        self.assertIn("model 'Failed' failed to install: check HF token", reason)
-        self.assertIn("model 'Slow' failed to install: still installing", reason)
+        problem = mi.install_problem({"Failed", "Slow", "Busy"}, self._outcomes())
+        assert problem is not None
+        self.assertEqual(problem.kind, "error")
+        self.assertIn(
+            "model 'Failed' failed to install: check HF token", problem.reason
+        )
+        self.assertIn(
+            "model 'Slow' failed to install: still installing", problem.reason
+        )
 
     def test_interrupted_is_skipped(self) -> None:
-        kind, reason = mi.install_problem({"Busy", "Declined"}, self._outcomes())  # type: ignore[misc]
-        self.assertEqual(kind, "skip")
-        self.assertIn("'Busy'", reason)
-        self.assertIn("continues on the server", reason)
+        problem = mi.install_problem({"Busy", "Declined"}, self._outcomes())
+        assert problem is not None
+        self.assertEqual(problem.kind, "skip")
+        self.assertIn("'Busy'", problem.reason)
+        self.assertIn("continues on the server", problem.reason)
+
+    def test_display_name_with_control_characters_still_matches(self) -> None:
+        # pytest reads raw names from /models; the CLI hands over cleaned ones.
+        raw = "Evil\x1b[2J\tModel"
+        outcome = mi.ModelOutcome(
+            "e", mi.clean_text(raw), mi.Outcome.FAILED, "no token"
+        )
+        problem = mi.install_problem({raw}, [outcome])
+        assert problem is not None
+        self.assertEqual(problem.kind, "error")
+        self.assertIn("model 'Evil Model' failed to install: no token", problem.reason)
 
     def test_declined_or_unknown_keep_the_default_skip(self) -> None:
         self.assertIsNone(mi.install_problem({"Declined"}, self._outcomes()))
