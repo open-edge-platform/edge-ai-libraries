@@ -77,10 +77,10 @@ When all checks pass, ViPPET:
 
 ViPPET stores input videos in two parallel locations inside the shared `videos/input/` folder:
 
-| Subdirectory             | Contents                                                                                                  |
-|--------------------------|-----------------------------------------------------------------------------------------------------------|
+| Subdirectory             | Contents                                                                                                   |
+|--------------------------|------------------------------------------------------------------------------------------------------------|
 | `videos/input/auto/`     | Sample videos downloaded on demand from `default_recordings.yaml`. Managed by ViPPET; do not edit by hand. |
-| `videos/input/uploaded/` | Videos uploaded by the user through the **Upload** button or the `POST /videos/upload` API.               |
+| `videos/input/uploaded/` | Videos uploaded by the user through the **Upload** button or the `POST /videos/upload` API.                |
 
 Filenames are **globally unique** across the two subdirectories: an upload that collides with an
 auto-downloaded recording is rejected with a `file_exists` error. The auto-generated MPEG-TS copy
