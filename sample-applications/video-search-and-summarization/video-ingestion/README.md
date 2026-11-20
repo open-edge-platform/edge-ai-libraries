@@ -37,7 +37,7 @@ This project demonstrates video ingestion and processing using Deep Learning Str
     source ./get_model.sh \
       --model-name yolov8l \
       --hub ultralytics \
-      --image-tag 2026.3.0-rc1 \
+      --image-tag 2026.3.0-rc2 \
       --plugins ultralytics \
       --download-path object-detection \
       --model-path ./ov_models
