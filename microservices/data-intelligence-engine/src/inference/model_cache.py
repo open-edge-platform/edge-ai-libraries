@@ -1,18 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Loaded models, shared while something uses them and released after.
-
-Loading an embedding model is expensive and several sources usually share one,
-so the factories cache by configuration. The cache used to hold every model
-forever: detaching a source, deleting a pool or deprecating a source left its
-model resident until the process exited.
-
-Entries are now held weakly. A projection owns its model; while any projection
-does, every other source with the same configuration gets the same instance,
-and when the last one is dropped -- a source frozen, detached or replaced --
-the model goes with it. An object that cannot be weakly referenced is cached
-strongly, as before.
-"""
+"""Loaded models, shared while something uses them and released after."""
 
 import gc
 import threading
@@ -21,7 +9,7 @@ from typing import Any, Callable, Dict, Hashable
 
 
 class ModelCache:
-    """`get_or_build(key, factory)`, at most one live instance per key."""
+    """At most one live instance per key, held weakly (strongly if not weak-referenceable)."""
 
     def __init__(self) -> None:
         self._weak: "weakref.WeakValueDictionary[Hashable, Any]" = (

@@ -1,17 +1,44 @@
 
 configure_anomalib () {
   workspace="$(ensure_project_path)/anomalib"
-  version=2.7.0
+  version="$(ensure_parse_value_option version --version=2.7.0 "$@")"
   repository=https://github.com/open-edge-platform/anomalib.git
-
-  version_skills=release-2026.2.0
-  repository_skills=https://github.com/open-edge-platform/anomalib.git
   skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }
 
 verify_anomalib () {
   [ -r "$workspace"/.venv/bin/activate ] || return 1
   . "$workspace"/.venv/bin/activate && python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
+}
+
+install_anomalib () {
+  configure_anomalib "$@"
+  if verify_anomalib && ! ensure_parse_reinstall "$@"; then
+    echo "Anomalib is installed." >&2
+  else
+    ensure_disk_size 15000
+
+    echo "@@STEP Installing anomalib=${version}"
+    mkdir -p "$workspace"
+    cd "$workspace"
+    python3 -m venv .venv
+    . .venv/bin/activate
+    pip install "anomalib[openvino,cpu]==${version}"
+
+    echo "@@STEP Installing skills"
+    ensure_skills add "tags/lib/v$version" "$repository" "${skills[@]/#/.agents/skills/}"
+    verify_anomalib
+  fi
+
+  # validation
+  test_anomalib "$@"
+
+  echo "@@HIGHLIGHT venv: $workspace/.venv"
+}
+
+remove_anomalib () {
+  configure_anomalib "$@"
+  ensure_rm "$workspace" || true
 }
 
 test_anomalib () {

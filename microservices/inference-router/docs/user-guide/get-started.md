@@ -180,11 +180,12 @@ ROUTER_PORT=9000 bash scripts/deploy_docker.sh
 #### Web UI
 
 With the UI enabled (the default), open it in a browser at
-`http://<host-ip>:7010`. Because the router runs on the host network while the
-UI runs in a bridge network, the deploy script automatically detects the host's
-LAN IP, binds the router to it, and points the UI there — so the router is
-reachable from other machines on your network in this mode. Use a different UI
-port with `--ui-port`:
+`http://<host-ip>:7010` (or `http://localhost:7010` on the host itself). The UI
+listens on every interface, but the router itself still binds to `127.0.0.1`
+by default: both containers use the host network, so the UI reaches the router
+over loopback. The router API is therefore reachable only from the host unless
+you [enable remote access](#enable-remote-access). Use a different UI port with
+`--ui-port`:
 
 ```bash
 bash scripts/deploy_docker.sh --ui-port 8080
@@ -199,25 +200,26 @@ bash scripts/deploy_docker.sh --standalone
 
 #### Enable Remote Access
 
-In `--standalone` mode the router binds to `127.0.0.1` (loopback) by default, so
-it is only reachable from the host it runs on. To allow access from **other
-machines**, export `IR_BIND_HOST=0.0.0.0` (or a specific interface IP) before
-deploying:
+In both deployment modes the router binds to `127.0.0.1` (loopback) by default,
+so it is only reachable from the host it runs on. To allow access from **other
+machines**, export `IR_BIND_HOST=0.0.0.0` before deploying:
 
 ```bash
-IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh --standalone
+IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh               # router + UI
+IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh --standalone  # router only
 ```
-
-(When the UI is enabled the router is already bound to the host's LAN IP, so it
-is reachable remotely without this step. Export `IR_BIND_HOST` to override the
-detected address.)
 
 Clients on other machines will then reach the router at `http://<host-ip>:8000`
 (substitute your `ROUTER_PORT` if you changed it).
 
+`0.0.0.0` serves every interface, so `localhost` keeps working on the host. If
+you instead set `IR_BIND_HOST` to one specific interface IP, the router listens
+only on that address: `localhost` is refused, so use that IP in place of
+`localhost` in the requests below.
+
 ### Step 3: Verify
 
-List available models. The response includes `router` plus your configured
+List available models. The response includes `auto` plus your configured
 providers:
 
 ```bash

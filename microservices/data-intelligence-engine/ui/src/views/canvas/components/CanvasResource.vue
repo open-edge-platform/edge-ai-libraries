@@ -6,7 +6,16 @@
     :style="{ '--resource-color': resourceCategories[node.kind].color }"
   >
     <div class="resource-heading">
-      <span class="resource-icon"><component :is="resourceCategories[node.kind].icon" /></span>
+      <span
+        class="resource-icon"
+        :class="node.kind === 'asset' ? node.resourceType : undefined"
+        ><component
+          :is="
+            node.kind === 'asset'
+              ? getAssetIcon(node.resourceType)
+              : resourceCategories[node.kind].icon
+          "
+      /></span>
       <div class="resource-title">
         <strong :title="node.name">{{ node.name }}</strong>
       </div>
@@ -15,7 +24,32 @@
         :bordered="false"
         class="resource-type-tag"
         :title="node.content ? $t('console.defaultContent') : typeLabel"
-      >{{ typeLabel }}</a-tag>
+        >{{ typeLabel }}</a-tag
+      >
+      <a-dropdown v-if="!compact" :trigger="['hover', 'click']">
+        <a-button
+          type="text"
+          size="small"
+          class="resource-menu"
+          :title="$t('console.actions')"
+          :aria-label="$t('console.actions')"
+          @pointerdown.stop
+          @click.stop
+          @keydown.stop
+        >
+          <template #icon><MoreOutlined /></template>
+        </a-button>
+        <template #overlay>
+          <a-menu>
+            <a-menu-item key="show-linked" @click="emit('show-linked')">
+              {{ $t("console.showLinked") }}
+            </a-menu-item>
+            <a-menu-item key="remove-node" @click="emit('remove-node')">
+              {{ $t("console.removeCanvas") }}
+            </a-menu-item>
+          </a-menu>
+        </template>
+      </a-dropdown>
     </div>
     <template v-if="!compact">
       <div class="resource-meta">
@@ -33,7 +67,12 @@
         </span>
       </div>
       <div class="resource-status" :title="node.error">
-        <StatusTag :value="node.status" />
+        <AssetStatus
+          v-if="node.kind === 'asset'"
+          :value="node.status"
+          :expired="node.progressExpired"
+        />
+        <StatusTag v-else :value="node.status" />
         <StatusTag
           v-if="node.validationStatus && node.validationStatus !== node.status"
           :value="node.validationStatus"
@@ -53,7 +92,10 @@
 <script lang="ts" setup>
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { MoreOutlined } from "@ant-design/icons-vue";
 import StatusTag from "../../../components/StatusTag.vue";
+import AssetStatus from "../../assets/components/AssetStatus.vue";
+import { getAssetIcon } from "../../assets/AssetUtils";
 import type { CanvasNode } from "../Type";
 import { resourceCategories } from "../ResourcePresentation";
 
@@ -62,11 +104,13 @@ const props = defineProps<{
   compact?: boolean;
   selected?: boolean;
 }>();
+const emit = defineEmits<{ "show-linked": []; "remove-node": [] }>();
 const { t, te } = useI18n();
 const typeLabel = computed(() => {
-  const key = props.node.kind === "pool" ? "pools"
-    : props.node.kind === "source" ? `${props.node.resourceType}Source`
-    : props.node.resourceType === "asset" ? "assets" : props.node.resourceType;
+  let key = props.node.resourceType;
+  if (props.node.kind === "pool") key = "pools";
+  else if (props.node.kind === "source") key = `${key}Source`;
+  else if (key === "asset") key = "assets";
   return te(`console.${key}`) ? t(`console.${key}`) : props.node.resourceType;
 });
 </script>
@@ -82,7 +126,8 @@ const typeLabel = computed(() => {
   box-shadow: 0 2px 6px var(--bg-box-shadow);
   &.selected {
     border-color: var(--resource-color);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--resource-color) 16%, transparent);
+    box-shadow: 0 0 0 2px
+      color-mix(in srgb, var(--resource-color) 16%, transparent);
   }
   &.compact {
     padding: 0;
@@ -117,6 +162,15 @@ const typeLabel = computed(() => {
   color: var(--resource-color);
   background: color-mix(in srgb, var(--resource-color) 9%, transparent);
   font-size: 14px;
+  &.image {
+    --resource-color: var(--color-purple);
+  }
+  &.audio {
+    --resource-color: var(--color-success);
+  }
+  &.video {
+    --resource-color: var(--color-warning);
+  }
 }
 .resource-title {
   flex: 1;
@@ -131,6 +185,9 @@ const typeLabel = computed(() => {
     font-size: 13px;
     line-height: 21px;
   }
+}
+.resource-menu {
+  flex-shrink: 0;
 }
 .resource-meta {
   display: flex;
@@ -159,7 +216,7 @@ const typeLabel = computed(() => {
 }
 .resource-type-tag {
   flex-shrink: 0;
-  max-width: 64px;
+  max-width: 85px;
   margin: 0;
   padding: 0 4px;
   overflow: hidden;

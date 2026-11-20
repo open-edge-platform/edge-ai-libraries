@@ -2,9 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export type JsonValue =
-  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
-export type ServingState = "SERVING" | "DEPRECATED" | "PREPARING";
+export type ServingState = "SERVING" | "DEGRADE" | "PREPARING";
 
 export interface Extraction {
   state: string;
@@ -84,8 +89,12 @@ export interface UploadResult {
   supported: boolean;
 }
 export interface IngestResult {
+  library: string;
   asset_ids: string[];
-  status: string;
+  file_paths: string[];
+  asset_pool_ids: string[];
+  content_source_id: string;
+  status: "stored" | "materializing";
 }
 export interface Database {
   id: string;
@@ -107,7 +116,13 @@ export interface ModelInfo {
   name: string;
   path?: string;
   ready: boolean;
-  backend?: string;
+  media?: boolean;
+  supported_asset_types?: string[];
+}
+export interface ModelDefault {
+  backend: string;
+  model_id?: string;
+  device?: string;
 }
 export interface ModelOptions {
   model_type: string;
@@ -121,6 +136,7 @@ export interface ModelOptions {
   api_base?: string;
   workspace?: string;
   models: ModelInfo[];
+  defaults?: Record<string, ModelDefault>;
 }
 export interface Chunk {
   id: string;

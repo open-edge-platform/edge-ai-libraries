@@ -1,14 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Terminal activity stream — codex/opencode-style. TTY-aware:
-  - on a real terminal: a live spinner while waiting on the LLM (with an elapsed
-    timer), and one colored line per tool call once it resolves;
-  - when redirected to a file (not a tty): the spinner is suppressed and every step
-    is a plain timestamped line, so `... | tee run.log` stays clean.
-
-Pure stdlib (no rich dependency). A single UI object is threaded through the run.
-"""
 from __future__ import annotations
 
 import itertools
@@ -28,7 +20,6 @@ class UI:
         self._t0 = time.monotonic()
         self._spinner: _Spinner | None = None
 
-    # -- structural lines -----------------------------------------------------
     def stage(self, text: str) -> None:
         self._line(f"\n\033[1m▌ {text}\033[0m" if self.tty else f"\n== {text}")
 
@@ -41,7 +32,6 @@ class UI:
     def warn(self, text: str) -> None:
         self._line(f"\033[33m  ! {text}\033[0m" if self.tty else f"  ! {text}")
 
-    # -- tool activity --------------------------------------------------------
     def tool(self, name: str, detail: str = "", result: str = "") -> None:
         arrow = "\033[32m→\033[0m" if self.tty else "->"
         head = f"  {arrow} \033[1m{name}\033[0m" if self.tty else f"  -> {name}"
@@ -52,16 +42,11 @@ class UI:
             parts.append(f"\033[2m{result}\033[0m" if self.tty else f"({result})")
         self._line(" ".join(parts))
 
-    # -- spinner around a blocking LLM call -----------------------------------
     def spinner(self, label: str) -> "_Spinner":
         return _Spinner(self, label)
 
-    # -- human-in-the-loop prompt ---------------------------------------------
     def ask(self, finding_type: str, message: str, options: list[str] | None = None) -> str:
-        """Block for a human answer on a terminal. Prints the agent's finding + an
-        optional numbered option list, reads a line from stdin. Returns the chosen
-        option text (or the free-text line). Only called when interactive is on and a
-        tty is attached — the caller guarantees that."""
+        """Block for a human answer on the terminal; returns the chosen option or the free-text line."""
         if self._spinner and self._spinner.alive:
             self._spinner._clear()
         bar = "\033[35m" if self.tty else ""
@@ -83,7 +68,6 @@ class UI:
                 return options[idx]
         return raw
 
-    # -- internals ------------------------------------------------------------
     def _line(self, text: str) -> None:
         # if a spinner is live, clear its line before printing a permanent line
         if self._spinner and self._spinner.alive:
@@ -92,8 +76,7 @@ class UI:
 
 
 class _Spinner:
-    """Context manager: animates `label … (Ns)` on a tty while a blocking call runs;
-    on a non-tty it prints a single start line and nothing more (no cursor spam)."""
+    """Context manager animating `label … (Ns)` on a tty; prints one start line otherwise."""
 
     def __init__(self, ui: UI, label: str):
         self.ui = ui

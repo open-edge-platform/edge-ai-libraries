@@ -33,7 +33,7 @@ from databasehub.adapters.vector import VectorAdapter
 
 
 VICLIP_ID = "viclip-b-fp16"
-GME_ID = "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"
+GME_ID = "gme-Qwen2-VL-2B-Instruct-OV"
 DATABASE = "isolated-vectors"
 LIBRARY = "media-contract"
 SOURCES_URL = f"{source_api.LIBRARY_API_PREFIX}/{LIBRARY}/sources"
@@ -109,14 +109,11 @@ def isolated_defaults(monkeypatch, tmp_path):
     for key in ("MODEL_DIR", "LEGACY_MODEL_DIR", "SHARED_MODEL_DIR"):
         monkeypatch.setattr(config, key, str(root))
     _video_package(root / VICLIP_ID)
-    for prefix, backend, model_id, directory in (
-        ("", "native_openvino_gme", "gme-Qwen2-VL-2B-Instruct-OV", "document-gme"),
-        ("VIDEO_", "llamaindex_openvino", VICLIP_ID, VICLIP_ID),
-        ("IMAGE_", "llamaindex_openvino", GME_ID, "media-gme"),
+    for prefix, model_id in (
+        ("", GME_ID), ("VIDEO_", VICLIP_ID), ("IMAGE_", GME_ID),
     ):
         for suffix, value in (
-            ("BACKEND", backend), ("MODEL_ID", model_id),
-            ("MODEL_PATH", str(root / directory)), ("DEVICE", "CPU"),
+            ("BACKEND", config.LOCAL_OPENVINO), ("MODEL_ID", model_id), ("DEVICE", "CPU"),
         ):
             monkeypatch.setattr(config, f"{prefix}EMBEDDING_{suffix}", value)
     monkeypatch.setattr(embedding, "build_embedding", Mock(side_effect=_forbidden))
@@ -217,7 +214,7 @@ def test_http_explicit_local_viclip_ir_variant_keeps_its_identity(http_library):
     output = response.json()
     assert output['operator_options'] == options
     assert output['profile']['multimodal_model'] == {
-        'name': 'viclip-b', 'category': 'video', 'id': path.name, 'path': path.name,
+        'name': 'viclip-b', 'category': 'video', 'id': path.name,
     }
     assert model_registry.lookup(path.name, None).is_ready(path)
     # Identity remains classifiable when a tokenizer artifact later disappears,
@@ -231,11 +228,11 @@ def test_http_explicit_local_viclip_ir_variant_keeps_its_identity(http_library):
     pytest.param({"block_kinds": ["image"]}, id="legacy-image"),
     pytest.param({"block_kinds": ["audio"]}, id="legacy-audio"),
     pytest.param({"embedding_model": VICLIP_ID}, id="viclip-without-scope"),
-    pytest.param({"embedding_backend": "native_openvino_gme", "embedding_model": GME_ID,
+    pytest.param({"embedding_backend": config.LOCAL_OPENVINO, "embedding_model": GME_ID,
                   "block_kinds": ["video"]}, id="native-video-bypass"),
-    pytest.param({"embedding_backend": "native_openvino_gme", "embedding_model": GME_ID,
+    pytest.param({"embedding_backend": config.LOCAL_OPENVINO, "embedding_model": GME_ID,
                   "block_kinds": ["image"]}, id="native-image-only-bypass"),
-    pytest.param({"embedding_backend": "native_openvino_gme", "embedding_model": GME_ID,
+    pytest.param({"embedding_backend": config.LOCAL_OPENVINO, "embedding_model": GME_ID,
                   "block_roles": ["l2_caption"]}, id="native-derived-bypass"),
 ])
 def test_http_unscoped_media_is_400_and_does_not_register(http_library, options):
@@ -294,7 +291,7 @@ def test_http_model_path_is_rejected_atomically(http_library, scope, path):
                   "figure_context_chars": 99}, id="pdf-options"),
 ])
 def test_http_native_document_and_pdf_options_are_preserved(http_library, routing):
-    options = {"embedding_backend": "native_openvino_gme", "embedding_model": GME_ID, **routing}
+    options = {"embedding_backend": config.LOCAL_OPENVINO, "embedding_model": GME_ID, **routing}
     response = _post(http_library, "document", options)
 
     assert response.status_code == 201, response.text
@@ -302,7 +299,7 @@ def test_http_native_document_and_pdf_options_are_preserved(http_library, routin
     assert output["operator_options"] == options
     profile = output["profile"]
     assert profile["encoder_kind"] == "text"
-    assert profile["backend"] == "native_openvino_gme"
+    assert profile["backend"] == config.LOCAL_OPENVINO
     assert profile["model"] == GME_ID
     for key, value in routing.items():
         assert profile["params"][key] == value
@@ -320,7 +317,7 @@ def test_http_document_figure_filters_need_no_redundant_backend(http_library, ro
     assert response.status_code == 201, response.text
     profile = response.json()['profile']
     assert profile['encoder_kind'] == 'text'
-    assert profile['backend'] == 'native_openvino_gme'
+    assert profile['backend'] == config.LOCAL_OPENVINO
     for key, value in routing.items():
         assert profile['params'][key] == value
 
@@ -370,7 +367,7 @@ def _forbid_rebinding(monkeypatch):
     # Poison both category defaults and the document default. Frozen records
     # must validate their own routing, not ask what a newly created source wants.
     for prefix in ("", "VIDEO_", "IMAGE_"):
-        for suffix in ("BACKEND", "MODEL_ID", "MODEL_PATH"):
+        for suffix in ("BACKEND", "MODEL_ID"):
             monkeypatch.setattr(config, f"{prefix}EMBEDDING_{suffix}", "invalid-current-default")
     resolve = Mock(side_effect=_forbidden)
     describe = Mock(side_effect=_forbidden)
@@ -478,7 +475,7 @@ def test_restore_frozen_media_builds_from_profile_not_current_defaults(monkeypat
     assert runtime_options["embedding_backend"] == frozen_profile["backend"]
     assert projection.configuration["asset_types"] == ["mp4"]
     assert model_record["id"] == model_id
-    assert model_record["path"] == model_id.rsplit("/", 1)[-1]
+    assert "path" not in model_record
     assert "precision" not in projection.configuration
     # Selector precision is a file contract, not just model-family inference.
     mp4 = FileAsset("mp4", origin="file:///not-read/clip.mp4", loader=_forbidden)
@@ -558,7 +555,7 @@ def test_restore_frozen_document_does_not_resolve_defaults_at_source_problem(mon
     assert not isinstance(projection, MultimodalIndexer)
     assert builder.call_args.kwargs == {
         "backend": source.profile["backend"], "model_id": source.profile["model_id"],
-        "model_path": source.profile["model_path"], "device": source.profile["device"], "api_base": None,
+        "device": source.profile["device"], "api_base": None,
     }
     for key, value in source.profile["params"].items():
         assert projection.configuration[key] == value

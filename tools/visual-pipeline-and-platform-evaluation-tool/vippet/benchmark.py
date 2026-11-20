@@ -8,6 +8,7 @@ import logging
 import math
 from dataclasses import dataclass, field
 
+from dlsps2_runner import Dlsps2PipelineRunner
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -16,7 +17,7 @@ from internal_types import (
     InternalPipelineStreamSpec,
 )
 from managers.pipeline_manager import PipelineManager
-from pipeline_runner import LatencyTracerSample, PipelineRunner
+from pipeline_runner import LatencyTracerSample
 
 
 @dataclass
@@ -46,6 +47,8 @@ class BenchmarkResult:
               benchmark.
             * Empty ``dict`` when the tracer was enabled but the
               best-configuration run produced no samples.
+        min_stream_fps: FPS of the slowest stream in the same run, or
+            ``None`` when the runner reports totals only.
     """
 
     n_streams: int
@@ -53,13 +56,15 @@ class BenchmarkResult:
     per_stream_fps: float
     video_output_paths: dict[str, str]
     latency_tracer_metrics: dict[str, LatencyTracerSample] | None = None
+    min_stream_fps: float | None = None
 
     def __repr__(self):
         return (
             f"BenchmarkResult("
             f"n_streams={self.n_streams}, "
             f"streams_per_pipeline={self.streams_per_pipeline}, "
-            f"per_stream_fps={self.per_stream_fps}"
+            f"per_stream_fps={self.per_stream_fps}, "
+            f"min_stream_fps={self.min_stream_fps}"
             f")"
         )
 
@@ -74,7 +79,7 @@ class _BestConfig:
     search its contents are copied into :class:`BenchmarkResult`.
 
     ``latency_tracer_metrics`` is snapshotted by value (shallow copy of
-    the dict) because :class:`PipelineRunner` resets its internal
+    the dict) because the runner resets its internal
     ``latency_tracer_metrics`` map at the start of every run; without a
     snapshot, by the time the search finishes the runner would only
     hold samples from the LAST iteration.
@@ -88,9 +93,11 @@ class _BestConfig:
         video_output_paths: Output directory paths declared by the
             pipeline command of this configuration.
         latency_tracer_metrics: Shallow copy of
-            ``PipelineRunner.latency_tracer_metrics`` taken right after
+            ``Dlsps2PipelineRunner.latency_tracer_metrics`` taken right after
             this configuration's run completed. ``None`` when the
             tracer was disabled.
+        min_stream_fps: FPS of the slowest stream of this configuration,
+            or ``None`` without per-stream data.
     """
 
     n_streams: int = 0
@@ -98,6 +105,7 @@ class _BestConfig:
     per_stream_fps: float = 0.0
     video_output_paths: dict[str, str] = field(default_factory=dict)
     latency_tracer_metrics: dict[str, LatencyTracerSample] | None = None
+    min_stream_fps: float | None = None
 
 
 class Benchmark:
@@ -108,18 +116,20 @@ class Benchmark:
         max_runtime: float = 0,
         enable_latency_metrics: bool = False,
         job_id: str | None = None,
+        pinned_cpu_cores: list[int] | None = None,
     ):
         self.best_result = None
-        # Initialize PipelineRunner in normal mode with optional max_runtime for each run.
-        # `enable_latency_metrics` is forwarded so that the GStreamer subprocess
-        # is launched with the DLStreamer latency_tracer active when requested.
+        # Every stream runs as its own DLSPS 2.0 instance, which reports
+        # per-stream FPS; with `enable_latency_metrics` the latency samples
+        # come from the DLSPS OpenTelemetry export to metrics-manager.
         # `job_id` is forwarded so FPS metrics pushed during each density
         # iteration are tagged with the owning job's id in metrics-manager.
-        self.runner = PipelineRunner(
+        self.runner = Dlsps2PipelineRunner(
             mode="normal",
             max_runtime=max_runtime,
             enable_latency_metrics=enable_latency_metrics,
             job_id=job_id,
+            pinned_cpu_cores=pinned_cpu_cores,
         )
         self.logger = logging.getLogger(__name__)
 
@@ -223,8 +233,9 @@ class Benchmark:
           specs, exactly one with streams" constraint.
 
         In both modes the same exponential growth + bisection algorithm
-        is used and the same pass/fail criterion (``fps_floor``) decides
-        when to stop.
+        is used and the same pass/fail criterion decides when to stop: the
+        slowest stream must reach ``fps_floor`` when the runner reports
+        per-stream FPS (DLSPS 2.0), otherwise the mean per stream must.
 
         Args:
             pipeline_density_specs: List of InternalPipelineDensitySpec with resolved
@@ -269,6 +280,7 @@ class Benchmark:
         search_value = 1
         n_streams = 1
         per_stream_fps = 0.0
+        min_stream_fps: float | None = None
         exponential = True
         lower_bound = 1
         # We'll set this once we fall below the fps_floor
@@ -332,6 +344,8 @@ class Benchmark:
                 pipeline_command,
                 n_streams,
                 allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
+                stream_commands=pipeline_cmd.stream_commands,
+                validation_stream_ids=set(pipeline_cmd.validation_stream_ids) or None,
             )
 
             # Check for cancellation
@@ -347,13 +361,19 @@ class Benchmark:
             if total_fps == 0 or math.isnan(per_stream_fps):
                 raise RuntimeError("Pipeline returned zero or invalid FPS metrics.")
 
+            min_stream_fps = result.min_stream_fps
+            judged_fps = (
+                min_stream_fps if min_stream_fps is not None else per_stream_fps
+            )
+
             self.logger.info(
-                "exit_code=%d, search_value=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s, details=%s",
+                "exit_code=%d, search_value=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, min_stream_fps=%s, exponential=%s, lower_bound=%d, higher_bound=%s, details=%s",
                 result.exit_code,
                 search_value,
                 n_streams,
                 total_fps,
                 per_stream_fps,
+                min_stream_fps,
                 exponential,
                 lower_bound,
                 higher_bound,
@@ -380,12 +400,13 @@ class Benchmark:
 
             # increase the search variable exponentially until we drop below fps_floor
             if exponential:
-                if per_stream_fps >= fps_floor:
+                if judged_fps >= fps_floor:
                     best_config = self._snapshot_best(
                         n_streams=n_streams,
                         streams_per_pipeline=streams_per_pipeline_with_ids,
                         per_stream_fps=per_stream_fps,
                         video_output_paths=video_output_paths,
+                        min_stream_fps=min_stream_fps,
                     )
                     search_value *= 2
                 else:
@@ -395,12 +416,13 @@ class Benchmark:
                     search_value = (lower_bound + higher_bound) // 2
             # use bisecting search for fine tune maximum number of streams
             else:
-                if per_stream_fps >= fps_floor:
+                if judged_fps >= fps_floor:
                     best_config = self._snapshot_best(
                         n_streams=n_streams,
                         streams_per_pipeline=streams_per_pipeline_with_ids,
                         per_stream_fps=per_stream_fps,
                         video_output_paths=video_output_paths,
+                        min_stream_fps=min_stream_fps,
                     )
                     lower_bound = search_value + 1
                 else:
@@ -422,6 +444,7 @@ class Benchmark:
                 per_stream_fps=best_config.per_stream_fps,
                 video_output_paths=best_config.video_output_paths,
                 latency_tracer_metrics=best_config.latency_tracer_metrics,
+                min_stream_fps=best_config.min_stream_fps,
             )
         else:
             # Fallback to last attempt - build streams_per_pipeline from last run.
@@ -447,6 +470,7 @@ class Benchmark:
                 per_stream_fps=per_stream_fps,
                 video_output_paths=video_output_paths,
                 latency_tracer_metrics=self._snapshot_latency_tracer_metrics(),
+                min_stream_fps=min_stream_fps,
             )
 
         return bm_result
@@ -457,11 +481,12 @@ class Benchmark:
         streams_per_pipeline: list[InternalPipelineStreamSpec],
         per_stream_fps: float,
         video_output_paths: dict[str, str],
+        min_stream_fps: float | None = None,
     ) -> _BestConfig:
         """
         Capture the just-completed iteration as the new best configuration.
 
-        The `PipelineRunner` resets its `latency_tracer_metrics` map at
+        The runner resets its `latency_tracer_metrics` map at
         the start of every run, so the snapshot must be taken
         immediately after the iteration finishes — otherwise the next
         iteration would overwrite it. A shallow copy of the map is
@@ -473,6 +498,7 @@ class Benchmark:
             streams_per_pipeline: Per-pipeline allocation for this iteration.
             per_stream_fps: Measured per-stream FPS of this iteration.
             video_output_paths: Output directory map of this iteration.
+            min_stream_fps: Slowest-stream FPS of this iteration, if known.
 
         Returns:
             A fully populated :class:`_BestConfig` snapshot.
@@ -483,6 +509,7 @@ class Benchmark:
             per_stream_fps=per_stream_fps,
             video_output_paths=video_output_paths,
             latency_tracer_metrics=self._snapshot_latency_tracer_metrics(),
+            min_stream_fps=min_stream_fps,
         )
 
     def _snapshot_latency_tracer_metrics(

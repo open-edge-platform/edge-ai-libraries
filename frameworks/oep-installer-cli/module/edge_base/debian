@@ -5,11 +5,7 @@ debian_99_profile_edge_base () {
     echo "edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
     ;;
   *)
-    if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-      echo "edge_pack_base_standard edge_pack_npu"
-    else
-      echo "gpu_accel npu_accel"
-    fi
+    configure_edge_pack_selection "edge_pack_base_standard edge_pack_npu" "$@"
     ;;
   esac
 }

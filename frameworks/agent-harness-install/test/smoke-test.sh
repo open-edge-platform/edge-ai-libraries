@@ -396,7 +396,11 @@ phase_02_selfcheck() {
   check "install.sh announces the served model name after the endpoint is resolved" \
     bash -c "grep -q '^  announce_served_model_name\$' '$REPO_ROOT/scripts/install.sh'"
   check "install.sh's onboard command loads nvm before resolving the served model name" \
-    bash -c "grep -B8 '^    run_agent_onboard\$' '$REPO_ROOT/scripts/install.sh' | grep -q 'nvm use'"
+    bash -c "grep -B2 '^    run_agent_onboard\$' '$REPO_ROOT/scripts/install.sh' | grep -q 'ensure_node_on_path'"
+  check "install.sh's models command loads nvm before reading config.json" \
+    bash -c "awk '/^run_models_command\\(\\)/,/^}/' '$REPO_ROOT/scripts/install.sh' | grep -q 'ensure_node_on_path'"
+  check "ensure_node_on_path selects nvm's Node" \
+    bash -c "awk '/^ensure_node_on_path\\(\\)/,/^}/' '$REPO_ROOT/scripts/install.sh' | grep -q 'nvm use'"
 }
 
 phase_03_libunit() {
@@ -547,6 +551,20 @@ phase_03_libunit() {
   else
     skip "ensure_chat_end_token_stops checks" "python3 not installed"
   fi
+
+  check_fail_output_contains "ensure_openvino_model_server: rejects --tool_parser in HARNESS_OVMS_EXTRA_ARGS" "per-model option" \
+    lib_eval 'HARNESS_OVMS_EXTRA_ARGS="--tool_parser hermes3"; ensure_openvino_model_server'
+
+  # Hermes pin override: both halves together, well-formed.
+  check "validate_hermes_pin: the built-in pin needs no override" lib_eval 'validate_hermes_pin'
+  check "validate_hermes_pin: a full override is accepted" \
+    lib_eval 'HERMES_PIN_OVERRIDE=commitsha256 HERMES_PINNED_COMMIT=$(printf "a%.0s" $(seq 40)) HERMES_PINNED_SHA256=$(printf "b%.0s" $(seq 64)); validate_hermes_pin'
+  check_fail_output_contains "validate_hermes_pin: a commit without its digest is rejected" "together" \
+    lib_eval 'HERMES_PIN_OVERRIDE=commit; validate_hermes_pin'
+  check_fail "validate_hermes_pin: a short commit is rejected" \
+    lib_eval 'HERMES_PIN_OVERRIDE=commitsha256 HERMES_PINNED_COMMIT=abc123 HERMES_PINNED_SHA256=$(printf "b%.0s" $(seq 64)); validate_hermes_pin'
+  check_output_contains "agents.sh: the environment overrides the Hermes pin" "commitsha256 aaaaaaaaaa" \
+    lib_eval 'HERMES_PINNED_COMMIT=$(printf "a%.0s" $(seq 40)) HERMES_PINNED_SHA256=$(printf "b%.0s" $(seq 64)); . scripts/lib/agents.sh; printf "%s %s" "$HERMES_PIN_OVERRIDE" "$HERMES_PINNED_COMMIT"'
 
   # The model name onboarding wires an agent to.
   local hint_cfg='HARNESS_MODELS_DIR=$(mktemp -d); printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"a\",\"base_path\":\"a\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; '
@@ -731,6 +749,8 @@ phase_07_optparsing() {
     env HARNESS_OVMS_EXPORTER=docker-pull bash "$REPO_ROOT/install.sh" --model-hub ollama --model llama3.2
   check_fail_output_contains "install.sh rejects geti without GETI_* in the environment" "GETI_HOST" \
     env -u GETI_HOST -u GETI_TOKEN -u GETI_WORKSPACE_ID bash "$REPO_ROOT/install.sh" --model-hub geti --model "My Project"
+  check_fail_output_contains "install.sh rejects a half Hermes pin override before installing anything" "together" \
+    env HERMES_PINNED_COMMIT="$(printf 'a%.0s' $(seq 40))" NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness hermes --model org/m --non-interactive
 }
 
 phase_08_agent_resolution() {

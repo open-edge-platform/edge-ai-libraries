@@ -1,7 +1,7 @@
 configure_pcm () {
   workspace="$(ensure_project_path)/pcm"
   repository="https://github.com/intel/pcm.git"
-  version=e534201d0fe6d6e3bc5fee54b229f215b976efbc
+  version="$(ensure_parse_value_option version --version=e534201d0fe6d6e3bc5fee54b229f215b976efbc "$@")"
 }
 
 verify_pcm () {
@@ -13,7 +13,7 @@ debian_40_profile_pcm () {
 }
 
 debian_40_install_pcm () {
-  configure_pcm
+  configure_pcm "$@"
   if verify_pcm && ! ensure_parse_reinstall "$@"; then
     echo "pcm is installed." >&2
   else
@@ -42,7 +42,7 @@ debian_40_install_pcm () {
 }
 
 debian_40_remove_pcm () {
-  configure_pcm
+  configure_pcm "$@"
   [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0
 
   ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* \

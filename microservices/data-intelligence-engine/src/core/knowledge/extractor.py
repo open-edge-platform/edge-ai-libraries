@@ -1,23 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""The external extractor: a REST service that turns documents into OKF bundles.
-
-A graph source whose `operator_options.asset_types` includes ``document`` takes
-documents as well as OKF bundles. The engine does not distil concepts itself; it
-sends documents to an extractor service and builds the graph from the bundles
-that come back. The source carries the service's access parameters:
-
-    "operator_options": {
-      "asset_types": ["okf", "document"],
-      "external_extractor": {
-        "url": "http://okf-extractor:8080",   # required, http(s)
-        "api_key": "...",                     # optional, sent as a bearer token
-        "timeout": 3600,                      # optional, seconds per request
-        "options": {"language": "zh"}         # optional, passed to the service
-      }
-    }
-
-"""
 
 import hashlib
 import json
@@ -41,10 +23,9 @@ logger = logging.getLogger(__name__)
 
 #: `operator_options` key holding the extractor's access parameters.
 EXTERNAL_EXTRACTOR = "external_extractor"
-#: Access parameters never echoed back over the API (see `redact_operator_options`).
+#: Access parameters never echoed back over the API.
 SECRET_KEYS = frozenset({"api_key"})
-#: Seconds to wait for the extractor's (synchronous) answer: it reviews and then
-#: extracts the pool's whole corpus with an LLM, which takes minutes per document.
+#: Seconds to wait for the extractor's synchronous answer.
 DEFAULT_TIMEOUT = 3600.0
 MAX_BUNDLE_BYTES = 512 * 1024 * 1024
 MAX_BUNDLE_FILES = 10000
@@ -52,12 +33,9 @@ MAX_ERROR_BYTES = 16384
 MAX_RESULT_BYTES = 65536
 TASK_DIRECTORY = "okf-extractor"
 _MASK = "***"
-#: When a graph source extracts its pool's documents: `auto` once document
-#: changes settle, `schedule` on a cron, `manual` only when asked
-#: (`POST .../extractions`).
+#: `auto` once document changes settle, `schedule` on a cron, `manual` only when asked.
 TRIGGERS = ("auto", "schedule", "manual")
-#: How long `auto` waits after the last document change, so a bulk upload is
-#: one extraction rather than one per file.
+#: Seconds `auto` waits after the last document change.
 DEFAULT_DEBOUNCE = 15.0
 MAX_DEBOUNCE = 24 * 3600.0
 
@@ -132,9 +110,7 @@ class ExternalExtractorConfig:
 
 
 def _trigger(raw: Any) -> ExtractionTrigger:
-    """`"auto"` / `"manual"`, or an object:
-    ``{"mode": "auto", "debounce_seconds": 60}``,
-    ``{"mode": "schedule", "cron": "0 2 * * *", "timezone": "Asia/Shanghai"}``."""
+    """Parse `"auto"` / `"manual"`, or an object with `mode` and its mode-specific fields."""
     name = f"{EXTERNAL_EXTRACTOR}.trigger"
     fields = dict(raw) if isinstance(raw, Mapping) else {"mode": raw}
     mode = fields.get("mode")
@@ -178,13 +154,7 @@ class ExternalExtractor:
         self.config = config
 
     def extract(self, assets: Sequence[Any], output_dir: Optional[Path] = None) -> List[Path]:
-        """Stage inputs under the shared upload root and POST relative paths.
-
-        The response is JSON naming the completed bundle in the same shared
-        folder; no file bytes or archives are transferred over HTTP. A caller
-        supplying `output_dir` receives a validated, atomically published cache
-        directory. Otherwise the bundle remains under the shared task folder.
-        """
+        """Stage inputs under the shared upload root, POST relative paths, and return the bundle dir."""
         if not assets:
             return []
         import config
@@ -252,8 +222,7 @@ class ExternalExtractor:
                 base.mkdir(parents=True, exist_ok=True)
                 with tempfile.TemporaryDirectory(prefix=".okf-cache-", dir=base) as temporary:
                     candidate = Path(temporary) / "bundle"
-                    # A local move (or filesystem copy across mounts), never an
-                    # HTTP download. Publish the cache folder only when complete.
+                    # Publish the cache folder only when complete.
                     shutil.move(str(bundle), candidate)
                     destination = base / f"{task_id}.okf"
                     candidate.rename(destination)
@@ -265,9 +234,7 @@ class ExternalExtractor:
                 shutil.rmtree(task_dir, ignore_errors=True)
             elif completed:
                 shutil.rmtree(task_dir / "sources", ignore_errors=True)
-            # After timeouts the remote process may still be reading these
-            # files. Failed/interrupted task inputs are retained for diagnosis
-            # and must not be removed until the service is no longer running.
+            # Failed task inputs are kept: the service may still be reading them.
 
 
 @contextmanager
@@ -284,13 +251,7 @@ def _timeout_explained(task_id: str, timeout: float):
 
 
 def _service_error_detail(response: httpx.Response) -> str:
-    """Read bounded streamed errors, retaining reasons but not validation inputs.
-
-    `raise_for_status()` alone loses the service's JSON detail; calling `.json()`
-    before reading a streaming response raises ResponseNotRead. FastAPI schema
-    errors can echo entire source documents under `input`, so select only their
-    locations and messages instead of dumping the response object into logs.
-    """
+    """Read a bounded streamed error body, keeping messages but not echoed validation inputs."""
     payload = bytearray()
     for chunk in response.iter_bytes(chunk_size=4096):
         payload.extend(chunk[:MAX_ERROR_BYTES - len(payload)])
@@ -322,7 +283,7 @@ def _service_error_detail(response: httpx.Response) -> str:
 
 
 def _stage_item(asset: Any, shared_dir: Path, task_dir: Path) -> Dict[str, Any]:
-    """Prefer persisted ContentStreams; an origin URI is provenance, not content."""
+    """Stage one asset for extraction, preferring its persisted content over its origin file."""
     asset_id = str(getattr(asset, "asset_id", "") or "")
     if not asset_id:
         raise ValueError("Extraction needs an asset_id for every document")
@@ -333,9 +294,7 @@ def _stage_item(asset: Any, shared_dir: Path, task_dir: Path) -> Dict[str, Any]:
     if name == "__files__":
         name = "document.txt"
     identity = hashlib.sha256(asset_id.encode("utf-8")).hexdigest()[:24]
-    # Name a shared upload by where it is stored (`<library-id>/02_theft.md`) so
-    # extractor logs and OKF `source_files` are recognizable; anything else gets
-    # an asset-derived folder, which keeps duplicate basenames distinct.
+    # Shared uploads keep their upload path; others get an asset-derived folder.
     source = _upload_name(origin, shared_dir) or f"{identity}/{name}"
     item: Dict[str, Any] = {
         "path": source, "asset_id": asset_id,
@@ -360,8 +319,7 @@ def _stage_item(asset: Any, shared_dir: Path, task_dir: Path) -> Dict[str, Any]:
         else:
             raise ValueError(f"Asset {asset_id!r} has unsupported extraction content")
     else:
-        # Existing shared uploads are referenced in place. File-only assets
-        # outside that root are copied into the per-task staging directory.
+        # Shared uploads are referenced in place; other files are copied in.
         parsed = urlparse(origin)
         if parsed.scheme not in ("", "file") or parsed.netloc not in ("", "localhost"):
             raise ValueError(f"Asset {asset_id!r} has no extractable content")

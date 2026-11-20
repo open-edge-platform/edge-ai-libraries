@@ -55,7 +55,7 @@ curl -X POST http://localhost:8200/api/v1/models/list \
   -H "Content-Type: application/json" \
   -d '{
     "hub": "geti",
-    "filters": {"project_name": "detection", "precision": "FP16"},
+    "filters": {"project_name": "detection", "precision": "FP16", "training_status": "successful"},
     "limit": 10
   }'
 ```
@@ -77,7 +77,9 @@ curl -X POST http://localhost:8200/api/v1/models/list \
 | `huggingface`        | `author`, `search`, `tags`                                                                       |
 | `ultralytics`        | `search`                                                                                         |
 | `pipeline-zoo-models`| `search`                                                                                         |
-| `geti`               | `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id` |
+| `geti`               | `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id`, `training_status` |
+
+For Geti, `filters.training_status` takes a single non-empty string and matches the full status case-insensitively (for example, `successful`, `failed`, or `in_progress`). Omit it to include all statuses, including models whose status is unavailable.
 
 **Response:**
 
@@ -116,11 +118,15 @@ curl -X POST http://localhost:8200/api/v1/models/list \
 | `has_more`    | bool \| null| Whether another page is available (derived from `total` when known, otherwise inferred)             |
 | `next_offset` | int \| null | Offset to use for the next page; only present when `has_more` is `true`                             |
 
+For Geti, each item's `metadata.training_status` contains the status returned by Geti (such as `successful`, `failed`, or `in_progress`), or null when unavailable. Models without variants remain in the listing unless a variant filter is applied.
+
 ---
 
 ### Download Models - `POST /api/v1/models/download`
 
 Downloads one or more models from supported hubs and optionally converts them to OpenVINO IR format. Requests are processed asynchronously; job IDs are returned immediately.
+
+For Geti, only models with a `successful` training status can be downloaded. Failed, in-progress, or unknown training status causes the job to fail with an explanatory error. A successfully trained model also needs a variant matching the requested format and precision; otherwise, the job fails with an error. If multiple projects have models with the same name, the service searches for a successfully trained model with a matching variant.
 
 **Query Parameter:**
 
@@ -222,6 +228,7 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | Hub                  | Description                          |
 | -------------------- | ------------------------------------ |
 | `huggingface`        | HuggingFace model hub               |
+| `modelscope`         | ModelScope snapshots (including FunASR) |
 | `ollama`             | Ollama model registry                |
 | `ultralytics`        | Ultralytics YOLO models             |
 | `pipeline-zoo-models`| Pipeline Zoo Models                  |
@@ -230,6 +237,33 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | `geti`               | Intel Geti™                          |
 | `hls`                | HLS model source                     |
 | `remote-url`         | Download from a remote URL           |
+
+FunASR snapshots use the `modelscope` plugin. Enable it with
+`--plugins modelscope` (or add `modelscope` to `ENABLED_PLUGINS`). For example,
+download Mandarin Paraformer, VAD, and punctuation models together:
+
+```bash
+curl -X POST "http://localhost:8200/models/download?download_path=funasr" \
+  -H 'Content-Type: application/json' \
+  -d '{"models":[{"name":"iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch","hub":"modelscope","revision":"v2.0.4"},{"name":"iic/speech_fsmn_vad_zh-cn-16k-common-pytorch","hub":"modelscope","revision":"v2.0.4"},{"name":"iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch","hub":"modelscope","revision":"v2.0.4"}]}'
+```
+
+The response contains a `job_ids` array. Poll `GET /jobs/<job_id>` until
+`status` is `completed`; the model files are then available to containers
+sharing the downloader's model storage volume. These FunASR requests download
+native PyTorch snapshots, not OpenVINO IR. Use `hub: "openvino"` for supported
+OpenVINO exports instead.
+
+Snapshots are stored under `<MODELS_DIR>/funasr/modelscope/<owner>_<model>/`.
+Use ModelScope repository IDs and revisions, not Hugging Face commit hashes.
+Hugging Face remains supported for other downloads.
+
+For whisper.cpp, request `hub: "huggingface"` with
+`name: "ggerganov/whisper.cpp"` and `config: {"files": ["ggml-base.bin"]}`
+to fetch only that filename. The `files` option is limited to plain filenames.
+The `openai-whisper` provider in Audio Analyzer downloads its official `.pt`
+checkpoint directly through the OpenAI Whisper package; it is not a Model
+Download service hub.
 
 **Model Types:**
 
@@ -260,7 +294,7 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 
 **`name` Format by Hub:**
 
-- `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name
+- `huggingface`, `modelscope`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name
 - `ultralytics`: single name, comma-separated names, or `all`
 - `pipeline-zoo-models`: single name, comma-separated names, or `all`
 - `omz`: single name or comma-separated names (`all` is not supported)

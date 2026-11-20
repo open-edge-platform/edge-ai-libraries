@@ -136,13 +136,22 @@
             >
               {{ $t("common.details") }}
             </a-button>
-            <a-button
-              danger
-              size="small"
-              @click="handleDelete(record.id, record.name)"
+            <a-tooltip
+              :title="
+                sourceIndexing(record)
+                  ? $t('console.sourceIndexingDeleteHint')
+                  : undefined
+              "
             >
-              {{ $t("common.delete") }}
-            </a-button>
+              <a-button
+                danger
+                size="small"
+                :disabled="sourceIndexing(record)"
+                @click="handleDelete(record.id, record.name)"
+              >
+                {{ $t("common.delete") }}
+              </a-button>
+            </a-tooltip>
           </a-space>
         </template>
       </template>
@@ -163,6 +172,7 @@ import {
 } from "@ant-design/icons-vue";
 import { requestSourceDelete } from "@/api/console";
 import type { Library, Source } from "@/api/console/type";
+import { getSourceDisplayStatus } from "../../canvas/ResourceModel";
 import getTableColumns from "../ColumnsList";
 import ConsoleTable from "../../../components/ConsoleTable.vue";
 const props = defineProps<{ tableData: Source[]; libraryData: Library }>();
@@ -185,6 +195,8 @@ const getSourceBindings = (id: string) =>
       .filter((binding) => binding.source_id === id)
       .map((binding) => ({ pool, binding })),
   );
+const sourceIndexing = (source: Source) =>
+  getSourceDisplayStatus(props.libraryData, source) === "indexing";
 const tableList = computed(() =>
   props.tableData.filter(
     (item) =>
@@ -195,6 +207,8 @@ const tableList = computed(() =>
   ),
 );
 const handleDelete = (id: string, name: string) => {
+  const source = props.libraryData.sources.find((item) => item.id === id);
+  if (!source || sourceIndexing(source)) return;
   Modal.confirm({
     title: t("common.delete"),
     content: t("console.deleteSource", { name }),
@@ -202,6 +216,8 @@ const handleDelete = (id: string, name: string) => {
     okText: t("common.confirm"),
     cancelText: t("common.cancel"),
     async onOk() {
+      const current = props.libraryData.sources.find((item) => item.id === id);
+      if (!current || sourceIndexing(current)) return;
       await requestSourceDelete(props.libraryData.name, id);
       emit("search");
     },

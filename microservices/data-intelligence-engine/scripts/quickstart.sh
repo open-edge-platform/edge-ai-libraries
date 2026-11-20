@@ -19,9 +19,10 @@ Usage: quickstart.sh [options]
 Options:
   --build           Rebuild the engine image (it is always built when missing)
   --model           Prepare the default models:
-                    "gme reranker layout viclip-b whisper media-reranker-int8"
+                    "gme reranker layout viclip-b whisper media-reranker"
   --models "LIST"   Prepare these models instead; see prepare-models.sh --help
-  --gpu             Keep Compose's GPU defaults for embedding and reranking (default: CPU)
+  --cpu             Run every model on the CPU (default: GPU; CPU when the host
+                    has no GPU device /dev/dri)
   --down            Stop and remove the engine and Milvus containers and the
                     network; the workspace (data and models) is kept
   -h, --help        Show this help
@@ -38,8 +39,8 @@ SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE_DIR="$(cd "$SCRIPTS_DIR/.." && pwd)"
 DOCKER_DIR="$ENGINE_DIR/deployment/docker"
 
-models="gme reranker layout viclip-b whisper media-reranker-int8"
-use_gpu=false
+models="gme reranker layout viclip-b whisper media-reranker"
+use_gpu=true
 build=false
 prepare=false
 down=false
@@ -48,7 +49,7 @@ while [[ $# -gt 0 ]]; do
     --build) build=true ;;
     --model) prepare=true ;;
     --models) models="${2:?--models needs a value}"; prepare=true; shift ;;
-    --gpu) use_gpu=true ;;
+    --cpu) use_gpu=false ;;
     --down) down=true ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'Unknown option: %s\n\n' "$1" >&2; usage >&2; exit 2 ;;
@@ -94,17 +95,13 @@ for tool in curl jq; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is required"
 done
 
-# --- workspace: created by this user, writable by the engine container (UID 1000)
+# --- workspace: owned by this user, which the engine container runs as too
 log "Preparing the workspace"
 workspace="$ENGINE_DIR/workspace"
-# hf_models too: once the workspace belongs to UID 1000, prepare-models.sh run
-# by another user could not create it.
 mkdir -p "$workspace"/{models,hf_models,uploads,configs,content} "$workspace"/milvus/{etcd,minio,db}
-if [[ "$(id -u)" != 1000 ]]; then
-  for dir in "$workspace" "$workspace"/{models,hf_models,uploads,configs,content}; do
-    [[ "$(stat -c %u "$dir")" == 1000 ]] || sudo chown 1000:1000 "$dir"
-  done
-fi
+for dir in "$workspace" "$workspace"/{models,hf_models,uploads,configs,content}; do
+  [[ "$(stat -c %u "$dir")" == "$(id -u)" ]] || sudo chown "$(id -u):$(id -g)" "$dir"
+done
 
 # --- .env: host-specific values only; an existing file is kept
 if [[ ! -f .env ]]; then
@@ -118,10 +115,24 @@ if [[ ! -f .env ]]; then
     echo "MINIO_GID=$(id -g)"
   } > .env
 fi
+# Mount the workspace at its host path so stored file:// paths work for host agents.
+[[ ! -s .env || -z "$(tail -c 1 .env)" ]] || echo >> .env
+for entry in ENGINE_WORKSPACE_HOST_PATH="$workspace" ENGINE_WORKSPACE_CONTAINER_PATH="$workspace" \
+             USER_UID="$(id -u)" USER_GID="$(id -g)"; do
+  grep -q "^${entry%%=*}=" .env || echo "$entry" >> .env
+done
+# Compose maps the GPU device into the engine; a host without one would refuse
+# to start the container, so CPU mode maps an always-present device instead.
+if [[ -z "$(env_value ENGINE_GPU_DEVICE)" && ! -e /dev/dri ]]; then
+  [[ "$use_gpu" == false ]] || log "No GPU device (/dev/dri) on this host; running every model on the CPU"
+  use_gpu=false
+  export ENGINE_GPU_DEVICE=/dev/null
+fi
 if [[ "$use_gpu" == false ]]; then
   # An existing .env may lack a final newline; appending would join two lines.
   [[ -z "$(tail -c 1 .env)" ]] || echo >> .env
-  for key in ENGINE_DOC_EMBEDDING_DEVICE ENGINE_RERANK_DEVICE; do
+  for key in ENGINE_DOC_EMBEDDING_DEVICE ENGINE_IMAGE_EMBEDDING_DEVICE ENGINE_VIDEO_EMBEDDING_DEVICE \
+             ENGINE_ASR_DEVICE ENGINE_LAYOUT_DEVICE ENGINE_RERANK_DEVICE ENGINE_MEDIA_RERANK_DEVICE; do
     grep -q "^$key=" .env || echo "$key=CPU" >> .env
   done
 fi
@@ -129,17 +140,11 @@ port="$(env_value ENGINE_PORT)"
 image="$(env_value ENGINE_IMAGE)"
 ENGINE_URL="http://localhost:${port:-16022}"
 image="${image:-data-intelligence-engine:latest}"
-# Compose maps the GPU device into the engine; a host without one would refuse
-# to start the container, so CPU mode maps an always-present device instead.
-if [[ -z "$(env_value ENGINE_GPU_DEVICE)" && ! -e /dev/dri ]]; then
-  [[ "$use_gpu" == false ]] || die "--gpu needs a GPU device (/dev/dri), and this host has none"
-  export ENGINE_GPU_DEVICE=/dev/null
-fi
 # A first run prepares the default models unasked: without them the engine
 # starts and only fails later. Not for a remote embedding service, which
 # needs no local model. Checked before the (long) image build.
 if [[ "$prepare" == false && -z "$(ls -A "$workspace/models")" \
-      && "$(env_value ENGINE_DOC_EMBEDDING_BACKEND)" != openai_compatible ]]; then
+      && "$(env_value ENGINE_DOC_EMBEDDING_BACKEND)" != remote_openai_compatible ]]; then
   log "$workspace/models is empty; the default models ($models) will be prepared"
   prepare=true
 fi
@@ -203,12 +208,7 @@ model_id="$(jq -r '.model_id // empty' <<<"$document_embedding")"
 model_path="$(jq -r '.model_path // empty' <<<"$document_embedding")"
 [[ -n "$backend" && -n "$model_id" ]] \
   || die "the engine did not report a document embedding backend and model in /v1/models/embedding."
-if [[ "$backend" != openai_compatible ]]; then
-  if [[ "$model_id" == *gme* && "$backend" != native_openvino_gme ]]; then
-    die "document embedding model $model_id needs ENGINE_DOC_EMBEDDING_BACKEND=native_openvino_gme, but the engine runs $backend.
-Unset the variable in this shell (unset ENGINE_DOC_EMBEDDING_BACKEND) or fix it in deployment/docker/.env, then rerun this script.
-Sources created meanwhile keep $backend; create them again after the restart."
-  fi
+if [[ "$backend" != remote_openai_compatible ]]; then
   ready="$(jq -r --arg id "$model_id" --arg path "$model_path" '
     any(.models[]?; .ready == true and
       (if $path != "" then .path == $path else .name == $id or .path == $id end))
@@ -248,6 +248,7 @@ cat <<EOF
   Console:  $ENGINE_URL/console/
   Milvus:   registered as local-milvus
   Models:   $ENGINE_DIR/workspace/models
+  Workspace: mounted in the engine at $workspace (same path as on this host)
 Next: create a library, a source and a pool, then ingest; see
 data-intelligence-engine/docs/user-guide/get-start.md.
 EOF

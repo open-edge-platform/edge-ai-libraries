@@ -28,7 +28,7 @@ data:
     pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2026/3/demos/common/export_models/requirements.txt
     
     # Log in to Hugging Face using the provided token
-    huggingface-cli login --token $2
+    hf auth login --token $2
 
     # Check if the login was successful
     if [ $? -eq 0 ]; then

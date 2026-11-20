@@ -1,7 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Read complete task files once, normalizing them to UTF-8 for both stages."""
 from __future__ import annotations
 
 from io import BytesIO
@@ -20,7 +19,7 @@ class TaskTooLarge(ValueError):
 
 
 def file_text(data: bytes, path: str, media_type: str = "") -> str:
-    """No previews or row/page caps: planning must see the entire task."""
+    """Extract the full, untruncated text of a PDF, docx, xlsx or UTF-8 text file."""
     suffix = Path(path).suffix.lower()
     stream = BytesIO(data)
     try:
@@ -62,7 +61,7 @@ def file_text(data: bytes, path: str, media_type: str = "") -> str:
             finally:
                 workbook.close()
         else:
-            # Strict decoding prevents arbitrary binary files from becoming gibberish.
+            # Strict decoding rejects binary files.
             text = data.decode("utf-8-sig")
             if "\x00" in text:
                 raise ValueError("binary content is not supported by the text reader")
@@ -80,12 +79,7 @@ def materialize_task(
     max_bytes: int = DEFAULT_MAX_TASK_BYTES,
     *, shared_dir: Path | None = None,
 ) -> Tree:
-    """Keep logical source paths even for text blobs named after PDFs/office files.
-
-    The extraction pipeline exposes only read_text on this normalized tree. Thus
-    shared PDFs and already-extracted PDF text share the same logical source
-    paths. `file_path` is relative to `shared_dir`, not the normalization tree.
-    """
+    """Write task items as UTF-8 text under their logical paths; `file_path` is relative to `shared_dir`."""
     root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     tree = Tree(root=root)

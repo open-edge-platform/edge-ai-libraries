@@ -53,9 +53,9 @@ Before you begin, ensure that you have the following prerequisites:
       _Go to [huggingface tokens page](https://huggingface.co/settings/tokens) to get your token._
 
       ```bash
-      # Login using huggingface-cli
+      # Login using the hf CLI
       pip install huggingface-hub
-      huggingface-cli login
+      hf auth login
       # pass hugging face token
       ```
 

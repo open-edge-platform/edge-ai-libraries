@@ -37,8 +37,7 @@ def prepared_video_defaults(monkeypatch, tmp_path):
     for key in ("MODEL_DIR", "LEGACY_MODEL_DIR", "SHARED_MODEL_DIR"):
         monkeypatch.setattr(config, key, str(root))
     monkeypatch.setattr(config, "VIDEO_EMBEDDING_MODEL_ID", VICLIP_ID)
-    monkeypatch.setattr(config, "VIDEO_EMBEDDING_MODEL_PATH", str(package))
-    monkeypatch.setattr(config, "VIDEO_EMBEDDING_BACKEND", "llamaindex_openvino")
+    monkeypatch.setattr(config, "VIDEO_EMBEDDING_BACKEND", config.LOCAL_OPENVINO)
     assert registry.lookup(VICLIP_ID, None).is_ready(package)
     return package
 
@@ -139,18 +138,18 @@ def test_a_model_is_checked_against_the_kinds_it_is_asked_to_take():
 
 
 def test_a_backend_that_is_not_the_models_runtime_is_refused():
-    with pytest.raises(ValueError, match="not 'openai_compatible'"):
+    with pytest.raises(ValueError, match="not 'remote_openai_compatible'"):
         describe_vector_source({
-            "asset_types": ["video"], "embedding_model": VICLIP_ID, "embedding_backend": "openai",
+            "asset_types": ["video"], "embedding_model": VICLIP_ID, "embedding_backend": config.REMOTE_OPENAI_COMPATIBLE,
         })
 
 
-def test_the_model_is_pinned_in_the_profile_with_a_portable_path():
+def test_the_model_is_pinned_in_the_profile_by_id_without_a_path():
     profile = describe_vector_source({"asset_types": ["video"]})
     record = profile["multimodal_model"]
     assert record["id"] == VICLIP_ID
-    # Inside the model dir, so the library can move with its workspace.
-    assert record["path"] == VICLIP_ID
+    # The id names a directory under the model dir; no path is stored.
+    assert "path" not in record
 
 
 @pytest.mark.parametrize("family, kinds, roles", [

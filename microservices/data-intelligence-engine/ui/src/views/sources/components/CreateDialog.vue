@@ -184,6 +184,7 @@ const handleSubmit = async () => {
       databaseType.value,
       options.value,
       t,
+      modelData.value,
     );
   } catch (error) {
     validationError.value =

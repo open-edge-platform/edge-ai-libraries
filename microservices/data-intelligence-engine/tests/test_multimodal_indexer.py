@@ -48,19 +48,19 @@ class FakeEmbedding:
         self.queries = []
         self.documents = []
 
-    def embed_text(self, texts):
-        self.queries.extend(texts)
-        return [[0.5] * DIMENSION for _ in texts]
+    def get_query_embedding(self, text):
+        self.queries.append(text)
+        return [0.5] * DIMENSION
 
-    def embed_documents(self, texts):
+    def get_text_embedding_batch(self, texts):
         self.documents.extend(texts)
         return [[0.0, 0.0, 1.0] + [0.0] * (DIMENSION - 3) for _ in texts]
 
-    def embed_image(self, images):
+    def get_image_embeddings(self, images):
         self.images += len(images)
         return [[1.0] + [0.0] * (DIMENSION - 1) for _ in images]
 
-    def embed_video(self, frames):
+    def get_video_embedding(self, frames):
         self.videos += 1
         return [0.0, 1.0] + [0.0] * (DIMENSION - 2)
 

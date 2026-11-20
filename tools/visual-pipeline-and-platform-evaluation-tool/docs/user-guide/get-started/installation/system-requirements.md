@@ -17,6 +17,7 @@ efficiently.
 - OS: Ubuntu 24.04.1 LTS (native installation, or as a WSL 2 distribution on Windows).
 - Docker Engine version 20.10 or higher. Docker Desktop is not supported on Linux, because its virtual machine cannot
   access the host `/dev/dri` render nodes required for GPU acceleration.
+- Docker Compose version 2.34.0 or newer.
 - For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DL Streamer installation
 script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in
 [DL Streamer Install Guide - Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
@@ -58,8 +59,27 @@ to a native Ubuntu installation - run all commands
 ([Use Pre-Built Docker Images](./docker-compose.md) or [Build from Source](./build-from-source.md))
 inside the Ubuntu 24.04 WSL distribution.
 
-`setup_env.sh` detects `/dev/dxg` and selects the `gpu-wsl` Compose profile automatically, so no
-manual configuration is required.
+`setup_env.sh` checks NPU devices first, then `/dev/dxg`, then native `/dev/dri/render*`
+nodes, and finally falls back to CPU. On WSL, `/dev/dxg` selects the `gpu-wsl`
+Compose profile even when `/dev/dri/render*` also exists.
+
+The profile passes `/dev/dxg` and mounts `/usr/lib/wsl` read-only for the ViPPET backend,
+DLStreamer Pipeline Server, Metrics Manager, and ASR service through `compose.gpu-wsl.yml`.
+Metrics Manager's native GPU device mapping is replaced rather than merged, so
+`/dev/dri` is not required by the standard WSL configuration.
+Experimental Time Series Analytics uses `compose.experimental.yml` without a
+WSL-specific override. It still requires `/dev/dri` and a valid `RENDER_GROUP_ID`;
+`/dev/dxg` alone is not sufficient for that service.
+
+The Windows Intel graphics driver must support GPU compute under WSL, and `/dev/dxg`
+and `/usr/lib/wsl` must be available inside the WSL distribution. GPU telemetry from
+native Linux collectors such as qmassa may be unavailable under WSL; a missing GPU
+utilization chart does not prove that inference is running on CPU.
+
+Run `make run` to regenerate `.env` and apply the detected profile. When invoking
+Compose directly, use `COMPOSE_PROFILES=gpu-wsl` and `compose.gpu-wsl.yml`.
+Do not edit `.env` manually. The runtime device is still `GPU`, and pipeline labels
+remain **GPU (WSL)**.
 
 ### Supported pipeline variants under WSL
 

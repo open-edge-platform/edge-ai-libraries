@@ -91,6 +91,7 @@ export const PerformanceTests = () => {
   const [testResult, setTestResult] = useState<{
     total_fps: number | null;
     per_stream_fps: number | null;
+    min_stream_fps: number | null;
     video_output_paths: {
       [key: string]: string[];
     } | null;
@@ -254,6 +255,7 @@ export const PerformanceTests = () => {
       setTestResult({
         total_fps: status.total_fps,
         per_stream_fps: status.per_stream_fps,
+        min_stream_fps: status.min_stream_fps ?? null,
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
@@ -624,6 +626,12 @@ export const PerformanceTests = () => {
                 <span className="font-medium">Per Stream FPS:</span>{" "}
                 {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
               </p>
+              {testResult.min_stream_fps != null && (
+                <p className="text-status-fg">
+                  <span className="font-medium">Slowest Stream FPS:</span>{" "}
+                  {testResult.min_stream_fps.toFixed(2)}
+                </p>
+              )}
             </div>
 
             {videoOutputEnabled &&

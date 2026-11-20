@@ -7,7 +7,7 @@
 FROM python:3.13-slim AS compressor-src
 
 ARG COMPRESSOR_REPO=https://github.com/open-edge-platform/edge-ai-libraries.git
-ARG COMPRESSOR_REF=release-2026.2.0
+ARG COMPRESSOR_REF=release-2026.3.0
 ARG COMPRESSOR_SUBDIR=libraries/adaptive-token-compressor
 
 RUN apt-get update \

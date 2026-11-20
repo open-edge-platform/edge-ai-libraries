@@ -66,8 +66,8 @@ class TestConfigureRootLogging:
         error_record = logging.LogRecord("x", logging.ERROR, __file__, 1, "boom", None, None)
         info_record = logging.LogRecord("x", logging.INFO, __file__, 1, "info", None, None)
 
-        assert stdout_handler.filter(error_record) is False
-        assert stdout_handler.filter(info_record) is True
+        assert not stdout_handler.filter(error_record)
+        assert stdout_handler.filter(info_record)
 
     def test_stderr_handler_only_handles_error_and_above(self):
         """The stderr handler's own level is set to ERROR."""

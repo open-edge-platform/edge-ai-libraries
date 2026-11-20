@@ -4,7 +4,7 @@ configure_edge_pack_npu () {
 }
 
 debian_40_profile_edge_pack_npu () {
-  echo "edge_pack libze1"
+  echo "edge_pack libze1 kmod"
 }
 
 debian_40_group_edge_pack_npu () {

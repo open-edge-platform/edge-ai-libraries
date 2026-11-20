@@ -29164,3 +29164,45 @@ index 56fd6044..7f9f6c6c 100644
 -- 
 2.43.0
 
+From 06cf1e881a49f293f63363e419b42bf6c32af830 Mon Sep 17 00:00:00 2001
+From: jilongw <jilong.wang@intel.com>
+Date: Fri, 20 Nov 2026 09:57:16 +0800
+Subject: [PATCH 25/25] security: disable /run_script on the MP HTTP server
+
+POST /run_script executes caller-supplied Python in-process; its
+restricted builtins are not a security boundary, so any client that can
+reach the LMCache MP HTTP port gets code execution. Exclude
+run_script_api from the routers mounted on the multiprocess HTTP
+server, backporting the default from LMCache v0.5.6 (LMCache#5129).
+---
+ lmcache/v1/multiprocess/http_apis/common_api.py | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/lmcache/v1/multiprocess/http_apis/common_api.py b/lmcache/v1/multiprocess/http_apis/common_api.py
+index 696ea766d2e2..ee12635bd213 100644
+--- a/lmcache/v1/multiprocess/http_apis/common_api.py
++++ b/lmcache/v1/multiprocess/http_apis/common_api.py
+@@ -35,12 +35,19 @@ router = APIRouter()
+ # therefore cannot run on the multiprocess HTTP server.
+ _MP_INCOMPATIBLE_MODULES: frozenset[str] = frozenset()
+ 
++# Modules that must never be exposed on the multiprocess HTTP server.
++# ``run_script_api`` (POST /run_script) executes caller-supplied Python
++# in-process; its restricted builtins are not a security boundary, so any
++# client that can reach the HTTP port gets code execution. Upstream disabled
++# it by default in LMCache v0.5.6 (LMCache#5129); this backports that.
++_MP_DISABLED_MODULES: frozenset[str] = frozenset({"run_script_api"})
++
+ _common_path = Path(internal_api_server.__file__).parent / "common"
+ _common_package = f"{internal_api_server.__name__}.common"
+ 
+ for _discovered in discover_api_routers(
+     _common_path,
+     _common_package,
+-    exclude=_MP_INCOMPATIBLE_MODULES,
++    exclude=_MP_INCOMPATIBLE_MODULES | _MP_DISABLED_MODULES,
+ ):
+     router.include_router(_discovered)
+-- 
+2.43.0
+

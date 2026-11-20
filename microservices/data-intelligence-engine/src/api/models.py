@@ -1,12 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Available embedding, reranker, layout and ASR models.
-
-What the engine can actually run, so a caller (a UI's model pickers, for example)
-offers the models that are in the workspace rather than a typed-in name.
-Multimodal packages are embeddings; `multimodal` remains a compatibility alias.
-See data-intelligence-engine/src/inference/models.py for how they are found and classified.
-"""
 
 from typing import List, Union
 

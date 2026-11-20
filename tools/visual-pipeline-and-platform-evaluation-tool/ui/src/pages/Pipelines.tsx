@@ -61,12 +61,14 @@ import {
   Eye,
   Film,
   Infinity as InfinityIcon,
+  Pin,
   Redo2,
   Save,
   SlidersHorizontal,
   Timer,
   Undo2,
 } from "lucide-react";
+import { CpuCorePinningDialog } from "@/features/pipeline-editor/CpuCorePinningDialog.tsx";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { NavigationGuard } from "@/components/shared/NavigationGuard";
 import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog.tsx";
@@ -164,6 +166,8 @@ export const Pipelines = () => {
   const [streams, setStreams] = useState(1);
   const [streamsInput, setStreamsInput] = useState("1");
   const [isSimpleMode, setIsSimpleMode] = useState(true);
+  const [pinnedCpuCores, setPinnedCpuCores] = useState<number[]>([]);
+  const [cpuPinningDialogOpen, setCpuPinningDialogOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null,
@@ -256,6 +260,7 @@ export const Pipelines = () => {
     setSelectedNode(null);
     setShowDetailsPanel(false);
     setCompletedVideoPath(null);
+    setPinnedCpuCores([]);
     resetHistory();
   }, [variant, resetHistory, setCurrentNodes, setCurrentEdges]);
 
@@ -413,6 +418,7 @@ export const Pipelines = () => {
             max_runtime: maxRuntimeSeconds,
             metadata_mode: hasMetadata && metadataEnabled ? "file" : "disabled",
             enable_latency_metrics: latencyMetricsEnabled,
+            pinned_cpu_cores: isSimpleMode ? [] : pinnedCpuCores,
           },
         },
       });
@@ -628,6 +634,40 @@ export const Pipelines = () => {
                     : !canUndo
                       ? "No changes to save"
                       : "Save (Ctrl+S)"}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => !isSimpleMode && setCpuPinningDialogOpen(true)}
+                  aria-disabled={isSimpleMode}
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="CPU core pinning"
+                  className={
+                    isSimpleMode
+                      ? "cursor-not-allowed opacity-50 hover:bg-transparent"
+                      : undefined
+                  }
+                >
+                  <Pin
+                    className={
+                      !isSimpleMode && pinnedCpuCores.length > 0
+                        ? "h-5 w-5 text-brand-accent"
+                        : "h-5 w-5"
+                    }
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>
+                  {isSimpleMode
+                    ? "CPU core pinning (available in advanced mode only)"
+                    : pinnedCpuCores.length > 0
+                      ? `CPU core pinning (${pinnedCpuCores.length} selected)`
+                      : "CPU core pinning (all cores)"}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -950,7 +990,7 @@ export const Pipelines = () => {
                 );
                 const firstVariant = remainingVariants[0];
                 if (firstVariant) {
-                  navigate(`/pipelines/${id}/${firstVariant.id}`);
+                  navigate(`/pipelines/vision/${id}/${firstVariant.id}`);
                 } else {
                   navigate("/pipelines");
                 }
@@ -988,6 +1028,7 @@ export const Pipelines = () => {
                     <PerformanceTestPanel
                       isRunning={jobStatus?.state === "RUNNING"}
                       completedVideoPath={completedVideoPath}
+                      metadataStreamUrls={jobStatus?.metadata_stream_urls}
                       livePreviewEnabled={livePreviewEnabled}
                       videoOutputEnabled={videoOutputEnabled}
                       enableLatencyMetrics={latencyMetricsEnabled}
@@ -1065,6 +1106,14 @@ export const Pipelines = () => {
           models={pipelineModelStatuses}
           onModelsChanged={refreshRequiredModels}
         />
+        {!isSimpleMode && (
+          <CpuCorePinningDialog
+            open={cpuPinningDialogOpen}
+            onOpenChange={setCpuPinningDialogOpen}
+            pinnedCores={pinnedCpuCores}
+            onApply={setPinnedCpuCores}
+          />
+        )}
       </div>
     );
   }

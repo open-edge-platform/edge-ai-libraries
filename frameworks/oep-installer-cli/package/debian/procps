@@ -1,0 +1,8 @@
+
+debian_40_install_procps () {
+  ensure_apt_install_package procps
+}
+
+debian_40_sbom_procps () {
+  ensure_sbom_format pkg-list procps
+}

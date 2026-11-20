@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { type Pipeline } from "@/api/api.generated";
 
 const TAG_COLORS = [
   "electric-cobalt",
@@ -16,7 +15,9 @@ export type TagColor = (typeof TAG_COLORS)[number];
  * Hook to compute tag colors and available tags from pipelines.
  * Returns a map of tag names to their assigned colors and an array of available tags.
  */
-export const usePipelineTagColors = (pipelines: Pipeline[] | undefined) => {
+export const usePipelineTagColors = (
+  pipelines: ReadonlyArray<{ tags?: string[] | null }> | undefined,
+) => {
   const tagColorMap = useMemo(() => {
     if (!pipelines) return new Map<string, TagColor>();
 

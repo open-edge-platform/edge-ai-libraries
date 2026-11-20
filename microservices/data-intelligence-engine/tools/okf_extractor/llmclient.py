@@ -1,12 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""LLM client for okf_producer. Same wire shape as extract_okf.call_llm, plus:
-  - proxy isolation (trust_env=False) — the corporate proxy turns 127.0.0.1 into
-    403 otherwise; the CLI also sets no_proxy in-process (belt AND suspenders);
-  - OpenAI tool-calling (tools=[...] / tool_choice), returning the whole choice so
-    the agent loop can branch on finish_reason and read message.tool_calls.
-"""
+"""OpenAI-compatible chat client with tool calling for the OKF extractor."""
 from __future__ import annotations
 
 import json
@@ -16,13 +11,10 @@ import httpx
 
 
 class ContextOverflowError(Exception):
-    """Raised when the model rejects the request because the prompt (accumulated
-    conversation history) exceeds its context window. The driver catches this to
-    shrink the batch budget and retry, rather than crashing the whole run."""
+    """Raised when the prompt exceeds the model's context window."""
 
 
-# substrings vLLM / OpenAI-compatible servers use in the 400 body when the prompt
-# is too long. Matched case-insensitively against the error text.
+# Lowercase substrings OpenAI-compatible servers put in a 400 body for an over-long prompt.
 _OVERFLOW_MARKERS = (
     "maximum context length",
     "context length",
@@ -36,7 +28,7 @@ _OVERFLOW_MARKERS = (
 
 class LLMClient:
     def __init__(self, cfg_llm: dict):
-        # trust_env=False: do NOT apply http(s)_proxy env to the 127.0.0.1 call.
+        # trust_env=False: proxy env vars would break calls to 127.0.0.1.
         self._http = httpx.Client(
             trust_env=False, timeout=float(cfg_llm.get("timeout", 600.0))
         )
@@ -52,8 +44,7 @@ class LLMClient:
         tool_choice: str = "auto",
         max_tokens: int | None = None,
     ) -> dict:
-        """POST /chat/completions. Returns choices[0] = {message:{content,tool_calls},
-        finish_reason}."""
+        """POST /chat/completions and return ``choices[0]``."""
         llm = self._llm
         body: dict = {
             "model": llm["model"],
@@ -61,9 +52,7 @@ class LLMClient:
             "temperature": llm.get("temperature", 0.0),
             "max_tokens": max_tokens or llm.get("max_tokens", 4096),
         }
-        # Qwen3.5-122B thinks first by default and can burn the whole budget on
-        # <think>. vLLM's chat_template_kwargs turns it off so tool calls come out
-        # directly (faster, no timeout). Honor the config's enable_thinking knob.
+        # Disable vLLM thinking mode unless configured, so the token budget is not spent on <think>.
         if not llm.get("enable_thinking", False):
             body["chat_template_kwargs"] = {"enable_thinking": False}
         if tools:
@@ -85,8 +74,7 @@ class LLMClient:
 
 
 def parse_json(text: str) -> dict:
-    """Tolerant: strip code fences / prose / <think>, grab the first {...} block.
-    Copied from extract_okf.parse_json (L160-170)."""
+    """Strip code fences and <think> blocks, then parse the outermost {...} block."""
     text = (text or "").strip()
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
@@ -98,8 +86,7 @@ def parse_json(text: str) -> dict:
 
 
 def approx_tokens(messages: list[dict], chars_per_token: float = 3.0) -> int:
-    """Cheap estimate of a message list's token size (for the history soft-gate).
-    Serializes to JSON and divides by chars_per_token — no tokenizer call."""
+    """Rough token count of a message list from its JSON length, without a tokenizer."""
     try:
         n = len(json.dumps(messages, ensure_ascii=False))
     except Exception:

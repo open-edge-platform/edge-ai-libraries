@@ -1,21 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tool whitelist. These tools are the CLOSED choice that resolves the
-half-open-agent / fully-LLM-format-choice tension: the LLM "decides the format"
-ONLY by picking which whitelisted read_* tool + args to call — never free-form shell.
-
-Budget accounting is the batching mechanism (decision 7). Every read_* handler:
-  1. computes approx_tokens = len(text) / chars_per_token;
-  2. if ctx.read_tokens + approx_tokens > ctx.read_budget -> HARD-REFUSE (return a
-     "budget exhausted, emit write_concept now" string, set ctx.budget_exhausted),
-     WITHOUT counting the refused read;
-  3. else add to ctx.read_tokens, record files_read, and return the (line+byte-capped) text.
-
-Per-call caps (lines/bytes) mirror opencode's read tool. A reader whose config
-switch is off, or whose python package fails to import, is silently dropped from the
-whitelist so the agent cannot select it.
-"""
 from __future__ import annotations
 
 import importlib
@@ -24,12 +9,9 @@ from pathlib import Path
 from .agent import ALREADY_RECORDED, AgentCtx, Tool
 from .concept import Concept
 
-# ------------------------------------------------------------------- path safety
-
 
 def _resolve_in_root(ctx: AgentCtx, path: str) -> Path | None:
-    """Resolve `path` (may be rel_path or absolute) under ctx.data_dir. Reject any
-    escape outside the root (`..` traversal, absolute paths elsewhere)."""
+    """Resolve `path` under ctx.data_dir (and the assigned files), or None if it escapes."""
     p = Path(path)
     ap = (p if p.is_absolute() else ctx.data_dir / p).resolve()
     try:
@@ -50,12 +32,8 @@ def _rel(ctx: AgentCtx, ap: Path) -> str:
     return ap.relative_to(ctx.data_dir).as_posix()
 
 
-# ------------------------------------------------------------- budget accounting
-
-
 def _charge(ctx: AgentCtx, text: str, cfg_batch: dict) -> str | None:
-    """Charge `text` against the session read budget. Returns a refusal string if it
-    would overflow (and flips budget_exhausted), else None (and adds to the counter)."""
+    """Charge `text` against the read budget; returns a refusal string if it would overflow."""
     cpt = float(cfg_batch.get("chars_per_token", 3.0)) or 3.0
     approx = int(len(text) / cpt)
     if ctx.read_tokens + approx > ctx.read_budget:
@@ -69,8 +47,7 @@ def _charge(ctx: AgentCtx, text: str, cfg_batch: dict) -> str | None:
 
 
 def _cap_lines(text: str, max_lines: int, max_bytes: int, start_line: int = 1) -> tuple[str, bool]:
-    """Number lines; stop at max_lines OR when accumulated bytes exceed max_bytes.
-    Returns (rendered, capped?)."""
+    """Number lines up to max_lines/max_bytes; returns (rendered, capped)."""
     out: list[str] = []
     total = 0
     lines = text.splitlines()
@@ -84,10 +61,6 @@ def _cap_lines(text: str, max_lines: int, max_bytes: int, start_line: int = 1) -
         total += b
         n += 1
     return "\n".join(out), False
-
-
-# --------------------------------------------------------------------- handlers
-# Each _mk_* returns a handler closure bound to cfg; build_tools wires them up.
 
 
 def _mk_list_dir(cfg):
@@ -186,8 +159,7 @@ def _mk_read_text(cfg):
                 f"Already read: offset={offset} of {relative!r} is already in this session's history. "
                 f"The next unread range starts at offset={next_offset}; do not replay previous content."
             )
-        # Retain a final empty line: joining ["text", ""] without the extra
-        # newline would make _cap_lines count one line while coverage expects two.
+        # Trailing newline keeps a final empty line counted by _cap_lines.
         body = "\n".join(lines[offset:]) + "\n"
         rendered, capped = _cap_lines(
             body, b["per_file_read_lines"], b["per_file_read_bytes"], start_line=offset + 1,
@@ -223,8 +195,8 @@ def _mk_read_pdf(cfg):
         ap = _resolve_in_root(ctx, rel)
         if ap is None or not ap.is_file():
             return f"File not found or outside the data root: {rel!r}"
-        import pypdf  # guarded by build_tools; safe here
-        # TODO(v1): PDF bookmark / internal-TOC extraction — out of scope; linear text only.
+        import pypdf  # guarded by build_tools
+        # TODO: PDF bookmark / internal-TOC extraction; linear text only for now.
         try:
             reader = pypdf.PdfReader(str(ap))
         except Exception as e:
@@ -285,13 +257,11 @@ def _mk_read_table(cfg):
         if notice:
             return notice
         window = df.iloc[offset:]
-        # cap rows to fit the byte budget
         rows_out: list[str] = []
         total = 0
         shown = 0
         capped = False
         if mode == "rows":
-            # one compact record per row (LLM emits one concept per row when apt)
             for idx, row in window.iterrows():
                 rec = " | ".join(f"{c}={row[c]}" for c in df.columns)
                 piece = f"row {idx}: {rec}"
@@ -304,7 +274,6 @@ def _mk_read_table(cfg):
                 shown += 1
             rendered = "\n".join(rows_out)
         else:
-            # markdown-ish text preview of the frame
             preview = window.to_string(max_rows=200)
             rendered, capped = preview[: b["per_file_read_bytes"]], len(
                 preview.encode("utf-8")
@@ -356,7 +325,7 @@ def _mk_read_docx(cfg):
 
 
 def _mk_write_concept(cfg):
-    def handler(args: dict, ctx: AgentCtx) -> str:  # write_concept
+    def handler(args: dict, ctx: AgentCtx) -> str:
         ctype = (args.get("type") or "").strip()
         title = (args.get("title") or "").strip()
         summary = (args.get("summary") or "").strip()
@@ -386,9 +355,7 @@ def _mk_write_concept(cfg):
                 "Use the full fragment paths from read_text, including the numbered .md filename. "
                 "No concept was recorded; rewrite this call."
             )
-        # optional concept->concept relations (target title + relation word). Targets
-        # are OTHER concept titles; they need not exist yet (Stage 2 resolves them by
-        # title after merge and drops any that don't resolve). Self-links are dropped.
+        # Link targets are resolved by title in Stage 2; self-links are dropped.
         links: list[tuple[str, str]] = []
         for ln in (args.get("links") or []):
             if not isinstance(ln, dict):
@@ -415,7 +382,7 @@ def _mk_write_concept(cfg):
 
 
 def _mk_ask_human(cfg):
-    def handler(args: dict, ctx: AgentCtx) -> str:  # ask_human
+    def handler(args: dict, ctx: AgentCtx) -> str:
         finding_type = (args.get("finding_type") or "note").strip()
         message = (args.get("message") or "").strip()
         options = args.get("options") or []
@@ -424,9 +391,7 @@ def _mk_ask_human(cfg):
         options = [str(o) for o in options]
         if not message:
             return "ask_human needs a non-empty `message`. Please rewrite the input."
-        # record the finding in BOTH modes (so a non-interactive run still surfaces it).
         record = {"finding_type": finding_type, "message": message, "options": options}
-        # interactive + a real terminal: block for a human answer.
         if ctx.interactive and ctx.ui is not None and getattr(ctx.ui, "tty", False):
             answer = ctx.ui.ask(finding_type, message, options or None)
             record["answer"] = answer
@@ -434,7 +399,6 @@ def _mk_ask_human(cfg):
             if not answer:
                 return "Human gave no answer; use your best judgment and continue."
             return f"Human answered: {answer}"
-        # non-interactive (or no tty): do not block. Record it and let the agent proceed.
         record["answer"] = None
         ctx.findings.append(record)
         return (
@@ -444,8 +408,6 @@ def _mk_ask_human(cfg):
 
     return handler
 
-
-# ----------------------------------------------------------------- schemas + build
 
 _PATH_OFFSET = {
     "type": "object",
@@ -530,8 +492,7 @@ _MAKERS = {
 
 
 def build_tools(cfg, ctx: AgentCtx) -> list[Tool]:
-    """Return the enabled tool subset. A switch that is off, or whose python package
-    is not importable, is silently dropped (logged) so the agent can't select it."""
+    """Return the enabled tools, dropping any whose package is not importable."""
     tools: list[Tool] = []
     for name, spec in cfg.tools.items():
         if not spec.get("enabled", False):

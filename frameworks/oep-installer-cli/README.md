@@ -25,7 +25,7 @@ marketing segments. The table lists the profiles:
 | ------- | ------ |
 | `computer_vision` | Computer-vision pipelines, models, and runtimes | 
 | `federal_and_aerospace_ai_suite_handheld` | Federal and Aerospace handheld platform, application, and deterministic threat detection |
-| `federal_and_aerospace_ai_suite_mission_decision_support` | Federal and Aerospace mission decision support blueprint and deterministic threat detection |
+| `federal_and_aerospace_ai_suite_mission_sensing_service` | Federal and Aerospace mission sensing service blueprint and deterministic threat detection |
 | `federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle` | Federal and Aerospace uncrewed aerial vehicle platform and applications |
 | `health_and_life_science_ai_suite` | Patient and vitals monitoring || `inferencing` | Core AI inferencing runtime |
 | `manufacturing_ai_suite` | Industrial inspection and defect detection |
@@ -124,12 +124,12 @@ where `--gpu` applies to the smart_parking component.
 > Omit `--<component-name>` if there is only a single component or the specified options apply to all components.  
 
 The Federal and Aerospace profiles provide handheld, uncrewed aerial vehicle, and
-mission decision support blueprints, applications, and deterministic threat detection:
+mission sensing service blueprints, applications, and deterministic threat detection:
 
 ```bash
 openedge-cli install federal_and_aerospace_ai_suite_handheld
 openedge-cli install federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle
-openedge-cli install federal_and_aerospace_ai_suite_mission_decision_support
+openedge-cli install federal_and_aerospace_ai_suite_mission_sensing_service
 ```
 
 The platform blueprints can also be installed independently:
@@ -137,7 +137,7 @@ The platform blueprints can also be installed independently:
 ```bash
 openedge-cli install handheld_blueprint
 openedge-cli install uncrewed_aerial_vehicle_blueprint
-openedge-cli install mission_decision_support_blueprint
+openedge-cli install mission_sensing_service_blueprint
 ```
 
 The UAV applications can be installed independently:
@@ -201,7 +201,7 @@ For bootstrapping with different modules/profiles, use the commands below:
 ./openedge-cli bootstrap --family=debian \
   federal_and_aerospace_ai_suite_handheld \
   federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle \
-  federal_and_aerospace_ai_suite_mission_decision_support \
+  federal_and_aerospace_ai_suite_mission_sensing_service \
   -o rendered/openedge-cli-federal-aerospace
 ```
 

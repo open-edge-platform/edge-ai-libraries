@@ -27,9 +27,11 @@
       :table-data="tableData"
       :pool-data="libraryData.asset_pools"
       :library-name="libraryData.name"
+      :upload-version="uploadVersion"
       @upload="handleUpload"
       @view="handleView"
       @search="handleSearch"
+      @deleted="removeAssets"
     />
     <UploadDialog
       v-if="uploadDialog"
@@ -53,21 +55,22 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { DatabaseOutlined } from "@ant-design/icons-vue";
-import { getAssetList } from "@/api/console";
-import type { Asset } from "@/api/console/type";
+import type { IngestResult } from "@/api/console/type";
 import { customNotification } from "@/utils/notification";
 import type { ConsolePageProps } from "../../types/console";
 import Table from "./components/Table.vue";
 import UploadDialog from "./components/UploadDialog.vue";
 import DetailDrawer from "./components/DetailDrawer.vue";
-import { collectAssets } from "./AssetList";
+import { getAssetProgress, syncAssetProgress } from "./AssetUtils";
 const props = defineProps<ConsolePageProps>();
 const emit = defineEmits<{ refresh: [] }>();
 const route = useRoute();
 const { t } = useI18n();
-const loading = ref(false);
-const tableData = ref<Asset[]>([]);
-const trackedAssets = ref<string[]>([]);
+const progress = getAssetProgress(props.libraryData!.name);
+const tableData = computed(() => progress.rows);
+const trackedAssets = computed(() => progress.trackedIds);
+const removeAssets = (ids: string[]) => progress.remove(ids);
+const uploadVersion = ref(0);
 const uploadDialog = ref(route.query.upload === "1");
 const selectedId = ref("");
 const detailDrawer = computed(() => tableData.value.find((asset) => asset.id === selectedId.value));
@@ -80,85 +83,65 @@ const handleUploadClose = () => {
 const handleDetailClose = () => {
   selectedId.value = "";
 };
-let timer: ReturnType<typeof setTimeout>;
+let timer: ReturnType<typeof setTimeout> | undefined;
 let disposed = false;
-let watchStarted = 0;
-const queryAssetList = async (showLoading = false) => {
-  const assets = await collectAssets(
-    (page) => getAssetList(props.libraryData!.name, {
-      page_num: page,
-      page_size: 500,
-    }, showLoading && page === 1),
-    () => {
-      const message = t("console.incompleteAssetList");
-      customNotification("error", message, undefined);
-      return new Error(message);
-    },
-  );
-  if (disposed) return;
-  tableData.value = assets;
-  trackedAssets.value = trackedAssets.value.filter((id) => {
-    const asset = assets.find((item) => item.id === id);
-    return (
-      !asset ||
-      (asset.materialization !== null && asset.materialization !== "ready")
-    );
-  });
-  for (const asset of assets) {
-    if (
-      asset.materialization &&
-      asset.materialization !== "ready" &&
-      !trackedAssets.value.includes(asset.id)
-    ) {
-      trackedAssets.value.push(asset.id);
-    }
+let inFlight: Promise<void> | undefined;
+const queryAssetList = (showLoading = false): Promise<void> => {
+  if (!inFlight) {
+    if (showLoading) progress.resume();
+    inFlight = (async () => {
+      try {
+        await syncAssetProgress(
+          props.libraryData!.name,
+          progress,
+          () => {
+            const message = t("console.incompleteAssetList");
+            customNotification("error", message, undefined);
+            return new Error(message);
+          },
+          () => { if (!disposed) emit("refresh"); },
+          () => !disposed,
+          showLoading,
+        );
+      } finally {
+        if (!disposed && progress.expire())
+          customNotification("warning", t("console.processing"), t("console.pollExpired"));
+      }
+    })().finally(() => { inFlight = undefined; });
   }
-  if (trackedAssets.value.length && !watchStarted) watchStarted = Date.now();
+  return inFlight;
 };
-const handleSearch = async () => {
-  loading.value = true;
+const poll = async () => {
   try {
-    await queryAssetList(true);
-    emit("refresh");
+    if (trackedAssets.value.length) await queryAssetList();
+  } catch (error) {
+    console.error(error);
   } finally {
-    loading.value = false;
+    if (!disposed) timer = setTimeout(poll, 3000);
   }
-};
-const handleView = (id: string) => {
-  selectedId.value = id;
-};
-const handleUploaded = async (ids: string[]) => {
-  trackedAssets.value.push(...ids);
-  watchStarted = Date.now();
-  await handleSearch();
-};
-const queryIngestStatus = async () => {
-  if (trackedAssets.value.length && !loading.value) {
-    try {
-      await queryAssetList();
-      emit("refresh");
-    } catch (error) {
-      console.error(error);
-    }
-    if (Date.now() - watchStarted > 600000) {
-      trackedAssets.value = [];
-      customNotification(
-        "warning",
-        t("console.processing"),
-        t("console.pollExpired"),
-      );
-    }
-  }
-  if (!disposed) timer = setTimeout(queryIngestStatus, 3000);
 };
 onMounted(async () => {
-  await handleSearch();
-  if (!disposed) timer = setTimeout(queryIngestStatus, 3000);
+  try {
+    await queryAssetList(true);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    if (!disposed) timer = setTimeout(poll, 3000);
+  }
 });
 onUnmounted(() => {
   disposed = true;
   clearTimeout(timer);
 });
+const handleSearch = () => queryAssetList(true);
+const handleView = (id: string) => {
+  selectedId.value = id;
+};
+const handleUploaded = async (result: IngestResult) => {
+  progress.accept(result);
+  uploadVersion.value++;
+  await queryAssetList();
+};
 </script>
 <style scoped lang="less">
 .library-info {

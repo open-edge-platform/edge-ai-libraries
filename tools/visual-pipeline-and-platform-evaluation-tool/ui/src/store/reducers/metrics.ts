@@ -75,8 +75,7 @@ export const metrics = createSlice({
       state.lastMessage = action.payload;
       try {
         const parsed = JSON.parse(action.payload) as
-          | MetricsMessage
-          | MetricsErrorMessage;
+          MetricsMessage | MetricsErrorMessage;
         if ("error" in parsed) {
           state.error = parsed.error;
           state.isConnected = false;

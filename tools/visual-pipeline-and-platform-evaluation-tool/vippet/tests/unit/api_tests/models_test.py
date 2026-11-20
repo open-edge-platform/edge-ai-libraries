@@ -708,7 +708,7 @@ class TestModelsDownloadAPI(unittest.TestCase):
     def test_download_mixed_results_returns_207(self):
         """Some accepted + some rejected -> 207 Multi-Status."""
 
-        def fake_start(name: str, hub: str | None = None, category=None):
+        def fake_start(name: str, hub: str | None = None, category=None, gated=None):
             if name == "yolo11n":
                 return ("job-1", 202, "Download started")
             return (None, 409, f"Model '{name}' is already installed")
@@ -749,7 +749,7 @@ class TestModelsDownloadAPI(unittest.TestCase):
     def test_download_all_rejected_mixed_codes_picks_400(self):
         """Mixed rejected codes: precedence is 400 > 404 > 409."""
 
-        def fake_start(name: str, hub: str | None = None, category=None):
+        def fake_start(name: str, hub: str | None = None, category=None, gated=None):
             return {
                 "a": (None, 409, "x"),
                 "b": (None, 404, "y"),
@@ -817,7 +817,7 @@ class TestModelsDownloadFromHubAPI(unittest.TestCase):
             self.assertEqual(response.status_code, 202)
             self.assertEqual(response.json()["jobs"]["yolo11n-seg"]["job_id"], "job-1")
             mock_manager_instance.start_download.assert_awaited_once_with(
-                "yolo11n-seg", "ultralytics", None
+                "yolo11n-seg", "ultralytics", None, None
             )
 
     def test_hub_forwards_category_for_huggingface(self):
@@ -842,7 +842,46 @@ class TestModelsDownloadFromHubAPI(unittest.TestCase):
                 "OpenVINO/gemma-4-E4B-it-int8-ov",
                 "huggingface",
                 InternalModelCategory.VISION_LANGUAGE_MODELS,
+                None,
             )
+
+    def test_hub_forwards_gated_for_huggingface(self):
+        with patch("api.routes.models.ModelManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
+            mock_manager_instance.start_download = AsyncMock(
+                return_value=("job-1", 202, "Download started (job job-1)")
+            )
+            mock_manager_cls.return_value = mock_manager_instance
+
+            response = self.client.post(
+                "/models/download",
+                json={
+                    "names": ["OpenVINO/gemma-4-E4B-it-int8-ov"],
+                    "hub": "huggingface",
+                    "category": "vision_language_models",
+                    "gated": "auto",
+                },
+            )
+
+            self.assertEqual(response.status_code, 202)
+            mock_manager_instance.start_download.assert_awaited_once_with(
+                "OpenVINO/gemma-4-E4B-it-int8-ov",
+                "huggingface",
+                InternalModelCategory.VISION_LANGUAGE_MODELS,
+                "auto",
+            )
+
+    def test_hub_rejects_invalid_gated(self):
+        response = self.client.post(
+            "/models/download",
+            json={
+                "names": ["OpenVINO/x"],
+                "hub": "huggingface",
+                "category": "vision_language_models",
+                "gated": "maybe",
+            },
+        )
+        self.assertEqual(response.status_code, 422)
 
     def test_hub_rejects_path_traversal_name(self):
         response = self.client.post(

@@ -1,41 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Files in, one normalized `ContentStream` out.
-
-This is the seam between "what a file happens to be" and "what the engine
-stores". An asset is a file of any kind, so a caller ingests a path and gets
-back blocks in reading order without having to know whether the path was a
-spreadsheet, a scanned report, or a recording. Everything downstream -- chunking,
-figures, knowledge extraction -- reads blocks and never touches the file again.
-
-Three extractors, chosen by MIME type:
-
-- **text** (the default) runs the llama-index reader and turns each piece it
-  returns into a text block, keeping its page number.
-- **layout** runs over a PDF (`extract_pdf`): a PDF is routed by whether it
-    carries a text layer. A digital PDF
-    takes its prose, tables, and equations from the fast text path and only renders
-    + detects to find figures, which become fused `IMAGE` blocks. Its slow path
-    performs no OCR (`extract_layout_digital`, paths 1 and 2). A scanned PDF
-  with no text layer falls back to detecting every region and OCRing each one
-  (`extract_layout`, path 3). Either way tables and vector charts become blocks
-  with captions, not just embedded bitmaps.
-- **media** handles a file that *is* the picture or the recording: one binary
-  block, no text.
-
-Bytes never go into the stream. A standalone media file is not copied at all --
-its block points at the file itself (`file://`). A figure's pixels, which have no
-file of their own, are written to the object
-store first and the block keeps the returned key, so the record a caller
-persists afterwards can never reference a blob that is not there yet. That
-ordering is why `put_blob` is a parameter rather than something this module
-reaches for: the writer belongs to the library whose content source the blobs
-are going into.
-
-Adding a real layout model (docling, unstructured) means writing one more
-function of the same shape and registering it -- nothing above this file
-changes, and nothing already persisted is re-interpreted.
-"""
 
 import json
 import mimetypes
@@ -62,7 +26,7 @@ from core.content import (
 )
 from core.loader import SUPPORTED_EXTS, file_to_documents
 
-#: Writes bytes somewhere and returns the key they can be read back by.
+#: Writes bytes (with an optional content type) and returns the key to read them back.
 BlobWriter = Callable[[bytes, Optional[str]], str]
 
 def media_kind(path: str) -> str:
@@ -72,20 +36,12 @@ def media_kind(path: str) -> str:
 
 
 def is_supported(path: str) -> bool:
-    """Whether `extract` can turn this file into content: a media file, or a
-    document type the reader accepts. Asked before an ingest is accepted, so an
-    unsupported file is a bad request rather than an asset that never appears."""
+    """Whether `extract` can turn this file into content."""
     return bool(media_kind(path)) or os.path.splitext(path)[1].lower() in SUPPORTED_EXTS
 
 
 def media_role(path: str, kind: str = "") -> str:
-    """The role of the media file at `path` -- how it is processed -- else `""`.
-
-    A video is short or long by its duration, because that is what decides
-    whether the whole of it can go to a vision model in one piece. Duration
-    that cannot be read means **long**: guessing short would hand an unbounded
-    recording to a VLM, and the cost of being wrong is wildly asymmetric.
-    """
+    """The processing role of the media file at `path`, else `""`; unknown video duration means long."""
     kind = kind or media_kind(path)
     if kind == IMAGE:
         return ROLE_IMAGE
@@ -100,12 +56,7 @@ def media_role(path: str, kind: str = "") -> str:
 
 
 def video_duration(path: str) -> Optional[float]:
-    """Seconds of video at `path`, or None if neither prober could say.
-
-    ffprobe reads the container metadata and is both faster and more honest
-    about variable frame rates; OpenCV has to be decoded against and reports
-    frame-count/fps, which some containers lie about. Hence the order.
-    """
+    """Seconds of video at `path` via ffprobe then OpenCV, or None."""
     duration = _ffprobe_duration(path)
     if duration is not None:
         return duration
@@ -126,13 +77,13 @@ def _ffprobe_duration(path: str) -> Optional[float]:
         )
         value = json.loads(completed.stdout)["format"]["duration"]
         return float(value)
-    except Exception:  # noqa: BLE001 - absent, old, or confused by the file
+    except Exception:  # noqa: BLE001
         return None
 
 
 def _opencv_duration(path: str) -> Optional[float]:
     try:
-        import cv2  # noqa: PLC0415 - optional, and probed rather than required
+        import cv2  # noqa: PLC0415
     except ImportError:
         return None
     capture = cv2.VideoCapture(path)
@@ -154,33 +105,22 @@ def extract(
     put_blob: Optional[BlobWriter] = None,
     metadata: Optional[Mapping[str, Any]] = None,
 ) -> ContentStream:
-    """The content of the file at `path`, normalized.
-
-    `put_blob` is required only for files that carry bytes; without it a figure
-    has nowhere to go, so layout extraction is skipped and the text is taken on
-    its own rather than silently dropping the pictures.
-    """
+    """The content of the file at `path`, normalized; without `put_blob` only text is extracted."""
     if media_kind(path):
         return extract_media(path, asset_id, put_blob, metadata)
     if put_blob is not None and path.lower().endswith(".pdf") and _pdf_libs():
         try:
             return extract_pdf(path, asset_id, put_blob, metadata)
-        except Exception:  # noqa: BLE001 - a readable file must still ingest
-            # Layout extraction is an improvement on reading the text, not a
-            # precondition for it. Falling through loses the figures, which is
-            # a far better outcome than losing the document.
+        except Exception:  # noqa: BLE001
+            # Layout failure falls back to plain text: lose the figures, not the document.
             pass
     if put_blob is not None:
         from core import structured
 
-        # A docx/pptx/xlsx/html file that carries pictures is walked natively so
-        # each figure lands between the paragraphs about it; one with no pictures
-        # takes the plain-text reader below, unchanged. Same contract as the PDF
-        # branch: a parse failure loses the figures, never the document.
         if structured.structured_kind(path) and structured.has_media(path):
             try:
                 return structured.extract_structured(path, asset_id, put_blob, metadata)
-            except Exception:  # noqa: BLE001 - a readable file must still ingest
+            except Exception:  # noqa: BLE001
                 pass
     return extract_text(path, asset_id, metadata)
 
@@ -204,27 +144,7 @@ def extract_media(
     put_blob: Optional[BlobWriter] = None,
     metadata: Optional[Mapping[str, Any]] = None,
 ) -> ContentStream:
-    """A media file as a stream of exactly one binary block.
-
-    There is no `MediaAsset` and no modality flag on the asset: a recording is a
-    file, like a report is a file, and the difference is one block's `kind`. A
-    projection that can embed it does; one that cannot skips it, and the pool
-    holds both either way. Which projections can is not recorded here: the block
-    states only what the file *is* (its `role`), so adding a model later needs
-    no re-ingest.
-
-    The file name goes in as the caption because it is often the only words
-    attached to the thing -- `q3-teardown-thermal-camera.mp4` is a genuinely
-    useful thing for a text query to match, and without it a media file with no
-    caption is unsearchable. It is kept, not replaced, when a real caption
-    arrives, because a model's description can fail and this cannot.
-
-    The block's `media_key` is the file's own `file://` URI, and nothing is
-    copied: the file *is* the asset, and the decoders downstream want a path, so
-    a second copy in the content store would be read back and written out to a
-    temporary file just to be opened. `put_blob` is accepted so callers need not
-    care which kind of file they hold, and is unused here.
-    """
+    """A media file as one binary block pointing at the file itself; `put_blob` is unused."""
     content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
     name = os.path.basename(path)
     kind = media_kind(path)
@@ -270,21 +190,8 @@ def _name_as_caption(name: str) -> str:
 # --- layout -------------------------------------------------------------------
 
 
-# --- layout: a PDF via a layout model + OCR + figure pairing ------------------
-
-
 def render_pdf(path: str, dpi: int = 150) -> List[Any]:
-    """Each PDF page as an RGB PIL image at `dpi`.
-
-    The layout detector runs on these rendered pages, so a detected box is
-    already in image pixels and a crop is `page.crop(bbox)` with no coordinate
-    conversion. Injectable in `extract_layout` so the chain can run without
-    pypdfium2.
-
-    pypdfium2 (Apache-2.0 / BSD-3, wrapping Google PDFium) renders upright,
-    honouring `/Rotate`, so the image's pixel frame matches the text-layer
-    coordinates `_PdfTextLayer` reports -- both describe the same upright page.
-    """
+    """Each PDF page as an upright RGB PIL image at `dpi` (honours `/Rotate`)."""
     pdfium = _pypdfium2()
     if pdfium is None:
         raise RuntimeError("pypdfium2 is not installed")
@@ -317,15 +224,7 @@ def _clamp_crop(bbox, size):
 
 
 def _caption_fallback_box(rect, size, ratio: float):
-    """`rect` extended downward by `ratio` of its height, clamped, or None.
-
-    A figure's caption usually sits just below its detected box, so when the crop's
-    own text yields no caption key, re-reading a taller box can pull the caption
-    (and its `Figure N` key) in for pairing. Returns None when disabled, degenerate,
-    or already at the page's lower edge -- the caller then keeps the original text.
-    Only the text-reading box grows; the stored crop stays the detected region.
-    Ported from mmdir `related_text_extract._extend_bbox_downward`.
-    """
+    """`rect` extended downward by `ratio` of its height to catch a caption, clamped, or None."""
     if ratio <= 0.0:
         return None
     _, height = size
@@ -351,20 +250,7 @@ def extract_layout(
     dpi: Optional[int] = None,
     caption_fallback_extend_ratio: Optional[float] = None,
 ) -> ContentStream:
-    """A PDF's text and figures via a layout model + OCR + figure pairing.
-
-    This multimodal layout path renders each page, detects its regions, OCRs every
-    region, pairs each
-    figure with the prose that references it, and emit one `ContentStream`. A
-    textual region becomes a `TEXT` block; a visual one (image/table/figure)
-    becomes an `IMAGE` block whose crop goes to the object store and whose
-    caption is the reference text -- exactly the two block shapes the indexer
-    already handles.
-
-    `detector`, `ocr` and `render` are injectable seams: each defaults to the
-    configured backend but can be supplied, which is how the chain runs without
-    the real models or pypdfium2.
-    """
+    """A scanned PDF's text and figures via a layout model + OCR + figure pairing."""
     import config
     from core.fused import extract_caption_keys, reference_text_for
     from core.layout import VISUAL_TYPES, build_layout_detector
@@ -382,8 +268,6 @@ def extract_layout(
 
     pages = render(path, dpi)
     page_layouts = detector.detect(pages)
-    # One record per detected region, in document reading order (page-major, then
-    # top-to-bottom / left-to-right within a page). Figures also carry their crop.
     records: List[dict] = []
     text_items: List[dict] = []
     image_items: List[dict] = []
@@ -394,9 +278,7 @@ def extract_layout(
             if rect is None:
                 continue
             crop = page_image.crop(rect).convert("RGB")
-            # Where this crop came from, so a text-layer OCR can read the PDF
-            # directly. `bbox` and `page_size` are both in rendered-page pixels,
-            # and `page_id` is 0-based -- what `PdfPlumberReader` expects.
+            # `bbox`/`page_size` are rendered-page pixels; `page_id` is 0-based.
             context = {
                 "pdf_path": path,
                 "bbox": rect,
@@ -436,12 +318,7 @@ def extract_layout(
             item, texts_by_page.get(item["page"], []), text_items
         )
 
-    # One TEXT block per page (its text regions merged in reading order) followed
-    # by that page's figures, each still its own IMAGE block. Merging matches the
-    # digital path, which already reads a whole page as one block; a scanned page
-    # otherwise fragments into a block per layout region. The merged text block
-    # carries no bbox -- per-region coordinates are gone, and citation falls back
-    # to the page, exactly as the digital path does.
+    # One merged TEXT block per page (no bbox), followed by that page's IMAGE blocks.
     blocks_out: List[ContentBlock] = []
     for page in sorted({record["page"] for record in records}):
         page_records = [record for record in records if record["page"] == page]
@@ -494,26 +371,11 @@ def extract_layout(
     )
 
 
-# --- layout: a digital PDF via its text layer (paths 1 + 2) -------------------
+# --- layout: a digital PDF via its text layer ---------------------------------
 
 
 class _PdfTextLayer:
-    """A digital PDF's text layer, read once and reported in rendered-pixel space.
-
-    The layout detector runs on pages rendered at `dpi`, so its boxes are in image
-    pixels; pdfplumber reports text in PDF points. pdfplumber already resolves
-    `/Rotate` and a non-zero CropBox internally -- its coordinates describe the
-    upright page in a top-left frame, the very same orientation pypdfium2 renders
-    (verified against a `/Rotate 90` page: both place the text in matching upright
-    pixel columns). So the only mapping between text points and rendered pixels is
-    a scale `zoom = dpi / 72`: `pixel = point * zoom` for `candidates`, and the
-    inverse `point = pixel / zoom` for `region_text`, with no rotation matrix.
-
-    Opens the document once and holds it; `candidates` caches its page's lines so
-    detecting N regions on a page does not re-read the file N times. Injectable:
-    `extract_layout_digital` takes a `text_layer`, so the chain runs in CI against
-    a fake with the same surface and never opens a real PDF.
-    """
+    """A digital PDF's text layer reported in rendered-pixel space (`pixel = point * dpi / 72`)."""
 
     def __init__(self, path: str, dpi: int):
         pdfplumber = _pdfplumber()
@@ -527,15 +389,10 @@ class _PdfTextLayer:
         return len(self._pdf.pages)
 
     def page_text(self, index: int) -> str:
-        """The whole page's text, for path 1's per-page text block."""
         return self._pdf.pages[index].extract_text() or ""
 
     def candidates(self, index: int) -> List[dict]:
-        """This page's text lines as pairing candidates, `{bbox, page, text}`.
-
-        `bbox` is in rendered-page pixels (`point * zoom`), the same frame as a
-        detected region, so `fused.reference_text_for` can score nearness.
-        """
+        """This page's text lines as pairing candidates `{bbox, page, text}`, bbox in pixels."""
         if index in self._candidate_cache:
             return self._candidate_cache[index]
         page = self._pdf.pages[index]
@@ -561,11 +418,7 @@ class _PdfTextLayer:
         return out
 
     def region_text(self, index: int, pixel_bbox: Sequence[float]) -> str:
-        """The text under a detected region, read from the text layer, no OCR.
-
-        `pixel_bbox` is in rendered pixels; it is scaled back to points (`/ zoom`)
-        and clamped to the page before `crop(...).extract_text()` reads it.
-        """
+        """The text-layer text under a region given in rendered pixels."""
         page = self._pdf.pages[index]
         zoom = self._zoom
         x0, top, x1, bottom = (value / zoom for value in pixel_bbox[:4])
@@ -582,20 +435,12 @@ class _PdfTextLayer:
     def close(self) -> None:
         try:
             self._pdf.close()
-        except Exception:  # noqa: BLE001 - closing is best effort
+        except Exception:  # noqa: BLE001
             pass
 
 
 def pdf_has_text_layer(text_layer: Any) -> bool:
-    """Whether any page yields extractable text -- a digital or already-OCR'd PDF.
-
-    Routed on real extractable text rather than `page.get_fonts()`: a scanned PDF
-    routinely embeds a font for an invisible/empty OCR layer or a single
-    watermark, so a non-empty font list is a weak proxy that would send a scan
-    down the zero-OCR path and lose all its text. A page whose `get_text` is
-    non-whitespace is one the text layer can read without OCR; none at all
-    means a scan, which is path 3.
-    """
+    """Whether any page yields extractable text."""
     for index in range(text_layer.page_count()):
         if text_layer.page_text(index).strip():
             return True
@@ -616,24 +461,14 @@ def extract_pdf(
     read_text: Optional[Callable[[str], "dict[int, str]"]] = None,
     caption_fallback_extend_ratio: Optional[float] = None,
 ) -> ContentStream:
-    """A PDF, routed by whether it carries a text layer.
-
-    Digital (any page has extractable text) -> `extract_layout_digital` (paths 1 +
-    2, zero per-text-box OCR). Scanned (no text anywhere) -> `extract_layout`
-    (path 3, OCR every region). The text layer decides the route; path 1's prose
-    comes from `read_text` (the plain-text reader), not the layer.
-
-    The seams (`detector`, `ocr`, `render`, `text_layer`, `read_text`) default to
-    the configured backends but can be supplied, which is
-    how the chain runs in CI without the real models, pypdfium2 or pdfplumber.
-    """
+    """A PDF: digital ones via `extract_layout_digital`, scanned ones via `extract_layout`."""
     import config
 
     dpi = int(dpi if dpi is not None else config.LAYOUT_RENDER_DPI)
     layer = text_layer or _PdfTextLayer(path, dpi)
     try:
         digital = pdf_has_text_layer(layer)
-    except Exception:  # noqa: BLE001 - unreadable text layer: try the scanned path
+    except Exception:  # noqa: BLE001
         layer.close()
         return extract_layout(
             path, asset_id, put_blob, metadata,
@@ -658,22 +493,12 @@ def extract_pdf(
         layer.close()
 
 
-#: Reading-order lanes within a page: path-1 page text, then path-2 visual blocks
-#: top-to-bottom. Lane 1 is reserved (formerly path-1 Markdown tables, now left in
-#: the page text) so visual blocks keep lane 2 and reading-order keys are unchanged.
+#: Reading-order lanes within a page: page text, then visual blocks; lane 1 is reserved.
 _LANE_TEXT, _LANE_VISUAL = 0, 2
 
 
 def _reading_key(page: int, lane: int, index: int) -> int:
-    """A reading-order key sortable across the whole document, assignable per block.
-
-    `page * 1e6 + lane * 1e5 + index` orders a page as text -> tables -> visuals and
-    a document page by page, yet depends only on the block itself -- so path 1 and
-    path 2 can number their own blocks independently (even in different threads)
-    and the two sets still merge into one correct order with no renumbering, and no
-    `block_id` collision. That independence is what lets the two-phase materializer
-    embed path-1 text before path 2 has run (`core/materialize.py`).
-    """
+    """A document-wide reading-order key computed from the block alone."""
     return page * 1_000_000 + lane * 100_000 + index
 
 
@@ -684,16 +509,7 @@ def digital_text_blocks(
     text_layer: Any,
     read_text: Optional[Callable[[str], "dict[int, str]"]] = None,
 ) -> List[ContentBlock]:
-    """Path 1: a digital PDF's page text, taken from the plain-text reader.
-
-    One TEXT block per page, sourced from `read_text` (SimpleDirectoryReader by
-    default) so the prose is identical to the plain-text path -- enabling layout
-    extraction only adds figures, it never changes a text chunk. No prose is OCRed.
-
-    Tables and equations are not emitted as their own blocks: their text already
-    sits in the page text, so separate blocks would be duplicate chunks. This is
-    the fast half: no render, detect, table parsing, or OCR.
-    """
+    """One TEXT block per page of a digital PDF, taken from the plain-text reader."""
     read_text = read_text or _pdf_page_texts
     page_count = text_layer.page_count()
     page_texts = read_text(path)
@@ -722,17 +538,7 @@ def digital_visual_blocks(
     dpi: Optional[int] = None,
     caption_fallback_extend_ratio: Optional[float] = None,
 ) -> List[ContentBlock]:
-    """Path 2: a digital PDF's figures, paired from the text layer.
-
-    Renders and detects, then keeps only IMAGE regions as fused blocks whose
-    captions are the prose that references them (`reference_text_for` over
-    text-layer candidates). Text, table, and equation regions are all left to
-    path 1. Because the PDF has a text layer, this path performs no OCR and does
-    not inspect whether individual regions have local text.
-
-    The slow half: render + detect + crop. Raises on a layout failure; the caller
-    decides whether to degrade to text-only.
-    """
+    """A digital PDF's detected figures as IMAGE blocks captioned from the text layer."""
     import config
     from core.fused import extract_caption_keys
     from core.layout import build_layout_detector
@@ -805,13 +611,7 @@ def assemble_stream(
     metadata: Optional[Mapping[str, Any]],
     blocks: Sequence[ContentBlock],
 ) -> ContentStream:
-    """Merge path-1 and path-2 blocks into one stream, ordered by reading key.
-
-    The blocks already carry their final `reading_order`/`block_id` (`_reading_key`),
-    so this only sorts and stamps document metadata -- which is why the two halves
-    can be produced separately (two-phase) or together (`extract_layout_digital`)
-    and land identically.
-    """
+    """Merge text and visual blocks into one stream ordered by reading key."""
     ordered = sorted(blocks, key=lambda block: block.reading_order)
     return ContentStream(
         asset_id=asset_id,
@@ -838,15 +638,7 @@ def extract_layout_digital(
     read_text: Optional[Callable[[str], "dict[int, str]"]] = None,
     caption_fallback_extend_ratio: Optional[float] = None,
 ) -> ContentStream:
-    """A digital PDF's text and figures without OCRing its prose.
-
-    Path 1 (`digital_text_blocks`) takes the page text from the plain-text reader
-    (`read_text`); path 2 (`digital_visual_blocks`) renders and detects only
-    figures. Path 1 is produced unconditionally; path 2 is wrapped so a layout
-    failure degrades to the text-only path rather than losing the document.
-    The two-phase materializer calls the same two halves separately to embed path-1
-    text before path 2 has run (`core/materialize.py:two_phase_ingest`).
-    """
+    """A digital PDF's text and figures without OCR; a figure failure keeps the text."""
     text_blocks = digital_text_blocks(
         path, asset_id, text_layer=text_layer, read_text=read_text,
     )
@@ -857,27 +649,13 @@ def extract_layout_digital(
             detector=detector, render=render, dpi=dpi,
             caption_fallback_extend_ratio=caption_fallback_extend_ratio,
         )
-    except Exception:  # noqa: BLE001 - detect/render failed: keep the text-only path
+    except Exception:  # noqa: BLE001
         pass
     return assemble_stream(asset_id, path, metadata, text_blocks + visual_blocks)
 
 
 def _pdf_page_texts(path: str) -> "dict[int, str]":
-    """Each page's prose keyed by 0-based page index, via SimpleDirectoryReader.
-
-    Path 1's text comes from the *same* reader as the plain-text path
-    (`extract_text` -> `file_to_documents`), so turning layout extraction on adds
-    figures without changing a single text chunk -- the digital stream's prose is
-    byte-for-byte the legacy text, just with IMAGE blocks interleaved. pdfplumber
-    is kept only for geometry (`candidates`/`region_text`) and table detection,
-    which SimpleDirectoryReader's flat text cannot provide.
-
-    SimpleDirectoryReader returns one Document per PDF page with a 1-based
-    `page_label`; this buckets them to 0-based indices, joining any that share a
-    page so no page's text is dropped. The text is taken via `_content_of` (the
-    same accessor `ContentStream.from_documents` uses) and kept verbatim -- not
-    stripped -- so a page's block is byte-for-byte what the plain-text path emits.
-    """
+    """Each page's text keyed by 0-based page index (reader `page_label` is 1-based)."""
     from core.content import _content_of
     from core.loader import file_to_documents
 
@@ -904,7 +682,7 @@ def _encode_jpeg(image) -> bytes:
 
 def _pdfplumber():
     try:
-        import pdfplumber  # noqa: PLC0415 - optional, and probed rather than required
+        import pdfplumber  # noqa: PLC0415
     except ImportError:
         return None
     return pdfplumber
@@ -912,18 +690,13 @@ def _pdfplumber():
 
 def _pypdfium2():
     try:
-        import pypdfium2  # noqa: PLC0415 - optional, and probed rather than required
+        import pypdfium2  # noqa: PLC0415
     except ImportError:
         return None
     return pypdfium2
 
 
 def _pdf_libs() -> bool:
-    """Whether the permissively-licensed PDF stack is available for layout.
-
-    Layout extraction needs both pypdfium2 (render) and pdfplumber (text layer);
-    without either, `extract` falls back to plain text rather than failing.
-    """
     return _pdfplumber() is not None and _pypdfium2() is not None
 
 

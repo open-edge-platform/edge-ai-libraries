@@ -6,7 +6,9 @@
 Uses NNCF compress_weights (INT8_ASYM, per-channel; NNCF 3.x does not
 allow group-wise overrides for INT8 modes) on each modality graph
 (text/image/video) and writes a sibling model directory. FP16 IRs are left
-untouched. The output directory keeps the engine's serving convention
+untouched; they are an intermediate artifact that prepare-models.sh exports
+into a temporary directory and removes after quantization. The output
+directory keeps the engine's serving convention
 (<model-id-last-component>-OV), so ENGINE_MEDIA_RERANK_MODEL_ID picks it up
 as Qwen/Qwen3-VL-Reranker-2B-INT8. Usage:
 
@@ -36,6 +38,7 @@ COPY_FILES = (
     "export_shapes.json",
     "merges.txt",
     "preprocessor_config.json",
+    "processor_config.json",
     "special_tokens_map.json",
     "tokenizer_config.json",
     "tokenizer.json",

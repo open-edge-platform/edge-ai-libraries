@@ -38,9 +38,22 @@ def _mock_get_video_path(filename: str) -> str:
     return os.path.join("/tmp", filename)
 
 
+# Pipelines run on DLSPS 2.0, which these tests do not reach: encoder and
+# decoder selection reads this fixed element list instead.
+_DLSPS2_ELEMENTS = [
+    ("openh264", "openh264enc", "OpenH264 video encoder"),
+    ("videoparsersbad", "h264parse", "H.264 parser"),
+    ("libav", "avdec_h264", "libav H.264 decoder"),
+]
+_elements_patcher = patch(
+    "explore.GstInspector._get_dlsps2_elements", return_value=_DLSPS2_ELEMENTS
+)
+
+
 def setUpModule() -> None:
-    """Install the VideosManager patch before any test runs."""
+    """Install the VideosManager and element-list patches before any test runs."""
     global _videos_manager_patcher
+    _elements_patcher.start()
     mock_instance = MagicMock()
     mock_instance.get_video_filename.side_effect = _mock_get_video_filename
     mock_instance.get_video_path.side_effect = _mock_get_video_path
@@ -53,8 +66,9 @@ def setUpModule() -> None:
 
 
 def tearDownModule() -> None:
-    """Remove the VideosManager patch after the module's tests finish."""
+    """Remove the patches after the module's tests finish."""
     global _videos_manager_patcher
+    _elements_patcher.stop()
     if _videos_manager_patcher is not None:
         _videos_manager_patcher.stop()
         _videos_manager_patcher = None
@@ -524,6 +538,30 @@ class TestPipelineManager(unittest.TestCase):
         # Should have 2 instances of fakesrc and 3 instances of videotestsrc
         self.assertEqual(pipeline_cmd.command.count("fakesrc"), 2)
         self.assertEqual(pipeline_cmd.command.count("videotestsrc"), 3)
+
+        # One self-contained launch string per stream, keyed like all_stream_ids
+        self.assertEqual(
+            list(pipeline_cmd.stream_commands), pipeline_cmd.all_stream_ids
+        )
+        # Stream 0 of each pipeline stands for the pipeline in validation.
+        self.assertEqual(
+            pipeline_cmd.validation_stream_ids,
+            [
+                infos[0].stream_id
+                for infos in pipeline_cmd.streams_per_pipeline.values()
+            ],
+        )
+        self.assertEqual(len(pipeline_cmd.validation_stream_ids), 2)
+        self.assertEqual(
+            " ".join(pipeline_cmd.stream_commands.values()), pipeline_cmd.command
+        )
+        for stream_id, command in pipeline_cmd.stream_commands.items():
+            source_name, sink_name = stream_id.split("__")
+            self.assertIn(f"name={source_name}", command)
+            self.assertIn(f"name={sink_name}", command)
+            for other_id in pipeline_cmd.stream_commands:
+                if other_id != stream_id:
+                    self.assertNotIn(f"name={other_id.split('__')[0]}", command)
 
     def test_update_pipeline_description_and_name(self):
         manager = PipelineManager()
@@ -2287,6 +2325,22 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
 
         self.assertGreater(multi_variant_count, 0)
         self.assertEqual(multi_variant_count, predefined_count)
+
+    @patch("managers.pipeline_manager.PipelineLoader")
+    def test_audio_definitions_are_skipped(self, mock_loader_cls):
+        """Audio definitions have no graph and must not be loaded as pipelines."""
+        configs = {
+            "config_0.yaml": MOCK_PIPELINE_CONFIGS[0],
+            "config_1.yaml": {"name": "Speech to Text", "type": "audio"},
+        }
+        mock_loader_cls.list.return_value = list(configs)
+        mock_loader_cls.config.side_effect = configs.__getitem__
+        mock_loader_cls.get_pipelines_directory.return_value = "/mock/pipelines"
+
+        names = [p.name for p in PipelineManager().get_pipelines()]
+
+        self.assertIn("object-detection", names)
+        self.assertNotIn("Speech to Text", names)
 
 
 class TestDeletePredefinedPipeline(unittest.TestCase):

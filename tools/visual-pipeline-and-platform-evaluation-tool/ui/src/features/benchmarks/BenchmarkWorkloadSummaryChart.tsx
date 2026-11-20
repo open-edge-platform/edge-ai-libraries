@@ -24,10 +24,7 @@ const CHART_COLORS = [
 ] as const;
 
 type SummaryMetricKey =
-  | "total_fps"
-  | "latency_avg_ms"
-  | "latency_max_ms"
-  | "power_usage";
+  "total_fps" | "latency_avg_ms" | "latency_max_ms" | "power_usage";
 
 type WorkloadSummaryChartSeries = {
   key: string;

@@ -1,5 +1,4 @@
 import logging
-import os
 import threading
 import time
 import uuid
@@ -17,20 +16,13 @@ from managers.execution_coordinator import (
     ExecutionLease,
     PIPELINE_EXECUTION_GROUP,
 )
-from pipeline_runner import PipelineRunner
 
 logger = logging.getLogger("validation_manager")
-
-# Selects the pipeline execution backend: "local" (default) spawns
-# gst_runner.py as before; "dlsps2" delegates to a running DLSPS 2.0
-# instance via Dlsps2PipelineRunner (see dlsps2_runner.py for the exact
-# REST mapping and known gaps vs. the local runner).
-_EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
 
 
 class ValidationManager:
     """
-    Thread-safe singleton that manages validation jobs using PipelineRunner to execute pipelines.
+    Thread-safe singleton that manages validation jobs, run on DLSPS 2.0.
 
     Implements singleton pattern using __new__ with double-checked locking.
     Create instances with ValidationManager() to get the shared singleton instance.
@@ -39,7 +31,7 @@ class ValidationManager:
 
     * create and track :class:`InternalValidationJob` instances,
     * run validations asynchronously in background threads,
-    * use :class:`PipelineRunner` in validation mode to execute pipelines,
+    * use :class:`Dlsps2PipelineRunner` in validation mode to execute pipelines,
     * expose job status and summaries in a thread-safe manner.
 
     All internal state uses Graph objects and internal types from internal_types.
@@ -84,11 +76,12 @@ class ValidationManager:
 
         The method:
 
+        * validates the RTSP URLs of rtspsrc nodes,
         * converts the internal Graph to a pipeline description string,
         * extracts and validates runtime parameters (e.g. ``max-runtime``),
         * creates a new :class:`InternalValidationJob` with RUNNING state,
         * spawns a background thread that executes the pipeline via
-          :class:`PipelineRunner` in validation mode.
+          :class:`Dlsps2PipelineRunner` in validation mode.
 
         Args:
             validation_request: Internal validation request with Graph object
@@ -101,8 +94,10 @@ class ValidationManager:
         ------
         ValueError
             If user-provided parameters are invalid (e.g. ``max-runtime``
-            is less than 1).
+            is less than 1) or an rtspsrc node has an invalid location.
         """
+        validation_request.pipeline_graph.validate_rtsp_sources()
+
         # Get pipeline description from internal Graph
         pipeline_description = (
             validation_request.pipeline_graph.to_pipeline_description()
@@ -182,7 +177,7 @@ class ValidationManager:
         """
         Execute the validation process in a background thread.
 
-        The method uses :class:`PipelineRunner` in validation mode and updates
+        The method uses :class:`Dlsps2PipelineRunner` in validation mode and updates
         the corresponding :class:`InternalValidationJob` accordingly.
 
         Validity is determined by exit_code == 0 and no errors found in stderr.
@@ -193,28 +188,13 @@ class ValidationManager:
         try:
             # Create the pipeline runner in validation mode. `job_id` is
             # forwarded for API consistency with performance and density
-            # paths, even though validation mode never pushes FPS metrics
-            # (no gvafpscounter is attached).
-            #
-            # When VIPPET_EXECUTION_BACKEND=dlsps2, delegate to a running
-            # DLSPS 2.0 instance instead of spawning gst_runner.py locally
-            # (see dlsps2_runner.py for the exact REST mapping). Validation
-            # mode has no known gaps against dlsps2, so this path is always
-            # safe to use when the flag is set.
-            if _EXECUTION_BACKEND == "dlsps2":
-                runner = Dlsps2PipelineRunner(
-                    mode="validation",
-                    max_runtime=max_runtime,
-                    hard_timeout=hard_timeout,
-                    job_id=job_id,
-                )
-            else:
-                runner = PipelineRunner(
-                    mode="validation",
-                    max_runtime=max_runtime,
-                    hard_timeout=hard_timeout,
-                    job_id=job_id,
-                )
+            # paths, even though validation mode never pushes FPS metrics.
+            runner = Dlsps2PipelineRunner(
+                mode="validation",
+                max_runtime=max_runtime,
+                hard_timeout=hard_timeout,
+                job_id=job_id,
+            )
 
             # Run pipeline validation
             result = runner.run(pipeline_description)

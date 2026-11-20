@@ -20,7 +20,7 @@ Key features:
 
 ### System Requirements
 
-Prepare the target system following the [official documentation](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/platform_foundation/getting_started.html)
+Prepare the target system following the [official documentation](https://developer.robotics.intel.com/development-stack/platform_foundation/getting_started/index.html)
 
 **Intel oneAPI Requirements:**
 - Intel oneAPI 2025.3 with SYCL compiler support
@@ -119,7 +119,7 @@ tests                Run tests inside Docker container. Be aware that some of th
 
 The GPU ORB Extractor library provides tutorials and usage guides supporting both OpenCV-based and OpenCV-free workflows.
 
-For detailed usage instructions and pre-requisites, refer to [the documentation](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/components/optimized_solutions/orb-extractor.html).
+For detailed usage instructions and pre-requisites, refer to [the documentation](https://developer.robotics.intel.com/development-stack/components/optimized_solutions/orb-extractor/index.html).
 
 ## License
 

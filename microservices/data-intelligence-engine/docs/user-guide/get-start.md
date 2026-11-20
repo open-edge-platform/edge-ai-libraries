@@ -16,6 +16,12 @@ retrieve it.
   `http_proxy`/`https_proxy` and configure the Docker daemon's proxy. For users
   based in PRC, you might need to set `export HF_ENDPOINT=https://hf-mirror.com`.
 
+WMF/EMF pictures in DOCX/PPTX files are rendered with LibreOffice, which the
+Docker image includes. To build without it, export `INSTALL_LIBREOFFICE=false`
+before the first run (or before rebuilding the image); those pictures are then
+skipped and the rest of the file is still ingested. Native Debian/Ubuntu
+installations need `libreoffice-draw-nogui` and `fonts-dejavu-core`.
+
 If you are cloning from the larger monorepo and only need this service, you
 can use sparse checkout:
 
@@ -38,6 +44,16 @@ INT8 media reranker) under `workspace/models`, starts Milvus and the engine on
 port `16022`, and registers Milvus as `local-milvus`. Later runs only start the
 services.
 
+**GPU or CPU.** Every model runs on the Intel GPU (`/dev/dri`) by default. Pass
+`--cpu` to run every model on the CPU instead; a host without `/dev/dri` falls
+back to the CPU automatically. The choice is written to `deployment/docker/.env`
+as `ENGINE_*_DEVICE=CPU`, and values already in that file are kept.
+
+**Workspace path.** `quickstart.sh` mounts `workspace/` into the engine at its
+host path (`ENGINE_WORKSPACE_HOST_PATH`/`ENGINE_WORKSPACE_CONTAINER_PATH` in `deployment/docker/.env`),
+so stored `file_path` and `media_key` values are real paths other agents on the
+host can open. The engine runs as your user (`USER_UID`/`USER_GID`). Don't change the paths after ingesting; re-ingest if you do.
+
 If you do not want all the models, name the ones to prepare with `--models` on
 the first run. The text ingestion and retrieval in this guide need only GME,
 which embeds both the file and the query, so this is enough to run every step
@@ -50,10 +66,13 @@ bash scripts/quickstart.sh --models "gme"
 Prepare the other models later with `scripts/prepare-models.sh` when you ingest
 PDFs, images, videos or audio.
 
-Run `bash scripts/quickstart.sh --help` for the other options. To stop and
-remove the services, keeping the data and models:
+The image is built only when it is missing, so after changing the engine source,
+rebuild it; the engine container is recreated from the new image. To stop and
+remove the services, keeping the data and models, use `--down`. Run
+`bash scripts/quickstart.sh --help` for the other options.
 
 ```bash
+bash scripts/quickstart.sh --build
 bash scripts/quickstart.sh --down
 ```
 
@@ -68,7 +87,7 @@ cd scripts
 {
   "service": "engine",
   "status": "ok",
-  "workspace": "/workspace",
+  "workspace": "/path/to/data-intelligence-engine/workspace",
   "databases": 1,
   "asset_libraries": 0
 }
@@ -92,7 +111,7 @@ List the registrations with `./databases.sh read`. Each backend takes these
 |---|---|
 | `vector` / `milvus` | `uri` (required), e.g. `http://milvus-standalone:19530`; other keys, such as `token` or `db_name`, go to the Milvus client |
 | `graph` / `nebula` | `url` (required), e.g. `nebula://nebula-graphd:9669`; optional `username` (default `root`), `password` and `space` |
-| `object` / `filesystem` | `root` (required), a directory inside the container, e.g. `/workspace/content` |
+| `object` / `filesystem` | `root` (required), a directory inside the container, e.g. `<workspace>/content` (the host workspace path, see Step 1) |
 
 ## Step 2: Ingest a File
 
@@ -148,3 +167,5 @@ pool and rank). The same search is `POST /v1/retrieve`; the web console at
 - [How to prepare models](how-to-guides/how-to-prepare-models.md).
 - [User guide](user-guide.md) — concepts, configuration and troubleshooting.
 - [API reference](api.md).
+- [Skills for agent](../../skills/README.md) — let an OpenClaw agent query this
+  retrieval through the `knowledgebase` skill.

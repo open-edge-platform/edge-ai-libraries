@@ -1,27 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""The binding state machine: which source serves a pool, and when that changes.
-
-```
-attach ──► PREPARING ──(first full pass ready)──► SERVING
-                                                    │
-                    a binding declaring replaces=<it> starts SERVING
-                                                    ▼
-                                               DEGRADE
-```
-
-The planning half is pure: `on_attach`, `on_sync_result` and `on_enabled` read a
-snapshot of the pool's bindings (`views`) and return the `Transition`s to make,
-so every rule here is testable without a projection, a model or a backend.
-`apply` is the one place that writes them back -- and the one place that
-freezes a binding, so a deprecated source loses its projection in the same step
-that deprecates it.
-
-Callers can stop/resume a pool binding (DEGRADE / SERVING), declare "this
-source replaces that one in this pool" (`replaces`, at attach), or switch a
-source off everywhere (`enabled`). Resuming a binding that fell behind passes
-through PREPARING; its readiness is still decided by sync progress.
-"""
+"""Binding state machine (PREPARING -> SERVING -> DEGRADE): which source serves a pool."""
 
 from dataclasses import dataclass
 from typing import Collection, Dict, List, Mapping, Optional
@@ -37,7 +16,7 @@ class BindingView:
     state: str
     caught_up: bool
     replaces: Optional[str] = None
-    # Disabled, or deprecated: it takes no writes, so it can never catch up.
+    # Disabled or deprecated: takes no writes, so it can never catch up.
     frozen: bool = False
 
 
@@ -46,8 +25,7 @@ class Transition:
     source_id: str
     state: str
     reason: str
-    # Set on the binding whose replacement just completed: its `replaces` was a
-    # pending intent, and it has now been carried out.
+    # Set on the binding whose pending `replaces` has just been carried out.
     clear_replaces: bool = False
 
 
@@ -69,12 +47,7 @@ def on_attach(
     newly_attached: Collection[str],
     redeclared: Collection[str] = (),
 ) -> List[Transition]:
-    """Transitions after the pool's source list changed.
-
-    `newly_attached` had no binding before. `redeclared` already had one and
-    was named again with `replaces` -- which is how a deprecated source is
-    brought back (a rollback is a replacement in the other direction).
-    """
+    """Transitions after the pool's source list changed; `redeclared` were re-named with `replaces`."""
     transitions: List[Transition] = []
     states = {source_id: view.state for source_id, view in current.items()}
     for source_id in newly_attached:
@@ -137,12 +110,7 @@ def _settle(
 
 
 def apply(pool, transitions: List[Transition], sources: Mapping[str, object]) -> List[str]:
-    """Write `transitions` into `pool`. Returns the source ids that became frozen.
-
-    Freezing happens here rather than in the caller so a binding can never be
-    `DEGRADE` while it still holds a projection -- which would mean it was
-    still written to, and still loading its model.
-    """
+    """Write `transitions` into `pool`, freezing bindings as needed; returns newly frozen source ids."""
     frozen: List[str] = []
     for item in transitions:
         status = pool.source_statuses.get(item.source_id)

@@ -16,15 +16,7 @@
         </div>
       </div>
       <a-space align="center" wrap>
-        <a-tooltip
-          :title="
-            locked
-              ? $t('console.replacementLocked')
-              : sourceData?.enabled === false
-                ? $t('console.sourceDisabled')
-                : $t('console.servingHint')
-          "
-        >
+        <a-tooltip :title="servingHint">
           <a-button
             v-if="sourceData?.type !== 'object'"
             size="small"
@@ -34,13 +26,13 @@
             ghost
             @click="handleServingChange"
           >
-            <template v-if="binding.serving_state === 'DEPRECATED'">
+            <template v-if="binding.serving_state === 'DEGRADE'">
               <PlayCircleOutlined />
-              {{ $t("console.resume") }}
+              SERVING
             </template>
             <template v-else>
               <PauseCircleOutlined />
-              {{ $t("console.stop") }}
+              DEGRADE
             </template>
           </a-button>
         </a-tooltip>
@@ -51,7 +43,7 @@
           :disabled="
             locked ||
             sourceData?.enabled === false ||
-            binding.effective_state === 'DEPRECATED'
+            binding.effective_state === 'DEGRADE'
           "
           @click="handleExtraction"
         >
@@ -60,16 +52,14 @@
         </a-button>
         <a-tooltip
           v-if="removable && sourceData?.type !== 'object'"
-          :title="
-            pool.source_statuses.length <= 1
-              ? $t('console.sourceRequired')
-              : $t('console.detachHint')
-          "
+          :title="detachHint"
         >
           <a-button
             danger
             size="small"
-            :disabled="pool.source_statuses.length <= 1"
+            :disabled="
+              poolIndexing || sourceIndexing || pool.source_statuses.length <= 1
+            "
             @click="handleDetach"
           >
             <template #icon><DisconnectOutlined /></template>
@@ -154,12 +144,14 @@ import {
   requestSourceServingUpdate,
 } from "@/api/console";
 import type { AssetPool, Library, SourceStatus } from "@/api/console/type";
+import { getSourceDisplayStatus } from "../../canvas/ResourceModel";
 import StatusTag from "../../../components/StatusTag.vue";
 const props = defineProps<{
   libraryData: Library;
   pool: AssetPool;
   binding: SourceStatus;
   removable?: boolean;
+  poolIndexing?: boolean;
 }>();
 const emit = defineEmits<{ search: []; detach: [] }>();
 const handleDetach = () => emit("detach");
@@ -167,6 +159,11 @@ const { t } = useI18n();
 const submitLoading = ref(false);
 const sourceData = computed(() =>
   props.libraryData.sources.find((item) => item.id === props.binding.source_id),
+);
+const sourceIndexing = computed(
+  () =>
+    !!sourceData.value &&
+    getSourceDisplayStatus(props.libraryData, sourceData.value) === "indexing",
 );
 const locked = computed(() =>
   props.pool.source_statuses.some(
@@ -176,7 +173,19 @@ const locked = computed(() =>
       [status.source_id, status.replaces].includes(props.binding.source_id),
   ),
 );
-const handleUpdateServing = async (state: "SERVING" | "DEPRECATED") => {
+const detachHint = computed(() => {
+  if (sourceIndexing.value) return t("console.sourceIndexingDeleteHint");
+  if (props.poolIndexing) return t("console.poolIndexingDeleteHint");
+  if (props.pool.source_statuses.length <= 1)
+    return t("console.sourceRequired");
+  return t("console.detachHint");
+});
+const servingHint = computed(() => {
+  if (locked.value) return t("console.replacementLocked");
+  if (sourceData.value?.enabled === false) return t("console.sourceDisabled");
+  return t("console.servingHint");
+});
+const handleUpdateServing = async (state: "SERVING" | "DEGRADE") => {
   submitLoading.value = true;
   try {
     await requestSourceServingUpdate(
@@ -191,14 +200,14 @@ const handleUpdateServing = async (state: "SERVING" | "DEPRECATED") => {
   }
 };
 const handleServingChange = () => {
-  if (props.binding.serving_state === "DEPRECATED")
+  if (props.binding.serving_state === "DEGRADE")
     return handleUpdateServing("SERVING");
   Modal.confirm({
     title: t("console.stop"),
     content: t("console.stopServing", { name: sourceData.value?.name }),
     okText: t("common.confirm"),
     cancelText: t("common.cancel"),
-    onOk: () => handleUpdateServing("DEPRECATED"),
+    onOk: () => handleUpdateServing("DEGRADE"),
   });
 };
 const handleExtraction = async () => {

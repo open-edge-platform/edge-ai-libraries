@@ -1,6 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Requests and results shared by asset-library sources."""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -9,7 +8,6 @@ import config
 
 @dataclass
 class VectorIngestRequest:
-    documents: List[Any] = field(default_factory=list)
     nodes: List[Any] = field(default_factory=list)
 
 

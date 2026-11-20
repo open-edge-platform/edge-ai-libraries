@@ -27,8 +27,10 @@ HARNESS_OVMS_CONTAINER="${HARNESS_OVMS_CONTAINER:-agent-harness-install-ovms}"
 # is loopback-only by default (resolve_bind_host), neither of which a
 # separate container (IR) can reach. See ensure_backend_network.
 HARNESS_BACKEND_NETWORK="${HARNESS_BACKEND_NETWORK:-agent-harness-install-backend}"
-# Extra OVMS server flags, e.g. "--tool_parser <parser> --task text_generation"
-# for agents that need OpenAI-style tool calls.
+# Extra OVMS *server* flags (e.g. "--log_level DEBUG"), appended to the
+# container's command line. Per-model options such as --tool_parser do not
+# belong here: OVMS rejects them when started from --config_path, so the
+# container crash-loops. OVMS picks the tool parser from the chat template itself.
 HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
 
 # Set HARNESS_LLM_ROUTER_ENDPOINT to point this installer's Inference Router
@@ -91,6 +93,23 @@ ensure_ovms_config() {
   mkdir -p "$HARNESS_MODELS_DIR"
   local config_file="${HARNESS_MODELS_DIR}/config.json"
   [[ -f "$config_file" ]] || printf '{"model_config_list": [], "mediapipe_config_list": []}' >"$config_file"
+}
+
+# OVMS runs as the image's fixed uid (5000), not the host user, so a restrictive
+# host umask (e.g. 077) leaves the model files unreadable to it.
+ensure_ovms_models_readable() {
+  [[ -d "$HARNESS_MODELS_DIR" ]] || return 0
+  local resolved home_resolved
+  resolved="$(realpath -m -- "$HARNESS_MODELS_DIR" 2>/dev/null || true)"
+  home_resolved="$(realpath -m -- "$HOME" 2>/dev/null || true)"
+  if [[ -z "$resolved" || -z "$home_resolved" || "$resolved" == "/" \
+        || "$resolved" == "$home_resolved" || "$home_resolved" == "$resolved"/* ]]; then
+    warn "Not changing permissions under HARNESS_MODELS_DIR='${HARNESS_MODELS_DIR}': it is, or contains, your home directory (or could not be resolved). Use a dedicated models directory."
+    return 0
+  fi
+  # Trailing slash so chmod -R also descends when the directory is a symlink.
+  chmod -R o+rX -- "${HARNESS_MODELS_DIR%/}/" 2>/dev/null \
+    || warn "Could not make every file under ${HARNESS_MODELS_DIR} readable by OVMS (some may belong to another user); if the model fails to load, run: sudo chmod -R o+rX '${HARNESS_MODELS_DIR}/'"
 }
 
 # The HF/OpenVINO export tooling shells out via httpx, which only understands
@@ -1027,7 +1046,16 @@ ensure_backend_network() {
 ensure_openvino_model_server() {
   local gpu_args group_add_args bind_host
   local -a proxy_args=()
+  # Per-model graph options on the server command line make OVMS exit at
+  # startup under --config_path, and --restart unless-stopped then loops it.
+  case " $HARNESS_OVMS_EXTRA_ARGS " in
+    *" --tool_parser"* | *" --reasoning_parser"*)
+      error "HARNESS_OVMS_EXTRA_ARGS contains a per-model option (--tool_parser/--reasoning_parser)
+that OVMS rejects when started from --config_path. OVMS 2026.3 and later pick the tool
+parser from the model's chat template by themselves." ;;
+  esac
   ensure_ovms_config
+  ensure_ovms_models_readable
   ensure_backend_network
   if docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
     # Recreated, not just restarted -- a plain `docker restart` keeps

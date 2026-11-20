@@ -182,6 +182,8 @@ class Model(Base):
     source: Mapped[str] = mapped_column(String(50), nullable=False)
     hub: Mapped[str] = mapped_column(String(50), nullable=False)
     unsupported_devices: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    gated: Mapped[str | None] = mapped_column(String(10), nullable=True)
     is_custom: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     install_status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="not_installed"

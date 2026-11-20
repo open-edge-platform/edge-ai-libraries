@@ -91,6 +91,8 @@ usage() {
     HERMES_INSTALL_URL            Custom Hermes installer URL (default: scripts/install.sh at a pinned hermes-agent commit, checksum built in)
     HERMES_INSTALL_SHA256         Expected SHA-256 of the Hermes installer (required with HERMES_INSTALL_URL unless HERMES_ALLOW_UNVERIFIED_INSTALL=1)
     HERMES_ALLOW_UNVERIFIED_INSTALL  Run a custom Hermes installer without a pinned checksum (not recommended)
+    HERMES_PINNED_COMMIT, HERMES_PINNED_SHA256  Install another hermes-agent release: its full commit SHA and the SHA-256 of scripts/install.sh
+                                  at that commit (set both together; default: the release this installer was validated with)
     DCODE_INSTALL_URL             Custom dcode installer URL (default: libs/code/scripts/install.sh at a pinned deepagents commit, checksum built in)
     DCODE_INSTALL_SHA256          Expected SHA-256 of the dcode installer (required with DCODE_INSTALL_URL unless HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1)
     HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL  Run a custom dcode installer without a pinned checksum (not recommended)
@@ -108,7 +110,7 @@ usage() {
     HARNESS_OVMS_EXPORT_IMAGE     OVMS "-py" image used by the docker-pull exporter to convert non-OpenVINO/* models (default: openvino/model_server:2026.1-py)
     HARNESS_BACKEND_NETWORK      Docker network joining OVMS + the Inference Router so they can reach each other by name (default: agent-harness-install-backend)
     MIN_NODE_VERSION
-    HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser <parser>)
+    HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --log_level DEBUG); not for per-model options such as --tool_parser
     HARNESS_OVMS_EXPORTER         docker-pull (default) | export-model-py | model-download | hf-snapshot (see Known limitations)
     HARNESS_HF_MODEL_REVISION     Pin an exact HF revision (commit/tag/branch) for the hf-snapshot exporter
     HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt (export-model-py exporter only)
@@ -385,9 +387,23 @@ shell's PATH yet — open a new terminal, or re-source your shell profile."
   printf "\n"
 }
 
+# nvm's node is not on PATH in a fresh shell; without it the node-based config.json lookups fail.
+ensure_node_on_path() {
+  set +u
+  ensure_nvm_loaded
+  if ! command_exists node && command_exists nvm; then
+    nvm use "$HARNESS_NODE_VERSION" --silent 2>/dev/null || nvm use default --silent 2>/dev/null || true
+  fi
+  set -u
+  return 0
+}
+
 run_models_command() {
   local verb="${1:-}" name="${2:-}"
   [[ -n "$verb" ]] || { usage; error "models requires a verb (list/remove)."; }
+  ensure_node_on_path
+  command_exists node \
+    || warn "Node.js was not found; results may be incomplete. Run ./startup.sh --skip-docker --skip-python to install it."
   case "$verb" in
     list) list_exported_models ;;
     remove) remove_exported_model "$name" ;;
@@ -473,6 +489,12 @@ main() {
   export HARNESS_MODEL_PRECISION HARNESS_MODEL_DEVICE HARNESS_MODEL_DOWNLOAD_REVISION HARNESS_HF_MODEL_REVISION
   apply_model_source_defaults
 
+  # A half or malformed Hermes pin override must fail here, before prerequisite
+  # setup or ensure_inference_backend can touch an existing deployment.
+  case "${positional[0]:-}" in
+    "" | inference | onboard) validate_hermes_pin ;;
+  esac
+
   # Group refresh may exec this script again. Do it before opening the
   # deployment lock, so the new process cannot inherit and reacquire that lock.
   case "${positional[0]:-}" in
@@ -515,13 +537,7 @@ run_installer_command() {
     exit 0
   fi
   if [[ "${positional[0]:-}" == "onboard" ]]; then
-    # nvm's node is not on PATH in a fresh shell; without it the registered-model lookup falls back to 'default'.
-    set +u
-    ensure_nvm_loaded
-    if ! command_exists node && command_exists nvm; then
-      nvm use "$HARNESS_NODE_VERSION" --silent 2>/dev/null || nvm use default --silent 2>/dev/null || true
-    fi
-    set -u
+    ensure_node_on_path
     run_agent_onboard
     exit 0
   fi

@@ -1,7 +1,10 @@
 <!-- Copyright (C) 2026 Intel Corporation; SPDX-License-Identifier: Apache-2.0 -->
 <template>
   <div v-if="libraryData" class="chat-container">
-    <section class="conversation-wrap">
+    <section
+      class="conversation-wrap"
+      :class="{ 'is-empty': !messages.length, 'has-evidence': !!result }"
+    >
       <div class="conversation-header">
         <div class="conversation-title">
           <div class="chat-icon"><RobotOutlined /></div>
@@ -32,6 +35,10 @@
           </a-button>
         </a-space>
       </div>
+      <div class="testing-notice" role="note">
+        <ExclamationCircleFilled />
+        <span>{{ $t("console.chatInternalTesting") }}</span>
+      </div>
       <div class="chat-log-wrap">
         <div
           ref="chatLog"
@@ -54,12 +61,14 @@
               <ArrowRightOutlined />
             </a-button>
           </div>
-          <MessageItem
-            v-for="(message, index) in messages"
-            :key="index"
-            :message="message"
-            @citation="handleCitation"
-          />
+          <div v-if="messages.length" class="chat-thread">
+            <MessageItem
+              v-for="(message, index) in messages"
+              :key="index"
+              :message="message"
+              @citation="handleCitation"
+            />
+          </div>
         </div>
         <a-button
           v-if="showScrollToBottom"
@@ -167,6 +176,7 @@ import {
   ArrowRightOutlined,
   DatabaseOutlined,
   DeleteOutlined,
+  ExclamationCircleFilled,
   FileSearchOutlined,
   FileTextOutlined,
   RobotOutlined,
@@ -333,8 +343,9 @@ onUnmounted(() => controller?.abort());
   display: flex;
   gap: 20px;
   align-items: stretch;
-  min-height: 480px;
-  height: calc(100dvh - 300px);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 .conversation-wrap {
   flex: 1;
@@ -354,6 +365,25 @@ onUnmounted(() => controller?.abort());
   padding: 18px 24px;
   border-bottom: 1px solid var(--border-main-color);
   flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.testing-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--color-warning);
+  background: var(--color-warningBg);
+  color: var(--color-warning-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  flex-shrink: 0;
+  .anticon {
+    color: var(--color-error);
+    font-size: 16px;
+    line-height: 20px;
+  }
 }
 .conversation-title {
   display: flex;
@@ -387,6 +417,21 @@ onUnmounted(() => controller?.abort());
   padding: 26px;
   height: 100%;
 }
+.chat-thread,
+.composer-input,
+.composer-wrap > p {
+  width: 100%;
+  max-width: 1040px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.conversation-wrap.has-evidence {
+  .chat-thread,
+  .composer-input,
+  .composer-wrap > p {
+    max-width: none;
+  }
+}
 .chat-log-wrap {
   position: relative;
   flex: 1;
@@ -401,7 +446,6 @@ onUnmounted(() => controller?.abort());
 }
 .welcome-wrap {
   height: 100%;
-  min-height: 340px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -459,12 +503,30 @@ onUnmounted(() => controller?.abort());
   }
 }
 .composer-wrap {
+  flex-shrink: 0;
   padding: 16px 24px;
   > p {
-    margin: 10px 0 0;
+    margin: 10px auto 0;
     font-size: 11px;
     color: var(--font-tip-color);
     text-align: center;
+  }
+}
+.conversation-wrap.is-empty {
+  overflow-y: auto;
+  .chat-log-wrap {
+    flex: none;
+    margin-top: auto;
+  }
+  .chat-log {
+    height: auto;
+    overflow: visible;
+  }
+  .welcome-wrap {
+    height: auto;
+  }
+  .composer-wrap {
+    margin-bottom: auto;
   }
 }
 .composer-input {
@@ -547,22 +609,23 @@ onUnmounted(() => controller?.abort());
 @media (max-width: 1200px) {
   .chat-container {
     flex-direction: column;
-    height: auto;
   }
   .conversation-wrap {
-    height: calc(100dvh - 300px);
-    min-height: 480px;
-    flex: none;
+    min-height: 0;
   }
   .evidence-wrap {
     width: auto;
-    max-height: 600px;
+    flex: 0 1 40%;
+    min-height: 0;
   }
 }
 @media (max-width: 700px) {
   .conversation-header,
   .composer-wrap {
     padding: 14px;
+  }
+  .testing-notice {
+    padding: 10px 14px;
   }
   .chat-log {
     padding: 16px;

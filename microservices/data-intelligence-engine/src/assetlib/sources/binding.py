@@ -1,23 +1,5 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""What a source is *for* in one pool: preparing, serving, or deprecated.
-
-A pool-source binding carries two independent facts, kept in the same
-`SourceSyncStatus` record:
-
-- `status` -- how far the source has got with the pool's assets
-  (pending / indexing / ready / failed). It already existed and is unchanged.
-- `serving_state` -- whether this source answers the pool's retrievals.
-
-They are separate because they move separately: a serving source goes back to
-`pending` every time an asset is added, and must keep serving while it catches
-up; a source that has just been attached is `ready` for nothing yet, and must
-not serve until its first full pass is done.
-
-`DISABLED` is never stored. It is what a binding *is* while its source has
-`enabled=False`, laid over whatever `serving_state` says, so turning the source
-back on restores each binding to where it was.
-"""
 
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -27,7 +9,7 @@ SERVING = "SERVING"
 DEGRADE = "DEGRADE"
 DISABLED = "DISABLED"
 
-#: The states a binding can be stored in.
+#: The states a binding can be stored in; DISABLED is derived, never stored.
 SERVING_STATES = (PREPARING, SERVING, DEGRADE)
 #: Effective states in which a binding holds no projection and takes no writes.
 FROZEN_STATES = frozenset({DEGRADE, DISABLED})

@@ -12,11 +12,7 @@
         <div class="pool-id">{{ drawerData.id }}</div>
         <StatusTag :value="drawerData.display_status" />
       </div>
-      <a-button
-        type="primary"
-        ghost
-        @click="handleRetrieve"
-      >
+      <a-button type="primary" ghost @click="handleRetrieve">
         <template #icon><SearchOutlined /></template>
         {{ $t("console.retrieve") }}
       </a-button>
@@ -72,7 +68,12 @@
           <a-button
             type="primary"
             :loading="submitLoading"
-            :disabled="!sourceIds.length"
+            :disabled="!sourceIds.length || sourceRemovalBlocked"
+            :title="
+              sourceRemovalBlocked
+                ? $t('console.sourceIndexingDeleteHint')
+                : undefined
+            "
             @click="handleSaveSources"
           >
             {{ $t("common.save") }}
@@ -90,14 +91,30 @@
             :maxTagCount="2"
             :placeholder="$t('console.pleaseSelect')"
             :options="
-              assetList
-                .filter((item) => !drawerData.asset_ids.includes(item.id))
-                .map((item) => ({
-                  value: item.id,
-                  label: item.name || item.id,
-                }))
+              availableAssets.map((item) => ({
+                value: item.id,
+                label: item.name || item.id,
+              }))
             "
-          />
+          >
+            <template #dropdownRender="{ menuNode }">
+              <div class="select-all" @mousedown.prevent>
+                <a-checkbox
+                  :checked="
+                    assetIds.length === availableAssets.length &&
+                    !!availableAssets.length
+                  "
+                  :indeterminate="
+                    assetIds.length > 0 &&
+                    assetIds.length < availableAssets.length
+                  "
+                  @change="handleSelectAllAssets"
+                  >{{ $t("common.all") }}</a-checkbox
+                >
+              </div>
+              <component :is="menuNode" />
+            </template>
+          </a-select>
           <a-button
             type="primary"
             :loading="submitLoading"
@@ -106,22 +123,75 @@
           >
             {{ $t("console.addSelected") }}
           </a-button>
-          <a-button @click="handleUpload">
+          <a-button @click="handleUpload" type="primary" ghost>
             <template #icon><UploadOutlined /></template>
             {{ $t("console.upload") }}
           </a-button>
+        </div>
+        <div v-if="poolAssetIds.length" class="asset-selection">
+          <a-checkbox
+            :checked="
+              selectedAssetIds.length === removableAssetIds.length &&
+              !!removableAssetIds.length
+            "
+            :indeterminate="
+              selectedAssetIds.length > 0 &&
+              selectedAssetIds.length < removableAssetIds.length
+            "
+            :disabled="!removableAssetIds.length"
+            @change="handleSelectAllPoolAssets"
+            >{{ $t("common.all") }}</a-checkbox
+          >
+          <a-button
+            danger
+            size="small"
+            :disabled="
+              !selectedAssetIds.length ||
+              submitLoading ||
+              selectedAssetIds.some(assetRemovalBlocked)
+            "
+            :title="
+              selectedAssetIds.some(assetRemovalBlocked)
+                ? $t('console.assetIndexingDeleteHint')
+                : undefined
+            "
+            @click="handleRemoveAssets(selectedAssetIds)"
+            >{{
+              $t("console.removeFromPool", { count: selectedAssetIds.length })
+            }}</a-button
+          >
         </div>
         <a-list
           :data-source="assetPageData"
           :aria-busy="loading"
           :pagination="false"
           size="small"
+          class="asset-list"
         >
           <template #renderItem="{ item }">
             <a-list-item>
+              <a-checkbox
+                :checked="selectedAssetIds.includes(item)"
+                :disabled="assetRemovalBlocked(item)"
+                :aria-label="
+                  $t('console.selectAsset', {
+                    name:
+                      assetList.find((asset) => asset.id === item)?.name ||
+                      item,
+                  })
+                "
+                @change="toggleAssetSelection(item)"
+              />
               <a-list-item-meta>
                 <template #avatar>
-                  <a-avatar shape="square"><FileTextOutlined /></a-avatar>
+                  <a-avatar shape="square"
+                    ><component
+                      :is="assetIcon(item)"
+                      :style="{
+                        color: 'var(--color-primary-second)',
+                        fontSize: '16px',
+                      }"
+                  /></a-avatar>
                 </template>
                 <template #title>
                   {{
@@ -130,18 +200,46 @@
                 </template>
                 <template #description>{{ item }}</template>
               </a-list-item-meta>
-              <a-tag :bordered="false" color="success">
+              <AssetStatus
+                :value="
+                  assetList.find((asset) => asset.id === item)
+                    ?.materialization || 'unknown'
+                "
+                :expired="
+                  assetList.find((asset) => asset.id === item)?.progressExpired
+                "
+              />
+              <a-tag
+                v-if="drawerData.asset_ids.includes(item)"
+                :bordered="false"
+                color="success"
+              >
                 {{ $t("console.inPool") }}
               </a-tag>
+              <a-button
+                danger
+                size="small"
+                :disabled="submitLoading || assetRemovalBlocked(item)"
+                :title="
+                  assetRemovalBlocked(item)
+                    ? $t('console.assetIndexingDeleteHint')
+                    : $t('console.removeOneFromPool')
+                "
+                :aria-label="$t('console.removeOneFromPool')"
+                @click="handleRemoveAssets([item])"
+                ><template #icon><DeleteOutlined /></template
+              ></a-button>
             </a-list-item>
           </template>
         </a-list>
       </a-tab-pane>
       <a-tab-pane key="metadata" :tab="$t('console.metadata')">
         <JsonPretty
+          v-if="Object.keys(drawerData.metadata || {}).length"
           :data="drawerData.metadata"
           :theme="themeStore.theme === 'dark' ? 'dark' : 'light'"
         />
+        <a-empty v-else />
       </a-tab-pane>
     </a-tabs>
     <UploadDialog
@@ -154,10 +252,10 @@
     <template #footer>
       <div class="drawer-footer">
         <a-pagination
-          v-if="activeKey === 'assets' && drawerData.asset_ids.length > 10"
+          v-if="activeKey === 'assets' && poolAssetIds.length > 10"
           v-model:current="assetPage"
           v-model:pageSize="assetPageSize"
-          :total="drawerData.asset_ids.length"
+          :total="poolAssetIds.length"
           :show-total="(total) => $t('console.totalRecords', { count: total })"
           :page-size-options="['10', '20', '50', '100']"
           showSizeChanger
@@ -169,28 +267,38 @@
   </a-drawer>
 </template>
 <script lang="ts" setup name="DetailDrawer">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
+import { Modal } from "ant-design-vue";
 import {
   ApartmentOutlined,
-  FileTextOutlined,
+  DeleteOutlined,
   SearchOutlined,
   UploadOutlined,
 } from "@ant-design/icons-vue";
 import {
-  getAssetList,
   requestAssetPoolAssetsCreate,
+  requestAssetPoolAssetDelete,
+  requestAssetPoolAssetsDelete,
   requestAssetPoolSourcesUpdate,
 } from "@/api/console";
-import type { Asset, AssetPool, Library } from "@/api/console/type";
+import type { AssetPool, IngestResult, Library } from "@/api/console/type";
 import { themeAppStore } from "@/store/theme";
 import JsonPretty from "vue-json-pretty";
 import "vue-json-pretty/lib/styles.css";
 import SourceBinding from "../../sources/components/SourceBinding.vue";
 import StatusTag from "../../../components/StatusTag.vue";
 import UploadDialog from "../../assets/components/UploadDialog.vue";
-import { collectAssets } from "../../assets/AssetList";
-import { useI18n } from "vue-i18n";
+import {
+  getAssetIcon,
+  getAssetKind,
+  getAssetProgress,
+  syncAssetProgress,
+} from "../../assets/AssetUtils";
+import AssetStatus from "../../assets/components/AssetStatus.vue";
+import { isAssetDeletionBlocked } from "../../assets/AssetProgress";
+import { getSourceDisplayStatus } from "../../canvas/ResourceModel";
 import FormTooltip from "@/components/FormTooltip.vue";
 import { customNotification } from "@/utils/notification";
 const props = defineProps<{ drawerData: AssetPool; libraryData: Library }>();
@@ -198,7 +306,7 @@ const emit = defineEmits<{ close: []; search: [] }>();
 const handleClose = () => emit("close");
 const handleRetrieve = () =>
   router.push({
-    path: "/console/retrieve",
+    path: "/retrieve",
     query: { pool: props.drawerData.id },
   });
 const handleUpload = () => {
@@ -214,41 +322,189 @@ const themeStore = themeAppStore();
 const drawerVisible = ref(true);
 const activeKey = ref("sources");
 const submitLoading = ref(false);
-const loading = ref(false);
 const uploadDialog = ref(false);
-const assetList = ref<Asset[]>([]);
+const loading = ref(true);
+const progress = getAssetProgress(props.libraryData.name);
+const assetList = computed(() => progress.rows);
+const assetIcon = (id: string) => {
+  const asset = assetList.value.find((entry) => entry.id === id);
+  return getAssetIcon(asset ? getAssetKind(asset) : "");
+};
+let timer: ReturnType<typeof setTimeout> | undefined;
+let disposed = false;
+let inFlight: Promise<void> | undefined;
+const queryAssetList = (showLoading = false): Promise<void> => {
+  if (!inFlight) {
+    if (showLoading) {
+      loading.value = true;
+      progress.resume();
+    }
+    inFlight = (async () => {
+      try {
+        await syncAssetProgress(
+          props.libraryData.name,
+          progress,
+          () => {
+            const message = t("console.incompleteAssetList");
+            customNotification("error", message, undefined);
+            return new Error(message);
+          },
+          () => {
+            if (!disposed) emit("search");
+          },
+          () => !disposed,
+          showLoading,
+        );
+      } finally {
+        loading.value = false;
+        if (!disposed && progress.expire())
+          customNotification(
+            "warning",
+            t("console.processing"),
+            t("console.pollExpired"),
+          );
+      }
+    })().finally(() => {
+      inFlight = undefined;
+    });
+  }
+  return inFlight;
+};
+const poll = async () => {
+  try {
+    if (progress.trackedIds.length) await queryAssetList();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    if (!disposed) timer = setTimeout(poll, 3000);
+  }
+};
+onMounted(async () => {
+  try {
+    await queryAssetList(true);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    if (!disposed) timer = setTimeout(poll, 3000);
+  }
+});
+onUnmounted(() => {
+  disposed = true;
+  clearTimeout(timer);
+});
 const sourceIds = ref(
   props.drawerData.source_statuses.map((item) => item.source_id),
 );
+const sourceRemovalBlocked = computed(() =>
+  props.drawerData.source_statuses.some((binding) => {
+    if (sourceIds.value.includes(binding.source_id)) return false;
+    const source = props.libraryData.sources.find(
+      (item) => item.id === binding.source_id,
+    );
+    return (
+      !!source &&
+      getSourceDisplayStatus(props.libraryData, source) === "indexing"
+    );
+  }),
+);
 const assetIds = ref<string[]>([]);
+const selectedAssetIds = ref<string[]>([]);
+const removedAssetIds = ref<string[]>([]);
 const assetPage = ref(1);
 const assetPageSize = ref(10);
-const assetPageData = computed(() => props.drawerData.asset_ids.slice(
-  (assetPage.value - 1) * assetPageSize.value,
-  assetPage.value * assetPageSize.value,
-));
+const poolAssetIds = computed(() =>
+  [
+    ...new Set([
+      ...assetList.value
+        .filter((asset) => asset.asset_pool_ids.includes(props.drawerData.id))
+        .map((asset) => asset.id),
+      ...props.drawerData.asset_ids,
+    ]),
+  ].filter((id) => !removedAssetIds.value.includes(id)),
+);
+const assetRemovalBlocked = (id: string) => {
+  const asset = assetList.value.find((item) => item.id === id);
+  return (
+    props.drawerData.display_status === "indexing" ||
+    !asset ||
+    isAssetDeletionBlocked(asset, props.libraryData.asset_pools)
+  );
+};
+const removableAssetIds = computed(() =>
+  poolAssetIds.value.filter((id) => !assetRemovalBlocked(id)),
+);
+const availableAssets = computed(() =>
+  assetList.value.filter(
+    (asset) => !asset.pending && !poolAssetIds.value.includes(asset.id),
+  ),
+);
+const handleSelectAllAssets = () => {
+  assetIds.value =
+    assetIds.value.length === availableAssets.value.length
+      ? []
+      : availableAssets.value.map((asset) => asset.id);
+};
+const handleSelectAllPoolAssets = () => {
+  selectedAssetIds.value =
+    selectedAssetIds.value.length === removableAssetIds.value.length
+      ? []
+      : [...removableAssetIds.value];
+};
+const toggleAssetSelection = (id: string) => {
+  selectedAssetIds.value = selectedAssetIds.value.includes(id)
+    ? selectedAssetIds.value.filter((selected) => selected !== id)
+    : [...selectedAssetIds.value, id];
+};
+const handleRemoveAssets = (ids: string[]) => {
+  const requested = [...ids];
+  if (!requested.length || requested.some(assetRemovalBlocked)) return;
+  Modal.confirm({
+    title: t("console.removeOneFromPool"),
+    content: t("console.removePoolAssetsConfirm", { count: requested.length }),
+    okType: "danger",
+    okText: t("common.confirm"),
+    cancelText: t("common.cancel"),
+    async onOk() {
+      if (requested.some(assetRemovalBlocked)) return;
+      submitLoading.value = true;
+      try {
+        if (requested.length === 1)
+          await requestAssetPoolAssetDelete(
+            props.libraryData.name,
+            props.drawerData.id,
+            requested[0],
+          );
+        else
+          await requestAssetPoolAssetsDelete(
+            props.libraryData.name,
+            props.drawerData.id,
+            { asset_ids: requested },
+          );
+        removedAssetIds.value = [
+          ...new Set([...removedAssetIds.value, ...requested]),
+        ];
+        selectedAssetIds.value = selectedAssetIds.value.filter(
+          (id) => !requested.includes(id),
+        );
+        emit("search");
+        await queryAssetList();
+      } finally {
+        submitLoading.value = false;
+      }
+    },
+  });
+};
+const assetPageData = computed(() =>
+  poolAssetIds.value.slice(
+    (assetPage.value - 1) * assetPageSize.value,
+    assetPage.value * assetPageSize.value,
+  ),
+);
 const sourceList = computed(() =>
   props.libraryData.sources.filter((item) => item.type !== "object"),
 );
-const queryAssetList = async () => {
-  loading.value = true;
-  try {
-    assetList.value = await collectAssets(
-      (page) => getAssetList(props.libraryData.name, {
-        page_num: page,
-        page_size: 500,
-      }, page === 1),
-      () => {
-        const message = t("console.incompleteAssetList");
-        customNotification("error", message, undefined);
-        return new Error(message);
-      },
-    );
-  } finally {
-    loading.value = false;
-  }
-};
 const handleSaveSources = async () => {
+  if (!sourceIds.value.length || sourceRemovalBlocked.value) return;
   submitLoading.value = true;
   try {
     await requestAssetPoolSourcesUpdate(
@@ -269,22 +525,50 @@ const handleAddAssets = async () => {
       props.drawerData.id,
       { asset_ids: assetIds.value },
     );
+    removedAssetIds.value = removedAssetIds.value.filter(
+      (id) => !assetIds.value.includes(id),
+    );
     assetIds.value = [];
     emit("search");
   } finally {
     submitLoading.value = false;
   }
 };
-const handleUploaded = () => {
-  emit("search");
-  queryAssetList();
+const handleUploaded = async (result: IngestResult) => {
+  progress.accept(result);
+  activeKey.value = "assets";
+  assetPage.value = 1;
+  await queryAssetList();
 };
-onMounted(queryAssetList);
-watch(assetPageSize, () => { assetPage.value = 1; });
-watch(() => props.drawerData.id, () => { assetPage.value = 1; });
-watch(() => props.drawerData.asset_ids.length, (total) => {
-  assetPage.value = Math.min(assetPage.value, Math.max(1, Math.ceil(total / assetPageSize.value)));
+watch(assetPageSize, () => {
+  assetPage.value = 1;
 });
+watch(availableAssets, (assets) => {
+  const availableIds = new Set(assets.map((asset) => asset.id));
+  assetIds.value = assetIds.value.filter((id) => availableIds.has(id));
+});
+watch(removableAssetIds, (ids) => {
+  selectedAssetIds.value = selectedAssetIds.value.filter((id) =>
+    ids.includes(id),
+  );
+});
+watch(
+  () => props.drawerData.id,
+  () => {
+    assetPage.value = 1;
+    selectedAssetIds.value = [];
+    removedAssetIds.value = [];
+  },
+);
+watch(
+  () => poolAssetIds.value.length,
+  (total) => {
+    assetPage.value = Math.min(
+      assetPage.value,
+      Math.max(1, Math.ceil(total / assetPageSize.value)),
+    );
+  },
+);
 </script>
 <style scoped lang="less">
 .detail-header {
@@ -345,7 +629,7 @@ watch(() => props.drawerData.asset_ids.length, (total) => {
 }
 .asset-actions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   margin: 16px 0;
   flex-wrap: wrap;
@@ -353,6 +637,37 @@ watch(() => props.drawerData.asset_ids.length, (total) => {
     flex: 1;
     min-width: 200px;
   }
+}
+.select-all {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-main-color);
+}
+.asset-list {
+  :deep(.intel-list-item) {
+    gap: 12px;
+  }
+  :deep(.intel-list-item-meta) {
+    min-width: 0;
+  }
+  :deep(.intel-list-item-meta-title),
+  :deep(.intel-list-item-meta-description) {
+    overflow-wrap: anywhere;
+  }
+  :deep(.intel-list-item-meta) {
+    display: flex;
+    align-items: center;
+  }
+  :deep(.intel-avatar) {
+    background: var(--bg-card-color);
+  }
+}
+.asset-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 0 16px;
 }
 .drawer-footer {
   display: flex;

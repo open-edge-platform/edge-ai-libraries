@@ -245,7 +245,7 @@ For media reranking, add `--rerank` or send JSON with `postprocess`:
 ```
 
 `top_k` sets candidate depth per serving source; `top_n` limits the final global
-result count after reranking. The model export, parity, machine review, annotation,
+result count after reranking. The model export, machine review, annotation,
 and frozen evaluation commands live in
 [text-to-media-retrieval.md](../docs/user-guide/text-to-media-retrieval.md#prepare-the-openvino-model)
 and use the Python tools in this directory.
@@ -292,3 +292,15 @@ queries with `--pool` / `asset_pool_ids`; that field selects pools, not sources.
 Text vector/BM25/graph RRF within a pool retains the behavior described above.
 
 Run any helper with `--help` for its accepted operations and arguments.
+
+## Skills for agent
+
+For an external agent, [`../skills/knowledgebase`](../skills/README.md) packages
+the same `POST /v1/retrieve` request as a self-contained skill: its
+`data_intelligence_engine` wrapper needs only `bash` and `curl`, takes its
+defaults from `KB_*` environment variables, and prints the chunks as a numbered
+list for the agent to answer from.
+
+```bash
+KB_LIBRARY=docs ../skills/knowledgebase/data_intelligence_engine "thermal limits" --media document --rerank 3
+```

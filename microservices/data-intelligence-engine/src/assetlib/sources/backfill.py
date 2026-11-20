@@ -1,18 +1,5 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Writing a preparing binding's backlog in batches.
-
-An ordinary sync hands a projection everything it is missing in one `add`.
-That is right for an ingest, which brings a handful of assets. A binding that
-is *preparing* -- a new model attached to a pool that already holds the whole
-corpus -- is missing all of it, and one `add` would build every node and every
-vector in memory before writing any, and on failure throw all of it away.
-
-So a preparing binding is written a batch at a time. Each batch is made
-idempotent the same way the single write is (delete the batch's records, then
-add), and recorded on the status as it lands, so a pass that fails part-way
-leaves the batches that did land counted and the retry starts after them.
-"""
 
 from typing import Any, Callable, Optional, Sequence
 

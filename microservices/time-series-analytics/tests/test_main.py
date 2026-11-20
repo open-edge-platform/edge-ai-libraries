@@ -84,81 +84,75 @@ def test_get_config(monkeypatch):
     assert_condition("alerts" in resp.json())
 
 @pytest.mark.parametrize("expected_task_id", [None, "udf_name"])
-def test_stop_pipeline_disables_only_configured_task(monkeypatch, expected_task_id):
-    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
-    disable_task = mock.Mock(return_value=mock.Mock(status_code=200))
-    monkeypatch.setattr(main.requests, "patch", disable_task)
-    monkeypatch.setattr(main, "stop_kapacitor_service", lambda: pytest.fail("Daemon must stay running"))
+def test_stop_pipeline_stops_daemon(monkeypatch, expected_task_id):
+    stop_daemon = mock.Mock()
+    monkeypatch.setattr(main, "stop_kapacitor_service", stop_daemon)
+    monkeypatch.setattr(
+        main, "health_check", lambda response: {"status": "Kapacitor daemon is not running"}
+    )
 
     params = {"expected_task_id": expected_task_id} if expected_task_id else None
     resp = client.post("/stop_pipeline", params=params)
 
     assert_condition(resp.status_code == 200)
     assert_condition(resp.json() == {"status": "success", "task_id": "udf_name"})
-    disable_task.assert_called_once_with(
-        "http://kapacitor:9092/kapacitor/v1/tasks/udf_name",
-        json={"status": "disabled"},
-        timeout=30,
-    )
+    stop_daemon.assert_called_once_with()
 
-def test_stop_pipeline_quotes_task_id(monkeypatch):
+def test_stop_pipeline_preserves_task_id(monkeypatch):
     task_id = "sensor/zone #1"
     main.config["udfs"]["name"] = task_id
-    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
-    disable_task = mock.Mock(return_value=mock.Mock(status_code=200))
-    monkeypatch.setattr(main.requests, "patch", disable_task)
+    monkeypatch.setattr(main, "stop_kapacitor_service", mock.Mock())
+    monkeypatch.setattr(
+        main, "health_check", lambda response: {"status": "Kapacitor daemon is not running"}
+    )
 
     resp = client.post("/stop_pipeline", params={"expected_task_id": task_id})
 
     assert_condition(resp.status_code == 200)
     assert_condition(resp.json() == {"status": "success", "task_id": task_id})
-    disable_task.assert_called_once_with(
-        "http://kapacitor:9092/kapacitor/v1/tasks/sensor%2Fzone%20%231",
-        json={"status": "disabled"},
-        timeout=30,
-    )
 
 def test_stop_pipeline_without_configured_task(monkeypatch):
     main.config["udfs"] = {}
-    disable_task = mock.Mock()
-    monkeypatch.setattr(main.requests, "patch", disable_task)
+    stop_daemon = mock.Mock()
+    monkeypatch.setattr(main, "stop_kapacitor_service", stop_daemon)
 
     resp = client.post("/stop_pipeline")
 
     assert_condition(resp.status_code == 409)
     assert_condition(resp.json()["detail"] == "No UDF task is configured")
-    disable_task.assert_not_called()
+    stop_daemon.assert_not_called()
 
 def test_stop_pipeline_rejects_different_configured_task(monkeypatch):
-    disable_task = mock.Mock()
-    monkeypatch.setattr(main.requests, "patch", disable_task)
+    stop_daemon = mock.Mock()
+    monkeypatch.setattr(main, "stop_kapacitor_service", stop_daemon)
 
     resp = client.post("/stop_pipeline", params={"expected_task_id": "other_task"})
 
     assert_condition(resp.status_code == 409)
     assert_condition(resp.json()["detail"] == "Configured UDF task does not match the requested task")
-    disable_task.assert_not_called()
+    stop_daemon.assert_not_called()
 
 def test_stop_pipeline_reports_kapacitor_failures(monkeypatch):
-    disable_task = mock.Mock(side_effect=main.requests.exceptions.ConnectionError("Connection refused"))
-    monkeypatch.setattr(main.requests, "patch", disable_task)
+    stop_daemon = mock.Mock(side_effect=main.requests.exceptions.ConnectionError("Connection refused"))
+    monkeypatch.setattr(main, "stop_kapacitor_service", stop_daemon)
 
     unavailable = client.post("/stop_pipeline")
 
     assert_condition(unavailable.status_code == 503)
     assert_condition(unavailable.json()["detail"] == "Kapacitor is unavailable")
 
-    rejected_response = mock.Mock(status_code=404)
-    rejected_response.raise_for_status.side_effect = main.requests.exceptions.HTTPError(
-        response=rejected_response
+    stop_daemon.side_effect = None
+    monkeypatch.setattr(
+        main, "health_check", lambda response: {"status": "Kapacitor daemon is running"}
     )
-    disable_task.side_effect = None
-    disable_task.return_value = rejected_response
+    monkeypatch.setattr(
+        main, "time", types.SimpleNamespace(monotonic=mock.Mock(side_effect=[0, 10]))
+    )
 
     rejected = client.post("/stop_pipeline")
 
     assert_condition(rejected.status_code == 502)
-    assert_condition(rejected.json()["detail"] == "Kapacitor failed to disable the task: HTTP 404")
+    assert_condition(rejected.json()["detail"] == "Kapacitor daemon did not stop")
 
 @pytest.mark.parametrize("task_status", ["enabled", "disabled"])
 @pytest.mark.parametrize("expected_task_id", [None, "udf_name"])
@@ -291,13 +285,14 @@ def test_stop_kapacitor_service_not_running(monkeypatch, caplog):
     main.stop_kapacitor_service()
     assert_condition(any("Kapacitor daemon is not running." in l for l in logs))
 
-def test_stop_kapacitor_service_success(monkeypatch):
+@pytest.mark.parametrize("tasks", [[{"id": "task1"}], []])
+def test_stop_kapacitor_service_success(monkeypatch, tasks):
     # health_check returns running
     monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
     # Mock requests.get to return a fake task list
     class FakeResp:
         def json(self):
-            return {"tasks": [{"id": "task1"}]}
+            return {"tasks": tasks}
     monkeypatch.setattr(main.requests, "get", lambda url, **kwargs: FakeResp())
     # Track subprocess.run calls
     calls = []
@@ -311,7 +306,10 @@ def test_stop_kapacitor_service_success(monkeypatch):
     # Mock logger
     monkeypatch.setattr(main.logger, "info", lambda *args, **kwargs: None)
     main.stop_kapacitor_service()
-    assert_condition((("kapacitor", "disable", "task1"), False) in calls)
+    if tasks:
+        assert_condition((("kapacitor", "disable", "task1"), False) in calls)
+    else:
+        assert_condition(not calls)
     assert_condition("kapacitord" in killed)
 
 def test_stop_kapacitor_service_subprocess_error(monkeypatch):

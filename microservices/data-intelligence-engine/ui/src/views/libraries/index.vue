@@ -34,7 +34,12 @@
         <strong>{{ item.value }}</strong>
       </div>
     </div>
-    <div ref="libraryTable" tabindex="-1" :aria-label="$t('console.selectLibrary')">
+    <div
+      ref="libraryTable"
+      class="library-table"
+      tabindex="-1"
+      :aria-label="$t('console.selectLibrary')"
+    >
       <Table
         :table-data="libraryList"
         :selected-library="libraryData?.name"
@@ -42,6 +47,7 @@
         @select="handleSelect"
         @select-library="handleSelectLibrary"
         @search="handleSearch"
+        @deleted="handleDeleted"
       />
     </div>
     <CreateDialog
@@ -68,7 +74,11 @@ import Table from "./components/Table.vue";
 import CreateDialog from "./components/CreateDialog.vue";
 
 const props = defineProps<ConsolePageProps>();
-const emit = defineEmits<{ refresh: []; "select-library": [name: string] }>();
+const emit = defineEmits<{
+  refresh: [];
+  "select-library": [name: string];
+  "library-deleted": [name: string];
+}>();
 const router = useRouter();
 const createDialog = ref(false);
 const libraryTable = ref<HTMLElement>();
@@ -95,6 +105,7 @@ const handleCreateClose = () => {
   createDialog.value = false;
 };
 const handleSearch = () => emit("refresh");
+const handleDeleted = (name: string) => emit("library-deleted", name);
 const summaryList = computed(() => [
   { key: "libraries", icon: AppstoreOutlined, value: props.libraryList.length },
   {
@@ -133,10 +144,21 @@ const handleCreated = (name: string) => {
 </script>
 
 <style scoped lang="less">
+.library-table {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 .setup-guide {
   flex-shrink: 0;
   padding: 16px 18px;
-  border: 1px solid color-mix(in srgb, var(--color-primary-second) 40%, var(--border-main-color));
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--color-primary-second) 40%,
+      var(--border-main-color)
+    );
   border-radius: 8px;
   background: var(--bg-card-color);
   margin-bottom: 12px;
@@ -184,9 +206,18 @@ const handleCreated = (name: string) => {
   padding: 12px 10px;
   text-align: start;
   font: inherit;
-  border: 1px solid color-mix(in srgb, var(--color-primary-second) 25%, var(--border-main-color));
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--color-primary-second) 25%,
+      var(--border-main-color)
+    );
   border-radius: 6px;
-  background: color-mix(in srgb, var(--color-primary-second) 6%, var(--bg-content-color));
+  background: color-mix(
+    in srgb,
+    var(--color-primary-second) 6%,
+    var(--bg-content-color)
+  );
   cursor: pointer;
   &:hover:not(:disabled),
   &:focus-visible {
@@ -221,13 +252,10 @@ const handleCreated = (name: string) => {
 }
 @media (max-width: 1100px) {
   .guide-steps {
-    flex-direction: column;
+    overflow-x: auto;
     > li {
-      flex-direction: column;
+      flex: 0 0 160px;
     }
-  }
-  .step-arrow {
-    transform: rotate(90deg);
   }
 }
 </style>

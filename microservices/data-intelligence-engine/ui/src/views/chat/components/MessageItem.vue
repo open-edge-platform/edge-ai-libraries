@@ -11,7 +11,11 @@
         </template>
         <template v-else>{{ $t("console.user") }}</template>
       </div>
-      <div class="message-content intel-markdown">
+      <div
+        v-if="message.content"
+        class="message-content intel-markdown"
+        @click="handleImageClick"
+      >
         <template v-for="(part, index) in contentParts" :key="index">
           <a-tooltip
             v-if="part.source"
@@ -33,6 +37,15 @@
           <span v-else>{{ part.text }}</span>
         </template>
       </div>
+      <a-image
+        v-if="message.role === 'assistant'"
+        :style="{ display: 'none' }"
+        :src="imageSrc"
+        :preview="{
+          visible: imageVisible,
+          onVisibleChange: handleImageVisible,
+        }"
+      />
       <div v-if="message.pending" class="pending-wrap">
         <LoadingOutlined />
         <span v-if="message.pending === 'retrieving'">
@@ -77,7 +90,7 @@
   </div>
 </template>
 <script lang="ts" setup name="MessageItem">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { marked } from "marked";
 import {
   CopyOutlined,
@@ -95,6 +108,18 @@ const props = defineProps<{ message: ChatMessage }>();
 const emit = defineEmits<{ citation: [chunk: Chunk] }>();
 const handleCitation = (chunk: Chunk) => emit("citation", chunk);
 const { copy } = useClipboard();
+const imageSrc = ref("");
+const imageVisible = ref(false);
+const handleImageVisible = (visible: boolean) => (imageVisible.value = visible);
+const handleImageClick = (event: MouseEvent) => {
+  if (
+    props.message.role !== "assistant" ||
+    !(event.target instanceof HTMLImageElement)
+  )
+    return;
+  imageSrc.value = event.target.src;
+  imageVisible.value = true;
+};
 const renderMarkdown = (text: string) =>
   marked.parse(text, { renderer: CustomRenderer, async: false });
 const contentParts = computed(() => {
@@ -118,6 +143,20 @@ const handleCopy = () => copy(stripThinking(props.message.content));
   display: flex;
   gap: 12px;
   margin-bottom: 28px;
+  &.assistant {
+    .message-author {
+      display: flex;
+      align-items: center;
+      min-height: 34px;
+      margin-bottom: 6px;
+    }
+    .error-wrap {
+      margin-top: 0;
+    }
+    .message-content ~ .error-wrap {
+      margin-top: 12px;
+    }
+  }
   &.user {
     justify-content: flex-end;
     .message-body {
@@ -129,6 +168,7 @@ const handleCopy = () => copy(stripThinking(props.message.content));
     }
     .message-content {
       padding: 12px 16px;
+      white-space: pre-wrap;
       background: color-mix(
         in srgb,
         var(--color-primary-second) 10%,
@@ -164,7 +204,6 @@ const handleCopy = () => copy(stripThinking(props.message.content));
   margin: 0 0 8px;
 }
 .message-content {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--font-main-color);
   font-size: 14px;

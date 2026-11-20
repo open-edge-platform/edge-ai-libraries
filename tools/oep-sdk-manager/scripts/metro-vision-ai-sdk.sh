@@ -26,13 +26,13 @@ repositories=(
 )
 
 images=(
-  "openvino/model_server:2026.3"
-  "openvino/ubuntu24_dev:2026.3.0"
-  "intel/dlstreamer:2026.2.0-ubuntu24"
-  "intel/dlstreamer-pipeline-server:2026.2.0-ubuntu24"
-  "intel/scenescape-manager:2026.2.0"
-  "intel/scenescape-controller:2026.2.0"
-  "intel/scenescape-autocalibration:2026.2.0"
+  "openvino/model_server:2026.4.1"
+  "openvino/ubuntu24_dev:2026.4.1"
+  "intel/dlstreamer:2026.3.0-ubuntu24-rc1"
+  "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc1"
+  "intel/scenescape-manager:2026.3.0-rc1"
+  "intel/scenescape-controller:2026.3.0-rc1"
+  "intel/scenescape-autocalibration:2026.3.0-rc1"
 )
 
 NAME="Metro Vision AI SDK"

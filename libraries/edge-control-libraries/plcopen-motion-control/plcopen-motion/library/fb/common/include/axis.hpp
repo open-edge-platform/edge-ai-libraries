@@ -73,6 +73,17 @@ public:
 
   virtual void setServo(Servo* servo);
 
+  /**
+   * Configure the entire node pool, including reserved and future queue slots.
+   * Frequency must be finite and positive, and may change only while idle
+   * with no queued or superimposed motion. Idle velocity uses the configured
+   * completion tolerance, allowing one encoder count per cycle in feedback.
+   * Rejected requests are logged and
+   * leave the accepted clock and configuration pointer unchanged without
+   * aborting motion.
+   * Editing AxisConfig::frequency_ alone does not change the accepted clock;
+   * call this method again, then schedule runCycle at getFrequency() Hz.
+   */
   virtual void setAxisConfig(AxisConfig* config);
 
   virtual void setNodeQueueSize(mcUSINT size);
@@ -96,12 +107,19 @@ public:
   virtual mcLREAL toUserVelCmd();
   virtual mcLREAL toUserAccCmd();
   virtual mcLREAL getDeltaTime();
+  // Accepted per-axis clock, independent of later edits to AxisConfig.
+  mcLREAL getFrequency() const;
 
   virtual mcLREAL toUserUnit(mcLREAL x);
   virtual mcDINT toEncoderUnit(mcLREAL x);
 
   virtual void addFBToQueue(FbAxisNode* fb, MC_MOTION_MODE mode);
+  // A fault stop retains ownership until the slave reaches standstill.
+  bool isStoppingOnError() const;
 
+  // Depower/error flushes queued motion and clears command derivatives so
+  // recovery cannot reuse the interrupted trajectory's velocity/acceleration.
+  // Active superimposed motion is aborted and its cached overlay state cleared.
   virtual mcBOOL statusHealthy();
 
   virtual void powerProcess();
@@ -163,6 +181,8 @@ public:
   void replanUnderlyingMotion();
 
 private:
+  bool isIdleForClockChange();
+
   mcUSINT axis_id_;
   mcLREAL axis_pos_;
   mcLREAL axis_vel_;
@@ -201,7 +221,7 @@ private:
   AxisConfig* config_;
 
   mcLREAL stamp_;
-  mcLREAL delta_time_;
+  mcLREAL frequency_;
 
   mcBOOL power_on_;
   mcBOOL power_status_;

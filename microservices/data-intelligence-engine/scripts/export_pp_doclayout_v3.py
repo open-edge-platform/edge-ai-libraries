@@ -83,8 +83,8 @@ def export_pp_doclayout_v3(model_source: str, out_dir: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model-path", default=config.LAYOUT_MODEL_PATH)
-    parser.add_argument("--model-id", default=config.LAYOUT_MODEL_ID)
+    parser.add_argument("--model-path", default=os.path.join(config.MODEL_DIR, config.LAYOUT_MODEL_ID))
+    parser.add_argument("--model-id", default="PaddlePaddle/PP-DocLayoutV3_safetensors")
     parser.add_argument("--output-dir")
     args = parser.parse_args()
 

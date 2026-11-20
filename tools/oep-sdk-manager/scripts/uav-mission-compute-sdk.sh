@@ -28,7 +28,7 @@ repositories=(
 images=(
   "influxdb:2.9.1"
   "grafana/grafana:11.4.0"
-  "intel/metrics-manager:2026.1.0"
+  "intel/metrics-manager:2026.3.0-rc1"
   "bluenviron/mediamtx:1.19.2"
   "eclipse-mosquitto:2.0.22"
 )
