@@ -556,7 +556,12 @@ class TestModelInstallStep(unittest.TestCase):
 
 class TestMainInstallStep(unittest.TestCase):
     def _main(
-        self, mode: str, *, tty: bool, step: Any = None
+        self,
+        mode: str,
+        *,
+        tty: bool,
+        step: Any = None,
+        pytest_args: tuple[str, ...] = (),
     ) -> tuple[int, Mock, Mock]:
         step = step or Mock(return_value=(0, []))
         runner = Mock(return_value=0)
@@ -568,8 +573,41 @@ class TestMainInstallStep(unittest.TestCase):
             patch("sys.stderr", io.StringIO()),
         ):
             os.environ.pop("PERF_INSTALL_MISSING_MODELS", None)
-            rc = cli.main(["--config", "quick", "--install-missing-models", mode])
+            argv = ["--config", "quick", "--install-missing-models", mode]
+            if pytest_args:
+                argv += ["--", *pytest_args]
+            rc = cli.main(argv)
         return rc, step, runner
+
+    def test_pytest_modes_that_run_no_test_skip_the_step(self) -> None:
+        for args in (
+            ("--collect-only",),
+            ("--co", "-q"),
+            ("-h",),
+            ("--help",),
+            ("--version",),
+            ("-V",),
+            ("--fixtures",),
+            ("--funcargs",),
+            ("--fixtures-per-test",),
+            ("--cache-show",),
+            ("--cache-show=perf*",),
+            ("--markers",),
+            ("--setup-plan",),
+            ("--setup-only",),
+        ):
+            with self.subTest(args=args):
+                rc, step, runner = self._main("yes", tty=True, pytest_args=args)
+                self.assertEqual(rc, 0)
+                step.assert_not_called()
+                self.assertEqual(runner.call_args.args[1], list(args))
+                self.assertEqual(runner.call_args.kwargs["extra_env"], {})
+
+    def test_other_pytest_args_keep_the_step(self) -> None:
+        for args in (("-k", "defect", "-x"), ("--cache-clear",), ("--funcs",)):
+            with self.subTest(args=args):
+                _, step, _ = self._main("yes", tty=False, pytest_args=args)
+                step.assert_called_once()
 
     def test_no_never_runs_the_step(self) -> None:
         rc, step, runner = self._main("no", tty=True)

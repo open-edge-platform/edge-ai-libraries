@@ -294,6 +294,21 @@ class TestModelInstallAndErrors(unittest.TestCase):
         self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", html)
         self.assertNotIn("<script>alert(1)</script>", html)
 
+    def test_compared_runs_keep_the_run_column_when_one_installed(self) -> None:
+        plain = self._result(benchmark_id="bench_plain")
+        installed = self._result(
+            benchmark_id="bench_installed",
+            model_install=[
+                {"name": "m", "display_name": "M", "outcome": "failed", "reason": "x"}
+            ],
+        )
+        html = generate_html_report([plain, installed])
+        section = html[html.index('id="model-install"') :]
+        section = section[: section.index("</table>")]
+        self.assertIn("Run", section)
+        self.assertIn("bench_installed", section)
+        self.assertNotIn("bench_plain", section)
+
     def test_no_section_without_install_outcome(self) -> None:
         for value in (None, []):
             with self.subTest(value=value):

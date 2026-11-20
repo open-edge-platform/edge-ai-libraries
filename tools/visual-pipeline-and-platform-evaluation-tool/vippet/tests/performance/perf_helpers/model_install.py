@@ -673,6 +673,25 @@ class ModelInstaller:
     def _elapsed(self, state: _InstallState) -> str:
         return format_duration(self.monotonic() - state.start)
 
+    def _remaining(self, state: _InstallState) -> float:
+        return state.start + self.timeout_seconds - self.monotonic()
+
+    def _request_timeout(self, state: _InstallState) -> float:
+        """HTTP timeout of one request, capped by the remaining install budget.
+
+        The download request runs first, with the whole budget; every later
+        request is only sent while budget is left. The floor only keeps httpx
+        from getting a zero or negative timeout.
+        """
+        return max(0.001, min(self.request_timeout, self._remaining(state)))
+
+    def _time_out(
+        self, state: _InstallState, jobs: Iterable[_Job], reason: str
+    ) -> None:
+        for job in list(jobs):
+            state.resolve(job.model, Outcome.TIMED_OUT, reason)
+            self._say(f"{job.model.display_name}: TIMED OUT: {reason}")
+
     def _say(self, text: str) -> None:
         self.report(f"{_LOG_PREFIX} {text}")
 
@@ -724,13 +743,15 @@ class ModelInstaller:
             response = self.client.post(
                 f"{self._api}/models/download",
                 json={"names": names},
-                timeout=self.request_timeout,
+                timeout=self._request_timeout(state),
             )
             body = response.json()
         except (httpx.HTTPError, ValueError) as exc:
             reason = (
                 f"POST /models/download failed: {type(exc).__name__}: {clean_text(exc)}"
             )
+            if isinstance(exc, httpx.TimeoutException):
+                reason += "; ViPPET may have started the download anyway"
             for model in to_download:
                 self._fail(state, model, reason)
             return
@@ -771,17 +792,14 @@ class ModelInstaller:
                     f"ViPPET rejected the download (HTTP {code}): {message}",
                 )
 
-    def _get_json(self, path: str) -> Any:
-        response = self.client.get(f"{self._api}{path}", timeout=self.request_timeout)
-        response.raise_for_status()
-        return response.json()
-
-    def _running_jobs(self) -> dict[str, str]:
+    def _running_jobs(self, timeout: float) -> dict[str, str]:
         """Return the newest RUNNING job id per model name.
 
         Raises ``httpx.HTTPError`` or ``ValueError``.
         """
-        listed = self._get_json("/jobs/models/status")
+        response = self.client.get(f"{self._api}/jobs/models/status", timeout=timeout)
+        response.raise_for_status()
+        listed = response.json()
         if not isinstance(listed, list):
             raise ValueError("expected a list")
         newest: dict[str, tuple[float, str]] = {}
@@ -806,8 +824,17 @@ class ModelInstaller:
         pending = [job for job in state.jobs.values() if job.job_id is None]
         if not pending:
             return
+        # A 409 means "installed or downloading"; which one is not known yet.
+        unchecked = (
+            f"the install timeout ({format_duration(self.timeout_seconds)}, "
+            "--model-install-timeout) ran out before ViPPET could be asked "
+            "whether it is installed or still downloading"
+        )
+        if self._remaining(state) <= 0:
+            self._time_out(state, pending, unchecked)
+            return
         try:
-            running = self._running_jobs()
+            running = self._running_jobs(self._request_timeout(state))
         except (httpx.HTTPError, ValueError) as exc:
             for job in pending:
                 self._fail(
@@ -818,22 +845,27 @@ class ModelInstaller:
                 )
             return
 
-        installed: set[str] | None = None
-        lookup_error = ""
+        unmatched: list[_Job] = []
         for job in pending:
             job_id = running.get(job.model.name)
-            if job_id is not None:
-                job.job_id = job_id
-                self._say(
-                    f"{job.model.display_name}: already downloading, waiting for it"
-                )
+            if job_id is None:
+                unmatched.append(job)
                 continue
-            if installed is None:
-                try:
-                    installed = self._installed_names()
-                except (httpx.HTTPError, ValueError) as exc:
-                    installed = set()
-                    lookup_error = f"{type(exc).__name__}: {clean_text(exc)}"
+            job.job_id = job_id
+            self._say(f"{job.model.display_name}: already downloading, waiting for it")
+        if not unmatched:
+            return
+        if self._remaining(state) <= 0:
+            self._time_out(state, unmatched, unchecked)
+            return
+
+        lookup_error = ""
+        try:
+            installed = self._installed_names(self._request_timeout(state))
+        except (httpx.HTTPError, ValueError) as exc:
+            installed = set()
+            lookup_error = f"{type(exc).__name__}: {clean_text(exc)}"
+        for job in unmatched:
             if lookup_error:
                 self._fail(
                     state,
@@ -853,9 +885,9 @@ class ModelInstaller:
                     "it is not installed and no running download was found",
                 )
 
-    def _installed_names(self) -> set[str]:
+    def _installed_names(self, timeout: float) -> set[str]:
         """Names ViPPET reports as installed. Raises on HTTP or JSON errors."""
-        models = fetch_models(self.client, self.base_url, self.request_timeout)
+        models = fetch_models(self.client, self.base_url, timeout)
         return {
             m["name"]
             for m in models
@@ -866,27 +898,28 @@ class ModelInstaller:
     def _wait(self, state: _InstallState) -> None:
         if not state.jobs:
             return
-        deadline = state.start + self.timeout_seconds
         last_summary = self.monotonic()
         while state.jobs:
             for job in list(state.jobs.values()):
+                if self._remaining(state) <= 0:
+                    break
                 self._poll(state, job)
             if not state.jobs:
                 return
-            now = self.monotonic()
-            if now >= deadline:
-                reason = (
+            remaining = self._remaining(state)
+            if remaining <= 0:
+                self._time_out(
+                    state,
+                    state.jobs.values(),
                     f"still installing after {format_duration(self.timeout_seconds)} "
-                    "(--model-install-timeout); the download continues on the server"
+                    "(--model-install-timeout); the download continues on the server",
                 )
-                for job in list(state.jobs.values()):
-                    state.resolve(job.model, Outcome.TIMED_OUT, reason)
-                    self._say(f"{job.model.display_name}: TIMED OUT: {reason}")
                 return
+            now = self.monotonic()
             if now - last_summary >= self.summary_interval:
                 last_summary = now
                 self._say(self._summary(state))
-            self.sleep(min(self.poll_interval, deadline - now))
+            self.sleep(min(self.poll_interval, remaining))
 
     def _summary(self, state: _InstallState) -> str:
         installed = state.count(Outcome.INSTALLED)
@@ -915,7 +948,7 @@ class ModelInstaller:
         try:
             response = self.client.get(
                 f"{self._api}/jobs/models/{job.job_id}/status",
-                timeout=self.request_timeout,
+                timeout=self._request_timeout(state),
             )
         except httpx.HTTPError as exc:
             # Transient: keep waiting until the overall timeout.
