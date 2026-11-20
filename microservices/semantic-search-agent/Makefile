@@ -1,5 +1,8 @@
 .PHONY: help install test lint format run docker-build docker-up docker-down clean
 
+# Use the .env file in the service root for Compose variable interpolation when it exists
+COMPOSE = cd docker && docker compose $(if $(wildcard .env),--env-file ../.env,)
+
 help:
 	@echo "Semantic Comparison Service - Makefile Commands"
 	@echo "================================================"
@@ -43,22 +46,22 @@ run:
 
 docker-build:
 	@echo "🐳 Building Docker image..."
-	cd docker && docker compose build
+	$(COMPOSE) build
 
 docker-up:
 	@echo "🐳 Starting Docker containers..."
-	cd docker && docker compose up -d
+	$(COMPOSE) up -d
 	@echo "✅ Service running at http://localhost:8080"
 	@echo "📊 Metrics at http://localhost:9090/metrics"
 	@echo "📚 API docs at http://localhost:8080/docs"
 
 docker-down:
 	@echo "🐳 Stopping Docker containers..."
-	cd docker && docker compose down
+	$(COMPOSE) down
 
 docker-logs:
 	@echo "📋 Viewing logs..."
-	cd docker && docker compose logs -f semantic-service
+	$(COMPOSE) logs -f semantic-service
 
 clean:
 	@echo "🧹 Cleaning temporary files..."
