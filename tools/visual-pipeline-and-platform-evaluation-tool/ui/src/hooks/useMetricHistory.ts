@@ -39,7 +39,7 @@ export interface MetricHistoryPoint {
 
 const MAX_HISTORY_WINDOW_MS = 60_000;
 
-export const useMetricHistory = () => {
+export const useMetricHistory = (windowMs = MAX_HISTORY_WINDOW_MS) => {
   const metrics = useMetrics();
   const isConnected = useAppSelector(selectIsConnected);
   const [history, setHistory] = useState<MetricHistoryPoint[]>([]);
@@ -97,11 +97,12 @@ export const useMetricHistory = () => {
       };
 
       const updated = [...prev, newPoint];
-      const cutoff = now - MAX_HISTORY_WINDOW_MS;
+      const cutoff = now - windowMs;
       return updated.filter((point) => point.timestamp >= cutoff);
     });
   }, [
     isConnected,
+    windowMs,
     metrics.fps,
     metrics.cpu,
     metrics.cpuDetailed.user,

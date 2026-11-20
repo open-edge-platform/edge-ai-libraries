@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import unittest
 from datetime import datetime, timezone
 from typing import Optional
@@ -644,6 +647,28 @@ class TestPipelinesAPI(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         mock_pipeline_manager_cls.return_value.update_variant.assert_called_once()
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_graph_update_preserves_or_explicitly_clears_cpu_pinning(self, manager):
+        variant = self._create_internal_variant(variant_id="variant-123")
+        variant.pipeline_graph.cpu_pinning = [12, 13]
+        manager.return_value.get_variant_by_ids.return_value = variant
+        manager.return_value.update_variant.return_value = variant
+        for field in ("pipeline_graph", "pipeline_graph_simple"):
+            for pinning, expected in ((None, [12, 13]), ([], []), ([14], [14])):
+                with self.subTest(field=field, pinning=pinning):
+                    graph = _create_test_graph().to_dict()
+                    if pinning is not None:
+                        graph["cpu_pinning"] = pinning
+                    response = self.client.patch(
+                        "/pipelines/pipeline-abc123/variants/variant-123",
+                        json={field: graph},
+                    )
+                    self.assertEqual(response.status_code, 200)
+                    submitted = manager.return_value.update_variant.call_args.kwargs[
+                        field
+                    ]
+                    self.assertEqual(submitted.cpu_pinning, expected)
 
     @patch("api.routes.pipelines.PipelineManager")
     def test_update_variant_read_only_rejected(self, mock_pipeline_manager_cls):

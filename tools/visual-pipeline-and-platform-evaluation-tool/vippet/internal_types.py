@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """Internal dataclass types for pipeline test execution.
 
 This module contains internal representations of API request types used by
@@ -742,6 +745,8 @@ class InternalDensityJobStatus:
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
     latency_tracer_metrics: dict[str, InternalLatencyMetrics] | None = None
+    trials: list[dict[str, Any]] = field(default_factory=list)
+    selected_trial: int | None = None
 
 
 @dataclass

@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 
 import dlsps2_runner
-from dlsps2_runner import Dlsps2PipelineRunner
+from dlsps2_runner import Dlsps2PipelineRunner, VdboxDecoderUnavailable
 
 PIPELINE = "filesrc location=/tmp/a.mp4 ! decodebin3 ! fakesink"
 INSTANCE_ID = "inst-1"
@@ -546,6 +546,29 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
         self.assertEqual(result.total_fps, 29.5)
         self.assertIn("final avg_fps used for 1 stream(s)", result.details or "")
 
+    def test_density_rejects_streams_without_a_common_window(self):
+        done = {"state": "COMPLETED", "avg_fps": 60.0}
+        fake = _FakeStreamSet([[done, _running(60.0)], [done, done]])
+        with self.assertRaisesRegex(RuntimeError, "common measurement window"):
+            self._run_streams(
+                self._runner(max_runtime=10, require_common_window=True), fake
+            )
+        self.assertEqual(len(fake.calls("DELETE")), 2)
+
+    def test_density_accepts_full_common_window_after_warmup(self):
+        fake = _FakeStreamSet([[_running(30.0), _running(20.0)]])
+        result = self._run_streams(
+            self._runner(max_runtime=10, require_common_window=True), fake
+        )
+        self.assertEqual(result.stream_fps, {"a": 30.0, "b": 20.0})
+        self.assertNotIn("final avg_fps", result.details or "")
+
+    def test_density_rejects_runtime_without_measurement_window(self):
+        fake = _FakeStreamSet([[_running(30.0)]])
+        with self.assertRaisesRegex(ValueError, "at least 10 seconds"):
+            self._run(self._runner(max_runtime=4, require_common_window=True), fake)
+        self.assertEqual(fake.requests, [])
+
     def test_server_message_is_returned_in_stderr(self):
         fake = _FakeStreamSet([[{"state": "COMPLETED", "message": "EOS"}]])
 
@@ -564,6 +587,54 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
         self.assertIn("Stream b failed on DLSPS 2.0: device lost", str(ctx.exception))
         self.assertEqual(len(fake.calls("DELETE")), 2)
         self.assertEqual(self._pushed_values(), [0.0])
+
+    def test_va_decodebin_error_is_distinguished_after_cleanup(self):
+        launch = PIPELINE.replace(
+            "decodebin3", 'decodebin3 caps="video/x-raw(memory:VAMemory)"'
+        )
+        fake = _FakeStreamSet(
+            [
+                [
+                    _running(30.0),
+                    {
+                        "state": "ERROR",
+                        "message": "Your GStreamer installation is missing a plug-in. (element: decodebin3-94)",
+                    },
+                ]
+            ]
+        )
+        with self.assertRaises(VdboxDecoderUnavailable):
+            self._run(
+                self._runner(),
+                fake,
+                total_streams=2,
+                stream_commands={"a": launch, "b": launch},
+            )
+        self.assertEqual(len(fake.calls("DELETE")), 2)
+
+    def test_va_decodebin_general_error_only_matches_before_first_frame(self):
+        launch = PIPELINE.replace(
+            "decodebin3", 'decodebin3 caps="video/x-raw(memory:VAMemory)"'
+        )
+        for first_frame_time in (None, 1000.0):
+            with self.subTest(first_frame_time=first_frame_time):
+                fake = _FakeStreamSet(
+                    [
+                        [
+                            {
+                                "state": "ERROR",
+                                "message": "GStreamer encountered a general stream error. (element: decodebin3-379)",
+                                "first_frame_time": first_frame_time,
+                            }
+                        ]
+                    ]
+                )
+                with self.assertRaises(RuntimeError) as error:
+                    self._run(self._runner(), fake, stream_commands={"a": launch})
+                self.assertEqual(
+                    isinstance(error.exception, VdboxDecoderUnavailable),
+                    first_frame_time is None,
+                )
 
     def test_cancel_stops_without_raising(self):
         runner = self._runner()
@@ -683,6 +754,18 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
             [json.loads(p.content) for p in fake.calls("POST")],
             [{"pipeline": PIPELINE, "validate_pipeline": False, "cpu_cores": [1, 3]}],
         )
+
+    def test_per_stream_pinning_overrides_test_level_pinning(self):
+        runner = self._runner(pinned_cpu_cores=[1, 3])
+        fake = _FakeDlsps2([])
+        with fake.client() as client:
+            runner._start(client, PIPELINE, cpu_cores=[12])
+            runner._start(client, PIPELINE, cpu_cores=[])
+            runner._start(client, PIPELINE)
+        bodies = [json.loads(request.content) for request in fake.calls("POST")]
+        self.assertEqual(bodies[0]["cpu_cores"], [12])
+        self.assertNotIn("cpu_cores", bodies[1])
+        self.assertEqual(bodies[2]["cpu_cores"], [1, 3])
 
     def test_invalid_launch_string_raises_before_any_instance_starts(self):
         fake = _FakeStreamSet(

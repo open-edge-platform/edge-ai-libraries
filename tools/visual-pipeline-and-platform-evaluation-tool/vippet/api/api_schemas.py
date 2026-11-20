@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
@@ -538,6 +541,20 @@ class PipelineGraph(BaseModel):
     - `nodes` - List of graph nodes
     - `edges` - Directed connections between nodes
     """
+
+    cpu_pinning: List[int] = Field(
+        default_factory=list,
+        description="Logical CPU ids assigned round-robin, one core per stream. Empty uses test-level pinning.",
+    )
+
+    @field_validator("cpu_pinning", mode="before")
+    @classmethod
+    def _validate_cpu_pinning(cls, cpus: object) -> List[int]:
+        if not isinstance(cpus, list) or any(
+            type(cpu) is not int or cpu < 0 for cpu in cpus
+        ):
+            raise ValueError("cpu_pinning must be a list of non-negative CPU ids.")
+        return list(dict.fromkeys(cpus))
 
     nodes: List[Node] = Field(
         ...,
@@ -1550,6 +1567,11 @@ class DensityTestSpec(BaseModel):
     """
     **Request body for starting a density test.**
 
+    A media-only VDBox variant (`decodebin3` with VAMemory caps) paired with a
+    CPU variant (`avdec_h264` / `avdec_h265`), without fixed `streams`, selects
+    hybrid decode search: maximize VDBox first, then maximize CPU while keeping
+    the VDBox count fixed. Ratios are ignored for this pair.
+
     Supports two modes, selected automatically from the request shape
     (see ``PipelineDensitySpec`` for details):
 
@@ -2039,6 +2061,18 @@ class PerformanceJobStatus(TestsJobStatus):
     )
 
 
+class DensityTrial(BaseModel):
+    index: int
+    stage: Literal["density", "vdbox", "cpu"]
+    started_at: int
+    ended_at: int | None = None
+    measurement_started_at: int | None = None
+    measurement_ended_at: int | None = None
+    streams_per_pipeline: dict[str, int]
+    min_stream_fps: float | None = None
+    passed: bool | None = None
+
+
 class DensityJobStatus(TestsJobStatus):
     """
     **Status of a density test job.**
@@ -2051,7 +2085,8 @@ class DensityJobStatus(TestsJobStatus):
     - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     """
 
-    pass
+    trials: list[DensityTrial] = Field(default_factory=list)
+    selected_trial: int | None = None
 
 
 class AudioJobSummary(BaseModel):

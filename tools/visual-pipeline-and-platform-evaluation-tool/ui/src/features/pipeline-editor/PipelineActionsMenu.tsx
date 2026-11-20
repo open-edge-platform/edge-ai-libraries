@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { useState } from "react";
 import type { Pipeline } from "@/api/api.generated";
 import {
@@ -61,6 +64,7 @@ import {
 } from "./shared";
 
 interface PipelineActionsMenuProps {
+  cpuPinning?: number[];
   pipeline: Pipeline;
   variantId: string;
   currentNodes: ReactFlowNode[];
@@ -80,6 +84,7 @@ interface PipelineActionsMenuProps {
 }
 
 export const PipelineActionsMenu = ({
+  cpuPinning = [],
   pipeline,
   variantId,
   currentNodes,
@@ -195,8 +200,9 @@ export const PipelineActionsMenu = ({
       }).unwrap();
 
       // Import createGraphLayout dynamically
-      const { createGraphLayout } =
-        await import("@/features/pipeline-editor/utils/graphLayout");
+      const { createGraphLayout } = await import(
+        "@/features/pipeline-editor/utils/graphLayout"
+      );
 
       const nodesWithPositions = createGraphLayout(
         result.pipeline_graph.nodes.map((node) => ({
@@ -234,6 +240,7 @@ export const PipelineActionsMenu = ({
   const handleOptimizePipeline = async () => {
     try {
       const pipelineGraph = {
+        cpu_pinning: cpuPinning,
         nodes: currentNodes.map((node) => ({
           id: node.id,
           type: node.type ?? "",
@@ -293,8 +300,9 @@ export const PipelineActionsMenu = ({
       const applyOptimizedPipeline = async () => {
         toast.dismiss();
 
-        const { createGraphLayout } =
-          await import("@/features/pipeline-editor/utils/graphLayout");
+        const { createGraphLayout } = await import(
+          "@/features/pipeline-editor/utils/graphLayout"
+        );
 
         const nodesWithPositions = createGraphLayout(
           optimizedGraph.nodes.map((node) => ({
@@ -636,6 +644,7 @@ export const PipelineActionsMenu = ({
       </Dialog>
 
       <EditVariantDialog
+        cpuPinning={cpuPinning}
         mode={editVariantMode}
         pipelineId={pipelineId}
         variantId={variantId}

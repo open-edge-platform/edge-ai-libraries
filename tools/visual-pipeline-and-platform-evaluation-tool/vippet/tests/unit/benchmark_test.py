@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import unittest
 from unittest.mock import patch, MagicMock
@@ -8,7 +11,7 @@ from benchmark import (
     Benchmark,
     BenchmarkResult,
 )
-from dlsps2_runner import Dlsps2PipelineRunner
+from dlsps2_runner import Dlsps2PipelineRunner, VdboxDecoderUnavailable
 from graph import Graph, Node, Edge
 from internal_types import (
     InternalExecutionConfig,
@@ -65,6 +68,148 @@ def create_internal_execution_config(
 
 
 class TestBenchmark(unittest.TestCase):
+    @patch("benchmark.PipelineManager")
+    def test_density_defaults_to_looped_common_window(self, manager):
+        manager.return_value.build_pipeline_command.return_value = PipelineCommand(
+            command=""
+        )
+        benchmark = Benchmark()
+        result = PipelineResult(
+            total_fps=20, per_stream_fps=20, num_streams=1, exit_code=0
+        )
+        with patch.object(benchmark.runner, "run", return_value=result):
+            benchmark.run(
+                [create_internal_density_spec("cpu", "CPU")],
+                30,
+                create_internal_execution_config(),
+                "looped-density",
+            )
+        self.assertTrue(benchmark.runner.require_common_window)
+        self.assertEqual(benchmark.runner.max_runtime, 30)
+        for call in manager.return_value.build_pipeline_command.call_args_list:
+            self.assertEqual(call.args[1].max_runtime, 30)
+
+    @patch("benchmark.PipelineManager")
+    def test_media_density_searches_vdbox_before_cpu(self, manager):
+        hardware = create_internal_density_spec("vdbox", "VDBox", stream_rate=50)
+        hardware.pipeline_graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="decodebin3",
+                    data={"caps": "video/x-raw(memory:VAMemory)"},
+                )
+            ],
+            edges=[],
+        )
+        software = create_internal_density_spec("cpu", "CPU", stream_rate=50)
+        software.pipeline_graph = Graph(
+            nodes=[Node(id="0", type="avdec_h264", data={})], edges=[]
+        )
+        allocations = []
+
+        def build(specs, config, job_id):
+            allocations.append({spec.pipeline_id: spec.streams for spec in specs})
+            return PipelineCommand(command="")
+
+        manager.return_value.build_pipeline_command.side_effect = build
+        benchmark = Benchmark()
+        cpu_limit = 2
+        hardware_limit = 3
+
+        def measure(command, streams, **kwargs):
+            counts = allocations[-1]
+            if hardware_limit and counts.get("vdbox", 0) > hardware_limit:
+                raise VdboxDecoderUnavailable("No suitable plugins found")
+            passed = (
+                counts.get("vdbox", 0) <= hardware_limit
+                and counts.get("cpu", 0) <= cpu_limit
+            )
+            fps = 30 if passed else 20
+            return PipelineResult(
+                total_fps=streams * fps,
+                per_stream_fps=fps,
+                stream_fps={str(index): fps for index in range(streams)},
+                num_streams=streams,
+                exit_code=0,
+            )
+
+        with patch.object(benchmark.runner, "run", side_effect=measure):
+            result = benchmark.run(
+                [software, hardware], 30, create_internal_execution_config(), "hybrid"
+            )
+        self.assertEqual(
+            [(spec.id, spec.streams) for spec in result.streams_per_pipeline],
+            [("cpu", 2), ("vdbox", 3)],
+        )
+        first_cpu = next(
+            index for index, counts in enumerate(allocations) if "cpu" in counts
+        )
+        self.assertTrue(all("cpu" not in counts for counts in allocations[:first_cpu]))
+        self.assertTrue(all(counts["vdbox"] == 3 for counts in allocations[first_cpu:]))
+        rejected = next(
+            trial
+            for trial in benchmark.trials
+            if trial["streams_per_pipeline"] == {"vdbox": 4}
+        )
+        self.assertIs(rejected["passed"], False)
+        self.assertIsNone(rejected["min_stream_fps"])
+        self.assertTrue(
+            all(trial["stage"] == "vdbox" for trial in benchmark.trials[:first_cpu])
+        )
+        self.assertTrue(
+            all(trial["stage"] == "cpu" for trial in benchmark.trials[first_cpu:])
+        )
+        self.assertTrue(
+            all(trial["ended_at"] is not None for trial in benchmark.trials)
+        )
+
+        cpu_limit = 0
+        previous_allocations = len(allocations)
+        with patch.object(benchmark.runner, "run", side_effect=measure):
+            result = benchmark.run(
+                [software, hardware],
+                30,
+                create_internal_execution_config(),
+                "hybrid-no-cpu",
+            )
+        self.assertEqual(
+            [(spec.id, spec.streams) for spec in result.streams_per_pipeline],
+            [("cpu", 0), ("vdbox", 3)],
+        )
+        self.assertEqual(result.per_stream_fps, 30)
+        self.assertEqual(
+            [
+                counts
+                for counts in allocations[previous_allocations:]
+                if "cpu" in counts
+            ],
+            [{"vdbox": 3, "cpu": 1}],
+        )
+
+        hardware_limit = 0
+        initial_failure = Benchmark()
+        with patch.object(
+            initial_failure.runner,
+            "run",
+            side_effect=VdboxDecoderUnavailable("missing decoder"),
+        ):
+            with self.assertRaisesRegex(VdboxDecoderUnavailable, "missing decoder"):
+                initial_failure.run(
+                    [hardware, software],
+                    30,
+                    create_internal_execution_config(),
+                    "hybrid-missing-decoder",
+                )
+        with patch.object(benchmark.runner, "run", side_effect=measure):
+            with self.assertRaisesRegex(RuntimeError, "No VDBox stream"):
+                benchmark.run(
+                    [hardware, software],
+                    30,
+                    create_internal_execution_config(),
+                    "hybrid-no-vdbox",
+                )
+
     def setUp(self):
         self.fps_floor = 30
         self.job_id = "test-job-123"
