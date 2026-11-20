@@ -14,7 +14,7 @@ for your host, or a container image.
 - `git`.
 - Linux with `/dev/shm` mounted as tmpfs (to run the application on the host).
 
-## Get the source code
+## Get the Source Code
 
 This repository holds many projects. Use a sparse checkout to download only the
 `stream-manager` project, on a single branch:
@@ -31,7 +31,7 @@ cd microservices/stream-manager
 
 All other commands in this guide run from this `stream-manager` directory.
 
-## Build and run on your host
+## Build and Run on Your Host
 
 To run the application on the host, install `ffmpeg` and `ffprobe` and make sure
 both commands are on `PATH`. Container builds and runs do not require these tools
@@ -61,10 +61,9 @@ To use your own configuration file:
 make run CONFIG_FILE=/path/to/config.json
 ```
 
-See [Host run options](configuration.md#host-run-options) for defaults and
-host data directory settings.
+See [Host run options](./configuration.md#host-run-options) for default settings.
 
-## Build and run a container image
+## Build and Run a Container Image
 
 Build the image:
 
@@ -86,7 +85,7 @@ make docker-build IMAGE=<your_image_name>:<tag>
 
 > [!IMPORTANT]
 > The third-party source archives are provided in a separate source image.
-> See [Third-Party Sources](third-party-sources.md) for instructions to copy
+> See [Third-Party Sources](../third-party-sources.md) for instructions to copy
 > FFmpeg, its dependencies, and base image source files.
 
 Run the image you built, or a published image you already have:
@@ -100,10 +99,10 @@ make docker-run IMAGE=<your_image_name>:<tag>
 > If you do not set `IMAGE`, it pulls and runs
 > the default image, `intel/stream-manager:2026.3.0-rc1`.
 
-`make docker-run` publishes the container's port `8080` to a random host port.
-It prints the assigned port and the application and API docs URLs after it starts.
+`make docker-run` publishes the container's port `8080` to a free host port.
+It prints the assigned port and the application and API documentation URLs after it starts.
 
-See [Container run options](configuration.md#container-run-options) for configuration
+See [Container run options](./configuration.md#container-run-options) for configuration
 file and data mount options.
 
 Stop and remove the running container:
@@ -118,5 +117,5 @@ Remove built host binaries (keeps the `./bin` directory):
 make clean
 ```
 
-See [Get Started](get-started.md) for how to use the running application, and
-[API Reference](api-docs/api-reference.md) for all endpoints.
+See [Get Started](../get-started.md) for how to use the running application, and
+[API Reference](../api-reference.md) for all endpoints.
