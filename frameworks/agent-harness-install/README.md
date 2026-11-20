@@ -53,6 +53,13 @@ sandbox defaults do not change host-mode model selection. See the
 [sandbox setup and policy boundaries](./docs/user-guide/agentic-ai-security/agent-sandboxing.md#getting-started)
 for prerequisites and limitations.
 
+For fresh and reused `hf-snapshot` models, the installer adds the tokenizer's
+EOS token to `generation_config.json` when missing, preserving existing stop
+IDs. For Qwen3.5 this prevents generation from continuing past `<|im_end|>` into
+invented conversation turns. If repairing an already running deployment, restart
+its managed OVMS container after provisioning the model so it loads the updated
+configuration; reconnecting the TUI alone does not reload model settings.
+
 ## Documentation
 
 - [Get Started](./docs/user-guide/get-started.md): install flow, usage and
