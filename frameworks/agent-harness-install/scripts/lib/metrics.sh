@@ -48,7 +48,7 @@ METRICS_RECEIVER_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/metrics-o
 # Fences around the exporter settings this installer writes into dcode's .env.
 METRICS_ENV_BEGIN="# BEGIN agent-harness-install metrics (managed; edit with './install.sh observability')"
 METRICS_ENV_END="# END agent-harness-install metrics"
-# The Router's JSONL file is rotated to telemetry.jsonl.1 (one generation) when
+# The Router's JSONL file is rotated to ir_metrics.jsonl.1 (one generation) when
 # the installer next prepares it and it is larger than this many bytes; 0 turns
 # rotation off. The Router re-reads the whole file for every /v1/metrics call.
 HARNESS_IR_TELEMETRY_MAX_BYTES="${HARNESS_IR_TELEMETRY_MAX_BYTES:-20971520}"
@@ -59,7 +59,7 @@ HARNESS_IR_TELEMETRY_MAX_BYTES="${HARNESS_IR_TELEMETRY_MAX_BYTES:-20971520}"
 HARNESS_IR_TELEMETRY_FILE_MODE="${HARNESS_IR_TELEMETRY_FILE_MODE:-664}"
 
 METRICS_CONFIG_MARKER="# Managed by agent-harness-install (metrics)"
-METRICS_ROUTER_JSONL_NAME="telemetry.jsonl"
+METRICS_ROUTER_JSONL_NAME="ir_metrics.jsonl"
 # Set by metrics_harness_check; the default keeps direct calls to the helpers working.
 M_AGENT="${M_AGENT:-hermes}"
 # Plain http(s) URL, no userinfo/query/quotes: the value is written into YAML.
@@ -1345,7 +1345,7 @@ metrics_disable_router() {
   fi
 }
 
-# Empties telemetry.jsonl in place. Runs after the restart that switched the
+# Empties ir_metrics.jsonl in place. Runs after the restart that switched the
 # Router back to memory, so nothing is appending to it; the restart also reset
 # the in-memory counters.
 metrics_clean_router() {

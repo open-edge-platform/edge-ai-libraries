@@ -159,7 +159,7 @@ inference_router_telemetry_block() {
     persisted="$(metrics_state_get router.enabled)"
   fi
   if [[ "$persisted" == true ]]; then
-    printf 'telemetry:\n  backend: "file"\n  file_path: "/app/telemetry.jsonl"\n  enabled: true'
+    printf 'telemetry:\n  backend: "file"\n  file_path: "/app/ir_metrics.jsonl"\n  enabled: true'
   else
     printf 'telemetry:\n  backend: "memory"\n  enabled: true'
   fi

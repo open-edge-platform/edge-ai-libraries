@@ -185,7 +185,7 @@ harness, and shows their state:
 | `show` | None | A CLI summary of what was collected, and the Jaeger UI address when Jaeger is the backend (Jaeger is the full trace view) |
 
 - The Inference Router telemetry backend switches to a JSONL file
-  (`telemetry.jsonl` in the router workspace), restarts the router, and
+  (`ir_metrics.jsonl` in the router workspace), restarts the router, and
   `show` reads `/v1/metrics`. `disable` reverts to the in-memory backend.
   The restart interrupts any request in flight, so run these between agent
   sessions, not during one.
@@ -288,7 +288,7 @@ installed). Each agent keeps its own exporter; the installer only configures it.
 
 `disable` keeps what was collected unless you ask otherwise:
 
-| Command | Router `telemetry.jsonl` | Harness local store (for example `hermes_otel_live.db`) | Managed Jaeger and its traces |
+| Command | Router `ir_metrics.jsonl` | Harness local store (for example `hermes_otel_live.db`) | Managed Jaeger and its traces |
 |---|---|---|---|
 | `observability disable` | Kept | Kept | Removed |
 | `observability disable --clean` | Emptied | Emptied | Removed |
@@ -335,7 +335,7 @@ Limitations: harness telemetry is not available in OpenShell sandboxes (the
 sandbox has no network egress beyond the router). After an OpenShell install, pass `--runtime openshell` to
 `observability` (otherwise the runtime defaults to `host`). Router telemetry
 works in both
-runtimes. The Router's `telemetry.jsonl` is append-only while the Router runs;
+runtimes. The Router's `ir_metrics.jsonl` is append-only while the Router runs;
 the installer rotates it once it exceeds `HARNESS_IR_TELEMETRY_MAX_BYTES` (see
 [Router telemetry file](#router-telemetry-file)).
 Overrides:
@@ -389,7 +389,7 @@ the machine: the Router appends to a local file and does not export telemetry.
 
 | | `memory` (default) | `file` (after `observability enable`) |
 |---|---|---|
-| Storage | Router process memory | `telemetry.jsonl`, bind-mounted from the container's `/app/telemetry.jsonl` to `~/.agent-harness-install/inference-router/workspace/telemetry.jsonl` |
+| Storage | Router process memory | `ir_metrics.jsonl`, bind-mounted from the container's `/app/ir_metrics.jsonl` to `~/.agent-harness-install/inference-router/workspace/ir_metrics.jsonl` |
 | `GET /v1/metrics` | Reads the in-process counters | Re-reads and re-parses the whole file |
 | Router restart | Counters reset to zero | History is kept; a restart never truncates the file |
 
@@ -407,7 +407,7 @@ What clears the file:
 - Rotation: when the installer next prepares the file (an install, or
   `observability enable`) and it is larger than
   `HARNESS_IR_TELEMETRY_MAX_BYTES` (default 20 MiB; `0` turns rotation off),
-  it is moved to `telemetry.jsonl.1` (mode 600) and a fresh file is started.
+  it is moved to `ir_metrics.jsonl.1` (mode 600) and a fresh file is started.
   Only one previous generation is kept, and `/v1/metrics` counts only the new
   file. `observability show` warns when the file is over the limit, and
   `--clean` removes the rotated file too.

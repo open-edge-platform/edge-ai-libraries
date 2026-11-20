@@ -92,7 +92,7 @@ usage() {
                                        only (default); jaeger = managed loopback Jaeger container, or your own Jaeger at --endpoint
     --endpoint <url>                   enable only; OTLP/HTTP traces URL of an existing Jaeger, e.g. http://host:4318/v1/traces
     --content <off|preview|full>       enable only; how much prompt/response text is recorded (default: off; OpenClaw/dcode: preview needs sqlite)
-    --clean                            disable only; also delete the collected data (Router telemetry.jsonl, harness local store,
+    --clean                            disable only; also delete the collected data (Router ir_metrics.jsonl, harness local store,
                                        and the managed Jaeger with its traces)
     --keep-jaeger                      disable only; keep the managed Jaeger container (and its traces) running
     show prints a CLI summary (Router requests/tokens/latency per model; harness local-store span summary) and the Jaeger UI
@@ -153,7 +153,7 @@ usage() {
     HARNESS_HERMES_OTEL_REF        Pin the plugin install to this full 40-character commit SHA ('--ref'; default: unset)
     HARNESS_OPENCLAW_OTEL_PLUGIN   npm spec of OpenClaw's OTel plugin (default: @openclaw/diagnostics-otel at the installed OpenClaw version)
     HARNESS_OTLP_RECEIVER_PORT, HARNESS_OTLP_RECEIVER_MAX_ROWS  Loopback OTLP receiver for 'observability enable --backend sqlite' with OpenClaw/dcode (default: 4319, 200000 rows)
-    HARNESS_IR_TELEMETRY_MAX_BYTES  Rotate the Router's telemetry.jsonl to telemetry.jsonl.1 at install/enable above this size (default: 20971520; 0 = never)
+    HARNESS_IR_TELEMETRY_MAX_BYTES  Rotate the Router's ir_metrics.jsonl to ir_metrics.jsonl.1 at install/enable above this size (default: 20971520; 0 = never)
     HARNESS_IR_TELEMETRY_FILE_MODE  664 (default; Router joins your primary group) | 666 (world-writable; for rootless Docker or a Router created without your group)
     HARNESS_JAEGER_IMAGE, HARNESS_JAEGER_CONTAINER, HARNESS_JAEGER_UI_PORT, HARNESS_JAEGER_OTLP_PORT  Managed Jaeger for 'observability enable --backend jaeger' (default: jaegertracing/all-in-one:1.76.0, 16686, 4318; loopback only)
     HARNESS_MCP_REGISTER_CMD       Script to register an MCP endpoint with a non-Hermes agent

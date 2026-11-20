@@ -111,9 +111,9 @@ router_toggle() {
   local cfg="$HARNESS_IR_WORKSPACE_DIR/config.yaml"
   metrics_router_apply true
   grep -Fq 'backend: "file"' "$cfg"
-  grep -Fq 'file_path: "/app/telemetry.jsonl"' "$cfg"
+  grep -Fq 'file_path: "/app/ir_metrics.jsonl"' "$cfg"
   grep -Fq 'policy: "Balanced"' "$cfg"
-  [[ -f "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
+  [[ -f "$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" ]]
   [[ "$(metrics_state_get router.enabled)" == true ]]
   [[ "$(grep -c '^telemetry:' "$cfg")" == 1 ]]
   grep -Fxq "docker restart $HARNESS_IR_CONTAINER" "$ACTIONS"
@@ -121,7 +121,7 @@ router_toggle() {
   grep -Fq 'backend: "memory"' "$cfg"
   refute grep -Fq 'file_path' "$cfg"
   [[ "$(metrics_state_get router.enabled)" == false ]]
-  [[ -f "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
+  [[ -f "$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" ]]
 }
 
 router_setting_survives_config_regeneration() {
@@ -295,7 +295,7 @@ plugin_ref_pins_the_install() {
 router_file_is_not_world_writable() {
   [[ "$(uname -s)" == Linux ]] || { echo "# skipped: needs GNU stat"; return 0; }
   fixture
-  local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl"
+  local file="$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl"
   if [[ "$(metrics_router_host_gid)" == 0 ]]; then
     # Group 0 cannot be shared safely, so 664 must not silently become 666.
     expect_failure 'HARNESS_IR_TELEMETRY_FILE_MODE=666' metrics_router_apply true
@@ -317,7 +317,7 @@ router_state_is_unchanged_when_file_preparation_fails() {
   fixture
   HARNESS_IR_TELEMETRY_FILE_MODE=666 HARNESS_IR_TELEMETRY_MAX_BYTES=big \
     expect_failure 'must be a non-negative integer' metrics_router_apply true
-  [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
+  [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" ]]
   refute grep -q restart "$ACTIONS"
   if [[ "$(metrics_router_host_gid)" != 0 ]]; then
     TEST_DOCKER_LS_FAILS=1 expect_failure 'Cannot inspect Docker containers' metrics_router_apply true
@@ -329,7 +329,7 @@ router_enable_rejects_a_container_without_the_group() {
   [[ "$(metrics_router_host_gid)" != 0 ]] || { echo "# skipped: root has no private group"; return 0; }
   fixture
   TEST_IR_GROUPADD='null' expect_failure 'cannot write the telemetry file' metrics_router_apply true
-  [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
+  [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" ]]
   TEST_IR_GROUPADD='null' HARNESS_IR_TELEMETRY_FILE_MODE=666 metrics_router_apply true
   [[ "$(metrics_state_get router.enabled)" == true ]]
 }
@@ -365,7 +365,7 @@ host_gid_ignores_a_switched_primary_group() {
 
 router_file_is_rotated_when_large() {
   fixture
-  local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl"
+  local file="$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl"
   printf '0123456789\n' >"$file"
   HARNESS_IR_TELEMETRY_MAX_BYTES=100 metrics_router_prepare_file
   [[ "$(cat "$file")" == 0123456789 && ! -e "$file.1" ]]
@@ -497,7 +497,7 @@ parse_disable_options() {
 
 router_disable_clean_is_opt_in() {
   fixture
-  local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl"
+  local file="$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl"
   metrics_router_apply true
   printf '{"event_type":"request_completed"}\n{"event_type":"request_completed"}\n' >"$file"
   M_CLEAN=""
@@ -705,7 +705,7 @@ content_capture_warns_for_remote_endpoints() {
 
 clean_failures_are_reported() {
   fixture
-  local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" out
+  local file="$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" out
   printf 'keep\n' >"$HOME/elsewhere"
   ln -s "$HOME/elsewhere" "$file"
   [[ -L "$file" ]] || { echo "# skipped: symlinks unavailable"; return 0; }
