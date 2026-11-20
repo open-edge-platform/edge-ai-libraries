@@ -17,7 +17,7 @@
 # syntax=docker/dockerfile:1.7
 
 # Use DLStreamer as the base image
-ARG DLSTREAMER_IMAGE=intel/dlstreamer:2026.3.0-ubuntu24-rc1
+ARG DLSTREAMER_IMAGE=intel/dlstreamer:2026.3.0-ubuntu26-rc1
 
 # Aravis GStreamer plugin (aravissrc, GigE Vision cameras) for DL Streamer Pipeline Server 2.0,
 # whose image does not include it. The plugin and libaravis go to gst_plugins/aravis/, which the
