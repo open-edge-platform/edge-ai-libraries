@@ -1,3 +1,11 @@
+<!--hide_directive
+```{eval-rst}
+.. meta::
+   :description: Learn how the Inference Router plugin system works, review the implemented plugins, and register a new plugin.
+   :keywords: Inference Router, plugins, plugin contract, prerouting, postrouting, postresponse, standalone, compressor, provider management, dummy logger, register plugin
+```
+hide_directive-->
+
 # Plugins
 
 The router runs custom logic against each request or response through **plugins**.
@@ -35,7 +43,7 @@ Within a stage, instances run **sequentially in the order they appear** in
 `config.yaml`; each one receives the output of the previous. `standalone` plugins
 are exempt — they do not run in any stage.
 
-### Attaching Plugins to Providers
+### Attach Plugins to Providers
 
 By default a `postrouting` or `postresponse` instance runs for every request. To
 run it only for some providers, list its `name` under those providers' `plugins`:
@@ -103,7 +111,7 @@ curl -s -XPOST localhost:8000/v1/providers/local -H 'Content-Type: application/j
 
 ## The Plugin Contract
 
-The plugin subclass `PluginBaseNode` in [src/plugins/base.py](../../src/plugins/base.py)
+The plugin subclass `PluginBaseNode` in [src/plugins/base.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/plugins/base.py)
 implements the plugin contract in Inference Router. Only the following two methods are
 required; everything else has a safe default, so you override only what you need.
 
@@ -117,8 +125,8 @@ required; everything else has a safe default, so you override only what you need
 **Optional hooks (defaults in parentheses):**
 
 - `init()` — set up after the plugin instance's `settings` are validated; used to build
-  clients, register with shared managers, and etc. (no-op).
-- `process_request(request, **kwargs)` — acts on the request; returns the possibly 
+  clients, register with shared managers, etc. (no-op).
+- `process_request(request, **kwargs)` — acts on the request; returns the possibly
   modified request (passthrough). Overrides must keep `**kwargs`: at the
   `postrouting` stage the router passes `provider_name` (the provider chosen for
   the request) and `metrics_values={"provider": provider_name}`.
@@ -138,19 +146,17 @@ required; everything else has a safe default, so you override only what you need
   called once per plugin type, regardless of instance count. Define plugin endpoints under
   the `/plugins/{node}/...` path namespace to avoid collisions (`None`).
 
-
 ## Currently Implemented Plugins
 
-| `node`                | Stage(s)                       | What It Does                                                          |
-| --------------------- | ------------------------------ | --------------------------------------------------------------------- |
-| `compressor`          | `prerouting` and `postrouting` | Compresses prompts before the backend call to cut token usage.        |
-| `provider_management` | any (route-only)               | Starts or stops a provider via an external Local Provider Manager; loads/unloads vLLM LoRA adapters. |
-| `dummy_logger`        | any                            | Logs the stage where the plugin was invoked and serves as a plugin contract reference implementation. |
-
+| `node`                | Stage(s)                       | What It Does                                                                                                               |
+| --------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `compressor`          | `prerouting` and `postrouting` | Compresses prompts before the backend call to cut token usage.                                                             |
+| `provider_management` | any (route-only)               | Starts or stops a provider via an external Local Provider Manager; loads/unloads vLLM Low-Rank Adaptation (LoRA) adapters. |
+| `dummy_logger`        | any                            | Logs the stage where the plugin was invoked and serves as a plugin contract reference implementation.                      |
 
 ### `compressor` Plugin
 
-Source: [src/plugins/compressor.py](../../src/plugins/compressor.py).
+Source: [src/plugins/compressor.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/plugins/compressor.py).
 
 Reduces prompt tokens before the request reaches the backend, using the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
@@ -162,9 +168,8 @@ compressor type; the type is chosen per instance through `settings.type`:
 - `harness` — compresses system or developer messages using a **compress server**.
 - `context` — compresses the conversation context.
 
->  **Caution:** The context compressor is experimental and is disabled by default.
-
-
+> [!CAUTION]
+> The context compressor is experimental and is disabled by default.
 
 How it works:
 
@@ -184,7 +189,7 @@ How it works:
   rejected at any other stage (at `prerouting` the provider is not chosen yet). See
   [Splitting metrics by provider](./get-started.md#splitting-metrics-by-provider).
 - A `postrouting` compressor can be
-  [attached to providers](#attaching-plugins-to-providers), so it compresses
+  [attached to providers](#attach-plugins-to-providers), so it compresses
   only requests routed to them. Providers that list the same compressor share
   one instance; with `metrics_keys: ["provider"]`, its `metrics_by_keys.provider`
   splits the numbers per provider.
@@ -267,7 +272,7 @@ repository for deployment and per-compressor behavior.
 
 ### `provider_management` Plugin
 
-Source: [src/plugins/provider_management.py](../../src/plugins/provider_management.py).
+Source: [src/plugins/provider_management.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/plugins/provider_management.py).
 
 This plugin lets the router drive an external **Local Provider Manager** — a
 service that starts and stops serving backends (containers) on demand and exposes
@@ -275,14 +280,14 @@ an HTTP API (`POST /providers`, `DELETE /providers/{name}`). It contributes HTTP
 routes rather than a request hook (its `process_request` hook is a passthrough).
 
 The plugin controls the provider **services** only — it never reads or changes
-the router's provider config. Whether the router routes to a service is up to you,
+the router's provider configuration. Whether the router routes to a service is up to you,
 through the [providers API](./api-reference.md#create-or-update-provider)
 (`POST` / `DELETE /v1/providers/{name}`). The two are independent: starting a
 service does not register or enable a provider, and stopping one does not disable
 or remove it.
 
 The manager is a single service; give the plugin its base URL in a `plugins:`
-entry under the `standalone` (non-hook) stage — it is route-only and must not run in
+entry under the `standalone` (non-hook) stage — the plugin is route-only and must not run in
 any request/response chain:
 
 ```yaml
@@ -296,16 +301,16 @@ plugins:
 ```
 
 **Start** — `POST /v1/providers/manage` with the manager's start-request body
-(docker params: `name` / `image` / `entrypoint` / `env` / `volumes` /
+(docker parameters: `name` / `image` / `entrypoint` / `env` / `volumes` /
 `docker_args` / `command`). The service `name` travels in the body (there is no
 `{name}` in the path — the manager keys the container on it). Optionally add
 `health_endpoint` — a URL (reachable from the router) that answers 2xx once the
-backend is ready, e.g. `http://localhost:24680/health` (vLLM) or
-`http://localhost:24690/v2/health/ready` (OVMS).
+backend is ready, e.g., `http://localhost:24680/health` for vLLM or
+`http://localhost:24690/v2/health/ready` for OpenVINO™ Model Server (OVMS).
 
-The plugin forwards the docker params to `POST {manager_url}/providers`, which
+The plugin forwards the docker parameters to `POST {manager_url}/providers`, which
 runs `docker run -d` and records the result, and returns the manager's response
-(e.g. a 500 if `docker run` fails). With `health_endpoint` set the plugin first
+(e.g., a 500 if `docker run` fails). With `health_endpoint` set the plugin first
 polls it until it answers 2xx — failing fast with 502 if the manager reports the
 container stopped, or 504 after `management_timeout` — and on failure removes the
 container through the manager.
@@ -405,7 +410,7 @@ request, but stop and inspect read it only from the plugin settings.
 
 ### `dummy_logger` Plugin
 
-Source: [src/plugins/dummy.py](../../src/plugins/dummy.py).
+Source: [src/plugins/dummy.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/plugins/dummy.py).
 
 A plugin example that prints the stage that invoked it, and passes the
 request or response through, unchanged. It also serves as a reference implementation
