@@ -12,6 +12,8 @@ import httpx
 
 import dlsps2_runner
 from dlsps2_runner import Dlsps2PipelineRunner
+from gst_properties import LAUNCH_TOKEN, quote_property
+from pipeline_events import add_event_outputs
 
 PIPELINE = "filesrc location=/tmp/a.mp4 ! decodebin3 ! fakesink"
 INSTANCE_ID = "inst-1"
@@ -1601,6 +1603,51 @@ class TestWithFpsChainLast(unittest.TestCase):
             dlsps2_runner.with_fps_chain_last(f"{self.MAIN} {self.SIDE}", self.SID),
             f"{self.SIDE} {self.MAIN}",
         )
+
+    def test_quoted_values_survive_all_launch_rewrites(self):
+        for source_path in (
+            r"C:\video files\clip!.ts",
+            r"\\server\share\video files\clip!.ts",
+            "/video files/user's clip!.ts",
+        ):
+            for prompt in (quote_property('Say "safe!" (briefly)'), "'Say safe!'"):
+                with self.subTest(source=source_path, prompt=prompt):
+                    source = f"location={quote_property(source_path)}"
+                    output_path = r"C:\output files\clip!.mp4"
+                    main = (
+                        f"filesrc {source} ! tee name=t ! queue ! filesink "
+                        f"location={quote_property(output_path)} name=sink_p0_s0"
+                    )
+                    side = (
+                        f"t. ! queue ! gvagenai prompt={prompt} metrics=true ! "
+                        "fakesink name=vlm"
+                    )
+                    reordered = dlsps2_runner.with_fps_chain_last(
+                        f"{main} {side}", self.SID
+                    )
+                    self.assertEqual(reordered, f"{side} {main}")
+                    instrumented = dlsps2_runner.with_genai_post_metrics(reordered)
+                    self.assertIn(
+                        f"prompt={prompt} metrics=true post-metrics=true", instrumented
+                    )
+                    validated = dlsps2_runner.validation_launch_string(instrumented)
+                    self.assertIn(source, LAUNCH_TOKEN.findall(validated))
+                    self.assertIn(f"prompt={prompt}", LAUNCH_TOKEN.findall(validated))
+                    self.assertNotIn("filesink", validated)
+                    self.assertNotIn(quote_property(output_path), validated)
+                    self.assertIn("fakesink name=sink_p0_s0 async=false", validated)
+                    self.assertNotIn("gvametapublish", validated)
+                    command, sources = add_event_outputs(
+                        instrumented, r"C:\metadata files\events!", self.SID
+                    )
+                    self.assertIn(source, LAUNCH_TOKEN.findall(command))
+                    self.assertIn(f"prompt={prompt}", LAUNCH_TOKEN.findall(command))
+                    self.assertEqual(len(sources), 1)
+                    path = next(iter(sources))
+                    self.assertIn(
+                        f"file-path={quote_property(path)}",
+                        LAUNCH_TOKEN.findall(command),
+                    )
 
     def test_main_branch_of_a_tee_moves_last(self):
         command = (

@@ -1,6 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import unittest
+from pathlib import Path
+from tempfile import gettempdir
 from unittest.mock import patch, MagicMock
 
+from gst_properties import unquote_property
 from video_encoder import (
     ENCODER_DEVICE_CPU,
     ENCODER_DEVICE_GPU,
@@ -216,6 +222,28 @@ class TestVideoEncoderClass(unittest.TestCase):
         self.assertIn("filesink location=", subpipeline)
         self.assertIn("main_output.mp4", subpipeline)
         self.assertIn(self.output_dir, subpipeline)
+
+    @patch("video_encoder.GstInspector")
+    def test_video_output_preserves_special_characters_in_path(
+        self, mock_gst_inspector
+    ):
+        mock_gst_inspector.return_value.elements = [("openh264", "openh264enc")]
+        encoder = VideoEncoder()
+        for directory in (
+            Path(gettempdir()) / "output with spaces",
+            Path(gettempdir()) / "output!video",
+            Path(gettempdir()) / "output'video",
+        ):
+            with self.subTest(directory=directory):
+                subpipeline = encoder.create_video_output_subpipeline(
+                    str(directory), ENCODER_DEVICE_CPU
+                )
+                serialized_location = subpipeline.split("filesink location=", 1)[1]
+                self.assertTrue(serialized_location.startswith('"'))
+                self.assertEqual(
+                    unquote_property(serialized_location),
+                    str(directory / "main_output.mp4"),
+                )
 
     @patch("video_encoder.GstInspector")
     def test_create_video_output_subpipeline_no_encoder_found(self, mock_gst_inspector):

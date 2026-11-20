@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Build from Source
 
 Build the Visual Pipeline and Platform Evaluation Tool from source to customize, debug, or extend its
@@ -48,9 +51,12 @@ Hugging Face Hub.
 
 ## Steps to Build
 
+### Ubuntu
+
 1. Clone the repository:
 
    ```bash
+   cd ~
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
    cd edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
    ```
@@ -84,6 +90,57 @@ Hugging Face Hub.
 1. Access the application API documentation:
 
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
+   to access the Swagger UI.
+
+### Windows
+
+> [!IMPORTANT]
+> Install Git, Python and DLStreamer.
+> Make sure that all applications are available in `PATH` environment variable.
+> Following steps will start only backend API.
+
+1. Clone the repository:
+
+   ```powershell
+   New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\Vippet" | Out-Null
+   Set-Location "$env:LOCALAPPDATA\Vippet"
+
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+   cd edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
+   ```
+
+1. Prepare environment:
+
+   The following command creates a venv or updates dependencies in an existing valid venv.
+
+   ```powershell
+   $common = @{
+      GStreamerRoot = 'C:\Program Files\gstreamer\1.0\msvc_x86_64'
+      DLStreamerRoot = 'C:\Program Files\Intel\dlstreamer'
+      VenvDirectory = "$env:LOCALAPPDATA\Vippet\.venv-backend"
+
+      HttpProxy = '<PROXY-URL>'
+      HttpsProxy = '<PROXY-URL>'
+      NoProxy = '127.0.0.1,localhost,::1,.example.com'
+   }
+
+   .\scripts\windows\setup.ps1 @common `
+      -PythonExe 'C:\Program Files\Python312\python.exe' `
+      -InstallUv
+   ```
+
+1. Start python process:
+
+   Following script will create all needed data directories and prepare session to start python process.
+
+   ```powershell
+   .\scripts\windows\start.ps1 @common `
+      -DataDirectory "$env:LOCALAPPDATA\Vippet"	
+   ```
+
+1. Access the application API documentation:
+
+   Open a browser and navigate to `http://localhost:7860/api/v1/docs` (or `http://<HOST-IP>:7860/api/v1/docs`)
    to access the Swagger UI.
 
 ## Pipeline execution on DL Streamer Pipeline Server 2.0

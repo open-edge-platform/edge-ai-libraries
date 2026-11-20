@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import pipeline_events
+from gst_properties import LAUNCH_ELEMENT, quote_property
 from pipeline_events import (
     EventCapture,
     remove_event_folders,
@@ -57,6 +58,38 @@ class TestAddEventOutputs(unittest.TestCase):
             "videotestsrc ! gvaproximitytrigger_py events-file=/x.jsonl ! fakesink"
         )
         self.assertEqual(add_event_outputs(command, "/d", "s"), (command, {}))
+
+    def test_quotes_event_paths_and_preserves_escaped_prompts(self):
+        prompt = 'Say "safe!" and keep C:\\video files\\ unchanged'
+        for directory in (
+            r"C:\metadata files\events!",
+            r"\\server\share\metadata files",
+            "/metadata files/user's events!",
+        ):
+            for serialized_prompt in (quote_property(prompt), "'Say safe!'"):
+                with self.subTest(directory=directory, prompt=serialized_prompt):
+                    original = (
+                        "videotestsrc ! gvaproximitytrigger_py name=trigger ! "
+                        f"gvagenai name=genai prompt={serialized_prompt} ! fakesink"
+                    )
+                    command, sources = add_event_outputs(original, directory, "s")
+                    self.assertEqual(len(LAUNCH_ELEMENT.findall(command)), 5)
+                    self.assertIn(f"prompt={serialized_prompt}", command)
+                    for path, source in sources.items():
+                        property_name = (
+                            "events-file" if source.kind == "trigger" else "file-path"
+                        )
+                        self.assertIn(
+                            f"{property_name}={quote_property(path)}", command
+                        )
+                        self.assertTrue(path.startswith(directory))
+                        if source.kind == "vlm":
+                            self.assertEqual(
+                                source.prompt,
+                                prompt
+                                if serialized_prompt.startswith('"')
+                                else "Say safe!",
+                            )
 
     def test_leaves_pipelines_without_event_elements_unchanged(self):
         command = "videotestsrc ! gvadetect ! fakesink"
