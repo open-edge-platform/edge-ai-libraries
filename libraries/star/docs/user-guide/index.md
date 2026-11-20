@@ -23,6 +23,7 @@ hide_directive-->
      Readme
   </a>
 </div>
+::::
 hide_directive-->
 
 Semantic Compression Toolbox with Adaptive Rate (STAR) is a dockerized computer vision pipeline
@@ -105,7 +106,7 @@ The pipeline performs:
 If you want to compress images semantically and reconstruct them on the receiving side,
 start here with the basics:
 
-- [Prerequisites](./quickstart.md#0-prerequisites)
+- [Prerequisites](./quickstart.md#prerequisites)
   — set up Docker or a local Python environment, and download the detection model.
 - [Run locally in containers](./quickstart.md#run-locally-in-containers)
   — build the image, then start the decoder and the encoder in just a few steps.

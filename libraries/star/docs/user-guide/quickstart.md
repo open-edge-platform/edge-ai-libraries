@@ -25,7 +25,7 @@ This library supports three types of deployment, depending on the use case:
    difference is that the commands should be executed on different machines, which is denoted
    by a comment in the [documentation](#run-locally-in-containers).
 
-## 0. Prerequisites
+## Prerequisites
 
 - Docker (recommended), **or** Python ≥ 3.9 with `pip install -r requirements.txt` and the
   `libavif` command-line tools (`avifenc` / `avifdec`) on `PATH` — see
@@ -159,14 +159,14 @@ make pull-model image
 > `docker save/scp/docker load` commands to distribute the image to all machines.
 
 The image entrypoint is `python -m semantic_img_comp.main`, so every argument set in a
-[`docker-compose.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/libraries/star/docker-compose.yml) file `command:` section is passed straight to
+[`docker-compose.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/docker-compose.yml) file `command:` section is passed straight to
 the container. The command pulls the YOLO model that is needed for object detection and
 classification and builds the container.
 
 ### 2. Networking
 
 `make decoder` / `make encoder` run using Docker Compose
-([`docker-compose.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/libraries/star/docker-compose.yml)), which creates its own project network
+([`docker-compose.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/dev/libraries/star/docker-compose.yml)), which creates its own project network
 automatically and lets every container reach the others by service name (`decoder`,
 `encoder`, `dlstreamer-pipeline-server`, ...) — there is **no manual
 `docker network create` step**.
@@ -177,16 +177,16 @@ down pass CLI flags the fixed Makefile targets do not expose and fall back to ra
 `docker run`; join that same network (`--network star_image_default`) so they can still
 resolve `decoder` by hostname, e.g.:
 
-### 3. Run the Container as a Decoder (Start This First)
+### 3. Run the Container as a Decoder
+
+Run it before starting the encoder.
 
 ```bash
 make decoder
 ```
 
-What this does:
-
-1. Listens for incoming frames on ports 5000/8000.
-2. Writes decoded results under `./output` on your machine.
+The decoder listens for incoming frames on ports 5000 and 8000 and writes the decoded results
+to `./output` on your machine.
 
 ### 4. Run the Container as an Encoder
 
@@ -210,7 +210,7 @@ By default, the container reads the configuration from `/app/configs/default.yam
 - output directory: `/app/output`
 
 If `model.detector_backend` is set to `dlstreamer` in
-[`configs/default.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/libraries/star/configs/default.yaml#L31), also start the Deep Learning
+[`configs/default.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/configs/default.yaml#L31), also start the Deep Learning
 Streamer Pipeline Server (DL Streamer Pipeline Server), which performs inference.
 
 The variants below pass CLI flags that modify the behavior of the STAR image. Apply them to
@@ -242,13 +242,13 @@ If an NPU is present on the system, it is mounted to the containers. Depending o
 type, change the following configuration files:
 
 1. If the YOLO backend is used, as configured in
-   [`configs/default.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/libraries/star/configs/default.yaml#L32), change
-   [`configs/default.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/libraries/star/configs/default.yaml#L7) manually to `intel:npu` and
+   [`configs/default.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/configs/default.yaml#L32), change
+   [`configs/default.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/configs/default.yaml#L7) manually to `intel:npu` and
    rebuild the image by running `make image`.
 2. If DL Streamer is used, Docker Compose automatically uses the
-   [`DLStreamer config`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/libraries/star/configs/dlstreamer/config.json). Select the pipeline that
+   [`DLStreamer config`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/configs/dlstreamer/config.json). Select the pipeline that
    DL Streamer uses by setting the `dlstreamer_pipeline_name` field in
-   [`configs/default.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/libraries/star/configs/default.yaml#L34).
+   [`configs/default.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/configs/default.yaml#L34).
 
 **Annotations instead of live detection:**
 
@@ -272,8 +272,8 @@ For all available options, see the [configuration](./configuration.md) file.
 
 The image feeder is an agnostic tool that allows reading local files and sending them to the
 encoder via TCP or HTTP. By default, it runs as a separate thread in the
-[encoder](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/libraries/star/src/semantic_img_comp/main.py#L404), which can be configured via the
-[configuration file](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/libraries/star/configs/default.yaml). To use it, create the `data` directories
+[encoder](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/src/semantic_img_comp/main.py#L404), which can be configured via the
+[configuration file](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/configs/default.yaml). To use it, create the `data` directories
 using the make target:
 
 ```shell
@@ -311,19 +311,19 @@ output/
     └── ...
 ```
 
-Notes:
-
-- `encoder_log.json` and `decoder_log.json` are Newline-Delimited JSON (NDJSON) structured
-  logs, one JSON object per line, consumed by `summarize_logs` (disable with
-  `io.write_json_logs: false`)
-- reconstructed decoder outputs are written under `output/recon_images/`, and **only when
-  `io.save_visualizations: true`** — otherwise the pipeline runs normally but writes no images
-- reconstructions are named `<client_id>_<frame>.jpeg` (`mystream_1.jpeg`, `mystream_2.jpeg`,
-  … with the `app.client_id` shipped in `configs/default.yaml`); if `io.annot_file` is set,
-  the original image filenames are used instead
-- with Docker Compose, [`docker-compose.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/libraries/star/docker-compose.yml) mounts `./log` over
-  `/app/output/log`, so the log files are written to `./log/` on the host instead of
-  `./output/log/`
+> [!NOTE]
+>
+> - `encoder_log.json` and `decoder_log.json` are Newline-Delimited JSON (NDJSON) structured
+>   logs, one JSON object per line, consumed by `summarize_logs` (disable with
+>   `io.write_json_logs: false`)
+> - reconstructed decoder outputs are written under `output/recon_images/`, and **only when
+>   `io.save_visualizations: true`** — otherwise the pipeline runs normally but writes no images
+> - reconstructions are named `<client_id>_<frame>.jpeg` (`mystream_1.jpeg`, `mystream_2.jpeg`,
+>   … with the `app.client_id` shipped in `configs/default.yaml`); if `io.annot_file` is set,
+>   the original image filenames are used instead
+> - with Docker Compose, [`docker-compose.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/docker-compose.yml) mounts `./log` over
+>   `/app/output/log`, so the log files are written to `./log/` on the host instead of
+>   `./output/log/`
 
 ## Assess and Plot Encoder Performance with `summarize_logs`
 
@@ -346,7 +346,7 @@ python -m semantic_img_comp.utils.summarize_logs \
 | `--save-plots-dir` | Save plots into this directory instead of showing interactive windows. |
 | `--skip-bad-json` | Skip malformed JSON lines instead of failing. |
 
-What this gives you for encoder analysis:
+The summary gives you the following metrics for encoder analysis:
 
 - compression metrics: `comp_rate`, `orig_jpeg_bytes`, `total_payload_bytes`
 - payload split: `bg_payload_ratio`, `obj_payload_ratio`, `bg_origjpeg_ratio`,
