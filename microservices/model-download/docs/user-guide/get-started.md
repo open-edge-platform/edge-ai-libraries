@@ -170,7 +170,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/list" \
   }'
 ```
 
-For Geti™ software, listing discovers the models registered under each project on the configured Geti server. Each item's `model_type` is the Geti task type (for example, `detection` or `classification`) resolved from the model or project. The `metadata` includes `project_id`, `project_name`, `model_id`, the available `variants` (with each variant's ID, format, and precision), and `architecture`. Requires `GETI_HOST` to be set; the Geti 3.0 Model API is unauthenticated.
+For Geti™ software, listing discovers the models registered under each project on the configured Geti server. Each item's `model_type` is the Geti task type (for example, `detection` or `classification`) resolved from the model or project. The `metadata` includes `project_id`, `project_name`, `model_id`, `training_status`, the available `variants` (with each variant's ID, format, and precision), and `architecture`. The status is reported as provided by Geti (for example, `successful`, `failed`, or `in_progress`), or null if unavailable. Models without variants remain visible unless a variant filter is used. Requires `GETI_HOST` to be set; the Geti 3.0 Model API is unauthenticated.
 
 ```bash
 curl -X POST "http://<host-ip>:8200/api/v1/models/list" \
@@ -197,6 +197,7 @@ An item in the listing response looks like this:
     "project_id": "<project-id>",
     "project_name": "Pallet Defect Detection",
     "model_id": "<model-id>",
+    "training_status": "successful",
     "variants": [
       {
         "variant_id": "<pytorch-variant-id>",
@@ -379,6 +380,8 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
 > - Hugging Face authentication is still required for OVMS exports; provide `HUGGINGFACEHUB_API_TOKEN` (or pass the token via the API) before invoking these parameters.
 
 **Download a Geti™ model:**
+
+Only models whose training status is `successful` can be downloaded. Otherwise, the download job fails with an error indicating the training status or that it is unavailable.
 
 Select an exact variant using its `variant_id`:
 ```bash

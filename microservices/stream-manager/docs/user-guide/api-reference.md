@@ -3,7 +3,7 @@
 
 # API Reference
 
-This reference documents every endpoint published in [`openapi.yaml`](./openapi.yaml), with
+This reference documents every endpoint published in [`openapi.yaml`](./api-docs/openapi.yaml), with
 sample requests, `curl` commands, and sample responses drawn from the current implementation.
 It complements the OpenAPI specification with necessary examples and finer details.
 
@@ -11,7 +11,7 @@ It complements the OpenAPI specification with necessary examples and finer detai
 > To override the service configuration, place a `config.json` file in the current
 > working directory, or select a file with `SM_CONFIG_FILE`.
 > The repository provides a sample `config.json` file.
-> See [Configuration](../configuration.md) for all available settings.
+> See [Configuration](./get-started/configuration.md) for all available settings.
 
 ## Table of Contents
 
@@ -37,13 +37,14 @@ It complements the OpenAPI specification with necessary examples and finer detai
   - [Extract a clip](#extract-a-clip)
   - [Get produced media](#get-produced-media)
 - [Error code reference](#error-code-reference)
+- [Open API](#open-api)
 
 ## Base URL and versioning
 
 All endpoints are mounted under the `/v1` prefix. The service listens on port `8080` by default
 (override this using `config.json` or `SM_HTTP_ADDR`). Examples in this document use:
 
-```
+```text
 http://localhost:8080/v1
 ```
 
@@ -79,7 +80,7 @@ http://localhost:8080/v1
 Returned by every failure on every endpoint.
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `status` | integer | The HTTP status code, repeated inside the body. |
 | `error_code` | string | A short, stable code meant to be matched by software. |
 | `error_detail` | string | A short explanation for a person. Never contains file paths, source addresses, credentials, or FFmpeg output. |
@@ -98,7 +99,7 @@ status codes each endpoint can return.
 ### Stream
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `stream_id` | string | Identity given to the stream when it was attached. |
 | `sensor_id` | string | Identity of the sensor; for a URI source, the name the caller chose. |
 | `state` | string | One of `connecting`, `buffering`, `reconnecting`, `failed`. |
@@ -128,7 +129,7 @@ status codes each endpoint can return.
 #### BufferStatus
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `capacity` | integer | Seconds of video the buffer is set up to hold, 5-300. |
 | `held_bytes` | integer | Bytes the buffer is holding right now. |
 | `oldest_ts` | string (date-time), nullable | Oldest time still held; `null` while empty. |
@@ -139,7 +140,7 @@ status codes each endpoint can return.
 One record is one recording of one sensor.
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `recording_id` | string | Recording identity. |
 | `sensor_id` | string | Recorded sensor. |
 | `stream_id` | string, nullable | The stream it was recorded from; `null` for an imported recording. |
@@ -174,7 +175,7 @@ Returned by the [Retrieval APIs](#retrieval-apis) when the reply is JSON rather 
 media.
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `recording_id` | string | The record the media was taken from. |
 | `sensor_id` | string | The sensor the media belongs to. |
 | `requested_start_ts` | string (date-time) | Time the caller asked for. |
@@ -189,7 +190,7 @@ media.
 Returned by `DELETE /streams/{stream-id}` and `DELETE /records/{recording-id}`.
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `resource` | string | `stream` or `recording`. |
 | `id` | string | Which resource was deleted. |
 | `deleted` | boolean | Always `true`, sent only once the deletion has finished. |
@@ -225,7 +226,7 @@ Content-Type: application/json
 ```
 
 | Status | Meaning |
-|---|---|
+| --- | --- |
 | 200 | Service status and build details. |
 
 ---
@@ -244,12 +245,12 @@ any history has built up.
 **Request body — `StreamCreate`**
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `sensor_id` | string | yes | Sensor identity; the name recordings will be filed under. One sensor can have many sources. |
 | `source_uri` | string | yes | Absolute URI of the source, no credentials, up to 2048 characters. |
 | `buffer_length` | integer | no | Seconds of history the buffer holds, 5-300. If omitted, uses the configured `BufferLength` (built-in default: 30 seconds). |
 
-**Example — default buffer length**
+**Example — default buffer length**:
 
 ```bash
 curl -i -X POST http://localhost:8080/v1/streams \
@@ -276,7 +277,7 @@ Content-Type: application/json
 }
 ```
 
-**Example — explicit buffer length**
+**Example — explicit buffer length**:
 
 ```bash
 curl -i -X POST http://localhost:8080/v1/streams \
@@ -288,7 +289,7 @@ curl -i -X POST http://localhost:8080/v1/streams \
       }'
 ```
 
-**Error example — source already attached for the sensor**
+**Error example — source already attached for the sensor**:
 
 ```json
 {
@@ -299,7 +300,7 @@ curl -i -X POST http://localhost:8080/v1/streams \
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 201 | — | Stream attached. |
 | 400 | `invalid_request` | Malformed body, missing fields, or `buffer_length` out of 5-300 range. |
 | 409 | `stream_exists` | The same `source_uri` is already attached for that `sensor_id`; the existing `stream_id` is named in `error_detail`. |
@@ -344,7 +345,7 @@ Content-Type: application/json
 If no items match, the service returns `200` with an empty `items` list, never `404`.
 
 | Status | Meaning |
-|---|---|
+| --- | --- |
 | 200 | Page of `Stream` objects. |
 
 ### Get a stream
@@ -378,7 +379,7 @@ Content-Type: application/json
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 200 | — | The `Stream` object. |
 | 404 | `stream_not_found` | The stream is unknown or has been detached. |
 | 422 | `not_ntp_synced` | The stream failed. The source did not give NTP-synced timestamps in the startup time, or the source sent no keyframe in that time. |
@@ -401,7 +402,7 @@ Content-Type: application/json
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 200 | — | Stream detached. |
 | 404 | `stream_not_found` | Not attached. |
 | 409 | `active_dependency` | A recording still holds a lease on the buffer. |
@@ -419,7 +420,7 @@ apply.
 **Request body — `BufferUpdate`**
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `buffer_length` | integer | yes | New size in seconds, 5-300. |
 
 ```bash
@@ -440,7 +441,7 @@ curl -i -X PUT http://localhost:8080/v1/streams/str-1/buffer \
 }
 ```
 
-**Error example — out of range**
+**Error example — out of range**:
 
 ```json
 {
@@ -451,7 +452,7 @@ curl -i -X PUT http://localhost:8080/v1/streams/str-1/buffer \
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 200 | — | Buffer resized; the full stream, including the new `buffer.capacity`. |
 | 400 | `invalid_request` | Missing `buffer_length`, or it is out of the 5-300 range. |
 | 404 | `stream_not_found` | Unknown stream. |
@@ -474,14 +475,14 @@ keyframes, and `ready` records report those actual bounds.
 **Request body — `RecordStart`**
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `stream_id` | string | yes | The attached stream to record. |
 | `start_ts` | string (date-time) | yes | The moment the event happened (T), on the source's timeline. Must not be in the future according to the server clock. Keep the source and server clocks synchronized. |
 | `duration` | number | no | Positive seconds to record after T. Omit for an open recording ended later with `/records/stop`. |
 | `pre_event_duration` | number | no | Seconds of history before T to keep, 0-300, default 0. Must already be in the buffer. |
 | `metadata` | object | no | Arbitrary metadata to store with the record. |
 
-**Example — fixed-length recording with pre-event history and metadata**
+**Example — fixed-length recording with pre-event history and metadata**:
 
 ```bash
 curl -i -X POST http://localhost:8080/v1/records/start \
@@ -555,7 +556,7 @@ Content-Type: application/json
 }
 ```
 
-**Error example — requested history not in the buffer**
+**Error example — requested history not in the buffer**:
 
 ```json
 {
@@ -566,7 +567,7 @@ Content-Type: application/json
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 201 | — | Record accepted in the `recording` state. Acceptance does not mean the media is finished. |
 | 400 | `invalid_request` / `invalid_selector` / `invalid_timestamp` | Malformed body or missing `start_ts` (`invalid_request`); missing or malformed `stream_id` (`invalid_selector`); invalid `start_ts`, or `start_ts` in the future according to the server clock (`invalid_timestamp`); invalid `duration` or `pre_event_duration` (`invalid_request`). |
 | 404 | `stream_not_found` | Unknown stream. |
@@ -591,7 +592,7 @@ A `ready` recording returns `200` with its current record.
 **Request body — `RecordStop`**
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `recording_id` | string | yes | The open recording to stop. |
 
 ```bash
@@ -643,7 +644,7 @@ Content-Type: application/json
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 200 | — | The recording is `ready`. The service returns its current record. |
 | 202 | — | The service accepted the stop request. The state is `finalizing`. A repeated stop request during `finalizing` also returns `202`. |
 | 400 | `invalid_request` | Malformed body or invalid `recording_id`. |
@@ -660,7 +661,7 @@ time bounds are supplied, a record must be fully contained within them. Both bou
 are inclusive. A record with `end_ts` set to `null` does not match an `end_ts` bound.
 
 | Parameter | In | Type | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `sensor_id` | query | string | Only records from this sensor, imported as well as live. |
 | `stream_id` | query | string | Only records from this stream (never includes imports). |
 | `start_ts` | query | date-time | Inclusive lower bound. The record's `start_ts` must be at or after this time. |
@@ -671,13 +672,13 @@ are inclusive. A record with `end_ts` set to `null` does not match an `end_ts` b
 | `cursor` | query | string | Opaque cursor from a previous page's `next_cursor`. |
 | `limit` | query | integer | Items per page, 1-100, default 20. |
 
-**Example — filter by sensor and state, default page size**
+**Example — filter by sensor and state, default page size**:
 
 ```bash
 curl -i "http://localhost:8080/v1/records?sensor_id=cam-07&state=ready"
 ```
 
-**Example — filter by time window and metadata, custom page size**
+**Example — filter by time window and metadata, custom page size**:
 
 ```bash
 curl -i "http://localhost:8080/v1/records?start_ts=2026-09-16T09:00:00Z&end_ts=2026-09-16T10:00:00Z&metadata%5Bincident_id%5D=incident-17&limit=10"
@@ -707,7 +708,7 @@ Content-Type: application/json
 }
 ```
 
-**Example — paging with a cursor**
+**Example — paging with a cursor**:
 
 ```bash
 curl -i "http://localhost:8080/v1/records?limit=20&cursor=MTc4OTU0OTkyMzYwMDAwMDAwMApBQUVDQXdRRkJnY0lDUW9MREEwT0R3"
@@ -716,7 +717,7 @@ curl -i "http://localhost:8080/v1/records?limit=20&cursor=MTc4OTU0OTkyMzYwMDAwMD
 If no items match, the service returns `200` with an empty `items` list, never `404`.
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 200 | — | Page of `Recording` objects. |
 | 400 | `invalid_request` / `invalid_timestamp` | Invalid ID, state, metadata filter, cursor, or limit (`invalid_request`); invalid timestamp filter (`invalid_timestamp`). Stream Manager reports all invalid ID, state, `limit`, and timestamp parameters together in `error_detail`, one per line. The code is `invalid_timestamp` only when all of them are timestamp errors. |
 
@@ -750,7 +751,7 @@ Content-Type: application/json
 }
 ```
 
-**Example — a failed record**
+**Example — a failed record**:
 
 ```json
 {
@@ -769,7 +770,7 @@ Content-Type: application/json
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 200 | — | The `Recording` object. |
 | 404 | `recording_not_found` | Unknown or deleted recording. |
 
@@ -794,7 +795,7 @@ Content-Type: application/json
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 200 | — | Record deleted. |
 | 404 | `recording_not_found` | Unknown or already deleted recording. |
 | 409 | `record_not_ready` | Record is still recording or finalizing. |
@@ -807,7 +808,7 @@ Content-Type: application/json
 Extracts media from a `ready` record. Use the `Accept` header to select the response.
 
 | `Accept` | Response |
-|---|---|
+| --- | --- |
 | Missing, `*/*`, or `application/json` | JSON `MediaResult` with a media URL. |
 | `image/jpeg` or `image/png` on `/frame` | Image bytes in the selected format. |
 | `video/mp4` on `/clip` | MP4 bytes. |
@@ -824,7 +825,7 @@ The `/media` endpoint serves the file referenced by a JSON response.
 `GET /retrieve/{recording-id}/frame`
 
 | Parameter | In | Type | Required | Description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `recording-id` | path | string | yes | The recording, e.g. `rec-2`. |
 | `timestamp` | query | date-time | yes | Time wanted; must fall inside `[start_ts, end_ts)`. |
 | `format` | query | string | no | Optional image format: `jpeg` or `png`. JSON links default to JPEG. For binary responses, `Accept` selects the format when this parameter is absent. A conflict with an explicit format returns `406`. |
@@ -874,7 +875,7 @@ X-Exact-Match: false
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 200 | — | `MediaResult`, or the image bytes when an image `Accept` header is used. |
 | 400 | `invalid_timestamp` | Missing or invalid `timestamp`. |
 | 400 | `invalid_request` | Unsupported `format` or `match`. |
@@ -897,7 +898,7 @@ For clips, `X-Exact-Match` is `true` only when the first keyframe time equals th
 requested `start_ts`.
 
 | Parameter | In | Type | Required | Description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `recording-id` | path | string | yes | The recording, e.g. `rec-2`. |
 | `start_ts` | query | date-time | yes | Requested start time. The clip can start earlier, at the preceding keyframe. Must be RFC 3339 UTC and end in `Z`. |
 | `duration` | query | number | yes | Positive clip length in seconds. The full interval must be covered by the recording. |
@@ -935,7 +936,7 @@ curl "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:00.
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 200 | — | `MediaResult`, or video bytes when a video `Accept` header is used. |
 | 400 | `invalid_timestamp` | Missing or invalid `start_ts`. |
 | 400 | `invalid_request` | Missing or invalid `duration`, or unsupported `format`. |
@@ -953,7 +954,7 @@ curl "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:00.
 Serves a derived frame or clip. Derived media does not expire. Recording expiry does not affect it, but deleting the recording removes it. `expiry_ts` is always `null`.
 
 | Parameter | In | Type | Required | Description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `recording-id` | path | string | yes | The recording, e.g. `rec-2`. |
 | `file` | path | string | yes | The file name from a `MediaResult`'s `url`, e.g. `frame-3000000000.jpeg` or `clip-0-5000000000.mp4`. |
 
@@ -969,7 +970,7 @@ X-Content-Type-Options: nosniff
 ```
 
 | Status | `error_code` | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | 200 | — | The frame or clip bytes (`image/jpeg`, `image/png`, or `video/mp4`). |
 | 404 | `recording_not_found` / `frame_not_found` / `clip_not_found` | Unknown recording, or the frame or clip file is missing. |
 
@@ -978,7 +979,7 @@ X-Content-Type-Options: nosniff
 ## Error code reference
 
 | `error_code` | Typical status | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `invalid_request` | 400 | The request is malformed, or its fields contradict each other. |
 | `invalid_selector` | 400 | `stream_id` in `POST /records/start` is missing or malformed. |
 | `invalid_timestamp` | 400 | A timestamp is malformed or out of range. A `start_ts` in `POST /records/start` that is in the future according to the server clock also uses this code. A missing `start_ts` there returns `invalid_request`. |
@@ -997,3 +998,9 @@ X-Content-Type-Options: nosniff
 | `internal_error` | 500 | An unexpected server-side failure. |
 | `storage_full` | 507 | The recording storage quota (`RecordingStorageSize`) is reached. |
 | `storage_unavailable` | 503 | Storage or media processing failed. |
+
+## Open API
+
+<!--hide_directive```{eval-rst}
+.. swagger-plugin:: ./api-docs/openapi.yaml
+```hide_directive-->
