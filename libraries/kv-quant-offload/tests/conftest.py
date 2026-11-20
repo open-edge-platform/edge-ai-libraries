@@ -330,7 +330,7 @@ def build_kvw2_header(
 ) -> bytes:
     """Build binary KVW2 header for kvweave_serialize_chunk."""
     chunk_tokens, _, h_merged = chunk.shape
-    scaling_to_int = {"per_tensor": 0, "per_token": 1, "per_channel": 2}
+    scaling_to_int = {"per_tensor": 0, "per_token": 1, "per_channel": 2}  # nosec B105 - "per_token" is a scaling mode, not a secret
     header = struct.pack(
         ">4sBBBBBBB",
         b"KVW2",
