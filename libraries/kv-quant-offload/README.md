@@ -21,13 +21,11 @@ memory pressure.
 - Drop-in codec for LMCache's serde interface — stays
   transparent to vLLM's serving path.
 
-
 ## Prerequisites
 
 See [docs/configuration.md](docs/configuration.md#prerequisites) for the full
 list of prerequisites (Python/PyTorch/compiler versions, optional oneAPI and
 `lmcache` dependencies, Docker).
-
 
 ## Architecture
 
@@ -85,17 +83,15 @@ See [docs/configuration.md](docs/configuration.md#build-environment-variables)
 for the environment variables recognized by `setup.py` (`KVWEAVE_ISA`,
 `KVWEAVE_COMPILER`, `KVWEAVE_MULTITHREAD`, `KVWEAVE_XPU`).
 
-
 ## Running Unit Tests
 
 See [docs/configuration.md](docs/configuration.md#running-unit-tests) for how
 to set up a venv, install `kvweave`, and run `pytest ./tests`.
 
-
 ## Quick Start
 
 `integration/lmcache/vllm/vllm-start.sh` launches a Docker container that
-clones LMCache v0.4.7, applies `integration/lmcache/patches/lmcache-mp-hybrid.patch`
+clones LMCache v0.5.5, applies `integration/lmcache/patches/lmcache-mp-hybrid.patch`
 and `integration/lmcache/patches/lmcache-v0.5.5-mp-hybrid-to-kvweave.patch`
 (which together add MP-hybrid support and the `kvweave` codec), builds
 `kvweave_quant` inside the container, starts an LMCache MP server, and then
@@ -132,6 +128,7 @@ If you meet error about memory after build image, use:
 ```
 echo 3 | sudo tee /proc/sys/vm/drop_caches
 ```
+
 to clean the cache and restart the vllm server.
 
 ## License
