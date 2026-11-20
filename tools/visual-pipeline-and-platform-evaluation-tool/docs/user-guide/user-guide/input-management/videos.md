@@ -12,10 +12,10 @@ You can also upload your own videos to use as pipeline input. The maximum allowe
 
 ## Downloading sample videos
 
-The **Sample videos** table lists the sample clips and their source. Download clips individually
-when needed, or click **Download all videos** to download and convert to HEVC every sample
-clip that is not ready yet, one after another. The application no longer downloads sample videos
-automatically at startup.
+The **Sample videos** table lists the sample clips and their source. The application no longer
+downloads sample videos automatically at startup. Download clips individually when needed, or click
+**Download all videos** to download and convert to HEVC every sample clip that is not ready yet,
+one after another.
 If a pipeline's input video is not available, the pipeline editor shows a warning and disables
 **Run** until you download the video and select it in the Input node.
 If an uploaded video already uses a sample filename, ViPPET keeps the uploaded file and disables that
