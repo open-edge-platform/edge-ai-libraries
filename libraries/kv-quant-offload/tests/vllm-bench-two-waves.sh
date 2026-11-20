@@ -41,6 +41,8 @@
 #   TOKENIZER_PATH (/models)  Directory containing MODEL. Joined as
 #                           $TOKENIZER_PATH/$MODEL to form the path
 #                           AutoTokenizer and `vllm bench serve` resolve.
+#   TRUST_REMOTE_CODE (0)   1 = allow AutoTokenizer to run custom tokenizer
+#                           code shipped in the model directory.
 #   HOST/PORT (localhost/8000)  vLLM OpenAI API endpoint.
 #   NUM_REQUESTS (2)        Concurrent requests per wave.
 #   INPUT_LEN (512)         Exact prompt length in tokens.
@@ -51,6 +53,9 @@
 #   RESET_PREFIX_CACHE (1)  Reset vLLM prefix cache between waves (TEST_OBJECT=l1
 #                           only; needs VLLM_SERVER_DEV_MODE=1 on the server).
 #   LMCACHE_HTTP_URL (http://localhost:8090)  LMCache --http-port endpoint.
+#                           Reachable as-is inside the container; to run this
+#                           script from the host instead, start the container
+#                           with LMCACHE_EXPOSE_HTTP=1.
 #   OUT_DIR (/tmp/vllm-bench-two-waves)       Where waveN.json is written.
 #
 # Output: per-request TTFT/TPOT/cached_tokens for both waves printed as a
@@ -180,6 +185,7 @@ export PROMPT_A="Mr. and Mrs. Dursley, of number four, Privet Drive, were proud 
 
 export PROMPT_B="It is a truth universally acknowledged, that a single man in possession of a good fortune must be in want of a wife. However little known the feelings or views of such a man may be on his first entering a neighbourhood, this truth is so well fixed in the minds of the surrounding families, that he is considered as the rightful property of some one or other of their daughters. My dear Mr. Bennet, said his lady to him one day, have you heard that Netherfield Park is let at last? Mr. Bennet replied that he had not. But it is, returned she; for Mrs. Long has just been here, and she told me all about it. Mr. Bennet made no answer. Do not you want to know who has taken it? cried his wife impatiently. You want to tell me, and I have no objection to hearing it. This was invitation enough. Why, my dear, you must know, Mrs. Long says that Netherfield is taken by a young man of large fortune from the north of England; that he came down on Monday in a chaise and four to see the place, and was so much delighted with it that he agreed with Mr. Morris immediately; that he is to take possession before Michaelmas, and some of his servants are to be in the house by the end of next week. What is his name? Bingley. Is he married or single? Oh! single, my dear, to be sure! A single man of large fortune; four or five thousand a year. What a fine thing for our girls!"
 
+export TRUST_REMOTE_CODE="${TRUST_REMOTE_CODE:-0}"
 export MODEL SERVE TOKENIZER_PATH HOST PORT KEY MAX_TOKENS OUT_DIR INPUT_LEN NUM_REQUESTS SEQ
 
 run_wave() {

@@ -33,7 +33,15 @@ INPUT_LEN = int(os.environ["INPUT_LEN"])
 NUM_REQUESTS = int(os.environ["NUM_REQUESTS"])
 SEQ = os.environ.get("SEQ", "0") not in {"", "0", "false", "False"}
 
-_tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_PATH, trust_remote_code=True)
+# TOKENIZER_PATH is a local model directory: local_files_only=True forbids any
+# Hugging Face Hub download, so there is no remote revision to pin. Custom
+# tokenizer code from the model directory only runs on explicit opt-in.
+TRUST_REMOTE_CODE = os.environ.get("TRUST_REMOTE_CODE", "0") in {"1", "true", "True"}
+_tokenizer = AutoTokenizer.from_pretrained(  # nosec B615
+    TOKENIZER_PATH,
+    local_files_only=True,
+    trust_remote_code=TRUST_REMOTE_CODE,
+)
 
 _SEED_TEXTS = [os.environ["PROMPT_A"], os.environ["PROMPT_B"]]
 
@@ -48,7 +56,7 @@ _SENTENCE_POOL = [s for text in _SEED_TEXTS for s in _split_sentences(text)]
 
 def _prompt_for_request(req_index: int) -> str:
     """Deterministically build a distinct base prompt for one request index."""
-    rng = random.Random(f"vllm-two-waves-{req_index}")
+    rng = random.Random(f"vllm-two-waves-{req_index}")  # nosec B311 - deterministic prompt shuffling, not crypto
     sentences = _SENTENCE_POOL[:]
     rng.shuffle(sentences)
     return " ".join(sentences)
@@ -99,7 +107,8 @@ def run_one(req_id, prompt):
     cached_tokens = None
     finish_reason = None
     generated_text = []
-    with urllib.request.urlopen(req) as resp:
+    # BASE_URL is always built with a fixed "http://" scheme (see top of file).
+    with urllib.request.urlopen(req) as resp:  # nosec B310
         for raw_line in resp:
             line = raw_line.decode("utf-8").strip()
             if not line or not line.startswith("data:"):
