@@ -276,10 +276,7 @@ const DemoMode = () => {
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
   >([]);
-  const [fpsInput, setFpsInput] = useState("30");
-  const fpsFloor = Number(fpsInput);
-  const hasValidFps =
-    fpsInput !== "" && Number.isInteger(fpsFloor) && fpsFloor >= 0;
+  const [fpsFloor, setFpsFloor] = useState<number>(30);
   const [densityIterationDurationEnabled, setDensityIterationDurationEnabled] =
     useState(false);
   const [densityIterationDurationSeconds, setDensityIterationDurationSeconds] =
@@ -975,7 +972,6 @@ const DemoMode = () => {
 
   const handleRunTest = async () => {
     if (pipelineSelections.length === 0) return;
-    if (activeTest === "density-test" && !hasValidFps) return;
 
     setTestStarted(true);
     setTestStartTimestamp(Date.now());
@@ -2348,9 +2344,11 @@ const DemoMode = () => {
                                         </label>
                                         <input
                                           type="number"
-                                          value={fpsInput}
-                                          onChange={(event) =>
-                                            setFpsInput(event.target.value)
+                                          value={fpsFloor}
+                                          onChange={(e) =>
+                                            setFpsFloor(
+                                              parseFloat(e.target.value) || 0,
+                                            )
                                           }
                                           disabled={isReadOnly}
                                           className={cn(
@@ -2487,11 +2485,6 @@ const DemoMode = () => {
                   </button>
                   <button
                     onClick={isRunDisabled ? handleStopTest : handleRunTest}
-                    disabled={
-                      !isRunDisabled &&
-                      activeTest === "density-test" &&
-                      !hasValidFps
-                    }
                     className={cn(
                       "flex-1 relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-100",
                       colors.runButton,

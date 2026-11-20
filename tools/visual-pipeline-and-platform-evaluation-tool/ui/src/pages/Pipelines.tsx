@@ -127,7 +127,7 @@ const buildGraphData = (
   edges: ReactFlowEdge[],
   cpuPinning: number[] = [],
 ): {
-  cpu_pinning: number[];
+  cpu_pinning?: number[];
   nodes: Array<{ id: string; type: string; data: { [key: string]: string } }>;
   edges: Array<{ id: string; source: string; target: string }>;
 } => ({
@@ -274,6 +274,17 @@ export const Pipelines = () => {
   useEffect(() => {
     setPinnedCpuCores(savedCpuPinning ?? []);
   }, [savedCpuPinning, variant]);
+
+  // Mirrors Graph.uses_vdbox_decode: pinned media-only graphs decode on VDBox.
+  const isMediaDecodeGraph =
+    currentNodes.some((node) => node.type === "decodebin3") &&
+    !currentNodes.some(
+      (node) =>
+        node.type?.startsWith("gva") &&
+        !["gvafpscounter", "gvametaconvert", "gvametapublish"].includes(
+          node.type,
+        ),
+    );
 
   // Default Metadata JSON ON for the VLM pipeline (its only output is metadata
   // JSON lines); OFF for other pipelines.
@@ -1133,6 +1144,7 @@ export const Pipelines = () => {
             onOpenChange={setCpuPinningDialogOpen}
             pinnedCores={pinnedCpuCores}
             onApply={setPinnedCpuCores}
+            allowLpeOnly={isMediaDecodeGraph}
           />
         )}
       </div>

@@ -340,22 +340,25 @@ class Graph:
     edges: list[Edge]
     cpu_pinning: list[int] = field(default_factory=list)
 
-    def is_media_vdbox(self) -> bool:
-        return not any(
-            node.type.startswith("gva")
-            and node.type not in {"gvafpscounter", "gvametaconvert", "gvametapublish"}
-            for node in self.nodes
-        ) and any(
-            node.type == "decodebin3" and "memory:VAMemory" in node.data.get("caps", "")
-            for node in self.nodes
+    def uses_vdbox_decode(self) -> bool:
+        """Pinned media-only graphs keep decodebin3 and decode on VDBox."""
+        return (
+            bool(self.cpu_pinning)
+            and self.has_decodebin3()
+            and not any(
+                node.type.startswith("gva")
+                and node.type
+                not in {"gvafpscounter", "gvametaconvert", "gvametapublish"}
+                for node in self.nodes
+            )
         )
 
-    def is_media_cpu(self) -> bool:
-        return not any(
-            node.type.startswith("gva")
-            and node.type not in {"gvafpscounter", "gvametaconvert", "gvametapublish"}
-            for node in self.nodes
-        ) and any(node.type in {"avdec_h264", "avdec_h265"} for node in self.nodes)
+    def with_vdbox_decode(self) -> "Graph":
+        graph = copy.deepcopy(self)
+        for node in graph.nodes:
+            if node.type == "decodebin3":
+                node.data["caps"] = '"video/x-raw(memory:VAMemory)"'
+        return graph
 
     def __post_init__(self) -> None:
         if not isinstance(self.cpu_pinning, list) or any(

@@ -1,9 +1,6 @@
-// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-
 import type { Pipeline, PipelineDensitySpec } from "@/api/api.generated";
 
-export type DensityMode = "classic" | "mixed" | "hybrid";
+export type DensityMode = "classic" | "mixed";
 
 export interface ClassicPipelineSelection {
   pipelineId: string;

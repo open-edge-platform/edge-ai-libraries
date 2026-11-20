@@ -183,10 +183,14 @@ class TestPipelineManager(unittest.TestCase):
     @patch("managers.pipeline_manager.VideoEncoder")
     def test_media_vdbox_file_output_uses_gpu_encoder(self, encoder_class):
         spec = create_internal_performance_spec("vdbox", "VDBox", streams=1)
-        spec.pipeline_graph = Graph.from_pipeline_description(
-            'fakesrc ! parsebin ! decodebin3 caps="video/x-raw(memory:VAMemory)" ! '
-            "queue ! gvafpscounter starting-frame=2000 ! "
-            "fakesink name=default_output_sink sync=false async=false"
+        spec.pipeline_graph = Graph.from_dict(
+            {
+                **Graph.from_pipeline_description(
+                    "fakesrc ! decodebin3 ! queue ! gvafpscounter starting-frame=2000 ! "
+                    "fakesink name=default_output_sink sync=false async=false"
+                ).to_dict(),
+                "cpu_pinning": [12],
+            }
         )
         encoder = encoder_class.return_value
         encoder.create_video_output_subpipeline.return_value = (
@@ -203,31 +207,35 @@ class TestPipelineManager(unittest.TestCase):
         self.assertIn("vah264enc", command.command)
         self.assertNotIn("openh264enc", command.command)
 
-    def test_media_vdbox_is_preserved_and_cpu_pinning_is_per_stream(self):
+    def test_media_decode_uses_vdbox_only_when_pinned(self):
         manager = PipelineManager()
-        hardware = create_internal_performance_spec("vdbox", "VDBox", streams=2)
-        hardware.pipeline_graph = Graph.from_pipeline_description(
-            'fakesrc ! decodebin3 caps="video/x-raw(memory:VAMemory)" ! '
-            "gvafpscounter starting-frame=2000 ! "
+        description = (
+            "fakesrc ! decodebin3 ! queue ! gvafpscounter starting-frame=2000 ! "
             "fakesink name=default_output_sink sync=false async=false"
         )
-        software = create_internal_performance_spec("cpu", "CPU", streams=5)
-        software.pipeline_graph = Graph.from_dict(
-            {**create_simple_graph().to_dict(), "cpu_pinning": [12, 13]}
+        pinned = create_internal_performance_spec("pinned", "Pinned", streams=5)
+        pinned.pipeline_graph = Graph.from_dict(
+            {
+                **Graph.from_pipeline_description(description).to_dict(),
+                "cpu_pinning": [12, 13],
+            }
         )
+        unpinned = create_internal_performance_spec("unpinned", "Unpinned", streams=1)
+        unpinned.pipeline_graph = Graph.from_pipeline_description(description)
         command = manager.build_pipeline_command(
-            [hardware, software], create_internal_execution_config(), "hybrid"
+            [pinned, unpinned], create_internal_execution_config(), "media"
         )
-        self.assertEqual(len(command.stream_commands), 7)
+        self.assertEqual(len(command.stream_commands), 6)
         self.assertEqual(
             list(command.stream_cpu_cores.values()), [[12], [13], [12], [13], [12]]
         )
-        for info in command.streams_per_pipeline["vdbox"]:
-            self.assertNotIn(info.stream_id, command.stream_cpu_cores)
+        for info in command.streams_per_pipeline["pinned"]:
             launch = command.stream_commands[info.stream_id]
             self.assertIn("decodebin3", launch)
             self.assertIn("memory:VAMemory", launch)
-            self.assertNotIn("avdec_", launch)
+        for info in command.streams_per_pipeline["unpinned"]:
+            self.assertNotIn(info.stream_id, command.stream_cpu_cores)
+            self.assertNotIn("memory:VAMemory", command.stream_commands[info.stream_id])
 
     def setUp(self):
         """Reset singleton state before each test."""

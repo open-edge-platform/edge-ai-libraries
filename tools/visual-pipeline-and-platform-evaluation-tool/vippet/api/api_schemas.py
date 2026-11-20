@@ -1567,11 +1567,6 @@ class DensityTestSpec(BaseModel):
     """
     **Request body for starting a density test.**
 
-    A media-only VDBox variant (`decodebin3` with VAMemory caps) paired with a
-    CPU variant (`avdec_h264` / `avdec_h265`), without fixed `streams`, selects
-    hybrid decode search: maximize VDBox first, then maximize CPU while keeping
-    the VDBox count fixed. Ratios are ignored for this pair.
-
     Supports two modes, selected automatically from the request shape
     (see ``PipelineDensitySpec`` for details):
 
@@ -2061,18 +2056,6 @@ class PerformanceJobStatus(TestsJobStatus):
     )
 
 
-class DensityTrial(BaseModel):
-    index: int
-    stage: Literal["density", "vdbox", "cpu"]
-    started_at: int
-    ended_at: int | None = None
-    measurement_started_at: int | None = None
-    measurement_ended_at: int | None = None
-    streams_per_pipeline: dict[str, int]
-    min_stream_fps: float | None = None
-    passed: bool | None = None
-
-
 class DensityJobStatus(TestsJobStatus):
     """
     **Status of a density test job.**
@@ -2085,8 +2068,7 @@ class DensityJobStatus(TestsJobStatus):
     - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     """
 
-    trials: list[DensityTrial] = Field(default_factory=list)
-    selected_trial: int | None = None
+    pass
 
 
 class AudioJobSummary(BaseModel):

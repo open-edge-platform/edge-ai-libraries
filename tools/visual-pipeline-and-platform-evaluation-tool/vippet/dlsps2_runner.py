@@ -418,10 +418,6 @@ def stop_leftover_instances(
 _TERMINAL_STATES = frozenset({"COMPLETED", "ERROR", "ABORTED"})
 
 
-class VdboxDecoderUnavailable(RuntimeError):
-    """A running VA decode pipeline could not instantiate a suitable decoder."""
-
-
 class Dlsps2PipelineRunner:
     """Executes pipelines via a running DLSPS 2.0 instance's REST API.
 
@@ -442,7 +438,6 @@ class Dlsps2PipelineRunner:
         validate_pipelines: bool = True,
         on_event: Optional[Callable[[PipelineEvent], None]] = None,
         pinned_cpu_cores: Optional[list[int]] = None,
-        require_common_window: bool = False,
     ):
         """Initialize the runner.
 
@@ -493,9 +488,6 @@ class Dlsps2PipelineRunner:
         self.validate_pipelines = validate_pipelines
         self.on_event = on_event
         self.pinned_cpu_cores = sorted(set(pinned_cpu_cores or []))
-        self.require_common_window = require_common_window
-        self.measurement_started_at: int | None = None
-        self.measurement_ended_at: int | None = None
         self.cancelled = False
         self.logger = logger
         # Launch strings DLSPS 2.0 already accepted, reused across density iterations.
@@ -1284,14 +1276,7 @@ class Dlsps2PipelineRunner:
                 that long. Not raised once the run is cancelled.
         """
         instances: dict[str, str] = {}
-        if self.require_common_window and self.max_runtime - self._warmup() < 5:
-            raise ValueError(
-                "Density tests require at least 5 seconds of measurement after warmup; use a runtime of at least 10 seconds."
-            )
-        completed_window = False
         frames = dict.fromkeys(stream_commands, 0.0)
-        self.measurement_started_at = None
-        self.measurement_ended_at = None
         seconds = dict.fromkeys(stream_commands, 0.0)
         windows: dict[str, tuple] = {}
         statuses: dict[str, dict] = {}
@@ -1364,7 +1349,6 @@ class Dlsps2PipelineRunner:
                             and self.max_runtime > 0
                             and now - playing_since >= self.max_runtime
                         ):
-                            completed_window = True
                             break
 
                         try:
@@ -1393,23 +1377,9 @@ class Dlsps2PipelineRunner:
                                 message = (
                                     statuses[sid].get("message") or f"state={state}"
                                 )
-                                detail = f"Stream {sid} failed on DLSPS 2.0: {message}"
-                                if (
-                                    state == "ERROR"
-                                    and "memory:VAMemory" in stream_commands[sid]
-                                    and re.fullmatch(
-                                        r"(?:Your GStreamer installation is missing a plug-in|GStreamer encountered a general stream error)\. \(element: decodebin3\d*(?:-\d+)?\)",
-                                        message,
-                                    )
-                                    and (
-                                        message.startswith(
-                                            "Your GStreamer installation"
-                                        )
-                                        or statuses[sid].get("first_frame_time") is None
-                                    )
-                                ):
-                                    raise VdboxDecoderUnavailable(detail)
-                                raise RuntimeError(detail)
+                                raise RuntimeError(
+                                    f"Stream {sid} failed on DLSPS 2.0: {message}"
+                                )
                         if len(states) == len(instances) and all(
                             state == "COMPLETED" for state in states.values()
                         ):
@@ -1451,14 +1421,6 @@ class Dlsps2PipelineRunner:
                         if all_playing and playing_since is None:
                             playing_since = now
                         if (
-                            self.require_common_window
-                            and playing_since is not None
-                            and not all_playing
-                        ):
-                            raise RuntimeError(
-                                "A density stream ended before the common measurement window completed. Enable looping and disable video output."
-                            )
-                        if (
                             all_playing
                             and playing_since is not None
                             and now - playing_since >= self._warmup()
@@ -1470,11 +1432,6 @@ class Dlsps2PipelineRunner:
                                 )
                                 frames[sid] += fps[sid] * interval
                                 seconds[sid] += interval
-                                self.measurement_ended_at = int(time.time() * 1000)
-                                if self.measurement_started_at is None:
-                                    self.measurement_started_at = (
-                                        self.measurement_ended_at - int(interval * 1000)
-                                    )
 
                         # Mean per stream for the live chart.
                         self._push_fps_metric(sum(fps.values()) / len(instances))
@@ -1514,14 +1471,6 @@ class Dlsps2PipelineRunner:
             )
 
         stream_fps: dict[str, float] = {}
-        if (
-            self.require_common_window
-            and not self.cancelled
-            and (not completed_window or any(seconds[sid] <= 0 for sid in instances))
-        ):
-            raise RuntimeError(
-                "No complete common measurement window for density. Enable looping and use a longer runtime; final avg_fps is not a valid density measurement."
-            )
         fallback = 0
         for sid in instances:
             if seconds[sid] > 0:

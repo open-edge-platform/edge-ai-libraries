@@ -1039,22 +1039,11 @@ class TestsManager:
             enable_latency_metrics = _latency_metrics_available(
                 latency_requested, job_id
             )
-
-            def on_trial(trial: dict) -> None:
-                with self._jobs_lock:
-                    current_job = self.jobs.get(job_id)
-                    if isinstance(current_job, InternalDensityJobStatus):
-                        current_job.trials = [
-                            *current_job.trials[: trial["index"]],
-                            trial,
-                        ]
-
             benchmark = Benchmark(
                 max_runtime=internal_spec.execution_config.max_runtime,
                 enable_latency_metrics=enable_latency_metrics,
                 job_id=job_id,
                 pinned_cpu_cores=internal_spec.execution_config.pinned_cpu_cores,
-                on_trial=on_trial,
             )
 
             # Store benchmark runner for this job so that a future extension could cancel it.
@@ -1106,24 +1095,6 @@ class TestsManager:
                         job.min_stream_fps = results.min_stream_fps
                         job.streams_per_pipeline = results.streams_per_pipeline
                         job.total_streams = results.n_streams
-                        if isinstance(job, InternalDensityJobStatus):
-                            counts = {
-                                spec.id: spec.streams
-                                for spec in results.streams_per_pipeline
-                            }
-                            job.selected_trial = next(
-                                (
-                                    trial["index"]
-                                    for trial in reversed(job.trials)
-                                    if trial["passed"]
-                                    and all(
-                                        trial["streams_per_pipeline"].get(key, 0)
-                                        == value
-                                        for key, value in counts.items()
-                                    )
-                                ),
-                                None,
-                            )
                         job.video_output_paths = video_output_paths
                         # Record the latency_tracer samples captured on
                         # the benchmark's best-configuration run (the

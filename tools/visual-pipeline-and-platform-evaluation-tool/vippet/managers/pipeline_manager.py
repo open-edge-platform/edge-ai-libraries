@@ -705,20 +705,9 @@ class PipelineManager:
             # have to be adapted to the raw-video stream produced by the dedicated
             # image decoder; ``apply_decodebin3_replacement`` handles both cases.
             _, target_gpu_index = split_device_target(base_graph.get_target_device())
-            if base_graph.is_media_cpu():
-                codec = base_graph.determine_input_codec()
-                for node in base_graph.nodes:
-                    if (
-                        node.type in {"avdec_h264", "avdec_h265"}
-                        and codec
-                        and node.type != f"avdec_{codec}"
-                    ):
-                        raise ValueError(
-                            f"CPU decoder {node.type} does not match input codec {codec}."
-                        )
-            if (
-                base_graph.has_decodebin3() and not base_graph.is_media_vdbox()
-            ) or base_graph.has_image_set_source():
+            if base_graph.uses_vdbox_decode():
+                base_graph = base_graph.with_vdbox_decode()
+            elif base_graph.has_decodebin3() or base_graph.has_image_set_source():
                 codec = base_graph.determine_input_codec()
                 target_device = base_graph.get_target_device()
                 base_graph = base_graph.apply_decodebin3_replacement(
