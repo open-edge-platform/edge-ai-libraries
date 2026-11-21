@@ -21,16 +21,16 @@ jobs:
       fail-fast: false
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         path: edge-ai-libraries-repo
         persist-credentials: false
     - name: Install Helm
-      uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 #v4.3.1
+      uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e #v5.1.0
       with:
         version: v3.15.2
     - name: Log in to GitHub Container Registry
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0
+      uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 #4.8.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
