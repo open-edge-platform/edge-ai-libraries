@@ -12,3 +12,12 @@ storage/*
 !.cache/huggingface/
 .cache/huggingface/*
 !.cache/huggingface/.gitkeep
+# Benchmark audio inputs/outputs (formats from AUDIO_EXT in bench_audio_analyzer.py)
+benchmark/data/**/*.wav
+benchmark/data/**/*.mp3
+benchmark/data/**/*.flac
+benchmark/data/**/*.ogg
+benchmark/data/**/*.m4a
+benchmark/data/**/*.webm
+benchmark/data/**/*.mp4
+benchmark/results/

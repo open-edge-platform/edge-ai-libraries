@@ -10,3 +10,13 @@ go.work.sum
 **/.github/skills/*/benchmark/*
 !**/.github/skills/*/benchmark/benchmark.md
 !**/.github/skills/*/benchmark/benchmark.json
+
+# Ignore benchmark audio inputs and generated results.
+/benchmark/data/**/*.wav
+/benchmark/data/**/*.mp3
+/benchmark/data/**/*.m4a
+/benchmark/data/**/*.flac
+/benchmark/data/**/*.ogg
+/benchmark/data/**/*.opus
+/benchmark/data/**/*.aac
+/benchmark/results/
