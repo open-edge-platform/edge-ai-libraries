@@ -88,7 +88,7 @@ debian_85_install_video_search_and_summarization () {
     ensure_container_namespace install video_search_and_summarization name:vss-model-download
 
     echo "@@STEP Cloning repository"
-    ensure_git_export "$workspace" release-${version%-rc*} $repository sample-applications/video-search-and-summarization
+    ensure_git_export "$workspace" tags/v${version%-rc*} $repository sample-applications/video-search-and-summarization
 
     echo "@@STEP Configuring models"
     configure_video_search_and_summarization_gated
@@ -120,7 +120,7 @@ debian_85_start_video_search_and_summarization () {
   ensure_ports_open start video_search_and_summarization "${used_ports[@]}"
 
   cd "$workspace"/sample-applications/video-search-and-summarization
-  ensure_container_namespace start video_search_and_summarization $(ensure_container_parse_yaml docker/compose*.yaml video-ingestion/docker/compose.yaml)
+  ensure_container_namespace start video_search_and_summarization $(ensure_container_parse_yaml --project=docker docker/compose*.yaml video-ingestion/docker/compose.yaml)
 
   configure_video_search_and_summarization_gated
   . ./setup.sh --search-and-summary
@@ -136,7 +136,7 @@ debian_85_stop_video_search_and_summarization () {
   cd "$workspace"/sample-applications/video-search-and-summarization && {
     . ./setup.sh --stop || true
     . ./setup.sh --clean-data || true
-    ensure_container_cleanup $(ensure_container_parse_yaml docker/compose*.yaml video-ingestion/docker/compose.yaml) 
+    ensure_container_cleanup $(ensure_container_parse_yaml --project=docker docker/compose*.yaml video-ingestion/docker/compose.yaml)
   } || true
 }
 

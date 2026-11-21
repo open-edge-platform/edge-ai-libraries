@@ -1,15 +1,16 @@
 
 configure_smart_nvr () {
   workspace="$(ensure_project_path)/smart-nvr"
-  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
+  version="$(ensure_parse_value_option version --version=2026.3.0-rc1 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(7860 8000 5000 6379 1884 443 1880 3000 8086 8554)
 
   export REGISTRY_URL="intel"
-  export TAG="latest"
+  export TAG="$version"
   export VSS_IP=$(ensure_ip)
   export VSS_PORT=12345
-  export NVR_SCENESCAPE=true
+  export NVR_SCENESCAPE=false
+  export SCENESCAPE_NVR_ONLY=false
 }
 
 verify_smart_nvr () {
@@ -30,7 +31,7 @@ debian_90_install_smart_nvr () {
     ensure_ports_open install smart_nvr "${used_ports[@]}"
 
     echo "@@STEP Clonging repository"
-    ensure_git_export "$workspace" "$version" "$repository" smart-nvr metro-vision-ai-app-recipe
+    ensure_git_export "$workspace" tags/v"$version" "$repository" smart-nvr metro-vision-ai-app-recipe
     sed -i "s|^load_si_rtsp_from_brokers$||" "$workspace"/smart-nvr/setup.sh
   fi
 
@@ -43,12 +44,11 @@ debian_90_start_smart_nvr () {
   ensure_ports_open start smart_nvr "${used_ports[@]}"
 
   cd "$workspace"/smart-nvr
-  ensure_container_namespace start smart_nvr $(ensure_container_parse_yaml docker/*.yaml) \
-      $(ensure_container_parse_yaml --project=smartnvr-mediamtx streamer/docker-compose.yml) \
-      $(ensure_container_parse_yaml ../metro-vision-ai-app-recipe/compose-scenescape.yml)
+  ensure_container_namespace start smart_nvr $(ensure_container_parse_yaml docker/compose.yaml)
 
   . setup.sh start
 
+  ensure_prop set started/smart_nvr/stops "video_search_and_summarization"
   echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT $installer_name stop|remove"
 }
@@ -57,9 +57,7 @@ debian_90_stop_smart_nvr () {
   configure_smart_nvr "$@"
   cd "$workspace"/smart-nvr && {
     . ./setup.sh stop || true
-    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml) \
-      $(ensure_container_parse_yaml --project=smartnvr-mediamtx streamer/docker-compose.yml) \
-      $(ensure_container_parse_yaml ../metro-vision-ai-app-recipe/compose-scenescape.yml)
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/compose.yaml) 
   } || true
 }
 
