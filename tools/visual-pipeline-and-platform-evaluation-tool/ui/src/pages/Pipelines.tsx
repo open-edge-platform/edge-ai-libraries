@@ -1,8 +1,9 @@
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   useConvertSimpleToAdvancedMutation,
   useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
+  useGetVideosQuery,
   useRunPerformanceTestMutation,
   useStopPerformanceTestJobMutation,
   useUpdateVariantMutation,
@@ -66,6 +67,7 @@ import {
   Save,
   SlidersHorizontal,
   Timer,
+  TriangleAlert,
   Undo2,
 } from "lucide-react";
 import { CpuCorePinningDialog } from "@/features/pipeline-editor/CpuCorePinningDialog.tsx";
@@ -94,6 +96,25 @@ const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
     return false;
   });
 };
+
+// An empty name means the backend could not resolve the pipeline's video.
+const findMissingInputVideos = (
+  nodes: ReactFlowNode[],
+  availableVideos: Set<string>,
+): string[] =>
+  nodes.flatMap((node) => {
+    const data = (node.data ?? {}) as Record<string, unknown>;
+    let name: string;
+    if (node.type === "source") {
+      if (String(data.kind ?? "").toLowerCase() !== "video") return [];
+      name = String(data.source ?? data.location ?? "").trim();
+    } else if (node.type === "filesrc") {
+      name = String(data.location ?? "").trim();
+    } else {
+      return [];
+    }
+    return name.startsWith("/") || availableVideos.has(name) ? [] : [name];
+  });
 
 const normalizeSourceNodeData = (
   node: ReactFlowNode,
@@ -203,6 +224,18 @@ export const Pipelines = () => {
     {
       skip: !id,
     },
+  );
+
+  const { data: videos } = useGetVideosQuery();
+  const missingInputVideos = useMemo(
+    () =>
+      videos
+        ? findMissingInputVideos(
+            currentNodes,
+            new Set(videos.map((video) => video.filename)),
+          )
+        : [],
+    [currentNodes, videos],
   );
 
   const [stopPerformanceTest, { isLoading: isStopping }] =
@@ -528,6 +561,11 @@ export const Pipelines = () => {
     const missingRequiredModels = pipelineModelStatuses
       .filter((item) => item.installStatus !== "installed")
       .map((item) => item.model);
+    const hasMissingInputVideo =
+      !isTimeSeriesPipeline && missingInputVideos.length > 0;
+    const missingInputVideoNames = [
+      ...new Set(missingInputVideos.filter(Boolean)),
+    ];
 
     const editorContent = (
       <div className="w-full h-full relative">
@@ -945,7 +983,7 @@ export const Pipelines = () => {
                 isStopping={isStopping}
                 onStop={handleStopPipeline}
               />
-            ) : hasMissingRequiredModels ? (
+            ) : hasMissingRequiredModels || hasMissingInputVideo ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="inline-flex">
@@ -957,10 +995,19 @@ export const Pipelines = () => {
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-80">
-                  <p>Install all required models first.</p>
-                  {missingRequiredModels.length > 0 && (
-                    <p className="mt-1 text-xs text-muted-foreground break-words">
-                      Missing: {missingRequiredModels.join(", ")}
+                  {hasMissingRequiredModels && (
+                    <>
+                      <p>Install all required models first.</p>
+                      {missingRequiredModels.length > 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground break-words">
+                          Missing: {missingRequiredModels.join(", ")}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {hasMissingInputVideo && (
+                    <p className={hasMissingRequiredModels ? "mt-2" : ""}>
+                      Select an available input video first.
                     </p>
                   )}
                 </TooltipContent>
@@ -998,6 +1045,30 @@ export const Pipelines = () => {
             />
           </div>
         </header>
+        {hasMissingInputVideo && (
+          <div
+            role="alert"
+            className="flex items-start gap-3 border-b border-l-4 border-l-amber-500 bg-amber-500/10 px-4 py-3 text-sm"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <div>
+              <p className="font-medium">Input video is not available</p>
+              <p className="mt-1 text-muted-foreground">
+                {missingInputVideoNames.length > 0
+                  ? `${missingInputVideoNames.join(", ")} has not been downloaded or uploaded.`
+                  : "The input video of this pipeline has not been downloaded or uploaded."}{" "}
+                Download sample videos on the{" "}
+                <Link
+                  to="/videos"
+                  className="font-medium text-foreground underline underline-offset-4"
+                >
+                  Videos page
+                </Link>
+                , then select a video in the Input node.
+              </p>
+            </div>
+          </div>
+        )}
         <div className="flex-1 overflow-hidden">
           <ResizablePanelGroup
             orientation="horizontal"

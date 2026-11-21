@@ -15,7 +15,8 @@ Before starting, ensure the following:
 
 - **System requirements**: The system meets the [minimum requirements](./system-requirements.md).
 - **Internet access**: The host has outbound internet connectivity. Base images, apt and Python packages, npm
-  dependencies, sample videos, and models are downloaded during the build and on first start. Offline or
+   dependencies, and models are downloaded during the build and on first start. Sample videos are downloaded
+   only when requested from the Videos page. Offline or
   air-gapped installation is not supported. See
   [Network Requirements](./system-requirements.md#network-requirements).
 - **Docker platform**: **Docker Engine** is installed. On Linux, install it from the Docker apt repository, see

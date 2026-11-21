@@ -12,12 +12,14 @@ import {
   GitFork,
   Camera,
   Image,
+  AudioLines,
 } from "lucide-react";
 import { redirect, type RouteObject } from "react-router";
 import { Home as HomePage } from "@/pages/Home.tsx";
 import { Pipelines } from "@/pages/Pipelines.tsx";
 import { Models } from "@/pages/Models.tsx";
 import { Videos } from "@/pages/Videos.tsx";
+import { Audio } from "@/pages/Audio.tsx";
 import { ImageSets } from "@/pages/ImageSets.tsx";
 import { ImagesInSet } from "@/pages/ImagesInSet.tsx";
 import { PerformanceTests } from "@/pages/PerformanceTests.tsx";
@@ -53,6 +55,7 @@ export const menuItems: Array<NavigationItem> = [
   { url: "/benchmarks", title: "Benchmarks", icon: ChartNoAxesCombined },
   { url: "/models", title: "Models", icon: Cpu },
   { url: "/videos", title: "Videos", icon: Film },
+  { url: "/audio", title: "Audio", icon: AudioLines },
   { url: "/images", title: "Images", icon: Image },
   { url: "/cameras", title: "Cameras", icon: Camera },
   {
@@ -74,6 +77,7 @@ export const routeConfig: Array<RouteObject> = [
   { path: "pipelines/vision/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
+  { path: "audio", Component: Audio },
   { path: "images", Component: ImageSets },
   { path: "images/:imageSetName", Component: ImagesInSet },
   { path: "cameras", Component: Cameras },

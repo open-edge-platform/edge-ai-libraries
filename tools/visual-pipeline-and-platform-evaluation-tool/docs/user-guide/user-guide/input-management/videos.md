@@ -4,11 +4,26 @@
 
 From the left-side menu, choose **Videos** to open the video management page.
 This page lists all available videos, along with their basic properties and previews. The application
-includes a set of sample videos that can be used as pipeline input.
+includes an optional catalog of sample videos that can be downloaded when needed.
 
 ![Video Uploader](../../_assets/ViPPET-UI-Videos-Uploader-light.png)
 
 You can also upload your own videos to use as pipeline input. The maximum allowed file size is **2 GB**.
+
+## Downloading sample videos
+
+The **Sample videos** table lists the sample clips and their source. The application no longer
+downloads sample videos automatically at startup. Download clips individually when needed, or click
+**Download all videos** to download and convert to HEVC every sample clip that is not ready yet,
+one after another.
+If a pipeline's input video is not available, the pipeline editor shows a warning and disables
+**Run** until you download the video and select it in the Input node.
+If an uploaded video already uses a sample filename, ViPPET keeps the uploaded file and disables that
+sample download to avoid a filename collision.
+
+Some clips are provided by Pexels. Attribution is not required under the current Pexels License, but
+other restrictions apply. Review the [Pexels License](https://www.pexels.com/license/) and
+[Terms of Service](https://www.pexels.com/terms-of-service/) before using the clips.
 
 ## Uploading a video
 
@@ -62,10 +77,10 @@ When all checks pass, ViPPET:
 
 ViPPET stores input videos in two parallel locations inside the shared `videos/input/` folder:
 
-| Subdirectory             | Contents                                                                                                  |
-|--------------------------|-----------------------------------------------------------------------------------------------------------|
-| `videos/input/auto/`     | Videos auto-downloaded at startup from `default_recordings.yaml`. Managed by ViPPET; do not edit by hand. |
-| `videos/input/uploaded/` | Videos uploaded by the user through the **Upload** button or the `POST /videos/upload` API.               |
+| Subdirectory             | Contents                                                                                                   |
+|--------------------------|------------------------------------------------------------------------------------------------------------|
+| `videos/input/auto/`     | Sample videos downloaded on demand from `default_recordings.yaml`. Managed by ViPPET; do not edit by hand. |
+| `videos/input/uploaded/` | Videos uploaded by the user through the **Upload** button or the `POST /videos/upload` API.                |
 
 Filenames are **globally unique** across the two subdirectories: an upload that collides with an
 auto-downloaded recording is rejected with a `file_exists` error. The auto-generated MPEG-TS copy

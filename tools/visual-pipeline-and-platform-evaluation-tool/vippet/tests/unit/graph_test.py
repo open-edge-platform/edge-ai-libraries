@@ -4536,7 +4536,25 @@ class TestApplyLoopingModifications(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             graph.apply_looping_modifications()
 
-        self.assertIn("Cannot find source video", str(cm.exception))
+        self.assertIn("Input video 'video.mp4' is not available", str(cm.exception))
+
+    @patch("graph.VideosManager")
+    def test_empty_input_video_raises_clear_error(self, mock_videos_cls):
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": ""}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("No input video is selected", str(cm.exception))
+        mock_videos_cls.return_value.get_ts_path.assert_not_called()
 
     @patch("graph.VideosManager")
     @patch("os.path.isfile")
@@ -6847,6 +6865,19 @@ class TestInputVideoNameToPathAbsoluteBypass(unittest.TestCase):
 
         instance.get_video_path.assert_called_once_with("foo.mp4")
         self.assertEqual(nodes[0].data["location"], "/videos/input/uploaded/foo.mp4")
+
+    @patch("graph.VideosManager")
+    def test_missing_video_raises_clear_error(self, mock_videos_cls):
+        from graph import _input_video_name_to_path
+
+        mock_videos_cls.return_value.get_video_path.return_value = None
+
+        nodes = [Node(id="0", type="filesrc", data={"location": "people.mp4"})]
+        with self.assertRaises(ValueError) as cm:
+            _input_video_name_to_path(nodes)
+
+        self.assertIn("Input video 'people.mp4' is not available", str(cm.exception))
+        self.assertIn("Videos page", str(cm.exception))
 
 
 # --------------------------------------------------------------------------- #
