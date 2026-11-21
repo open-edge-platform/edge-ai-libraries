@@ -15,13 +15,14 @@ debian_70_install_nodejs () {
   else
     ensure_prop set installed/nodejs/owned true
     ensure_fetch "$repo_script" - | ensure_sudo bash 
-    ensure_apt install nodejs=$version.*
+    ensure_apt install -y nodejs=$version.*
   fi
 }
 
 debian_70_remove_nodejs () {
   [ "$(ensure_prop get installed/nodejs/owned)" = "true" ] || return 0
   ensure_apt_remove_package nodejs
+  ensure_rm /etc/apt/sources.list.d/nodesource.sources /etc/apt/preferences.d/nodejs /etc/apt/preferences.d/nsolid
 }
 
 debian_70_sbom_nodejs () {
