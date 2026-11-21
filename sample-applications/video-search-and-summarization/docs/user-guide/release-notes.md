@@ -1,8 +1,8 @@
 # Release Notes: Video Search and Summarization Sample Application
 
-## Version 2026.3.0-rc1
+## Version 2026.3.0-rc2
 
-**Release Date:** November 6, 2026
+**Release Date:** November 21, 2026
 
 > **Note:** Helm Chart support will be deprecated in the next release. Limited validation has been performed on the Helm charts for this release.
 
@@ -32,7 +32,7 @@
 - **NPU LLM prompt limits:** An LLM on NPU is compiled with `OVMS_NPU_MAX_PROMPT_LEN` (default `8192`) and `OVMS_NPU_MIN_RESPONSE_LEN` (default `1024`), and Pipeline Manager's context and completion budgets are derived from them, so long summary prompts are no longer rejected by the NPU. A vision-language model set as the NPU LLM is rejected at setup.
 - **Inference concurrency defaults:** With OVMS, `setup.sh` defaults to `PM_VLM_CONCURRENT=4` and `PM_LLM_CONCURRENT=2` on every device (Helm `pipelinemanager.env.VLM_CONCURRENT` `6`, `LLM_CONCURRENT` `2`); vLLM still uses `1`.
 - **Faster startup detection:** The Pipeline Manager container healthcheck polls every 5 seconds with a longer retry budget, so dependent services start sooner and a slow first start is not reported as unhealthy.
-- **Platform updates:** Video Ingestion uses the `intel/dlstreamer-pipeline-server:2026.3.0-20261027-weekly-ubuntu24` base image, the summarizer CLI requires Go 1.26, and the Multimodal Embedding Serving and DataPrep images install the Intel® GPU compute runtime directly in the Dockerfile and fail the build if a driver is missing. Python, Node.js and Go dependencies were refreshed to clear fixable image vulnerabilities in VSS-owned code; remaining findings come from base images.
+- **Platform updates:** Video Ingestion uses the `intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc2` base image, the summarizer CLI requires Go 1.26, and the Multimodal Embedding Serving and DataPrep images install the Intel® GPU compute runtime directly in the Dockerfile and fail the build if a driver is missing. Python, Node.js and Go dependencies were refreshed to clear fixable image vulnerabilities in VSS-owned code; remaining findings come from base images.
 - The browser tab title no longer carries the "Intel EGAI" prefix.
 - **DataPrep object detection uses Hugging Face OpenVINO models:** Set `DATAPREP_DETECTION_MODEL` (Helm `multimodaldataprep.frameProcessing.detectionModelName`) to an `OpenVINO/<repo>` object-detection model, for example `OpenVINO/yolox_s-int8-ov`; `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are also verified on CPU, GPU and NPU. It has no default and is required in `--search` and `--summary --search` mode unless `ENABLE_OBJECT_DETECTION=false`; `--summary-and-search` mode always runs without detection. The optional `DATAPREP_DETECTION_CLASSES` (Helm `detectionClasses`) keeps only the listed classes. Models are cached in the `docker_dataprep-detection-models` volume; the old `docker_dataprep-yolox-models` volume is no longer used and can be removed.
 
