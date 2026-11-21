@@ -81,7 +81,7 @@ debian_90_stop_smart_classroom () {
   configure_smart_classroom "$@"
   cd "$workspace"/smart-classroom/Linux && {
     docker compose --env-file .env -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml down -v all --remove-orphans
-    pkill -f "--port ${used_ports[0]}"
+    pkill -f -- "--host $(ensure_ip) --port ${used_ports[0]}"
     ensure_container_cleanup $(ensure_container_parse_yaml --project=smart-classroom docker/docker-compose.yml docker/docker-compose.gpu.yml)
   } || true
 }
