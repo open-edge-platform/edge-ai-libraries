@@ -8,6 +8,7 @@ pipelines on both CPU and GPU for performance comparison.
 - [Configuring and Running Pipelines](./pipeline-management/pipeline-execution.md)
 - [Using Predefined Pipelines](./pipeline-management/predefined-pipelines.md)
 - [Simple vs. Advanced View](./pipeline-management/simple-vs-advanced.md)
+- [Publishing Metadata Over MQTT](./pipeline-management/mqtt-metadata.md)
 
 <!--hide_directive
 :::{toctree}
@@ -17,6 +18,7 @@ pipelines on both CPU and GPU for performance comparison.
 ./pipeline-management/pipeline-execution
 ./pipeline-management/predefined-pipelines
 ./pipeline-management/simple-vs-advanced
+./pipeline-management/mqtt-metadata
 
 :::
 hide_directive-->

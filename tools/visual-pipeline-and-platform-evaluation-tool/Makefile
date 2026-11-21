@@ -31,7 +31,7 @@ define base-compose
 endef
 
 define standard-compose
-	$(call base-compose,$(1),,$(if $(strip $(GIGE_COMPOSE)),compose_files+=($(GIGE_COMPOSE))))
+	$(call base-compose,$(1),$(MQTT_COMPOSE),$(if $(strip $(GIGE_COMPOSE)),compose_files+=($(GIGE_COMPOSE))))
 endef
 
 define experimental-compose
@@ -45,6 +45,10 @@ endef
 BUILD_SERVICES := $(if $(DLSPS2_IMAGE),vippet vippet-ui sensor-manager)
 # DLSPS 2.0 image used by `run-prebuilt` unless DLSPS2_IMAGE is set.
 PREBUILT_DLSPS2_IMAGE ?= intel/dlstreamer-pipeline-server:2026.3.0-ubuntu26-2.0-rc1
+
+# Set MQTT=1 to run a Mosquitto broker for gvametapublish method=mqtt (see compose.mqtt.yml).
+MQTT ?= 0
+MQTT_COMPOSE := $(if $(filter 1,$(MQTT)),-f compose.mqtt.yml)
 
 # Set GIGE=1 to run vippet with host networking for GigE Vision camera streaming (see compose.gige.yml).
 GIGE ?= 0
@@ -197,8 +201,8 @@ run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
 
-run-dev: env-setup ## Run the docker compose services for development; GIGE=1 enables GigE camera streaming
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) $(GIGE_COMPOSE) up -d
+run-dev: env-setup ## Run the docker compose services for development; MQTT=1 adds an MQTT broker; GIGE=1 enables GigE camera streaming
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) $(MQTT_COMPOSE) $(GIGE_COMPOSE) up -d
 
 build-experimental: env-setup ## Build core images for experimental timeseries setup
 	$(call experimental-compose,build)
