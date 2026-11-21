@@ -1,7 +1,7 @@
 
 configure_video_search_and_summarization () {
   workspace="$(ensure_project_path)/video-search-and-summarization"
-  version="$(ensure_parse_value_option version --version=2026.3.0-rc1 "$@")"
+  version="$(ensure_parse_value_option version --version=v2026.3.0-rc1 "$@")"
   repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
   skills=(vss-search-index vss-summarize-video)
 
@@ -50,7 +50,13 @@ configure_video_search_and_summarization () {
   export RABBITMQ_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
   export RABBITMQ_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
   export REGISTRY_URL=intel
-  export TAG="$version"
+  if [[ "$version" = v* ]]; then
+    export TAG="${version#v}"
+  elif [[ "$version" = tags/v* ]]; then
+    export TAG="${version#tags/v}"
+  else
+    export TAG=latest
+  fi
 }
 
 configure_video_search_and_summarization_gated () {
