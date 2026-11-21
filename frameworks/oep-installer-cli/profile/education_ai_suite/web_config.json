@@ -5,8 +5,8 @@
     "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
   },
   "modules": [
-    { "label": "Smart Classroom", "value": "smart_classroom", "startStop": true, "remove": true, "options": [] },
-    { "label": "Teacher Assistant Claw Demo", "value": "teacher_assistant_claw_demo", "startStop": false, "remove": true, "options": [] }
+    { "label": "Smart Classroom", "value": "smart_classroom", "startStop": true, "remove": true, "options": ["--gpu"] },
+    { "label": "Teacher Assistant Claw Demo", "value": "teacher_assistant_claw_demo", "startStop": false, "remove": true, "options": ["--gpu"] }
   ],
   "getStarted": {
     "text": "Get Started",
