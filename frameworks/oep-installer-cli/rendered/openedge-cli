@@ -6652,6 +6652,9 @@ debian_90_install_smart_classroom ()
         echo "RENDER_GID=$(getent group render | cut -d: -f3 || echo 992)" >> .env;
         python3 -m utils.sync_startup_models --write;
         python3 -m utils.compose_profiles --write-env;
+        echo "@@STEP Compiling vite";
+        ( cd ui;
+        npm install );
         echo "@@STEP Pulling images";
         docker compose --env-file .env -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml pull --ignore-pull-failures;
         verify_smart_classroom;
