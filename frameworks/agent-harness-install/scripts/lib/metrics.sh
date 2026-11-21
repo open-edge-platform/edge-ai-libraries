@@ -588,11 +588,22 @@ metrics_agent_otlp_base() {
 # config set' refuses otherwise and 'plugins install' stalls on its lock).
 METRICS_OPENCLAW_GATEWAY_HINT="If the OpenClaw Gateway is running, stop it first ('openclaw gateway stop'), re-run this command, then start the Gateway again."
 
+# Runs the OpenClaw CLI with a time limit. Plain 'timeout' moves the command into
+# its own background process group; OpenClaw touches the terminal, so the kernel
+# stops it (SIGTTIN/SIGTTOU) and the install hangs. --foreground keeps it in the
+# terminal's group, and stdin from /dev/null stops it waiting on a prompt.
+metrics_openclaw_run() {
+  local seconds="$1"
+  shift
+  timeout --foreground -k 10 "$seconds" openclaw "$@" </dev/null
+}
+
 metrics_openclaw_plugin_spec() {
   local spec="$HARNESS_OPENCLAW_OTEL_PLUGIN" version
   if [[ -z "$spec" ]]; then
     version="$(installed_npm_global_version openclaw 2>/dev/null || true)"
-    [[ -n "$version" ]] || version="${OPENCLAW_VERSION:-2026.9.5}"
+    [[ -n "$version" ]] \
+      || error "Cannot tell which OpenClaw version is installed; set HARNESS_OPENCLAW_OTEL_PLUGIN to an npm spec such as @openclaw/diagnostics-otel@<version>."
     spec="@openclaw/diagnostics-otel@${version}"
   fi
   [[ "$spec" =~ ^@?[A-Za-z0-9._/-]+(@[A-Za-z0-9._-]+)?$ ]] \
@@ -603,9 +614,12 @@ metrics_openclaw_plugin_spec() {
 # Fails before any side effect when a diagnostics exporter that this installer
 # did not configure is already set up: enabling would overwrite it.
 metrics_check_openclaw_otel_config() {
-  local current
+  local current rc=0
   [[ "$(metrics_state_get harness.agent)" == openclaw && "$(metrics_state_get harness.enabled)" == true ]] && return 0
-  current="$(openclaw config get diagnostics.otel.enabled --json 2>/dev/null || true)"
+  current="$(metrics_openclaw_run 60 config get diagnostics.otel.enabled --json 2>/dev/null)" || rc=$?
+  # Another non-zero exit is taken as 'not set'; a timeout must not pass as that.
+  (( rc != 124 )) \
+    || error "Timed out reading OpenClaw's diagnostics.otel.enabled. ${METRICS_OPENCLAW_GATEWAY_HINT}"
   [[ "$current" != true ]] \
     || error "OpenClaw already has diagnostics.otel enabled that this installer did not set up; it is not overwritten.
 Disable it ('openclaw config set diagnostics.otel.enabled false --strict-json') and re-run."
@@ -616,12 +630,19 @@ metrics_install_openclaw_otel_plugin() {
   spec="$(metrics_openclaw_plugin_spec)"
   if ! openclaw plugins list --json 2>/dev/null | grep -Fq '"diagnostics-otel"'; then
     info "Installing the OpenClaw diagnostics-otel plugin (${spec})"
-    timeout 300 openclaw plugins install "$spec" --accept-capabilities || rc=$?
+    metrics_openclaw_run 300 plugins install "$spec" --accept-capabilities || rc=$?
+    if (( rc != 0 )); then
+      # A bare spec is resolved on ClawHub first, which some networks block;
+      # 'npm:' goes straight to the npm registry the spec names.
+      warn "Install from ClawHub failed; retrying from the npm registry (npm:${spec})"
+      rc=0
+      metrics_openclaw_run 300 plugins install "npm:${spec}" --accept-capabilities || rc=$?
+    fi
     (( rc == 0 )) || error "'openclaw plugins install ${spec}' failed (rc=${rc}; see output above).
 ${METRICS_OPENCLAW_GATEWAY_HINT}"
   fi
   # A previous 'disable' leaves the plugin installed but disabled.
-  timeout 120 openclaw plugins enable diagnostics-otel >/dev/null \
+  metrics_openclaw_run 120 plugins enable diagnostics-otel >/dev/null \
     || error "'openclaw plugins enable diagnostics-otel' failed (see above).
 ${METRICS_OPENCLAW_GATEWAY_HINT}"
 }
@@ -632,7 +653,7 @@ metrics_write_openclaw_otel_config() {
   base="$(metrics_agent_otlp_base "$backend" "$endpoint")"
   [[ "$content" == off ]] || capture=true
   json="{\"enabled\":true,\"otel\":{\"enabled\":true,\"endpoint\":\"${base}\",\"protocol\":\"http/protobuf\",\"serviceName\":\"openclaw\",\"traces\":true,\"metrics\":false,\"logs\":false,\"captureContent\":${capture},\"flushIntervalMs\":1000}}"
-  timeout 120 openclaw config set diagnostics "$json" --strict-json --merge >/dev/null \
+  metrics_openclaw_run 120 config set diagnostics "$json" --strict-json --merge >/dev/null \
     || error "'openclaw config set diagnostics' failed.
 ${METRICS_OPENCLAW_GATEWAY_HINT}"
 }
@@ -644,11 +665,12 @@ metrics_disable_openclaw() {
   command_exists openclaw \
     || error "OpenClaw CLI not found on PATH, so its telemetry cannot be disabled and may keep exporting.
 Run 'openclaw config set diagnostics.otel.enabled false --strict-json' yourself or fix PATH, then retry."
-  timeout 120 openclaw config set diagnostics.otel.enabled false --strict-json >/dev/null \
+  metrics_openclaw_run 120 config set diagnostics.otel.enabled false --strict-json >/dev/null \
     || error "'openclaw config set diagnostics.otel.enabled false' failed; telemetry may still be exported.
 ${METRICS_OPENCLAW_GATEWAY_HINT}"
-  # Best effort: the exporter is already off through the setting above.
-  timeout 120 openclaw plugins disable diagnostics-otel >/dev/null 2>&1 || true
+  # Best effort: the exporter is already off, but a later manual re-enable must not capture content.
+  metrics_openclaw_run 120 config set diagnostics.otel.captureContent false --strict-json >/dev/null 2>&1 || true
+  metrics_openclaw_run 120 plugins disable diagnostics-otel >/dev/null 2>&1 || true
 }
 
 # ---------------------------------------------------------------------------
@@ -658,7 +680,7 @@ ${METRICS_OPENCLAW_GATEWAY_HINT}"
 metrics_dcode_env_file() { printf '%s/.env' "$(metrics_dcode_home)"; }
 
 metrics_dcode_env_has_block() {
-  [[ -f "$1" ]] && grep -Fxq "$METRICS_ENV_BEGIN" "$1"
+  [[ -f "$1" ]] && awk -v b="$METRICS_ENV_BEGIN" -v e="$METRICS_ENV_END" '$0 == b { s = 1 } $0 == e && s { f = 1 } END { exit !f }' "$1"
 }
 
 # Fails before any side effect if the .env cannot be written, or already sets
@@ -669,6 +691,10 @@ metrics_check_dcode_env() {
   env="$(metrics_dcode_env_file)"
   [[ ! -L "$home" ]] || error "dcode data directory ${home} is a symlink."
   [[ ! -L "$env" ]] || error "Refusing to write through a symlink: ${env}"
+  if [[ -f "$env" ]] && ! metrics_dcode_env_has_block "$env" && grep -Fxq -e "$METRICS_ENV_BEGIN" -e "$METRICS_ENV_END" "$env"; then
+    # A lone or reversed marker would make the block swallow the user's lines around it.
+    error "${env} has an incomplete installer block (BEGIN/END markers missing or out of order); repair or remove it and re-run."
+  fi
   # Always scan what is outside the managed block, so a variable added later is caught too.
   if [[ -f "$env" ]] \
     && metrics_strip_dcode_env_block "$env" \
@@ -1063,12 +1089,12 @@ metrics_show_harness_agent() {
       fi ;;
     openclaw)
       if command_exists openclaw; then
-        if timeout 60 openclaw plugins list --json 2>/dev/null | grep -Fq '"diagnostics-otel"'; then
+        if metrics_openclaw_run 60 plugins list --json 2>/dev/null | grep -Fq '"diagnostics-otel"'; then
           ok "diagnostics-otel plugin installed"
         else
           info "diagnostics-otel plugin not installed"
         fi
-        info "diagnostics.otel.enabled: $(timeout 60 openclaw config get diagnostics.otel.enabled --json 2>/dev/null || echo unknown)"
+        info "diagnostics.otel.enabled: $(metrics_openclaw_run 60 config get diagnostics.otel.enabled --json 2>/dev/null || echo unknown)"
       else
         info "OpenClaw CLI not found on PATH"
       fi ;;

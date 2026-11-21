@@ -790,7 +790,12 @@ agent_fixture() {
 d="$HOME/oc-stub"; mkdir -p "$d"
 case "$1 ${2:-}" in
   'plugins list') [[ ! -f "$d/plugin" ]] || printf '[{"id":"diagnostics-otel","status":"%s"}]\n' "$(cat "$d/plugin")" ;;
-  'plugins install') printf 'openclaw install %s\n' "$3" >>"$ACTIONS"; echo enabled >"$d/plugin" ;;
+  'plugins install')
+    # OC_INSTALL_FAIL=bare mimics a blocked ClawHub (only npm: specs install); =all fails every install.
+    if [[ "${OC_INSTALL_FAIL:-}" == all || ( "${OC_INSTALL_FAIL:-}" == bare && "$3" != npm:* ) ]]; then
+      printf 'openclaw install-failed %s\n' "$3" >>"$ACTIONS"; exit 1
+    fi
+    printf 'openclaw install %s\n' "$3" >>"$ACTIONS"; echo enabled >"$d/plugin" ;;
   'plugins enable') printf 'openclaw enable\n' >>"$ACTIONS"; echo enabled >"$d/plugin" ;;
   'plugins disable') printf 'openclaw disable\n' >>"$ACTIONS"; echo disabled >"$d/plugin" ;;
   'config set')
@@ -799,10 +804,11 @@ case "$1 ${2:-}" in
       diagnostics) echo true >"$d/otel" ;;
       diagnostics.otel.enabled) printf '%s\n' "$4" >"$d/otel" ;;
     esac ;;
-  'config get') if [[ "$3" == diagnostics.otel.enabled && -f "$d/otel" ]]; then cat "$d/otel"; else exit 1; fi ;;
+  'config get') if [[ "$3" == diagnostics.otel.enabled && -f "$d/otel" ]]; then cat "$d/otel"; else exit "${OC_GET_RC:-1}"; fi ;;
 esac
 STUB
   chmod +x "$HOME/bin/dcode" "$HOME/bin/openclaw"
+  installed_npm_global_version() { printf '2026.9.5'; }
   metrics_receiver_start() { printf 'receiver start %s %s %s\n' "$1" "$2" "$3" >>"$ACTIONS"; }
   metrics_receiver_stop() { printf 'receiver stop\n' >>"$ACTIONS"; }
   metrics_harness_check
@@ -945,6 +951,60 @@ openclaw_failed_enable_can_be_disabled() {
   metrics_disable_harness
   grep -Fxq 'openclaw config set diagnostics.otel.enabled false' "$ACTIONS"
   grep -Fxq 'receiver stop' "$ACTIONS"
+}
+
+openclaw_unknown_version_is_refused() {
+  agent_fixture openclaw
+  installed_npm_global_version() { return 1; }
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  expect_failure 'Cannot tell which OpenClaw version' metrics_enable_harness
+  refute grep -Fq 'openclaw install' "$ACTIONS"
+}
+
+openclaw_install_falls_back_to_npm() {
+  agent_fixture openclaw
+  export OC_INSTALL_FAIL=bare
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  grep -Fxq 'openclaw install-failed @openclaw/diagnostics-otel@2026.9.5' "$ACTIONS"
+  grep -Fxq 'openclaw install npm:@openclaw/diagnostics-otel@2026.9.5' "$ACTIONS"
+  [[ "$(metrics_state_get harness.enabled)" == true ]]
+  # Failing on both sources is still an error, and no exporter is left configured.
+  agent_fixture openclaw
+  export OC_INSTALL_FAIL=all
+  expect_failure 'plugins install' metrics_enable_harness
+  unset OC_INSTALL_FAIL
+  refute grep -Fq 'openclaw config set diagnostics ' "$ACTIONS"
+}
+
+openclaw_foreign_check_times_out_closed() {
+  agent_fixture openclaw
+  export OC_GET_RC=124
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  expect_failure 'Timed out reading OpenClaw' metrics_enable_harness
+  unset OC_GET_RC
+  refute grep -Fq 'openclaw install' "$ACTIONS"
+}
+
+openclaw_disable_turns_content_capture_off() {
+  agent_fixture openclaw
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=full
+  metrics_enable_harness
+  : >"$ACTIONS"
+  metrics_disable_harness
+  grep -Fxq 'openclaw config set diagnostics.otel.captureContent false' "$ACTIONS"
+}
+
+dcode_refuses_incomplete_marker_block() {
+  agent_fixture deepagents-code
+  local env="$DEEPAGENTS_HOME/.env"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  printf 'USER_KEY=keep\n%s\nOTEL_SERVICE_NAME=mine\n' "$METRICS_ENV_BEGIN" >"$env"
+  expect_failure 'incomplete installer block' metrics_enable_harness
+  printf 'USER_KEY=keep\n%s\nOTEL_X=1\n%s\n' "$METRICS_ENV_END" "$METRICS_ENV_BEGIN" >"$env"
+  expect_failure 'incomplete installer block' metrics_enable_harness
+  grep -Fxq 'USER_KEY=keep' "$env"
+  refute grep -Fq 'receiver start' "$ACTIONS"
 }
 
 receiver_stores_filtered_spans() {
@@ -1134,4 +1194,9 @@ run_case 'OTLP receiver decodes, filters and stores spans per agent and content 
 run_case 'OpenClaw disable only touches an exporter this installer enabled' openclaw_disable_needs_installer_ownership
 run_case 'one harness exporter is recorded; enable for another agent is refused and disable follows the owner' only_one_harness_exporter_is_recorded
 run_case 'a failed OpenClaw enable is recorded so disable can clean it up' openclaw_failed_enable_can_be_disabled
+run_case 'an unknown OpenClaw version is refused instead of guessed' openclaw_unknown_version_is_refused
+run_case 'OpenClaw plugin install retries from npm when ClawHub fails' openclaw_install_falls_back_to_npm
+run_case 'a timed-out OpenClaw foreign-exporter check fails closed' openclaw_foreign_check_times_out_closed
+run_case 'OpenClaw disable also turns content capture off' openclaw_disable_turns_content_capture_off
+run_case 'dcode refuses an incomplete or reversed marker block' dcode_refuses_incomplete_marker_block
 finish_tests

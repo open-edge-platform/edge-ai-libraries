@@ -39,6 +39,9 @@ OPENCLAW_SPANS = {
     "openclaw.model.usage",
     "openclaw.harness.run",
 }
+MAX_DEPTH = 16
+REQUEST_TIMEOUT = 30
+
 CONTENT_KEYS = {
     "gen_ai.prompt",
     "gen_ai.completion",
@@ -50,6 +53,8 @@ CONTENT_KEYS = {
     "input.value",
     "output.value",
 }
+# Indexed forms such as gen_ai.prompt.0.content.
+CONTENT_PREFIXES = ("gen_ai.prompt.", "gen_ai.completion.", "llm.prompts", "llm.completions", "openclaw.content.")
 DROP_KEYS = {"gen_ai.tool.definitions", "openclaw.content.tool_definitions"}
 SESSION_KEYS = (
     "langsmith.metadata.thread_id",
@@ -68,7 +73,7 @@ def keep_span(agent, span):
 
 
 def is_content(key):
-    return key in CONTENT_KEYS or key.startswith("openclaw.content.")
+    return key in CONTENT_KEYS or key.startswith(CONTENT_PREFIXES)
 
 
 def span_data(span, content):
@@ -109,6 +114,8 @@ def _fields(buf):
         if wire == 0:
             val, i = _varint(buf, i)
         elif wire == 1:
+            if i + 8 > n:
+                raise ValueError("truncated field")
             val, i = buf[i:i + 8], i + 8
         elif wire == 2:
             size, i = _varint(buf, i)
@@ -116,13 +123,17 @@ def _fields(buf):
                 raise ValueError("truncated field")
             val, i = buf[i:i + size], i + size
         elif wire == 5:
+            if i + 4 > n:
+                raise ValueError("truncated field")
             val, i = buf[i:i + 4], i + 4
         else:
             raise ValueError("unsupported wire type")
         yield field, wire, val
 
 
-def _any_value(buf):
+def _any_value(buf, depth=0):
+    if depth > MAX_DEPTH:
+        raise ValueError("value nested too deeply")
     for field, wire, val in _fields(buf):
         if field == 1 and wire == 2:
             return val.decode("utf-8", "replace")
@@ -133,21 +144,21 @@ def _any_value(buf):
         if field == 4 and wire == 1:
             return struct.unpack("<d", val)[0]
         if field == 5 and wire == 2:
-            return [_any_value(v) for f, w, v in _fields(val) if f == 1 and w == 2]
+            return [_any_value(v, depth + 1) for f, w, v in _fields(val) if f == 1 and w == 2]
         if field == 6 and wire == 2:
-            return dict(_key_value(v) for f, w, v in _fields(val) if f == 1 and w == 2)
+            return dict(_key_value(v, depth + 1) for f, w, v in _fields(val) if f == 1 and w == 2)
         if field == 7 and wire == 2:
             return val.hex()
     return None
 
 
-def _key_value(buf):
+def _key_value(buf, depth=0):
     key, val = "", None
     for field, wire, v in _fields(buf):
         if field == 1 and wire == 2:
             key = v.decode("utf-8", "replace")
         elif field == 2 and wire == 2:
-            val = _any_value(v)
+            val = _any_value(v, depth)
     return key, val
 
 
@@ -253,6 +264,8 @@ def read_body(handler):
 
 def make_handler(store):
     class Handler(http.server.BaseHTTPRequestHandler):
+        timeout = REQUEST_TIMEOUT
+
         def log_message(self, *_):
             pass
 
@@ -276,8 +289,13 @@ def make_handler(store):
                     inflater = zlib.decompressobj(31)
                     body = inflater.decompress(body, MAX_BODY)
                 store.add(parse_export_request(body))
-            except (ValueError, zlib.error, sqlite3.Error):
-                return self._reply(400, "text/plain")
+            except Exception:
+                # Any malformed or hostile payload must end in a reply, not a dead handler thread.
+                try:
+                    self._reply(400, "text/plain")
+                except OSError:
+                    pass
+                return
             self._reply(200)
 
     return Handler
