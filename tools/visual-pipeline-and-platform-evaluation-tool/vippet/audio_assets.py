@@ -50,10 +50,10 @@ class AudioAssetsManager:
     def __init__(self) -> None:
         if hasattr(self, "_initialized"):
             return
-        self._initialized = True
         self._assets: dict[str, AudioAsset] = {}
         self._ensure_directories()
         self._load_default_recordings()
+        self._initialized = True
 
     @staticmethod
     def _ensure_directories() -> None:
@@ -65,6 +65,12 @@ class AudioAssetsManager:
                 raise RuntimeError(
                     f"Failed to create audio directory '{directory}': {exc}"
                 ) from exc
+        try:
+            with tempfile.TemporaryFile(dir=OUTPUT_AUDIO_DIR) as probe:
+                probe.write(b"\0")
+                probe.flush()
+        except OSError as exc:
+            raise RuntimeError("Audio output directory is not writable") from exc
 
     def _load_default_recordings(self) -> None:
         manifest = self._read_manifest()
