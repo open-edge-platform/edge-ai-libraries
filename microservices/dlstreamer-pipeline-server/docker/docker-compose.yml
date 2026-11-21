@@ -12,7 +12,7 @@ services:
     volumes:
       - ../utils/mosquitto:/mosquitto/config
     ports:
-      - "1883:1883"
+      - "127.0.0.1:1883:1883" # MQTT is internal-only; bind to localhost, not all host interfaces
     networks:
       - app_network
 
