@@ -111,9 +111,9 @@ router_toggle() {
   local cfg="$HARNESS_IR_WORKSPACE_DIR/config.yaml"
   metrics_router_apply true
   grep -Fq 'backend: "file"' "$cfg"
-  grep -Fq 'file_path: "/app/telemetry.jsonl"' "$cfg"
+  grep -Fq 'file_path: "/app/ir_metrics.jsonl"' "$cfg"
   grep -Fq 'policy: "Balanced"' "$cfg"
-  [[ -f "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
+  [[ -f "$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" ]]
   [[ "$(metrics_state_get router.enabled)" == true ]]
   [[ "$(grep -c '^telemetry:' "$cfg")" == 1 ]]
   grep -Fxq "docker restart $HARNESS_IR_CONTAINER" "$ACTIONS"
@@ -121,7 +121,7 @@ router_toggle() {
   grep -Fq 'backend: "memory"' "$cfg"
   refute grep -Fq 'file_path' "$cfg"
   [[ "$(metrics_state_get router.enabled)" == false ]]
-  [[ -f "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
+  [[ -f "$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" ]]
 }
 
 router_setting_survives_config_regeneration() {
@@ -295,7 +295,7 @@ plugin_ref_pins_the_install() {
 router_file_is_not_world_writable() {
   [[ "$(uname -s)" == Linux ]] || { echo "# skipped: needs GNU stat"; return 0; }
   fixture
-  local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl"
+  local file="$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl"
   if [[ "$(metrics_router_host_gid)" == 0 ]]; then
     # Group 0 cannot be shared safely, so 664 must not silently become 666.
     expect_failure 'HARNESS_IR_TELEMETRY_FILE_MODE=666' metrics_router_apply true
@@ -317,7 +317,7 @@ router_state_is_unchanged_when_file_preparation_fails() {
   fixture
   HARNESS_IR_TELEMETRY_FILE_MODE=666 HARNESS_IR_TELEMETRY_MAX_BYTES=big \
     expect_failure 'must be a non-negative integer' metrics_router_apply true
-  [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
+  [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" ]]
   refute grep -q restart "$ACTIONS"
   if [[ "$(metrics_router_host_gid)" != 0 ]]; then
     TEST_DOCKER_LS_FAILS=1 expect_failure 'Cannot inspect Docker containers' metrics_router_apply true
@@ -329,7 +329,7 @@ router_enable_rejects_a_container_without_the_group() {
   [[ "$(metrics_router_host_gid)" != 0 ]] || { echo "# skipped: root has no private group"; return 0; }
   fixture
   TEST_IR_GROUPADD='null' expect_failure 'cannot write the telemetry file' metrics_router_apply true
-  [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
+  [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" ]]
   TEST_IR_GROUPADD='null' HARNESS_IR_TELEMETRY_FILE_MODE=666 metrics_router_apply true
   [[ "$(metrics_state_get router.enabled)" == true ]]
 }
@@ -365,7 +365,7 @@ host_gid_ignores_a_switched_primary_group() {
 
 router_file_is_rotated_when_large() {
   fixture
-  local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl"
+  local file="$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl"
   printf '0123456789\n' >"$file"
   HARNESS_IR_TELEMETRY_MAX_BYTES=100 metrics_router_prepare_file
   [[ "$(cat "$file")" == 0123456789 && ! -e "$file.1" ]]
@@ -426,15 +426,18 @@ harness_refuses_foreign_config() {
 
 unsupported_harness_is_reported() {
   fixture
-  HARNESS_AGENT=openclaw
-  expect_failure 'only Hermes is supported' run_metrics_command enable --target harness
+  HARNESS_AGENT=hermes HARNESS_RUNTIME=openshell
+  expect_failure 'no network egress' run_metrics_command enable --target harness
   # With --target all the Router is still configured and the harness skipped.
   local out
   out="$(run_metrics_command enable --target all)"
   grep -Fq 'Skipping the harness' <<<"$out"
   [[ "$(metrics_state_get router.enabled)" == true ]]
-  HARNESS_AGENT=hermes HARNESS_RUNTIME=openshell
-  expect_failure 'no network egress' run_metrics_command enable --target harness
+  # A supported agent whose CLI is missing is an error, not a silent skip.
+  HARNESS_RUNTIME=host HARNESS_AGENT=openclaw
+  if ! command -v openclaw >/dev/null; then
+    expect_failure 'OpenClaw CLI not found' run_metrics_command enable --target harness
+  fi
 }
 
 enable_keeps_saved_harness_settings() {
@@ -494,7 +497,7 @@ parse_disable_options() {
 
 router_disable_clean_is_opt_in() {
   fixture
-  local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl"
+  local file="$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl"
   metrics_router_apply true
   printf '{"event_type":"request_completed"}\n{"event_type":"request_completed"}\n' >"$file"
   M_CLEAN=""
@@ -643,7 +646,7 @@ time.sleep(20)
 PY
   holder=$!
   for _ in $(seq 1 50); do [[ -e "$HOME/reader-ready" ]] && break; sleep 0.1; done
-  out="$( (metrics_clean_harness_store "$HERMES_HOME") 2>&1 || true)"
+  out="$( (metrics_clean_harness_store "$db") 2>&1 || true)"
   kill "$holder" 2>/dev/null || true
   wait "$holder" 2>/dev/null || true
   grep -Fq 'may still contain their text' <<<"$out"
@@ -702,7 +705,7 @@ content_capture_warns_for_remote_endpoints() {
 
 clean_failures_are_reported() {
   fixture
-  local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" out
+  local file="$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" out
   printf 'keep\n' >"$HOME/elsewhere"
   ln -s "$HOME/elsewhere" "$file"
   [[ -L "$file" ]] || { echo "# skipped: symlinks unavailable"; return 0; }
@@ -711,7 +714,7 @@ clean_failures_are_reported() {
   grep -Fq 'was not cleaned' <<<"$out"
   refute grep -Fq 'and collected data cleaned' <<<"$out"
   ln -s "$HOME/elsewhere" "$HERMES_HOME/hermes_otel_live.db"
-  refute metrics_clean_harness_store "$HERMES_HOME"
+  refute metrics_clean_harness_store "$HERMES_HOME/hermes_otel_live.db"
   [[ "$(cat "$HOME/elsewhere")" == keep ]]
 }
 
@@ -756,6 +759,379 @@ show_surfaces_a_failed_plugin_load() {
   refute grep -Fq 'could not import its dependencies' <<<"$out"
 }
 
+show_does_not_summarise_a_stale_store_under_jaeger() {
+  fixture
+  local out store
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  store="$(metrics_harness_store "$M_AGENT")"
+  mkdir -p "$(dirname "$store")"; : >"$store"
+  out="$(metrics_show_harness 2>&1)"
+  grep -Fq 'no records yet' <<<"$out"
+  metrics_state_set harness.backend jaeger harness.endpoint http://127.0.0.1:4318/v1/traces
+  out="$(metrics_show_harness 2>&1)"
+  grep -Fq 'the local store is not written with this backend' <<<"$out"
+  refute grep -Fq 'no records yet' <<<"$out"
+}
+
+# agent_fixture <agent> -- fixture with stub OpenClaw/dcode executables (the exporter
+# commands run under `timeout`, which cannot call shell functions) and no real receiver.
+agent_fixture() {
+  fixture
+  HARNESS_AGENT="$1"
+  OPENCLAW_STATE_DIR="$HOME/openclaw"
+  DEEPAGENTS_HOME="$HOME/dcode"
+  export ACTIONS OPENCLAW_STATE_DIR DEEPAGENTS_HOME
+  mkdir -p "$HOME/bin" "$OPENCLAW_STATE_DIR" "$DEEPAGENTS_HOME"
+  PATH="$HOME/bin:$PATH"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$HOME/bin/dcode"
+  cat >"$HOME/bin/openclaw" <<'STUB'
+#!/usr/bin/env bash
+d="$HOME/oc-stub"; mkdir -p "$d"
+case "$1 ${2:-}" in
+  'plugins list') [[ ! -f "$d/plugin" ]] || printf '[{"id":"diagnostics-otel","status":"%s"}]\n' "$(cat "$d/plugin")" ;;
+  'plugins install')
+    # OC_INSTALL_FAIL=bare mimics a blocked ClawHub (only npm: specs install); =all fails every install.
+    if [[ "${OC_INSTALL_FAIL:-}" == all || ( "${OC_INSTALL_FAIL:-}" == bare && "$3" != npm:* ) ]]; then
+      printf 'openclaw install-failed %s\n' "$3" >>"$ACTIONS"; exit 1
+    fi
+    printf 'openclaw install %s\n' "$3" >>"$ACTIONS"; echo enabled >"$d/plugin" ;;
+  'plugins enable') printf 'openclaw enable\n' >>"$ACTIONS"; echo enabled >"$d/plugin" ;;
+  'plugins disable') printf 'openclaw disable\n' >>"$ACTIONS"; echo disabled >"$d/plugin" ;;
+  'config set')
+    printf 'openclaw config set %s %s\n' "$3" "${4:-}" >>"$ACTIONS"
+    case "$3" in
+      diagnostics) echo true >"$d/otel" ;;
+      diagnostics.otel.enabled) printf '%s\n' "$4" >"$d/otel" ;;
+    esac ;;
+  'config get') if [[ "$3" == diagnostics.otel.enabled && -f "$d/otel" ]]; then cat "$d/otel"; else exit "${OC_GET_RC:-1}"; fi ;;
+esac
+STUB
+  chmod +x "$HOME/bin/dcode" "$HOME/bin/openclaw"
+  installed_npm_global_version() { printf '2026.9.5'; }
+  metrics_receiver_start() { printf 'receiver start %s %s %s\n' "$1" "$2" "$3" >>"$ACTIONS"; }
+  metrics_receiver_stop() { printf 'receiver stop\n' >>"$ACTIONS"; }
+  metrics_harness_check
+}
+
+openclaw_enable_disable() {
+  agent_fixture openclaw
+  [[ "$M_AGENT" == openclaw ]]
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=full
+  metrics_enable_harness
+  grep -Fq 'openclaw install @openclaw/diagnostics-otel@' "$ACTIONS"
+  grep -Fq "\"endpoint\":\"http://127.0.0.1:${HARNESS_OTLP_RECEIVER_PORT}\"" "$ACTIONS"
+  grep -Fq '"captureContent":true' "$ACTIONS"
+  grep -Fxq "receiver start openclaw $OPENCLAW_STATE_DIR/openclaw_otel_live.db full" "$ACTIONS"
+  [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.agent)" == openclaw ]]
+  metrics_disable_harness
+  grep -Fxq 'openclaw config set diagnostics.otel.enabled false' "$ACTIONS"
+  grep -Fxq 'openclaw disable' "$ACTIONS"
+  grep -Fxq 'receiver stop' "$ACTIONS"
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
+  # The plugin stays installed but disabled; a later enable must turn it back on.
+  : >"$ACTIONS"
+  metrics_enable_harness
+  refute grep -Fq 'openclaw install' "$ACTIONS"
+  grep -Fxq 'openclaw enable' "$ACTIONS"
+  [[ "$(metrics_state_get harness.enabled)" == true ]]
+}
+
+openclaw_jaeger_and_foreign_exporter() {
+  agent_fixture openclaw
+  M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  grep -Fq "\"endpoint\":\"http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}\"" "$ACTIONS"
+  grep -Fq '"captureContent":false' "$ACTIONS"
+  refute grep -Fq 'receiver start' "$ACTIONS"
+  M_CONTENT=preview
+  expect_failure 'needs --backend sqlite' metrics_resolve_harness_settings
+  # An exporter this installer did not configure is never overwritten.
+  agent_fixture openclaw
+  mkdir -p "$HOME/oc-stub"
+  echo true >"$HOME/oc-stub/otel"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  expect_failure 'already has diagnostics.otel enabled' metrics_enable_harness
+  refute grep -Fq 'openclaw install' "$ACTIONS"
+  refute grep -Fq 'receiver start' "$ACTIONS"
+}
+
+dcode_env_block_lifecycle() {
+  agent_fixture deepagents-code
+  local env="$DEEPAGENTS_HOME/.env"
+  printf 'USER_KEY=keep\n' >"$env"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  grep -Fxq 'USER_KEY=keep' "$env"
+  grep -Fxq 'LANGSMITH_TRACING_MODE=otel' "$env"
+  grep -Fxq "OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:${HARNESS_OTLP_RECEIVER_PORT}" "$env"
+  grep -Fxq 'LANGSMITH_HIDE_INPUTS=true' "$env"
+  grep -Fxq 'LANGSMITH_HIDE_OUTPUTS=true' "$env"
+  [[ "$(stat -c %a "$env")" == 600 ]]
+  grep -Fxq "receiver start dcode $DEEPAGENTS_HOME/dcode_otel_live.db off" "$ACTIONS"
+  # Re-enabling replaces the block instead of adding a second one.
+  M_BACKEND=jaeger M_CONTENT=full
+  metrics_enable_harness
+  [[ "$(grep -Fxc "$METRICS_ENV_BEGIN" "$env")" == 1 ]]
+  grep -Fxq "OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}" "$env"
+  refute grep -Fq 'LANGSMITH_HIDE' "$env"
+  grep -Fxq 'receiver stop' "$ACTIONS"
+  metrics_disable_harness
+  [[ "$(cat "$env")" == USER_KEY=keep ]]
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
+  # A file that held only the block goes away with it.
+  rm -f "$env"
+  M_BACKEND=sqlite M_CONTENT=off
+  metrics_enable_harness
+  [[ -f "$env" ]]
+  metrics_disable_harness
+  [[ ! -e "$env" ]]
+}
+
+dcode_refuses_foreign_env() {
+  agent_fixture deepagents-code
+  local env="$DEEPAGENTS_HOME/.env"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  printf 'LANGSMITH_TRACING=true\n' >"$env"
+  expect_failure 'did not write' metrics_enable_harness
+  [[ "$(cat "$env")" == LANGSMITH_TRACING=true ]]
+  refute grep -Fq 'receiver start' "$ACTIONS"
+  rm -f "$env"
+  printf 'keep\n' >"$HOME/elsewhere"
+  ln -s "$HOME/elsewhere" "$env" || { echo "# skipped: symlinks unavailable"; return 0; }
+  expect_failure 'symlink' metrics_enable_harness
+  [[ "$(cat "$HOME/elsewhere")" == keep ]]
+  # Variables outside an existing managed block, with or without spaces before '=', are refused too.
+  rm -f "$env"
+  metrics_enable_harness
+  printf 'OTEL_SERVICE_NAME = mine\n' >>"$env"
+  expect_failure 'did not write' metrics_enable_harness
+}
+
+openclaw_disable_needs_installer_ownership() {
+  agent_fixture openclaw
+  mkdir -p "$HOME/oc-stub"
+  echo enabled >"$HOME/oc-stub/plugin"
+  echo true >"$HOME/oc-stub/otel"
+  # No recorded enable: the user's own exporter and plugin stay as they are.
+  metrics_disable_harness
+  refute grep -Fq 'openclaw config set' "$ACTIONS"
+  refute grep -Fq 'openclaw disable' "$ACTIONS"
+  [[ "$(cat "$HOME/oc-stub/otel")" == true ]]
+}
+
+only_one_harness_exporter_is_recorded() {
+  agent_fixture deepagents-code
+  local out
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  # Another agent cannot be enabled while dcode's exporter is on.
+  M_AGENT=openclaw
+  expect_failure 'enabled for Deep Agents Code' metrics_enable_harness
+  refute grep -Fq 'openclaw install' "$ACTIONS"
+  # Show and disable follow the recorded owner, whichever agent is selected.
+  out="$(metrics_show_harness 2>&1)"
+  grep -Fq 'Enabled for Deep Agents Code' <<<"$out"
+  M_AGENT=openclaw
+  metrics_disable_harness
+  refute grep -Fq 'LANGSMITH_TRACING' "$DEEPAGENTS_HOME/.env" 2>/dev/null
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
+  M_AGENT=openclaw
+  metrics_enable_harness
+  [[ "$(metrics_state_get harness.agent)" == openclaw ]]
+}
+
+openclaw_failed_enable_can_be_disabled() {
+  agent_fixture openclaw
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_write_openclaw_otel_config() { return 1; }
+  expect_failure '' metrics_enable_harness
+  [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.agent)" == openclaw ]]
+  : >"$ACTIONS"
+  metrics_disable_harness
+  grep -Fxq 'openclaw config set diagnostics.otel.enabled false' "$ACTIONS"
+  grep -Fxq 'receiver stop' "$ACTIONS"
+}
+
+openclaw_unknown_version_is_refused() {
+  agent_fixture openclaw
+  installed_npm_global_version() { return 1; }
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  expect_failure 'Cannot tell which OpenClaw version' metrics_enable_harness
+  refute grep -Fq 'openclaw install' "$ACTIONS"
+}
+
+openclaw_install_falls_back_to_npm() {
+  agent_fixture openclaw
+  export OC_INSTALL_FAIL=bare
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  grep -Fxq 'openclaw install-failed @openclaw/diagnostics-otel@2026.9.5' "$ACTIONS"
+  grep -Fxq 'openclaw install npm:@openclaw/diagnostics-otel@2026.9.5' "$ACTIONS"
+  [[ "$(metrics_state_get harness.enabled)" == true ]]
+  # Failing on both sources is still an error, and no exporter is left configured.
+  agent_fixture openclaw
+  export OC_INSTALL_FAIL=all
+  expect_failure 'plugins install' metrics_enable_harness
+  unset OC_INSTALL_FAIL
+  refute grep -Fq 'openclaw config set diagnostics ' "$ACTIONS"
+}
+
+openclaw_foreign_check_times_out_closed() {
+  agent_fixture openclaw
+  export OC_GET_RC=124
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  expect_failure 'Timed out reading OpenClaw' metrics_enable_harness
+  unset OC_GET_RC
+  refute grep -Fq 'openclaw install' "$ACTIONS"
+}
+
+openclaw_disable_turns_content_capture_off() {
+  agent_fixture openclaw
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=full
+  metrics_enable_harness
+  : >"$ACTIONS"
+  metrics_disable_harness
+  grep -Fxq 'openclaw config set diagnostics.otel.captureContent false' "$ACTIONS"
+}
+
+dcode_refuses_incomplete_marker_block() {
+  agent_fixture deepagents-code
+  local env="$DEEPAGENTS_HOME/.env"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  printf 'USER_KEY=keep\n%s\nOTEL_SERVICE_NAME=mine\n' "$METRICS_ENV_BEGIN" >"$env"
+  expect_failure 'incomplete installer block' metrics_enable_harness
+  printf 'USER_KEY=keep\n%s\nOTEL_X=1\n%s\n' "$METRICS_ENV_END" "$METRICS_ENV_BEGIN" >"$env"
+  expect_failure 'incomplete installer block' metrics_enable_harness
+  grep -Fxq 'USER_KEY=keep' "$env"
+  refute grep -Fq 'receiver start' "$ACTIONS"
+}
+
+receiver_stores_filtered_spans() {
+  command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
+  python3 - "$SCRIPT_DIR/scripts/lib/metrics-otlp-receiver.py" "$TEST_ROOT" <<'PY'
+import gzip, http.client, socket, sqlite3, struct, subprocess, sys, time, urllib.error, urllib.request
+
+script, root = sys.argv[1:3]
+urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
+
+
+def varint(n):
+    out = b""
+    while n > 0x7F:
+        out += bytes([n & 0x7F | 0x80])
+        n >>= 7
+    return out + bytes([n])
+
+
+def ld(field, body):
+    return varint(field << 3 | 2) + varint(len(body)) + body
+
+
+def span(name, attrs, parent=b"", status=0):
+    m = ld(1, b"\xaa" * 16) + ld(2, b"\x01" * 8) + (ld(4, parent) if parent else b"") + ld(5, name.encode())
+    m += varint(7 << 3 | 1) + struct.pack("<Q", 1_000_000) + varint(8 << 3 | 1) + struct.pack("<Q", 3_000_000)
+    for key, val in attrs.items():
+        m += ld(9, ld(1, key.encode()) + ld(2, ld(1, val.encode())))
+    return m + (ld(15, varint(3 << 3) + varint(status)) if status else b"")
+
+
+def request(*spans):
+    return ld(1, ld(2, b"".join(ld(2, s) for s in spans)))
+
+
+def start(agent, content, db):
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    proc = subprocess.Popen([sys.executable, script, "--port", str(port), "--db", db, "--agent", agent, "--content", content])
+    for _ in range(100):
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz", timeout=1)
+            return proc, port
+        except OSError:
+            time.sleep(0.1)
+    proc.kill()
+    raise SystemExit("receiver did not start")
+
+
+def post(port, body, ctype="application/x-protobuf", path="/v1/traces", headers=None):
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=body, headers={"Content-Type": ctype, **(headers or {})})
+    try:
+        return urllib.request.urlopen(req, timeout=5).status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
+def rows(db):
+    con = sqlite3.connect(db)
+    try:
+        return con.execute("SELECT name, status, duration_ms, data, parent_span_id FROM events ORDER BY seq").fetchall()
+    finally:
+        con.close()
+
+
+def run(agent, content, body_fn):
+    db = f"{root}/{agent}-{content}.db"
+    proc, port = start(agent, content, db)
+    try:
+        body_fn(port)
+    finally:
+        proc.terminate()
+        proc.wait(10)
+    return rows(db)
+
+
+prompt = {"gen_ai.prompt": "x" * 500, "gen_ai.tool.call.arguments": "y" * 500, "gen_ai.system_instructions": "z" * 500, "openclaw.model": "m"}
+oc = request(span("openclaw.run", prompt), span("openclaw.model.call", {}, status=2), span("http.noise", {}))
+
+
+def oc_body(port):
+    assert post(port, oc) == 200
+    assert post(port, gzip.compress(oc), headers={"Content-Encoding": "gzip"}) == 200
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.request("POST", "/v1/traces", body=iter([oc[:7], oc[7:]]), headers={"Content-Type": "application/x-protobuf"}, encode_chunked=True)
+    assert conn.getresponse().status == 200
+    conn.close()
+    assert post(port, b"{}", "application/json") == 415
+    assert post(port, oc, path="/other") == 404
+    assert post(port, b"\xff\xff") == 400
+    # A negative length or an oversized chunk is refused before any body is read.
+    for extra, tail in ((b"Content-Length: -1\r\n", b""), (b"Transfer-Encoding: chunked\r\n", b"ffffffff\r\n")):
+        s = socket.create_connection(("127.0.0.1", port), timeout=5)
+        s.sendall(b"POST /v1/traces HTTP/1.1\r\nHost: x\r\nContent-Type: application/x-protobuf\r\n" + extra + b"\r\n" + tail)
+        assert b" 400 " in s.recv(64), extra
+        s.close()
+
+
+for content in ("off", "preview", "full"):
+    got = run("openclaw", content, oc_body)
+    # Three posts, two kept spans each; the unrelated span is dropped.
+    assert [r[0] for r in got] == ["openclaw.run", "openclaw.model.call"] * 3, got
+    run_row, call_row = got[0], got[1]
+    assert call_row[1] == "ERROR" and run_row[1] == "OK" and run_row[2] == 2.0, got
+    assert "openclaw.model" in run_row[3]
+    if content == "off":
+        assert "gen_ai.prompt" not in run_row[3]
+        assert "gen_ai.tool.call.arguments" not in run_row[3] and "gen_ai.system_instructions" not in run_row[3]
+    elif content == "preview":
+        assert "x" * 200 in run_row[3] and "x" * 201 not in run_row[3]
+        assert "y" * 200 in run_row[3] and "y" * 201 not in run_row[3]
+    else:
+        assert "x" * 500 in run_row[3] and "y" * 500 in run_row[3]
+
+dc = request(
+    span("agent", {}),
+    span("ChatOpenAI", {"langsmith.span.kind": "llm"}, parent=b"\x02" * 8),
+    span("Middleware.before_agent", {"langsmith.span.kind": "chain"}, parent=b"\x02" * 8),
+)
+got = run("dcode", "off", lambda port: post(port, dc) == 200 or sys.exit("post failed"))
+assert [r[0] for r in got] == ["agent", "ChatOpenAI"], got
+print("receiver ok")
+PY
+}
+
 dispatch() {
   fixture
   with_deployment_lock() { printf 'lock\n' >>"$ACTIONS"; "$@"; }
@@ -786,9 +1162,10 @@ run_case 'rootless or remapped Docker warns that the 664 file may not be writabl
 run_case 'router telemetry file is rotated once and cleaned with --clean' router_file_is_rotated_when_large
 run_case 'sqlite backend warns about exporter env vars' sqlite_warns_about_exporter_env
 run_case 'router state reverts when the config rewrite fails' router_state_reverts_when_rewrite_fails
-run_case 'unsupported harness/runtime is reported, router still applied for --target all' unsupported_harness_is_reported
+run_case 'OpenShell runtime and a missing agent CLI are reported, router still applied for --target all' unsupported_harness_is_reported
 run_case 'observability show skips the deployment lock; mutations take it, in any runtime' dispatch
 run_case 'show warns when the last Hermes process could not load the plugin' show_surfaces_a_failed_plugin_load
+run_case 'show does not summarise a stale local store under the jaeger backend' show_does_not_summarise_a_stale_store_under_jaeger
 run_case 'enable without harness flags keeps the saved harness settings' enable_keeps_saved_harness_settings
 run_case 'a foreign hermes_otel.yaml fails before Jaeger or the plugin is touched' foreign_config_fails_before_side_effects
 run_case 'managed-config removal only touches files this installer wrote' managed_config_removal_is_marker_gated
@@ -809,4 +1186,17 @@ run_case 'disable fails, keeping state, when the plugin cannot be disabled' disa
 run_case 'a busy WAL checkpoint makes --clean report the leftover text' wal_checkpoint_busy_is_reported
 run_case '--target all validates up front and reverts the Router if the harness fails' all_target_rolls_the_router_back_when_the_harness_fails
 run_case '--target all disable still disables the Router when the harness cannot be disabled' all_target_disable_reaches_the_router_after_a_harness_failure
+run_case 'OpenClaw plugin lifecycle: install once, re-enable after disable, receiver follows the backend' openclaw_enable_disable
+run_case 'OpenClaw with Jaeger, preview rejected, a foreign diagnostics exporter is never overwritten' openclaw_jaeger_and_foreign_exporter
+run_case 'dcode .env block is managed, replaced in place and removed without touching user lines' dcode_env_block_lifecycle
+run_case 'dcode refuses a .env with its own tracing variables or a symlink' dcode_refuses_foreign_env
+run_case 'OTLP receiver decodes, filters and stores spans per agent and content mode' receiver_stores_filtered_spans
+run_case 'OpenClaw disable only touches an exporter this installer enabled' openclaw_disable_needs_installer_ownership
+run_case 'one harness exporter is recorded; enable for another agent is refused and disable follows the owner' only_one_harness_exporter_is_recorded
+run_case 'a failed OpenClaw enable is recorded so disable can clean it up' openclaw_failed_enable_can_be_disabled
+run_case 'an unknown OpenClaw version is refused instead of guessed' openclaw_unknown_version_is_refused
+run_case 'OpenClaw plugin install retries from npm when ClawHub fails' openclaw_install_falls_back_to_npm
+run_case 'a timed-out OpenClaw foreign-exporter check fails closed' openclaw_foreign_check_times_out_closed
+run_case 'OpenClaw disable also turns content capture off' openclaw_disable_turns_content_capture_off
+run_case 'dcode refuses an incomplete or reversed marker block' dcode_refuses_incomplete_marker_block
 finish_tests

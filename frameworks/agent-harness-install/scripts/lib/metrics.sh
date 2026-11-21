@@ -4,10 +4,14 @@
 # `./install.sh observability <enable|disable|show>` -- one switch for telemetry
 # collection across the blocks of a deployment:
 #
-#   harness  Hermes, through the hermes-otel plugin. Spans/metrics per turn go
-#            to the plugin's local SQLite store and, optionally, over OTLP to
-#            a Jaeger (managed or external). OpenClaw and Deep Agents Code have
-#            no such plugin; OpenShell sandboxes cannot install it (no egress).
+#   harness  The installed agent. Hermes uses the hermes-otel plugin (spans and
+#            metrics per turn go to the plugin's local SQLite store and,
+#            optionally, over OTLP to a Jaeger). OpenClaw (diagnostics-otel
+#            plugin) and Deep Agents Code (LangSmith SDK in OTel mode) export
+#            OTLP themselves; for `--backend sqlite` a small loopback OTLP
+#            receiver (metrics-otlp-receiver.py) stores those spans in the same
+#            SQLite layout Hermes uses, for `--backend jaeger` they go straight
+#            to Jaeger. OpenShell sandboxes are not supported (no egress).
 #   router   Inference Router. It cannot export OTLP; its telemetry backend is
 #            either "memory" (default, lost on restart) or "file" (JSONL in its
 #            workspace). Both are readable through its /v1/metrics endpoint.
@@ -31,7 +35,20 @@ METRICS_JAEGER_LABEL_VALUE="metrics-jaeger"
 # pins any source to an exact 40-character commit SHA (`--ref`).
 HARNESS_HERMES_OTEL_PLUGIN="${HARNESS_HERMES_OTEL_PLUGIN:-hermes_otel}"
 HARNESS_HERMES_OTEL_REF="${HARNESS_HERMES_OTEL_REF:-}"
-# The Router's JSONL file is rotated to telemetry.jsonl.1 (one generation) when
+# OpenClaw's OTel exporter plugin. Empty means the npm package at the version of
+# the installed OpenClaw; set it to any npm spec to override (e.g.
+# @openclaw/diagnostics-otel@2026.9.5).
+HARNESS_OPENCLAW_OTEL_PLUGIN="${HARNESS_OPENCLAW_OTEL_PLUGIN:-}"
+# Loopback port of the OTLP receiver behind `--backend sqlite` for OpenClaw and
+# Deep Agents Code (Jaeger's own OTLP port, 4318, stays free for --backend jaeger).
+HARNESS_OTLP_RECEIVER_PORT="${HARNESS_OTLP_RECEIVER_PORT:-4319}"
+# Rows kept by that receiver; the oldest are pruned beyond it.
+HARNESS_OTLP_RECEIVER_MAX_ROWS="${HARNESS_OTLP_RECEIVER_MAX_ROWS:-200000}"
+METRICS_RECEIVER_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/metrics-otlp-receiver.py"
+# Fences around the exporter settings this installer writes into dcode's .env.
+METRICS_ENV_BEGIN="# BEGIN agent-harness-install metrics (managed; edit with './install.sh observability')"
+METRICS_ENV_END="# END agent-harness-install metrics"
+# The Router's JSONL file is rotated to ir_metrics.jsonl.1 (one generation) when
 # the installer next prepares it and it is larger than this many bytes; 0 turns
 # rotation off. The Router re-reads the whole file for every /v1/metrics call.
 HARNESS_IR_TELEMETRY_MAX_BYTES="${HARNESS_IR_TELEMETRY_MAX_BYTES:-20971520}"
@@ -42,7 +59,9 @@ HARNESS_IR_TELEMETRY_MAX_BYTES="${HARNESS_IR_TELEMETRY_MAX_BYTES:-20971520}"
 HARNESS_IR_TELEMETRY_FILE_MODE="${HARNESS_IR_TELEMETRY_FILE_MODE:-664}"
 
 METRICS_CONFIG_MARKER="# Managed by agent-harness-install (metrics)"
-METRICS_ROUTER_JSONL_NAME="telemetry.jsonl"
+METRICS_ROUTER_JSONL_NAME="ir_metrics.jsonl"
+# Set by metrics_harness_check; the default keeps direct calls to the helpers working.
+M_AGENT="${M_AGENT:-hermes}"
 # Plain http(s) URL, no userinfo/query/quotes: the value is written into YAML.
 # The host is a name, an IPv4 address or a bracketed IPv6 literal.
 METRICS_ENDPOINT_RE='^https?://([A-Za-z0-9._-]+|\[[0-9A-Fa-f:]+\])(:[0-9]{1,5})?(/[A-Za-z0-9._~%/-]*)?$'
@@ -195,7 +214,7 @@ metrics_parse_args() {
 metrics_resolve_harness_settings() {
   local given_endpoint="${M_ENDPOINT:-}" saved_backend="" saved_endpoint="" saved_managed="" saved_content=""
   H_BACKEND="$M_BACKEND" H_ENDPOINT="$given_endpoint" H_CONTENT="$M_CONTENT" H_MANAGED=false
-  if [[ "$(metrics_state_get harness.enabled)" == true ]]; then
+  if [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.agent)" == "${M_AGENT:-hermes}" ]]; then
     saved_backend="$(metrics_state_get harness.backend)"
     saved_endpoint="$(metrics_state_get harness.endpoint)"
     saved_managed="$(metrics_state_get harness.managed_jaeger)"
@@ -229,6 +248,11 @@ metrics_resolve_harness_settings() {
         H_ENDPOINT="http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}/v1/traces"
       fi ;;
   esac
+  # Only the hermes-otel plugin has a preview mode; the other agents' exporters
+  # either send prompt text or not, and the receiver can only shorten it.
+  if [[ "${M_AGENT:-hermes}" != hermes && "$H_BACKEND" == jaeger && "$H_CONTENT" == preview ]]; then
+    error "--content preview needs --backend sqlite for $(agent_display_name "$M_AGENT") (its exporter has no preview mode); use off or full with Jaeger."
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -340,23 +364,43 @@ metrics_remove_jaeger() {
 }
 
 # ---------------------------------------------------------------------------
-# Harness (Hermes + hermes-otel)
+# Harness (Hermes, OpenClaw, Deep Agents Code)
 # ---------------------------------------------------------------------------
 
 metrics_hermes_home() {
   printf '%s' "${HERMES_HOME:-$HOME/.hermes}"
 }
 
+metrics_openclaw_home() {
+  printf '%s' "${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
+}
+
+metrics_dcode_home() {
+  printf '%s' "${DEEPAGENTS_HOME:-$HOME/.deepagents}"
+}
+
+# metrics_harness_store <agent> -- SQLite file the agent's spans end up in: the
+# hermes-otel plugin's own store, or the one the OTLP receiver fills.
+metrics_harness_store() {
+  case "$1" in
+    hermes) printf '%s/hermes_otel_live.db' "$(metrics_hermes_home)" ;;
+    openclaw) printf '%s/openclaw_otel_live.db' "$(metrics_openclaw_home)" ;;
+    deepagents-code) printf '%s/dcode_otel_live.db' "$(metrics_dcode_home)" ;;
+  esac
+}
+
 # Sets M_AGENT; on failure sets M_SKIP_REASON and returns 1.
 metrics_harness_check() {
   M_AGENT="$(resolve_installed_agent)"
   M_SKIP_REASON=""
-  if [[ "$M_AGENT" != hermes ]]; then
-    M_SKIP_REASON="harness telemetry needs the hermes-otel plugin, so only Hermes is supported (selected: ${M_AGENT})"
-    return 1
-  fi
+  case "$M_AGENT" in
+    hermes | openclaw | deepagents-code) ;;
+    *)
+      M_SKIP_REASON="no telemetry support for the selected harness (${M_AGENT})"
+      return 1 ;;
+  esac
   if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
-    M_SKIP_REASON="OpenShell sandboxes have no network egress to fetch the plugin and its Python dependencies; the plugin must be baked into the sandbox image, which is not supported yet"
+    M_SKIP_REASON="OpenShell sandboxes have no network egress to fetch the exporter plugin or reach a collector, and the agent's configuration lives inside the sandbox; that is not supported yet"
     return 1
   fi
   return 0
@@ -433,13 +477,341 @@ metrics_write_hermes_otel_config() {
   mv -f "$tmp" "$cfg"
 }
 
+# ---------------------------------------------------------------------------
+# OTLP receiver (OpenClaw / Deep Agents Code with --backend sqlite)
+# ---------------------------------------------------------------------------
+
+metrics_receiver_pidfile() { printf '%s/metrics-otlp-receiver.pid' "$(harness_state_root)"; }
+metrics_receiver_logfile() { printf '%s/metrics-otlp-receiver.log' "$(harness_state_root)"; }
+
+# metrics_receiver_agent_key <agent> -- the receiver's name for the agent's span shapes.
+metrics_receiver_agent_key() {
+  case "$1" in
+    deepagents-code) printf 'dcode' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# metrics_receiver_pid -- prints the pid of this installer's receiver when it is
+# alive (the pidfile alone is not trusted: the pid may have been reused).
+metrics_receiver_pid() {
+  local pidfile pid
+  pidfile="$(metrics_receiver_pidfile)"
+  [[ -f "$pidfile" && ! -L "$pidfile" ]] || return 1
+  pid="$(cat "$pidfile" 2>/dev/null)" || return 1
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  tr '\0' ' ' <"/proc/${pid}/cmdline" 2>/dev/null | grep -Fq "metrics-otlp-receiver" || return 1
+  printf '%s' "$pid"
+}
+
+metrics_receiver_check() {
+  command_exists python3 || error "python3 is required for the local OTLP receiver behind --backend sqlite.
+Install it, or use --backend jaeger."
+  python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' \
+    || error "python3 >= 3.8 is required for the local OTLP receiver behind --backend sqlite."
+  [[ -f "$METRICS_RECEIVER_SCRIPT" ]] || error "Missing ${METRICS_RECEIVER_SCRIPT}."
+  if [[ ! "$HARNESS_OTLP_RECEIVER_PORT" =~ ^[0-9]+$ ]] || (( HARNESS_OTLP_RECEIVER_PORT < 1 || HARNESS_OTLP_RECEIVER_PORT > 65535 )); then
+    error "HARNESS_OTLP_RECEIVER_PORT must be between 1 and 65535 (got '${HARNESS_OTLP_RECEIVER_PORT}')."
+  fi
+  if [[ ! "$HARNESS_OTLP_RECEIVER_MAX_ROWS" =~ ^[0-9]+$ ]]; then
+    error "HARNESS_OTLP_RECEIVER_MAX_ROWS must be a number (got '${HARNESS_OTLP_RECEIVER_MAX_ROWS}')."
+  fi
+}
+
+# metrics_receiver_healthy -- true when something answers on the receiver port.
+metrics_receiver_healthy() {
+  command_exists curl || return 1
+  curl --noproxy '*' -sf --max-time 3 "http://127.0.0.1:${HARNESS_OTLP_RECEIVER_PORT}/healthz" >/dev/null 2>&1
+}
+
+metrics_receiver_stop() {
+  local pid
+  pid="$(metrics_receiver_pid)" || { rm -f -- "$(metrics_receiver_pidfile)"; return 0; }
+  kill "$pid" 2>/dev/null || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.5
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+  rm -f -- "$(metrics_receiver_pidfile)"
+  ok "OTLP receiver stopped"
+}
+
+# metrics_receiver_start <agent> <store> <content> -- (re)starts the receiver
+# detached from this shell, listening on 127.0.0.1 only. It does not survive a
+# reboot; 'observability enable' starts it again.
+metrics_receiver_start() {
+  local agent="$1" store="$2" content="$3" log
+  metrics_receiver_check
+  metrics_receiver_stop
+  if metrics_receiver_healthy; then
+    error "Port ${HARNESS_OTLP_RECEIVER_PORT} is already served by another process; set HARNESS_OTLP_RECEIVER_PORT to a free port."
+  fi
+  ensure_state_dir >/dev/null
+  [[ ! -L "$store" ]] || error "Refusing to write through a symlink: ${store}"
+  mkdir -p -- "$(dirname "$store")"
+  log="$(metrics_receiver_logfile)"
+  [[ ! -L "$log" ]] || error "Refusing to write through a symlink: ${log}"
+  # fd 200 is the deployment/state lock (see with_deployment_lock): a daemon that
+  # inherited it would hold the lock, and block every later command, until it exits.
+  nohup setsid python3 "$METRICS_RECEIVER_SCRIPT" --port "$HARNESS_OTLP_RECEIVER_PORT" --db "$store" \
+    --agent "$agent" --content "$content" --max-rows "$HARNESS_OTLP_RECEIVER_MAX_ROWS" \
+    --pidfile "$(metrics_receiver_pidfile)" >"$log" 2>&1 </dev/null 200>&- &
+  disown 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    metrics_receiver_healthy && break
+    sleep 0.5
+  done
+  metrics_receiver_healthy || error "The OTLP receiver did not start; see ${log}."
+  ok "OTLP receiver listening on 127.0.0.1:${HARNESS_OTLP_RECEIVER_PORT} (store: ${store})"
+}
+
+# metrics_agent_otlp_base <backend> <endpoint> -- base URL the agent's exporter
+# gets (it appends /v1/traces itself, unlike the hermes-otel plugin).
+metrics_agent_otlp_base() {
+  local base
+  if [[ "$1" == sqlite ]]; then
+    printf 'http://127.0.0.1:%s' "$HARNESS_OTLP_RECEIVER_PORT"
+    return 0
+  fi
+  base="${2%/}"
+  printf '%s' "${base%/v1/traces}"
+}
+
+# ---------------------------------------------------------------------------
+# OpenClaw: @openclaw/diagnostics-otel plugin
+# ---------------------------------------------------------------------------
+
+# Changing OpenClaw's config or plugins needs the Gateway stopped ('openclaw
+# config set' refuses otherwise and 'plugins install' stalls on its lock).
+METRICS_OPENCLAW_GATEWAY_HINT="If the OpenClaw Gateway is running, stop it first ('openclaw gateway stop'), re-run this command, then start the Gateway again."
+
+# Runs the OpenClaw CLI with a time limit. Plain 'timeout' moves the command into
+# its own background process group; OpenClaw touches the terminal, so the kernel
+# stops it (SIGTTIN/SIGTTOU) and the install hangs. --foreground keeps it in the
+# terminal's group, and stdin from /dev/null stops it waiting on a prompt.
+metrics_openclaw_run() {
+  local seconds="$1"
+  shift
+  timeout --foreground -k 10 "$seconds" openclaw "$@" </dev/null
+}
+
+metrics_openclaw_plugin_spec() {
+  local spec="$HARNESS_OPENCLAW_OTEL_PLUGIN" version
+  if [[ -z "$spec" ]]; then
+    version="$(installed_npm_global_version openclaw 2>/dev/null || true)"
+    [[ -n "$version" ]] \
+      || error "Cannot tell which OpenClaw version is installed; set HARNESS_OPENCLAW_OTEL_PLUGIN to an npm spec such as @openclaw/diagnostics-otel@<version>."
+    spec="@openclaw/diagnostics-otel@${version}"
+  fi
+  [[ "$spec" =~ ^@?[A-Za-z0-9._/-]+(@[A-Za-z0-9._-]+)?$ ]] \
+    || error "HARNESS_OPENCLAW_OTEL_PLUGIN must be an npm package spec (got '${spec}')."
+  printf '%s' "$spec"
+}
+
+# Fails before any side effect when a diagnostics exporter that this installer
+# did not configure is already set up: enabling would overwrite it.
+metrics_check_openclaw_otel_config() {
+  local current rc=0
+  [[ "$(metrics_state_get harness.agent)" == openclaw && "$(metrics_state_get harness.enabled)" == true ]] && return 0
+  current="$(metrics_openclaw_run 60 config get diagnostics.otel.enabled --json 2>/dev/null)" || rc=$?
+  # Another non-zero exit is taken as 'not set'; a timeout must not pass as that.
+  (( rc != 124 )) \
+    || error "Timed out reading OpenClaw's diagnostics.otel.enabled. ${METRICS_OPENCLAW_GATEWAY_HINT}"
+  [[ "$current" != true ]] \
+    || error "OpenClaw already has diagnostics.otel enabled that this installer did not set up; it is not overwritten.
+Disable it ('openclaw config set diagnostics.otel.enabled false --strict-json') and re-run."
+}
+
+metrics_install_openclaw_otel_plugin() {
+  local spec rc=0
+  spec="$(metrics_openclaw_plugin_spec)"
+  if ! openclaw plugins list --json 2>/dev/null | grep -Fq '"diagnostics-otel"'; then
+    info "Installing the OpenClaw diagnostics-otel plugin (${spec})"
+    metrics_openclaw_run 300 plugins install "$spec" --accept-capabilities || rc=$?
+    if (( rc != 0 )); then
+      # A bare spec is resolved on ClawHub first, which some networks block;
+      # 'npm:' goes straight to the npm registry the spec names.
+      warn "Install from ClawHub failed; retrying from the npm registry (npm:${spec})"
+      rc=0
+      metrics_openclaw_run 300 plugins install "npm:${spec}" --accept-capabilities || rc=$?
+    fi
+    (( rc == 0 )) || error "'openclaw plugins install ${spec}' failed (rc=${rc}; see output above).
+${METRICS_OPENCLAW_GATEWAY_HINT}"
+  fi
+  # A previous 'disable' leaves the plugin installed but disabled.
+  metrics_openclaw_run 120 plugins enable diagnostics-otel >/dev/null \
+    || error "'openclaw plugins enable diagnostics-otel' failed (see above).
+${METRICS_OPENCLAW_GATEWAY_HINT}"
+}
+
+# metrics_write_openclaw_otel_config <backend> <endpoint> <content>
+metrics_write_openclaw_otel_config() {
+  local backend="$1" endpoint="$2" content="$3" base capture=false json
+  base="$(metrics_agent_otlp_base "$backend" "$endpoint")"
+  [[ "$content" == off ]] || capture=true
+  json="{\"enabled\":true,\"otel\":{\"enabled\":true,\"endpoint\":\"${base}\",\"protocol\":\"http/protobuf\",\"serviceName\":\"openclaw\",\"traces\":true,\"metrics\":false,\"logs\":false,\"captureContent\":${capture},\"flushIntervalMs\":1000}}"
+  metrics_openclaw_run 120 config set diagnostics "$json" --strict-json --merge >/dev/null \
+    || error "'openclaw config set diagnostics' failed.
+${METRICS_OPENCLAW_GATEWAY_HINT}"
+}
+
+metrics_disable_openclaw() {
+  # Only an exporter this installer enabled is turned off; one the user set up
+  # themselves is left alone even when its plugin is installed.
+  [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.agent)" == openclaw ]] || return 0
+  command_exists openclaw \
+    || error "OpenClaw CLI not found on PATH, so its telemetry cannot be disabled and may keep exporting.
+Run 'openclaw config set diagnostics.otel.enabled false --strict-json' yourself or fix PATH, then retry."
+  metrics_openclaw_run 120 config set diagnostics.otel.enabled false --strict-json >/dev/null \
+    || error "'openclaw config set diagnostics.otel.enabled false' failed; telemetry may still be exported.
+${METRICS_OPENCLAW_GATEWAY_HINT}"
+  # Best effort: the exporter is already off, but a later manual re-enable must not capture content.
+  metrics_openclaw_run 120 config set diagnostics.otel.captureContent false --strict-json >/dev/null 2>&1 || true
+  metrics_openclaw_run 120 plugins disable diagnostics-otel >/dev/null 2>&1 || true
+}
+
+# ---------------------------------------------------------------------------
+# Deep Agents Code: LangSmith SDK in OTel mode, configured through dcode's .env
+# ---------------------------------------------------------------------------
+
+metrics_dcode_env_file() { printf '%s/.env' "$(metrics_dcode_home)"; }
+
+metrics_dcode_env_has_block() {
+  [[ -f "$1" ]] && awk -v b="$METRICS_ENV_BEGIN" -v e="$METRICS_ENV_END" '$0 == b { s = 1 } $0 == e && s { f = 1 } END { exit !f }' "$1"
+}
+
+# Fails before any side effect if the .env cannot be written, or already sets
+# tracing variables of its own (a second definition would silently lose).
+metrics_check_dcode_env() {
+  local home env
+  home="$(metrics_dcode_home)"
+  env="$(metrics_dcode_env_file)"
+  [[ ! -L "$home" ]] || error "dcode data directory ${home} is a symlink."
+  [[ ! -L "$env" ]] || error "Refusing to write through a symlink: ${env}"
+  if [[ -f "$env" ]] && ! metrics_dcode_env_has_block "$env" && grep -Fxq -e "$METRICS_ENV_BEGIN" -e "$METRICS_ENV_END" "$env"; then
+    # A lone or reversed marker would make the block swallow the user's lines around it.
+    error "${env} has an incomplete installer block (BEGIN/END markers missing or out of order); repair or remove it and re-run."
+  fi
+  # Always scan what is outside the managed block, so a variable added later is caught too.
+  if [[ -f "$env" ]] \
+    && metrics_strip_dcode_env_block "$env" \
+      | grep -Eq '^[[:space:]]*(export[[:space:]]+)?(LANGSMITH_|OTEL_)[A-Za-z0-9_]*[[:space:]]*='; then
+    error "${env} already sets LANGSMITH_*/OTEL_* variables that this installer did not write; move them aside and re-run."
+  fi
+}
+
+# metrics_strip_dcode_env_block <file> -- the file without the managed block.
+metrics_strip_dcode_env_block() {
+  awk -v b="$METRICS_ENV_BEGIN" -v e="$METRICS_ENV_END" '$0 == b { skip = 1; next } $0 == e { skip = 0; next } !skip { print }' "$1"
+}
+
+# metrics_write_env_file <file> <content> -- atomic, owner-only. atomic_write_file
+# cannot be used: it only accepts paths inside the installer's state directory.
+metrics_write_env_file() {
+  local file="$1" tmp
+  tmp="$(mktemp "${file}.tmp.XXXXXX")"
+  chmod 600 "$tmp"
+  printf '%s\n' "$2" >"$tmp" || { rm -f "$tmp"; error "Could not write ${file}."; }
+  mv -f "$tmp" "$file" || { rm -f "$tmp"; error "Could not replace ${file}."; }
+}
+
+# Removes the managed block (and the file, if nothing else is left in it).
+metrics_remove_dcode_env_block() {
+  local env rest
+  env="$(metrics_dcode_env_file)"
+  [[ ! -L "$(metrics_dcode_home)" && -f "$env" && ! -L "$env" ]] || return 0
+  metrics_dcode_env_has_block "$env" || return 0
+  rest="$(metrics_strip_dcode_env_block "$env")"
+  if [[ -z "${rest//[[:space:]]/}" ]]; then
+    rm -f -- "$env"
+  else
+    metrics_write_env_file "$env" "$rest"
+  fi
+}
+
+# metrics_write_dcode_env <backend> <endpoint> <content>
+metrics_write_dcode_env() {
+  local backend="$1" endpoint="$2" content="$3" env base rest block
+  metrics_check_dcode_env
+  env="$(metrics_dcode_env_file)"
+  mkdir -p -- "$(metrics_dcode_home)"
+  base="$(metrics_agent_otlp_base "$backend" "$endpoint")"
+  # The LangSmith SDK only switches to its OpenTelemetry exporter when it has
+  # an API key; nothing is sent to LangSmith, so the value is a placeholder.
+  block="${METRICS_ENV_BEGIN}
+LANGSMITH_TRACING=true
+LANGSMITH_TRACING_MODE=otel
+LANGSMITH_API_KEY=agent-harness-install-placeholder
+OTEL_EXPORTER_OTLP_ENDPOINT=${base}
+OTEL_EXPORTER_OTLP_HEADERS=x-agent-harness=1
+OTEL_SERVICE_NAME=dcode
+OTEL_BSP_SCHEDULE_DELAY=200"
+  if [[ "$content" == off ]]; then
+    block+="
+LANGSMITH_HIDE_INPUTS=true
+LANGSMITH_HIDE_OUTPUTS=true"
+  fi
+  block+="
+${METRICS_ENV_END}"
+  rest=""
+  if [[ -f "$env" ]]; then rest="$(metrics_strip_dcode_env_block "$env")"; fi
+  if [[ -n "${rest//[[:space:]]/}" ]]; then
+    metrics_write_env_file "$env" "${rest}
+${block}"
+  else
+    metrics_write_env_file "$env" "$block"
+  fi
+}
+
+# metrics_harness_owner -- the agent whose exporter this installer has enabled
+# (empty when none). State from before agents were recorded means Hermes.
+metrics_harness_owner() {
+  local owner
+  if [[ "$(metrics_state_get harness.enabled)" == true ]]; then
+    owner="$(metrics_state_get harness.agent)"
+    printf '%s' "${owner:-hermes}"
+  fi
+}
+
+# Disable and show act on the recorded owner, not on whichever agent is selected now.
+metrics_adopt_harness_owner() {
+  local owner
+  owner="$(metrics_harness_owner)"
+  if [[ -n "$owner" && "$owner" != "$M_AGENT" ]]; then
+    info "Harness telemetry is enabled for $(agent_display_name "$owner"), not $(agent_display_name "$M_AGENT"); using that."
+    M_AGENT="$owner"
+  fi
+}
+
 metrics_enable_harness_preflight() {
+  local owner
   export PATH="$HOME/.local/bin:$PATH"
-  command_exists hermes || error "Hermes CLI not found on PATH. Install it first: ./install.sh --harness hermes --model <model>
-(Hermes inside an OpenShell sandbox is not supported for harness telemetry.)"
+  owner="$(metrics_harness_owner)"
+  if [[ -n "$owner" && "$owner" != "$M_AGENT" ]]; then
+    error "Harness telemetry is enabled for $(agent_display_name "$owner"); disable it first ('./install.sh observability disable --target harness'), then enable it for $(agent_display_name "$M_AGENT")."
+  fi
+  case "$M_AGENT" in
+    hermes)
+      command_exists hermes || error "Hermes CLI not found on PATH. Install it first: ./install.sh --harness hermes --model <model>
+(Hermes inside an OpenShell sandbox is not supported for harness telemetry.)" ;;
+    openclaw)
+      command_exists openclaw || error "OpenClaw CLI not found on PATH. Install it first: ./install.sh --harness openclaw --model <model>"
+      command_exists timeout || error "'timeout' (coreutils) is required."
+      metrics_check_openclaw_otel_config ;;
+    deepagents-code)
+      command_exists dcode || error "dcode not found on PATH. Install it first: ./install.sh --harness deepagents-code --model <model>"
+      metrics_check_dcode_env ;;
+  esac
   metrics_resolve_harness_settings
-  metrics_check_plugin_source
-  metrics_check_hermes_otel_config_path
+  if [[ "$M_AGENT" == hermes ]]; then
+    metrics_check_plugin_source
+    metrics_check_hermes_otel_config_path
+  elif [[ "$H_BACKEND" == sqlite ]]; then
+    metrics_receiver_check
+  fi
   if [[ "$H_MANAGED" == true ]]; then
     metrics_jaeger_preflight
   fi
@@ -451,12 +823,15 @@ metrics_enable_harness() {
   backend="$H_BACKEND" endpoint="$H_ENDPOINT" content="$H_CONTENT" managed="$H_MANAGED"
   prev_managed="$(metrics_state_get harness.managed_jaeger)"
   prev_kept="$(metrics_state_get harness.kept_jaeger)"
-  if [[ "$backend" == sqlite ]]; then
+  if [[ "$backend" == sqlite && "$M_AGENT" == hermes ]]; then
     local stray
     stray="$(compgen -e | grep -E '^(HERMES_OTEL_|OTEL_[A-Z]+_ENDPOINT$|OTEL_EXPORTER_)' | tr '\n' ' ' || true)"
     [[ -z "$stray" ]] || warn "Exporter variables set in this shell (${stray% }) may make Hermes export traces even with --backend sqlite."
   fi
-  metrics_install_hermes_otel_plugin
+  case "$M_AGENT" in
+    hermes) metrics_install_hermes_otel_plugin ;;
+    openclaw) metrics_install_openclaw_otel_plugin ;;
+  esac
   if [[ "$managed" == true ]]; then
     metrics_ensure_jaeger
     # Recorded at once so 'observability disable' can clean up if a later step fails.
@@ -471,7 +846,22 @@ metrics_enable_harness() {
       *) warn "--content ${content} sends prompt/response text to ${endpoint}, which is not on this machine." ;;
     esac
   fi
-  metrics_write_hermes_otel_config "$backend" "$endpoint" "$content" "$managed"
+  case "$M_AGENT" in
+    hermes) metrics_write_hermes_otel_config "$backend" "$endpoint" "$content" "$managed" ;;
+    openclaw | deepagents-code)
+      # Recorded before the first change, so a failed enable can still be disabled.
+      if [[ "$M_AGENT" == openclaw ]]; then metrics_state_set harness.enabled true harness.agent openclaw; fi
+      # The receiver is up before the agent is pointed at it, so no span is lost.
+      if [[ "$backend" == sqlite ]]; then
+        metrics_receiver_start "$(metrics_receiver_agent_key "$M_AGENT")" "$(metrics_harness_store "$M_AGENT")" "$content"
+      fi
+      if [[ "$M_AGENT" == openclaw ]]; then
+        metrics_write_openclaw_otel_config "$backend" "$endpoint" "$content"
+      else
+        metrics_write_dcode_env "$backend" "$endpoint" "$content"
+      fi
+      if [[ "$backend" != sqlite ]]; then metrics_receiver_stop; fi ;;
+  esac
   kept=false
   if [[ "$managed" != true ]]; then
     if [[ "$prev_managed" == true ]]; then
@@ -484,21 +874,26 @@ metrics_enable_harness() {
       info "Kept the managed Jaeger (${HARNESS_JAEGER_CONTAINER}) left by 'observability disable --keep-jaeger'; remove it with './install.sh observability disable --target harness'."
     fi
   fi
-  metrics_state_set harness.enabled true harness.agent hermes harness.backend "$backend" \
+  metrics_state_set harness.enabled true harness.agent "$M_AGENT" harness.backend "$backend" \
     harness.endpoint "$endpoint" harness.content "$content" harness.managed_jaeger "$managed" harness.kept_jaeger "$kept"
-  ok "Harness telemetry enabled for Hermes (backend: ${backend}, content: ${content})"
-  info "Run 'hermes gateway restart' now: a Hermes process that was already running (the gateway, or the plugin host it relaunches) loads the plugin's Python dependencies only after a restart, and until then every turn reports '[hermes-otel] OpenTelemetry packages not available'.
-Then start a new session and verify with: ./install.sh observability show --target harness"
+  ok "Harness telemetry enabled for $(agent_display_name "$M_AGENT") (backend: ${backend}, content: ${content})"
+  case "$M_AGENT" in
+    hermes)
+      info "Run 'hermes gateway restart' now: a Hermes process that was already running (the gateway, or the plugin host it relaunches) loads the plugin's Python dependencies only after a restart, and until then every turn reports '[hermes-otel] OpenTelemetry packages not available'.
+Then start a new session and verify with: ./install.sh observability show --target harness" ;;
+    openclaw)
+      info "Start (or restart) the OpenClaw Gateway to apply this: only the running Gateway exports spans, 'openclaw agent --local' does not.
+Then send a message and verify with: ./install.sh observability show --target harness" ;;
+    deepagents-code)
+      info "New dcode sessions export spans (dcode reads $(metrics_dcode_env_file)); restart any running session.
+Verify with: ./install.sh observability show --target harness" ;;
+  esac
 }
 
-metrics_disable_harness() {
-  local home keep_jaeger=false endpoint cfg
-  export PATH="$HOME/.local/bin:$PATH"
+metrics_disable_hermes() {
+  local home cfg
   home="$(metrics_hermes_home)"
   cfg="${home}/hermes_otel.yaml"
-  endpoint="$(metrics_state_get harness.endpoint)"
-  # Nothing is removed or recorded until the plugin is really off: a failure
-  # here must leave the state as it was so the command can be retried.
   if [[ -d "${home}/plugins/hermes_otel" ]] \
     && { [[ "$(metrics_state_get harness.enabled)" == true ]] \
       || { [[ -f "$cfg" && ! -L "$cfg" ]] && grep -Fq "$METRICS_CONFIG_MARKER" "$cfg"; }; }; then
@@ -514,6 +909,22 @@ Run 'hermes plugins disable hermes_otel' yourself or fix PATH, then retry."
     fi
   fi
   metrics_remove_managed_config
+}
+
+metrics_disable_harness() {
+  local keep_jaeger=false endpoint store
+  export PATH="$HOME/.local/bin:$PATH"
+  metrics_adopt_harness_owner
+  store="$(metrics_harness_store "$M_AGENT")"
+  endpoint="$(metrics_state_get harness.endpoint)"
+  # Nothing is removed or recorded until the exporter is really off: a failure
+  # here must leave the state as it was so the command can be retried.
+  case "$M_AGENT" in
+    hermes) metrics_disable_hermes ;;
+    openclaw) metrics_disable_openclaw ;;
+    deepagents-code) metrics_remove_dcode_env_block ;;
+  esac
+  if [[ "$M_AGENT" != hermes ]]; then metrics_receiver_stop; fi
   if [[ "$(metrics_state_get harness.managed_jaeger)" == true || "$(metrics_state_get harness.kept_jaeger)" == true ]]; then
     if [[ -n "${M_KEEP_JAEGER:-}" ]]; then
       keep_jaeger=true
@@ -527,22 +938,26 @@ Run 'hermes plugins disable hermes_otel' yourself or fix PATH, then retry."
   fi
   metrics_state_set harness.enabled false harness.managed_jaeger false harness.kept_jaeger "$keep_jaeger"
   if [[ -n "${M_CLEAN:-}" ]]; then
-    if metrics_clean_harness_store "$home"; then
+    if metrics_clean_harness_store "$store"; then
       ok "Harness telemetry disabled and collected data cleaned"
     else
       warn "Harness telemetry disabled, but its collected data was not cleaned (see above)."
     fi
   else
-    ok "Harness telemetry disabled (plugin left installed; its local store was kept; add --clean to delete it)"
+    ok "Harness telemetry disabled (exporter left installed; its local store was kept; add --clean to delete it)"
   fi
-  info "Restart running Hermes sessions/gateways to apply."
+  case "$M_AGENT" in
+    hermes) info "Restart running Hermes sessions/gateways to apply." ;;
+    openclaw) info "Restart the OpenClaw Gateway to apply." ;;
+    deepagents-code) info "Restart running dcode sessions to apply." ;;
+  esac
 }
 
-# Empties the plugin's SQLite store in place (rows, not the file): a running
-# Hermes gateway keeps the file open in WAL mode, and unlinking it would leave
+# Empties the SQLite store in place (rows, not the file): a running agent (the
+# Hermes gateway) keeps the file open in WAL mode, and unlinking it would leave
 # that process writing to a deleted inode.
 metrics_clean_harness_store() {
-  local store="${1}/hermes_otel_live.db" count
+  local store="$1" count
   if [[ -L "$store" ]]; then
     warn "Refusing to clean a symlinked store: ${store}"
     return 1
@@ -656,47 +1071,87 @@ metrics_show_harness_plugin_errors() {
 Run 'hermes gateway restart', start a new session, and check again."
 }
 
+metrics_show_harness_agent() {
+  local home="$1" plugin_line cfg
+  case "$M_AGENT" in
+    hermes)
+      if [[ -d "${home}/plugins/hermes_otel" ]]; then
+        ok "hermes-otel plugin installed (${home}/plugins/hermes_otel)"
+        if command_exists hermes; then
+          plugin_line="$(hermes plugins list 2>/dev/null | grep -i 'hermes_otel' | head -n 1 || true)"
+          [[ -z "$plugin_line" ]] || info "hermes plugins list: ${plugin_line}"
+        fi
+      else
+        info "hermes-otel plugin not installed"
+      fi
+      if [[ -f "${home}/hermes_otel.yaml" ]]; then
+        info "Config: ${home}/hermes_otel.yaml"
+      fi ;;
+    openclaw)
+      if command_exists openclaw; then
+        if metrics_openclaw_run 60 plugins list --json 2>/dev/null | grep -Fq '"diagnostics-otel"'; then
+          ok "diagnostics-otel plugin installed"
+        else
+          info "diagnostics-otel plugin not installed"
+        fi
+        info "diagnostics.otel.enabled: $(metrics_openclaw_run 60 config get diagnostics.otel.enabled --json 2>/dev/null || echo unknown)"
+      else
+        info "OpenClaw CLI not found on PATH"
+      fi ;;
+    deepagents-code)
+      cfg="$(metrics_dcode_env_file)"
+      if metrics_dcode_env_has_block "$cfg"; then
+        info "Exporter settings: ${cfg}"
+      else
+        info "No exporter settings in ${cfg}"
+      fi ;;
+  esac
+}
+
+metrics_show_harness_receiver() {
+  local pid
+  if pid="$(metrics_receiver_pid)" && metrics_receiver_healthy; then
+    ok "OTLP receiver running (pid ${pid}, 127.0.0.1:${HARNESS_OTLP_RECEIVER_PORT})"
+  elif [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.backend)" == sqlite ]]; then
+    warn "OTLP receiver is not running (it does not survive a reboot); start it again with './install.sh observability enable --target harness'. Log: $(metrics_receiver_logfile)"
+  fi
+}
+
 metrics_show_harness() {
-  local home store enabled backend endpoint content size plugin_line
+  local home store enabled backend endpoint content size name
   printf '\n%sHarness telemetry%s\n' "$C_BOLD" "$C_RESET"
   if ! metrics_harness_check; then
     info "Not available: ${M_SKIP_REASON}."
     return 0
   fi
   export PATH="$HOME/.local/bin:$PATH"
+  metrics_adopt_harness_owner
+  name="$(agent_display_name "$M_AGENT")"
   home="$(metrics_hermes_home)"
   enabled="$(metrics_state_get harness.enabled)"
   backend="$(metrics_state_get harness.backend)"
   endpoint="$(metrics_state_get harness.endpoint)"
   content="$(metrics_state_get harness.content)"
   if [[ "$enabled" == true ]]; then
-    ok "Enabled for Hermes -- backend: ${backend:-sqlite}${endpoint:+ (${endpoint})}, content capture: ${content:-off}"
+    ok "Enabled for ${name} -- backend: ${backend:-sqlite}${endpoint:+ (${endpoint})}, content capture: ${content:-off}"
   else
     info "Disabled (enable with: ./install.sh observability enable --target harness)"
   fi
-  if [[ -d "${home}/plugins/hermes_otel" ]]; then
-    ok "hermes-otel plugin installed (${home}/plugins/hermes_otel)"
-    if command_exists hermes; then
-      plugin_line="$(hermes plugins list 2>/dev/null | grep -i 'hermes_otel' | head -n 1 || true)"
-      [[ -z "$plugin_line" ]] || info "hermes plugins list: ${plugin_line}"
-    fi
-  else
-    info "hermes-otel plugin not installed"
-  fi
-  if [[ -f "${home}/hermes_otel.yaml" ]]; then
-    info "Config: ${home}/hermes_otel.yaml"
-  fi
-  store="${home}/hermes_otel_live.db"
-  if [[ -f "$store" ]]; then
+  metrics_show_harness_agent "$home"
+  if [[ "$M_AGENT" != hermes ]]; then metrics_show_harness_receiver; fi
+  store="$(metrics_harness_store "$M_AGENT")"
+  if [[ "$enabled" == true && "$backend" == jaeger ]]; then
+    info "Spans go to ${endpoint:-Jaeger}; the local store is not written with this backend${store:+ (${store})}"
+  elif [[ -f "$store" ]]; then
     size="$(stat -c '%s' "$store" 2>/dev/null || echo 0)"
     # WAL mode keeps recent writes in the sidecar file, so count it too.
     [[ ! -f "${store}-wal" ]] || size=$(( size + $(stat -c '%s' "${store}-wal" 2>/dev/null || echo 0) ))
     info "Local store: ${store} (${size} bytes)"
     metrics_show_harness_store "$store"
   else
-    info "Local store not created yet (${store}); it appears after the first Hermes turn"
+    info "Local store not created yet (${store}); it appears after the first ${name} turn"
   fi
-  [[ "$enabled" != true ]] || metrics_show_harness_plugin_errors "$home"
+  if [[ "$M_AGENT" == hermes && "$enabled" == true ]]; then metrics_show_harness_plugin_errors "$home"; fi
   if [[ "$enabled" == true && "$backend" != sqlite && "$(metrics_state_get harness.managed_jaeger)" != true && -n "$endpoint" ]]; then
     info "Full trace view: open the UI of the backend receiving ${endpoint}"
   fi
@@ -708,7 +1163,7 @@ metrics_show_harness() {
       warn "Managed Jaeger (${HARNESS_JAEGER_CONTAINER}) is not reachable on port ${HARNESS_JAEGER_UI_PORT}"
     fi
   fi
-  info "For the plugin's own details run: hermes plugins show hermes_otel"
+  if [[ "$M_AGENT" == hermes ]]; then info "For the plugin's own details run: hermes plugins show hermes_otel"; fi
 }
 
 # ---------------------------------------------------------------------------
@@ -916,7 +1371,7 @@ metrics_disable_router() {
   fi
 }
 
-# Empties telemetry.jsonl in place. Runs after the restart that switched the
+# Empties ir_metrics.jsonl in place. Runs after the restart that switched the
 # Router back to memory, so nothing is appending to it; the restart also reset
 # the in-memory counters.
 metrics_clean_router() {
