@@ -1,0 +1,17 @@
+{
+  "profile": {
+    "label": "Education AI Suite",
+    "value": "education_ai_suite",
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
+  "modules": [
+    { "label": "Smart Classroom", "value": "smart_classroom", "startStop": true, "remove": true, "options": [] }
+  ],
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/education-suite-metro.html"
+  },
+  "resources": [
+    { "text": "Smart Classroom", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-classroom/index.html" }
+  ]
+}
