@@ -426,8 +426,8 @@ harness_refuses_foreign_config() {
 
 unsupported_harness_is_reported() {
   fixture
-  HARNESS_AGENT=hermes HARNESS_RUNTIME=openshell
-  expect_failure 'no network egress' run_metrics_command enable --target harness
+  HARNESS_AGENT=codex HARNESS_RUNTIME=openshell
+  expect_failure 'no telemetry support' run_metrics_command enable --target harness
   # With --target all the Router is still configured and the harness skipped.
   local out
   out="$(run_metrics_command enable --target all)"
@@ -1132,6 +1132,185 @@ print("receiver ok")
 PY
 }
 
+# openshell_fixture <agent> -- OpenShell runtime with the sandbox, its policy and the
+# receiver stubbed. The sandbox-side script is the real one, run against a scratch
+# home, and a restart replays what the sandbox's start script does with staged settings.
+openshell_fixture() {
+  fixture
+  HARNESS_RUNTIME=openshell
+  HARNESS_AGENT="$1"
+  SANDBOX_HOME="$HOME/sandbox"
+  export ACTIONS SANDBOX_HOME
+  mkdir -p "$SANDBOX_HOME" "$HOME/profile"
+  : >"$HOME/profile/profile.json"
+  sandbox_script() { env -u DEEPAGENTS_HOME -u OPENCLAW_STATE_DIR HOME="$SANDBOX_HOME" HERMES_HOME="$SANDBOX_HOME/.hermes" node "$METRICS_OS_SCRIPT" "$@"; }
+  openshell_profile_dir() { printf '%s/profile' "$HOME"; }
+  openshell_load_profile() { OPENSHELL_NAME=ahi-test OPENSHELL_GATEWAY=gw OPENSHELL_OWNER=owner; }
+  openshell_resource_exists() { [[ "${TEST_SANDBOX_GONE:-}" != 1 ]]; }
+  openshell_assert_owned() { :; }
+  openshell_sandbox_phase() { printf '%s\n' "${TEST_SANDBOX_PHASE:-Ready}"; }
+  openshell_ensure_ready() { printf 'ready\n' >>"$ACTIONS"; }
+  openshell_restart_sandbox() { printf 'restart\n' >>"$ACTIONS"; sandbox_script openclaw-apply; }
+  openshell_allow_host_port() { printf 'allow %s %s%s\n' "$1" "$2" "${3:+ $3}" >>"$ACTIONS"; }
+  openshell_remove_policy_rule() { printf 'unallow %s\n' "$1" >>"$ACTIONS"; }
+  metrics_os_exec() {
+    if [[ "$1" == check ]]; then printf 'check %s\n' "$2" >>"$ACTIONS"; return 0; fi
+    sandbox_script "$@"
+  }
+  metrics_receiver_start() { printf 'receiver start %s %s %s\n' "$1" "$2" "$3" >>"$ACTIONS"; }
+  metrics_receiver_stop() { printf 'receiver stop\n' >>"$ACTIONS"; }
+  metrics_harness_check || true
+}
+
+openshell_openclaw_lifecycle() {
+  openshell_fixture openclaw
+  local config="$SANDBOX_HOME/.openclaw/openclaw.json" port="$HARNESS_OTLP_RECEIVER_PORT"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=full
+  metrics_enable_harness
+  grep -Fxq "check openclaw" "$ACTIONS"
+  grep -Fxq "receiver start openclaw $HOME/.harness-test/openshell-telemetry/openclaw_otel_live.db full" "$ACTIONS"
+  grep -Fxq "allow harness_otel ${port} host.openshell.internal" "$ACTIONS"
+  grep -Fxq restart "$ACTIONS"
+  [[ "$(node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1])).diagnostics.otel;console.log(o.enabled,o.endpoint,o.captureContent)' "$config")" \
+    == "true http://host.openshell.internal:${port} true" ]]
+  [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.runtime)" == openshell ]]
+  # Another runtime must not touch, or claim, the sandbox's exporter.
+  HARNESS_RUNTIME=host expect_failure 'enabled for the openshell runtime' metrics_enable_harness
+  HARNESS_RUNTIME=host expect_failure 'enabled for the openshell runtime' metrics_disable_harness
+  metrics_disable_harness
+  grep -Fxq 'unallow harness_otel' "$ACTIONS"
+  [[ "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).diagnostics.otel.enabled)' "$config")" == false ]]
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
+}
+
+openshell_dcode_lifecycle() {
+  openshell_fixture deepagents-code
+  local env="$SANDBOX_HOME/.deepagents/.env"
+  mkdir -p "$SANDBOX_HOME/.deepagents"
+  printf 'MY_SETTING=1\n' >"$env"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  grep -Fxq "allow harness_otel ${HARNESS_OTLP_RECEIVER_PORT} host.openshell.internal" "$ACTIONS"
+  grep -Fxq "receiver start dcode $HOME/.harness-test/openshell-telemetry/dcode_otel_live.db off" "$ACTIONS"
+  refute grep -Fxq restart "$ACTIONS"
+  grep -Fxq 'MY_SETTING=1' "$env"
+  grep -Fxq "OTEL_EXPORTER_OTLP_ENDPOINT=http://host.openshell.internal:${HARNESS_OTLP_RECEIVER_PORT}" "$env"
+  grep -Fxq 'LANGSMITH_HIDE_INPUTS=true' "$env"
+  metrics_disable_harness
+  [[ "$(cat "$env")" == MY_SETTING=1 ]]
+  grep -Fxq 'unallow harness_otel' "$ACTIONS"
+  # A .env with tracing variables of its own is not overwritten.
+  printf 'LANGSMITH_TRACING=true\n' >>"$env"
+  expect_failure 'already sets LANGSMITH' metrics_enable_harness
+  [[ "$(grep -c . "$env")" == 2 ]]
+  refute grep -Fq OTEL_ "$env"
+}
+
+openshell_jaeger_uses_the_managed_container() {
+  openshell_fixture deepagents-code
+  M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  grep -Fxq "allow harness_otel ${HARNESS_JAEGER_OTLP_PORT} host.openshell.internal" "$ACTIONS"
+  grep -Fxq "OTEL_EXPORTER_OTLP_ENDPOINT=http://host.openshell.internal:${HARNESS_JAEGER_OTLP_PORT}" "$SANDBOX_HOME/.deepagents/.env"
+  refute grep -Fq 'receiver start' "$ACTIONS"
+  # An external collector is allowed by its own host and port, and used as given.
+  openshell_fixture openclaw
+  M_BACKEND=jaeger M_BACKEND_GIVEN=1 M_ENDPOINT=http://collector.example.net:4318/v1/traces M_CONTENT=off
+  metrics_enable_harness
+  grep -Fxq 'allow harness_otel 4318 collector.example.net' "$ACTIONS"
+  [[ "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).diagnostics.otel.endpoint)' "$SANDBOX_HOME/.openclaw/openclaw.json")" \
+    == http://collector.example.net:4318 ]]
+  refute grep -Fq 'receiver start' "$ACTIONS"
+  # The port defaults from the scheme.
+  openshell_fixture openclaw
+  M_ENDPOINT=https://10.1.2.3/v1/traces
+  metrics_enable_harness
+  grep -Fxq 'allow harness_otel 443 10.1.2.3' "$ACTIONS"
+  # Loopback is the sandbox's own, not this host's.
+  openshell_fixture openclaw
+  M_ENDPOINT=http://127.0.0.1:4318/v1/traces
+  expect_failure 'cannot be reached from inside the sandbox' metrics_enable_harness
+  M_ENDPOINT=http://localhost:4318/v1/traces
+  expect_failure 'cannot be reached from inside the sandbox' metrics_enable_harness
+  M_ENDPOINT='http://[::1]:4318/v1/traces'
+  expect_failure 'cannot be reached from inside the sandbox' metrics_enable_harness
+  refute grep -Fq 'allow ' "$ACTIONS"
+}
+
+openshell_hermes_lifecycle() {
+  openshell_fixture hermes
+  local home="$SANDBOX_HOME/.hermes" cfg="$SANDBOX_HOME/.hermes/hermes_otel.yaml" port="$HARNESS_OTLP_RECEIVER_PORT"
+  # What the image build leaves: the plugin installed, its exporter switched off.
+  mkdir -p "$home/plugins/hermes_otel"
+  : >"$home/plugins/hermes_otel/plugin.yaml"
+  sandbox_script hermes-disable no-restart
+  grep -Fxq 'enabled: false' "$cfg"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  grep -Fxq "check hermes" "$ACTIONS"
+  grep -Fxq "receiver start hermes $HOME/.harness-test/openshell-telemetry/hermes_otel_live.db off" "$ACTIONS"
+  grep -Fxq "allow harness_otel ${port} host.openshell.internal" "$ACTIONS"
+  refute grep -Fxq restart "$ACTIONS"
+  grep -Fxq 'content_capture: "off"' "$cfg"
+  grep -Fxq "    endpoint: \"http://host.openshell.internal:${port}/v1/traces\"" "$cfg"
+  refute grep -Fq 'enabled: false' "$cfg"
+  [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.runtime)" == openshell ]]
+  # Settings that the sandbox script cannot take are refused before the file is touched.
+  expect_failure 'Invalid' sandbox_script hermes-enable 'http://x:1/;rm' off
+  grep -Fxq 'content_capture: "off"' "$cfg"
+  sandbox_script status hermes | grep -Fq 'on, http://host.openshell.internal'
+  metrics_disable_harness
+  grep -Fxq 'unallow harness_otel' "$ACTIONS"
+  grep -Fxq 'enabled: false' "$cfg"
+  sandbox_script status hermes | grep -Fq '(off)'
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
+  # A hermes_otel.yaml this installer did not write is never replaced.
+  printf 'enabled: true\n' >"$cfg"
+  expect_failure 'not managed by this installer' metrics_enable_harness
+  grep -Fxq 'enabled: true' "$cfg"
+}
+
+openshell_missing_sandbox() {
+  openshell_fixture openclaw
+  TEST_SANDBOX_GONE=1 expect_failure 'sandbox does not exist' metrics_enable_harness
+  refute grep -Fq 'allow ' "$ACTIONS"
+  [[ -z "$(metrics_state_get harness.enabled)" ]]
+}
+
+openshell_disable_tolerates_a_removed_sandbox() {
+  openshell_fixture deepagents-code
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  : >"$ACTIONS"
+  rm -f "$HOME/profile/profile.json"
+  metrics_disable_harness
+  refute grep -Fq unallow "$ACTIONS"
+  grep -Fxq 'receiver stop' "$ACTIONS"
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
+  # Removing the sandbox switches its telemetry off without a disable.
+  : >"$HOME/profile/profile.json"
+  metrics_enable_harness
+  : >"$ACTIONS"
+  metrics_openshell_sandbox_removed openclaw
+  [[ "$(metrics_state_get harness.enabled)" == true ]]
+  metrics_openshell_sandbox_removed deepagents-code
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
+  grep -Fxq 'receiver stop' "$ACTIONS"
+}
+
+openshell_show_reports_sandbox_and_other_runtime() {
+  openshell_fixture deepagents-code
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  local out
+  out="$(metrics_show_harness 2>&1)"
+  grep -Fq 'Exporter settings' <<<"$out"
+  out="$(TEST_SANDBOX_PHASE=Stopped metrics_show_harness 2>&1)"
+  grep -Fq 'is Stopped' <<<"$out"
+  out="$(HARNESS_RUNTIME=host HARNESS_AGENT=deepagents-code metrics_show_harness 2>&1)"
+  grep -Fq 'Enabled for the openshell runtime' <<<"$out"
+}
+
 dispatch() {
   fixture
   with_deployment_lock() { printf 'lock\n' >>"$ACTIONS"; "$@"; }
@@ -1199,4 +1378,11 @@ run_case 'OpenClaw plugin install retries from npm when ClawHub fails' openclaw_
 run_case 'a timed-out OpenClaw foreign-exporter check fails closed' openclaw_foreign_check_times_out_closed
 run_case 'OpenClaw disable also turns content capture off' openclaw_disable_turns_content_capture_off
 run_case 'dcode refuses an incomplete or reversed marker block' dcode_refuses_incomplete_marker_block
+run_case 'OpenShell OpenClaw: egress rule, staged config, sandbox restart, other runtimes refused' openshell_openclaw_lifecycle
+run_case 'OpenShell dcode: .env block inside the sandbox, no restart, foreign variables refused' openshell_dcode_lifecycle
+run_case 'OpenShell jaeger uses the managed container; an external endpoint is allowed, loopback refused' openshell_jaeger_uses_the_managed_container
+run_case 'OpenShell Hermes: plugin baked in, hermes_otel.yaml switched inside the sandbox, foreign file and old image refused' openshell_hermes_lifecycle
+run_case 'OpenShell: a missing sandbox fails before any change' openshell_missing_sandbox
+run_case 'OpenShell disable and sandbox removal tolerate a sandbox that is gone' openshell_disable_tolerates_a_removed_sandbox
+run_case 'OpenShell show reads the sandbox and points at the other runtime' openshell_show_reports_sandbox_and_other_runtime
 finish_tests

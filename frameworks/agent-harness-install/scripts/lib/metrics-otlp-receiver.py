@@ -4,10 +4,11 @@
 """Loopback OTLP/HTTP trace receiver that keeps spans in a local SQLite store.
 
 Started by `./install.sh observability enable --backend sqlite` for agents that
-export OpenTelemetry themselves (OpenClaw, Deep Agents Code). Rows use the same
-`events` table as the Hermes hermes-otel plugin so `observability show/disable
---clean` handle every agent alike. Standard library only: the OTLP protobuf
-messages are decoded by hand (only the fields stored here).
+export OpenTelemetry themselves (OpenClaw, Deep Agents Code, and Hermes inside an
+OpenShell sandbox). Rows use the same `events` table as the Hermes hermes-otel
+plugin so `observability show/disable --clean` handle every agent alike. Standard
+library only: the OTLP protobuf messages are decoded by hand (only the fields
+stored here).
 """
 
 import argparse
@@ -68,6 +69,8 @@ SESSION_KEYS = (
 def keep_span(agent, span):
     if agent == "openclaw":
         return span["name"] in OPENCLAW_SPANS
+    if agent == "hermes":
+        return True
     # dcode: model and tool calls plus the root; the ~30 middleware spans are noise.
     return span["attrs"].get("langsmith.span.kind") in ("llm", "tool") or not span["parent"]
 
@@ -307,7 +310,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--db", required=True)
-    ap.add_argument("--agent", choices=("openclaw", "dcode"), required=True)
+    ap.add_argument("--agent", choices=("openclaw", "dcode", "hermes"), required=True)
     ap.add_argument("--content", choices=("off", "preview", "full"), default="off")
     ap.add_argument("--max-rows", type=int, default=200000)
     ap.add_argument("--pidfile")

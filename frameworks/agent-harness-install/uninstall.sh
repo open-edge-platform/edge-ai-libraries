@@ -210,7 +210,8 @@ main() {
   metrics_receiver_stop
   metrics_remove_dcode_env_block
   # OpenClaw keeps its config when the CLI is removed; an exporter we enabled would resume after a reinstall.
-  if [[ "$(metrics_harness_owner)" == openclaw ]]; then
+  # A sandbox's exporter went away with the sandbox; only a host OpenClaw has config left to undo.
+  if [[ "$(metrics_harness_owner)" == openclaw && "$(metrics_harness_runtime)" == host ]]; then
     ( metrics_disable_openclaw ) \
       || warn "OpenClaw's telemetry exporter could not be turned off. ${METRICS_OPENCLAW_GATEWAY_HINT} Or run 'openclaw config set diagnostics.otel.enabled false --strict-json' later."
   fi

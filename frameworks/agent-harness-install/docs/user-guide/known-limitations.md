@@ -143,8 +143,16 @@ For sandbox setup, architecture and lifecycle guidance, see
   reboot; re-run `observability enable` to start it again. OpenClaw spans carry
   no session id, and OpenClaw's configuration and plugin changes need its
   gateway stopped: stop it (`openclaw gateway stop`) before enable or disable
-  and start it again afterwards. Hermes inside an
-  OpenShell sandbox is not supported. `--content preview` needs the `sqlite`
+  and start it again afterwards. With `--runtime openshell`, all three harnesses
+  are supported (Hermes included, with the receiver for `sqlite` too), only the
+  `sqlite` backend, the managed Jaeger, or an external `--endpoint` reachable by
+  hostname or IPv4 (not loopback; `https` endpoints and DNS names are only as
+  reachable as the sandbox's network allows) can be used, enabling
+  or disabling for OpenClaw restarts the sandbox (for Hermes the Hermes gateway
+  process inside it is restarted), and a sandbox installed before this support
+  lacks the exporter (remove it and install it again to rebuild its image). A
+  Hermes sandbox also keeps the plugin's own local store inside the sandbox.
+  `--content preview` needs the `sqlite`
   backend for OpenClaw and Deep Agents Code.
 - `HARNESS_OVMS_EXPORTER` normally defaults to `docker-pull` (the OpenShell
   Qwen3.5 default uses `hf-snapshot` instead), which runs OVMS's own

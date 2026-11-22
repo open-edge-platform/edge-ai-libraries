@@ -1,0 +1,259 @@
+// Copyright (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+// Sandbox-side half of `./install.sh observability` for --runtime openshell.
+// Run inside the sandbox, either piped to `node --input-type=module -` by the
+// installer or from /opt/harness (agent-start.sh applies staged OpenClaw settings).
+import fs from "node:fs";
+import path from "node:path";
+import {randomUUID} from "node:crypto";
+import {spawnSync} from "node:child_process";
+
+process.on("uncaughtException", error => {
+  console.error(`Error: ${error.message}`);
+  process.exit(1);
+});
+
+const [command, ...args] = process.argv.slice(2);
+const home = process.env.HOME;
+const stateFile = path.join(home, ".harness-observability.json");
+const openclawConfig = path.join(home, ".openclaw", "openclaw.json");
+const dcodeEnv = path.join(process.env.DEEPAGENTS_HOME || path.join(home, ".deepagents"), ".env");
+const baseUrl = /^https?:\/\/[A-Za-z0-9._-]+(:[1-9][0-9]{0,4})?(\/[A-Za-z0-9._~%\/-]*[A-Za-z0-9._~%-])?$/;
+const pluginDir = "/home/node/.openclaw/npm/projects";
+const dcodeTool = "/home/node/.local/share/uv/tools/deepagents-code/lib";
+const script = "/opt/harness/observability-config.mjs";
+// Hermes: the hermes-otel plugin is installed and enabled in the image (enabling needs
+// network, which the sandbox lacks); its exporter is switched through this file only.
+const hermesHome = process.env.HERMES_HOME || "/home/node/.hermes";
+const hermesConfig = path.join(hermesHome, "hermes_otel.yaml");
+const hermesPlugin = path.join(hermesHome, "plugins", "hermes_otel", "plugin.yaml");
+const hermesBin = "/home/node/.local/bin/hermes";
+const hermesMarker = "# Managed by agent-harness-install (metrics)";
+
+function writeFile(file, content) {
+  fs.mkdirSync(path.dirname(file), {recursive: true, mode: 0o700});
+  const tmp = `${file}.${randomUUID()}.tmp`;
+  fs.writeFileSync(tmp, content, {mode: 0o600, flag: "wx"});
+  try {
+    fs.renameSync(tmp, file);
+  } finally {
+    if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+  }
+}
+
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+function validBase(value) {
+  if (!baseUrl.test(value ?? "") || Number(/^https?:\/\/[^/:]+:(\d+)/.exec(value)?.[1] ?? 1) > 65535)
+    throw Error("Invalid sandbox telemetry endpoint");
+  return value;
+}
+
+function validContent(value) {
+  if (!["off", "preview", "full"].includes(value)) throw Error("Invalid content mode");
+  return value;
+}
+
+function stagedState() {
+  return fs.existsSync(stateFile) ? readJson(stateFile) : null;
+}
+
+function currentOpenclawConfig() {
+  return fs.existsSync(openclawConfig) ? readJson(openclawConfig) : {};
+}
+
+function pluginInstalled() {
+  return fs.existsSync(pluginDir) && fs.readdirSync(pluginDir).some(name => name.includes("diagnostics-otel"));
+}
+
+function dcodeExporterInstalled() {
+  if (!fs.existsSync(dcodeTool)) return false;
+  return fs.readdirSync(dcodeTool).some(py => {
+    const site = path.join(dcodeTool, py, "site-packages");
+    return fs.existsSync(site) &&
+      fs.readdirSync(site).some(name => name.startsWith("opentelemetry_exporter_otlp_proto_http"));
+  });
+}
+
+function splitDcodeEnv(begin, end) {
+  const lines = fs.existsSync(dcodeEnv) ? fs.readFileSync(dcodeEnv, "utf8").split("\n") : [];
+  const start = lines.indexOf(begin);
+  const finish = start < 0 ? -1 : lines.indexOf(end, start + 1);
+  if ((start < 0) !== (finish < 0) || (start < 0 && lines.includes(end)))
+    throw Error(`${dcodeEnv} has an incomplete installer block; repair or remove it and retry`);
+  const rest = start < 0 ? lines : [...lines.slice(0, start), ...lines.slice(finish + 1)];
+  return {rest: rest.join("\n").replace(/\s+$/, ""), present: start >= 0};
+}
+
+function assertNoForeignDcodeVars(rest) {
+  if (/^\s*(export\s+)?(LANGSMITH_|OTEL_)[A-Za-z0-9_]*\s*=/m.test(rest))
+    throw Error(`${dcodeEnv} already sets LANGSMITH_*/OTEL_* variables that this installer did not write; move them aside and retry`);
+}
+
+function assertNoForeignOpenclawExporter() {
+  const staged = stagedState();
+  if (currentOpenclawConfig().diagnostics?.otel?.enabled === true && staged?.enabled !== true)
+    throw Error("OpenClaw already has diagnostics.otel enabled that this installer did not set up; it is not overwritten");
+}
+
+function openclawApply() {
+  const staged = stagedState();
+  if (!staged) return;
+  const config = currentOpenclawConfig();
+  config.diagnostics ??= {};
+  config.diagnostics.otel ??= {};
+  if (staged.enabled) {
+    validBase(staged.endpoint);
+    config.plugins ??= {};
+    config.plugins.entries ??= {};
+    config.plugins.entries["diagnostics-otel"] = {...config.plugins.entries["diagnostics-otel"], enabled: true};
+    config.diagnostics.enabled = true;
+    Object.assign(config.diagnostics.otel, {
+      enabled: true, endpoint: staged.endpoint, protocol: "http/protobuf", serviceName: "openclaw",
+      traces: true, metrics: false, logs: false, captureContent: staged.content !== "off", flushIntervalMs: 1000
+    });
+  } else {
+    Object.assign(config.diagnostics.otel, {enabled: false, captureContent: false});
+    if (config.plugins?.entries?.["diagnostics-otel"]) config.plugins.entries["diagnostics-otel"].enabled = false;
+  }
+  writeFile(openclawConfig, JSON.stringify(config, null, 2));
+}
+
+// A hermes_otel.yaml this installer did not write is never replaced.
+function hermesConfigState() {
+  if (!fs.existsSync(hermesConfig)) return "absent";
+  return fs.readFileSync(hermesConfig, "utf8").split("\n")[0] === hermesMarker ? "managed" : "foreign";
+}
+
+function assertHermesConfigWritable() {
+  if (hermesConfigState() === "foreign")
+    throw Error(`${hermesConfig} exists and is not managed by this installer; move it aside and retry`);
+}
+
+function hermesPluginInstalled() {
+  return fs.existsSync(hermesPlugin);
+}
+
+// `hermes -z` leaves a gateway process running that holds the loaded plugin
+// configuration; the next turn starts a new one with the settings just written.
+function restartHermesGateway() {
+  spawnSync(hermesBin, ["gateway", "stop"], {
+    env: {...process.env, HERMES_HOME: hermesHome, PATH: `/home/node/.local/bin:${process.env.PATH ?? "/usr/bin:/bin"}`},
+    stdio: "ignore", timeout: 60000
+  });
+}
+
+function hermesInert() {
+  writeFile(hermesConfig, `${hermesMarker}\nenabled: false\n`);
+}
+
+function openclawMatches(expect, endpoint) {
+  const otel = currentOpenclawConfig().diagnostics?.otel;
+  return expect === "on"
+    ? otel?.enabled === true && otel.endpoint === endpoint
+    : !otel || otel.enabled !== true;
+}
+
+switch (command) {
+  case "check": {
+    const [agent, begin, end] = args;
+    if (agent === "openclaw") {
+      if (!fs.existsSync(script) || !pluginInstalled())
+        throw Error("This sandbox image predates telemetry support (no diagnostics-otel plugin); remove the sandbox and install it again");
+      assertNoForeignOpenclawExporter();
+    } else if (agent === "deepagents-code") {
+      if (!dcodeExporterInstalled())
+        throw Error("Deep Agents Code in this sandbox has no OpenTelemetry OTLP exporter");
+      assertNoForeignDcodeVars(splitDcodeEnv(begin, end).rest);
+    } else if (agent === "hermes") {
+      if (!fs.existsSync(script) || !hermesPluginInstalled() || hermesConfigState() === "absent")
+        throw Error("This sandbox image predates telemetry support (no hermes-otel plugin); remove the sandbox and install it again");
+      assertHermesConfigWritable();
+    } else {
+      throw Error("Unsupported sandbox agent");
+    }
+    break;
+  }
+  case "openclaw-stage": {
+    const [mode, base, content] = args;
+    assertNoForeignOpenclawExporter();
+    if (mode === "on") writeFile(stateFile, JSON.stringify({enabled: true, endpoint: validBase(base), content: validContent(content)}));
+    else if (mode === "off") writeFile(stateFile, JSON.stringify({enabled: false}));
+    else throw Error("Invalid staging mode");
+    break;
+  }
+  case "openclaw-apply":
+    openclawApply();
+    break;
+  case "openclaw-verify": {
+    const [mode, base] = args;
+    if (!openclawMatches(mode, base)) process.exitCode = 1;
+    break;
+  }
+  case "dcode-enable": {
+    const [begin, end, base, content] = args;
+    validBase(base);
+    validContent(content);
+    const {rest} = splitDcodeEnv(begin, end);
+    assertNoForeignDcodeVars(rest);
+    // The LangSmith SDK only switches to its OpenTelemetry exporter when it has
+    // an API key; nothing is sent to LangSmith, so the value is a placeholder.
+    const block = [begin, "LANGSMITH_TRACING=true", "LANGSMITH_TRACING_MODE=otel",
+      "LANGSMITH_API_KEY=agent-harness-install-placeholder", `OTEL_EXPORTER_OTLP_ENDPOINT=${base}`,
+      "OTEL_SERVICE_NAME=dcode", "OTEL_BSP_SCHEDULE_DELAY=200",
+      ...(content === "off" ? ["LANGSMITH_HIDE_INPUTS=true", "LANGSMITH_HIDE_OUTPUTS=true"] : []), end].join("\n");
+    writeFile(dcodeEnv, `${rest ? `${rest}\n` : ""}${block}\n`);
+    break;
+  }
+  case "dcode-disable": {
+    const [begin, end] = args;
+    const {rest, present} = splitDcodeEnv(begin, end);
+    if (!present) break;
+    if (rest) writeFile(dcodeEnv, `${rest}\n`);
+    else fs.unlinkSync(dcodeEnv);
+    break;
+  }
+  case "hermes-enable": {
+    const [base, content] = args;
+    validBase(base);
+    validContent(content);
+    assertHermesConfigWritable();
+    // "off" must stay quoted: bare off is a YAML 1.1 boolean.
+    writeFile(hermesConfig, [hermesMarker, `content_capture: "${content}"`, "backends:", "  - type: otlp",
+      `    endpoint: "${base}/v1/traces"`, "    metrics: false", "    logs: false", ""].join("\n"));
+    restartHermesGateway();
+    break;
+  }
+  case "hermes-disable":
+    if (hermesConfigState() === "foreign") break;
+    hermesInert();
+    // Image build: no gateway exists yet.
+    if (args[0] !== "no-restart") restartHermesGateway();
+    break;
+  case "status": {
+    const [agent, begin, end] = args;
+    if (agent === "hermes") {
+      const state = hermesConfigState();
+      console.log(`hermes-otel plugin ${hermesPluginInstalled() ? "installed" : "not installed"}`);
+      if (state === "foreign") console.log(`${hermesConfig} is not managed by this installer`);
+      else if (state === "absent") console.log(`No exporter settings in ${hermesConfig}`);
+      else {
+        const text = fs.readFileSync(hermesConfig, "utf8");
+        const endpoint = text.match(/^\s+endpoint: "([^"]+)"/m)?.[1];
+        console.log(`Exporter settings: ${hermesConfig} (${/^enabled: false$/m.test(text) ? "off" : `on${endpoint ? `, ${endpoint}` : ""}`})`);
+      }
+    } else if (agent === "openclaw") {
+      const otel = currentOpenclawConfig().diagnostics?.otel;
+      console.log(`diagnostics-otel plugin ${pluginInstalled() ? "installed" : "not installed"}`);
+      console.log(`diagnostics.otel.enabled: ${otel?.enabled === true}${otel?.endpoint ? ` (${otel.endpoint})` : ""}`);
+    } else {
+      console.log(splitDcodeEnv(begin, end).present
+        ? `Exporter settings: ${dcodeEnv}` : `No exporter settings in ${dcodeEnv}`);
+    }
+    break;
+  }
+  default:
+    throw Error("Invalid observability command");
+}

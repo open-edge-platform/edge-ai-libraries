@@ -97,7 +97,9 @@ usage() {
     --keep-jaeger                      disable only; keep the managed Jaeger container (and its traces) running
     show prints a CLI summary (Router requests/tokens/latency per model; harness local-store span summary) and the Jaeger UI
     URL when Jaeger is the backend; Jaeger gives the full trace view.
-    Router telemetry is persisted as a JSONL file and readable via /v1/metrics. Harness telemetry is not available in OpenShell sandboxes.
+    Router telemetry is persisted as a JSONL file and readable via /v1/metrics. Harness telemetry in an OpenShell sandbox
+    (--runtime openshell) supports all three harnesses and --endpoint (a collector the sandbox can reach by hostname or IPv4;
+    not loopback).
 
   Environment:
     HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)

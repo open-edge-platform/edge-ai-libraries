@@ -269,7 +269,7 @@ installed). Each agent keeps its own exporter; the installer only configures it.
 - **One exporter at a time:** the installer records which agent owns the
   exporter. `enable` for another agent is refused until `disable`, and `show`
   and `disable` act on the recorded agent whichever one is selected.
-- **`--backend sqlite` for OpenClaw and Deep Agents Code:** the agents export
+- **`--backend sqlite` for OpenClaw and Deep Agents Code (and Hermes in OpenShell):** the agents export
   OTLP, so the installer starts a small loopback-only receiver
   (`scripts/lib/metrics-otlp-receiver.py`, Python 3.8+, standard library only)
   on `127.0.0.1:4319` (`HARNESS_OTLP_RECEIVER_PORT`) that writes the same
@@ -331,9 +331,30 @@ installed). Each agent keeps its own exporter; the installer only configures it.
   managed container). Use it for the full trace view, which the CLI summary
   does not replace.
 
-Limitations: harness telemetry is not available in OpenShell sandboxes (the
-sandbox has no network egress beyond the router). After an OpenShell install, pass `--runtime openshell` to
-`observability` (otherwise the runtime defaults to `host`). Router telemetry
+Harness telemetry also works inside an OpenShell sandbox for all three harnesses:
+pass `--runtime openshell` (and `--harness <agent>`)
+to `observability`; otherwise the runtime defaults to `host`. The sandbox has no
+general network egress, so the exporter is built into the sandbox image and
+`enable` adds one policy rule that lets the agent reach only the host collector
+(the receiver for `sqlite`, the managed Jaeger for `jaeger`) through
+`host.openshell.internal`; `disable` removes it. The collected data stays on the
+host. Enabling or disabling OpenClaw restarts its sandbox so the gateway reloads
+its settings; Deep Agents Code only needs a new session. For Hermes the
+`hermes-otel` plugin is installed and enabled in the image (enabling needs the
+network) but kept silent by a `hermes_otel.yaml` with `enabled: false`; `enable`
+rewrites that file inside the sandbox and stops the Hermes gateway process there,
+which the next turn starts again with the new settings. With `--backend sqlite`
+the host receiver stores Hermes's spans in
+`openshell-telemetry/hermes_otel_live.db` (the plugin's own local store inside
+the sandbox is not read). With `--backend jaeger --endpoint <url>` the sandbox
+exports to your own collector instead of the managed Jaeger: `enable` allows
+sandbox egress to exactly that host and port (port 80/443 by scheme when the URL
+has none) and `disable` removes it. The collector must be reachable from the
+sandbox by hostname or IPv4 address; loopback and IPv6 literals are refused (use
+`host.openshell.internal` for a collector on the same machine, or omit
+`--endpoint` for the managed Jaeger). A sandbox created before this support
+must be removed and installed again to gain the exporter or to accept an
+external `--endpoint`. Router telemetry
 works in both
 runtimes. The Router's `ir_metrics.jsonl` is append-only while the Router runs;
 the installer rotates it once it exceeds `HARNESS_IR_TELEMETRY_MAX_BYTES` (see
