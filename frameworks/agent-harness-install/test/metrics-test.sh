@@ -1004,6 +1004,11 @@ dcode_refuses_incomplete_marker_block() {
   printf 'USER_KEY=keep\n%s\nOTEL_X=1\n%s\n' "$METRICS_ENV_END" "$METRICS_ENV_BEGIN" >"$env"
   expect_failure 'incomplete installer block' metrics_enable_harness
   grep -Fxq 'USER_KEY=keep' "$env"
+  # A complete block followed by a stray BEGIN is just as unsafe.
+  printf 'USER_KEY=keep\n%s\nOTEL_X=1\n%s\n%s\nMORE=1\n' "$METRICS_ENV_BEGIN" "$METRICS_ENV_END" "$METRICS_ENV_BEGIN" >"$env"
+  expect_failure 'incomplete installer block' metrics_enable_harness
+  expect_failure 'incomplete installer block' metrics_remove_dcode_env_block
+  grep -Fxq 'MORE=1' "$env"
   refute grep -Fq 'receiver start' "$ACTIONS"
 }
 
@@ -1143,6 +1148,9 @@ openshell_fixture() {
   export ACTIONS SANDBOX_HOME
   mkdir -p "$SANDBOX_HOME" "$HOME/profile"
   : >"$HOME/profile/profile.json"
+  mkdir -p "$SANDBOX_HOME/.local/bin"
+  printf '#!/bin/sh\nprintf "hermes %%s\\n" "$*" >>"$ACTIONS"\nexit ${HERMES_STOP_RC:-0}\n' >"$SANDBOX_HOME/.local/bin/hermes"
+  chmod 755 "$SANDBOX_HOME/.local/bin/hermes"
   sandbox_script() { env -u DEEPAGENTS_HOME -u OPENCLAW_STATE_DIR HOME="$SANDBOX_HOME" HERMES_HOME="$SANDBOX_HOME/.hermes" node "$METRICS_OS_SCRIPT" "$@"; }
   openshell_profile_dir() { printf '%s/profile' "$HOME"; }
   openshell_load_profile() { OPENSHELL_NAME=ahi-test OPENSHELL_GATEWAY=gw OPENSHELL_OWNER=owner; }
@@ -1258,12 +1266,22 @@ openshell_hermes_lifecycle() {
   # Settings that the sandbox script cannot take are refused before the file is touched.
   expect_failure 'Invalid' sandbox_script hermes-enable 'http://x:1/;rm' off
   grep -Fxq 'content_capture: "off"' "$cfg"
+  grep -Fxq 'hermes gateway stop' "$ACTIONS"
   sandbox_script status hermes | grep -Fq 'on, http://host.openshell.internal'
+  # A gateway that cannot be stopped keeps the old settings, so that is an error.
+  HERMES_STOP_RC=3 expect_failure 'Could not stop the running Hermes gateway' sandbox_script hermes-enable http://x:1/v1/traces off
+  HERMES_STOP_RC=3 expect_failure 'Could not stop the running Hermes gateway' sandbox_script hermes-disable
   metrics_disable_harness
   grep -Fxq 'unallow harness_otel' "$ACTIONS"
   grep -Fxq 'enabled: false' "$cfg"
   sandbox_script status hermes | grep -Fq '(off)'
   [[ "$(metrics_state_get harness.enabled)" == false ]]
+  # An external traces URL reaches Hermes exactly as given.
+  M_BACKEND=jaeger M_BACKEND_GIVEN=1 M_ENDPOINT=https://collector.example.net/otlp/traces
+  metrics_enable_harness
+  grep -Fxq 'allow harness_otel 443 collector.example.net' "$ACTIONS"
+  grep -Fxq '    endpoint: "https://collector.example.net/otlp/traces"' "$cfg"
+  metrics_disable_harness
   # A hermes_otel.yaml this installer did not write is never replaced.
   printf 'enabled: true\n' >"$cfg"
   expect_failure 'not managed by this installer' metrics_enable_harness

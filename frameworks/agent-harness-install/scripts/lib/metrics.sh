@@ -750,6 +750,14 @@ metrics_dcode_env_has_block() {
   [[ -f "$1" ]] && awk -v b="$METRICS_ENV_BEGIN" -v e="$METRICS_ENV_END" '$0 == b { s = 1 } $0 == e && s { f = 1 } END { exit !f }' "$1"
 }
 
+# True when every BEGIN has its own END after it (no nesting, no stray marker).
+metrics_dcode_env_markers_balanced() {
+  [[ ! -f "$1" ]] || awk -v b="$METRICS_ENV_BEGIN" -v e="$METRICS_ENV_END" '
+    $0 == b { if (open) bad = 1; open = 1; next }
+    $0 == e { if (!open) bad = 1; open = 0 }
+    END { exit (bad || open) }' "$1"
+}
+
 # Fails before any side effect if the .env cannot be written, or already sets
 # tracing variables of its own (a second definition would silently lose).
 metrics_check_dcode_env() {
@@ -758,7 +766,7 @@ metrics_check_dcode_env() {
   env="$(metrics_dcode_env_file)"
   [[ ! -L "$home" ]] || error "dcode data directory ${home} is a symlink."
   [[ ! -L "$env" ]] || error "Refusing to write through a symlink: ${env}"
-  if [[ -f "$env" ]] && ! metrics_dcode_env_has_block "$env" && grep -Fxq -e "$METRICS_ENV_BEGIN" -e "$METRICS_ENV_END" "$env"; then
+  if ! metrics_dcode_env_markers_balanced "$env"; then
     # A lone or reversed marker would make the block swallow the user's lines around it.
     error "${env} has an incomplete installer block (BEGIN/END markers missing or out of order); repair or remove it and re-run."
   fi
@@ -791,6 +799,8 @@ metrics_remove_dcode_env_block() {
   env="$(metrics_dcode_env_file)"
   [[ ! -L "$(metrics_dcode_home)" && -f "$env" && ! -L "$env" ]] || return 0
   metrics_dcode_env_has_block "$env" || return 0
+  metrics_dcode_env_markers_balanced "$env" \
+    || error "${env} has an incomplete installer block (BEGIN/END markers missing or out of order); repair or remove it and re-run."
   rest="$(metrics_strip_dcode_env_block "$env")"
   if [[ -z "${rest//[[:space:]]/}" ]]; then
     rm -f -- "$env"
@@ -944,7 +954,7 @@ metrics_enable_harness() {
         metrics_write_hermes_otel_config "$backend" "$endpoint" "$content" "$managed"
       else
         # Recorded before the first change, so a failed enable can still be disabled.
-        if [[ "$M_AGENT" == openclaw ]]; then metrics_state_set harness.enabled true harness.agent openclaw; fi
+        if [[ "$M_AGENT" == openclaw ]]; then metrics_state_set harness.enabled true harness.agent openclaw harness.runtime "$runtime"; fi
         # The receiver is up before the agent is pointed at it, so no span is lost.
         if [[ "$backend" == sqlite ]]; then
           metrics_receiver_start "$(metrics_receiver_agent_key "$M_AGENT")" "$(metrics_harness_store "$M_AGENT")" "$content"
@@ -1033,7 +1043,7 @@ metrics_openshell_check_endpoint() {
 # and the policy rule is in place before the agent is told to export, so no span
 # is lost or blocked.
 metrics_enable_openshell_sandbox() {
-  local backend="$1" endpoint="$2" content="$3" base host port
+  local backend="$1" endpoint="$2" content="$3" base host port traces
   base="$(metrics_agent_otlp_base "$backend" "$endpoint")"
   read -r host port < <(metrics_openshell_host_port "$base")
   if [[ "$backend" == sqlite ]]; then
@@ -1046,7 +1056,12 @@ metrics_enable_openshell_sandbox() {
       metrics_os_exec dcode-enable "$METRICS_ENV_BEGIN" "$METRICS_ENV_END" "$base" "$content" \
         || error "Could not write Deep Agents Code's exporter settings inside the sandbox (see above)." ;;
     hermes)
-      metrics_os_exec hermes-enable "$base" "$content" \
+      # The plugin takes the full traces URL; an external one is used exactly as given.
+      traces="${base}/v1/traces"
+      if [[ "$backend" != sqlite && "$endpoint" != "http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}/v1/traces" ]]; then
+        traces="${endpoint%/}"
+      fi
+      metrics_os_exec hermes-enable "$traces" "$content" \
         || error "Could not write Hermes's exporter settings inside the sandbox (see above)." ;;
     openclaw)
       metrics_os_exec openclaw-stage on "$base" "$content" \

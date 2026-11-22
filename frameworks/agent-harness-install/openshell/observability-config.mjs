@@ -27,7 +27,7 @@ const script = "/opt/harness/observability-config.mjs";
 const hermesHome = process.env.HERMES_HOME || "/home/node/.hermes";
 const hermesConfig = path.join(hermesHome, "hermes_otel.yaml");
 const hermesPlugin = path.join(hermesHome, "plugins", "hermes_otel", "plugin.yaml");
-const hermesBin = "/home/node/.local/bin/hermes";
+const hermesBin = path.join(home, ".local", "bin", "hermes");
 const hermesMarker = "# Managed by agent-harness-install (metrics)";
 
 function writeFile(file, content) {
@@ -84,6 +84,8 @@ function splitDcodeEnv(begin, end) {
   if ((start < 0) !== (finish < 0) || (start < 0 && lines.includes(end)))
     throw Error(`${dcodeEnv} has an incomplete installer block; repair or remove it and retry`);
   const rest = start < 0 ? lines : [...lines.slice(0, start), ...lines.slice(finish + 1)];
+  if (rest.includes(begin) || rest.includes(end))
+    throw Error(`${dcodeEnv} has an incomplete installer block; repair or remove it and retry`);
   return {rest: rest.join("\n").replace(/\s+$/, ""), present: start >= 0};
 }
 
@@ -139,10 +141,15 @@ function hermesPluginInstalled() {
 // `hermes -z` leaves a gateway process running that holds the loaded plugin
 // configuration; the next turn starts a new one with the settings just written.
 function restartHermesGateway() {
-  spawnSync(hermesBin, ["gateway", "stop"], {
+  // 'gateway stop' exits 0 when no gateway is running, so any failure here is real.
+  const result = spawnSync(hermesBin, ["gateway", "stop"], {
     env: {...process.env, HERMES_HOME: hermesHome, PATH: `/home/node/.local/bin:${process.env.PATH ?? "/usr/bin:/bin"}`},
-    stdio: "ignore", timeout: 60000
+    encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60000
   });
+  if (result.error || result.status !== 0) {
+    const why = result.error?.message ?? `exit ${result.status}: ${`${result.stderr}${result.stdout}`.trim().slice(-300)}`;
+    throw Error(`Could not stop the running Hermes gateway (${why}); it may keep exporting with the previous settings`);
+  }
 }
 
 function hermesInert() {
@@ -216,13 +223,13 @@ switch (command) {
     break;
   }
   case "hermes-enable": {
-    const [base, content] = args;
-    validBase(base);
+    const [tracesUrl, content] = args;
+    validBase(tracesUrl);
     validContent(content);
     assertHermesConfigWritable();
     // "off" must stay quoted: bare off is a YAML 1.1 boolean.
     writeFile(hermesConfig, [hermesMarker, `content_capture: "${content}"`, "backends:", "  - type: otlp",
-      `    endpoint: "${base}/v1/traces"`, "    metrics: false", "    logs: false", ""].join("\n"));
+      `    endpoint: "${tracesUrl}"`, "    metrics: false", "    logs: false", ""].join("\n"));
     restartHermesGateway();
     break;
   }

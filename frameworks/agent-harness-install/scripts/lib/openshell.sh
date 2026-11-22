@@ -718,11 +718,13 @@ JS
 }
 
 openshell_remove_policy_rule() {
-  local rule="$1"
+  local rule="$1" policy
   [[ "$rule" =~ ^[a-z][a-z0-9_]*$ ]] || error "Invalid OpenShell policy rule name."
   openshell policy update "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --remove-rule "$rule" --wait >/dev/null 2>&1 && return 0
-  # A rule that is already gone is the state wanted; anything else must not pass silently.
-  if openshell policy get "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --full 2>/dev/null | grep -Eq "^[[:space:]]*${rule}:"; then
+  # A rule that is already gone is the state wanted, but only a successful policy read can show that.
+  policy="$(openshell policy get "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --full 2>/dev/null)" \
+    || error "Could not remove sandbox egress rule ${rule}, or read the policy to confirm it is gone."
+  if grep -Eq "^[[:space:]]*${rule}:" <<<"$policy"; then
     error "Could not remove sandbox egress rule ${rule}."
   fi
 }
