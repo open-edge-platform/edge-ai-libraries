@@ -27,7 +27,8 @@ const script = "/opt/harness/observability-config.mjs";
 const hermesHome = process.env.HERMES_HOME || "/home/node/.hermes";
 const hermesConfig = path.join(hermesHome, "hermes_otel.yaml");
 const hermesPlugin = path.join(hermesHome, "plugins", "hermes_otel", "plugin.yaml");
-const hermesBin = path.join(home, ".local", "bin", "hermes");
+// The sandbox user's HOME is /sandbox, but the image installs Hermes under /home/node.
+const hermesBin = process.env.HERMES_BIN || "/home/node/.local/bin/hermes";
 const hermesMarker = "# Managed by agent-harness-install (metrics)";
 
 function writeFile(file, content) {

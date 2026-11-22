@@ -1151,7 +1151,7 @@ openshell_fixture() {
   mkdir -p "$SANDBOX_HOME/.local/bin"
   printf '#!/bin/sh\nprintf "hermes %%s\\n" "$*" >>"$ACTIONS"\nexit ${HERMES_STOP_RC:-0}\n' >"$SANDBOX_HOME/.local/bin/hermes"
   chmod 755 "$SANDBOX_HOME/.local/bin/hermes"
-  sandbox_script() { env -u DEEPAGENTS_HOME -u OPENCLAW_STATE_DIR HOME="$SANDBOX_HOME" HERMES_HOME="$SANDBOX_HOME/.hermes" node "$METRICS_OS_SCRIPT" "$@"; }
+  sandbox_script() { env -u DEEPAGENTS_HOME -u OPENCLAW_STATE_DIR HOME="$SANDBOX_HOME" HERMES_HOME="$SANDBOX_HOME/.hermes" HERMES_BIN="$SANDBOX_HOME/.local/bin/hermes" node "$METRICS_OS_SCRIPT" "$@"; }
   openshell_profile_dir() { printf '%s/profile' "$HOME"; }
   openshell_load_profile() { OPENSHELL_NAME=ahi-test OPENSHELL_GATEWAY=gw OPENSHELL_OWNER=owner; }
   openshell_resource_exists() { [[ "${TEST_SANDBOX_GONE:-}" != 1 ]]; }
