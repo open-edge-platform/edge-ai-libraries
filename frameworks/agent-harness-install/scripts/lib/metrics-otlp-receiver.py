@@ -85,6 +85,8 @@ def span_data(span, content):
             if content == "off":
                 continue
             limit = PREVIEW if content == "preview" else MAX_CONTENT
+            if not isinstance(val, str):
+                val = json.dumps(val, default=str)
         else:
             limit = MAX_VALUE
         out[key] = val[:limit] if isinstance(val, str) else val

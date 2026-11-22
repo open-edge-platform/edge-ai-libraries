@@ -254,8 +254,8 @@ installed). Each agent keeps its own exporter; the installer only configures it.
   does not). `enable` and `disable` change the OpenClaw config and plugins,
   which OpenClaw refuses while the Gateway is running, so stop the Gateway
   first (`openclaw gateway stop`) and start it again afterwards. An existing
-  `diagnostics.otel` exporter that this installer did not configure is not
-  overwritten. `disable` sets `diagnostics.otel.enabled` to `false` and disables
+  `diagnostics.otel` exporter that is enabled and that this installer did not
+  configure is not overwritten; a disabled one has its settings replaced. `disable` sets `diagnostics.otel.enabled` to `false` and disables
   the plugin; the plugin stays installed. It only does so for an exporter this
   installer enabled, and `./uninstall.sh` turns that exporter off too.
 - **Deep Agents Code:** new sessions read the `.env` block; restart any running

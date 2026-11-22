@@ -505,6 +505,7 @@ metrics_receiver_pid() {
 }
 
 metrics_receiver_check() {
+  command_exists curl || error "curl is required to check the local OTLP receiver behind --backend sqlite."
   command_exists python3 || error "python3 is required for the local OTLP receiver behind --backend sqlite.
 Install it, or use --backend jaeger."
   python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' \
@@ -617,8 +618,8 @@ metrics_check_openclaw_otel_config() {
   local current rc=0
   [[ "$(metrics_state_get harness.agent)" == openclaw && "$(metrics_state_get harness.enabled)" == true ]] && return 0
   current="$(metrics_openclaw_run 60 config get diagnostics.otel.enabled --json 2>/dev/null)" || rc=$?
-  # Another non-zero exit is taken as 'not set'; a timeout must not pass as that.
-  (( rc != 124 )) \
+  # Another non-zero exit is taken as 'not set'; a timeout (124, or 137 after -k) must not pass as that.
+  (( rc != 124 && rc != 137 )) \
     || error "Timed out reading OpenClaw's diagnostics.otel.enabled. ${METRICS_OPENCLAW_GATEWAY_HINT}"
   [[ "$current" != true ]] \
     || error "OpenClaw already has diagnostics.otel enabled that this installer did not set up; it is not overwritten.
@@ -628,7 +629,8 @@ Disable it ('openclaw config set diagnostics.otel.enabled false --strict-json') 
 metrics_install_openclaw_otel_plugin() {
   local spec rc=0
   spec="$(metrics_openclaw_plugin_spec)"
-  if ! openclaw plugins list --json 2>/dev/null | grep -Fq '"diagnostics-otel"'; then
+  # Not piped: with pipefail, grep -q closing early would fail the listing and force a reinstall.
+  if ! grep -Fq '"diagnostics-otel"' <<<"$(metrics_openclaw_run 60 plugins list --json 2>/dev/null || true)"; then
     info "Installing the OpenClaw diagnostics-otel plugin (${spec})"
     metrics_openclaw_run 300 plugins install "$spec" --accept-capabilities || rc=$?
     if (( rc != 0 )); then
@@ -665,6 +667,7 @@ metrics_disable_openclaw() {
   command_exists openclaw \
     || error "OpenClaw CLI not found on PATH, so its telemetry cannot be disabled and may keep exporting.
 Run 'openclaw config set diagnostics.otel.enabled false --strict-json' yourself or fix PATH, then retry."
+  command_exists timeout || error "'timeout' (coreutils) is required."
   metrics_openclaw_run 120 config set diagnostics.otel.enabled false --strict-json >/dev/null \
     || error "'openclaw config set diagnostics.otel.enabled false' failed; telemetry may still be exported.
 ${METRICS_OPENCLAW_GATEWAY_HINT}"
@@ -746,7 +749,6 @@ LANGSMITH_TRACING=true
 LANGSMITH_TRACING_MODE=otel
 LANGSMITH_API_KEY=agent-harness-install-placeholder
 OTEL_EXPORTER_OTLP_ENDPOINT=${base}
-OTEL_EXPORTER_OTLP_HEADERS=x-agent-harness=1
 OTEL_SERVICE_NAME=dcode
 OTEL_BSP_SCHEDULE_DELAY=200"
   if [[ "$content" == off ]]; then
@@ -1089,7 +1091,7 @@ metrics_show_harness_agent() {
       fi ;;
     openclaw)
       if command_exists openclaw; then
-        if metrics_openclaw_run 60 plugins list --json 2>/dev/null | grep -Fq '"diagnostics-otel"'; then
+        if grep -Fq '"diagnostics-otel"' <<<"$(metrics_openclaw_run 60 plugins list --json 2>/dev/null || true)"; then
           ok "diagnostics-otel plugin installed"
         else
           info "diagnostics-otel plugin not installed"

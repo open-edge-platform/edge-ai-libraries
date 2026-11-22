@@ -43,7 +43,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 52 |
+| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 57 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
