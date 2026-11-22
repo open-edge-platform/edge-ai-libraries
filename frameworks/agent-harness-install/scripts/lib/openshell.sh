@@ -695,7 +695,8 @@ openshell_allow_host_port() {
   local rule="$1" port="$2" host="${3:-host.openshell.internal}" dir out binary
   local -a binaries bin_args=()
   [[ "$rule" =~ ^[a-z][a-z0-9_]*$ ]] || error "Invalid OpenShell policy rule name."
-  [[ "$port" =~ ^[1-9][0-9]{0,4}$ ]] && (( port <= 65535 )) || error "Invalid sandbox egress port: ${port}"
+  [[ "$port" =~ ^[1-9][0-9]{0,4}$ ]] || error "Invalid sandbox egress port: ${port}"
+  (( port <= 65535 )) || error "Invalid sandbox egress port: ${port}"
   [[ "$host" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || error "Invalid sandbox egress host."
   dir="$(openshell_profile_dir)"
   assert_state_path_safe "$dir/provider.json"

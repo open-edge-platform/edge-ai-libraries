@@ -1061,8 +1061,8 @@ metrics_enable_openshell_sandbox() {
 # metrics_openshell_wait_openclaw <on|off> [base] -- waits for the restarted
 # sandbox's start script to have applied the staged OpenClaw settings.
 metrics_openshell_wait_openclaw() {
-  local attempt
-  for attempt in {1..30}; do
+  local _
+  for _ in {1..30}; do
     if metrics_os_exec openclaw-verify "$@" >/dev/null 2>&1; then return 0; fi
     sleep 2
   done
