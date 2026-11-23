@@ -1,7 +1,7 @@
-name: SceneScape (Detection Only)
+name: Scenescape (Detection Only)
 definition: >
-  Template pipeline for SceneScape with a single object detection model.
-  Detections are timestamped and published through the SceneScape post-inference data publisher.
+  Template pipeline for Scenescape with a single object detection model.
+  Detections are timestamped and published through the Scenescape post-inference data publisher.
 tags:
   - template
   - detection

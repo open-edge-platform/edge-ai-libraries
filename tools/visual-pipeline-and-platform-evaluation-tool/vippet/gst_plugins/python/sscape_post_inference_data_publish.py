@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 """
-SceneScape custom GStreamer element that consumes gvametaconvert JSON metadata
+Scenescape custom GStreamer element that consumes gvametaconvert JSON metadata
 and post-decode timestamps attached upstream and publishes per-frame inference
 data over MQTT (and, on request, JPEG-encoded frame images).
 """
@@ -72,7 +72,7 @@ CONVERSION_MAP = {
 # (or any level) toggles this plugin's verbosity like any built-in category.
 _GST_LOG = GstCategoryLogger(
   "sscape_post_inference",
-  "SceneScape post-inference MQTT publisher element",
+  "Scenescape post-inference MQTT publisher element",
 )
 
 
@@ -85,20 +85,20 @@ def _get_mac_address() -> str:
 
 
 class SscapePostInferenceDataPublish(GstBase.BaseTransform):
-  """Publish per-frame SceneScape metadata to MQTT.
+  """Publish per-frame Scenescape metadata to MQTT.
 
   Consumes `GstGVAJSONMeta` attached upstream (by `gvametaconvert` and by
-  `sscape_timestamp_capture`), builds the SceneScape per-frame payload, and
+  `sscape_timestamp_capture`), builds the Scenescape per-frame payload, and
   publishes it over MQTT via paho-mqtt when a broker is reachable. The upstream
   GVA JSON messages are always replaced with the final payload so downstream
-  GVA-aware elements (e.g. `gvametapublish`) emit SceneScape metadata.
+  GVA-aware elements (e.g. `gvametapublish`) emit Scenescape metadata.
   """
 
   __gstmetadata__ = (
-    "SceneScape Post-Inference Data Publish",
+    "Scenescape Post-Inference Data Publish",
     "Filter/Metadata/Video",
-    "Publish gvametaconvert inference output to MQTT with SceneScape schema",
-    "Intel SceneScape",
+    "Publish gvametaconvert inference output to MQTT with Scenescape schema",
+    "Intel Scenescape",
   )
 
   __gsttemplates__ = (
@@ -420,8 +420,8 @@ class SscapePostInferenceDataPublish(GstBase.BaseTransform):
 
     payload = json.dumps(self._frame_level_data)
     # Replace the upstream GVA JSON messages (gvametaconvert output, post-decode
-    # timestamps) with the SceneScape payload so downstream elements such as
-    # gvametapublish emit SceneScape metadata, even without an MQTT broker.
+    # timestamps) with the Scenescape payload so downstream elements such as
+    # gvametapublish emit Scenescape metadata, even without an MQTT broker.
     self._replace_gva_messages(frame, payload)
 
     if self._client is None or not self._client.is_connected():
