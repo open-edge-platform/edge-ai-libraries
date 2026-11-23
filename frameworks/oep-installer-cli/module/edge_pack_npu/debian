@@ -1,7 +1,3 @@
-configure_edge_pack_npu () {
-  configure_edge_pack "$@"
-  version="1.0"
-}
 
 debian_40_profile_edge_pack_npu () {
   echo "edge_pack libze1 kmod"
@@ -12,14 +8,14 @@ debian_40_group_edge_pack_npu () {
 }
 
 debian_40_install_edge_pack_npu () {
-  configure_edge_pack_npu "$@"
+  configure_edge_pack "$@"
   if ensure_apt_is_installed intel-edge-npu && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-npu is installed." >&2
   else
     ensure_prop set installed/edge_pack_npu/owned true
     ensure_apt purge --auto-remove -y intel-edge-npu || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" \
-      $(ensure_apt_policy_version intel-edge-npu libze1)
+      $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1)
   fi
   ensure_group_add $(debian_40_group_edge_pack_npu)
 }
@@ -30,7 +26,7 @@ debian_40_remove_edge_pack_npu () {
 }
 
 debian_40_sbom_edge_pack_npu () {
-  configure_edge_pack_npu "$@"
+  configure_edge_pack "$@"
   sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-npu=$version*"
 }
