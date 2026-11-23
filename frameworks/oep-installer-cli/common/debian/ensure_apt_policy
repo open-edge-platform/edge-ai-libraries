@@ -1,0 +1,9 @@
+
+# package [component...]
+ensure_apt_policy_version () {
+  local pkg="$1" c; shift
+  for c in "$@"; do
+    echo "$c=$(apt-cache show "$pkg" | sed -n -E "/Depends:.*$c/{s/.*$c \\(= ([^)]+)\\).*/\\1/;p;q}")"
+  done
+}
+

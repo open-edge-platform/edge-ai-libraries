@@ -344,7 +344,7 @@ sequenceDiagram
   end
   Jobs->>ASR: POST /v1/audio/transcriptions with WAV, language and device
   ASR-->>Jobs: Transcription JSON
-  Jobs->>Jobs: Store transcript and timing; set COMPLETED; delete staged input
+  Jobs->>Jobs: Store transcript and timing#59; set COMPLETED#59; delete staged input
   loop Until COMPLETED or FAILED
     Client->>Web: GET /api/v1/jobs/audio/{job_id}/status
     Web->>API: Forward status request
@@ -384,7 +384,7 @@ sequenceDiagram
   Jobs->>TTS: POST /v1/audio/speech with text, voice and device
   TTS-->>Jobs: WAV body
   Jobs->>Store: Write temporary file and atomically publish {job_id}.wav
-  Jobs->>Jobs: Store artifact path and timing; set COMPLETED
+  Jobs->>Jobs: Store artifact path and timing#59; set COMPLETED
   loop Until COMPLETED or FAILED
     Client->>Web: GET /api/v1/jobs/audio/{job_id}/status
     Web->>API: Forward status request

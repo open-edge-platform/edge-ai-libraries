@@ -106,6 +106,26 @@
           }
         },
         {
+          "label": "Robotics AI Suite",
+          "value": "robotics_ai_suite",
+          "supports": {
+            "OP_SYSTEM": [
+              "UBUNTU_24_04",
+              "UBUNTU_26_04"
+            ]
+          }
+        },
+        {
+          "label": "Education AI Suite",
+          "value": "education_ai_suite",
+          "supports": {
+            "OP_SYSTEM": [
+              "UBUNTU_24_04",
+              "UBUNTU_26_04"
+            ]
+          }
+        },
+        {
           "label": "Federal and Aerospace (Handheld)",
           "value": "federal_and_aerospace_ai_suite_handheld",
           "supports": {
@@ -128,16 +148,6 @@
         {
           "label": "Federal and Aerospace (Mission Sensing Service)",
           "value": "federal_and_aerospace_ai_suite_mission_sensing_service",
-          "supports": {
-            "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
-            ]
-          }
-        },
-        {
-          "label": "Robotics AI Suite",
-          "value": "robotics_ai_suite",
           "supports": {
             "OP_SYSTEM": [
               "UBUNTU_24_04",
@@ -364,6 +374,20 @@
           },
           "startStop": true,
           "remove": true
+        },
+        {
+          "label": "Smart Tolling",
+          "value": "smart_tolling",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true,
+          "options": [
+            "--gpu"
+          ]
         },
         {
           "label": "Smart Traffic Intersection Agent",
@@ -650,6 +674,85 @@
           "remove": true
         },
         {
+          "label": "Autonomous Mobile Robot",
+          "value": "autonomous_mobile_robot",
+          "supports": {
+            "PROFILE": [
+              "robotics_ai_suite"
+            ]
+          },
+          "remove": true
+        },
+        {
+          "label": "Stationary Robot Vision",
+          "value": "stationary_robot_vision",
+          "supports": {
+            "PROFILE": [
+              "robotics_ai_suite"
+            ]
+          },
+          "remove": true
+        },
+        {
+          "label": "Humanoid Imitation Learning",
+          "value": "humanoid_imitation_learning",
+          "supports": {
+            "PROFILE": [
+              "robotics_ai_suite"
+            ]
+          },
+          "remove": true
+        },
+        {
+          "label": "Physical AI Framework",
+          "value": "physical_ai_framework",
+          "supports": {
+            "PROFILE": [
+              "robotics_ai_suite"
+            ]
+          },
+          "remove": true
+        },
+        {
+          "label": "Physical AI Studio",
+          "value": "physical_ai_studio",
+          "supports": {
+            "PROFILE": [
+              "robotics_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true
+        },
+        {
+          "label": "Smart Classroom",
+          "value": "smart_classroom",
+          "supports": {
+            "PROFILE": [
+              "education_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true,
+          "options": [
+            "--gpu"
+          ]
+        },
+        {
+          "label": "Teacher Assistant Claw Demo",
+          "value": "teacher_assistant_claw_demo",
+          "supports": {
+            "PROFILE": [
+              "education_ai_suite"
+            ]
+          },
+          "startStop": false,
+          "remove": true,
+          "options": [
+            "--gpu"
+          ]
+        },
+        {
           "label": "Handheld Blueprint",
           "value": "handheld_blueprint",
           "supports": {
@@ -717,57 +820,6 @@
               "federal_and_aerospace_ai_suite_mission_sensing_service"
             ]
           },
-          "remove": true
-        },
-        {
-          "label": "Autonomous Mobile Robot",
-          "value": "autonomous_mobile_robot",
-          "supports": {
-            "PROFILE": [
-              "robotics_ai_suite"
-            ]
-          },
-          "remove": true
-        },
-        {
-          "label": "Stationary Robot Vision",
-          "value": "stationary_robot_vision",
-          "supports": {
-            "PROFILE": [
-              "robotics_ai_suite"
-            ]
-          },
-          "remove": true
-        },
-        {
-          "label": "Humanoid Imitation Learning",
-          "value": "humanoid_imitation_learning",
-          "supports": {
-            "PROFILE": [
-              "robotics_ai_suite"
-            ]
-          },
-          "remove": true
-        },
-        {
-          "label": "Physical AI Framework",
-          "value": "physical_ai_framework",
-          "supports": {
-            "PROFILE": [
-              "robotics_ai_suite"
-            ]
-          },
-          "remove": true
-        },
-        {
-          "label": "Physical AI Studio",
-          "value": "physical_ai_studio",
-          "supports": {
-            "PROFILE": [
-              "robotics_ai_suite"
-            ]
-          },
-          "startStop": true,
           "remove": true
         }
       ]
@@ -992,6 +1044,38 @@
         },
         {
           "when": {
+            "PROFILE": "robotics_ai_suite",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
+        },
+        {
+          "when": {
+            "PROFILE": "robotics_ai_suite",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
+        },
+        {
+          "when": {
+            "PROFILE": "education_ai_suite",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/education-suite-metro.html"
+        },
+        {
+          "when": {
+            "PROFILE": "education_ai_suite",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/education-suite-metro.html"
+        },
+        {
+          "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
@@ -1037,22 +1121,6 @@
           },
           "text": "Get Started",
           "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
-        },
-        {
-          "when": {
-            "PROFILE": "robotics_ai_suite",
-            "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
-        },
-        {
-          "when": {
-            "PROFILE": "robotics_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
         }
       ]
     },
@@ -1184,6 +1252,10 @@
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-route-planning-agent/index.html"
             },
             {
+              "text": "Smart Tolling",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-tolling/index.html"
+            },
+            {
               "text": "Smart Traffic Intersection Agent",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-traffic-intersection-agent/index.html"
             },
@@ -1252,6 +1324,10 @@
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-route-planning-agent/index.html"
             },
             {
+              "text": "Smart Tolling",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-tolling/index.html"
+            },
+            {
               "text": "Smart Traffic Intersection Agent",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-traffic-intersection-agent/index.html"
             },
@@ -1439,6 +1515,94 @@
         },
         {
           "when": {
+            "PROFILE": "robotics_ai_suite",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "links": [
+            {
+              "text": "Autonomous Mobile Robot",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/index.html"
+            },
+            {
+              "text": "Stationary Robot Vision",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html"
+            },
+            {
+              "text": "Humanoid Imitation Learning",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/embodied/sample_pipelines/imitation_learning_act.html"
+            },
+            {
+              "text": "Physical AI Framework",
+              "url": "https://github.com/open-edge-platform/physical-ai-studio/tree/main/library"
+            },
+            {
+              "text": "Physical AI Studio",
+              "url": "https://github.com/open-edge-platform/physical-ai-studio"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "robotics_ai_suite",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "links": [
+            {
+              "text": "Autonomous Mobile Robot",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/index.html"
+            },
+            {
+              "text": "Stationary Robot Vision",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html"
+            },
+            {
+              "text": "Humanoid Imitation Learning",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/embodied/sample_pipelines/imitation_learning_act.html"
+            },
+            {
+              "text": "Physical AI Framework",
+              "url": "https://github.com/open-edge-platform/physical-ai-studio/tree/main/library"
+            },
+            {
+              "text": "Physical AI Studio",
+              "url": "https://github.com/open-edge-platform/physical-ai-studio"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "education_ai_suite",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "links": [
+            {
+              "text": "Smart Classroom",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-classroom/index.html"
+            },
+            {
+              "text": "Teacher Assistant Claw Demo",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/teacher-assistant-claw-demo/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "education_ai_suite",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "links": [
+            {
+              "text": "Smart Classroom",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-classroom/index.html"
+            },
+            {
+              "text": "Teacher Assistant Claw Demo",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/teacher-assistant-claw-demo/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
@@ -1506,62 +1670,6 @@
             {
               "text": "Deterministic Threat Detection",
               "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/release-2026.3.0/deterministic-threat-detection"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "robotics_ai_suite",
-            "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "links": [
-            {
-              "text": "Autonomous Mobile Robot",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/index.html"
-            },
-            {
-              "text": "Stationary Robot Vision",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html"
-            },
-            {
-              "text": "Humanoid Imitation Learning",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/embodied/sample_pipelines/imitation_learning_act.html"
-            },
-            {
-              "text": "Physical AI Framework",
-              "url": "https://github.com/open-edge-platform/physical-ai-studio/tree/main/library"
-            },
-            {
-              "text": "Physical AI Studio",
-              "url": "https://github.com/open-edge-platform/physical-ai-studio"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "robotics_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "links": [
-            {
-              "text": "Autonomous Mobile Robot",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/index.html"
-            },
-            {
-              "text": "Stationary Robot Vision",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html"
-            },
-            {
-              "text": "Humanoid Imitation Learning",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/embodied/sample_pipelines/imitation_learning_act.html"
-            },
-            {
-              "text": "Physical AI Framework",
-              "url": "https://github.com/open-edge-platform/physical-ai-studio/tree/main/library"
-            },
-            {
-              "text": "Physical AI Studio",
-              "url": "https://github.com/open-edge-platform/physical-ai-studio"
             }
           ]
         }

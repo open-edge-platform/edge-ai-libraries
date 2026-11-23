@@ -49,6 +49,10 @@
 - Each detection model keeps its own license (YOLOX is Apache-2.0, YOLO11 is AGPL-3.0); review the model card before use.
 - Building the summarizer CLI needs Go 1.26 or later.
 
+**Known Issues:**
+
+- **QwenText embedding crashes on Intel® Core™ Ultra processors (Nova Lake) on CPU:** `multimodal-embedding-serving` and `multimodal-dataprep` crash with `SIGSEGV` on the first inference when a `QwenText/qwen3-embedding-*` model (the default for `--summary-and-search` mode) runs on CPU with OpenVINO™. Gunicorn logs `Worker (pid:<N>) was sent SIGSEGV!` and restarts the worker in a loop. This is an OpenVINO™ CPU plugin bug in releases up to 2026.4.1, fixed upstream for 2026.5. As a workaround, run embedding on CPU without OpenVINO™; see [QwenText Embedding Crashes on Nova Lake CPUs](./troubleshooting.md#qwentext-embedding-crashes-on-nova-lake-cpus).
+
 ---
 
 ## Version 2026.2.0

@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 FROM node:24.21.0-bookworm
 ARG HARNESS_AGENT
+# Hermes pin override (both or neither); empty keeps the pin built into agents.sh.
+ARG HERMES_PINNED_COMMIT=
+ARG HERMES_PINNED_SHA256=
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        curl ca-certificates git iproute2 python3 python3-venv build-essential pkg-config \
