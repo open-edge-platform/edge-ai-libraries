@@ -164,43 +164,7 @@ RUN rm -rf /var/lib/apt/lists/* \
            /tmp/* \
            /var/tmp/* \
            /root/.cache/pip \
-           /usr/local/lib/python3.14/site-packages/pip/_vendor/pkg_resources \
            /timeseries_user/.cache/pip || true
-
-RUN <<'PYTHON' python
-import json
-import sysconfig
-from importlib.util import find_spec
-from pathlib import Path
-
-import pip._vendor
-
-bundled_wheels = Path(sysconfig.get_path("stdlib")) / "ensurepip" / "_bundled"
-for wheel in bundled_wheels.glob("pip-*.whl"):
-    wheel.unlink()
-
-if not any(find_spec(name) for name in ("pip._vendor.setuptools", "pip._vendor.pkg_resources")):
-    vendor_dir = Path(pip._vendor.__file__).parent
-    manifest = vendor_dir / "vendor.txt"
-    manifest.write_text("".join(
-        line for line in manifest.read_text().splitlines(keepends=True)
-        if line.strip() != "setuptools==70.3.0"
-    ))
-    sbom_path = vendor_dir / "bom.cdx.json"
-    if sbom_path.is_file():
-        sbom = json.loads(sbom_path.read_text())
-        stale_ref = "pkg:pypi/setuptools@70.3.0"
-        sbom["components"] = [
-            component for component in sbom["components"] if component.get("bom-ref") != stale_ref
-        ]
-        sbom["dependencies"] = [
-            dependency for dependency in sbom["dependencies"] if dependency["ref"] != stale_ref
-        ]
-        for dependency in sbom["dependencies"]:
-            if stale_ref in dependency.get("dependsOn", []):
-                dependency["dependsOn"].remove(stale_ref)
-        sbom_path.write_text(json.dumps(sbom, indent=2) + "\n")
-PYTHON
 
 RUN chown -R $TIMESERIES_USER_NAME:$TIMESERIES_USER_NAME /app
 
