@@ -576,79 +576,79 @@ The tables below link to the source files on GitHub, grouped by area.
 
 ### Voice workflow (UI)
 
-| File                                                                                                                                                                                                                              | Description               |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| [`ui/src/features/voice/VoiceConversion.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/voice/VoiceConversion.tsx)                     | Voice workflow            |
-| [`ui/src/features/pipelines/PipelineVariantSelect.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/pipelines/PipelineVariantSelect.tsx) | Pipeline variant selector |
-| [`ui/src/features/voice/recording.ts`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/voice/recording.ts)                                   | Recording adapter         |
-| [`ui/src/features/voice/VoiceAudio.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/voice/VoiceAudio.tsx)                               | Audio preview             |
-| [`ui/src/features/voice/VoiceMetrics.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/voice/VoiceMetrics.tsx)                           | Performance panel         |
+| File                                                                                                                                                                                                                                          | Description               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| [`ui/src/features/voice/VoiceConversion.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/voice/VoiceConversion.tsx)                     | Voice workflow            |
+| [`ui/src/features/pipelines/PipelineVariantSelect.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/pipelines/PipelineVariantSelect.tsx) | Pipeline variant selector |
+| [`ui/src/features/voice/recording.ts`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/voice/recording.ts)                                   | Recording adapter         |
+| [`ui/src/features/voice/VoiceAudio.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/voice/VoiceAudio.tsx)                               | Audio preview             |
+| [`ui/src/features/voice/VoiceMetrics.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/voice/VoiceMetrics.tsx)                           | Performance panel         |
 
 ### Jobs and API
 
-| File                                                                                                                                                                                                  | Description                    |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| [`ui/src/pages/Jobs.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/pages/Jobs.tsx)                                 | Jobs page                      |
-| [`ui/src/pages/AudioJobDetail.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/pages/AudioJobDetail.tsx)             | Audio job detail               |
-| [`ui/src/components/Layout.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/components/Layout.tsx)                   | Application layout and toaster |
-| [`vippet/api/routes/voice.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/api/routes/voice.py)                       | Voice API and upstream adapter |
-| [`vippet/api/routes/jobs.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/api/routes/jobs.py)                         | Jobs API adapter               |
-| [`vippet/api/dependencies/audio_jobs.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/api/dependencies/audio_jobs.py) | Audio job dependency           |
+| File                                                                                                                                                                                                              | Description                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| [`ui/src/pages/Jobs.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/pages/Jobs.tsx)                                 | Jobs page                      |
+| [`ui/src/pages/AudioJobDetail.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/pages/AudioJobDetail.tsx)             | Audio job detail               |
+| [`ui/src/components/Layout.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/components/Layout.tsx)                   | Application layout and toaster |
+| [`vippet/api/routes/voice.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/api/routes/voice.py)                       | Voice API and upstream adapter |
+| [`vippet/api/routes/jobs.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/api/routes/jobs.py)                         | Jobs API adapter               |
+| [`vippet/api/dependencies/audio_jobs.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/api/dependencies/audio_jobs.py) | Audio job dependency           |
 
 ### Audio pipeline management
 
-| File                                                                                                                                                                                                                  | Description                |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| [`vippet/managers/audio_pipeline_manager.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/managers/audio_pipeline_manager.py)         | Audio pipeline manager     |
-| [`vippet/managers/audio_pipeline_job_manager.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/managers/audio_pipeline_job_manager.py) | Audio pipeline job manager |
-| [`vippet/audio_assets.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/audio_assets.py)                                               | Managed Audio assets       |
+| File                                                                                                                                                                                                                              | Description                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| [`vippet/managers/audio_pipeline_manager.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/managers/audio_pipeline_manager.py)         | Audio pipeline manager     |
+| [`vippet/managers/audio_pipeline_job_manager.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/managers/audio_pipeline_job_manager.py) | Audio pipeline job manager |
+| [`vippet/audio_assets.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/audio_assets.py)                                               | Managed Audio assets       |
 
 ### Models and pipeline definitions
 
-| File                                                                                                                                                                                                          | Description                                               |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| [`ui/src/pages/Models.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/pages/Models.tsx)                                     | Models page                                               |
-| [`ui/src/features/models/useModelInstall.ts`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/models/useModelInstall.ts) | Model installation hook                                   |
-| [`vippet/api/routes/models.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/api/routes/models.py)                             | Model routes                                              |
-| [`vippet/managers/model_manager.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/managers/model_manager.py)                   | Model manager                                             |
-| [`vippet/models/voice-whisper-base.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/models/voice-whisper-base.yaml)         | Whisper catalog entry                                     |
-| [`vippet/models/voice-speecht5.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/models/voice-speecht5.yaml)                 | SpeechT5 catalog entry                                    |
-| [`vippet/pipelines/speech-to-text.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/pipelines/speech-to-text.yaml)           | Speech to Text pipeline definition with `required_models` |
-| [`vippet/pipelines/text-to-speech.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/pipelines/text-to-speech.yaml)           | Text to Speech pipeline definition with `required_models` |
-| [`vippet/db_seed.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/db_seed.py)                                                 | Catalog DB seeding                                        |
+| File                                                                                                                                                                                                                      | Description                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| [`ui/src/pages/Models.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/pages/Models.tsx)                                     | Models page                                               |
+| [`ui/src/features/models/useModelInstall.ts`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/models/useModelInstall.ts) | Model installation hook                                   |
+| [`vippet/api/routes/models.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/api/routes/models.py)                             | Model routes                                              |
+| [`vippet/managers/model_manager.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/managers/model_manager.py)                   | Model manager                                             |
+| [`vippet/models/voice-whisper-base.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/models/voice-whisper-base.yaml)         | Whisper catalog entry                                     |
+| [`vippet/models/voice-speecht5.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/models/voice-speecht5.yaml)                 | SpeechT5 catalog entry                                    |
+| [`vippet/pipelines/speech-to-text.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/pipelines/speech-to-text.yaml)           | Speech to Text pipeline definition with `required_models` |
+| [`vippet/pipelines/text-to-speech.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/pipelines/text-to-speech.yaml)           | Text to Speech pipeline definition with `required_models` |
+| [`vippet/db_seed.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/db_seed.py)                                                 | Catalog DB seeding                                        |
 
 ### Voice service model provisioning
 
-| File                                                                                                                                                                                 | Description                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- |
-| [`microservices/audio-analyzer/utils/provision_models.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/audio-analyzer/utils/provision_models.py) | Audio Analyzer model provisioning |
-| [`microservices/text-to-speech/utils/ensure_model.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/text-to-speech/utils/ensure_model.py)         | Text to Speech model provisioning |
-| [`microservices/text-to-speech/utils/ensure_speecht5.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/text-to-speech/utils/ensure_speecht5.py)   | SpeechT5 preparation              |
+| File                                                                                                                                                                                             | Description                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- |
+| [`microservices/audio-analyzer/utils/provision_models.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/audio-analyzer/utils/provision_models.py) | Audio Analyzer model provisioning |
+| [`microservices/text-to-speech/utils/ensure_model.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/text-to-speech/utils/ensure_model.py)         | Text to Speech model provisioning |
+| [`microservices/text-to-speech/utils/ensure_speecht5.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/text-to-speech/utils/ensure_speecht5.py)   | SpeechT5 preparation              |
 
 ### Metrics
 
-| File                                                                                                                                                                                                                | Description         |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| [`ui/src/hooks/useMetricsStream.ts`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/hooks/useMetricsStream.ts)                         | Metrics stream      |
-| [`ui/src/hooks/useMetricHistory.ts`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/hooks/useMetricHistory.ts)                         | Local chart history |
-| [`ui/src/features/metrics/MetricsDashboard.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/metrics/MetricsDashboard.tsx) | Shared dashboard    |
+| File                                                                                                                                                                                                                            | Description         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| [`ui/src/hooks/useMetricsStream.ts`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/hooks/useMetricsStream.ts)                         | Metrics stream      |
+| [`ui/src/hooks/useMetricHistory.ts`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/hooks/useMetricHistory.ts)                         | Local chart history |
+| [`ui/src/features/metrics/MetricsDashboard.tsx`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/src/features/metrics/MetricsDashboard.tsx) | Shared dashboard    |
 
 ### Deployment
 
-| File                                                                                                                                                              | Description           |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| [`ui/nginx.conf`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/ui/nginx.conf)             | Nginx routing         |
-| [`compose.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml)                 | Compose configuration |
-| [`compose.gpu.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.gpu.yml)         | GPU override          |
-| [`compose.npu.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.npu.yml)         | NPU override          |
-| [`compose.gpu-wsl.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.gpu-wsl.yml) | WSL GPU override      |
-| [`Makefile`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/Makefile)                       | Make targets          |
+| File                                                                                                                                                                          | Description           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| [`ui/nginx.conf`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/ui/nginx.conf)             | Nginx routing         |
+| [`compose.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml)                 | Compose configuration |
+| [`compose.gpu.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.gpu.yml)         | GPU override          |
+| [`compose.npu.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.npu.yml)         | NPU override          |
+| [`compose.gpu-wsl.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.gpu-wsl.yml) | WSL GPU override      |
+| [`Makefile`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/Makefile)                       | Make targets          |
 
 ### Tests
 
-| File                                                                                                                                                                                                          | Description              |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| [`vippet/tests/unit/api_tests/voice_test.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/tests/unit/api_tests/voice_test.py) | Backend regression tests |
+| File                                                                                                                                                                                                                      | Description              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| [`vippet/tests/unit/api_tests/voice_test.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/tests/unit/api_tests/voice_test.py) | Backend regression tests |
 
 ### Related documentation
 
