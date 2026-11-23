@@ -44,7 +44,7 @@ This runs a multi-stage build:
 6. **Accelerator stage**: For extended builds only, downloads the pinned Intel GPU/NPU userspace packages from official release assets, verifies SHA-256 digests and selects only the required packages. Pins are read directly from `versions.env`; firmware and debug packages are excluded.
 7. **Production target**: Uses digest-pinned `python:3.12-slim-trixie` (Debian 13), applies available Debian updates, and assembles the API, collectors and supervisor. Extended builds install the accelerator packages with normal APT dependency checks. Downloaded packages are build-only mounts, not retained archive layers in the final image.
 
-For the two separately tagged RC2 builds, see
+For the two separately tagged RC1 builds, see
 [Building both release-candidate variants](../../../README.md#building-both-release-candidate-variants).
 
 **First build duration**: 3–10 minutes (depends on download speeds and CPU)

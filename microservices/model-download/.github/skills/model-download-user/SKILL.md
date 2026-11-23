@@ -227,13 +227,13 @@ Show the user the service startup command, using only the plugins their request 
 
 ```bash
 # Clone (if not already done)
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
 cd edge-ai-libraries/microservices/model-download
 
 # Set env vars
 export HUGGINGFACEHUB_API_TOKEN=<your-hf-token>   # mapped into the container as HF_TOKEN
 export REGISTRY="intel/"
-export TAG=2026.3.0-rc2
+export TAG=2026.3.0-rc1
 
 # Start service (adjust --plugins to match what you need)
 source scripts/run_service.sh up --plugins <comma-separated-list> --model-path $PWD/models
