@@ -1,7 +1,3 @@
-configure_edge_pack_base_standard () {
-  configure_edge_pack "$@"
-  version="1.0"
-}
 
 debian_40_profile_edge_pack_base_standard () {
   echo "edge_pack"
@@ -12,15 +8,15 @@ debian_40_group_edge_pack_base_standard () {
 }
 
 debian_40_install_edge_pack_base_standard () {
-  configure_edge_pack_base_standard "$@"
+  configure_edge_pack "$@"
   if ensure_apt_is_installed intel-edge-base-standard && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-base-standard is installed." >&2
   else
     ensure_prop set installed/edge_pack_base_standard/owned true
     ensure_apt purge --auto-remove -y intel-edge-base-standard onevpl-tools || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" \
-      $(ensure_apt_policy_version intel-edge-media-core libigdgmm12) \
-      $(ensure_apt_policy_version intel-edge-npu libze1)
+      $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12) \
+      $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1)
   fi
   ensure_group_add $(debian_40_group_edge_pack_base_standard)
 }
@@ -31,7 +27,7 @@ debian_40_remove_edge_pack_base_standard () {
 }
 
 debian_40_sbom_edge_pack_base_standard () {
-  configure_edge_pack_base_standard "$@"
+  configure_edge_pack "$@"
   sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
 }

@@ -1,4 +1,5 @@
 configure_edge_pack () {
+  version="$(ensure_parse_value_option version --version=1.0 "$@")"
   edge_pack_repo="apt.repos.intel.com"
   edge_pack_key_url="https://$edge_pack_repo/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
   edge_pack_key_file=/etc/apt/keyrings/intel-edge-pack.gpg
