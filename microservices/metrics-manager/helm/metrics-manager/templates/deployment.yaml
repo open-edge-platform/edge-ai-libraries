@@ -204,6 +204,8 @@ spec:
               value: /app/custom-metrics
             - name: TELEGRAF_CONFIG_PATH
               value: /etc/telegraf/telegraf.conf
+            - name: TELEGRAF_EXPIRATION_INTERVAL
+              value: {{ .Values.telegraf.expirationInterval | quote }}
             {{- range $key, $env := include "metrics-manager.collectorOptions" . | fromYaml }}
             - name: {{ $env }}
               value: {{ index $.Values.config $key | toString | quote }}

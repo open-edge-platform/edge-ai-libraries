@@ -5,7 +5,9 @@ SPDX-License-Identifier: Apache-2.0
 
 # Environment Variables
 
-Configuration is managed via environment variables. All variables map directly to Pydantic Settings field names (case-insensitive). The `.env` file is loaded automatically by `docker compose up`.
+Configuration is managed via environment variables. Application variables map to
+Pydantic Settings; collector and Telegraf variables configure their respective
+processes. The `.env` file is loaded automatically by `docker compose up`.
 
 ## Core Settings
 
@@ -67,6 +69,46 @@ These variables configure the Telegraf locations for the application to use:
 | `TELEGRAF_PORT` | `9273` | Telegraf Prometheus endpoint port (where SSE poller fetches system metrics) |
 | `TELEGRAF_HTTP_PORT` | `8186` | Docker-only Telegraf HTTP listener port; used by the shipped configuration |
 | `TELEGRAF_HTTP_ENDPOINT` | `http://localhost:8186/write` | Telegraf HTTP listener endpoint used to persist custom metrics in InfluxDB Line Protocol. Must be accessible from the app container |
+| `TELEGRAF_EXPIRATION_INTERVAL` | `60s` | Output-wide Telegraf metric TTL; `0` disables expiration. See below |
+
+### Telegraf Output Expiration
+
+The shipped Metrics Manager Docker, Debian and Helm restricted-profile configurations
+use `expiration_interval = "${TELEGRAF_EXPIRATION_INTERVAL-60s}"`.
+Telegraf 1.40.3 supplies the 60-second fallback even when an existing environment
+file lacks the variable. Positive Telegraf durations such as `30s` or `2m` are
+supported. `0` explicitly disables expiration: old metrics can then persist
+indefinitely. Metrics Manager's Docker and Debian launchers reject an explicitly
+empty variable. Telegraf rejects malformed durations in configurations that
+reference the variable; negative durations are not supported.
+
+- Docker: set `TELEGRAF_EXPIRATION_INTERVAL` in the Compose environment
+  and recreate the service.
+- Debian: set it in `/etc/metrics-manager/metrics-manager.env` and restart
+  `metrics-manager-telegraf.service`.
+- Helm: set `telegraf.expirationInterval` (as a string) and upgrade the release.
+  The hardware profile uses the image configuration; the restricted profile
+  uses the chart configuration.
+
+This option affects only configurations that reference it. A mounted custom
+configuration with a literal TTL, or with no TTL setting, keeps its existing
+behavior. No user configuration is rewritten. Debian preserves local conffiles:
+to opt in with a retained old configuration, merge the output setting above
+manually. Missing configuration keys do not require an upgrade migration.
+
+TTL applies to **all series in that output**, not only NPU. It is measured from
+arrival at the output, independently of exported sample timestamps. Default
+collection and flush intervals are 1 second; custom scripts run every 10 seconds
+with a 5-second timeout, while custom HTTP metrics may arrive irregularly.
+Allow for the slowest source, flush delays, scheduling jitter and scrape cadence
+before shortening TTL. In particular, 15 seconds is not a universally safe
+setting. An infrequent metric may disappear while other collectors are healthy.
+
+This changes neither the API custom-store retention nor a separate Prometheus
+server's history/lookback/staleness policy. It also does not deduplicate or
+freshness-filter API, TUI or benchmark samples. A missing collector field can
+remain on the endpoint until its TTL expires; a successful HTTP poll does not
+make that measurement new.
 
 ## SSE Poller Settings
 

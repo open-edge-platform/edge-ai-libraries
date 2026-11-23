@@ -126,7 +126,7 @@ const nodeTypeToTag: Record<string, string> = {
   gvafpscounter: "Counter",
   gvaproximitytrigger_py: "Trigger",
 
-  // SceneScape
+  // Scenescape
   sscape_timestamp_capture: "Timestamp",
   sscape_post_inference_data_publish: "Publisher",
 

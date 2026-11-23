@@ -13,8 +13,8 @@
 # -----------------------------------------------------------------------------
 image:
   repository: docker.io/intel/metrics-manager
-  # Defaults to .Chart.AppVersion. For RC validation use 2026.3.0-rc1
-  # or 2026.3.0-extended-rc1; the tag, not a chart flag, selects OpenVINO.
+  # Defaults to .Chart.AppVersion. For RC validation use 2026.3.0-rc2
+  # or 2026.3.0-extended-rc2; the tag, not a chart flag, selects OpenVINO.
   tag: ""
   pullPolicy: IfNotPresent
 
@@ -188,6 +188,8 @@ config:
 # uses the chart's CPU/memory/process/API configuration, while the hardware
 # profile uses the image's native telegraf.conf.
 telegraf:
+  # Output-wide TTL; "0" disables expiration. Custom config must reference the env var.
+  expirationInterval: "60s"
   config: ""
   # Additional *.conf files, snapshotted by the existing image entrypoint.
   # Files are configuration, not Helm templates; never put secrets here.
