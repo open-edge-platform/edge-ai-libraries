@@ -42,6 +42,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _chat_error_to_http(err: Exception, request_id: str) -> HTTPException:
+    """Map a routing/provider failure to the HTTPException returned to clients.
+
+    Shared by the streaming and non-streaming paths so both report the same
+    status for the same failure.
+    """
+    if isinstance(err, RoutingError):
+        logger.error(f"Routing failed: request_id={request_id}, error={err}")
+        return HTTPException(status_code=400, detail=str(err))
+    # Forward upstream client errors (4xx) verbatim instead of masking them
+    # as a 500 — e.g. litellm's BadRequestError for an invalid payload.
+    status_code = getattr(err, "status_code", None)
+    if isinstance(status_code, int) and 400 <= status_code < 500:
+        logger.warning(
+            f"Upstream client error: request_id={request_id}, "
+            f"status={status_code}, error={err}"
+        )
+        return HTTPException(status_code=status_code, detail=str(err))
+    logger.error(f"Provider error: request_id={request_id}, error={err}")
+    return HTTPException(
+        status_code=502, detail=f"Upstream provider error (request_id={request_id})"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Chat completions
 # ---------------------------------------------------------------------------
@@ -78,19 +102,48 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
     )
 
     if request.stream:
-        async def streaming_wrapper():
-            async for chunk in stream_chat_completions(
-                orchestrator,
-                request,
+        if verbose_full:
+            log_verbose_response(
+                "Raw streaming request", request.model_dump(), request_id, log_dir, verbose
+            )
+        before_router = compute_token_breakdown(request)
+        start_time = time.time()
+        # Route before handing off to StreamingResponse: once the response
+        # starts, the 200 status is committed and a routing failure (e.g. an
+        # unknown model) could only be reported as an in-band SSE chunk.
+        try:
+            chunk_iter, route_info = await orchestrator.chat_stream(request)
+        except (RoutingError, ProviderError) as err:
+            raise _chat_error_to_http(err, request_id)
+        except Exception as e:
+            error_detail = traceback.format_exc()
+            logger.error(f"Streaming setup error: request_id={request_id}, error={e}")
+            logger.debug(f"Traceback: request_id={request_id}, traceback={error_detail}")
+            log_verbose_response(
+                "Streaming setup error",
+                {"error": str(e), "traceback": error_detail},
                 request_id,
+                log_dir,
+                verbose,
+            )
+            raise HTTPException(
+                status_code=500, detail=f"Inference error (request_id={request_id})"
+            )
+
+        return StreamingResponse(
+            stream_chat_completions(
+                chunk_iter,
+                route_info,
+                request_id,
+                start_time=start_time,
+                before_router=before_router,
                 telemetry=telemetry,
                 verbose=verbose,
                 verbose_full=verbose_full,
                 log_dir=log_dir,
-            ):
-                yield chunk
-
-        return StreamingResponse(streaming_wrapper(), media_type="text/event-stream")
+            ),
+            media_type="text/event-stream",
+        )
 
     # Non-streaming path
     try:
@@ -141,23 +194,8 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
             log_dir,
             verbose,
         )
-    except RoutingError as routing_err:
-        logger.error(f"Routing failed: request_id={request_id}, error={routing_err}")
-        raise HTTPException(status_code=400, detail=str(routing_err))
-    except ProviderError as provider_err:
-        # Forward upstream client errors (4xx) verbatim instead of masking them
-        # as a 500 — e.g. litellm's BadRequestError for an invalid payload.
-        status_code = provider_err.status_code
-        if isinstance(status_code, int) and 400 <= status_code < 500:
-            logger.warning(
-                f"Upstream client error: request_id={request_id}, "
-                f"status={status_code}, error={provider_err}"
-            )
-            raise HTTPException(status_code=status_code, detail=str(provider_err))
-        logger.error(f"Provider error: request_id={request_id}, error={provider_err}")
-        raise HTTPException(
-            status_code=502, detail=f"Upstream provider error (request_id={request_id})"
-        )
+    except (RoutingError, ProviderError) as err:
+        raise _chat_error_to_http(err, request_id)
     except HTTPException:
         raise
     except Exception as e:

@@ -20,12 +20,11 @@ import uuid
 from pathlib import Path
 from typing import AsyncIterator, Optional
 
-from src.exceptions import RoutingError
-from src.models import ChatCompletionRequest
+from src.models import ChatCompletionStreamChunk
 from src.observability import RequestCompletedEvent, Telemetry
 from src.observability.token_accounting import TokenBreakdown, compute_token_breakdown
 from src.router.logging_utils import log_verbose_response
-from src.router.orchestrator import RouterOrchestrator
+from src.router.orchestrator import RouteInfo
 
 
 logger = logging.getLogger("gateway")
@@ -119,16 +118,24 @@ def record_request_telemetry(
 
 
 async def stream_chat_completions(
-    orchestrator: RouterOrchestrator,
-    request: ChatCompletionRequest,
+    chunk_iter: AsyncIterator[ChatCompletionStreamChunk],
+    route_info: RouteInfo,
     request_id: str,
     *,
+    start_time: float,
+    before_router: TokenBreakdown | None = None,
     telemetry: Optional[Telemetry] = None,
     verbose: bool = False,
     verbose_full: bool = False,
     log_dir: Optional[Path] = None,
 ) -> AsyncIterator[str]:
-    """Stream OpenAI-compatible SSE chunks for ``request``.
+    """Stream OpenAI-compatible SSE chunks from an already-routed request.
+
+    Routing must happen *before* this generator is handed to
+    ``StreamingResponse`` so that routing/setup failures (e.g. an unknown
+    model) surface as proper HTTP errors rather than a 200 with an in-band
+    error chunk. Only failures after the stream has started are reported
+    in-band, since the status line has already been sent by then.
 
     The router forwards backend chunks verbatim — only the ``id`` is rewritten
     to the gateway's request id so clients see a consistent identifier across
@@ -136,45 +143,20 @@ async def stream_chat_completions(
     ``usage`` (works whether the backend emits it on the final content chunk
     or as a separate empty-choices chunk).
     """
-    if verbose_full:
-        log_verbose_response(
-            "Raw streaming request", request.model_dump(), request_id, log_dir, verbose
-        )
-
-    before_router = compute_token_breakdown(request)
     after_router: TokenBreakdown | None = None
-    start_time = time.time()
 
     try:
-        try:
-            chunk_iter, route_info = await orchestrator.chat_stream(request)
-            if route_info.processed_request is not None:
-                # Same tiktoken unit as before_router → the delta is the saving.
-                after_router = compute_token_breakdown(route_info.processed_request)
-                if verbose_full:
-                    log_verbose_response(
-                        "Processed request",
-                        route_info.processed_request.model_dump(),
-                        request_id,
-                        log_dir,
-                        verbose,
-                    )
-        except RoutingError as routing_err:
-            logger.error(f"Routing failed: request_id={request_id}, error={routing_err}")
-            error_chunk = {
-                "id": request_id,
-                "object": "chat.completion.chunk",
-                "created": int(time.time()),
-                "model": "error",
-                "choices": [{
-                    "index": 0,
-                    "delta": {"content": "[ERROR] Routing failed"},
-                    "finish_reason": "error",
-                }],
-            }
-            yield f"data: {json.dumps(error_chunk)}\n\n"
-            yield "data: [DONE]\n\n"
-            return
+        if route_info.processed_request is not None:
+            # Same tiktoken unit as before_router → the delta is the saving.
+            after_router = compute_token_breakdown(route_info.processed_request)
+            if verbose_full:
+                log_verbose_response(
+                    "Processed request",
+                    route_info.processed_request.model_dump(),
+                    request_id,
+                    log_dir,
+                    verbose,
+                )
 
         is_direct = route_info.is_direct
         final_provider_name: str | None = route_info.provider_name

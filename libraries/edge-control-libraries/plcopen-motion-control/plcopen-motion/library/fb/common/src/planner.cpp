@@ -26,7 +26,7 @@ AxisPlanner::AxisPlanner()
   scurve_planner_ = &ruckig_planner_;
 }
 
-AxisPlanner::AxisPlanner(const AxisPlanner& planner)
+AxisPlanner::AxisPlanner(const AxisPlanner& planner) : AxisPlanner()
 {
   *this = planner;
 }
@@ -38,6 +38,7 @@ AxisPlanner& AxisPlanner::operator=(const AxisPlanner& planner)
     type_       = planner.type_;
     start_time_ = planner.start_time_;
     this->setCondition(planner.getScurveCondition(), planner.getType());
+    setFrequency(planner.frequency_);
   }
   return *this;
 }
@@ -156,6 +157,21 @@ MC_ERROR_CODE AxisPlanner::onExecution(double t, double* pos_cmd,
   return RTmotion::mcErrorCodeGood;
 }
 
+MC_ERROR_CODE AxisPlanner::onVelocityTracking(double delta_time,
+                                              double* pos_cmd, double* vel_cmd,
+                                              double* acc_cmd,
+                                              double min_acceleration)
+{
+  const MC_ERROR_CODE result =
+      ruckig_planner_.trackVelocity(delta_time, min_acceleration);
+  if (result != RTmotion::mcErrorCodeGood)
+    return result;
+  *pos_cmd = ruckig_planner_.point_[mcPositionId];
+  *vel_cmd = ruckig_planner_.point_[mcSpeedId];
+  *acc_cmd = ruckig_planner_.point_[mcAccelerationId];
+  return RTmotion::mcErrorCodeGood;
+}
+
 const ScurveCondition& AxisPlanner::getScurveCondition() const
 {
   if (type_ == RTmotion::mcPoly5)
@@ -195,7 +211,12 @@ void AxisPlanner::setStartTime(double t)
 
 void AxisPlanner::setFrequency(double f)
 {
-  scurve_planner_->setFrequency(f);
+  frequency_ = f;
+  online_planner_.setFrequency(f);
+  offline_planner_.setFrequency(f);
+  ruckig_planner_.setFrequency(f);
+  poly_five_planner_.setFrequency(f);
+  line_planner_.setFrequency(f);
 }
 
 RTmotion::PLANNER_TYPE AxisPlanner::getType() const

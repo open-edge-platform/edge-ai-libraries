@@ -1,0 +1,111 @@
+/* SPDX-FileCopyrightText: (C) 2026 Intel Corporation */
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Root tokens copied from the reference app
+ * (live-video-analysis/live-video-captioning/app/ui/css/styles.css).
+ * Dark is the default theme; [data-theme="light"] overrides. See
+ * references/design-tokens.md "Stack C" for the full rationale/values.
+ */
+:root {
+  --bg: #050814;
+  --bg-gradient: radial-gradient(circle at 20% -10%, #12225b 0%, #050814 55%);
+  --panel: #0d152c;
+  --panel-strong: #111c38;
+  --accent: #1a73e8;
+  --accent-strong: #0f5cc8;
+  --text: #f5f7fb;
+  --muted: #8ca0c2;
+  --border: rgba(255, 255, 255, 0.08);
+  --shadow: 0 18px 38px rgba(5, 8, 20, 0.55);
+  --input-bg: #0b1026;
+  --input-border: var(--border);
+}
+
+[data-theme="light"] {
+  --bg: #f6f8fc;
+  --bg-gradient: radial-gradient(circle at 20% -10%, #ffffff 0%, #e8eef8 55%);
+  --panel: #ffffff;
+  --panel-strong: #f1f4fb;
+  --accent: #1a73e8;
+  --accent-strong: #0f5cc8;
+  --text: #0b152c;
+  --muted: #5b6a85;
+  --border: rgba(0, 0, 0, 0.08);
+  --shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  --input-bg: #eef2fb;
+  --input-border: rgba(0, 0, 0, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg-gradient), var(--bg);
+  color: var(--text);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.icon-button {
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 20px;
+}
+
+.card {
+  flex: 1 1 320px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.status-dot {
+  font-size: 12px;
+  text-transform: capitalize;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.status-dot--connected {
+  color: #34a853;
+  background: rgba(52, 168, 83, 0.12);
+}
+
+.status-dot--connecting {
+  color: #fbbc04;
+  background: rgba(251, 188, 4, 0.12);
+}
+
+.status-dot--disconnected {
+  color: #ea4335;
+  background: rgba(234, 67, 53, 0.12);
+}

@@ -12,6 +12,7 @@ queue is full and ``leaky=downstream`` is configured upstream), the buffer
 that was about to be forwarded is naturally dropped by the queue as well.
 """
 
+import json
 import math
 
 import gi  # pyright: ignore[reportMissingImports]
@@ -33,8 +34,7 @@ Gst.init_python()
 # buffer must be dropped without treating it as an error.
 GST_BASE_TRANSFORM_FLOW_DROPPED = Gst.FlowReturn.CUSTOM_SUCCESS
 
-# Name of the element-message structure ViPPET's gst_runner forwards to the
-# parent process as a live pipeline event (shown under the live preview).
+# Name of the element-message structure posted on the bus for each trigger.
 PIPELINE_EVENT_STRUCTURE = "vippet-event"
 
 
@@ -62,6 +62,7 @@ class ProximityTrigger(GstBase.BaseTransform):
     _class_b = "bicycle"
     _distance = 30
     _frames = 10
+    _events_file = ""
 
     @GObject.Property(
         type=str,
@@ -119,10 +120,43 @@ class ProximityTrigger(GstBase.BaseTransform):
     def frames(self, value):
         self._frames = value
 
+    @GObject.Property(
+        type=str,
+        nick="events-file",
+        blurb="JSON Lines file that receives one record per trigger, in addition "
+        "to the bus message; empty to write none",
+        default="",
+    )
+    def events_file(self):  # pyright: ignore[reportRedeclaration]
+        return self._events_file
+
+    @events_file.setter  # pyright: ignore[reportFunctionMemberAccess]
+    def events_file(self, value):
+        self._events_file = value or ""
+
     def __init__(self):
         super().__init__()
         self._consecutive_count = 0
         self._last_distance: float | None = None
+        self._events_stream = None
+
+    def do_stop(self):
+        if self._events_stream is not None:
+            self._events_stream.close()
+            self._events_stream = None
+        return True
+
+    def _write_trigger_event(self, record: dict) -> None:
+        """Append one record to ``events-file``, flushed so readers see it at once."""
+        if not self._events_file:
+            return
+        try:
+            if self._events_stream is None:
+                self._events_stream = open(self._events_file, "a", encoding="utf-8")
+            self._events_stream.write(json.dumps(record) + "\n")
+            self._events_stream.flush()
+        except OSError as exc:
+            Gst.warning(f"[proximity] Cannot write to {self._events_file}: {exc}")
 
     @staticmethod
     def _get_center(x: float, y: float, w: float, h: float) -> tuple[float, float]:
@@ -163,7 +197,7 @@ class ProximityTrigger(GstBase.BaseTransform):
         return self._last_distance is not None and self._last_distance <= self._distance
 
     def _post_trigger_event(self, pts_sec: float) -> None:
-        """Post an element message describing the fired trigger on the bus."""
+        """Describe the fired trigger on the bus and in ``events-file``."""
         closest = (
             f"{self._last_distance:.0f} px \u2264 "
             if self._last_distance is not None
@@ -172,6 +206,14 @@ class ProximityTrigger(GstBase.BaseTransform):
         text = (
             f"Trigger fired at {pts_sec:.2f}s: {self._class_a} near {self._class_b} "
             f"({closest}{self._distance} px) for {self._frames} consecutive frames"
+        )
+        self._write_trigger_event(
+            {
+                "source": "proximity-trigger",
+                "text": text,
+                "element": self.get_name(),
+                "pts-seconds": float(pts_sec),
+            }
         )
         structure = Gst.Structure.new_empty(PIPELINE_EVENT_STRUCTURE)
         structure.set_value("source", "proximity-trigger")

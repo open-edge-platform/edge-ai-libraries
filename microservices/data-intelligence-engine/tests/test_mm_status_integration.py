@@ -105,7 +105,7 @@ def test_sync_failure_only_marks_assets_the_failed_target_accepts(setup_ingest, 
     (True, "SERVING", ["txt"], "failed"),
     (True, "PREPARING", ["txt"], "failed"),
     (False, "SERVING", ["txt"], "ready"),
-    (True, "DEPRECATED", ["txt"], "ready"),
+    (True, "DEGRADE", ["txt"], "ready"),
     (True, "SERVING", ["pdf"], "ready"),
 ])
 def test_unloaded_sources_fail_only_their_actual_active_targets(
@@ -124,13 +124,13 @@ def test_unloaded_sources_fail_only_their_actual_active_targets(
     assert materialize.materialization_phase(aid) == expected
 
 
-@pytest.mark.parametrize("state", ["DISABLED", "DEPRECATED", "frozen"])
+@pytest.mark.parametrize("state", ["DISABLED", "DEGRADE", "frozen"])
 def test_frozen_failed_sources_do_not_fail_materialization(setup_ingest, state):
     library = setup_ingest
     projection = _Projection("source", enabled=state != "DISABLED")
     pool = _pool([projection])
     pool.source_statuses["source"].mark_failed("old failure")
-    if state == "DEPRECATED":
+    if state == "DEGRADE":
         pool.source_statuses["source"].serving_state = state
     if state == "frozen":
         pool.freeze("source")

@@ -9,6 +9,7 @@ export interface CompletionQueryParams {
   frequency_penalty?: number;
   do_sample?: boolean;
   seed?: number;
+  chat_template_kwargs?: { enable_thinking?: boolean };
 }
 
 export interface ChatQueryParams extends CompletionQueryParams {

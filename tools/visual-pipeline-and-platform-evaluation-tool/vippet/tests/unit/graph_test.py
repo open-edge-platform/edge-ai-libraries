@@ -14,6 +14,21 @@ from graph import (
 )
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 
+# Pipelines run on DLSPS 2.0, which these tests do not reach: decoder and
+# encoder selection sees no server elements instead of asking the server.
+_elements_patcher = patch("explore.GstInspector._get_gst_elements", return_value=[])
+
+
+def setUpModule() -> None:
+    """Install the element-list patch before any test runs."""
+    _elements_patcher.start()
+
+
+def tearDownModule() -> None:
+    """Remove the element-list patch after the module's tests finish."""
+    _elements_patcher.stop()
+
+
 # Create mock instances for SupportedModelsManager and VideosManager
 mock_models_manager_instance = MagicMock()
 mock_videos_manager_instance = MagicMock()
@@ -8149,6 +8164,117 @@ class TestGigECameraSource(unittest.TestCase):
             [n.type for n in result.nodes],
             ["aravissrc", "videoconvert", "fakesink"],
         )
+
+
+class TestCustomRtspSource(unittest.TestCase):
+    """Custom (user-provided) RTSP URLs used as camera sources."""
+
+    URL = "rtsp://mediamtx:8554/custom"
+
+    @staticmethod
+    def _advanced_graph(location: str = "rtsp://mediamtx:8554/custom") -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="rtspsrc", data={"location": location}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+    def _apply_source(self, source: str) -> Graph:
+        advanced = Graph(
+            nodes=[
+                Node(id="0", type="v4l2src", data={"device": "/dev/video0"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+        simple = advanced.to_simple_view()
+        modified = Graph.from_dict(simple.to_dict())
+        for node in modified.nodes:
+            if node.type == "source":
+                node.data["source"] = source
+        return Graph.apply_simple_view_changes(
+            modified_simple=modified,
+            original_simple=simple,
+            original_advanced=advanced,
+        )
+
+    def test_custom_rtsp_url_maps_to_rtspsrc(self):
+        result = self._apply_source(f"  {self.URL} ")
+
+        self.assertEqual(result.nodes[0].type, "rtspsrc")
+        self.assertEqual(result.nodes[0].data, {"location": self.URL})
+        self.assertIn(
+            f"rtspsrc location={self.URL} ! decodebin3",
+            result.to_pipeline_description(),
+        )
+
+    def test_invalid_rtsp_url_in_simple_view_raises_error(self):
+        for source in [
+            "rtsp://host/stream ! filesink location=/tmp/x",
+            'rtsp://host/"stream"',
+            "rtsp://user:pass@host/stream",
+            "rtsp:///stream",
+        ]:
+            with self.subTest(source=source):
+                with self.assertRaises(ValueError) as cm:
+                    self._apply_source(source)
+                self.assertIn("Invalid RTSP source", str(cm.exception))
+
+    def test_validate_rtsp_sources_accepts_valid_url(self):
+        self._advanced_graph().validate_rtsp_sources()
+
+    def test_validate_rtsp_sources_rejects_invalid_url(self):
+        for location in ["rtsp://host/a,b", "http://host/stream", ""]:
+            with self.subTest(location=location):
+                with self.assertRaises(ValueError) as cm:
+                    self._advanced_graph(location).validate_rtsp_sources()
+                self.assertIn("rtspsrc element '0'", str(cm.exception))
+
+    @patch("graph.probe_rtsp_codec", return_value="h264")
+    @patch("managers.camera_manager.CameraManager")
+    def test_determine_input_codec_probes_unknown_stream(
+        self, mock_manager_cls, mock_probe
+    ):
+        manager = mock_manager_cls.return_value
+        manager.get_network_camera_details_by_rtsp_url.return_value = None
+        manager.get_encoding_for_rtsp_url.return_value = None
+
+        self.assertEqual(self._advanced_graph().determine_input_codec(), "h264")
+        mock_probe.assert_called_once_with(self.URL)
+
+    @patch("graph.probe_rtsp_codec", return_value=None)
+    @patch("managers.camera_manager.CameraManager")
+    def test_determine_input_codec_probe_failure_returns_none(
+        self, mock_manager_cls, mock_probe
+    ):
+        manager = mock_manager_cls.return_value
+        manager.get_network_camera_details_by_rtsp_url.return_value = None
+        manager.get_encoding_for_rtsp_url.return_value = None
+
+        self.assertIsNone(self._advanced_graph().determine_input_codec())
+        mock_probe.assert_called_once()
+
+    @patch("graph.probe_rtsp_codec")
+    @patch("managers.camera_manager.CameraManager")
+    def test_determine_input_codec_prefers_onvif_profile(
+        self, mock_manager_cls, mock_probe
+    ):
+        details = MagicMock()
+        details.best_profile.encoding = "H265"
+        mock_manager_cls.return_value.get_network_camera_details_by_rtsp_url.return_value = details
+
+        self.assertEqual(self._advanced_graph().determine_input_codec(), "H265")
+        mock_probe.assert_not_called()
 
 
 if __name__ == "__main__":

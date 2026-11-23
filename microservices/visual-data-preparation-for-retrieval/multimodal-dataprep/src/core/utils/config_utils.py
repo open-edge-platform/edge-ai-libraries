@@ -4,230 +4,131 @@
 """
 Configuration Utilities Module
 
-This module provides configuration loading, validation, and caching utilities.
-Supports in-process embedding generation.
-
-Functions:
-- read_config(): Read configuration files (YAML/JSON)
-- get_config(): Get complete validated configuration with environment variable overrides
-- clear_config_cache(): Clear configuration cache to force reload
-- _load_base_config(): Internal function to load and cache base configuration
-- _get_config_value(): Internal function to get config values with precedence
-- _validate_config(): Internal function to validate configuration parameters
+Builds the validated processing / object-detection configuration from the
+``MM_DATAPREP_*`` environment settings (see ``src.common.settings``). There is
+no configuration file: environment variables are the single source of truth.
 
 Usage:
-    from src.core.utils.config_utils import get_config, read_config
+    from src.core.utils.config_utils import get_config
 
-    # Get complete configuration
     config = get_config()
-
-    # Read specific config file
-    custom_config = read_config("/path/to/config.yaml")
 """
 
-import json
-import pathlib
-from typing import Optional, List, Dict, Any
-
-import yaml
+import re
+from typing import Optional, Tuple
 
 from src.common import logger, settings
 
+# Object detection models are pulled from the Hugging Face "OpenVINO" namespace
+# (OpenVINO/<repo>). The repo name also becomes a directory name under
+# the model directory, so keep it to Hugging Face's safe repo-name characters.
+DETECTION_MODEL_NAMESPACE = "OpenVINO"
+DETECTION_MODEL_NAME_RE = re.compile(r"OpenVINO/[A-Za-z0-9][A-Za-z0-9._-]{0,95}")
+DETECTION_MODEL_FORMAT = "OpenVINO/<repo>"
 
-def _resolve_safe_config_path(config_file: str | pathlib.Path) -> pathlib.Path:
-    """Resolve and validate config paths against trusted roots."""
-    raw_path = pathlib.Path(config_file).expanduser()
-    if any(part == ".." for part in raw_path.parts):
-        raise ValueError(f"Unsupported config path traversal: {raw_path}")
-
-    path = (
-        raw_path.resolve(strict=False)
-        if raw_path.is_absolute()
-        else (pathlib.Path.cwd() / raw_path).resolve(strict=False)
-    )
-
-    config_root = pathlib.Path(settings.CONFIG_FILEPATH).expanduser().resolve(strict=False).parent
-    cwd_root = pathlib.Path.cwd().resolve(strict=False)
-    tmp_dataprep_root = pathlib.Path("/tmp/dataprep").resolve(strict=False)
-    allowed_roots = [config_root, cwd_root, tmp_dataprep_root]
-
-    if not any(path.is_relative_to(root) for root in allowed_roots):
-        raise ValueError(f"Unsupported config path location: {path}")
-
-    return path
+DETECTION_CLASS_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 _-]{0,63}")
+MAX_DETECTION_CLASSES = 200
 
 
-def read_config(config_file: str | pathlib.Path, type: str = "yaml") -> dict | None:
-    """Takes a yaml/json file path as input. Parses and returns
-    the file content as dictionary.
+def normalize_class_name(name: str) -> str:
+    """Normalize a class label for matching (case-, space- and hyphen-insensitive)."""
+    return re.sub(r"[\s-]+", "_", str(name).strip()).lower()
 
-    Args:
-        config_file: Path to configuration file
-        type: File type ('yaml' or 'json'), auto-detected from extension if not specified
+
+def validate_detection_model_name(model_name: Optional[str]) -> Optional[str]:
+    """Return the stripped model repo id, or None when unset.
+
+    Raises:
+        ValueError: If the name is not an ``OpenVINO/<repo>`` Hugging Face repo id.
+    """
+    if model_name is None:
+        return None
+    if not isinstance(model_name, str):
+        raise ValueError(f"MM_DATAPREP_DETECTION_MODEL_NAME must be a string, got: {model_name!r}")
+    model_name = model_name.strip()
+    if not model_name:
+        return None
+    if not DETECTION_MODEL_NAME_RE.fullmatch(model_name) or ".." in model_name:
+        raise ValueError(
+            "MM_DATAPREP_DETECTION_MODEL_NAME must be a Hugging Face model repo in the "
+            f"'{DETECTION_MODEL_NAMESPACE}' namespace ({DETECTION_MODEL_FORMAT}), "
+            f"got: {model_name!r}"
+        )
+    return model_name
+
+
+def parse_detection_classes(value) -> Optional[Tuple[str, ...]]:
+    """Parse the optional class filter (comma-separated string or list).
 
     Returns:
-        Configuration dictionary or None if error occurred
+        Tuple of normalized class names, or None to keep every class.
+
+    Raises:
+        ValueError: If a class name is malformed or the list is too long.
     """
-    path = _resolve_safe_config_path(config_file)
-    config: dict = {}
-
-    try:
-        if path.suffix.lower() not in {".yaml", ".yml", ".json"}:
-            raise ValueError(f"Unsupported config file extension: {path.suffix}")
-
-        with open(path, "r", encoding="utf-8") as f:
-            if type == "yaml" or path.suffix.lower() in {".yaml", ".yml"}:
-                config = yaml.safe_load(f)
-            elif type == "json" or path.suffix.lower() == ".json":
-                config = json.load(f)
-
-    except Exception as ex:
-        logger.error(f"Error while reading config file: {ex}")
-        config = None
-
-    return config
-
-
-def _load_base_config() -> dict:
-    """Load base configuration from file once and cache it
-
-    Returns:
-        Base configuration dictionary (cached)
-    """
-    if not hasattr(_load_base_config, "_cache"):
-        try:
-            config = read_config(settings.CONFIG_FILEPATH, type="yaml")
-            if not config:
-                logger.warning("Could not load config file, using empty config")
-                config = {}
-            _load_base_config._cache = config
-        except Exception as e:
-            logger.error(f"Error loading base config file: {e}")
-            _load_base_config._cache = {}
-
-    return _load_base_config._cache
-
-
-def _get_config_value(setting_name: str, config_path: list):
-    """
-    Get configuration value with precedence: env_var > config_file
-
-    Args:
-        setting_name: Name of the setting in environment/settings
-        config_path: Path in config dict (e.g., ["frame_processing", "frame_interval"])
-
-    Returns:
-        Configuration value from environment or config file
-    """
-    # First try environment/settings
-    env_value = getattr(settings, setting_name, None)
-    if env_value is not None:
-        return env_value
-
-    # Then try config file
-    config = _load_base_config()
-    config_value = config
-    for key in config_path:
-        if isinstance(config_value, dict) and key in config_value:
-            config_value = config_value[key]
-        else:
-            config_value = None
-            break
-
-    return config_value
+    if value is None:
+        return None
+    items = value.split(",") if isinstance(value, str) else list(value)
+    names = [str(item).strip() for item in items if str(item).strip()]
+    if not names:
+        return None
+    if len(names) > MAX_DETECTION_CLASSES:
+        raise ValueError(
+            f"MM_DATAPREP_DETECTION_CLASSES accepts at most {MAX_DETECTION_CLASSES} names, "
+            f"got {len(names)}"
+        )
+    for name in names:
+        if not DETECTION_CLASS_NAME_RE.fullmatch(name):
+            raise ValueError(
+                "MM_DATAPREP_DETECTION_CLASSES entries may contain only letters, digits, "
+                f"spaces, '_' or '-' (max 64 chars), got: {name!r}"
+            )
+    return tuple(dict.fromkeys(normalize_class_name(name) for name in names))
 
 
 def get_config() -> dict:
     """
-    Get complete configuration with validation.
-    Combines processing config with object detection configuration.
-    Environment variables override config file settings.
+    Get the complete validated configuration from environment settings.
 
     Returns:
-        Dictionary containing complete validated configuration
+        Dictionary containing processing settings plus an ``object_detection`` section.
 
     Raises:
         ValueError: If configuration is invalid
     """
     try:
-        config = _load_base_config()
-
-        # Build processing configuration
         processing_config = {
-            "frame_interval": _get_config_value(
-                "FRAME_INTERVAL", ["frame_processing", "frame_interval"]
-            )
-            or 15,
-            "enable_object_detection": _get_config_value(
-                "ENABLE_OBJECT_DETECTION", ["frame_processing", "enable_object_detection"]
-            ),
-            "detection_confidence": _get_config_value(
-                "DETECTION_CONFIDENCE", ["frame_processing", "detection_confidence"]
-            )
-            or 0.85,
-            "frames_temp_dir": _get_config_value(
-                "FRAMES_TEMP_DIR", ["frame_processing", "shared_volume", "frames_temp_dir"]
-            )
-            or "/tmp/dataprep/frames",
-            "frames_bucket": _get_config_value(
-                "effective_bucket_name", ["frame_processing", "object_storage", "frames_bucket"]
-            )
-            or settings.effective_bucket_name,
-            "fallback_order": _get_config_value(
-                "STRATEGY_FALLBACK_ORDER", ["frame_processing", "fallback_order"]
-            )
-            or ["shared_volume", "object_storage", "base64_transfer"],
+            "frame_interval": settings.FRAME_INTERVAL,
+            "enable_object_detection": settings.ENABLE_OBJECT_DETECTION,
+            "detection_confidence": settings.DETECTION_CONFIDENCE,
+            "frames_temp_dir": settings.FRAMES_TEMP_DIR,
+            "videos_temp_dir": settings.VIDEOS_TEMP_DIR,
+            "metadata_temp_dir": settings.METADATA_TEMP_DIR,
         }
 
-        # Build object detection configuration
         object_detection_config = {
-            "enabled": (
-                processing_config["enable_object_detection"]
-                if processing_config["enable_object_detection"] is not None
-                else False
-            ),
-            "device": _get_config_value("DETECTION_DEVICE", ["object_detection", "device"])
-            or "CPU",
-            "confidence_threshold": processing_config["detection_confidence"],
-            "nms_threshold": _get_config_value(
-                "NMS_THRESHOLD", ["object_detection", "nms_threshold"]
-            )
-            or 0.45,
-            "input_size": _get_config_value(
-                "DETECTION_INPUT_SIZE", ["object_detection", "input_size"]
-            )
-            or [640, 640],
-            "model_dir": settings.DETECTION_MODEL_DIR,  # Environment variable takes highest priority
-            "model_name": _get_config_value(
-                "DETECTION_MODEL_NAME", ["object_detection", "model_name"]
-            ),  # No default - must be explicitly set
+            "enabled": bool(settings.ENABLE_OBJECT_DETECTION),
+            "device": settings.DETECTION_DEVICE or "CPU",
+            "confidence_threshold": settings.DETECTION_CONFIDENCE,
+            "model_dir": settings.DETECTION_MODEL_DIR,
+            "model_name": settings.DETECTION_MODEL_NAME,
+            "classes": settings.DETECTION_CLASSES,
             "roi_consolidation": {
-                "enabled": _get_config_value(
-                    "ROI_CONSOLIDATION_ENABLED",
-                    ["object_detection", "roi_consolidation", "enabled"],
+                "enabled": bool(settings.ROI_CONSOLIDATION_ENABLED),
+                "iou_threshold": (
+                    settings.ROI_CONSOLIDATION_IOU_THRESHOLD
+                    if settings.ROI_CONSOLIDATION_IOU_THRESHOLD is not None
+                    else 0.2
                 ),
-                "iou_threshold": _get_config_value(
-                    "ROI_CONSOLIDATION_IOU_THRESHOLD",
-                    ["object_detection", "roi_consolidation", "iou_threshold"],
-                )
-                or 0.2,
-                "class_aware": _get_config_value(
-                    "ROI_CONSOLIDATION_CLASS_AWARE",
-                    ["object_detection", "roi_consolidation", "class_aware"],
-                )
-                or False,
-                "context_scale": _get_config_value(
-                    "ROI_CONSOLIDATION_CONTEXT_SCALE",
-                    ["object_detection", "roi_consolidation", "context_scale"],
-                )
-                or 0.2,
+                "class_aware": bool(settings.ROI_CONSOLIDATION_CLASS_AWARE),
+                "context_scale": (
+                    settings.ROI_CONSOLIDATION_CONTEXT_SCALE
+                    if settings.ROI_CONSOLIDATION_CONTEXT_SCALE is not None
+                    else 0.2
+                ),
             },
         }
 
-        if object_detection_config["roi_consolidation"]["enabled"] is None:
-            object_detection_config["roi_consolidation"]["enabled"] = False
-
-        # Validate configuration
         validated_config = _validate_config(processing_config, object_detection_config)
 
         logger.debug(f"Complete configuration loaded and validated: {validated_config}")
@@ -254,13 +155,11 @@ def _validate_config(processing_config: dict, object_detection_config: dict) -> 
     """
     validated_config = processing_config.copy()
 
-    # Validate frame_interval
     frame_interval = validated_config.get("frame_interval", 15)
     if not isinstance(frame_interval, int) or frame_interval < 1:
         raise ValueError(f"frame_interval must be a positive integer, got: {frame_interval}")
     validated_config["frame_interval"] = frame_interval
 
-    # Validate detection_confidence
     detection_confidence = validated_config.get("detection_confidence", 0.85)
     if not isinstance(detection_confidence, (int, float)) or not 0.0 <= detection_confidence <= 1.0:
         raise ValueError(
@@ -268,21 +167,27 @@ def _validate_config(processing_config: dict, object_detection_config: dict) -> 
         )
     validated_config["detection_confidence"] = float(detection_confidence)
 
-    # Validate boolean settings
-    bool_settings = ["enable_object_detection"]
-    for setting in bool_settings:
-        if setting in validated_config and validated_config[setting] is not None:
-            validated_config[setting] = bool(validated_config[setting])
+    if validated_config.get("enable_object_detection") is not None:
+        validated_config["enable_object_detection"] = bool(
+            validated_config["enable_object_detection"]
+        )
 
-    # Add object detection config
+    # Object detection has no default model: require an explicit OpenVINO HF repo.
+    object_detection_config = dict(object_detection_config)
+    model_name = validate_detection_model_name(object_detection_config.get("model_name"))
+    if object_detection_config.get("enabled") and model_name is None:
+        raise ValueError(
+            "Object detection is enabled but no detection model is configured. Set "
+            "MM_DATAPREP_DETECTION_MODEL_NAME to a Hugging Face OpenVINO detection model "
+            f"({DETECTION_MODEL_FORMAT}) or disable detection with "
+            "MM_DATAPREP_ENABLE_OBJECT_DETECTION=false."
+        )
+    object_detection_config["model_name"] = model_name
+    object_detection_config["classes"] = parse_detection_classes(
+        object_detection_config.get("classes")
+    )
+
     validated_config["object_detection"] = object_detection_config
 
     logger.debug("Configuration validation successful")
     return validated_config
-
-
-def clear_config_cache():
-    """Clear the configuration cache to force reload from file."""
-    if hasattr(_load_base_config, "_cache"):
-        delattr(_load_base_config, "_cache")
-        logger.debug("Configuration cache cleared")

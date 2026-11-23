@@ -16,6 +16,7 @@
 #include <fb/private/include/fb_write_digital_output.hpp>
 
 #ifdef PLOT
+#include "test_plot.hpp"
 #include <tool/fb_debug_tool.hpp>
 #endif
 
@@ -65,6 +66,9 @@ protected:
 // Test MC_ReadDigitalInput
 TEST_F(FunctionBlockTest, MC_ReadDigitalInput)
 {
+#ifdef PLOT
+  test_plot::TestPlot plot("io_operation_test");
+#endif
   McIO* my_io;
   my_io = new McIO();
   /* Initialize IO object */
@@ -86,6 +90,13 @@ TEST_F(FunctionBlockTest, MC_ReadDigitalInput)
   {
     my_io->runCycle();
     fb_read_digital_input.runCycle();
+#ifdef PLOT
+    plot.add("Input value", "Read", timeout,
+             fb_read_digital_input.getValue() == mcTRUE);
+    plot.add("FB status", "Valid", timeout,
+             fb_read_digital_input.isValid() == mcTRUE);
+    plot.add("FB status", "Error", timeout, fb_read_digital_input.getErrorID());
+#endif
     timeout += 0.1;
   }
   /* Function Test */
@@ -103,12 +114,18 @@ TEST_F(FunctionBlockTest, MC_ReadDigitalInput)
 
   /* Post processing */
   delete my_io;
+#ifdef PLOT
+  plot.save();
+#endif
   printf("FB test end. Delete io object.\n");
 }
 
 // Test MC_ReadDigitalOutput and MC_WriteDigitalOutput
 TEST_F(FunctionBlockTest, DigitalOutputOperation)
 {
+#ifdef PLOT
+  test_plot::TestPlot plot("io_operation_test");
+#endif
   McIO* my_io;
   my_io = new McIO();
   /* Initialize IO object */
@@ -141,6 +158,19 @@ TEST_F(FunctionBlockTest, DigitalOutputOperation)
     my_io->runCycle();
     fb_read_digital_output.runCycle();
     fb_write_digital_output.runCycle();
+#ifdef PLOT
+    plot.add("Output value", "Requested", timeout, write_output_val == mcTRUE);
+    plot.add("Output value", "Read", timeout,
+             fb_read_digital_output.getValue() == mcTRUE);
+    plot.add("FB status", "Read valid", timeout,
+             fb_read_digital_output.isValid() == mcTRUE);
+    plot.add("FB status", "Write done", timeout,
+             fb_write_digital_output.isDone() == mcTRUE);
+    plot.add("Error code", "Read", timeout,
+             fb_read_digital_output.getErrorID());
+    plot.add("Error code", "Write", timeout,
+             fb_write_digital_output.getErrorID());
+#endif
     timeout += 0.1;
   }
 
@@ -176,5 +206,8 @@ TEST_F(FunctionBlockTest, DigitalOutputOperation)
 
   /* Post processing */
   delete my_io;
+#ifdef PLOT
+  plot.save();
+#endif
   printf("FB test end. Delete io object.\n");
 }

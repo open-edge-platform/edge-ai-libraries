@@ -28,7 +28,7 @@ The microservice handles multimodal ingestion with a unified media pipeline:
 
 ## Key Benefits
 
-- **Multimodal ingest:** Video frame-level sampling and image direct-embedding in one API, with optional YOLOX-based object detection for both.
+- **Multimodal ingest:** Video frame-level sampling and image direct-embedding in one API, with optional object detection for both, using any [Hugging Face OpenVINO](https://huggingface.co/OpenVINO) detection model supported by OpenVINO Model API.
 - **Backend agnostic:** Swap the vector database (`MM_DATAPREP_VECTORDB_BACKEND`: `vdms`/`milvus`) or the object storage (`MM_DATAPREP_STORAGE_BACKEND`: `minio`/`local`) without code changes. See [Pluggable Backends](./pluggable-backends.md).
 - **Flexible runtime:** Runtime toggles for OpenVINO acceleration and device offload (`MM_DATAPREP_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`) without code changes.
 - **Content deduplication:** Optional content-hash dedup (`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS`) rejects byte-identical re-uploads across all transports (multipart, base64, URL).
@@ -40,7 +40,7 @@ The microservice handles multimodal ingestion with a unified media pipeline:
 
 - **REST API surface mounted at `/v1/dataprep`** with endpoints for health, media ingest (`/media/upload`, `/media/ingest`, `/media/process`), batch ingest (`/media/upload/batch`, `/media/ingest/batch`, `/media/process/batch`, `/media/ingest-dir`) with async job polling (`/media/jobs/{job_id}`), metadata retrieval (`/media`), range-aware download (`/media/download`), deletion, live RTSP stream CRUD (`/media/streams`), and summary ingestion (`/summary`).
 - **Three image transports** — multipart binary (`/media/upload`), inline base64 and remote URL (`/media/ingest`, typed on a `type` discriminator).
-- **Object detection first-class support** for both video and images with per-request overrides (`enable_object_detection`, `detection_confidence`) and automatic fallback when a model is unavailable.
+- **Object detection first-class support** for both video and images with a per-request `enable_object_detection` override and automatic fallback when a model is unavailable.
 - **Tags and summaries** that link curated text back to the precise video segment, enabling multi-modal search.
 - **Complete CRUD** — upload, list, range-aware download, and delete (which removes both the stored object and its vectors).
 - **Containerized deployment** via Docker Compose with companion services for the chosen storage and vector-database backends.

@@ -11,6 +11,9 @@ import { SearchModal, SearchModalProps } from '../components/PopupModal/SearchMo
 import { SearchReducers } from '../redux/search/searchSlice.ts';
 import i18n from '../utils/i18n';
 
+// The query text area; the minimum peak score box is a second textbox.
+const QUERY_PLACEHOLDER = 'Red bus or white plane...';
+
 // Create mock dispatch
 const mockDispatch = vi.fn();
 
@@ -27,6 +30,8 @@ const createMockStore = () => {
         suggestedTags: [],
         unreads: [],
         triggerLoad: false,
+        // Loaded, so opening the modal does not dispatch LoadSearchConfig.
+        searchConfig: { minPeakScoreDefault: 0 },
       },
     },
   });
@@ -82,13 +87,13 @@ describe('SearchModal Component test suite', () => {
   it('should render the text area for search input', () => {
     renderComponent();
     
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(QUERY_PLACEHOLDER)).toBeInTheDocument();
   });
 
   it('should update text input when typing in textarea', async () => {
     renderComponent();
     
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     fireEvent.change(textArea, { target: { value: 'test search query' } });
     
     expect(textArea).toHaveValue('test search query');
@@ -117,11 +122,18 @@ describe('SearchModal Component test suite', () => {
     }
   });
 
+  it('should show the minimum peak score filter switched off by default', () => {
+    renderComponent();
+
+    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByText('No score limit. All matches are returned.')).toBeInTheDocument();
+  });
+
   it('should dispatch SearchAdd and close modal when search is submitted', async () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
     
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     fireEvent.change(textArea, { target: { value: 'test query' } });
     
     const searchButton = screen.getByText('Search');
@@ -137,7 +149,7 @@ describe('SearchModal Component test suite', () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
     
-    const textArea = screen.getByRole('textbox') as HTMLTextAreaElement;
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER) as HTMLTextAreaElement;
     fireEvent.change(textArea, { target: { value: 'test query' } });
     
     const searchButton = screen.getByText('Search');
@@ -166,7 +178,7 @@ describe('SearchModal Component test suite', () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
 
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     fireEvent.change(textArea, { target: { value: '   ' } });
     fireEvent.click(screen.getByText('Search'));
 
@@ -180,7 +192,7 @@ describe('SearchModal Component test suite', () => {
   it('should clear the empty-query warning once the user types', async () => {
     renderComponent();
 
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     fireEvent.click(screen.getByText('Search'));
 
     await waitFor(() => {
@@ -198,7 +210,7 @@ describe('SearchModal Component test suite', () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
 
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     fireEvent.change(textArea, { target: { value: 'enter key query' } });
     fireEvent.keyDown(textArea, { key: 'Enter' });
 
@@ -212,7 +224,7 @@ describe('SearchModal Component test suite', () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
 
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     fireEvent.change(textArea, { target: { value: 'multi line query' } });
     fireEvent.keyDown(textArea, { key: 'Enter', shiftKey: true });
 
@@ -224,7 +236,7 @@ describe('SearchModal Component test suite', () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
 
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     fireEvent.change(textArea, { target: { value: 'composing' } });
     fireEvent.keyDown(textArea, { key: 'Enter', isComposing: true });
 
@@ -236,7 +248,7 @@ describe('SearchModal Component test suite', () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
 
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     fireEvent.keyDown(textArea, { key: 'Enter' });
 
     await waitFor(() => {
@@ -260,7 +272,7 @@ describe('SearchModal Component test suite', () => {
   it('should respect maxLength attribute on textarea', () => {
     renderComponent();
     
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     expect(textArea).toHaveAttribute('maxlength', '250');
   });
 
@@ -281,7 +293,7 @@ describe('SearchModal Component test suite', () => {
   it('should keep the text area available after submitting', () => {
     renderComponent();
 
-    const textArea = screen.getByRole('textbox');
+    const textArea = screen.getByPlaceholderText(QUERY_PLACEHOLDER);
     expect(textArea).toBeInTheDocument();
 
     // Type in the (controlled) text area and submit to trigger a reset.
@@ -291,6 +303,6 @@ describe('SearchModal Component test suite', () => {
     fireEvent.click(searchButton);
 
     // The text area remains mounted (no image), ready for the next query.
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(QUERY_PLACEHOLDER)).toBeInTheDocument();
   });
 });

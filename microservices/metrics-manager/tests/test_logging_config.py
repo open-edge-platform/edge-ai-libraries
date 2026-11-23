@@ -8,8 +8,6 @@ import logging
 import sys
 from unittest.mock import patch
 
-import pytest
-
 from app.logging_config import (
     JSONFormatter,
     TextFormatter,
@@ -51,6 +49,7 @@ class TestJSONFormatter:
 
     def test_format_without_correlation_id(self):
         from app.logging_config import correlation_id_var
+
         correlation_id_var.set(None)
         formatter = JSONFormatter()
         record = _make_record()

@@ -49,12 +49,17 @@ public:
   MC_ERROR_CODE onExecution(double t, double* pos_cmd, double* vel_cmd,
                             double* acc_cmd);
 
+  MC_ERROR_CODE onVelocityTracking(double delta_time, double* pos_cmd,
+                                   double* vel_cmd, double* acc_cmd,
+                                   double min_acceleration = NAN);
+
   const ScurveCondition& getScurveCondition() const;
 
   ScurveProfile& getScurveProfile();
 
   void setStartTime(double t);
 
+  // Applies to all planner backends and is retained when switching or copying.
   void setFrequency(double f);
 
   RTmotion::PLANNER_TYPE getType() const;
@@ -67,6 +72,7 @@ private:
   PolyFivePlanner poly_five_planner_;
   LinePlanner line_planner_;
   double start_time_;
+  double frequency_ = 1000.0;
   RTmotion::PLANNER_TYPE type_;
 };
 

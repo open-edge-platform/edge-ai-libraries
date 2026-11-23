@@ -43,6 +43,7 @@ if(SIFT_ENABLE_OPENCL)
     REQUIRED
   )
   find_package(OpenCL REQUIRED)
+  find_package(Threads REQUIRED)
 
   add_library(sift_opencl_runtime STATIC
     src/opencl/opencl_device.cpp
@@ -65,7 +66,7 @@ if(SIFT_ENABLE_OPENCL)
   )
   # Link the imported OpenCL target so install exports stay portable (no
   # absolute host .so path embedded in the CMake interface).
-  target_link_libraries(sift_opencl_runtime PUBLIC OpenCL::OpenCL)
+  target_link_libraries(sift_opencl_runtime PUBLIC OpenCL::OpenCL Threads::Threads)
   set_target_properties(sift_opencl_runtime PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
   if(SIFT_ENABLE_OPENCV_VALIDATION)
@@ -258,8 +259,8 @@ if(SIFT_ENABLE_OPENCL OR SIFT_ENABLE_SYCL)
   endif()
 
   if(SIFT_BUILD_SAMPLES)
-    add_executable(extract_sift samples/extract_sift.cpp)
-    target_link_libraries(extract_sift PRIVATE sift_extractor)
+    add_executable(extract_and_match samples/extract_and_match.cpp)
+    target_link_libraries(extract_and_match PRIVATE sift_extractor)
     add_executable(time_sift_extract samples/time_sift_extract.cpp)
     target_link_libraries(time_sift_extract PRIVATE sift_extractor)
     add_executable(soak_sift_extract samples/soak_sift_extract.cpp)
@@ -298,8 +299,10 @@ if(SIFT_ENABLE_OPENCL OR SIFT_ENABLE_SYCL)
       GIT_TAG v2.13.6
     )
     FetchContent_MakeAvailable(pybind11)
+    # Extension lives inside the sift_extractor package as _native.*.so so the
+    # pure-Python __init__.py can document GPU stack deps and wrap ImportError.
     pybind11_add_module(sift_extractor_py MODULE python/sift_extractor_bindings.cpp)
-    set_target_properties(sift_extractor_py PROPERTIES OUTPUT_NAME sift_extractor)
+    set_target_properties(sift_extractor_py PROPERTIES OUTPUT_NAME _native)
     target_link_libraries(sift_extractor_py PRIVATE sift_extractor)
     target_include_directories(sift_extractor_py PRIVATE ${SIFT_GENERATED_INCLUDE_DIR})
   endif()
@@ -334,8 +337,8 @@ endif()
 if(TARGET sift_extractor)
   list(APPEND SIFT_INSTALL_TARGETS sift_extractor)
 endif()
-if(TARGET extract_sift)
-  list(APPEND SIFT_INSTALL_TARGETS extract_sift)
+if(TARGET extract_and_match)
+  list(APPEND SIFT_INSTALL_TARGETS extract_and_match)
 endif()
 if(TARGET time_sift_extract)
   list(APPEND SIFT_INSTALL_TARGETS time_sift_extract)
@@ -368,7 +371,11 @@ if(SIFT_INSTALL_TARGETS)
       DESTINATION include/sift_extractor)
   endif()
   if(TARGET sift_extractor_py)
-    install(TARGETS sift_extractor_py LIBRARY DESTINATION lib/python3/dist-packages)
+    install(TARGETS sift_extractor_py LIBRARY DESTINATION lib/python3/dist-packages/sift_extractor)
+    install(FILES
+      python/sift_extractor/__init__.py
+      python/sift_extractor/py.typed
+      DESTINATION lib/python3/dist-packages/sift_extractor)
     install(FILES python/time_sift_extract.py DESTINATION share/sift_extractor)
   endif()
 

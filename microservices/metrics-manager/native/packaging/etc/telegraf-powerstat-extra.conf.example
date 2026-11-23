@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Opt-in: copy to /etc/metrics-manager/powerstat.d/extra.conf and restart
+# metrics-manager-powerstat.service (NOT the unprivileged Telegraf service).
+# The main powerstat collector already reports package power and C-states;
+# this second input only adds the measurements it does not collect.
+#
+# Only enable current_dram_power_consumption on machines with a readable DRAM
+# RAPL subzone: unsupported platforms otherwise log an error every interval.
+
+[[inputs.intel_powerstat]]
+  package_metrics = []
+  cpu_metrics = ["cpu_frequency", "cpu_temperature"]
+  msr_read_timeout = "100ms"
+
+# On machines with a DRAM RAPL subzone, change package_metrics above to:
+# package_metrics = ["current_dram_power_consumption"]

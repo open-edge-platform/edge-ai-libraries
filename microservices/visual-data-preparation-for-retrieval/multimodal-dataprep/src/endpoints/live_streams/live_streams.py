@@ -73,7 +73,6 @@ def _create_one(request: LiveStreamCreateRequest) -> LiveStreamInfo:
             sensor_id=request.sensor_id,
             frame_interval=request.frame_interval,
             enable_object_detection=request.enable_object_detection,
-            detection_confidence=request.detection_confidence,
             tags=request.tags,
             start=request.start,
         )
@@ -115,7 +114,6 @@ async def create_live_stream(
       same source can be correlated back to it. Defaults to the stream_id.
     - **frame_interval (int, optional) :** Sample every Nth frame (1-60).
     - **enable_object_detection (bool, optional) :** Enable crop extraction.
-    - **detection_confidence (float, optional) :** Detection threshold (0.1-1.0).
     - **tags (list(str), optional) :** Tags applied to every embedding.
     - **start (bool, optional) :** Register without starting when false.
 
@@ -303,7 +301,7 @@ async def update_live_stream(
 
     #### Request Body:
     - **stream_name / description (str, optional) :** Descriptive fields.
-    - **frame_interval / enable_object_detection / detection_confidence (optional) :**
+    - **frame_interval / enable_object_detection (optional) :**
       Processing parameters.
     - **tags (list(str), optional) :** Replaces the existing tag list.
     - **state (str, optional) :** `paused` or `running`.
@@ -325,7 +323,6 @@ async def update_live_stream(
             description=request.description,
             frame_interval=request.frame_interval,
             enable_object_detection=request.enable_object_detection,
-            detection_confidence=request.detection_confidence,
             tags=request.tags,
             state=request.state,
         )

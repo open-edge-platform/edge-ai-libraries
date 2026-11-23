@@ -104,15 +104,15 @@ def test_every_engine_environment_setting_is_forwarded_and_documented():
 
     # Both ways: a forwarded variable config.py no longer reads is a dead knob.
     assert settings == forwarded
-    guide = (ROOT / "docs/user-guide.md").read_text(encoding="utf-8")
+    guide = (ROOT / "docs/user-guide/user-guide.md").read_text(encoding="utf-8")
     assert all(f"`{setting}`" in guide for setting in settings)
 
 
 def test_every_engine_environment_setting_has_a_compose_default():
     compose = yaml.safe_load((DEPLOYMENT / ENGINE_COMPOSE).read_text(encoding="utf-8"))
     environment = compose["services"]["engine"]["environment"]
-    # ENGINE_PORT is fed by ENGINE_CONTAINER_PORT, the one variable not named after itself.
-    source = {"ENGINE_PORT": "ENGINE_CONTAINER_PORT"}
+    # ENGINE_PORT and ENGINE_WORKSPACE are fed by differently named variables.
+    source = {"ENGINE_PORT": "ENGINE_CONTAINER_PORT", "ENGINE_WORKSPACE": "ENGINE_WORKSPACE_CONTAINER_PATH"}
     # Whisper uses an explicitly empty language for automatic detection. It has
     # a default for unset environments, but must not replace an empty override.
     separator = {"ENGINE_ASR_LANGUAGE": "-"}
@@ -152,21 +152,21 @@ def test_model_download_endpoint_is_not_forwarded_to_engine(compose_config, endp
 def test_dotenv_runtime_values_override_compose_defaults(compose_config):
     service = compose_config(
         ENGINE_COMPOSE,
-        env_values={"ENGINE_DOC_EMBEDDING_MODEL_ID": "example/dense", "ENGINE_RERANK_BACKEND": "openai_compatible"},
+        env_values={"ENGINE_DOC_EMBEDDING_MODEL_ID": "example/dense", "ENGINE_RERANK_BACKEND": "remote_openai_compatible"},
     )["services"]["engine"]
 
     assert service["environment"]["ENGINE_DOC_EMBEDDING_MODEL_ID"] == "example/dense"
-    assert service["environment"]["ENGINE_RERANK_BACKEND"] == "openai_compatible"
-    assert service["environment"]["ENGINE_LAYOUT_DEVICE"] == "CPU"
+    assert service["environment"]["ENGINE_RERANK_BACKEND"] == "remote_openai_compatible"
+    assert service["environment"]["ENGINE_LAYOUT_DEVICE"] == "GPU"
     assert service["environment"]["ENGINE_UPLOAD_DIR"] == "/workspace/uploads"
     assert service["environment"]["ENGINE_MODEL_ROOT_PATH"] == "/workspace/models"
 
 
 @pytest.mark.parametrize("overrides,expected", [
     ({}, "/workspace/models"),
-    ({"ENGINE_WORKSPACE": "/srv/engine-state"}, "/srv/engine-state/models"),
+    ({"ENGINE_WORKSPACE_CONTAINER_PATH": "/srv/engine-state"}, "/srv/engine-state/models"),
     ({"ENGINE_MODEL_ROOT_PATH": ""}, "/workspace/models"),
-    ({"ENGINE_WORKSPACE": "/srv/engine-state", "ENGINE_MODEL_ROOT_PATH": ""}, "/srv/engine-state/models"),
+    ({"ENGINE_WORKSPACE_CONTAINER_PATH": "/srv/engine-state", "ENGINE_MODEL_ROOT_PATH": ""}, "/srv/engine-state/models"),
     ({"ENGINE_MODEL_ROOT_PATH": "/shared/models"}, "/shared/models"),
 ])
 def test_compose_model_root_follows_workspace_unless_overridden(compose_config, overrides, expected):
@@ -177,7 +177,7 @@ def test_compose_model_root_follows_workspace_unless_overridden(compose_config, 
 
 def test_compose_forwards_document_embedding_settings(compose_config):
     overrides = {
-        "ENGINE_DOC_EMBEDDING_BACKEND": "openai_compatible",
+        "ENGINE_DOC_EMBEDDING_BACKEND": "remote_openai_compatible",
         "ENGINE_DOC_EMBEDDING_MODEL_ID": "example/documents",
         "ENGINE_DOC_EMBEDDING_DEVICE": "CPU",
         "ENGINE_DOC_EMBEDDING_API_BASE": "http://embedding.internal/v1",
@@ -202,7 +202,7 @@ def test_engine_ports_workspace_and_runtime_overrides_are_consistent(compose_con
         ENGINE_COMPOSE,
         ENGINE_PORT="26022",
         ENGINE_CONTAINER_PORT="18022",
-        ENGINE_WORKSPACE="/srv/engine-state",
+        ENGINE_WORKSPACE_CONTAINER_PATH="/srv/engine-state",
         ENGINE_LAYOUT_DEVICE="GPU",
         ENGINE_RERANK_API_BASE="http://reranker.internal",
         ENGINE_RERANK_API_KEY="rerank-key",
@@ -315,7 +315,7 @@ def test_compose_stacks_use_the_configured_shared_network(compose_config, filena
 
 @pytest.mark.parametrize("overrides", [
     {},
-    {"ENGINE_WORKSPACE_PATH": "/srv/state", "ENGINE_WORKSPACE": "/data"},
+    {"ENGINE_WORKSPACE_HOST_PATH": "/srv/state", "ENGINE_WORKSPACE_CONTAINER_PATH": "/data"},
     {"ENGINE_UPLOAD_PATH": "/srv/shared-uploads", "ENGINE_UPLOAD_DIR": "/shared/uploads"},
 ])
 def test_engine_and_extractor_share_the_same_writable_upload_directory(compose_config, overrides):
@@ -333,7 +333,7 @@ def test_engine_and_extractor_share_the_same_writable_upload_directory(compose_c
 
 
 def test_user_guide_does_not_contain_developer_home_paths():
-    guide = (ROOT / "docs/user-guide.md").read_text(encoding="utf-8")
+    guide = (ROOT / "docs/user-guide/user-guide.md").read_text(encoding="utf-8")
 
     assert "/home/" not in guide
     assert "/Users/" not in guide
@@ -360,7 +360,7 @@ def test_shell_helpers_use_shared_environment_defaults():
     assert result.stdout.splitlines() == ["http://localhost:26022", "45", "5000"]
 
 
-@pytest.mark.parametrize("path", [ROOT / "README.md", ROOT / "docs/user-guide.md"])
+@pytest.mark.parametrize("path", [ROOT / "README.md", ROOT / "docs/user-guide/user-guide.md"])
 def test_documented_shell_examples_have_valid_syntax(path):
     document = path.read_text(encoding="utf-8")
     examples = re.findall(

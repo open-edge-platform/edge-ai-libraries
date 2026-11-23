@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+FROM python:3.10-slim
+
+WORKDIR /app
+
+ENV PYTHONPATH=/app/src \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 build-essential cmake wget libglib2.0-0 libavif-bin libomp5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 3a. Build & install zlib-ng as a drop-in replacement for system zlib
+ARG ZLIB_NG_VERSION=2.3.3
+RUN wget -q "https://github.com/zlib-ng/zlib-ng/archive/refs/tags/${ZLIB_NG_VERSION}.tar.gz" -O /tmp/zlib-ng.tar.gz \
+    && mkdir -p /tmp/zlib-ng && tar -xf /tmp/zlib-ng.tar.gz -C /tmp/zlib-ng --strip-components=1 \
+    && cmake -S /tmp/zlib-ng -B /tmp/zlib-ng/build \
+        -DZLIB_COMPAT=ON \
+        -DZLIB_ENABLE_TESTS=OFF \
+        -DWITH_GTEST=OFF \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+    && cmake --build /tmp/zlib-ng/build -j"$(nproc)" \
+    && cmake --install /tmp/zlib-ng/build \
+    && ldconfig \
+    && rm -rf /tmp/zlib-ng* \
+    && apt-get purge -y --auto-remove build-essential cmake wget \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir -U pip setuptools wheel
+
+COPY requirements.txt /tmp/
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+COPY src/ /app/src/
+COPY finetuning/ /app/finetuning/
+COPY configs/ /app/configs/
+# COPY models/obj_det_models/ /app/models/obj_det_models/
+# COPY pyproject.toml /app/pyproject.toml
+COPY tests/ /app/tests/
+
+# "integration" tests need external models/services (see pyproject.toml markers) and are excluded by default.
+ENTRYPOINT ["pytest"]

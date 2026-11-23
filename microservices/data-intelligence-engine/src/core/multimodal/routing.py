@@ -1,17 +1,12 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Asset scope and representation policy, independent of model loading.
-
-Selectors retain their precision (``mp4`` is not widened to all video). Only
-model selection uses their coarse asset family. Effective filters are frozen
-in the source profile, not recomputed when a source is restored.
-"""
+"""Asset scope and representation policy for sources, independent of model loading."""
 
 import mimetypes
 from typing import Any, Mapping
 
 from core.content import (
-    AUDIO, IMAGE, VIDEO, MM_ROLES, ROLE_to_KIND,
+    AUDIO, DOCUMENT, IMAGE, VIDEO, MM_ROLES, ROLE_to_KIND, asset_family,
     ROLE_IMAGE, ROLE_AUDIO, ROLE_SHORT_VIDEO, ROLE_LONG_VIDEO,
     ROLE_L1_SEGMENT, ROLE_L2_CAPTION, ROLE_L2_TRANSCRIPT, ROLE_L3_WIKI,
 )
@@ -40,17 +35,28 @@ def string_list(options: Mapping[str, Any], key: str) -> list[str]:
     return sorted({value.strip().lower().lstrip('.') for value in raw})
 
 
-def asset_family(selector: str) -> str:
-    selector = selector.strip().lower().lstrip('.')
-    if selector in MEDIA_TYPES:
-        return selector
-    mime = selector if '/' in selector else mimetypes.guess_type(f"asset.{selector}")[0]
-    family = (mime or '').split('/')[0]
-    return family if family in MEDIA_TYPES else "document"
-
-
 def asset_families(options: Mapping[str, Any]) -> set[str]:
     return {asset_family(value) for value in string_list(options, 'asset_types')}
+
+
+def validate_asset_types(options: Mapping[str, Any]) -> None:
+    """Refuse a vector source's `asset_types` entry that no asset can match."""
+    from core.extractor import is_supported  # noqa: PLC0415
+
+    unknown = []
+    for value in string_list(options, 'asset_types'):
+        if value == 'okf':
+            raise ValueError('asset_types "okf" is for a graph source; a vector source never takes OKF bundles')
+        extensions = mimetypes.guess_all_extensions(value) if '/' in value else [f".{value}"]
+        if value not in MEDIA_TYPES | {DOCUMENT} and not any(
+            is_supported(f"asset{extension}") for extension in extensions
+        ):
+            unknown.append(value)
+    if unknown:
+        raise ValueError(
+            f"Unknown asset_types {', '.join(unknown)}: use document, image, video, "
+            "audio, or the extension or MIME type of a supported file"
+        )
 
 
 def require_asset_types(options: Mapping[str, Any]) -> set[str]:
@@ -65,12 +71,7 @@ def require_asset_types(options: Mapping[str, Any]) -> set[str]:
 
 
 def representation(options: Mapping[str, Any]) -> tuple[dict, set[str]]:
-    """Effective routing and roles used to choose a model at source creation.
-
-    Explicit roles select a representation *before* selecting its encoder. An
-    empty role filter keeps the asset's default model choice but imposes no role
-    restriction. Empty kind filters likewise remain explicit overrides.
-    """
+    """Effective routing and roles used to choose a model at source creation."""
     families = require_asset_types(options)
     roles = set(string_list(options, 'block_roles'))
     unknown = roles - MM_ROLES
@@ -108,19 +109,22 @@ def representation(options: Mapping[str, Any]) -> tuple[dict, set[str]]:
 
 
 def effective_configuration(source: Any) -> dict:
-    """User options plus frozen defaults, without consulting today's defaults."""
-    return {
+    """User options plus frozen profile params; an unscoped text vector source takes documents."""
+    options = {
         **dict(getattr(source, 'configuration', {}) or {}),
         **dict((getattr(source, 'profile', {}) or {}).get('params') or {}),
     }
+    if (
+        getattr(source, 'source_type', None) == 'vector'
+        and (getattr(source, 'profile', None) or {}).get('encoder_kind') != 'multimodal'
+        and not options.get('asset_types')
+    ):
+        options['asset_types'] = [DOCUMENT]
+    return options
 
 
 def validate_model_options(options: Mapping[str, Any]) -> None:
-    """Public model selection is an ID, not a path or weight override.
-
-    Call on persisted source options, never the private projection configuration
-    whose model path is injected from a frozen profile.
-    """
+    """Reject path/precision overrides in persisted source options; models are selected by ID."""
     for key in ('embedding_model_path', 'precision'):
         if key in options:
             raise ValueError(
@@ -130,17 +134,16 @@ def validate_model_options(options: Mapping[str, Any]) -> None:
 
 
 def validate_source(source: Any) -> None:
-    """Validate a frozen source's routing without resolving a model/default.
-
-    In particular, a legacy media profile cannot supply a missing user asset
-    declaration. Reconciliation must keep that record, but refuse to execute it.
-    """
+    """Validate a frozen source's routing without resolving a model/default."""
     raw = dict(source.configuration or {})
     options = effective_configuration(source)
     validate_model_options(raw)
     validate_model_options(options)
     profile = source.profile or {}
     if profile.get('encoder_kind') == 'multimodal':
+        from core.multimodal.registry import model_for_record
+
+        model_for_record(profile.get('multimodal_model') or {})
         require_asset_types(raw)
         representation(options)
         return
@@ -154,8 +157,7 @@ def validate_options(options: Mapping[str, Any]) -> None:
         string_list(options, key)
     kinds = set(string_list(options, 'block_kinds'))
     roles = set(string_list(options, 'block_roles'))
-    # A document source can legitimately select prose and PDF figures. Pure
-    # media/derived representations must not bypass the required media scope.
+    # Media/derived selections without asset_types require a media scope.
     if not asset_families(options) and (
         kinds & {AUDIO, VIDEO}
         or (IMAGE in kinds and 'text' not in kinds)

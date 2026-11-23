@@ -1,11 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""An asset pool, and how far each of its sources has got with it.
-
-Nothing here knows what an asset *is*. A pool holds asset ids, the projections
-those assets are materialized into, and a per-source record of progress -- which
-is the same bookkeeping whether the assets are documents, images, or rows.
-"""
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -30,38 +24,28 @@ def _now() -> str:
 
 @dataclass
 class SourceSyncStatus:
-    """How far one source has got with its pool's assets.
-
-    Mutable, and it transitions itself. It used to be frozen and rebuilt from
-    scratch at each transition, which meant every construction site had to
-    re-list the fields it wanted to keep -- and the ones it forgot were silently
-    reset. A failure diagnosis, in particular, did not survive the next
-    unrelated ingest.
-    """
+    """How far one source has got with its pool's assets."""
 
     source_id: str
     status: str = "pending"
     indexed_revision: int = -1
     indexed_asset_ids: List[str] = field(default_factory=list)
-    # Assets whose content changed since this source materialized them. The
-    # source still *holds* records for them, so asking the backend what it has
-    # would answer "these are done" -- this is how sync knows better.
+    # Assets whose content changed since this source materialized them; the backend still holds old records.
     stale_asset_ids: List[str] = field(default_factory=list)
     error: Optional[str] = None
     updated_at: str = field(default_factory=_now)
-    # Whether this source answers the pool's retrievals -- a second dimension
-    # beside `status`, maintained by `assetlib/sources/state_machine.py`. A record
-    # written before it existed restores as SERVING, which is what every
-    # attached source effectively was.
+    # Whether this source answers retrievals; maintained by `assetlib/sources/state_machine.py`.
     serving_state: str = "SERVING"
-    # The source this one is waiting to replace in this pool, until it does.
+    # The source this one is waiting to replace in this pool.
     replaces: Optional[str] = None
     serving_history: List[Dict[str, Any]] = field(default_factory=list)
-    # A graph source extracting documents into OKF: how many document changes
-    # it has seen, and how many the last successful extraction covered. More
-    # changes than covered means its generated bundle is out of date.
+    # OKF extraction: document changes seen vs. covered by the last successful extraction.
     extraction_changes: int = 0
     extraction_done: int = 0
+    # Internal: latest pool revision that added work for this source; not in the public status.
+    pending_revision: int = -1
+    reembed_pending: bool = False
+    reembed_asset_ids: List[str] = field(default_factory=list)
 
     @property
     def extraction_outdated(self) -> bool:
@@ -76,8 +60,8 @@ class SourceSyncStatus:
         self.updated_at = _now()
 
     def mark_pending(self) -> None:
-        """There is new work. Keeps `error`: the last failure still explains it."""
-        self._touch("pending")
+        """Queue work without hiding an active write or the last failure."""
+        self._touch("indexing" if self.status == "indexing" else "pending")
 
     def mark_indexing(self) -> None:
         self._touch("indexing")
@@ -91,8 +75,6 @@ class SourceSyncStatus:
     ) -> None:
         self.indexed_revision = revision
         self.indexed_asset_ids = list(indexed_asset_ids)
-        # A pass covering an older pool revision must not acknowledge changes
-        # that landed while it was writing, even for the same asset ids.
         if clear_stale:
             written = set(self.indexed_asset_ids)
             self.stale_asset_ids = [
@@ -102,19 +84,34 @@ class SourceSyncStatus:
         self._touch("ready")
 
     def mark_stale(self, asset_ids: Collection[str]) -> None:
-        """These assets' content changed; what this source holds is out of date."""
         known = set(self.stale_asset_ids)
         self.stale_asset_ids.extend(
             asset_id for asset_id in dict.fromkeys(asset_ids) if asset_id not in known
         )
 
+    def mark_reembed(self) -> None:
+        stale = set(self.stale_asset_ids)
+        self.reembed_pending = True
+        self.reembed_asset_ids = [
+            asset_id for asset_id in self.indexed_asset_ids if asset_id not in stale
+        ]
+
+    def mark_reembedded(self, asset_ids: Collection[str]) -> None:
+        done = set(asset_ids)
+        self.reembed_asset_ids = [
+            asset_id for asset_id in self.reembed_asset_ids if asset_id not in done
+        ]
+
+    def finish_reembed(self) -> None:
+        self.reembed_pending = False
+        self.reembed_asset_ids = []
+
     def mark_failed(self, error: str) -> None:
-        """Leaves `indexed_*` alone -- whatever did land is still there."""
+        """Leaves `indexed_*` unchanged."""
         self.error = error
         self._touch("failed")
 
     def forget_asset_ids(self, asset_ids: Collection[str]) -> None:
-        """Stop counting assets the library no longer has."""
         dropped = set(asset_ids)
         self.indexed_asset_ids = [
             asset_id
@@ -124,21 +121,12 @@ class SourceSyncStatus:
         self.stale_asset_ids = [
             asset_id for asset_id in self.stale_asset_ids if asset_id not in dropped
         ]
+        self.mark_reembedded(dropped)
 
 
 @dataclass
 class AssetPool:
-    """A set of assets, and the projections each of them is materialized into.
-
-    Mutated in place. It used to be a frozen dataclass replaced wholesale on
-    every change, which read as immutable but was not: the containers it points
-    at were always mutable, and it was never hashable (two of its fields are
-    dicts), so freezing only prevented the one thing nobody does -- rebinding a
-    field. What it did cause was lost updates, because a caller holding a
-    snapshot across slow I/O wrote its stale copy back over anything that had
-    changed meanwhile. `sync_asset_pool` did exactly that, and dropped assets
-    ingested while it was running.
-    """
+    """A set of assets and the projections they are materialized into; mutated in place."""
 
     asset_pool_id: str
     name: str
@@ -147,36 +135,24 @@ class AssetPool:
     revision: int = 0
     source_statuses: Dict[str, SourceSyncStatus] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    #: Sources this pool is attached to but currently has no projection for --
-    #: because the database they name is not registered, or its backend could
-    #: not be reached at restore. Keyed by source id, holding the `Source`.
-    #:
-    #: They are kept, rather than dropped, because the pool is persisted from
-    #: what it holds: forgetting an unbuildable source here would erase it from
-    #: the workspace on the next save, quietly turning a missing connection into
-    #: a lost configuration. Their status is `failed`, they are invisible to
-    #: `sync_asset_pool` (there is nothing to sync through), and they become
-    #: real projections again once the database is registered.
+    #: Attached sources with no projection because their database is missing or unreachable.
+    #: Kept so they are persisted; status `failed`.
     unavailable_sources: Dict[str, Any] = field(default_factory=dict)
-    #: Sources attached but deliberately given no projection: deprecated in
-    #: this pool, or disabled. Same shape and the same reason to be kept as
-    #: `unavailable_sources` -- the pool is persisted from what it holds -- but
-    #: not an error: their status stays as it was, and their data stays where
-    #: it is. Holding no projection is the point: a frozen source is not
-    #: written to and does not keep its model loaded.
+    #: Attached sources deliberately given no projection (deprecated or disabled).
     frozen_sources: Dict[str, Any] = field(default_factory=dict)
-    #: The projections that answer retrievals, replaced as one tuple whenever a
-    #: binding changes state. Readers take it in one attribute load, so a
-    #: retrieval running beside a switch-over sees the old set or the new one,
-    #: never half of each.
+    #: Projections that answer retrievals; replaced as one tuple so readers see a consistent set.
     serving: Tuple[Projection, ...] = ()
 
     def __post_init__(self) -> None:
         self.projections = tuple(self.projections)
         self.refresh_serving()
 
-    def add_asset_ids(self, asset_ids: Iterable[str]) -> bool:
-        """Extend the set. True if anything was new, so the caller can skip a save."""
+    def add_asset_ids(
+        self,
+        asset_ids: Iterable[str],
+        source_ids: Optional[Collection[str]] = None,
+    ) -> bool:
+        """Extend the set, reopening only sources that accept the new assets."""
         known = set(self.asset_ids)
         added = [
             asset_id
@@ -186,53 +162,52 @@ class AssetPool:
         if not added:
             return False
         self.asset_ids.extend(added)
-        self.revision += 1
-        for status in self.source_statuses.values():
-            status.mark_pending()
+        self._advance_revision(source_ids)
         return True
+
+    def _advance_revision(self, source_ids: Optional[Collection[str]]) -> None:
+        previous = self.revision
+        self.revision += 1
+        for source_id, status in self.source_statuses.items():
+            if source_ids is None or source_id in source_ids:
+                status.pending_revision = self.revision
+                if source_id not in self.unavailable_sources:
+                    status.mark_pending()
+            elif status.status == "ready" and status.indexed_revision == previous:
+                status.indexed_revision = self.revision
 
     def mark_assets_changed(
         self,
         asset_ids: Collection[str],
         source_ids: Optional[Collection[str]] = None,
+        *,
+        source_asset_ids: Optional[Mapping[str, Collection[str]]] = None,
     ) -> bool:
-        """Re-open assets already in the pool whose content has been replaced.
-
-        Ingesting a file the library already holds hits the same asset id, so
-        there is nothing new to add -- but every source is now holding the old
-        version. Bumping the revision is what makes the next sync look, and
-        marking the assets stale is what stops it from believing the backend
-        when it reports them as already there.
-
-        `source_ids` narrows the stale marking to the sources whose records the
-        change affects -- a caption landing changes nothing for the source that
-        embedded the clip. The others see the new revision, find nothing
-        missing, and settle at it without writing.
-        """
+        """Re-open assets already in the pool whose content has been replaced."""
         held = set(self.asset_ids)
         changed = [
             asset_id for asset_id in dict.fromkeys(asset_ids) if asset_id in held
         ]
-        affected = [
-            status
-            for source_id, status in self.source_statuses.items()
-            if source_ids is None or source_id in source_ids
-        ]
+        affected = {}
+        for source_id in self.source_statuses:
+            if source_ids is not None and source_id not in source_ids:
+                continue
+            accepted = (
+                set(source_asset_ids.get(source_id, ()))
+                if source_asset_ids is not None else set(changed)
+            )
+            selected = [asset_id for asset_id in changed if asset_id in accepted]
+            if selected:
+                affected[source_id] = selected
         if not changed or not affected:
             return False
-        self.revision += 1
-        for status in affected:
-            status.mark_stale(changed)
-        for status in self.source_statuses.values():
-            status.mark_pending()
+        for source_id, selected in affected.items():
+            self.source_statuses[source_id].mark_stale(selected)
+        self._advance_revision(affected)
         return True
 
     def forget_asset_ids(self, asset_ids: Collection[str]) -> bool:
-        """Drop assets from the pool. True if anything was actually dropped.
-
-        The revision does not move: removing work does not create any, and every
-        source is still as up to date as it was.
-        """
+        """Drop assets from the pool without bumping the revision; True if anything was dropped."""
         dropped = set(asset_ids)
         kept = [
             asset_id for asset_id in self.asset_ids if asset_id not in dropped
@@ -251,26 +226,7 @@ class AssetPool:
         unavailable: Optional[Mapping[str, Tuple[Any, str]]] = None,
         frozen: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        """Replace the projections, keeping the progress of sources that stay.
-
-        A source that is still attached keeps its status: re-attaching a list
-        that happens to include it must not throw away what it has already
-        indexed and make the next sync redo the work.
-
-        A newly attached source is seeded from `already_indexed` -- the pool
-        assets that source was found to hold when it was attached. A source that
-        already holds all of them is `ready` immediately, including the trivial
-        case of a pool with nothing in it yet; anything less is `pending`, and it
-        keeps whatever it does hold so the sync only sends the difference.
-
-        `unavailable` maps a source id to `(source, reason)` for a source that
-        is attached but could not be given a projection. It keeps its place in
-        the pool and reports `failed` with the reason, rather than vanishing.
-
-        `frozen` maps a source id to the `Source` of a binding that is attached
-        but deliberately has no projection (see `frozen_sources`). Its status is
-        kept as it is, or created if the binding is new.
-        """
+        """Replace the projections, keeping the progress of sources that stay."""
         self.projections = tuple(projections)
         self.unavailable_sources = {
             source_id: source for source_id, (source, _) in (unavailable or {}).items()
@@ -291,14 +247,11 @@ class AssetPool:
                 source_id
             ) or self._initial_status(source_id, seeded.get(source_id, ()))
         for source_id, (_, reason) in (unavailable or {}).items():
-            # Keep whatever progress it had recorded -- the records it wrote are
-            # still in the backend, and will be found again when it comes back.
             status = self.source_statuses.get(source_id) or SourceSyncStatus(
                 source_id=source_id
             )
             status.mark_failed(reason)
             statuses[source_id] = status
-        # Sources no longer attached drop out with their statuses.
         self.source_statuses = statuses
         self.refresh_serving()
 
@@ -330,6 +283,14 @@ class AssetPool:
         )
         self.refresh_serving()
         return bool(held)
+
+    def replace_projection(self, projection: Projection) -> None:
+        source_id = projection.source.source_id
+        self.projections = tuple(
+            projection if p.source.source_id == source_id else p
+            for p in self.projections
+        )
+        self.refresh_serving()
 
     def thaw(self, projection: Projection) -> None:
         """Give a frozen binding its projection back."""

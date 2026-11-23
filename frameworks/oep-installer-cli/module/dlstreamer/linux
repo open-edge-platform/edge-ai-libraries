@@ -1,6 +1,6 @@
 
 test_dlstreamer_pipeline () {
-  if [[ " $* " = *" --validate "* ]]; then
+  if ensure_parse_option --validate "$@"; then
     mkdir -p "$workspace"
     cd "$workspace"
 

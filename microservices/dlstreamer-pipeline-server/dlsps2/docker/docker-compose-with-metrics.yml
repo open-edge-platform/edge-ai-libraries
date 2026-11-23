@@ -50,7 +50,7 @@ services:
     volumes:
       - ./mosquitto:/mosquitto/config:ro
     ports:
-      - "${MQTT_PORT:-1883}:1883"
+      - "127.0.0.1:${MQTT_PORT:-1883}:1883" # MQTT is internal-only; bind to localhost, not all host interfaces
     networks:
       - app_network
     restart: unless-stopped
@@ -138,7 +138,7 @@ services:
   # DL Streamer Pipeline Server 2.0 - Video Analytics Engine
   # ===========================================================================
   dlstreamer-pipeline-server:
-    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE:-dlsps2.0-7}
+    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE:-dlsps2.0}
     hostname: dlstreamer-pipeline-server
     container_name: dlsps2-pipeline-server
     build:

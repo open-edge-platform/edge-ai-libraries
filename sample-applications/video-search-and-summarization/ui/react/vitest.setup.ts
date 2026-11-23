@@ -18,6 +18,22 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   };
 }
 
+// jsdom lacks PointerEvent, so fireEvent.pointer* would drop clientX/clientY/pointerId (used by MapView pan/zoom).
+if (typeof globalThis.PointerEvent === 'undefined') {
+  class PointerEventPolyfill extends MouseEvent {
+    public pointerId: number;
+    public pointerType: string;
+
+    constructor(type: string, params: PointerEventInit = {}) {
+      super(type, params);
+      this.pointerId = params.pointerId ?? 0;
+      this.pointerType = params.pointerType ?? 'mouse';
+    }
+  }
+  // @ts-expect-error jsdom lacks a native PointerEvent constructor to override.
+  globalThis.PointerEvent = PointerEventPolyfill;
+}
+
 // Global axios mock to prevent network calls in all tests
 vi.mock('axios', () => ({
   default: {

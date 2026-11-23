@@ -343,7 +343,6 @@ class LiveStreamWorker:
                         metadata_dict=self._metadata_dict(recorder),
                         frame_interval=self.stream.frame_interval,
                         enable_object_detection=self.stream.enable_object_detection,
-                        detection_confidence=self.stream.detection_confidence,
                         shutdown_event=self._session_shutdown,
                         progress_callback=_on_batch_stored,
                         # Single RTSP connection: the decode loop tees every
@@ -472,7 +471,6 @@ class LiveStreamWorker:
                 frame_interval=self.stream.frame_interval,
                 tags=list(self.stream.tags),
                 enable_object_detection=self.stream.enable_object_detection,
-                detection_confidence=self.stream.detection_confidence,
                 metadata_dict=metadata,
                 pipeline_result=enriched,
             )

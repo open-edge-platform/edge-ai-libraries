@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Opt-in: copy to /etc/metrics-manager/telegraf.d/storage.conf and restart
+# metrics-manager-telegraf.service. No additional capabilities are required.
+# Keep prometheus_client metric_version = 1 and export_timestamp = true.
+[[inputs.disk]]
+  interval = "1s"
+  # Avoid rounding collection times into the future or merging adjacent samples.
+  precision = "1ns"
+  # Restrict to mounted filesystems visible to the service, e.g. ["/", "/data"].
+  # Protected home directories remain subject to the existing systemd sandbox.
+  # mount_points = ["/", "/data"]
+  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "iso9660", "overlay", "aufs", "squashfs"]
+
+[[inputs.diskio]]
+  interval = "1s"
+  precision = "1ns"
+  # Select one I/O layer, e.g. ["nvme0n1"], to avoid confusing partition,
+  # device-mapper and physical-disk readings. The TUI never sums these layers.
+  devices = ["*"]
+  # Durable identifiers are opt-in. Keep the model but do not export serial/WWID.
+  # To opt in, set skip_serial_number = false, tagexclude = [], and optionally
+  # add "ID_SERIAL_SHORT" to device_tags. Place these before the tagdrop table.
+  skip_serial_number = true
+  device_tags = ["ID_MODEL"]
+  tagexclude = ["serial", "wwid"]
+  [inputs.diskio.tagdrop]
+    name = ["loop*", "ram*"]

@@ -108,7 +108,7 @@ main() {
   done
   export NON_INTERACTIVE
 
-  printf "\n${C_GREEN}${C_BOLD}agent-harness-install — Prerequisite Setup${C_RESET}\n\n"
+  printf '\n%s%sagent-harness-install — Prerequisite Setup%s\n\n' "$C_GREEN" "$C_BOLD" "$C_RESET"
 
   assert_proxy_env_well_formed
 
@@ -147,8 +147,8 @@ main() {
     info "Skipping Python (--skip-python)."
   fi
 
-  printf "\n${C_GREEN}${C_BOLD}=== Prerequisites ready ===${C_RESET}\n\n"
-  printf "  Run ${C_BOLD}./install.sh${C_RESET} next.\n\n"
+  printf '\n%s%s=== Prerequisites ready ===%s\n\n' "$C_GREEN" "$C_BOLD" "$C_RESET"
+  printf '  Run %s./install.sh%s next.\n\n' "$C_BOLD" "$C_RESET"
 }
 
 main "$@"

@@ -22,6 +22,7 @@ struct SiftMatchResult {
 // OpenCL GPU self/cross matcher for host SiftFeature descriptors (upload →
 // tiled float4 kernel → readback). Mirrors the SYCL MatchSiftData path.
 // Repeated self-match on the same host vector keeps descriptors resident.
+// match() is serialized internally (safe across threads / GIL release).
 class OpenCLMatcher {
 public:
   OpenCLMatcher();

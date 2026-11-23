@@ -1,11 +1,10 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Request/response models for the engine service."""
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
 import config
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_serializer
 
 
 # --- Asset library --------------------------------------------------------------
@@ -13,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 class SourceIn(BaseModel):
     name: str
     database_id: str
-    # Derived from the library, the source name and the time when omitted.
+    # Derived from the library, source name and time when omitted.
     collection_name: Optional[str] = None
     operator_options: Dict[str, Any] = Field(default_factory=dict)
     enabled: bool = True
@@ -21,13 +20,14 @@ class SourceIn(BaseModel):
 
 
 class SourceUpdate(BaseModel):
-    """What may change on a source. Its model and parameters may not."""
+    """Mutable source fields; model and parameters cannot change, the embedding device can."""
 
     model_config = ConfigDict(extra="forbid")
 
     name: Optional[str] = None
     enabled: Optional[bool] = None
     labels: Optional[Dict[str, str]] = None
+    embedding_device: Optional[str] = None
 
 
 class SourceBindingOut(BaseModel):
@@ -77,11 +77,19 @@ class SourceServingStateUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    serving_state: Literal["SERVING", "DEPRECATED"]
+    serving_state: Literal["SERVING", "DEGRADE"]
 
 
 class AssetPoolAssetsIn(BaseModel):
     asset_ids: List[str]
+
+
+class AssetPoolAssetsRemoved(BaseModel):
+    library: str
+    asset_pool_id: str
+    removed: List[str] = Field(default_factory=list)
+    materializations_removed: int = 0
+    concepts_removed: int = 0
 
 
 class SourceSyncStatusOut(BaseModel):
@@ -95,8 +103,9 @@ class SourceSyncStatusOut(BaseModel):
     effective_state: str = "SERVING"
     replaces: Optional[str] = None
     serving_history: List[Dict[str, Any]] = Field(default_factory=list)
-    # A graph source extracting documents into OKF: its trigger, whether its
-    # generated bundle is out of date, and the active/last extraction job.
+    reembed_pending: bool = False
+    reembed_asset_ids: List[str] = Field(default_factory=list)
+    # OKF extraction state of a graph source: trigger, outdated flag, active/last job.
     extraction: Optional[Dict[str, Any]] = None
 
     @computed_field
@@ -177,11 +186,7 @@ class AssetPoolOut(BaseModel):
 class AssetLibraryIn(BaseModel):
     name: str
     description: Optional[str] = None
-    # Which registered object database this library's content goes to. Optional,
-    # and in three steps: this if given, else the sole registered object
-    # database, else the engine's own workspace store, registered on demand. So
-    # an ingest never fails for want of somewhere to put content, and a
-    # deployment with several object stores is asked rather than guessed at.
+    # Object database for content; defaults to the sole registered one, else the workspace store.
     content_database: Optional[str] = None
 
 
@@ -191,12 +196,9 @@ class AssetLibraryOut(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
-    # Which source new content goes to. One of `sources` below; assets already
-    # stored keep reading from whichever source they name, so moving this does
-    # not move them.
+    # Source new content goes to; existing assets keep their own source.
     default_content_source_id: str = ""
-    # That source's database. Derived from it, and reported because it is what a
-    # caller names on the way in.
+    # Database of the default content source.
     content_database: str = ""
     asset_count: int = 0
     document_count: int = 0
@@ -207,9 +209,7 @@ class AssetLibraryOut(BaseModel):
 
 class AssetLibraryUpdate(BaseModel):
     description: Optional[str] = None
-    # Where new content goes, either as a database to register a content source
-    # in or as one of the library's existing object sources. Content already
-    # written stays where it is and stays readable.
+    # Where new content goes: a database or an existing object source; old content stays put.
     content_database: Optional[str] = None
     default_content_source_id: Optional[str] = None
 
@@ -220,13 +220,10 @@ class AssetOut(BaseModel):
     origin: str
     kind: str
     media_type: str = ""
-    # Which of the library's sources holds this asset's content. Assets in one
-    # library need not share a store.
+    # Source holding this asset's content.
     content_source_id: str = ""
     asset_pool_ids: List[str] = Field(default_factory=list)
-    # Live ingest phase: "materializing" | "text_ready" | "ready", or None when
-    # untracked (no ingest in this process, e.g. after a restart). Overlaid by the
-    # assets route from the materialize tracker; not persisted with the asset.
+    # "materializing" | "text_ready" | "ready", or None when untracked; not persisted.
     materialization: Optional[str] = None
 
 
@@ -236,29 +233,18 @@ class AssetPage(BaseModel):
 
 
 class AssetEnrichmentOut(BaseModel):
-    """How far the background description (and transcript) of a media asset has got.
-
-    Deliberately separate from a pool's `source_statuses`. A pool reports
-    whether a *backend* holds what the asset currently says; this reports
-    whether the asset has finished saying it. A clip can be `ready` in every
-    pool while its description is still being written, and reading one as the
-    other is how "indexing finished" comes to mean "nothing more is coming".
-    """
+    """Progress of a media asset's background description, embedding and transcript."""
 
     asset_id: str
     role: str = ""
-    # The model-written description: pending | completed | failed | skipped.
+    # pending | completed | failed | skipped
     caption_status: str = ""
     error: Optional[str] = None
     updated_at: Optional[float] = None
-    # Whether the media gets a *vector*, which is a separate pipeline from the
-    # description and is worked out from the sources configured now:
-    # not_applicable | unassigned | no_source | pending | ready | failed.
+    # not_applicable | unassigned | no_source | pending | ready | failed
     embedding_status: str = ""
     embedding_reason: str = ""
-    # Speech recognition of an audio file, written as `l2_transcript` blocks:
-    # pending | completed | failed | skipped. Its own error, because it is a
-    # separate job from the description.
+    # pending | completed | failed | skipped
     transcript_status: str = ""
     transcript_error: Optional[str] = None
     transcript_updated_at: Optional[float] = None
@@ -273,8 +259,7 @@ class AssetDeleteResult(BaseModel):
     library: str
     removed: List[str] = Field(default_factory=list)
     materializations_removed: int = 0
-    # Media files deleted along with their assets (only ones inside the upload
-    # directory), and ones left in place because they are not the engine's.
+    # Only files inside the upload directory are removed; others are kept.
     files_removed: List[str] = Field(default_factory=list)
     files_kept: List[str] = Field(default_factory=list)
 
@@ -283,13 +268,10 @@ class AssetDeleteResult(BaseModel):
 
 class AssetCreateRequest(BaseModel):
     asset_pool_ids: List[str] = Field(default_factory=list)
-    # Server-local paths, e.g. files an upload service has already saved.
+    # Server-local paths.
     file_paths: List[str] = Field(default_factory=list)
-    # Or raw text to ingest directly.
     text: Optional[str] = None
-    # Which of the library's object sources to store this batch's content in.
-    # Unset means the library's default. A source rather than a database,
-    # because where to write is a database *and* a collection in it.
+    # Object source to store content in; defaults to the library's default.
     content_source_id: Optional[str] = None
 
 
@@ -298,12 +280,8 @@ class AssetCreateResult(BaseModel):
     asset_ids: List[str] = Field(default_factory=list)
     asset_pool_ids: List[str] = Field(default_factory=list)
     file_paths: List[str] = Field(default_factory=list)
-    # Where the content went, so a caller need not re-read the library to find
-    # out which source the default resolved to.
     content_source_id: str = ""
-    # "stored": content already stored. "materializing": accepted; a
-    # background task is extracting and indexing it -- the request did not wait
-    # for render/detect/OCR or for embedding.
+    # "materializing": accepted; extraction and indexing continue in the background.
     status: Literal["stored", "materializing"] = "stored"
 
 
@@ -311,35 +289,24 @@ class UploadResult(BaseModel):
     """A file staged by `PUT /{library}/uploads/{path}`, not yet an asset."""
 
     library: str
-    # Relative to the upload directory: what `POST /assets` takes in
-    # `file_paths`. A folder upload's files share a prefix, and naming the
-    # folder (`name` up to its first segment) ingests it whole.
+    # Relative to the upload directory, as `POST /assets` takes in `file_paths`.
     name: str
     file_path: str
     size: int
-    # Whether the file can be ingested on its own. A folder may still hold
-    # unsupported files; they are skipped when the folder is ingested.
+    # Whether the file type can be ingested.
     supported: bool
 
 
 # --- Retrieval ------------------------------------------------------------------
 
 class RerankerModelIn(BaseModel):
-    """Which reranker to run. Sent per request: the caller (its retrieval pipeline)
-    owns this configuration, the engine only executes it. Unset fields fall back
-    to the engine's configured defaults.
-
-    `model_id` is a model the engine can run — for the openvino backends, one of the
-    workspace models reported by GET /v1/models/reranker. `backend` picks the
-    provider per request (e.g. `openai_compatible` with `api_base` for a remote
-    rerank server); unset uses ENGINE_RERANK_BACKEND."""
+    """Per-request reranker selection; unset fields fall back to engine defaults."""
 
     backend: Optional[str] = None
     model_id: Optional[str] = None
-    model_path: Optional[str] = None
     device: Optional[str] = None
     weight: Optional[str] = None
-    api_base: Optional[str] = None  # for the openai_compatible provider
+    api_base: Optional[str] = None  # for the remote_openai_compatible backend
 
 
 class RetrievedChunk(BaseModel):
@@ -359,8 +326,7 @@ class GraphTraceConcept(BaseModel):
     id: str
     hop: int
     weight: float = 0.0
-    # The concept's source chunks that made it into `retrieved_chunks`, i.e.
-    # what this concept actually contributed to the answer.
+    # The concept's source chunks that made it into `retrieved_chunks`.
     hit_chunk_ids: List[str] = Field(default_factory=list)
 
 
@@ -383,6 +349,14 @@ class RetrieveResult(BaseModel):
     graph_traces: List[GraphTrace] = Field(default_factory=list)
     # Set when postprocessing failed and `chunks` fell back to the recall order.
     postprocess_error: Optional[str] = None
+    media_diagnostics: Optional[Dict[str, Any]] = None
+
+    @model_serializer(mode="wrap")
+    def serialize_result(self, handler):
+        data = handler(self)
+        if self.media_diagnostics is None:
+            data.pop("media_diagnostics", None)
+        return data
 
 
 class GraphNodeOut(BaseModel):
@@ -390,9 +364,7 @@ class GraphNodeOut(BaseModel):
     label: str = ""
     title: str = ""
     degree: int = 0
-    # Which OKF bundles define it: `uploaded`, `generated` (extracted from the
-    # pool's documents), or `both` -- an uploaded concept overriding an extracted
-    # one. Empty when no bundle in the pool defines it any more.
+    # OKF bundle defining it: uploaded | generated | both, or empty if none.
     origin: str = ""
 
 
@@ -409,14 +381,14 @@ class PoolGraph(BaseModel):
 
 class PostprocessOptions(BaseModel):
     query: Optional[str] = None
-    processor_type: str = "reranker"
+    processor_type: Literal["reranker"] = "reranker"
     top_n: Optional[int] = config.RERANK_TOP_N
     reranker_model: Optional[RerankerModelIn] = None
 
 
 class RetrieveRequest(BaseModel):
     query: str
-    # Names or ids. The engine has no active-library state to fall back on.
+    # Names or ids.
     libraries: List[str] = Field(min_length=1)
     # Empty means all asset pools in every selected library.
     asset_pool_ids: List[str] = Field(default_factory=list)
@@ -424,12 +396,10 @@ class RetrieveRequest(BaseModel):
     retriever_type: Optional[str] = None
     exclude_chunk_ids: List[str] = Field(default_factory=list)
     postprocess: Optional[PostprocessOptions] = None
-    # Report what graph retrieval walked (`graph`, or `rrf` on a pool with a
-    # graph source), per pool, in `RetrieveResult.graph_traces`.
+    # Report graph walks per pool in `RetrieveResult.graph_traces`.
     include_graph_trace: bool = False
-    # Empty means every searchable source in the selected libraries and pools.
-    # `document` covers text only; select `image` alongside it to also search
-    # the figures inside documents.
+    include_media_data: bool = False
+    # Empty means all; `document` is text only, add `image` to search document figures.
     target_media: List[Literal["document", "audio", "image", "video"]] = Field(default_factory=list)
     allow_missing_targets: bool = False
 
@@ -441,30 +411,55 @@ class ModelInfo(BaseModel):
 
     name: str
     path: Optional[str] = None
-    # Whether the OpenVINO IR is already exported (an unexported model is exported
-    # on first use, which takes a while).
+    # Whether inference artifacts are prepared; the runtime never exports models.
     ready: bool = True
     model_type: str
-    # Set when the model must run on a specific backend (the Qwen3-VL reranker
-    # needs "openvino_vl"; the text reranker backends cannot load its export).
-    backend: Optional[str] = None
+    # A media (multimodal) reranker the text reranker cannot load.
+    media: bool = False
 
 
 class ModelOptions(BaseModel):
-    """What a model picker needs: how the engine runs this kind of model, and which
-    ones it can choose from."""
+    """Backend configuration and available models for one model type."""
 
     model_type: str
     backend: str
     backends: List[str] = Field(default_factory=list)
     device: Optional[str] = None
     model_id: Optional[str] = None
-    # For reranker only: the default model a media (multimodal) search reranks
-    # with, which differs from the text reranker in `model_id`.
+    # Reranker only: default model for media (multimodal) reranking.
     media_model_id: Optional[str] = None
+    media_backend: Optional[str] = None
+    media_device: Optional[str] = None
     api_base: Optional[str] = None
     workspace: Optional[str] = None
     models: List[ModelInfo] = Field(default_factory=list)
+
+
+class EmbeddingModelInfo(ModelInfo):
+    """One embedding model and its supported asset families."""
+
+    # Asset families may be supported through derived text (e.g. transcripts).
+    supported_asset_types: List[str] = Field(default_factory=list)
+
+
+class ModelDefault(BaseModel):
+    """The inherited configuration for one asset family, without loading a model."""
+
+    backend: str
+    model_id: Optional[str] = None
+    model_path: Optional[str] = None
+    device: Optional[str] = None
+    api_base: Optional[str] = None
+
+
+class EmbeddingModelOptions(BaseModel):
+    """Available embeddings and inherited configuration per asset family."""
+
+    model_type: Literal["embedding", "multimodal"]
+    backends: List[str] = Field(default_factory=list)
+    workspace: Optional[str] = None
+    models: List[EmbeddingModelInfo] = Field(default_factory=list)
+    defaults: Dict[str, ModelDefault] = Field(default_factory=dict)
 
 
 # --- Database -------------------------------------------------------------------
@@ -478,14 +473,7 @@ class CollectionInfo(BaseModel):
 # --- Databases ------------------------------------------------------------------
 
 class DatabaseIn(BaseModel):
-    """A database the engine may connect to.
-
-    `options` is passed to the backend's adapter verbatim, so it is whatever
-    that backend needs -- `uri` for Milvus (plus any `token` / `user` /
-    `password` / `db_name` it forwards to the client), `root` for the filesystem
-    object store, `endpoint` and keys for MinIO. `GET /backends` lists what each
-    one takes.
-    """
+    """A database registration; `options` is passed verbatim to the backend adapter."""
 
     id: str
     type: str
@@ -495,7 +483,7 @@ class DatabaseIn(BaseModel):
 
 
 class DatabaseUpdate(BaseModel):
-    """A change to a registered database. The type cannot change; see the API."""
+    """A change to a registered database; the type cannot change."""
 
     backend: Optional[str] = None
     options: Optional[Dict[str, Any]] = None

@@ -216,6 +216,14 @@ class HuggingFacePlugin(ModelDownloadPlugin):
         resolved_config = kwargs.get("resolved_config") or {}
         hf_token = resolved_config.get("HF_TOKEN") or kwargs.get("hf_token")
         revision = kwargs.get("revision")
+        config = kwargs.get("config") or {}
+        files = config.get("files") if isinstance(config, dict) else getattr(config, "files", None)
+        if files is not None and (
+            not isinstance(files, list)
+            or not files
+            or any(not isinstance(name, str) or name in {".", ".."} or "/" in name or "\\" in name or not name for name in files)
+        ):
+            raise ValueError("config.files must be a nonempty list of plain filenames")
         
         # Create hub-specific directory under the output directory
         hub_dir = os.path.join(output_dir, "huggingface")
@@ -228,12 +236,15 @@ class HuggingFacePlugin(ModelDownloadPlugin):
         # Verify access up-front: a gated/unauthorized repo otherwise surfaces as a
         # misleading "check your internet connection" error from snapshot_download.
         self._check_access(model_name, hf_token)
-        model_downloaded_path = snapshot_download(
-            repo_id=model_name,
-            token=hf_token,
-            local_dir=model_specific_path,
-            revision=revision,
-        )
+        download_kwargs = {
+            "repo_id": model_name,
+            "token": hf_token,
+            "local_dir": model_specific_path,
+            "revision": revision,
+        }
+        if files is not None:
+            download_kwargs["allow_patterns"] = files
+        model_downloaded_path = snapshot_download(**download_kwargs)
 
         logger.info(f"Model {model_name} downloaded to {model_downloaded_path}")
 

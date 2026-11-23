@@ -4,7 +4,6 @@
 """Tests for the MetricsStore."""
 
 import asyncio
-import tempfile
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,19 +13,17 @@ from app.models import Metric
 from app.store import MetricsStore, get_metrics_store, reset_metrics_store
 
 
+@pytest.fixture
+async def store(tmp_path):
+    instance = MetricsStore(metrics_dir=str(tmp_path), debounce_ms=0)
+    try:
+        yield instance
+    finally:
+        await instance.close()
+
+
 class TestMetricsStore:
     """Tests for MetricsStore class."""
-
-    @pytest.fixture
-    def temp_metrics_dir(self):
-        """Create a temporary directory for metrics."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield tmpdir
-
-    @pytest.fixture
-    def store(self, temp_metrics_dir):
-        """Create a MetricsStore with temporary directory and no debounce for tests."""
-        return MetricsStore(metrics_dir=temp_metrics_dir, debounce_ms=0)
 
     @pytest.mark.asyncio
     async def test_add_single_metric(self, store):
@@ -71,6 +68,62 @@ class TestMetricsStore:
         latest = await store.get_latest_metrics()
         assert "test" in latest
         assert latest["test"].fields["value"] == 2  # Last one
+
+    @pytest.mark.asyncio
+    async def test_get_latest_metrics_keeps_series_with_distinct_tags(self, store):
+        """Series sharing a name but differing in tags must not overwrite each other."""
+        for tile, value in (("gt0", 800), ("gt1", 100)):
+            await store.add_metric(
+                Metric(
+                    name="gpu_frequency",
+                    tags={"tile": tile, "gpu_id": "0"},
+                    fields={"value": value},
+                    timestamp=int(1704067200 * 1e9),
+                )
+            )
+
+        latest = await store.get_latest_metrics()
+
+        assert latest["gpu_frequency{gpu_id=0,tile=gt0}"].fields["value"] == 800
+        assert latest["gpu_frequency{gpu_id=0,tile=gt1}"].fields["value"] == 100
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "first,second",
+        [
+            ({"x": "a,y=b"}, {"x": "a", "y": "b"}),
+            ({"x=y": "z"}, {"x": "y=z"}),
+            ({"x": r"a\,y=b"}, {"x": "a\\", "y": "b"}),
+        ],
+    )
+    async def test_get_latest_metrics_preserves_label_separators(self, store, first, second):
+        await store.add_metrics(
+            [
+                Metric(name="fps", fields={"value": 10}, tags=first),
+                Metric(name="fps", fields={"value": 20}, tags=second),
+            ]
+        )
+        latest = await store.get_latest_metrics()
+        assert len(latest) == 2
+        assert {metric.fields["value"] for metric in latest.values()} == {10, 20}
+
+    @pytest.mark.asyncio
+    async def test_get_latest_metrics_picks_newest_within_a_series(self, store):
+        """Within one series the most recent sample still wins."""
+        for i in range(3):
+            await store.add_metric(
+                Metric(
+                    name="gpu_frequency",
+                    tags={"tile": "gt0"},
+                    fields={"value": i},
+                    timestamp=int((1704067200 + i) * 1e9),
+                )
+            )
+
+        latest = await store.get_latest_metrics()
+
+        assert len(latest) == 1
+        assert latest["gpu_frequency{tile=gt0}"].fields["value"] == 2
 
     @pytest.mark.asyncio
     async def test_get_metric_names(self, store):
@@ -124,6 +177,7 @@ class TestMetricsStore:
     @pytest.mark.asyncio
     async def test_telegraf_push(self, store, mocker):
         """Test metrics are pushed to Telegraf via HTTP after add_metric."""
+
         async def _noop(*_):
             pass
 
@@ -150,9 +204,8 @@ class TestMetricsStore:
         assert metrics == []
 
     @pytest.mark.asyncio
-    async def test_eviction_removes_oldest_when_limit_reached(self, temp_metrics_dir):
+    async def test_eviction_removes_oldest_when_limit_reached(self, store):
         """When max_metrics is reached, the oldest metric by timestamp is evicted."""
-        store = MetricsStore(metrics_dir=temp_metrics_dir, debounce_ms=0)
         store._max_metrics = 3
 
         for i in range(3):
@@ -178,12 +231,11 @@ class TestMetricsStore:
         assert int(1704067210 * 1e9) in timestamps
 
     @pytest.mark.asyncio
-    async def test_expired_metrics_not_returned(self, temp_metrics_dir):
+    async def test_expired_metrics_not_returned(self, store):
         """Metrics older than retention_seconds are excluded from query results."""
         import time
         from unittest.mock import patch
 
-        store = MetricsStore(metrics_dir=temp_metrics_dir, debounce_ms=0)
         await store.add_metric(Metric(name="old_metric", fields={"value": 1.0}))
 
         # Advance time past retention window (default 300s)
@@ -193,12 +245,11 @@ class TestMetricsStore:
             assert metrics == []
 
     @pytest.mark.asyncio
-    async def test_expired_metrics_not_in_latest(self, temp_metrics_dir):
+    async def test_expired_metrics_not_in_latest(self, store):
         """Expired metrics are excluded from get_latest_metrics."""
         import time
         from unittest.mock import patch
 
-        store = MetricsStore(metrics_dir=temp_metrics_dir, debounce_ms=0)
         await store.add_metric(Metric(name="fps", fields={"value": 30.0}))
 
         future_time = time.time() + 400
@@ -207,9 +258,8 @@ class TestMetricsStore:
             assert "fps" not in latest
 
     @pytest.mark.asyncio
-    async def test_eviction_across_different_metric_names(self, temp_metrics_dir):
+    async def test_eviction_across_different_metric_names(self, store):
         """Eviction picks the globally oldest metric regardless of name."""
-        store = MetricsStore(metrics_dir=temp_metrics_dir, debounce_ms=0)
         store._max_metrics = 2
 
         old = Metric(name="cpu", fields={"v": 1.0}, timestamp=int(1704067200 * 1e9))
@@ -218,7 +268,9 @@ class TestMetricsStore:
         await store.add_metric(recent)
 
         # Third metric triggers eviction of `old` (cpu)
-        await store.add_metric(Metric(name="fps", fields={"v": 30.0}, timestamp=int(1704067400 * 1e9)))
+        await store.add_metric(
+            Metric(name="fps", fields={"v": 30.0}, timestamp=int(1704067400 * 1e9))
+        )
 
         names = await store.get_metric_names()
         assert "cpu" not in names
@@ -228,20 +280,23 @@ class TestMetricsStore:
 
 class TestAddMetricsEvictionInLoop:
     @pytest.mark.asyncio
-    async def test_eviction_triggered_inside_add_metrics_loop(self):
+    async def test_eviction_triggered_inside_add_metrics_loop(self, store):
         """Line 111: _evict_oldest() called per-item when limit reached in add_metrics."""
-        store = MetricsStore(debounce_ms=0)
         store._max_metrics = 2
 
-        await store.add_metrics([
-            Metric(name="a", fields={"v": 1.0}, timestamp=int(1e18)),
-            Metric(name="b", fields={"v": 2.0}, timestamp=int(2e18)),
-        ])
+        await store.add_metrics(
+            [
+                Metric(name="a", fields={"v": 1.0}, timestamp=int(1e18)),
+                Metric(name="b", fields={"v": 2.0}, timestamp=int(2e18)),
+            ]
+        )
 
-        added = await store.add_metrics([
-            Metric(name="c", fields={"v": 3.0}, timestamp=int(3e18)),
-            Metric(name="d", fields={"v": 4.0}, timestamp=int(4e18)),
-        ])
+        added = await store.add_metrics(
+            [
+                Metric(name="c", fields={"v": 3.0}, timestamp=int(3e18)),
+                Metric(name="d", fields={"v": 4.0}, timestamp=int(4e18)),
+            ]
+        )
 
         assert added == 2
         assert store._total_metrics_count <= 2
@@ -300,12 +355,66 @@ class TestPersistToFilesException:
     async def test_persist_logs_error_on_snapshot_failure(self, mocker):
         """Lines 301-302: outer except catches snapshot failure."""
         store = MetricsStore(debounce_ms=0)
-        mocker.patch.object(store, "_persist_to_files_async", side_effect=RuntimeError("snapshot error"))
+        mocker.patch.object(
+            store, "_persist_to_files_async", side_effect=RuntimeError("snapshot error")
+        )
         # Should not propagate the exception
         await store.add_metric(Metric(name="test", fields={"value": 1}))
 
 
 class TestClose:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("start_push", [False, True])
+    async def test_close_cancels_queued_and_active_pushes(self, mocker, start_push):
+        started = asyncio.Event()
+        session = MagicMock()
+        session.closed = False
+        session.close = AsyncMock(side_effect=lambda: setattr(session, "closed", True))
+
+        async def pending_response():
+            started.set()
+            await asyncio.Event().wait()
+
+        response = MagicMock()
+        response.__aenter__ = AsyncMock(side_effect=pending_response)
+        response.__aexit__ = AsyncMock(return_value=False)
+        session.post.return_value = response
+        factory = mocker.patch.object(store_module.aiohttp, "ClientSession", return_value=session)
+        store = MetricsStore(debounce_ms=0)
+        await store.add_metric(Metric(name="test", fields={"value": 1}))
+        tasks = tuple(store._push_tasks)
+        assert len(tasks) == 1
+        if start_push:
+            await asyncio.wait_for(started.wait(), timeout=1)
+        await store.close()
+        await asyncio.sleep(0)
+        assert all(task.done() for task in tasks)
+        assert not store._push_tasks
+        assert store._http_session is None
+        if start_push:
+            session.close.assert_awaited_once()
+        else:
+            factory.assert_not_called()
+        for operation in (
+            store.add_metric(Metric(name="late", fields={"value": 1})),
+            store.add_metrics([Metric(name="late", fields={"value": 1})]),
+        ):
+            with pytest.raises(RuntimeError, match="closed"):
+                await operation
+        await store.close()
+
+    @pytest.mark.asyncio
+    async def test_close_cancels_debounce_before_session_creation(self, mocker):
+        factory = mocker.patch.object(store_module.aiohttp, "ClientSession")
+        store = MetricsStore(debounce_ms=1000)
+        store._last_persist_time = store_module.time.monotonic() * 1000
+        await store.add_metric(Metric(name="test", fields={"value": 1}))
+        task = store._persist_task
+        assert task is not None
+        await store.close()
+        assert task.cancelled()
+        factory.assert_not_called()
+
     @pytest.mark.asyncio
     async def test_close_with_open_session_closes_and_clears(self):
         """Lines 323-325: close() cleans up an open aiohttp session."""
@@ -421,9 +530,8 @@ class TestPushToTelegraf:
 
 class TestEvictNEdgeCases:
     @pytest.mark.asyncio
-    async def test_evict_n_with_zero_does_nothing(self):
+    async def test_evict_n_with_zero_does_nothing(self, store):
         """Line 206: _evict_n(0) returns early without evicting."""
-        store = MetricsStore(debounce_ms=0)
         await store.add_metric(Metric(name="test", fields={"v": 1}))
         initial_count = store._total_metrics_count
 
@@ -432,9 +540,8 @@ class TestEvictNEdgeCases:
         assert store._total_metrics_count == initial_count
 
     @pytest.mark.asyncio
-    async def test_evict_oldest_removes_one_metric(self):
+    async def test_evict_oldest_removes_one_metric(self, store):
         """Line 232: _evict_oldest() calls _evict_n(1)."""
-        store = MetricsStore(debounce_ms=0)
         await store.add_metric(Metric(name="a", fields={"v": 1}, timestamp=int(1e18)))
         await store.add_metric(Metric(name="b", fields={"v": 2}, timestamp=int(2e18)))
         initial_count = store._total_metrics_count

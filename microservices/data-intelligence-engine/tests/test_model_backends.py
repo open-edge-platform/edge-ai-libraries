@@ -14,18 +14,21 @@ import core.postprocessor as postprocessor
 
 
 @pytest.mark.parametrize(
-    ("legacy", "canonical"),
-    [
-        ("openvino", "llamaindex_openvino"),
-        ("openai", "openai_compatible"),
-        ("gme", "native_openvino_gme"),
-    ],
+    "legacy",
+    ["openvino", "openai", "gme", "llamaindex_openvino", "openvino_genai",
+     "openai_compatible", "native_openvino_gme", "openvino_vl"],
 )
-def test_legacy_model_backend_names_are_normalized(legacy, canonical):
-    assert config.normalize_model_backend(legacy) == canonical
+def test_legacy_model_backend_names_are_rejected(legacy):
+    with pytest.raises(ValueError, match="model backend must be one of"):
+        config.normalize_model_backend(legacy)
 
 
-def test_embedding_and_reranker_report_one_shared_backend_list(monkeypatch):
+@pytest.mark.parametrize("backend", config.MODEL_BACKENDS)
+def test_canonical_model_backend_names_are_accepted(backend):
+    assert config.normalize_model_backend(backend.upper()) == backend
+
+
+def test_reranker_reports_media_defaults(monkeypatch):
     def no_workspace_models(model_type=None):
         del model_type
         return []
@@ -37,6 +40,28 @@ def test_embedding_and_reranker_report_one_shared_backend_list(monkeypatch):
 
     assert embedding["backends"] == list(config.MODEL_BACKENDS)
     assert reranker["backends"] == list(config.MODEL_BACKENDS)
+    from schemas import ModelOptions
+    response = ModelOptions(**reranker).model_dump()
+    expected_models = [] if config.RERANK_BACKEND == config.LOCAL_OPENVINO else [{
+        "name": config.RERANK_MODEL_ID, "path": config.RERANK_API_BASE,
+        "ready": True, "model_type": models.RERANKER,
+    }]
+    assert reranker == {
+        "model_type": models.RERANKER,
+        "backend": config.RERANK_BACKEND,
+        "backends": list(config.MODEL_BACKENDS),
+        "device": config.RERANK_DEVICE,
+        "model_id": config.RERANK_MODEL_ID,
+        "media_model_id": config.MEDIA_RERANK_MODEL_ID,
+        "media_backend": config.MEDIA_RERANK_BACKEND,
+        "media_device": config.MEDIA_RERANK_DEVICE,
+        "api_base": config.RERANK_API_BASE,
+        "workspace": config.MODEL_DIR,
+        "models": expected_models,
+    }
+    assert response == {
+        **reranker, "models": [{**model, "media": False} for model in expected_models],
+    }
 
 
 def test_layout_reports_its_own_backend_list(monkeypatch):
@@ -45,7 +70,7 @@ def test_layout_reports_its_own_backend_list(monkeypatch):
     layout = models.model_options(models.LAYOUT)
 
     assert layout["backend"] == config.LAYOUT_BACKEND
-    assert layout["backends"] == list(config.LAYOUT_BACKENDS)
+    assert layout["backends"] == [config.LOCAL_OPENVINO]
     assert layout["model_id"] == config.LAYOUT_MODEL_ID
 
 
@@ -62,6 +87,54 @@ def test_workspace_scan_separates_layout_and_ocr_from_embeddings(tmp_path):
     assert found == {
         "tesseract-ocr": models.OCR,
         "detector": models.LAYOUT,
+    }
+
+
+@pytest.mark.parametrize("nested", (False, True))
+@pytest.mark.parametrize("name, kind, kinds, asset_types", (
+    ("unrecognized-package", models.EMBEDDING, ["text"], ["document"]),
+    ("unrecognized-reranker", models.RERANKER, ["text"], ["audio", "document"]),
+    ("unrecognized-layout", models.LAYOUT, ["image"], ["document", "image"]),
+    ("unrecognized-ocr", models.OCR, [], []),
+))
+def test_unprepared_scan_retains_only_type_capabilities(
+    tmp_path, nested, name, kind, kinds, asset_types,
+):
+    directory = tmp_path / "vendor" / name if nested else tmp_path / name
+    directory.mkdir(parents=True)
+
+    assert models._scan(str(tmp_path)) == [{
+        "name": f"vendor/{name}" if nested else name,
+        "path": str(directory), "ready": False, "model_type": kind,
+        "supported_kinds": kinds, "supported_asset_types": asset_types, "supported_roles": [],
+    }]
+
+
+@pytest.mark.parametrize("artifacts, vl_ready", (
+    ((), False), (("reranker_text.xml",), False),
+    (("reranker_text.xml", "reranker_text.bin"), True),
+))
+def test_vl_capabilities_require_recognized_ir_not_a_model_id(tmp_path, artifacts, vl_ready):
+    directory = tmp_path / "independent-reranker"
+    directory.mkdir()
+    for artifact in artifacts:
+        (directory / artifact).touch()
+    expected = {
+        "name": directory.name, "path": str(directory), "ready": vl_ready,
+        "model_type": models.RERANKER,
+        "supported_kinds": ["image", "text", "video"] if vl_ready else ["text"],
+        "supported_asset_types": ["audio", "document", "image", "video"] if vl_ready else ["audio", "document"],
+        "supported_roles": [],
+    }
+    if vl_ready:
+        expected["media"] = True
+
+    assert models._scan(str(tmp_path)) == [expected]
+
+
+def test_unknown_capability_type_does_not_invent_support():
+    assert models._capabilities("future", media=True) == {
+        "supported_kinds": [], "supported_asset_types": [], "supported_roles": [],
     }
 
 
@@ -98,9 +171,11 @@ def test_workspace_scan_reports_complete_gme_package_ready(tmp_path, monkeypatch
             "name": "gme-Qwen2-VL-2B-Instruct-OV",
             "path": str(model_dir),
             "ready": True,
-            "model_type": kind,
+            "model_type": models.EMBEDDING,
+            "supported_kinds": ["audio", "image", "text"],
+            "supported_asset_types": ["audio", "document", "image"],
+            "supported_roles": ["doc_image", "image", "l2_caption", "l2_transcript", "l3_wiki"],
         }
-        for kind in (models.EMBEDDING, models.MULTIMODAL)
     ]
 
 
@@ -125,18 +200,9 @@ def test_a_gme_package_as_exported_for_the_python_runtime_is_ready(tmp_path, tok
     assert {entry["ready"] for entry in models._scan(str(tmp_path))} == {ready}
 
 
-@pytest.mark.parametrize(
-    ("configured", "canonical"),
-    [
-        ("openvino", "llamaindex_openvino"),
-        ("openai", "openai_compatible"),
-        ("gme", "native_openvino_gme"),
-        ("openvino_genai", "openvino_genai"),
-    ],
-)
-def test_embedding_dispatches_with_canonical_name(
-    monkeypatch, configured, canonical
-):
+@pytest.mark.parametrize("canonical", config.MODEL_BACKENDS)
+def test_embedding_dispatches_with_canonical_name(monkeypatch, canonical):
+    configured = canonical
     def capture_backend(backend, *configuration):
         del configuration
         return backend
@@ -149,13 +215,12 @@ def test_embedding_dispatches_with_canonical_name(
     ) == canonical
 
 
-def test_gme_provider_is_rejected_only_when_building_a_reranker():
-    assert "native_openvino_gme" in config.MODEL_BACKENDS
-
-    with pytest.raises(ValueError, match="no factory implementation"):
-        postprocessor._build(
-            "native_openvino_gme", 3, "gme", "gme", "CPU", ""
-        )
+@pytest.mark.parametrize("legacy", ["native_openvino_gme", "openvino_genai", "openai_compatible"])
+def test_legacy_backend_is_rejected_by_both_factories(legacy):
+    with pytest.raises(ValueError, match="model backend must be one of"):
+        embedding.build_embedding(backend=legacy, model_id="m")
+    with pytest.raises(ValueError, match="model backend must be one of"):
+        postprocessor.build_reranker(backend=legacy, model_id="m")
 
 
 def _gme_package(model_dir, shipped, default="int4"):
@@ -201,6 +266,7 @@ def test_gme_precision_must_be_unambiguous(tmp_path, shipped, error):
 def test_genai_options_are_parsed_from_the_model_directory(tmp_path, monkeypatch):
     from inference import ov_adapter
 
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     monkeypatch.setattr(ov_adapter, "OpenVINOGenAIEmbedding", lambda **options: options)
     model_dir = tmp_path / "dense"
     (model_dir / "1_Pooling").mkdir(parents=True)
@@ -209,7 +275,7 @@ def test_genai_options_are_parsed_from_the_model_directory(tmp_path, monkeypatch
     for name in ("openvino_model.xml", "openvino_model.bin"):
         (model_dir / name).touch()
 
-    options = embedding._build("openvino_genai", "dense", str(model_dir), "CPU", "")
+    options = embedding._build(config.LOCAL_OPENVINO, "dense", "CPU", "")
 
     assert (options["max_length"], options["pooling"]) == (256, "mean")
 

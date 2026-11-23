@@ -2,6 +2,20 @@
 
 This microservice supports features based on the requirements of Video Search and Summarization sample application, which uses this microservice. Refer to Video Search and Summarization [release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/release-notes.html) for release details of this microservice.
 
+## Version 2026.3.0-rc1
+
+**Release Date:** November 6, 2026
+
+**Improved:**
+
+- Bumped the Intel® compute-runtime GPU driver to `26.35.39758.10` with IGC `2.41.5`; the NPU driver stays at `1.38.0` with Level Zero loader `1.32.0`.
+- The GPU user-space stack is installed directly in the Dockerfile instead of through `scripts/install_ubuntu_gpu_drivers.sh` (removed). Downloads retry and fail on HTTP errors, and the build fails if the Level Zero GPU driver or OpenCL ICD is missing, so an image can no longer ship without GPU support. Versions are build arguments (`GPU_COMPUTE_RUNTIME_VERSION`, `GPU_IGC_VERSION`, `GPU_IGC_BUILD`, `GPU_GMMLIB_VERSION`), replacing `INSTALL_DRIVER_VERSION`.
+- Refreshed Python dependencies within the existing constraints to clear fixable image vulnerabilities.
+
+**Upgrade Notes:**
+
+- Custom builds that passed `--build-arg INSTALL_DRIVER_VERSION=...` should use the `GPU_*` build arguments instead.
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026

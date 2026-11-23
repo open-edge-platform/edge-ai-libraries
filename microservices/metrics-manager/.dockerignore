@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Build artefacts that must never enter the build context.
+#
+# native/bin/ holds binaries produced by a developer's local `go build`. The
+# go-builder stage compiles its own from source, so shipping these would only
+# bust the layer cache on every local build and risk baking a stale binary into
+# an image.
+#
+# __pycache__ directories are written by whichever interpreter ran last; when a
+# container writes them through a bind mount they end up owned by root, which
+# then blocks a normal `rm` on the host.
+native/bin/
+native/packaging/dist/
+**/__pycache__/

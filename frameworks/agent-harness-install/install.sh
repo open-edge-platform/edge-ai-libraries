@@ -110,7 +110,7 @@ resolve_payload_dir() {
   printf '%s' "$candidate"
 }
 
-main() {
+main() (
   if is_source_checkout; then
     exec bash "${SCRIPT_DIR}/scripts/install.sh" "$@"
   fi
@@ -123,17 +123,16 @@ main() {
     exit 1
   }
 
-  local ref clone_dir payload_dir cleanup_cmd
+  local ref clone_dir payload_dir
   ref="$(resolve_install_ref)" || exit 1
   clone_dir="$(mktemp -d)"
-  # Expanded now: the EXIT trap runs after main returns, when locals are gone.
-  printf -v cleanup_cmd 'rm -rf -- %q' "$clone_dir"
-  trap "$cleanup_cmd" EXIT
+  # The subshell runs cleanup while this function's local clone path is still in scope.
+  trap 'rm -rf -- "$clone_dir"' EXIT
   echo "Fetching agent-harness-install @ ${ref}…" >&2
   clone_installer_ref "$ref" "$clone_dir"
   payload_dir="$(resolve_payload_dir "$clone_dir")" || exit 1
   bash "${payload_dir}/scripts/install.sh" "$@"
-}
+)
 
 main "$@"
 

@@ -7,7 +7,7 @@
 """Kapacitor service
 """
 
-import subprocess
+import subprocess  # nosec B404 # commands use argument lists with shell=False
 import os
 import os.path
 import time
@@ -20,13 +20,14 @@ import select
 import threading
 import tomlkit
 from influxdb import InfluxDBClient
+from common_utils import exec_command
 
 # Secure temporary directory management
 def get_secure_temp_dir():
     """Get a secure temporary directory path with proper permissions"""
     # Use system temp directory as base, but ensure it's secure
     base_temp = tempfile.gettempdir()
-    tmp_path = "/tmp"
+    tmp_path = "/tmp"  # nosec B108 # writable tmpfs mount in the read-only service container
     if os.path.exists(tmp_path) and os.access(tmp_path, os.W_OK):
         return tmp_path
     else:
@@ -57,8 +58,9 @@ def kapacitor_daemon_logs(logger):
             break
         else:
             time.sleep(1)
-    f = subprocess.Popen(['tail','-F',kapacitor_log_file],
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    f = subprocess.Popen(  # nosec B607 # fixed tail command resolved from the container PATH
+        ['tail', '-F', kapacitor_log_file], shell=False,  # nosec B603 # argument list, no shell
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     p = select.poll()
     p.register(f.stdout)
     while True:
@@ -154,13 +156,13 @@ class KapacitorClassifier():
 
         python_package_requirement_file = secure_temp_path(dir_name, "udfs", "requirements.txt")
         python_package_installation_path = secure_temp_path("py_package")
-        status = subprocess.run(["mkdir", "-p", python_package_installation_path], check=False)
+        status = exec_command(["mkdir", "-p", python_package_installation_path], check=False)
         if status.returncode != SUCCESS:
             self.logger.error("Failed to create directory %s for installing python packages.",
                               python_package_installation_path)
             return False
         if os.path.isfile(python_package_requirement_file):
-            status = subprocess.run([
+            status = exec_command([
                 "pip3", "install", "-r", python_package_requirement_file,
                 "--target", python_package_installation_path
             ], check=False)
@@ -201,8 +203,9 @@ class KapacitorClassifier():
                     os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] = "{}{}".format(
                         http_scheme, influxdb_hostname_port)
 
-            self.kapacitor_proc = subprocess.Popen(
-                ["kapacitord", "-hostname", kapacitor_url_hostname, "-config", kapacitor_conf]
+            self.kapacitor_proc = subprocess.Popen(  # nosec B607 # fixed daemon resolved from the container PATH
+                ["kapacitord", "-hostname", kapacitor_url_hostname, "-config", kapacitor_conf],
+                shell=False,  # nosec B603 # argument list, no shell
             )
 
             # Start a thread to reap the kapacitor process when it exits
@@ -265,7 +268,7 @@ class KapacitorClassifier():
             # Fallback when /proc is unavailable and ps exists.
             ps_path = shutil.which("ps")
             if ps_path:
-                out = subprocess.run(
+                out = exec_command(
                     [ps_path, "-eo", "stat=,comm=,args="],
                     stdout=subprocess.PIPE,
                     check=False,
@@ -346,10 +349,10 @@ class KapacitorClassifier():
                                   task_name, "-tick",
                                   tick_script_path]
             try:
-                subprocess.check_call(define_pointcl_cmd)
+                exec_command(define_pointcl_cmd, check=True)
                 define_pointcl_cmd = ["kapacitor", "-skipVerify", "enable",
                                       task_name]
-                subprocess.check_call(define_pointcl_cmd)
+                exec_command(define_pointcl_cmd, check=True)
                 self.logger.info("Kapacitor Tasks Enabled Successfully")
                 self.logger.info("Kapacitor Initialized Successfully. "
                                  "Ready to Receive the Data....")

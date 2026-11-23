@@ -1,10 +1,72 @@
 # Release Notes: Inference Router
 
+## Version 2026.3.0
+
+**Release Date:** TBD
+
+**New**:
+
+- Configurable Model-Based Strategies:
+
+  - `ModelBasedRule` runs a small classifier model on the router host against
+    the last user message and returns a routing zone index that the strategy's
+    index-keyed `provider_selector` maps to a provider (for example
+    `0 -> local`, `1 -> cloud`). The built-in `ModelBased` policy runs the
+    `ModelBasedRouting` strategy.
+  - Choose the classifier for each rule with `param`: a stored `version`,
+    prompt `text`, or a multi-class `prompt_file` that routes to your own
+    categories (one zone per `provider_selector.label` entry).
+  - Configure at runtime with `POST /v1/strategies/{name}`. The router checks
+    the classifier before writing anything, loads the new policy's classifiers
+    before switching to it (`IR_SWAP_MODE`), and reports what changed in
+    `prompt_result` and `reconcile`. `GET /v1/strategies/{name}` lists the
+    available models and versions in `classifier_options`.
+  - If a classifier version cannot be loaded, the rule falls back to the
+    packaged default, or to `-1` (no classifier guidance); requests keep
+    being served.
+  - See [Model-Based Routing](./routing.md#model-based-routing).
+
+- Soft Prompts:
+
+  - Each backbone ships a trained soft-prompt classifier version (`v1`) in
+    `src/rsd/model_based/prompts/<backbone>/v1.rcv`, which works for
+    local/cloud routing without any training.
+  - A text system prompt posted with `param.text` is packed into a hard-prompt
+    version (`<IR_ARTIFACTS_DIR>/<backbone>/vN.rcv`), and you can switch back
+    to it by `version` at any time.
+  - The router checks each version's format and fingerprint against the loaded
+    backbone before using it, so a version built for a different model is
+    rejected.
+
+- Provider Probes:
+
+  - A per-provider background task fetches an endpoint on an interval (for
+    example a backend's Prometheus `/metrics` endpoint), reads numeric fields
+    with `regex` or `json` rules, and reduces them over a sliding window
+    (`mean`, `median`, `p90`, `ewma`, `latest`, and more).
+  - Values are published to the provider's routing metadata (for example
+    `performance.*`), to a capped JSONL history file, or to both. Everything is
+    declared under a provider's `settings.probes`; no per-backend code is
+    needed.
+  - Add, start, and stop probes at runtime through the providers API. Live
+    values are returned by `GET /v1/providers` and are never written to
+    `config.yaml`.
+  - New `PerformanceBased` strategy and `PerformanceFirst` policy route to the
+    least-loaded backend, filtering providers by `performance` bounds or
+    ranges (for example `[null, 0.9]`) and sorting on a live metric.
+  - See [Provider Probes](./probe.md) and
+    [Performance-Based Routing](./routing.md#performance-based-routing).
+
+**Changed**:
+
+- `IntelligentRule` is replaced by `ModelBasedRule`. Update any custom
+  `strategy.yaml` that references the old rule type.
+
 ## Version 2026.2.0
 
-**August, 2026**
+**Release Date:** September 9, 2026
 
-**New**
+**New**:
 
 - Policy-Based and Intelligent Routing:
 
@@ -16,7 +78,7 @@
     the `provider_selector` matching, including zone-mapped selectors.
   - Built-in `Balanced` and `CostFirst` policies with `FirstMatch` or `AllMatch`
     criteria, plus a first-available-provider fallback.
-  - `IntelligentRule`: a model-based classifier (bundled OpenVINO Qwen3.5)
+  - `IntelligentRule`: a model-based classifier (bundled OpenVINO™ Qwen3.5)
     maps the last user message to an index and routes accordingly (e.g.
     `0 -> local`, `1 -> cloud`). Configure the model with `IR_OV_MODEL`.
   - See the [Routing guide](./routing.md).
@@ -56,7 +118,7 @@
 
   - A Vue-based dashboard for managing providers and monitoring telemetry,
     including latency and token metrics. Supports light and dark themes, and English
-	and Chinese locales.
+    and Chinese locales.
   - Build and run with Docker Compose tool from `ui/docker`.
 
 - Intel® GPU Support:
@@ -69,14 +131,13 @@
 
   - Detailed health check and service information endpoints.
   - Token accounting integrated with telemetry; router processing time is
-    excluded from the Time To First Token (TTFT) statistics.
-
+    excluded from the time-to-first-token (TTFT) statistics.
 
 ## Version 2026.1.0
 
-**June 17, 2026**
+**Release Date:** June 17, 2026
 
-**New**
+**New**:
 
 - Initial release of the Inference Router microservice.
 
@@ -98,7 +159,7 @@
 
   - The `/v1/metrics` endpoint breaks down request counts by each unique
     (model, provider) pair, token usage, end-to-end latency, TTFT, and
-	Time Per Output Token (TPOT).
+    time-per-output-token (TPOT).
   - The `POST /v1/metrics/reset` endpoint clears accumulated counters.
 
 - Configuration:

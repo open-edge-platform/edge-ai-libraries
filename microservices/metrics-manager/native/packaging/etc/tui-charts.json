@@ -1,0 +1,107 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "historyDuration": "5m",
+  "maxPoints": 600,
+  "chartHeight": 6,
+  "graphMode": "braille",
+  "details": {
+    "defaultMetric": "cpu.totalPercent",
+    "chartHeight": 10,
+    "mouse": true,
+    "metrics": [
+      {"metric": "cpu.totalPercent", "title": "CPU utilization", "unit": "%", "min": 0, "max": 100},
+      {"metric": "cpu.classPercent", "title": "Core class utilization", "unit": "%", "min": 0, "max": 100},
+      {"metric": "cpu.temperatureC", "title": "CPU temperature", "unit": "°C", "min": 0, "max": 110},
+      {"metric": "cpu.frequencyMHz", "title": "CPU frequency", "unit": "MHz"},
+      {"metric": "cpu.powerW", "title": "CPU package power", "unit": "W"},
+      {"metric": "memory.usedPercent", "title": "Memory used", "unit": "%", "min": 0, "max": 100},
+      {"metric": "memory.bandwidthGBps", "title": "Memory bandwidth", "unit": "GB/s"},
+      {"metric": "memory.readGBps", "title": "DRAM read", "unit": "GB/s"},
+      {"metric": "memory.writeGBps", "title": "DRAM write", "unit": "GB/s"},
+      {"metric": "rapl.powerW", "title": "RAPL power", "unit": "W"},
+      {"metric": "gpu.utilizationPercent", "title": "GPU utilization", "unit": "%", "min": 0, "max": 100},
+      {"metric": "gpu.enginePercent", "title": "GPU engine utilization", "unit": "%", "min": 0, "max": 100},
+      {"metric": "gpu.temperatureC", "title": "GPU temperature", "unit": "°C", "min": 0, "max": 110},
+      {"metric": "gpu.frequencyMHz", "title": "GPU tile frequency", "unit": "MHz"},
+      {"metric": "gpu.powerW", "title": "GPU graphics power", "unit": "W"},
+      {"metric": "gpu.vramPercent", "title": "GPU VRAM used", "unit": "%", "min": 0, "max": 100},
+      {"metric": "npu.utilizationPercent", "title": "NPU utilization", "unit": "%", "min": 0, "max": 100},
+      {"metric": "npu.temperatureC", "title": "NPU temperature", "unit": "°C", "min": 0, "max": 110},
+      {"metric": "npu.frequencyMHz", "title": "NPU frequency", "unit": "MHz"},
+      {"metric": "npu.powerW", "title": "NPU power", "unit": "W"},
+      {"metric": "npu.memoryMiB", "title": "NPU memory", "unit": "MiB"},
+      {"metric": "network.rxMiBps", "title": "RX transfer", "unit": "MiB/s", "min": 0},
+      {"metric": "network.txMiBps", "title": "TX transfer", "unit": "MiB/s", "min": 0},
+      {"metric": "network.rxPercent", "title": "RX link utilization", "unit": "%", "min": 0, "max": 100},
+      {"metric": "network.txPercent", "title": "TX link utilization", "unit": "%", "min": 0, "max": 100},
+      {"metric": "network.rxPacketsPerSecond", "title": "RX packets", "unit": "/s", "min": 0},
+      {"metric": "network.txPacketsPerSecond", "title": "TX packets", "unit": "/s", "min": 0},
+      {"metric": "network.rxErrorsPerSecond", "title": "RX errors", "unit": "/s", "min": 0},
+      {"metric": "network.txErrorsPerSecond", "title": "TX errors", "unit": "/s", "min": 0},
+      {"metric": "network.rxDropsPerSecond", "title": "RX drops", "unit": "/s", "min": 0},
+      {"metric": "network.txDropsPerSecond", "title": "TX drops", "unit": "/s", "min": 0},
+      {"metric": "storage.usedPercent", "title": "Space used", "unit": "%", "min": 0, "max": 100},
+      {"metric": "storage.inodesPercent", "title": "Inodes used", "unit": "%", "min": 0, "max": 100},
+      {"metric": "storage.freeGiB", "title": "Free space", "unit": "GiB", "min": 0},
+      {"metric": "storage.readMiBps", "title": "Read transfer", "unit": "MiB/s", "min": 0},
+      {"metric": "storage.writeMiBps", "title": "Write transfer", "unit": "MiB/s", "min": 0},
+      {"metric": "storage.readIOPS", "title": "Read IOPS", "unit": "IOPS", "min": 0},
+      {"metric": "storage.writeIOPS", "title": "Write IOPS", "unit": "IOPS", "min": 0},
+      {"metric": "storage.readAwaitMs", "title": "Read await", "unit": "ms", "min": 0},
+      {"metric": "storage.writeAwaitMs", "title": "Write await", "unit": "ms", "min": 0},
+      {"metric": "storage.busyPercent", "title": "I/O busy time", "unit": "%", "min": 0},
+      {"metric": "storage.queueDepth", "title": "Average queue depth", "unit": "requests", "min": 0},
+      {"metric": "storage.inProgress", "title": "I/O in progress", "unit": "requests", "min": 0}
+    ]
+  },
+  "charts": [
+    {
+      "metric": "cpu.totalPercent",
+      "title": "CPU utilization",
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    },
+    {
+      "metric": "memory.usedPercent",
+      "title": "Memory used",
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    },
+    {
+      "metric": "cpu.temperatureC",
+      "title": "CPU temperature",
+      "unit": "°C",
+      "min": 0,
+      "max": 110
+    },
+    {
+      "metric": "gpu.utilizationPercent",
+      "title": "GPU utilization",
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    },
+    {
+      "metric": "gpu.temperatureC",
+      "title": "GPU temperature",
+      "unit": "°C",
+      "min": 0,
+      "max": 110
+    },
+    {
+      "metric": "npu.utilizationPercent",
+      "title": "NPU utilization",
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    },
+    {"metric": "network.rxMiBps", "title": "RX transfer", "unit": "MiB/s", "min": 0},
+    {"metric": "network.txMiBps", "title": "TX transfer", "unit": "MiB/s", "min": 0},
+    {"metric": "storage.usedPercent", "title": "Space used", "unit": "%", "min": 0, "max": 100},
+    {"metric": "storage.readMiBps", "title": "Read transfer", "unit": "MiB/s", "min": 0},
+    {"metric": "storage.writeMiBps", "title": "Write transfer", "unit": "MiB/s", "min": 0}
+  ]
+}

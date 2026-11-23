@@ -26,7 +26,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 -------------------------------------------------------------
-2)aiohttp, aiosignal, decord, frozenlist, hf-xet, huggingface-hub, importlib_metadata, minio, multidict, opencv-python-headless, orjson, packaging, propcache, python-multipart, regex, requests, requests-toolbelt, safetensors, sniffio, tenacity, tokenizers, transformers, yarl
+2)aiohttp, aiosignal, frozenlist, hf-xet, huggingface-hub, importlib_metadata, minio, multidict, opencv-python-headless, orjson, packaging, propcache, python-multipart, regex, requests, requests-toolbelt, safetensors, sniffio, tenacity, tokenizers, transformers, yarl
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/

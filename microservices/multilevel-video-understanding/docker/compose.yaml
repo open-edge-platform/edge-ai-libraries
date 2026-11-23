@@ -2,54 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 services:
-  # On-device model serving: a single vLLM-IPEX instance serving one multimodal
-  # model (Qwen3.5-35B-A3B) for BOTH the VLM and LLM roles. Runs on the Intel
-  # integrated GPU (/dev/dri) with shared system RAM.
-  vllm-ipex-serving:
-    container_name: vllm-ipex-serving
-    image: ${VLLM_IMAGE:-intel/llm-scaler-vllm:0.14.0-b8.3.2}
-    privileged: true
-    restart: "${VLLM_RESTART_POLICY:-on-failure:2}"
-    ports:
-      - ${VLLM_SERVICE_PORT:-41091}:8000
-    group_add:
-      - ${VIDEO_GROUP_ID}
-      - ${RENDER_GROUP_ID}
-    volumes:
-      - ${HF_HOME}:/llm/.cache/huggingface
-      # Repo-local serving launcher + Intel XPU vLLM patches.
-      - ./vllm-serving:/llm/test_resources:ro
-    devices:
-      - /dev/dri
-    environment:
-      no_proxy: ${no_proxy}
-      http_proxy: ${http_proxy}
-      https_proxy: ${https_proxy}
-      HF_ENDPOINT: ${HF_ENDPOINT:-https://huggingface.co}
-      HF_HOME: /llm/.cache/huggingface
-      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
-      MODEL_PATH: ${LLM_MODEL}
-      SERVED_MODEL_NAME: ${LLM_MODEL}
-      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-61440}
-      LOAD_QUANTIZATION: ${LOAD_QUANTIZATION:-fp8}
-      TENSOR_PARALLEL_SIZE: ${TENSOR_PARALLEL_SIZE:-1}
-      GPU_MEM_UTIL: ${GPU_MEM_UTIL:-0.7}
-      VLLM_OFFLOAD_WEIGHTS_BEFORE_QUANT: ${VLLM_OFFLOAD_WEIGHTS_BEFORE_QUANT:-1}
-    shm_size: '16g'
-    entrypoint: /bin/bash -c "\
-      source /opt/intel/oneapi/setvars.sh --force && \
-      cd /llm/test_resources && \
-      bash start_server_enable_cache.sh"
-    networks:
-      - app-network
-    healthcheck:
-      # First launch downloads + compiles the model (about 30 mins); give it room.
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/v1/models >/dev/null || exit 1"]
-      start_period: 7200s
-      start_interval: 10s
-      interval: 5m
-      timeout: 5s
-      retries: 3
+  # Backend-specific image, mounts, and entrypoint are owned by model_serving/.
+  model-serving:
+    container_name: model-serving-${MODEL_SERVING_BACKEND:-llm-scaler}
+    extends:
+      file: model_serving/${MODEL_SERVING_BACKEND:-llm-scaler}/docker-compose.yaml
+      service: model-serving-${MODEL_SERVING_BACKEND:-llm-scaler}
 
   multilevel-video-understanding:
     build:
@@ -57,16 +15,17 @@ services:
       dockerfile: docker/Dockerfile
       target: prod
       args:
-        http_proxy: ${http_proxy}
-        https_proxy: ${https_proxy}
-        no_proxy: ${no_proxy}
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        no_proxy: ${no_proxy:-localhost,127.0.0.1,model-serving,multilevel-video-understanding}
     image: ${REGISTRY:-}multilevel-video-understanding:${TAG:-latest}
+    container_name: multilevel-video-understanding
     ports:
       - ${SERVICE_PORT:-8192}:8000
     networks:
       - app-network
     depends_on:
-      vllm-ipex-serving:
+      model-serving:
         condition: service_healthy
     group_add:
       - ${USER_GROUP_ID:-1000}
@@ -81,16 +40,17 @@ services:
       #   mkdir -p "$VIDEO_SUMMARY_CACHE_HOST/tasks"
       - ${VIDEO_SUMMARY_CACHE_HOST}:/home/appuser/.cache/.multilevel-video-understanding:rw
     environment:
-      - http_proxy=$http_proxy
-      - https_proxy=$https_proxy
-      - no_proxy=$no_proxy
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - no_proxy=${no_proxy:-localhost,127.0.0.1,model-serving,multilevel-video-understanding}
       - DEBUG=${DEBUG:-false}
-      # Both roles are served by the on-device vllm-ipex-serving on app-network.
-      - VLM_MODEL_NAME=${VLM_MODEL_NAME:-${LLM_MODEL}}
-      - VLM_BASE_URL=${VLM_BASE_URL:-http://vllm-ipex-serving:8000/v1}
+      # Both roles use the stable model-serving DNS name on app-network.
+      - MODEL_SERVING_BACKEND=${MODEL_SERVING_BACKEND:-llm-scaler}
+      - VLM_MODEL_NAME=${VLM_MODEL_NAME:-${LLM_MODEL:-Qwen/Qwen3.6-35B-A3B}}
+      - VLM_BASE_URL=${VLM_BASE_URL:-http://model-serving:8000/v1}
       - VLM_API_KEY=${VLM_API_KEY:-EMPTY}
-      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-${LLM_MODEL}}
-      - LLM_BASE_URL=${LLM_BASE_URL:-http://vllm-ipex-serving:8000/v1}
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-${LLM_MODEL:-Qwen/Qwen3.6-35B-A3B}}
+      - LLM_BASE_URL=${LLM_BASE_URL:-http://model-serving:8000/v1}
       - LLM_API_KEY=${LLM_API_KEY:-EMPTY}
       - MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS:-6}
       - DEFAULT_MAX_TOKENS=${DEFAULT_MAX_TOKENS:-512}

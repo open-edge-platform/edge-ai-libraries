@@ -3,7 +3,7 @@
 
 [project]
 name = "metrics-manager"
-version = "2026.2.0"
+version = "2026.3.0"
 description = "Unified metrics collection, ingestion, and relay service with OpenTelemetry support"
 requires-python = ">=3.12"
 dependencies = [
@@ -50,6 +50,11 @@ include = ["app*"]
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "error::ResourceWarning",
+    "error::pytest.PytestUnraisableExceptionWarning",
+]
 markers = [
     "integration: marks tests as integration tests requiring Docker (deselect with -m 'not integration')",
 ]

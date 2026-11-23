@@ -36,6 +36,7 @@ def _build_retriever_payload(
     query_request: Any,
     initial_k: int,
     time_range: Optional[Tuple[str, str]],
+    min_score: Optional[float] = None,
 ) -> list[dict]:
     """Build the vector-retriever ``/query`` request body for a single query.
 
@@ -66,6 +67,8 @@ def _build_retriever_payload(
     if time_range is not None:
         start, end = time_range
         item["time_filter"] = {"start": start, "end": end}
+    if min_score is not None and min_score > 0:
+        item["min_score"] = min_score
     return [item]
 
 
@@ -73,6 +76,7 @@ async def retrieve_frames_via_service(
     query_request: Any,
     initial_k: int,
     time_range: Optional[Tuple[str, str]] = None,
+    min_score: Optional[float] = None,
 ) -> List[Tuple[RetrievedDocument, float]]:
     """Delegate similarity search to the vector-retriever microservice.
 
@@ -80,6 +84,8 @@ async def retrieve_frames_via_service(
         query_request: The incoming query (must expose ``query_id`` and ``query``).
         initial_k: Number of frame candidates to request (maps to retriever ``top_k``).
         time_range: Optional ``(start, end)`` ISO strings to push down as a time filter.
+        min_score: Optional minimum frame score; pushed down so the retriever
+            drops weaker frames before its ``top_k`` cut. ``None``/0 disables it.
 
     Returns:
         A list of ``(RetrievedDocument, score)`` tuples ordered by relevance.
@@ -88,7 +94,7 @@ async def retrieve_frames_via_service(
         RuntimeError: If the retriever call fails or returns an error payload.
     """
     endpoint = settings.RETRIEVER_ENDPOINT.rstrip("/")
-    payload = _build_retriever_payload(query_request, initial_k, time_range)
+    payload = _build_retriever_payload(query_request, initial_k, time_range, min_score)
 
     timeout = aiohttp.ClientTimeout(total=settings.RETRIEVER_TIMEOUT_SECONDS)
     # trust_env=False so internal service-to-service calls never route through a

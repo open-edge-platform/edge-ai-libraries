@@ -1,13 +1,10 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Combined retrieval and optional postprocessing endpoint.
+"""Stateless retrieval and optional postprocessing endpoint."""
 
-Stateless by design: the caller (its retrieval pipeline) owns the stage
-configuration and sends all of it on every request. The engine holds asset
-libraries and models, never pipelines or a "current" asset library.
-"""
-
+import asyncio
 import logging
+import time
 from collections import OrderedDict
 from itertools import zip_longest
 from typing import Optional
@@ -23,9 +20,10 @@ from core.indexer import MultimodalIndexer
 from core.multimodal.retrieval import _TARGET_ROLES, _projection_target, media_nodes_to_chunks, targeted_projections
 from core.file_asset_library import nodes_to_chunks, postprocess_chunks
 from core.manager import registry
-from core.retrievers import RETRIEVER_TYPES, build_pool_retriever, graph_search_of
-from schemas import GraphTrace, RerankerModelIn, RetrieveRequest, RetrieveResult
-from fastapi import APIRouter, HTTPException, Response, status
+from core.postprocessor import is_media_reranker
+from core.retrievers import RETRIEVER_TYPES, build_pool_retriever, graph_search_of, pool_asset_scope
+from schemas import GraphTrace, RetrieveRequest, RetrieveResult
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from llama_index.core.vector_stores.types import (
@@ -37,12 +35,12 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/v1/retrieve", response_model=RetrieveResult)
-async def retrieve(body: RetrieveRequest):
+async def retrieve(body: RetrieveRequest, request: Request = None):
     """Retrieve across libraries, then optionally postprocess the merged set."""
+    started = time.monotonic()
     if not body.query.strip() or not 1 <= body.top_k <= 100:
         raise HTTPException(status_code=400, detail="nonempty query and top_k between 1 and 100 are required")
-    if (body.postprocess is not None and body.postprocess.processor_type == "reranker"
-            and (body.postprocess.top_n is None or body.postprocess.top_n < 1)):
+    if body.postprocess is not None and (body.postprocess.top_n is None or body.postprocess.top_n < 1):
         raise HTTPException(status_code=400, detail="postprocess.top_n must be positive")
     if body.retriever_type and body.retriever_type not in RETRIEVER_TYPES:
         raise HTTPException(status_code=400, detail=f"unsupported retriever type {body.retriever_type!r}")
@@ -86,28 +84,26 @@ async def retrieve(body: RetrieveRequest):
     postprocess_error = None
     if body.postprocess is not None:
         options = body.postprocess
-        if options.processor_type == "reranker":
-            requested_media = bool(set(body.target_media) & {"image", "video", "audio"})
-            recalled_media = any(
-                chunk.metadata.get("target_media") not in (None, "document")
-                and chunk.metadata.get("role") != ROLE_DOC_IMAGE
-                for chunk in chunks
-            )
-            if options.reranker_model is None and (requested_media or recalled_media):
-                options = options.model_copy(update={
-                    "reranker_model": RerankerModelIn(backend="openvino_vl"),
-                })
-            backend = options.reranker_model.backend if options.reranker_model else None
-            if backend != "openvino_vl":
-                for chunk in chunks:
-                    text = chunk.text.strip() or str(chunk.metadata.get("surrounding_text") or "").strip()
-                    if not text or text in (chunk.metadata.get("media_key"), chunk.metadata.get("file_name")):
-                        raise HTTPException(status_code=400, detail="text reranker requires meaningful candidate text")
-                    chunk.text = text
-        else:
-            backend = None
+        requested_media = bool(set(body.target_media) & {"image", "video", "audio"})
+        recalled_media = any(
+            chunk.metadata.get("target_media") not in (None, "document")
+            and chunk.metadata.get("role") != ROLE_DOC_IMAGE
+            for chunk in chunks
+        )
+        selected = options.reranker_model
+        # Default to the media reranker for media candidates; otherwise follow the chosen model.
+        media_rerank = (
+            requested_media or recalled_media or is_media_reranker(config.RERANK_MODEL_ID) if selected is None
+            else is_media_reranker(selected.model_id or config.RERANK_MODEL_ID)
+        )
+        if not media_rerank:
+            for chunk in chunks:
+                text = chunk.text.strip() or str(chunk.metadata.get("surrounding_text") or "").strip()
+                if not text or text in (chunk.metadata.get("media_key"), chunk.metadata.get("file_name")):
+                    raise HTTPException(status_code=400, detail="text reranker requires meaningful candidate text")
+                chunk.text = text
         try:
-            if backend == "openvino_vl":
+            if media_rerank:
                 chunks = await run_in_threadpool(
                     postprocess_chunks,
                     options.query or body.query, chunks, options.processor_type,
@@ -136,7 +132,25 @@ async def retrieve(body: RetrieveRequest):
         metadata = chunk.metadata
         key = (metadata.get("library"), metadata.get("pool_id"))
         retrieved_ids_by_scope.setdefault(key, set()).add(chunk.id)
+    media_diagnostics = None
+    if body.include_media_data:
+        from core.media_inputs import enrich_media
+
+        retrieval_ms = round((time.monotonic() - started) * 1000, 2)
+        preparation = asyncio.create_task(enrich_media(chunks, {lib.name: lib for lib in asset_libraries}))
+        try:
+            while not preparation.done():
+                if request is not None and await request.is_disconnected():
+                    raise asyncio.CancelledError()
+                await asyncio.wait({preparation}, timeout=.1)
+            media_diagnostics = await preparation
+            media_diagnostics["retrieval_ms"] = retrieval_ms
+        finally:
+            if not preparation.done():
+                preparation.cancel()
+                await asyncio.gather(preparation, return_exceptions=True)
     return RetrieveResult(
+        media_diagnostics=media_diagnostics,
         query=body.query,
         libraries=[asset_library.name for asset_library in asset_libraries],
         retrieved_chunks=retrieved_chunks,
@@ -284,7 +298,10 @@ def _merge_candidates(chunks):
             if chunk is None:
                 continue
             metadata = chunk.metadata
-            identity = (metadata.get("library"), metadata.get("pool_id"), metadata.get("asset_id"), chunk.id)
+            identity = (
+                metadata.get("library"), metadata.get("asset_id"),
+                metadata.get("block_id") or chunk.id, chunk.text.strip(),
+            )
             if identity in seen:
                 continue
             seen.add(identity)
@@ -307,6 +324,9 @@ def _retrieve_chunks(asset_library, body: RetrieveRequest, traces: list):
         for target in ("image", "video", "audio")
     }
     for asset_pool in pools:
+        scope = pool_asset_scope(asset_pool)
+        if scope is not None and not scope:
+            continue
         vectors = [
             projection for projection in asset_pool.serving
             if getattr(projection, "kind", None) == "vector"
@@ -386,8 +406,7 @@ def _retrieve_chunks(asset_library, body: RetrieveRequest, traces: list):
     return chunks
 
 
-# Magic-byte prefixes, because the content store keeps only bytes -- not the
-# content type they were written with -- so the media type is sniffed here.
+# Magic-byte prefixes; the content store does not keep content types.
 _MEDIA_SIGNATURES = (
     (b"\xff\xd8\xff", "image/jpeg"),
     (b"\x89PNG\r\n\x1a\n", "image/png"),
@@ -410,11 +429,7 @@ def _sniff_media_type(data: bytes) -> str:
 async def get_blob(library: str, media_key: str, source_id: Optional[str] = None):
     """Serve a content-store blob or a registered asset's local media file.
 
-    `library`, `media_key` and `source_id` are exactly the fields a retrieved
-    chunk carries in its metadata, so a client renders an image node by handing
-    them back here. Object keys stay restricted to `blobs/`. A `file://` key
-    must exactly match a registered asset's binary block within the requested
-    source; the library's reader verifies this before opening any local file.
+    A `file://` key must match a registered asset's binary block within the requested source.
     """
     if not (media_key.startswith(f"{BLOB_PREFIX}/") or is_file_uri(media_key)):
         raise HTTPException(
@@ -427,8 +442,6 @@ async def get_blob(library: str, media_key: str, source_id: Optional[str] = None
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
     try:
         if is_file_uri(media_key):
-            # Content records may require synchronous I/O to authorize. Resolve
-            # the registered reference off-loop, never the caller's URI alone.
             path = await run_in_threadpool(
                 asset_library.blob_file_path, media_key, source_id
             )

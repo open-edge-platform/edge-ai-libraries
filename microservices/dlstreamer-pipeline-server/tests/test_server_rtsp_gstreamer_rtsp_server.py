@@ -71,11 +71,28 @@ class TestGStreamerRtspServer:
         server.add_stream('test_id', '/test', stream)
         assert getattr(server, '_streams')['/test'] == stream
         getattr(server, '_mount_points').add_factory.assert_called_once_with(
-            '/test', getattr(server, '_factory')
+            '/test', getattr(server, '_factories')['/test']
         )
         logging_mock.get_logger.return_value.info.assert_called_once_with(
             "Created RTSP Stream for instance test_id at rtsp:://<host ip>:8888/test"
         )
+
+    def test_add_stream_uses_a_new_factory_per_stream(self, request):
+        """A restarted pipeline on the same path must not get the cached media of its predecessor, so every
+        add_stream creates its own factory and remove_stream drops it."""
+        server = request.getfixturevalue("gstreamer_rtsp_server")
+        factory_class = request.getfixturevalue("mock_factory")
+        factory_class.side_effect = lambda _server: MagicMock()
+        setattr(server, '_mount_points', MagicMock())
+        stream = Stream('source', 'caps', True, None, 'mjpeg')
+        server.add_stream('id1', '/test', stream)
+        first = server._factories['/test']
+        server.remove_stream('/test')
+        assert '/test' not in server._factories
+        server.add_stream('id2', '/test', stream)
+        assert server._factories['/test'] is not first
+        server._factories['/test'].set_shared.assert_called_once_with(True)
+        server._factories['/test'].set_eos_shutdown.assert_called_once_with(True)
 
     def test_add_stream_h264_encoding(self, request):
         """add_stream must store the caller-supplied Stream, including an
@@ -95,6 +112,17 @@ class TestGStreamerRtspServer:
         gstreamer_rtsp_server._streams = {'/test1': MagicMock()}
         gstreamer_rtsp_server.remove_stream('/test')
         assert '/test1' in gstreamer_rtsp_server._streams
+
+    def test_remove_stream_keeps_a_stream_owned_by_another_destination(self, gstreamer_rtsp_server):
+        """A stopped pipeline releases its path early; its later release must not remove the stream of the
+        pipeline that registered the same path in the meantime."""
+        old_owner, new_owner = MagicMock(), MagicMock()
+        gstreamer_rtsp_server._streams = {'/test': MagicMock(source=new_owner)}
+        gstreamer_rtsp_server.remove_stream('/test', old_owner)
+        assert '/test' in gstreamer_rtsp_server._streams
+        gstreamer_rtsp_server._mount_points.remove_factory.assert_not_called()
+        gstreamer_rtsp_server.remove_stream('/test', new_owner)
+        assert gstreamer_rtsp_server._streams == {}
 
     def test_get_source(self, gstreamer_rtsp_server):
         mock_stream = MagicMock()

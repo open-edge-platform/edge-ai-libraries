@@ -49,6 +49,26 @@ export class VideoDbService {
     return this.videoRepo.save(existingVideo);
   }
 
+  /**
+   * Write only the given embedding-status columns. A targeted UPDATE rather
+   * than `update()`'s read-modify-save, so concurrent writers (e.g. several
+   * chunk-caption embeddings landing at once, or a tag merge) cannot clobber
+   * each other's columns. `null` when the video does not exist.
+   */
+  async setEmbeddingFlags(
+    videoId: string,
+    flags: Partial<Pick<Video, 'textEmbeddings' | 'searchEmbeddings'>>,
+  ): Promise<VideoEntity | null> {
+    const result = await this.videoRepo.update(
+      { videoId },
+      { ...flags, updatedAt: new Date().toISOString() },
+    );
+    if (!result.affected) {
+      return null;
+    }
+    return this.read(videoId);
+  }
+
   async remove(videoId: string): Promise<boolean> {
     const result = await this.videoRepo.delete({ videoId });
     return (result.affected ?? 0) > 0;

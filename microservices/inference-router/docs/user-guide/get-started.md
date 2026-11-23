@@ -1,6 +1,14 @@
+<!--hide_directive
+```{eval-rst}
+.. meta::
+   :description: Quick start guide for deploying the Inference Router, configuring a backend, and verifying the OpenAI-compatible API.
+   :keywords: inference router, quick start, OpenAI-compatible, LiteLLM, vLLM, Docker Compose, model-based routing, pass-through services, compression plugins
+```
+hide_directive-->
+
 # Quick Start Guide
 
-- **Time to Complete:** 10 mins
+- **Time to Complete:** 10 minutes
 - **Programming Language:** Python
 
 Get the Inference Router running with one configured backend and verify the
@@ -75,14 +83,14 @@ When `workspace/config.yaml` references values such as `${OPENAI_API_KEY}` or
 `${ANTHROPIC_API_KEY}`, Docker Compose tool forwards them from `workspace/.env`
 into the container.
 
+#### Model preparation
 
-#### Model Preparation
-Docker Compose deployments require the OpenVINO classifier model prepared
+Docker Compose deployments require the OpenVINO™ classifier model prepared
 **before starting the router**, even if you do not enable model-based routing
 yet: the compose file mounts it into the container. The default model-based
-routing classifier model is `Qwen3.5-2B` in OpenVINO FP16 format.
+routing classifier model is `Qwen3.5-2B` in OpenVINO™ FP16 format.
 
-Download the Qwen3.5 2B OpenVINO model. If your environment uses an internal
+Download the Qwen3.5 2B OpenVINO™ model. If your environment uses an internal
 model mirror, download the same `OpenVINO/Qwen3.5-2B-fp16-ov` repository from
 it:
 
@@ -91,22 +99,26 @@ it:
 pip install -U huggingface_hub
 ```
 
-> **Note**: if you encounter an `externally-managed-environment` error,
-either run the install command with `--break-system-packages`, or create
-a Python virtual environment first.
+> [!TIP]
+> If you encounter an `externally-managed-environment` error, either run the
+> install command with `--break-system-packages`, or create a Python virtual
+> environment first.
 
 ```bash
 hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen3.5-2B-FP16
 ```
 
-> **Note**: **`/opt` permissions:** the default `/opt/models` is typically root-owned.
+> [!NOTE]
+> **`/opt` permissions:** The default `/opt/models` is typically root-owned.
 > Grant your user access
 > (`sudo mkdir -p /opt/models && sudo chown "$USER:$USER" /opt/models`).
 
-> For users based in PRC, you might need to set `export HF_ENDPOINT=https://hf-mirror.com`.
+> [!NOTE]
+> For users based in the People's Republic of China (PRC), you might need to set
+> `export HF_ENDPOINT=https://hf-mirror.com`.
 
 For Docker Compose deployments, export the model path on this host with
-`IR_OV_MODEL`; the compose file mounts it into the container automatically.
+`IR_OV_MODEL`; the compose file mounts it into the container automatically:
 
 ```bash
 export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
@@ -180,44 +192,46 @@ ROUTER_PORT=9000 bash scripts/deploy_docker.sh
 #### Web UI
 
 With the UI enabled (the default), open it in a browser at
-`http://<host-ip>:7010`. Because the router runs on the host network while the
-UI runs in a bridge network, the deploy script automatically detects the host's
-LAN IP, binds the router to it, and points the UI there — so the router is
-reachable from other machines on your network in this mode. Use a different UI
-port with `--ui-port`:
+`http://<host-ip>:7010` (or `http://localhost:7010` on the host itself). The UI
+listens on every interface, but the router itself still binds to `127.0.0.1`
+by default: both containers use the host network, so the UI reaches the router
+over loopback. The router API is therefore reachable only from the host unless
+you [enable remote access](#enable-remote-access). Use a different UI port with
+`--ui-port`:
 
 ```bash
 bash scripts/deploy_docker.sh --ui-port 8080
 ```
 
 To skip the UI and deploy only the router (local-only by default, see
-[Enable Remote Access](#enable-remote-access)):
+[Enable remote access](#enable-remote-access)):
 
 ```bash
 bash scripts/deploy_docker.sh --standalone
 ```
 
-#### Enable Remote Access
+#### Enable remote access
 
-In `--standalone` mode the router binds to `127.0.0.1` (loopback) by default, so
-it is only reachable from the host it runs on. To allow access from **other
-machines**, export `IR_BIND_HOST=0.0.0.0` (or a specific interface IP) before
-deploying:
+In both deployment modes the router binds to `127.0.0.1` (loopback) by default,
+so it is only reachable from the host it runs on. To allow access from **other
+machines**, export `IR_BIND_HOST=0.0.0.0` before deploying:
 
 ```bash
-IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh --standalone
+IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh               # router + UI
+IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh --standalone  # router only
 ```
-
-(When the UI is enabled the router is already bound to the host's LAN IP, so it
-is reachable remotely without this step. Export `IR_BIND_HOST` to override the
-detected address.)
 
 Clients on other machines will then reach the router at `http://<host-ip>:8000`
 (substitute your `ROUTER_PORT` if you changed it).
 
+`0.0.0.0` serves every interface, so `localhost` keeps working on the host. If
+you instead set `IR_BIND_HOST` to one specific interface IP, the router listens
+only on that address: `localhost` is refused, so use that IP in place of
+`localhost` in the requests below.
+
 ### Step 3: Verify
 
-List available models. The response includes `router` plus your configured
+List available models. The response includes `auto` plus your configured
 providers:
 
 ```bash
@@ -298,7 +312,7 @@ curl http://localhost:8000/v1/metrics
 With model-based routing, a small classifier model on this host reads each
 request and decides whether a local model can handle it or it should go to a
 cloud model. The router ships a ready-to-use classifier for the model prepared
-in [Model Preparation](#model-preparation); no training is needed.
+in [Model preparation](#model-preparation); no training is needed.
 
 1. Give the two providers the labels `local` and `cloud` in
    `workspace/config.yaml`:
@@ -376,17 +390,18 @@ listed, enabled or disabled, and updated through the same
 Currently supported services (the provider `type` selects the service and the
 endpoint it exposes):
 
-| Provider `type` | Endpoint Exposed              | Typical Backend                  |
-| --------------- | ----------------------------- | -------------------------------- |
-| `transcription` | `POST /v1/audio/transcriptions` | Speech-to-text service (e.g. Whisper)  |
-| `tts`           | `POST /v1/audio/speech`         | Text-to-speech                 |
-| `embeddings`    | `POST /v1/embeddings`           | Embedding model                |
-| `rerank`        | `POST /v1/rerank`               | Reranker (Cohere-compatible)   |
-| `ocr`           | `POST /v1/ocr`                  | OCR / document understanding   |
+| Provider `type` | Endpoint Exposed                | Typical Backend                         |
+| --------------- | ------------------------------- | --------------------------------------- |
+| `transcription` | `POST /v1/audio/transcriptions` | Speech-to-text service (e.g., Whisper)  |
+| `tts`           | `POST /v1/audio/speech`         | Text-to-speech                          |
+| `embeddings`    | `POST /v1/embeddings`           | Embedding model                         |
+| `rerank`        | `POST /v1/rerank`               | Reranker (Cohere-compatible)            |
+| `ocr`           | `POST /v1/ocr`                  | OCR / document understanding            |
 
-> **Note**: Optical Character Recognition (OCR)
+> [!NOTE]
+> Here, OCR: Optical Character Recognition
 
-### Enable a pass-through service
+### Enable a Pass-through Service
 
 Add a provider whose `type` is one of the values above. The request is forwarded
 to `settings.endpoint`; if the endpoint is a base URL, the service subpath (e.g.
@@ -452,14 +467,14 @@ usage, via plugins based on the
 Use the unified `compressor` node and select the compressor type with
 `settings.type`:
 
-
 - `tool` — filters the request `tools` schema to a relevant subset using a
   **tool predictor** (an OpenAI-compatible LLM endpoint, or a reranker endpoint
   for the small-model option).
 - `harness` — compresses system or developer messages using a **compress server**.
 - `context` — compresses the conversation context.
 
->  **Caution:** The context compressor is experimental and is disabled by default.
+> [!CAUTION]
+> The context compressor is experimental and is disabled by default.
 
 The compress server and tool predictor are **not** part of the router.
 For deployment instructions, see the
@@ -467,7 +482,6 @@ For deployment instructions, see the
 repository.
 For detailed purpose and behavior of each compressor, see the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor) repository documentation.
-
 
 ### Configuration
 
@@ -621,7 +635,7 @@ supported key is currently `provider`, the provider that served the request.
   other stage) is rejected at load time, as is an unsupported key.
 - `metrics_keys` only splits how metrics are reported; it does not change which
   requests a compressor runs on. To run a compressor for some providers only,
-  [attach it to those providers](./plugin.md#attaching-plugins-to-providers).
+  [attach it to those providers](./plugin.md#attach-plugins-to-providers).
 
 ### Metrics Checking
 
@@ -674,7 +688,7 @@ It also includes cross-plugin overall fields:
 - `overall.compression_ratio`: `overall.total_output / overall.total_input`.
 - `overall.avg_duration_per_request`: average end-to-end compression time per request.
 
-> **Note**:
+> [!NOTE]
 > `overall.*` fields only count the request parts the compressors cover, and
 > count a part twice when two compressors of the same type run in series. For
 > the whole-request saving, use
@@ -777,7 +791,7 @@ This endpoint includes compressor effect under `token_metrics`:
 - `token_metrics.before_router`: token counts before plugin processing.
 - `token_metrics.after_router`: token counts after plugin processing.
 
-> **Note**:
+> [!NOTE]
 > `after_router` is measured after the `prerouting` and `postrouting` stages are both
 > completed (it is the request that will be forwarded to the backend).
 

@@ -1,17 +1,5 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Housekeeping for frozen bindings, which hold data but no projection.
-
-A frozen binding (deprecated in its pool, or its source disabled) keeps its
-collection so it can be rolled back to. Two things still have to reach it:
-
-- **deletes.** An asset deleted from the library must not survive in a frozen
-  collection, or a rollback would bring it back. Removing rows needs only the
-  database adapter, not the model, so this does not thaw anything.
-- **changes.** A re-ingested asset is recorded stale on the frozen binding's
-  status like on any other (`AssetPool.mark_assets_changed`); nothing is
-  written now, and the sync that follows a thaw re-materializes it.
-"""
 
 from typing import Any, Collection, Dict, Mapping
 
@@ -19,11 +7,7 @@ from typing import Any, Collection, Dict, Mapping
 def delete_assets(
     databasehub, frozen_sources: Mapping[str, Any], asset_ids: Collection[str]
 ) -> Dict[str, int]:
-    """Remove `asset_ids` from every frozen source's collection, by metadata.
-
-    A source whose adapter cannot delete by metadata (a graph) is reported by
-    raising, the same way deleting from a live graph projection is refused.
-    """
+    """Remove `asset_ids` from every frozen source's collection, by metadata."""
     removed: Dict[str, int] = {}
     ids = list(asset_ids)
     if not ids:

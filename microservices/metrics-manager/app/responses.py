@@ -128,7 +128,8 @@ class DeviceCapabilityResponse(BaseModel):
         default_factory=list, description="Supported telemetry capability names"
     )
     sw_functional_capabilities: list[str] = Field(
-        default_factory=list, description="Software functional capabilities (inference, media, etc.)"
+        default_factory=list,
+        description="Software functional capabilities (inference, media, etc.)",
     )
     specs: dict[str, Any] = Field(default_factory=dict, description="Static device specification")
     details: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
@@ -148,5 +149,6 @@ class CapabilitiesResponse(BaseModel):
         default_factory=list, description="Detected devices and capabilities"
     )
     inference_runtimes: dict[str, bool] = Field(
-        default_factory=dict, description="Available inference framework runtimes (openvino, tensorflow, etc.)"
+        default_factory=dict,
+        description="Available inference framework runtimes (openvino, tensorflow, etc.)",
     )

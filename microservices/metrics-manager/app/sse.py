@@ -3,11 +3,12 @@
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import httpx
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from prometheus_client.parser import text_string_to_metric_families
 
 from .settings import get_settings
@@ -45,17 +46,21 @@ async def fetch_metrics() -> str:
     metrics = []
     for family in text_string_to_metric_families(resp.text):
         for sample in family.samples:
-            metrics.append({
-                "name": sample.name,
-                "labels": dict(sample.labels),
-                "value": sample.value,
-                "timestamp": int(sample.timestamp * 1000) if sample.timestamp else ts,
-            })
+            metrics.append(
+                {
+                    "name": sample.name,
+                    "labels": dict(sample.labels),
+                    "value": sample.value,
+                    "timestamp": (
+                        int(float(sample.timestamp) * 1000) if sample.timestamp is not None else ts
+                    ),
+                }
+            )
 
     return json.dumps({"timestamp": ts, "metrics": metrics})
 
 
-async def event_stream():
+async def event_stream() -> AsyncIterator[str]:
     settings = get_settings()
     interval = settings.prometheus_poller_interval_ms / 1000
     while True:
@@ -69,13 +74,15 @@ async def event_stream():
 
 
 @router.get("/metrics/stream")
-async def metrics_stream(request: Request):
+async def metrics_stream(request: Request) -> Response:
     accept = request.headers.get("accept", "")
     if "text/html" in accept and "text/event-stream" not in accept:
         return HTMLResponse(content=_STREAM_UI_HTML)
-    return StreamingResponse(event_stream(), media_type="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-    })
-
-
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

@@ -178,7 +178,7 @@ describe('SearchContent Component', () => {
       });
       
       expect(screen.getAllByText('Test Query 1')[0]).toBeInTheDocument();
-      expect(screen.getByText('topK')).toBeInTheDocument();
+      expect(screen.getByText('searchOutputCount')).toBeInTheDocument();
     });
 
     it('should render videos container when query is selected', () => {
@@ -248,9 +248,10 @@ describe('SearchContent Component', () => {
         searchQueries: [mockQuery],
       });
       
-      expect(screen.getByText('topK')).toBeInTheDocument();
-      const slider = screen.getByRole('slider');
-      expect(slider).toHaveValue(8);
+      expect(screen.getByText('searchOutputCount')).toBeInTheDocument();
+      const slider = screen.getByRole('slider', { name: 'searchOutputCountSliderLabel' });
+      expect(slider).toHaveAttribute('aria-valuenow', '8');
+      expect(screen.getByTestId('search-output-count-slider-bubble')).toHaveTextContent('8');
     });
 
     it('should update topK when slider value changes', () => {
@@ -261,11 +262,11 @@ describe('SearchContent Component', () => {
         searchQueries: [mockQuery],
       });
       
-      const input = screen.getByRole('spinbutton');
-      fireEvent.change(input, { target: { value: '10' } });
-      
+      const slider = screen.getByRole('slider', { name: 'searchOutputCountSliderLabel' });
+      fireEvent.keyDown(slider, { key: 'ArrowRight', which: 39 });
+
       const state = store.getState();
-      expect(state.search.searchQueries[0].topK).toBe(10);
+      expect(state.search.searchQueries[0].topK).toBe(6);
     });
 
     it('should render slider with correct min, max, and step values', () => {
@@ -276,10 +277,9 @@ describe('SearchContent Component', () => {
         searchQueries: [mockQuery],
       });
       
-      const input = screen.getByRole('spinbutton');
-      expect(input).toHaveAttribute('min', '1');
-      expect(input).toHaveAttribute('max', '20');
-      expect(input).toHaveAttribute('step', '1');
+      const slider = screen.getByRole('slider', { name: 'searchOutputCountSliderLabel' });
+      expect(slider).toHaveAttribute('aria-valuemin', '1');
+      expect(slider).toHaveAttribute('aria-valuemax', '20');
     });
   });
 
@@ -482,6 +482,27 @@ describe('SearchContent Component', () => {
 
       // Should show search error tag
       expect(screen.getByText('searchError')).toBeInTheDocument();
+    });
+  });
+
+  describe('Sort and group controls', () => {
+    const query = createMockQuery('query-1', 'Test Query 1', 4, [
+      createMockSearchResult('result-1', 'video-1', 0.95, 120),
+    ]);
+
+    it('sets the per-query sort and grouping from the dropdowns', () => {
+      // jsdom has no scrollIntoView, which Carbon's Dropdown calls when opening.
+      Element.prototype.scrollIntoView ??= vi.fn();
+      const { store } = renderSearchContent({ selectedQuery: 'query-1', searchQueries: [query] });
+
+      fireEvent.click(screen.getByText('sortRelevance'));
+      fireEvent.click(screen.getByText('sortNewest'));
+      expect(store.getState().search.searchQueries[0].sortBy).toBe('newest');
+
+      fireEvent.click(screen.getByText('groupNone'));
+      fireEvent.click(screen.getByText('groupCamera'));
+      expect(store.getState().search.searchQueries[0].groupBy).toBe('camera');
+      expect(screen.getByText('groupsByCamera')).toBeInTheDocument();
     });
   });
 });

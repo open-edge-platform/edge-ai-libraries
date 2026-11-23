@@ -1,19 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""The OKF concept-graph search algorithm.
-
-Ported from edgecraftrag/components/retriever.py (GraphSearchRetriever and its
-concept-graph backends). The scoring semantics live here: embedding-seeded
-(MaxSim windowed) -> weighted concept-graph BFS expand -> co-reach reweight ->
-inverse-freq chunk backfill. Graph access goes through a ``ConceptGraphBackend``;
-all "fetch graph data", no scoring. Traversal is unweighted: relation type does
-not affect weight, only ``decay^hop``.
-
-Unlike edgecraftrag, the retriever is a plain class rather than a
-``CustomPGRetriever``: the engine's graph path deliberately holds its machinery
-rather than inheriting a llama-index index, and nothing here needs the
-property-graph base class -- only its own ``custom_retrieve`` contract.
-"""
 
 import json
 import math
@@ -26,17 +12,12 @@ from core.seeder import ConceptSeeder
 from llama_index.core.graph_stores.types import EntityNode
 from llama_index.core.schema import NodeWithScore
 
-#: Max ids per Nebula get()/neighbors() request, to bound request size for large
-#: concept inventories.
+#: Max ids per Nebula get()/neighbors() request.
 _NEBULA_FETCH_BATCH = config.NEBULA_FETCH_BATCH_SIZE
 
 
 class ConceptGraphBackend(ABC):
-    """Graph access primitives the algorithm depends on.
-
-    All "fetch graph data", no scoring semantics (decay / coreach / inverse-freq
-    all live in the retriever). One impl per graph db.
-    """
+    """Graph access primitives for concept-graph search; one implementation per graph db."""
 
     @abstractmethod
     def neighbors(self, node_ids: List[str]) -> Dict[str, List[Tuple[str, str]]]:
@@ -50,17 +31,12 @@ class ConceptGraphBackend(ABC):
 
     @abstractmethod
     def chunk_density(self) -> Dict[str, int]:
-        # How many concepts reference each chunk (the inverse-freq density factor).
+        # How many concepts reference each chunk.
         pass
 
 
 class NebulaConceptGraphBackend(ConceptGraphBackend):
-    """Backed by llama-index's NebulaPropertyGraphStore.
-
-    Every method goes through the generic PropertyGraphStore API (get_triplets /
-    get / get_all_nodes) with no nGQL dialect, so switching to another store only
-    reimplements these primitives.
-    """
+    """Backed by llama-index's NebulaPropertyGraphStore."""
 
     def __init__(self, graph_store):
         self._store = graph_store
@@ -97,8 +73,7 @@ class NebulaConceptGraphBackend(ConceptGraphBackend):
             return {}
         requested_ids = set(unique_ids)
         adjacency: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
-        # get_triplets(ids=...) matches id(src) IN ids OR id(tgt) IN ids -> both
-        # directions present; fold them into undirected neighbors.
+        # get_triplets matches either endpoint; fold both directions into undirected neighbors.
         for source, relation, target in self._store.get_triplets(ids=unique_ids):
             if any(
                 node.properties.get("_node_type") != "OKFConcept"
@@ -185,8 +160,7 @@ class InMemoryConceptGraphBackend(ConceptGraphBackend):
         )
 
     def restricted_to(self, concept_ids: Set[str]) -> "InMemoryConceptGraphBackend":
-        """Only `concept_ids` and the edges between them -- one pool's share of
-        a graph space that several pools write to."""
+        """Subgraph of `concept_ids` and the edges between them."""
         return InMemoryConceptGraphBackend(
             {
                 concept_id: [(target, relation) for target, relation in neighbors if target in concept_ids]
@@ -215,11 +189,7 @@ class InMemoryConceptGraphBackend(ConceptGraphBackend):
 
 
 class GraphSearchRetriever:
-    """Embedding-seeded concept-graph search, returning chunks.
-
-    Milvus selects concept seeds; Nebula provides edges and provenance.
-    No OKF files or locally computed concept embeddings are used at query time.
-    """
+    """Embedding-seeded concept-graph search, returning chunks."""
 
     def __init__(
         self,
@@ -251,12 +221,8 @@ class GraphSearchRetriever:
             options["hub_gate_sigma"] or config.GRAPH_HUB_GATE_FALLBACK_SIGMA
         )
 
-        # chunk_id -> original node: the graph path locates chunk_id via a
-        # concept's source_chunk_ids, then fetches the source text back.
         self._nodes_by_id = {node.node_id: node for node in chunk_nodes}
-        # What the last `custom_retrieve` walked, for a caller that wants to
-        # show it (see `trace`). One retriever serves one request, so this is
-        # never shared between queries.
+        # What the last `custom_retrieve` walked; one retriever serves one request.
         self.last_trace: Optional[Dict[str, Any]] = None
         if self.inverse_freq:
             self.backend.chunk_density()
@@ -265,8 +231,7 @@ class GraphSearchRetriever:
         seeds = list(dict.fromkeys(seed_ids))
         best_by_seed: Dict[str, Dict[str, int]] = {seed: {seed: 0} for seed in seeds}
         frontier_by_seed: Dict[str, List[str]] = {seed: [seed] for seed in seeds}
-        # The edges the expansion actually crossed: the first edge that reached
-        # each concept from each seed, i.e. the BFS trees, not every edge seen.
+        # BFS tree edges: the first edge that reached each concept from each seed.
         walked: Dict[Tuple[str, str], str] = {}
         for hop in range(1, self.hops + 1):
             union_frontier = list(
@@ -345,14 +310,13 @@ class GraphSearchRetriever:
             n = coreach.get(concept_id, 1)
             if self.coreach_mode == "log":
                 multiplier = 1.0 + self.coreach_coef * math.log(n) if n >= 1 else 1.0
-            else:  # "linear": unbounded per-seed growth.
+            else:  # "linear"
                 multiplier = 1.0 + self.coreach_coef * (n - 1)
             reached[concept_id] = graph_weight * multiplier
         self._last_weights = reached
         return self._score_reached(reached)
 
     def _known_concepts(self) -> Set[str]:
-        """The concept ids in this graph (read once per retriever)."""
         if self._known is None:
             self._known = set(self.backend.concept_ids())
         return self._known
@@ -366,8 +330,7 @@ class GraphSearchRetriever:
             min_win=self.seed_min_win,
         )
         self.last_trace = None
-        # The concept index may be shared with other pools (one vector source in
-        # several pools): seed only from concepts in this graph.
+        # The concept index may be shared across pools: seed only from this graph's concepts.
         known = self._known_concepts()
         seed_ids = [seed for seed in seed_ids if seed in known]
         if not seed_ids:
@@ -383,8 +346,6 @@ class GraphSearchRetriever:
         return results
 
     def _trace(self, seed_ids: List[str]) -> Dict[str, Any]:
-        """Seeds, every concept reached (its hop, weight and source chunks), and
-        the edges crossed to reach them -- enough to draw the walk."""
         weights = getattr(self, "_last_weights", {})
         return {
             "seeds": list(dict.fromkeys(seed_ids)),

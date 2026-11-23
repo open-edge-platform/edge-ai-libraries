@@ -66,6 +66,8 @@ def test_asset_library_surface_is_reachable():
         ("/{library}/asset_pools", "POST"),
         ("/{library}/asset_pools/{asset_pool_id}/sources", "GET"),
         ("/{library}/asset_pools/{asset_pool_id}/assets", "GET"),
+        ("/{library}/asset_pools/{asset_pool_id}/assets", "DELETE"),
+        ("/{library}/asset_pools/{asset_pool_id}/assets/{asset_id}", "DELETE"),
     ):
         assert (asset_library_api.LIBRARY_API_PREFIX + suffix, method) in paths, suffix
 
@@ -546,6 +548,7 @@ def test_retrieve_merges_libraries_before_optional_postprocess(monkeypatch):
         lambda library, _body, _traces: chunks[library.name],
     )
     monkeypatch.setattr(retrieval_api, "postprocess_chunks", fake_postprocess)
+    monkeypatch.setattr(retrieval_api.config, "RERANK_MODEL_ID", "BAAI/bge-reranker-large")
 
     result = asyncio.run(
         retrieval_api.retrieve(

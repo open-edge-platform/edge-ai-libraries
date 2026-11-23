@@ -147,7 +147,6 @@ class LiveStreamManager:
         sensor_id: Optional[str] = None,
         frame_interval: Optional[int] = None,
         enable_object_detection: Optional[bool] = None,
-        detection_confidence: Optional[float] = None,
         tags: Optional[List[str]] = None,
         start: bool = True,
     ) -> LiveStream:
@@ -166,11 +165,6 @@ class LiveStreamManager:
                 enable_object_detection
                 if enable_object_detection is not None
                 else settings.ENABLE_OBJECT_DETECTION
-            ),
-            detection_confidence=float(
-                detection_confidence
-                if detection_confidence is not None
-                else settings.DETECTION_CONFIDENCE
             ),
             bucket_name=settings.LIVE_STREAM_BUCKET,
             tags=tags,
@@ -233,7 +227,6 @@ class LiveStreamManager:
         description: Optional[str] = None,
         frame_interval: Optional[int] = None,
         enable_object_detection: Optional[bool] = None,
-        detection_confidence: Optional[float] = None,
         tags: Optional[List[str]] = None,
         state: Optional[LiveStreamStateEnum] = None,
     ) -> LiveStream:
@@ -263,12 +256,6 @@ class LiveStreamManager:
                 and enable_object_detection != stream.enable_object_detection
             ):
                 stream.enable_object_detection = bool(enable_object_detection)
-                processing_changed = True
-            if (
-                detection_confidence is not None
-                and detection_confidence != stream.detection_confidence
-            ):
-                stream.detection_confidence = float(detection_confidence)
                 processing_changed = True
 
             stream.updated_ts = time.time()

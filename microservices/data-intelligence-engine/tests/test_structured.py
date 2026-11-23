@@ -143,6 +143,118 @@ def test_pptx_picture_becomes_an_image_block_on_its_slide():
     assert writer.written[0][0] == _PNG
 
 
+# --- WMF/EMF ------------------------------------------------------------------
+
+
+def _wmf_bytes() -> bytes:
+    import struct
+    from functools import reduce
+
+    placeable = struct.pack("<IHhhhhHI", 0x9AC6CDD7, 0, 0, 0, 1440, 720, 1440, 0)
+    placeable += struct.pack("<H", reduce(lambda a, b: a ^ b, struct.unpack("<10H", placeable)))
+    records = struct.pack("<IHhhhh", 7, 0x041B, 600, 1200, 100, 100) + struct.pack("<IH", 3, 0)
+    header = struct.pack("<HHHIHIH", 1, 9, 0x0300, (18 + len(records)) // 2, 0, 7, 0)
+    return placeable + header + records
+
+
+def _make_metafile_pptx(path: str) -> None:
+    from io import BytesIO
+
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    presentation = Presentation()
+    slide = presentation.slides.add_slide(presentation.slide_layouts[5])
+    slide.shapes.title.text = "Architecture"
+    slide.shapes.add_picture(BytesIO(_wmf_bytes()), Inches(1), Inches(2))
+    slide.shapes.add_picture(BytesIO(_PNG), Inches(5), Inches(2), width=Inches(1))
+    presentation.save(path)
+
+
+class _FakeSoffice:
+    def __init__(self, command, **kwargs):
+        from pathlib import Path
+
+        from PIL import Image, ImageDraw
+
+        outdir = Path(command[command.index("--outdir") + 1])
+        outdir.mkdir()
+        for source in command[command.index("--outdir") + 2:]:
+            page = Image.new("RGB", (595, 842), "white")
+            ImageDraw.Draw(page).rectangle([200, 300, 399, 399], fill="red")
+            page.convert("P").save(outdir / f"{Path(source).stem}.pdf", resolution=72)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def wait(self, timeout=None):
+        return 0
+
+
+def test_metafile_suffix_detects_emf_and_wmf_only():
+    emf = b"\x01\x00\x00\x00" + b"\x00" * 36 + b" EMF"
+
+    assert structured._metafile_suffix(emf) == ".emf"
+    assert structured._metafile_suffix(_wmf_bytes()) == ".wmf"
+    assert structured._metafile_suffix(b"\x01\x00\x09\x00\x00\x03") == ".wmf"
+    assert structured._metafile_suffix(_PNG) == ""
+
+
+def test_metafile_without_libreoffice_is_dropped_and_the_rest_kept(monkeypatch):
+    path = _tmp("deck.pptx")
+    _make_metafile_pptx(path)
+    monkeypatch.setattr(structured.shutil, "which", lambda name: None)
+    writer = FakeBlobWriter()
+
+    stream = extractor.extract(path, "a1", writer)
+
+    assert [block.kind for block in stream.ordered()].count(IMAGE) == 1
+    assert writer.written == [(_PNG, "image/png")]
+    assert any("Architecture" in block.text for block in stream.ordered() if block.kind == TEXT)
+
+
+def test_metafile_is_rendered_to_a_cropped_png(monkeypatch):
+    from io import BytesIO
+
+    from PIL import Image
+
+    path = _tmp("deck.pptx")
+    _make_metafile_pptx(path)
+    monkeypatch.setattr(structured.shutil, "which", lambda name: "/usr/bin/soffice")
+    monkeypatch.setattr(structured.subprocess, "Popen", _FakeSoffice)
+    writer = FakeBlobWriter()
+
+    stream = extractor.extract(path, "a1", writer)
+    images = [block for block in stream.ordered() if block.kind == IMAGE]
+    rendered = Image.open(BytesIO(writer.written[0][0]))
+
+    assert [block.metadata["content_type"] for block in images] == ["image/png", "image/png"]
+    assert rendered.format == "PNG"
+    assert 1500 <= rendered.width <= 1650 and 750 <= rendered.height <= 850
+    assert rendered.convert("RGB").getpixel((rendered.width // 2, rendered.height // 2)) == (255, 0, 0)
+
+
+@pytest.mark.skipif(not structured.shutil.which("soffice"), reason="LibreOffice is not installed")
+def test_metafile_is_rendered_by_libreoffice():
+    from io import BytesIO
+
+    from PIL import Image
+
+    path = _tmp("deck.pptx")
+    _make_metafile_pptx(path)
+    writer = FakeBlobWriter()
+
+    stream = extractor.extract(path, "a1", writer)
+
+    assert [block.metadata["content_type"] for block in stream.ordered() if block.kind == IMAGE] == [
+        "image/png", "image/png",
+    ]
+    assert Image.open(BytesIO(writer.written[0][0])).format == "PNG"
+
+
 # --- xlsx ---------------------------------------------------------------------
 
 
@@ -174,6 +286,59 @@ def test_xlsx_sheet_is_a_markdown_table_and_keeps_its_picture():
     assert next(block for block in stream.blocks if block.kind == IMAGE).metadata["role"] == ROLE_DOC_IMAGE
     assert "| name | value |" in table.text
     assert "temp" in table.text
+
+
+def _make_in_cell_image_xlsx(path: str) -> None:
+    import zipfile
+
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    workbook.active["A1"] = "photo"
+    workbook.active["B2"] = "#VALUE!"
+    workbook.save(path)
+    rich = "http://schemas.microsoft.com/office/spreadsheetml/2017/richdata"
+    parts = {
+        "xl/metadata.xml": (
+            f'<metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:xlrd="{rich}">'
+            '<futureMetadata name="XLRICHVALUE"><bk><extLst><ext><xlrd:rvb i="0"/></ext></extLst></bk></futureMetadata>'
+            '<valueMetadata><bk><rc t="1" v="0"/></bk></valueMetadata></metadata>'
+        ),
+        "xl/richData/rdrichvalue.xml": f'<rvData xmlns="{rich}"><rv s="0"><v>0</v><v>5</v></rv></rvData>',
+        "xl/richData/rdrichvaluestructure.xml": (
+            f'<rvStructures xmlns="{rich}"><s t="_localImage">'
+            '<k n="_rvRel:LocalImageIdentifier" t="i"/><k n="CalcOrigin" t="i"/></s></rvStructures>'
+        ),
+        "xl/richData/richValueRel.xml": (
+            '<richValueRels xmlns="http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><rel r:id="rId1"/></richValueRels>'
+        ),
+        "xl/richData/_rels/richValueRel.xml.rels": (
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+            'Target="../media/image1.png"/></Relationships>'
+        ),
+        "xl/media/image1.png": _PNG,
+    }
+    with zipfile.ZipFile(path) as archive:
+        files = {name: archive.read(name) for name in archive.namelist()}
+    files["xl/worksheets/sheet1.xml"] = files["xl/worksheets/sheet1.xml"].replace(b'r="B2"', b'r="B2" vm="1"')
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, data in {**files, **parts}.items():
+            archive.writestr(name, data)
+
+
+def test_xlsx_picture_placed_in_a_cell_becomes_an_image_block():
+    path = _tmp("in_cell.xlsx")
+    _make_in_cell_image_xlsx(path)
+    writer = FakeBlobWriter()
+
+    stream = extractor.extract(path, "a1", writer)
+    table = next(block for block in stream.ordered() if block.kind == TABLE)
+
+    assert [block.kind for block in stream.ordered()].count(IMAGE) == 1
+    assert writer.written == [(_PNG, "image/png")]
+    assert "photo" in table.text and "#VALUE!" not in table.text
 
 
 # --- html ---------------------------------------------------------------------

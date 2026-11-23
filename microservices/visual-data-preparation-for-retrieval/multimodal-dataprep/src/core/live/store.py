@@ -32,7 +32,7 @@ from __future__ import annotations
 import json
 import threading
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, List, Optional, Type
+from typing import Callable, Dict, List, Optional
 
 from src.common import logger, sanitize_for_log, settings
 from src.core.live.models import LiveStream
@@ -278,18 +278,3 @@ __all__ = [
     "reset_live_stream_store",
     "register_store_backend",
 ]
-
-
-def _store_backend_names() -> List[str]:
-    """Return the registered backend names (introspection helper)."""
-    return sorted(_BACKENDS)
-
-
-def get_store_backend(name: str) -> Type[LiveStreamStore]:
-    """Return a registered backend factory by name."""
-    try:
-        return _BACKENDS[name.strip().lower()]
-    except KeyError as exc:
-        raise ValueError(
-            f"Unknown live-stream store backend '{name}'. Available: {', '.join(_store_backend_names())}"
-        ) from exc

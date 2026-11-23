@@ -25,6 +25,7 @@ SCHEMA = {
         "schema-version": { "const": "1" },
         "cli-version": { "$ref": "#/$defs/nonEmpty" },
         "cli-url": { "$ref": "#/$defs/url" },
+        "cli-sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
         "install-cmdline": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonEmpty" } },
         "module-list": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonEmpty" } }
       }

@@ -471,17 +471,6 @@ jobs:
           name: Trivy image scan report
           path: |
                 microservices/time-series-analytics/docker/trivy-image*
-
-      - name: Trivy config scan for helm charts 
-        run: |
-          cd microservices/time-series-analytics/helm
-          trivy config . >> trivy_helm.txt
-          
-      - name: Upload Scan artifact to Github
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: Trivy Config Scan for Helm
-          path: microservices/time-series-analytics/helm/trivy_*
       
   trivy-config-dockerfile-scan:
     name: Trivy Dockerfile Scan

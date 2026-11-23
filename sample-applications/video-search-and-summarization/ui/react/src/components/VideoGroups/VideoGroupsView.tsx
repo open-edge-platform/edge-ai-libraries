@@ -5,13 +5,16 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { InlineLoading } from '@carbon/react';
 import { useAppSelector } from '../../redux/store';
-import { ScoreBreakdown, SearchResult } from '../../redux/search/search';
+import { ResultGroupBy, ScoreBreakdown, SearchResult } from '../../redux/search/search';
 import { videosSelector } from '../../redux/video/videoSlice';
 import { SearchSelector } from '../../redux/search/searchSlice';
 import { ASSETS_ENDPOINT } from '../../config';
 import { resolveSearchResultVideoUrl, resolveVideoUrl } from '../../redux/video/videoUrl';
 import { useSeekableVideo } from '../../redux/video/useSeekableVideo';
 import { ScoreDisplay } from '../Search/ScoreDisplay';
+import { ObservedTimeLabel } from '../Search/ObservedTimeLabel';
+import { normalizeTags, ResultTags } from '../Search/ResultTags';
+import { resultSource } from '../../redux/search/resultOrder';
 
 const VideoGroupsContainer = styled.div`
   padding: 1rem;
@@ -102,15 +105,6 @@ const VideoPlaceholder = styled.div`
   font-size: 0.875rem;
 `;
 
-const VideoTag = styled.span`
-  background-color: var(--color-info);
-  color: white;
-  padding: 0.125rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 400;
-`;
-
 const TimestampBadge = styled.span`
   background-color: var(--color-dark-7, #343a3f);
   color: white;
@@ -178,13 +172,20 @@ interface SearchClip {
   timestamp: number;
   relevanceScore: number;
   scoreBreakdown?: ScoreBreakdown;
+  /** Camera/video identity used by "group by camera". */
+  sourceKey: string;
+  isLive: boolean;
+  result: SearchResult;
 }
 
-interface TagGroup {
-  tag: string;
+interface ClipGroup {
+  key: string;
+  title: string;
   clips: SearchClip[];
   videoCount: number;
   color: string;
+  /** Set for camera/video groups: whether the source is a live stream. */
+  isLive?: boolean;
 }
 
 const formatTimestamp = (seconds: number): string => {
@@ -195,13 +196,6 @@ const formatTimestamp = (seconds: number): string => {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
-/** Tag entries can arrive as plain strings or as objects from the search index. */
-interface TagObject {
-  tag?: unknown;
-  name?: unknown;
-  label?: unknown;
-}
-
 /**
  * Search metadata as consumed here. `SearchResult['metadata']` is typed against
  * the interval-based index, but the frame/crop index adds and omits fields, so
@@ -210,28 +204,6 @@ interface TagObject {
 type ClipMetadata = Partial<SearchResult['metadata']> & {
   title?: string;
   name?: string;
-};
-
-/** Normalize `metadata.tags`, which may be an array, a CSV string, or objects. */
-const normalizeTags = (rawTags: unknown): string[] => {
-  let entries: unknown[] = [];
-  if (Array.isArray(rawTags)) {
-    entries = rawTags;
-  } else if (typeof rawTags === 'string' && rawTags.trim()) {
-    entries = rawTags.split(',');
-  }
-
-  return entries
-    .map((entry) => {
-      if (typeof entry === 'string') return entry.trim();
-      if (entry && typeof entry === 'object') {
-        const { tag, name, label } = entry as TagObject;
-        const tagValue = tag ?? name ?? label ?? '';
-        return typeof tagValue === 'string' ? tagValue.trim() : '';
-      }
-      return String(entry ?? '').trim();
-    })
-    .filter((tag) => tag.length > 0);
 };
 
 interface ClipCardProps {
@@ -269,20 +241,24 @@ const ClipCard: FC<ClipCardProps> = ({ clip, resolvedUrl }) => {
           <ScoreDisplay relevanceScore={clip.relevanceScore} scoreBreakdown={clip.scoreBreakdown} />
         </RelevanceScore>
         <TimestampBadge>{formatTimestamp(clip.timestamp)}</TimestampBadge>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-          {clip.tags.map((tag, idx) => (
-            <VideoTag key={`${clip.key}-tag-${idx}-${tag}`}>{tag}</VideoTag>
-          ))}
-        </div>
+        <ObservedTimeLabel result={clip.result} />
+        <ResultTags tags={clip.tags} />
       </BottomInfo>
     </VideoCard>
   );
 };
 
-export const VideoGroupsView: FC = () => {
+export interface VideoGroupsViewProps {
+  groupBy?: Exclude<ResultGroupBy, 'none'>;
+}
+
+export const VideoGroupsView: FC<VideoGroupsViewProps> = ({ groupBy = 'tag' }) => {
   const { t } = useTranslation();
   const { getVideoUrl } = useAppSelector(videosSelector);
-  const { selectedResults, isSelectedInitialLoading } = useAppSelector(SearchSelector);
+  const { selectedQuery, selectedResults, isSelectedInitialLoading } = useAppSelector(SearchSelector);
+  // Camera names are a nicety; the streams slice may not be loaded (or present).
+  const streams = useAppSelector((state) => state.streams?.streams);
+  const sortBy = selectedQuery?.sortBy ?? 'relevance';
 
   // One clip per search result, so hits from the same video at different
   // timestamps are all preserved.
@@ -298,7 +274,8 @@ export const VideoGroupsView: FC = () => {
       .map((result: SearchResult) => {
         const meta: ClipMetadata = result.metadata ?? {};
         const videoId = meta.video_id || meta.id;
-        if (!videoId) return null;
+        const source = resultSource(result);
+        if (!videoId || !source) return null;
 
         const timestamp = typeof meta.timestamp === 'number' ? meta.timestamp : 0;
         const baseKey = `${videoId}-${timestamp}`;
@@ -308,7 +285,7 @@ export const VideoGroupsView: FC = () => {
         return {
           key: occurrence === 0 ? baseKey : `${baseKey}-${occurrence}`,
           videoId,
-          name: meta.name ?? meta.title ?? videoId,
+          name: result.video?.name ?? meta.name ?? meta.title ?? videoId,
           // Fall back to the object store directly. The dataprep download URLs in
           // metadata are not browser-addressable and do not support ranges.
           url:
@@ -319,41 +296,62 @@ export const VideoGroupsView: FC = () => {
           timestamp,
           relevanceScore: typeof meta.relevance_score === 'number' ? meta.relevance_score : 0,
           scoreBreakdown: meta.score_breakdown as ScoreBreakdown | undefined,
+          sourceKey: source.key,
+          isLive: source.isLive,
+          result,
         } as SearchClip;
       })
       .filter((clip: SearchClip | null): clip is SearchClip => clip !== null);
   }, [selectedResults]);
 
-  const tagGroups: TagGroup[] = useMemo(() => {
-    const groups = new Map<string, SearchClip[]>();
+  const streamNames = useMemo(
+    () => new Map((streams ?? []).map((stream) => [stream.stream_id, stream.stream_name])),
+    [streams],
+  );
 
-    const addToGroup = (tag: string, clip: SearchClip) => {
-      if (!groups.has(tag)) groups.set(tag, []);
-      groups.get(tag)!.push(clip);
+  // Groups appear in order of their first clip and clips keep the selected
+  // sort, so a time sort puts the most recently active group first (like
+  // ORDER BY time ... GROUP BY source).
+  const clipGroups: ClipGroup[] = useMemo(() => {
+    const groups = new Map<string, { title: string; isLive?: boolean; clips: SearchClip[] }>();
+
+    const addToGroup = (key: string, title: string, clip: SearchClip, isLive?: boolean) => {
+      if (!groups.has(key)) groups.set(key, { title, isLive, clips: [] });
+      groups.get(key)!.clips.push(clip);
     };
 
     searchClips.forEach((clip) => {
-      if (clip.tags.length === 0) {
-        addToGroup('Untagged', clip);
+      if (groupBy === 'camera') {
+        const streamId = clip.result.streamId;
+        const title = clip.isLive ? (streamId && streamNames.get(streamId)) || streamId || clip.videoId : clip.name;
+        addToGroup(clip.sourceKey, title, clip, clip.isLive);
+      } else if (clip.tags.length === 0) {
+        addToGroup('Untagged', 'Untagged', clip);
       } else {
-        clip.tags.forEach((tag) => addToGroup(tag, clip));
+        clip.tags.forEach((tag) => addToGroup(tag, tag, clip));
       }
     });
 
-    return Array.from(groups.entries()).map(([tag, clips], i) => ({
-      tag,
-      clips: [...clips].sort((a, b) => b.relevanceScore - a.relevanceScore),
-      videoCount: new Set(clips.map((clip) => clip.videoId)).size,
+    return Array.from(groups.entries()).map(([key, group], i) => ({
+      key,
+      title: group.title,
+      isLive: group.isLive,
+      clips:
+        sortBy === 'relevance' ? [...group.clips].sort((a, b) => b.relevanceScore - a.relevanceScore) : group.clips,
+      videoCount: new Set(group.clips.map((clip) => clip.videoId)).size,
       color: TAG_COLORS[i % TAG_COLORS.length],
     }));
-  }, [searchClips]);
+  }, [searchClips, groupBy, sortBy, streamNames]);
+
+  const heading =
+    groupBy === 'camera' ? t('groupsByCamera', 'Results by Camera / Video') : t('VideoGroups', 'Video Groups by Tags');
 
   // First run of the query: show placeholders rather than a misleading "no results" state.
   // A refresh keeps its existing groups mounted and relies on the QueryInfo chip instead.
   if (isSelectedInitialLoading) {
     return (
       <VideoGroupsContainer data-testid='video-groups-skeleton'>
-        <GroupHeader>{t('VideoGroups', 'Video Groups by Tags')}</GroupHeader>
+        <GroupHeader>{heading}</GroupHeader>
         <EmptyState>
           <InlineLoading status='active' description={t('searchRunning')} />
         </EmptyState>
@@ -365,7 +363,7 @@ export const VideoGroupsView: FC = () => {
   if (!selectedResults || selectedResults.length === 0) {
     return (
       <VideoGroupsContainer>
-        <GroupHeader>{t('VideoGroups', 'Video Groups by Tags')}</GroupHeader>
+        <GroupHeader>{heading}</GroupHeader>
         <EmptyState>
           <h3>{t('NoSearchResults', 'No Search Results')}</h3>
           <p>{t('NoSearchResultsDescription', 'Please run a search to see grouped results by tag.')}</p>
@@ -374,10 +372,10 @@ export const VideoGroupsView: FC = () => {
     );
   }
 
-  if (tagGroups.length === 0) {
+  if (clipGroups.length === 0) {
     return (
       <VideoGroupsContainer>
-        <GroupHeader>{t('VideoGroups', 'Video Groups by Tags')}</GroupHeader>
+        <GroupHeader>{heading}</GroupHeader>
         <EmptyState>
           <h3>{t('NoTaggedVideos', 'No Tagged Videos')}</h3>
           <p>{t('NoTaggedVideosDescription', 'The search returned results but none have tags to group by.')}</p>
@@ -388,26 +386,24 @@ export const VideoGroupsView: FC = () => {
 
   return (
     <VideoGroupsContainer>
-      <GroupHeader>{t('VideoGroups', 'Video Groups by Tags')}</GroupHeader>
+      <GroupHeader>{heading}</GroupHeader>
 
-      {tagGroups.map((group) => (
-        <TagGroup key={group.tag} $backgroundColor={group.color}>
+      {clipGroups.map((group) => (
+        <TagGroup key={group.key} $backgroundColor={group.color} data-testid='result-group'>
           <TagHeader>
-            {group.tag}
-            <TagBadge>{group.videoCount} videos</TagBadge>
+            {group.title}
+            {group.isLive === undefined ? (
+              <TagBadge>{group.videoCount} videos</TagBadge>
+            ) : (
+              <TagBadge>{group.isLive ? t('groupLive', 'Live') : t('groupUploaded', 'Video')}</TagBadge>
+            )}
             <TagBadge>{group.clips.length} results</TagBadge>
           </TagHeader>
 
           <VideoGrid>
             {group.clips.map((clip) => {
               const reduxVideoUrl = getVideoUrl ? getVideoUrl(clip.videoId) : null;
-              return (
-                <ClipCard
-                  key={`${group.tag}-${clip.key}`}
-                  clip={clip}
-                  resolvedUrl={reduxVideoUrl || clip.url}
-                />
-              );
+              return <ClipCard key={`${group.key}-${clip.key}`} clip={clip} resolvedUrl={reduxVideoUrl || clip.url} />;
             })}
           </VideoGrid>
         </TagGroup>

@@ -15,6 +15,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
+import config
+
 from core.layout import (
     IMAGE,
     TABLE,
@@ -67,9 +69,8 @@ def test_merge_layout_blocks_combines_same_kind_duplicate_queries():
 
 def test_openvino_factory_builds_the_adapter_layer():
     detector = build_layout_detector(
-        backend="openvino",
+        backend=config.LOCAL_OPENVINO,
         model_id="unused",
-        model_path="unused",
         device="CPU",
         score_threshold=0.123,
     )

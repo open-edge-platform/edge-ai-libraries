@@ -1,28 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Will this media asset be embedded, and how far has that got?
-
-The answer is worked out from what is configured now. It is not stored on the
-asset, because it is not a property of the asset: a three-hour recording has no
-embedding today and has one the day a source with a suitable model is added,
-and the file did not change in between. Writing "unsupported" into the content
-at ingest would be wrong from the next configuration change onward and would
-need every asset re-ingested to correct.
-
-Three different situations all look identical from outside -- nothing is found
--- and a user needs to tell them apart:
-
-- **no_source**: no source in the asset's pools can embed this kind of media.
-  Either the engine has no model for the role at all, or it has one and nobody
-  has configured a source with it. The reason says which, since the fix differs.
-- **pending / failed**: a source covers it and is working, or broke.
-- **unassigned**: it is in no pool, so nothing was ever going to embed it.
-
-An audio file is a case of its own: no model embeds sound, so it is embedded
-through its transcript, and what is asked is who embeds `l2_transcript`. Until
-the transcript exists there is nothing for that source to hold, so the report
-follows the transcription job first (`transcription.py`).
-"""
+"""Embedding coverage of a media asset, derived from the current source configuration."""
 
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -53,8 +31,7 @@ PENDING = "pending"
 READY = "ready"
 FAILED = "failed"
 
-# When several sources cover one asset the report is the least settled of them:
-# a clip is only findable everywhere once every covering source has it.
+# With several covering sources, the least settled status wins.
 _SEVERITY = {READY: 0, PENDING: 1, NO_SOURCE: 2, FAILED: 3}
 
 
@@ -75,8 +52,7 @@ def embedding_coverage(library: Any, asset_id: str, stream: ContentStream) -> Em
     if not pools:
         return EmbeddingCoverage(UNASSIGNED, "the asset is in no pool")
 
-    # Use the registered asset's origin-derived file type without reloading its
-    # content. Older callers/fakes only supply the stream and no asset registry.
+    # Falls back to a stub when the library has no asset registry.
     asset = getattr(library, "assets", {}).get(asset_id)
     if asset is None:
         asset = SimpleNamespace(asset_id=asset_id, content=stream)
@@ -111,11 +87,7 @@ def embedding_coverage(library: Any, asset_id: str, stream: ContentStream) -> Em
 
 
 def _representations(stream: ContentStream, options: Any) -> List[ContentBlock]:
-    """Original media and selected derived representations, including pending ones.
-
-    A caption-only source must be visible before enrichment produces its text,
-    but an ordinary image/video source must not implicitly wait for a caption.
-    """
+    """Original media and selected derived representations, including pending ones."""
     media = media_block(stream)
     candidates = [_embedded_as(media)]
     selected = set(options.get('block_roles') or ())
@@ -137,9 +109,7 @@ def _representation_pending(stream: ContentStream, block: ContentBlock) -> Optio
     if role not in {ROLE_L2_CAPTION, ROLE_L2_TRANSCRIPT, ROLE_L3_WIKI}:
         return None
     if any(role_of(b) == role and b.text.strip() for b in stream.blocks):
-        # Filters select existing content; they never require a generator. An
-        # externally supplied caption/transcript remains indexable even when
-        # automatic enrichment is disabled or its latest attempt failed.
+        # Existing content is indexable regardless of enrichment status.
         return None
     if role == ROLE_L2_TRANSCRIPT:
         return _transcript_pending(stream)
@@ -165,8 +135,7 @@ def _active(pool: Any, source_id: str, source: Any) -> bool:
 def _covers(projection: Any, block: ContentBlock) -> bool:
     if isinstance(projection, MultimodalIndexer):
         return projection.covers(block)
-    # Main's document/text GME path also embeds standalone images by their
-    # pixels. A caption-only text fallback is not media embedding coverage.
+    # A fused text source covers standalone images by pixels; caption-only text does not count.
     return (
         block.kind == IMAGE
         and bool(block.media_key)
@@ -176,11 +145,7 @@ def _covers(projection: Any, block: ContentBlock) -> bool:
 
 
 def _embedded_as(media: ContentBlock) -> ContentBlock:
-    """The block whose coverage decides this media's.
-
-    A recording is embedded through its transcript, so a representative
-    transcript block stands in for it.
-    """
+    """The block whose coverage decides this media's; audio is represented by its transcript."""
     if role_of(media) == ROLE_AUDIO:
         return ContentBlock(
             f"{media.block_id}:transcript", kind=TEXT, text="-",
@@ -210,12 +175,7 @@ def _broken_source(
     pools: List[Any], asset: Any, block: ContentBlock, role: str,
     stream: Optional[ContentStream] = None,
 ) -> Optional[EmbeddingCoverage]:
-    """A source that would cover this block but could not be loaded.
-
-    Such a source has no projection, so the check above never sees it, and
-    reporting "no source" would send the reader off to add one that is already
-    there. The pool recorded why it failed, which is the thing worth showing.
-    """
+    """A source that would cover this block but could not be loaded."""
     for pool in pools:
         for source_id, source in getattr(pool, "unavailable_sources", {}).items():
             if not _active(pool, source_id, source):
@@ -223,12 +183,11 @@ def _broken_source(
             profile = source.profile or {}
             roles = profile.get("supported_roles") or ()
             options = effective_configuration(source)
-            # An unloaded text source has no runtime to inspect. Only its fixed
-            # profile, not today's default backend, can promise fused images.
+            # An unloaded source has no model; only its profile says whether it fuses images.
             fused_image = (
                 block.kind == IMAGE and bool(block.media_key)
                 and profile.get("encoder_kind") == "text"
-                and profile.get("backend") == "native_openvino_gme"
+                and bool(profile.get("fused"))
             )
             candidates = _representations(stream, options) if stream else [block]
             if not accepts_asset(asset, options) or not any(

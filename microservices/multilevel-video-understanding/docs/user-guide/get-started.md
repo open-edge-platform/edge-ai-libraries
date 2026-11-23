@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Get Started
 
 The **Multi-level Video Understanding Microservice** enables developers to create video summaries from video files (especially long videos). This section provides step-by-step instructions to:
@@ -21,16 +24,16 @@ This guide assumes basic familiarity with Docker commands and terminal usage. If
 
 In the reference deployment, both the model serving and this microservice run **locally on a single Intel® Core™ Ultra (Panther Lake, PTL) host**, with the integrated GPU sharing system RAM — no discrete accelerator or remote inference cluster is required.
 
-This microservice is designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs. We recommend take **vLLM-IPEX** as an example. A single Mixture-of-Experts model, **Qwen3.5-35B-A3B** (35B total / 3B active), serves both the **VLM** role (per-chunk captioning) and the **LLM** role (hierarchical aggregation) from one endpoint.
+This microservice is designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs. We recommend take **vLLM-XPU** as an example. A single Mixture-of-Experts model, **Qwen3.6-35B-A3B** (35B total / 3B active), is configured to serve both the **VLM** role (per-chunk captioning) and the **LLM** role (hierarchical aggregation) from one endpoint.
 
-> **Platform note:** This guide is written around the **on-device PTL iGPU** profile, where the serving and the microservice share one host. Only the vLLM-IPEX serving ([llm-scaler](https://github.com/intel/llm-scaler)) is platform-sensitive. To run on a discrete-GPU host such as **Intel® Arc™ Pro B60** instead, deploy vLLM-IPEX on that machine (serving `Qwen3.5-35B-A3B` may require multiple GPUs)。
+> **Platform note:** This guide is written around the **on-device PTL iGPU** profile, where the serving and the microservice share one host. Only the vLLM-XPU serving ([llm-scaler](https://github.com/intel/llm-scaler)) is platform-sensitive. To run on a discrete-GPU host such as **Intel® Arc™ Pro B60** instead, deploy vLLM-XPU on that machine (serving `Qwen3.6-35B-A3B` may require multiple GPUs)。
 
 ### Memory & swap requirements
 
-`Qwen3.5-35B-A3B` in FP8 with a 60k context window is memory-hungry on a shared-RAM host. The default configuration targets a **64 GB system**:
+The default `Qwen3.6-35B-A3B` configuration uses FP8 with a 60k context window and targets a **64 GB system**. Verify model compatibility and peak memory use on your deployment; changing the default model does not establish runtime validation.
 
-- Provide at least **32 GB of swap** so the weight load and KV cache can spill under peak pressure without the OOM killer stepping in. If your host lacks enough swap, see [Adding Swap Space](./get-started/add-swap.md).
-- To lower the footprint, reduce `MAX_MODEL_LEN` (e.g. `32768`) or switch `LOAD_QUANTIZATION` to `awq` / `sym_int4` in [set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/set_env.sh).
+- Provide at least **32 GB of swap** as a memory-pressure safety net; swap does not guarantee that model or device allocations will succeed. If your host lacks enough swap, see [Adding Swap Space](./get-started/add-swap.md).
+- To lower KV-cache memory requirements, reduce `MAX_MODEL_LEN` (e.g. `32768`) in [set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/set_env.sh).
 - The **first startup takes about 30 minutes** while the weights are downloaded and compiled. The serving becomes healthy once it answers on `http://<host>:41091/v1/models`.
 
 ## Step 1. Configure the environment
@@ -43,18 +46,19 @@ cd edge-ai-libraries/microservices/multilevel-video-understanding
 # Change to mirror endpoint if you are in China and want to use the mirror site for Hugging Face.
 export HF_ENDPOINT=https://hf-mirror.com
 
-export TAG=2026.2.0
+export TAG=2026.3.0
 source docker/set_env.sh
 ```
 
 **Key variables**:
 
-Model serving (vLLM-IPEX):
+Model serving (llm-scaler):
 
-- `LLM_MODEL`: model served for both roles (default `Qwen/Qwen3.5-35B-A3B`).
+- `LLM_MODEL`: model served for both roles (default `Qwen/Qwen3.6-35B-A3B`).
 - `MAX_MODEL_LEN`: context window; drives KV-cache memory (default `61440` = 60k).
-- `LOAD_QUANTIZATION`: precision — `fp8` (default), `awq`, or `sym_int4`.
-- `GPU_MEM_UTIL`: fraction of shared system RAM the serving may reserve (`0.7` for fp8, `0.5` for awq/sym_int4).
+- `LOAD_QUANTIZATION`: quantization method (default `fp8`); compatibility depends on the checkpoint and serving implementation.
+- `GPU_MEM_UTIL`: fraction of device-reported memory budgeted for model profiling and KV cache (default `0.7`), not a whole-host RAM cap.
+- `VLLM_OFFLOAD_WEIGHTS_BEFORE_QUANT`: weight-offload option for llm-scaler (default `0`).
 - `VLLM_SERVICE_PORT`: OpenAI-compatible serving port (default `41091`).
 
 Microservice:
@@ -73,7 +77,7 @@ Provide the `multilevel-video-understanding` image in one of two ways:
 - **Option 2.** Download the prebuilt image from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
 
   ```bash
-  docker pull intel/multilevel-video-understanding:2026.2.0
+  docker pull intel/multilevel-video-understanding:2026.3.0
   ```
 
 > [!NOTE]
@@ -81,7 +85,7 @@ Provide the `multilevel-video-understanding` image in one of two ways:
 
 ## Step 3. Launch
 
-The Compose file ([docker/compose.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/compose.yaml)) defines both services on a shared network: `vllm-ipex-serving` (the model serving) and `multilevel-video-understanding`. Choose one of the two deployment options below.
+The Compose file ([docker/compose.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/compose.yaml)) defines both services on a shared network: `model-serving` (the llm-scaler model serving) and `multilevel-video-understanding`. The image, mounts, and entrypoint for llm-scaler are defined under `docker/model_serving/llm-scaler/`. Choose one of the two deployment options below.
 
 ```bash
 chmod +x ./setup_docker.sh
@@ -89,24 +93,24 @@ chmod +x ./setup_docker.sh
 
 ### Option 1 — End-to-end (bundled model serving)
 
-Start **both** the on-device model serving and the microservice together. This is the default. Compose pulls the `vllm-ipex-serving` image (`intel/llm-scaler-vllm`) automatically, and the microservice `depends_on` the serving being **healthy**, so on the first run Compose waits while the model downloads and compiles (the 3–20 minute step).
+Start **both** the on-device model serving and the microservice together. This is the default. Compose pulls `intel/llm-scaler-vllm:0.14.0-b8.3.2` automatically and names the container `model-serving-llm-scaler`. The microservice `depends_on` the serving being **healthy**, so on the first run Compose waits while the model downloads, loads, and profiles.
 
 ```bash
-export TAG=2026.2.0
+export TAG=2026.3.0
 source docker/set_env.sh
 ./setup_docker.sh            # or: ./setup_docker.sh --prod
 ```
 
 ### Option 2 — Use an existing model serving
 
-If you already have an OpenAI-compatible serving running — a **warm local `vllm-ipex-serving`** (fast iteration on the same host) or a **remote** endpoint — point the microservice at it in [docker/set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/set_env.sh) and start with `--light`:
+If you already have an OpenAI-compatible serving running — a **warm local llm-scaler instance** (fast iteration on the same host) or a **remote** endpoint — point the microservice at it in [docker/set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/set_env.sh) and start with `--light`:
 
 ```bash
 # in docker/set_env.sh (or your shell), set the endpoint(s), e.g. a remote host:
 export VLM_BASE_URL=http://<serving-host>:41091/v1
 export LLM_BASE_URL=http://<serving-host>:41091/v1
 
-export TAG=2026.2.0
+export TAG=2026.3.0
 source docker/set_env.sh
 ./setup_docker.sh --light
 ```
@@ -121,15 +125,15 @@ docker ps
 
 ```text
 CONTAINER ID   IMAGE                                          PORTS                                         NAMES
-a1b2c3d4e5f6   intel/llm-scaler-vllm:0.14.0-b7.1              0.0.0.0:41091->8000/tcp                       vllm-ipex-serving
-6f00712bf4b6   intel/multilevel-video-understanding:2026.2.0    0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
+a1b2c3d4e5f6   intel/llm-scaler-vllm:0.14.0-b8.3.2            0.0.0.0:41091->8000/tcp                       model-serving-llm-scaler
+6f00712bf4b6   intel/multilevel-video-understanding:2026.3.0    0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   multilevel-video-understanding
 ```
 
 ```bash
 # Follow the model-serving startup (weights download + compile on first run):
-docker logs -f vllm-ipex-serving        # ready when it serves /v1/models
+docker logs -f model-serving-llm-scaler  # ready when it serves /v1/models
 # Then the microservice:
-docker logs -f docker-multilevel-video-understanding-1
+docker logs -f multilevel-video-understanding
 ```
 
 ```text

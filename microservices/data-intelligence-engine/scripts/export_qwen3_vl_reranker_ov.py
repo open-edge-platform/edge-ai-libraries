@@ -5,9 +5,6 @@
 
 Export one forward-only OpenVINO graph per mode. The graphs are independently
 compiled on first use by the engine.
-
-Run check_qwen3_vl_reranker_parity.py against representative
-examples before serving.
 """
 
 import argparse
@@ -55,9 +52,8 @@ def main():
         parser.error("--source must be a local checkpoint directory")
     config_path = source / "config.json"
     score_path = source / "1_LogitScore" / "config.json"
-    reference_script = source / "scripts" / "qwen3_vl_reranker.py"
-    if not all(path.is_file() for path in (config_path, score_path, reference_script)):
-        parser.error("source lacks official config, 1_LogitScore config, or reference script")
+    if not all(path.is_file() for path in (config_path, score_path)):
+        parser.error("source lacks official config or 1_LogitScore config")
     config = json.loads(config_path.read_text())
     scores = json.loads(score_path.read_text())
     if config.get("architectures") != ["Qwen3VLForConditionalGeneration"]:
@@ -122,9 +118,11 @@ def main():
     from transformers.models.qwen3_vl import modeling_qwen3_vl
 
     def causal_mask_for_single_pair(
-        config, input_embeds, attention_mask, cache_position,
-        past_key_values, position_ids,
+        config, input_embeds=None, attention_mask=None, cache_position=None,
+        past_key_values=None, position_ids=None, inputs_embeds=None,
     ):
+        if input_embeds is None:
+            input_embeds = inputs_embeds
         length = input_embeds.shape[1]
         positions = torch.arange(length, device=input_embeds.device)
         hidden = positions[None, :] > positions[:, None]
@@ -195,7 +193,7 @@ def main():
         for key in ("image_grid_thw", "video_grid_thw") if key in encoded
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-    print(f"Exported {ir_path}. Run the parity checker before using it.")
+    print(f"Exported {ir_path}.")
 
 
 if __name__ == "__main__":

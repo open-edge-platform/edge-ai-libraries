@@ -1,46 +1,39 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""What a caller may change about a source and its bindings, and the checks.
-
-A source is immutable in everything that decides its vectors. Its name, labels
-and `enabled` switch may change; anything else is a new source. A binding's
-state is never set by a caller -- the one thing they may say about it is which
-source it replaces, at attach time.
-"""
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from assetlib.sources import binding
 
 #: Fields `PATCH /sources/{id}` accepts.
-PATCHABLE = frozenset({"name", "enabled", "labels"})
+PATCHABLE = frozenset({"name", "enabled", "labels", "embedding_device"})
 
 
 class SourceRuleError(ValueError):
-    """A request the multi-source rules refuse -- reported as 422, not 400."""
+    """A request the multi-source rules refuse; reported as 422."""
+
+
+class SourceBusyError(ValueError):
+    pass
 
 
 def check_patch(fields: Mapping[str, Any]) -> Dict[str, Any]:
-    """The patch, if every field in it may be changed."""
     refused = sorted(set(fields) - PATCHABLE)
     if refused:
         raise SourceRuleError(
-            "Only name, enabled and labels can be changed on a source; "
+            "Only name, enabled, labels and embedding_device can be changed on a source; "
             f"{', '.join(refused)} cannot. A source's model and parameters are "
             "fixed: create a new source and attach it with `replaces` instead."
         )
+    if "embedding_device" in fields and not str(fields["embedding_device"] or "").strip():
+        raise SourceRuleError("embedding_device needs a device name, e.g. CPU, GPU or NPU")
     return dict(fields)
 
 
 def split_replaces(
     configurations: Sequence[Mapping[str, Any]],
 ) -> Tuple[List[Mapping[str, Any]], Dict[str, str]]:
-    """Separate the `replaces` intents from source configurations.
-
-    Returns the configurations without the key, and `{source_id: replaces}` for
-    the entries that named one. Only an entry that refers to an existing source
-    by id can declare a replacement.
-    """
+    """Strip `replaces` from configurations; returns them and `{source_id: replaces}`."""
     cleaned: List[Mapping[str, Any]] = []
     replaces: Dict[str, str] = {}
     for configuration in configurations:
@@ -91,14 +84,11 @@ def check_replacements(
                 "so there is nothing to replace"
             )
         if old not in attached:
-            # The source list is replaced wholesale: leaving the old source out
-            # would detach it now, and the pool would serve nothing from it while
-            # the new one prepares.
             raise SourceRuleError(
                 f"Source {old!r} is being replaced and must stay in the pool's "
                 "source list until the replacement has caught up"
             )
-        if status.serving_state == binding.DEPRECATED:
+        if status.serving_state == binding.DEGRADE:
             raise SourceRuleError(f"Source {old!r} is already deprecated in this pool")
         if claimed.get(old) not in (None, new):
             raise SourceRuleError(
@@ -127,6 +117,7 @@ def drop_stale_replaces(pool, attached_ids: Sequence[str]) -> None:
 
 __all__ = [
     "PATCHABLE",
+    "SourceBusyError",
     "SourceRuleError",
     "check_patch",
     "check_replacements",

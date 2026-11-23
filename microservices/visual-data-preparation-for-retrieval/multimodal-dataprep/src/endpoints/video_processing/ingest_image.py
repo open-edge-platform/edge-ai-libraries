@@ -38,22 +38,20 @@ from src.core.embedding import generate_image_embedding_from_content
 from src.core.image_ingest import load_image_source
 from src.core.jobs import BatchItem, process_stored_video, submit_job
 from src.core.utils.common_utils import get_minio_client
-from src.core.utils.config_utils import read_config
+from src.core.utils.config_utils import get_config
 from src.core.validation import sanitize_bucket_name, sanitize_string
 
 router = APIRouter(tags=["Media Ingestion APIs"])
 
 
-def _resolve_detection_defaults(enable_object_detection, detection_confidence):
-    """Fill object-detection defaults from config/settings (frame interval is N/A for images)."""
-    config = read_config(settings.CONFIG_FILEPATH, type="yaml") or {}
+def _resolve_detection_defaults(enable_object_detection):
+    """Fill object-detection defaults from settings (frame interval is N/A for images)."""
+    config = get_config()
     if enable_object_detection is not None:
         od = bool(enable_object_detection)
     else:
-        od = config.get("enable_object_detection", settings.ENABLE_OBJECT_DETECTION)
-        od = bool(True if od is None else od)
-    dc = detection_confidence or config.get("detection_confidence", settings.DETECTION_CONFIDENCE)
-    return od, dc
+        od = bool(config["enable_object_detection"])
+    return od
 
 
 def _new_image_id(index: int = 0) -> str:
@@ -109,9 +107,7 @@ async def ingest_image(
     ``content_type="image"``.
     """
     try:
-        od, dc = _resolve_detection_defaults(
-            request.enable_object_detection, request.detection_confidence
-        )
+        od = _resolve_detection_defaults(request.enable_object_detection)
         bucket = (
             sanitize_bucket_name(request.bucket_name)
             if request.bucket_name
@@ -135,7 +131,6 @@ async def ingest_image(
             video_id=video_id,
             filename=filename,
             enable_object_detection=od,
-            detection_confidence=dc,
             tags=tags,
         )
         logger.info("%d image embeddings created via /media/ingest", len(ids))
@@ -179,9 +174,7 @@ async def ingest_image_batch(
                 msg=f"{Strings.batch_too_large} (max {settings.BATCH_MAX_ITEMS}).",
             )
 
-        od, dc = _resolve_detection_defaults(
-            request.enable_object_detection, request.detection_confidence
-        )
+        od = _resolve_detection_defaults(request.enable_object_detection)
         bucket = (
             sanitize_bucket_name(request.bucket_name)
             if request.bucket_name
@@ -208,7 +201,6 @@ async def ingest_image_batch(
                     bucket_name=bucket,
                     video_id=video_id,
                     enable_object_detection=od,
-                    detection_confidence=dc,
                     tags=item_tags,
                 )
             )

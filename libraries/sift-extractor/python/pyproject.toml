@@ -1,0 +1,35 @@
+[build-system]
+# setuptools>=70 keeps setuptools.command.bdist_wheel importable for setup.py.
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sift-extractor"
+version = "0.1.0"
+description = "Intel SIFT extractor Python bindings (OpenCL/SYCL). Thin wheel — GPU stack not included."
+readme = "README.python.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Intel Corporation" }]
+keywords = ["sift", "opencl", "sycl", "gpu", "computer-vision"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Scientific/Engineering :: Image Recognition",
+]
+dependencies = ["numpy>=1.24"]
+
+[project.urls]
+Homepage = "https://github.com/open-edge-platform/edge-ai-libraries"
+Documentation = "https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/sift-extractor"
+
+[tool.setuptools]
+packages = ["sift_extractor"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+sift_extractor = ["*.so", "py.typed", "licenses/*"]

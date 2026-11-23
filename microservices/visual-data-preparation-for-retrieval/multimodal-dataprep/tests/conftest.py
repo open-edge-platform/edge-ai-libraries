@@ -2,11 +2,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import io
+import os
 from unittest.mock import MagicMock
 
 import pytest
 
-from src.core.minio_client import MinioClient
+# Detection has no default model; set one before settings are first imported.
+os.environ.setdefault("MM_DATAPREP_DETECTION_MODEL_NAME", "OpenVINO/yolox_s-fp16-ov")
+
+from src.core.minio_client import MinioClient  # noqa: E402
 
 
 @pytest.fixture(scope="function")

@@ -50,7 +50,7 @@ Manual PTL checks are not proof that this automated suite passed.
 
 The suite does not provision missing shared inference, download a serving model
 or create a missing OpenShell gateway. Prepare these using the normal
-[installation guide](../docs/agentic-ai-security/agent-sandboxing.md#getting-started)
+[installation guide](../docs/user-guide/agentic-ai-security/agent-sandboxing.md#getting-started)
 before running it.
 
 ## Execute on a prepared Linux machine
@@ -114,7 +114,7 @@ run in the CI reporting-regression step; they do not run live integration in CI.
 
 ### Direct live-suite execution
 
-1. Check out the reviewed revision and enter the Agent Harness Install component
+1. Check out the reviewed revision and enter the Agent Harness Installer component
    directory. Run under the account that can access Docker and the gateway.
 2. Run the offline gate first:
 

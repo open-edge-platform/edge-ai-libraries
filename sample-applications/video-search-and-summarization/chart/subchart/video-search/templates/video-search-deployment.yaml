@@ -89,6 +89,8 @@ spec:
               value: {{ .Values.videosearch.env.AGGREGATION_MIN_GAP | quote }}
             - name: AGGREGATION_MAX_RESULTS
               value: {{ .Values.videosearch.env.AGGREGATION_MAX_RESULTS | quote }}
+            - name: SEARCH_MIN_PEAK_SCORE
+              value: {{ .Values.videosearch.env.SEARCH_MIN_PEAK_SCORE | default "0" | quote }}
             - name: AGGREGATION_INITIAL_K
               value: {{ .Values.videosearch.env.AGGREGATION_INITIAL_K | quote }}
             - name: AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS

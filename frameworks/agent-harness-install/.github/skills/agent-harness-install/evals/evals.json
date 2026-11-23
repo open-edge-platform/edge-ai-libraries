@@ -1,0 +1,106 @@
+{
+  "skill_name": "agent-harness-install",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have an Intel Core Ultra laptop running Ubuntu 24.04. Install OpenClaw for me and run it against a small local model, Qwen/Qwen2.5-0.5B-Instruct, no prompts please.",
+      "expected_output": "A single install.sh command using --harness openclaw, --model Qwen/Qwen2.5-0.5B-Instruct and --non-interactive, followed by an ./install.sh status check.",
+      "should_trigger": true,
+      "files": [],
+      "expectations": [
+        "Uses ./install.sh with --harness openclaw and --model Qwen/Qwen2.5-0.5B-Instruct",
+        "Adds --non-interactive (or sets HARNESS_AGENT and HARNESS_HF_MODEL with --non-interactive)",
+        "Does not install Docker or Node.js by hand, because install.sh runs startup.sh itself",
+        "Suggests ./install.sh status to verify the result",
+        "Mentions that the endpoint binds to 127.0.0.1 by default"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "We already run vLLM at http://10.0.0.5:8000/v1 behind an API key. I want Hermes on this box to use it through the Intel router without starting any local model server. The model it serves is meta-llama/Llama-3.2-3B-Instruct.",
+      "expected_output": "Set HARNESS_LLM_ROUTER_ENDPOINT, HARNESS_LLM_ROUTER_API_KEY and HARNESS_LLM_MODEL to the exact served id, then run install.sh with --harness hermes and without --model. States that OVMS is not started.",
+      "should_trigger": true,
+      "files": [],
+      "expectations": [
+        "Sets HARNESS_LLM_ROUTER_ENDPOINT to http://10.0.0.5:8000/v1",
+        "Sets HARNESS_LLM_ROUTER_API_KEY rather than writing the key into a file or command history",
+        "Passes --harness hermes and sets HARNESS_LLM_MODEL=meta-llama/Llama-3.2-3B-Instruct without --model, because --model would strip the org/ prefix",
+        "States that OVMS is not started and the installer does not health-check the external endpoint",
+        "Notes that Hermes onboarding only prints the endpoint and the user must configure the provider in ~/.hermes/config.yaml"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Install deepagents-code and pull the model with the ollama hub: qwen2.5:7b. Will the agent be able to use it?",
+      "expected_output": "Uses --model-hub ollama with --model qwen2.5:7b, and explains that the model is downloaded and tracked but not served by OVMS, so the agent cannot use it. Recommends the default openvino hub with a Hugging Face id instead.",
+      "should_trigger": true,
+      "files": [],
+      "expectations": [
+        "Uses --model-hub ollama and --model qwen2.5:7b",
+        "States clearly that Ollama models are not served by OVMS and agents will not use them",
+        "Suggests the default openvino hub with an org/name Hugging Face id as the working alternative",
+        "Mentions ./install.sh models list shows the model as not served by OVMS"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "./install.sh dies on our Linux server with 'syntax error near unexpected token'. I cloned the repo on Windows and copied it over with scp.",
+      "expected_output": "Diagnoses CRLF line endings and gives a fix that converts the scripts to LF or re-clones with the right autocrlf setting.",
+      "should_trigger": true,
+      "files": [],
+      "expectations": [
+        "Identifies CRLF line endings from the Windows checkout as the likely cause",
+        "Gives a concrete fix such as sed -i 's/\\r$//' on the scripts or re-cloning with core.autocrlf=input",
+        "Does not suggest editing the installer logic or reinstalling Docker"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "dcode installed fine but when I run it I get MissingCredentialsError, and on the corp network it also says the server did not become healthy, last status 403.",
+      "expected_output": "Explains both dcode issues: export HARNESS_DCODE_API_KEY with any non-empty value, and run dcode with the proxy variables unset.",
+      "should_trigger": true,
+      "files": [],
+      "expectations": [
+        "Tells the user to export HARNESS_DCODE_API_KEY=not-needed (any non-empty value)",
+        "Explains that only the installer's smoke test sets that variable",
+        "Gives the env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY dcode command for the 403",
+        "Explains the 403 comes from the local health check being sent through the proxy"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Remove everything agent-harness-install put on this machine for OpenClaw, but keep the downloaded models.",
+      "expected_output": "Runs ./uninstall.sh --yes --harness openclaw --keep-models, and lists what stays behind.",
+      "should_trigger": true,
+      "files": [],
+      "expectations": [
+        "Uses ./uninstall.sh with --yes and --harness openclaw",
+        "Passes --keep-models so the downloaded models are retained",
+        "Lists what is left in place, including Docker, Node.js/nvm, pulled images and ~/.openclaw",
+        "Does not tell the user to delete ~/.agent-harness-install by hand"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Install the Intel GPU kernel driver and the Level-Zero and OpenCL compute runtime on my Ubuntu box so the Arc card shows up under /dev/dri.",
+      "expected_output": "The skill must not trigger: it only detects GPU readiness and never installs drivers.",
+      "should_trigger": false,
+      "files": [],
+      "expectations": [
+        "Does not run or recommend ./install.sh as the way to install GPU drivers",
+        "Does not claim agent-harness-install installs the Intel GPU driver or compute runtime"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "How do I write a custom tool for an OpenClaw agent that calls my REST API?",
+      "expected_output": "The skill must not trigger: this is a question about the agent itself, not about installing it.",
+      "should_trigger": false,
+      "files": [],
+      "expectations": [
+        "Does not run or recommend ./install.sh",
+        "Does not present installer flags as the answer"
+      ]
+    }
+  ]
+}

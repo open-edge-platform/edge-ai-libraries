@@ -3,7 +3,7 @@
 ## Software
 
 | Software | Minimum |
-|---|---|
+| --- | --- |
 | Docker | 24.0 |
 | Docker Compose | 2.20 |
 

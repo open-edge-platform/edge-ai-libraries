@@ -1,0 +1,7 @@
+fedora_05_install_kmod () {
+  ensure_dnf_install_package kmod
+}
+
+fedora_05_sbom_kmod () {
+  ensure_sbom_format pkg-list kmod
+}

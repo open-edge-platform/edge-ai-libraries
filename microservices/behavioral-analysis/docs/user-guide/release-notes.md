@@ -27,7 +27,6 @@ The Behavioral Analysis Service analyzes video frame sequences to detect suspici
 - **Async SeaweedFS (S3-compatible) frame retrieval** — via `aioboto3`
 - **Circuit breaker in VLM client** — 3-failure threshold, 30-second cooldown
 - **Entity deduplication and max-concurrency backpressure** — in the MQTT consumer
-- **Base image** — `intel/dlstreamer:2026.2.0-ubuntu24` (Python 3.12)
 - **Container-ready** — fully configurable via environment variables and volume-mounted YAML
 
 **Use Cases:**

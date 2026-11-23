@@ -25,6 +25,10 @@ public:
   ~RuckigPlanner() = default;
 
   RTmotion::MC_ERROR_CODE plan() override;
+  // Tracking has a per-call timestep; it must not change the position clock.
+  // NAN selects the symmetric lower acceleration bound.
+  RTmotion::MC_ERROR_CODE trackVelocity(double delta_time,
+                                        double min_acceleration = NAN);
   double* getWaypoint(double t) override;
   void setFrequency(double f) override;
 

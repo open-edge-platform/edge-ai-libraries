@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Opt-in: copy to /etc/metrics-manager/telegraf.d/interrupts.conf and restart
+# metrics-manager-telegraf.service. Only numbered device IRQs are retained.
+
+[[inputs.interrupts]]
+  # Preserve total and CPU0..CPUn fields: ~IRQs * (CPUs + 1) exported series.
+  # TUI limits do not reduce export. For an intentional total-only selection,
+  # add fieldinclude = ["total"] here, before the tagpass table.
+  cpu_as_tag = false
+  [inputs.interrupts.tagpass]
+    irq = ["[0-9]*"]

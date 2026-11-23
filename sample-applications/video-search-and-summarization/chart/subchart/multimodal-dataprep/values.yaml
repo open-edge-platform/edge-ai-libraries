@@ -174,7 +174,12 @@ frameProcessing:
   enableObjectDetection: true
   detectionConfidence: 0.85
   dataprepDetectionDevice: ""
-  detectionModelDir: "/app/models/yolox"
+  detectionModelDir: "/app/models/object-detection"
+  # Hugging Face OpenVINO detection model (OpenVINO/<repo>). No default; required
+  # while enableObjectDetection is true.
+  detectionModelName: ""
+  # Optional comma-separated class filter using the model's labels; empty keeps all classes.
+  detectionClasses: ""
   framesTempDir: "/tmp/dataprep"
 sdkPipeline:
   embeddingBatchSize: 32
@@ -187,6 +192,8 @@ sdkPipeline:
   detectionWorkerThreads: 2
   embedWorkerThreads: 2
   pipelineQueueGetTimeoutS: 1.0
+  # Fail an ingestion when no pipeline stage makes progress for this many seconds (e.g. GPU hang). 0 disables.
+  pipelineStallTimeoutS: 300
   saveRuntimePipelineStats: false
   enableTracing: false
   videoFrameDecoderWorkers: 2
@@ -204,6 +211,9 @@ liveStream:
   # Delete embeddings and media older than this many hours. 0 keeps everything
   # (unbounded index growth); 24h is a safe default for continuous live streams.
   retentionHours: 24
+  # Maximum simultaneously ingesting streams (>= 1). Each running stream holds
+  # decode/detect/embed threads; further registrations return 503.
+  maxConcurrent: 8
 
 minioServer:
   name: minio-server

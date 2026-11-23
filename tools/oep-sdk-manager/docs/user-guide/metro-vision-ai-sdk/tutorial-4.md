@@ -84,7 +84,7 @@ docker run --rm --net=host \
   -e https_proxy=$https_proxy \
   -e http_proxy=$http_proxy \
   -v "${PWD}:/home/dlstreamer" \
-  intel/dlstreamer:2026.2.0-ubuntu24 \
+  intel/dlstreamer:2026.3.0-ubuntu24-rc1 \
   bash -c "export MODELS_PATH=/home/dlstreamer/models && \
            /opt/intel/dlstreamer/samples/download_public_models.sh yolo26s-pose"
 ```
@@ -135,7 +135,7 @@ docker run -it --rm --net=host \
   -v "${PWD}:/home/dlstreamer" \
   --group-add "$RENDER_GROUP_ID" \
   --device=/dev/dri \
-  intel/dlstreamer:2026.2.0-ubuntu24 \
+  intel/dlstreamer:2026.3.0-ubuntu24-rc1 \
   bash -c "export MODELS_PATH=/home/dlstreamer/models && \
            /opt/intel/dlstreamer/samples/gstreamer/gst_launch/human_pose_estimation/human_pose_estimation.sh \
            /home/dlstreamer/face-demographics-walking.mp4"

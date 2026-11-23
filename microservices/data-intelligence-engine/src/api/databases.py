@@ -1,22 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Database connection management.
-
-The engine connects to nothing until something registers a database here. That
-used to be an environment decision made at import time, which meant one Milvus
-per deployment, a restart to change it, and no way to ask what was configured
-or whether it worked. A registration is runtime state now, persisted in the
-workspace beside the asset libraries that reference it.
-
-Registering does not dial: the adapter is built on first use, so writing down a
-connection whose far end is not up yet succeeds, and `POST /{id}/check` is how
-you find out. That is the right way round -- an operator should be able to
-configure the engine and the database in either order.
-
-Credentials go out masked (`DatabaseRegistration.redacted`). They are kept, so
-a client can GET, edit one field and PATCH the whole object back without
-overwriting a password with `***`.
-"""
 
 from typing import List
 
@@ -38,13 +21,7 @@ router = APIRouter(prefix=DATABASE_API_PREFIX, tags=["databases"])
 
 
 def _users_of(database_id: str) -> List[str]:
-    """What would break if this database went away, in human terms.
-
-    Content is not a separate case any more: it lives in a registered source
-    like everything else, so the loop below already covers it. All the default
-    one earns is a clearer label -- it used to be found through a field beside
-    the sources, which missed a content source registered any other way.
-    """
+    """Human-readable labels of the sources that use this database."""
     used = []
     for library in registry.list():
         default_content = getattr(library, "default_content_source_id", "")
@@ -81,7 +58,7 @@ async def list_databases():
 
 @router.get("/backends", response_model=List[BackendOption])
 async def list_backends():
-    """What can be registered, so a caller can offer a choice rather than guess."""
+    """List registrable backends per database type."""
     by_type: dict = {}
     for database_type, backend in BACKENDS:
         by_type.setdefault(database_type, []).append(backend)
@@ -128,14 +105,7 @@ async def register_database(body: DatabaseIn):
 
 @router.patch("/{database_id}", response_model=DatabaseOut)
 async def update_database(database_id: str, body: DatabaseUpdate):
-    """Repoint a database, closing the connection it currently holds.
-
-    The type is fixed. Sources already reference this id and were created as
-    vector or object sources against it; turning one into the other underneath
-    them would leave those sources describing something that is not there.
-    Delete and re-register to do that deliberately, which the 409 on delete will
-    make you confront.
-    """
+    """Repoint a database, closing its current connection; the type cannot change."""
     try:
         registration = database_manager.update(
             database_id,
@@ -156,12 +126,7 @@ async def update_database(database_id: str, body: DatabaseUpdate):
 
 @router.delete("/{database_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_database(database_id: str):
-    """Forget a database, unless something is still pointing at it.
-
-    Refusing is the point. Deleting one that is in use does not fail loudly at
-    delete time -- it fails later, as a pool that cannot sync and an ingest with
-    nowhere to put content, a long way from the action that caused it.
-    """
+    """Remove a database registration; 409 if any source still uses it."""
     if database_manager.get(database_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -183,11 +148,7 @@ async def remove_database(database_id: str):
 
 @router.post("/{database_id}/check", response_model=DatabaseCheck)
 async def check_database(database_id: str):
-    """Connect and ask the backend whether it is there.
-
-    200 either way: "this database is unreachable" is the answer to the
-    question, not a failure to answer it. Read `reachable`.
-    """
+    """Check connectivity; returns 200 with `reachable` set either way."""
     if database_manager.get(database_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

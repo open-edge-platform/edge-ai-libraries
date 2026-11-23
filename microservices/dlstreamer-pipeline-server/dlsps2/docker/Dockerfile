@@ -27,7 +27,7 @@ RUN python3 -m venv --system-site-packages /python3venv && \
 
 ENV VIRTUAL_ENV=/python3venv
 ENV PATH=$VIRTUAL_ENV/bin:$PATH
-ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python
+ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:/opt/intel/openvino/python
 
 # Create a non-root user
 ARG USER=pipeline-server

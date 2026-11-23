@@ -1,0 +1,70 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=Metrics Manager process usage collector
+Documentation=file:///usr/share/doc/metrics-manager/README.md
+After=systemd-tmpfiles-setup.service metrics-manager-telegraf.service
+
+[Service]
+Type=simple
+User=metrics-manager
+Group=metrics-manager
+EnvironmentFile=/etc/metrics-manager/metrics-manager.env
+
+ExecStart=/usr/libexec/metrics-manager/mm-plugin-proc \
+    -limit $PROCESS_LIMIT \
+    -out unix:///run/metrics-manager/collect.sock
+
+Restart=on-failure
+RestartSec=5s
+
+# --- Why this is a separate unit --------------------------------------------
+#
+# Nothing here needs a privilege: /proc/<pid>/stat is world-readable. What this
+# collector needs is to *see* the other processes, and that is exactly what the
+# Telegraf unit gives up.
+#
+# metrics-manager-telegraf.service sets ProtectProc=invisible, which hides every
+# process belonging to another user. Running this as an execd child of Telegraf
+# would inherit that view and report nothing but itself. Hence its own unit,
+# with the default /proc view and no privileges at all.
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=true
+
+# ProtectProc is deliberately left at the default. Setting it to anything
+# stricter is what this unit exists to avoid.
+#
+# The counterpart is that this service can see the command names of every
+# process on the machine. Command *lines* are never read, because arguments
+# routinely carry credentials; only the name in /proc/<pid>/stat is used.
+# The real UID from /proc/<pid>/status and its locally resolved account name
+# are also published for process ownership; no additional privileges are needed.
+
+# --- Filesystem -------------------------------------------------------------
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/run/metrics-manager
+
+# --- Kernel and namespaces --------------------------------------------------
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+PrivateDevices=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

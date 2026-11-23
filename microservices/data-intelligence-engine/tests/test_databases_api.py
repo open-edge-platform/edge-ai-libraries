@@ -19,6 +19,7 @@ import ast
 import asyncio
 import json
 import os
+import secrets
 import sys
 import types
 
@@ -26,6 +27,9 @@ import pytest
 
 from databasehub.manager import REDACTED, DatabaseHubManager
 from . import dbhub
+
+# Generated per run, so no credential literal sits in the source.
+SECRET = secrets.token_hex(8)
 
 # --- stubs ---------------------------------------------------------------------
 #
@@ -148,19 +152,15 @@ def test_an_engine_with_nothing_registered_lists_nothing():
 
 
 def test_backends_lists_every_registrable_pair():
-    """Derived from `BACKENDS`, so adding a backend needs no second list.
-
-    Note this reports what may be *registered*, not what works: `nebula` and
-    `postgres` are placeholders that raise on every call. `check` is what
-    distinguishes them -- see the ping tests below.
-    """
+    """Derived from `BACKENDS`, so adding a backend needs no second list."""
     setup()
 
     by_type = {item.database_type: item for item in run(api.list_backends())}
 
     assert by_type["vector"].backends == ["milvus"]
-    assert by_type["object"].backends == ["filesystem", "minio"]
+    assert by_type["object"].backends == ["filesystem"]
     assert "nebula" in by_type["graph"].backends
+    assert "sql" not in by_type
 
 
 def test_reading_one_that_is_not_registered_is_a_404():
@@ -229,18 +229,18 @@ def test_a_credential_never_leaves_the_process():
         api.register_database(
             _database_in(
                 id="store",
-                type="object",
-                backend="minio",
-                options={"endpoint": "minio:9000", "secret_key": "hunter2"},
+                type="graph",
+                backend="nebula",
+                options={"url": "nebula://nebula-graphd:9669", "password": SECRET},
             )
         )
     )
 
     out = run(api.get_database("store"))
 
-    assert out.options["secret_key"] == REDACTED
-    assert out.options["endpoint"] == "minio:9000", "only the secret is masked"
-    assert hub.require("store").options["secret_key"] == "hunter2", "but it is kept"
+    assert out.options["password"] == REDACTED
+    assert out.options["url"] == "nebula://nebula-graphd:9669", "only the secret is masked"
+    assert hub.require("store").options["password"] == SECRET, "but it is kept"
 
 
 # --- who is using it --------------------------------------------------------------

@@ -21,6 +21,9 @@ import { lastValueFrom } from 'rxjs';
 import { v4 as uuidV4 } from 'uuid';
 import { VideoService } from 'src/video-upload/services/video.service';
 import { VideoEntity } from 'src/video-upload/models/video.entity';
+import { DatastoreService } from 'src/datastore/services/datastore.service';
+import { SearchConfigService } from './search-config.service';
+import { resolveObservedTime } from '../utils/observed-time';
 
 @Injectable()
 export class SearchStateService {
@@ -29,6 +32,8 @@ export class SearchStateService {
     private $video: VideoService,
     private $emitter: EventEmitter2,
     private $searchShim: SearchShimService,
+    private $datastore: DatastoreService,
+    private $searchConfig: SearchConfigService,
   ) {}
 
   private normalizeTimeFilter(timeFilter?: TimeFilterSelection | null): {
@@ -157,6 +162,9 @@ export class SearchStateService {
     return {
       ...(rest as SearchQuery),
       timeFilter,
+      // Rows saved before the filter existed carry null: report the default
+      // they actually run with.
+      minPeakScore: this.$searchConfig.resolveMinPeakScore(entity.minPeakScore),
     };
   }
 
@@ -171,11 +179,21 @@ export class SearchStateService {
     return enrichedQueries.filter((query) => query !== null);
   }
 
+  /**
+   * Read one query with its hits joined to their videos, as `getQueries`
+   * and `newQuery` return them, so a hit is playable without a separate
+   * `GET /videos`. `null` when the query does not exist.
+   */
+  async getQuery(queryId: string): Promise<SearchQuery | null> {
+    return this.enrichQueryWithVideos(await this.$searchDB.read(queryId));
+  }
+
   async newQuery(
     query: string,
     tags: string[] = [],
     timeFilter?: TimeFilterSelection | null,
     image?: string | null,
+    minPeakScore?: number,
   ) {
     const normalized = this.normalizeTimeFilter(timeFilter);
     const searchQuery: SearchQuery = {
@@ -187,6 +205,9 @@ export class SearchStateService {
       results: [],
       tags,
       timeFilter: normalized.selection,
+      // Saved explicitly so a later change of the default does not silently
+      // change what an existing (e.g. watched) query returns.
+      minPeakScore: this.$searchConfig.resolveMinPeakScore(minPeakScore),
       queryStatus: SearchQueryStatus.RUNNING,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -210,6 +231,33 @@ export class SearchStateService {
       return null;
     }
 
+    if (query.results && query.results.length > 0) {
+      query.results = await this.enrichResultsWithVideos(query.results);
+    }
+
+    return this.toSearchQuery(query);
+  }
+
+  /**
+   * Join search hits with their source video's object-store info.
+   *
+   * `POST /search/query`'s one-off results and a persisted query's stored
+   * results carry only `metadata.video_id`; neither knows the bucket or
+   * object key needed to build a link a browser or another service can
+   * actually fetch. This is the one place that join happens, so both search
+   * paths return the same, directly usable `videoPlaybackUrl` instead of
+   * every caller re-deriving it (or falling back to a second `list_videos`
+   * call, as the MCP server previously had to).
+   *
+   * Mutates and returns `results`; a video that no longer exists (deleted
+   * after being indexed) is left without `video`/`videoPlaybackUrl` rather
+   * than dropping the hit.
+   */
+  async enrichResultsWithVideos(results: SearchResult[]): Promise<SearchResult[]> {
+    if (!results || results.length === 0) {
+      return results;
+    }
+
     const videos = await this.$video.getVideos();
     const videosKeyedById = videos.reduce(
       (acc, video) => {
@@ -219,35 +267,85 @@ export class SearchStateService {
       {} as Record<string, VideoEntity>,
     );
 
-    if (query.results && query.results.length > 0) {
-      query.results = query.results.map((result) => {
-        const video = videosKeyedById[result.metadata.video_id];
-        if (video) {
-          result.video = video;
+    return results.map((result) => {
+      const video = videosKeyedById[result.metadata?.video_id];
+      if (video) {
+        result.video = video;
+        if (video.dataStore?.bucket && video.url) {
+          result.videoPlaybackUrl = this.$datastore.getObjectRelativePath(
+            video.url,
+          );
         }
-        return result;
-      });
-    }
-
-    return this.toSearchQuery(query);
+      }
+      // Timeline fields are derived on every read rather than stored, so
+      // results persisted before this existed get them too.
+      const observed = resolveObservedTime(result, video);
+      if (observed) {
+        result.observedAt = observed.observedAt;
+        result.timeSource = observed.timeSource;
+      }
+      if (
+        result.metadata?.best_frame_info?.is_live &&
+        result.metadata.video_id
+      ) {
+        result.streamId = result.metadata.video_id;
+      }
+      return result;
+    });
   }
 
-  async addToWatch(queryId: string) {
+  async addToWatch(queryId: string, minPeakScore?: number) {
+    await this.applyWatchMinPeakScore(queryId, minPeakScore);
     await this.$searchDB.updateWatch(queryId, true);
   }
 
-  async removeFromWatch(queryId: string) {
+  async removeFromWatch(queryId: string, minPeakScore?: number) {
+    await this.applyWatchMinPeakScore(queryId, minPeakScore);
     await this.$searchDB.updateWatch(queryId, false);
   }
 
+  /**
+   * Saves a minimum peak score sent with a watch toggle. When it changes, the
+   * query re-runs in the background so the stored results match the new
+   * threshold now, instead of only after new footage triggers a refresh.
+   */
+  private async applyWatchMinPeakScore(queryId: string, minPeakScore?: number) {
+    if (minPeakScore === undefined) {
+      return;
+    }
+    const query = await this.$searchDB.read(queryId);
+    if (!query) {
+      throw new NotFoundException(`Query with ID ${queryId} not found`);
+    }
+    if (query.minPeakScore === minPeakScore) {
+      return;
+    }
+    await this.$searchDB.update(queryId, { minPeakScore });
+    this.reRunQuery(queryId).catch((error) =>
+      Logger.error(
+        `Re-run after minPeakScore change failed for query ID ${queryId}`,
+        error,
+      ),
+    );
+  }
+
   @OnEvent(SearchEvents.RUN_QUERY)
-  async reRunQuery(queryId: string, timeFilter?: TimeFilterSelection | null) {
+  async reRunQuery(
+    queryId: string,
+    timeFilter?: TimeFilterSelection | null,
+    minPeakScore?: number,
+  ) {
     const query = await this.$searchDB.read(queryId);
     if (!query) {
       // A stale query the server no longer has (e.g. a client re-running a
       // query that only survived in its local cache). Return 404 so the client
       // can prune it, instead of a bare throw that surfaces as a 500.
       throw new NotFoundException(`Query with ID ${queryId} not found`);
+    }
+
+    if (minPeakScore !== undefined) {
+      await this.$searchDB.update(queryId, { minPeakScore });
+      query.minPeakScore = minPeakScore;
     }
 
     // Resolve the time filter for this run. A relative selection (value+unit)
@@ -309,6 +407,7 @@ export class SearchStateService {
         query.timeFilterStart,
         query.timeFilterEnd,
         query.image,
+        this.$searchConfig.resolveMinPeakScore(query.minPeakScore),
       );
 
       console.log('=== SEARCH RESULTS PROCESSING ===');
@@ -382,10 +481,12 @@ export class SearchStateService {
     timeFilterStart?: string | null,
     timeFilterEnd?: string | null,
     image?: string | null,
+    minPeakScore?: number,
   ) {
     const queryShim: SearchShimQuery = {
       query_id: queryId,
       tags,
+      min_peak_score: this.$searchConfig.resolveMinPeakScore(minPeakScore),
     };
 
     // Image-only search: send the image and omit the text query so search-ms
@@ -591,6 +692,9 @@ export class SearchStateService {
       const shimQuery: SearchShimQuery = {
         query_id: entity.queryId,
         tags: entity.tags,
+        min_peak_score: this.$searchConfig.resolveMinPeakScore(
+          entity.minPeakScore,
+        ),
       };
 
       // Image-based watched queries carry no text: send the image and take the

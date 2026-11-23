@@ -4,6 +4,15 @@
 #
 # Engine service image. Build context is the data-intelligence-engine/ directory.
 #   docker build -t data-intelligence-engine -f Dockerfile .
+
+FROM node:22-alpine AS build
+
+WORKDIR /console/ui
+COPY ui/package.json ui/package-lock.json ./
+RUN --mount=type=cache,id=engine-npm,target=/root/.npm,sharing=locked npm ci
+COPY ui/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -15,22 +24,31 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # platforms).
 # tesseract-ocr(-chi-sim): OCR for scanned PDFs. ffmpeg: decodes audio for
 # speech recognition (core/multimodal/asr.py).
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
     curl jq build-essential tesseract-ocr tesseract-ocr-chi-sim ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+
+# libreoffice-draw-nogui: renders WMF/EMF pictures in Office files.
+ARG INSTALL_LIBREOFFICE=true
+RUN if [ "$INSTALL_LIBREOFFICE" = "true" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+        libreoffice-draw-nogui fonts-dejavu-core \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # Intel GPU user-space runtime (OpenCL ICD + Level Zero) so OpenVINO can enumerate
 # and run embedding/rerank on the Intel GPU. Without these, OpenVINO only sees CPU
 # even when /dev/dri is passed through. Mirrors EdgeCraftRAG's Dockerfile.server.
 RUN apt-get update \
     && (apt-get remove -y libze-intel-gpu1 libigc1 libigdfcl1 libze-dev || true) \
-    && apt-get install -y gnupg2 wget curl jq \
+    && apt-get install -y --no-install-recommends gnupg2 wget curl jq \
     && curl -sL 'https://keyserver.ubuntu.com/pks/lookup?fingerprint=on&op=get&search=0x0C0E6AF955CE463C03FC51574D098D70AFBE5E1F' \
         | tee /etc/apt/trusted.gpg.d/driver.asc \
     && echo -e "Types: deb\nURIs: https://ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/\nSuites: noble\nComponents: main\nSigned-By: /etc/apt/trusted.gpg.d/driver.asc" \
         > /etc/apt/sources.list.d/driver.sources \
     && apt-get update \
-    && apt-get install -y \
+    && apt-get install -y --no-install-recommends \
         libze-intel-gpu1 libze1 intel-metrics-discovery intel-opencl-icd clinfo intel-gsc \
         libze-dev intel-ocloc libze-intel-gpu-raytracing libglib2.0-0 libgl1 \
     && rm -rf /var/lib/apt/lists/*
@@ -73,6 +91,7 @@ INSTALL
 # a filesystem object database now checks the root is writable up front, but the
 # directory still has to belong to the user that will write to it.
 COPY . /app/engine/
+COPY --from=build /console/ui/dist/ /app/engine/ui/dist/
 RUN --mount=type=cache,id=engine-pip,target=/root/.cache/pip,sharing=locked \
     pip3 install --no-deps --no-build-isolation --no-index /app/engine \
     && rm -rf /app/engine/workspace \

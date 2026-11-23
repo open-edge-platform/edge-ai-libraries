@@ -57,6 +57,7 @@ class GStreamerRtspDestination(AppDestination):
         self._sync_with_destination = request.get("sync-with-destination", True)
         self._encode_quality = request.get("encode-quality", 85)
         self._encode_bitrate = request.get("encode-bitrate", 4000000)
+        self._encode_gop_size = self._parse_gop_size(request.get("encode-gop-size"))
         self.overlay = request.get("overlay", True)
         self.overlay_properties = request.get("overlay-properties", request.get("gvawatermark", {}))
         encoding = str(request.get("encoding", "mjpeg")).lower()
@@ -66,6 +67,15 @@ class GStreamerRtspDestination(AppDestination):
                 "Supported values: %s", encoding, _SUPPORTED_ENCODINGS)
             encoding = "mjpeg"
         self.encoding = encoding
+
+    def _parse_gop_size(self, value):
+        if value is None:
+            return None
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+        self._logger.warning(
+            "Ignoring invalid 'encode-gop-size' value '%s': expected a positive integer.", value)
+        return None
 
     def _init_stream(self, sample):
         self._frame_size = sample.get_buffer().get_size()
@@ -120,6 +130,18 @@ class GStreamerRtspDestination(AppDestination):
                 self._logger.debug(
                     "Skipping encode-bitrate for non-openh264enc H.264 encoder '%s'; "
                     "using element default.", factory.get_name() if factory else "unknown")
+        if self._encode_gop_size and h264_encoder:
+            # Frames between keyframes. A client can only start decoding at a keyframe, so a
+            # client that joins the stream waits up to one GOP. The property name differs per
+            # encoder.
+            factory = h264_encoder.get_factory()
+            gop_property = {"openh264enc": "gop-size", "vah264enc": "key-int-max"}.get(
+                factory.get_name() if factory else None)
+            if gop_property:
+                h264_encoder.set_property(gop_property, self._encode_gop_size)
+            else:
+                self._logger.debug(
+                    "Skipping encode-gop-size for unknown H.264 encoder; using element default.")
 
     def _push_buffer(self, buffer):
         buffer.make_writable()
@@ -165,7 +187,12 @@ class GStreamerRtspDestination(AppDestination):
         if target is not None:
             target.end_of_stream()
 
-    def finish(self):
+    def release(self):
+        """End the stream and free its RTSP path, so a pipeline restarted on the same path can register it while this
+        pipeline is still shutting down (stopping the GStreamer pipeline can take seconds)."""
         self._end_stream()
         if self._rtsp_server:
-            self._rtsp_server.remove_stream(self._rtsp_path)
+            self._rtsp_server.remove_stream(self._rtsp_path, self)
+
+    def finish(self):
+        self.release()

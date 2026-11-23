@@ -162,25 +162,41 @@
 @utility status-info {
   --status-color: var(--brand-accent);
   --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
-  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-border: color-mix(
+    in oklch,
+    var(--status-color) 32%,
+    var(--background)
+  );
   --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
 }
 @utility status-success {
   --status-color: var(--electric-moss);
   --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
-  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-border: color-mix(
+    in oklch,
+    var(--status-color) 32%,
+    var(--background)
+  );
   --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
 }
 @utility status-error {
   --status-color: var(--destructive);
   --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
-  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-border: color-mix(
+    in oklch,
+    var(--status-color) 32%,
+    var(--background)
+  );
   --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
 }
 @utility status-accent {
   --status-color: var(--electric-geode);
   --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
-  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-border: color-mix(
+    in oklch,
+    var(--status-color) 32%,
+    var(--background)
+  );
   --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
 }
 

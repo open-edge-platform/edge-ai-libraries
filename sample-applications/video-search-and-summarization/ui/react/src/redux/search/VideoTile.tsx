@@ -1,12 +1,14 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { FC, useRef } from 'react';
+import { FC, useMemo, useRef } from 'react';
 import { ASSETS_ENDPOINT } from '../../config';
 import { useAppSelector } from '../store';
 import { SearchSelector } from './searchSlice';
 import { resolveSearchResultVideoUrl, resolveVideoUrl } from '../video/videoUrl';
 import { useSeekableVideo } from '../video/useSeekableVideo';
 import { ScoreDisplay } from '../../components/Search/ScoreDisplay';
+import { ObservedTimeLabel } from '../../components/Search/ObservedTimeLabel';
+import { normalizeTags, ResultTags } from '../../components/Search/ResultTags';
 
 export interface VideoTileProps {
   resultIndex: number; // Index in the selectedResults array
@@ -26,6 +28,7 @@ export const VideoTile: FC<VideoTileProps> = ({ resultIndex }) => {
 
   const seekTime = typeof metadata?.timestamp === 'number' ? metadata.timestamp : 0;
   useSeekableVideo(videoRef, videoUrl, seekTime);
+  const tags = useMemo(() => normalizeTags(metadata?.tags), [metadata?.tags]);
 
   // If no search result at this index, don't render
   if (!searchResult) {
@@ -42,6 +45,8 @@ export const VideoTile: FC<VideoTileProps> = ({ resultIndex }) => {
           relevanceScore={metadata?.relevance_score}
           scoreBreakdown={metadata?.score_breakdown}
         />
+        <ObservedTimeLabel result={searchResult} />
+        <ResultTags tags={tags} className='result-tags' />
       </div>
     </div>
   );

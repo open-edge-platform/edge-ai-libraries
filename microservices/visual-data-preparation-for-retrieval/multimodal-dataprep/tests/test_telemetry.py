@@ -98,7 +98,6 @@ def test_live_pipeline_result_without_stream_id_still_records(tmp_path, mocker):
 		frame_interval=15,
 		tags=[],
 		enable_object_detection=False,
-		detection_confidence=0.85,
 		metadata_dict={},
 		# Deliberately omits "stream_id", as the live pipeline result does.
 		pipeline_result={"total_frames_processed": 10, "total_stored_ids": 10},

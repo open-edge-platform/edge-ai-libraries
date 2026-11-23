@@ -110,7 +110,12 @@ install_openclaw() {
   # npm 11.16+/12+ blocks a package's install-time lifecycle scripts unless
   # explicitly allow-listed; OpenClaw's own install docs require this flag
   # on those npm versions, and skipping it silently leaves the CLI broken.
-  npm_ver="$(command_exists npm && npm --version 2>/dev/null || true)"
+  npm_ver=""
+  if command_exists npm; then
+    if ! npm_ver="$(npm --version 2>/dev/null)"; then
+      npm_ver=""
+    fi
+  fi
   if [[ -n "$npm_ver" ]] && version_gte "$npm_ver" "11.16.0"; then
     npm_args+=(--allow-scripts=openclaw)
   fi
@@ -256,20 +261,45 @@ EOF
   rm -f "$tmp"
 }
 
-# Default Hermes installer: scripts/install.sh at the commit tagged v0.22.2,
+# Default Hermes installer: scripts/install.sh at the commit tagged v0.23.0,
 # with its SHA-256; --commit makes the installer check out that same commit.
 # The hermes-agent.nousresearch.com URL serves a moving target, so it is not
-# used by default. Bump all three together.
-HERMES_PINNED_COMMIT="d923a5eb487a17c0a68801bba9ef0f56c81040a8"
-HERMES_PINNED_SHA256="f4cdb0e20f1aca2c3871a76b962fd4db61510f549cf973759c753ac13349beb5"
+# used by default. Bump both together (test/verify-pins.sh checks the digest).
+# A downstream that validated another release can override both from the
+# environment, keeping the same download + checksum + --commit mechanics;
+# which of the two was set is captured before defaulting so install_hermes
+# can reject a half override (the installer would just fail its digest check).
+HERMES_PIN_OVERRIDE="${HERMES_PINNED_COMMIT:+commit}${HERMES_PINNED_SHA256:+sha256}"
+HERMES_PINNED_COMMIT="${HERMES_PINNED_COMMIT:-2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19}"
+HERMES_PINNED_SHA256="${HERMES_PINNED_SHA256:-abf338605dae6dd28d101673ac6aed7995c955745db46d47676bc591a7957209}"
+
+# validate_hermes_pin -- an overridden pin must name a full commit SHA and the
+# matching installer digest, and both halves must be given together.
+validate_hermes_pin() {
+  case "$HERMES_PIN_OVERRIDE" in
+    "") return 0 ;;
+    commitsha256) ;;
+    *) error "HERMES_PINNED_COMMIT and HERMES_PINNED_SHA256 must be set together: the
+digest belongs to scripts/install.sh at that exact hermes-agent commit." ;;
+  esac
+  [[ "$HERMES_PINNED_COMMIT" =~ ^[0-9a-f]{40}$ ]] \
+    || error "HERMES_PINNED_COMMIT must be a full 40-character lowercase commit SHA, got '${HERMES_PINNED_COMMIT}'."
+  [[ "$HERMES_PINNED_SHA256" =~ ^[0-9a-f]{64}$ ]] \
+    || error "HERMES_PINNED_SHA256 must be a 64-character lowercase SHA-256, got '${HERMES_PINNED_SHA256}'."
+}
 
 install_hermes() {
   local installer_url installer_sha256="${HERMES_INSTALL_SHA256:-}"
   local -a installer_args=(--skip-setup --non-interactive)
   local installer_tmp
+  validate_hermes_pin
   installer_tmp="$(mktemp)"
   if [[ -n "${HERMES_INSTALL_URL:-}" ]]; then
     installer_url="$HERMES_INSTALL_URL"
+    # A mirror of the installer normally installs whatever the installer's
+    # own default channel resolves to; an explicit pin still selects the
+    # hermes-agent commit to check out.
+    [[ -z "$HERMES_PIN_OVERRIDE" ]] || installer_args+=(--commit "$HERMES_PINNED_COMMIT")
   else
     installer_url="https://raw.githubusercontent.com/NousResearch/hermes-agent/${HERMES_PINNED_COMMIT}/scripts/install.sh"
     installer_sha256="${installer_sha256:-$HERMES_PINNED_SHA256}"
@@ -315,8 +345,11 @@ to accept the risk and proceed without pinning)."
     : >"$hermes_log"
     # tee into hermes_log so the failure can be classified; spin still
     # shows/prints the output as before.
-    if spin "Installing Hermes" bash -c \
-      'bash "$1" "${@:3}" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' \
+    if spin "Installing Hermes" bash -c "$(cat <<'SH'
+bash "$1" "${@:3}" 2>&1 | tee "$2"
+exit "${PIPESTATUS[0]}"
+SH
+    )" \
       _ "$installer_tmp" "$hermes_log" "${installer_args[@]}"; then
       hermes_installed=1
       break

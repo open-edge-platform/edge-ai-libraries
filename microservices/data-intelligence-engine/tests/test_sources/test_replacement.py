@@ -4,7 +4,7 @@
 
 import pytest
 
-from assetlib.sources.binding import DEPRECATED, PREPARING, SERVING
+from assetlib.sources.binding import DEGRADE, PREPARING, SERVING
 from assetlib.sources.updates import SourceRuleError
 
 from tests.test_sources.fakes import (
@@ -54,7 +54,7 @@ def test_a_replacement_takes_over_once_it_has_caught_up():
     library.sync_asset_pool("pool")
 
     assert state(library, "pool", "f16") == SERVING
-    assert state(library, "pool", "f8") == DEPRECATED
+    assert state(library, "pool", "f8") == DEGRADE
     assert retrieved_sources(library, "pool") == ["f16"]
     assert "f8" in pool.frozen_sources, "kept, with its data"
     assert all(p.source.source_id != "f8" for p in pool.projections), "and no model"
@@ -84,7 +84,7 @@ def test_a_replacement_into_an_empty_pool_happens_at_once():
     library.set_asset_pool_sources("pool", [{"source_id": "f8"}, {"source_id": "f16", "replaces": "f8"}])
 
     assert state(library, "pool", "f16") == SERVING
-    assert state(library, "pool", "f8") == DEPRECATED
+    assert state(library, "pool", "f8") == DEGRADE
 
 
 def test_rolling_back_is_a_replacement_in_the_other_direction():
@@ -100,7 +100,7 @@ def test_rolling_back_is_a_replacement_in_the_other_direction():
     library.sync_asset_pool("pool")
 
     assert state(library, "pool", "f8") == SERVING
-    assert state(library, "pool", "f16") == DEPRECATED
+    assert state(library, "pool", "f16") == DEGRADE
     assert len(library.store["c_f8"]) == 4
 
 

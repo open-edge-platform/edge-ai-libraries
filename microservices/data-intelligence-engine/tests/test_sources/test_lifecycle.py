@@ -9,7 +9,7 @@ import weakref
 
 import pytest
 
-from assetlib.sources.binding import DEPRECATED, DISABLED, PREPARING, SERVING, effective_state
+from assetlib.sources.binding import DEGRADE, DISABLED, PREPARING, SERVING, effective_state
 from assetlib.sources.updates import SourceRuleError
 from inference.model_cache import ModelCache
 
@@ -90,7 +90,7 @@ def test_enabling_does_not_revive_a_deprecated_binding():
     library.update_source("f8", enabled=False)
 
     assert library.update_source("f8", enabled=True) == []
-    assert state(library, "pool", "f8") == DEPRECATED
+    assert state(library, "pool", "f8") == DEGRADE
     assert serving_ids(library, "pool") == ["f16"]
 
 
@@ -187,7 +187,7 @@ def test_a_restore_brings_bindings_back_without_loading_frozen_ones():
     restored.restore(record)
 
     assert restored.builds == ["f16"], "the deprecated f8 is not built"
-    assert state(restored, "pool", "f8") == DEPRECATED
+    assert state(restored, "pool", "f8") == DEGRADE
     assert state(restored, "pool", "f16") == SERVING
     assert serving_ids(restored, "pool") == ["f16"]
     assert "f8" in restored.asset_pools["pool"].frozen_sources

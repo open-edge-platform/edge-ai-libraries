@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SocketEvent } from 'src/events/socket.events';
-import { SearchEvents } from 'src/events/Pipeline.events';
+import { SearchEvents, StreamEvents } from 'src/events/Pipeline.events';
 import { LiveStreamState } from '../models/stream.model';
 import { StreamShimService } from './stream-shim.service';
 import { StreamPollerService } from './stream-poller.service';
@@ -353,6 +353,24 @@ describe('StreamPollerService', () => {
       jest.advanceTimersByTime(5000);
       await flush();
       expect(emit).not.toHaveBeenCalledWith(SearchEvents.EMBEDDINGS_UPDATE);
+    });
+  });
+  describe('live stream tags', () => {
+    it('reports the tags of every registered stream', async () => {
+      list.mockResolvedValue({
+        count: 2,
+        streams: [
+          { stream_id: 'a', state: LiveStreamState.RUNNING, tags: ['lobby'] },
+          { stream_id: 'b', state: LiveStreamState.PAUSED, tags: ['dock', 'lobby'] },
+        ],
+      });
+      service.addSubscriber();
+      await flush();
+      expect(emit).toHaveBeenCalledWith(StreamEvents.TAGS_SEEN, [
+        'lobby',
+        'dock',
+        'lobby',
+      ]);
     });
   });
 });

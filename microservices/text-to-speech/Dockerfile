@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-FROM intel/dlstreamer:2026.2.0-ubuntu24
+FROM intel/dlstreamer:2026.3.0-ubuntu24-rc1
 
 ARG APP_UID=1000
 ARG APP_GID=1000
@@ -10,6 +10,7 @@ USER root
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH="" \
     VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:$PATH"
 
@@ -52,7 +53,8 @@ COPY requirements.txt ./requirements.txt
 
 RUN python3 -m venv "$VIRTUAL_ENV" \
     && "$VIRTUAL_ENV/bin/pip" install --upgrade pip setuptools \
-    && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt
+    && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt \
+    && "$VIRTUAL_ENV/bin/python3" -c "import openvino, openvino_genai, openvino_tokenizers as t; print(openvino.__version__, t.__version__); assert openvino.__file__.startswith('/opt/venv')"
 
 
 COPY . .

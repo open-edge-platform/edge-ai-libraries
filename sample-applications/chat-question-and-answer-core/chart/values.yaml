@@ -30,6 +30,7 @@ chatqna:
   - 109  # render (Ubuntu 20.04)
   - 110  # render (Ubuntu 22.04)
   - 992  # render (Ubuntu 24.04)
+  - 990  # render (Ubuntu 26.04)
   readinessProbe:
     httpGet:
       path: /v1/chatqna/health

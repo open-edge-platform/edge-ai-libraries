@@ -17,7 +17,7 @@ from PIL import Image
 
 import config
 from assetlib import AssetPool, Source
-from assetlib.sources.binding import DEPRECATED, PREPARING, SERVING
+from assetlib.sources.binding import DEGRADE, PREPARING, SERVING
 from core import materialize
 from core.content import (
     AUDIO,
@@ -64,21 +64,21 @@ class FakeMultimodalEmbedding:
         self.documents = []
         self.queries = []
 
-    def embed_image(self, images):
+    def get_image_embeddings(self, images):
         self.images.extend(images)
         return [list(IMAGE_VECTOR) for _ in images]
 
-    def embed_video(self, frames):
+    def get_video_embedding(self, frames):
         self.videos.append(list(frames))
         return list(VIDEO_VECTOR)
 
-    def embed_documents(self, texts):
+    def get_text_embedding_batch(self, texts):
         self.documents.extend(texts)
         return [list(DOCUMENT_VECTOR) for _ in texts]
 
-    def embed_text(self, texts):
-        self.queries.extend(texts)
-        return [list(QUERY_VECTOR) for _ in texts]
+    def get_query_embedding(self, text):
+        self.queries.append(text)
+        return list(QUERY_VECTOR)
 
 
 class FakeTextEmbedding(BaseEmbedding):
@@ -378,7 +378,7 @@ def test_declared_width_probes_no_query_but_retrieval_still_uses_query_tower():
 
 
 @pytest.mark.parametrize("configuration", [{"block_kinds": [TEXT]}, {}])
-def test_text_source_shares_batch_and_streaming_filters(configuration):
+def test_text_source_streaming_filters(configuration):
     model = FakeFusedEmbedding()
     indexer = _indexer(model, configuration, multimodal=False)
     asset = _asset(
@@ -394,8 +394,6 @@ def test_text_source_shares_batch_and_streaming_filters(configuration):
     indexer._blob_reader = lambda key, source: asset.read_blob(key)
     expected = {"prose"} if configuration else {"prose", "image", "clip", "audio"}
 
-    batch_nodes = indexer.nodes_from(asset)
-    assert {node.id_ for node in batch_nodes} == expected
     assert {node.id_ for node, _, _ in indexer.iter_node_items(asset)} == expected
     counts = indexer.add([asset])
 
@@ -406,7 +404,7 @@ def test_text_source_shares_batch_and_streaming_filters(configuration):
         assert asset.reads == [] and model._fused == []
     else:
         assert _stored_vectors(indexer)["image"] == IMAGE_VECTOR
-        assert len(model._fused) == 2, "batch and streaming preserve main's fused path"
+        assert len(model._fused) == 1, "streaming preserves main's fused path"
 
 
 def test_actual_add_with_no_covered_blocks_does_not_flush():
@@ -443,6 +441,7 @@ def test_consumer_failure_cancels_full_queue_and_joins_before_unbinding(
     monkeypatch, failure_stage, blocked_on
 ):
     monkeypatch.setattr(config, "INGEST_BATCH_SIZE", 1)
+    monkeypatch.setattr(config, "INGEST_INSERT_BATCH_SIZE", 1)
     monkeypatch.setattr(config, "INGEST_QUEUE_MAX", 1)
     blocked = threading.Event()
     queue_type = materialize.queue.Queue
@@ -495,7 +494,12 @@ def test_consumer_failure_cancels_full_queue_and_joins_before_unbinding(
     assert raised.value is failure, "the consumer's original error must survive cleanup"
     assert len(producer_threads) == 1 and not producer_threads[0].is_alive()
     assert bindings_at_exit == [True], "producer cleanup precedes MM binding cleanup"
-    assert len(produced) == (2 if blocked_on == "sentinel" else 3)
+    if blocked_on == "sentinel":
+        assert len(produced) == 2
+    elif failure_stage == "insert_prepared":
+        assert len(produced) in (3, 4)
+    else:
+        assert len(produced) == 3
     assert indexer._assets_by_stream == {}
     assert indexer._adapter.flushed == []
 
@@ -505,6 +509,7 @@ def test_partial_streaming_sync_retries_whole_asset_despite_backend_presence(
     monkeypatch, failure_stage
 ):
     monkeypatch.setattr(config, "INGEST_BATCH_SIZE", 1)
+    monkeypatch.setattr(config, "INGEST_INSERT_BATCH_SIZE", 1)
     indexer = _indexer(FakeMultimodalEmbedding((ROLE_L2_CAPTION,)), {
         "asset_types": [VIDEO], "block_roles": [ROLE_L2_CAPTION],
     })
@@ -634,7 +639,7 @@ def test_sync_keeps_hooks_batched_backfill_and_replacement_lifecycle():
         ("finish", "new", ["a", "b", "c", "d", "e"]),
     ]
     assert state(library, "pool", "new") == SERVING
-    assert state(library, "pool", "old") == DEPRECATED
+    assert state(library, "pool", "old") == DEGRADE
     assert serving_ids(library, "pool") == ["new"]
     assert "old" in library.asset_pools["pool"].frozen_sources
 

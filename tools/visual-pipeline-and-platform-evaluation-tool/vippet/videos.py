@@ -13,7 +13,10 @@ from typing import Dict, List, Literal, Optional, Tuple
 import cv2
 import yaml
 
-from pipeline_runner import PipelineRunner
+from dlsps2_runner import Dlsps2PipelineRunner
+
+# The TS conversion runs on DLSPS 2.0. Both containers mount the same video
+# directories, so the output lands here.
 
 # Allowed video file extensions (lowercase, without dot)
 VIDEO_EXTENSIONS = (
@@ -283,19 +286,12 @@ class VideosManager:
         Ensure AUTO_VIDEO_DIR and UPLOADED_VIDEO_DIR exist on disk with
         mode 0o755.
 
-        ``os.makedirs(mode=...)`` alone is subject to the process umask and
-        does not touch already-existing directories, so we follow up with
-        an explicit ``os.chmod`` to guarantee the mode regardless of the
-        umask and regardless of who created the directory originally. Any
-        OS error is re-raised as RuntimeError since the application cannot
-        function without these folders.
+        Any OS error is re-raised as RuntimeError since the application
+        cannot function without these folders.
         """
         for subdir in (AUTO_VIDEO_DIR, UPLOADED_VIDEO_DIR):
             try:
                 os.makedirs(subdir, mode=0o755, exist_ok=True)
-                # Enforce the mode explicitly - os.makedirs() respects the
-                # umask and leaves existing directories untouched.
-                os.chmod(subdir, 0o755)
             except OSError as e:
                 raise RuntimeError(
                     f"Failed to create video subdirectory '{subdir}': {e}"
@@ -818,7 +814,9 @@ class VideosManager:
         )
 
         try:
-            runner = PipelineRunner(mode="normal", max_runtime=0.0)
+            runner = Dlsps2PipelineRunner(
+                mode="normal", max_runtime=0.0, validate_pipelines=False
+            )
             if demuxer:
                 pipeline_command = (
                     f"filesrc location={source_path} ! {demuxer} ! {parser} ! {caps} "
@@ -833,6 +831,11 @@ class VideosManager:
             return True
         except Exception as e:
             logger.error(f"Failed to convert '{source_filename}' to TS: {e}")
+            # A half-written file would later pass for a finished conversion.
+            try:
+                os.remove(ts_path)
+            except OSError:
+                pass
             return False
 
     @staticmethod

@@ -34,7 +34,8 @@ export class TimeFilterSelection {
 export class SearchQueryDTO {
   @ApiPropertyOptional({
     description:
-      'Non-blank text search query. Provide either `query` or `image` (not both).',
+      'Non-blank text search query. Provide exactly one of `query`, ' +
+      '`image` or `imageUrl`.',
     example: 'person walking',
   })
   query?: string;
@@ -42,10 +43,22 @@ export class SearchQueryDTO {
   @ApiPropertyOptional({
     description:
       'Query image as a base64 string or data URL, for image-based search. ' +
-      'Provide either `query` or `image` (not both). Only supported in ' +
-      'frame-embedding modes (--search/--dual).',
+      'Provide exactly one of `query`, `image` or `imageUrl`. Only ' +
+      'supported in frame-embedding modes (--search/--dual).',
   })
   image?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Reference to a query image previously uploaded with ' +
+      '`POST /search/images`: its `imageUrl`, `imagePath` or `imageId`. ' +
+      'Any host is accepted; only the path is used. Provide exactly one of ' +
+      '`query`, `image` or `imageUrl`. Only supported in frame-embedding ' +
+      'modes (--search/--dual).',
+    example:
+      'http://192.168.1.10:12345/datastore/video-summary/search-images/3f0c1f1e-7c1b-4a8e-9a55-0d6f6c2b9e11.jpg',
+  })
+  imageUrl?: string;
 
   @ApiPropertyOptional({
     description: 'Comma-separated tags to filter by',
@@ -59,6 +72,18 @@ export class SearchQueryDTO {
     nullable: true,
   })
   timeFilter?: TimeFilterSelection | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Minimum peak score (0-1). Frames whose similarity is below it are ' +
+      'dropped at retrieval, so every returned segment has a best frame at ' +
+      'or above it. 0 disables the filter; omit to use the deployment ' +
+      'default (SEARCH_MIN_PEAK_SCORE, see GET /search/config).',
+    minimum: 0,
+    maximum: 1,
+    example: 0.2,
+  })
+  minPeakScore?: number;
 }
 
 export class RefetchBodyDTO {
@@ -67,11 +92,30 @@ export class RefetchBodyDTO {
     description: 'Optional time filter override',
   })
   timeFilter?: TimeFilterSelection;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional minimum peak score override (0-1, 0 = off). Saved on the ' +
+      'query and used by later refetches and watched-query refreshes.',
+    minimum: 0,
+    maximum: 1,
+  })
+  minPeakScore?: number;
 }
 
 export class WatchBodyDTO {
   @ApiProperty({ description: 'Whether to watch this query' })
   watch: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional minimum peak score (0-1, 0 = off) saved on the query and ' +
+      'applied at retrieval by every watched refresh. When it changes, the ' +
+      'query re-runs immediately. Omit to keep the current threshold.',
+    minimum: 0,
+    maximum: 1,
+  })
+  minPeakScore?: number;
 }
 
 export enum SearchQueryStatus {
@@ -86,6 +130,7 @@ export interface SearchShimQuery {
   image_base64?: string;
   tags?: string[];
   time_filter?: { start: string; end: string };
+  min_peak_score?: number;
 }
 
 export interface SearchResultRO {
@@ -170,6 +215,12 @@ export interface SearchResult {
     // Present on aggregated (clip-level) results returned by the search
     // backend. These, not `id`/`interval_num`, are what actually identify
     // which moment of a video matched.
+    /**
+     * Point (seconds into the video) to seek playback to, as returned by
+     * the search-ms frame-to-video aggregation. Only present in
+     * frame-embedding search modes (--search/--dual); older/VDMS result
+     * shapes may omit it.
+     */
     seek_timestamp?: number;
     segment_start?: number;
     segment_end?: number;
@@ -178,9 +229,33 @@ export interface SearchResult {
     best_frame_info?: BestFrameInfo;
   };
   video?: VideoEntity;
+  /**
+   * Gateway-relative, directly downloadable/playable path for this hit's
+   * source video, e.g. `/my-bucket/<videoId>/source.mp4`. Prefix with the
+   * datastore base URL (the same host the search request itself was sent to,
+   * with `/datastore` in place of `/manager`) to get a fully qualified,
+   * host-reachable link. Present whenever the hit's `video_id` matches a
+   * known video with object-store info; absent otherwise (e.g. the video was
+   * deleted after being indexed).
+   */
+  videoPlaybackUrl?: string;
+  /**
+   * Wall-clock time (ISO-8601, UTC) of this hit's peak frame, for sorting
+   * results on a timeline. Live hits: the segment's recording start plus the
+   * frame offset (true capture time). Uploaded videos: the time the video was
+   * uploaded to VSS plus the frame offset, since uploads carry no reliable
+   * capture time. Absent when neither can be determined.
+   */
+  observedAt?: string;
+  /** What `observedAt` is based on: `live` capture time or `upload` time. */
+  timeSource?: ObservedTimeSource;
+  /** Live stream (camera) id for live hits; absent for uploaded videos. */
+  streamId?: string;
   page_content: string;
   type: string;
 }
+
+export type ObservedTimeSource = 'live' | 'upload';
 
 export interface SearchQuery {
   dbId?: number;
@@ -192,6 +267,8 @@ export interface SearchQuery {
   queryStatus: SearchQueryStatus;
   tags: string[];
   timeFilter?: TimeFilterSelection | null;
+  /** Minimum peak score the query searches with (0 = no filtering). */
+  minPeakScore?: number | null;
   createdAt: string;
   updatedAt: string;
   errorMessage?: string;

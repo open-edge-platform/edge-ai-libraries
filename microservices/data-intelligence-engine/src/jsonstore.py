@@ -1,19 +1,6 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Atomic JSON files in the workspace.
-
-Two things persist here -- the asset libraries (`core/repository.py`) and the
-database connections (`databasehub/repository.py`) -- and both need the same
-guarantee: each file is rewritten *whole* from the live set, so a crash or a
-full disk must leave the previous file intact rather than a half-written one.
-The records go to a temporary file in the same directory, are flushed to disk,
-and only then replace the live file.
-
-It lives at the engine root rather than in `core/` because `databasehub` uses it
-and must not import `core` -- the dependency runs the other way.
-
-Callers serialize their own writes; nothing here takes a lock.
-"""
+"""Atomic JSON files in the workspace; callers serialize their own writes."""
 
 import json
 import os
@@ -36,11 +23,7 @@ def _fsync_directory(directory: str) -> None:
 
 
 def write_json(path: str, records: Any, what: str = "records") -> bool:
-    """Replace `path` with `records`, atomically. False if it could not be done.
-
-    A read-only workspace costs persistence, not the request in flight -- and
-    whatever was saved last is still whole -- so this reports rather than raises.
-    """
+    """Replace `path` with `records` atomically; False (not raise) if it could not be done."""
     directory = os.path.dirname(path) or "."
     temporary_path = None
     try:
@@ -68,11 +51,7 @@ def write_json(path: str, records: Any, what: str = "records") -> bool:
 
 
 def read_json(path: str, what: str = "records") -> List[dict]:
-    """The dict records in `path`; an empty list if it is absent or unreadable.
-
-    An unreadable file is reported and skipped rather than raised: one corrupt
-    file should cost the records it holds, not the service starting at all.
-    """
+    """The dict records in `path`; an empty list if it is absent or unreadable."""
     try:
         with open(path, "r", encoding="utf-8") as file:
             records = json.load(file)

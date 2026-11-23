@@ -1,26 +1,5 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Extraction jobs: a graph source turning its pool's documents into OKF.
-
-Extraction is slow (an LLM reads the whole corpus) and is not part of syncing.
-A sync only notes that a source's extraction is out of date; a job here runs
-the extractor, publishes the bundle as a pool asset and syncs the pool so the
-graph builds it. Jobs are kept in memory -- the durable part, whether the
-generated bundle is current, lives on the source's status.
-
-One job per (library, pool, source) is active at a time. Asking again while
-one is queued returns that job; asking while one is running returns it too
-and schedules exactly one more run after it, so changes that landed mid-run
-are not lost and a burst of uploads does not stack up runs.
-
-A request may ask for a quiet period (`delay`, the `auto` trigger's debounce):
-the job waits until no new document-change request has arrived for that long.
-Unchanged syncs do not request again. A request without a delay makes a waiting
-job due now; a follow-up only waits for quiet time not already spent in a run.
-
-`ExtractionScheduler` is the one background thread that fires `schedule`
-triggers, asking every library for its due extractions once per tick.
-"""
 
 import logging
 import threading
@@ -37,8 +16,7 @@ QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED = "queued", "running", "succeeded"
 ACTIVE = (QUEUED, RUNNING)
 #: Finished jobs kept per pool and source for `GET .../extractions`.
 HISTORY = 20
-#: Extractions running at once across the engine; each holds an extractor
-#: request open for minutes.
+#: Extractions running at once across the engine.
 WORKERS = 2
 
 
@@ -81,7 +59,7 @@ class ExtractionJob:
 
 
 class ExtractionJobs:
-    """Queue, run and remember extraction jobs for one asset library."""
+    """In-memory extraction jobs for one library; one active job per (library, pool, source)."""
 
     #: Run jobs on the caller's thread (tests); the API never waits on a job.
     inline = False
@@ -100,11 +78,7 @@ class ExtractionJobs:
 
     def request(self, library: str, asset_pool_id: str, source_id: str,
                 trigger: str, force: bool = False, delay: float = 0.0) -> Tuple[ExtractionJob, bool]:
-        """The job that will cover the pool's current documents, and whether it is new.
-
-        `delay` seconds of quiet are waited for before it starts; each further
-        delayed request restarts the wait, and one without a delay ends it.
-        """
+        """Return the job covering the pool's current documents and whether it is new; `delay` debounces."""
         key = (library, asset_pool_id, source_id)
         due = _later(delay) if delay > 0 and not self.inline else None
         with self._lock:
@@ -171,8 +145,7 @@ class ExtractionJobs:
             return self._active.get((library, asset_pool_id, source_id))
 
     def cancel(self, extraction_id: str) -> ExtractionJob:
-        """Cancel a queued job. A running one cannot be: the extractor request
-        is already in flight, and its result would be discarded, not stopped."""
+        """Cancel a queued job; running jobs cannot be cancelled."""
         with self._lock:
             job = self._jobs.get(extraction_id)
             if job is None:
@@ -185,7 +158,7 @@ class ExtractionJobs:
             return job
 
     def detach_source(self, source_id: str) -> None:
-        """Cancel queued work atomically; an in-flight publication must finish first."""
+        """Cancel queued work for a source; raises if a job is running."""
         with self._lock:
             jobs = [job for job in self._active.values() if job.source_id == source_id]
             if any(job.state == RUNNING for job in jobs):
@@ -199,10 +172,35 @@ class ExtractionJobs:
                 self._active.pop(job.key, None)
                 self._again.pop(job.key, None)
 
+    def running_for_pool(self, library: str, asset_pool_id: str) -> bool:
+        with self._lock:
+            return any(
+                job.state == RUNNING
+                for job in self._active.values()
+                if job.library == library and job.asset_pool_id == asset_pool_id
+            )
+
+    def cancel_pool(self, library: str, asset_pool_id: str) -> None:
+        with self._lock:
+            jobs = [
+                job for job in self._active.values()
+                if job.library == library and job.asset_pool_id == asset_pool_id
+            ]
+            if any(job.state == RUNNING for job in jobs):
+                raise ValueError(
+                    f"Asset pool {asset_pool_id!r} has a running OKF extraction, which cannot be "
+                    "cancelled mid-run. Wait for it to finish (see the pool's extraction status), "
+                    "then delete the pool again"
+                )
+            for job in jobs:
+                job.state, job.finished_at = CANCELLED, _now()
+                self._active.pop(job.key, None)
+                self._again.pop(job.key, None)
+
     # --- running ----------------------------------------------------------------
 
     def _arm(self, job: ExtractionJob) -> None:
-        """Submit `job` once its quiet period ends (re-armed if it was extended)."""
+        """Submit `job` once its quiet period ends."""
         wait = max(0.0, _seconds_until(job.not_before)) if job.not_before else 0.0
         timer = threading.Timer(wait, self._due, (job,))
         timer.daemon = True
@@ -245,7 +243,7 @@ class ExtractionJobs:
             logger.info("OKF extraction %s finished in %.0fs: %s", job.extraction_id,
                         time.monotonic() - began,
                         ", ".join(f"{key}={value}" for key, value in job.result.items()))
-        except Exception as error:  # noqa: BLE001 - reported on the job
+        except Exception as error:  # noqa: BLE001
             logger.exception("OKF extraction %s failed after %.0fs", job.extraction_id,
                              time.monotonic() - began)
             job.error = f"{type(error).__name__}: {error}"
@@ -261,12 +259,10 @@ class ExtractionJobs:
         if self._on_finished is not None:
             try:
                 self._on_finished(job)
-            except Exception:  # noqa: BLE001 - the job itself is done
+            except Exception:  # noqa: BLE001
                 logger.exception("Saving after extraction %s failed", job.extraction_id)
         if again is not None and job.state == FAILED and again[0] != "manual":
-            # The same corpus would most likely fail the same way -- and after a
-            # timeout the extractor may still be working on the abandoned task.
-            # The source stays outdated: the next change or a request retries.
+            # Skip automatic retry after failure; the source stays outdated.
             logger.info("OKF extraction %s failed; not starting its automatic follow-up",
                         job.extraction_id)
             again = None
@@ -285,14 +281,7 @@ class ExtractionJobs:
 
 
 class ExtractionScheduler:
-    """Fire `schedule` triggers: every `TICK` seconds, ask each library from
-    `libraries()` to request the extractions whose cron minute has come.
-
-    The tick is shorter than a minute, so every matching minute is seen; a
-    library remembers which minute it last fired for each source. Minutes
-    that pass while the engine is down are not caught up -- the source stays
-    `outdated` until its next scheduled minute (or a manual request).
-    """
+    """Every `TICK` seconds, ask each library to request its due scheduled extractions."""
 
     TICK = 20.0
 

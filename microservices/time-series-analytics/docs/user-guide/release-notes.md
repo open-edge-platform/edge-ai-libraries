@@ -15,7 +15,7 @@ This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.
 - **Kapacitor**: built version 1.8.7 from source and kept build tools out of the runtime image.
 - **Smaller Containerized image**: Removed not used dependencies and simplified driver installation.
 - **Dependencies**: updated Python runtime, test, and simulator dependencies, including FastAPI, scikit-learn, asyncua, and protobuf.
-- **Deployment images**: updated Docker and Helm image versions to 2026.3.0 and refreshed the Python base image.
+- **Deployment images**: updated Docker image versions to 2026.3.0 and refreshed the Python base image.
 - **Validation**: added shell linting to CI and corrected ShellCheck findings in startup scripts.
 - **Documentation**: improved component cross-links, standardized admonitions, and updated release documentation.
 
@@ -24,6 +24,10 @@ This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.
 - **Configuration API**: corrected the restart field to use a non-nullable boolean in the API and OpenAPI schema.
 - **Swagger UI**: fixed the display of the optional restart parameter.
 - **Classifier startup**: resolved CodeQL findings in startup handling.
+
+**Removed**
+
+- **Helm deployment**: Helm charts have been retired and are no longer maintained or distributed starting with version 2026.3. Use Docker Compose for deployment.
 
 ## Version 2026.2
 

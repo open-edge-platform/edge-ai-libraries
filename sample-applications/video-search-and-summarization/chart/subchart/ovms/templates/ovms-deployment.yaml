@@ -3,6 +3,19 @@
 {{- $ovmsChartEnv := .Values.ovms.env -}}
 {{- $ovmsParentEnv := .Values.env -}}
 {{- $ovmsAllowedMediaDomains := default $ovmsChartEnv.ALLOWED_MEDIA_DOMAINS $ovmsParentEnv.ALLOWED_MEDIA_DOMAINS -}}
+{{- /* OVMS_MAX_NUM_SEQS / OVMS_CACHE_SIZE_GB -> graph.pbtxt via the download init containers.
+       max_num_seqs defaults to 16 (setup.sh: max(16, VLM_CONCURRENT + LLM_CONCURRENT)); the
+       model-download default of 256 overflows the KV cache for hybrid linear-attention models.
+       Raise it if pipelinemanager VLM_CONCURRENT + LLM_CONCURRENT exceeds 16.
+       An empty cache size keeps model-download's value (0 = dynamic KV cache). */ -}}
+{{- $ovmsMaxNumSeqs := toString (default "16" (default $ovmsChartEnv.OVMS_MAX_NUM_SEQS $ovmsParentEnv.OVMS_MAX_NUM_SEQS)) -}}
+{{- if not (regexMatch "^[1-9][0-9]*$" $ovmsMaxNumSeqs) -}}
+{{- fail (printf "ovms.env.OVMS_MAX_NUM_SEQS must be a positive integer (got '%s')" $ovmsMaxNumSeqs) -}}
+{{- end -}}
+{{- $ovmsCacheSizeGb := toString (default "" (default $ovmsChartEnv.OVMS_CACHE_SIZE_GB $ovmsParentEnv.OVMS_CACHE_SIZE_GB)) -}}
+{{- if and $ovmsCacheSizeGb (not (regexMatch "^[1-9][0-9]*$" $ovmsCacheSizeGb)) -}}
+{{- fail (printf "ovms.env.OVMS_CACHE_SIZE_GB must be a positive integer in GB (got '%s')" $ovmsCacheSizeGb) -}}
+{{- end -}}
 {{- /* --- 2. SHARED OVMS MODEL CONFIG: single source of truth (templates/_ovms-model-config.tpl) --- */ -}}
 {{- /* Device, weight-format, storage-name and split-model decisions are shared with the
        pipeline-manager deployment so the names registered here match the names the
@@ -89,6 +102,16 @@ spec:
               value: {{ $ovmsVlmDevice | lower | quote }}
             - name: MODEL_PATH
               value: /opt/models
+            - name: MAX_NUM_SEQS
+              value: {{ $ovmsMaxNumSeqs | quote }}
+            - name: CACHE_SIZE_GB
+              value: {{ $ovmsCacheSizeGb | quote }}
+            - name: NPU_MAX_PROMPT_LEN
+              value: {{ $ovmsCfg.npuMaxPromptLen | quote }}
+            - name: NPU_MIN_RESPONSE_LEN
+              value: {{ $ovmsCfg.npuMinResponseLen | quote }}
+            - name: SERVES_LLM
+              value: {{ ternary "false" "true" $ovmsSplitModel | quote }}
             - name: HF_HUB_ENABLE_HF_TRANSFER
               value: "1"
             - name: OVMS_RELEASE_TAG
@@ -136,6 +159,16 @@ spec:
               value: {{ $ovmsLlmDevice | lower | quote }}
             - name: MODEL_PATH
               value: /opt/models
+            - name: MAX_NUM_SEQS
+              value: {{ $ovmsMaxNumSeqs | quote }}
+            - name: CACHE_SIZE_GB
+              value: {{ $ovmsCacheSizeGb | quote }}
+            - name: NPU_MAX_PROMPT_LEN
+              value: {{ $ovmsCfg.npuMaxPromptLen | quote }}
+            - name: NPU_MIN_RESPONSE_LEN
+              value: {{ $ovmsCfg.npuMinResponseLen | quote }}
+            - name: SERVES_LLM
+              value: "true"
             - name: HF_HUB_ENABLE_HF_TRANSFER
               value: "1"
             - name: OVMS_RELEASE_TAG

@@ -1,0 +1,70 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=Metrics Manager NPU telemetry collector
+Documentation=file:///usr/share/doc/metrics-manager/README.md
+After=systemd-tmpfiles-setup.service metrics-manager-telegraf.service
+
+[Service]
+Type=simple
+User=metrics-manager
+Group=metrics-manager
+EnvironmentFile=/etc/metrics-manager/metrics-manager.env
+
+# Writing to the collector socket instead of stdout is the whole reason this
+# runs as its own unit rather than as an execd child of Telegraf: an execd
+# child would inherit Telegraf's privileges, and Telegraf has none.
+ExecStart=/usr/libexec/metrics-manager/mm-plugin-npu \
+    -out unix:///run/metrics-manager/collect.sock
+
+Restart=on-failure
+RestartSec=5s
+
+# --- Why this needs a capability --------------------------------------------
+#
+# The kernel exposes NPU telemetry at /sys/class/intel_pmt/telem*/telem with
+# mode 0440 and root ownership, so an unprivileged reader is refused.
+#
+# CAP_DAC_READ_SEARCH was measured to be sufficient, which is why this service
+# is not root: the capability bypasses read permission only. A root service
+# would additionally bypass write permission on every root-owned file, and
+# would be uid 0 if it ever escaped this sandbox.
+#
+# The capability is broad in one respect worth stating plainly: it allows this
+# process to read any file on the system. What keeps that acceptable is that
+# the process runs a single binary with no shell, no network and no writable
+# path outside the runtime directory.
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+NoNewPrivileges=true
+
+# --- Filesystem -------------------------------------------------------------
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# Connecting to a unix socket requires write access to it, so the runtime
+# directory cannot be read-only.
+ReadWritePaths=/run/metrics-manager
+
+# --- Kernel and namespaces --------------------------------------------------
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectProc=invisible
+PrivateDevices=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

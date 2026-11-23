@@ -25,3 +25,15 @@ dist/
 .venv/
 __pycache__/
 .pytest_cache/
+
+# Test results and cache.
+results/
+
+# Local service credentials
+/.env
+
+# IDE/editor specific files.
+.vscode/
+.github/
+.venv**/
+results/

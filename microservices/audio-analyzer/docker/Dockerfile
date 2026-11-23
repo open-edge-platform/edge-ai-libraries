@@ -145,7 +145,7 @@ ARG GPU_DRIVER_VERSION="26.18.38308.1"
 ARG IGC_VERSION="2.34.4+21428"
 ARG NPU_DRIVER_VERSION="1.33.0"
 ARG NPU_DRIVER_BUILD="v1.33.0.20260529-26625960453-ubuntu2404"
-ARG LEVEL_ZERO_VERSION="1.32.0-1~24.04~ppa1"
+ARG LEVEL_ZERO_VERSION="1.34.0-1~24.04~ppa1"
 
 # Optional corporate TLS-inspection CA (NOT baked into the repo or the image
 # by default -- this RUN step is a no-op unless a build invoker explicitly

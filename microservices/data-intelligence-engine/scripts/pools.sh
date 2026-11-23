@@ -41,7 +41,7 @@ Remove sources example (a pool keeps at least one source):
 Graph example (OKF concepts and links of the pool's graph source):
   ./pools.sh graph docs default 500
 Replace a source (upgrade a model or its parameters):
-  ./pools.sh add-sources docs default video-xclip-fp16 --replaces video-xclip-fp32
+  ./pools.sh add-sources docs default NEW_SOURCE_ID --replaces SOURCE_ID
 Create/update `sources` and add-assets `asset_ids` accept ids or names.
 Assets body: {"asset_ids":["asset-name-or-id"]}
 

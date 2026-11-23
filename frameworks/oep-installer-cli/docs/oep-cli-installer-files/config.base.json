@@ -13,7 +13,8 @@
     "label": "Operating System",
     "type": "single",
     "options": [
-      { "label": "Ubuntu 24.04", "value": "UBUNTU_24_04" }
+      { "label": "Ubuntu 24.04", "value": "UBUNTU_24_04" },
+      { "label": "Ubuntu 26.04", "value": "UBUNTU_26_04" }
     ]
   },
 
@@ -28,10 +29,11 @@
     "retail_ai_suite",
     "interactive_ai_smart_signage",
     "health_and_life_sciences_ai_suite",
+    "robotics_ai_suite",
+    "education_ai_suite",
     "federal_and_aerospace_ai_suite_handheld",
     "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
-    "federal_and_aerospace_ai_suite_mission_decision_support",
-    "robotics_ai_suite"
+    "federal_and_aerospace_ai_suite_mission_sensing_service"
   ],
 
   "outputs": {

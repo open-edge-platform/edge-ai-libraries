@@ -10,7 +10,6 @@ import traceback
 from collections.abc import Iterable
 from typing import Any, List, Optional
 
-import numpy as np
 from multimodal_embedding_serving import EmbeddingModel, get_model_handler
 from PIL import Image
 
@@ -353,48 +352,6 @@ class EmbeddingClient:
         logger.info("Stored %d embeddings", len(generated_ids))
         return generated_ids
 
-    def generate_embedding_for_image(self, image_input: Any) -> Optional[List[float]]:
-        """
-        Generate embedding for a single image using SDK.
-
-        Args:
-            image_input: Image input (PIL Image, numpy array, or path)
-
-        Returns:
-            Embedding as list of floats or None if failed
-        """
-        try:
-            if not self.supports_image:
-                logger.debug(
-                    "Model %s does not support image embeddings; skipping single image request.",
-                    self.model_id,
-                )
-                return None
-
-            # Ensure we have a PIL Image
-            if isinstance(image_input, str):
-                # If it's a path, load the image
-                image = Image.open(image_input)
-            elif isinstance(image_input, np.ndarray):
-                # If it's a numpy array, convert to PIL
-                image = Image.fromarray(image_input)
-            else:
-                # Assume it's already a PIL Image
-                image = image_input
-
-            # Generate embedding using the model handler
-            embeddings = self.model_handler.encode_image([image])
-
-            if embeddings is not None and len(embeddings) > 0:
-                embedding = embeddings[0]
-                vector = self._to_list(embedding)
-                return vector or None
-            return None
-
-        except Exception as exc:
-            logger.error("Error generating image embedding: %s", exc)
-            return None
-
     def generate_embeddings_for_images(
         self, image_inputs: List[Any], metrics_out: bool = False
     ) -> List[Optional[List[float]]]:
@@ -452,29 +409,6 @@ class EmbeddingClient:
             logger.error("Error generating text embedding: %s", exc)
             logger.debug(traceback.format_exc())
             return None
-
-    def generate_embeddings_for_texts(self, texts: List[str]) -> List[Optional[List[float]]]:
-        """Generate embeddings for multiple text inputs."""
-        if not self.supports_text:
-            logger.error(
-                "Model %s lacks text embedding support; cannot embed %d texts.",
-                self.model_id,
-                len(texts),
-            )
-            return [None] * len(texts)
-
-        try:
-            embeddings = self.model_handler.encode_text(texts)
-            if embeddings is None:
-                return [None] * len(texts)
-            results: List[Optional[List[float]]] = []
-            for embedding in embeddings:
-                results.append(self._to_list(embedding) or None)
-            return results
-        except Exception as exc:
-            logger.error("Error generating embeddings for texts: %s", exc)
-            logger.debug(traceback.format_exc())
-            return [None] * len(texts)
 
     def store_text_embedding(
         self,

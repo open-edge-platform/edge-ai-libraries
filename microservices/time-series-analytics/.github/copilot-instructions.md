@@ -35,12 +35,11 @@ agent-facing map.
   extracted.
 - GPU use mounts `/dev/dri` and requires the host's `render` group GID to be
   in `group_add` (values for Ubuntu 20.04/22.04/24.04 are pre-listed).
-- Helm chart under [`helm/`](../helm/) for Kubernetes deployment.
 - Unit tests: `./tests/run_tests.sh` (creates a venv, installs
   `requirements.txt` + `tests/requirements.txt`, runs Pytest with coverage).
 - Functional tests: `cd tests-functional && pip3 install -r
   requirements.txt && pytest -q -vv --self-contained-html
-  --html=./test_report/report.html .` (exercises the Docker and Helm
+  --html=./test_report/report.html .` (exercises the Docker
   deployments end-to-end).
 
 ## API Surface
@@ -52,6 +51,7 @@ agent-facing map.
 | GET | `/config` | Current `udfs`/`alerts` config; `?restart=true` schedules a background Kapacitor restart |
 | POST | `/config` | Replace config (≤5 KB payload); validates UDF deployment package files exist |
 | POST | `/udfs/package` | Upload a `.tar` UDF deployment package (multipart `file` field) |
+| POST | `/stop_pipeline` | Stop the Kapacitor daemon, retaining configuration; optional `expected_task_id` guards task identity |
 | POST | `/opcua_alerts` | Forward an alert message to the configured OPC UA server |
 
 Full schema: [`docs/user-guide/api-reference.md`](../docs/user-guide/api-reference.md)
@@ -69,10 +69,9 @@ and [`_assets/openapi.json`](../docs/user-guide/_assets/openapi.json).
 | `config.json` | Active UDF/alert configuration loaded at startup. |
 | `config/kapacitor*.conf` | Kapacitor daemon configuration (prod / devmode). |
 | `docker/` | `docker-compose.yml`, `.env`, `run.sh`, `detect-cores.sh`. |
-| `helm/` | Helm chart for Kubernetes deployment. |
 | `simulator/temperature_input.py` | Sample data generator posting to `/input`. |
 | `tests/` | Pytest unit suite (`run_tests.sh`, coverage via `.coveragerc`). |
-| `tests-functional/` | End-to-end Pytest suite against Docker/Helm deployments. |
+| `tests-functional/` | End-to-end Pytest suite against Docker deployments. |
 | `docs/user-guide/` | get-started, how-it-works, how-to-configure, how-to-access-api, api-reference. |
 
 ## Tech Stack
@@ -81,7 +80,7 @@ Python 3.13, FastAPI + Uvicorn, Kapacitor 1.8.6 (TICKscript engine; its
 Python UDF agent is vendored at image build time via a sparse git checkout
 of `influxdata/kapacitor`, not pip-installed), InfluxDB line protocol,
 `asyncua` for OPC UA, Intel® Extension for Scikit-learn* for UDF
-acceleration, Docker Compose / Helm for deployment.
+acceleration, Docker Compose for deployment.
 
 ## Conventions
 
@@ -129,6 +128,9 @@ GitHub and uses the prebuilt image.
 - `/health` reflects the Kapacitor daemon's health, not the FastAPI
   process — a 200 from `/health` does not guarantee the UDF pipeline is
   correctly configured.
+- `/stop_pipeline` shuts down the entire daemon, not only the configured task.
+  It verifies shutdown before returning success; repeated stops are safe.
+  `/health` returns 503 afterward. `POST /config` can restart analytics.
 - `GET /config?restart=true` returns the **pre-restart** config; the
   restart itself runs as a background task after the response is sent.
 - `POST /config` payloads are capped at 5 KB; `POST /udfs/package` uploads

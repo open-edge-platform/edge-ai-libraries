@@ -15,10 +15,16 @@ missing, what revision has been reached -- against that source's own subset.
 
 from types import SimpleNamespace
 
+import pytest
+
 from assetlib import AssetPool
+from assetlib.contracts import Source
 from core.content import ContentBlock, ContentStream
+from core.extractor import media_kind
 from core.file_asset_library import FileAsset, FileAssetLibrary
 from core.indexer import accepts_asset
+from core.knowledge import asset_format
+from core.multimodal.routing import effective_configuration, validate_asset_types
 
 
 class FakeProjection:
@@ -58,6 +64,7 @@ class FakeProjection:
         return []
 
     def remove(self, asset_ids):
+        self.removed = list(asset_ids)
         return 0
 
     def add(self, assets):
@@ -123,6 +130,56 @@ def test_something_that_is_not_an_asset_is_not_accepted():
     assert not accepts_asset(SimpleNamespace(asset_id="a1"), {})
 
 
+def test_document_matches_documents_and_no_media():
+    """`asset_kind` used to say "document" for every file that was not OKF."""
+    wanted = {"asset_types": ["document"]}
+
+    assert accepts_asset(_asset("a1", "report.pdf"), wanted)
+    assert accepts_asset(_asset("a1", "notes.md"), wanted)
+    for name in ("photo.png", "clip.mp4", "talk.wav"):
+        assert not accepts_asset(_asset("a1", name), wanted), name
+
+
+def test_an_assets_kind_is_its_family_and_only_okf_is_kept_as_given():
+    assert [_asset("a", name).asset_kind for name in ("r.pdf", "p.png", "c.mp4", "t.wav")] == [
+        "document", "image", "video", "audio",
+    ]
+    assert FileAsset("b", origin="file:///w/bundle", asset_kind="okf").asset_kind == "okf"
+    # A record written before media had a kind of its own.
+    assert FileAsset("a", origin="file:///w/p.png", asset_kind="document").asset_kind == "image"
+
+
+def test_an_unscoped_text_vector_source_takes_documents():
+    text = Source("t", "vector", None, profile={"encoder_kind": "text"})
+    media = Source("m", "vector", None, configuration={"asset_types": ["image"]},
+                   profile={"encoder_kind": "multimodal"})
+    graph = Source("g", "graph", None)
+
+    assert effective_configuration(text)["asset_types"] == ["document"]
+    assert effective_configuration(media)["asset_types"] == ["image"]
+    assert "asset_types" not in effective_configuration(graph)
+
+
+def test_a_vector_source_refuses_asset_types_no_asset_can_match():
+    for value in ("document", "image", "pdf", ".docx", "png", "application/pdf", "video/mp4"):
+        validate_asset_types({"asset_types": [value]})
+    for value, message in (("okf", "graph source"), ("pdff", "Unknown"), ("exe", "Unknown")):
+        with pytest.raises(ValueError, match=message):
+            validate_asset_types({"asset_types": [value]})
+
+
+def test_a_graph_does_not_take_media_as_documents():
+    assert asset_format(_asset("a1", "report.pdf")) == "document"
+    assert asset_format(_asset("a1", "photo.png")) == "image"
+    assert asset_format(FileAsset("b", origin="file:///w/bundle", asset_kind="okf")) == "okf"
+
+
+def test_ingest_classifies_media_the_same_way():
+    assert [media_kind(name) for name in ("p.png", "c.mp4", "t.wav", "r.pdf")] == [
+        "image", "video", "audio", "",
+    ]
+
+
 # --- sync ---------------------------------------------------------------------
 
 
@@ -184,6 +241,17 @@ def test_attaching_a_source_asks_only_about_its_own_subset():
     pool.set_projections([graph], library._already_indexed(pool, [graph]))
 
     assert graph.queried == [["a1"]]
+
+
+def test_deleting_an_asset_clears_it_from_a_source_that_no_longer_takes_it():
+    """A text source unscoped before took pictures too; their records must go."""
+    text = FakeProjection(source_id="s1", asset_types=["document"])
+    library, _ = _library(text)
+    _ingest(library, ("a1", "photo.png"))
+
+    library.delete_assets(["a1"])
+
+    assert text.removed == ["a1"]
 
 
 # --- direct dispatch ----------------------------------------------------------

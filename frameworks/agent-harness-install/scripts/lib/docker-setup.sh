@@ -31,6 +31,8 @@ install_docker_via_apt_repo() {
   rm -f "$key_tmp"
 
   local codename arch
+  # Read the target host's distro metadata, not the runner's.
+  # shellcheck disable=SC1091
   codename="$(. /etc/os-release && printf '%s' "${UBUNTU_CODENAME:-$VERSION_CODENAME}")"
   arch="$(dpkg --print-architecture)"
   sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
@@ -131,7 +133,7 @@ ensure_docker_daemon_proxy() {
   local v
   for v in "$http_proxy_val" "$https_proxy_val" "$no_proxy_val"; do
     case "$v" in
-      *'"'* | *'\'* | *$'\n'*)
+      *'"'* | *\\* | *$'\n'*)
         warn "Skipping Docker daemon proxy setup: a proxy variable contains a quote, backslash, or newline."
         return 0 ;;
     esac
@@ -207,6 +209,8 @@ ensure_docker() {
     info "Docker is not installed."
     local distro_id=""
     if command_exists apt-get && [[ -r /etc/os-release ]]; then
+      # Read the target host's distro metadata, not the runner's.
+      # shellcheck disable=SC1091
       distro_id="$(. /etc/os-release && printf '%s' "$ID")"
     fi
     case "$distro_id" in
@@ -349,6 +353,9 @@ docker_proxy_env_args_into() {
   local -n _docker_proxy_target="$1"
   local var
   for var in HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy; do
-    [[ -n "${!var:-}" ]] && _docker_proxy_target+=(-e "${var}=${!var}")
+    # Not `[[ ]] && ...`: its status 1 for an unset last var would abort callers under set -e.
+    if [[ -n "${!var:-}" ]]; then
+      _docker_proxy_target+=(-e "${var}=${!var}")
+    fi
   done
 }

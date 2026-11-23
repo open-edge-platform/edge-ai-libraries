@@ -749,7 +749,7 @@ policy_paths() {
 }
 run_case 'OpenClaw uses base policy and interactive agents use PTY policy' policy_paths "$SCRIPT_DIR"
 run_case 'sandbox policy docs cover static and live updates' bash -c '
-  doc="$1/docs/agentic-ai-security/agent-sandboxing.md"
+  doc="$1/docs/user-guide/agentic-ai-security/agent-sandboxing.md"
   grep -Fq "openshell/policy.yaml" "$doc"
   grep -Fq "openshell/interactive-policy.yaml" "$doc"
   grep -Fq "./install.sh --runtime openshell --harness hermes --non-interactive" "$doc"

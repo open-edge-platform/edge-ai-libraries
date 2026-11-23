@@ -55,4 +55,11 @@ export const selectGpuDevices = createSelector([selectDevices], (devices) =>
     .sort((d1, d2) => d1.device_name.localeCompare(d2.device_name)),
 );
 
+export const selectCpuTopology = createSelector(
+  [selectDevices],
+  (devices) =>
+    devices.find((device) => device.device_family === "CPU")?.cpu_topology ??
+    null,
+);
+
 export default devicesSlice.reducer;

@@ -18,6 +18,7 @@ that must not break because of them:
   starts with nothing registered, that path went from rare to guaranteed.
 """
 
+import secrets
 import tempfile
 from types import SimpleNamespace
 
@@ -33,6 +34,9 @@ from databasehub.manager import (
 )
 from databasehub.models import VectorCollection
 from . import dbhub
+
+# Generated per run, so no credential literal sits in the source.
+SECRET = secrets.token_hex(8)
 
 
 class FakeProjection:
@@ -175,16 +179,16 @@ def test_a_secret_left_out_of_an_update_is_kept():
     hub = _hub()
     hub.register(
         "store",
-        database_type="object",
-        backend="minio",
-        options={"endpoint": "minio:9000", "secret_key": "hunter2"},
+        database_type="graph",
+        backend="nebula",
+        options={"url": "nebula://nebula-graphd:9669", "password": SECRET},
     )
 
-    hub.update("store", options={"endpoint": "minio:9001", "secret_key": REDACTED})
+    hub.update("store", options={"url": "nebula://other-graphd:9669", "password": REDACTED})
 
     options = hub.require("store").options
-    assert options["endpoint"] == "minio:9001"
-    assert options["secret_key"] == "hunter2"
+    assert options["url"] == "nebula://other-graphd:9669"
+    assert options["password"] == SECRET
 
 
 def test_removing_forgets_and_closes():
@@ -202,25 +206,29 @@ def test_credentials_are_masked_on_the_way_out_and_kept_on_the_way_in():
     hub = _hub()
     hub.register(
         "store",
-        database_type="object",
-        backend="minio",
-        options={"endpoint": "minio:9000", "secret_key": "hunter2"},
+        database_type="graph",
+        backend="nebula",
+        options={"url": "nebula://nebula-graphd:9669", "password": SECRET},
     )
 
     registration = hub.require("store")
 
-    assert registration.redacted()["options"]["secret_key"] == REDACTED
-    assert registration.redacted()["options"]["endpoint"] == "minio:9000"
-    assert registration.to_record()["options"]["secret_key"] == "hunter2"
+    assert registration.redacted()["options"]["password"] == REDACTED
+    assert registration.redacted()["options"]["url"] == "nebula://nebula-graphd:9669"
+    assert registration.to_record()["options"]["password"] == SECRET
 
 
 def test_an_empty_secret_is_not_masked_into_looking_set():
     hub = _hub()
+    empty = ""
     hub.register(
-        "store", database_type="object", backend="minio", options={"secret_key": ""}
+        "store",
+        database_type="graph",
+        backend="nebula",
+        options={"url": "nebula://nebula-graphd:9669", "password": empty},
     )
 
-    assert hub.require("store").redacted()["options"]["secret_key"] == ""
+    assert hub.require("store").redacted()["options"]["password"] == empty
 
 
 # --- persistence ---------------------------------------------------------------
@@ -230,9 +238,9 @@ def test_a_round_trip_keeps_everything_including_the_secret():
     hub = _hub()
     hub.register(
         "store",
-        database_type="object",
-        backend="minio",
-        options={"endpoint": "minio:9000", "secret_key": "hunter2"},
+        database_type="graph",
+        backend="nebula",
+        options={"url": "nebula://nebula-graphd:9669", "password": SECRET},
         description="shared content",
     )
 
@@ -240,7 +248,7 @@ def test_a_round_trip_keeps_everything_including_the_secret():
     assert restored.restore(hub.to_records()) == ["store"]
 
     registration = restored.require("store")
-    assert registration.options["secret_key"] == "hunter2"
+    assert registration.options["password"] == SECRET
     assert registration.description == "shared content"
 
 

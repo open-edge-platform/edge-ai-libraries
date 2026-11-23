@@ -110,7 +110,8 @@ If the user wants to index **live RTSP cameras**, route to `--search` or
 `--dual`. Live ingestion is deliberately off in `--summary` (no dataprep) and
 in `--unified` (text-only embedding model, which cannot embed video frames).
 See [references/modes-and-overlays.md](references/modes-and-overlays.md) for the
-`UI_LIVE_STREAMS_FEATURE` / `LIVE_STREAM_ENABLED` / `LIVE_RETENTION_HOURS` knobs.
+`UI_LIVE_STREAMS_FEATURE` / `LIVE_STREAM_ENABLED` / `LIVE_RETENTION_HOURS` /
+`LIVE_STREAM_MAX_CONCURRENT` knobs.
 
 ## Quick deployment flow
 
@@ -144,8 +145,8 @@ See [references/modes-and-overlays.md](references/modes-and-overlays.md) for the
    Common to every mode: `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`,
    `POSTGRES_USER`, `POSTGRES_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`.
    Mode-specific model vars (`VLM_MODEL_NAME`, `ASR_MODEL`, `OD_MODEL_NAME` for summary;
-   `MULTIMODAL_EMBEDDING_MODEL` for search/dual;
-   `TEXT_EMBEDDING_MODEL` for unified) ship with defaults in `vss.config` -
+   `MULTIMODAL_EMBEDDING_MODEL` for search/dual; `TEXT_EMBEDDING_MODEL` for
+   unified; `DATAPREP_DETECTION_MODEL` for search/dual) ship with defaults in `vss.config` -
    see [`references/env-vars.md`](./references/env-vars.md) for the full table.
    To inject your own credentials (vault/CI) instead of random ones, export them
    before running `gen-secrets.sh` - it reuses any credential already set.
@@ -259,15 +260,36 @@ For vLLM, `setup.sh` adds `docker/compose.vllm.yaml`, starts `vllm-cpu-service`
 (profile `vllm`) on host port `8200`, and uses `VLM_MODEL_NAME` for both
 captioning and final summary. Experimental `ENABLE_VLLM_GPU=true` instead adds
 `docker/compose.vllm.xpu.yaml`, selects profile `vllm-xpu`, and disables OVMS.
-For OVMS GPU, `setup.sh` adds
+For OVMS (no vLLM toggle), `setup.sh` adds `docker/compose.ovms.yaml`, which
+makes a healthy `ovms-service` a required dependency of `pipeline-manager`, so
+startup fails instead of continuing without a model server.
+For OVMS GPU, `setup.sh` also adds
 `docker/compose.gpu_ovms.yaml` and switches `ovms-service` to
-`openvino/model_server:2026.1-gpu`.
+`openvino/model_server:2026.4.1-gpu`.
 
 The skill's fresh `bash -c` deployment flow prevents derived OVMS storage names
 from leaking between runs. If switching from OVMS to vLLM manually in the same
 interactive shell, first run
 `unset VLM_STORAGE_MODEL_NAME LLM_STORAGE_MODEL_NAME`; otherwise Compose can
 reuse an OVMS storage alias that vLLM does not serve.
+
+## Refresh cached images
+
+Docker reuses a cached image for moving tags such as `latest`. Add
+`--pull-always` (alias `--force-pull`) to a deployment mode, or set
+`PULL_ALWAYS=true` (`make deploy MODE=<mode> PULL_ALWAYS=true`), to run Compose
+`up -d --pull always` and start the model-download container with
+`--pull always`:
+
+```bash
+source setup.sh --summary --pull-always
+```
+
+The flag may appear anywhere in the arguments. Images that exist only locally
+are kept when the registry has no match, but a registry image with the same
+name and tag replaces a locally built one. It is ignored for `config`,
+`--stop`, `--clean-data` and `--setenv`, and `PULL_ALWAYS` must be `true` or
+`false`.
 
 ## Lifecycle: bring down or reset
 
@@ -287,7 +309,7 @@ source setup.sh --help       # full help
 `docker_pg_data`, `docker_vdms-db`, `docker_milvus-db`, `docker_milvus-etcd`,
 `docker_audio_analyzer_data`, and `docker_data-prep` (volumes absent in the
 current mode are skipped). The **model-cache** volumes -
-`docker_dataprep-yolox-models`, `docker_ov-models`, `docker_vllm_model_cache` -
+`docker_dataprep-detection-models`, `docker_ov-models`, `docker_vllm_model_cache` -
 and the host-backed `ov_models/` directory are deliberately **preserved**, so a
 `--clean-data` never forces a costly model re-download.
 
@@ -302,6 +324,7 @@ and the host-backed `ov_models/` directory are deliberately **preserved**, so a
 | Pipeline Manager API + docs | `…/manager/docs`, health `…/manager/health` |
 | Data Prep docs (search modes) | `http://<HOST_IP>:7890/docs` |
 | Embedding server docs (search modes) | `http://<HOST_IP>:9777/docs` |
+| MCP server (all modes) | `http://<HOST_IP>:12345/mcp` (via the nginx gateway) |
 
 ## Troubleshooting ("why won't vss come up")
 

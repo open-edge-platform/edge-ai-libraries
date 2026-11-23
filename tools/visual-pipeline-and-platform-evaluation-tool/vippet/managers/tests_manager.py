@@ -25,8 +25,8 @@ from internal_types import (
     InternalPipelineStreamSpec,
     InternalTestJobState,
 )
-from dlsps2_runner import Dlsps2PipelineRunner
-from pipeline_runner import LatencyTracerSample, PipelineEvent, PipelineRunner
+from dlsps2_runner import Dlsps2PipelineRunner, dlsps2_latency_configured
+from pipeline_runner import LatencyTracerSample, PipelineEvent
 from benchmark import Benchmark
 from managers.execution_coordinator import (
     ExecutionCoordinator,
@@ -40,13 +40,34 @@ from utils import slugify_text
 
 logger = logging.getLogger("tests_manager")
 
-# Selects the pipeline execution backend for single-stream performance
-# tests: "local" (default) spawns gst_runner.py as before; "dlsps2"
-# delegates to a running DLSPS 2.0 instance via Dlsps2PipelineRunner.
-# Density tests and multi-stream performance tests always use the local
-# runner -- see dlsps2_runner.py for why (no per-stream FPS breakdown on
-# DLSPS 2.0 for independent concurrent streams).
-_EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
+# Job detail added when a test asked for latency metrics that the server cannot
+# measure, so the run went ahead without them.
+LATENCY_NOT_COLLECTED_DETAIL = (
+    "Latency metrics were not collected: DLSPS 2.0 runs without the latency "
+    "tracer (see DLSPS2_GST_TRACERS in the user guide)"
+)
+
+
+def _latency_metrics_available(requested: bool, job_id: str) -> bool:
+    """Whether a test that asks for latency metrics can get them from DLSPS 2.0.
+
+    Every performance and density test runs on DLSPS 2.0. Latency comes from
+    the server's ``latency_tracer`` over OpenTelemetry, which is set up for the
+    whole server (see ``dlsps2_latency_configured``). Without that setup the
+    test runs without latency metrics and a warning is logged.
+    """
+    if not requested:
+        return False
+    if dlsps2_latency_configured():
+        return True
+    logger.warning(
+        "Test job %s asked for latency metrics, but DLSPS 2.0 does not export "
+        "them; running without. Set DLSPS2_GST_TRACERS (with DLSPS2_OTEL=true) "
+        "to enable the latency tracer.",
+        job_id,
+    )
+    return False
+
 
 METRICS_MANAGER_URL: str = os.environ.get(
     "METRICS_MANAGER_URL", "http://metrics-manager:9090"
@@ -253,9 +274,9 @@ class TestsManager:
         self.jobs: dict[
             str, InternalPerformanceJobStatus | InternalDensityJobStatus
         ] = {}
-        # Currently running PipelineRunner (local or dlsps2-backed) or
+        # Currently running Dlsps2PipelineRunner or
         # Benchmark jobs keyed by job id.
-        self.runners: dict[str, PipelineRunner | Dlsps2PipelineRunner | Benchmark] = {}
+        self.runners: dict[str, Dlsps2PipelineRunner | Benchmark] = {}
         # Active metrics SSE collectors keyed by job id.
         self._metrics_collectors: dict[str, _MetricsSSECollector] = {}
         # Final metrics payload (JSON text) keyed by job id.
@@ -503,7 +524,11 @@ class TestsManager:
         Raises:
             ValueError: If output_mode=file is combined with max_runtime>0.
             ValueError: If output_mode=live_stream is used for density tests.
+            ValueError: If pinned_cpu_cores references a CPU this service
+                cannot run on.
         """
+        self._validate_pinned_cpu_cores(execution_config.pinned_cpu_cores)
+
         if (
             execution_config.output_mode == InternalOutputMode.FILE
             and execution_config.max_runtime > 0
@@ -530,6 +555,33 @@ class TestsManager:
             raise ValueError(
                 "Density tests do not support metadata output. "
                 "Set metadata_mode to 'disabled' for density tests."
+            )
+
+    @staticmethod
+    def _validate_pinned_cpu_cores(pinned_cpu_cores: list[int]) -> None:
+        """
+        Validate that every requested logical CPU id is usable by this service.
+
+        The check uses the affinity mask of the ViPPET process, which already
+        reflects any cgroup/cpuset restriction applied to the container.
+        DLSPS 2.0 would reject such ids too, but only after the job started.
+
+        Args:
+            pinned_cpu_cores: Logical CPU ids requested by the client.
+
+        Raises:
+            ValueError: If any requested CPU id is not available.
+        """
+        if not pinned_cpu_cores:
+            return
+
+        available = os.sched_getaffinity(0)
+        unavailable = sorted(set(pinned_cpu_cores) - available)
+        if unavailable:
+            raise ValueError(
+                f"Invalid execution_config: pinned_cpu_cores contains CPU ids "
+                f"that are not available to this service: {unavailable}. "
+                f"Available CPU ids: {sorted(available)}."
             )
 
     def _get_usb_camera_devices(self, pipeline_graph: Graph) -> list[str]:
@@ -637,7 +689,7 @@ class TestsManager:
         Execute the performance test in a background thread.
 
         The method builds the pipeline command using internal types, executes it
-        using :class:`PipelineRunner` and then updates the corresponding
+        using :class:`Dlsps2PipelineRunner` and then updates the corresponding
         :class:`InternalPerformanceJobStatus` accordingly.
 
         When a job is cancelled by the user:
@@ -646,7 +698,7 @@ class TestsManager:
         - If the pipeline exit code is non-zero, the job is marked FAILED.
 
         When the pipeline finishes without cancellation:
-        - Non-zero exit codes raise RuntimeError inside PipelineRunner,
+        - Failed runs raise RuntimeError inside the runner,
           which is caught by the except block below and marks the job FAILED.
         - Zero exit code means normal successful completion (COMPLETED).
 
@@ -753,34 +805,21 @@ class TestsManager:
                         )
 
             # Initialize the pipeline runner in normal mode with max_runtime
-            # from execution_config.
-            #
-            # Dlsps2PipelineRunner is only used when explicitly enabled via
-            # VIPPET_EXECUTION_BACKEND=dlsps2 AND the test is single-stream:
-            # DLSPS 2.0 cannot currently report a correct per-stream FPS
-            # breakdown for a launch string combining several independent
-            # streams (see dlsps2_runner.py), nor does it support
-            # latency_tracer metrics. Any other combination falls back to
-            # the local PipelineRunner.
-            use_dlsps2 = (
-                _EXECUTION_BACKEND == "dlsps2"
-                and total_streams == 1
-                and not internal_spec.execution_config.enable_latency_metrics
+            # from execution_config. Each stream runs as its own DLSPS 2.0
+            # instance; latency samples come from the DLSPS OpenTelemetry
+            # export to metrics-manager.
+            latency_requested = internal_spec.execution_config.enable_latency_metrics
+            enable_latency_metrics = _latency_metrics_available(
+                latency_requested, job_id
             )
-            if use_dlsps2:
-                runner = Dlsps2PipelineRunner(
-                    mode="normal",
-                    max_runtime=internal_spec.execution_config.max_runtime,
-                    job_id=job_id,
-                )
-            else:
-                runner = PipelineRunner(
-                    mode="normal",
-                    max_runtime=internal_spec.execution_config.max_runtime,
-                    enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
-                    job_id=job_id,
-                    on_event=lambda event: self._record_pipeline_event(job_id, event),
-                )
+            runner = Dlsps2PipelineRunner(
+                mode="normal",
+                max_runtime=internal_spec.execution_config.max_runtime,
+                enable_latency_metrics=enable_latency_metrics,
+                job_id=job_id,
+                on_event=lambda event: self._record_pipeline_event(job_id, event),
+                pinned_cpu_cores=internal_spec.execution_config.pinned_cpu_cores,
+            )
 
             # Store runner for this job so it can be cancelled via stop_job()
             with self._jobs_lock:
@@ -791,12 +830,14 @@ class TestsManager:
             # user-facing source/sink pairs we actually declared;
             # anything the tracer reports for internal bin sinks or
             # intermediate `splitmuxsink` elements is dropped.
-            # If exit_code != 0 and the run was not cancelled, PipelineRunner
-            # raises RuntimeError which is handled in the except block below.
+            # If the run fails without being cancelled, the runner raises
+            # RuntimeError which is handled in the except block below.
             result = runner.run(
                 pipeline_command=pipeline_command,
                 total_streams=total_streams,
                 allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
+                stream_commands=pipeline_cmd.stream_commands,
+                validation_stream_ids=set(pipeline_cmd.validation_stream_ids) or None,
             )
 
             # Collect actual video file lists from output directories after pipeline completes
@@ -832,10 +873,13 @@ class TestsManager:
                             job.state = InternalTestJobState.COMPLETED
                             job.end_time = int(time.time() * 1000)
                             job.details = ["Cancelled by user"]
+                            if latency_requested and not enable_latency_metrics:
+                                job.details.append(LATENCY_NOT_COLLECTED_DETAIL)
 
                             # Save result data even when cancelled with exit code 0
                             job.total_fps = result.total_fps
                             job.per_stream_fps = result.per_stream_fps
+                            job.min_stream_fps = result.min_stream_fps
                             job.total_streams = result.num_streams
                             job.video_output_paths = video_output_paths
                             # Record the last observed latency_tracer
@@ -846,8 +890,8 @@ class TestsManager:
                             )
                     else:
                         # Normal completion (exit_code is always 0 here because
-                        # non-zero exit without cancellation raises RuntimeError
-                        # in PipelineRunner)
+                        # a failure without cancellation raises RuntimeError
+                        # in the runner)
                         self.logger.info(
                             f"Performance test {job_id} completed successfully: "
                             f"exit_code={result.exit_code}, "
@@ -859,10 +903,13 @@ class TestsManager:
                         job.state = InternalTestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
                         job.details = ["Pipeline completed successfully"]
+                        if latency_requested and not enable_latency_metrics:
+                            job.details.append(LATENCY_NOT_COLLECTED_DETAIL)
 
                         # Update performance metrics
                         job.total_fps = result.total_fps
                         job.per_stream_fps = result.per_stream_fps
+                        job.min_stream_fps = result.min_stream_fps
                         job.total_streams = result.num_streams
                         job.video_output_paths = video_output_paths
                         # Record the last observed latency_tracer sample
@@ -987,10 +1034,15 @@ class TestsManager:
             )
 
             # Initialize Benchmark
+            latency_requested = internal_spec.execution_config.enable_latency_metrics
+            enable_latency_metrics = _latency_metrics_available(
+                latency_requested, job_id
+            )
             benchmark = Benchmark(
                 max_runtime=internal_spec.execution_config.max_runtime,
-                enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
+                enable_latency_metrics=enable_latency_metrics,
                 job_id=job_id,
+                pinned_cpu_cores=internal_spec.execution_config.pinned_cpu_cores,
             )
 
             # Store benchmark runner for this job so that a future extension could cancel it.
@@ -1034,9 +1086,12 @@ class TestsManager:
                         job.state = InternalTestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
                         job.details = ["Density test completed successfully"]
+                        if latency_requested and not enable_latency_metrics:
+                            job.details.append(LATENCY_NOT_COLLECTED_DETAIL)
 
                         job.total_fps = None
                         job.per_stream_fps = results.per_stream_fps
+                        job.min_stream_fps = results.min_stream_fps
                         job.streams_per_pipeline = results.streams_per_pipeline
                         job.total_streams = results.n_streams
                         job.video_output_paths = video_output_paths

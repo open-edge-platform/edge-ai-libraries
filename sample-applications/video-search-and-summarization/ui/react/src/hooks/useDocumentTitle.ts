@@ -13,19 +13,19 @@ export const useDocumentTitle = () => {
     const hasSearch = FEATURE_SEARCH === FEATURE_STATE.ON;
     const hasSummary = FEATURE_SUMMARY === FEATURE_STATE.ON;
     
-    let title = 'Intel EGAI Video';
+    let title = 'VSS';
     
     // If both features are enabled (--all mode)
     if (hasSearch && hasSummary) {
-      title = 'Intel EGAI Video Search-Summarization';
+      title = 'Video Search-Summarization';
     }
     // If only search is enabled
     else if (hasSearch) {
-      title = 'Intel EGAI Video Search';
+      title = 'Video Search';
     }
     // If only summary is enabled
     else if (hasSummary) {
-      title = 'Intel EGAI Video Summarization';
+      title = 'Video Summarization';
     }
 
     document.title = title;

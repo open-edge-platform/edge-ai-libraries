@@ -530,13 +530,15 @@ class InternalLatencyMetrics:
     Attributes:
         interval_ms: Length of the measurement window reported by the
             tracer (``interval`` field, milliseconds).
-        avg_ms: Average frame latency over the window (``avg``, ms).
+        avg_ms: Mean frame latency over the window (``avg``, ms): from
+            the source element's output to the push into the sink.
         min_ms: Minimum frame latency observed in the window
             (``min``, ms).
         max_ms: Maximum frame latency observed in the window
             (``max``, ms).
-        latency_ms: Current end-to-end latency reported by the tracer
-            (``latency``, ms).
+        latency_ms: Deprecated. The tracer's ``latency`` field: the mean
+            time between output frames (``1000 / fps``, ms), not a frame
+            latency. Use ``avg_ms`` and ``max_ms`` instead.
     """
 
     interval_ms: float
@@ -571,15 +573,19 @@ class InternalExecutionConfig:
         output_mode: Mode for pipeline output generation.
         max_runtime: Maximum runtime in seconds (0 = run until EOS).
         metadata_mode: Mode for metadata publishing via gvametapublish elements.
-        enable_latency_metrics: When True, the GStreamer subprocess runs with
-            the DLStreamer `latency_tracer` active in pipeline-only mode with
-            a 1000 ms interval. Defaults to False (tracer disabled).
+        enable_latency_metrics: When True, the job reads the latency samples
+            DLSPS 2.0 exports to metrics-manager, if the server runs the
+            DLStreamer `latency_tracer` (see ``dlsps2_latency_configured``).
+            Defaults to False (no latency samples read).
+        pinned_cpu_cores: Logical CPU ids the pipeline is pinned to on
+            DLSPS 2.0. Empty (default) means no pinning.
     """
 
     output_mode: InternalOutputMode
     max_runtime: float
     metadata_mode: InternalMetadataMode
     enable_latency_metrics: bool = False
+    pinned_cpu_cores: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -648,17 +654,19 @@ class InternalPerformanceJobStatus:
         details: List of human-readable messages for the current state. Cleared on state transition.
         total_fps: Total FPS across all streams.
         per_stream_fps: Average FPS per stream.
+        min_stream_fps: FPS of the slowest stream, or None when the
+            runner reports totals only.
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
         live_stream_urls: Mapping from pipeline ID to live stream URL.
         latency_tracer_metrics: Last observed latency_tracer sample per
             stream, keyed by ``stream_id`` (``"{source_name}__{sink_name}"``).
-            ``None`` when the job was executed with
-            ``execution_config.enable_latency_metrics=False`` (tracer was
-            not started at all); an empty dict means the tracer was
-            active but no samples were produced (e.g. the pipeline
-            exited before the first interval).
+            ``None`` when no latency samples were read: the job was executed
+            with ``execution_config.enable_latency_metrics=False``, or the
+            server runs without the latency tracer; an empty dict means
+            samples were read but none arrived (e.g. the pipeline stopped
+            before the server's first export).
         events: Most recent live pipeline events (oldest first), bounded.
     """
 
@@ -670,6 +678,7 @@ class InternalPerformanceJobStatus:
     details: list[str] = field(default_factory=list)
     total_fps: float | None = None
     per_stream_fps: float | None = None
+    min_stream_fps: float | None = None
     total_streams: int | None = None
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
@@ -707,14 +716,17 @@ class InternalDensityJobStatus:
         details: List of human-readable messages for the current state. Cleared on state transition.
         total_fps: Total FPS across all streams.
         per_stream_fps: Average FPS per stream.
+        min_stream_fps: FPS of the slowest stream in the reported run, or
+            None when the runner reports totals only.
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
         latency_tracer_metrics: Last observed latency_tracer sample per
             stream, keyed by ``stream_id`` (``"{source_name}__{sink_name}"``).
-            ``None`` when the job was executed with
-            ``execution_config.enable_latency_metrics=False``; an empty
-            dict means the tracer was active but produced no samples.
+            ``None`` when no latency samples were read: the job was executed
+            with ``execution_config.enable_latency_metrics=False``, or the
+            server runs without the latency tracer; an empty dict means
+            samples were read but none arrived.
     """
 
     id: str
@@ -725,6 +737,7 @@ class InternalDensityJobStatus:
     details: list[str] = field(default_factory=list)
     total_fps: float | None = None
     per_stream_fps: float | None = None
+    min_stream_fps: float | None = None
     total_streams: int | None = None
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
@@ -1184,7 +1197,7 @@ class InternalSupportedModel:
     Attributes:
         name: Unique internal identifier of the model.
         display_name: Human-readable name shown in the UI.
-        category: Model category (classification/detection/genai).
+        category: Model category (classification/detection/genai/voice).
         source: Origin hub of the model (huggingface, ultralytics, ...).
         precisions: Internal precision records (with filesystem paths)
             used by the install-status / registry logic. **Not exposed
@@ -1201,11 +1214,15 @@ class InternalSupportedModel:
         unsupported_devices: Comma-separated string of devices on which
             the model cannot run (e.g. "NPU"). ``None`` when no
             restrictions exist.
-        download_request: Body fragment (or full body) to POST to the
-            model-download microservice in order to install this model.
-            ``None`` when no automated download is wired up yet.
+        download_request: Body fragment to POST to the model-download
+            microservice in order to install this model. ``None`` when no
+            automated download is wired up yet.
         description: Human-readable explanation of what the model
             detects/classifies. ``None`` when not provided in the YAML.
+        link: URL of the model page on its upstream hub (currently only
+            Hugging Face). ``None`` when not provided in the YAML.
+        gated: Hugging Face gating mode (``"false"``, ``"auto"`` or
+            ``"manual"``). ``None`` when unknown or not applicable.
     """
 
     name: str
@@ -1220,6 +1237,8 @@ class InternalSupportedModel:
     unsupported_devices: str | None = None
     download_request: dict[str, Any] | None = None
     description: str | None = None
+    link: str | None = None
+    gated: str | None = None
 
 
 @dataclass
@@ -1269,7 +1288,7 @@ class InternalModelDownloadJobStatus:
     Internal state of a single model download job.
 
     Mirrors the optimization/validation job pattern: no cancellation, jobs
-    live in memory only. ``external_job_ids`` is kept internal and is not
+    live in memory only. ``external_job_id`` is kept internal and is not
     exposed by the API.
 
     Attributes:
@@ -1285,8 +1304,8 @@ class InternalModelDownloadJobStatus:
             (or by the local OMZ downloader).
         model_path: Absolute filesystem path to the installed model,
             populated only when the job completes successfully.
-        external_job_ids: Job ids returned by the model-download
-            microservice; not exposed via the API (internal only).
+        external_job_id: Job id returned by the model-download microservice;
+            not exposed via the API (internal only).
     """
 
     id: str
@@ -1298,7 +1317,7 @@ class InternalModelDownloadJobStatus:
     details: list[str] = field(default_factory=list)
     progress_message: str | None = None
     model_path: str | None = None
-    external_job_ids: list[str] = field(default_factory=list)
+    external_job_id: str | None = None
 
 
 @dataclass

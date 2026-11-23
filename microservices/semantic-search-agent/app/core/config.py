@@ -7,7 +7,7 @@ from typing import Literal
 
 import yaml
 from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 
 class VLMConfigurationError(Exception):
@@ -24,10 +24,22 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Environment and .env take precedence over values loaded from the YAML file (init arguments)
+        return env_settings, dotenv_settings, init_settings, file_secret_settings
     
     # Service configuration
     service_name: str = Field(default="semantic-search-agent", alias="SERVICE_NAME")
-    service_version: str = Field(default="2026.1.0", alias="SERVICE_VERSION")
+    service_version: str = Field(default="2026.3.0-rc1", alias="SERVICE_VERSION")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     api_port: int = Field(default=8080, alias="API_PORT")
     metrics_port: int = Field(default=9090, alias="METRICS_PORT")

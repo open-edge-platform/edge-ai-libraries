@@ -1,12 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Standard 5-field cron expressions: ``minute hour day-of-month month day-of-week``.
-
-Each field takes ``*``, a number, a range ``a-b``, a step ``*/n`` or ``a-b/n``,
-and comma-separated lists of those. Day-of-week is 0-6 from Sunday (7 is
-Sunday too). As in cron, when both day fields are restricted a day matching
-either one fires. No names (``MON``), no ``@daily`` macros, no seconds.
-"""
+"""Standard 5-field cron expressions: ``minute hour day-of-month month day-of-week``."""
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -70,8 +64,7 @@ class Cron:
         )
 
     def next_after(self, moment: datetime) -> Optional[datetime]:
-        """The first firing minute strictly after `moment` (same tzinfo), within a
-        little over four years; None if it never fires (e.g. 31 February)."""
+        """First firing minute strictly after `moment`; None if none within ~4 years."""
         start = moment.replace(second=0, microsecond=0) + timedelta(minutes=1)
         day = start.replace(hour=0, minute=0)
         for offset in range(366 * 4 + 1):

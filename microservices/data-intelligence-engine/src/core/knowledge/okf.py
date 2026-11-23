@@ -1,20 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""OKF concept bundles: parsing markdown "OKF" files into concept nodes.
-
-Ported from edgecraftrag/components/data.py (OKFNode + File.convert_file_to_okf_nodes).
-An OKF bundle is a directory of markdown files, one per concept, with YAML
-frontmatter (``type``, ``title``, ``status``, ``source_files`` /
-``source_chunk_ids``, ``links``) plus a body whose markdown links encode the
-relations between concepts. The ``index.md`` file (if present) is an index, not
-a concept, and is skipped.
-
-An ``OKFNode`` here is a plain dataclass, not a llama-index node: the graph
-projection consumes its ``cid`` / ``ctype`` / ``links`` / ``source_chunk_ids``
-directly, and the seeders embed ``title`` + ``body``. Nothing in the graph path
-needs the assembled display ``text`` the old ``TextNode`` carried, so it is
-deliberately absent.
-"""
 
 import re
 from dataclasses import dataclass, field
@@ -61,11 +46,7 @@ class OKFNode:
 
 
 def _body_links(body: str, md_path: Path, bundle_dir: Path) -> List[Tuple[str, str]]:
-    """Markdown links in the body as ``(target, relation)`` pairs.
-
-    A bare relative target resolves to another concept file in the bundle
-    (relative path, suffix stripped); an external ``://`` link is kept verbatim.
-    """
+    """Body markdown links as ``(target, relation)``; relative targets become bundle-relative ids."""
     pairs = []
     for target, relation in _LINK_RE.findall(body):
         if "://" in target:
@@ -95,12 +76,7 @@ def _frontmatter_links(metadata: Dict[str, Any]) -> List[Tuple[str, str]]:
 
 
 def _strip_source_marker(summary: str) -> str:
-    """Drop a summary bullet's trailing source annotation.
-
-    The marker set is deployment config (``config.OKF_SUMMARY_SOURCE_MARKERS``),
-    so a non-Chinese bundle can use ``(source:`` in place of the full-width
-    ``（来源：`` default. The earliest-occurring marker wins.
-    """
+    """Cut a summary bullet at the earliest ``config.OKF_SUMMARY_SOURCE_MARKERS`` marker."""
     cut = len(summary)
     for marker in config.OKF_SUMMARY_SOURCE_MARKERS:
         index = summary.find(marker)
@@ -120,7 +96,7 @@ def _slug(title: str) -> str:
 
 
 def _parse_okf_node(file_path: Path, bundle_dir: Optional[Path] = None) -> OKFNode:
-    import yaml  # local: OKF-only dependency
+    import yaml
 
     text = file_path.read_text(encoding="utf-8")
     frontmatter = ""
@@ -166,15 +142,7 @@ def _parse_okf_node(file_path: Path, bundle_dir: Optional[Path] = None) -> OKFNo
 
 
 def _bundle_root(md_path: Path, top: Path) -> Path:
-    """The bundle a concept file belongs to: the nearest folder (up to `top`)
-    holding an ``index.md``, else `top`.
-
-    Links and ``okf_file_path`` are relative to the bundle root, and a concept id
-    is ``<type dir>/<slug>`` with no folder above that. Resolving against a
-    folder that merely *contains* the bundle (an upload of ``dossier/`` around
-    ``dossier/okf_bundle_v2/``) would prefix every link target with the bundle's
-    folder name, so no link would ever meet the concept it names.
-    """
+    """The nearest folder (up to `top`) holding an ``index.md``, else `top`."""
     top = top.resolve()
     folder = md_path.resolve().parent
     while True:
@@ -186,10 +154,7 @@ def _bundle_root(md_path: Path, top: Path) -> Path:
 
 
 def parse_okf_bundle(file_path: Path) -> List[OKFNode]:
-    """Every concept in an OKF bundle (a directory, or one markdown file).
-
-    ``index.md`` is the bundle index, not a concept, so it is skipped.
-    """
+    """Every concept in an OKF bundle (a directory or one markdown file), skipping ``index.md``."""
     path = Path(file_path)
     paths = sorted(path.rglob("*.md")) if path.is_dir() else [path]
     bundle_dir = path if path.is_dir() else path.parent
@@ -200,9 +165,7 @@ def parse_okf_bundle(file_path: Path) -> List[OKFNode]:
     ]
     if not nodes:
         raise ValueError(f"No OKF concept files found: {file_path}")
-    # Producers may use `person/` while a canonical Person cid uses `people/`,
-    # or slug a free-text type such as "Care Plan". Resolve physical bundle
-    # targets to the parsed concepts' actual ids instead of assuming equality.
+    # File paths may differ from canonical cids (e.g. `person/` vs `people/`).
     ids_by_path = {
         Path(node.okf_file_path.lstrip("/")).with_suffix("").as_posix(): node.cid
         for node in nodes
@@ -215,7 +178,7 @@ def parse_okf_bundle(file_path: Path) -> List[OKFNode]:
 
 
 def _looks_like_okf(md_path: Path) -> bool:
-    import yaml  # local: OKF-only dependency
+    import yaml
 
     try:
         text = md_path.read_text(encoding="utf-8")
@@ -234,8 +197,7 @@ def _looks_like_okf(md_path: Path) -> bool:
 
 
 def is_okf(path) -> bool:
-    """Whether `path` is an OKF bundle: a directory holding OKF concept markdown
-    (or an ``index.md``), or a single markdown file with OKF frontmatter."""
+    """Whether `path` is an OKF bundle directory or a markdown file with OKF frontmatter."""
     path = Path(path)
     if path.is_dir():
         for md in path.rglob("*.md"):
@@ -251,15 +213,7 @@ def is_okf(path) -> bool:
 def resolve_source_chunk_ids(
     concepts: List[OKFNode], chunk_nodes: List[Any], source_root: Path
 ) -> None:
-    """Fill ``source_chunk_ids`` from ``source_files``, mirroring edgecraftrag's
-    ``OKFNode.resolve_source_chunk_ids``.
-
-    Matches each chunk node's ``file_path`` metadata against the concept's
-    ``source_files`` (relative to ``source_root``). Concepts that carry
-    ``source_files`` always have their ``source_chunk_ids`` recomputed from them,
-    so re-chunking a document replaces the ids; concepts without ``source_files``
-    are left alone (a hand-written ``source_chunk_ids`` survives, or stays empty).
-    """
+    """Fill ``source_chunk_ids`` by matching ``source_files`` (relative to ``source_root``) to chunk file paths."""
     chunk_ids_by_source: Dict[str, List[str]] = {}
     for chunk_node in chunk_nodes:
         file_path = (chunk_node.metadata or {}).get("file_path")
@@ -285,12 +239,7 @@ def resolve_source_chunk_ids(
 def resolve_task_source_chunk_ids(
     concepts: List[OKFNode], chunk_nodes: List[Any], source_assets: Mapping[str, str],
 ) -> None:
-    """Resolve portable task source names by asset id, not machine-local paths.
-
-    Extraction tasks can contain inline documents and duplicate basenames. The
-    client-written task manifest maps their unique logical paths to asset IDs;
-    vector chunks already carry these IDs, even after restart or re-chunking.
-    """
+    """Fill ``source_chunk_ids`` by mapping task source paths to asset ids, then to chunks."""
     chunks_by_asset: Dict[str, List[str]] = {}
     for chunk in chunk_nodes:
         asset_id = str((chunk.metadata or {}).get("asset_id") or "")

@@ -73,8 +73,8 @@ distributes; contact the ViPPET maintainers through the repository issue tracker
 2. BASE CONTAINER IMAGES
 ====================================================================================================
 
-intel/vippet-app            built FROM intel/dlstreamer (Ubuntu 24.04 based)
-intel/vippet-videogenerator built FROM intel/dlstreamer (Ubuntu 24.04 based)
+intel/vippet-app            built FROM intel/dlstreamer (Ubuntu 26.04 based)
+intel/vippet-videogenerator built FROM intel/dlstreamer (Ubuntu 26.04 based)
 intel/vippet-onvif-discovery built FROM python:3.14-slim (Debian based)
 intel/vippet-ui             built FROM node:24 (build stage only) and nginx:alpine (runtime)
 
@@ -203,8 +203,6 @@ License-Identifier: BSD-3-Clause   (22 package(s))
       Copyright (C) 2002-2017 Free Software Foundation, Inc.
   protobuf 7.36.0
       Copyright 2008 Google Inc. All rights reserved.
-  psutil 7.2.2
-      Copyright (c) 2009, Jay Loden, Dave Daeschler, Giampaolo Rodola
   python-dotenv 1.2.3
       Copyright (c) 2014, Saurabh Kumar (python-dotenv), 2013, Ted Tieken (django-dotenv-rw),
         2013, Jacob Kaplan-Moss (django-dotenv)

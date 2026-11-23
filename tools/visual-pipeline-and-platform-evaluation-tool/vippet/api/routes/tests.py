@@ -74,6 +74,7 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
       - `output_mode`: disabled (default), file, or live_stream
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
       - `metadata_mode`: disabled (default) or file
+      - `pinned_cpu_cores`: logical CPU ids to pin the pipeline to (empty = no pinning)
 
     ## Response Codes
 
@@ -258,6 +259,7 @@ def run_density_test(body: schemas.DensityTestSpec):
       - `output_mode`: disabled (default) or file (live_stream not supported)
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
       - `metadata_mode`: must be disabled (metadata output not supported)
+      - `pinned_cpu_cores`: logical CPU ids to pin the pipeline to (empty = no pinning)
 
     ## Response Codes
 
@@ -561,6 +563,7 @@ def _convert_execution_config(
         max_runtime=config.max_runtime,
         metadata_mode=_convert_metadata_mode(config.metadata_mode),
         enable_latency_metrics=config.enable_latency_metrics,
+        pinned_cpu_cores=list(config.pinned_cpu_cores),
     )
 
 

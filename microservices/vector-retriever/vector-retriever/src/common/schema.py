@@ -244,6 +244,9 @@ class QueryRequest(BaseModel):
     filters: dict[str, "FilterCondition"] | None = None
     where: WhereClause | None = None
     top_k: int | None = None
+    # Score floor, on the same higher-is-more-similar scale results are ranked
+    # by. Items below it are dropped before the top_k cut.
+    min_score: float | None = None
     explain_filters: bool = False
 
     @field_validator("query")

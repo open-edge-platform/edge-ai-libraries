@@ -8,10 +8,11 @@ info:
     \ for local storage, a top-level\n  directory under the configured storage path. When omitted, the\
     \ service's configured\n  default bucket is used.\n- **Vector database** - the deployment's configured\
     \ vector store. Embeddings, search\n  metadata, and delete semantics are identical across backends.\n\
-    \nOptional processing parameters (`frame_interval`, `enable_object_detection`,\n`detection_confidence`)\
-    \ have no fixed schema default. When omitted, the service applies\nits own configured value, so the\
-    \ effective default is deployment specific.\n\nAll failures - including validation, not-found, duplicate,\
-    \ upstream, and internal\nerrors - are returned using the same response envelope.\n"
+    \nOptional processing parameters (`frame_interval`, `enable_object_detection`) have no\nfixed schema\
+    \ default. When omitted, the service applies its own configured value, so\nthe effective default is\
+    \ deployment specific. The object detection confidence threshold\nis a service setting (`MM_DATAPREP_DETECTION_CONFIDENCE`)\
+    \ and is not set per request.\n\nAll failures - including validation, not-found, duplicate, upstream,\
+    \ and internal\nerrors - are returned using the same response envelope.\n"
   version: 2.0.0
 servers:
 - url: /v1/dataprep
@@ -117,16 +118,14 @@ paths:
         \ :** Extract every Nth frame for processing (range: 1-60; defaults to the service's configured\
         \ frame_interval, 15 unless overridden)\n   - **enable_object_detection (bool) :** Enable object\
         \ detection and crop extraction (defaults to the service's configured setting, enabled unless\
-        \ overridden)\n   - **detection_confidence (float) :** Confidence threshold for object detection\
-        \ (range: 0.1-1.0; defaults to the service's configured threshold, 0.85 unless overridden)\n \
-        \  - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for\
-        \ filtering the search.\n\n#### Raises:\n- **400 Bad Request :** If required parameters are missing\
-        \ or invalid.\n- **404 Not Found :** If the specified media cannot be found, or no media exists\
-        \ in the specified directory.\n- **409 Conflict :** If the media duplicates an existing item and\
-        \ duplicate uploads are disabled.\n- **502 Bad Gateway :** When the configured storage backend\
-        \ or vector database cannot be reached.\n- **500 Internal Server Error :** When some internal\
-        \ error occurs at DataPrep API server.\n\nReturns:\n- **response (json) :** A response JSON containing\
-        \ status and message."
+        \ overridden)\n   - **tags (list(str), optional) :** A list of tags to be associated with the\
+        \ video. Useful for filtering the search.\n\n#### Raises:\n- **400 Bad Request :** If required\
+        \ parameters are missing or invalid.\n- **404 Not Found :** If the specified media cannot be found,\
+        \ or no media exists in the specified directory.\n- **409 Conflict :** If the media duplicates\
+        \ an existing item and duplicate uploads are disabled.\n- **502 Bad Gateway :** When the configured\
+        \ storage backend or vector database cannot be reached.\n- **500 Internal Server Error :** When\
+        \ some internal error occurs at DataPrep API server.\n\nReturns:\n- **response (json) :** A response\
+        \ JSON containing status and message."
       operationId: processStoredMedia
       requestBody:
         content:
@@ -235,9 +234,6 @@ paths:
         - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (defaults
         to the service''s configured setting, enabled unless overridden)
 
-        - **detection_confidence (float, optional) :** Confidence threshold for object detection (range:
-        0.1-1.0; defaults to the service''s configured threshold, 0.85 unless overridden)
-
         - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for
         filtering the search.
 
@@ -296,20 +292,6 @@ paths:
           title: Enable Object Detection
         description: Enable object detection and crop extraction (defaults to the service's configured
           setting, enabled unless overridden)
-      - name: detection_confidence
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: number
-            maximum: 1.0
-            minimum: 0.1
-          - type: 'null'
-          description: Confidence threshold for object detection (defaults to the service's configured
-            threshold, 0.85 unless overridden)
-          title: Detection Confidence
-        description: Confidence threshold for object detection (defaults to the service's configured threshold,
-          0.85 unless overridden)
       - name: tags
         in: query
         required: false
@@ -418,18 +400,6 @@ paths:
           description: Enable object detection and crop extraction.
           title: Enable Object Detection
         description: Enable object detection and crop extraction.
-      - name: detection_confidence
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: number
-            maximum: 1.0
-            minimum: 0.1
-          - type: 'null'
-          description: Object detection confidence threshold.
-          title: Detection Confidence
-        description: Object detection confidence threshold.
       - name: tags
         in: query
         required: false
@@ -854,12 +824,12 @@ paths:
         \ physical\n  source, recorded on every embedding so externally stored media for the\n  same source\
         \ can be correlated back to it. Defaults to the stream_id.\n- **frame_interval (int, optional)\
         \ :** Sample every Nth frame (1-60).\n- **enable_object_detection (bool, optional) :** Enable\
-        \ crop extraction.\n- **detection_confidence (float, optional) :** Detection threshold (0.1-1.0).\n\
-        - **tags (list(str), optional) :** Tags applied to every embedding.\n- **start (bool, optional)\
-        \ :** Register without starting when false.\n\n#### Raises:\n- **400 Bad Request :** The URL is\
-        \ not a valid RTSP URL.\n- **503 Service Unavailable :** The concurrency limit is reached, or\
-        \ live\n  ingestion is disabled.\n- **500 Internal Server Error :** Unexpected failure while registering.\n\
-        \nReturns:\n- **response (json) :** The registered stream, with its credentials redacted."
+        \ crop extraction.\n- **tags (list(str), optional) :** Tags applied to every embedding.\n- **start\
+        \ (bool, optional) :** Register without starting when false.\n\n#### Raises:\n- **400 Bad Request\
+        \ :** The URL is not a valid RTSP URL.\n- **503 Service Unavailable :** The concurrency limit\
+        \ is reached, or live\n  ingestion is disabled.\n- **500 Internal Server Error :** Unexpected\
+        \ failure while registering.\n\nReturns:\n- **response (json) :** The registered stream, with\
+        \ its credentials redacted."
       operationId: createLiveStream
       requestBody:
         required: true
@@ -1201,12 +1171,12 @@ paths:
         \ Changing a\nprocessing parameter on a running stream restarts its ingestion session so\nthe\
         \ new value takes effect immediately.\n\n#### Path Params:\n- **stream_id (str, required) :**\
         \ Identifier returned at registration.\n\n#### Request Body:\n- **stream_name / description (str,\
-        \ optional) :** Descriptive fields.\n- **frame_interval / enable_object_detection / detection_confidence\
-        \ (optional) :**\n  Processing parameters.\n- **tags (list(str), optional) :** Replaces the existing\
-        \ tag list.\n- **state (str, optional) :** `paused` or `running`.\n\n#### Raises:\n- **400 Bad\
-        \ Request :** An unsupported state transition was requested.\n- **404 Not Found :** No stream\
-        \ is registered with this id.\n- **503 Service Unavailable :** Resuming would exceed the concurrency\
-        \ limit.\n\nReturns:\n- **response (json) :** The updated stream."
+        \ optional) :** Descriptive fields.\n- **frame_interval / enable_object_detection (optional) :**\n\
+        \  Processing parameters.\n- **tags (list(str), optional) :** Replaces the existing tag list.\n\
+        - **state (str, optional) :** `paused` or `running`.\n\n#### Raises:\n- **400 Bad Request :**\
+        \ An unsupported state transition was requested.\n- **404 Not Found :** No stream is registered\
+        \ with this id.\n- **503 Service Unavailable :** Resuming would exceed the concurrency limit.\n\
+        \nReturns:\n- **response (json) :** The updated stream."
       operationId: updateLiveStream
       parameters:
       - name: stream_id
@@ -2174,14 +2144,6 @@ components:
           - type: 'null'
           title: Enable Object Detection
           description: Enable object detection and crop extraction.
-        detection_confidence:
-          anyOf:
-          - type: number
-            maximum: 1.0
-            minimum: 0.1
-          - type: 'null'
-          title: Detection Confidence
-          description: Object detection confidence threshold.
         tags:
           anyOf:
           - items:
@@ -2201,9 +2163,7 @@ components:
 
         video found in that bucket. Selector-level ``frame_interval`` /
 
-        ``enable_object_detection`` / ``detection_confidence`` / ``tags`` apply to all
-
-        videos matched by the selector.'
+        ``enable_object_detection`` / ``tags`` apply to all videos matched by the selector.'
     BatchSubmitResponse:
       properties:
         status:
@@ -2321,14 +2281,6 @@ components:
           - type: 'null'
           title: Enable Object Detection
           description: Enable object detection and crop extraction.
-        detection_confidence:
-          anyOf:
-          - type: number
-            maximum: 1.0
-            minimum: 0.1
-          - type: 'null'
-          title: Detection Confidence
-          description: Object detection confidence threshold.
         tags:
           anyOf:
           - items:
@@ -2414,6 +2366,20 @@ components:
           - type: string
           - type: 'null'
           title: Detection Device
+        detection_classes:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Detection Classes
+          description: Class filter applied to detections; null means all model classes.
+        detection_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Detection Status
+          description: 'Object detector state: ''disabled'', ''ready'' or ''not_loaded''.'
         vectordb_backend:
           anyOf:
           - type: string
@@ -2477,14 +2443,6 @@ components:
           - type: 'null'
           title: Enable Object Detection
           description: Enable object detection and crop extraction for every image.
-        detection_confidence:
-          anyOf:
-          - type: number
-            maximum: 1.0
-            minimum: 0.1
-          - type: 'null'
-          title: Detection Confidence
-          description: Object detection confidence threshold.
         tags:
           anyOf:
           - items:
@@ -2587,15 +2545,6 @@ components:
           title: Enable Object Detection
           description: Enable object detection and crop extraction (defaults to the service's configured
             setting, enabled unless overridden).
-        detection_confidence:
-          anyOf:
-          - type: number
-            maximum: 1.0
-            minimum: 0.1
-          - type: 'null'
-          title: Detection Confidence
-          description: Object detection confidence threshold (defaults to the service's configured threshold,
-            0.85 unless overridden).
       type: object
       required:
       - type
@@ -2717,14 +2666,6 @@ components:
           - type: 'null'
           title: Enable Object Detection
           description: Enable object detection and crop extraction.
-        detection_confidence:
-          anyOf:
-          - type: number
-            maximum: 1.0
-            minimum: 0.1
-          - type: 'null'
-          title: Detection Confidence
-          description: Object detection confidence threshold.
         tags:
           anyOf:
           - items:
@@ -2833,9 +2774,6 @@ components:
         enable_object_detection:
           type: boolean
           title: Enable Object Detection
-        detection_confidence:
-          type: number
-          title: Detection Confidence
         tags:
           items:
             type: string
@@ -2865,7 +2803,6 @@ components:
       - stream_name
       - frame_interval
       - enable_object_detection
-      - detection_confidence
       title: LiveStreamInfo
       description: 'A registered live stream as exposed by the API.
 
@@ -2986,13 +2923,6 @@ components:
           - type: boolean
           - type: 'null'
           title: Enable Object Detection
-        detection_confidence:
-          anyOf:
-          - type: number
-            maximum: 1.0
-            minimum: 0.1
-          - type: 'null'
-          title: Detection Confidence
         tags:
           anyOf:
           - items:
@@ -3363,16 +3293,6 @@ components:
           description: Enable object detection and crop extraction (defaults to the service's configured
             setting, enabled unless overridden)
           example: true
-        detection_confidence:
-          anyOf:
-          - type: number
-            maximum: 1.0
-            minimum: 0.1
-          - type: 'null'
-          title: Detection Confidence
-          description: Confidence threshold for object detection (defaults to the service's configured
-            threshold, 0.85 unless overridden)
-          example: 0.85
         tags:
           anyOf:
           - items:

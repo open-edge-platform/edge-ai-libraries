@@ -10,7 +10,6 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -127,19 +126,6 @@ export class LiveStreamCreateDto {
   enable_object_detection?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Minimum detection score to keep a crop (0.1-1.0).',
-    minimum: 0.1,
-    maximum: 1.0,
-    example: 0.85,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0.1)
-  @Max(1.0)
-  detection_confidence?: number;
-
-  @ApiPropertyOptional({
     type: [String],
     description: 'Tags applied to every embedding.',
   })
@@ -211,19 +197,6 @@ export class LiveStreamUpdateDto {
   @IsOptional()
   @IsBoolean()
   enable_object_detection?: boolean;
-
-  @ApiPropertyOptional({
-    description: 'Minimum detection score to keep a crop (0.1-1.0).',
-    minimum: 0.1,
-    maximum: 1.0,
-    example: 0.85,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0.1)
-  @Max(1.0)
-  detection_confidence?: number;
 
   @ApiPropertyOptional({
     type: [String],
@@ -327,7 +300,6 @@ export interface LiveStreamInfo {
   sensor_id?: string | null;
   frame_interval: number;
   enable_object_detection: boolean;
-  detection_confidence: number;
   tags: string[];
   stats: LiveStreamStats;
   last_error?: string | null;

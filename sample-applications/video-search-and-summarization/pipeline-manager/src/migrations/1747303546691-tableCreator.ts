@@ -134,12 +134,6 @@ export class TableCreator1747303546691 implements MigrationInterface {
             isNullable: true,
           },
           {
-            name: 'videoEmbeddings',
-            type: 'boolean',
-            default: false,
-            isNullable: true,
-          },
-          {
             name: 'dataStore',
             type: 'jsonb',
             isNullable: true,

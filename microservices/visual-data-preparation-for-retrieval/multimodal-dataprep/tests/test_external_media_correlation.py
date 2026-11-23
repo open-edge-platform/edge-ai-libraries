@@ -21,7 +21,6 @@ def _make_stream(**overrides) -> LiveStream:
         "stream_name": "cam-1",
         "frame_interval": 15,
         "enable_object_detection": False,
-        "detection_confidence": 0.85,
     }
     params.update(overrides)
     return LiveStream.new(**params)

@@ -152,7 +152,6 @@ def record_pipeline_telemetry(
     frame_interval: int,
     tags: Optional[List[str]],
     enable_object_detection: bool,
-    detection_confidence: float,
     metadata_dict: Dict[str, Any],
     pipeline_result: Dict[str, Any],
 ) -> None:
@@ -259,7 +258,9 @@ def record_pipeline_telemetry(
         pipeline_config = pipeline_result.get("pipeline_config", {})
         config = {
             "object_detection_enabled": enable_object_detection,
-            "detection_confidence": detection_confidence,
+            "detection_confidence": (
+                settings.DETECTION_CONFIDENCE if enable_object_detection else None
+            ),
             "parallel_workers": pipeline_config.get("pipeline_count"),
             "batch_size": pipeline_config.get("batch_size"),
         }
@@ -290,7 +291,6 @@ async def generate_video_embedding(
     metadata_temp_path: pathlib.Path,
     frame_interval: int = 15,
     enable_object_detection: bool = True,
-    detection_confidence: float = 0.85,
     video_name: Optional[str] = None,
     tags: List[str] = None,
     telemetry_context: Optional[Dict[str, Any]] = None,
@@ -306,7 +306,6 @@ async def generate_video_embedding(
         metadata_temp_path: Path to store metadata
         frame_interval: Number of frames between extractions
         enable_object_detection: Whether to enable object detection
-        detection_confidence: Confidence threshold for object detection
         tags: Tags for the video
 
     Returns:
@@ -326,7 +325,6 @@ async def generate_video_embedding(
             metadata_temp_path=metadata_temp_path,
             frame_interval=frame_interval,
             enable_object_detection=enable_object_detection,
-            detection_confidence=detection_confidence,
             tags=tags,
             telemetry_context=telemetry_context,
         )
@@ -344,7 +342,6 @@ async def generate_video_embedding_from_content(
     metadata_temp_path: pathlib.Path,
     frame_interval: int = 15,
     enable_object_detection: bool = True,
-    detection_confidence: float = 0.85,
     video_name: Optional[str] = None,
     tags: List[str] = None,
     source_path: Optional[str] = None,
@@ -365,7 +362,6 @@ async def generate_video_embedding_from_content(
         metadata_temp_path: Path to store metadata
         frame_interval: Number of frames between extractions
         enable_object_detection: Whether to enable object detection
-        detection_confidence: Confidence threshold for object detection
         tags: Tags for the video
         source_path: Origin path of the media as seen outside the container,
             recorded so consumers sharing the ingest mount can read it in place
@@ -426,7 +422,6 @@ async def generate_video_embedding_from_content(
             metadata_dict=metadata_dict,
             frame_interval=frame_interval,
             enable_object_detection=enable_object_detection,
-            detection_confidence=detection_confidence,
         )
 
         stored_ids = []
@@ -444,7 +439,6 @@ async def generate_video_embedding_from_content(
                 frame_interval=frame_interval,
                 tags=tags,
                 enable_object_detection=enable_object_detection,
-                detection_confidence=detection_confidence,
                 metadata_dict=metadata_dict,
                 pipeline_result=stream_result,
             )
@@ -470,7 +464,6 @@ async def _generate_video_embedding(
     metadata_temp_path: pathlib.Path,
     frame_interval: int = 15,
     enable_object_detection: bool = True,
-    detection_confidence: float = 0.85,
     video_name: Optional[str] = None,
     tags: List[str] = None,
     telemetry_context: Optional[Dict[str, Any]] = None,
@@ -519,7 +512,6 @@ async def _generate_video_embedding(
         metadata_dict=metadata_dict,
         frame_interval=frame_interval,
         enable_object_detection=enable_object_detection,
-        detection_confidence=detection_confidence,
     )
 
     stored_ids = []
@@ -537,7 +529,6 @@ async def _generate_video_embedding(
             frame_interval=frame_interval,
             tags=tags,
             enable_object_detection=enable_object_detection,
-            detection_confidence=detection_confidence,
             metadata_dict=metadata_dict,
             pipeline_result=stream_result,
         )
@@ -657,14 +648,13 @@ def _embed_image_from_content_sync(
     filename: str,
     video_name: Optional[str] = None,
     enable_object_detection: bool,
-    detection_confidence: float,
     tags: List[str],
     source_path: Optional[str] = None,
     custom_metadata: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """Synchronous image embedding core (runs off the event loop via a thread).
 
-    Pipeline: decode PIL once -> optionally run YOLOX detection and crop each
+    Pipeline: decode PIL once -> optionally run object detection and crop each
     detected object -> batched CLIP ``encode_image`` in sub-batches of
     ``EMBEDDING_BATCH_SIZE`` -> ``store_frame_embeddings`` into the active vector
     store. The full image is always embedded (``frame_type="full_frame"``); crops
@@ -698,7 +688,7 @@ def _embed_image_from_content_sync(
 
     # Optional object detection -> one crop embedding per detected object.
     if enable_object_detection:
-        detector = get_global_detector(True, detection_confidence)
+        detector = get_global_detector(True)
         if detector is not None:
             try:
                 detections = detector.detect(image, return_metadata=True)
@@ -775,7 +765,6 @@ async def generate_image_embedding_from_content(
     video_id: str,
     filename: str,
     enable_object_detection: bool = True,
-    detection_confidence: float = 0.85,
     video_name: Optional[str] = None,
     tags: Optional[List[str]] = None,
     source_path: Optional[str] = None,
@@ -808,7 +797,6 @@ async def generate_image_embedding_from_content(
         filename=filename,
         video_name=video_name,
         enable_object_detection=enable_object_detection,
-        detection_confidence=detection_confidence,
         tags=tags,
         source_path=source_path,
         custom_metadata=custom_metadata,

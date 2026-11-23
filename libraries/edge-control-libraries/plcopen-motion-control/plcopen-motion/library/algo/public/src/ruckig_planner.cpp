@@ -19,6 +19,8 @@ namespace trajectory_processing
 RTmotion::MC_ERROR_CODE RuckigPlanner::plan()
 {
   signTransforms(condition_);
+  input_.control_interface = ruckig::ControlInterface::Position;
+  input_.min_acceleration.reset();
 
   // Set input parameters
   input_.max_velocity     = { condition_.v_max };
@@ -37,6 +39,36 @@ RTmotion::MC_ERROR_CODE RuckigPlanner::plan()
 
   return otg_.validate_input(input_) ? RTmotion::mcErrorCodeGood :
                                        RTmotion::mcErrorCodeScurveInvalidInput;
+}
+
+RTmotion::MC_ERROR_CODE RuckigPlanner::trackVelocity(double delta_time,
+                                                     double min_acceleration)
+{
+  input_.control_interface    = ruckig::ControlInterface::Velocity;
+  input_.current_position     = { condition_.q0 };
+  input_.current_velocity     = { condition_.v0 };
+  input_.current_acceleration = { condition_.a0 };
+  input_.target_position      = { 0 };
+  input_.target_velocity      = { condition_.v1 };
+  input_.target_acceleration  = { condition_.a1 };
+  input_.max_acceleration     = { condition_.a_max };
+  input_.min_acceleration     = std::array<double, RUCKIG_AXIS_NUM>{
+    std::isnan(min_acceleration) ? -condition_.a_max : min_acceleration
+  };
+  input_.max_jerk                    = { condition_.j_max };
+  const double configured_delta_time = otg_.delta_time;
+  otg_.delta_time                    = delta_time;
+  const auto result                  = otg_.update(input_, output_);
+  otg_.delta_time                    = configured_delta_time;
+  if (result == ruckig::Result::ErrorInvalidInput)
+    return mcErrorCodeScurveInvalidInput;
+  if (result < 0)
+    return mcErrorCodeScurveNotFeasible;
+  point_[mcPositionId]     = output_.new_position[0];
+  point_[mcSpeedId]        = output_.new_velocity[0];
+  point_[mcAccelerationId] = output_.new_acceleration[0];
+  point_[mcJerkId] = (output_.new_acceleration[0] - condition_.a0) / delta_time;
+  return mcErrorCodeGood;
 }
 
 double* RuckigPlanner::getWaypoint(double t)

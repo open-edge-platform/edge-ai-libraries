@@ -1,0 +1,4 @@
+
+debian_99_profile_federal_and_aerospace_ai_suite_mission_sensing_service () {
+  [ "$1" = "start" ] || echo "mission_sensing_service_blueprint deterministic_threat_detection"
+}

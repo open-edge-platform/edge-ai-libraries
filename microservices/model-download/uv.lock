@@ -351,11 +351,11 @@ wheels = [
 
 [[package]]
 name = "dnspython"
-version = "2.9.1"
+version = "2.9.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/91/21/7fcd6780f61e9756aafaea760560509bb4111375daa2e23c1be7a89f33f1/dnspython-2.9.1.tar.gz", hash = "sha256:9a6d30e55f8dc63e6052597666112bff0586b95a2474a9deda03afbbf820d37a", size = 455302, upload-time = "2026-10-29T18:05:12.156Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/49/900383b471c645a3c397f47b3211d1fcecb3a540c98f683494cdf86b33de/dnspython-2.9.2.tar.gz", hash = "sha256:8d4d39a513e649d634004ce4d39ade2352efcea472a0247535a5c2d18a9d7ba9", size = 455484, upload-time = "2026-11-03T23:56:53.601Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/61/55/f90405bbbbd3dd8f788e92cec2d39964f5c09783f0570fc35f3bb3381485/dnspython-2.9.1-py3-none-any.whl", hash = "sha256:7c81caf8de1ed57b8cfc7e0ad4f528a0b8ceace473c7eb946df195dc9def751f", size = 360364, upload-time = "2026-10-29T18:05:10.206Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/0c/5346358b3a20275d256978c35203ddc2c8617f78c1b23795b79ba22ced6d/dnspython-2.9.2-py3-none-any.whl", hash = "sha256:af15f7d385a6ae2fb35a796fde2138004c8c42c7389090e2addc83e3b3340fd8", size = 360455, upload-time = "2026-11-03T23:56:52.088Z" },
 ]
 
 [[package]]
@@ -1087,6 +1087,9 @@ huggingface = [
     { name = "torch" },
     { name = "torchvision" },
 ]
+modelscope = [
+    { name = "modelscope" },
+]
 ultralytics = [
     { name = "torch" },
     { name = "torchvision" },
@@ -1101,6 +1104,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27,<1.0.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.24.1,<1.0.0" },
     { name = "huggingface-hub", extras = ["cli", "hf-transfer", "hf-xet"], specifier = "==0.36.2" },
+    { name = "modelscope", marker = "extra == 'modelscope'", specifier = "==1.40.2" },
     { name = "pydantic", specifier = "==2.12.4" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
@@ -1124,7 +1128,41 @@ requires-dist = [
     { name = "ultralytics", marker = "extra == 'ultralytics'", specifier = "==8.4.199" },
     { name = "uvicorn", specifier = "==0.38.0" },
 ]
-provides-extras = ["dev", "cpu", "huggingface", "ultralytics", "openvino", "ollama", "geti", "hls", "pipeline-zoo-models", "remote-url", "omz"]
+provides-extras = ["dev", "cpu", "huggingface", "modelscope", "ultralytics", "openvino", "ollama", "geti", "hls", "pipeline-zoo-models", "remote-url", "omz"]
+
+[[package]]
+name = "modelscope"
+version = "1.40.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "filelock" },
+    { name = "modelscope-hub" },
+    { name = "packaging" },
+    { name = "requests" },
+    { name = "setuptools" },
+    { name = "tqdm" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d7/af/f92c9824db46757dd1b0b5cbf3778daf54e7e44f0e1e6934d0b1bedfb286/modelscope-1.40.2.tar.gz", hash = "sha256:7a642cef8c144c28c4ddcc37db5fd803f5481f0d78a7f26c2b9e0e2a225b528c", size = 4566951, upload-time = "2026-10-09T09:09:10.747Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b9/8a/e85b79ee1c541f7bbf208fd7a6185c9b11e50c192b1071b0750db26b09e9/modelscope-1.40.2-py3-none-any.whl", hash = "sha256:ea03e0ec4a73398a488d3d240cda4f0c5b62390377a134756d4074a3036cb909", size = 6062299, upload-time = "2026-10-09T09:09:07.486Z" },
+]
+
+[[package]]
+name = "modelscope-hub"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "filelock" },
+    { name = "requests" },
+    { name = "tqdm" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/20/2b/0fae0be4dd38fbb0fecf61b8c49d27e596db11c6a727eb7e9178ad7c4be0/modelscope_hub-0.5.0.tar.gz", hash = "sha256:07ccd4882b0b18b9adac326136ac95ec6d7686c631be103bf43a5b17916d7dec", size = 326491, upload-time = "2026-10-24T08:23:00.578Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9b/0b/844f39cf91da984a47ad6f8e736bac88aff2d5a78eea40aeeb26b8087d00/modelscope_hub-0.5.0-py3-none-any.whl", hash = "sha256:32d8fd1cd4b13be0e6fab07f45e4b39489428661cee17fbbc76023f8b58fb7c0", size = 253343, upload-time = "2026-10-24T08:22:58.99Z" },
+]
 
 [[package]]
 name = "more-itertools"

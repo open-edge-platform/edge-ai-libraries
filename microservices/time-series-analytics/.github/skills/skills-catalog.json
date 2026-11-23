@@ -27,7 +27,7 @@
     {
       "name": "time-series-analytics-dev",
       "path": ".github/skills/time-series-analytics-dev/SKILL.md",
-      "description": "Develop the Time Series Analytics microservice itself: build/deploy via Docker Compose or Helm, run the unit and functional test suites, modify src/main.py, src/classifier_startup.py, or src/opcua_alerts.py, and follow release/versioning conventions. Not for merely deploying the prebuilt image to build a use case (use time-series-analytics-user).",
+      "description": "Develop the Time Series Analytics microservice itself: build/deploy via Docker Compose, run the unit and functional test suites, modify src/main.py, src/classifier_startup.py, or src/opcua_alerts.py, and follow release/versioning conventions. Not for merely deploying the prebuilt image to build a use case (use time-series-analytics-user).",
       "triggers": [
         "run the time series analytics tests",
         "add an endpoint to time series analytics",

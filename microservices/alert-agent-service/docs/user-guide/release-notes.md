@@ -1,5 +1,15 @@
 # Release Notes: Alert Agent Service
 
+## Version 2026.3.0
+
+**Release Date:** TBD
+
+**Improvements:**
+- CVE fixes and security updates.
+- Documentation updates: standardized admonitions and refreshed diagrams.
+
+---
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026

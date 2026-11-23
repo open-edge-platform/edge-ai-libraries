@@ -1,4 +1,4 @@
-import { type Pipeline } from "@/api/api.generated";
+import { type AudioPipelineResponse, type Pipeline } from "@/api/api.generated";
 import {
   Card,
   CardDescription,
@@ -39,16 +39,31 @@ const PIPELINE_SAMPLE_APP_LINKS: Record<string, string> = {
     "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html",
 };
 
+type PipelineCardItem = Pipeline | AudioPipelineResponse;
+
+const getPipelineLink = (
+  pipeline: PipelineCardItem,
+  variantId: string,
+  source: string,
+) =>
+  pipeline.type === "audio"
+    ? `/pipelines/audio/${pipeline.id}/${variantId}`
+    : `/pipelines/vision/${pipeline.id}/${variantId}?source=${source}`;
+
 type PipelineCardsProps = {
-  pipelines: Pipeline[];
+  pipelines: PipelineCardItem[];
   maxCards?: number;
   source: "dashboard" | "pipelines";
+  showCreate?: boolean;
+  createDisabled?: boolean;
 };
 
 export const PipelineCards = ({
   pipelines,
   maxCards,
   source,
+  showCreate = true,
+  createDisabled = false,
 }: PipelineCardsProps) => {
   const { theme } = useTheme();
   const { tagColorMap } = usePipelineTagColors(pipelines);
@@ -78,18 +93,26 @@ export const PipelineCards = ({
   const displayedPipelines =
     maxCards !== undefined ? pipelines.slice(0, maxCards) : pipelines;
 
+  const createButton = (
+    <Button
+      variant="ghost"
+      disabled={createDisabled}
+      className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-border hover:border-brand-accent hover:bg-brand-accent/5 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-brand-accent"
+    >
+      <Plus className="size-12" />
+      <span className="text-lg font-medium">Create Pipeline</span>
+    </Button>
+  );
+
   return (
     <>
       <div className={CARDS_GRID_CLASS}>
-        <CreatePipelineDialog>
-          <Button
-            variant="ghost"
-            className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-border hover:border-brand-accent hover:bg-brand-accent/5 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-brand-accent"
-          >
-            <Plus className="size-12" />
-            <span className="text-lg font-medium">Create Pipeline</span>
-          </Button>
-        </CreatePipelineDialog>
+        {showCreate &&
+          (createDisabled ? (
+            createButton
+          ) : (
+            <CreatePipelineDialog>{createButton}</CreatePipelineDialog>
+          ))}
 
         {displayedPipelines.map((pipeline) => (
           <Card
@@ -103,7 +126,7 @@ export const PipelineCards = ({
           >
             {pipeline.variants.length > 0 && (
               <Link
-                to={`/pipelines/${pipeline.id}/${pipeline.variants[0].id}?source=${source}`}
+                to={getPipelineLink(pipeline, pipeline.variants[0].id, source)}
               >
                 <img
                   src={pipeline.thumbnail ?? thumbnailPlaceholder}
@@ -120,7 +143,11 @@ export const PipelineCards = ({
                 >
                   {pipeline.variants.length > 0 ? (
                     <Link
-                      to={`/pipelines/${pipeline.id}/${pipeline.variants[0].id}?source=${source}`}
+                      to={getPipelineLink(
+                        pipeline,
+                        pipeline.variants[0].id,
+                        source,
+                      )}
                       className="hover:underline block truncate"
                     >
                       {pipeline.name}
@@ -129,77 +156,79 @@ export const PipelineCards = ({
                     <span className="block truncate">{pipeline.name}</span>
                   )}
                 </CardTitle>
-                <DropdownMenu
-                  onOpenChange={(open) =>
-                    setOpenDropdownId(open ? pipeline.id : null)
-                  }
-                >
-                  <DropdownMenuTrigger className="shrink-0 size-8 hover:bg-accent dark:hover:bg-accent/50 rounded flex items-center justify-center">
-                    <EllipsisVertical className="h-4 w-4" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {pipeline.source === "PREDEFINED" &&
-                      PIPELINE_SAMPLE_APP_LINKS[pipeline.id] && (
-                        <DropdownMenuItem asChild>
-                          <a
-                            href={PIPELINE_SAMPLE_APP_LINKS[pipeline.id]}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex items-center justify-between gap-2"
-                          >
-                            Go to sample app
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </DropdownMenuItem>
-                      )}
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditClick(pipeline);
-                      }}
-                    >
-                      Edit Pipeline
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDuplicateClick(pipeline);
-                      }}
-                    >
-                      Duplicate Pipeline
-                    </DropdownMenuItem>
-                    {pipeline.source === "PREDEFINED" ? (
+                {pipeline.type !== "audio" && (
+                  <DropdownMenu
+                    onOpenChange={(open) =>
+                      setOpenDropdownId(open ? pipeline.id : null)
+                    }
+                  >
+                    <DropdownMenuTrigger className="shrink-0 size-8 hover:bg-accent dark:hover:bg-accent/50 rounded flex items-center justify-center">
+                      <EllipsisVertical className="h-4 w-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {pipeline.source === "PREDEFINED" &&
+                        PIPELINE_SAMPLE_APP_LINKS[pipeline.id] && (
+                          <DropdownMenuItem asChild>
+                            <a
+                              href={PIPELINE_SAMPLE_APP_LINKS[pipeline.id]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center justify-between gap-2"
+                            >
+                              Go to sample app
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </DropdownMenuItem>
+                        )}
                       <DropdownMenuItem
-                        variant="destructive"
-                        disabled
-                        className="flex items-center justify-between gap-2"
-                      >
-                        Delete
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="pointer-events-auto">
-                              <Lock className="h-4 w-4" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            Predefined pipeline cannot be deleted.
-                          </TooltipContent>
-                        </Tooltip>
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem
-                        variant="destructive"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteClick(pipeline);
+                          handleEditClick(pipeline);
                         }}
                       >
-                        Delete
+                        Edit Pipeline
                       </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicateClick(pipeline);
+                        }}
+                      >
+                        Duplicate Pipeline
+                      </DropdownMenuItem>
+                      {pipeline.source === "PREDEFINED" ? (
+                        <DropdownMenuItem
+                          variant="destructive"
+                          disabled
+                          className="flex items-center justify-between gap-2"
+                        >
+                          Delete
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="pointer-events-auto">
+                                <Lock className="h-4 w-4" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              Predefined pipeline cannot be deleted.
+                            </TooltipContent>
+                          </Tooltip>
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(pipeline);
+                          }}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
               <div className="flex flex-wrap gap-1">
                 {pipeline.tags?.map((tag) => (
@@ -220,7 +249,7 @@ export const PipelineCards = ({
                 {pipeline.variants.map((variant) => (
                   <Link
                     key={variant.id}
-                    to={`/pipelines/${pipeline.id}/${variant.id}?source=${source}`}
+                    to={getPipelineLink(pipeline, variant.id, source)}
                   >
                     <Badge
                       variant="secondary"

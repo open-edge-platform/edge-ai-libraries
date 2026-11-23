@@ -1,13 +1,55 @@
 
 ensure_apt_preference () {
-  local pref_file=$1; shift
-  # apt preference stanzas must be separated by a blank line; otherwise apt
-  # merges them into one record and only the last Package/Pin pair applies
-  local line first=1
+  local file=$1; shift
+  local base="${file##*/}"
+  if [[ ! "$base" =~ ^[A-Za-z0-9_.-]+$ ]] || [[ "$base" == *.* && "$base" != *.pref ]]; then
+    echo "APT would ignore '$base' (use no extension or .pref)" >&2
+    return 1
+  fi
+
+  # --- Collect our Pin: values (for the overlap report only) ---
+  local line pins=()
   for line in "$@"; do
-    [[ "$line" != Package:* ]] || [ $first -eq 1 ] || echo
-    first=0
-    echo "$line"
-  done | ensure_sudo tee "$pref_file" > /dev/null
+    [[ "$line" =~ ^[[:space:]]*[Pp][Ii][Nn]:[[:space:]]*(.*)$ ]] || continue
+    case "${BASH_REMATCH[1]}" in
+      origin*|release*) pins+=("${BASH_REMATCH[1]}") ;;
+    esac
+  done
+
+  local f p
+  if (( ${#pins[@]} )); then
+    while IFS= read -r f; do
+      [[ "$f" == "$file" ]] && continue
+      for p in "${pins[@]}"; do
+        if grep -qiE "^[[:space:]]*Pin:[[:space:]]*${p//./\\.}[[:space:]]*$" "$f"; then
+          echo -e "${yellow}WARNING:${reset} $f also has 'Pin: $p' (left unchanged; check apt-cache policy)" >&2
+        fi
+      done
+    done < <(
+      for f in /etc/apt/preferences.d/*; do
+        [[ -f "$f" ]] || continue
+        base="${f##*/}"
+        [[ "$base" =~ ^[A-Za-z0-9_.-]+$ ]] || continue
+        [[ "$base" == *.pref || "$base" != *.* ]] || continue
+        printf '%s\n' "$f"
+      done
+    )
+  fi
+
+  ensure_sudo mkdir -p "$(dirname "$file")"
+  local pending_blank=0 seen_priority=0
+  for line in "$@"; do
+    if [[ -z "${line//[[:space:]]/}" ]]; then
+      [[ -z "$content" ]] || pending_blank=1
+      seen_priority=0
+      continue
+    fi
+    # Stanza already ended with Pin-Priority: start a new one
+    (( seen_priority )) && pending_blank=1 && seen_priority=0 || true
+    if (( pending_blank )); then printf "\n"; pending_blank=0; fi
+    printf "%s\n" "$line"
+    [[ "$line" =~ ^[[:space:]]*[Pp]in-[Pp]riority: ]] && seen_priority=1 || true
+  done | ensure_sudo tee "$file" > /dev/null
+  ensure_sudo chmod 0644 "$file"
 }
 

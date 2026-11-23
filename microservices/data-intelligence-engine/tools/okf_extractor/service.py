@@ -58,8 +58,7 @@ def create_app(
             task_dir = shared_path(shared_dir, f"{TASK_DIRECTORY}/{task.task_id}")
             task_dir.mkdir(parents=True, exist_ok=True)
             output = shared_path(shared_dir, f"{TASK_DIRECTORY}/{task.task_id}/bundle")
-            # A duplicate task must never overwrite a finished result or race
-            # another request writing the same directory.
+            # A duplicate task must not overwrite a finished result or race another writer.
             lock_path = task_dir / ".running"
             try:
                 lock = lock_path.open("x")
@@ -85,8 +84,7 @@ def create_app(
                     "task_id": task.task_id, "concept_count": len(concepts),
                     "sources": [{"path": item.path, "asset_id": item.asset_id} for item in task.items],
                 }, ensure_ascii=False, indent=2), encoding="utf-8")
-                # Publish atomically only after both pipeline stages and the
-                # manifest have finished. Inputs are never moved/deleted here.
+                # Publish atomically once the bundle and manifest are complete.
                 candidate.rename(output)
             return ExtractionResult(
                 task_id=task.task_id, bundle_path=output.relative_to(shared_dir).as_posix(),

@@ -118,7 +118,9 @@ def build_matrix(
     single row with variant ``(all)``.
     """
     available = _available_families(devices)
-    allowed_pipelines = None if filters.pipelines == "*" else set(filters.pipelines)
+    allowed_pipelines = (
+        None if filters.pipelines == "*" else {p.lower() for p in filters.pipelines}
+    )
     skip_pipelines = {p.lower() for p in filters.skip_pipelines}
     skip_variants = {v.upper() for v in filters.skip_variants}
     allowed_families = {v.upper() for v in filters.variants}
@@ -147,7 +149,10 @@ def build_matrix(
         # pipelines/skip_pipelines filters below
         matrix.known_pipeline_ids.append(pipeline_id)
 
-        if allowed_pipelines is not None and pipeline_id not in allowed_pipelines:
+        if (
+            allowed_pipelines is not None
+            and pipeline_id.lower() not in allowed_pipelines
+        ):
             matrix.excluded.append(
                 Exclusion(
                     pipeline_id,
@@ -378,8 +383,8 @@ def find_unknown_filter_ids(
 ) -> list[UnknownFilterId]:
     """Return every filter id that matches no known pipeline or device family.
 
-    ``pipelines`` is matched exactly (as the matrix does); ``skip_pipelines``
-    case-insensitively; variant filters against the supported families.
+    ``pipelines`` and ``skip_pipelines`` are matched case-insensitively (as
+    the matrix does); variant filters against the supported families.
     """
     valid_pipelines = sorted(set(known_pipeline_ids))
     valid_pipelines_lower = {p.lower() for p in valid_pipelines}
@@ -395,7 +400,7 @@ def find_unknown_filter_ids(
         issues += [
             UnknownFilterId("benchmark.pipelines", pid, valid_pipelines)
             for pid in requested
-            if pid not in valid_pipelines
+            if pid.lower() not in valid_pipelines_lower
         ]
     issues += [
         UnknownFilterId("benchmark.filters.skip_pipelines", pid, valid_pipelines)

@@ -46,3 +46,7 @@ spec:
               value: "{{ .Values.feature.mux }}"
             - name: APP_LIVE_STREAMS_FEATURE
               value: "{{ .Values.feature.liveStreams }}"
+            - name: APP_MAP_FEATURE
+              value: "{{ .Values.feature.map }}"
+            - name: APP_MAP_TILE_URL
+              value: "{{ .Values.mapTileUrl }}"

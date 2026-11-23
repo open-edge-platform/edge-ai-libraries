@@ -1,10 +1,12 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path, Request
 
 from api.schema import (
     PipelineDefinitionResponse,
@@ -18,9 +20,15 @@ from api.schema import (
 from config.compat import apply_destination, apply_source
 from config.converter import build_pipeline_string
 from config.models import LegacyConfig
+from config.path_validator import (
+    restrict_file_destination_permissions,
+    validate_source_destination,
+)
+from core.audit import get_audit_logger
 from core.pipeline_manager import PipelineManager
 
 logger = logging.getLogger(__name__)
+audit_logger = get_audit_logger()
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
@@ -44,12 +52,26 @@ def _get_manager() -> PipelineManager:
     return _pipeline_manager
 
 
+def _audit_log(action: str, *, name=None, version=None, instance_id=None, client_ip=None) -> None:
+    """Structured, persistent audit entry for a pipeline lifecycle action."""
+    audit_logger.info(json.dumps({
+        "audit": True,
+        "action": action,
+        "name": name,
+        "version": version,
+        "instance_id": instance_id,
+        "client_ip": client_ip,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }))
+
+
 def start_named_pipeline(
     pipeline_cfg,
     *,
     name: str,
     version: str,
     request: StartNamedPipelineRequest,
+    client_ip: Optional[str] = None,
 ) -> str:
     """Build a concrete pipeline string from a config entry + request body and start it.
 
@@ -57,16 +79,25 @@ def start_named_pipeline(
     :func:`autostart_pipelines` (server-startup autostart), so both go through
     the exact same source/destination/parameters translation.
     """
+    is_valid, err = validate_source_destination(request.source, request.destination)
+    if not is_valid:
+        logger.warning("Rejected start_named_pipeline request: %s (client %s)", err, client_ip)
+        raise ValueError(err)
+    restrict_file_destination_permissions(request.destination, logger=logger)
+
     pipeline_str = build_pipeline_string(pipeline_cfg, parameters=request.parameters)
     pipeline_str = apply_source(pipeline_str, request.source)
     pipeline_str = apply_destination(pipeline_str, request.destination)
-    return _get_manager().start(
+    instance_id = _get_manager().start(
         pipeline_str,
         name=name,
         version=version,
         request=request.model_dump(exclude_none=True),
         cpu_cores=request.cpu_cores,
+        fps_element=request.fps_element,
     )
+    _audit_log("pipeline_start", name=name, version=version, instance_id=instance_id, client_ip=client_ip)
+    return instance_id
 
 
 def autostart_pipelines() -> None:
@@ -143,6 +174,7 @@ async def run_pipeline(request: StartPipelineRequest):
         validate=request.validate_pipeline,
         cpu_cores=request.cpu_cores,
         warmup_frames=request.warmup_frames,
+        fps_element=request.fps_element,
         restart_config=request.restart_config.model_dump(exclude_none=True) if request.restart_config else None,
     )
     return {"instance_id": instance_id}
@@ -173,8 +205,8 @@ async def get_pipeline_status(instance_id: str = Path(..., description="Pipeline
 
 
 @router.delete("/{instance_id}", response_model=StopPipelineResponse)
-async def stop_pipeline(instance_id: str = Path(..., description="Pipeline instance identifier")):
-    """Stop a running pipeline instance."""
+async def stop_pipeline(http_request: Request, instance_id: str = Path(..., description="Pipeline instance identifier")):
+    """Stop a queued, running, or restarting pipeline instance. ABORTED is reported once teardown completes."""
     manager = _get_manager()
     instance = manager.get(instance_id)
     if not instance:
@@ -183,8 +215,9 @@ async def stop_pipeline(instance_id: str = Path(..., description="Pipeline insta
     if not stopped:
         raise HTTPException(
             status_code=409,
-            detail=f"Instance {instance_id!r} is not running (state: {instance.state.value})",
+            detail=f"Instance {instance_id!r} cannot be stopped (state: {instance.state.value})",
         )
+    _audit_log("pipeline_stop", instance_id=instance_id, client_ip=http_request.client.host if http_request.client else None)
     return {"instance_id": instance_id}
 
 
@@ -194,6 +227,7 @@ async def stop_pipeline(instance_id: str = Path(..., description="Pipeline insta
 
 @router.post("/{name}/{version}", status_code=200, response_model=StartPipelineResponse)
 async def run_named_pipeline(
+    http_request: Request,
     request: StartNamedPipelineRequest,
     name: str = Path(..., description="Pipeline name"),
     version: str = Path(..., description="Pipeline version (matches config 'name' field)"),
@@ -215,6 +249,10 @@ async def run_named_pipeline(
             detail=f"Pipeline {version!r} not found in config (name={name!r})",
         )
 
-    instance_id = start_named_pipeline(pipeline_cfg, name=name, version=version, request=request)
+    client_ip = http_request.client.host if http_request.client else None
+    try:
+        instance_id = start_named_pipeline(pipeline_cfg, name=name, version=version, request=request, client_ip=client_ip)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {"instance_id": instance_id}
 

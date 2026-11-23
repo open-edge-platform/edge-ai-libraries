@@ -5,7 +5,7 @@
 - **CPU**: x86_64 or compatible processor.
 - **Memory**: 4-GB RAM minimum (Intel recommends 8-GB RAM when running OpenVINO local inference).
 - **Disk**: 2-GB free space for Docker image layers and log files. You will need an additional space for local VLM model files if using the `openvino_local` backend.
-- **GPU** (optional): Intel's integrated or discrete GPU supported via OpenVINO runtime for local inference.
+- **GPU** (optional): Intel's integrated or discrete GPU supported via OpenVINO runtime for local inference. The Docker Compose file maps `/dev/dri` for GPU access. On a host without a GPU, remove the `devices` and `group_add` entries from `docker/docker-compose.yml` before starting the service.
 
 | Device  | Minimum              | Recommended                             |
 | ------- | -------------------- | --------------------------------------- |
@@ -43,7 +43,7 @@ Required only when you set `DEFAULT_MATCHING_STRATEGY` to `semantic` or `hybrid`
 | --- | --- |
 | `ovms` | Running OpenVINO model server instance with a vision-language model loaded. |
 | `openvino_local` | OpenVINO Intermediate Representation (IR) model files on disk. `OPENVINO_MODEL_PATH` must point to them. |
-| `openai` | Valid `OPENAI_API_KEY` with access to the configured model. |
+| `openai` | Valid `OPENAI_API_KEY` with access to the configured model. The `openai` Python package is installed from `requirements.txt`. |
 
 ## Network Requirements
 

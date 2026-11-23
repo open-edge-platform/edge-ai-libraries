@@ -2,9 +2,10 @@
 # provider — enabled with models.asr.provider: funasr (name: paraformer-zh |
 # paraformer-en | paraformer-online).
 #
-# These are NOT part of the default image. Existing Whisper/OpenVINO consumers
-# and the default build are unaffected. Install only when Chinese support is
-# required:
+# These are NOT part of the default image. ModelScope is used by FunASR at
+# runtime; model snapshots must be downloaded by the model-download service.
+# Existing Whisper/OpenVINO consumers and the default build are unaffected.
+# Install only when Chinese support is required:
 #     pip install -r requirements-cjk.txt
 # or build the image with: --build-arg INSTALL_CJK=true
 funasr==1.2.7

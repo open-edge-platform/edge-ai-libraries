@@ -1,49 +1,80 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Standalone MCP Inspector, for poking at a VSS MCP server from a browser.
+#
+# Normal case: VSS is already deployed (`source setup.sh --search`, or any
+# other mode) and its MCP server is live through the nginx gateway. You only
+# need Inspector; it does not need to share a network with VSS, since it
+# reaches the gateway's published host port like any other client:
+#
+#   HOST_IP=<vss-host-ip> docker compose up -d mcp-inspector
+#
+# Open http://<HOST_IP>:${INSPECTOR_PORT:-6274} in a browser, pick
+# **Streamable HTTP**, and connect to
+# http://<HOST_IP>:${APP_HOST_PORT:-12345}/mcp -- the running deployment's
+# own MCP server, unchanged by this file.
+#
+# To instead exercise an uncommitted code change, also start mcp-server. It
+# builds and runs under its own name/image tag and a separate host port, so it
+# runs alongside the deployment's own `vss-mcp-server` container without
+# stopping it:
+#
+#   HOST_IP=<vss-host-ip> docker compose up --build -d
+#
+# MCP server (this build): http://<HOST_IP>:${MCP_HOST_PORT:-8001}/mcp
+# MCP Inspector:            http://<HOST_IP>:${INSPECTOR_PORT:-6274}
+
 services:
   mcp-server:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: vss-mcp-server
-    network_mode: host
-    env_file:
-      - path: .env
-        required: false
+    image: ${REGISTRY:-}vss-mcp-server:${TAG:-dev}
+    container_name: vss-mcp-server-dev
+    ports:
+      - "${MCP_HOST_PORT:-8001}:8000"
     environment:
-      - API_SPEC_URL=${API_SPEC_URL}
-      - API_BASE_URL=${API_BASE_URL}
-      - FILTER_FILE_PATH=${FILTER_FILE_PATH:-/app/search.json}
-      - MCP_HOST=${MCP_HOST:-0.0.0.0}
-      - MCP_PORT=${MCP_PORT:-8000}
-      - MCP_PATH=${MCP_PATH:-/mcp}
-      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-60}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Not required here so `logs`/`down` work without it; the server itself
+      # exits at startup with a clear message when HOST_IP is missing.
+      - HOST_IP=${HOST_IP:-}
+      - VSS_IP=${VSS_IP:-${HOST_IP:-}}
+      - APP_HOST_PORT=${APP_HOST_PORT:-12345}
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
+      - LOG_LEVEL=${MCP_LOG_LEVEL:-DEBUG}
+      - MCP_PATH
+      - MCP_STATELESS_HTTP
+      - REQUEST_TIMEOUT
+      - POLL_INTERVAL
+      - DEFAULT_WAIT_SECONDS
+      - VSS_INDEX_STRATEGY
       - http_proxy=${http_proxy:-}
       - https_proxy=${https_proxy:-}
-      - no_proxy=${no_proxy:-},${VSS_IP:-}
+      - no_proxy=${no_proxy:-},${HOST_IP:-},${VSS_IP:-${HOST_IP:-}}
       - HTTP_PROXY=${http_proxy:-}
       - HTTPS_PROXY=${https_proxy:-}
-      - NO_PROXY=${no_proxy:-},${VSS_IP:-}
-    volumes:
-      - ./search.json:/app/search.json:ro
+      - NO_PROXY=${no_proxy:-},${HOST_IP:-},${VSS_IP:-${HOST_IP:-}}
     restart: unless-stopped
 
   mcp-inspector:
-    image: ghcr.io/modelcontextprotocol/inspector:latest
+    image: ghcr.io/modelcontextprotocol/inspector:${INSPECTOR_TAG:-2.10.0}
     container_name: vss-mcp-inspector
-    network_mode: host
+    # The container port must equal the published one: the Inspector checks the
+    # browser's Origin against it.
+    ports:
+      - "${INSPECTOR_BIND_ADDRESS:-0.0.0.0}:${INSPECTOR_PORT:-6274}:${INSPECTOR_PORT:-6274}"
     environment:
-      - HOST=0.0.0.0
-      - PORT=${INSPECTOR_CLIENT_PORT:-6274}
-      - MCP_AUTO_OPEN_ENABLED=false
-      - DANGEROUSLY_OMIT_AUTH=${DANGEROUSLY_OMIT_AUTH:-true}
-      - MCP_PROXY_AUTH_TOKEN=${MCP_PROXY_AUTH_TOKEN:-}
-      - ALLOWED_ORIGINS=http://${HOST_IP}:${INSPECTOR_CLIENT_PORT:-6274}
-      - http_proxy=${http_proxy:-}
-      - https_proxy=${https_proxy:-}
-      - no_proxy=${no_proxy:-},${VSS_IP:-}
-      - HTTP_PROXY=${http_proxy:-}
-      - HTTPS_PROXY=${https_proxy:-}
-      - NO_PROXY=${no_proxy:-},${VSS_IP:-}
-    depends_on:
-      - mcp-server
+      - CLIENT_PORT=${INSPECTOR_PORT:-6274}
+      - ALLOWED_ORIGINS=http://${HOST_IP:-}:${INSPECTOR_PORT:-6274},http://localhost:${INSPECTOR_PORT:-6274},http://127.0.0.1:${INSPECTOR_PORT:-6274}
+      - DANGEROUSLY_OMIT_AUTH=${DANGEROUSLY_OMIT_AUTH:-false}
+      - MCP_INSPECTOR_API_TOKEN
+      # No keychain in the container; keep saved secrets in memory only.
+      - MCP_INSPECTOR_SECRET_STORE=memory
+      # Docker may inject a proxy into every container; the Inspector must
+      # reach the VSS gateway and/or mcp-server directly. Node matches
+      # no_proxy by exact host, so a CIDR such as 10.0.0.0/8 in the host's
+      # list does not cover HOST_IP.
+      - no_proxy=${no_proxy:-},mcp-server,localhost,127.0.0.1,${HOST_IP:-}
+      - NO_PROXY=${no_proxy:-},mcp-server,localhost,127.0.0.1,${HOST_IP:-}
     restart: unless-stopped

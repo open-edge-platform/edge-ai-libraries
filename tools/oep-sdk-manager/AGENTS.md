@@ -26,6 +26,7 @@ OEP SDK Manager is a comprehensive development tool that streamlines discovering
 The Metro SDKs install Docker container images and clone `metro-ai-suite` plus their library dependencies.
 The UAV SDK clones `federal-and-aerospace-ai-suite`.
 Current source clones and the selector's `latest` installer commands use `main`.
+The 2026.3.0-rc1 selection uses the current installers, pinned to the RC1 component images.
 The 2026.1 and 2026.2 selections retain the original `edge-ai-suites` release URLs and installer filenames.
 The selector does not offer 2026.0.
 Supported hosts are Ubuntu 24.04 LTS and Ubuntu 26.04 LTS; container image OS tags are independent of the host version.
