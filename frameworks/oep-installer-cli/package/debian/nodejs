@@ -1,12 +1,32 @@
 
+configure_nodejs () {
+  version="$(ensure_parse_value_option version --version=22 "$@")"
+  repo_script="https://deb.nodesource.com/setup_$version.x"
+}
+
+debian_70_profile_nodejs () {
+  echo "curl gnupg"
+}
+
 debian_70_install_nodejs () {
-  ensure_apt_install_package nodejs
+  configure_nodejs "$@"
+  if ensure_apt_is_installed nodejs; then
+    echo "nodejs is installed" >&2
+  else
+    ensure_prop set installed/nodejs/owned true
+    ensure_fetch "$repo_script" - | ensure_sudo bash 
+    ensure_apt install -y nodejs=$version.*
+  fi
 }
 
 debian_70_remove_nodejs () {
+  [ "$(ensure_prop get installed/nodejs/owned)" = "true" ] || return 0
   ensure_apt_remove_package nodejs
+  ensure_rm /etc/apt/sources.list.d/nodesource.sources /etc/apt/preferences.d/nodejs /etc/apt/preferences.d/nsolid
 }
 
 debian_70_sbom_nodejs () {
-  ensure_sbom_format pkg-list nodejs
+  configure_nodejs "$@"
+  ensure_sbom_format pkg-list "$repo_script"
 }
+

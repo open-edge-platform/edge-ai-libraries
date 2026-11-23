@@ -7,7 +7,7 @@ The Compose deployment builds the standalone agent service from `docker/Dockerfi
 - Docker 24.0 or later
 - Docker Compose 2.20 or later
 - [uv](https://docs.astral.sh/uv/) 0.10 or later for local development
-- A reachable external storage API; see [Get Started](./get-started.md)
+- A reachable external storage API; see [Get Started](../get-started.md#validate-standalone-with-the-mock-storage-service)
 
 ## Clone and Build
 
@@ -34,7 +34,7 @@ To build and start the default fallback deployment in one command:
 ```
 
 Deployment defaults, including `STORAGE_SERVICE_URL` and `LLM_MODE`, are
-maintained in the configuration section of [`start.sh`](../../start.sh).
+maintained in the configuration section of [`start.sh`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/agent-quality-handler/start.sh).
 Existing environment values override those defaults.
 
 Stop the deployment while preserving named volumes:
