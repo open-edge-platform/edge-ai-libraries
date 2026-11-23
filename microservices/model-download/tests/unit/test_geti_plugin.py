@@ -23,11 +23,19 @@ def rest_client(monkeypatch):
     requests = []
     models = [{
         "id": "model-1", "name": "Vehicle Detector", "task": "detection",
-        "architecture": "YOLOX",
+        "architecture": "YOLOX", "training_info": {"status": "successful"},
         "variants": [
             {"id": "variant-fp16", "format": "openvino", "precision": "fp16"},
             {"id": "variant-int8", "format": "openvino", "precision": "int8"},
         ],
+    }, {
+        "id": "model-2", "name": "Failed Detector", "training_info": {"status": "failed"},
+        "variants": [],
+    }, {
+        "id": "model-3", "name": "Training Detector", "training_info": {"status": "in_progress"},
+        "variants": [{"id": "pending", "format": "openvino", "precision": "fp16"}],
+    }, {
+        "id": "model-4", "name": "Unknown Detector", "variants": [],
     }]
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -37,8 +45,9 @@ def rest_client(monkeypatch):
             return httpx.Response(200, json=[{"id": "project-1", "name": "Vision"}])
         if request.url.path == "/api/projects/project-1/models":
             return httpx.Response(200, json=models)
-        if request.url.path == "/api/projects/project-1/models/model-1":
-            return httpx.Response(200, json=models[0])
+        for model in models:
+            if request.url.path == f"/api/projects/project-1/models/{model['id']}":
+                return httpx.Response(200, json=model)
         if request.url.path.endswith("/variants/variant-fp16/binary"):
             return httpx.Response(200, content=model_archive())
         return httpx.Response(404)
@@ -59,9 +68,10 @@ async def test_list_models_uses_project_model_api(rest_client):
     session = plugin._build_session({"GETI_HOST": "https://geti.test"})
     result = await plugin._list_models_async(session, {"precision": "FP16"})
 
-    assert result["total"] == 1
+    assert result["total"] == 2
     assert result["items"][0]["name"] == "Vehicle Detector"
     assert result["items"][0]["model_type"] == "detection"
+    assert result["items"][0]["metadata"]["training_status"] == "successful"
     assert result["items"][0]["metadata"]["variants"][0]["variant_id"] == "variant-fp16"
     assert [str(request.url) for request in rest_client] == [
         "https://geti.test/api/projects",
@@ -82,6 +92,143 @@ async def test_list_models_applies_architecture_and_variant_filters(rest_client)
 
     assert result["total"] == 1
     assert result["items"][0]["metadata"]["variants"][0]["variant_id"] == "variant-int8"
+
+
+@pytest.mark.asyncio
+async def test_list_models_includes_training_status_and_models_without_variants(rest_client):
+    plugin = GetiPlugin()
+    session = plugin._build_session({"GETI_HOST": "https://geti.test"})
+    result = await plugin._list_models_async(session)
+
+    statuses = {item["name"]: item["metadata"]["training_status"] for item in result["items"]}
+    assert statuses == {
+        "Vehicle Detector": "successful", "Failed Detector": "failed",
+        "Training Detector": "in_progress", "Unknown Detector": None,
+    }
+    assert result["items"][1]["metadata"]["variants"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("requested_training_status,model_id,model_training_status", [
+    ("SUCCESSFUL", "model-1", "successful"),
+    ("failed", "model-2", "failed"),
+    ("in_progress", "model-3", "in_progress"),
+])
+async def test_list_models_filters_training_status_before_pagination(
+    rest_client, requested_training_status, model_id, model_training_status,
+):
+    plugin = GetiPlugin()
+    session = plugin._build_session({"GETI_HOST": "https://geti.test"})
+
+    result = await plugin._list_models_async(session, {"training_status": requested_training_status}, limit=1)
+
+    assert result["total"] == 1
+    assert [item["metadata"]["model_id"] for item in result["items"]] == [model_id]
+    assert result["items"][0]["metadata"]["training_status"] == model_training_status
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("requested_training_status", ["", ["successful"]])
+async def test_list_models_rejects_invalid_training_status_filter(rest_client, requested_training_status):
+    plugin = GetiPlugin()
+    session = plugin._build_session({"GETI_HOST": "https://geti.test"})
+
+    with pytest.raises(ValueError, match="training_status must be a non-empty string"):
+        await plugin._list_models_async(session, {"training_status": requested_training_status})
+
+    assert not rest_client
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name,model_id,error", [
+    ("Failed Detector", "model-2", "failed during training"),
+    ("Training Detector", "model-3", "training is still in progress"),
+    ("Unknown Detector", "model-4", "did not provide a valid training status"),
+])
+@pytest.mark.parametrize("use_ids", [False, True])
+async def test_download_rejects_unsuccessful_training(rest_client, tmp_path, name, model_id, error, use_ids):
+    config = {"project_id": "project-1", "model_id": model_id} if use_ids else {}
+    result = await GetiPlugin().download(
+        name, str(tmp_path), resolved_config={"GETI_HOST": "https://geti.test"}, config=config,
+    )
+
+    assert result["success"] is False
+    assert error in result["error"]
+    assert not any("/binary" in str(request.url) for request in rest_client)
+
+
+@pytest.mark.asyncio
+async def test_download_rechecks_status_after_model_discovery(rest_client, monkeypatch, tmp_path):
+    async def stale_models(self, session, project_id):
+        return [{
+            "id": "model-2", "name": "Failed Detector", "training_info": {"status": "successful"},
+            "variants": [{"id": "variant-fp16", "format": "openvino", "precision": "fp16"}],
+        }]
+
+    monkeypatch.setattr(GetiPlugin, "_get_project_models", stale_models)
+    result = await GetiPlugin().download(
+        "Failed Detector", str(tmp_path), resolved_config={"GETI_HOST": "https://geti.test"},
+    )
+
+    assert result["success"] is False
+    assert "failed during training" in result["error"]
+    assert not any("/binary" in str(request.url) for request in rest_client)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failed_first", [True, False])
+async def test_search_prioritizes_missing_variant_over_failed_training(monkeypatch, failed_first):
+    async def get_projects(self, session):
+        project_ids = ["failed", "successful"] if failed_first else ["successful", "failed"]
+        return [{"id": project_id} for project_id in project_ids]
+
+    async def get_models(self, session, project_id):
+        status = "failed" if project_id == "failed" else "successful"
+        return [{"id": project_id, "name": "Detector", "training_info": {"status": status}, "variants": []}]
+
+    monkeypatch.setattr(GetiPlugin, "get_projects", get_projects)
+    monkeypatch.setattr(GetiPlugin, "_get_project_models", get_models)
+    plugin = GetiPlugin()
+    session = plugin._build_session({"GETI_HOST": "https://geti.test"})
+
+    model_id, project_id, variant_id, error, ignored = await plugin.search_model(
+        session, "Detector", precision="fp16", model_format="openvino",
+    )
+    assert (model_id, project_id, variant_id, ignored) == (None, None, None, None)
+    assert error == "No model variant matched the requested criteria."
+
+
+@pytest.mark.asyncio
+async def test_search_continues_after_failed_model_to_find_usable_match(monkeypatch):
+    async def get_projects(self, session):
+        return [{"id": "failed"}, {"id": "successful"}]
+
+    async def get_models(self, session, project_id):
+        if project_id == "failed":
+            return [{"id": "failed-model", "name": "Detector", "training_info": {"status": "failed"}}]
+        return [{
+            "id": "successful-model", "name": "Detector", "training_info": {"status": "successful"},
+            "variants": [{"id": "variant-fp16", "format": "openvino", "precision": "fp16"}],
+        }]
+
+    monkeypatch.setattr(GetiPlugin, "get_projects", get_projects)
+    monkeypatch.setattr(GetiPlugin, "_get_project_models", get_models)
+    plugin = GetiPlugin()
+    session = plugin._build_session({"GETI_HOST": "https://geti.test"})
+
+    result = await plugin.search_model(session, "Detector", precision="fp16", model_format="openvino")
+    assert result == ("successful-model", "successful", "variant-fp16", None, [])
+
+
+@pytest.mark.asyncio
+async def test_download_reports_model_not_found(rest_client, tmp_path):
+    result = await GetiPlugin().download(
+        "Missing Detector", str(tmp_path), resolved_config={"GETI_HOST": "https://geti.test"},
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "Model not found: Missing Detector"
+    assert not any("/binary" in str(request.url) for request in rest_client)
 
 
 @pytest.mark.asyncio

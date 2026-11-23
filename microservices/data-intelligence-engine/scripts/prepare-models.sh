@@ -7,6 +7,8 @@
 # data-intelligence-engine/docs/user-guide/how-to-guides/how-to-prepare-models.md. A model whose output
 # is already in place is skipped, so the script can be rerun. Video packages
 # are validated before skipping; incomplete or incompatible output is rejected.
+# The media reranker ships only the INT8 package: FP16 IRs are exported into a
+# temporary directory, quantized, and removed again on success.
 
 set -euo pipefail
 
@@ -14,13 +16,13 @@ usage() {
   cat <<'EOF'
 Usage: prepare-models.sh [options] [MODEL...]
 
-Models (default: gme reranker layout viclip-b whisper media-reranker-int8):
+Models (default: gme reranker layout viclip-b whisper media-reranker):
   gme             GME-Qwen2-VL-2B: documents, PDF figures, images, audio transcripts
   reranker        bge-reranker-large
-  media-reranker  Qwen3-VL-Reranker-2B (FP16): unified video/image/audio-transcript reranking
-  media-reranker-int8
-                  INT8 weight-only variant of media-reranker, the package the
-                  console serves by default (builds the FP16 export first if missing)
+  media-reranker  Qwen3-VL-Reranker-2B (INT8 weight-only): unified
+                  video/image/audio-transcript reranking, the package the
+                  console serves by default. FP16 IRs are exported into a
+                  temporary directory and removed after quantization.
   layout          PP-DocLayoutV3: PDF figure detection and scanned PDFs
   viclip-b        ViCLIP-B-16: video embedding (default)
   viclip-l        ViCLIP-L-14: video embedding
@@ -49,11 +51,11 @@ ENGINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="${ENGINE_IMAGE:-data-intelligence-engine:latest}"
 HF_MODEL_DIR="${HF_MODEL_DIR:-$ENGINE_DIR/workspace/hf_models}"
 OV_MODEL_DIR="${OV_MODEL_DIR:-$ENGINE_DIR/workspace/models}"
-# GME and PP-DocLayoutV3 conversion patch or use Transformers 5 internals; the
-# engine image pins 4.x for optimum-intel, so 5.x goes into the throwaway
+# GME and PP-DocLayoutV3 conversion patch or use Transformers 5.10 internals;
+# the engine image pins 5.5 for optimum-intel, so 5.10 goes into the throwaway
 # container only. This is the version the GME export was validated with.
 TRANSFORMERS5="transformers==5.10.4"
-ALL_MODELS=(gme reranker media-reranker media-reranker-int8 layout viclip-b viclip-l cosmos-224p whisper bge)
+ALL_MODELS=(gme reranker media-reranker layout viclip-b viclip-l cosmos-224p whisper bge)
 
 gme_precision=int8
 video_precision=fp16
@@ -69,7 +71,7 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-[[ ${#models[@]} -gt 0 ]] || models=(gme reranker layout viclip-b whisper media-reranker-int8)
+[[ ${#models[@]} -gt 0 ]] || models=(gme reranker layout viclip-b whisper media-reranker)
 case "$gme_precision" in int8|int4|fp32) ;; *) echo "--gme-precision must be int8, int4 or fp32" >&2; exit 2 ;; esac
 case "$video_precision" in fp16|fp32) ;; *) echo "--video-precision must be fp16 or fp32" >&2; exit 2 ;; esac
 
@@ -79,20 +81,22 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 # A throwaway engine container with both model directories and the engine
 # checkout (for its conversion scripts) mounted.
 run() {
-  docker run --rm \
+  docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
     -e HF_ENDPOINT -e http_proxy -e https_proxy -e no_proxy \
     -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY -e ENGINE_WORKSPACE=/tmp \
     -v "$HF_MODEL_DIR:/hf" -v "$OV_MODEL_DIR:/ov" -v "$ENGINE_DIR:/engine:ro" \
     "$@"
 }
 
-# download REPO NAME PATTERN... -> $HF_MODEL_DIR/NAME
+# download REPO REVISION NAME PATTERN... -> $HF_MODEL_DIR/NAME
 download() {
-  local repo="$1" name="$2"
-  shift 2
-  log "Downloading $repo"
-  run --entrypoint huggingface-cli "$IMAGE" \
-    download "$repo" --include "$@" --local-dir "/hf/$name"
+  local repo="$1" revision="$2" name="$3" pattern
+  local includes=()
+  shift 3
+  for pattern in "$@"; do includes+=(--include "$pattern"); done
+  log "Downloading $repo@$revision"
+  run --entrypoint hf "$IMAGE" \
+    download "$repo" --revision "$revision" "${includes[@]}" --local-dir "/hf/$name"
 }
 
 # optimum_export NAME TASK OUTPUT: $HF_MODEL_DIR/NAME -> $OV_MODEL_DIR/OUTPUT
@@ -117,7 +121,8 @@ prepare_gme() {
   skip_if_ready GME "$out/gme_openvino_config.json" && return
   [[ ! -e "$OV_MODEL_DIR/$out" ]] \
     || die "$OV_MODEL_DIR/$out exists but holds no gme_openvino_config.json; remove it and rerun"
-  download Alibaba-NLP/gme-Qwen2-VL-2B-Instruct gme-Qwen2-VL-2B-Instruct \
+  download Alibaba-NLP/gme-Qwen2-VL-2B-Instruct 9cfa6413f704a7c1cf5064d240748e10c876b286 \
+    gme-Qwen2-VL-2B-Instruct \
     "*.json" "*.safetensors" "merges.txt"
   log "Converting GME to OpenVINO ($gme_precision)"
   run -e GME_EXPORT_PRECISION="$gme_precision" --entrypoint sh "$IMAGE" -c "
@@ -131,18 +136,31 @@ prepare_gme() {
 
 prepare_reranker() {
   skip_if_ready bge-reranker-large BAAI/bge-reranker-large/openvino_model.xml && return
-  download BAAI/bge-reranker-large bge-reranker-large \
+  download BAAI/bge-reranker-large 55611d7bca2a7133960a6d3b71e083071bbfc312 bge-reranker-large \
     "*.json" "*.safetensors" "sentencepiece.bpe.model"
   optimum_export bge-reranker-large text-classification BAAI/bge-reranker-large
 }
 
 prepare_media-reranker() {
-  local name=Qwen3-VL-Reranker-2B out=Qwen3-VL-Reranker-2B-OV
-  skip_if_ready "Qwen3-VL reranker" \
+  # Only the INT8 package is kept under $OV_MODEL_DIR. The FP16 export is an
+  # intermediate artifact: it goes into a temporary directory inside
+  # $OV_MODEL_DIR (so the container sees it at /ov) and is removed once the
+  # INT8 package is complete. The directory keeps the serving convention
+  # (<model-id-last-component>-OV), so the engine picks it up with
+  # ENGINE_MEDIA_RERANK_MODEL_ID=Qwen/Qwen3-VL-Reranker-2B-INT8.
+  local name=Qwen3-VL-Reranker-2B out=Qwen3-VL-Reranker-2B-INT8-OV
+  local fp16_rel fp16
+  skip_if_ready "Qwen3-VL reranker INT8" \
     "$out/reranker_text.xml" "$out/reranker_image.xml" "$out/reranker_video.xml" && return
-  download Qwen/Qwen3-VL-Reranker-2B "$name" \
-    "*.json" "*.safetensors" "merges.txt" "*.jinja" "scripts/*"
-  log "Exporting Qwen3-VL reranker to OpenVINO (one graph per mode: text, image, video)"
+  [[ ! -e "$OV_MODEL_DIR/$out" ]] \
+    || die "$OV_MODEL_DIR/$out exists but is incomplete; remove it and rerun"
+  fp16_rel=$(mktemp -u .qwen3-vl-reranker-fp16.XXXXXX)
+  fp16="$OV_MODEL_DIR/$fp16_rel"
+  cleanup_fp16() { rm -rf -- "$fp16"; }
+  trap cleanup_fp16 EXIT
+  download Qwen/Qwen3-VL-Reranker-2B 4bd860ac4f15ad1897a214615cccc700f8f71818 "$name" \
+    "*.json" "*.safetensors" "merges.txt" "*.jinja"
+  log "Exporting Qwen3-VL reranker to OpenVINO FP16 (one graph per mode: text, image, video)"
   run --entrypoint sh "$IMAGE" -c "
     set -e
     # Any media file works as the trace sample: visual inputs are normalized
@@ -162,28 +180,21 @@ writer.release()
       [ \"\$mode\" = image ] && sample=/tmp/sample.png
       [ \"\$mode\" = video ] && sample=/tmp/sample.mp4
       python /engine/scripts/export_qwen3_vl_reranker_ov.py \
-        --source /hf/$name --output /ov/$out --mode \"\$mode\" \${sample:+--sample \"\$sample\"}
+        --source /hf/$name --output /ov/$fp16_rel --mode \"\$mode\" \${sample:+--sample \"\$sample\"}
     done
   "
-}
-
-prepare_media-reranker-int8() {
-  # Weight-only INT8 quantization of the FP16 package; the FP16 package is
-  # built first when missing. The directory keeps the serving convention
-  # (<model-id-last-component>-OV), so the engine picks it up with
-  # ENGINE_MEDIA_RERANK_MODEL_ID=Qwen/Qwen3-VL-Reranker-2B-INT8.
-  local fp16=Qwen3-VL-Reranker-2B-OV out=Qwen3-VL-Reranker-2B-INT8-OV
-  prepare_media-reranker
-  skip_if_ready "Qwen3-VL reranker INT8" \
-    "$out/reranker_text.xml" "$out/reranker_image.xml" "$out/reranker_video.xml" && return
   log "Quantizing Qwen3-VL reranker to INT8 (weight-only)"
   run --entrypoint python "$IMAGE" \
-    /engine/scripts/quantize_qwen3_vl_reranker_int8.py --src "/ov/$fp16" --dst "/ov/$out"
+    /engine/scripts/quantize_qwen3_vl_reranker_int8.py --src "/ov/$fp16_rel" --dst "/ov/$out"
+  rm -rf -- "$fp16"
+  trap - EXIT
+  log "Removed the intermediate FP16 export; only $out remains"
 }
 
 prepare_layout() {
   skip_if_ready PP-DocLayoutV3 PP-DocLayoutV3/pp_doclayout_v3.onnx && return
-  download PaddlePaddle/PP-DocLayoutV3_safetensors PP-DocLayoutV3_safetensors \
+  download PaddlePaddle/PP-DocLayoutV3_safetensors e4f489dc536556fc1be02b973ba06756e0d4a2ac \
+    PP-DocLayoutV3_safetensors \
     "*.json" "*.safetensors"
   log "Converting PP-DocLayoutV3 to ONNX"
   run --entrypoint sh "$IMAGE" -c "
@@ -262,16 +273,20 @@ PY
 }
 
 prepare_video() {
-  local name="$1" repo exporter requirements out="$OV_MODEL_DIR/${1}-${video_precision}"
+  local name="$1" repo revision exporter requirements out="$OV_MODEL_DIR/${1}-${video_precision}"
   local patterns=("*.py" "*.json" "*.safetensors" "*.gz")
   case "$name" in
     viclip-b|viclip-l)
-      if [[ "$name" == viclip-b ]]; then repo=OpenGVLab/ViCLIP-B-16-hf; else repo=OpenGVLab/ViCLIP-L-14-hf; fi
+      if [[ "$name" == viclip-b ]]; then
+        repo=OpenGVLab/ViCLIP-B-16-hf revision=8484a9cb5b1b86e43c3ded53abe7485f52d8b789
+      else
+        repo=OpenGVLab/ViCLIP-L-14-hf revision=1652361522e1cb41c28cdfae870f690d00e7456b
+      fi
       exporter=export_viclip_ov.py
       requirements=requirements-viclip-export.txt
       ;;
     cosmos-224p)
-      repo=nvidia/Cosmos-Embed1-224p
+      repo=nvidia/Cosmos-Embed1-224p revision=787e0b996f5260a71ad474a283c90539a2e12986
       exporter=export_cosmos_ov.py
       requirements=requirements-cosmos-export.txt
       patterns=("*.py" "*.json" "*.safetensors" "*.bin" "*.txt")
@@ -289,7 +304,7 @@ prepare_video() {
     [[ -z "$(find "$out" -mindepth 1 -maxdepth 1 -print -quit)" ]] \
       || die "$out is nonempty but has no readiness manifest; existing output left untouched"
   fi
-  download "$repo" "$name" "${patterns[@]}"
+  download "$repo" "$revision" "$name" "${patterns[@]}"
   log "WARNING: --trust-local-code executes checkpoint Python from /hf/$name; use only reviewed, trusted model source"
   log "Converting $name to OpenVINO ($video_precision) at $out"
   run -e VIDEO_MODEL_NAME="$name" -e VIDEO_EXPORT_PRECISION="$video_precision" \
@@ -308,13 +323,13 @@ prepare_video() {
 
 prepare_whisper() {
   skip_if_ready Whisper whisper-small/openvino_encoder_model.xml whisper-small/openvino_decoder_model.xml && return
-  download openai/whisper-small whisper-small "*.json" "*.safetensors" "merges.txt"
+  download openai/whisper-small 973afd24965f72e36ca33b3055d56a652f456b4d whisper-small "*.json" "*.safetensors" "merges.txt"
   optimum_export whisper-small automatic-speech-recognition-with-past whisper-small
 }
 
 prepare_bge() {
   skip_if_ready bge-small-en-v1.5 bge-small-en-v1.5/openvino_model.xml && return
-  download BAAI/bge-small-en-v1.5 bge-small-en-v1.5 "*.json" "*.safetensors" "vocab.txt"
+  download BAAI/bge-small-en-v1.5 5c38ec7c405ec4b44b94cc5a9bb96e735b38267a bge-small-en-v1.5 "*.json" "*.safetensors" "vocab.txt"
   optimum_export bge-small-en-v1.5 feature-extraction bge-small-en-v1.5
 }
 
@@ -325,14 +340,7 @@ command -v docker >/dev/null 2>&1 || die "docker is required"
 docker image inspect "$IMAGE" >/dev/null 2>&1 \
   || die "image $IMAGE not found; build it first with: quickstart.sh --build"
 
-# The containers write as UID 1000, the engine container's user.
 mkdir -p "$HF_MODEL_DIR" "$OV_MODEL_DIR"
-for dir in "$HF_MODEL_DIR" "$OV_MODEL_DIR"; do
-  if [[ "$(stat -c %u "$dir")" != 1000 && "$(id -u)" != 1000 ]]; then
-    log "Giving $dir to UID 1000 (sudo)"
-    sudo chown 1000:1000 "$dir"
-  fi
-done
 
 for model in "${models[@]}"; do
   case "$model" in

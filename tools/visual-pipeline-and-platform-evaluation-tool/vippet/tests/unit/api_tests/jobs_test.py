@@ -170,7 +170,7 @@ class TestAudioJobsAPI(unittest.TestCase):
 
         started = self.client.post(
             "/voice/pipelines/speech-to-text/variants/cpu/runs",
-            json={"recording": "sample_male.wav", "language": "en"},
+            json={"recording": "OSR_us_000_0010_8k.wav", "language": "en"},
         )
         listed = self.client.get("/jobs/audio/status")
 
@@ -459,6 +459,28 @@ class TestJobsAPI(unittest.TestCase):
                 message=f"Optimization job {missing_job_id} not found"
             ).model_dump(),
         )
+
+    @patch("api.routes.jobs.OptimizationManager")
+    def test_stop_optimization_job_status_codes(self, mock_optimization_manager_cls):
+        """DELETE /jobs/optimization/{job_id} maps the manager outcome to 200/404/409."""
+        cases = [
+            ((True, "Optimization job j cancelled"), 200),
+            ((False, "Optimization job j not found"), 404),
+            ((False, "Optimization job j is not running (state: COMPLETED)"), 409),
+        ]
+        for outcome, expected_status in cases:
+            with self.subTest(expected_status=expected_status):
+                mock_optimization_manager_cls.return_value.cancel_job.return_value = (
+                    outcome
+                )
+
+                response = self.client.delete("/jobs/optimization/j")
+
+                self.assertEqual(response.status_code, expected_status)
+                self.assertEqual(response.json(), {"message": outcome[1]})
+                mock_optimization_manager_cls.return_value.cancel_job.assert_called_with(
+                    "j"
+                )
 
     # ------------------------------------------------------------------
     # /jobs/validation/status

@@ -1,27 +1,78 @@
 // Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { reactive } from "vue";
+import { reactive, type Component } from "vue";
+import {
+  FileOutlined,
+  FileTextOutlined,
+  PictureOutlined,
+  PlaySquareOutlined,
+  SoundOutlined,
+} from "@ant-design/icons-vue";
 import { getAssetList, getAssetMaterialization } from "@/api/console";
 import type { Asset, AssetPage } from "@/api/console/type";
 import { AssetProgress } from "./AssetProgress";
 
-export function getAssetKind(asset: Pick<Asset, "kind" | "media_type" | "name" | "origin">): string {
+export function getAssetKind(
+  asset: Pick<Asset, "kind" | "media_type" | "name" | "origin">,
+): string {
   if (["document", "image", "video", "audio", "okf"].includes(asset.kind))
     return asset.kind;
   const mediaType = asset.media_type.toLowerCase();
   for (const kind of ["image", "video", "audio"])
     if (mediaType.startsWith(`${kind}/`)) return kind;
-  const extension = (asset.name || asset.origin).toLowerCase().split(/[?#]/)[0].split(".").pop();
-  if (extension && ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "svg", "heic"].includes(extension))
+  const extension = (asset.name || asset.origin)
+    .toLowerCase()
+    .split(/[?#]/)[0]
+    .split(".")
+    .pop();
+  if (
+    extension &&
+    [
+      "png",
+      "jpg",
+      "jpeg",
+      "gif",
+      "webp",
+      "bmp",
+      "tif",
+      "tiff",
+      "svg",
+      "heic",
+    ].includes(extension)
+  )
     return "image";
-  if (extension && ["mp4", "mov", "mkv", "avi", "webm", "m4v", "mpeg", "mpg"].includes(extension))
+  if (
+    extension &&
+    ["mp4", "mov", "mkv", "avi", "webm", "m4v", "mpeg", "mpg"].includes(
+      extension,
+    )
+  )
     return "video";
-  if (extension && ["mp3", "wav", "flac", "ogg", "m4a", "aac", "opus", "wma"].includes(extension))
+  if (
+    extension &&
+    ["mp3", "wav", "flac", "ogg", "m4a", "aac", "opus", "wma"].includes(
+      extension,
+    )
+  )
     return "audio";
-  if (asset.kind === "file" || asset.kind === "text" || mediaType.startsWith("text/"))
+  if (
+    asset.kind === "file" ||
+    asset.kind === "text" ||
+    mediaType.startsWith("text/")
+  )
     return "document";
   return asset.kind;
 }
+
+const assetIcons: Record<string, Component> = {
+  document: FileTextOutlined,
+  image: PictureOutlined,
+  audio: SoundOutlined,
+  video: PlaySquareOutlined,
+};
+
+export const getAssetIcon = (kind: string): Component =>
+  assetIcons[kind] || FileOutlined;
 
 export const collectAssets = async (
   fetchPage: (page: number) => Promise<AssetPage>,
@@ -34,8 +85,7 @@ export const collectAssets = async (
     const data = await fetchPage(page++);
     assets.push(...data.assets);
     total = data.total;
-    if (!data.assets.length && assets.length < total)
-      throw incompleteError();
+    if (!data.assets.length && assets.length < total) throw incompleteError();
   } while (assets.length < total);
   return assets;
 };
@@ -101,18 +151,42 @@ export async function syncAssetProgress(
   const ids = showLoading ? [...progress.entries.keys()] : progress.trackedIds;
   const phaseRequests: Promise<Record<string, Asset["materialization"]>>[] = [];
   for (let index = 0; index < ids.length; index += 50) {
-    phaseRequests.push(getAssetMaterialization(library, ids.slice(index, index + 50)));
+    phaseRequests.push(
+      getAssetMaterialization(library, ids.slice(index, index + 50)),
+    );
   }
-  const [assets, phases] = await Promise.allSettled([
+  const phasePromise = Promise.all(phaseRequests).then((batches) =>
+    batches.reduce<Record<string, Asset["materialization"]>>(
+      (result, batch) => Object.assign(result, batch),
+      {},
+    ),
+  );
+  const listAssets = () =>
     collectAssets(
-      (page) => getAssetList(library, { page_num: page, page_size: 500 }, showLoading && page === 1),
+      (page) =>
+        getAssetList(
+          library,
+          { page_num: page, page_size: 500 },
+          showLoading && page === 1,
+        ),
       incompleteError,
-    ),
-    Promise.all(phaseRequests).then((batches) =>
-      batches.reduce<Record<string, Asset["materialization"]>>(
-        (result, batch) => Object.assign(result, batch), {},
-      ),
-    ),
+    );
+  const hasStoredUpload = [...progress.entries.values()].some(
+    (entry) => !entry.registered && entry.asset.materialization === "stored",
+  );
+  const [assets, phases] = await Promise.allSettled([
+    showLoading
+      ? listAssets()
+      : phasePromise.then((statuses) =>
+          !ids.length ||
+          hasStoredUpload ||
+          ids.some(
+            (id) => statuses[id] === "ready" || statuses[id] === "failed",
+          )
+            ? listAssets()
+            : undefined,
+        ),
+    phasePromise,
   ]);
   if (!isActive()) return;
   progress.update(
@@ -120,7 +194,7 @@ export async function syncAssetProgress(
     phases.status === "fulfilled" ? phases.value : undefined,
     revision,
   );
-  if (assets.status === "fulfilled") onListed();
+  if (assets.status === "fulfilled" && assets.value) onListed();
   if (assets.status === "rejected") throw assets.reason;
   if (phases.status === "rejected") throw phases.reason;
 }

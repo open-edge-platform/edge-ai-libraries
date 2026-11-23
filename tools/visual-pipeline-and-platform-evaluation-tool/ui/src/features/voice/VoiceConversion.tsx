@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import {
   Download,
   FileAudio,
@@ -599,7 +599,14 @@ export function VoiceConversion() {
                         </p>
                       ) : recordings.length === 0 ? (
                         <p className="text-muted-foreground text-sm">
-                          No predefined recordings available.
+                          No audio samples downloaded. Download them on the{" "}
+                          <Link
+                            to="/audio"
+                            className="font-medium text-foreground underline underline-offset-4"
+                          >
+                            Audio page
+                          </Link>
+                          .
                         </p>
                       ) : (
                         <Select

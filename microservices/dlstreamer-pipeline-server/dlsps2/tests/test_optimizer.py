@@ -6,6 +6,7 @@ The DL Streamer ``optimizer`` module is replaced with a fake, so these tests
 run without GStreamer or OpenVINO.
 """
 
+import io
 import json
 import sys
 import types
@@ -15,7 +16,14 @@ from pydantic import ValidationError
 
 from api.schema import OptimizeRequest
 from core import optimizer_worker
-from core.optimizer_manager import OptimizerBusyError, OptimizerJob, OptimizerManager, OptimizerState
+from core.optimizer_manager import (
+    OptimizerBusyError,
+    OptimizerJob,
+    OptimizerManager,
+    OptimizerPreprocessError,
+    OptimizerState,
+    preprocess_pipeline,
+)
 
 
 PIPELINE = "videotestsrc ! gvafpscounter ! fakesink"
@@ -368,3 +376,44 @@ class TestManager:
 
         assert job.status_dict()["mode"] == "power"
         assert job.result_dict()["best"]["power"] == 45.0
+
+
+# ---------------------------------------------------------------------------
+# Preprocess
+# ---------------------------------------------------------------------------
+
+class TestPreprocess:
+    def test_worker_returns_processed_pipeline(self, monkeypatch, capsys):
+        module = types.ModuleType("optimizer")
+        module.preprocess_pipeline = lambda pipeline: pipeline.replace("decodebin ", "decodebin3 ")
+        monkeypatch.setitem(sys.modules, "optimizer", module)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"pipeline": "decodebin ! fakesink"}) + "\n"))
+
+        assert optimizer_worker.preprocess_main() == 0
+        assert _events(capsys.readouterr()) == [{"processed_pipeline": "decodebin3 ! fakesink"}]
+
+    def test_worker_reports_optimizer_error(self, monkeypatch, capsys):
+        module = types.ModuleType("optimizer")
+
+        def fail(pipeline):
+            raise ValueError("bad pipeline")
+
+        module.preprocess_pipeline = fail
+        monkeypatch.setitem(sys.modules, "optimizer", module)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"pipeline": "x"}) + "\n"))
+
+        assert optimizer_worker.preprocess_main() == 1
+        assert _events(capsys.readouterr()) == [{"error": "bad pipeline"}]
+
+    def test_helper_raises_on_worker_error(self, monkeypatch):
+        completed = types.SimpleNamespace(stdout='{"error": "bad pipeline"}\n', stderr="")
+        monkeypatch.setattr("core.optimizer_manager.subprocess.run", lambda *a, **k: completed)
+
+        with pytest.raises(OptimizerPreprocessError, match="bad pipeline"):
+            preprocess_pipeline("x")
+
+    def test_helper_returns_processed_pipeline(self, monkeypatch):
+        completed = types.SimpleNamespace(stdout='{"processed_pipeline": "y"}\n', stderr="")
+        monkeypatch.setattr("core.optimizer_manager.subprocess.run", lambda *a, **k: completed)
+
+        assert preprocess_pipeline("x") == "y"

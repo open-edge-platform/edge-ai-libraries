@@ -30,6 +30,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 . "${SCRIPT_DIR}/scripts/lib/inference-router.sh"
 # shellcheck source=scripts/lib/agents.sh
 . "${SCRIPT_DIR}/scripts/lib/agents.sh"
+# shellcheck source=scripts/lib/metrics.sh
+. "${SCRIPT_DIR}/scripts/lib/metrics.sh"
 # shellcheck source=scripts/lib/openshell.sh
 . "${SCRIPT_DIR}/scripts/lib/openshell.sh"
 
@@ -203,6 +205,8 @@ main() {
   info "Removing Inference Router…"
   remove_deployment_container "$HARNESS_IR_CONTAINER"
   ok "Inference Router removed"
+  metrics_remove_jaeger
+  metrics_remove_managed_config
   if ovms_is_managed; then
     info "Removing OpenVINO Model Server…"
     remove_deployment_container "$HARNESS_OVMS_CONTAINER"

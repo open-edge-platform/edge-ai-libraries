@@ -147,6 +147,31 @@ export const requestAssetPoolAssetsCreate = (
   });
 };
 
+export const requestAssetPoolAssetsDelete = (
+  name: string,
+  poolId: string,
+  data: Object,
+) =>
+  request({
+    url: `/v1/libraries/${name}/asset_pools/${poolId}/assets`,
+    method: "delete",
+    data,
+    showSuccessMsg: true,
+    successMsg: "console.saved",
+  });
+
+export const requestAssetPoolAssetDelete = (
+  name: string,
+  poolId: string,
+  assetId: string,
+) =>
+  request({
+    url: `/v1/libraries/${name}/asset_pools/${poolId}/assets/${assetId}`,
+    method: "delete",
+    showSuccessMsg: true,
+    successMsg: "console.saved",
+  });
+
 export const requestSourceServingUpdate = (
   name: string,
   poolId: string,

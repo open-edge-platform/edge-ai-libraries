@@ -182,12 +182,28 @@ class OptimizerWorker:
         })
 
 
+def preprocess_main() -> int:
+    """Read one ``{"pipeline": ...}`` line from stdin and write the preprocessed pipeline as JSON."""
+    try:
+        request = json.loads(sys.stdin.readline())
+        from optimizer import preprocess_pipeline  # pylint: disable=import-outside-toplevel,no-name-in-module
+        processed = preprocess_pipeline(request["pipeline"])
+    except Exception as exc:  # pylint: disable=broad-except
+        _emit({"error": str(exc)})
+        return 1
+    _emit({"processed_pipeline": processed})
+    return 0
+
+
 def main() -> int:
     logging.basicConfig(
         level=getattr(logging, os.environ.get("APP_LOG_LEVEL", "INFO").upper(), logging.INFO),
         stream=sys.stderr,
         format="[%(name)s] [%(levelname)s] %(message)s",
     )
+
+    if len(sys.argv) > 1 and sys.argv[1] == "preprocess":
+        return preprocess_main()
 
     first = sys.stdin.readline()
     try:

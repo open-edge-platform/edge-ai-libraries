@@ -1,0 +1,97 @@
+
+configure_smart_tolling () {
+  workspace="$(ensure_project_path)/smart-tolling"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(443 80 3478)
+  wait_timeout=120
+}
+
+verify_smart_tolling () {
+  [ -e "$workspace"/metro-vision-ai-app-recipe/smart-tolling/.env ]
+}
+
+debian_90_profile_smart_tolling () {
+  echo "git curl gawk edge_base docker_io"
+}
+
+debian_90_install_smart_tolling () {
+  configure_smart_tolling "$@"
+  if verify_smart_tolling && ! ensure_parse_reinstall "$@"; then
+    echo "Smart tolling is installed." >&2
+  else
+    echo "@@STEP @@IF ^docker compose down @@THEN Stopping all apps"
+    ensure_disk_size 300
+    ensure_ports_open install smart_tolling "${used_ports[@]}"
+
+    # clone the repository
+    echo "@@STEP Cloning repository"
+    ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
+
+    local delay=30
+    echo "@@ATTENTION @@BR"
+    echo "@@ATTENTION VIDEOS AND SCENES REQUIRED"
+    echo "@@ATTENTION @@BR"
+    echo "@@ATTENTION Install videos and scenes following document:"
+    echo "@@ATTENTION ${repository%.git}/"
+    echo "@@ATTENTION blob/main/metro-vision-ai-app-recipe/smart-tolling/"
+    echo "@@ATTENTION docs/user-guide/get-started/bring-your-own-data.md"
+    echo "@@ATTENTION @@BR"
+    echo "@@ATTENTION RUN '$installer_name start' to resume setup."
+    echo "@@ATTENTION @@BR"
+    echo "@@ATTENTION @@UNTIL +$delay Dismiss in %s "
+    echo "@@ATTENTION @@BR"
+    sleep $delay
+
+    verify_smart_tolling
+  fi
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name start" 
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_smart_tolling () {
+  configure_smart_tolling "$@"
+  ensure_ports_open start smart_tolling "${used_ports[@]}"
+  ensure_container_namespace start smart_tolling $(ensure_container_parse_yaml "$workspace"/metro-vision-ai-app-recipe/docker-compose.yml "$workspace"/metro-vision-ai-app-recipe/smart-tolling/compose-smart-tolling-overlay.yml)
+
+  cd "$workspace"/metro-vision-ai-app-recipe
+  if [ ! -e .inited ]; then
+    local videos=(FrontView_L_30fps.ts FrontView_R_30fps.ts RearView_L_30fps.ts RearView_R_30fps.ts SideAxle_Lane_1_30fps.ts SideAxle_Lane_2_30fps.ts) scenes=( Smart-Tolling/Smart-Tolling.zip ) f rc=0
+    for f in ${videos[*]/#/src/dlstreamer-pipeline-server/videos/} ${scenes[*]/#/src/webserver/scenes/}; do
+      [ -e smart-tolling/$f ] || {
+        echo "Missing ${f##*/}" >&2
+        rc=1
+      }
+    done
+    if [ $rc -eq 1 ]; then
+      echo "Install videos and scenes and rerun ${installer_name} start" >&2
+      return 3
+    fi
+    yes | ./install.sh smart-tolling $(ensure_ip)
+    touch .inited
+  fi
+
+  export SUPASS="$(cat /dev/random | tr -dc a-z | head -c 5)"
+  docker compose up -d
+
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT UI AUTH admin/$SUPASS"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_smart_tolling () {
+  configure_smart_tolling "$@"
+  cd "$workspace"/metro-vision-ai-app-recipe && {
+    ./sample_stop.sh || true
+    docker compose down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker-compose.yml smart-tolling/compose-smart-tolling-overlay.yml)
+  } || true
+}
+
+debian_90_remove_smart_tolling () {
+  debian_90_stop_smart_tolling "$@" || true
+  ensure_rm "$workspace"
+}
+

@@ -39,7 +39,7 @@ All routes in this section use the `/v1/libraries` prefix.
 | `DELETE` | `/{library}` | Delete the library. |
 | `GET` | `/{library}/sources` | List registered sources, content included. |
 | `POST` | `/{library}/sources` | Register a source backed by a database collection. |
-| `PATCH` | `/{library}/sources/{source_id}` | Change a source's `name`, `labels` or `enabled` switch. Its model and parameters cannot change (`422`): create a new source and attach it with `replaces`. |
+| `PATCH` | `/{library}/sources/{source_id}` | Change a source's `name`, `labels`, `enabled` switch or `embedding_device` (`CPU`, `GPU`, `NPU`, `AUTO`, ...). A new device rebuilds the source's model there. Moving between GPUs (`GPU`, `GPU.0`, `GPU.1`) keeps the stored vectors; moving to another kind of device (`CPU`, `GPU`, `NPU`, or a meta-device such as `AUTO`) re-embeds the records in place in the background: chunk ids, text and metadata stay, only vectors change, and the source keeps serving meanwhile; follow `reembed_pending` / `reembed_asset_ids` in the pool's source status. The device is refused with `422` for a remote backend or a non-vector source, `400` if the engine lacks it, and `409` while a pool holding the source is syncing, ingesting or extracting. Its model and parameters cannot change (`422`): create a new source and attach it with `replaces`. |
 | `DELETE` | `/{library}/sources/{source_id}` | Detach a source from every pool without deleting its external collection. Cancel queued extraction jobs. Refused with `409` while it holds live asset content or has a running OKF extraction. |
 | `GET` | `/{library}/asset_pools` | List asset pools. |
 | `POST` | `/{library}/asset_pools` | Create an asset pool, optionally with sources. |
@@ -51,6 +51,8 @@ All routes in this section use the `/v1/libraries` prefix.
 | `GET` | `/{library}/asset_pools/{asset_pool_id}/routing` | Which source takes each kind of content in the pool, and in which serving state. |
 | `GET` | `/{library}/asset_pools/{asset_pool_id}/assets` | List asset IDs held by a pool. |
 | `POST` | `/{library}/asset_pools/{asset_pool_id}/assets` | Add existing library assets to a pool. |
+| `DELETE` | `/{library}/asset_pools/{asset_pool_id}/assets` | Remove assets (`{"asset_ids": [...]}`) from this pool only; they stay in the library and in other pools. Returns `removed`, `materializations_removed` and `concepts_removed`. |
+| `DELETE` | `/{library}/asset_pools/{asset_pool_id}/assets/{asset_id}` | Remove one asset from this pool only. |
 | `GET` | `/{library}/asset_pools/{asset_pool_id}/graph` | Read the OKF concept graph (`nodes`, `edges`, `total`, `truncated`); optional `limit`. Each node's `origin` is `uploaded`, `generated` or `both` (an uploaded override). |
 | `POST` | `/{library}/asset_pools/{asset_pool_id}/extractions` | Extract the pool's documents into OKF for a graph source (`{"source_id"?, "force"?}`). 202 with a new job; 200 with the active one. |
 | `GET` | `/{library}/asset_pools/{asset_pool_id}/extractions[/{extraction_id}]` | Extraction jobs (newest first) or one job: `state` (`queued`, `running`, `succeeded`, `failed`, `cancelled`), `result`, `error`. |
@@ -234,6 +236,17 @@ To index assets that are already stored in the library, use `POST
 /v1/libraries/{library}/asset_pools/{asset_pool_id}/assets` with an `asset_ids`
 array. That endpoint changes pool membership; it does not upload or extract
 content again.
+
+`DELETE /v1/libraries/{library}/asset_pools/{asset_pool_id}/assets` with the
+same body undoes it. The assets keep their content and stay in the library and
+in every other pool. Their records are removed from this pool's sources, except
+in a source that another pool holding the same asset is also attached to, since
+retrieval is already limited to the pool's own assets. OKF concepts that only
+the removed assets support are deleted from the graph, and a pool whose graph
+source extracts documents re-extracts from the documents left. It returns `404`
+for an asset the pool does not hold and `409` without changing anything while
+the pool syncs, runs an extraction, ingests one of the assets, has an
+unavailable source, or when the target is the pool's generated OKF bundle.
 
 Asset deletion removes materializations from every pool containing the target,
 then deletes its content record and library membership. It returns `409`

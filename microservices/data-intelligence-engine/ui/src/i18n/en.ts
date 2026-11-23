@@ -142,7 +142,9 @@ export default {
     localFiles: "Local files",
     selectedFiles: "{count} file(s) selected",
     fileSupportHint:
-      "Documents, images, video, audio and OKF knowledge bundles",
+      "Documents, images, video, audio, ZIP archives and OKF knowledge bundles",
+    documentFormatsHint:
+      "Document formats: .pdf, .txt, .docx, .pptx, .xlsx, .csv, .md, .html, .htm, .rst; ZIP archives: .zip",
     basicInformation: "Basic information",
     sourceConfiguration: "Source configuration",
     vectorSource: "Vector",
@@ -199,6 +201,8 @@ export default {
     contentDatabase: "Content database",
     detachHint:
       "Detaching removes this binding immediately, but keeps indexed data.",
+    removePoolAssetHint:
+      "Removing an asset clears this pool's indexed data. The asset remains in the library.",
     canvasInteractionHint:
       "Drag creation shortcuts or existing resources onto the canvas. Drop files onto a pool to index them there. Drag between ports to link resources, or open Connect in the toolbar. Click a node or link to inspect its details.",
     canvasKeyboardHint:
@@ -217,7 +221,7 @@ export default {
     sources: "Sources",
     databases: "Databases",
     models: "Models",
-    canvas: "Resource canvas",
+    canvas: "Canvas",
     retrieve: "Retrieval",
     chat: "Chat",
     librariesHint:
@@ -238,6 +242,8 @@ export default {
     add: "Add",
     manage: "Manage",
     details: "Details",
+    poolDetails: "Pool details",
+    sourceDetails: "Source details",
     select: "Select",
     search: "Search by name or ID",
     name: "Name",
@@ -290,14 +296,14 @@ export default {
     sourceDisabled: "This source is disabled.",
     extract: "Extract now",
     nextRun: "Next run",
-    poolSources: "Pool sources",
-    poolAssets: "Pool assets",
+    poolSources: "Sources",
+    poolAssets: "Assets",
     saveSources: "Save sources",
     addAssets: "Add assets",
     addSelected: "Add selected assets",
     inPool: "Already in pool",
     poolHint:
-      "Pool names and metadata are fixed at creation. Assets cannot be detached with the engine API.",
+      "Pool names and metadata are fixed at creation. Removing an asset from this pool keeps the original asset in the library.",
     upload: "Upload assets",
     chooseFiles: "Choose files",
     chooseFolder: "Choose folder",
@@ -313,13 +319,23 @@ export default {
     ingestHint:
       "Leave pools empty to store assets without indexing. You can add them to a pool later.",
     ingestRequired: "Provide files, a folder, text or server paths.",
+    emptyZip: "The ZIP archive contains no uploadable files.",
     skipped: "Unsupported uploads were skipped: {names}",
+    unsupportedUploads:
+      "These files or folders have unsupported formats and cannot be added: {names}. Choose a supported format.",
     accepted:
       "Accepted {count} asset(s). Processing continues in the background.",
     processing: "Processing assets",
     pollExpired:
       "Automatic progress tracking paused after ten minutes. The last known status is shown; this does not mean processing failed. Refresh to check again, or inspect the engine logs.",
-    assetPendingHint: "This asset is still being registered. Deleting it or adding it to another pool is not available yet.",
+    assetPendingHint:
+      "This asset is still being registered. Deleting it or adding it to another pool is not available yet.",
+    assetIndexingDeleteHint:
+      "This asset is still being processed and cannot be deleted yet.",
+    poolIndexingDeleteHint:
+      "This pool is still indexing assets and cannot be deleted yet.",
+    sourceIndexingDeleteHint:
+      "This source is still indexing assets and cannot be deleted yet.",
     origin: "Origin",
     kind: "Kind",
     mediaType: "Media type",
@@ -460,6 +476,8 @@ export default {
     loadModels: "Load models",
     send: "Send",
     clear: "Clear",
+    chatInternalTesting:
+      "This chat tab is for internal testing only, not for customer-facing use.",
     chatNotice:
       "Each question uses the retrieval settings below. Context is sent directly from this browser to the endpoint; it must allow this page's origin (CORS).",
     chatNetworkError:
@@ -480,6 +498,8 @@ export default {
     autoLayout: "Auto layout",
     clearCanvas: "Clear canvas",
     removeCanvas: "Remove from canvas",
+    removeCanvasLinkedAsset:
+      "This asset is linked to pool(s): {pools}. Unlink it from all pools before removing it from the canvas.",
     showLinked: "Show linked",
     connect: "Connect",
     manualConnect: "Manual connect",
@@ -490,7 +510,15 @@ export default {
     detachSource: "Detach this source from the pool?",
     contentLink:
       "The library content source serves every pool and cannot be detached here.",
-    assetLink: "The engine API cannot remove an asset from a pool.",
+    removeOneFromPool: "Remove from pool",
+    removeFromPool: "Remove selected ({count})",
+    selectAsset: "Select asset {name}",
+    removePoolAssetsConfirm:
+      "Remove {count} asset(s) from this pool? The assets will remain in the library.",
+    libraryDetails: "Library details",
+    assetLinkDetails: "Asset link details",
+    sourceLinkDetails: "Source link details",
+    contentLinkDetails: "Content source link details",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
     ready: "Ready",
@@ -501,12 +529,17 @@ export default {
     text_ready: "Text ready",
     assetStatusHelp: "Explain asset indexing statuses",
     assetStatusHint: {
-      materializing: "Content is being extracted and indexed. Retrieval is not ready yet.",
-      text_ready: "Text indexing is complete. You can now retrieve text-only content while the remaining content is being indexed.",
-      ready: "Indexing is complete. You can now retrieve all indexed content, including images.",
+      materializing:
+        "Content is being extracted and indexed. Retrieval is not ready yet.",
+      text_ready:
+        "Text indexing is complete. You can now retrieve text-only content while the remaining content is being indexed.",
+      ready:
+        "Indexing is complete. You can now retrieve all indexed content, including images.",
       failed: "Indexing failed. Check the engine logs for details.",
-      unknown: "No live indexing status is available. This does not confirm that indexing is complete. Refresh to check again.",
-      stored: "Content has been stored. Add the asset to a configured pool to index it for retrieval.",
+      unknown:
+        "No live indexing status is available. This does not confirm that indexing is complete. Refresh to check again.",
+      stored:
+        "Content has been stored. Add the asset to a configured pool to index it for retrieval.",
     },
     stored: "Stored",
     unconfigured: "No sources",

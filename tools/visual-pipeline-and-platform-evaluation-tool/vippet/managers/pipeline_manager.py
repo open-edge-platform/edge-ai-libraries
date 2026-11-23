@@ -662,17 +662,23 @@ class PipelineManager:
             # Validate camera sources (rtspsrc, v4l2src), if present, are followed by decodebin3
             base_graph.validate_camera_sources_followed_by_decodebin3()
 
+            # Validate RTSP URLs of rtspsrc nodes (they may be user-provided)
+            base_graph.validate_rtsp_sources()
+
             # Validate all VA-accelerated inference elements share one GPU render node
             base_graph.validate_inference_devices_share_va_display()
+
+            # Validate broker-publishing gvametapublish elements are configured
+            base_graph.validate_broker_metadata_publishers()
 
             # Validate pipeline has gvametapublish when metadata publishing is enabled
             if (
                 execution_config.metadata_mode != InternalMetadataMode.DISABLED
-                and not base_graph.has_gvametapublish()
+                and not base_graph.has_file_gvametapublish()
             ):
                 raise ValueError(
-                    f"Metadata generation is enabled, but the pipeline does not contain any gvametapublish element. "
-                    f"Please add a gvametapublish element to the pipeline '{pipeline_name}' (id: '{pipeline_id}') definition to enable metadata output."
+                    f"Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file. "
+                    f"Please add a gvametapublish element with method=file to the pipeline '{pipeline_name}' (id: '{pipeline_id}') definition to enable metadata output."
                 )
 
             # Apply RTSP credentials and settings to rtspsrc nodes

@@ -8,6 +8,7 @@ import logging
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -42,7 +43,8 @@ class _Clock:
 def _instance(instance_id="a", **kwargs):
     inst = PipelineInstance(instance_id=instance_id, pipeline_description="fakesrc ! fakesink")
     inst.state = PipelineState.RUNNING
-    fps = {key: kwargs.pop(key) for key in ("avg_fps", "frame_fps", "frame_interval") if key in kwargs}
+    fps_keys = ("avg_fps", "frame_fps", "frame_interval", "frame_count", "frame_count_time")
+    fps = {key: kwargs.pop(key) for key in fps_keys if key in kwargs}
     times = {key: kwargs.pop(key) for key in ("start_time", "first_frame_time", "stop_time") if key in kwargs}
     inst.fps_sample = FpsSample(**fps)
     inst.lifecycle = Lifecycle(**times)
@@ -305,6 +307,33 @@ class TestFpsSample:
 
         assert inst.fps_sample == FpsSample(10.0, 30.0, 1.0)
 
+    def test_frame_count_reading_replaces_the_previous_one(self):
+        inst = _instance(avg_fps=10.0, frame_fps=30.0, frame_interval=1.0, frame_count=5, frame_count_time=100.0)
+
+        inst.update_fps(frame_count=35, frame_count_time=101.0)
+
+        assert inst.fps_sample == FpsSample(10.0, 30.0, 1.0, 35, 101.0)
+
+    def test_half_a_frame_count_reading_is_ignored(self):
+        inst = _instance(frame_count=5, frame_count_time=100.0)
+
+        inst.update_fps(frame_count=99)
+        inst.update_fps(frame_count_time=999.0)
+
+        assert (inst.fps_sample.frame_count, inst.fps_sample.frame_count_time) == (5, 100.0)
+
+    def test_restart_counts_frames_from_zero(self):
+        inst = _instance("x", avg_fps=10.0, frame_count=500, frame_count_time=100.0)
+        inst.state = PipelineState.RESTARTING
+        manager = PipelineManager()
+        manager._instances["x"] = inst
+        manager._worker_pool = MagicMock()
+
+        manager._restart_pipeline(inst)
+
+        assert (inst.fps_sample.frame_count, inst.fps_sample.frame_count_time) == (0, None)
+        assert inst.avg_fps == 10.0
+
     def test_fps_event_updates_sample_in_one_assignment(self):
         inst = _instance("x")
         manager = PipelineManager()
@@ -312,18 +341,32 @@ class TestFpsSample:
         before = inst.fps_sample
 
         manager._handle_event(
-            {"instance_id": "x", "event": "fps", "avg_fps": 5.0, "last_fps": 6.0, "frame_interval": 1.1}
+            {
+                "instance_id": "x",
+                "event": "fps",
+                "avg_fps": 5.0,
+                "last_fps": 6.0,
+                "frame_interval": 1.1,
+                "frame_count": 42,
+                "frame_count_time": 1791366042.5,
+            }
         )
 
         assert inst.fps_sample is not before
-        assert inst.fps_sample == FpsSample(5.0, 6.0, 1.1)
+        assert inst.fps_sample == FpsSample(5.0, 6.0, 1.1, 42, 1791366042.5)
 
     def test_status_dict_is_built_from_one_sample(self):
-        inst = _instance(avg_fps=5.0, frame_fps=6.0, frame_interval=1.1)
+        inst = _instance(avg_fps=5.0, frame_fps=6.0, frame_interval=1.1, frame_count=42, frame_count_time=7.5)
 
         status = inst.to_status_dict()
 
         assert (status["avg_fps"], status["frame_fps"], status["frame_interval"]) == (5.0, 6.0, 1.1)
+        assert (status["frame_count"], status["frame_count_time"]) == (42, 7.5)
+
+    def test_status_dict_before_the_first_frame(self):
+        status = _instance().to_status_dict()
+
+        assert (status["frame_count"], status["frame_count_time"]) == (0, None)
 
 
 class TestManagerFinishedListener:

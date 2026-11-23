@@ -19,6 +19,7 @@ from api.routes import health
 from app_version import VIPPET_VERSION
 from cpu_topology import get_cpu_topology
 from database import close_db, init_db
+from dlsps2_optimizer import cancel_leftover_optimizations
 from dlsps2_runner import stop_leftover_instances
 from images import ImagesManager
 from internal_types import InternalAppStatus
@@ -63,12 +64,13 @@ for _noisy in ("httpx", "httpcore"):
 
 
 def _release_pipeline_execution() -> None:
-    """Stop leftover DLSPS 2.0 instances and delete live-event folders.
+    """Stop leftover DLSPS 2.0 instances and optimizer jobs, delete live-event folders.
 
     Runs when vippet starts and when it stops, so a vippet process that ended
     mid-run leaves no pipeline holding devices and no event files behind.
     """
     stop_leftover_instances()
+    cancel_leftover_optimizations()
     remove_event_folders()
 
 
@@ -83,7 +85,7 @@ def _initialize_in_background(app: FastAPI) -> None:
 
     try:
         app_state_manager.set_status(
-            InternalAppStatus.INITIALIZING, "Downloading videos and loading metadata..."
+            InternalAppStatus.INITIALIZING, "Loading video metadata..."
         )
 
         # Read the CPU core types once so they are logged at startup and
@@ -93,11 +95,12 @@ def _initialize_in_background(app: FastAPI) -> None:
         # Before the TS conversion below starts pipelines on DLSPS 2.0.
         _release_pipeline_execution()
 
-        # Initialize VideosManager - downloads videos, scans files,
-        # extracts metadata, and converts to TS format
+        # Initialize VideosManager - scans local files, extracts metadata,
+        # and converts to TS format
         VideosManager()
 
-        # Install bundled recordings used by Audio pipeline presets.
+        # Initialize AudioAssetsManager - creates the audio input/output
+        # directories before any sample download or Audio pipeline run.
         AudioAssetsManager()
 
         # Load and validate read-only Audio pipeline definitions.

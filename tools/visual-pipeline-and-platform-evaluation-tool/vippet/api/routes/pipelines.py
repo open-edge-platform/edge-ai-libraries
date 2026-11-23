@@ -652,6 +652,10 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
             "description": "Optimization job successfully started",
             "model": schemas.OptimizationJobResponse,
         },
+        400: {
+            "description": "Invalid optimization parameters",
+            "model": schemas.MessageResponse,
+        },
         409: {
             "description": "Only one job can be run at the same time.",
             "model": schemas.MessageResponse,
@@ -677,6 +681,11 @@ def optimize_variant(
     > **Note:** Optimization works with both read-only (PREDEFINED) and user-created variants.
     > The optimization job uses the variant's graphs as input but does not modify the original variant.
 
+    The optimizer runs on DL Streamer Pipeline Server, so candidate pipelines run on
+    the server's runtime and devices. A variant named `CPU`, `GPU` or `NPU` restricts
+    the search to that device. Cancel a running job with
+    `DELETE /jobs/optimization/{job_id}`.
+
     ## Path Parameters
     - `pipeline_id` - ID of the pipeline containing the variant
     - `variant_id` - ID of the variant to optimize
@@ -697,7 +706,9 @@ def optimize_variant(
     | Code | Description |
     |------|-------------|
     | 202 | `OptimizationJobResponse` with `job_id` of created job |
+    | 400 | `MessageResponse` - For `optimize`, `search_duration` or `sample_duration` is not a number greater than 0 |
     | 404 | `MessageResponse` - Pipeline or variant with given IDs do not exist |
+    | 409 | `MessageResponse` - Another execution job is already running |
     | 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |
 
     ## Conditions
@@ -710,6 +721,8 @@ def optimize_variant(
     ### ❌ Failure
     - Another execution job is already running → 409
     - Unknown pipeline or variant ID → 404
+    - For `optimize`, `search_duration` or `sample_duration` not a number greater than 0 → 400
+      (numeric strings such as `"30"` are accepted)
     - Unhandled exception in pipeline/variant lookup or job creation → 500
 
     ## Examples

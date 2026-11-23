@@ -8,15 +8,39 @@ import connexion
 import requests
 import time
 import os
+import json
+import datetime
 from pydantic import ValidationError
 from http import HTTPStatus
-from src.common.log import get_logger
+from src.common.log import get_logger, get_audit_logger
 from src.server.pipeline import Pipeline
 
 logger = get_logger('REST API Endpoints')
+audit_logger = get_audit_logger()
 
 BAD_REQUEST_RESPONSE = 'Invalid pipeline, version or instance'
 NOT_IMPLEMENTED = 'Unsupported endpoint'
+
+
+def _client_ip():
+    """Best-effort client IP for audit logging."""
+    try:
+        return connexion.request.remote_addr
+    except Exception:
+        return 'unknown'
+
+
+def _audit_log(action, name=None, version=None, instance_id=None):
+    """Structured, persistent audit entry for a pipeline lifecycle action."""
+    audit_logger.info(json.dumps({
+        'audit': True,
+        'action': action,
+        'name': name,
+        'version': version,
+        'instance_id': instance_id,
+        'client_ip': _client_ip(),
+        'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }))
 
 class Endpoints:
 
@@ -95,10 +119,11 @@ class Endpoints:
             result = Endpoints.pipeline_server_manager.stop_instance(instance_id)
             if result:
                 result['state'] = result['state'].name
+                _audit_log('pipeline_stop', instance_id=instance_id)
                 return result
             return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         except Exception as error:
-            logger.error('pipelines_instance_id_delete %s', error)
+            logger.error('pipelines_instance_id_delete %s (client %s)', error, _client_ip())
             return ('Unexpected error', HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
@@ -218,10 +243,11 @@ class Endpoints:
                 pipeline_id, err = Endpoints.pipeline_server_manager.start_instance(
                     name, version, connexion.request.get_json())
                 if pipeline_id is not None:
+                    _audit_log('pipeline_start', name=name, version=version, instance_id=pipeline_id)
                     return pipeline_id
                 return (err, HTTPStatus.BAD_REQUEST)
             except Exception as error:
-                logger.exception('Exception in pipelines_name_version_post %s', error)
+                logger.exception('Exception in pipelines_name_version_post %s (client %s)', error, _client_ip())
                 return ('Unexpected error', HTTPStatus.INTERNAL_SERVER_ERROR)
 
         return('Invalid Request, Body must be valid JSON', HTTPStatus.BAD_REQUEST)
@@ -252,10 +278,11 @@ class Endpoints:
                 pipeline_id, err = Endpoints.pipeline_server_manager.execute_request_on_instance(
                     name, version, instance_id, connexion.request.get_json())
                 if pipeline_id is not None:
+                    _audit_log('pipeline_request', name=name, version=version, instance_id=instance_id)
                     return pipeline_id
                 return (err, HTTPStatus.BAD_REQUEST)
             except Exception as error:
-                logger.error('Exception in pipelines_name_version_instance_id_post %s', error)
+                logger.error('Exception in pipelines_name_version_instance_id_post %s (client %s)', error, _client_ip())
                 return ('Unexpected error', HTTPStatus.INTERNAL_SERVER_ERROR)
 
         return('Invalid Request, Body must be valid JSON', HTTPStatus.BAD_REQUEST)

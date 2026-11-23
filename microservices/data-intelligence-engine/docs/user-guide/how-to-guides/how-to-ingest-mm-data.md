@@ -58,7 +58,7 @@ its directory under that root, and each weight variant has its own model ID.
 |---|---|---|
 | Video | ViCLIP-B (`viclip-b-fp16`, default), ViCLIP-L or Cosmos-224p, original video | `viclip-b-fp16/`, `viclip-l-fp16/` or `cosmos-224p-fp16/`; each also supports an `fp32` package |
 | Images / video captions | GME-Qwen2-VL-2B, pixels / derived caption text | `gme-Qwen2-VL-2B-Instruct-OV/` |
-| Audio | Whisper-small → GME, transcript text | `whisper-small/openvino/` + GME above |
+| Audio | Whisper-small → GME, transcript text | `whisper-small/` + GME above |
 | PDFs / OKF document corpus | Native GME, document text and PDF figures | GME above; PDFs also need `PP-DocLayoutV3/pp_doclayout_v3.onnx` |
 
 Scanned PDFs are read with Tesseract, which the engine image includes with
@@ -81,7 +81,7 @@ to sources. If you run the engine from a local Python environment instead of
 
 | Field | Required? | Purpose / default |
 |---|---|---|
-| `asset_types` | **Yes for standalone media** | Nonempty array: `["video"]`, `["image"]` or `["audio"]`. Extensions/MIME types such as `["mp4"]` narrow file scope. Optional for documents (`["pdf"]` restricts files); graph sources default to `["okf"]`. |
+| `asset_types` | **Yes for standalone media** | Nonempty array: `["video"]`, `["image"]` or `["audio"]`. Extensions/MIME types such as `["mp4"]` narrow file scope. Optional for documents (`["document"]`, the default for a text source); graph sources default to `["okf"]`. |
 | `block_roles` | No | Select representation. Omitted: video → original video, image → pixels, audio → `l2_transcript`. `["l2_caption"]` on video selects GME caption text. `[]` adds no role filter. |
 | `block_kinds` | No | Advanced block filter, **not** a model selector. Omitted: derived from representation; `[]` adds no kind filter. Must be compatible with the representation/model. |
 | `embedding_model` | No | Select a prepared model by ID under `ENGINE_MODEL_ROOT_PATH`. Omitted: category default. Use a separate model ID for each weight variant. Must support the selected representation. |
@@ -183,21 +183,23 @@ set `ENGINE_ASR_LANGUAGE` (for example `en`) in `deployment/docker/.env` and run
 
 A recording is searchable once its `/enrichment` reports `transcript_status:
 completed` and `embedding_status: ready` (see [Check status](#5-check-status)).
-Each 30-second stretch of speech is one result, with `t_start_ms` and `t_end_ms`.
+Each stretch of speech up to 30 seconds, cut at a pause, is one result, with
+`t_start_ms` and `t_end_ms`.
 
 ### PDFs
 
 Default native GME handles text chunks and extracted figures, which it embeds
 with their reference text; PP-DocLayoutV3 detects the figures, and scanned PDFs
-cannot be read without it. `asset_types` below only restricts file scope; omit
-`operator_options` for general document ingestion.
+cannot be read without it. PDFs are documents, so the source takes
+`"asset_types":["document"]`, which is also the default; omit `operator_options`
+for general document ingestion.
 
 ```bash
 ./sources.sh create my-library '{
   "name":"pdf-gme",
   "database_id":"local-milvus",
   "collection_name":"my_library_pdf_gme",
-  "operator_options":{"asset_types":["pdf"],"embedding_model":"gme-Qwen2-VL-2B-Instruct-OV"}
+  "operator_options":{"asset_types":["document"],"embedding_model":"gme-Qwen2-VL-2B-Instruct-OV"}
 }'
 ./pools.sh create my-library '{
   "id":"pdf-documents","name":"PDFs","sources":["pdf-gme"]
@@ -253,8 +255,7 @@ this stack's default; otherwise add both to `options`. Use the client port
 }'
 ./sources.sh create knowledge-library '{
   "name":"knowledge-graph","database_id":"local-nebula",
-  "collection_name":"my_knowledge_concepts",
-  "operator_options":{"asset_types":["okf"]}
+  "collection_name":"my_knowledge_concepts"
 }'
 ./pools.sh create knowledge-library '{
   "id":"knowledge-documents","name":"Knowledge",
@@ -348,8 +349,9 @@ for chunk in response.json()["chunks"]:
 Add `"postprocess":{"processor_type":"reranker","top_n":3}` to a media request;
 the Qwen3-VL INT8 media reranker is among the default models.
 `top_k` controls candidates per source; `top_n` limits the final global ranking.
-Without a usable GPU, set `ENGINE_MEDIA_RERANK_DEVICE=CPU` in
-`deployment/docker/.env` and run `quickstart.sh` again. See
+Without a usable GPU, run `quickstart.sh --cpu` (automatic on a host without
+`/dev/dri`); to move only the media reranker, set `ENGINE_MEDIA_RERANK_DEVICE=CPU`
+in `deployment/docker/.env` and run `quickstart.sh` again. See
 [Media reranking](../text-to-media-retrieval.md#media-reranking) for examples,
 model options and failure behavior.
 
@@ -358,8 +360,9 @@ model options and failure behavior.
 - **Video limit:** video embedding does not cover segments over 60 seconds. Check
   `/enrichment` for missing coverage.
 - **GME memory:** document and image sources share a runtime only with the same
-  model package and device. Compose defaults to document GPU / image CPU; align
-  devices to avoid loading two copies.
+  model package, device and `max_image_tokens`. Both default to GPU (CPU with
+  `quickstart.sh --cpu`); if you override one device, align the other to avoid
+  loading two copies.
 - **Model errors:** if attaching a source returns `503`, check the error for
   missing model files or incorrect paths; see
   [When attaching a source fails](../user-guide.md#when-attaching-a-source-fails).
@@ -449,7 +452,7 @@ curl -I http://localhost:7001/
 
 ### MinIO
 
-The console is at `http://<host>:9001`. Sign in with `minioadmin` / `minioadmin`, the compose defaults. Change them for any shared deployment.
+MinIO's ports are not published to the host by default; the console listens on `MINIO_CONSOLE_PORT` (`9001`) inside `data-intelligence-network`. To open `http://<host>:9001`, publish it, for example by adding `ports: ["9001:9001"]` to the `minio` service. Sign in with `minioadmin` / `minioadmin`, the compose defaults. Change them for any shared deployment.
 Ports come from `MINIO_API_PORT` and `MINIO_CONSOLE_PORT` in `data-intelligence-engine/deployment/docker/.env`.
 
 This MinIO is Milvus's internal storage. `a-bucket` holds Milvus segment files and index data, not your videos.
@@ -462,7 +465,11 @@ ls data-intelligence-engine/workspace/uploads/*/          # the video files them
 
 ## Appendix: replace a source
 
-A source's model and parameters are fixed at creation. Another checkpoint or
+A source's model and parameters are fixed at creation; only its embedding device
+can change in place (`PATCH /{library}/sources/{source_id}` with
+`{"embedding_device":"CPU"}` re-embeds the source's records on the new device,
+media from its stored blobs; a move between GPUs such as `GPU.0` to `GPU.1`
+keeps the vectors). Another checkpoint or
 weight variant means a new source naming a different prepared model ID, replacing
 the old one in its pool. No re-ingest is needed; old vectors stay until deleted.
 
@@ -514,7 +521,9 @@ different checkpoint. Every supported video package fixes `frames_per_clip`
 at eight; a mismatch is refused at attach.
 
 The same works for images: prepare a separate
-`gme-Qwen2-VL-2B-Instruct-OV-int4` package, create a source with
+`gme-Qwen2-VL-2B-Instruct-OV-int4` package with
+`scripts/export_gme_ov.py --precision int4 --output-dir <model-root>/gme-Qwen2-VL-2B-Instruct-OV-int4`
+(`prepare-models.sh` always writes `gme-Qwen2-VL-2B-Instruct-OV/`), create a source with
 `"embedding_model":"gme-Qwen2-VL-2B-Instruct-OV-int4"`, then replace
 `image-gme-embeddings`.
 
@@ -522,15 +531,15 @@ Where every model goes, and how to convert or check it: [How to prepare embeddin
 
 ## Appendix: delete ingested data
 
-Each level removes less than you might expect. Deleting a pool, a source or a library only removes the engine's configuration.
-It never touches the vectors in Milvus or the stored files. Only deleting assets removes vectors, and Milvus has no engine API to drop a collection.
+Deleting a source only removes the engine's configuration; its collection and vectors stay. Deleting a pool also removes the vectors of assets that no other pool holds for the same source; the assets and files stay.
+Deleting a library deletes all its assets (vectors, content records and files in `uploads/`), its pools and its content directory. Milvus has no engine API to drop a collection.
 
 | To remove | Run | Vectors in Milvus | Media files |
 |---|---|---|---|
 | Some assets | `assets.sh delete-one` / `delete` | removed | content record removed, and the file too if it is in `workspace/uploads/` |
-| A pool | `pools.sh delete` | **kept** | kept |
+| A pool | `pools.sh delete` | removed for assets only in this pool | kept |
 | A source | `sources.sh delete` | **kept** (collection stays) | kept |
-| A library | `library.sh delete` | **kept** | **kept** |
+| A library | `library.sh delete` | removed | content records removed, and files too if they are in `workspace/uploads/` |
 | A Milvus collection | `pymilvus` or Attu | removed | kept |
 
 Run these from `data-intelligence-engine/scripts`.
@@ -548,34 +557,22 @@ A file you ingested from an absolute path outside `uploads/` is left in place.
 
 ### Remove everything for one library
 
-**Order matters**. Delete the assets first: that clears the vectors, and a library's content store cannot be detached while assets still use it.
-Look up the content store before deleting the library, because the library is gone afterwards.
+`library.sh delete` removes the library's assets (vectors, content records and uploaded files), its pools and its content directory.
+The sources' Milvus collections stay; drop them afterwards with pymilvus or Attu.
 
 ```bash
-LIB=my-library; POOL=video-segments
+LIB=my-library
 
-# 1. Assets: removes their vectors and content records
-./pools.sh assets $LIB $POOL | jq '{asset_ids: .}' > /tmp/assets.json
-./assets.sh delete $LIB @/tmp/assets.json
-
-# 2. Note this library's content store id (it holds the content records)
-CONTENT_ID=$(./sources.sh read $LIB | jq -r '.[] | select(.type=="object") | .collection_name')
-
-# 3. Configuration: pool, source, library
-./pools.sh delete $LIB $POOL
-./sources.sh delete $LIB video-viclip-b
+# 1. The library with its assets, pools and content directory
 ./library.sh delete $LIB
 
-# 4. The now-empty Milvus collection, dropped with the pymilvus in the engine image
+# 2. The now-empty Milvus collection, dropped with the pymilvus in the engine image
 docker exec data-intelligence-engine python -c 'from pymilvus import MilvusClient
 MilvusClient(uri="http://milvus-standalone:19530").drop_collection("my_library_video_viclip_b")'
-
-# 5. The library's content directory (the records are already gone; this clears leftovers)
-docker exec data-intelligence-engine rm -rf "/workspace/content/${CONTENT_ID:?}"
 ```
 
-Skip step 4 or 5 to keep the empty collection or the content directory. The media files were already removed with their assets in step 1 if they were in `uploads/`.
-Dropping a collection from Attu's Collections page does the same as step 4.
+Skip step 2 to keep the empty collection. Files you ingested from an absolute path outside `uploads/` are left in place.
+Dropping a collection from Attu's Collections page does the same as step 2.
 
 ### Reset the whole dev environment
 
@@ -587,13 +584,16 @@ scripts/quickstart.sh --down
 sudo sh -c 'rm -rf workspace/milvus/*/* workspace/content/* workspace/uploads/* workspace/configs/*.json'
 ```
 
-The shell is started by `sudo` so the globs expand as root: Milvus's `etcd` and `minio` folders are not readable by your user, and the engine container writes as UID 1000.
+If you started NebulaGraph, `quickstart.sh --down` leaves it running; also run
+`docker compose -f deployment/docker/docker-compose-nebula.yml down` and add `workspace/nebula/*` to the `rm`.
+
+The shell is started by `sudo` so the globs expand as root: Milvus's `etcd` and `minio` folders are not readable by your user, while the engine container writes as your user (`USER_UID`).
 Only the contents are removed, so the folders stay, and you do not need to repeat the `mkdir` from [Start the services](../get-start.md#step-1-deploy).
 Start the services again with `scripts/quickstart.sh`, which also registers Milvus again.
 
 ## Appendix: the engine workspace (for dev)
 
-Everything the engine keeps lives under `data-intelligence-engine/workspace/`, mounted into the engine container as `/workspace`. Know who writes each directory before you clean one up.
+Everything the engine keeps lives under `data-intelligence-engine/workspace/`, mounted into the engine container at the same path as on the host (`quickstart.sh` sets `ENGINE_WORKSPACE_CONTAINER_PATH`; `/workspace` only when it is unset). Know who writes each directory before you clean one up.
 
 | Directory | What is in it | Written by | Read by |
 |---|---|---|---|
@@ -602,10 +602,11 @@ Everything the engine keeps lives under `data-intelligence-engine/workspace/`, m
 | `content/<library-id>/blobs/` | bytes with no file of their own, named by SHA-256. Today that is only the figures extracted from a PDF | the engine at ingest | the engine when it embeds a figure |
 | `uploads/<library-id>/` | the files you ingest. **For a video, image or audio file this is the asset itself**, not a staging copy | the engine, when `assets.sh` or another client uploads a file through the API | the engine: ingest, embedding and captioning open the file here directly |
 | `milvus/{etcd,minio,db}` | Milvus metadata, segment files and local data | the Milvus containers (compose bind mounts) | Milvus only |
+| `nebula/` | NebulaGraph data and logs, once you start it | the Nebula containers | Nebula only |
 | `models/` | embedding, reranker, layout, ViCLIP, Whisper and GME model packages | you, following [How to prepare models](how-to-prepare-models.md) | the engine when it loads a model |
 
 A video, image or audio file is not copied into the content store. Its block points at the file with a `file://` path, and the engine opens that path
 for embedding and captioning. So a file in `uploads/` (or at the absolute path you gave) must stay where it is as long as its asset exists.
 If you move or delete it, re-indexing and captioning fail with `origin file is gone`.
 
-Deleting an asset deletes its file when the file is inside `uploads/`. A file you pointed at elsewhere is never deleted by the engine; the response lists it under `files_kept`.
+Deleting an asset deletes its file when the file is inside `uploads/`. A file you pointed at elsewhere is never deleted by the engine; the `assets.sh delete` response lists it under `files_kept` (`delete-one` returns no body).

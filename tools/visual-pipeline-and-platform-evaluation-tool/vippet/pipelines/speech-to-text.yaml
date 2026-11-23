@@ -3,7 +3,8 @@
 
 name: Speech to Text
 definition: >-
-  Transcribe a bundled sample recording with the Audio Analyzer service.
+  Transcribe a sample recording downloaded from the Audio page with the Audio
+  Analyzer service.
 type: audio
 operation: speech_to_text
 thumbnail: images/speech-to-text.png
@@ -21,5 +22,5 @@ variants:
   - name: NPU
     device: NPU
 defaults:
-  audio: sample_male.wav
+  audio: OSR_us_000_0010_8k.wav
   language: en

@@ -1708,6 +1708,67 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Cancel a running optimization job",
+        "description": "**Cancel a running optimization job.**\n\n## Operation\n\nCancels the job's optimizer run on DL Streamer Pipeline Server. The job\nthen ends as `FAILED` with the detail `Cancelled by user`; the\ncandidates evaluated so far are discarded.\n\n## Path Parameters\n\n- `job_id`: Identifier of the optimization job to cancel\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | Job was RUNNING and cancellation was requested |\n| 404  | Job does not exist |\n| 409  | Job exists but is not RUNNING |",
+        "operationId": "stop_optimization_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancellation requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Optimization job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Optimization job not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/jobs/optimization/{job_id}/status": {
@@ -2820,7 +2881,7 @@
           "pipelines"
         ],
         "summary": "Optimize Variant",
-        "description": "**Start asynchronous optimization job for a pipeline variant.**\n\n## Operation\n1. Validate that pipeline and variant exist\n2. Delegate to `OptimizationManager.run_optimization()` with variant\n3. Return generated job ID\n\n> **Note:** Optimization works with both read-only (PREDEFINED) and user-created variants.\n> The optimization job uses the variant's graphs as input but does not modify the original variant.\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline containing the variant\n- `variant_id` - ID of the variant to optimize\n\n## Request Body\n**`PipelineRequestOptimize`** with:\n- `type` *(required)* - Optimization type: `\"preprocess\"` or `\"optimize\"`\n- `parameters` *(optional)* - Optimizer-specific options, e.g.:\n  ```json\n  {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n  ```\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `OptimizationJobResponse` with `job_id` of created job |\n| 404 | `MessageResponse` - Pipeline or variant with given IDs do not exist |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- Variant's graph can be converted to a launch string\n- OptimizationManager starts a background job\n\n### \u274c Failure\n- Another execution job is already running \u2192 409\n- Unknown pipeline or variant ID \u2192 404\n- Unhandled exception in pipeline/variant lookup or job creation \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"type\": \"optimize\",\n  \"parameters\": {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"opt789\"\n}\n```",
+        "description": "**Start asynchronous optimization job for a pipeline variant.**\n\n## Operation\n1. Validate that pipeline and variant exist\n2. Delegate to `OptimizationManager.run_optimization()` with variant\n3. Return generated job ID\n\n> **Note:** Optimization works with both read-only (PREDEFINED) and user-created variants.\n> The optimization job uses the variant's graphs as input but does not modify the original variant.\n\nThe optimizer runs on DL Streamer Pipeline Server, so candidate pipelines run on\nthe server's runtime and devices. A variant named `CPU`, `GPU` or `NPU` restricts\nthe search to that device. Cancel a running job with\n`DELETE /jobs/optimization/{job_id}`.\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline containing the variant\n- `variant_id` - ID of the variant to optimize\n\n## Request Body\n**`PipelineRequestOptimize`** with:\n- `type` *(required)* - Optimization type: `\"preprocess\"` or `\"optimize\"`\n- `parameters` *(optional)* - Optimizer-specific options, e.g.:\n  ```json\n  {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n  ```\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `OptimizationJobResponse` with `job_id` of created job |\n| 400 | `MessageResponse` - For `optimize`, `search_duration` or `sample_duration` is not a number greater than 0 |\n| 404 | `MessageResponse` - Pipeline or variant with given IDs do not exist |\n| 409 | `MessageResponse` - Another execution job is already running |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- Variant's graph can be converted to a launch string\n- OptimizationManager starts a background job\n\n### \u274c Failure\n- Another execution job is already running \u2192 409\n- Unknown pipeline or variant ID \u2192 404\n- For `optimize`, `search_duration` or `sample_duration` not a number greater than 0 \u2192 400\n  (numeric strings such as `\"30\"` are accepted)\n- Unhandled exception in pipeline/variant lookup or job creation \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"type\": \"optimize\",\n  \"parameters\": {\n    \"search_duration\": 300,\n    \"sample_duration\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"opt789\"\n}\n```",
         "operationId": "optimize_variant",
         "parameters": [
           {
@@ -2859,6 +2920,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OptimizationJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid optimization parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             }
@@ -3535,6 +3606,145 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/videos/default-recordings": {
+      "get": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "List optional sample videos and their download status",
+        "operationId": "get_default_video_recordings",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DefaultVideoRecording"
+                  },
+                  "type": "array",
+                  "title": "Response Get Default Video Recordings"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/videos/download-default": {
+      "post": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "Download one optional sample video",
+        "operationId": "start_default_video_download",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefaultVideoDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultVideoDownloadResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The video is already downloaded or a download is in progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultVideoDownloadResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A requested filename is not in the sample manifest."
+          },
+          "409": {
+            "description": "A filename conflict or concurrent Pexels download exists."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/videos/convert-hevc": {
+      "post": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "Transcode a downloaded sample video to HEVC",
+        "operationId": "start_default_video_hevc_conversion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefaultVideoConversionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultVideoConversionResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The video is already converted or a conversion is running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultVideoConversionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The filename is not in the sample manifest."
+          },
+          "409": {
+            "description": "The source or output filename is unavailable."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -6199,6 +6409,126 @@
         ],
         "title": "CpuTopologySource",
         "description": "**Method used to determine the CPU core types.**\n\n## Values\n- `sysfs_pmu` - Hybrid PMU CPU lists in Linux sysfs (`cpu_core`, `cpu_atom`, `cpu_lowpower`)\n- `sysfs_cache` - Cache topology in Linux sysfs, used when the hybrid PMU lists are missing\n- `uniform` - Non-hybrid processor; every core is `UNIFORM`\n\n### Example\n```json\n\"sysfs_pmu\"\n```"
+      },
+      "DefaultVideoConversionRequest": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "title": "DefaultVideoConversionRequest"
+      },
+      "DefaultVideoConversionResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "hevc_filename": {
+            "type": "string",
+            "title": "Hevc Filename"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DefaultVideoConversionState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "hevc_filename",
+          "status"
+        ],
+        "title": "DefaultVideoConversionResponse"
+      },
+      "DefaultVideoConversionState": {
+        "type": "string",
+        "enum": [
+          "not_converted",
+          "queued",
+          "converting",
+          "converted",
+          "failed",
+          "conflict"
+        ],
+        "title": "DefaultVideoConversionState"
+      },
+      "DefaultVideoDownloadRequest": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "title": "DefaultVideoDownloadRequest"
+      },
+      "DefaultVideoDownloadResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DefaultVideoDownloadState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "status"
+        ],
+        "title": "DefaultVideoDownloadResponse"
+      },
+      "DefaultVideoDownloadState": {
+        "type": "string",
+        "enum": [
+          "available",
+          "queued",
+          "downloading",
+          "downloaded",
+          "failed",
+          "conflict"
+        ],
+        "title": "DefaultVideoDownloadState"
+      },
+      "DefaultVideoRecording": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DefaultVideoDownloadState"
+          },
+          "hevc_filename": {
+            "type": "string",
+            "title": "Hevc Filename"
+          },
+          "conversion_status": {
+            "$ref": "#/components/schemas/DefaultVideoConversionState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "source",
+          "status",
+          "hevc_filename",
+          "conversion_status"
+        ],
+        "title": "DefaultVideoRecording"
       },
       "DensityJobStatus": {
         "properties": {
@@ -9194,7 +9524,7 @@
           "uploaded"
         ],
         "title": "VideoSource",
-        "description": "**Origin of an input video file on disk.**\n\n## Values\n- `AUTO` - Video downloaded automatically from `default_recordings.yaml`\n  into `/videos/input/auto/`\n- `UPLOADED` - Video uploaded by the user via the\n  `POST /videos/upload` endpoint into `/videos/input/uploaded/`\n\n### Example\n```json\n\"uploaded\"\n```"
+        "description": "**Origin of an input video file on disk.**\n\n## Values\n- `AUTO` - Sample video downloaded on demand from `default_recordings.yaml`\n  into `/videos/input/auto/`\n- `UPLOADED` - Video uploaded by the user via the\n  `POST /videos/upload` endpoint into `/videos/input/uploaded/`\n\n### Example\n```json\n\"uploaded\"\n```"
       },
       "VideoUploadError": {
         "properties": {

@@ -33,6 +33,7 @@ from assetlib.library import AssetLibrary, collection_name
 from assetlib.pool import SourceSyncStatus
 from assetlib.sources import frozen as frozen_bindings
 from assetlib.sources import routing as source_routing
+from assetlib.sources import updates as source_updates
 from assetlib.sources.binding import effective_state
 from assetlib.sources.profile import build_profile
 from core.knowledge import Knowledge, redact_operator_options
@@ -432,6 +433,65 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         except (ValueError, FileNotFoundError) as error:
             return str(error)
         return ''
+
+    def _with_embedding_device(self, source: Source, device: str) -> Optional[Source]:
+        from core.embedding import device_available
+
+        if source.source_type != "vector":
+            raise source_updates.SourceRuleError(
+                f"Only a vector source has an embedding device; {source.name!r} is a "
+                f"{source.source_type!r} source"
+            )
+        profile = dict(source.profile or self.describe_source(source))
+        if profile.get("backend") == config.REMOTE_OPENAI_COMPATIBLE:
+            raise source_updates.SourceRuleError(
+                f"Source {source.name!r} embeds through a remote service; it has no device to change"
+            )
+        device = device.upper()
+        if not device_available(device):
+            raise ValueError(f"OpenVINO device {device!r} is not available on this engine")
+        if device == self._embedding_device(source, profile).upper():
+            return None
+        profile["device"] = device
+        return replace(
+            source,
+            configuration={**source.configuration, "embedding_device": device},
+            profile=profile,
+        )
+
+    def _reembeds_on_switch(self, source: Source, updated: Source) -> bool:
+        from core.embedding import device_family
+
+        before = self._embedding_device(source, dict(source.profile or {}))
+        after = self._embedding_device(updated, dict(updated.profile or {}))
+        return device_family(before) != device_family(after)
+
+    @staticmethod
+    def _embedding_device(source: Source, profile: Mapping[str, Any]) -> str:
+        current = source.configuration.get("embedding_device") or profile.get("device")
+        if current:
+            return str(current)
+        category = (profile.get("multimodal_model") or {}).get("category")
+        if category:
+            from core.multimodal.registry import _category_defaults
+
+            return _category_defaults(category)["device"]
+        return config.EMBEDDING_DEVICE
+
+    def _check_device_switch(self, asset_pool) -> None:
+        from core import materialize
+
+        if materialize.ingest_active(self.idx, asset_pool.asset_pool_id):
+            raise source_updates.SourceBusyError(
+                f"Asset pool {asset_pool.asset_pool_id!r} is ingesting assets. Wait until they "
+                "show ready or failed in the asset list, then change the embedding device again"
+            )
+        if self.extraction_jobs.running_for_pool(self.idx, asset_pool.asset_pool_id):
+            raise source_updates.SourceBusyError(
+                self._extracting_message(
+                    asset_pool.asset_pool_id, "embedding device", "change"
+                )
+            )
 
     def _source_accepts_asset(self, source: Source, asset: FileAsset) -> bool:
         from core.multimodal.routing import effective_configuration
@@ -1129,6 +1189,25 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
 
         return read_blob
 
+    def read_media_bounded(self, media_key: str, source_id: str, max_bytes: int) -> bytes:
+        """Read only registered media, with a cap before allocation of full bytes."""
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be positive")
+        if not (is_file_uri(media_key) or media_key.startswith("blobs/")):
+            raise ValueError("invalid media key")
+        asset = self._referenced_media_asset(media_key, source_id)
+        if is_file_uri(media_key):
+            with open(asset._origin_file(media_key), "rb") as file:
+                if os.fstat(file.fileno()).st_size > max_bytes:
+                    raise OverflowError("source_limit")
+                data = file.read(max_bytes + 1)
+            if len(data) > max_bytes:
+                raise OverflowError("source_limit")
+            return data
+        return self.content_store.get_blob_bounded(
+            self.content_source(asset.content_source_id), media_key, max_bytes
+        )
+
     def blob_file_path(self, media_key: str, source_id: Optional[str] = None) -> str:
         """Authorized local path of a `file://` blob; blocking, so async callers must offload it."""
         if not is_file_uri(media_key):
@@ -1278,7 +1357,15 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
 
     def delete_assets(self, asset_ids: Sequence[str]) -> dict:
         """Delete assets only after every materialized copy can be removed."""
+        from core import materialize
+
         requested = list(dict.fromkeys(asset_ids))
+        ingesting = materialize.assets_ingesting(requested)
+        if ingesting:
+            raise ValueError(
+                f"Asset(s) still ingesting: {', '.join(ingesting)}. Wait until they show ready or "
+                "failed in the asset list, then delete them again"
+            )
         missing = [asset_id for asset_id in requested if asset_id not in self._assets]
         if missing:
             raise ValueError(f"Asset(s) not found: {', '.join(missing)}")
@@ -1417,38 +1504,10 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         uploaded_bundles_removed = any(
             asset.asset_kind == "okf" and not self._is_generated_bundle(asset) for asset in assets
         )
+        documents_removed = any(asset.asset_kind != "okf" for asset in assets)
         self.forget_assets(requested)
-        if uploaded_bundles_removed:
-            # Overridden concepts fall back to the generated version: rebuild those bundles.
-            for pool in relevant_pools:
-                for projection in self._extracting_projections(pool):
-                    generated_id = asset_id_for(file_origin(str(
-                        self._generated_bundle_path(pool, projection)
-                    )))
-                    if generated_id in pool.asset_ids:
-                        self.note_assets_changed([generated_id], [projection.source.source_id])
-        if any(asset.asset_kind != "okf" for asset in assets):
-            for pool in relevant_pools:
-                extracting = self._extracting_projections(pool)
-                if not extracting:
-                    continue
-                live_documents = [asset_id for asset_id in pool.asset_ids
-                                  if self._assets[asset_id].asset_kind != "okf"]
-                for projection in extracting:
-                    status = pool.source_statuses.get(projection.source.source_id)
-                    if not live_documents:
-                        self._remove_generated_bundle(pool, projection)
-                        if status is not None:
-                            status.extraction_done = status.extraction_changes
-                        continue
-                    # Mark outdated and rebuild so concepts stop citing deleted documents.
-                    if status is not None:
-                        status.note_extraction_input_changed()
-                    generated_id = asset_id_for(file_origin(str(
-                        self._generated_bundle_path(pool, projection)
-                    )))
-                    if generated_id in pool.asset_ids:
-                        self.note_assets_changed([generated_id], [projection.source.source_id])
+        for pool in relevant_pools:
+            self._refresh_extractions(pool, uploaded_bundles_removed, documents_removed)
         self.file_map = {
             name: path
             for name, path in self.file_map.items()
@@ -1481,6 +1540,36 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             "files_removed": files_removed,
             "files_kept": kept_files,
         }
+
+    def _refresh_extractions(self, asset_pool, bundles_removed: bool, documents_removed: bool) -> None:
+        extracting = self._extracting_projections(asset_pool)
+        if bundles_removed:
+            # Overridden concepts fall back to the generated version: rebuild those bundles.
+            for projection in extracting:
+                generated_id = asset_id_for(file_origin(str(
+                    self._generated_bundle_path(asset_pool, projection)
+                )))
+                if generated_id in asset_pool.asset_ids:
+                    self.note_assets_changed([generated_id], [projection.source.source_id])
+        if not documents_removed or not extracting:
+            return
+        live_documents = [asset_id for asset_id in asset_pool.asset_ids
+                          if self._assets[asset_id].asset_kind != "okf"]
+        for projection in extracting:
+            status = asset_pool.source_statuses.get(projection.source.source_id)
+            if not live_documents:
+                self._remove_generated_bundle(asset_pool, projection)
+                if status is not None:
+                    status.extraction_done = status.extraction_changes
+                continue
+            # Mark outdated and rebuild so concepts stop citing deleted documents.
+            if status is not None:
+                status.note_extraction_input_changed()
+            generated_id = asset_id_for(file_origin(str(
+                self._generated_bundle_path(asset_pool, projection)
+            )))
+            if generated_id in asset_pool.asset_ids:
+                self.note_assets_changed([generated_id], [projection.source.source_id])
 
     def _graph_removal_plan(self, graph, vector, assets, requested) -> Optional[dict]:
         """Vertices, concepts and chunk ids that deleting `assets` removes from one graph source, or None."""
@@ -1613,17 +1702,17 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         )
 
     @staticmethod
-    def _syncing_message(asset_pool_id: str, target: str) -> str:
+    def _syncing_message(asset_pool_id: str, target: str, action: str = "delete") -> str:
         return (
             f"Asset pool {asset_pool_id!r} is syncing its sources. Wait until every source of the "
-            f"pool shows ready or failed, then delete the {target} again"
+            f"pool shows ready or failed, then {action} the {target} again"
         )
 
     @staticmethod
-    def _extracting_message(asset_pool_id: str, target: str) -> str:
+    def _extracting_message(asset_pool_id: str, target: str, action: str = "delete") -> str:
         return (
             f"Asset pool {asset_pool_id!r} has a running OKF extraction, which cannot be cancelled "
-            f"mid-run. Wait for it to finish (see the pool's extraction status), then delete the "
+            f"mid-run. Wait for it to finish (see the pool's extraction status), then {action} the "
             f"{target} again"
         )
 
@@ -1698,10 +1787,10 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             and os.path.commonpath([path, generated_root]) != generated_root
         ]
 
-    def _okf_bundles_in(self, asset_pool, accepts: Callable[[Any], bool]) -> List["FileAsset"]:
+    def _okf_bundles_in(self, asset_ids: Sequence[str], accepts: Callable[[Any], bool]) -> List["FileAsset"]:
         return [
             self._assets[asset_id]
-            for asset_id in asset_pool.asset_ids
+            for asset_id in asset_ids
             if asset_id in self._assets
             and getattr(self._assets[asset_id], "asset_kind", "") == "okf"
             and accepts(self._assets[asset_id])
@@ -1720,15 +1809,26 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         for other in self._asset_pools.values():
             if other.asset_pool_id == asset_pool_id or source_id not in other.source_statuses:
                 continue
-            for bundle in self._okf_bundles_in(other, accepts):
+            for bundle in self._okf_bundles_in(other.asset_ids, accepts):
                 try:
                     kept |= self._bundle_concept_ids(bundle)
                 except (OSError, ValueError, KeyError):
                     return None
         return kept
 
-    def _pool_removal_plan(self, asset_pool) -> Dict[str, Any]:
+    def _pool_removal_plan(
+        self, asset_pool, asset_ids: Optional[Sequence[str]] = None
+    ) -> Dict[str, Any]:
+        from core.knowledge.okf import parse_okf_bundle
+
         pool_id = asset_pool.asset_pool_id
+        removing = list(asset_pool.asset_ids) if asset_ids is None else list(asset_ids)
+        left = set(asset_pool.asset_ids) - set(removing)
+        remaining = [asset_id for asset_id in asset_pool.asset_ids if asset_id in left]
+        action = (
+            f"delete asset pool {pool_id!r}" if asset_ids is None
+            else f"remove assets from asset pool {pool_id!r}"
+        )
         others = {
             other.asset_pool_id: (set(other.asset_ids), set(other.source_statuses))
             for other in self._asset_pools.values()
@@ -1737,7 +1837,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
 
         def exclusive(source_id: str) -> List[str]:
             return [
-                asset_id for asset_id in asset_pool.asset_ids
+                asset_id for asset_id in removing
                 if asset_id in self._assets and not any(
                     asset_id in held and source_id in bound for held, bound in others.values()
                 )
@@ -1748,20 +1848,37 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
 
         def concepts_here(accepts, strict: bool = True) -> Optional[Set[str]]:
             found: Set[str] = set()
-            for bundle in self._okf_bundles_in(asset_pool, accepts):
+            for bundle in self._okf_bundles_in(removing, accepts):
                 try:
                     found |= self._bundle_concept_ids(bundle)
                 except (OSError, ValueError, KeyError) as error:
                     if not strict:
                         return None
                     raise ValueError(
-                        f"Cannot delete asset pool {pool_id!r}: OKF bundle {bundle.file_name!r} "
+                        f"Cannot {action}: OKF bundle {bundle.file_name!r} "
                         f"({bundle.asset_id}) cannot be read to tell which concepts it wrote ({error}). "
                         f"Restore the bundle folder at {_path_of(bundle.origin)!r}, or remove the graph "
                         "source from the pool's sources first (its concepts stay in the graph "
-                        "database), then delete the pool again"
+                        "database), then retry"
                     ) from error
             return found
+
+        def concepts_left(accepts) -> Tuple[Optional[Set[str]], Set[str]]:
+            kept: Set[str] = set()
+            orphaned: Set[str] = set()
+            for bundle in self._okf_bundles_in(remaining, accepts):
+                try:
+                    if not self._is_generated_bundle(bundle):
+                        kept |= self._bundle_concept_ids(bundle)
+                        continue
+                    folder = Path(_path_of(bundle.origin))
+                    sources = self._task_sources(folder) or {}
+                    for node in parse_okf_bundle(folder):
+                        support = {sources[path] for path in node.source_files} & left
+                        (kept if support else orphaned).add(node.cid)
+                except (OSError, ValueError, KeyError):
+                    return None, set()
+            return kept, orphaned
 
         text_vector = next(
             (p for p in asset_pool.projections
@@ -1772,14 +1889,18 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         for projection in asset_pool.projections:
             source_id = projection.source.source_id
             if isinstance(projection, GraphIndexer):
-                vertices = concepts_here(projection.accepts)
+                kept_here, orphaned = concepts_left(projection.accepts)
+                vertices = concepts_here(projection.accepts) | orphaned
                 if vertices:
                     kept = self._concepts_defined_elsewhere(pool_id, source_id, projection.accepts)
-                    vertices = sorted(vertices - kept) if kept is not None else []
+                    vertices = (
+                        sorted(vertices - kept - kept_here)
+                        if kept is not None and kept_here is not None else []
+                    )
                 adapter = getattr(projection, "_adapter", None)
                 if vertices and type(adapter).delete_vertices is GraphAdapter.delete_vertices:
                     raise ValueError(
-                        f"Cannot delete asset pool {pool_id!r} from source(s) without removal support: "
+                        f"Cannot {action} from source(s) without removal support: "
                         + self._source_label(source_id, projection.source)
                         + ". " + self.NO_REMOVAL_HINT
                     )
@@ -1802,10 +1923,13 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                 vectors.append((projection, ids))
             if hasattr(projection, "remove_concepts") and not isinstance(projection, MultimodalIndexer):
                 concepts = concepts_here(accept_all, strict=False)
-                if concepts:
+                kept_here, orphaned = concepts_left(accept_all)
+                if concepts is not None:
+                    concepts |= orphaned
+                if concepts and kept_here is not None:
                     kept = self._concepts_defined_elsewhere(pool_id, source_id, accept_all)
-                    if kept is not None and concepts - kept:
-                        concept_vectors.append((projection, sorted(concepts - kept)))
+                    if kept is not None and concepts - kept - kept_here:
+                        concept_vectors.append((projection, sorted(concepts - kept - kept_here)))
         for source_id, source in asset_pool.frozen_sources.items():
             ids = [
                 asset_id for asset_id in exclusive(source_id)
@@ -1816,7 +1940,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                 continue
             if source.source_type != "vector":
                 raise ValueError(
-                    f"Cannot delete asset pool {pool_id!r} from source(s) without removal support: "
+                    f"Cannot {action} from source(s) without removal support: "
                     + self._source_label(source_id, source)
                     + ". " + self.FROZEN_HINT
                 )
@@ -1832,7 +1956,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         }
         if unavailable:
             raise ValueError(
-                f"Cannot delete asset pool {pool_id!r} while source(s) are unavailable: "
+                f"Cannot {action} while source(s) are unavailable: "
                 + self._source_labels(unavailable)
                 + ". " + self.UNAVAILABLE_HINT
             )
@@ -1844,6 +1968,74 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         return {
             "vectors": vectors, "graphs": graphs, "concept_vectors": concept_vectors,
             "frozen": frozen, "generated": [self._generated_bundle_dir(asset_pool, s) for s in graph_sources],
+        }
+
+    def _apply_removal_plan(self, plan: Mapping[str, Any]) -> Tuple[int, int]:
+        removed = 0
+        for projection, ids in plan["vectors"]:
+            removed += int(projection.remove(ids) or 0)
+        concepts_removed = 0
+        for graph, vertices, chunk_ids in plan["graphs"]:
+            if vertices:
+                concepts_removed += int(graph.delete_vertices(vertices) or 0)
+            if chunk_ids:
+                graph.drop_chunk_provenance(chunk_ids)
+        for vector, concepts in plan["concept_vectors"]:
+            vector.remove_concepts(concepts)
+        for source_id, source, ids in plan["frozen"]:
+            removed += sum(
+                frozen_bindings.delete_assets(self._databasehub, {source_id: source}, ids).values()
+            )
+        return removed, concepts_removed
+
+    def remove_assets_from_pool(self, asset_pool_id: str, asset_ids: Sequence[str]) -> Dict[str, Any]:
+        from core import materialize
+
+        asset_pool = self._require_asset_pool(asset_pool_id)
+        requested = list(dict.fromkeys(asset_ids))
+        missing = [asset_id for asset_id in requested if asset_id not in asset_pool.asset_ids]
+        if missing:
+            raise ValueError(
+                f"Asset(s) not found in asset pool {asset_pool_id!r}: {', '.join(missing)}"
+            )
+        ingesting = materialize.assets_ingesting(requested)
+        if ingesting:
+            raise ValueError(
+                f"Asset(s) still ingesting: {', '.join(ingesting)}. Wait until they show ready or "
+                "failed in the asset list, then remove them again"
+            )
+        assets = [self._assets[asset_id] for asset_id in requested]
+        generated_bundles = [
+            f"{asset.file_name!r} ({asset.asset_id})" for asset in assets if self._is_generated_bundle(asset)
+        ]
+        if generated_bundles:
+            raise ValueError(
+                "Generated OKF bundle(s) cannot be removed from an asset pool directly: "
+                + ", ".join(generated_bundles)
+                + ". The engine owns them: one goes once its pool has no documents left, or "
+                "delete the asset pool; to refresh it, run the pool's extraction again"
+            )
+        lock = self._sync_lock(asset_pool_id)
+        if not lock.acquire(blocking=False):
+            raise ValueError(self._syncing_message(asset_pool_id, "assets", "remove"))
+        try:
+            if self.extraction_jobs.running_for_pool(self.idx, asset_pool_id):
+                raise ValueError(self._extracting_message(asset_pool_id, "assets", "remove"))
+            plan = self._pool_removal_plan(asset_pool, requested)
+            removed, concepts_removed = self._apply_removal_plan(plan)
+            asset_pool.forget_asset_ids(requested)
+            self._refresh_extractions(
+                asset_pool,
+                any(asset.asset_kind == "okf" for asset in assets),
+                any(asset.asset_kind != "okf" for asset in assets),
+            )
+        finally:
+            lock.release()
+        return {
+            "asset_pool_id": asset_pool_id,
+            "removed": requested,
+            "materializations_removed": removed,
+            "concepts_removed": concepts_removed,
         }
 
     def delete_asset_pool(self, asset_pool_id: str) -> Dict[str, Any]:
@@ -1864,21 +2056,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             plan = self._pool_removal_plan(asset_pool)
             self.extraction_jobs.cancel_pool(self.idx, asset_pool_id)
 
-            removed = 0
-            for projection, ids in plan["vectors"]:
-                removed += int(projection.remove(ids) or 0)
-            concepts_removed = 0
-            for graph, vertices, chunk_ids in plan["graphs"]:
-                if vertices:
-                    concepts_removed += int(graph.delete_vertices(vertices) or 0)
-                if chunk_ids:
-                    graph.drop_chunk_provenance(chunk_ids)
-            for vector, concepts in plan["concept_vectors"]:
-                vector.remove_concepts(concepts)
-            for source_id, source, ids in plan["frozen"]:
-                removed += sum(
-                    frozen_bindings.delete_assets(self._databasehub, {source_id: source}, ids).values()
-                )
+            removed, concepts_removed = self._apply_removal_plan(plan)
             bundles_removed = []
             for target in plan["generated"]:
                 generated_id = asset_id_for(file_origin(str(target)))
@@ -2036,6 +2214,8 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                             ),
                             replaces=status.replaces,
                             serving_history=list(status.serving_history),
+                            reembed_pending=status.reembed_pending,
+                            reembed_asset_ids=list(status.reembed_asset_ids),
                             extraction=self.extraction_out(asset_pool, status),
                         )
                         for status in asset_pool.source_statuses.values()
