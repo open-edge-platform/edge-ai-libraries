@@ -966,7 +966,7 @@ class TestCommitStaging(_BaseImagesTest):
 
         def picky_chmod(path, mode):
             # Only fail for the final target chmod (0o755). Earlier
-            # chmod calls (set.json -> 0o644, root -> 0o755) must keep
+            # chmod calls (set.json -> 0o644) must keep
             # working so we don't crash other code paths.
             if path == target_dir and mode == 0o755:
                 raise OSError("denied")

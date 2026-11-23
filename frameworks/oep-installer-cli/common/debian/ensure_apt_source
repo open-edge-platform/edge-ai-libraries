@@ -1,18 +1,98 @@
 
-# create new source list
+# create new source list or .sources file
 ensure_apt_source () {
-  local list_file=$1; shift
-  (IFS=$'\n';echo "$*") | ensure_sudo tee $list_file > /dev/null
+  local file=$1; shift
+  local legacies=($(
+    norm_uri() {
+      local u="$1"
+      u="${u#http://}"; u="${u#https://}"
+      while [[ "$u" == */ ]]; do u="${u%/}"; done
+      printf '%s\n' "$u"
+    }
+    re='^[[:space:]]*(deb|deb-src)[[:space:]]+(\[[^]]*\][[:space:]]+)?([^[:space:]]+)[[:space:]]+[^[:space:]]+'
+    for line in "$@"; do
+      line="${line%%#*}" # drop comments / commented-out entries
+      case "$file" in
+      *.sources)
+        [[ "$line" =~ ^[Uu][Rr][Ii][Ss]:[[:space:]]*(.*)$ ]] || continue
+        for u in ${BASH_REMATCH[1]}; do norm_uri "$u"; done
+        ;;
+      *.list) # one-line: deb [opts] URI suite [comps]
+        [[ "$line" =~ $re ]] || continue
+        norm_uri "${BASH_REMATCH[3]}"
+        ;;
+      esac
+    done | sort -u
+  ))
+  [ ${#legacies[*]} -eq 0 ] || ensure_apt_source_remove "${legacies[*]}"
+  (IFS=$'\n';echo "$*") | ensure_sudo tee $file > /dev/null
 }
 
-# remove apt source by pattern
+# remove apt source by uri
 ensure_apt_source_remove () {
-  local r e
-  for r in "$@"; do
-    [ -r /etc/apt/sources.list ] && ensure_sudo sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
-    for e in /etc/apt/sources.list.d/*.list; do
-      [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && ensure_sudo mv -f "$e" "$e".save || true
-    done
+  local updated;
+  for v in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+    [ -r "$v" ] || continue
+    if updated="$(
+      case "$v" in
+      *.list)
+        awk -v repo_list="$*" '
+          function norm(u) { sub(/^https?:\/\//,"",u); sub(/\/+$/,"",u); return u }
+          BEGIN { 
+            n=split(repo_list, arr, /[[:space:]]+/) 
+            for (i=1;i<=n;i++) repos[norm(arr[i])]=1
+            sts=1
+          }
+          {
+            if ($0 ~ /^[[:space:]]*deb(-src)?[[:space:]]/) {
+              rest = $0
+              sub(/^[[:space:]]*deb(-src)?[[:space:]]+/, "", rest)
+              if (rest ~ /^\[/) sub(/^\[[^]]*\][[:space:]]*/, "", rest)
+              split(rest, f, /[[:space:]]+/)
+              if (norm(f[1]) in repos) { print "#"$0; sts=0; next }
+            }
+            print
+          }
+          END { exit(sts) }
+        ' "$v" || return 1
+        ;;
+      *.sources)
+        awk -v repo_list="$*" '
+          function norm(u) { sub(/^https?:\/\//, "", u); sub(/\/+$/, "", u); return u }
+          BEGIN { 
+            n=split(repo_list, arr, /[[:space:]]+/) 
+            for (i=1;i<=n;i++) repos[norm(arr[i])]=1
+            split("", buf)
+            sts=1
+          }
+          function flush(   i, j, n, u, hit, hasEnabled) {
+            if (cnt == 0) return
+            hit = 0; hasEnabled = 0
+            for (i = 1; i <= cnt; i++) {
+              if (tolower(buf[i]) ~ /^uris:/) {
+                v = buf[i]; sub(/^[^:]*:[[:space:]]*/, "", v)
+                n = split(v, u, /[[:space:]]+/)
+                for (j = 1; j <= n; j++) if (norm(u[j]) in repos) { hit = 1; sts=0 }
+              }
+              if (tolower(buf[i]) ~ /^enabled:/) hasEnabled = 1
+            }
+            for (i = 1; i <= cnt; i++) {
+              if (hit && tolower(buf[i]) ~ /^enabled:/) { print "Enabled: no"; continue }
+              print buf[i]
+            }
+            if (hit && !hasEnabled) print "Enabled: no"
+            cnt = 0
+          }
+          /^[[:space:]]*$/ { flush(); print; next }
+          { buf[++cnt] = $0 }
+          END { flush(); exit(sts) }
+        ' "$v" || return 1
+        ;;
+      esac
+    )"; then
+      ensure_sudo mv -f "$v" "$v.$(date +%Y%m%d)".bak
+      printf '%s\n' "$updated" | ensure_sudo tee "$v" > /dev/null
+    fi
   done
 }
 
