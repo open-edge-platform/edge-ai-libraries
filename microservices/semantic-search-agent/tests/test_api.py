@@ -115,16 +115,22 @@ class TestSemanticMatchEndpoint:
     
     def test_semantic_match_success(self, client):
         """Test successful semantic matching."""
-        with patch("app.services.matchers.semantic.SemanticMatcher.match") as mock_match:
-            from app.services.matchers.base import MatchResult
-            
-            mock_match.return_value = MatchResult(
+        from unittest.mock import AsyncMock
+        from app.api.dependencies import get_comparison_engine
+        from app.services.comparison_engine import ComparisonEngine
+        from app.services.matchers.base import MatchResult
+
+        matcher = MagicMock()
+        matcher.match = AsyncMock(
+            return_value=MatchResult(
                 match=True,
                 confidence=0.95,
                 reasoning="Semantic match via VLM",
                 match_type="semantic",
             )
-            
+        )
+        app.dependency_overrides[get_comparison_engine] = lambda: ComparisonEngine(matcher=matcher)
+        try:
             payload = {
                 "text1": "apple",
                 "text2": "green apple",
@@ -132,9 +138,11 @@ class TestSemanticMatchEndpoint:
             }
             
             response = client.post("/api/v1/compare/semantic", json=payload)
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["match"] is True
-            assert data["confidence"] > 0.9
-            assert "match_type" in data
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["match"] is True
+        assert data["confidence"] > 0.9
+        assert "match_type" in data

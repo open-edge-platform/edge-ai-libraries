@@ -1,7 +1,7 @@
 
 configure_visual_search_question_and_answering () {
   workspace="$(ensure_project_path)/visual-search-question-and-answering"
-  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
+  version="$(ensure_parse_value_option version --version=v2026.3.0-rc1 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(17580 19530 9764 9990 6008 9777)
   demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip"
@@ -12,7 +12,13 @@ configure_visual_search_question_and_answering () {
   export HOST_DATA_PATH="$workspace"/data
   export HF_ENDPOINT="${HF_ENDPOINT:-https://huggingface.co}"
   export REGISTRY=intel/
-  export TAG=latest
+  if [[ "$version" = v* ]]; then
+    export TAG="${version#v}"
+  elif [[ "$version" = tags/v* ]]; then
+    export TAG="${version#tags/v}"
+  else
+    export TAG=latest
+  fi
 
   [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$worksapce"/.device_from_install)"
   local device=$(ensure_parse_device "$@")
@@ -44,7 +50,7 @@ debian_90_install_visual_search_question_and_answering () {
     # clone the repository
     ensure_disk_size 50000
     ensure_ports_open install visual_search_question_and_answering "${used_ports[@]}"
-    ensure_git_export "$workspace" $version $repository visual-search-question-and-answering
+    ensure_git_export "$workspace" "$version" "$repository" visual-search-question-and-answering
 
     # setup
     cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose
