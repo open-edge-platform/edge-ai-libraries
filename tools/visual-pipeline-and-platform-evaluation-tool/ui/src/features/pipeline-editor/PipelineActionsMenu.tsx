@@ -200,9 +200,8 @@ export const PipelineActionsMenu = ({
       }).unwrap();
 
       // Import createGraphLayout dynamically
-      const { createGraphLayout } = await import(
-        "@/features/pipeline-editor/utils/graphLayout"
-      );
+      const { createGraphLayout } =
+        await import("@/features/pipeline-editor/utils/graphLayout");
 
       const nodesWithPositions = createGraphLayout(
         result.pipeline_graph.nodes.map((node) => ({
@@ -300,9 +299,8 @@ export const PipelineActionsMenu = ({
       const applyOptimizedPipeline = async () => {
         toast.dismiss();
 
-        const { createGraphLayout } = await import(
-          "@/features/pipeline-editor/utils/graphLayout"
-        );
+        const { createGraphLayout } =
+          await import("@/features/pipeline-editor/utils/graphLayout");
 
         const nodesWithPositions = createGraphLayout(
           optimizedGraph.nodes.map((node) => ({

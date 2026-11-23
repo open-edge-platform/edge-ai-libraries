@@ -45,6 +45,8 @@ performance without needing to create separate pipelines for each configuration.
 The **Media Decode** pipeline decodes video without inference, scaling, recording,
 or rendering: `filesrc ! decodebin3 ! queue ! gvafpscounter starting-frame=2000 !
 fakesink sync=false async=false`. Each stream runs as a separate DLSPS 2.0 instance.
+**Keep pipeline output** is off by default for such pipelines, because encoding
+the output would limit the measured decode throughput.
 
 The decoder depends on the variant's CPU pinning:
 
@@ -52,6 +54,8 @@ The decoder depends on the variant's CPU pinning:
   `caps="video/x-raw(memory:VAMemory)"`, so decoding runs on the GPU media engine
   (VDBox) and the DLSPS instance runs on the pinned cores. VDBox requires an Intel
   GPU with VA decode support and access to its render node in the DLSPS container.
+  If DLSPS reports no GPU, ViPPET logs a warning and uses the default decoder,
+  keeping the CPU pinning.
 - **Without CPU pinning**, `decodebin3` is replaced with a decoder that matches the
   input codec, as in other pipelines.
 
@@ -62,7 +66,8 @@ pipelines.
 ### CPU Pinning in the Pipeline Definition
 
 CPU pinning set with the core-pinning icon in the pipeline editor is saved with
-the variant. Through the API, set `cpu_pinning` alongside `nodes` and `edges` in
+the variant. It is available in advanced mode only; runs started in simple mode
+ignore it. Through the API, set `cpu_pinning` alongside `nodes` and `edges` in
 `pipeline_graph`; for predefined YAML variants, set it alongside
 `pipeline_description`:
 
@@ -76,7 +81,7 @@ the variant. Through the API, set `cpu_pinning` alongside `nodes` and `edges` in
 ```
 
 Core ids are hardware-specific; use the CPU topology from `GET /api/v1/devices`.
-Streams are assigned to the listed cores round-robin, one core per stream.
+Every stream runs on all listed cores.
 Variant pinning overrides test-level `pinned_cpu_cores` for that variant only.
 Omitting the field when updating a variant preserves its pinning; sending an
 empty list clears it.

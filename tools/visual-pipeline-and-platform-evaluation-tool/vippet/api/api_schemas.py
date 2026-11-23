@@ -544,7 +544,7 @@ class PipelineGraph(BaseModel):
 
     cpu_pinning: List[int] = Field(
         default_factory=list,
-        description="Logical CPU ids assigned round-robin, one core per stream. Empty uses test-level pinning.",
+        description="Logical CPU ids every stream of this graph is pinned to. Empty uses test-level pinning.",
     )
 
     @field_validator("cpu_pinning", mode="before")

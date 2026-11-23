@@ -6,6 +6,7 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
+from device import DeviceDiscoveryError, DeviceFamily, DeviceInfo
 from graph import Graph
 from internal_types import (
     InternalExecutionConfig,
@@ -180,8 +181,9 @@ def create_pipeline_definition(
 
 
 class TestPipelineManager(unittest.TestCase):
+    @patch("managers.pipeline_manager._has_gpu", return_value=True)
     @patch("managers.pipeline_manager.VideoEncoder")
-    def test_media_vdbox_file_output_uses_gpu_encoder(self, encoder_class):
+    def test_media_vdbox_file_output_uses_gpu_encoder(self, encoder_class, _):
         spec = create_internal_performance_spec("vdbox", "VDBox", streams=1)
         spec.pipeline_graph = Graph.from_dict(
             {
@@ -207,7 +209,8 @@ class TestPipelineManager(unittest.TestCase):
         self.assertIn("vah264enc", command.command)
         self.assertNotIn("openh264enc", command.command)
 
-    def test_media_decode_uses_vdbox_only_when_pinned(self):
+    @patch("managers.pipeline_manager._has_gpu", return_value=True)
+    def test_media_decode_uses_vdbox_only_when_pinned(self, _):
         manager = PipelineManager()
         description = (
             "fakesrc ! decodebin3 ! queue ! gvafpscounter starting-frame=2000 ! "
@@ -226,9 +229,7 @@ class TestPipelineManager(unittest.TestCase):
             [pinned, unpinned], create_internal_execution_config(), "media"
         )
         self.assertEqual(len(command.stream_commands), 6)
-        self.assertEqual(
-            list(command.stream_cpu_cores.values()), [[12], [13], [12], [13], [12]]
-        )
+        self.assertEqual(list(command.stream_cpu_cores.values()), [[12, 13]] * 5)
         for info in command.streams_per_pipeline["pinned"]:
             launch = command.stream_commands[info.stream_id]
             self.assertIn("decodebin3", launch)
@@ -236,6 +237,39 @@ class TestPipelineManager(unittest.TestCase):
         for info in command.streams_per_pipeline["unpinned"]:
             self.assertNotIn(info.stream_id, command.stream_cpu_cores)
             self.assertNotIn("memory:VAMemory", command.stream_commands[info.stream_id])
+
+    def test_pinned_media_decode_falls_back_without_gpu(self):
+        cpu_only = [DeviceInfo(device_name="CPU", device_family=DeviceFamily.CPU)]
+        for name, discovery in (
+            ("cpu_only", {"return_value": cpu_only}),
+            ("discovery_error", {"side_effect": DeviceDiscoveryError("down")}),
+        ):
+            with (
+                self.subTest(name),
+                patch("managers.pipeline_manager.DeviceDiscovery") as discovery_class,
+            ):
+                discovery_class.return_value.list_devices.configure_mock(**discovery)
+                spec = create_internal_performance_spec(name, name, streams=2)
+                spec.pipeline_graph = Graph.from_dict(
+                    {
+                        **Graph.from_pipeline_description(
+                            "fakesrc ! decodebin3 ! queue ! gvafpscounter ! "
+                            "fakesink name=default_output_sink"
+                        ).to_dict(),
+                        "cpu_pinning": [12, 13],
+                    }
+                )
+                with self.assertLogs("pipeline_manager", "WARNING") as logs:
+                    command = PipelineManager().build_pipeline_command(
+                        [spec], create_internal_execution_config(), name
+                    )
+                self.assertIn(
+                    "No GPU available for VDBox decode", "\n".join(logs.output)
+                )
+                self.assertNotIn("memory:VAMemory", command.command)
+                self.assertEqual(
+                    list(command.stream_cpu_cores.values()), [[12, 13]] * 2
+                )
 
     def setUp(self):
         """Reset singleton state before each test."""

@@ -144,6 +144,17 @@ const buildGraphData = (
   })),
 });
 
+// Mirrors Graph.uses_vdbox_decode: pinned media-only graphs decode on VDBox.
+const isMediaOnlyGraph = (nodes: Array<{ type?: string }>): boolean =>
+  nodes.some((node) => node.type === "decodebin3") &&
+  !nodes.some(
+    (node) =>
+      node.type?.startsWith("gva") &&
+      !["gvafpscounter", "gvametaconvert", "gvametapublish"].includes(
+        node.type,
+      ),
+  );
+
 export const Pipelines = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
   const { id, variant } = useParams<UrlParams>();
@@ -275,16 +286,16 @@ export const Pipelines = () => {
     setPinnedCpuCores(savedCpuPinning ?? []);
   }, [savedCpuPinning, variant]);
 
-  // Mirrors Graph.uses_vdbox_decode: pinned media-only graphs decode on VDBox.
-  const isMediaDecodeGraph =
-    currentNodes.some((node) => node.type === "decodebin3") &&
-    !currentNodes.some(
-      (node) =>
-        node.type?.startsWith("gva") &&
-        !["gvafpscounter", "gvametaconvert", "gvametapublish"].includes(
-          node.type,
-        ),
-    );
+  const isMediaDecodeGraph = isMediaOnlyGraph(currentNodes);
+
+  // Saving the output would make media-only runs encode-bound, so default it OFF.
+  const isMediaOnlyPipeline = isMediaOnlyGraph(
+    data?.variants.find((v) => v.id === variant)?.pipeline_graph.nodes ?? [],
+  );
+
+  useEffect(() => {
+    setVideoOutputEnabled(!isMediaOnlyPipeline);
+  }, [isMediaOnlyPipeline]);
 
   // Default Metadata JSON ON for the VLM pipeline (its only output is metadata
   // JSON lines); OFF for other pipelines.
@@ -415,7 +426,7 @@ export const Pipelines = () => {
       const graphData = buildGraphData(
         currentNodes,
         currentEdges,
-        pinnedCpuCores,
+        isSimpleMode ? [] : pinnedCpuCores,
       );
 
       let payloadGraphData = graphData;

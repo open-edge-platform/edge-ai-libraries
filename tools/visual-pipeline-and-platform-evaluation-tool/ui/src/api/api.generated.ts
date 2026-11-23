@@ -1267,7 +1267,7 @@ export type Edge = {
   target: string;
 };
 export type PipelineGraph = {
-  /** Logical CPU ids assigned round-robin, one core per stream. Empty uses test-level pinning. */
+  /** Logical CPU ids every stream of this graph is pinned to. Empty uses test-level pinning. */
   cpu_pinning?: number[];
   /** List of pipeline nodes. */
   nodes: Node[];

@@ -9,7 +9,12 @@ from datetime import datetime
 from typing import Optional, List
 
 from graph import Graph, OUTPUT_PLACEHOLDER, graph_is_metadata_only
-from device import is_variant_supported
+from device import (
+    DeviceDiscovery,
+    DeviceDiscoveryError,
+    DeviceFamily,
+    is_variant_supported,
+)
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -35,6 +40,15 @@ from videos import OUTPUT_VIDEO_DIR
 from managers.metadata_manager import METADATA_DIR
 
 logger = logging.getLogger("pipeline_manager")
+
+
+def _has_gpu() -> bool:
+    try:
+        devices = DeviceDiscovery().list_devices()
+    except DeviceDiscoveryError:
+        logger.warning("Device discovery failed, assuming no GPU", exc_info=True)
+        return False
+    return any(device.device_family == DeviceFamily.GPU for device in devices)
 
 
 @dataclass
@@ -705,7 +719,15 @@ class PipelineManager:
             # have to be adapted to the raw-video stream produced by the dedicated
             # image decoder; ``apply_decodebin3_replacement`` handles both cases.
             _, target_gpu_index = split_device_target(base_graph.get_target_device())
-            if base_graph.uses_vdbox_decode():
+            use_vdbox = base_graph.uses_vdbox_decode()
+            if use_vdbox and not _has_gpu():
+                logger.warning(
+                    "No GPU available for VDBox decode in pipeline '%s'; "
+                    "using the default decoder.",
+                    pipeline_name,
+                )
+                use_vdbox = False
+            if use_vdbox:
                 base_graph = base_graph.with_vdbox_decode()
             elif base_graph.has_decodebin3() or base_graph.has_image_set_source():
                 codec = base_graph.determine_input_codec()
@@ -853,10 +875,9 @@ class PipelineManager:
                 pipeline_parts.append(unique_pipeline_str)
                 stream_commands[stream_info.stream_id] = unique_pipeline_str
                 if spec.pipeline_graph.cpu_pinning:
-                    cores = spec.pipeline_graph.cpu_pinning
-                    stream_cpu_cores[stream_info.stream_id] = [
-                        cores[stream_index % len(cores)]
-                    ]
+                    stream_cpu_cores[stream_info.stream_id] = list(
+                        spec.pipeline_graph.cpu_pinning
+                    )
 
         return PipelineCommand(
             command=" ".join(pipeline_parts),
