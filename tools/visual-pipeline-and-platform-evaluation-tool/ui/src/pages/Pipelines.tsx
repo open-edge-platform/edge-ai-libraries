@@ -988,6 +988,7 @@ export const Pipelines = () => {
               currentViewport={currentViewport}
               isSimpleMode={isSimpleMode}
               isReadOnly={isReadOnly}
+              hasUnsavedChanges={canUndo}
               performanceTestJobId={jobStatus?.id ?? null}
               onGraphUpdate={updateGraph}
               onVariantRenamed={() => {
