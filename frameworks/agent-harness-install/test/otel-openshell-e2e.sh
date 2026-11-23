@@ -4,7 +4,7 @@
 #   -> disable (--clean) -> uninstall sandbox.
 # Runs against an isolated environment file (default ~/ahi-e2e.env), never the default state dir.
 # The file must set HARNESS_STATE_DIRNAME (not .agent-harness-install) and SRC (the agent-harness-install
-# checkout), plus its own container names and ports so a live deployment is untouched.
+# checkout), plus its own container names, ports and HARNESS_IR_WORKSPACE_DIR so a live deployment is untouched.
 #
 # Usage: otel-openshell-e2e.sh [--harness hermes,openclaw]
 #                              [--backend sqlite,jaeger] [--skip-install] [--keep]
@@ -87,7 +87,7 @@ store_path() {
   esac
 }
 
-obs() { bash ./install.sh observability "$@" --target harness --harness "$AGENT" --runtime openshell; }
+obs() { bash ./install.sh observability "$@" --harness "$AGENT" --runtime openshell; }
 rule_present() { openshell policy get "$SB_NAME" -g "$SB_GW" --full 2>/dev/null | grep -Eq '^[[:space:]]*harness_otel:'; }
 
 # chat_once <marker> -- one non-interactive turn; output in $LAST_LOG.
