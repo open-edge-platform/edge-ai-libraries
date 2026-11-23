@@ -286,19 +286,12 @@ class VideosManager:
         Ensure AUTO_VIDEO_DIR and UPLOADED_VIDEO_DIR exist on disk with
         mode 0o755.
 
-        ``os.makedirs(mode=...)`` alone is subject to the process umask and
-        does not touch already-existing directories, so we follow up with
-        an explicit ``os.chmod`` to guarantee the mode regardless of the
-        umask and regardless of who created the directory originally. Any
-        OS error is re-raised as RuntimeError since the application cannot
-        function without these folders.
+        Any OS error is re-raised as RuntimeError since the application
+        cannot function without these folders.
         """
         for subdir in (AUTO_VIDEO_DIR, UPLOADED_VIDEO_DIR):
             try:
                 os.makedirs(subdir, mode=0o755, exist_ok=True)
-                # Enforce the mode explicitly - os.makedirs() respects the
-                # umask and leaves existing directories untouched.
-                os.chmod(subdir, 0o755)
             except OSError as e:
                 raise RuntimeError(
                     f"Failed to create video subdirectory '{subdir}': {e}"

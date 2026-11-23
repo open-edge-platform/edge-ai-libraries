@@ -1,4 +1,5 @@
 configure_edge_pack () {
+  version="$(ensure_parse_value_option version --version=1.0 "$@")"
   edge_pack_repo="apt.repos.intel.com"
   edge_pack_key_url="https://$edge_pack_repo/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
   edge_pack_key_file=/etc/apt/keyrings/intel-edge-pack.gpg
@@ -11,8 +12,7 @@ configure_edge_pack () {
   )
   edge_pack_pref_file=/etc/apt/preferences.d/intel-edge-pack.pref
   edge_pack_incompatible_files=(/etc/apt/preferences.d/priorities /etc/apt/preferences.d/edgepack.pref /etc/apt/sources.list.d/intel-edge-pack.sources /etc/apt/sources.list.d/kobuk-ppa.sources)
-  edge_pack_install_options=("--no-install-recommends")
-  edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers mesa-opencl-icd)
+  edge_pack_install_options=("--no-install-recommends" "--allow-downgrades")
 
   edge_pack_ppa_repo=
   edge_pack_ppa_key_url=

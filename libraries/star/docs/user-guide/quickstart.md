@@ -166,7 +166,7 @@ classification and builds the container.
 ### 2. Networking
 
 `make decoder` / `make encoder` run using Docker Compose
-([`docker-compose.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/dev/libraries/star/docker-compose.yml)), which creates its own project network
+([`docker-compose.yml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/docker-compose.yml)), which creates its own project network
 automatically and lets every container reach the others by service name (`decoder`,
 `encoder`, `dlstreamer-pipeline-server`, ...) — there is **no manual
 `docker network create` step**.
