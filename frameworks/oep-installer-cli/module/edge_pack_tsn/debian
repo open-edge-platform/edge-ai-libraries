@@ -15,8 +15,7 @@ debian_40_install_edge_pack_tsn () {
   else
     ensure_prop set installed/edge_pack_tsn/owned true
     ensure_apt purge --auto-remove -y intel-edge-tsn || true
-    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*" || true
-    ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*"
   fi
 }
 
