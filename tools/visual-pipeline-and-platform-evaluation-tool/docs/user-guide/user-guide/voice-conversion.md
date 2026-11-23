@@ -48,24 +48,42 @@ make build
 make run
 ```
 
-When an Audio pipeline's required model is missing, ViPPET opens the existing
-model-install dialog for that specific model: **Whisper Base** for Speech to
-Text or **SpeechT5** for Text to Speech. Conversion remains disabled until the
-model status is Installed. Audio-analyzer and text-to-speech preload their
-selected models. Before a required model is installed, its service logs that
-the artifacts are unavailable and restarts. After installation, the next
-automatic startup loads the model and the service becomes healthy.
+When an Audio pipeline's required catalog model is missing, ViPPET opens the
+existing model-install dialog for that specific model: **Whisper Base** for
+Speech to Text or **SpeechT5** for Text to Speech. Conversion remains disabled
+until the model status is Installed. Installing these catalog entries does not
+provision the models that the Voice services run; see
+[Model provisioning](#model-provisioning) and
+[Known limitations](#known-limitations).
 
 `make build` and `make run` execute `env-setup`, load `.env`, and combine the
 base Compose file with the detected hardware override. `make build` builds the
-core and Voice images, while
-`make run` starts the complete service set with Compose's normal image behavior.
-`make stop` removes the core and Voice containers together while preserving
-named volumes. It uses the existing `.env` without rerunning `env-setup`.
+core ViPPET images only; the Voice services have no build section in
+`compose.yml`. `make run` starts the complete service set with Compose's normal
+image behavior, pulling the published Voice images when they are not present
+locally. `make stop` removes the core and Voice containers together while
+preserving named volumes, including the Voice model volumes. It uses the
+existing `.env` without rerunning `env-setup`.
 `make clean-output-audio` removes generated TTS WAV files. The broader
-`make clean` target also removes those outputs, but preserves managed Speech to
-Text input under `shared/audio/input` so installed default recordings can be
-reused.
+`make clean` target is a full reset of the host-side `shared/` data:
+
+- It removes **every installed model** under `shared/models/output`, both
+  Vision models and the Voice catalog checkpoints. Afterwards, the Audio
+  pipelines show their required models as not installed until you install them
+  again.
+- It removes the model-download cache and plugin environments under
+  `shared/model-download`, so the next model installation is slower.
+- It removes generated TTS WAV files and the whole `shared/audio/input` tree,
+  including the installed default recordings. ViPPET copies the default
+  recordings again from its image on the next start.
+- It removes output videos and the `shared/videos/input` and
+  `shared/videos/video-generator` trees.
+
+`make clean` does not stop containers and does not remove named volumes, so
+the models that the Voice services run (`voice_asr_models`,
+`voice_tts_models`) and their caches are kept. To remove those as well, stop
+the stack and delete the volumes with `docker volume rm`. Compose prefixes
+volume names with the project name; list them with `docker volume ls`.
 
 The Makefile defines and exports `AUDIO_ANALYZER_TAG` and `TEXT_TO_SPEECH_TAG`,
 both defaulting to `2026.3.0-rc1`. Standard lifecycle targets use these defaults
@@ -105,31 +123,34 @@ COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml ps \
   audio-analyzer text-to-speech
 ```
 
-`make build` uses this repository's microservice Dockerfiles and tags the
-results with the configured image names. Use distinct local image tags to avoid
-overwriting cached release images; a later pull replaces local images under the
-same tag. No sibling kiosk checkout is needed.
+To build the Voice images from this repository's microservice Dockerfiles, use
+`make build-dev`, which adds `compose.dev.yml` and tags the results with the
+configured image names. Use distinct local image tags to avoid overwriting
+cached release images; a later pull replaces local images under the same tag.
+No sibling kiosk checkout is needed.
 
-Voice services do not download models during startup. Opening an Audio pipeline
-checks only its YAML-declared required models and displays the existing model
-installation dialog when one is missing. The same models can still be managed
-from the **Models** page. The existing background-jobs UI reports download and
-conversion progress. SpeechT5 installs one FP16 artifact and is marked
-Installed after that artifact is complete.
+### Model provisioning
 
-Artifacts are retained on the host under `shared/models/output/voice`. The
-consumers mount only their own subdirectories read-only:
+Two independent download paths exist in this release:
 
-```text
-shared/models/output/voice/audio-analyzer/openvino/whisper-base
-shared/models/output/voice/text-to-speech/openvino/microsoft_speecht5_tts__fp16
-```
+- **Voice services (used for inference):** audio-analyzer and text-to-speech
+  download their configured models from Hugging Face and export them to
+  OpenVINO on their first startup. Audio Analyzer exports Whisper Base with
+  `int8` weights; Text to Speech prepares SpeechT5 with `fp16`. The artifacts
+  are stored in the named volumes `voice_asr_models` and `voice_tts_models` and
+  reused on later starts while those volumes exist. Each service compiles the
+  artifact for the selected CPU, GPU, or NPU device when it loads it.
+- **ViPPET model catalog (used for the Run gate):** the **Models** page and the
+  model-install dialog download the `voice-whisper-base` and `voice-speecht5`
+  catalog entries through model-download. These are PyTorch checkpoints written
+  under `shared/models/output/huggingface`. ViPPET marks a model Installed when
+  its checkpoint file exists. The Voice services never read these files.
 
-Complete artifacts are reused on later starts. An interrupted or incomplete
-export is staged separately and never replaces the last complete artifact.
-The Models-page install exports device-neutral OpenVINO IR on CPU. Each Voice
-service selects CPU, GPU, or NPU when loading the artifact at runtime according
-to the active hardware profile.
+Neither service mounts `shared/models`. A first start therefore needs network
+access to Hugging Face from the Voice containers. Until the download and export
+complete, a service is not healthy; the Compose health checks allow a
+15-minute start period. If the download fails, for example without network
+access, the service does not become healthy and Audio jobs fail.
 
 The services are reachable inside the Compose network and through host ports
 `8010` (audio-analyzer) and `8011` (text-to-speech). The base Compose mappings
@@ -137,7 +158,7 @@ do not specify a loopback host address, so host and firewall configuration
 determine whether those ports are reachable from other machines.
 No host microphone devices are exposed; the browser captures recordings.
 The base application does not depend on their health. Without these services,
-conversion requests report unavailability while other ViPPET features work.
+Audio jobs end as `FAILED` while other ViPPET features work.
 
 ### Audio variants and inference devices
 
@@ -172,9 +193,9 @@ the following settings from the detected ViPPET hardware profile:
 
 The GPU override gives both services `/dev/dri` and the host's numeric
 `RENDER_GROUP_ID` as a supplementary group. The NPU override gives
-audio-analyzer `/dev/accel`, the `NPU_GROUP_ID` group (defaulting to
-`RENDER_GROUP_ID`), and `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so`, while
-text-to-speech gets `/dev/dri` and `RENDER_GROUP_ID` for GPU inference.
+audio-analyzer `/dev/dri`, `/dev/accel`, the `RENDER_GROUP_ID` group, and
+`ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so`, while text-to-speech gets
+`/dev/dri` and `RENDER_GROUP_ID` for GPU inference.
 The host must have the corresponding device nodes and compatible drivers;
 the images must include the required OpenVINO runtimes. No privileged mode or
 extra Linux capabilities are enabled.
@@ -182,14 +203,15 @@ extra Linux capabilities are enabled.
 The `gpu-wsl` override gives the ASR service `/dev/dxg` and a read-only
 `/usr/lib/wsl` library mount. It does not require `/dev/dri` or `RENDER_GROUP_ID`.
 Use this profile inside WSL 2, not the native `gpu` override. ASR uses the iGPU,
-while SpeechT5 TTS uses CPU with its FP16 artifact and does not need GPU device
+while SpeechT5 TTS uses CPU with its own FP16 model and does not need GPU device
 mapping. Docker Compose 2.24.4 or newer is required
 for the WSL override files.
 
 `setup_env.sh` detects `RENDER_GROUP_ID` for Make. When invoking Compose
-directly, set it to the host render group's numeric ID. If NPU device nodes
-belong to a different group, export their numeric group ID as `NPU_GROUP_ID`.
-For example, inspect it with `stat -c '%g' /dev/accel/accel0`.
+directly, set it to the host render group's numeric ID. The NPU override does
+not add a separate group for `/dev/accel`; the NPU device nodes must belong to
+the render group or otherwise be accessible to the container user (UID 1000).
+Inspect their group with `stat -c '%g' /dev/accel/accel0`.
 
 Direct GPU startup:
 
@@ -216,8 +238,8 @@ COMPOSE_PROFILES=npu docker compose -f compose.yml -f compose.npu.yml \
 
 Export `VOICE_ASR_DEVICE` (`CPU`, `GPU`, or `NPU`) to set default ASR inference.
 The native GPU and NPU voice overrides also accept `VOICE_TTS_DEVICE` (`CPU` or
-`GPU`) and `VOICE_TTS_DTYPE`, which defaults to `fp16`. The bundled SpeechT5
-catalog installs only FP16. The CPU and `gpu-wsl` profiles use CPU/FP16.
+`GPU`) and `VOICE_TTS_DTYPE`, which defaults to `fp16`. The CPU and `gpu-wsl`
+profiles use CPU/FP16 for TTS.
 Device selection alone does not expose hardware: keep the
 corresponding Compose overrides. Each Audio pipeline run sends its variant's
 device, but it cannot add a missing container device mapping. SpeechT5 does not document NPU support, so the
@@ -225,7 +247,7 @@ NPU profile defaults to GPU for TTS. For CPU inference on a native GPU or NPU
 host, export `VOICE_ASR_DEVICE=CPU VOICE_TTS_DEVICE=CPU VOICE_TTS_DTYPE=fp16`.
 Run `make run`
 to regenerate the detected profile and recreate affected containers without
-deleting shared model artifacts or named cache volumes. For manual Compose commands, update
+deleting the named model or cache volumes. For manual Compose commands, update
 both the profile and override filenames. Do not edit the generated `.env` file.
 GPU utilization metrics may be unavailable under WSL even when inference works;
 the native Linux GPU collectors depend on driver interfaces not exposed by WSL.
@@ -234,10 +256,11 @@ Diarization and sentiment analysis are disabled. TTS supports English in this
 configuration. Changing a language label alone does not add multilingual
 synthesis support.
 
-Installing models from the Models page requires network access to model
-sources. Subsequent starts reuse the shared host artifacts and named runtime
-cache volumes. Configure `http_proxy`, `https_proxy`, and `no_proxy` as required.
-Do not pass tokens through Docker build arguments.
+Installing catalog models from the Models page requires network access from
+model-download to Hugging Face. The first start of each Voice service requires
+network access from that service to Hugging Face. Later starts reuse the named
+model and cache volumes. Configure `http_proxy`, `https_proxy`, and `no_proxy`
+as required. Do not pass tokens through Docker build arguments.
 
 To stop only the optional services, preserving their caches:
 
@@ -254,7 +277,8 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
   microphone, and browser support for MediaRecorder and Web Audio.
 - Recording stops automatically after 60 seconds and is converted in the
   browser to mono PCM 16-bit WAV at 16 kHz. Audio Analyzer validates uploaded
-  files according to its runtime format and size configuration.
+  files according to its runtime format and size configuration; a file it
+  rejects ends the job as `FAILED` with the generic error text.
 - Select a recognition language for STT. Default: English.
 - TTS input must contain 1-200 characters after trimming whitespace.
 - Playback is explicit using the audio controls. Generated WAV can be downloaded.
@@ -414,18 +438,33 @@ Backend service locations are configured with `AUDIO_ANALYZER_URL` (default
 `http://text-to-speech:8011`). They must be deployment-controlled URLs, never
 user-provided targets. Internal service calls bypass environment HTTP proxies.
 
-The adapter uses a 5-second connection timeout and a 20-minute total upstream
-deadline. The browser conversion timer and Nginx Voice read/send timeouts are
-1210 seconds, allowing ten seconds beyond the backend deadline. Responses are
-limited to 128 KiB for STT and 64 MiB for TTS.
-Input rejected by a speech service returns 400; invalid request fields return
-422; uploads above the 200 MiB limit return 413; invalid upstream responses
-return 502; unavailable/busy services return 503; timeouts return 504. ViPPET
-forwards known Audio Analyzer file-validation messages, such as `File too large`
-and `Invalid file type`, but sanitizes all other upstream error bodies. Nginx
-streams voice request bodies with a 200 MiB `client_max_body_size` and disables
-response caching. The same limit is enforced while staging the upload to disk
-(`MAX_STT_UPLOAD_BYTES`); keep the two values in sync.
+The run endpoint validates the request and returns `202` immediately; it does
+not wait for the speech service. Errors detected before the job starts are
+returned as HTTP status codes: `400` when the body does not match the pipeline
+operation, `404` for an unknown pipeline, variant, or recording, `409` when the
+pipeline is unavailable, `413` for oversized uploads, `415` for an unsupported
+content type, and `422` for invalid request fields.
+
+Uploads are limited to 200 MiB. Nginx enforces `client_max_body_size 200m` on
+the whole multipart request and usually rejects an oversized upload first, with
+its own HTML `413` response. The backend enforces the same limit on the file
+content while staging it to disk (`MAX_STT_UPLOAD_BYTES`) and returns a JSON
+`413`. Keep the two values in sync.
+
+Speech service calls run inside the background job. The adapter uses a
+5-second connection timeout and a 20-minute total upstream deadline, and limits
+responses to 128 KiB for STT and 64 MiB for TTS. Any upstream failure, including
+a rejected input, a busy or unavailable service, a timeout, or an invalid
+response, ends the job as `FAILED` with the fixed error text
+`Audio pipeline execution failed.`. The upstream reason is written only to the
+ViPPET backend log; it is not returned to the client.
+
+The browser stops waiting for a run 1210 seconds after it starts, including
+polling, and shows `Conversion timed out.`. This does not cancel the backend
+job, which keeps running and can still complete; use **Stop** to cancel it.
+The Nginx Voice read and send timeouts are also 1210 seconds, but they apply
+only to the individual start, status, and artifact requests, which do not wait
+for the conversion. Nginx disables response caching for Voice routes.
 
 ## Metrics
 
@@ -476,9 +515,9 @@ paths or URLs. Completed preset TTS files are atomically written under
 `shared/audio/output` with UUID filenames and served only for known completed
 jobs. Define deployment cleanup for these files.
 
-`make clean-output-audio` and `make clean` remove generated files under
-`shared/audio/output`. They preserve managed STT input under
-`shared/audio/input`, including the validated default recording. Job metadata
+`make clean-output-audio` removes generated files under `shared/audio/output`.
+`make clean` also removes those files and the whole `shared/audio/input` tree;
+see [Deployment](#deployment) for everything else it removes. Job metadata
 and STT transcripts are process-local. A backend restart leaves completed WAV
 files on disk but removes the job lookup required by the artifact endpoint.
 
@@ -497,6 +536,28 @@ appropriate retention. The published audio ports expose upstream APIs directly,
 bypassing ViPPET's proxy validation and limits. The base Compose mappings are
 not restricted to loopback; use host firewall rules or a deployment override,
 and protect reachable endpoints with appropriate access control and TLS.
+
+## Known limitations
+
+- **Voice models are downloaded twice.** The catalog install downloads PyTorch
+  checkpoints (about 0.9 GB) that the Voice services never read, while the
+  services download and export their own models; see
+  [Model provisioning](#model-provisioning).
+- **Installed does not reflect what runs.** The Run button is enabled by the
+  catalog checkpoints, not by the models the services load. A pipeline can be
+  runnable while its service is still downloading or has failed to provision
+  its model; the job then ends as `FAILED`.
+- **First start needs Hugging Face access.** Each Voice service downloads its
+  model on first start, so its container needs network access to Hugging Face,
+  through a proxy if required.
+- **No offline pre-provisioning.** Pre-provisioning the Voice models for
+  offline hosts, for example by installing them from the **Models** page, is
+  not supported in this release.
+
+A single model-provisioning path is tracked as technical debt in ITEP-98337,
+recorded when
+[PR #3248](https://github.com/open-edge-platform/edge-ai-libraries/pull/3248)
+was merged.
 
 ## Verification
 
