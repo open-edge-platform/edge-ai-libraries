@@ -243,3 +243,37 @@ class TestInfrastructure:
                 f"vllm-cpu-service is deployed but not running. State: '{vllm_state}'\n"
                 "Fix: docker compose -p docker logs vllm-cpu-service"
             )
+
+    def test_ovms_health_requires_both_models(self):
+        containers = subprocess.run(
+            [
+                "docker", "ps", "-q",
+                "--filter", "label=com.docker.compose.project=docker",
+                "--filter", "label=com.docker.compose.service=ovms-service",
+            ],
+            capture_output=True, text=True, check=True,
+        ).stdout.splitlines()
+        if not containers:
+            pytest.skip("OVMS is not running in this deployment")
+
+        container = containers[0]
+        result = subprocess.run(
+            ["docker", "inspect", "--format", "{{json .Config.Healthcheck.Test}}", container],
+            capture_output=True, text=True, check=True,
+        )
+        healthcheck = json.loads(result.stdout)
+        assert healthcheck[0] == "CMD-SHELL"
+
+        ready = subprocess.run(
+            ["docker", "exec", container, "sh", "-c", healthcheck[1]],
+            capture_output=True, text=True,
+        )
+        assert ready.returncode == 0, ready.stderr
+
+        for variable in ("VLM_STORAGE_MODEL_NAME", "LLM_STORAGE_MODEL_NAME"):
+            missing = subprocess.run(
+                ["docker", "exec", "-e", f"{variable}=vss-missing-model",
+                 container, "sh", "-c", healthcheck[1]],
+                capture_output=True, text=True,
+            )
+            assert missing.returncode != 0, f"Health check accepted a missing {variable}"
