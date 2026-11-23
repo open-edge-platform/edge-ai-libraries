@@ -75,7 +75,7 @@ When introducing a new element (typically by writing a new pipeline that
 references it):
 
 - If the element is a meaningful, user-facing step (a new source family,
-  a new inference element following the `gva*` naming, a new SceneScape
+  a new inference element following the `gva*` naming, a new Scenescape
   element following the `sscape_*` naming, a new sink...) it
   will appear in the Simple view automatically thanks to the default
   patterns.
@@ -95,4 +95,3 @@ in the *Key Environment Variables* table of
 
 - [How to add a new pipeline](./new-pipeline.md)
 - [Backend contributing guide](./backend.md)
-- [Add an element that is not in the base image](https://github.com/staszczuk/edge-ai-libraries/blob/add-basler-support/tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/developer-guide/contributing/new-element.md#add-an-element-that-is-not-in-the-base-image)

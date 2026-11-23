@@ -35,7 +35,7 @@ const SscapePostInferenceDataPublishNode = ({
     <PipelineNodeCard
       title={
         simpleGraph
-          ? "SceneScape Publisher"
+          ? "Scenescape Publisher"
           : "sscape_post_inference_data_publish"
       }
       nodeType="sscape_post_inference_data_publish"

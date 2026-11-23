@@ -368,7 +368,7 @@ or a hard prompt.
 ### Soft Prompt
 
 A soft prompt is a set of pre-trained vectors with respect to a dataset and routing task. The
-router packs the vectors and stores them in a binary file with `rcv` as the appendix.
+router packs the vectors and stores them in a binary file with `rcv` as the extension.
 
 For example, the current default version of the soft prompt was trained on the RouterBench
 Dataset, with the ability to route a query to a cloud or local provider based on the complexity.
