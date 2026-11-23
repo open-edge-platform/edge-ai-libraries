@@ -51,8 +51,8 @@ cd $HOME/oep/edge-ai-libraries/sample-applications/chat-question-and-answer-core
 # Configure application environment variables
 export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
 export REGISTRY="intel/"
-export UI_TAG=core_2026.3.0-rc1
-export BACKEND_TAG=core_2026.3.0-rc1
+export UI_TAG=core_2026.3.0-rc2
+export BACKEND_TAG=core_2026.3.0-rc2
 source scripts/setup_env.sh
 ```
 
