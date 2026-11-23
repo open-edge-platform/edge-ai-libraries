@@ -4499,7 +4499,8 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
     Side effects:
         - Modifies node.data["location"] or node.data["source"] for file source nodes
         - Converts absolute paths to filenames only
-        - Sets empty string if video path is not found
+        - Keeps the filename of a filesrc video that is not available yet,
+          so it can still be downloaded; sets empty string otherwise
         - Only processes filesrc, multifilesrc, and urisourcebin node types
         - Logs debug messages for each conversion
 
@@ -4527,6 +4528,9 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
             if filename := VideosManager().get_video_filename(path):
                 node.data[key] = filename
                 logger.debug(f"Converted video path to filename: {path} -> {filename}")
+            elif node.type == "filesrc":
+                node.data[key] = os.path.basename(os.path.normpath(path))
+                logger.debug(f"Video not available yet: {path}")
             else:
                 node.data[key] = ""
                 logger.debug(f"Video path not found: {path}")

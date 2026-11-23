@@ -523,12 +523,21 @@ const NodeDataPanel = ({
                 ) : (selectedNode.type === "source" && keyStr === "source") ||
                   (selectedNode.type === "filesrc" && keyStr === "location") ? (
                   (() => {
-                    const sourceOptions = ensureCurrentSourceOption(
+                    const isVideoSource =
+                      selectedNode.type === "filesrc" ||
+                      normalizeKindValue(editableData.kind) === "video";
+                    const baseSourceOptions =
                       selectedNode.type === "filesrc"
                         ? videoOptions
-                        : getSourceOptionsForKind(editableData.kind),
-                      sourceSelectValue,
-                    );
+                        : getSourceOptionsForKind(editableData.kind);
+                    // A video that is not downloaded stays unselected.
+                    const sourceOptions =
+                      isVideoSource && !sourceSelectValue.startsWith("/")
+                        ? baseSourceOptions
+                        : ensureCurrentSourceOption(
+                            baseSourceOptions,
+                            sourceSelectValue,
+                          );
                     const selectedId =
                       sourceOptions.find(
                         (option) => option.value === sourceSelectValue,

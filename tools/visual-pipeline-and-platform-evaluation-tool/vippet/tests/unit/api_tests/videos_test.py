@@ -280,6 +280,37 @@ class TestVideosAPI(unittest.TestCase):
         self.assertEqual(response.json()["status"], "queued")
         manager.download_default_video.assert_called_once_with("sample.mp4")
 
+    def test_download_default_recording_converts_to_hevc(self):
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.download_default_video.return_value = True
+            manager.default_hevc_filename.return_value = "sample_h265.mp4"
+            manager.get_video.return_value = None
+            manager.filename_exists.return_value = False
+            manager.convert_default_video_to_hevc.return_value = "sample_h265.mp4"
+
+            videos_route._download_default_recording("sample.mp4")
+
+        manager.convert_default_video_to_hevc.assert_called_once_with("sample.mp4")
+        self.assertEqual(
+            videos_route._default_video_download_status["sample.mp4"],
+            videos_route.schemas.DefaultVideoDownloadState.DOWNLOADED,
+        )
+        self.assertEqual(
+            videos_route._default_video_conversion_status["sample.mp4"],
+            videos_route.schemas.DefaultVideoConversionState.CONVERTED,
+        )
+
+    def test_download_default_recording_skips_conversion_on_failure(self):
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.download_default_video.return_value = False
+
+            videos_route._download_default_recording("sample.mp4")
+
+        manager.convert_default_video_to_hevc.assert_not_called()
+        self.assertNotIn("sample.mp4", videos_route._default_video_conversion_status)
+
     def test_start_default_video_download_rejects_unknown_filename(self):
         with patch("api.routes.videos.VideosManager") as manager_class:
             manager_class.return_value.get_default_recordings.return_value = []

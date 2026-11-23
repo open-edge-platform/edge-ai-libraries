@@ -182,6 +182,27 @@ def _probe_container_and_codec(file_path: str) -> Tuple[Optional[str], Optional[
 # --------------------------------------------------------------------------- #
 
 
+def _queue_default_hevc_conversion(manager: VideosManager, filename: str) -> bool:
+    """Mark the HEVC conversion as queued unless it is done, running or blocked."""
+    existing_output = manager.get_video(manager.default_hevc_filename(filename))
+    if (
+        existing_output is not None
+        and existing_output.source == "auto"
+        and existing_output.codec == "h265"
+    ):
+        return False
+    with _default_video_conversion_lock:
+        if _default_video_conversion_status.get(filename) in (
+            schemas.DefaultVideoConversionState.QUEUED,
+            schemas.DefaultVideoConversionState.CONVERTING,
+        ) or manager.filename_exists(manager.default_hevc_filename(filename)):
+            return False
+        _default_video_conversion_status[filename] = (
+            schemas.DefaultVideoConversionState.QUEUED
+        )
+        return True
+
+
 def _download_default_recording(filename: str) -> None:
     with _default_video_download_worker_lock:
         manager = VideosManager()
@@ -194,12 +215,17 @@ def _download_default_recording(filename: str) -> None:
         except Exception:
             logger.exception("Failed to download sample video '%s'", filename)
             downloaded = False
+        # Queue before reporting DOWNLOADED so clients never see a gap to fill themselves.
+        convert = downloaded and _queue_default_hevc_conversion(manager, filename)
         with _default_video_download_lock:
             _default_video_download_status[filename] = (
                 schemas.DefaultVideoDownloadState.DOWNLOADED
                 if downloaded
                 else schemas.DefaultVideoDownloadState.FAILED
             )
+    # Converting server-side keeps it independent of the client staying on the page.
+    if convert:
+        _convert_default_recording_to_hevc(filename)
 
 
 def _convert_default_recording_to_hevc(filename: str) -> None:

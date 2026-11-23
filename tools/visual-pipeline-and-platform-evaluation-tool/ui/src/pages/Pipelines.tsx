@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   useConvertSimpleToAdvancedMutation,
   useGetPerformanceJobStatusQuery,
@@ -67,7 +67,6 @@ import {
   Save,
   SlidersHorizontal,
   Timer,
-  TriangleAlert,
   Undo2,
 } from "lucide-react";
 import { CpuCorePinningDialog } from "@/features/pipeline-editor/CpuCorePinningDialog.tsx";
@@ -76,6 +75,7 @@ import { NavigationGuard } from "@/components/shared/NavigationGuard";
 import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog.tsx";
 import { extractModelNamesFromNodes } from "@/features/models/modelNames.ts";
 import { useRequiredModelsStatus } from "@/features/models/useRequiredModelsStatus.ts";
+import { useRequiredVideosStatus } from "@/features/videos/useRequiredVideosStatus.ts";
 type UrlParams = {
   id: string;
   variant: string;
@@ -97,22 +97,30 @@ const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
   });
 };
 
-// An empty name means the backend could not resolve the pipeline's video.
+// Returns null for nodes that do not read an input video.
+const getInputVideoName = (node: {
+  type?: string;
+  data?: unknown;
+}): string | null => {
+  const data = (node.data ?? {}) as Record<string, unknown>;
+  if (node.type === "source") {
+    if (String(data.kind ?? "").toLowerCase() !== "video") return null;
+    return String(data.source ?? data.location ?? "").trim();
+  }
+  if (node.type === "filesrc") {
+    return String(data.location ?? "").trim();
+  }
+  return null;
+};
+
+// An empty name means no input video is selected.
 const findMissingInputVideos = (
   nodes: ReactFlowNode[],
   availableVideos: Set<string>,
 ): string[] =>
   nodes.flatMap((node) => {
-    const data = (node.data ?? {}) as Record<string, unknown>;
-    let name: string;
-    if (node.type === "source") {
-      if (String(data.kind ?? "").toLowerCase() !== "video") return [];
-      name = String(data.source ?? data.location ?? "").trim();
-    } else if (node.type === "filesrc") {
-      name = String(data.location ?? "").trim();
-    } else {
-      return [];
-    }
+    const name = getInputVideoName(node);
+    if (name === null) return [];
     return name.startsWith("/") || availableVideos.has(name) ? [] : [name];
   });
 
@@ -257,6 +265,37 @@ export const Pipelines = () => {
     skip: !data || !variant,
     errorMessage: "Failed to check models used in pipeline",
   });
+
+  const isTimeSeries = data?.tags?.includes("Time Series") ?? false;
+  const requiredVideos = useMemo(() => {
+    if (isTimeSeries) return [];
+    const variantData = data?.variants.find((v) => v.id === variant);
+    const names = (variantData?.pipeline_graph.nodes ?? [])
+      .map(getInputVideoName)
+      .filter((name): name is string => !!name && !name.startsWith("/"));
+    return [...new Set(names)];
+  }, [data, variant, isTimeSeries]);
+
+  const {
+    videoStatuses: pipelineVideoStatuses,
+    hasMissingVideos: hasMissingRequiredVideos,
+    downloadVideo,
+  } = useRequiredVideosStatus(requiredVideos, {
+    skip: !data || !variant,
+  });
+  const [videoStatusDialogOpen, setVideoStatusDialogOpen] = useState(false);
+  const videoDialogPromptedForRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const variantKey = `${id}/${variant}`;
+    if (
+      hasMissingRequiredVideos &&
+      videoDialogPromptedForRef.current !== variantKey
+    ) {
+      videoDialogPromptedForRef.current = variantKey;
+      setVideoStatusDialogOpen(true);
+    }
+  }, [hasMissingRequiredVideos, id, variant]);
 
   const {
     execute: runPipeline,
@@ -563,9 +602,19 @@ export const Pipelines = () => {
       .map((item) => item.model);
     const hasMissingInputVideo =
       !isTimeSeriesPipeline && missingInputVideos.length > 0;
-    const missingInputVideoNames = [
-      ...new Set(missingInputVideos.filter(Boolean)),
-    ];
+    const requiredDialogText = !hasMissingRequiredVideos
+      ? {}
+      : hasMissingRequiredModels
+        ? {
+            title: "Required models and videos are missing",
+            description:
+              "This pipeline uses models that are not installed and input videos that are not downloaded.",
+          }
+        : {
+            title: "Required videos are missing",
+            description:
+              "This pipeline uses input videos that are not downloaded.",
+          };
 
     const editorContent = (
       <div className="w-full h-full relative">
@@ -1045,30 +1094,6 @@ export const Pipelines = () => {
             />
           </div>
         </header>
-        {hasMissingInputVideo && (
-          <div
-            role="alert"
-            className="flex items-start gap-3 border-b border-l-4 border-l-amber-500 bg-amber-500/10 px-4 py-3 text-sm"
-          >
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
-            <div>
-              <p className="font-medium">Input video is not available</p>
-              <p className="mt-1 text-muted-foreground">
-                {missingInputVideoNames.length > 0
-                  ? `${missingInputVideoNames.join(", ")} has not been downloaded or uploaded.`
-                  : "The input video of this pipeline has not been downloaded or uploaded."}{" "}
-                Download sample videos on the{" "}
-                <Link
-                  to="/videos"
-                  className="font-medium text-foreground underline underline-offset-4"
-                >
-                  Videos page
-                </Link>
-                , then select a video in the Input node.
-              </p>
-            </div>
-          </div>
-        )}
         <div className="flex-1 overflow-hidden">
           <ResizablePanelGroup
             orientation="horizontal"
@@ -1172,10 +1197,16 @@ export const Pipelines = () => {
           </ResizablePanelGroup>
         </div>
         <PipelineModelsRequiredDialog
-          open={modelStatusDialogOpen}
-          onOpenChange={setModelStatusDialogOpen}
+          open={modelStatusDialogOpen || videoStatusDialogOpen}
+          onOpenChange={(open) => {
+            setModelStatusDialogOpen(open);
+            setVideoStatusDialogOpen(open);
+          }}
           models={pipelineModelStatuses}
           onModelsChanged={refreshRequiredModels}
+          videos={pipelineVideoStatuses}
+          onDownloadVideo={downloadVideo}
+          {...requiredDialogText}
         />
         {!isSimpleMode && (
           <CpuCorePinningDialog

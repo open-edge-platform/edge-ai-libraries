@@ -6865,6 +6865,40 @@ class TestInputVideoNameToPathAbsoluteBypass(unittest.TestCase):
         self.assertIn("Videos page", str(cm.exception))
 
 
+class TestInputVideoPathToDisplayNameMissingVideo(unittest.TestCase):
+    @patch("graph.VideosManager")
+    def test_missing_filesrc_video_keeps_filename(self, mock_videos_cls):
+        from graph import _input_video_path_to_display_name
+
+        mock_videos_cls.return_value.get_video_filename.return_value = None
+
+        nodes = [
+            Node(
+                id="0", type="filesrc", data={"location": "/videos/input/people.mp4"}
+            )
+        ]
+        _input_video_path_to_display_name(nodes)
+
+        self.assertEqual(nodes[0].data["location"], "people.mp4")
+
+    @patch("graph.VideosManager")
+    def test_missing_non_filesrc_video_is_cleared(self, mock_videos_cls):
+        from graph import _input_video_path_to_display_name
+
+        mock_videos_cls.return_value.get_video_filename.return_value = None
+
+        nodes = [
+            Node(
+                id="0",
+                type="multifilesrc",
+                data={"location": "/videos/input/people.mp4"},
+            )
+        ]
+        _input_video_path_to_display_name(nodes)
+
+        self.assertEqual(nodes[0].data["location"], "")
+
+
 # --------------------------------------------------------------------------- #
 # _prepare_generic_input: image-set multifilesrc round-trip back to source.
 # --------------------------------------------------------------------------- #

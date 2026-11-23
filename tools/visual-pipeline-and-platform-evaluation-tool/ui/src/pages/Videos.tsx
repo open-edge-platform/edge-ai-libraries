@@ -253,6 +253,36 @@ export const Videos = () => {
     startDefaultVideoHevcConversion,
   ]);
 
+  // Resume tracking jobs that kept running on the backend while the page was closed.
+  useEffect(() => {
+    if (isBulkProcessing) return;
+    const downloading = sampleVideos
+      .filter(
+        (video) =>
+          (video.status === "queued" || video.status === "downloading") &&
+          !trackedDownloads.includes(video.filename),
+      )
+      .map((video) => video.filename);
+    const converting = sampleVideos
+      .filter(
+        (video) =>
+          (video.conversion_status === "queued" ||
+            video.conversion_status === "converting") &&
+          !trackedConversions.includes(video.filename),
+      )
+      .map((video) => video.filename);
+    if (downloading.length > 0) {
+      setTrackedDownloads((current) => [
+        ...new Set([...current, ...downloading]),
+      ]);
+    }
+    if (converting.length > 0) {
+      setTrackedConversions((current) => [
+        ...new Set([...current, ...converting]),
+      ]);
+    }
+  }, [isBulkProcessing, sampleVideos, trackedConversions, trackedDownloads]);
+
   useEffect(() => {
     if (trackedDownloads.length === 0) return;
     const finished = trackedDownloads.every((filename) => {
