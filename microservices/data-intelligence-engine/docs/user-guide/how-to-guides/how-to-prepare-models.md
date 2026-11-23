@@ -24,6 +24,7 @@ The engine derives each model's subdirectory under the root from its configured 
   - [4.5 ViCLIP: short videos](#45-viclip-short-videos)
   - [4.6 Whisper: speech recognition](#46-whisper-speech-recognition)
   - [4.7 Qwen3-VL-Reranker-2B: unified media reranking](#47-qwen3-vl-reranker-2b-unified-media-reranking)
+  - [4.8 PP-OCRv6: scanned PDF text recognition](#48-pp-ocrv6-scanned-pdf-text-recognition)
 - [5. Check that the models are ready](#5-check-that-the-models-are-ready)
 - [6. What you do not need to prepare](#6-what-you-do-not-need-to-prepare)
 
@@ -44,7 +45,7 @@ cd data-intelligence-engine/scripts
 
 | Option | Values | Description |
 |---|---|---|
-| `MODEL...` | `gme`, `reranker`, `media-reranker`, `layout`, `viclip-b`, `viclip-l`, `cosmos-224p`, `whisper`, `bge` | Models to prepare; default `gme reranker layout viclip-b whisper media-reranker` |
+| `MODEL...` | `gme`, `reranker`, `media-reranker`, `layout`, `ppocr`, `viclip-b`, `viclip-l`, `cosmos-224p`, `whisper`, `bge` | Models to prepare; default `gme reranker layout ppocr viclip-b whisper media-reranker` |
 | `--all` | — | Every model above |
 | `--gme-precision` | `int8` (default), `int4`, `fp32` | GME precision |
 | `--video-precision` | `fp16` (default), `fp32` | Video embedding precision |
@@ -65,7 +66,7 @@ Prepare the models for the content you process. For text documents only, one doc
 |---|---|---|
 | Text documents (txt, md, docx, body text of PDFs with a text layer) | Document embedding: GME (default) or BGE | Required |
 | Figures in PDFs (fused image+text vectors) | GME + PP-DocLayoutV3 | PP-DocLayoutV3 finds the figures. Without it, PDFs are processed as text only |
-| Scanned PDFs (no text layer) | PP-DocLayoutV3 + document embedding | Layout regions are read with Tesseract OCR, which the image already includes |
+| Scanned PDFs (no text layer) | PP-DocLayoutV3 + PP-OCRv6 + document embedding | Layout regions are read with PP-OCRv6 (default). With `ENGINE_OCR_BACKEND=tesseract` they are read with Tesseract, which the image already includes, and PP-OCRv6 is not needed |
 | Images | GME | Shares the GME package with document embedding |
 | Short videos (≤ 60 s) | ViCLIP-B (default), ViCLIP-L or Cosmos-224p | Eight sampled frames per clip; longer videos are stored but not embedded |
 | Audio | Whisper + GME | Whisper transcribes; GME embeds the transcript |
@@ -81,7 +82,8 @@ Prepare the models for the content you process. For text documents only, one doc
 | bge-reranker-large | Reranking retrieval results | `local_openvino` or `remote_openai_compatible` | `BAAI/bge-reranker-large/` (keeps the vendor directory) | `--weight-format` at conversion; or a remote rerank service | FP32 | 2.2 GB at fp32, about 0.6 GB at int8 |
 | Qwen3-VL-Reranker-2B | Unified reranking across video, image and audio-transcript hits | `local_openvino` (fixed) | `Qwen3-VL-Reranker-2B-INT8-OV/` | None (script defaults) | INT8 (weight-only) | 4.2 GB download; INT8 package about 6 GB (three graphs); FP16 export is an intermediate artifact and is removed after quantization |
 | PP-DocLayoutV3 (ONNX) | PDF layout detection: figure positions, scanned-page regions | `local_openvino` (fixed) | `PP-DocLayoutV3/` | None | FP32 | 250 MB |
-| Tesseract OCR (built into image) | Text recognition for scanned PDF regions | Not applicable (OCR, not embedding) | In the engine image, not under the model root | Simplified Chinese + English (`chi_sim+eng`, fixed) | Not applicable | 6.6 MB recognition weights; 17.1 MB including orientation and script detection data |
+| PP-OCRv6 medium (ONNX) | Text recognition for scanned PDF regions (default OCR) | `local_openvino` (fixed) | `PP-OCRv6_medium_det_onnx/`, `PP-OCRv6_medium_rec_onnx/` | None | FP32 | 140 MB (62 MB detection, 77 MB recognition) |
+| Tesseract OCR (built into image) | Alternative text recognition for scanned PDF regions (`ENGINE_OCR_BACKEND=tesseract`) | Not applicable (OCR, not embedding) | In the engine image, not under the model root | Simplified Chinese + English (`chi_sim+eng`, fixed) | Not applicable | 6.6 MB recognition weights; 17.1 MB including orientation and script detection data |
 | ViCLIP-B (default) | Short-video embedding, 512 dimensions | `local_openvino` | `viclip-b-fp16/` | `fp16` (default) / `fp32` | FP16 | Depends on precision |
 | ViCLIP-L | Short-video embedding, 768 dimensions | `local_openvino` | `viclip-l-fp16/` | `fp16` (default) / `fp32` | FP16 | Depends on precision |
 | Cosmos-224p (optional) | Short-video embedding, 256 dimensions | `local_openvino` | `cosmos-224p-fp16/` | `fp16` (default) / `fp32` | FP16 | Depends on precision |
@@ -429,6 +431,38 @@ Serving directory: `$OV_MODEL_DIR/Qwen3-VL-Reranker-2B-INT8-OV/`, with `reranker
 | `ENGINE_MEDIA_RERANK_MODEL_ID` | `Qwen3-VL-Reranker-2B-INT8-OV` (default) | Package directory under the model root |
 | `ENGINE_MEDIA_RERANK_DEVICE` | `GPU` (default), `CPU` | Device |
 
+### 4.8 PP-OCRv6: scanned PDF text recognition
+
+#### 1. Download the model
+
+PaddlePaddle publishes PP-OCRv6 as ONNX, which OpenVINO reads directly, so there is no conversion step. Download the text detection and text recognition models into the model root:
+
+```bash
+docker run --rm -e HF_ENDPOINT -e http_proxy -e https_proxy -e no_proxy \
+  -v "$OV_MODEL_DIR:/ov" --entrypoint hf data-intelligence-engine:latest \
+  download PaddlePaddle/PP-OCRv6_medium_det_onnx --revision 61323801669c338b7891481ec7bac61ce31b576a \
+  --include inference.onnx --include inference.yml \
+  --local-dir /ov/PP-OCRv6_medium_det_onnx
+docker run --rm -e HF_ENDPOINT -e http_proxy -e https_proxy -e no_proxy \
+  -v "$OV_MODEL_DIR:/ov" --entrypoint hf data-intelligence-engine:latest \
+  download PaddlePaddle/PP-OCRv6_medium_rec_onnx --revision 50c7eacafc52fa7bcf4194e8cd08e46f8558504b \
+  --include inference.onnx --include inference.yml \
+  --local-dir /ov/PP-OCRv6_medium_rec_onnx
+```
+
+#### 2. Output directory and options
+
+Output directories: `$OV_MODEL_DIR/PP-OCRv6_medium_det_onnx/` and `$OV_MODEL_DIR/PP-OCRv6_medium_rec_onnx/`, each with `inference.onnx` and `inference.yml`. `inference.yml` holds the pre- and post-processing parameters and, for recognition, the character dictionary.
+
+| Option | Values | Description |
+|---|---|---|
+| `ENGINE_OCR_BACKEND` | `ppocr` (default), `tesseract`, `hybrid`, `pdfplumber` | OCR backend for scanned PDFs |
+| `ENGINE_PPOCR_DET_MODEL_ID` | `PP-OCRv6_medium_det_onnx` (default) | Text detection model directory under the model root |
+| `ENGINE_PPOCR_REC_MODEL_ID` | `PP-OCRv6_medium_rec_onnx` (default) | Text recognition model directory under the model root |
+| `ENGINE_PPOCR_DEVICE` | `GPU` (default), `CPU` | Device |
+
+The models are loaded the first time a scanned PDF is read, not when the engine starts; a missing model fails that PDF's ingestion with `No prepared PP-OCR model at ...`.
+
 ## 5. Check that the models are ready
 
 After preparation, `$OV_MODEL_DIR` looks like this:
@@ -439,6 +473,8 @@ $OV_MODEL_DIR/
 ├── BAAI/bge-reranker-large/           openvino_model.xml/.bin, tokenizer files
 ├── Qwen3-VL-Reranker-2B-INT8-OV/      reranker_{text,image,video}.xml/.bin, export_shapes.json, processor files (weight-only INT8)
 ├── PP-DocLayoutV3/                    pp_doclayout_v3.onnx, id2label.json, preprocessor_config.json
+├── PP-OCRv6_medium_det_onnx/          inference.onnx, inference.yml
+├── PP-OCRv6_medium_rec_onnx/          inference.onnx, inference.yml
 ├── viclip-b-fp16/                    video_embedding.json, video_encoder.xml/.bin, text_encoder.xml/.bin, tokenizer assets
 ├── viclip-l-fp16/                    same package layout, 768 dimensions (optional)
 ├── viclip-b-fp32/                    same ViCLIP-B family, fp32 precision (optional)
@@ -471,7 +507,7 @@ Each source records the model it uses in its `profile` when it is created; see i
 
 ## 6. What you do not need to prepare
 
-- **OCR**: Tesseract and its English (`eng`) and Simplified Chinese (`chi_sim`) language data are already in the engine image; no extra OCR model download or conversion is needed. In the current image with Tesseract 5.5.0, the default recognition weights total about **6.6 MB**: `eng.traineddata` is **4.1 MB** and `chi_sim.traineddata` is **2.5 MB**. The image also includes `osd.traineddata` (**10.6 MB**) for orientation and script detection, bringing the three trained-data files to about **17.1 MB**. These are on-disk weight sizes (1 MB = 1,000,000 bytes), not runtime memory or the total Docker image size; they may vary with the packaged language data. The files are under `/usr/share/tesseract-ocr/5/tessdata/` inside the image, not under the engine's model root.
+- **Tesseract OCR**: with `ENGINE_OCR_BACKEND=tesseract`, Tesseract and its English (`eng`) and Simplified Chinese (`chi_sim`) language data are already in the engine image; no extra OCR model download or conversion is needed. The default `ppocr` backend needs PP-OCRv6, see [4.8](#48-pp-ocrv6-scanned-pdf-text-recognition). In the current image with Tesseract 5.5.0, the default recognition weights total about **6.6 MB**: `eng.traineddata` is **4.1 MB** and `chi_sim.traineddata` is **2.5 MB**. The image also includes `osd.traineddata` (**10.6 MB**) for orientation and script detection, bringing the three trained-data files to about **17.1 MB**. These are on-disk weight sizes (1 MB = 1,000,000 bytes), not runtime memory or the total Docker image size; they may vary with the packaged language data. The files are under `/usr/share/tesseract-ocr/5/tessdata/` inside the image, not under the engine's model root.
 - **Tokenizer vocabulary**: the `cl100k_base` vocabulary used to count chunk tokens is installed with LlamaIndex and normally needs no preparation. If your installation lacks it, build the cache on a machine with network access, copy it to the runtime host, and set the same `TIKTOKEN_CACHE_DIR` for the engine process:
 
   ```bash

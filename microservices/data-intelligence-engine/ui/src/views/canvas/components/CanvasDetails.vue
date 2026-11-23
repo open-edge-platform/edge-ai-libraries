@@ -50,6 +50,8 @@
           :source="selectedSource"
           :node="node"
           :library-data="libraryData"
+          :content-assets="contentAssets"
+          :content-assets-ready="contentAssetsReady"
           :submit-loading="submitLoading"
           @connect="handleConnect"
           @detach="emit('detach', $event)"
@@ -86,7 +88,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import "vue-json-pretty/lib/styles.css";
-import type { Library } from "@/api/console/type";
+import type { Asset, Library } from "@/api/console/type";
 import type { AssetRow } from "../../assets/AssetProgress";
 import type { CanvasEdge, CanvasNode } from "../Type";
 import CanvasResource from "./CanvasResource.vue";
@@ -103,6 +105,8 @@ const props = defineProps<{
   edge?: CanvasEdge;
   nodeList: CanvasNode[];
   assets: AssetRow[];
+  contentAssets: Asset[];
+  contentAssetsReady: boolean;
   submitLoading: boolean;
 }>();
 const emit = defineEmits<{

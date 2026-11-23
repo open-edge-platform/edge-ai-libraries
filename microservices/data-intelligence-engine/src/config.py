@@ -188,10 +188,17 @@ LAYOUT_SCORE_THRESHOLD = 0.3
 
 # --- OCR (multimodal PDF) -----------------------------------------------------
 # OCR is used only for PDFs without a text layer (`extract_layout`).
-OCR_BACKENDS = ("hybrid", "tesseract", "pdfplumber")
-OCR_BACKEND = "tesseract"
+OCR_BACKENDS = ("hybrid", "tesseract", "pdfplumber", "ppocr")
+OCR_BACKEND = os.getenv("ENGINE_OCR_BACKEND", "ppocr").lower()
 # Tesseract recognition languages (Chinese + English).
 OCR_LANG = "zh_cn+en"
+PPOCR_DET_MODEL_ID = os.getenv("ENGINE_PPOCR_DET_MODEL_ID", "PP-OCRv6_medium_det_onnx")
+PPOCR_REC_MODEL_ID = os.getenv("ENGINE_PPOCR_REC_MODEL_ID", "PP-OCRv6_medium_rec_onnx")
+PPOCR_DEVICE = os.getenv("ENGINE_PPOCR_DEVICE", "GPU")
+PPOCR_DET_LIMIT_SIDE_LEN = 64
+PPOCR_DET_MAX_SIDE_LEN = 4000
+PPOCR_REC_BATCH_SIZE = 6
+PPOCR_DROP_SCORE = 0.5
 
 # Resolution a PDF page is rendered at, for layout detection and figure crops.
 LAYOUT_RENDER_DPI = 150
@@ -244,10 +251,10 @@ VIDEO_SUMMARY_TIMEOUT = 300.0
 
 # --- Retrieval defaults -------------------------------------------------------
 # Used when a request omits `top_k` / `postprocess.top_n`.
-RETRIEVE_TOP_K = 5   # per-method top-k
+RETRIEVE_TOP_K = 10   # per-method top-k
 # Max concepts returned by GET /asset_pools/{pool}/graph (best-connected first).
 GRAPH_VIEW_LIMIT = _env_int("ENGINE_GRAPH_VIEW_LIMIT", 1500)
-RERANK_TOP_N = 3     # final result count
+RERANK_TOP_N = 5     # final result count
 # RRF smoothing constant k in `score += 1/(k + rank + 1)`; not a result count.
 RRF_K = 60.0
 

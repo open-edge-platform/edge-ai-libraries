@@ -19,7 +19,7 @@ Usage: quickstart.sh [options]
 Options:
   --build           Rebuild the engine image (it is always built when missing)
   --model           Prepare the default models:
-                    "gme reranker layout viclip-b whisper media-reranker"
+                    "gme reranker layout ppocr viclip-b whisper media-reranker"
   --models "LIST"   Prepare these models instead; see prepare-models.sh --help
   --cpu             Run every model on the CPU (default: GPU; CPU when the host
                     has no GPU device /dev/dri)
@@ -39,7 +39,7 @@ SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE_DIR="$(cd "$SCRIPTS_DIR/.." && pwd)"
 DOCKER_DIR="$ENGINE_DIR/deployment/docker"
 
-models="gme reranker layout viclip-b whisper media-reranker"
+models="gme reranker layout ppocr viclip-b whisper media-reranker"
 use_gpu=true
 build=false
 prepare=false
@@ -132,7 +132,7 @@ if [[ "$use_gpu" == false ]]; then
   # An existing .env may lack a final newline; appending would join two lines.
   [[ -z "$(tail -c 1 .env)" ]] || echo >> .env
   for key in ENGINE_DOC_EMBEDDING_DEVICE ENGINE_IMAGE_EMBEDDING_DEVICE ENGINE_VIDEO_EMBEDDING_DEVICE \
-             ENGINE_ASR_DEVICE ENGINE_LAYOUT_DEVICE ENGINE_RERANK_DEVICE ENGINE_MEDIA_RERANK_DEVICE; do
+             ENGINE_ASR_DEVICE ENGINE_LAYOUT_DEVICE ENGINE_PPOCR_DEVICE ENGINE_RERANK_DEVICE ENGINE_MEDIA_RERANK_DEVICE; do
     grep -q "^$key=" .env || echo "$key=CPU" >> .env
   done
 fi

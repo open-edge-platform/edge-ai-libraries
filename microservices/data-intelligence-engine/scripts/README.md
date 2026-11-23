@@ -40,7 +40,7 @@ Two scripts here set the engine up rather than call its API:
 | Script | What it does | Guide |
 |---|---|---|
 | `quickstart.sh` | Takes a clean host to a running engine: workspace, `.env`, image (built when missing or with `--build`), models (on the first run or with `--model`/`--models`), Milvus, engine, `local-milvus` registration; `--down` stops and removes the services and keeps the workspace | [Get Started](../docs/user-guide/get-start.md#step-1-deploy) |
-| `prepare-models.sh` | Downloads and converts the models (by default GME, bge-reranker-large, PP-DocLayoutV3, ViCLIP-B, Whisper and the Qwen3-VL INT8 media reranker) in throwaway engine containers | [Prepare models with one script](../docs/user-guide/how-to-guides/how-to-prepare-models.md#prepare-models-with-one-script) |
+| `prepare-models.sh` | Downloads and converts the models (by default GME, bge-reranker-large, PP-DocLayoutV3, PP-OCRv6, ViCLIP-B, Whisper and the Qwen3-VL INT8 media reranker) in throwaway engine containers | [Prepare models with one script](../docs/user-guide/how-to-guides/how-to-prepare-models.md#prepare-models-with-one-script) |
 
 Run either with `--help` for its options.
 

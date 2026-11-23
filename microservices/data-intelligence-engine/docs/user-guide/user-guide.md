@@ -563,6 +563,10 @@ graph retriever's options.
 | `ENGINE_ASR_ENABLED` | `true` | Enable background transcription (`1`, `true`, `yes` are true). |
 | `ENGINE_VIDEO_SUMMARY_BASE_URL` | empty | Optional caption service; empty skips caption-task registration. |
 | `ENGINE_LAYOUT_DEVICE` | `GPU` | Layout inference device. |
+| `ENGINE_OCR_BACKEND` | `ppocr` | OCR backend for scanned PDFs: `ppocr`, `tesseract`, `hybrid` or `pdfplumber`. |
+| `ENGINE_PPOCR_DET_MODEL_ID` | `PP-OCRv6_medium_det_onnx` | PP-OCR text detection model directory under the shared root. |
+| `ENGINE_PPOCR_REC_MODEL_ID` | `PP-OCRv6_medium_rec_onnx` | PP-OCR text recognition model directory under the shared root. |
+| `ENGINE_PPOCR_DEVICE` | `GPU` | PP-OCR inference device. |
 | `ENGINE_RERANK_BACKEND` | `local_openvino` | Backend for a text reranker such as `BAAI/bge-reranker-large`: `local_openvino` or `remote_openai_compatible`. |
 | `ENGINE_RERANK_MODEL_ID` | `Qwen3-VL-Reranker-2B-INT8-OV` | Default reranker when a request sets no `postprocess.reranker_model`: a directory under the shared root. The Qwen3-VL default scores document text, figures, images, video and audio transcripts together; set a text reranker such as `BAAI/bge-reranker-large` to rerank document-only requests with it. |
 | `ENGINE_RERANK_DEVICE` | `GPU` | OpenVINO reranker device. |

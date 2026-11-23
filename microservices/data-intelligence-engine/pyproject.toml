@@ -26,6 +26,7 @@ dependencies = [
 	"pypdfium2",
 	"pdfplumber",
 	"pytesseract",
+	"pyclipper",
 	"PyYAML",
 	"jieba",
 	"requests",

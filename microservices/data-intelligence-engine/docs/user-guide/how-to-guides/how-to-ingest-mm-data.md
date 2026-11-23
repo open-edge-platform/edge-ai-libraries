@@ -40,7 +40,7 @@ proxy for `localhost` themselves; for the `curl` calls below behind a proxy, run
 
 The engine never downloads or converts models at runtime. On its first run
 `quickstart.sh` prepares every model this guide uses: GME, bge-reranker-large,
-PP-DocLayoutV3, ViCLIP-B, Whisper and the Qwen3-VL INT8 media reranker. If your
+PP-DocLayoutV3, PP-OCRv6, ViCLIP-B, Whisper and the Qwen3-VL INT8 media reranker. If your
 models were prepared before that, or you want an alternative such as ViCLIP-L,
 add them with `prepare-models.sh`, which skips models already in place:
 
@@ -61,8 +61,10 @@ its directory under that root, and each weight variant has its own model ID.
 | Audio | Whisper-small → GME, transcript text | `whisper-small/` + GME above |
 | PDFs / OKF document corpus | Native GME, document text and PDF figures | GME above; PDFs also need `PP-DocLayoutV3/pp_doclayout_v3.onnx` |
 
-Scanned PDFs are read with Tesseract, which the engine image includes with
-Chinese and English data.
+Scanned PDFs are read with PP-OCRv6 (`PP-OCRv6_medium_det_onnx/` and
+`PP-OCRv6_medium_rec_onnx/`). Set `ENGINE_OCR_BACKEND=tesseract` to read them
+with Tesseract instead, which the engine image includes with Chinese and
+English data.
 
 ## 2. Create a library
 
