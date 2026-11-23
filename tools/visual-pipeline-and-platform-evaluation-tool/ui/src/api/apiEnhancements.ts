@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { api } from "@/api/api.generated.ts";
 import type { ExportBenchmarkSuiteRunCsvApiArg } from "@/api/api.generated.ts";
 
