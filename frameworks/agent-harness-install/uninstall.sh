@@ -208,7 +208,6 @@ main() {
   metrics_remove_jaeger
   metrics_remove_managed_config
   metrics_receiver_stop
-  metrics_remove_dcode_env_block
   # OpenClaw keeps its config when the CLI is removed; an exporter we enabled would resume after a reinstall.
   if [[ "$(metrics_harness_owner)" == openclaw ]]; then
     ( metrics_disable_openclaw ) \

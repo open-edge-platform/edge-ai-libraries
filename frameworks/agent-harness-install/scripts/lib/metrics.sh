@@ -7,11 +7,11 @@
 #   harness  The installed agent. Hermes uses the hermes-otel plugin (spans and
 #            metrics per turn go to the plugin's local SQLite store and,
 #            optionally, over OTLP to a Jaeger). OpenClaw (diagnostics-otel
-#            plugin) and Deep Agents Code (LangSmith SDK in OTel mode) export
-#            OTLP themselves; for `--backend sqlite` a small loopback OTLP
-#            receiver (metrics-otlp-receiver.py) stores those spans in the same
-#            SQLite layout Hermes uses, for `--backend jaeger` they go straight
-#            to Jaeger. OpenShell sandboxes are not supported (no egress).
+#            plugin) exports OTLP itself; for `--backend sqlite` a small
+#            loopback OTLP receiver (metrics-otlp-receiver.py) stores those
+#            spans in the same SQLite layout Hermes uses, for `--backend jaeger`
+#            they go straight to Jaeger. OpenShell sandboxes are not supported
+#            (no egress).
 #   router   Inference Router. It cannot export OTLP; its telemetry backend is
 #            either "memory" (default, lost on restart) or "file" (JSONL in its
 #            workspace). Both are readable through its /v1/metrics endpoint.
@@ -39,15 +39,12 @@ HARNESS_HERMES_OTEL_REF="${HARNESS_HERMES_OTEL_REF:-}"
 # the installed OpenClaw; set it to any npm spec to override (e.g.
 # @openclaw/diagnostics-otel@2026.9.5).
 HARNESS_OPENCLAW_OTEL_PLUGIN="${HARNESS_OPENCLAW_OTEL_PLUGIN:-}"
-# Loopback port of the OTLP receiver behind `--backend sqlite` for OpenClaw and
-# Deep Agents Code (Jaeger's own OTLP port, 4318, stays free for --backend jaeger).
+# Loopback port of the OTLP receiver behind `--backend sqlite` for OpenClaw
+# (Jaeger's own OTLP port, 4318, stays free for --backend jaeger).
 HARNESS_OTLP_RECEIVER_PORT="${HARNESS_OTLP_RECEIVER_PORT:-4319}"
 # Rows kept by that receiver; the oldest are pruned beyond it.
 HARNESS_OTLP_RECEIVER_MAX_ROWS="${HARNESS_OTLP_RECEIVER_MAX_ROWS:-200000}"
 METRICS_RECEIVER_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/metrics-otlp-receiver.py"
-# Fences around the exporter settings this installer writes into dcode's .env.
-METRICS_ENV_BEGIN="# BEGIN agent-harness-install metrics (managed; edit with './install.sh observability')"
-METRICS_ENV_END="# END agent-harness-install metrics"
 # The Router's JSONL file is rotated to ir_metrics.jsonl.1 (one generation) when
 # the installer next prepares it and it is larger than this many bytes; 0 turns
 # rotation off. The Router re-reads the whole file for every /v1/metrics call.
@@ -248,8 +245,8 @@ metrics_resolve_harness_settings() {
         H_ENDPOINT="http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}/v1/traces"
       fi ;;
   esac
-  # Only the hermes-otel plugin has a preview mode; the other agents' exporters
-  # either send prompt text or not, and the receiver can only shorten it.
+  # Only the hermes-otel plugin has a preview mode; OpenClaw's exporter
+  # either sends prompt text or not, and the receiver can only shorten it.
   if [[ "${M_AGENT:-hermes}" != hermes && "$H_BACKEND" == jaeger && "$H_CONTENT" == preview ]]; then
     error "--content preview needs --backend sqlite for $(agent_display_name "$M_AGENT") (its exporter has no preview mode); use off or full with Jaeger."
   fi
@@ -364,7 +361,7 @@ metrics_remove_jaeger() {
 }
 
 # ---------------------------------------------------------------------------
-# Harness (Hermes, OpenClaw, Deep Agents Code)
+# Harness (Hermes, OpenClaw)
 # ---------------------------------------------------------------------------
 
 metrics_hermes_home() {
@@ -375,17 +372,12 @@ metrics_openclaw_home() {
   printf '%s' "${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
 }
 
-metrics_dcode_home() {
-  printf '%s' "${DEEPAGENTS_HOME:-$HOME/.deepagents}"
-}
-
 # metrics_harness_store <agent> -- SQLite file the agent's spans end up in: the
 # hermes-otel plugin's own store, or the one the OTLP receiver fills.
 metrics_harness_store() {
   case "$1" in
     hermes) printf '%s/hermes_otel_live.db' "$(metrics_hermes_home)" ;;
     openclaw) printf '%s/openclaw_otel_live.db' "$(metrics_openclaw_home)" ;;
-    deepagents-code) printf '%s/dcode_otel_live.db' "$(metrics_dcode_home)" ;;
   esac
 }
 
@@ -394,7 +386,7 @@ metrics_harness_check() {
   M_AGENT="$(resolve_installed_agent)"
   M_SKIP_REASON=""
   case "$M_AGENT" in
-    hermes | openclaw | deepagents-code) ;;
+    hermes | openclaw) ;;
     *)
       M_SKIP_REASON="no telemetry support for the selected harness (${M_AGENT})"
       return 1 ;;
@@ -478,19 +470,11 @@ metrics_write_hermes_otel_config() {
 }
 
 # ---------------------------------------------------------------------------
-# OTLP receiver (OpenClaw / Deep Agents Code with --backend sqlite)
+# OTLP receiver (OpenClaw with --backend sqlite)
 # ---------------------------------------------------------------------------
 
 metrics_receiver_pidfile() { printf '%s/metrics-otlp-receiver.pid' "$(harness_state_root)"; }
 metrics_receiver_logfile() { printf '%s/metrics-otlp-receiver.log' "$(harness_state_root)"; }
-
-# metrics_receiver_agent_key <agent> -- the receiver's name for the agent's span shapes.
-metrics_receiver_agent_key() {
-  case "$1" in
-    deepagents-code) printf 'dcode' ;;
-    *) printf '%s' "$1" ;;
-  esac
-}
 
 # metrics_receiver_pid -- prints the pid of this installer's receiver when it is
 # alive (the pidfile alone is not trusted: the pid may have been reused).
@@ -676,98 +660,6 @@ ${METRICS_OPENCLAW_GATEWAY_HINT}"
   metrics_openclaw_run 120 plugins disable diagnostics-otel >/dev/null 2>&1 || true
 }
 
-# ---------------------------------------------------------------------------
-# Deep Agents Code: LangSmith SDK in OTel mode, configured through dcode's .env
-# ---------------------------------------------------------------------------
-
-metrics_dcode_env_file() { printf '%s/.env' "$(metrics_dcode_home)"; }
-
-metrics_dcode_env_has_block() {
-  [[ -f "$1" ]] && awk -v b="$METRICS_ENV_BEGIN" -v e="$METRICS_ENV_END" '$0 == b { s = 1 } $0 == e && s { f = 1 } END { exit !f }' "$1"
-}
-
-# Fails before any side effect if the .env cannot be written, or already sets
-# tracing variables of its own (a second definition would silently lose).
-metrics_check_dcode_env() {
-  local home env
-  home="$(metrics_dcode_home)"
-  env="$(metrics_dcode_env_file)"
-  [[ ! -L "$home" ]] || error "dcode data directory ${home} is a symlink."
-  [[ ! -L "$env" ]] || error "Refusing to write through a symlink: ${env}"
-  if [[ -f "$env" ]] && ! metrics_dcode_env_has_block "$env" && grep -Fxq -e "$METRICS_ENV_BEGIN" -e "$METRICS_ENV_END" "$env"; then
-    # A lone or reversed marker would make the block swallow the user's lines around it.
-    error "${env} has an incomplete installer block (BEGIN/END markers missing or out of order); repair or remove it and re-run."
-  fi
-  # Always scan what is outside the managed block, so a variable added later is caught too.
-  if [[ -f "$env" ]] \
-    && metrics_strip_dcode_env_block "$env" \
-      | grep -Eq '^[[:space:]]*(export[[:space:]]+)?(LANGSMITH_|OTEL_)[A-Za-z0-9_]*[[:space:]]*='; then
-    error "${env} already sets LANGSMITH_*/OTEL_* variables that this installer did not write; move them aside and re-run."
-  fi
-}
-
-# metrics_strip_dcode_env_block <file> -- the file without the managed block.
-metrics_strip_dcode_env_block() {
-  awk -v b="$METRICS_ENV_BEGIN" -v e="$METRICS_ENV_END" '$0 == b { skip = 1; next } $0 == e { skip = 0; next } !skip { print }' "$1"
-}
-
-# metrics_write_env_file <file> <content> -- atomic, owner-only. atomic_write_file
-# cannot be used: it only accepts paths inside the installer's state directory.
-metrics_write_env_file() {
-  local file="$1" tmp
-  tmp="$(mktemp "${file}.tmp.XXXXXX")"
-  chmod 600 "$tmp"
-  printf '%s\n' "$2" >"$tmp" || { rm -f "$tmp"; error "Could not write ${file}."; }
-  mv -f "$tmp" "$file" || { rm -f "$tmp"; error "Could not replace ${file}."; }
-}
-
-# Removes the managed block (and the file, if nothing else is left in it).
-metrics_remove_dcode_env_block() {
-  local env rest
-  env="$(metrics_dcode_env_file)"
-  [[ ! -L "$(metrics_dcode_home)" && -f "$env" && ! -L "$env" ]] || return 0
-  metrics_dcode_env_has_block "$env" || return 0
-  rest="$(metrics_strip_dcode_env_block "$env")"
-  if [[ -z "${rest//[[:space:]]/}" ]]; then
-    rm -f -- "$env"
-  else
-    metrics_write_env_file "$env" "$rest"
-  fi
-}
-
-# metrics_write_dcode_env <backend> <endpoint> <content>
-metrics_write_dcode_env() {
-  local backend="$1" endpoint="$2" content="$3" env base rest block
-  metrics_check_dcode_env
-  env="$(metrics_dcode_env_file)"
-  mkdir -p -- "$(metrics_dcode_home)"
-  base="$(metrics_agent_otlp_base "$backend" "$endpoint")"
-  # The LangSmith SDK only switches to its OpenTelemetry exporter when it has
-  # an API key; nothing is sent to LangSmith, so the value is a placeholder.
-  block="${METRICS_ENV_BEGIN}
-LANGSMITH_TRACING=true
-LANGSMITH_TRACING_MODE=otel
-LANGSMITH_API_KEY=agent-harness-install-placeholder
-OTEL_EXPORTER_OTLP_ENDPOINT=${base}
-OTEL_SERVICE_NAME=dcode
-OTEL_BSP_SCHEDULE_DELAY=200"
-  if [[ "$content" == off ]]; then
-    block+="
-LANGSMITH_HIDE_INPUTS=true
-LANGSMITH_HIDE_OUTPUTS=true"
-  fi
-  block+="
-${METRICS_ENV_END}"
-  rest=""
-  if [[ -f "$env" ]]; then rest="$(metrics_strip_dcode_env_block "$env")"; fi
-  if [[ -n "${rest//[[:space:]]/}" ]]; then
-    metrics_write_env_file "$env" "${rest}
-${block}"
-  else
-    metrics_write_env_file "$env" "$block"
-  fi
-}
-
 # metrics_harness_owner -- the agent whose exporter this installer has enabled
 # (empty when none). State from before agents were recorded means Hermes.
 metrics_harness_owner() {
@@ -803,9 +695,6 @@ metrics_enable_harness_preflight() {
       command_exists openclaw || error "OpenClaw CLI not found on PATH. Install it first: ./install.sh --harness openclaw --model <model>"
       command_exists timeout || error "'timeout' (coreutils) is required."
       metrics_check_openclaw_otel_config ;;
-    deepagents-code)
-      command_exists dcode || error "dcode not found on PATH. Install it first: ./install.sh --harness deepagents-code --model <model>"
-      metrics_check_dcode_env ;;
   esac
   metrics_resolve_harness_settings
   if [[ "$M_AGENT" == hermes ]]; then
@@ -850,18 +739,14 @@ metrics_enable_harness() {
   fi
   case "$M_AGENT" in
     hermes) metrics_write_hermes_otel_config "$backend" "$endpoint" "$content" "$managed" ;;
-    openclaw | deepagents-code)
+    openclaw)
       # Recorded before the first change, so a failed enable can still be disabled.
-      if [[ "$M_AGENT" == openclaw ]]; then metrics_state_set harness.enabled true harness.agent openclaw; fi
+      metrics_state_set harness.enabled true harness.agent openclaw
       # The receiver is up before the agent is pointed at it, so no span is lost.
       if [[ "$backend" == sqlite ]]; then
-        metrics_receiver_start "$(metrics_receiver_agent_key "$M_AGENT")" "$(metrics_harness_store "$M_AGENT")" "$content"
+        metrics_receiver_start "$M_AGENT" "$(metrics_harness_store "$M_AGENT")" "$content"
       fi
-      if [[ "$M_AGENT" == openclaw ]]; then
-        metrics_write_openclaw_otel_config "$backend" "$endpoint" "$content"
-      else
-        metrics_write_dcode_env "$backend" "$endpoint" "$content"
-      fi
+      metrics_write_openclaw_otel_config "$backend" "$endpoint" "$content"
       if [[ "$backend" != sqlite ]]; then metrics_receiver_stop; fi ;;
   esac
   kept=false
@@ -886,9 +771,6 @@ Then start a new session and verify with: ./install.sh observability show --targ
     openclaw)
       info "Start (or restart) the OpenClaw Gateway to apply this: only the running Gateway exports spans, 'openclaw agent --local' does not.
 Then send a message and verify with: ./install.sh observability show --target harness" ;;
-    deepagents-code)
-      info "New dcode sessions export spans (dcode reads $(metrics_dcode_env_file)); restart any running session.
-Verify with: ./install.sh observability show --target harness" ;;
   esac
 }
 
@@ -924,7 +806,6 @@ metrics_disable_harness() {
   case "$M_AGENT" in
     hermes) metrics_disable_hermes ;;
     openclaw) metrics_disable_openclaw ;;
-    deepagents-code) metrics_remove_dcode_env_block ;;
   esac
   if [[ "$M_AGENT" != hermes ]]; then metrics_receiver_stop; fi
   if [[ "$(metrics_state_get harness.managed_jaeger)" == true || "$(metrics_state_get harness.kept_jaeger)" == true ]]; then
@@ -951,7 +832,6 @@ metrics_disable_harness() {
   case "$M_AGENT" in
     hermes) info "Restart running Hermes sessions/gateways to apply." ;;
     openclaw) info "Restart the OpenClaw Gateway to apply." ;;
-    deepagents-code) info "Restart running dcode sessions to apply." ;;
   esac
 }
 
@@ -1074,7 +954,7 @@ Run 'hermes gateway restart', start a new session, and check again."
 }
 
 metrics_show_harness_agent() {
-  local home="$1" plugin_line cfg
+  local home="$1" plugin_line
   case "$M_AGENT" in
     hermes)
       if [[ -d "${home}/plugins/hermes_otel" ]]; then
@@ -1099,13 +979,6 @@ metrics_show_harness_agent() {
         info "diagnostics.otel.enabled: $(metrics_openclaw_run 60 config get diagnostics.otel.enabled --json 2>/dev/null || echo unknown)"
       else
         info "OpenClaw CLI not found on PATH"
-      fi ;;
-    deepagents-code)
-      cfg="$(metrics_dcode_env_file)"
-      if metrics_dcode_env_has_block "$cfg"; then
-        info "Exporter settings: ${cfg}"
-      else
-        info "No exporter settings in ${cfg}"
       fi ;;
   esac
 }

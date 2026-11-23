@@ -774,17 +774,15 @@ show_does_not_summarise_a_stale_store_under_jaeger() {
   refute grep -Fq 'no records yet' <<<"$out"
 }
 
-# agent_fixture <agent> -- fixture with stub OpenClaw/dcode executables (the exporter
+# agent_fixture <agent> -- fixture with a stub OpenClaw executable (the exporter
 # commands run under `timeout`, which cannot call shell functions) and no real receiver.
 agent_fixture() {
   fixture
   HARNESS_AGENT="$1"
   OPENCLAW_STATE_DIR="$HOME/openclaw"
-  DEEPAGENTS_HOME="$HOME/dcode"
-  export ACTIONS OPENCLAW_STATE_DIR DEEPAGENTS_HOME
-  mkdir -p "$HOME/bin" "$OPENCLAW_STATE_DIR" "$DEEPAGENTS_HOME"
+  export ACTIONS OPENCLAW_STATE_DIR
+  mkdir -p "$HOME/bin" "$OPENCLAW_STATE_DIR"
   PATH="$HOME/bin:$PATH"
-  printf '#!/usr/bin/env bash\nexit 0\n' >"$HOME/bin/dcode"
   cat >"$HOME/bin/openclaw" <<'STUB'
 #!/usr/bin/env bash
 d="$HOME/oc-stub"; mkdir -p "$d"
@@ -807,7 +805,7 @@ case "$1 ${2:-}" in
   'config get') if [[ "$3" == diagnostics.otel.enabled && -f "$d/otel" ]]; then cat "$d/otel"; else exit "${OC_GET_RC:-1}"; fi ;;
 esac
 STUB
-  chmod +x "$HOME/bin/dcode" "$HOME/bin/openclaw"
+  chmod +x "$HOME/bin/openclaw"
   installed_npm_global_version() { printf '2026.9.5'; }
   metrics_receiver_start() { printf 'receiver start %s %s %s\n' "$1" "$2" "$3" >>"$ACTIONS"; }
   metrics_receiver_stop() { printf 'receiver stop\n' >>"$ACTIONS"; }
@@ -856,58 +854,6 @@ openclaw_jaeger_and_foreign_exporter() {
   refute grep -Fq 'receiver start' "$ACTIONS"
 }
 
-dcode_env_block_lifecycle() {
-  agent_fixture deepagents-code
-  local env="$DEEPAGENTS_HOME/.env"
-  printf 'USER_KEY=keep\n' >"$env"
-  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
-  metrics_enable_harness
-  grep -Fxq 'USER_KEY=keep' "$env"
-  grep -Fxq 'LANGSMITH_TRACING_MODE=otel' "$env"
-  grep -Fxq "OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:${HARNESS_OTLP_RECEIVER_PORT}" "$env"
-  grep -Fxq 'LANGSMITH_HIDE_INPUTS=true' "$env"
-  grep -Fxq 'LANGSMITH_HIDE_OUTPUTS=true' "$env"
-  [[ "$(stat -c %a "$env")" == 600 ]]
-  grep -Fxq "receiver start dcode $DEEPAGENTS_HOME/dcode_otel_live.db off" "$ACTIONS"
-  # Re-enabling replaces the block instead of adding a second one.
-  M_BACKEND=jaeger M_CONTENT=full
-  metrics_enable_harness
-  [[ "$(grep -Fxc "$METRICS_ENV_BEGIN" "$env")" == 1 ]]
-  grep -Fxq "OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}" "$env"
-  refute grep -Fq 'LANGSMITH_HIDE' "$env"
-  grep -Fxq 'receiver stop' "$ACTIONS"
-  metrics_disable_harness
-  [[ "$(cat "$env")" == USER_KEY=keep ]]
-  [[ "$(metrics_state_get harness.enabled)" == false ]]
-  # A file that held only the block goes away with it.
-  rm -f "$env"
-  M_BACKEND=sqlite M_CONTENT=off
-  metrics_enable_harness
-  [[ -f "$env" ]]
-  metrics_disable_harness
-  [[ ! -e "$env" ]]
-}
-
-dcode_refuses_foreign_env() {
-  agent_fixture deepagents-code
-  local env="$DEEPAGENTS_HOME/.env"
-  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
-  printf 'LANGSMITH_TRACING=true\n' >"$env"
-  expect_failure 'did not write' metrics_enable_harness
-  [[ "$(cat "$env")" == LANGSMITH_TRACING=true ]]
-  refute grep -Fq 'receiver start' "$ACTIONS"
-  rm -f "$env"
-  printf 'keep\n' >"$HOME/elsewhere"
-  ln -s "$HOME/elsewhere" "$env" || { echo "# skipped: symlinks unavailable"; return 0; }
-  expect_failure 'symlink' metrics_enable_harness
-  [[ "$(cat "$HOME/elsewhere")" == keep ]]
-  # Variables outside an existing managed block, with or without spaces before '=', are refused too.
-  rm -f "$env"
-  metrics_enable_harness
-  printf 'OTEL_SERVICE_NAME = mine\n' >>"$env"
-  expect_failure 'did not write' metrics_enable_harness
-}
-
 openclaw_disable_needs_installer_ownership() {
   agent_fixture openclaw
   mkdir -p "$HOME/oc-stub"
@@ -921,20 +867,21 @@ openclaw_disable_needs_installer_ownership() {
 }
 
 only_one_harness_exporter_is_recorded() {
-  agent_fixture deepagents-code
+  agent_fixture openclaw
   local out
   M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  M_AGENT=hermes
   metrics_enable_harness
-  # Another agent cannot be enabled while dcode's exporter is on.
+  # Another agent cannot be enabled while Hermes's exporter is on.
   M_AGENT=openclaw
-  expect_failure 'enabled for Deep Agents Code' metrics_enable_harness
+  expect_failure 'enabled for Hermes' metrics_enable_harness
   refute grep -Fq 'openclaw install' "$ACTIONS"
   # Show and disable follow the recorded owner, whichever agent is selected.
   out="$(metrics_show_harness 2>&1)"
-  grep -Fq 'Enabled for Deep Agents Code' <<<"$out"
+  grep -Fq 'Enabled for Hermes' <<<"$out"
   M_AGENT=openclaw
   metrics_disable_harness
-  refute grep -Fq 'LANGSMITH_TRACING' "$DEEPAGENTS_HOME/.env" 2>/dev/null
+  grep -Fxq 'hermes disable' "$ACTIONS"
   [[ "$(metrics_state_get harness.enabled)" == false ]]
   M_AGENT=openclaw
   metrics_enable_harness
@@ -993,18 +940,6 @@ openclaw_disable_turns_content_capture_off() {
   : >"$ACTIONS"
   metrics_disable_harness
   grep -Fxq 'openclaw config set diagnostics.otel.captureContent false' "$ACTIONS"
-}
-
-dcode_refuses_incomplete_marker_block() {
-  agent_fixture deepagents-code
-  local env="$DEEPAGENTS_HOME/.env"
-  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
-  printf 'USER_KEY=keep\n%s\nOTEL_SERVICE_NAME=mine\n' "$METRICS_ENV_BEGIN" >"$env"
-  expect_failure 'incomplete installer block' metrics_enable_harness
-  printf 'USER_KEY=keep\n%s\nOTEL_X=1\n%s\n' "$METRICS_ENV_END" "$METRICS_ENV_BEGIN" >"$env"
-  expect_failure 'incomplete installer block' metrics_enable_harness
-  grep -Fxq 'USER_KEY=keep' "$env"
-  refute grep -Fq 'receiver start' "$ACTIONS"
 }
 
 receiver_stores_filtered_spans() {
@@ -1121,13 +1056,6 @@ for content in ("off", "preview", "full"):
     else:
         assert "x" * 500 in run_row[3] and "y" * 500 in run_row[3]
 
-dc = request(
-    span("agent", {}),
-    span("ChatOpenAI", {"langsmith.span.kind": "llm"}, parent=b"\x02" * 8),
-    span("Middleware.before_agent", {"langsmith.span.kind": "chain"}, parent=b"\x02" * 8),
-)
-got = run("dcode", "off", lambda port: post(port, dc) == 200 or sys.exit("post failed"))
-assert [r[0] for r in got] == ["agent", "ChatOpenAI"], got
 print("receiver ok")
 PY
 }
@@ -1188,8 +1116,6 @@ run_case '--target all validates up front and reverts the Router if the harness 
 run_case '--target all disable still disables the Router when the harness cannot be disabled' all_target_disable_reaches_the_router_after_a_harness_failure
 run_case 'OpenClaw plugin lifecycle: install once, re-enable after disable, receiver follows the backend' openclaw_enable_disable
 run_case 'OpenClaw with Jaeger, preview rejected, a foreign diagnostics exporter is never overwritten' openclaw_jaeger_and_foreign_exporter
-run_case 'dcode .env block is managed, replaced in place and removed without touching user lines' dcode_env_block_lifecycle
-run_case 'dcode refuses a .env with its own tracing variables or a symlink' dcode_refuses_foreign_env
 run_case 'OTLP receiver decodes, filters and stores spans per agent and content mode' receiver_stores_filtered_spans
 run_case 'OpenClaw disable only touches an exporter this installer enabled' openclaw_disable_needs_installer_ownership
 run_case 'one harness exporter is recorded; enable for another agent is refused and disable follows the owner' only_one_harness_exporter_is_recorded
@@ -1198,5 +1124,4 @@ run_case 'an unknown OpenClaw version is refused instead of guessed' openclaw_un
 run_case 'OpenClaw plugin install retries from npm when ClawHub fails' openclaw_install_falls_back_to_npm
 run_case 'a timed-out OpenClaw foreign-exporter check fails closed' openclaw_foreign_check_times_out_closed
 run_case 'OpenClaw disable also turns content capture off' openclaw_disable_turns_content_capture_off
-run_case 'dcode refuses an incomplete or reversed marker block' dcode_refuses_incomplete_marker_block
 finish_tests
