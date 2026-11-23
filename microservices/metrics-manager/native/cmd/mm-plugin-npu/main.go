@@ -25,6 +25,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -101,13 +102,22 @@ func run(interval time.Duration, once bool, sysfsRoot, hostname, destination str
 	defer signal.Stop(stop)
 
 	collector, err := npu.NewCollector(sysfsRoot, hostname)
-	if err != nil {
+	for err != nil {
 		// -once is a diagnostic run, so report the reason and fail rather than
 		// hanging on a machine the operator is inspecting by hand.
 		if once {
 			return err
 		}
-		return idle(stop, err)
+		if !errors.Is(err, npu.ErrInitialSample) {
+			return idle(stop, err)
+		}
+		fmt.Fprintln(os.Stderr, "mm-plugin-npu: retrying initial sample:", err)
+		select {
+		case <-stop:
+			return nil
+		case <-time.After(interval):
+		}
+		collector, err = npu.NewCollector(sysfsRoot, hostname)
 	}
 
 	fmt.Fprintf(os.Stderr, "mm-plugin-npu: %s NPU detected (utilisation: %t, memory usage: %t)\n",

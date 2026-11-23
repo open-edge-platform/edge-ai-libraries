@@ -15,8 +15,8 @@ deployment options.
 |----------|---------|
 | Local chart | `2026.3.0-helm` |
 | Default application image | `intel/metrics-manager:2026.3.0` |
-| Default RC image for validation | `intel/metrics-manager:2026.3.0-rc1` |
-| Extended RC image for validation | `intel/metrics-manager:2026.3.0-extended-rc1` |
+| Default RC image for validation | `intel/metrics-manager:2026.3.0-rc2` |
+| Extended RC image for validation | `intel/metrics-manager:2026.3.0-extended-rc2` |
 
 The chart version is independent of the application `VERSION` file.
 `make helm-package` reads `Chart.yaml`; `make bump` does not update it.
@@ -54,12 +54,12 @@ drop-ins remain read-only; the image prepares its active snapshot under `/tmp`.
 ```bash
 helm lint ./helm/metrics-manager
 helm template metrics-manager ./helm/metrics-manager \
-  --namespace observability --set image.tag=2026.3.0-rc1
+  --namespace observability --set image.tag=2026.3.0-rc2
 
 # Run only against your intended, approved cluster/context.
 helm install metrics-manager ./helm/metrics-manager \
   --namespace observability --create-namespace \
-  --set image.tag=2026.3.0-rc1 --wait --timeout 5m
+  --set image.tag=2026.3.0-rc2 --wait --timeout 5m
 ```
 
 `--wait` checks Kubernetes readiness, not the availability of every hardware
@@ -76,7 +76,7 @@ remain unavailable; the chart cannot create hardware support.
 ```bash
 helm install metrics-manager ./helm/metrics-manager \
   --namespace observability --create-namespace \
-  --set image.tag=2026.3.0-rc1 \
+  --set image.tag=2026.3.0-rc2 \
   --set controller.kind=DaemonSet \
   --set hardware.telemetry.enabled=true \
   --wait --timeout 5m
@@ -156,7 +156,7 @@ host filesystem. No whole-host root filesystem mount is added by the chart.
 
 ```bash
 helm template metrics-manager ./helm/metrics-manager \
-  --set image.tag=2026.3.0-rc1 \
+  --set image.tag=2026.3.0-rc2 \
   --set-file telegraf.config=./my-telegraf.conf
 ```
 
@@ -235,7 +235,7 @@ Do not use `--reuse-values`, which can retain removed keys:
 ```bash
 helm upgrade metrics-manager ./helm/metrics-manager \
   --namespace observability --reset-values \
-  -f migrated-values.yaml --set image.tag=2026.3.0-rc1 \
+  -f migrated-values.yaml --set image.tag=2026.3.0-rc2 \
   --wait --timeout 5m
 ```
 

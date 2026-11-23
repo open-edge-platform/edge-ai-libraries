@@ -15,11 +15,16 @@ End-to-end Docker-based tests are documented at the bottom of this file.
 """
 
 import configparser
+import os
+import shlex
+import subprocess
 import tomllib
 from pathlib import Path
 
 import pytest
 import yaml
+
+from docker_collectors import ConfigurationError, validate_environment
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TELEGRAF_CONF = REPO_ROOT / "telegraf.conf"
@@ -28,6 +33,37 @@ SUPERVISORD_CONF = REPO_ROOT / "supervisord.conf"
 DOCKERFILE = REPO_ROOT / "Dockerfile"
 ENTRYPOINT = REPO_ROOT / "entrypoint.sh"
 QMASSA_UNIT = REPO_ROOT / "native/packaging/systemd/metrics-manager-qmassa.service"
+
+
+@pytest.mark.parametrize("value", [None, "", "0", "30s"])
+def test_expiration_environment_guards(value):
+    environment = dict(os.environ)
+    environment.pop("TELEGRAF_EXPIRATION_INTERVAL", None)
+    if value is not None:
+        environment["TELEGRAF_EXPIRATION_INTERVAL"] = value
+    if value == "":
+        with pytest.raises(ConfigurationError, match="TELEGRAF_EXPIRATION_INTERVAL"):
+            validate_environment({"TELEGRAF_EXPIRATION_INTERVAL": value})
+    else:
+        validate_environment({} if value is None else {"TELEGRAF_EXPIRATION_INTERVAL": value})
+
+    unit = REPO_ROOT / "native/packaging/systemd/metrics-manager-telegraf.service"
+    command = next(
+        line.removeprefix("ExecStartPre=")
+        for line in unit.read_text().splitlines()
+        if line.startswith("ExecStartPre=") and "TELEGRAF_EXPIRATION_INTERVAL" in line
+    )
+    # systemd turns $$ into a literal dollar before invoking the command.
+    result = subprocess.run(
+        shlex.split(command.replace("$$", "$")),
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert (result.returncode == 0) == (value != "")
+    if value == "":
+        assert "TELEGRAF_EXPIRATION_INTERVAL must not be empty" in result.stderr
 
 
 @pytest.fixture(scope="module")

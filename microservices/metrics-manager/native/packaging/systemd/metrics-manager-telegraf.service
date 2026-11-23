@@ -12,6 +12,7 @@ Type=simple
 User=metrics-manager
 Group=metrics-manager
 EnvironmentFile=/etc/metrics-manager/metrics-manager.env
+ExecStartPre=/bin/sh -c 'test -n "$${TELEGRAF_EXPIRATION_INTERVAL-60s}" || { echo "TELEGRAF_EXPIRATION_INTERVAL must not be empty; use 0 to disable expiration" >&2; exit 1; }'
 
 # A socket left behind by a crash would make the bind fail, and Telegraf does
 # not clear it itself.
