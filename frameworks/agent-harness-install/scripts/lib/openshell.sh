@@ -594,7 +594,7 @@ _install_openshell_agent() {
     pin_args=(--build-arg "HERMES_PINNED_COMMIT=$HERMES_PINNED_COMMIT" --build-arg "HERMES_PINNED_SHA256=$HERMES_PINNED_SHA256")
   fi
   if [[ "$agent" == hermes ]]; then
-    # The sandbox has no egress, so its telemetry plugin is installed into the image.
+    # The default sandbox policy denies registry egress, so its telemetry plugin is installed into the image.
     if declare -F metrics_check_plugin_source >/dev/null; then
       HARNESS_HERMES_OTEL_PLUGIN="${HARNESS_HERMES_OTEL_PLUGIN:-hermes_otel}" metrics_check_plugin_source
     fi

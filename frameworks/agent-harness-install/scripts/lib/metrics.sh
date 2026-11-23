@@ -13,7 +13,7 @@
 #            SQLite layout Hermes uses, for `--backend jaeger` they go straight
 #            to Jaeger. With --runtime openshell the exporter is configured
 #            inside the sandbox (the sandbox image carries the exporter, since
-#            the sandbox has no general egress; for Hermes the hermes-otel
+#            the default sandbox policy allows no egress to a collector; for Hermes the hermes-otel
 #            plugin is baked in and switched through its hermes_otel.yaml) and
 #            a hot-loaded policy rule lets it reach the host receiver or Jaeger
 #            through host.openshell.internal.

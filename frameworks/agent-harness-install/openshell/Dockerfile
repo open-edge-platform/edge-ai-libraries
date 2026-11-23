@@ -21,11 +21,11 @@ ENV PATH=/home/node/.local/bin:/usr/local/bin:/usr/bin:/bin
 RUN bash -euc 'for lib in colors verify state sudo shim nodejs agents; do source /opt/harness/lib/$lib.sh; done; \
     case "$1" in openclaw) install_openclaw ;; deepagents-code) install_dcode ;; hermes) install_hermes ;; *) error "Unsupported sandbox agent" ;; esac' \
     _ "$HARNESS_AGENT"
-# The sandbox has no egress, so OpenClaw's exporter plugin is fetched at build time; agent-start.sh links it into the sandbox home.
+# The default sandbox policy denies registry egress, so OpenClaw's exporter plugin is fetched at build time; agent-start.sh links it into the sandbox home.
 RUN if [ "$HARNESS_AGENT" = openclaw ]; then bash -euc 'for lib in colors verify state sudo shim nodejs agents; do source /opt/harness/lib/$lib.sh; done; \
     openclaw plugins install "npm:@openclaw/diagnostics-otel@$(installed_npm_global_version openclaw)" --accept-capabilities </dev/null; \
     rm -rf "$HOME/.openclaw/openclaw.json" "$HOME/.openclaw/state" "$HOME/.openclaw/config-journal-fingerprint.key"'; fi
-# Hermes's plugin enable resolves Python dependencies over the network, which the sandbox cannot do. So the
+# Hermes's plugin enable resolves Python dependencies over the network, which the default sandbox policy denies. So the
 # hermes-otel plugin is installed and enabled here, and kept silent by a hermes_otel.yaml with enabled: false
 # (written below); 'observability enable' only rewrites that file.
 RUN if [ "$HARNESS_AGENT" = hermes ]; then bash -euc 'export HERMES_HOME=/home/node/.hermes; \

@@ -333,15 +333,16 @@ installed). Each agent keeps its own exporter; the installer only configures it.
 
 Harness telemetry also works inside an OpenShell sandbox for all three harnesses:
 pass `--runtime openshell` (and `--harness <agent>`)
-to `observability`; otherwise the runtime defaults to `host`. The sandbox has no
-general network egress, so the exporter is built into the sandbox image and
+to `observability`; otherwise the runtime defaults to `host`. The sandbox's
+default policy does not allow egress to a collector or to package registries, so
+the exporter is built into the sandbox image and
 `enable` adds one policy rule that lets the agent reach only the host collector
 (the receiver for `sqlite`, the managed Jaeger for `jaeger`) through
 `host.openshell.internal`; `disable` removes it. The collected data stays on the
 host. Enabling or disabling OpenClaw restarts its sandbox so the gateway reloads
 its settings; Deep Agents Code only needs a new session. For Hermes the
-`hermes-otel` plugin is installed and enabled in the image (enabling needs the
-network) but kept silent by a `hermes_otel.yaml` with `enabled: false`; `enable`
+`hermes-otel` plugin is installed and enabled in the image (enabling downloads
+Python dependencies, which the default policy does not allow) but kept silent by a `hermes_otel.yaml` with `enabled: false`; `enable`
 rewrites that file inside the sandbox and stops the Hermes gateway process there,
 which the next turn starts again with the new settings. With `--backend sqlite`
 the host receiver stores Hermes's spans in
