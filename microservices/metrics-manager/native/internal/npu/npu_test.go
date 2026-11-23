@@ -112,11 +112,10 @@ func TestReadExtractsBitFields(t *testing.T) {
 	})}
 
 	tests := []struct {
-		name          string
-		offset        uint
-		msb, lsb      uint
-		want          uint64
-		wantOverBound bool
+		name     string
+		offset   uint
+		msb, lsb uint
+		want     uint64
 	}{
 		{name: "low byte", offset: 0, msb: 7, lsb: 0, want: 0x10},
 		{name: "second byte", offset: 0, msb: 15, lsb: 8, want: 0x32},
@@ -124,7 +123,6 @@ func TestReadExtractsBitFields(t *testing.T) {
 		{name: "bits 47:40", offset: 0, msb: 47, lsb: 40, want: 0xBA},
 		{name: "full width", offset: 0, msb: 63, lsb: 0, want: 0xFEDCBA9876543210},
 		{name: "low half", offset: 0, msb: 31, lsb: 0, want: 0x76543210},
-		{name: "past the end of the buffer", offset: 4096, msb: 63, lsb: 0, want: 0},
 	}
 
 	for _, tt := range tests {
@@ -133,17 +131,6 @@ func TestReadExtractsBitFields(t *testing.T) {
 				t.Errorf("read(%d, %d, %d) = %#x, want %#x", tt.offset, tt.msb, tt.lsb, got, tt.want)
 			}
 		})
-	}
-}
-
-// TestReadTruncatedContainer covers a container that starts inside the buffer
-// but extends past its end, which the Python implementation handled by
-// slicing whatever bytes were present.
-func TestReadTruncatedContainer(t *testing.T) {
-	telemetry := &Telemetry{buffer: []byte{0x11, 0x22, 0x33}}
-
-	if got, want := telemetry.read(0, 63, 0), uint64(0x332211); got != want {
-		t.Errorf("read(0, 63, 0) = %#x, want %#x", got, want)
 	}
 }
 
@@ -232,9 +219,9 @@ func TestCollectBaseUnits(t *testing.T) {
 	start := time.Unix(0, 1725062400000000000)
 	collector.prevTime = start
 	collector.now = func() time.Time { return start.Add(time.Second) }
-	collector.prevEnergy = 6.0    // 4 J over 1 s -> 4.000 W
-	collector.prevBandwidth = 0.0 // 128.750 MB/s
-	collector.prevBusyUS = 0      // 1000 us over 1 s -> 0 %
+	collector.prevEnergy = 6.0 // 4 J over 1 s -> 4.000 W
+	collector.prevBandwidth = 0
+	collector.prevBusyUS = 0 // 1000 us over 1 s -> 0 %
 
 	points, err := collector.Collect()
 	if err != nil {
@@ -249,8 +236,8 @@ func TestCollectBaseUnits(t *testing.T) {
 		t.Fatalf("Append() error: %v", err)
 	}
 
-	want := "npu,host=test-host power_w=4,frequency_hz=1000000000,temperature_c=45i," +
-		"bandwidth_bytes_per_second=128750000,tile_config=2i,utilization=0i,memory_bytes=536870912,power_state=-1i 1725062401000000000\n"
+	want := "npu,host=test-host frequency_hz=1000000000,temperature_c=45i,tile_config=2i," +
+		"power_w=4,bandwidth_bytes_per_second=131840000,utilization=0i,memory_bytes=536870912,power_state=-1i 1725062401000000000\n"
 	if got := string(rendered); got != want {
 		t.Errorf("Collect()\n got: %s\nwant: %s", got, want)
 	}
@@ -259,15 +246,15 @@ func TestCollectBaseUnits(t *testing.T) {
 func TestBandwidthRateAndRollover(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
-		previous float64
+		previous uint32
 		raw      uint64
 		interval time.Duration
 		want     string
 	}{
-		{"two seconds", 90e6, 100_000, 2 * time.Second, "bandwidth_bytes_per_second=5000000,"},
-		{"half second", 90e6, 100_000, time.Second / 2, "bandwidth_bytes_per_second=20000000,"},
-		{"wrap", float64(uint64(1)<<32)*1e3 - 5e6, 10_000, time.Second, "bandwidth_bytes_per_second=15000000,"},
-		{"idle", 100e6, 100_000, time.Second, "bandwidth_bytes_per_second=0,"},
+		{"two seconds", 90_000, 100_000, 2 * time.Second, "bandwidth_bytes_per_second=5120000,"},
+		{"half second", 90_000, 100_000, time.Second / 2, "bandwidth_bytes_per_second=20480000,"},
+		{"wrap", ^uint32(0) - 4_999, 10_000, time.Second, "bandwidth_bytes_per_second=15360000,"},
+		{"idle", 100_000, 100_000, time.Second, "bandwidth_bytes_per_second=0,"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			regs := registerSets[GenPTL]
@@ -441,7 +428,6 @@ func TestCollectorUtilisation(t *testing.T) {
 		{name: "half busy", prevBusy: 0, currBusy: "500000", elapsed: time.Second, want: "utilization=50i"},
 		{name: "fully busy", prevBusy: 0, currBusy: "1000000", elapsed: time.Second, want: "utilization=100i"},
 		{name: "capped above 100", prevBusy: 0, currBusy: "5000000", elapsed: time.Second, want: "utilization=100i"},
-		{name: "counter reset", prevBusy: 9000000, currBusy: "10", elapsed: time.Second, want: "utilization=0i"},
 		{name: "idle", prevBusy: 500, currBusy: "500", elapsed: time.Second, want: "utilization=0i"},
 	}
 
@@ -564,5 +550,161 @@ func TestNewCollectorFailsWithoutDriver(t *testing.T) {
 
 	if _, err := NewCollector(root, "h"); err == nil {
 		t.Error("NewCollector() succeeded without an intel_vpu device, want an error")
+	}
+}
+
+func TestBandwidthPlatformScaling(t *testing.T) {
+	for _, tt := range []struct {
+		guid string
+		gen  CPUGen
+		want string
+	}{
+		{"0x130670b2", GenMTL, "bandwidth_bytes_per_second=10000,"},
+		{"0x1306a0b3", GenARL, "bandwidth_bytes_per_second=10000,"},
+		{"0x3072005", GenLNL, "bandwidth_bytes_per_second=10240,"},
+		{"0x3086000", GenPTL, "bandwidth_bytes_per_second=10240,"},
+	} {
+		t.Run(tt.gen.String(), func(t *testing.T) {
+			regs := registerSets[tt.gen]
+			root := buildNPUSysfs(t, tt.guid, telemetryBuffer(4096, map[int]uint64{
+				regs.memoryBW: 100,
+				0xc20:         999,
+			}), "", "")
+			c, err := NewCollector(root, "h")
+			if err != nil {
+				t.Fatal(err)
+			}
+			start := c.prevTime
+			c.now = func() time.Time { return start.Add(time.Second) }
+			writeFile(t, c.telemetry.path, telemetryBuffer(4096, map[int]uint64{
+				regs.memoryBW: 110,
+				0xc20:         1, // D0-entry counter, not bandwidth, even when it decreases.
+			}))
+			points, err := c.Collect()
+			if err != nil {
+				t.Fatal(err)
+			}
+			line, err := points[0].Append(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(line), tt.want) {
+				t.Fatalf("got %s, want %s", line, tt.want)
+			}
+		})
+	}
+}
+
+func TestIncompleteSnapshotPreservesBaselineAndRecovers(t *testing.T) {
+	for _, tt := range []struct {
+		guid   string
+		gen    CPUGen
+		size   int
+		wantBW string
+	}{
+		{"0x130670b2", GenMTL, 0x630, "bandwidth_bytes_per_second=5000,"},
+		{"0x1306a0b3", GenARL, 0x630, "bandwidth_bytes_per_second=5000,"},
+		{"0x3072005", GenLNL, 0xc20, "bandwidth_bytes_per_second=5120,"},
+		{"0x3086000", GenPTL, 0xc20, "bandwidth_bytes_per_second=5120,"},
+	} {
+		t.Run(tt.gen.String(), func(t *testing.T) {
+			regs := registerSets[tt.gen]
+			buffer := telemetryBuffer(tt.size, map[int]uint64{regs.energy: 10 << 14, regs.memoryBW: 100})
+			root := buildNPUSysfs(t, tt.guid, buffer, "0", "")
+			c, err := NewCollector(root, "h")
+			if err != nil {
+				t.Fatal(err)
+			}
+			start := c.prevTime
+			c.now = func() time.Time { return start.Add(time.Second) }
+			for _, size := range []int{0, regs.energy + 1, tt.size - 1} {
+				writeFile(t, c.telemetry.path, make([]byte, size))
+				points, err := c.Collect()
+				if err == nil || !strings.Contains(err.Error(), "incomplete") || len(points) != 0 {
+					t.Fatalf("size %d: got %v, %v", size, points, err)
+				}
+				if c.prevTime != start || c.prevEnergy != 10 || c.prevBandwidth != 100 ||
+					c.prevBusyUS != 0 || !c.hasPrevBusy || string(c.telemetry.buffer) != string(buffer) {
+					t.Fatal("rejected snapshot changed the baseline")
+				}
+				if _, err := NewCollector(root, "h"); err == nil {
+					t.Fatal("incomplete initial snapshot accepted")
+				}
+			}
+			writeFile(t, c.telemetry.path, telemetryBuffer(tt.size, map[int]uint64{regs.energy: 14 << 14, regs.memoryBW: 110}))
+			writeFile(t, c.busyPath, []byte("500000"))
+			c.now = func() time.Time { return start.Add(2 * time.Second) }
+			points, err := c.Collect()
+			if err != nil {
+				t.Fatal(err)
+			}
+			line, err := points[0].Append(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{"power_w=2,", tt.wantBW, "utilization=25i,"} {
+				if !strings.Contains(string(line), want) {
+					t.Fatalf("recovery: got %s, want %s", line, want)
+				}
+			}
+		})
+	}
+}
+
+func TestCounterDiscontinuityOmitsDeltasAndRebuildsBaseline(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		energy   uint64
+		busy     string
+		nextBusy string
+	}{
+		{"energy decreases", 5, "1500000", "2000000"},
+		{"busy time resets", 12, "0", "500000"},
+		{"both reset", 0, "0", "500000"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			regs := registerSets[GenPTL]
+			root := buildNPUSysfs(t, "0x3086000", telemetryBuffer(4096, map[int]uint64{
+				regs.energy: 10 << 14, regs.memoryBW: 100,
+			}), "1000000", "")
+			c, err := NewCollector(root, "h")
+			if err != nil {
+				t.Fatal(err)
+			}
+			start := c.prevTime
+			for i := range 2 {
+				energy, bandwidth, busy := tt.energy, uint64(10), tt.busy
+				if i == 1 {
+					energy, bandwidth, busy = energy+2, 20, tt.nextBusy
+				}
+				writeFile(t, c.telemetry.path, telemetryBuffer(4096, map[int]uint64{regs.energy: energy << 14, regs.memoryBW: bandwidth}))
+				writeFile(t, c.busyPath, []byte(busy))
+				c.now = func() time.Time { return start.Add(time.Duration(i+1) * time.Second) }
+				points, err := c.Collect()
+				if err != nil {
+					t.Fatal(err)
+				}
+				line, err := points[0].Append(nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if i == 0 {
+					for _, absent := range []string{"power_w=", "bandwidth_bytes_per_second=", "utilization="} {
+						if strings.Contains(string(line), absent) {
+							t.Fatalf("invalid interval emitted %s", line)
+						}
+					}
+					if !strings.Contains(string(line), "frequency_hz=") {
+						t.Fatal("instantaneous fields lost")
+					}
+				} else {
+					for _, want := range []string{"power_w=2,", "bandwidth_bytes_per_second=10240,", "utilization=50i,"} {
+						if !strings.Contains(string(line), want) {
+							t.Fatalf("recovery: got %s, want %s", line, want)
+						}
+					}
+				}
+			}
+		})
 	}
 }

@@ -32,6 +32,24 @@ docker compose --profile test run --rm metrics-manager-test
 All collected tests should pass; optional checks report their missing prerequisites
 as skips.
 
+### Native NPU and Expiration Integration
+
+From a repository checkout, build the current `native/cmd/mm-plugin-npu` binary
+and provide its absolute path together with Telegraf 1.40.3:
+
+```bash
+TEST_NPU_BINARY=/absolute/path/to/mm-plugin-npu \
+TEST_TELEGRAF_BINARY=/absolute/path/to/telegraf \
+python -m pytest tests/test_npu_pipeline.py -v
+```
+
+These opt-in tests use synthetic sysfs files and private Telegraf subprocesses,
+not the host NPU or running services. They exercise collection, rejected PMT
+reads, recovery, output expiration, API/SSE timestamp parsing, and the effect on
+infrequent custom metrics. The default-TTL check takes approximately 60 seconds.
+Without the two executable paths, these tests are skipped. Synthetic results do
+not establish hardware accuracy or replace reset/suspend testing on each platform.
+
 ### Run with Coverage Report
 
 ```bash
@@ -386,7 +404,7 @@ docker run --rm --network none --cap-drop ALL \
   --memory 3g --cpus 4 --pids-limit 256 \
   --mount "type=bind,source=$PWD/tests/openvino_runtime_smoke.py,target=/validation/smoke.py,readonly" \
   --entrypoint /opt/venv/bin/python \
-  intel/metrics-manager:2026.3.0-extended-rc1 /validation/smoke.py
+  intel/metrics-manager:2026.3.0-extended-rc2 /validation/smoke.py
 ```
 
 This runs a small synthetic graph for five seconds on each of CPU, GPU and NPU,

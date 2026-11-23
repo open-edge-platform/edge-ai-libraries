@@ -9,7 +9,7 @@ Host PID:      {{ or .Values.hardware.telemetry.enabled .Values.pod.hostPID }}
 GPU collector: {{ and .Values.hardware.telemetry.enabled .Values.hardware.gpu.enabled }}
 
 This does not confirm telemetry readiness. Verify the pods and metric families below.
-For RC validation set image.tag=2026.3.0-rc1 or 2026.3.0-extended-rc1.
+For RC validation set image.tag=2026.3.0-rc2 or 2026.3.0-extended-rc2.
 
 1. Verify pods are running:
 

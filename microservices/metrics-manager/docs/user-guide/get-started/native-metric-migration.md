@@ -78,6 +78,13 @@ interval and single 32-bit counter-wrap handling. Missing optional NPU data
 stays absent; measured zeros stay zero. Memory is no longer rounded to two
 decimal places of MiB before export.
 
+LNL/PTL transfer counters use 1024 bytes per tick, correcting the former 1000-byte
+scale (rates increase by 2.4% relative to those builds). MTL retains 1000 bytes
+per tick. PTL's D0-entry counter is not part of bandwidth. Incomplete snapshots
+are rejected; detected energy/busy-time discontinuities omit interval metrics
+while rebuilding their baseline, rather than reporting negative power or idle.
+See the [NPU API contract](../api-reference.md#intel-npu-npu-via-mm-plugin-npu).
+
 ## Upgrade Checklist
 
 1. Upgrade the native plugins for every producer read by your dashboards.
