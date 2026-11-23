@@ -293,6 +293,24 @@ The suite does not automate browser chat or a real cross-agent model switch.
 Those require separate acceptance checks; offline lifecycle tests use fixtures
 and mocks rather than live OVMS model changes.
 
+### Harness observability end-to-end check
+
+`bash test/otel-openshell-e2e.sh` is a manual, hardware-backed check of the
+OpenShell harness telemetry. For each of Hermes, OpenClaw and Deep Agents Code
+it installs the sandbox, chats once with telemetry off, then for the `sqlite`
+and `jaeger` backends enables telemetry, chats with a unique marker and asserts
+the marker is found in the host store or Jaeger. It then asserts that
+`observability disable --clean` removes the `harness_otel` egress rule and
+uninstalls the sandbox. It is not part of any CI gate.
+
+It refuses to run unless an env file (default `~/ahi-e2e.env`, or `--env-file`)
+sets `SRC` and an isolated `HARNESS_STATE_DIRNAME`, so it never touches a live
+deployment. Give the env file its own container names and ports too
+(`HARNESS_OVMS_CONTAINER`, `HARNESS_IR_CONTAINER`, `HARNESS_BACKEND_NETWORK`,
+`HARNESS_JAEGER_CONTAINER`, `HARNESS_*_PORT`, `HARNESS_OTLP_RECEIVER_PORT`) on a
+shared host. Options: `--harness`, `--backend`, `--skip-install`, `--keep`,
+`--full-uninstall`; logs go to `~/otel-e2e-logs/<timestamp>`.
+
 ## GitHub Actions setup
 
 The repository-level workflow `.github/workflows/agent-harness-openshell.yml`
