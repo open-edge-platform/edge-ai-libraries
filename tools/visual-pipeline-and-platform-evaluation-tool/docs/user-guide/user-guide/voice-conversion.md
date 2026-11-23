@@ -19,16 +19,17 @@ Each route renders one operation-specific workflow; there are no STT/TTS tabs.
 The pipeline card opens its first variant, and the variant selector updates the
 route for the same pipeline.
 
-The Speech to Text preset uses the bundled `sample_male.wav` recording and
-English. The Text to Speech preset uses the bundled 200-character demonstration
+The Speech to Text preset prefers the `OSR_us_000_0010_8k.wav` sample recording
+and English. The Text to Speech preset uses the bundled 200-character demonstration
 text and the Ryan voice. Preset definitions live in `vippet/pipelines/` with
 `type: audio`.
 
-Predefined recordings are listed in `shared/audio/default_recordings.yaml`. Each
-entry sets `local: <file>.wav` and `filename`. The file is read from
-`vippet/pipelines/recordings/` (shipped in the image) and copied to
-`shared/audio/input/auto` only when the target is missing or not a valid WAV.
-Nothing is downloaded at startup.
+No recordings are shipped with the application. Predefined recordings are the
+Open Speech Repository samples downloaded on the **Audio** page (see
+[Audio](./input-management/audio.md)). Each download is validated as WAV and
+stored in `shared/audio/input/auto`; only files from that sample catalog are
+listed. If the preferred recording is not downloaded, the first available one is
+selected. Nothing is downloaded at startup.
 
 Every Speech to Text and Text to Speech conversion started from the Audio
 pipeline UI runs as a managed job. This includes uploaded or recorded audio,
@@ -83,8 +84,8 @@ existing `.env` without rerunning `env-setup`.
 - It removes the model-download cache and plugin environments under
   `shared/model-download`, so the next model installation is slower.
 - It removes generated TTS WAV files and the whole `shared/audio/input` tree,
-  including the installed default recordings. ViPPET copies the default
-  recordings again from its image on the next start.
+  including downloaded sample recordings. Download them again on the **Audio**
+  page.
 - It removes output videos and the `shared/videos/input` and
   `shared/videos/video-generator` trees.
 
@@ -342,8 +343,12 @@ tracked process-local Audio jobs.
 The preset API follows the asynchronous ViPPET job pattern:
 
 - `GET /api/v1/voice/pipelines` lists the Audio preset catalog.
-- `GET /api/v1/voice/recordings` lists the predefined recordings (filename,
-  duration in seconds, and audio URL) registered from the recordings manifest.
+- `GET /api/v1/voice/recordings` lists the downloaded sample recordings
+  (filename, duration in seconds, and audio URL).
+- `GET /api/v1/voice/sample-recordings` lists the sample catalog with a
+  `downloaded` flag for each recording.
+- `POST /api/v1/voice/sample-recordings/{filename}/download` downloads one
+  catalog sample into `shared/audio/input/auto`. Unknown names return `404`.
 - `GET /api/v1/voice/recordings/{filename}/audio` returns one registered
   recording as `audio/wav` for preview. Unregistered names return `404`.
 - `POST /api/v1/voice/pipelines/{pipeline_id}/variants/{variant_id}/runs`
@@ -393,13 +398,14 @@ List the Audio catalog:
 curl --noproxy '*' -sS http://127.0.0.1/api/v1/voice/pipelines
 ```
 
-Start managed CPU STT with a predefined recording, after listing them:
+Start managed CPU STT with a predefined recording, after downloading it:
 
 ```bash
-curl --noproxy '*' -sS http://127.0.0.1/api/v1/voice/recordings
+curl --noproxy '*' -sS -X POST \
+  http://127.0.0.1/api/v1/voice/sample-recordings/OSR_us_000_0011_8k.wav/download
 curl --noproxy '*' -sS -X POST \
   -H 'Content-Type: application/json' \
-  -d '{"recording": "sample_female.wav", "language": "de"}' \
+  -d '{"recording": "OSR_us_000_0011_8k.wav", "language": "en"}' \
   http://127.0.0.1/api/v1/voice/pipelines/speech-to-text/variants/cpu/runs
 ```
 
@@ -517,16 +523,18 @@ They use the existing metrics-manager stream and do not start extra service poll
 ## Storage and Security
 
 ViPPET does not log recording contents, sentences, or transcripts. It copies
-each manifest-registered local WAV into `shared/audio/input/auto` after
-validating its logical filename and WAV structure, and atomically publishes it.
+each sample downloaded from the fixed Open Speech Repository catalog into
+`shared/audio/input/auto` after validating its catalog filename, size, and WAV
+structure, and atomically publishes it.
 Audio presets cannot select arbitrary
 paths or URLs. Completed preset TTS files are atomically written under
 `shared/audio/output` with UUID filenames and served only for known completed
 jobs. Define deployment cleanup for these files.
 
 `make clean-output-audio` removes generated files under `shared/audio/output`.
-`make clean` also removes those files and the whole `shared/audio/input` tree;
-see [Deployment](#deployment) for everything else it removes. Job metadata
+`make clean` also removes those files and the whole `shared/audio/input` tree,
+including downloaded sample recordings; see [Deployment](#deployment) for
+everything else it removes. Job metadata
 and STT transcripts are process-local. A backend restart leaves completed WAV
 files on disk but removes the job lookup required by the artifact endpoint.
 
