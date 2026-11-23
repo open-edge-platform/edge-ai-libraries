@@ -353,6 +353,7 @@ Steps for visualizing output over RTSP assuming Pipeline Server and your VLC cli
    - cache-length (default 30): number of frames to buffer in rtsp pipeline.
    - encoding-quality (default 85): jpeg encoding quality (0 - 100). Lower values increase compression but sacrifice quality. Only applies when `encoding` is `mjpeg`.
    - encode-bitrate (default 4000000, i.e. 4 Mbps): target bitrate, in bits per second, used by the H.264 software encoder (`openh264enc`). Only applies when `encoding` is `h264` and the frame buffer is a regular system-memory buffer; ignored for GPU/VA-API buffers (see note below).
+   - encode-gop-size (default: the encoder's own, 90 frames for `openh264enc`): number of frames between H.264 keyframes. A client that joins the stream can only start decoding at a keyframe, so a smaller value lets new clients start sooner, at the cost of a higher bitrate. Only applies when `encoding` is `h264`; it sets `gop-size` on `openh264enc` and `key-int-max` on `vah264enc`.
    - sync-with-source: rate limit processing pipeline to encoded frame rate (e.g. 30 fps). Can be set to either `true` or `false`.
    - sync-with-destination (default True): block processing pipeline if rtsp pipeline is blocked.
 

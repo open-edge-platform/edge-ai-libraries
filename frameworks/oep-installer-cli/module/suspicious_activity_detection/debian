@@ -90,7 +90,7 @@ debian_90_stop_suspicious_activity_detection () {
   cd "$workspace"/suspicious-activity-detection && {
     make down || true
     make clean-all || true
-    ensure_container_cleanup $(ensure_container_parse_yaml docker/docker-compose*.yaml ../scenescape/docker-compose.yaml)
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/docker-compose*.yaml ../scenescape/docker-compose.yaml) --with-external
   } || true
 }
 

@@ -18,7 +18,7 @@ gst_plugins/
 ```
 
 The Aravis plugin (`aravissrc`, GigE Vision cameras) is taken from the Ubuntu
-24.04 `libaravis-0.8-0` package in the `aravis` stage of `vippet/Dockerfile`,
+26.04 `libaravis-0.8-0` package in the `aravis` stage of `vippet/Dockerfile`,
 because the DL Streamer Pipeline Server 2.0 image does not include it. Its
 RUNPATH is set to `$ORIGIN`, so it finds `libaravis` next to it without
 changes to the server's `LD_LIBRARY_PATH`. It needs a server image on the same

@@ -1,19 +1,35 @@
+<!--hide_directive
+```{eval-rst}
+.. meta::
+   :description: Learn how the Inference Router selects a provider for each request using rule-based and model-based routing, and how to configure and validate routing policies.
+   :keywords: inference router, routing, routing policy, rule-based routing, model-based routing, provider selection, strategy, soft prompt, performance-based routing.
+```
+hide_directive-->
+
 # Routing
 
-This guide explains how the Inference Router chooses a provider for each request, and the method to configure and validate it.
+This guide explains how the Inference Router chooses a provider for each request, and the method
+to configure and validate it.
 
-The router supports two kinds of routing rules, which plug into the same rule → strategy → policy pipeline and can be mixed freely in one policy:
+The router supports two kinds of routing rules, which plug into the same rule → strategy → policy
+pipeline and can be mixed freely in one policy:
 
-- **[Rule-based routing](#rule-based-routing)**: deterministic rules that check request features (message content, context length, tools, model name, metadata) or live provider metadata (cost, performance).
-- **[Model-based routing](#model-based-routing)**: a classifier model reads the last user message and maps it to an index (for example `0` → local, `1` → cloud).
+- **[Rule-based routing](#rule-based-routing)**: deterministic rules that check request features
+  (message content, context length, tools, model name, metadata) or live provider metadata
+  (cost, performance).
+- **[Model-based routing](#model-based-routing)**: a classifier model reads the last user
+  message and maps it to an index (for example `0` → local, `1` → cloud).
 
 ## Routing Model
 
 The router makes a decision in three layers:
 
-1. **Rule**: checks one request feature -- the built-in rules are listed under [Rule-Based Routing](#rule-based-routing).
+1. **Rule**: checks one request feature -- the built-in rules are listed under
+   [Rule-Based Routing](#rule-based-routing).
 2. **Strategy**: combines rules with AND semantics, then filters providers with `provider_selector`.
-3. **Policy**: runs strategies in order and selects the final provider (`FirstMatch` or `AllMatch` -- the semantics are expanded under [Built-in Strategies and Policies](#built-in-strategies-and-policies)).
+3. **Policy**: runs strategies in order and selects the final provider
+   (`FirstMatch` or `AllMatch` -- the semantics are expanded under
+   [Built-in Strategies and Policies](#built-in-strategies-and-policies)).
 
 If the policy selects no provider, the request goes to the provider marked
 `fallback: true` in `config.yaml` (at most one); when no provider is marked, the
@@ -21,7 +37,7 @@ request is rejected with a routing error.
 
 ## Built-in Strategies and Policies
 
-The default strategies are defined in [src/rsd/strategy.yaml](../../src/rsd/strategy.yaml):
+The default strategies are defined in [src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/rsd/strategy.yaml):
 
 | Strategy | Trigger | Provider Selector |
 | --- | --- | --- |
@@ -32,7 +48,7 @@ The default strategies are defined in [src/rsd/strategy.yaml](../../src/rsd/stra
 | `ModelBasedRouting` | Classifier maps the last user message to index `0` or `1` | Index-based `label` (`0: local`, `1: cloud`) |
 | `PerformanceBased` | Always matches | `performance.requests <= 10`, then sorts by fewest in-flight requests |
 
-The default policies are defined in [src/rsd/policy.yaml](../../src/rsd/policy.yaml):
+The default policies are defined in [src/rsd/policy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/rsd/policy.yaml):
 
 | Policy | Criterion | Strategy Order |
 | --- | --- | --- |
@@ -85,7 +101,7 @@ under `provider_selector.capability`; placing them at the top level is invalid.
 
 ## Select a Policy
 
-Choose the active policy in your runtime config:
+Choose the active policy in your runtime configuration:
 
 ```yaml
 routing:
@@ -102,7 +118,7 @@ model inference on the request path.
 
 ### Built-in Rules
 
-Rules are configured in [src/rsd/strategy.yaml](../../src/rsd/strategy.yaml)
+Rules are configured in [src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/rsd/strategy.yaml)
 with the `type` and `param` fields.
 
 | Rule Type | Purpose | Main Parameters |
@@ -128,17 +144,18 @@ Useful requests to exercise the default rule-based policies:
 | Goal | Request Shape | Expected Route Behavior |
 | --- | --- | --- |
 | Hit `Planning` | User message contains `plan` | Selects a provider with `planning` label and high complexity |
-| Hit `DataAnalysis` | User message mentions tabular data, e.g. "I have a CSV file of sales; find the top region" | Selects a provider with `data-analysis` label and complexity `>= 0.6` |
+| Hit `DataAnalysis` | User message mentions tabular data, e.g., "I have a CSV file of sales; find the top region" | Selects a provider with `data-analysis` label and complexity `>= 0.6` |
 | Hit context zone 0 | Total message content length `0–4000` characters | Requires provider complexity `>= 0.3` |
-| Hit context zone 1 | Total message content length `4001–16000` characters  | Requires provider complexity `>= 0.5` |
-| Hit context zone 2 | Total message content length `16001–128000` characters  | Requires provider complexity `>= 0.7` |
+| Hit context zone 1 | Total message content length `4001–16000` characters | Requires provider complexity `>= 0.5` |
+| Hit context zone 2 | Total message content length `16001–128000` characters | Requires provider complexity `>= 0.7` |
 | Hit `CostFirst` | Sets `routing.policy: CostFirst` | Selects a provider with `cost <= 0` |
 | Test fallback | Makes every selector fail | Goes to the provider marked `fallback: true`; rejected if none is |
 
 ### Keyword Strategies
 
 A keyword strategy routes a task type to a provider label with a
-`MessageContentRule` regex over the user messages. `Planning` and `DataAnalysis` are built in. You may also add below strategies as you need:
+`MessageContentRule` regex over the user messages. `Planning` and `DataAnalysis` are built in.
+You may also add the following strategies as needed:
 
 ```yaml
 strategies:
@@ -226,7 +243,7 @@ The strategy's `provider_selector.performance` maps each metric to the values a
 provider may report and stay eligible. Each value is one of:
 
 | Form | Meaning |
-|------|---------|
+| ---- | ------- |
 | `requests: 10` | Shorthand upper bound: `performance.requests <= 10` |
 | `kv_cache_usage_perc: [null, 0.8]` | `<= 0.8` |
 | `tokens_per_s: [50, null]` | `>= 50` (for higher-is-better metrics such as throughput) |
@@ -244,10 +261,10 @@ provider may report and stay eligible. Each value is one of:
 
 #### Example — enable the probe and route on load
 
-This runs two local backends — one vLLM, one OVMS — and routes each request to
-whichever is **least loaded**. Each provider gets a `perf` probe that scrapes its
-own `/metrics` and publishes the in-flight request count to the shared
-`performance.requests` field; `PerformanceBased` then filters and sorts on it.
+This runs two local backends — one vLLM, one OpenVINO™ Model Server (OVMS) — and routes
+each request to whichever is **least loaded**. Each provider gets a `perf` probe that
+scrapes its own `/metrics` and publishes the in-flight request count to the shared
+`performance.requests` field; `PerformanceBased` then filters and sorts on it:
 
 ```yaml
 # config.yaml
@@ -282,7 +299,7 @@ routing:
   policy: PerformanceFirst
 ```
 
-`PerformanceFirst` already ships in [src/rsd/policy.yaml](../../src/rsd/policy.yaml)
+`PerformanceFirst` already ships in [src/rsd/policy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/rsd/policy.yaml)
 — it runs `PerformanceBased` first and falls back to `ZeroCost` when no provider
 clears the load threshold:
 
@@ -297,7 +314,7 @@ policies:
 ```
 
 The bundled `PerformanceBased` strategy (in
-[src/rsd/strategy.yaml](../../src/rsd/strategy.yaml)) consumes the field the
+[src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/rsd/strategy.yaml)) consumes the field the
 probes publish:
 
 ```yaml
@@ -313,8 +330,8 @@ strategies:
         descending: false # fewest in-flight requests first
 ```
 
-With this config, a request is sent to `vllm-local` or `ovms-local` depending on
-which currently has fewer in-flight requests; a backend above 40 concurrent
+With this configuration, a request is sent to `vllm-local` or `ovms-local` depending on
+which currently has fewer in-flight requests; a backend above 10 concurrent
 requests is skipped entirely, and if both are over the limit the request goes to
 the provider marked `fallback: true` (or is rejected if none is).
 
@@ -342,25 +359,32 @@ provider was selected.
 
 ## Model-Based Routing
 
-`ModelBasedRule` utilizes the idea of "LLM as Jev": it runs a small language model on the router host as a decision model that generates no text.
+`ModelBasedRule` utilizes the idea of "LLM as Jev": it runs a small language model on the router
+host as a decision model that generates no text.
 
-The classifier's prompt is in the form of a binary file, which stores either a soft prompt or a hard prompt. 
+The classifier's prompt is in the form of a binary file, which stores either a soft prompt
+or a hard prompt.
 
 ### Soft Prompt
 
-A soft prompt a set of pre-trained vectors with respect to a dataset and routing task. Router packs the vector and store it in a binary file with `rcv` as appendix.
+A soft prompt is a set of pre-trained vectors with respect to a dataset and routing task. The
+router packs the vectors and stores them in a binary file with `rcv` as the appendix.
 
-For example, current default version of soft prompt was trained on RouterBench Dataset, with the ability to route a query to cloud or local provider based on the complexity. 
+For example, the current default version of the soft prompt was trained on the RouterBench
+Dataset, with the ability to route a query to a cloud or local provider based on the complexity.
 
-Train your own soft prompt will be available in next realese.
+Training your own soft prompt is planned for a future release.
 
-By default each backbone is shipped with one version of soft prompt in `src/rsd/model_based/prompts/<backbone>/v1.rcv` of the image; Docker deployments copy it to `workspace/artifacts/router/<backbone>/v1.rcv`.
+By default, each backbone is shipped with one version of the soft prompt in
+`src/rsd/model_based/prompts/<backbone>/v1.rcv` of the image; Docker deployments copy it to
+`workspace/artifacts/router/<backbone>/v1.rcv`.
 
 ### Hard Prompt
 
-Previous method of using text prompt is still available, router will accept the text prompt and package it into an `rcv` file for further process.
+The previous method of using a text prompt is still available; the router will accept the text
+prompt and package it into an `rcv` file for further processing.
 
-Use below API to upload a hard prompt:
+Use the following API to upload a hard prompt:
 
 ```bash
 POST /v1/strategies/{name}
@@ -372,7 +396,9 @@ POST /v1/strategies/{name}
 
 ### Quick Start: Route by Complexity
 
-The built-in `ModelBased` policy fits a deployment with one **local** model and one **cloud** model: simple requests go to the local model, hard ones to the cloud. It runs the `ModelBasedRouting` strategy, which uses the trained soft prompt `v1`, `in strategy.yaml`:
+The built-in `ModelBased` policy fits a deployment with one **local** model and one **cloud**
+model: simple requests go to the local model, hard ones to the cloud. It runs the
+`ModelBasedRouting` strategy, which uses the trained soft prompt `v1`, in `strategy.yaml`:
 
 ```yaml
 strategies:
@@ -385,7 +411,7 @@ strategies:
         1: cloud
 ```
 
-1. Download the backbone and start the router.:
+1. Download the backbone and start the router:
 
    ```bash
    hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen3.5-2B-FP16
@@ -396,6 +422,7 @@ strategies:
 2. Label your providers `local` and `cloud`, and activate the policy.
 
 3. Send requests and see where they go. For example:
+
    ```bash
    curl http://localhost:8000/v1/chat/completions \
      -H "Content-Type: application/json" \
@@ -414,13 +441,15 @@ Typical decisions of the soft prompt:
 | Find the race condition in this Go worker pool and fix it. | `cloud` |
 | Design a sharded database schema for a global e-commerce site and justify the trade-offs. | `cloud` |
 
-### Multi-class Routing
+### Multi-Class Routing
 
-Model based rule is now supporting multi-class routing. You may write a prompt that describes the categories or train a soft prompt (in next release); the router packs it into a classifier version and routes each category to a provider.
+The model-based rule now supports multi-class routing. You may write a prompt that describes
+the categories or train a soft prompt (in next release); the router packs it into a classifier
+version and routes each category to a provider.
 
-#### Prompt Example
+#### Prompt example
 
-Below is an example for API payload to upload a multi-class prompt:
+The following is an example of an API payload to upload a multi-class prompt:
 
 ```bash
 curl http://localhost:8000/v1/strategies/MultiClassRouting \
@@ -434,11 +463,12 @@ curl http://localhost:8000/v1/strategies/MultiClassRouting \
   }'
 ```
 
-#### Provider Example
+#### Provider example
 
-Each category is routed through provider_selector.label to the providers who contain that label, and a provider may carry several labels. 
+Each category is routed through `provider_selector.label` to the providers that contain that
+label, and a provider may carry several labels.
 
-For example, in the case above, providers could be configed below in config.yaml:
+For example, in the case above, providers could be configured as follows in `config.yaml`:
 
 ```yaml
 providers:
@@ -475,10 +505,10 @@ providers:
         api_key: "${OPENAI_API_KEY}"
 
 routing:
-  policy: MultiClass    
+  policy: MultiClass
 ```
 
-This leads to below category and provider relationship:
+This leads to the following category and provider relationship:
 
 | Category | `provider_selector.label` | Provider |
 | --- | --- | --- |
@@ -488,7 +518,7 @@ This leads to below category and provider relationship:
 
 ### Prepare the Classifier Model
 
-#### Supported Backbones
+#### Supported backbones
 
 | Backbone (`IR_BACKBONE`) | Base model | Packaged version |
 | --- | --- | --- |
@@ -498,7 +528,8 @@ This leads to below category and provider relationship:
 
 #### Download
 
-Both Qwen backbones have prebuilt FP16 OpenVINO IRs on Hugging Face:
+Both Qwen backbones have prebuilt FP16 OpenVINO™ Intermediate Representations (IRs)
+on Hugging Face:
 
 ```bash
 pip install -U huggingface_hub
@@ -526,9 +557,10 @@ export IR_OV_MODEL=/opt/models/Llama-3.2-1B-Instruct-FP16
 export IR_BACKBONE=llama3-1b
 ```
 
-### When to Use Smaller Backbone
+### When to Use a Smaller Backbone
 
-Use `qwen3-0.6b` (or `llama3-1b`) when memory or latency matters more than accuracy, for example use below command to switch to qwen3-0.6b:
+Use `qwen3-0.6b` (or `llama3-1b`) when memory or latency matters more than accuracy,
+for example, use the following command to switch to `qwen3-0.6b`:
 
 ```bash
 hf download OpenVINO/Qwen3-0.6B-fp16-ov --local-dir /opt/models/Qwen3-0.6B-FP16
@@ -548,7 +580,7 @@ curl -s http://localhost:8000/v1/strategies/ModelBasedRouting | jq '.rules[0].pr
 ```
 
 Other `IR_*` settings of model-based routing keep their defaults -- for example
-`IR_ARTIFACTS_DIR=artifacts/router`, `IR_CACHE_SIZE=256`, `IR_FP_MIN_COS=0.98` and
+`IR_ARTIFACTS_DIR=artifacts/router`, `IR_CACHE_SIZE=256`, `IR_FP_MIN_COS=0.98`, and
 `IR_SWAP_MODE=load_first`; to change one, add
 it to the router's `environment:` in `deployment/docker/docker-compose-ui.yml` (or
 `docker-compose.yml` with `--standalone`) and redeploy.

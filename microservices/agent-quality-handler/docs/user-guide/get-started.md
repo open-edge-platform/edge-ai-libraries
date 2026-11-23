@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 
 The Agent Quality Handler is a standalone, configuration-driven agent service. It reads detections from an external storage API and runs the built-in Policy, Analysis, Evidence, and Ticketing specialists by default. That default set is now configurable and extensible through `agent_registry` in `agents.yaml`.
 
+If you prefer to build from source, see [Build from Source](./get-started/build-from-source.md)
+
 ## Prerequisites
 
 - Docker 24.0 or later with Docker Compose 2.20 or later
@@ -14,6 +16,7 @@ The Agent Quality Handler is a standalone, configuration-driven agent service. I
 ## Start
 
 ### 1. Clone the Microservice
+
 Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace main with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
 
 ```bash
@@ -25,9 +28,10 @@ cd microservices/agent-quality-handler/
 
 ### 2. Configure the deployment
 
-The [`start.sh`](../../start.sh) script is the deployment configuration and
-startup entry point. Update the defaults in its **Deployment configuration**
-section, particularly `STORAGE_SERVICE_URL`, before starting the application.
+The [`start.sh`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/agent-quality-handler/start.sh)
+script is the deployment configuration and startup entry point. Update the defaults in
+its **Deployment configuration** section, particularly `STORAGE_SERVICE_URL`, before starting
+the application.
 
 ## Start in LLM Mode
 
@@ -51,7 +55,7 @@ HUGGINGFACEHUB_API_TOKEN="$AQH_HUGGINGFACE_TOKEN" \
 ### Agent Orchestration Mode
 
 | Variable | Purpose | Default |
-|---|---|---|
+| --- | --- | --- |
 | `AGENT_MODE` | `routing` classifies severity and runs only the specialist agents the route requires. `sequential` always runs every registered agent in dependency order (legacy chain). | `routing` |
 
 ```bash
@@ -61,7 +65,7 @@ AGENT_MODE=sequential ./start.sh
 ### LLM Model Settings
 
 | Variable | Purpose | Default |
-|---|---|---|
+| --- | --- | --- |
 | `LLM_MODEL_NAME` | Model name passed to the model-download service | `Qwen/Qwen2.5-3B-Instruct` |
 | `LLM_MAX_TOKENS` | Maximum tokens per LLM response for all agents and the router (custom agents can override via `max_tokens` in `agents.yaml`) | `512` |
 | `LLM_DEVICE` | Target inference device (`GPU`, `CPU`) | `GPU` |
@@ -74,7 +78,7 @@ AGENT_MODE=sequential ./start.sh
 The bundled broker is private and intended for container-network traffic. Configure a secured external broker with:
 
 | Variable | Purpose |
-|---|---|
+| --- | --- |
 | `MQTT_HOST`, `MQTT_PORT` | Broker address |
 | `MQTT_USERNAME`, `MQTT_PASSWORD` | Optional authentication |
 | `MQTT_BATCH_TOPIC` | Batch-complete subscription; defaults to `apm/batch-complete` |
@@ -130,7 +134,7 @@ STORAGE_SERVICE_URL=http://mock-storage:5001 \
 Verify all services are healthy:
 
 ```bash
-docker ps 
+docker ps
 curl http://localhost:5001/detections
 ```
 
@@ -162,6 +166,8 @@ The clean action preserves downloaded images.
 :::{toctree}
 :hidden:
 
-get-started/system-requirements
+./get-started/system-requirements.md
+Build From Source <./get-started/build-from-source.md>
+
 :::
 hide_directive-->

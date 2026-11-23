@@ -207,7 +207,7 @@ agent_in_list() { [[ " $SMOKE_AGENTS " == *" $1 "* ]]; }
 # a disposable bash -c subshell, then evaluates $1. Isolated because several
 # lib functions call error() -> exit 1 on failure; running them in a nested
 # subshell means that exit only ends the subshell, never this test runner.
-LIB_ORDER="colors verify state sudo shim gpu-intel docker-setup nodejs python-setup openvino inference-router agents harness-mcp"
+LIB_ORDER="colors verify state sudo shim gpu-intel docker-setup nodejs python-setup openvino inference-router agents harness-mcp metrics"
 lib_eval() {
   local snippet="$1"
   bash -c '
