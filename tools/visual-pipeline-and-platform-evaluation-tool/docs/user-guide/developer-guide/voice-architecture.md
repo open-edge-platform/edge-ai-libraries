@@ -383,7 +383,7 @@ sequenceDiagram
   Jobs->>ASR: POST /v1/audio/transcriptions with WAV, language and device
   alt Success
     ASR-->>Jobs: Transcription JSON
-    Jobs->>Jobs: Store transcript and timing, set COMPLETED, delete staged input
+    Jobs->>Jobs: Store transcript and timing#59; set COMPLETED#59; delete staged input
   else Upstream rejection, unavailability, timeout or invalid response
     ASR-->>Jobs: Error or no usable response
     Jobs->>Jobs: Log reason, set FAILED with fixed error, delete staged input
@@ -435,7 +435,7 @@ sequenceDiagram
   alt Success
     TTS-->>Jobs: WAV body
     Jobs->>Store: Write temporary file and atomically publish {job_id}.wav
-    Jobs->>Jobs: Store artifact path and timing, set COMPLETED
+    Jobs->>Jobs: Store artifact path and timing#59; set COMPLETED
   else Upstream rejection, unavailability, timeout or invalid response
     TTS-->>Jobs: Error or no usable response
     Jobs->>Jobs: Log reason, set FAILED with fixed error

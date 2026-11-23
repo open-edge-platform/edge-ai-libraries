@@ -2,9 +2,9 @@
 
 ## Version 2026.3.0
 
-**November, 2026**
+**Release Date:** TBD
 
-**New**
+**New**:
 
 - Configurable Model-Based Strategies:
 
@@ -57,17 +57,16 @@
   - See [Provider Probes](./probe.md) and
     [Performance-Based Routing](./routing.md#performance-based-routing).
 
-**Changed**
+**Changed**:
 
 - `IntelligentRule` is replaced by `ModelBasedRule`. Update any custom
   `strategy.yaml` that references the old rule type.
 
-
 ## Version 2026.2.0
 
-**August, 2026**
+**Release Date:** September 9, 2026
 
-**New**
+**New**:
 
 - Policy-Based and Intelligent Routing:
 
@@ -79,7 +78,7 @@
     the `provider_selector` matching, including zone-mapped selectors.
   - Built-in `Balanced` and `CostFirst` policies with `FirstMatch` or `AllMatch`
     criteria, plus a first-available-provider fallback.
-  - `IntelligentRule`: a model-based classifier (bundled OpenVINO Qwen3.5)
+  - `IntelligentRule`: a model-based classifier (bundled OpenVINO™ Qwen3.5)
     maps the last user message to an index and routes accordingly (e.g.
     `0 -> local`, `1 -> cloud`). Configure the model with `IR_OV_MODEL`.
   - See the [Routing guide](./routing.md).
@@ -119,7 +118,7 @@
 
   - A Vue-based dashboard for managing providers and monitoring telemetry,
     including latency and token metrics. Supports light and dark themes, and English
-	and Chinese locales.
+    and Chinese locales.
   - Build and run with Docker Compose tool from `ui/docker`.
 
 - Intel® GPU Support:
@@ -132,14 +131,13 @@
 
   - Detailed health check and service information endpoints.
   - Token accounting integrated with telemetry; router processing time is
-    excluded from the Time To First Token (TTFT) statistics.
-
+    excluded from the time-to-first-token (TTFT) statistics.
 
 ## Version 2026.1.0
 
-**June 17, 2026**
+**Release Date:** June 17, 2026
 
-**New**
+**New**:
 
 - Initial release of the Inference Router microservice.
 
@@ -161,7 +159,7 @@
 
   - The `/v1/metrics` endpoint breaks down request counts by each unique
     (model, provider) pair, token usage, end-to-end latency, TTFT, and
-	Time Per Output Token (TPOT).
+    time-per-output-token (TPOT).
   - The `POST /v1/metrics/reset` endpoint clears accumulated counters.
 
 - Configuration:

@@ -371,14 +371,9 @@ class ImagesManager:
     def ensure_root_dir() -> None:
         """
         Create ``UPLOADED_IMAGES_DIR`` with mode 0o755 if missing.
-
-        ``os.makedirs`` is subject to the process umask and leaves an
-        existing directory's permissions untouched, so we follow up with
-        an explicit ``os.chmod`` to guarantee the mode in every case.
         """
         try:
             os.makedirs(UPLOADED_IMAGES_DIR, mode=0o755, exist_ok=True)
-            os.chmod(UPLOADED_IMAGES_DIR, 0o755)
         except OSError as exc:
             raise RuntimeError(
                 f"Failed to create image set root '{UPLOADED_IMAGES_DIR}': {exc}"

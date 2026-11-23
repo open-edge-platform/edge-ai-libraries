@@ -6,17 +6,23 @@ end-to-end latency and VLM generation metrics.
 ## Throughput
 
 Pipelines run on DL Streamer Pipeline Server 2.0 (DLSPS), one server instance per stream. The server counts the
-frames of each instance at one terminal sink and reports them as `frame_fps` over the last `frame_interval`
-seconds in `GET /pipelines/{id}/status`. That sink is the one parsed last, so before starting an instance ViPPET
-moves one branch to the end of the launch string: the branch with `gvafpscounter` if exactly one branch has it and
-ends in a sink, otherwise the branch that ends in the stream's main sink. In a VLM pipeline whose `gvafpscounter`
-sits after `gvagenai`, the FPS is therefore the rate of the VLM branch, not of the decode branch beside it.
+frames of each instance at one element. In `GET /pipelines/{id}/status` it reports the frames counted since the
+first frame as `frame_count`, read about every second also when no frames arrive, with the time of that reading as
+`frame_count_time`. ViPPET names that element as `fps_element` when it starts an instance: the stream's
+`gvafpscounter` if it has exactly one, given the name `vippet_fps_counter` if it has none, otherwise the stream's
+main sink. A server that ignores `fps_element` counts at the sink parsed last, so ViPPET also moves one branch to
+the end of the launch string: the branch with `gvafpscounter` if exactly one branch has it and ends in a sink,
+otherwise the branch that ends in the stream's main sink. In a VLM pipeline whose `gvafpscounter` sits after
+`gvagenai`, the FPS is therefore the rate of the VLM branch, not of the decode branch beside it.
 `Dlsps2PipelineRunner` (`vippet/dlsps2_runner.py`) polls the status of each instance every
 `DLSPS2_POLL_INTERVAL_S` seconds (default `1`). After a warm-up of `DLSPS2_WARMUP_S` seconds (default `5`, at
-most half the run), counted from the moment every stream has reported its first frame, it sums each stream's
-frames and seconds over the new windows. A stream's FPS is its frames over its seconds, and the slowest stream
-judges the run. While the run lasts, the runner pushes the mean FPS per stream to metrics-manager as the live
-**FPS** metric, tagged with the `job_id`.
+most half the run), counted from the moment every stream has reported its first frame, a stream's FPS is the
+growth of its `frame_count` divided by the time between the readings, for as long as every stream runs. The
+seconds in which a bursty stream, such as a VLM branch, or a stream below 1 fps passes no frames count too. The
+slowest stream judges the run. While the run lasts, the runner pushes the mean FPS per stream between the last two
+readings to metrics-manager as the live **FPS** metric, tagged with the `job_id`. A stream whose `frame_count` stops
+growing for `inactivity_timeout` seconds fails the run, and a stream without two readings, such as in a run shorter
+than the warm-up, reports its final `avg_fps`.
 
 ## Latency
 

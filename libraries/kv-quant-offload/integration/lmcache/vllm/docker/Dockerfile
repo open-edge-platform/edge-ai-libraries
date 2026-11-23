@@ -33,7 +33,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN python3 -m venv ${VIRTUAL_ENV}
 
 # --- uv for fast, deterministic installs ---
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# Installed as a pinned package from PyPI instead of piping a remote install
+# script into sh, so the build does not execute unverified downloaded code.
+ARG UV_VERSION=0.13.9
+RUN pip install --no-cache-dir "uv==${UV_VERSION}"
 
 # --- torch MUST match the runtime base (2.11.0+xpu) so SyclExtension .so files link
 #     against the same libtorch ABI the runtime ships (rpath $ORIGIN/../../torch/lib) ---
@@ -47,20 +50,29 @@ COPY . /src/kvweave
 RUN mkdir -p ${WHEELS}
 
 # 1a Build KVWeave wheel
+RUN cp -r /src/kvweave /tmp/kvweave_quant_build
+WORKDIR /tmp/kvweave_quant_build
 RUN --mount=type=cache,target=/root/.cache/uv \
     set -eo pipefail && \
     source /opt/intel/oneapi/setvars.sh --force && \
-    cp -r /src/kvweave /tmp/kvweave_quant_build && \
-    cd /tmp/kvweave_quant_build && \
     KVWEAVE_XPU=1 KVWEAVE_COMPILER=icpx pip wheel --no-build-isolation --no-deps . -w ${WHEELS} && \
     rm -rf build
 
 # 1b Build LMCache wheel
+# The tag is verified against a pinned commit SHA so a moved/re-tagged
+# upstream ref cannot silently change what gets built and patched.
+ARG LMCACHE_REF=v0.5.5
+ARG LMCACHE_COMMIT=05a013b29da78cf2321b9b46ec5039dde2fb0bb0
+RUN git clone --branch "${LMCACHE_REF}" https://github.com/LMCache/LMCache.git /src/LMCache && \
+    actual="$(git -C /src/LMCache rev-parse HEAD)" && \
+    if [ "${actual}" != "${LMCACHE_COMMIT}" ]; then \
+        echo "ERROR: LMCache ${LMCACHE_REF} resolved to ${actual}, expected ${LMCACHE_COMMIT}" >&2; \
+        exit 1; \
+    fi
+WORKDIR /src/LMCache
 RUN --mount=type=cache,target=/root/.cache/uv \
     set -eo pipefail && \
     source /opt/intel/oneapi/setvars.sh --force && \
-    git clone --branch v0.5.5 https://github.com/LMCache/LMCache.git  /src/LMCache && \
-    cd /src/LMCache && \
     uv  pip install -r requirements/common.txt && \
     uv  pip install grpcio-tools && \
     git apply /src/kvweave/integration/lmcache/patches/lmcache-mp-hybrid.patch && \
@@ -99,6 +111,7 @@ ENV PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/xpu" \
     LMCACHE_MP_HOST=tcp://localhost \
     LMCACHE_MP_PORT=6555 \
     LMCACHE_MP_HTTP_PORT=8090 \
+    LMCACHE_MP_HTTP_HOST=127.0.0.1 \
     LMCACHE_MP_MQ_TIMEOUT=600 \
     LMCACHE_MP_HEARTBEAT_INTERVAL=15 \
     LMCACHE_MP_L2_ENABLE=true \
@@ -185,6 +198,7 @@ fi
 
 lmcache_args=(
     --port "${LMCACHE_MP_PORT:-6555}"
+    --http-host "${LMCACHE_MP_HTTP_HOST:-127.0.0.1}"
     --http-port "${LMCACHE_MP_HTTP_PORT:-8090}"
     --l1-size-gb "${LMCACHE_MP_L1_SIZE_GB:-1}"
     --eviction-policy "${LMCACHE_MP_EVICTION_POLICY:-LRU}"
@@ -257,5 +271,10 @@ RUN chmod +x /usr/local/bin/start-lmcache-vllm.sh
 RUN chown -R 1000:1000 /opt/kvweave
 
 USER 1000
+
+# Model load can take several minutes; the vLLM OpenAI server exposes /health
+# on the in-container port 8000 once it is ready to serve.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=900s --retries=3 \
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/start-lmcache-vllm.sh"]
