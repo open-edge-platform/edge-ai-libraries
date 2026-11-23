@@ -21,7 +21,7 @@ modes:
   all in the unpinned worker, naming the element its FPS is counted at in
   ``fps_element``, see :func:`with_fps_element`),
   so the instances start together. ``GET /pipelines/{id}/status`` is polled
-  for each stream's ``frame_fps`` and ``frame_interval``; every instance is
+  for each stream's ``frame_count`` and ``frame_count_time``; every instance is
   stopped with
   ``DELETE /pipelines/{id}`` once ``max_runtime`` elapses, all instances end,
   or the caller cancels. The run returns only once DLSPS has torn the
@@ -1435,15 +1435,17 @@ class Dlsps2PipelineRunner:
         caller's execution lease outlives the instances; a cancel before or
         while the instances start starts no further one.
 
-        DLSPS reports each stream's ``frame_fps`` over its last
-        ``frame_interval`` seconds, and keeps both unchanged while no frames
-        arrive. A status counts as a new window only when that pair changes,
-        so a stalled stream is seen as one without frames and a window polled
-        twice counts once. A stream's FPS is its frames over its seconds,
-        summed over the new windows reported while all streams are running,
-        after the warm-up. A stream without such windows (a run too short, or
-        one that ended early) falls back to its final ``avg_fps``. This stands
-        in for a DLSPS lifecycle timeline (ITEP-97433).
+        DLSPS reports each stream's ``frame_count``, the frames counted since
+        its first frame, read about every second also when no frames arrive,
+        with ``frame_count_time``, the time of that reading. A stream's FPS is
+        the growth of its count over the time between the readings seen while
+        all streams are running, after the warm-up, so the seconds in which a
+        bursty stream (a VLM branch) or one below 1 fps passes no frames
+        count too. A count that drops (the server restarted the instance)
+        starts again from the new reading. The live FPS is the same rate
+        between the last two readings. A stream whose count stops growing
+        has stalled. A stream without two such readings (a run too short, or
+        one that ended early) falls back to its final ``avg_fps``.
 
         Latency and VLM samples are read from metrics-manager every
         ``DLSPS2_METRICS_POLL_S`` seconds, with a client of its own and a
@@ -1454,13 +1456,16 @@ class Dlsps2PipelineRunner:
         Raises:
             RuntimeError: If validation fails, a submit fails, an instance
                 ends in ``ERROR`` or ``ABORTED``, a stream produces no frames for
-                ``inactivity_timeout`` seconds, or DLSPS stays unreachable for
-                that long. Not raised once the run is cancelled.
+                ``inactivity_timeout`` seconds, DLSPS stays unreachable for
+                that long, or its status has no ``frame_count``. Not raised
+                once the run is cancelled.
         """
         instances: dict[str, str] = {}
-        frames = dict.fromkeys(stream_commands, 0.0)
+        frames = dict.fromkeys(stream_commands, 0)
         seconds = dict.fromkeys(stream_commands, 0.0)
-        windows: dict[str, tuple] = {}
+        # Last frame_count reading per stream, and whether it was seen while measuring.
+        readings: dict[str, tuple[int, float, bool]] = {}
+        live_fps: dict[str, float] = {}
         statuses: dict[str, dict] = {}
         if self.latency_tracer_metrics is not None:
             self.latency_tracer_metrics = {}
@@ -1573,22 +1578,52 @@ class Dlsps2PipelineRunner:
                         ):
                             break
 
-                        fps = {
-                            sid: float(statuses[sid].get("frame_fps") or 0.0)
-                            if sid in statuses
-                            else 0.0
+                        outdated = [
+                            sid
                             for sid in instances
-                        }
-                        fresh: list[str] = []
-                        for sid, value in fps.items():
-                            window = (
-                                value,
-                                statuses.get(sid, {}).get("frame_interval"),
+                            if "frame_count" not in statuses[sid]
+                        ]
+                        if outdated:
+                            raise RuntimeError(
+                                "DLSPS 2.0 reports no frame_count for stream(s) "
+                                f"{', '.join(outdated)}; use DLSPS 2.0 2026.3 "
+                                "or later"
                             )
-                            if value > 0 and window != windows.get(sid):
-                                windows[sid] = window
+
+                        all_playing = all(
+                            states.get(sid) == "RUNNING"
+                            and statuses[sid].get("first_frame_time") is not None
+                            for sid in instances
+                        )
+                        if all_playing and playing_since is None:
+                            playing_since = now
+                        measuring = (
+                            all_playing
+                            and playing_since is not None
+                            and now - playing_since >= self._warmup()
+                        )
+
+                        for sid in instances:
+                            read_at = statuses[sid].get("frame_count_time")
+                            if read_at is None:
+                                continue
+                            count = int(statuses[sid]["frame_count"])
+                            previous = readings.get(sid)
+                            if count > 0 and (previous is None or count != previous[0]):
                                 last_frame[sid] = now
-                                fresh.append(sid)
+                            if (
+                                previous is not None
+                                and read_at > previous[1]
+                                and count >= previous[0]
+                            ):
+                                added = count - previous[0]
+                                elapsed = read_at - previous[1]
+                                live_fps[sid] = added / elapsed
+                                if measuring and previous[2]:
+                                    frames[sid] += added
+                                    seconds[sid] += elapsed
+                            readings[sid] = (count, float(read_at), measuring)
+
                         stalled = [
                             sid
                             for sid in instances
@@ -1601,28 +1636,11 @@ class Dlsps2PipelineRunner:
                                 f"DLSPS 2.0 for over {self.inactivity_timeout}s"
                             )
 
-                        all_playing = all(
-                            states.get(sid) == "RUNNING"
-                            and statuses[sid].get("first_frame_time") is not None
-                            for sid in instances
-                        )
-                        if all_playing and playing_since is None:
-                            playing_since = now
-                        if (
-                            all_playing
-                            and playing_since is not None
-                            and now - playing_since >= self._warmup()
-                        ):
-                            for sid in fresh:
-                                interval = float(
-                                    statuses[sid].get("frame_interval")
-                                    or self.poll_interval
-                                )
-                                frames[sid] += fps[sid] * interval
-                                seconds[sid] += interval
-
                         # Mean per stream for the live chart.
-                        self._push_fps_metric(sum(fps.values()) / len(instances))
+                        self._push_fps_metric(
+                            sum(live_fps.get(sid, 0.0) for sid in instances)
+                            / len(instances)
+                        )
                         if (
                             read_metrics
                             and now - metrics_polled_at >= DLSPS2_METRICS_POLL_S

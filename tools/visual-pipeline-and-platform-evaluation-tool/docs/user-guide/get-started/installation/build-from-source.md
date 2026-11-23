@@ -51,7 +51,7 @@ Hugging Face Hub.
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.3.0
    cd edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
    ```
 
@@ -110,7 +110,7 @@ To use a published server image instead of building one, set `DLSPS2_IMAGE` to o
 `make build` then skips the server, and `make run` pulls the image:
 
 ```bash
-export DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-2.0-rc1
+export DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-ubuntu26-2.0-rc2
 make build run
 ```
 
