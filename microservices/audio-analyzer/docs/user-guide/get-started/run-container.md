@@ -50,7 +50,7 @@ In resolved Compose output, confirm device mapping under `services.audio-analyze
    - `source: /dev/null`
    - `target: /dev/accel/accel0`
 - The container runs as UID/GID `1000:1000` (baked into the image). The named volumes are initialized with that ownership, so no host UID/GID configuration is required.
-- The image reference is `${REGISTRY}/audio-analyzer:${RELEASE_TAG}`, both read from `.env`. Defaults are `REGISTRY=intel` and `RELEASE_TAG=latest`. Pin `RELEASE_TAG` to a specific release tag (for example `2026.3.0`) for reproducible deployments.
+- The image reference is `${REGISTRY}/audio-analyzer:${RELEASE_TAG}`, both read from `.env`. Defaults are `REGISTRY=intel` and the committed `RELEASE_TAG` pins the current release.
 
 ### GPU Setup and Verification (Optional)
 
