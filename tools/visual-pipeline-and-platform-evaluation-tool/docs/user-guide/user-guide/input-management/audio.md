@@ -12,3 +12,7 @@ download the recordings that are not downloaded yet, one after another.
 Recordings are stored on the server in `shared/audio/input/auto` and become
 available as predefined input for the Speech to Text pipeline. The source requires identifying
 the material as **Open Speech Repository** when it is used.
+
+> [!NOTE]
+> Recordings are downloaded on demand by the ViPPET backend from `www.voiptroubleshooter.com`,
+> a third-party site not operated by Intel.

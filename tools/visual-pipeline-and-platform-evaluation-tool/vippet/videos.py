@@ -37,7 +37,7 @@ VideoSourceKind = Literal["auto", "uploaded"]
 
 # Input videos live in two sibling sub-directories so auto-downloaded and
 # user-uploaded content never collide on disk:
-#   - AUTO_VIDEO_DIR      - videos auto-downloaded from default_recordings.yaml
+#   - AUTO_VIDEO_DIR      - sample videos downloaded on demand from default_recordings.yaml
 #   - UPLOADED_VIDEO_DIR  - videos uploaded by the user via the API
 # Both are independently configurable. Defaults match the shared volume
 # layout declared in compose.yml.
@@ -299,30 +299,6 @@ class VideosManager:
                 raise RuntimeError(
                     f"Failed to create video subdirectory '{subdir}': {e}"
                 ) from e
-
-    def _download_default_videos(self) -> None:
-        """
-        Downloads videos defined in default_recordings.yaml if not already present.
-        Skips downloading if the YAML file does not exist. All downloaded
-        files are written to AUTO_VIDEO_DIR.
-        """
-        if not os.path.isfile(DEFAULT_RECORDINGS_FILE):
-            logger.error(
-                f"Default recordings file '{DEFAULT_RECORDINGS_FILE}' not found, skipping downloads."
-            )
-            return
-
-        recordings = self.get_default_recordings()
-        if not recordings:
-            logger.debug("No recordings found in default_recordings.yaml.")
-            return
-
-        logger.debug(
-            f"Checking {len(recordings)} video(s) from default_recordings.yaml..."
-        )
-
-        for recording in recordings:
-            self._download_video(recording["url"], recording["filename"])
 
     def get_default_recordings(self) -> List[dict]:
         """Return valid sample recordings from the configured manifest."""

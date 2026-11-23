@@ -97,7 +97,8 @@ def _initialize_in_background(app: FastAPI) -> None:
         # and converts to TS format
         VideosManager()
 
-        # Install bundled recordings used by Audio pipeline presets.
+        # Initialize AudioAssetsManager - creates the audio input/output
+        # directories before any sample download or Audio pipeline run.
         AudioAssetsManager()
 
         # Load and validate read-only Audio pipeline definitions.

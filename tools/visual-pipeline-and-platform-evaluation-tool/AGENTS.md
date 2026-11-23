@@ -181,7 +181,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `MODELS_PATH`                      | Path to downloaded models                                    | `/models/output`                                           |
 | `AUTO_VIDEO_DIR`                   | Path to auto-downloaded videos                               | `/videos/input/auto`                                       |
 | `UPLOADED_VIDEO_DIR`               | Path to user-uploaded videos                                 | `/videos/input/uploaded`                                   |
-| `DEFAULT_RECORDINGS_FILE`          | Path to the YAML listing recordings to auto-download         | `/videos/default_recordings.yaml`                          |
+| `DEFAULT_RECORDINGS_FILE`          | Path to the YAML listing downloadable sample videos          | `/videos/default_recordings.yaml`                          |
 | `UPLOAD_ALLOWED_EXTENSIONS`        | Comma-separated allow-list of upload file extensions         | `mp4,mkv,mov,avi,ts,264,avc,h265,hevc`                     |
 | `UPLOAD_ALLOWED_CONTAINERS`        | Comma-separated allow-list of upload container formats       | `mp4,mov,mkv,avi,mpegts,raw`                               |
 | `UPLOAD_ALLOWED_CODECS`            | Comma-separated allow-list of upload video codecs            | `h264,h265`                                                |

@@ -266,15 +266,14 @@ class TestVideosManager(unittest.TestCase):
         """VideosManager() should return the same instance on multiple calls."""
         with self._patch_dirs():
             with patch.object(VideosManager, "_ensure_all_ts_conversions"):
-                with patch.object(VideosManager, "_download_default_videos"):
-                    instance1 = VideosManager()
-                    instance2 = VideosManager()
-                    self.assertIs(instance1, instance2)
+                instance1 = VideosManager()
+                instance2 = VideosManager()
+                self.assertIs(instance1, instance2)
 
     def test_initialization_does_not_download_default_videos(self):
         with self._patch_dirs():
             with patch.object(VideosManager, "_ensure_all_ts_conversions"):
-                with patch.object(VideosManager, "_download_default_videos") as download:
+                with patch.object(VideosManager, "_download_video") as download:
                     VideosManager()
         download.assert_not_called()
 
@@ -288,13 +287,9 @@ class TestVideosManager(unittest.TestCase):
 
     @patch("cv2.VideoCapture")
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_scan_with_video_files(
-        self, mock_download, mock_ensure_ts, mock_videocap
-    ):
+    def test_videos_manager_scan_with_video_files(self, mock_ensure_ts, mock_videocap):
         """Test scanning directory with video files and extracting metadata."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         # Create dummy video file in the auto subdir
         video_file = os.path.join(self.auto_dir, "test.mp4")
@@ -336,11 +331,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertTrue(os.path.exists(json_path))
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_load_from_json(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_load_from_json(self, mock_ensure_ts):
         """Test loading video metadata from existing JSON file."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         # Create dummy video file and JSON metadata in the auto subdir
         video_file = os.path.join(self.auto_dir, "test.mp4")
@@ -374,11 +367,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(video.path, "auto/test.mp4")
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_invalid_json(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_invalid_json(self, mock_ensure_ts):
         """Test handling of corrupted JSON metadata file."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         # Create dummy video file
         video_file = os.path.join(self.auto_dir, "test.mp4")
@@ -398,13 +389,9 @@ class TestVideosManager(unittest.TestCase):
 
     @patch("cv2.VideoCapture")
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_unopenable_video(
-        self, mock_download, mock_ensure_ts, mock_videocap
-    ):
+    def test_videos_manager_unopenable_video(self, mock_ensure_ts, mock_videocap):
         """Test handling of video files that cannot be opened."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         video_file = os.path.join(self.auto_dir, "test.mp4")
         with open(video_file, "w") as f:
@@ -422,13 +409,9 @@ class TestVideosManager(unittest.TestCase):
 
     @patch("cv2.VideoCapture")
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_unsupported_codec(
-        self, mock_download, mock_ensure_ts, mock_videocap
-    ):
+    def test_videos_manager_unsupported_codec(self, mock_ensure_ts, mock_videocap):
         """Test handling of video files with unsupported codecs."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         video_file = os.path.join(self.auto_dir, "test.mp4")
         with open(video_file, "w") as f:
@@ -454,13 +437,9 @@ class TestVideosManager(unittest.TestCase):
 
     @patch("cv2.VideoCapture")
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_hevc_codec(
-        self, mock_download, mock_ensure_ts, mock_videocap
-    ):
+    def test_videos_manager_hevc_codec(self, mock_ensure_ts, mock_videocap):
         """Test handling of video files with HEVC/H.265 codec."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         video_file = os.path.join(self.auto_dir, "test.mp4")
         with open(video_file, "w") as f:
@@ -487,11 +466,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(video.codec, "h265")
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_skip_non_video_files(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_skip_non_video_files(self, mock_ensure_ts):
         """Test that non-video files are skipped."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         txt_file = os.path.join(self.auto_dir, "readme.txt")
         with open(txt_file, "w") as f:
@@ -504,11 +481,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(len(videos), 0)
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_skip_directories(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_skip_directories(self, mock_ensure_ts):
         """Test that directories are skipped during scanning."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         subdir = os.path.join(self.auto_dir, "subdir")
         os.makedirs(subdir)
@@ -520,11 +495,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(len(videos), 0)
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_get_video(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_get_video(self, mock_ensure_ts):
         """Test retrieving a specific video by filename."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         video_file = os.path.join(self.auto_dir, "test.mp4")
         json_path = os.path.join(self.auto_dir, "test.mp4.json")
@@ -552,11 +525,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(video.codec, "h264")
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_get_video_not_found(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_get_video_not_found(self, mock_ensure_ts):
         """Test retrieving a non-existent video returns None."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         with self._patch_dirs():
             manager = VideosManager()
@@ -566,13 +537,9 @@ class TestVideosManager(unittest.TestCase):
 
     @patch("cv2.VideoCapture")
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_json_write_failure(
-        self, mock_download, mock_ensure_ts, mock_videocap
-    ):
+    def test_videos_manager_json_write_failure(self, mock_ensure_ts, mock_videocap):
         """Test handling of JSON write failures."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         video_file = os.path.join(self.auto_dir, "test.mp4")
         with open(video_file, "w") as f:
@@ -608,13 +575,9 @@ class TestVideosManager(unittest.TestCase):
 
     @patch("cv2.VideoCapture")
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_zero_fps(
-        self, mock_download, mock_ensure_ts, mock_videocap
-    ):
+    def test_videos_manager_zero_fps(self, mock_ensure_ts, mock_videocap):
         """Test handling of video with zero FPS."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         video_file = os.path.join(self.auto_dir, "test.mp4")
         with open(video_file, "w") as f:
@@ -642,13 +605,11 @@ class TestVideosManager(unittest.TestCase):
 
     @patch("cv2.VideoCapture")
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
     def test_videos_manager_multiple_video_extensions(
-        self, mock_download, mock_ensure_ts, mock_videocap
+        self, mock_ensure_ts, mock_videocap
     ):
         """Test scanning multiple video file extensions."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         for ext in ["mp4", "mkv", "avi"]:
             video_file = os.path.join(self.auto_dir, f"test.{ext}")
@@ -677,13 +638,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertIn("test.avi", videos)
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_get_ts_path_with_full_path(
-        self, mock_download, mock_ensure_ts
-    ):
+    def test_videos_manager_get_ts_path_with_full_path(self, mock_ensure_ts):
         """Test get_ts_path returns full path to TS file."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         # Create video file and JSON metadata in auto subdir
         video_file = os.path.join(self.auto_dir, "test.mp4")
@@ -729,13 +686,9 @@ class TestVideosManager(unittest.TestCase):
             self.assertEqual(ts_unchanged, ts_file)
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_get_ts_path_unsupported(
-        self, mock_download, mock_ensure_ts
-    ):
+    def test_videos_manager_get_ts_path_unsupported(self, mock_ensure_ts):
         """Test get_ts_path returns None for unsupported extensions."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         with self._patch_dirs():
             manager = VideosManager()
@@ -782,11 +735,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertIn("hevc", VIDEO_EXTENSIONS)
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_get_video_filename(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_get_video_filename(self, mock_ensure_ts):
         """Test get_video_filename extracts filename from path."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         video_file = os.path.join(self.auto_dir, "test.mp4")
         json_path = os.path.join(self.auto_dir, "test.mp4.json")
@@ -820,11 +771,9 @@ class TestVideosManager(unittest.TestCase):
             self.assertIsNone(filename)
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_get_video_path(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_get_video_path(self, mock_ensure_ts):
         """Test get_video_path returns full path for filename."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         video_file = os.path.join(self.auto_dir, "test.mp4")
         json_path = os.path.join(self.auto_dir, "test.mp4.json")
@@ -854,14 +803,10 @@ class TestVideosManager(unittest.TestCase):
             self.assertIsNone(path)
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
     @patch.object(VideosManager, "_convert_to_ts")
-    def test_videos_manager_ensure_ts_file(
-        self, mock_convert, mock_download, mock_ensure_ts
-    ):
+    def test_videos_manager_ensure_ts_file(self, mock_convert, mock_ensure_ts):
         """Test ensure_ts_file creates TS file if not exists."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
         mock_convert.return_value = True
 
         video_file = os.path.join(self.auto_dir, "test.mp4")
@@ -897,11 +842,9 @@ class TestVideosManager(unittest.TestCase):
     # ------------------------------------------------------------------
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_scans_uploaded_subdir(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_scans_uploaded_subdir(self, mock_ensure_ts):
         """Videos placed under UPLOADED_VIDEO_DIR are tagged source=uploaded."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         # Pre-seed a metadata JSON so cv2 is not invoked during the scan.
         video_file = os.path.join(self.uploaded_dir, "mine.mp4")
@@ -933,13 +876,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(video.path, "uploaded/mine.mp4")
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_uploaded_overrides_auto_duplicate(
-        self, mock_download, mock_ensure_ts
-    ):
+    def test_videos_manager_uploaded_overrides_auto_duplicate(self, mock_ensure_ts):
         """When the same filename is in both subdirs, 'uploaded' wins."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         # Same filename in both auto and uploaded with valid metadata.
         for subdir in (self.auto_dir, self.uploaded_dir):
@@ -971,11 +910,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(path, os.path.join(self.uploaded_dir, "clash.mp4"))
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_filename_exists(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_filename_exists(self, mock_ensure_ts):
         """filename_exists returns True for files in either subdir."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         # File known to the in-memory map via the scan.
         video_file = os.path.join(self.auto_dir, "known.mp4")
@@ -1018,11 +955,9 @@ class TestVideosManager(unittest.TestCase):
             self.assertTrue(manager.filename_exists(f"../../{traversal}"))
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_source_for_path(self, mock_download, mock_ensure_ts):
+    def test_videos_manager_source_for_path(self, mock_ensure_ts):
         """_source_for_path classifies files by their parent directory."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         with self._patch_dirs():
             # Need an instance so the patched module-level constants apply.
@@ -1038,14 +973,10 @@ class TestVideosManager(unittest.TestCase):
             self.assertEqual(VideosManager._source_for_path(other_path), "auto")
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
     @patch.object(VideosManager, "_convert_to_ts")
-    def test_videos_manager_ensure_ts_file_uploaded(
-        self, mock_convert, mock_download, mock_ensure_ts
-    ):
+    def test_videos_manager_ensure_ts_file_uploaded(self, mock_convert, mock_ensure_ts):
         """TS files land next to uploaded videos (not next to auto videos)."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
         mock_convert.return_value = True
 
         video_file = os.path.join(self.uploaded_dir, "upload.mp4")
@@ -1074,13 +1005,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(ts_path, expected_ts_path)
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_register_uploaded_video(
-        self, mock_download, mock_ensure_ts
-    ):
+    def test_videos_manager_register_uploaded_video(self, mock_ensure_ts):
         """register_uploaded_video moves the temp file and records TS entry."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         # Create a "temp" file that will be moved into UPLOADED_VIDEO_DIR.
         temp_path = os.path.join(self.temp_dir, ".upload-abc.mp4")
@@ -1136,13 +1063,9 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(ts_video.source, "uploaded")
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_videos_manager_register_uploaded_video_already_ts(
-        self, mock_download, mock_ensure_ts
-    ):
+    def test_videos_manager_register_uploaded_video_already_ts(self, mock_ensure_ts):
         """Uploading a .ts file skips the conversion step."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         temp_path = os.path.join(self.temp_dir, ".upload-xyz.ts")
         with open(temp_path, "w") as f:
@@ -1173,13 +1096,11 @@ class TestVideosManager(unittest.TestCase):
         self.assertIsNone(ts_video)
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
     def test_videos_manager_register_uploaded_video_metadata_failure(
-        self, mock_download, mock_ensure_ts
+        self, mock_ensure_ts
     ):
         """Failure to extract metadata rolls back and cleans artifacts."""
         mock_ensure_ts.return_value = None
-        mock_download.return_value = None
 
         temp_path = os.path.join(self.temp_dir, ".upload-bad.mp4")
         with open(temp_path, "w") as f:
@@ -1202,8 +1123,8 @@ class TestVideosManager(unittest.TestCase):
         )
 
 
-class TestDownloadDefaultVideos(unittest.TestCase):
-    """Tests for VideosManager._download_default_videos and its helpers."""
+class TestDefaultRecordings(unittest.TestCase):
+    """Tests for the sample video manifest and on-demand downloads."""
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -1221,11 +1142,8 @@ class TestDownloadDefaultVideos(unittest.TestCase):
         return _patch_video_dirs(self.auto_dir, self.uploaded_dir)
 
     def _make_manager(self):
-        """Instantiate a manager with download/TS phases disabled."""
-        with (
-            patch.object(VideosManager, "_download_default_videos"),
-            patch.object(VideosManager, "_ensure_all_ts_conversions"),
-        ):
+        """Instantiate a manager with the TS phase disabled."""
+        with patch.object(VideosManager, "_ensure_all_ts_conversions"):
             return VideosManager()
 
     def test_get_default_recordings_filters_invalid_entries(self):
@@ -1332,7 +1250,7 @@ class TestDownloadDefaultVideos(unittest.TestCase):
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
     def test_missing_recordings_file_is_logged_and_skipped(self, _mock_ensure_ts):
-        """Missing DEFAULT_RECORDINGS_FILE logs an error and returns."""
+        """Missing DEFAULT_RECORDINGS_FILE logs an error and yields no recordings."""
         with self._patch_dirs():
             with patch(
                 "videos.DEFAULT_RECORDINGS_FILE",
@@ -1340,24 +1258,24 @@ class TestDownloadDefaultVideos(unittest.TestCase):
             ):
                 manager = self._make_manager()
                 with self.assertLogs("videos", level="ERROR") as cm:
-                    manager._download_default_videos()
+                    recordings = manager.get_default_recordings()
+        self.assertEqual(recordings, [])
         self.assertTrue(
-            any("Default recordings file" in msg for msg in cm.output),
+            any("Failed to load recordings YAML" in msg for msg in cm.output),
             cm.output,
         )
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
     def test_empty_recordings_file_is_skipped(self, _mock_ensure_ts):
-        """An empty recordings list short-circuits with a debug log."""
+        """An empty recordings list yields no recordings."""
         yaml_path = os.path.join(self.temp_dir, "rec.yaml")
         with open(yaml_path, "w") as f:
             f.write("[]\n")
 
         with self._patch_dirs():
             with patch("videos.DEFAULT_RECORDINGS_FILE", yaml_path):
-                with patch.object(VideosManager, "_download_video") as mock_dl:
-                    self._make_manager()._download_default_videos()
-        mock_dl.assert_not_called()
+                recordings = self._make_manager().get_default_recordings()
+        self.assertEqual(recordings, [])
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
     def test_invalid_recording_entry_is_skipped(self, _mock_ensure_ts):
@@ -1373,12 +1291,14 @@ class TestDownloadDefaultVideos(unittest.TestCase):
 
         with self._patch_dirs():
             with patch("videos.DEFAULT_RECORDINGS_FILE", yaml_path):
-                with patch.object(VideosManager, "_download_video") as mock_dl:
-                    with self.assertLogs("videos", level="WARNING") as cm:
-                        self._make_manager()._download_default_videos()
+                manager = self._make_manager()
+                with self.assertLogs("videos", level="WARNING") as cm:
+                    recordings = manager.get_default_recordings()
 
-        # Only the valid entry triggers a download attempt.
-        mock_dl.assert_called_once_with("https://example.test/good.mp4", "good.mp4")
+        self.assertEqual(
+            recordings,
+            [{"url": "https://example.test/good.mp4", "filename": "good.mp4"}],
+        )
         self.assertTrue(any("Invalid recording entry" in m for m in cm.output))
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
@@ -1390,23 +1310,25 @@ class TestDownloadDefaultVideos(unittest.TestCase):
 
         with self._patch_dirs():
             with patch("videos.DEFAULT_RECORDINGS_FILE", yaml_path):
+                manager = self._make_manager()
                 with self.assertLogs("videos", level="ERROR") as cm:
-                    self._make_manager()._download_default_videos()
+                    recordings = manager.get_default_recordings()
+        self.assertEqual(recordings, [])
         self.assertTrue(any("expected list" in m for m in cm.output))
 
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
     def test_load_recordings_handles_exception(self, _mock_ensure_ts):
         """An unreadable YAML file is logged and treated as empty."""
         yaml_path = os.path.join(self.temp_dir, "rec.yaml")
-        # Non-existent via open() in _load_recordings_yaml after the
-        # existence check -> simulate by removing read permission.
         with open(yaml_path, "w") as f:
             f.write(": : not valid yaml\n{{{")
 
         with self._patch_dirs():
             with patch("videos.DEFAULT_RECORDINGS_FILE", yaml_path):
+                manager = self._make_manager()
                 with self.assertLogs("videos", level="ERROR") as cm:
-                    self._make_manager()._download_default_videos()
+                    recordings = manager.get_default_recordings()
+        self.assertEqual(recordings, [])
         self.assertTrue(
             any("Failed to load recordings YAML" in m for m in cm.output),
             cm.output,
@@ -1432,10 +1354,7 @@ class TestDownloadVideo(unittest.TestCase):
         return _patch_video_dirs(self.auto_dir, self.uploaded_dir)
 
     def _make_manager(self):
-        with (
-            patch.object(VideosManager, "_download_default_videos"),
-            patch.object(VideosManager, "_ensure_all_ts_conversions"),
-        ):
+        with patch.object(VideosManager, "_ensure_all_ts_conversions"):
             return VideosManager()
 
     def test_skip_when_file_already_exists(self):
@@ -1631,9 +1550,8 @@ class TestScanEdgeCases(unittest.TestCase):
         shutil.rmtree(self.temp_dir)
         VideosManager._instance = None
 
-    @patch.object(VideosManager, "_download_default_videos")
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    def test_missing_subdir_logs_warning_and_continues(self, _ensure, _dl):
+    def test_missing_subdir_logs_warning_and_continues(self, _ensure):
         """A missing UPLOADED_VIDEO_DIR is skipped with a warning."""
         with _patch_video_dirs(self.auto_dir, self.uploaded_dir):
             # _ensure_subdirs will recreate the missing subdir - stub it out
@@ -1664,10 +1582,7 @@ class TestEnsureTsFilePaths(unittest.TestCase):
         return _patch_video_dirs(self.auto_dir, self.uploaded_dir)
 
     def _make_manager(self):
-        with (
-            patch.object(VideosManager, "_download_default_videos"),
-            patch.object(VideosManager, "_ensure_all_ts_conversions"),
-        ):
+        with patch.object(VideosManager, "_ensure_all_ts_conversions"):
             return VideosManager()
 
     def test_ensure_ts_file_returns_as_is_for_ts_source(self):
@@ -1958,10 +1873,7 @@ class TestRegisterUploadedVideoFailures(unittest.TestCase):
         return _patch_video_dirs(self.auto_dir, self.uploaded_dir)
 
     def _make_manager(self):
-        with (
-            patch.object(VideosManager, "_download_default_videos"),
-            patch.object(VideosManager, "_ensure_all_ts_conversions"),
-        ):
+        with patch.object(VideosManager, "_ensure_all_ts_conversions"):
             return VideosManager()
 
     def test_move_failure_raises_runtime_error(self):
