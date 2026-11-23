@@ -87,19 +87,19 @@ the stack and delete the volumes with `docker volume rm`. Compose prefixes
 volume names with the project name; list them with `docker volume ls`.
 
 The Makefile defines and exports `AUDIO_ANALYZER_TAG` and `TEXT_TO_SPEECH_TAG`,
-both defaulting to `2026.3.0-rc1`. Standard lifecycle targets use these defaults
+both defaulting to `2026.3.0-rc2`. Standard lifecycle targets use these defaults
 without any shell variable setup. Override them independently on the command
 line, for example:
 
 ```bash
-make build run AUDIO_ANALYZER_TAG=2026.3.0-rc1 TEXT_TO_SPEECH_TAG=2026.3.0-rc1
+make build run AUDIO_ANALYZER_TAG=2026.3.0-rc2 TEXT_TO_SPEECH_TAG=2026.3.0-rc2
 ```
 
 Command-line values override inherited environment values and Makefile defaults.
 Full image overrides remain available and take precedence over tags:
 
-- `AUDIO_ANALYZER_IMAGE=docker.io/intel/audio-analyzer:2026.3.0-rc1`
-- `TEXT_TO_SPEECH_IMAGE=docker.io/intel/text-to-speech:2026.3.0-rc1`
+- `AUDIO_ANALYZER_IMAGE=docker.io/intel/audio-analyzer:2026.3.0-rc2`
+- `TEXT_TO_SPEECH_IMAGE=docker.io/intel/text-to-speech:2026.3.0-rc2`
 
 Export these variables in the shell to select another version, registry, or
 image digest. Do not store overrides in `.env` when using Make: the standard
