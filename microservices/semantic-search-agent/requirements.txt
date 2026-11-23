@@ -10,6 +10,9 @@ httpx>=0.26.0
 # OpenVINO (optional - for local VLM)
 openvino-genai>=2025.0.0
 
+# OpenAI backend (required when VLM_BACKEND=openai)
+openai>=1.0.0
+
 # Caching
 redis>=5.0.0
 hiredis>=2.3.0

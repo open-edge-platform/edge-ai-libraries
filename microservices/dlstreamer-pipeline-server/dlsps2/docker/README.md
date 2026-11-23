@@ -243,6 +243,11 @@ WEB_SERVER_LOG_LEVEL=WARNING   # DL Streamer web server logs
 GST_DEBUG=1                    # GStreamer debug level
 ```
 
+**Worker recycling:**
+```bash
+DLSPS_WORKER_RECYCLE_IDLE_SECONDS=60  # Restart the gst worker after this many idle seconds (no pipelines); 0 disables
+```
+
 **Metrics:**
 ```bash
 METRICS_RETENTION_SECONDS=300  # How long to keep custom metrics

@@ -44,7 +44,7 @@ endef
 # skips the server, so it never overwrites the tag; `run` pulls it.
 BUILD_SERVICES := $(if $(DLSPS2_IMAGE),vippet vippet-ui sensor-manager)
 # DLSPS 2.0 image used by `run-prebuilt` unless DLSPS2_IMAGE is set.
-PREBUILT_DLSPS2_IMAGE ?= intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-2.0-rc1
+PREBUILT_DLSPS2_IMAGE ?= intel/dlstreamer-pipeline-server:2026.3.0-ubuntu26-2.0-rc1
 
 # Set GIGE=1 to run vippet with host networking for GigE Vision camera streaming (see compose.gige.yml).
 GIGE ?= 0
@@ -115,18 +115,21 @@ ruff: $(VENV_SENTINEL) ## Run ruff linter
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	ruff --version ;\
 	# Exclude shared/ — runtime-mounted volume, not source code ;\
-	ruff check --exclude shared/ ;\
-	ruff format --check --exclude shared/
+	# Exclude SceneScape GStreamer plugins ;\
+	ruff check --exclude shared/ --exclude 'vippet/gst_plugins/python/sscape_*.py' ;\
+	ruff format --check --exclude shared/ --exclude 'vippet/gst_plugins/python/sscape_*.py'
 
 fix-linter: $(VENV_SENTINEL) ## Fix linter issues using ruff
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	# Exclude shared/ — runtime-mounted volume, not source code ;\
-	ruff check --fix --exclude shared/
+	# Exclude SceneScape GStreamer plugins ;\
+	ruff check --fix --exclude shared/ --exclude 'vippet/gst_plugins/python/sscape_*.py'
 
 format: $(VENV_SENTINEL) ## Format code using ruff
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	# Exclude shared/ — runtime-mounted volume, not source code ;\
-	ruff format --exclude shared/
+	# Exclude SceneScape GStreamer plugins ;\
+	ruff format --exclude shared/ --exclude 'vippet/gst_plugins/python/sscape_*.py'
 
 pyright: $(VENV_SENTINEL) ## Run pyright type checker
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
