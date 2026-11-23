@@ -1,0 +1,85 @@
+# @PIPELINE_NAME@ (@VARIANT_NAME@) app
+
+This app was exported from the Visual Pipeline and Platform Evaluation Tool (ViPPET)
+@VIPPET_VERSION@ on @EXPORTED_AT@. It runs the **@PIPELINE_NAME@** pipeline, variant
+**@VARIANT_NAME@** (@DEVICES@), on DL Streamer Pipeline Server 2.0, with the model and
+input video bundled in `assets/`.
+
+## Requirements
+
+- Linux with Docker and Docker Compose v2, `jq` and `curl`.
+@DEVICE_REQUIREMENTS@
+- Internet access the first time, to pull `@DLSPS2_IMAGE@` and
+  `@MEDIAMTX_IMAGE@`.
+
+## Quick start
+
+```bash
+./start_app.sh                    # start the stack
+ID=$(./run.sh rtsp)               # start a pipeline instance, print its id
+./status.sh "$ID"                 # state and FPS of the instance
+./stop.sh "$ID"                   # stop it (./stop.sh with no id stops all)
+./stop_app.sh                     # stop all instances and remove the containers
+```
+
+`./start_app.sh rtsp` starts the stack and an instance in one step.
+
+## Outputs
+
+`./run.sh [fakesink|file|rtsp] [name]` starts one instance. Its outputs are named after
+the instance name, which defaults to `<output>-<date>-<time>`:
+
+| Output | Input video | Writes |
+|--------|-------------|--------|
+| `fakesink` (default) | loops until stopped | events only |
+| `file` | played once | `output/<name>.mp4` |
+| `rtsp` | loops until stopped | stream at `rtsp://localhost:18554/<name>` |
+
+Every instance writes its detection events to `output/<name>.jsonl`: one JSON object per
+video frame, with the frame resolution, a `timestamp` in nanoseconds of pipeline time
+(starting at 0, not wall-clock time) and the detected `objects`. Follow it with
+`tail -F output/<name>.jsonl | jq -c .`. A blank line marks the end of a run.
+
+A looping instance writes events until it is stopped, about 0.5 KB per frame (roughly
+50 MB per hour at 30 FPS). Stop instances you no longer need. `./run.sh` deletes the
+events file of the same name before it starts a new instance.
+
+## Configuration
+
+Set these variables when you run the scripts, e.g. `REST_PORT=28080 ./start_app.sh`:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `REST_PORT` | `18080` | DL Streamer Pipeline Server REST API, on `127.0.0.1` only |
+| `RTSP_PORT` | `18554` | RTSP output |
+| `DLSPS2_IMAGE` | `@DLSPS2_IMAGE@` | Pipeline server image |
+
+The defaults differ from ViPPET's ports, so the app can run on the same host.
+`./start_app.sh` saves the ports, your user and the GPU render group to `.env`; the other
+scripts and plain `docker compose` commands in this directory read it.
+
+## Files
+
+| Path | Content |
+|------|---------|
+| `compose.yml` | The stack: DL Streamer Pipeline Server 2.0 and MediaMTX |
+| `pipelines.json` | Launch string per output; `{name}` is replaced by the instance name |
+| `.env` | Written by `./start_app.sh`: ports, user and render group for `compose.yml` |
+| `manifest.json` | Source pipeline and variant, ViPPET version, checksums of the assets |
+| `assets/` | Model and video files, mounted read-only at `/models` and `/videos` |
+| `output/` | Videos and events written by the instances |
+
+## Bundled assets
+
+These files were copied from the ViPPET installation that exported the app. They are
+third-party content with their own licenses; check them before you redistribute this
+archive.
+
+@ASSETS@
+
+## Troubleshooting
+
+- `./status.sh <id>` shows why an instance failed in `message`.
+- `docker compose logs dlstreamer-pipeline-server` shows the server log.
+- An instance that finishes at a very high FPS with no events in `objects` did not run
+  inference; check the log for `exception occured during inference`.
