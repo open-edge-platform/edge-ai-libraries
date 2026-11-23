@@ -11,10 +11,7 @@ This section shows how to build the Model Download microservice from source.
 1. **Clone the repository**:
 
    ```bash
-   # Clone the latest on the mainline
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, clone a specific release branch
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
    ```
 
 2. **Navigate to the directory**:
@@ -22,7 +19,7 @@ This section shows how to build the Model Download microservice from source.
    - Go to the model-download microservice directory
 
      ```bash
-     cd microservices/model-download
+     cd edge-ai-libraries/microservices/model-download
      ```
 
 3. **Configure the environment variables**
