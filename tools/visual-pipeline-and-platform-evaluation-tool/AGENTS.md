@@ -110,15 +110,19 @@ make format      # Auto-format with ruff
 
 | Target              | Description                                                          |
 | ------------------- | -------------------------------------------------------------------- |
-| `make build`        | Build all Docker images (DLSPS 2.0 skipped if `DLSPS2_IMAGE` is set) |
+| `make build`        | Build core images (DLSPS 2.0 skipped if `DLSPS2_IMAGE` is set)       |
 | `make run`          | Start all services via Docker Compose                                |
 | `make run-prebuilt` | Pull and start the published images (`latest` on main); never builds |
 | `make stop`         | Stop all services                                                    |
-| `make clean`        | Stop and remove containers/volumes                                   |
+| `make clean`        | Delete models, caches and media under `shared/`; keeps volumes       |
 | `make shell`        | Open shell in vippet container                                       |
 | `make shell-ui`     | Open shell in UI container                                           |
 | `make shell-dlsps`  | Open shell in DL Streamer Pipeline Server 2.0 container              |
 | `make test`         | Run tests in Docker                                                  |
+
+`make build` does not build the Voice images (`audio-analyzer`, `text-to-speech`): `make run` pulls the published
+images, and only `make build-dev` builds them from source. `make clean` does not stop containers or remove named
+volumes. See `docs/user-guide/user-guide/voice-conversion.md`.
 
 ## API
 
