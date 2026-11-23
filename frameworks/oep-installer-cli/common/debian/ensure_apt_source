@@ -25,7 +25,7 @@ ensure_apt_source () {
     done | sort -u
   ))
   [ ${#legacies[*]} -eq 0 ] || ensure_apt_source_remove "${legacies[*]}"
-  (IFS=$'\n';echo "$*") | ensure_sudo tee $file > /dev/null
+  printf "%s\n" "$@" | ensure_sudo tee $file > /dev/null
 }
 
 # remove apt source by uri
