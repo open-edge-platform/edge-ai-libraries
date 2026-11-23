@@ -64,7 +64,7 @@
               }"
               :class="{
                 selected: selection.key === node.key,
-                placed: !!positions[node.key],
+                placed: positions.has(node.key),
               }"
               :title="
                 [
@@ -87,7 +87,7 @@
             >
               <CanvasResource :node="node" compact />
               <span
-                v-if="positions[node.key]"
+                v-if="positions.has(node.key)"
                 class="placed-indicator"
                 role="img"
                 :aria-label="$t('console.onCanvas')"
@@ -102,7 +102,7 @@
           :image="Empty.PRESENTED_IMAGE_SIMPLE"
         />
       </div>
-      <p class="inventory-hint">
+      <p class="inventory-hint console-info-hint">
         <InfoCircleOutlined />
         {{ $t("console.canvasDragHint") }}
       </p>
@@ -328,8 +328,8 @@
               class="canvas-node"
               :class="{ 'drop-target': dropTarget === node.key }"
               :style="{
-                left: `${positions[node.key].x}px`,
-                top: `${positions[node.key].y}px`,
+                left: `${positions.get(node.key)?.x}px`,
+                top: `${positions.get(node.key)?.y}px`,
                 width: `${NODE_WIDTH}px`,
                 height: `${NODE_HEIGHT}px`,
                 '--resource-color': resourceCategories[node.kind].color,
@@ -459,6 +459,7 @@ const linkPreview = ref<{
 }>();
 const markerId = `canvas-arrow-${props.libraryData.id}`;
 const layoutKey = `canvas.${props.libraryData.name}`;
+const nodesKey = `${layoutKey}.nodes`;
 const isPosition = (value: unknown): value is Position =>
   value !== null &&
   typeof value === "object" &&
@@ -470,7 +471,7 @@ const isPosition = (value: unknown): value is Position =>
   typeof value.y === "number" &&
   Number.isFinite(value.y) &&
   value.y >= 0;
-const readLayout = (): Record<string, Position> | null => {
+const readLayout = (): Map<string, Position> | null => {
   try {
     const saved: unknown = Session.get(layoutKey);
     if (saved === null) return null;
@@ -483,7 +484,7 @@ const readLayout = (): Record<string, Position> | null => {
       )
     )
       throw new Error(t("console.invalidLayout"));
-    return Object.fromEntries(entries);
+    return new Map(entries);
   } catch (error) {
     customNotification(
       "warning",
@@ -494,7 +495,18 @@ const readLayout = (): Record<string, Position> | null => {
   }
 };
 const savedLayout = readLayout();
-const positions = ref<Record<string, Position>>(savedLayout || {});
+const positions = ref(savedLayout ?? new Map<string, Position>());
+const readNodeKeys = (): string[] | null => {
+  try {
+    const saved: unknown = Session.get(nodesKey);
+    return Array.isArray(saved) && saved.every((key) => typeof key === "string")
+      ? saved
+      : null;
+  } catch {
+    return null;
+  }
+};
+let knownNodeKeys = readNodeKeys();
 let initialized = savedLayout !== null;
 let moved = false;
 let resizeObserver: ResizeObserver | undefined;
@@ -504,7 +516,7 @@ type DragState =
   | { mode: "pan"; start: Position; origin: Position };
 const drag = ref<DragState>();
 const visibleNodes = computed(() =>
-  props.nodeList.filter((node) => positions.value[node.key]),
+  props.nodeList.filter((node) => positions.value.has(node.key)),
 );
 const visibleKeys = computed(
   () => new Set(visibleNodes.value.map((node) => node.key)),
@@ -556,14 +568,14 @@ const stageSize = computed(() => ({
   width: Math.max(
     viewSize.value.width / zoom.value,
     ...visibleNodes.value.map(
-      (node) => positions.value[node.key].x + NODE_WIDTH + CANVAS_PADDING,
+      (node) => positions.value.get(node.key)!.x + NODE_WIDTH + CANVAS_PADDING,
     ),
     1,
   ),
   height: Math.max(
     viewSize.value.height / zoom.value,
     ...visibleNodes.value.map(
-      (node) => positions.value[node.key].y + NODE_HEIGHT + CANVAS_PADDING,
+      (node) => positions.value.get(node.key)!.y + NODE_HEIGHT + CANVAS_PADDING,
     ),
     1,
   ),
@@ -575,7 +587,11 @@ const handleToggleGroup = (kind: NodeKind) => {
 };
 const saveLayout = () => {
   try {
-    Session.set(layoutKey, positions.value);
+    Session.set(layoutKey, Object.fromEntries(positions.value));
+    Session.set(
+      nodesKey,
+      props.nodeList.map((node) => node.key),
+    );
   } catch (error) {
     customNotification(
       "error",
@@ -587,7 +603,7 @@ const saveLayout = () => {
 const placeNodes = (keys: string[], position?: Position) => {
   initialized = true;
   keys.forEach((key, index) => {
-    if (positions.value[key]) return;
+    if (positions.value.has(key)) return;
     const column = resourceCategoryList.findIndex((category) =>
       key.startsWith(`${category.kind}:`),
     );
@@ -598,14 +614,14 @@ const placeNodes = (keys: string[], position?: Position) => {
           y: CANVAS_PADDING,
         };
     while (
-      Object.values(positions.value).some(
+      Array.from(positions.value.values()).some(
         (other) =>
           Math.abs(other.x - point.x) < NODE_WIDTH + 12 &&
           Math.abs(other.y - point.y) < NODE_HEIGHT + 12,
       )
     )
       point.y += ROW_STEP;
-    positions.value[key] = point;
+    positions.value.set(key, point);
   });
   saveLayout();
 };
@@ -617,7 +633,7 @@ const handleFit = async (initial = false) => {
     area?.scrollTo(0, 0);
     return;
   }
-  const points = visibleNodes.value.map((node) => positions.value[node.key]);
+  const points = visibleNodes.value.map((node) => positions.value.get(node.key)!);
   const minX = Math.max(
     0,
     Math.min(...points.map((point) => point.x)) - CANVAS_PADDING,
@@ -673,10 +689,10 @@ const handleWheel = (event: WheelEvent) => {
   setZoom(zoom.value * (event.deltaY < 0 ? 1.1 : 1 / 1.1), event);
 };
 const handleAutoLayout = () => {
-  positions.value = {
-    ...positions.value,
-    ...arrangeCanvasNodes(visibleNodes.value, props.edgeList),
-  };
+  for (const [key, point] of Object.entries(
+    arrangeCanvasNodes(visibleNodes.value, props.edgeList),
+  ))
+    positions.value.set(key, point);
   saveLayout();
   handleFit();
 };
@@ -698,12 +714,12 @@ const handlePlaceAll = () => {
 };
 const handleClear = () => {
   initialized = true;
-  positions.value = {};
+  positions.value.clear();
   saveLayout();
   emit("deselect");
 };
 const removeNode = (key: string) => {
-  delete positions.value[key];
+  positions.value.delete(key);
   saveLayout();
 };
 const handleRemoveNode = (key: string) => {
@@ -722,7 +738,8 @@ const handleInventoryClick = async (key: string) => {
   placeNodes([key]);
   emit("select", key);
   await nextTick();
-  const point = positions.value[key];
+  const point = positions.value.get(key);
+  if (!point) return;
   viewport.value?.scrollTo({
     left: Math.max(
       0,
@@ -737,8 +754,8 @@ const handleInventoryClick = async (key: string) => {
   });
 };
 const portPoint = (key: string, side: "left" | "right"): Position => ({
-  x: positions.value[key].x + (side === "right" ? NODE_WIDTH : 0),
-  y: positions.value[key].y + NODE_PORT_Y,
+  x: positions.value.get(key)!.x + (side === "right" ? NODE_WIDTH : 0),
+  y: positions.value.get(key)!.y + NODE_PORT_Y,
 });
 const curve = (from: Position, to: Position) => {
   const offset = Math.max(40, Math.abs(to.x - from.x) / 2);
@@ -773,7 +790,7 @@ const relatedPosition = (
   target: CanvasNode | undefined,
   fallback: Position,
 ): Position => {
-  const anchor = target && positions.value[target.key];
+  const anchor = target && positions.value.get(target.key);
   if (
     !anchor ||
     !target ||
@@ -822,7 +839,7 @@ const handleDrop = (event: DragEvent, target?: string) => {
     emit("connect", key, target);
     return;
   }
-  positions.value[key] = position;
+  positions.value.set(key, position);
   initialized = true;
   saveLayout();
   emit("select", key);
@@ -848,7 +865,7 @@ const handleNodePointerDown = (event: PointerEvent, key: string) => {
     mode: "move",
     key,
     start: { x: event.clientX, y: event.clientY },
-    origin: { ...positions.value[key] },
+    origin: { ...positions.value.get(key)! },
   };
   startPointerTracking();
 };
@@ -900,10 +917,10 @@ const handlePointerMove = (event: PointerEvent) => {
   if (state.mode === "pan")
     viewport.value?.scrollTo(state.origin.x - dx, state.origin.y - dy);
   else
-    positions.value[state.key] = {
+    positions.value.set(state.key, {
       x: Math.max(0, state.origin.x + dx / zoom.value),
       y: Math.max(0, state.origin.y + dy / zoom.value),
-    };
+    });
 };
 const handlePointerUp = (event: PointerEvent) => {
   const state = drag.value;
@@ -911,9 +928,9 @@ const handlePointerUp = (event: PointerEvent) => {
     const target = targetAt(event);
     if (target && target !== state.key) emit("connect", state.key, target);
   } else if (state?.mode === "move" && moved) {
-    const point = positions.value[state.key];
+    const point = positions.value.get(state.key)!;
     const target = visibleNodes.value.find((node) => {
-      const other = positions.value[node.key];
+      const other = positions.value.get(node.key)!;
       return (
         node.key !== state.key &&
         point.x + NODE_WIDTH / 2 > other.x &&
@@ -923,7 +940,7 @@ const handlePointerUp = (event: PointerEvent) => {
       );
     });
     if (target) {
-      positions.value[state.key] = state.origin;
+      positions.value.set(state.key, state.origin);
       emit("connect", state.key, target.key);
     }
     saveLayout();
@@ -933,7 +950,7 @@ const handlePointerUp = (event: PointerEvent) => {
 };
 const cancelDrag = () => {
   if (drag.value?.mode === "move")
-    positions.value[drag.value.key] = drag.value.origin;
+    positions.value.set(drag.value.key, drag.value.origin);
   stopPointerTracking();
 };
 const handleNodeClick = (event: MouseEvent, key: string) => {
@@ -974,15 +991,46 @@ watch(linkFrom, () => {
 watch(
   () => props.nodeList,
   (nodes) => {
+    const keys = nodes.map((node) => node.key);
     if (!initialized && nodes.length) {
       const assets = nodes.filter((node) => node.kind === "asset");
       const initial = nodes.filter(
         (node) => node.kind !== "asset" || assets.length <= 40,
       );
-      positions.value = arrangeCanvasNodes(initial, props.edgeList);
+      positions.value = new Map(
+        Object.entries(arrangeCanvasNodes(initial, props.edgeList)),
+      );
       initialized = true;
       saveLayout();
+    } else if (initialized) {
+      const previous = knownNodeKeys || Array.from(positions.value.keys());
+      const newKeys = keys.filter((key) => !previous.includes(key));
+      const removedKeys = previous.filter((key) => !keys.includes(key));
+      if (newKeys.some((key) => !positions.value.has(key)) || removedKeys.length) {
+        const newAssets = nodes
+          .filter(
+            (node) =>
+              node.kind === "asset" &&
+              newKeys.includes(node.key) &&
+              !positions.value.has(node.key),
+          )
+          .slice(0, MAX_AUTO_ASSETS)
+          .map((node) => node.key);
+        const layoutNodes = nodes.filter(
+          (node) =>
+            positions.value.has(node.key) ||
+            (node.kind !== "asset" && newKeys.includes(node.key)) ||
+            newAssets.includes(node.key),
+        );
+        positions.value = new Map(
+          Object.entries(arrangeCanvasNodes(layoutNodes, props.edgeList)),
+        );
+        saveLayout();
+      } else if (knownNodeKeys === null || newKeys.length) {
+        saveLayout();
+      }
     }
+    knownNodeKeys = keys;
     if (linkFrom.value && !nodes.some((node) => node.key === linkFrom.value))
       linkFrom.value = undefined;
     if (linkTo.value && !nodes.some((node) => node.key === linkTo.value))
@@ -1151,17 +1199,7 @@ defineExpose({ placeNodes, removeNode, showLinked });
 }
 .inventory-hint {
   flex-shrink: 0;
-  display: flex;
-  gap: 6px;
-  padding: 10px 0;
   margin: 0;
-  color: var(--font-info-color);
-  font-size: 11px;
-  line-height: 1.6;
-  border-top: 1px solid var(--border-main-color);
-  .anticon {
-    margin-top: 3px;
-  }
 }
 .board-workspace {
   flex: 1;

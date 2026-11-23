@@ -33,7 +33,7 @@
             />
             <a-tooltip :title="$t('console.refresh')">
               <a-button
-                :loading="loading"
+                :loading="loading || !!loadError"
                 :aria-label="$t('console.refresh')"
                 @click="handleRefresh"
               >
@@ -73,6 +73,7 @@
                 :is="Component"
                 :key="`${currentPage}:${isLibraryPage ? libraryName : ''}:${refreshKey}`"
                 class="console-page"
+                :loading="loading"
                 :library-list="libraryList"
                 :library-data="libraryData"
                 @refresh="handleSearch"
@@ -200,6 +201,9 @@ watch(
   },
   { immediate: true },
 );
+watch(currentPage, (page) => {
+  if (page === "libraries") void handleRefresh();
+});
 watch(
   () => route.query.library,
   (name) => {
