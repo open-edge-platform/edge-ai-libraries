@@ -2282,8 +2282,7 @@ configure_edge_pack ()
     edge_pack_pref=("Package: *" "Pin: origin $edge_pack_repo" "Pin-Priority: 1001");
     edge_pack_pref_file=/etc/apt/preferences.d/intel-edge-pack.pref;
     edge_pack_incompatible_files=(/etc/apt/preferences.d/priorities /etc/apt/preferences.d/edgepack.pref /etc/apt/sources.list.d/intel-edge-pack.sources /etc/apt/sources.list.d/kobuk-ppa.sources);
-    edge_pack_install_options=("--no-install-recommends");
-    edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers mesa-opencl-icd);
+    edge_pack_install_options=("--no-install-recommends" "--allow-downgrades");
     edge_pack_ppa_repo=;
     edge_pack_ppa_key_url=;
     edge_pack_ppa_key_file=;
@@ -3289,10 +3288,8 @@ debian_40_install_edge_pack_base_standard ()
     else
         ensure_prop set installed/edge_pack_base_standard/owned true;
         ensure_apt purge --auto-remove -y intel-edge-base-standard onevpl-tools || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
+        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" $(ensure_apt_policy_version intel-edge-media-core libigdgmm12) $(ensure_apt_policy_version intel-edge-npu libze1);
     fi;
-    [ -c /dev/dri/renderD128 ];
     ensure_group_add $(debian_40_group_edge_pack_base_standard)
 }
 debian_40_install_edge_pack_ipu () 
@@ -3303,8 +3300,7 @@ debian_40_install_edge_pack_ipu ()
     else
         ensure_prop set installed/edge_pack_ipu/owned true;
         ensure_apt purge --auto-remove -y intel-edge-ipu || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*";
+        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*";
         ensure_sudo modprobe -r intel-ipu7 || true;
         ensure_sudo modprobe intel-ipu7 || true;
     fi
@@ -3317,8 +3313,7 @@ debian_40_install_edge_pack_manageability ()
     else
         ensure_prop set installed/edge_pack_manageability/owned true;
         ensure_apt purge --auto-remove -y intel-edge-manageability || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*";
+        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*";
     fi
 }
 debian_40_install_edge_pack_npu () 
@@ -3329,10 +3324,8 @@ debian_40_install_edge_pack_npu ()
     else
         ensure_prop set installed/edge_pack_npu/owned true;
         ensure_apt purge --auto-remove -y intel-edge-npu || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
+        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" $(ensure_apt_policy_version intel-edge-npu libze1);
     fi;
-    [ -c /dev/accel/accel0 ];
     ensure_group_add $(debian_40_group_edge_pack_npu)
 }
 debian_40_install_edge_pack_tsn () 
@@ -3343,8 +3336,7 @@ debian_40_install_edge_pack_tsn ()
     else
         ensure_prop set installed/edge_pack_tsn/owned true;
         ensure_apt purge --auto-remove -y intel-edge-tsn || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*";
+        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*";
     fi
 }
 debian_40_install_gpu_accel () 
@@ -4409,6 +4401,15 @@ ensure_apt_key ()
     ensure_tmpdir destroy "$tmp_dir" || true;
     return $rc
 }
+ensure_apt_policy_version () 
+{ 
+    local pkg="$1" c;
+    shift;
+    for c in "$@";
+    do
+        echo "$c=$(apt-cache show "$pkg" | sed -n -E "/Depends:.*$c/{s/.*$c \\(= ([^)]+)\\).*/\\1/;p;q}")";
+    done
+}
 ensure_apt_preference () 
 { 
     local file=$1;
@@ -4573,7 +4574,7 @@ ensure_apt_source_remove ()
         ' "$v" || return 1
     ;;
 esac)"; then
-            ensure_sudo mv -f "$v" "$v".bak."$(date +%Y%m%d)";
+            ensure_sudo mv -f "$v" "$v.$(date +%Y%m%d)".bak;
             printf '%s\n' "$updated" | ensure_sudo tee "$v" > /dev/null;
         fi;
     done
