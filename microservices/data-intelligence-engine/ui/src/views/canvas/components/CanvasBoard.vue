@@ -459,6 +459,7 @@ const linkPreview = ref<{
 }>();
 const markerId = `canvas-arrow-${props.libraryData.id}`;
 const layoutKey = `canvas.${props.libraryData.name}`;
+const nodesKey = `${layoutKey}.nodes`;
 const isPosition = (value: unknown): value is Position =>
   value !== null &&
   typeof value === "object" &&
@@ -495,6 +496,17 @@ const readLayout = (): Record<string, Position> | null => {
 };
 const savedLayout = readLayout();
 const positions = ref<Record<string, Position>>(savedLayout || {});
+const readNodeKeys = (): string[] | null => {
+  try {
+    const saved: unknown = Session.get(nodesKey);
+    return Array.isArray(saved) && saved.every((key) => typeof key === "string")
+      ? saved
+      : null;
+  } catch {
+    return null;
+  }
+};
+let knownNodeKeys = readNodeKeys();
 let initialized = savedLayout !== null;
 let moved = false;
 let resizeObserver: ResizeObserver | undefined;
@@ -576,6 +588,10 @@ const handleToggleGroup = (kind: NodeKind) => {
 const saveLayout = () => {
   try {
     Session.set(layoutKey, positions.value);
+    Session.set(
+      nodesKey,
+      props.nodeList.map((node) => node.key),
+    );
   } catch (error) {
     customNotification(
       "error",
@@ -974,6 +990,7 @@ watch(linkFrom, () => {
 watch(
   () => props.nodeList,
   (nodes) => {
+    const keys = nodes.map((node) => node.key);
     if (!initialized && nodes.length) {
       const assets = nodes.filter((node) => node.kind === "asset");
       const initial = nodes.filter(
@@ -982,7 +999,33 @@ watch(
       positions.value = arrangeCanvasNodes(initial, props.edgeList);
       initialized = true;
       saveLayout();
+    } else if (initialized) {
+      const previous = knownNodeKeys || Object.keys(positions.value);
+      const newKeys = keys.filter((key) => !previous.includes(key));
+      const removedKeys = previous.filter((key) => !keys.includes(key));
+      if (newKeys.some((key) => !positions.value[key]) || removedKeys.length) {
+        const newAssets = nodes
+          .filter(
+            (node) =>
+              node.kind === "asset" &&
+              newKeys.includes(node.key) &&
+              !positions.value[node.key],
+          )
+          .slice(0, MAX_AUTO_ASSETS)
+          .map((node) => node.key);
+        const layoutNodes = nodes.filter(
+          (node) =>
+            positions.value[node.key] ||
+            (node.kind !== "asset" && newKeys.includes(node.key)) ||
+            newAssets.includes(node.key),
+        );
+        positions.value = arrangeCanvasNodes(layoutNodes, props.edgeList);
+        saveLayout();
+      } else if (knownNodeKeys === null || newKeys.length) {
+        saveLayout();
+      }
     }
+    knownNodeKeys = keys;
     if (linkFrom.value && !nodes.some((node) => node.key === linkFrom.value))
       linkFrom.value = undefined;
     if (linkTo.value && !nodes.some((node) => node.key === linkTo.value))

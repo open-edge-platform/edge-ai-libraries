@@ -16,7 +16,7 @@ usage() {
   cat <<'EOF'
 Usage: prepare-models.sh [options] [MODEL...]
 
-Models (default: gme reranker layout viclip-b whisper media-reranker):
+Models (default: gme reranker layout ppocr viclip-b whisper media-reranker):
   gme             GME-Qwen2-VL-2B: documents, PDF figures, images, audio transcripts
   reranker        bge-reranker-large
   media-reranker  Qwen3-VL-Reranker-2B (INT8 weight-only): unified
@@ -24,6 +24,7 @@ Models (default: gme reranker layout viclip-b whisper media-reranker):
                   console serves by default. FP16 IRs are exported into a
                   temporary directory and removed after quantization.
   layout          PP-DocLayoutV3: PDF figure detection and scanned PDFs
+  ppocr           PP-OCRv6 medium (ONNX): text recognition for scanned PDFs
   viclip-b        ViCLIP-B-16: video embedding (default)
   viclip-l        ViCLIP-L-14: video embedding
   cosmos-224p     Cosmos-Embed1-224p: video embedding
@@ -55,7 +56,7 @@ OV_MODEL_DIR="${OV_MODEL_DIR:-$ENGINE_DIR/workspace/models}"
 # the engine image pins 5.5 for optimum-intel, so 5.10 goes into the throwaway
 # container only. This is the version the GME export was validated with.
 TRANSFORMERS5="transformers==5.10.4"
-ALL_MODELS=(gme reranker media-reranker layout viclip-b viclip-l cosmos-224p whisper bge)
+ALL_MODELS=(gme reranker media-reranker layout ppocr viclip-b viclip-l cosmos-224p whisper bge)
 
 gme_precision=int8
 video_precision=fp16
@@ -71,7 +72,7 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-[[ ${#models[@]} -gt 0 ]] || models=(gme reranker layout viclip-b whisper media-reranker)
+[[ ${#models[@]} -gt 0 ]] || models=(gme reranker layout ppocr viclip-b whisper media-reranker)
 case "$gme_precision" in int8|int4|fp32) ;; *) echo "--gme-precision must be int8, int4 or fp32" >&2; exit 2 ;; esac
 case "$video_precision" in fp16|fp32) ;; *) echo "--video-precision must be fp16 or fp32" >&2; exit 2 ;; esac
 
@@ -203,6 +204,19 @@ prepare_layout() {
     cd /engine && PYTHONPATH=src python scripts/export_pp_doclayout_v3.py \
       --model-path /hf/PP-DocLayoutV3_safetensors --output-dir /ov/PP-DocLayoutV3
   "
+}
+
+prepare_ppocr() {
+  local spec name revision
+  for spec in PP-OCRv6_medium_det_onnx:61323801669c338b7891481ec7bac61ce31b576a \
+              PP-OCRv6_medium_rec_onnx:50c7eacafc52fa7bcf4194e8cd08e46f8558504b; do
+    name="${spec%%:*}" revision="${spec#*:}"
+    skip_if_ready "$name" "$name/inference.onnx" "$name/inference.yml" && continue
+    log "Downloading PaddlePaddle/$name@$revision"
+    run --entrypoint hf "$IMAGE" \
+      download "PaddlePaddle/$name" --revision "$revision" \
+      --include inference.onnx --include inference.yml --local-dir "/ov/$name"
+  done
 }
 
 # Validate using only the container's Python standard library: no model code,

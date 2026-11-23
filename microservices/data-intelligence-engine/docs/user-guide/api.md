@@ -272,7 +272,7 @@ use separate pools or source filters to avoid that choice.
 
 An empty `asset_pool_ids` list searches all vector-capable pools in the named
 libraries. Omit `postprocess` to return retrieval results without reranking.
-Omitted `top_k` defaults to `5`, and omitted `postprocess.top_n` to `3`
+Omitted `top_k` defaults to `10`, and omitted `postprocess.top_n` to `5`
 (`RETRIEVE_TOP_K` / `RERANK_TOP_N` in `src/config.py`).
 `target_media` scopes the search by modality: empty searches every searchable
 source; an explicit list searches those modalities only. `document` retrieves

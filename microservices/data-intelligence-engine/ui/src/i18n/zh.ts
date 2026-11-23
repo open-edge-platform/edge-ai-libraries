@@ -233,6 +233,8 @@ export default {
     metadata: "元数据（JSON）",
     createLibrary: "创建资源库",
     deleteLibrary: "确定删除资源库“{name}”及其内容？此操作不可撤销。",
+    libraryIndexingDeleteHint:
+      "资源库中有资源池或数据源正在建立索引，暂不支持删除。",
     createPool: "创建资源池",
     deletePool: "确定删除资源池“{name}”？资产仍保留在资源库中。",
     createSource: "创建数据源",
@@ -261,7 +263,7 @@ export default {
     databaseFirst: "请先注册数据库，再创建数据源。",
     sourcesFirst: "请先创建索引数据源，再创建资源池。",
     sourceRequired: "资源池至少需要一个数据源。",
-    defaultContent: "默认内容源",
+    defaultContent: "默认",
     contentSource: "内容源",
     contentHint: "对象数据源为整个资源库存储内容，不需要单独绑定到资源池。",
     servingHint:
@@ -304,6 +306,9 @@ export default {
     assetIndexingDeleteHint: "资产正在处理中，暂不支持删除。",
     poolIndexingDeleteHint: "资源池正在建立索引，暂不支持删除。",
     sourceIndexingDeleteHint: "数据源正在建立索引，暂不支持删除。",
+    sourceContentDeleteHint:
+      "该数据源保存着 {count} 个资产的内容。请先删除这些资产，再移除数据源。",
+    sourceContentCheckHint: "正在核对数据源中的资产，请稍后再删除。",
     origin: "来源",
     kind: "内容类型",
     mediaType: "媒体类型",
@@ -456,6 +461,10 @@ export default {
     removeCanvas: "从画布移除",
     removeCanvasLinkedAsset:
       "该资产与以下资源池存在关联：{pools}。请先解除所有关联，再从画布移除。",
+    removeCanvasLinkedPool:
+      "该资源池与资产或数据源存在关联。请先解除所有关联，再从画布移除。",
+    removeCanvasLinkedSource:
+      "该数据源与以下资源池存在关联：{pools}。请先解除所有关联，再从画布移除。",
     showLinked: "显示关联",
     connect: "建立关联",
     manualConnect: "手动关联",

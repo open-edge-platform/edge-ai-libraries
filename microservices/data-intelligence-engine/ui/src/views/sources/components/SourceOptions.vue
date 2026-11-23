@@ -71,7 +71,9 @@
           :options="modelOptions"
           :disabled="choice.status === 'none'"
           :placeholder="modelPlaceholder"
-          @update:value="(value?: string) => (vector.model = value ?? '')"
+          @update:value="
+            (value) => (vector.model = typeof value === 'string' ? value : '')
+          "
         />
       </a-form-item>
     </div>
@@ -389,8 +391,9 @@ const modelOptions = computed(() => [
     .filter((name) => name !== choice.value.defaultModel)
     .map((name) => ({ value: name, label: name })),
 ]);
-const selectValue = computed(() =>
-  vector.value.model || (choice.value.status === "default" ? "" : undefined),
+const selectValue = computed(
+  () =>
+    vector.value.model || (choice.value.status === "default" ? "" : undefined),
 );
 const modelPlaceholder = computed(() =>
   choice.value.status === "none"
@@ -408,7 +411,9 @@ const remoteModels = computed(() =>
 // the type just ticked wins and displaces the ones it cannot be combined with.
 const handleVectorTypesChange = (values: Array<string | number | boolean>) => {
   const selected = values.map(String);
-  const added = selected.find((value) => !form.value.vectorTypes.includes(value));
+  const added = selected.find(
+    (value) => !form.value.vectorTypes.includes(value),
+  );
   form.value.vectorTypes =
     added === "video" || added === "document"
       ? [added]

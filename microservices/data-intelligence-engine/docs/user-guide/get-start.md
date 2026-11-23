@@ -39,8 +39,8 @@ bash scripts/quickstart.sh
 ```
 
 The first run builds the image, downloads and prepares **all** default models
-(GME, bge-reranker-large, PP-DocLayoutV3, ViCLIP-B, Whisper and the Qwen3-VL
-INT8 media reranker) under `workspace/models`, starts Milvus and the engine on
+(GME, bge-reranker-large, PP-DocLayoutV3, PP-OCRv6, ViCLIP-B, Whisper and the
+Qwen3-VL INT8 media reranker) under `workspace/models`, starts Milvus and the engine on
 port `16022`, and registers Milvus as `local-milvus`. Later runs only start the
 services.
 

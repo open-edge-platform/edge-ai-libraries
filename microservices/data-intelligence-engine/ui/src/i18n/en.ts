@@ -262,6 +262,8 @@ export default {
     createLibrary: "Create library",
     deleteLibrary:
       'Delete library "{name}" and its contents? This cannot be undone.',
+    libraryIndexingDeleteHint:
+      "A pool or source in this library is indexing. Deletion is unavailable.",
     createPool: "Create asset pool",
     deletePool: 'Delete pool "{name}"? Assets remain in the library.',
     createSource: "Create source",
@@ -282,7 +284,7 @@ export default {
     databaseFirst: "Register a database before creating a source.",
     sourcesFirst: "Create an indexing source before creating a pool.",
     sourceRequired: "A pool needs at least one source.",
-    defaultContent: "Default content",
+    defaultContent: "Default",
     contentSource: "Content source",
     contentHint:
       "Object sources store content for the library and are not attached to individual pools.",
@@ -336,6 +338,10 @@ export default {
       "This pool is still indexing assets and cannot be deleted yet.",
     sourceIndexingDeleteHint:
       "This source is still indexing assets and cannot be deleted yet.",
+    sourceContentDeleteHint:
+      "This source holds the content of {count} asset(s). Delete those assets before removing the source.",
+    sourceContentCheckHint:
+      "Checking assets held by this source. Try again shortly.",
     origin: "Origin",
     kind: "Kind",
     mediaType: "Media type",
@@ -500,6 +506,10 @@ export default {
     removeCanvas: "Remove from canvas",
     removeCanvasLinkedAsset:
       "This asset is linked to pool(s): {pools}. Unlink it from all pools before removing it from the canvas.",
+    removeCanvasLinkedPool:
+      "This pool is linked to assets or sources. Unlink them all before removing it from the canvas.",
+    removeCanvasLinkedSource:
+      "This source is linked to pool(s): {pools}. Unlink it from all pools before removing it from the canvas.",
     showLinked: "Show linked",
     connect: "Connect",
     manualConnect: "Manual connect",

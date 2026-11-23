@@ -92,16 +92,14 @@
       </div>
     </div>
   </template>
-  <a-tooltip
-    :title="
-      node.status === 'indexing'
-        ? $t('console.sourceIndexingDeleteHint')
-        : undefined
-    "
-  >
+  <a-tooltip :title="sourceDeleteHint">
     <a-button
       danger
-      :disabled="node.status === 'indexing'"
+      :disabled="
+        node.status === 'indexing' ||
+        !contentAssetsReady ||
+        sourceContentCount > 0
+      "
       @click="emit('delete')"
       >{{ $t("common.delete") }}</a-button
     >
@@ -109,19 +107,39 @@
 </template>
 <script lang="ts" setup name="CanvasSourceDetails">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import JsonPretty from "vue-json-pretty";
-import type { Library, Source } from "@/api/console/type";
+import type { Asset, Library, Source } from "@/api/console/type";
 import { themeAppStore } from "@/store/theme";
 import type { CanvasEdge, CanvasNode } from "../Type";
 import SourceBinding from "../../sources/components/SourceBinding.vue";
 import StatusTag from "../../../components/StatusTag.vue";
 
+const { t } = useI18n();
+
 const props = defineProps<{
   source: Source;
   node: CanvasNode;
   libraryData: Library;
+  contentAssets: Asset[];
+  contentAssetsReady: boolean;
   submitLoading: boolean;
 }>();
+const sourceContentCount = computed(
+  () =>
+    props.contentAssets.filter(
+      (asset) => asset.content_source_id === props.source.id,
+    ).length,
+);
+
+const sourceDeleteHint = computed(() => {
+  if (props.node.status === "indexing")
+    return t("console.sourceIndexingDeleteHint");
+  if (!props.contentAssetsReady) return t("console.sourceContentCheckHint");
+  return sourceContentCount.value
+    ? t("console.sourceContentDeleteHint", { count: sourceContentCount.value })
+    : undefined;
+});
 const emit = defineEmits<{
   connect: [from: string, to: string];
   detach: [edge: CanvasEdge];
