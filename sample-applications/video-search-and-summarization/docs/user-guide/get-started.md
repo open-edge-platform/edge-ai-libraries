@@ -57,6 +57,7 @@ sample-applications/video-search-and-summarization/
 │   ├── compose.vllm.yaml          # vLLM CPU backend
 │   ├── compose.vllm.xpu.yaml      # vLLM Intel Arc Pro B-series GPU/XPU backend (experimental)
 │   ├── compose.gpu_ovms.yaml
+│   ├── compose.npu_ovms.yaml
 │   └── compose.metrics-manager.yaml
 ├── docs/
 │   └── user-guide/                # User guides and tutorials
@@ -137,6 +138,8 @@ Before running the application, you need to set several environment variables:
       # OVMS uses shared mode only when model source, target device, and compression format all match.
       export OVMS_LLM_MODEL_NAME="OpenVINO/Qwen3-4B-int8-ov"  # on NPU use OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov
       export LLM_TARGET_DEVICE="CPU"  # Options: CPU, GPU, NPU, HETERO:GPU,CPU
+
+      # For NPU model and memory requirements, see "Use NPU acceleration for the final-summary LLM".
 
       # When ENABLE_VLLM=true, vLLM is the only inference backend and setup.sh ignores OVMS_LLM_MODEL_NAME.
 
@@ -841,6 +844,8 @@ To verify the configuration and resolved environment variables without running t
    > The LLM on NPU must be a **text-only** model, so set `OVMS_LLM_MODEL_NAME` explicitly. The setup script stops with an error when the model serving the LLM role on NPU is a vision-language model, because raising the NPU prompt limit breaks vision-language models on NPU and the 1024-token default is too small for a summary.
    >
    > For pre-converted `OpenVINO/*` repos on NPU, use an NPU-optimized channel-wise repo whose name contains `-cw-`, such as `OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov` or `OpenVINO/Qwen3-8B-int4-cw-ov`. Other variants, such as `-int4-gq-ov`, cannot be downloaded for NPU, and `-cw-` repos cannot be downloaded for CPU or GPU. The setup script stops with an error before the download in either case.
+   >
+   > Docker Compose automatically selects the accelerator-enabled OVMS image for an NPU LLM, even when the VLM runs on CPU. OVMS is healthy only after both configured models are ready; NPU compilation can take several minutes.
    >
    > An NPU LLM is compiled for a fixed prompt length. The setup script writes the limits below into the model's `graph.pbtxt` and sizes Pipeline Manager's summarization prompts to fit:
    >
