@@ -6,7 +6,7 @@
 # The file must set HARNESS_STATE_DIRNAME (not .agent-harness-install) and SRC (the agent-harness-install
 # checkout), plus its own container names and ports so a live deployment is untouched.
 #
-# Usage: otel-openshell-e2e.sh [--harness hermes,openclaw,deepagents-code]
+# Usage: otel-openshell-e2e.sh [--harness hermes,openclaw]
 #                              [--backend sqlite,jaeger] [--skip-install] [--keep]
 #                              [--full-uninstall] [--env-file FILE]
 #   --skip-install    reuse an already installed sandbox
@@ -16,7 +16,7 @@
 set -uo pipefail
 
 ENV_FILE="${ENV_FILE:-$HOME/ahi-e2e.env}"
-HARNESSES="hermes,openclaw,deepagents-code"
+HARNESSES="hermes,openclaw"
 BACKENDS="sqlite,jaeger"
 MODEL="${MODEL:-OpenVINO/Qwen3.5-9B-int8-ov}"
 CHAT_TIMEOUT="${CHAT_TIMEOUT:-400}"
@@ -78,13 +78,12 @@ load_sandbox() {
 sx() { openshell sandbox exec --name "$SB_NAME" --no-login-shell -g "$SB_GW" -- "$@"; }
 
 service_name() {
-  case "$AGENT" in hermes) echo hermes-agent ;; openclaw) echo openclaw ;; deepagents-code) echo dcode ;; esac
+  case "$AGENT" in hermes) echo hermes-agent ;; openclaw) echo openclaw ;; esac
 }
 store_path() {
   case "$AGENT" in
     hermes) echo "$STATE/openshell-telemetry/hermes_otel_live.db" ;;
     openclaw) echo "$STATE/openshell-telemetry/openclaw_otel_live.db" ;;
-    deepagents-code) echo "$STATE/openshell-telemetry/dcode_otel_live.db" ;;
   esac
 }
 
@@ -93,7 +92,7 @@ rule_present() { openshell policy get "$SB_NAME" -g "$SB_GW" --full 2>/dev/null 
 
 # chat_once <marker> -- one non-interactive turn; output in $LAST_LOG.
 chat_once() {
-  local mk="$1" model="${MODEL##*/}"
+  local mk="$1"
   LAST_LOG="$LOG_DIR/${AGENT}-chat-${mk}.log"
   case "$AGENT" in
     hermes)
@@ -102,12 +101,6 @@ chat_once() {
     openclaw)
       timeout "$CHAT_TIMEOUT" openshell sandbox exec --name "$SB_NAME" --no-login-shell -g "$SB_GW" -- \
         /home/node/.local/bin/openclaw agent --agent main --message "Say hello. ${mk}" --json >"$LAST_LOG" 2>&1 ;;
-    deepagents-code)
-      timeout "$CHAT_TIMEOUT" openshell sandbox exec --name "$SB_NAME" --no-login-shell -g "$SB_GW" -- \
-        /usr/bin/env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy \
-        HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 \
-        /home/node/.local/bin/dcode -n "Say hello briefly. ${mk}. Do not use any tools." \
-        --model "openai:${model}" --no-interpreter >"$LAST_LOG" 2>&1 ;;
   esac
 }
 # chat <marker> -- OpenClaw can refuse for ~15 s after its sandbox restarts, so it is retried.
@@ -231,7 +224,7 @@ printf 'Source : %s\nState  : %s\nLogs   : %s\nAgents : %s\nBackend: %s\n' "$SRC
 
 for agent in ${HARNESSES//,/ }; do
   case "$agent" in
-    hermes | openclaw | deepagents-code) test_agent "$agent" ;;
+    hermes | openclaw) test_agent "$agent" ;;
     *) die "unsupported harness: $agent" ;;
   esac
 done

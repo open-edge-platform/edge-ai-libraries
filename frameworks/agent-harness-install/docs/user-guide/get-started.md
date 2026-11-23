@@ -202,7 +202,7 @@ harness, and shows their state:
   earlier installer version lacks that group: re-run `./install.sh` once to
   recreate it before enabling. The choice is saved only after the file is
   ready, so a failed `enable` leaves the previous setting in place.
-- `harness` (the installed agent: Hermes, OpenClaw or Deep Agents Code; host
+- `harness` (the installed agent: Hermes or OpenClaw; host
   runtime): turns on the agent's own OpenTelemetry exporter, see
   [Harness agents](#harness-agents). For a fresh setup, the
   backend defaults to `sqlite`, which keeps records in the local store only;
@@ -242,7 +242,6 @@ installed). Each agent keeps its own exporter; the installer only configures it.
 |---|---|---|---|
 | Hermes | `hermes-otel` plugin | Installs and enables the plugin, writes `$HERMES_HOME/hermes_otel.yaml` | `$HERMES_HOME/hermes_otel_live.db`, written by the plugin |
 | OpenClaw | `@openclaw/diagnostics-otel` plugin | Installs (or re-enables) the plugin at the installed OpenClaw's version and merges `diagnostics` into the OpenClaw config | `$OPENCLAW_STATE_DIR/openclaw_otel_live.db` (default `~/.openclaw`), written by the OTLP receiver |
-| Deep Agents Code (`dcode`) | LangSmith SDK in OpenTelemetry mode | Adds a managed block to `$DEEPAGENTS_HOME/.env` (default `~/.deepagents/.env`) | `$DEEPAGENTS_HOME/dcode_otel_live.db`, written by the OTLP receiver |
 
 - **Hermes:** run `hermes gateway restart` and start a new session. A Hermes
   process that was already running (the gateway, or the plugin host it
@@ -258,30 +257,21 @@ installed). Each agent keeps its own exporter; the installer only configures it.
   configure is not overwritten; a disabled one has its settings replaced. `disable` sets `diagnostics.otel.enabled` to `false` and disables
   the plugin; the plugin stays installed. It only does so for an exporter this
   installer enabled, and `./uninstall.sh` turns that exporter off too.
-- **Deep Agents Code:** new sessions read the `.env` block; restart any running
-  session. `.env` is the only file touched, and your other lines are kept.
-  `enable` refuses when `.env` already sets `LANGSMITH_*` or `OTEL_*` variables
-  that this installer did not write. The block sets `LANGSMITH_API_KEY` to a
-  placeholder because the SDK exports through OpenTelemetry only when a key is
-  present; nothing is sent to LangSmith. With `--content off` it also sets
-  `LANGSMITH_HIDE_INPUTS` and `LANGSMITH_HIDE_OUTPUTS`. `disable` removes the
-  block, and the file when nothing else is left in it.
 - **One exporter at a time:** the installer records which agent owns the
   exporter. `enable` for another agent is refused until `disable`, and `show`
   and `disable` act on the recorded agent whichever one is selected.
-- **`--backend sqlite` for OpenClaw and Deep Agents Code (and Hermes in OpenShell):** the agents export
+- **`--backend sqlite` for OpenClaw (and Hermes in OpenShell):** the agents export
   OTLP, so the installer starts a small loopback-only receiver
   (`scripts/lib/metrics-otlp-receiver.py`, Python 3.8+, standard library only)
   on `127.0.0.1:4319` (`HARNESS_OTLP_RECEIVER_PORT`) that writes the same
   `events` table Hermes uses; `show` and `--clean` work alike. `disable` and
   switching to `jaeger` stop it. It does not survive a reboot: run
   `observability enable` again. Only the spans that matter are stored (OpenClaw
-  run, model, tool and usage spans; dcode model and tool calls and the root
-  span), not dcode's middleware spans. Jaeger receives everything the agent
+  run, model, tool and usage spans). Jaeger receives everything the agent
   exports.
 - **`--content`:** `preview` (a short excerpt) exists for Hermes and for
-  `--backend sqlite` with the other agents. With `--backend jaeger` they accept
-  only `off` or `full`, since their exporters have no preview mode.
+  `--backend sqlite` with OpenClaw. With `--backend jaeger` OpenClaw accepts
+  only `off` or `full`, since its exporter has no preview mode.
 - OpenClaw spans carry no session id, so `show` reports `sessions: 0` for them.
 
 ### Cleaning collected data and keeping Jaeger
@@ -321,7 +311,7 @@ installed). Each agent keeps its own exporter; the installer only configures it.
   from `/v1/metrics` (requests, tokens, latency), followed by a per
   provider/model breakdown.
 - **Harness:** the agent's exporter and config state (and the receiver, for
-  OpenClaw and Deep Agents Code), then a summary of the local store
+  OpenClaw), then a summary of the local store
   (record counts by kind, sessions, error spans, time window, and the busiest
   spans with count, average and maximum duration). The store is opened
   read-only. This needs `python3`; without it the summary is skipped. With
@@ -331,7 +321,7 @@ installed). Each agent keeps its own exporter; the installer only configures it.
   managed container). Use it for the full trace view, which the CLI summary
   does not replace.
 
-Harness telemetry also works inside an OpenShell sandbox for all three harnesses:
+Harness telemetry also works inside an OpenShell sandbox for OpenClaw and Hermes:
 pass `--runtime openshell` (and `--harness <agent>`)
 to `observability`; otherwise the runtime defaults to `host`. The sandbox's
 default policy does not allow egress to a collector or to package registries, so
@@ -340,7 +330,7 @@ the exporter is built into the sandbox image and
 (the receiver for `sqlite`, the managed Jaeger for `jaeger`) through
 `host.openshell.internal`; `disable` removes it. The collected data stays on the
 host. Enabling or disabling OpenClaw restarts its sandbox so the gateway reloads
-its settings; Deep Agents Code only needs a new session. For Hermes the
+its settings. For Hermes the
 `hermes-otel` plugin is installed and enabled in the image (enabling downloads
 Python dependencies, which the default policy does not allow) but kept silent by a `hermes_otel.yaml` with `enabled: false`; `enable`
 rewrites that file inside the sandbox and stops the Hermes gateway process there,
@@ -394,7 +384,7 @@ can start and manage that Jaeger for you.
   expects that Jaeger's query API on port `16686` of the same host for its own
   dashboard and skill; `observability show` does not read it. Any OTLP/HTTP
   receiver accepts the traces, but only a Jaeger gives the plugin a read path.
-  OpenClaw and Deep Agents Code append `/v1/traces` themselves, so the
+  OpenClaw appends `/v1/traces` itself, so the
   installer passes them the base URL of the endpoint.
 - The managed Jaeger container is removed by `observability disable`, by
   switching to `sqlite` or to an external `--endpoint`, and by uninstall.

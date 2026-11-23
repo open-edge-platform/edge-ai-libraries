@@ -17,13 +17,11 @@ const [command, ...args] = process.argv.slice(2);
 const home = process.env.HOME;
 const stateFile = path.join(home, ".harness-observability.json");
 const openclawConfig = path.join(home, ".openclaw", "openclaw.json");
-const dcodeEnv = path.join(process.env.DEEPAGENTS_HOME || path.join(home, ".deepagents"), ".env");
 const baseUrl = /^https?:\/\/[A-Za-z0-9._-]+(:[1-9][0-9]{0,4})?(\/[A-Za-z0-9._~%\/-]*[A-Za-z0-9._~%-])?$/;
 const pluginDir = "/home/node/.openclaw/npm/projects";
-const dcodeTool = "/home/node/.local/share/uv/tools/deepagents-code/lib";
 const script = "/opt/harness/observability-config.mjs";
-// Hermes: the hermes-otel plugin is installed and enabled in the image (enabling needs
-// network, which the sandbox lacks); its exporter is switched through this file only.
+// Hermes: the hermes-otel plugin is installed and enabled in the image (enabling downloads
+// dependencies, which the default sandbox policy does not allow); its exporter is switched through this file only.
 const hermesHome = process.env.HERMES_HOME || "/home/node/.hermes";
 const hermesConfig = path.join(hermesHome, "hermes_otel.yaml");
 const hermesPlugin = path.join(hermesHome, "plugins", "hermes_otel", "plugin.yaml");
@@ -67,32 +65,6 @@ function currentOpenclawConfig() {
 
 function pluginInstalled() {
   return fs.existsSync(pluginDir) && fs.readdirSync(pluginDir).some(name => name.includes("diagnostics-otel"));
-}
-
-function dcodeExporterInstalled() {
-  if (!fs.existsSync(dcodeTool)) return false;
-  return fs.readdirSync(dcodeTool).some(py => {
-    const site = path.join(dcodeTool, py, "site-packages");
-    return fs.existsSync(site) &&
-      fs.readdirSync(site).some(name => name.startsWith("opentelemetry_exporter_otlp_proto_http"));
-  });
-}
-
-function splitDcodeEnv(begin, end) {
-  const lines = fs.existsSync(dcodeEnv) ? fs.readFileSync(dcodeEnv, "utf8").split("\n") : [];
-  const start = lines.indexOf(begin);
-  const finish = start < 0 ? -1 : lines.indexOf(end, start + 1);
-  if ((start < 0) !== (finish < 0) || (start < 0 && lines.includes(end)))
-    throw Error(`${dcodeEnv} has an incomplete installer block; repair or remove it and retry`);
-  const rest = start < 0 ? lines : [...lines.slice(0, start), ...lines.slice(finish + 1)];
-  if (rest.includes(begin) || rest.includes(end))
-    throw Error(`${dcodeEnv} has an incomplete installer block; repair or remove it and retry`);
-  return {rest: rest.join("\n").replace(/\s+$/, ""), present: start >= 0};
-}
-
-function assertNoForeignDcodeVars(rest) {
-  if (/^\s*(export\s+)?(LANGSMITH_|OTEL_)[A-Za-z0-9_]*\s*=/m.test(rest))
-    throw Error(`${dcodeEnv} already sets LANGSMITH_*/OTEL_* variables that this installer did not write; move them aside and retry`);
 }
 
 function assertNoForeignOpenclawExporter() {
@@ -166,15 +138,11 @@ function openclawMatches(expect, endpoint) {
 
 switch (command) {
   case "check": {
-    const [agent, begin, end] = args;
+    const [agent] = args;
     if (agent === "openclaw") {
       if (!fs.existsSync(script) || !pluginInstalled())
         throw Error("This sandbox image predates telemetry support (no diagnostics-otel plugin); remove the sandbox and install it again");
       assertNoForeignOpenclawExporter();
-    } else if (agent === "deepagents-code") {
-      if (!dcodeExporterInstalled())
-        throw Error("Deep Agents Code in this sandbox has no OpenTelemetry OTLP exporter");
-      assertNoForeignDcodeVars(splitDcodeEnv(begin, end).rest);
     } else if (agent === "hermes") {
       if (!fs.existsSync(script) || !hermesPluginInstalled() || hermesConfigState() === "absent")
         throw Error("This sandbox image predates telemetry support (no hermes-otel plugin); remove the sandbox and install it again");
@@ -200,29 +168,6 @@ switch (command) {
     if (!openclawMatches(mode, base)) process.exitCode = 1;
     break;
   }
-  case "dcode-enable": {
-    const [begin, end, base, content] = args;
-    validBase(base);
-    validContent(content);
-    const {rest} = splitDcodeEnv(begin, end);
-    assertNoForeignDcodeVars(rest);
-    // The LangSmith SDK only switches to its OpenTelemetry exporter when it has
-    // an API key; nothing is sent to LangSmith, so the value is a placeholder.
-    const block = [begin, "LANGSMITH_TRACING=true", "LANGSMITH_TRACING_MODE=otel",
-      "LANGSMITH_API_KEY=agent-harness-install-placeholder", `OTEL_EXPORTER_OTLP_ENDPOINT=${base}`,
-      "OTEL_SERVICE_NAME=dcode", "OTEL_BSP_SCHEDULE_DELAY=200",
-      ...(content === "off" ? ["LANGSMITH_HIDE_INPUTS=true", "LANGSMITH_HIDE_OUTPUTS=true"] : []), end].join("\n");
-    writeFile(dcodeEnv, `${rest ? `${rest}\n` : ""}${block}\n`);
-    break;
-  }
-  case "dcode-disable": {
-    const [begin, end] = args;
-    const {rest, present} = splitDcodeEnv(begin, end);
-    if (!present) break;
-    if (rest) writeFile(dcodeEnv, `${rest}\n`);
-    else fs.unlinkSync(dcodeEnv);
-    break;
-  }
   case "hermes-enable": {
     const [tracesUrl, content] = args;
     validBase(tracesUrl);
@@ -241,7 +186,7 @@ switch (command) {
     if (args[0] !== "no-restart") restartHermesGateway();
     break;
   case "status": {
-    const [agent, begin, end] = args;
+    const [agent] = args;
     if (agent === "hermes") {
       const state = hermesConfigState();
       console.log(`hermes-otel plugin ${hermesPluginInstalled() ? "installed" : "not installed"}`);
@@ -257,8 +202,7 @@ switch (command) {
       console.log(`diagnostics-otel plugin ${pluginInstalled() ? "installed" : "not installed"}`);
       console.log(`diagnostics.otel.enabled: ${otel?.enabled === true}${otel?.endpoint ? ` (${otel.endpoint})` : ""}`);
     } else {
-      console.log(splitDcodeEnv(begin, end).present
-        ? `Exporter settings: ${dcodeEnv}` : `No exporter settings in ${dcodeEnv}`);
+      throw Error("Unsupported sandbox agent");
     }
     break;
   }
