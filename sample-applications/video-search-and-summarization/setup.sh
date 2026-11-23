@@ -1639,10 +1639,13 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
                 fi
             fi
 
-            # Add GPU compose override if either device uses GPU
+            # The accelerator image includes the Level Zero runtime needed by GPU and NPU.
             if [[ "$VLM_TARGET_DEVICE" == *"GPU"* ]] || [[ "$LLM_TARGET_DEVICE" == *"GPU"* ]]; then
                 echo -e "[ovms-service] ${BLUE}Using GPU-capable OVMS image${NC}"
                 APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.gpu_ovms.yaml"
+            elif [[ "${VLM_TARGET_DEVICE^^}" == *"NPU"* ]] || [[ "${LLM_TARGET_DEVICE^^}" == *"NPU"* ]]; then
+                echo -e "[ovms-service] ${BLUE}Using NPU-capable OVMS image${NC}"
+                APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.npu_ovms.yaml"
             fi
 
             ovms_split_model=false

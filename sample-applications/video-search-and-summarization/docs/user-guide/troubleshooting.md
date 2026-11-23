@@ -150,6 +150,7 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
 - OVMS container has exited (shows as stopped in `docker ps -a`)
 - OVMS logs contain errors like: `Number of prompt tokens: <N> + max tokens value: <M> exceeds model max length: <L>`
 - OVMS logs contain `CL_OUT_OF_RESOURCES` or similar GPU memory errors
+- OVMS is unhealthy because a configured model failed to load; check the OVMS logs for the model-specific error.
 
 **Diagnosis**:
 

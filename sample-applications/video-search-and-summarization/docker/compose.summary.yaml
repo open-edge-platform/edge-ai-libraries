@@ -55,6 +55,8 @@ services:
       - no_proxy=${no_proxy},minio-service,localhost
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
+      - VLM_STORAGE_MODEL_NAME=${VLM_STORAGE_MODEL_NAME:-${VLM_MODEL_NAME}}
+      - LLM_STORAGE_MODEL_NAME=${LLM_STORAGE_MODEL_NAME:-${LLM_MODEL_NAME}}
     ulimits:
       nofile:
         soft: 16384
@@ -70,10 +72,19 @@ services:
     group_add:
       - ${RENDER_GROUP_ID:-1002}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/v2/health/ready"]
+      test:
+        - CMD-SHELL
+        - |
+          check_model() {
+            [ -n "$$1" ] &&
+            status=$$(curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' --max-time 8 "http://localhost/v2/models/$$1/ready") &&
+            [ "$$status" = 200 ] || { echo "OVMS model $$1 is not ready" >&2; return 1; }
+          }
+          check_model "$$VLM_STORAGE_MODEL_NAME" && check_model "$$LLM_STORAGE_MODEL_NAME"
       interval: 30s
-      timeout: 10s
-      retries: 3
+      timeout: 20s
+      retries: 30
+      start_period: 2m
     command:
       ["--port", "81", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/ovms/config.json", "--metrics_enable", "--allowed_media_domains", "${OVMS_ALLOWED_MEDIA_DOMAINS:-minio-service,localhost}"]
     networks:
