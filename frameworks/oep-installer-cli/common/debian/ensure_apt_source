@@ -90,7 +90,7 @@ ensure_apt_source_remove () {
         ;;
       esac
     )"; then
-      ensure_sudo mv -f "$v" "$v".bak."$(date +%Y%m%d)"
+      ensure_sudo mv -f "$v" "$v.$(date +%Y%m%d)".bak
       printf '%s\n' "$updated" | ensure_sudo tee "$v" > /dev/null
     fi
   done

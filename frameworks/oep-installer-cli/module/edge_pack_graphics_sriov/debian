@@ -19,10 +19,8 @@ debian_40_install_edge_pack_graphics_sriov () {
   else
     ensure_prop set installed/edge_pack_graphics_sriov/owned true
     ensure_apt purge --auto-remove -y intel-edge-graphics-sriov || true
-    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-sriov=$version*" || true
-    ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-sriov=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-sriov=$version*"
   fi
-  [ -c /dev/dri/renderD128 ]
   ensure_group_add $(debian_40_group_edge_pack_graphics_sriov)
 }
 
