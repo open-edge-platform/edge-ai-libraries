@@ -94,7 +94,7 @@ class TestReleaseVersion:
             "libc6 (>= 2.34)",
         } <= set(package["depends"])
 
-    @pytest.mark.parametrize("suffix", [None, "-rc1"])
+    @pytest.mark.parametrize("suffix", [None, "-rc2"])
     def test_package_rejects_mismatched_image_before_staging(
         self, tmp_path, release_version, suffix
     ):

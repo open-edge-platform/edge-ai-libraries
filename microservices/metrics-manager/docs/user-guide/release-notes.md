@@ -1,5 +1,10 @@
 # Release Notes: Metrics Manager
 
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 ## Version 2026.3.0
 
 **Release Date:** TBD
@@ -14,6 +19,7 @@
 
 **New:**
 
+- **Configurable Metric Expiration**: the Telegraf output TTL is now optional configuration, with the existing 60-second default preserved even for environments lacking the new setting. Explicitly disabling expiration is supported. User-provided configurations retain their own settings; this does not change API storage retention or external Prometheus history.
 - **Native Hardware and Process Collectors**: Go plugins provide CPU frequency and core-class telemetry, Intel GPU and NPU telemetry, top CPU/memory processes, integrated memory-controller bandwidth and optional RAPL package/platform power. CPU telemetry includes P-core, E-core and low-power E-core breakdowns where supported. GPU telemetry includes client/process information and additional frequency/throttle data. The same collector binaries are used in the Docker image and the native Debian package.
 - **Bare-Metal Debian Package**: An amd64 `.deb` packages telemetry collectors, Telegraf, qmassa, the terminal dashboard and systemd services for supported Debian/Ubuntu hosts with glibc 2.34 or newer. Docker is used to build the package but is not required on the target host. The package covers telemetry and the dashboard only; REST API and SSE remain container-only. See [Bare-Metal Package](./get-started/bare-metal-package.md).
 - **Terminal Dashboard (`mm-tui`)**: A standalone, read-only terminal interface provides Overview, Trends, Details and Alerts views with bounded in-memory history, hardware charts, CPU/GPU process tables, configurable thresholds and network/storage panels when the corresponding metrics are available. It reads Telegraf's Prometheus endpoint and runs independently of the REST API. The dashboard is included in the Debian package and can be built separately; the Docker service image supplies telemetry, not the interactive dashboard. See [Terminal Dashboard](./get-started/terminal-dashboard.md).
@@ -35,6 +41,8 @@
 
 - **NPU Frequency Calculation**: Frequency is decoded directly in Hz using the `intel_vpu` buttress formulas: MTL/ARL use `ratio * 50e6 * 2 / 3`, while LNL/PTL use `ratio * 50e6 / 2`. This corrects the former MHz-valued export and Arrow Lake's 25% under-reporting without truncating to whole MHz. The exported metric is now `npu_frequency_hz`.
 - **NPU Bandwidth Sampling**: `npu_bandwidth_bytes_per_second` divides the counter delta by the actual elapsed sampling interval, removing polling-jitter distortion. A single wrap of the underlying 32-bit counter is corrected. Counter resets and multiple wraps within one interval cannot be reliably distinguished.
+- **NPU Snapshot and Counter Validation**: incomplete PMT snapshots are rejected without replacing the counter/time baseline. Decreasing energy or busy time suppresses interval measurements while rebuilding the baseline instead of reporting negative power or false idle. Bandwidth still corrects a single wrap when no other discontinuity is observed; an isolated reset remains ambiguous.
+- **NPU Bandwidth Units**: LNL/PTL use the specified 1024 bytes per counter tick instead of 1000, correcting rates by 2.4%. MTL keeps its existing scale. PTL's D0-entry counter is not added to bandwidth.
 - **Unavailable NPU Measurements**: Utilization and memory fields are omitted when their driver attributes are absent or cannot be read, rather than emitting fake `0` or `-1` values. Memory availability is detected from `npu_memory_utilization` instead of being restricted to Panther Lake and newer platforms; readable values are exported as `npu_memory_bytes` without rounding through MiB. Consumers must distinguish missing measurements from measured zero.
 - **Metric Series and Timestamps**: Series-key escaping prevents collisions involving label separators. API and SSE parsing handle Prometheus timestamp objects and preserve an explicit zero timestamp instead of replacing it with the current time.
 - **Shutdown and Configuration Handling**: Background Telegraf HTTP push tasks are tracked and cancelled before the HTTP session closes, and application cleanup runs through the lifespan shutdown path even on errors. Malformed JSON-array `CORS_ORIGINS` values now produce an explicit validation error. Health checks honor the configured API port.

@@ -4,9 +4,7 @@
 // Package npu reads Intel NPU telemetry through the kernel's Platform
 // Monitoring Technology (PMT) sysfs interface.
 //
-// It is a port of the Python NPU readers this package replaced, and
-// deliberately reproduces their arithmetic and output formatting so that the
-// switch does not change a single emitted byte.
+// Register layouts and scaling follow the Intel PMT platform schemas.
 package npu
 
 import (
@@ -20,9 +18,6 @@ import (
 
 // CPUGen identifies the SoC generation, which determines the telemetry
 // register layout.
-//
-// The order matters: memory utilisation is only exposed from PTL onwards, and
-// that check is a numeric comparison.
 type CPUGen int
 
 const (
@@ -142,28 +137,20 @@ func (t *Telemetry) Update() error {
 	if err != nil {
 		return fmt.Errorf("reading telemetry from %s: %w", t.path, err)
 	}
+	for _, offset := range []int{t.regs.energy, t.regs.socTemperatures, t.regs.workpoint, t.regs.memoryBW} {
+		if len(buffer) < offset+8 {
+			return fmt.Errorf("incomplete %s telemetry from %s: got %d bytes, need container at %#x through %#x",
+				t.gen, t.path, len(buffer), offset, offset+7)
+		}
+	}
 	t.buffer = buffer
 	return nil
 }
 
 // read extracts the bits [msb:lsb] of the 64-bit little-endian word at offset.
-//
-// A container that runs past the end of the buffer is read from the bytes that
-// are present, matching the Python slice semantics this was ported from; an
-// offset beyond the buffer yields zero.
+// Update validates that every required container is present before publication.
 func (t *Telemetry) read(offset, msb, lsb uint) uint64 {
-	if offset >= uint(len(t.buffer)) {
-		return 0
-	}
-
-	end := offset + 8
-	if end > uint(len(t.buffer)) {
-		end = uint(len(t.buffer))
-	}
-
-	var word [8]byte
-	copy(word[:], t.buffer[offset:end])
-	data := binary.LittleEndian.Uint64(word[:])
+	data := binary.LittleEndian.Uint64(t.buffer[offset : offset+8])
 
 	// Build the mask as bits [msb:lsb]. The msb == 63 case is special because
 	// 1<<64 overflows a uint64.
@@ -206,10 +193,18 @@ func (t *Telemetry) EnergyJoules() float64 {
 	return float64(whole) + fraction
 }
 
-// BandwidthBytes returns the accumulated network-on-chip transfer counter.
-// The 32-bit counter counts decimal kilobytes.
-func (t *Telemetry) BandwidthBytes() float64 {
-	return float64(t.read(uint(t.regs.memoryBW), 31, 0)) * 1e3
+// BandwidthCounter returns the raw 32-bit transfer counter, before scaling.
+func (t *Telemetry) BandwidthCounter() uint32 {
+	return uint32(t.read(uint(t.regs.memoryBW), 31, 0))
+}
+
+func (t *Telemetry) bandwidthBytesPerTick() float64 {
+	// Intel-PMT XML: MTL bw_KB; LNL/PTL bw_1024B. Container 388
+	// on PTL counts D0 entries, not additional transferred bytes.
+	if t.gen == GenLNL || t.gen == GenPTL {
+		return 1024
+	}
+	return 1000
 }
 
 // readTrimmed reads a sysfs attribute and strips surrounding whitespace.
