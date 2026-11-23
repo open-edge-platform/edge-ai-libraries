@@ -1,16 +1,13 @@
 
 configure_edge_pack_base_realtime () {
   configure_edge_pack "$@"
-  version="$(ensure_parse_value_option version "$@")"
-  [ -n "$version" ] || {
-    case "$ID$VERSION_ID$(uname -r)" in
-    ubuntu26.04*realtime*) version="1.0";;
-    *)
-      echo "Unsupported realtime platform $ID $VERSION_ID kernel $(uname -r)" >&2
-      echo "Fallback to edge_pack_base_standard" >&2
-      return 3;;
-    esac
-  }
+  case "$ID$VERSION_ID$(uname -r)" in
+  ubuntu26.04*realtime*) : ;;
+  *)
+    echo "Unsupported realtime platform $ID $VERSION_ID kernel $(uname -r)" >&2
+    echo "Fallback to edge_pack_base_standard" >&2
+    return 3;;
+  esac
 }
 
 debian_41_profile_edge_pack_base_realtime () {
@@ -30,8 +27,8 @@ debian_41_install_edge_pack_base_realtime () {
     ensure_prop set installed/edge_pack_base_realtime/owned true
     ensure_apt purge --auto-remove -y intel-edge-base-realtime onevpl-tools || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" \
-      $(ensure_apt_policy_version intel-edge-media-core libigdgmm12) \
-      $(ensure_apt_policy_version intel-edge-npu libze1)
+      $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12) \
+      $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1)
   fi
   ensure_group_add $(debian_40_group_edge_pack_base_realtime)
 }

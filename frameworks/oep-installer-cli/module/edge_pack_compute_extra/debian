@@ -1,15 +1,10 @@
 
-configure_edge_pack_compute_extra () {
-  configure_edge_pack "$@"
-  version="1.0"
-}
-
 debian_40_profile_edge_pack_compute_extra () {
   echo "edge_pack"
 }
 
 debian_40_install_edge_pack_compute_extra () {
-  configure_edge_pack_compute_extra "$@"
+  configure_edge_pack "$@"
   if ensure_apt_is_installed intel-edge-compute-extra && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-compute-extra is installed." >&2
   else
@@ -25,7 +20,7 @@ debian_40_remove_edge_pack_compute_extra () {
 }
 
 debian_40_sbom_edge_pack_compute_extra () {
-  configure_edge_pack_compute_extra "$@"
+  configure_edge_pack "$@"
   sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-compute-extra=$version*"
 }
