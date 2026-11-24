@@ -429,7 +429,7 @@ docker run -d --name nebula-studio --restart unless-stopped \
   `collection_name`). **Schema** shows tag/edge definitions, not automatically
   a populated data graph. Run these queries in **Console** to inspect records:
 
-```ngql
+```sql
 SHOW SPACES;
 USE my_knowledge_concepts;
 SHOW TAGS;
