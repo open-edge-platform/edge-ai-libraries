@@ -9,19 +9,12 @@ This guide describes how to build, start, and stop the Time Series Analytics Mic
 as part of the ViPPET stack, and how to configure it with a sample Wind Turbine anomaly
 detection UDF.
 
-ViPPET replays sample wind turbine readings from a CSV file. The ingestion service
-sends the readings to TSAM as JSON, and ViPPET displays the pipeline's performance
-and input metadata. This quickstart does not require InfluxDB or Grafana.
-
 ## Prerequisites
 
 - Docker and Docker Compose installed
 - `make` available on the host
 - `wget` installed (required to download UDF packages)
 
-> The included Wind Turbine pipeline uses CPU inference. The experimental Compose
-> stack still requires `/dev/dri` on the Docker host because it maps the device
-> into the TSAM container. NPU inference is not supported.
 
 ## Activate the Experimental Time Series stack
 
@@ -37,8 +30,7 @@ Activation is performed with the
 
 ### Build the experimental stack
 
-Build the local images, including the Time Series ingestion service. The TSAM
-service uses a published image; this target does not build TSAM from source.
+Build all required Docker images:
 
 ```bash
 make build-experimental
@@ -57,11 +49,10 @@ compose stack, including `ia-time-series-analytics-microservice` and `ia-timeser
 
 ### Verify that Time Series services are active
 
-Check that both Time Series containers are running and that the analytics
-container reports `healthy` before proceeding:
+Check if both Time Series services are running:
 
 ```bash
-docker ps --format '{{.Names}}\t{{.Status}}' | grep -E '^(ia-time-series-analytics-microservice|ia-timeseries-ingestion)[[:space:]]'
+docker ps --format '{{.Names}}' | grep -E 'ia-time-series-analytics-microservice|ia-timeseries-ingestion'
 ```
 
 ---
