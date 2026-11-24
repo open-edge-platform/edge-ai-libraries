@@ -28,7 +28,7 @@ debian_30_install_xpu_smi () {
 
 debian_30_remove_xpu_smi () {
   [ "$(ensure_prop get installed/xpu_smi/owned)" = "true" ] || return 0
-  ensure_apt purge --auto-remove -y xpu-smi
+  ensure_apt remove -y xpu-smi
 }
 
 debian_30_sbom_xpu_smi () {
