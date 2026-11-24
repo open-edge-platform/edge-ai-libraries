@@ -402,7 +402,9 @@ class VideosManager:
             self._scan_and_load_all_videos()
             output_video = self._videos.get(output_filename)
             if output_video is None or output_video.codec != "h265":
-                logger.error("HEVC conversion output '%s' is not H.265", output_filename)
+                logger.error(
+                    "HEVC conversion output '%s' is not H.265", output_filename
+                )
                 self._cleanup_file(output_path)
                 self._cleanup_file(f"{output_path}.json")
                 self._videos.pop(output_filename, None)

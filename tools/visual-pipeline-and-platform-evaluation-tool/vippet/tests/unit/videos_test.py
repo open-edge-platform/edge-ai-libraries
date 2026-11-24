@@ -1173,10 +1173,7 @@ class TestDefaultRecordings(unittest.TestCase):
     def test_download_default_video_skips_uploaded_filename_collision(self):
         yaml_path = os.path.join(self.temp_dir, "rec.yaml")
         with open(yaml_path, "w") as f:
-            f.write(
-                "- url: https://example.test/sample.mp4\n"
-                "  filename: sample.mp4\n"
-            )
+            f.write("- url: https://example.test/sample.mp4\n  filename: sample.mp4\n")
         with open(os.path.join(self.uploaded_dir, "sample.mp4"), "w") as f:
             f.write("uploaded")
 
@@ -1191,10 +1188,7 @@ class TestDefaultRecordings(unittest.TestCase):
     def test_hevc_conversion_registers_a_separate_video(self):
         yaml_path = os.path.join(self.temp_dir, "rec.yaml")
         with open(yaml_path, "w") as f:
-            f.write(
-                "- url: https://example.test/sample.mp4\n"
-                "  filename: sample.mp4\n"
-            )
+            f.write("- url: https://example.test/sample.mp4\n  filename: sample.mp4\n")
         source_path = os.path.join(self.auto_dir, "sample.mp4")
         with open(source_path, "wb") as f:
             f.write(b"original")
@@ -1844,7 +1838,9 @@ class TestConvertToHevc(unittest.TestCase):
             with open(output_path, "wb") as output_file:
                 output_file.write(b"partial")
             with patch("videos.Dlsps2PipelineRunner") as mock_dlsps:
-                mock_dlsps.return_value.run.side_effect = RuntimeError("encoder unavailable")
+                mock_dlsps.return_value.run.side_effect = RuntimeError(
+                    "encoder unavailable"
+                )
                 with self.assertLogs("videos", level="ERROR"):
                     ok = VideosManager._convert_to_hevc(
                         "/videos/input/auto/sample.mp4", output_path
