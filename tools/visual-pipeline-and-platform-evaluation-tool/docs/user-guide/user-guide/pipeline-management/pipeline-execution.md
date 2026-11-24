@@ -63,6 +63,27 @@ This applies to any pipeline whose only `gva*` elements are `gvafpscounter`,
 `gvametaconvert`, or `gvametapublish`. LP E-core-only pinning is allowed for such
 pipelines.
 
+### Hybrid CPU and VDBox Decode
+
+The predefined **Decode** variant is read-only and unpinned, so it decodes on CPU.
+To run CPU and VDBox decode streams side by side:
+
+1. Open **Media Decode** and turn on **Enable advanced mode** in the pipeline options.
+1. Click the CPU core pinning icon, select the cores for the VDBox streams, and
+   click **Apply**.
+1. In the actions menu, select **Save as new variant** and name it, for example,
+   `VDBox`. The pinning is saved with the new variant.
+1. On the Performance page, select **Media Decode** with the **Decode** variant and
+   set its number of streams.
+1. Click **+ Add Pipeline**, select **Media Decode** with the `VDBox` variant, and set
+   its number of streams.
+1. Click **Run performance test**.
+
+Each stream of both variants runs as a separate DLSPS 2.0 instance. The results
+report FPS for every stream, so CPU and VDBox decode throughput can be compared
+in a single run. See [Performance Testing](../benchmarking/performance-testing.md)
+for the remaining test options.
+
 ### CPU Pinning in the Pipeline Definition
 
 CPU pinning set with the core-pinning icon in the pipeline editor is saved with
