@@ -8546,7 +8546,7 @@
           "edges"
         ],
         "title": "PipelineGraph",
-        "description": "**Request or response body containing the structured pipeline graph.**\n\nThis is a generic representation used by multiple endpoints\n(conversion, validation, optimization).\n\n## Attributes\n- `nodes` - List of graph nodes\n- `edges` - Directed connections between nodes"
+        "description": "**Request or response body containing the structured pipeline graph.**\n\nThis is a generic representation used by multiple endpoints\n(conversion, validation, optimization).\n\n## Attributes\n- `cpu_pinning` - Logical CPU ids every stream of this graph is pinned to (empty uses test-level pinning)\n- `nodes` - List of graph nodes\n- `edges` - Directed connections between nodes"
       },
       "PipelineGraphResponse": {
         "properties": {

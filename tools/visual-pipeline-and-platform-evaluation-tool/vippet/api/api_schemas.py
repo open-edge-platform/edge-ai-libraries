@@ -540,6 +540,7 @@ class PipelineGraph(BaseModel):
     (conversion, validation, optimization).
 
     ## Attributes
+    - `cpu_pinning` - Logical CPU ids every stream of this graph is pinned to (empty uses test-level pinning)
     - `nodes` - List of graph nodes
     - `edges` - Directed connections between nodes
     """
@@ -552,6 +553,7 @@ class PipelineGraph(BaseModel):
     @field_validator("cpu_pinning", mode="before")
     @classmethod
     def _validate_cpu_pinning(cls, cpus: object) -> List[int]:
+        """Reject non-int or negative CPU ids; de-duplicate and sort the rest."""
         return normalize_cpu_ids(cpus, "cpu_pinning")
 
     nodes: List[Node] = Field(
