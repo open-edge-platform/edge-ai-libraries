@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
 
+import yaml
+
 from graph import Graph, OUTPUT_PLACEHOLDER, graph_is_metadata_only
 from device import is_variant_supported
 from internal_types import (
@@ -450,11 +452,30 @@ class PipelineManager:
         pipelines_base_path = PipelineLoader.get_pipelines_directory()
 
         for config_path in PipelineLoader.list():
-            config = PipelineLoader.config(config_path)
-
-            # Audio pipelines have no GStreamer graph; AudioPipelineManager owns them.
-            if config.get("type") == "audio":
+            try:
+                config = PipelineLoader.config(config_path)
+            except (OSError, UnicodeError, yaml.YAMLError):
+                self.logger.warning(
+                    "Skipping unreadable pipeline config: %s", config_path
+                )
                 continue
+            if not isinstance(config, dict):
+                self.logger.warning(
+                    "Skipping non-mapping pipeline config: %s", config_path
+                )
+                continue
+            pipeline_type_str = config.get("type", InternalPipelineType.VISION.value)
+            if pipeline_type_str == InternalPipelineType.AUDIO.value:
+                continue
+            if pipeline_type_str not in (
+                InternalPipelineType.VISION.value,
+                InternalPipelineType.TIME_SERIES.value,
+            ):
+                self.logger.warning(
+                    "Skipping unknown pipeline type in: %s", config_path
+                )
+                continue
+            pipeline_type = InternalPipelineType(pipeline_type_str)
 
             pipeline_name = config.get("name", "").strip()
             if not pipeline_name:
@@ -524,18 +545,6 @@ class PipelineManager:
             tags = config.get("tags", [])
             if not isinstance(tags, list):
                 tags = []
-
-            # Read type from config, default to vision
-            pipeline_type_str = config.get("type", InternalPipelineType.VISION.value)
-            try:
-                pipeline_type = InternalPipelineType(pipeline_type_str)
-            except ValueError:
-                self.logger.warning(
-                    "Unknown pipeline type '%s' in pipeline '%s', defaulting to 'vision'",
-                    pipeline_type_str,
-                    pipeline_name,
-                )
-                pipeline_type = InternalPipelineType.VISION
 
             # Load thumbnail if specified, using pipelines directory as base path
             thumbnail_path = config.get("thumbnail", "")
@@ -668,14 +677,17 @@ class PipelineManager:
             # Validate all VA-accelerated inference elements share one GPU render node
             base_graph.validate_inference_devices_share_va_display()
 
+            # Validate broker-publishing gvametapublish elements are configured
+            base_graph.validate_broker_metadata_publishers()
+
             # Validate pipeline has gvametapublish when metadata publishing is enabled
             if (
                 execution_config.metadata_mode != InternalMetadataMode.DISABLED
-                and not base_graph.has_gvametapublish()
+                and not base_graph.has_file_gvametapublish()
             ):
                 raise ValueError(
-                    f"Metadata generation is enabled, but the pipeline does not contain any gvametapublish element. "
-                    f"Please add a gvametapublish element to the pipeline '{pipeline_name}' (id: '{pipeline_id}') definition to enable metadata output."
+                    f"Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file. "
+                    f"Please add a gvametapublish element with method=file to the pipeline '{pipeline_name}' (id: '{pipeline_id}') definition to enable metadata output."
                 )
 
             # Apply RTSP credentials and settings to rtspsrc nodes

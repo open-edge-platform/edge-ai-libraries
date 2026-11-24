@@ -3,8 +3,25 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Client } from 'minio';
+import {
+  CopyObjectCommand,
+  CreateBucketCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  HeadObjectCommand,
+  PutBucketPolicyCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
+import { randomUUID } from 'crypto';
+import { createReadStream, createWriteStream } from 'fs';
+import { mkdir, rename, rm, stat } from 'fs/promises';
+import { lookup } from 'mime-types';
 import * as path from 'path';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 
 @Injectable()
 export class DatastoreService {
@@ -12,7 +29,7 @@ export class DatastoreService {
 
   bucket: string = this.$config.get('datastore.bucketName')!;
 
-  private client: Client;
+  private client: S3Client;
 
   constructor(
     private $http: HttpService,
@@ -30,21 +47,24 @@ export class DatastoreService {
   private async initialize() {
     const endPoint: string = this.$config.get('datastore.host')!;
     const port: number = this.$config.get('datastore.port')!;
+    const protocol: string = this.$config.get('datastore.protocol')!;
     const accessKey: string = this.$config.get('datastore.accessKey')!;
     const secretKey: string = this.$config.get('datastore.secretKey')!;
 
-    this.client = new Client({
-      endPoint,
-      port,
-      accessKey,
-      secretKey,
-      useSSL: false,
+    this.client = new S3Client({
+      endpoint: `${protocol}//${endPoint}:${port}`,
+      region: 'us-east-1',
+      forcePathStyle: true,
+      credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
     });
 
-    const bucketExists = await this.client.bucketExists(this.bucket);
-
-    if (!bucketExists) {
-      await this.client.makeBucket(this.bucket);
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
+    } catch (error) {
+      if (!DatastoreService.isNotFoundError(error)) {
+        throw error;
+      }
+      await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }));
 
       const policy = {
         Version: '2012-10-17',
@@ -58,7 +78,12 @@ export class DatastoreService {
         ],
       };
 
-      await this.client.setBucketPolicy(this.bucket, JSON.stringify(policy));
+      await this.client.send(
+        new PutBucketPolicyCommand({
+          Bucket: this.bucket,
+          Policy: JSON.stringify(policy),
+        }),
+      );
     }
   }
 
@@ -111,60 +136,113 @@ export class DatastoreService {
   }
 
   async uploadFile(destinationObject: string, sourceFile: string) {
+    const fileStat = await stat(sourceFile);
+    const body = createReadStream(sourceFile);
     try {
-      return this.client.fPutObject(this.bucket, destinationObject, sourceFile);
-    } catch (error) {
-      throw error;
+      return await new Upload({
+        client: this.client,
+        params: {
+          Bucket: this.bucket,
+          Key: destinationObject,
+          Body: body,
+          ContentLength: fileStat.size,
+          ContentType: lookup(sourceFile) || 'application/octet-stream',
+        },
+        queueSize: 1,
+        partSize: Math.max(64 * 1024 * 1024, Math.ceil(fileStat.size / 10000)),
+      }).done();
+    } finally {
+      body.destroy();
     }
   }
 
   async getFile(objectName: string): Promise<string> {
-    const filePath = path.join(__dirname, 'temp', objectName);
-
-    const fileContent = await this.client.fGetObject(
-      this.bucket,
-      objectName,
-      filePath,
+    const root = path.resolve(process.cwd(), 'temp');
+    const filePath = path.resolve(root, objectName);
+    const relative = path.relative(root, filePath);
+    if (
+      !relative ||
+      relative.startsWith(`..${path.sep}`) ||
+      relative === '..' ||
+      path.isAbsolute(relative)
+    ) {
+      throw new Error('Invalid object path');
+    }
+    await mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+    const temporaryPath = `${filePath}.${randomUUID()}.part`;
+    const response = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: objectName }),
     );
-
-    console.log(filePath);
-
+    if (!(response.Body instanceof Readable)) {
+      throw new Error('Object response does not contain a readable stream');
+    }
+    try {
+      await pipeline(
+        response.Body,
+        createWriteStream(temporaryPath, { flags: 'wx', mode: 0o600 }),
+      );
+      await rename(temporaryPath, filePath);
+    } finally {
+      await rm(temporaryPath, { force: true });
+    }
     return filePath;
   }
 
   /** Server-side copy within the app bucket; the bytes never leave MinIO. */
   async copyObject(sourceObject: string, destinationObject: string) {
     const source = sourceObject.replace(/^\/+/, '');
-    return this.client.copyObject(
-      this.bucket,
-      destinationObject,
-      `/${this.bucket}/${source}`,
+    return this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.bucket,
+        Key: destinationObject,
+        CopySource: `${encodeURIComponent(this.bucket)}/${this.encodeObjectPath(source)}`,
+      }),
     );
   }
 
   async deleteObject(objectName: string): Promise<void> {
-    await this.client.removeObject(this.bucket, objectName);
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: objectName }),
+    );
   }
 
   static isNotFoundError(error: unknown): boolean {
-    const code = (error as { code?: string } | null)?.code;
-    return code === 'NotFound' || code === 'NoSuchKey';
+    const details = error as {
+      code?: string;
+      name?: string;
+      $metadata?: { httpStatusCode?: number };
+    } | null;
+    if (details?.code && details.code !== 'UnknownError') {
+      return details.code === 'NotFound' || details.code === 'NoSuchKey';
+    }
+    if (
+      details?.name &&
+      details.name !== 'UnknownError' &&
+      details.name !== 'Error'
+    ) {
+      return details.name === 'NotFound' || details.name === 'NoSuchKey';
+    }
+    return details?.$metadata?.httpStatusCode === 404;
   }
 
   async uploadBuffer(objectName: string, content: Buffer, contentType: string) {
-    return this.client.putObject(
-      this.bucket,
-      objectName,
-      content,
-      content.length,
-      { 'Content-Type': contentType },
+    return this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: objectName,
+        Body: content,
+        ContentLength: content.length,
+        ContentType: contentType,
+      }),
     );
   }
 
   /** Stat an object in the app bucket; `null` when it does not exist. */
   async statObject(objectName: string) {
     try {
-      return await this.client.statObject(this.bucket, objectName);
+      return await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: objectName }),
+      );
     } catch (error) {
       if (DatastoreService.isNotFoundError(error)) {
         return null;
@@ -178,7 +256,12 @@ export class DatastoreService {
    * a large object can never exhaust the process heap.
    */
   async getObjectBuffer(objectName: string, maxBytes: number): Promise<Buffer> {
-    const stream = await this.client.getObject(this.bucket, objectName);
+    const { Body: stream } = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: objectName }),
+    );
+    if (!(stream instanceof Readable)) {
+      throw new Error('Object response does not contain a readable stream');
+    }
     const chunks: Buffer[] = [];
     let total = 0;
     for await (const chunk of stream) {

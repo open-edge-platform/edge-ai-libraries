@@ -43,7 +43,7 @@ Single service, `text-to-speech`, defined in `docker-compose.yml`:
 services:
   text-to-speech:
     build: { context: ., dockerfile: Dockerfile }
-    image: ${REGISTRY:-intel}/text-to-speech:${RELEASE_TAG:-latest}
+    image: ${REGISTRY:-intel}/text-to-speech:${RELEASE_TAG:-2026.3.0-rc2}
     container_name: text-to-speech
     user: "1000:1000"            # fixed — matches the image's baked-in app user
     ports: ["8011:8011"]
@@ -134,5 +134,5 @@ service:
 - `docker build -t text-to-speech:local .` — direct build outside Compose.
 
 `.env` controls `REGISTRY` (default `intel`) and `RELEASE_TAG` (pinned to the
-current release, e.g. `2026.2.0`). Never leave an image reference on
+current release, `2026.3.0-rc2`). Never leave an image reference on
 `:latest` in a committed Compose override meant for production use.

@@ -261,7 +261,10 @@
           showSizeChanger
           size="small"
         />
-        <span class="footer-hint">{{ $t("console.poolHint") }}</span>
+        <div class="console-info-hint footer-hint">
+          <InfoCircleOutlined />
+          <span>{{ $t("console.poolHint") }}</span>
+        </div>
       </div>
     </template>
   </a-drawer>
@@ -274,6 +277,7 @@ import { Modal } from "ant-design-vue";
 import {
   ApartmentOutlined,
   DeleteOutlined,
+  InfoCircleOutlined,
   SearchOutlined,
   UploadOutlined,
 } from "@ant-design/icons-vue";
@@ -606,14 +610,17 @@ watch(
     font-size: 24px;
   }
 }
-.section-hint,
-.footer-hint {
+.section-hint {
   color: var(--font-info-color);
   font-size: 12px;
   line-height: 1.7;
 }
 .section-hint {
   margin-bottom: 18px;
+}
+.footer-hint {
+  align-self: flex-end;
+  text-align: right;
 }
 .edit-section {
   border-top: 1px solid var(--border-main-color);

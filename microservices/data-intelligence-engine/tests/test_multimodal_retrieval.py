@@ -336,7 +336,7 @@ def test_media_rerank_orders_globally_across_targets(monkeypatch):
 
     result = asyncio.run(api.retrieve(RetrieveRequest(
         query="find it", libraries=["test-library"], target_media=["audio", "image"],
-        top_k=3, postprocess={},
+        top_k=3, postprocess={"top_n": 3},
     )))
     # Global order: audio-1 (0.95), image (0.90), audio (0.50); image-1 is cut.
     assert [hit.id for hit in result.retrieved_chunks] == ["audio", "image", "audio-1", "image-1"]

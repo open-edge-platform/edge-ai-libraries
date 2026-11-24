@@ -1,8 +1,8 @@
 # Release Notes: Video Search and Summarization Sample Application
 
-## Version 2026.3.0-rc1
+## Version 2026.3.0-rc2
 
-**Release Date:** November 6, 2026
+**Release Date:** December 7, 2026
 
 > **Note:** Helm Chart support will be deprecated in the next release. Limited validation has been performed on the Helm charts for this release.
 
@@ -21,9 +21,7 @@
 
 **Improved:**
 
-- **Dependency refresh:** Updated the Pipeline Manager and UI dependency sets to the latest in-range patch/minor releases. UI advisories drop from 6 to **0**; Pipeline Manager drops from 19 to **8**. The residual Pipeline Manager advisories come from three transitive packages, each unfixable without causing a regression:
-  - `braces` (via the `@swc/cli` build tool, dev-only) has no patched release — every published version is affected.
-  - `stream-json` and `decode-uri-component` arrive through `minio@8.0.7`, the latest release. `npm audit fix --force` "fixes" them by **downgrading** minio to `7.1.3`, and minio only imports `stream-json/jsonl/Parser.js`, not the vulnerable `pick`/`ignore`/`filter`/`replace` filters named in the advisory. Overriding `decode-uri-component` to the patched `0.5.0` is also not viable: that release is ESM-only and would make minio's CommonJS build throw `ERR_REQUIRE_ESM` at runtime.
+- **Dependency refresh:** Updated the Pipeline Manager and UI dependencies. Pipeline Manager now uses the AWS SDK for S3 with the existing MinIO service, replacing the MinIO Node.js client and its vulnerable `stream-json` and `decode-uri-component` dependencies.
 - **Dependency override cleanup:** Removed 9 now-redundant `overrides` entries from Pipeline Manager (`sha.js`, `qs`, `systeminformation`, `fast-xml-parser`, `socket.io-parser`, `lodash`, `body-parser`, `multer`, `serialize-javascript`) and all 9 from the UI, after confirming each one no longer changes dependency resolution. The remaining Pipeline Manager overrides are retained because dropping them measurably readmits older duplicate copies (`ajv`, `minimatch`, `picomatch`, `glob`, `webpack`) or downgrades a package outright (`diff` 8.0.4 → 4.0.4).
 - **Live camera limit is configurable:** `LIVE_STREAM_MAX_CONCURRENT` (default `8`; Helm `multimodaldataprep.liveStream.maxConcurrent`) sets how many cameras ingest at once. Registering more returns `503`; pause or delete a camera to free a slot.
 - **Search filters panel:** The time range, number of results and minimum peak score filters share one panel. Edits are drafts until **Apply**, and sliders show their value while dragging.
@@ -32,7 +30,7 @@
 - **NPU LLM prompt limits:** An LLM on NPU is compiled with `OVMS_NPU_MAX_PROMPT_LEN` (default `8192`) and `OVMS_NPU_MIN_RESPONSE_LEN` (default `1024`), and Pipeline Manager's context and completion budgets are derived from them, so long summary prompts are no longer rejected by the NPU. A vision-language model set as the NPU LLM is rejected at setup.
 - **Inference concurrency defaults:** With OVMS, `setup.sh` defaults to `PM_VLM_CONCURRENT=4` and `PM_LLM_CONCURRENT=2` on every device (Helm `pipelinemanager.env.VLM_CONCURRENT` `6`, `LLM_CONCURRENT` `2`); vLLM still uses `1`.
 - **Faster startup detection:** The Pipeline Manager container healthcheck polls every 5 seconds with a longer retry budget, so dependent services start sooner and a slow first start is not reported as unhealthy.
-- **Platform updates:** Video Ingestion uses the `intel/dlstreamer-pipeline-server:2026.3.0-20261027-weekly-ubuntu24` base image, the summarizer CLI requires Go 1.26, and the Multimodal Embedding Serving and DataPrep images install the Intel® GPU compute runtime directly in the Dockerfile and fail the build if a driver is missing. Python, Node.js and Go dependencies were refreshed to clear fixable image vulnerabilities in VSS-owned code; remaining findings come from base images.
+- **Platform updates:** Video Ingestion uses the `intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc2` base image, the summarizer CLI requires Go 1.26, and the Multimodal Embedding Serving and DataPrep images install the Intel® GPU compute runtime directly in the Dockerfile and fail the build if a driver is missing. Python, Node.js and Go dependencies were refreshed to clear fixable image vulnerabilities in VSS-owned code; remaining findings come from base images.
 - The browser tab title no longer carries the "Intel EGAI" prefix.
 - **DataPrep object detection uses Hugging Face OpenVINO models:** Set `DATAPREP_DETECTION_MODEL` (Helm `multimodaldataprep.frameProcessing.detectionModelName`) to an `OpenVINO/<repo>` object-detection model, for example `OpenVINO/yolox_s-int8-ov`; `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are also verified on CPU, GPU and NPU. It has no default and is required in `--search` and `--summary --search` mode unless `ENABLE_OBJECT_DETECTION=false`; `--summary-and-search` mode always runs without detection. The optional `DATAPREP_DETECTION_CLASSES` (Helm `detectionClasses`) keeps only the listed classes. Models are cached in the `docker_dataprep-detection-models` volume; the old `docker_dataprep-yolox-models` volume is no longer used and can be removed.
 
