@@ -73,8 +73,10 @@ class _FakeStreamSet:
     from ``instance_states`` if given there. Stopped instances are
     reported as ``ABORTED``. Each item of ``validations`` answers one
     ``GET /validate/status/{id}`` the same way; the default is ``VALID``.
-    A status with frames and no ``frame_interval`` gets a new one on every
-    poll, so it reads as a new window; pass ``frame_interval`` to repeat one.
+    A status without ``frame_count`` gets one that grows by its ``frame_fps``
+    on every poll, so ``frame_fps`` reads as the stream's rate; pass
+    ``frame_count`` and ``frame_count_time`` to set them, or
+    ``old_server=True`` to leave both out.
     """
 
     def __init__(
@@ -100,6 +102,7 @@ class _FakeStreamSet:
         self.posted = 0
         self.validated = 0
         self.status_polls = 0
+        self.counts: dict[str, int] = {}
         self.stopped: set[str] = set()
         self.deleted: set[str] = set()
         self._round: object = None
@@ -183,9 +186,15 @@ class _FakeStreamSet:
         if index >= len(item):
             return httpx.Response(404, json={"detail": "not found"})
         status = {"id": instance_id, **item[index]}
-        if status.get("frame_fps") and "frame_interval" not in status:
-            # Dyadic, so fps-weighted sums of whole fps stay exact.
-            status["frame_interval"] = 1.0 + self.status_polls / 1024
+        if status.pop("old_server", False):
+            status.pop("frame_count", None)
+        elif "frame_count" not in status:
+            # Like the server: the count grows by frame_fps per 1 s poll and is
+            # read on every poll after the first frame, also without frames.
+            count = self.counts.get(instance_id, 0) + int(status.get("frame_fps") or 0)
+            self.counts[instance_id] = count
+            status["frame_count"] = count
+            status["frame_count_time"] = 1000.0 + self.status_polls if count else None
         if instance_id in self.stopped:
             status["state"] = "ABORTED"
         return httpx.Response(200, json=status)
@@ -294,6 +303,13 @@ class TestDlsps2RunnerInit(unittest.TestCase):
         runner.cancel()
         self.assertTrue(runner.is_cancelled())
 
+    def test_pinned_cpu_cores_are_deduplicated_and_sorted(self):
+        runner = Dlsps2PipelineRunner(pinned_cpu_cores=[4, 0, 4, 2])
+        self.assertEqual(runner.pinned_cpu_cores, [0, 2, 4])
+
+    def test_default_is_no_pinning(self):
+        self.assertEqual(Dlsps2PipelineRunner().pinned_cpu_cores, [])
+
 
 class TestDlsps2RunnerValidation(Dlsps2RunnerTestBase):
     def _runner(self, **kwargs) -> Dlsps2PipelineRunner:
@@ -326,6 +342,21 @@ class TestDlsps2RunnerValidation(Dlsps2RunnerTestBase):
 
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(len(fake.calls("DELETE")), 1)
+
+    def test_instance_teardown_is_waited_for(self):
+        fake = _FakeDlsps2(
+            [
+                {"state": "RUNNING"},
+                {"state": "STOPPING"},
+                {"state": "STOPPING"},
+                {"state": "ABORTED"},
+            ]
+        )
+
+        result = self._run(self._runner(), fake)
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(fake.statuses, [{"state": "ABORTED"}])
 
     def test_error_state_is_invalid_with_server_message(self):
         fake = _FakeDlsps2([{"state": "ERROR", "message": "no element foo"}])
@@ -478,7 +509,8 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
             ["/pipelines/inst-1", "/pipelines/inst-2"],
         )
         pushed = self._pushed_values()
-        self.assertEqual(pushed[:3], [0.0, 15.0, 25.0])
+        # A rate needs two frame_count readings.
+        self.assertEqual(pushed[:4], [0.0, 0.0, 15.0, 25.0])
         self.assertEqual(pushed[-1], 0.0)
 
     def test_window_starts_at_first_frame_before_any_fps_report(self):
@@ -494,28 +526,38 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
         self.assertEqual(self.clock.now, 10.0)
         self.assertEqual(result.stream_fps, {"a": 30.0, "b": 20.0})
 
-    def test_fps_is_weighted_by_frame_interval_and_each_window_counts_once(self):
-        fake = _FakeStreamSet(
-            [
-                [_running(10.0, frame_interval=1.0)],
-                [_running(10.0, frame_interval=1.0)],
-                [_running(10.0, frame_interval=1.0)],
-                [_running(30.0, frame_interval=0.5)],
-                [_running(30.0, frame_interval=0.5)],
-                [_running(10.0, frame_interval=1.5)],
-            ]
-        )
+    @staticmethod
+    def _counted(counts: list[int]) -> list[list[dict]]:
+        """One poll per second; the count is read at the poll, 30 fps in each window."""
+        return [
+            [_running(30.0, frame_count=count, frame_count_time=1000.0 + i)]
+            for i, count in enumerate(counts)
+        ]
 
-        # Warm-up is max_runtime / 2 = 3 s: windows from t=3 count, t=4 repeats t=3.
-        result = self._run(self._runner(max_runtime=6), fake)
+    def test_fps_of_a_bursty_stream_comes_from_the_frame_count(self):
+        # Frames arrive in every other second; frame_fps reports only those seconds.
+        fake = _FakeStreamSet(self._counted([0, 30, 30, 60, 60, 90, 90, 120, 120, 150]))
+
+        # Warm-up is 5 s: readings from t=5 (90) to t=9 (150) count.
+        result = self._run(self._runner(max_runtime=10), fake)
 
         self.assertEqual(result.stream_fps, {"stream": 15.0})
+        self.assertEqual(self._pushed_values()[:5], [0.0, 30.0, 0.0, 30.0, 0.0])
 
-    def test_unchanged_window_counts_as_no_frames(self):
+    def test_frame_count_that_drops_starts_again_from_the_new_reading(self):
+        fake = _FakeStreamSet(self._counted([0, 10, 20, 30, 40, 50, 60, 5, 15, 25]))
+
+        # The server restarted the instance between t=6 and t=7.
+        result = self._run(self._runner(max_runtime=10), fake)
+
+        self.assertEqual(result.stream_fps, {"stream": 10.0})
+
+    def test_count_that_stops_growing_counts_as_no_frames(self):
+        stalled = _running(0.0, first_frame_time=1000.0)
         fake = _FakeStreamSet(
             [
                 [_running(30.0), _running(20.0)],
-                [_running(30.0), _running(20.0, frame_interval=1.0)],
+                [_running(30.0), stalled],
             ]
         )
 
@@ -524,6 +566,15 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
 
         self.assertIn("No frames from stream(s) b", str(ctx.exception))
         self.assertEqual(len(fake.calls("DELETE")), 2)
+
+    def test_server_without_frame_count_is_rejected(self):
+        fake = _FakeStreamSet([[_running(30.0, old_server=True)]])
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run(self._runner(), fake)
+
+        self.assertIn("no frame_count", str(ctx.exception))
+        self.assertEqual(len(fake.calls("DELETE")), 1)
 
     def test_run_shorter_than_warm_up_falls_back_to_final_avg_fps(self):
         fake = _FakeStreamSet(
@@ -667,6 +718,16 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
         )
         self.assertEqual(result.total_fps, 10.0)
 
+    def test_pinned_cpu_cores_are_sent_with_every_instance(self):
+        fake = _FakeStreamSet([[{"state": "COMPLETED", "avg_fps": 10.0}]])
+
+        self._run(self._runner(validate_pipelines=False, pinned_cpu_cores=[3, 1]), fake)
+
+        self.assertEqual(
+            [json.loads(p.content) for p in fake.calls("POST")],
+            [{"pipeline": PIPELINE, "validate_pipeline": False, "cpu_cores": [1, 3]}],
+        )
+
     def test_invalid_launch_string_raises_before_any_instance_starts(self):
         fake = _FakeStreamSet(
             [[_running(30.0)]],
@@ -784,6 +845,68 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
 
         self.assertIn("still queued", logs.output[0])
         self.assertEqual(len(fake.calls("DELETE")), 4)
+
+    def test_run_returns_once_stopped_instances_are_torn_down(self):
+        fake = _FakeStreamSet(
+            [[_running(30.0)]],
+            instance_states={"inst-1": ["STOPPING", "STOPPING", "ABORTED"]},
+        )
+
+        with self.assertNoLogs("dlsps2_runner", level="WARNING"):
+            result = self._run(self._runner(max_runtime=2), fake)
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(fake.instance_states["inst-1"], ["ABORTED"])
+
+    def test_cancel_waits_for_the_teardown(self):
+        runner = self._runner()
+
+        def cancel() -> list[dict]:
+            runner.cancel()
+            return [_running(30.0)]
+
+        fake = _FakeStreamSet(
+            [cancel], instance_states={"inst-1": ["STOPPING", "STOPPING", "ABORTED"]}
+        )
+
+        result = self._run(runner, fake)
+
+        self.assertTrue(result.cancelled)
+        self.assertEqual(fake.instance_states["inst-1"], ["ABORTED"])
+
+    def test_teardown_wait_is_bounded(self):
+        fake = _FakeStreamSet(
+            [[_running(30.0)]], instance_states={"inst-1": ["STOPPING"]}
+        )
+
+        with (
+            patch("dlsps2_runner.DLSPS2_TEARDOWN_TIMEOUT_S", 3),
+            self.assertLogs("dlsps2_runner", level="WARNING") as logs,
+        ):
+            result = self._run(self._runner(max_runtime=2), fake)
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn(
+            "DLSPS 2.0 instances still STOPPING after 3s: ['inst-1']",
+            logs.output[-1],
+        )
+
+    def test_invalid_launch_string_waits_for_the_other_validations(self):
+        fake = _FakeStreamSet(
+            [[_running(30.0)]],
+            validations=[
+                {"state": "INVALID", "message": "no element foo"},
+                {"state": "QUEUED"},
+                {"state": "QUEUED"},
+                {"state": "VALID"},
+            ],
+        )
+
+        with self.assertRaises(RuntimeError):
+            self._run_streams(self._runner(), fake)
+
+        self.assertEqual(fake.validations, [{"state": "VALID"}])
+        self.assertEqual(fake.pipeline_requests, [])
 
 
 class TestDlsps2RunnerFpsPush(unittest.TestCase):
@@ -1686,6 +1809,89 @@ class TestWithFpsChainLast(unittest.TestCase):
         self.assertEqual(sent, f"{self.SIDE} {self.MAIN}")
 
 
+class TestWithFpsElement(unittest.TestCase):
+    SID = TestWithFpsChainLast.SID
+    MAIN = TestWithFpsChainLast.MAIN
+    SIDE = TestWithFpsChainLast.SIDE
+    COUNTED = (
+        't. ! queue ! gvagenai prompt="Is it! safe?" ! gvafpscounter '
+        "starting-frame=10 ! fakesink sync=false"
+    )
+
+    def test_unnamed_gvafpscounter_gets_a_name(self):
+        self.assertEqual(
+            dlsps2_runner.with_fps_element(f"{self.MAIN} {self.COUNTED}", self.SID),
+            (
+                f'{self.MAIN} t. ! queue ! gvagenai prompt="Is it! safe?" ! '
+                "gvafpscounter name=vippet_fps_counter starting-frame=10 ! "
+                "fakesink sync=false",
+                "vippet_fps_counter",
+            ),
+        )
+
+    def test_named_gvafpscounter_keeps_its_name(self):
+        for name in ("cnt", '"cnt"'):
+            command = f"a ! gvafpscounter name={name} ! fakesink name=sink_p0_s0"
+            with self.subTest(name=name):
+                self.assertEqual(
+                    dlsps2_runner.with_fps_element(command, self.SID),
+                    (command, "cnt"),
+                )
+
+    def test_main_sink_when_gvafpscounter_does_not_pick_one_element(self):
+        quoted = self.MAIN.replace("name=sink_p0_s0", 'name="sink_p0_s0"')
+        for command in (
+            f"{self.MAIN} {self.SIDE}",  # none
+            f"{self.MAIN} {self.COUNTED} {self.COUNTED}",  # two
+            f"{quoted} {self.SIDE}",
+            # The name the counter would get is taken.
+            f"{self.MAIN} {self.COUNTED} t. ! fakesink name=vippet_fps_counter",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(
+                    dlsps2_runner.with_fps_element(command, self.SID),
+                    (command, "sink_p0_s0"),
+                )
+
+    def test_no_element_found(self):
+        for command, stream_id in (
+            (f"{self.MAIN} {self.SIDE}", "stream"),  # no sink in the id
+            (f"{self.MAIN} {self.SIDE}", "src__other_sink"),  # sink not found
+            # Only in a prompt, not an element's name.
+            ('a ! gvagenai prompt="name=sink_p0_s0" ! fakesink', self.SID),
+        ):
+            with self.subTest(command=command, stream_id=stream_id):
+                self.assertEqual(
+                    dlsps2_runner.with_fps_element(command, stream_id),
+                    (command, None),
+                )
+
+    def test_runs_start_with_the_fps_element(self):
+        fake = _FakeStreamSet([[{"state": "COMPLETED"}, {"state": "COMPLETED"}]])
+        runner = Dlsps2PipelineRunner(
+            mode="normal", base_url="http://dlsps:8080", max_runtime=0
+        )
+        with (
+            patch.object(runner, "_push_fps_metric"),
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            runner.run(
+                PIPELINE,
+                stream_commands={
+                    self.SID: f"{self.MAIN} {self.COUNTED}",
+                    "stream": PIPELINE,
+                },
+            )
+
+        bodies = [json.loads(r.content) for r in fake.calls("POST")]
+        self.assertEqual(bodies[0]["fps_element"], "vippet_fps_counter")
+        self.assertIn("gvafpscounter name=vippet_fps_counter", bodies[0]["pipeline"])
+        self.assertNotIn("fps_element", bodies[1])
+        validated = [body["pipeline"] for body in fake.validate_posts()]
+        self.assertIn("gvafpscounter name=vippet_fps_counter", validated[0])
+
+
 class TestValidationLaunchString(unittest.TestCase):
     def test_writing_sinks_become_fakesinks(self):
         command = (
@@ -1791,9 +1997,9 @@ class TestDlsps2RunnerLostInstance(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "no longer reports stream"):
             self._run(fake)
-        # The first poll fails the run; the second is the final read after the
-        # instances are stopped.
-        self.assertEqual(fake.status_polls, 2)
+        # The first poll fails the run; the second is the teardown wait, the
+        # third the final read after the instances are stopped.
+        self.assertEqual(fake.status_polls, 3)
         self.assertEqual(len(fake.calls("DELETE")), 2)
 
 
@@ -1834,11 +2040,14 @@ class TestStopLeftoverInstances(unittest.TestCase):
             if request.method == "DELETE":
                 deleted.append(request.url.path.rsplit("/", 1)[-1])
                 return httpx.Response(200)
+            if request.url.path != "/pipelines/status":
+                return httpx.Response(200, json={"state": "ABORTED"})
             return httpx.Response(
                 200,
                 json=[
                     {"id": "run", "state": "RUNNING"},
                     {"id": "queued", "state": "QUEUED"},
+                    {"id": "stopping", "state": "STOPPING"},
                     {"id": "done", "state": "COMPLETED"},
                     {"id": "gone", "state": "ABORTED"},
                 ],
@@ -1847,8 +2056,24 @@ class TestStopLeftoverInstances(unittest.TestCase):
         with self._client(handler), self.assertLogs("dlsps2_runner", "WARNING"):
             stopped = dlsps2_runner.stop_leftover_instances(base_url="http://d:8080")
 
-        self.assertEqual(stopped, 2)
-        self.assertEqual(sorted(deleted), ["queued", "run"])
+        self.assertEqual(stopped, 3)
+        self.assertEqual(sorted(deleted), ["queued", "run", "stopping"])
+
+    def test_teardown_wait_gets_what_is_left_of_the_budget(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "DELETE":
+                return httpx.Response(200)
+            if request.url.path == "/pipelines/status":
+                return httpx.Response(200, json=[{"id": "run", "state": "RUNNING"}])
+            return httpx.Response(200, json={"state": "STOPPING"})
+
+        with self._client(handler), self.assertLogs("dlsps2_runner", "WARNING") as logs:
+            stopped = dlsps2_runner.stop_leftover_instances(
+                timeout_s=0, base_url="http://d:8080"
+            )
+
+        self.assertEqual(stopped, 1)
+        self.assertIn("instances still STOPPING after 0.0s: ['run']", logs.output[-1])
 
     def test_unreachable_server_is_logged(self):
         def handler(request: httpx.Request) -> httpx.Response:

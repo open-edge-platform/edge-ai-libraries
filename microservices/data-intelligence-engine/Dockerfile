@@ -24,7 +24,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # platforms).
 # tesseract-ocr(-chi-sim): OCR for scanned PDFs. ffmpeg: decodes audio for
 # speech recognition (core/multimodal/asr.py).
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
     curl jq build-essential tesseract-ocr tesseract-ocr-chi-sim ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
@@ -41,13 +42,13 @@ RUN if [ "$INSTALL_LIBREOFFICE" = "true" ]; then \
 # even when /dev/dri is passed through. Mirrors EdgeCraftRAG's Dockerfile.server.
 RUN apt-get update \
     && (apt-get remove -y libze-intel-gpu1 libigc1 libigdfcl1 libze-dev || true) \
-    && apt-get install -y gnupg2 wget curl jq \
+    && apt-get install -y --no-install-recommends gnupg2 wget curl jq \
     && curl -sL 'https://keyserver.ubuntu.com/pks/lookup?fingerprint=on&op=get&search=0x0C0E6AF955CE463C03FC51574D098D70AFBE5E1F' \
         | tee /etc/apt/trusted.gpg.d/driver.asc \
     && echo -e "Types: deb\nURIs: https://ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/\nSuites: noble\nComponents: main\nSigned-By: /etc/apt/trusted.gpg.d/driver.asc" \
         > /etc/apt/sources.list.d/driver.sources \
     && apt-get update \
-    && apt-get install -y \
+    && apt-get install -y --no-install-recommends \
         libze-intel-gpu1 libze1 intel-metrics-discovery intel-opencl-icd clinfo intel-gsc \
         libze-dev intel-ocloc libze-intel-gpu-raytracing libglib2.0-0 libgl1 \
     && rm -rf /var/lib/apt/lists/*

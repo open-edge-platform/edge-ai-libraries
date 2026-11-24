@@ -4,7 +4,7 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 
 import config
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_serializer
 
 
 # --- Asset library --------------------------------------------------------------
@@ -20,13 +20,14 @@ class SourceIn(BaseModel):
 
 
 class SourceUpdate(BaseModel):
-    """Mutable source fields; model and parameters cannot change."""
+    """Mutable source fields; model and parameters cannot change, the embedding device can."""
 
     model_config = ConfigDict(extra="forbid")
 
     name: Optional[str] = None
     enabled: Optional[bool] = None
     labels: Optional[Dict[str, str]] = None
+    embedding_device: Optional[str] = None
 
 
 class SourceBindingOut(BaseModel):
@@ -83,6 +84,14 @@ class AssetPoolAssetsIn(BaseModel):
     asset_ids: List[str]
 
 
+class AssetPoolAssetsRemoved(BaseModel):
+    library: str
+    asset_pool_id: str
+    removed: List[str] = Field(default_factory=list)
+    materializations_removed: int = 0
+    concepts_removed: int = 0
+
+
 class SourceSyncStatusOut(BaseModel):
     source_id: str
     status: str
@@ -94,6 +103,8 @@ class SourceSyncStatusOut(BaseModel):
     effective_state: str = "SERVING"
     replaces: Optional[str] = None
     serving_history: List[Dict[str, Any]] = Field(default_factory=list)
+    reembed_pending: bool = False
+    reembed_asset_ids: List[str] = Field(default_factory=list)
     # OKF extraction state of a graph source: trigger, outdated flag, active/last job.
     extraction: Optional[Dict[str, Any]] = None
 
@@ -338,6 +349,14 @@ class RetrieveResult(BaseModel):
     graph_traces: List[GraphTrace] = Field(default_factory=list)
     # Set when postprocessing failed and `chunks` fell back to the recall order.
     postprocess_error: Optional[str] = None
+    media_diagnostics: Optional[Dict[str, Any]] = None
+
+    @model_serializer(mode="wrap")
+    def serialize_result(self, handler):
+        data = handler(self)
+        if self.media_diagnostics is None:
+            data.pop("media_diagnostics", None)
+        return data
 
 
 class GraphNodeOut(BaseModel):
@@ -379,6 +398,7 @@ class RetrieveRequest(BaseModel):
     postprocess: Optional[PostprocessOptions] = None
     # Report graph walks per pool in `RetrieveResult.graph_traces`.
     include_graph_trace: bool = False
+    include_media_data: bool = False
     # Empty means all; `document` is text only, add `image` to search document figures.
     target_media: List[Literal["document", "audio", "image", "video"]] = Field(default_factory=list)
     allow_missing_targets: bool = False

@@ -1,0 +1,97 @@
+
+configure_smart_classroom () {
+  workspace="$(ensure_project_path)/smart-classroom"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
+  repository="https://github.com/open-edge-platform/education-ai-suite.git"
+  version_libs="$version"
+  repository_libs="https://github.com/open-edge-platform/edge-ai-libraries.git"
+  used_ports=(5173 8000 8200 9100 8554 8189 8888)
+  health_timeout=1900
+}
+
+verify_smart_classroom () {
+  [ -e "$workspace"/smart-classroom/Linux/.env ]
+}
+
+debian_90_profile_smart_classroom () {
+  echo "git curl docker_io make edge_base python3_venv nodejs procps"
+}
+
+debian_90_install_smart_classroom () {
+  configure_smart_classroom "$@"
+  if verify_smart_classroom && ! ensure_parse_reinstall "$@"; then
+    echo "Smart classroom is installed" >&2
+  else
+    ensure_disk_size 50000 
+    ensure_ram_size 31457280  # 30 GiB
+
+    echo "@@STEP Cloning Repository"
+    ensure_git_export "$workspace" "$version" "$repository" smart-classroom/Linux
+    ensure_git_export "$workspace/smart-classroom/Linux/edge-ai-libraries" "$version_libs" "$repository_libs" microservices/audio-analyzer microservices/model-download
+
+    echo "@@STEP Configuring models"
+    cd "$workspace"/smart-classroom/Linux
+    local models=($(sed -n '/^models/,/^[a-z]/{/name:.*[/].*/{s/.*://;s/[" ]//g;p}}' config.yaml))
+    ensure_hf_token "${models[@]}"
+
+    echo "@@STEP Configuring samples"
+    cp .env.example .env
+    echo "HF_TOKEN=$HF_TOKEN" >> .env
+    echo "RENDER_GID=$(getent group render | cut -d: -f3 || echo 992)" >> .env
+    python3 -m utils.sync_startup_models --write
+    python3 -m utils.compose_profiles --write-env
+
+    echo "@@STEP Compiling vite"
+    ( cd ui; npm install )
+
+    echo "@@STEP Pulling images"
+    docker compose --env-file .env -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml pull --ignore-pull-failures
+
+    verify_smart_classroom
+  fi
+
+  echo "@@HIGHLIGHT $installer_name start"
+}
+
+debian_90_start_smart_classroom () {
+  configure_smart_classroom "$@"
+  ensure_ports_open start smart_classroom "${used_ports[@]}"
+
+  echo "@@STEP Checking for conflict"
+  cd "$workspace"/smart-classroom/Linux
+  ensure_container_namespace start smart_classroom $(ensure_container_parse_yaml --project=smart-classroom docker/docker-compose.yml docker/docker-compose.gpu.yml)
+
+  echo "@@STEP Starting app"
+  docker compose --env-file .env -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml up -d --wait --wait-timeout=$health_timeout
+
+  echo "@@STEP Starting UI"
+  local host_ip=$(ensure_ip)
+  (
+    for fd in /proc/$BASHPID/fd/*; do
+      fd=${fd##*/}; (( fd > 2 )) && eval "exec $fd>&-"
+    done 2>/dev/null
+
+    cd ui
+    ./node_modules/.bin/vite --host $host_ip --port ${used_ports[0]} --strictPort > vite-dev.logs 2>&1
+  ) < /dev/null > /dev/null 2>&1 &
+  disown
+
+  echo "@@HIGHLIGHT http://$host_ip:${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_smart_classroom () {
+  configure_smart_classroom "$@"
+  cd "$workspace"/smart-classroom/Linux && {
+    docker compose --env-file .env -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml down -v all --remove-orphans
+    pkill -f -- "--host $(ensure_ip) --port ${used_ports[0]}"
+    ensure_container_cleanup $(ensure_container_parse_yaml --project=smart-classroom docker/docker-compose.yml docker/docker-compose.gpu.yml)
+  } || true
+}
+
+debian_90_remove_smart_classroom () {
+  debian_90_stop_smart_classroom "$@" 
+  ensure_rm "$workspace"
+}
+
+    

@@ -8,7 +8,6 @@ import config
 
 @dataclass
 class VectorIngestRequest:
-    documents: List[Any] = field(default_factory=list)
     nodes: List[Any] = field(default_factory=list)
 
 

@@ -23,6 +23,8 @@ If the model configuration is reduced, you can reduce the memory size to 32 GB. 
 
 The software requirements to install the sample application are provided in other documentation pages and is not repeated here.
 
+Local Python environments require Python 3.11.5 or later, below Python 4.0.
+
 ## Compatibility Notes
 
 **Known Limitations**:

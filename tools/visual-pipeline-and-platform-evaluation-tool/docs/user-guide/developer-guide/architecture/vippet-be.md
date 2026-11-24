@@ -43,14 +43,18 @@ Latency and VLM metrics come from the server's OpenTelemetry export to `metrics-
 folder and read back by `vippet/pipeline_events.py`. `vippet/pipeline_runner.py` holds the result types shared
 by both modules.
 
-Device discovery (`vippet/device.py`) and the DL Streamer pipeline optimizer still run in the backend process.
+The device list (`vippet/device.py`) is read from the server's `GET /devices`, so it shows the devices pipelines
+actually run on. The DL Streamer pipeline optimizer runs as a server job too: `vippet/dlsps2_optimizer.py` starts it
+with `POST /optimize`, polls it until it ends and cancels it on request, so the candidate pipelines also run on the
+server's runtime and devices.
 
 ### Docker Compose with Hardware Profiles
 
 The backend ships as a container and is composed with sibling services (`vippet-ui`,
-`dlstreamer-pipeline-server`, `mediamtx`, `model-download`, `metrics-manager`, `sensor-manager`) via Docker
-Compose. Hardware capabilities are selected through
-`COMPOSE_PROFILES` (`cpu`, `gpu`, `npu`), which is auto-detected by `setup_env.sh`.
+`dlstreamer-pipeline-server`, `mediamtx`, `model-download`, `metrics-manager`, `sensor-manager`,
+`audio-analyzer`, and `text-to-speech`) via Docker Compose. Hardware capabilities are selected through
+`COMPOSE_PROFILES` (`cpu`, `gpu`, `npu`, `gpu-wsl`), which is auto-detected by `setup_env.sh`.
+The WSL profile exposes `/dev/dxg` and read-only `/usr/lib/wsl` libraries instead of native DRM devices.
 
 ### Developer Tooling
 
@@ -186,6 +190,12 @@ RTSP URL to capture format, encoding and credentials) and keeps ONVIF credential
 memory only. Key methods: `discover_all_cameras()`, `get_camera_by_id()`, `load_camera_profiles()`,
 `get_usb_camera_details_by_device_path()`, `get_network_camera_details_by_rtsp_url()`,
 `get_encoding_for_rtsp_url()`.
+
+Custom RTSP URLs that do not belong to a discovered camera are handled by `rtsp_utils.py`:
+`validate_rtsp_url()` rejects URLs that could alter the generated pipeline description (whitespace, `!`,
+quotes, `,` and similar) or that embed credentials, and `probe_rtsp_codec()` detects the stream codec with
+`gst-discoverer-1.0` (timeout `RTSP_PROBE_TIMEOUT_S`, results cached per URL) so that `Graph` can select a
+device-specific decoder instead of `decodebin3`.
 
 ### TestsManager
 

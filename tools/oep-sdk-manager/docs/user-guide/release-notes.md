@@ -1,5 +1,16 @@
 # Release Notes: Intel® OEP SDK Manager
 
+## Intel® OEP SDK Manager 2026.3.0-rc1 Release
+
+**New**:
+
+- Added a 2026.3.0-rc1 selector option for all SDKs while retaining the 2026.1 and 2026.2 selections.
+- Updated DL Streamer, DL Streamer Pipeline Server, and Scenescape images to their 2026.3.0 RC1 tags.
+- Updated Gen AI microservice and Chat Q&A Core images to their 2026.3.0 RC1 tags.
+- Updated the UAV Mission Compute Metrics Manager image to 2026.3.0-rc1.
+- Updated OpenVINO Model Server and development images to the latest available 2026.4.1 tags.
+- Updated tutorials to use the 2026.3.0 RC1 DL Streamer and Chat Q&A Core images.
+
 ## Intel® OEP SDK Manager 2026.2.0 Release
 
 **Release Date**: September 10, 2026

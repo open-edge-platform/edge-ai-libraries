@@ -11,6 +11,7 @@ from typing import List, Optional
 from slugify import slugify
 
 logger = logging.getLogger("utils")
+MAX_THUMBNAIL_BYTES = 10 * 1024 * 1024
 
 
 def slugify_text(text: str, max_length: int = 0) -> str:
@@ -250,6 +251,12 @@ def load_thumbnail_as_base64(
     by checking file signatures. If validation fails, logs a warning and
     returns None.
 
+    Security rationale:
+        Pipeline definitions control thumbnail paths, so canonical containment
+        prevents them from reading files outside their asset tree. The 10 MiB
+        limit also prevents a configured thumbnail from causing an unbounded
+        in-memory read before base64 encoding.
+
     Args:
         thumbnail_path: Path to the thumbnail image file. Can be absolute or
             relative. If relative and base_path is provided, the path is
@@ -278,12 +285,27 @@ def load_thumbnail_as_base64(
         logger.warning("No thumbnail path specified for pipeline '%s'", pipeline_name)
         return None
 
-    # Resolve relative path if base_path is provided
     resolved_path = thumbnail_path
-    if base_path and not os.path.isabs(thumbnail_path):
-        resolved_path = os.path.join(base_path, thumbnail_path)
+    if base_path:
+        resolved_base_path = os.path.realpath(base_path)
+        resolved_path = os.path.realpath(
+            os.path.join(resolved_base_path, thumbnail_path)
+        )
+        try:
+            is_within_base_path = (
+                os.path.commonpath((resolved_base_path, resolved_path))
+                == resolved_base_path
+            )
+        except ValueError:
+            is_within_base_path = False
+        if not is_within_base_path:
+            logger.warning(
+                "Thumbnail path escapes base directory for pipeline '%s'",
+                pipeline_name,
+            )
+            return None
 
-    if not os.path.exists(resolved_path):
+    if not os.path.isfile(resolved_path):
         logger.warning(
             "Thumbnail file not found for pipeline '%s': %s",
             pipeline_name,
@@ -292,6 +314,13 @@ def load_thumbnail_as_base64(
         return None
 
     try:
+        if os.path.getsize(resolved_path) > MAX_THUMBNAIL_BYTES:
+            logger.warning(
+                "Thumbnail file exceeds size limit for pipeline '%s': %s",
+                pipeline_name,
+                resolved_path,
+            )
+            return None
         with open(resolved_path, "rb") as f:
             image_data = f.read()
 

@@ -5,9 +5,6 @@
 
 Export one forward-only OpenVINO graph per mode. The graphs are independently
 compiled on first use by the engine.
-
-Run check_qwen3_vl_reranker_parity.py against representative
-examples before serving.
 """
 
 import argparse
@@ -45,6 +42,9 @@ def main():
                         help="video mode pads the token axis to this fixed length, "
                              "so every video query shares one compiled graph")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--visual-size", type=int, default=160,
+                        help="square letterbox for images and video frames; "
+                             "use one value for every mode of a package")
     args = parser.parse_args()
     if args.mode != "text" and (args.sample is None or not args.sample.is_file()):
         parser.error("--sample must point to a local media file for image/video")
@@ -55,9 +55,8 @@ def main():
         parser.error("--source must be a local checkpoint directory")
     config_path = source / "config.json"
     score_path = source / "1_LogitScore" / "config.json"
-    reference_script = source / "scripts" / "qwen3_vl_reranker.py"
-    if not all(path.is_file() for path in (config_path, score_path, reference_script)):
-        parser.error("source lacks official config, 1_LogitScore config, or reference script")
+    if not all(path.is_file() for path in (config_path, score_path)):
+        parser.error("source lacks official config or 1_LogitScore config")
     config = json.loads(config_path.read_text())
     scores = json.loads(score_path.read_text())
     if config.get("architectures") != ["Qwen3VLForConditionalGeneration"]:
@@ -75,7 +74,7 @@ def main():
     from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
 
     from inference.multimodal.qwen3_vl_reranker_inputs import (
-        VISUAL_SIZE, encode, pad_frames, pad_pair, rope_position_ids,
+        encode, pad_frames, pad_pair, rope_position_ids,
     )
 
     processor = AutoProcessor.from_pretrained(
@@ -93,7 +92,8 @@ def main():
         from core.multimodal.frames import sample_frames
 
         document = {"video": pad_frames(sample_frames(str(args.sample), args.frames), args.frames)}
-    encoded = encode(processor, args.query, document)
+    visual_size = (args.visual_size, args.visual_size)
+    encoded = encode(processor, args.query, document, visual_size=visual_size)
     if args.mode != "text":
         encoded["position_ids"] = rope_position_ids(encoded, config)
     if args.mode == "video":
@@ -122,9 +122,11 @@ def main():
     from transformers.models.qwen3_vl import modeling_qwen3_vl
 
     def causal_mask_for_single_pair(
-        config, input_embeds, attention_mask, cache_position,
-        past_key_values, position_ids,
+        config, input_embeds=None, attention_mask=None, cache_position=None,
+        past_key_values=None, position_ids=None, inputs_embeds=None,
     ):
+        if input_embeds is None:
+            input_embeds = inputs_embeds
         length = input_embeds.shape[1]
         positions = torch.arange(length, device=input_embeds.device)
         hidden = positions[None, :] > positions[:, None]
@@ -186,7 +188,7 @@ def main():
     shutil.copy2(score_path, score_dest / "config.json")
     manifest_path = out / "export_shapes.json"
     manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {"modes": {}}
-    manifest["visual_size"] = list(VISUAL_SIZE)
+    manifest["visual_size"] = list(visual_size)
     if args.mode == "video":
         manifest["video_seq_bucket"] = args.seq_bucket
         manifest["video_frames"] = args.frames
@@ -195,7 +197,7 @@ def main():
         for key in ("image_grid_thw", "video_grid_thw") if key in encoded
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-    print(f"Exported {ir_path}. Run the parity checker before using it.")
+    print(f"Exported {ir_path}.")
 
 
 if __name__ == "__main__":

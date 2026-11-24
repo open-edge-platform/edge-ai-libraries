@@ -2,7 +2,7 @@
 fedora_08_profile_system_inspection () {
   case "$1" in
   bootstrap|install)
-    echo "curl dmidecode pciutils"
+    echo "curl dmidecode pciutils kmod"
     ;;
   esac
 }

@@ -2,12 +2,12 @@ openapi: 3.0.0
 info:
   title: Model Download Service API
   description: |
-    API for downloading models from HuggingFace, Ollama, Ultralytics, Pipeline Zoo Models, Geti™ hubs and HLS, converting models to OpenVINO IR format.
+    API for downloading models from HuggingFace, ModelScope, Ollama, Ultralytics, Pipeline Zoo Models, Geti™ hubs and HLS, converting models to OpenVINO IR format.
     This service provides endpoints to download models and optionally convert them to 
     OpenVINO Intermediate Representation (IR) format for optimized inference on Intel hardware.
 
     **Features:**
-    - Download models from multiple hubs (HuggingFace, Ollama, Ultralytics, Pipeline Zoo Models, Geti™, HLS)
+    - Download models from multiple hubs (HuggingFace, ModelScope, Ollama, Ultralytics, Pipeline Zoo Models, Geti™, HLS)
     - Convert models to OpenVINO IR format with configurable precision and device targets for huggingface hub models
     - Asynchronous job processing with status tracking
     - Plugin-based architecture for extensibility
@@ -36,6 +36,7 @@ components:
       type: string
       enum:
         - huggingface
+        - modelscope
         - ollama
         - ultralytics
         - pipeline-zoo-models
@@ -474,7 +475,13 @@ components:
         metadata:
           type: object
           additionalProperties: true
-          description: Hub-specific extra metadata
+          description: >-
+            Hub-specific extra metadata. Example: For Hugging Face, `likes` and `downloads`
+            are reported by the hub, and `library_name` identifies the
+            model's library. These values are null when unavailable.
+            For Geti, `training_status` is the status
+            reported by Geti (for example, `successful`, `failed`, or `in_progress`),
+            or null when unavailable.
 
     ModelListRequest:
       type: object
@@ -580,13 +587,16 @@ paths:
         - `huggingface`: `author`, `search`, `tags`
         - `ultralytics`: `search`
         - `pipeline-zoo-models`: `search`
-        - `geti`: `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id`
+        - `geti`: `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id`, `training_status`
 
         For `huggingface`, `author` is the repository namespace and accepts a
         user, owner, or organization name (for example, `microsoft` or
         `meta-llama`).
 
-        For `geti`, listing requires `GETI_HOST` to be configured.
+        For `geti`, listing requires `GETI_HOST` to be configured. The optional
+        `training_status` filter takes a non-empty string and matches the full
+        status case-insensitively (for example, `successful`, `failed`, or
+        `in_progress`). Omit it or pass null to include all statuses.
 
         Use `GET /api/v1/plugins` to discover each plugin's `listing_filter_fields`.
 
@@ -609,7 +619,7 @@ paths:
                   filters:
                     author: microsoft
                     search: phi
-                  limit: 10
+                  limit: 1
                   offset: 0
               ultralytics_models:
                 summary: List Ultralytics models
@@ -628,12 +638,13 @@ paths:
                   limit: 10
                   offset: 0
               geti_models:
-                summary: List Geti™ models
+                summary: List successfully trained Geti models
                 value:
                   hub: geti
                   filters:
-                    project_name: detection
+                    project_name: Pallet Defect Detection
                     precision: FP16
+                    training_status: successful
                   limit: 10
                   offset: 0
       responses:
@@ -643,6 +654,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ModelListResponse"
+              examples:
+                huggingface_models:
+                  summary: Hugging Face listing with download and like counts
+                  value:
+                    hub: huggingface
+                    items:
+                      - name: microsoft/Phi-3-mini-4k-instruct
+                        owner: microsoft
+                        precisions: [BF16]
+                        tags: [transformers, safetensors, phi3, text-generation, nlp, code, conversational, custom_code, en, fr, "license:mit", eval-results, text-generation-inference, endpoints_compatible, "deploy:sagemaker", "region:us"]
+                        model_type: text-generation
+                        last_modified: "2025-12-10T20:22:18+00:00"
+                        metadata:
+                          downloads: 317278
+                          likes: 1492
+                          library_name: null
+                        license: mit
+                        gated: false
+                        requires_token: false
+                    count: 1
+                    limit: 1
+                    offset: 0
+                    has_more: true
+                    next_offset: 1
+                geti_models:
+                  summary: Geti listing with training status
+                  value:
+                    hub: geti
+                    items:
+                      - name: YOLOX-S (ff43ddac)
+                        owner: Pallet Defect Detection
+                        model_type: detection
+                        metadata:
+                          project_id: 663aa9cc-077d-4029-87fd-28f420c5b891
+                          project_name: Pallet Defect Detection
+                          model_id: ff43ddac-78dd-4f8c-88ed-d45ecf94e0c3
+                          training_status: successful
+                          variants:
+                            - variant_id: 1d3ea463-3392-488e-ab1f-9602326c612d
+                              model_format: openvino
+                              precision: fp16
+                            - variant_id: 9f0fe054-3366-40f3-b281-85f095cfc4a6
+                              model_format: onnx
+                              precision: fp16
+                          architecture: object-detection-yolox-s
+                    count: 1
+                    total: 1
+                    limit: 10
+                    offset: 0
+                    has_more: false
         "400":
           description: Invalid pagination parameters, unknown hub, or hub not activated
         "401":
@@ -678,7 +739,7 @@ paths:
         - Set `EXTERNAL_SOURCES_URL_ALLOWLIST` (comma-separated) to override the default allowed prefixes.
 
         **`models[].name` format by hub:**
-        - `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name.
+        - `huggingface`, `modelscope`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name.
         - `ultralytics`: single name, comma-separated names, or `all`.
         - `pipeline-zoo-models`: single name, comma-separated names, or `all`.
         - `omz`: single name or comma-separated names (`all` is not supported).
@@ -805,7 +866,7 @@ paths:
                 unsupported_hub:
                   summary: Unsupported model hub
                   value:
-                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'pipeline-zoo-models', 'omz', 'openvino', 'geti', 'hls', 'remote-url'}."
+                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'modelscope', 'ollama', 'ultralytics', 'pipeline-zoo-models', 'omz', 'openvino', 'geti', 'hls', 'remote-url'}."
                 plugin_unavailable:
                   summary: Plugin dependencies not installed
                   value:

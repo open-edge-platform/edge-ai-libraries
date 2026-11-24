@@ -1,7 +1,7 @@
 
 configure_live_video_captioning () {
   workspace="$(ensure_project_path)/live-video-captioning"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(4173 8040 1883 9090 8889 9273 8556)
   get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
@@ -59,6 +59,7 @@ debian_90_install_live_video_captioning () {
 debian_90_start_live_video_captioning () {
   configure_live_video_captioning "$@"
   ensure_ports_open start live_video_captioning "${used_ports[@]}"
+  ensure_container_namespace start live_video_captioning $(ensure_container_parse_yaml "$workspace"/live-video-analysis/live-video-captioning/compose.yaml)
 
   local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_device "${device^^}"
@@ -72,8 +73,10 @@ debian_90_start_live_video_captioning () {
 
 debian_90_stop_live_video_captioning () {
   configure_live_video_captioning "$@"
-  cd "$workspace"/live-video-analysis/live-video-captioning
-  docker compose -f compose.yaml down -v --remove-orphans
+  cd "$workspace"/live-video-analysis/live-video-captioning && {
+    docker compose -f compose.yaml down -v --remove-orphans || true
+    ensure_container_cleanup $(ensure_container_parse_yaml compose.yaml)
+  } || true
 }
 
 debian_90_remove_live_video_captioning () {

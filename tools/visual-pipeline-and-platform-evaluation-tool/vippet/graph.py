@@ -15,6 +15,12 @@ from resources import (
     get_public_model_proc_manager,
     get_scripts_manager,
 )
+from rtsp_utils import (
+    RTSP_URL_PREFIX,
+    probe_rtsp_codec,
+    redact_rtsp_url,
+    validate_rtsp_url,
+)
 from utils import slugify_text
 from video_decoder import VideoDecoder, split_device_target
 from videos import VideosManager
@@ -22,7 +28,6 @@ from images import ImagesManager
 
 # Internal constant used as a placeholder type for the main output sink in the graph.
 OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
-RTSP_URL_PREFIX = "rtsp://"
 USB_DEVICE_PREFIX = "/dev/video"
 # Followed by the Aravis camera name: IP address or full Aravis device ID (vendor-model-serial).
 GIGE_CAMERA_PREFIX = "gige://"
@@ -74,7 +79,7 @@ model_proc_manager = get_public_model_proc_manager()
 # All other elements (including caps nodes) will be hidden and their edges reconnected.
 SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
     "SIMPLE_VIEW_VISIBLE_ELEMENTS",
-    "*src,urisourcebin,gva*,*sink,source,videoscale,tsam-udf",
+    "*src,urisourcebin,gva*,*sink,source,videoscale,tsam-udf,sscape_*",
 )
 
 # Configuration for Simple View: comma-separated regex patterns for invisible elements.
@@ -632,6 +637,8 @@ class Graph:
 
                 if "location" in node.data:
                     location = node.data["location"]
+                    if not location:
+                        raise ValueError(_missing_input_video_message(location))
 
                     # Ensure TS file exists before using it
                     ts_path = videos_manager.get_ts_path(location)
@@ -649,7 +656,7 @@ class Graph:
 
                         if source_path is None:
                             raise ValueError(
-                                f"Cannot find source video '{source_filename}' for TS conversion."
+                                _missing_input_video_message(source_filename)
                             )
 
                         ts_path = videos_manager.ensure_ts_file(source_path)
@@ -879,19 +886,27 @@ class Graph:
         """
         Unify all element names in the graph to ensure uniqueness across multiple pipelines.
 
+        Explicit ``mqtt-client-id`` values get the same suffix, because an MQTT
+        broker disconnects a client when another connects with the same ID.
+
         Args:
             pipeline_index: Index of the pipeline (used in new element name)
             stream_index: Index of the stream (used in new element name)
         """
         modified_graph = copy.deepcopy(self)
+        suffix = f"_{pipeline_index}_{stream_index}"
 
         for node in modified_graph.nodes:
             if "name" in node.data:
                 old_name = node.data["name"]
-                node.data["name"] = f"{old_name}_{pipeline_index}_{stream_index}"
+                node.data["name"] = f"{old_name}{suffix}"
                 logger.debug(
                     f"Unified element name in node {node.id}: {old_name} -> {node.data['name']}"
                 )
+
+            client_id = str(node.data.get("mqtt-client-id", "")).strip()
+            if node.type == "gvametapublish" and client_id:
+                node.data["mqtt-client-id"] = f"{client_id}{suffix}"
 
         return modified_graph
 
@@ -1250,30 +1265,37 @@ class Graph:
         self, metadata_dir: str, stream_index: int = 0
     ) -> list[str]:
         """
-        Assign output file paths to all gvametapublish nodes and configure them for file output.
+        Assign output file paths to all file-publishing gvametapublish nodes.
 
         Sets method=file, file-format=json-lines, and a stream-unique file-path on
         every gvametapublish node found in the graph, overwriting existing values.
+        Nodes explicitly configured to publish to a message broker (for example
+        ``method=mqtt``) are left untouched so that a user-configured broker
+        destination is not silently replaced by a file.
 
         Args:
             metadata_dir: Directory where metadata files will be written.
             stream_index: Zero-based index of the pipeline stream.
 
         Returns:
-            list[str]: Paths of the metadata files that were injected (one per gvametapublish node).
+            list[str]: Paths of the metadata files that were injected (one per
+                file-publishing gvametapublish node).
         """
         metadata_file_paths: list[str] = []
         for node in self.nodes:
-            if node.type == "gvametapublish":
-                stream_suffix = f"_stream_{stream_index}" if stream_index > 0 else ""
-                meta_path = os.path.join(
-                    metadata_dir,
-                    f"metadata_{node.id}{stream_suffix}.jsonl",
-                )
-                node.data["method"] = "file"
-                node.data["file-format"] = "json-lines"
-                node.data["file-path"] = meta_path
-                metadata_file_paths.append(meta_path)
+            if node.type != "gvametapublish":
+                continue
+            if node.data.get("method", "file") != "file":
+                continue
+            stream_suffix = f"_stream_{stream_index}" if stream_index > 0 else ""
+            meta_path = os.path.join(
+                metadata_dir,
+                f"metadata_{node.id}{stream_suffix}.jsonl",
+            )
+            node.data["method"] = "file"
+            node.data["file-format"] = "json-lines"
+            node.data["file-path"] = meta_path
+            metadata_file_paths.append(meta_path)
         return metadata_file_paths
 
     def unify_model_instance_ids(self) -> "Graph":
@@ -1685,7 +1707,13 @@ class Graph:
                     )
 
                 elif kind == InputKind.CAMERA:
-                    if source.startswith(RTSP_URL_PREFIX):
+                    if source.strip().startswith(RTSP_URL_PREFIX):
+                        try:
+                            source = validate_rtsp_url(source)
+                        except ValueError as e:
+                            raise ValueError(
+                                f"Invalid RTSP source for node {node_id}: {e}"
+                            ) from e
                         target_type = "rtspsrc"
                         target_properties = {"location": source}
                         logger.debug(
@@ -1896,6 +1924,20 @@ class Graph:
         """
         return any(node.type == "gvametapublish" for node in self.nodes)
 
+    def has_file_gvametapublish(self) -> bool:
+        """Check whether the graph publishes metadata to a file.
+
+        A gvametapublish node without an explicit ``method`` counts as a file
+        publisher, mirroring the element's own default.
+
+        Returns:
+            True if at least one file-publishing gvametapublish node is present.
+        """
+        return any(
+            node.type == "gvametapublish" and node.data.get("method", "file") == "file"
+            for node in self.nodes
+        )
+
     def has_decodebin3(self) -> bool:
         """Check whether the graph contains a decodebin3 element."""
         return any(node.type == "decodebin3" for node in self.nodes)
@@ -1922,7 +1964,9 @@ class Graph:
         of input is used, then retrieves the codec accordingly:
         - filesrc: reads Video.codec from VideosManager based on the location property.
         - v4l2src: reads best_capture.fourcc from CameraManager for the device path.
-        - rtspsrc: reads best_profile.encoding from CameraManager for the RTSP URL.
+        - rtspsrc: reads best_profile.encoding from CameraManager for the RTSP URL;
+          for streams not owned by a discovered camera (custom RTSP URLs) the
+          stream is probed with gst-discoverer.
         - aravissrc: reads current_capture.pixel_format from CameraManager for the camera IP.
 
         Returns:
@@ -1992,8 +2036,10 @@ class Graph:
                             f"Determined codec '{encoding}' from rtspsrc URL '{location}' (encoding lookup)"
                         )
                         return encoding
-                    logger.debug(f"No camera found for RTSP URL '{location}'")
-                    return None
+                    logger.debug(
+                        f"No camera found for RTSP URL '{redact_rtsp_url(location)}', probing stream"
+                    )
+                    return probe_rtsp_codec(location)
                 best_profile = details.best_profile
                 if best_profile is not None and best_profile.encoding:
                     logger.debug(
@@ -3503,6 +3549,32 @@ class Graph:
                 )
                 caps_target.type = new_type
 
+    def validate_rtsp_sources(self) -> None:
+        """
+        Validate the ``location`` of every rtspsrc node with ``validate_rtsp_url``.
+
+        Property values are written unquoted to the GStreamer pipeline
+        description, so user-provided RTSP URLs must not contain characters
+        that could alter the pipeline (whitespace, '!', quotes, ...).
+
+        Raises:
+            ValueError: If an rtspsrc node has a missing or invalid location.
+        """
+        for node in self.nodes:
+            if node.type != "rtspsrc":
+                continue
+            location = node.data.get("location")
+            if not location:
+                raise ValueError(
+                    f"rtspsrc element '{node.id}' requires a 'location' property"
+                )
+            try:
+                node.data["location"] = validate_rtsp_url(location)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid RTSP location for rtspsrc element '{node.id}': {e}"
+                ) from e
+
     def validate_camera_sources_followed_by_decodebin3(self) -> None:
         """
         Validate that all camera sources (rtspsrc, v4l2src or aravissrc) are followed by decodebin3.
@@ -3553,6 +3625,38 @@ class Graph:
                 raise ValueError(
                     f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
                     f"but found '{next_type}' instead"
+                )
+
+    def validate_broker_metadata_publishers(self) -> None:
+        """Validate that broker-publishing gvametapublish elements are configured.
+
+        ``gvametapublish`` accepts ``method=mqtt`` with an empty ``address`` or
+        ``topic`` and then silently fails to connect, so the pipeline runs with
+        no metadata output and no error. Catch the missing configuration before
+        the pipeline is started.
+
+        Raises:
+            ValueError: If a broker publisher is missing ``address`` or ``topic``.
+        """
+        broker_methods = {"mqtt", "kafka"}
+        for node in self.nodes:
+            if node.type != "gvametapublish":
+                continue
+            method = node.data.get("method", "file")
+            if method not in broker_methods:
+                continue
+            missing = [
+                prop
+                for prop in ("address", "topic")
+                if not str(node.data.get(prop, "")).strip()
+            ]
+            if missing:
+                raise ValueError(
+                    f"gvametapublish is set to method={method} but "
+                    f"{' and '.join(missing)} "
+                    f"{'is' if len(missing) == 1 else 'are'} empty. "
+                    f"Set the broker address (for example 'mqtt-broker:1883') and "
+                    f"topic, or switch the element back to method=file."
                 )
 
     def validate_inference_devices_share_va_display(self) -> None:
@@ -4497,7 +4601,8 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
     Side effects:
         - Modifies node.data["location"] or node.data["source"] for file source nodes
         - Converts absolute paths to filenames only
-        - Sets empty string if video path is not found
+        - Keeps the filename of a filesrc video that is not available yet,
+          so it can still be downloaded; sets empty string otherwise
         - Only processes filesrc, multifilesrc, and urisourcebin node types
         - Logs debug messages for each conversion
 
@@ -4525,9 +4630,24 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
             if filename := VideosManager().get_video_filename(path):
                 node.data[key] = filename
                 logger.debug(f"Converted video path to filename: {path} -> {filename}")
+            elif node.type == "filesrc":
+                node.data[key] = os.path.basename(os.path.normpath(path))
+                logger.debug(f"Video not available yet: {path}")
             else:
                 node.data[key] = ""
                 logger.debug(f"Video path not found: {path}")
+
+
+def _missing_input_video_message(name: str) -> str:
+    if not name:
+        return (
+            "No input video is selected. Download or upload a video on the "
+            "Videos page, then select it in the pipeline Input node."
+        )
+    return (
+        f"Input video '{name}' is not available. Download or upload it on the "
+        "Videos page, then select it in the pipeline Input node."
+    )
 
 
 def _input_video_name_to_path(nodes: list[Node]) -> None:
@@ -4576,9 +4696,7 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
 
             path = VideosManager().get_video_path(name)
             if not path:
-                raise ValueError(
-                    f"Node {node.id}. {node.type}: can't map '{key}={name}' to video path"
-                )
+                raise ValueError(_missing_input_video_message(name))
 
             node.data[key] = path
             logger.debug(f"Converted video filename to path: {name} -> {path}")

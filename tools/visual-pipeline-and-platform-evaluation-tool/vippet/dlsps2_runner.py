@@ -18,12 +18,15 @@ modes:
   ``fakesink`` so the check leaves no files or streams behind (see
   :func:`validation_launch_string`). Every stream then runs as its own
   instance (``POST /pipelines`` per stream with ``validate_pipeline=false``,
-  all in the unpinned worker),
+  all in the unpinned worker, naming the element its FPS is counted at in
+  ``fps_element``, see :func:`with_fps_element`),
   so the instances start together. ``GET /pipelines/{id}/status`` is polled
-  for each stream's ``frame_fps`` and ``frame_interval``; every instance is
+  for each stream's ``frame_count`` and ``frame_count_time``; every instance is
   stopped with
   ``DELETE /pipelines/{id}`` once ``max_runtime`` elapses, all instances end,
-  or the caller cancels.
+  or the caller cancels. The run returns only once DLSPS has torn the
+  instances down and ended every validation the run started (or after
+  ``DLSPS2_TEARDOWN_TIMEOUT_S``), so the next run finds the devices free.
   The result carries the FPS of each stream, so callers can judge the
   slowest one.
 
@@ -119,6 +122,17 @@ DLSPS2_WARMUP_S: float = float(os.environ.get("DLSPS2_WARMUP_S", "5"))
 
 # How long to retry DELETE on instances still in validation (capped at 30 s by DLSPS).
 DLSPS2_STOP_TIMEOUT_S: float = float(os.environ.get("DLSPS2_STOP_TIMEOUT_S", "40"))
+
+# How long to wait for stopped instances to be torn down, and for validations a
+# run leaves behind to end, before the devices count as free. DLSPS keeps a
+# STOPPING instance until its worker confirms the teardown, and only logs one
+# that takes longer than 30 s.
+DLSPS2_TEARDOWN_TIMEOUT_S: float = float(
+    os.environ.get("DLSPS2_TEARDOWN_TIMEOUT_S", "30")
+)
+
+# Poll interval of that wait; a teardown usually takes well under a second.
+_TEARDOWN_POLL_S = 0.2
 
 # How often metrics-manager is read for the DLSPS-exported latency/VLM series,
 # seconds. Matches the default export interval, so every export reaches the chart.
@@ -245,10 +259,12 @@ _ATTACHED_PARENS = re.compile(r"(?<=[^\s()\\])\\?\([^\s()\\]*\\?\)")
 def with_fps_chain_last(command: str, stream_id: str) -> str:
     """Move the chain DLSPS 2.0 should count FPS on to the end of ``command``.
 
-    DLSPS 2.0 counts an instance's FPS at the first sink ``iterate_sinks()``
-    returns, which is the sink parsed last. In a pipeline whose branches run
-    at different rates (a VLM branch fed one frame per trigger), only one
-    branch gives the stream's FPS:
+    A server that takes ``fps_element`` counts FPS at the element
+    :func:`with_fps_element` names; this is the fallback for one that ignores
+    it. Such a server counts an instance's FPS at the first sink
+    ``iterate_sinks()`` returns, which is the sink parsed last. In a pipeline
+    whose branches run at different rates (a VLM branch fed one frame per
+    trigger), only one branch gives the stream's FPS:
 
     - the chain with ``gvafpscounter``, where the pipeline itself counts
       FPS, if exactly one chain has it and that chain ends in a sink;
@@ -300,6 +316,56 @@ def _ends_in_sink(chain: list[str]) -> bool:
         return False
     last_link = len(chain) - 1 - chain[::-1].index("!")
     return chain[last_link + 1].endswith("sink")
+
+
+# Name given to a stream's gvafpscounter that has none, so DLSPS 2.0 can find it.
+_FPS_COUNTER_NAME = "vippet_fps_counter"
+
+
+def with_fps_element(command: str, stream_id: str) -> tuple[str, str | None]:
+    """Name the element DLSPS 2.0 should count the stream's FPS at.
+
+    DLSPS 2.0 counts FPS at the input of the element named by
+    ``fps_element`` in ``POST /pipelines``. That is:
+
+    - the ``gvafpscounter``, where the pipeline itself counts FPS, if
+      ``command`` has exactly one; it is given a name if it has none;
+    - otherwise the stream's main sink, named after the second half of
+      ``stream_id`` (``<source>__<sink>``).
+
+    Only an element outside bins (``( ... )``) is a ``gvafpscounter`` here.
+    DLSPS fails an instance whose ``fps_element`` is not in its pipeline, so
+    a name is returned only when ``command`` has it.
+
+    Returns:
+        ``command``, with the ``gvafpscounter`` named if it was not, and the
+        element's name; or ``command`` unchanged and ``None`` if no element
+        is found.
+    """
+    counters = [
+        match
+        for match in _LAUNCH_ELEMENT.finditer(command)
+        if _LAUNCH_TOKEN.findall(match.group(0))[:1] == ["gvafpscounter"]
+    ]
+    if len(counters) == 1:
+        element = counters[0].group(0)
+        tokens = _LAUNCH_TOKEN.findall(element)
+        end = 1
+        while end < len(tokens) and "=" in tokens[end]:
+            end += 1
+        name = dict(token.split("=", 1) for token in tokens[1:end]).get("name")
+        if name is not None:
+            return command, name.strip('"')
+        if f"name={_FPS_COUNTER_NAME}" not in _LAUNCH_TOKEN.findall(command):
+            start = counters[0].start() + element.index("gvafpscounter")
+            start += len("gvafpscounter")
+            named = f"{command[:start]} name={_FPS_COUNTER_NAME}{command[start:]}"
+            return named, _FPS_COUNTER_NAME
+    _, _, sink = stream_id.partition("__")
+    tokens = set(_LAUNCH_TOKEN.findall(command))
+    if sink and {f"name={sink}", f'name="{sink}"'} & tokens:
+        return command, sink
+    return command, None
 
 
 # Elements that write files or send data out of the pipeline. A validation run
@@ -363,8 +429,9 @@ def validation_launch_string(command: str) -> str:
     return _LAUNCH_ELEMENT.sub(_swap, command)
 
 
-# States in which a DLSPS 2.0 instance may still hold devices.
-_ACTIVE_STATES = frozenset({"QUEUED", "RUNNING", "RESTARTING"})
+# States in which a DLSPS 2.0 instance may still hold devices. A STOPPING
+# instance holds them until its worker confirms the teardown.
+_ACTIVE_STATES = frozenset({"QUEUED", "RUNNING", "RESTARTING", "STOPPING"})
 
 # Seconds for stopping leftover instances when vippet starts or stops.
 DLSPS2_CLEANUP_TIMEOUT_S: float = float(os.environ.get("DLSPS2_CLEANUP_TIMEOUT_S", "5"))
@@ -378,7 +445,8 @@ def stop_leftover_instances(
     ``vippet`` is the server's only client, so when ``vippet`` starts or
     stops no instance should be running: one that is was started by a
     ``vippet`` process that ended mid-run, and it would hold devices and skew
-    every later measurement.
+    every later measurement. What is left of the budget after the stop is
+    spent waiting for the instances' teardown.
 
     Args:
         timeout_s: Overall budget, default ``DLSPS2_CLEANUP_TIMEOUT_S``.
@@ -389,6 +457,7 @@ def stop_leftover_instances(
     """
     if timeout_s is None:
         timeout_s = DLSPS2_CLEANUP_TIMEOUT_S
+    deadline = time.monotonic() + timeout_s
     runner = Dlsps2PipelineRunner(base_url=base_url)
     try:
         with httpx.Client(
@@ -408,6 +477,9 @@ def stop_leftover_instances(
                     active,
                 )
                 runner._stop_all(client, active, timeout_s)
+                runner._wait_stopped(
+                    client, active, max(0.0, deadline - time.monotonic())
+                )
             return len(active)
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
         logger.warning("Could not stop leftover DLSPS 2.0 instances: %s", exc)
@@ -437,6 +509,7 @@ class Dlsps2PipelineRunner:
         base_url: Optional[str] = None,
         validate_pipelines: bool = True,
         on_event: Optional[Callable[[PipelineEvent], None]] = None,
+        pinned_cpu_cores: Optional[list[int]] = None,
     ):
         """Initialize the runner.
 
@@ -462,6 +535,9 @@ class Dlsps2PipelineRunner:
                 pipeline that writes a file, since the check would run it
                 once more before the real run.
             on_event: Called with each live pipeline event of a normal run.
+            pinned_cpu_cores: Logical CPU ids every started instance is
+                pinned to, sent as ``cpu_cores`` in ``POST /pipelines``.
+                ``None`` or empty runs unpinned.
 
         With ``enable_latency_metrics`` the latency samples are read from
         metrics-manager; see the module docstring for the server setup and
@@ -483,6 +559,7 @@ class Dlsps2PipelineRunner:
         self.base_url = (base_url or DLSPS2_BASE_URL).rstrip("/")
         self.validate_pipelines = validate_pipelines
         self.on_event = on_event
+        self.pinned_cpu_cores = sorted(set(pinned_cpu_cores or []))
         self.cancelled = False
         self.logger = logger
         # Launch strings DLSPS 2.0 already accepted, reused across density iterations.
@@ -613,14 +690,17 @@ class Dlsps2PipelineRunner:
         client: httpx.Client,
         pipeline_command: str,
         validate_pipeline: bool = True,
+        fps_element: str | None = None,
     ) -> str:
-        response = client.post(
-            f"{self.base_url}/pipelines",
-            json={
-                "pipeline": pipeline_command,
-                "validate_pipeline": validate_pipeline,
-            },
-        )
+        body: dict[str, object] = {
+            "pipeline": pipeline_command,
+            "validate_pipeline": validate_pipeline,
+        }
+        if self.pinned_cpu_cores:
+            body["cpu_cores"] = self.pinned_cpu_cores
+        if fps_element:
+            body["fps_element"] = fps_element
+        response = client.post(f"{self.base_url}/pipelines", json=body)
         response.raise_for_status()
         return response.json()["instance_id"]
 
@@ -628,7 +708,9 @@ class Dlsps2PipelineRunner:
         """Validate every command not validated yet, all at once.
 
         Uses ``POST /validate`` and polls ``GET /validate/status/{id}``.
-        Stops early, without raising, once the run is cancelled.
+        Stops early, without raising, once the run is cancelled. Validations
+        still without a verdict when it returns or raises are waited for
+        (see :meth:`_wait_validated`).
 
         Raises:
             RuntimeError: If a command is invalid, a request fails, or not
@@ -677,6 +759,9 @@ class Dlsps2PipelineRunner:
             raise RuntimeError(
                 f"Failed to validate pipeline on DLSPS 2.0: {self._error_detail(exc)}"
             ) from exc
+        finally:
+            if pending:
+                self._wait_validated(client, list(pending))
 
     def _status(self, client: httpx.Client, instance_id: str) -> dict:
         response = client.get(f"{self.base_url}/pipelines/{instance_id}/status")
@@ -771,6 +856,108 @@ class Dlsps2PipelineRunner:
                 "Failed to stop DLSPS 2.0 instance %s: %s", instance_id, exc
             )
         return True
+
+    def _wait_stopped(
+        self,
+        client: httpx.Client,
+        instance_ids: list[str],
+        timeout_s: float | None = None,
+    ) -> None:
+        """Wait until no instance is ``STOPPING``. Never raises.
+
+        DLSPS 2.0 answers ``DELETE`` of a running instance at once, but keeps
+        it ``STOPPING``, with its devices, until the pipeline is torn down.
+        Waiting keeps the caller's execution lease until then, so the next run
+        does not share the devices with it. A server without ``STOPPING``
+        never makes it wait.
+
+        Args:
+            client: DLSPS 2.0 client.
+            instance_ids: Instances already sent ``DELETE``.
+            timeout_s: Longest wait, default ``DLSPS2_TEARDOWN_TIMEOUT_S``.
+        """
+        self._wait_while(
+            client,
+            {iid: f"{self.base_url}/pipelines/{iid}/status" for iid in instance_ids},
+            "STOPPING",
+            "instances",
+            timeout_s,
+        )
+
+    def _wait_validated(
+        self,
+        client: httpx.Client,
+        validation_ids: list[str],
+        timeout_s: float | None = None,
+    ) -> None:
+        """Wait until no validation is ``QUEUED``. Never raises.
+
+        DLSPS 2.0 cannot cancel a validation, whose subprocess loads the
+        pipeline's models on their devices. Waiting keeps the caller's
+        execution lease until the validations a run leaves behind end.
+
+        Args:
+            client: DLSPS 2.0 client.
+            validation_ids: Validations without a verdict yet.
+            timeout_s: Longest wait, default ``DLSPS2_TEARDOWN_TIMEOUT_S``.
+        """
+        self._wait_while(
+            client,
+            {vid: f"{self.base_url}/validate/status/{vid}" for vid in validation_ids},
+            "QUEUED",
+            "validations",
+            timeout_s,
+        )
+
+    def _wait_while(
+        self,
+        client: httpx.Client,
+        status_urls: dict[str, str],
+        state: str,
+        what: str,
+        timeout_s: float | None,
+    ) -> None:
+        """Poll each status URL, keyed by id, until none reports ``state``.
+
+        A status DLSPS no longer knows (404) has ended. Logs, without
+        raising, when the wait times out or a request fails.
+        """
+        if timeout_s is None:
+            timeout_s = DLSPS2_TEARDOWN_TIMEOUT_S
+        deadline = time.monotonic() + timeout_s
+        pending = dict(status_urls)
+        while True:
+            try:
+                pending = {
+                    key: url
+                    for key, url in pending.items()
+                    if self._reports_state(client, url, state)
+                }
+            except (httpx.HTTPError, ValueError, AttributeError) as exc:
+                self.logger.warning(
+                    "Failed to wait for DLSPS 2.0 %s to leave %s: %s", what, state, exc
+                )
+                return
+            if not pending:
+                return
+            if time.monotonic() >= deadline:
+                self.logger.warning(
+                    "DLSPS 2.0 %s still %s after %ss: %s",
+                    what,
+                    state,
+                    timeout_s,
+                    sorted(pending),
+                )
+                return
+            time.sleep(_TEARDOWN_POLL_S)
+
+    @staticmethod
+    def _reports_state(client: httpx.Client, url: str, state: str) -> bool:
+        response = client.get(url)
+        if response.status_code == 404:
+            return False
+        response.raise_for_status()
+        return response.json().get("state") == state
 
     def _push_fps_metric(self, fps: float) -> None:
         """Fire-and-forget push of the current FPS value to metrics-manager.
@@ -1103,8 +1290,9 @@ class Dlsps2PipelineRunner:
         The pipeline is valid if it stays ``RUNNING`` for ``max_runtime`` seconds without error, or
         reaches ``COMPLETED`` (EOS) sooner. ``ERROR``/``ABORTED`` is invalid,
         and so is not reaching a verdict within ``hard_timeout``. The
-        instance is always stopped afterwards regardless of outcome, since a
-        validation check should never leave a pipeline running.
+        instance is always stopped afterwards regardless of outcome, and its
+        teardown waited for (see :meth:`_wait_stopped`), since a validation
+        check should never leave a pipeline running.
         """
         deadline = time.monotonic() + self.hard_timeout
         running_since: Optional[float] = None
@@ -1162,6 +1350,7 @@ class Dlsps2PipelineRunner:
                     time.sleep(self.poll_interval)
             finally:
                 self._stop(client, instance_id)
+                self._wait_stopped(client, [instance_id])
 
     # ------------------------------------------------------------------
     # Normal (performance and density) mode
@@ -1241,18 +1430,22 @@ class Dlsps2PipelineRunner:
         skip DLSPS's own per-instance validation and start together. All instances go to the unpinned worker. The run lasts
         ``max_runtime`` seconds from the moment every stream reports a
         ``first_frame_time`` (``0``: until every instance ends on its own),
-        or until :meth:`cancel`. Every instance is stopped before returning;
-        a cancel before or while the instances start starts no further one.
+        or until :meth:`cancel`. Every instance is stopped, and its teardown
+        waited for (see :meth:`_wait_stopped`), before returning, so the
+        caller's execution lease outlives the instances; a cancel before or
+        while the instances start starts no further one.
 
-        DLSPS reports each stream's ``frame_fps`` over its last
-        ``frame_interval`` seconds, and keeps both unchanged while no frames
-        arrive. A status counts as a new window only when that pair changes,
-        so a stalled stream is seen as one without frames and a window polled
-        twice counts once. A stream's FPS is its frames over its seconds,
-        summed over the new windows reported while all streams are running,
-        after the warm-up. A stream without such windows (a run too short, or
-        one that ended early) falls back to its final ``avg_fps``. This stands
-        in for a DLSPS lifecycle timeline (ITEP-97433).
+        DLSPS reports each stream's ``frame_count``, the frames counted since
+        its first frame, read about every second also when no frames arrive,
+        with ``frame_count_time``, the time of that reading. A stream's FPS is
+        the growth of its count over the time between the readings seen while
+        all streams are running, after the warm-up, so the seconds in which a
+        bursty stream (a VLM branch) or one below 1 fps passes no frames
+        count too. A count that drops (the server restarted the instance)
+        starts again from the new reading. The live FPS is the same rate
+        between the last two readings. A stream whose count stops growing
+        has stalled. A stream without two such readings (a run too short, or
+        one that ended early) falls back to its final ``avg_fps``.
 
         Latency and VLM samples are read from metrics-manager every
         ``DLSPS2_METRICS_POLL_S`` seconds, with a client of its own and a
@@ -1263,13 +1456,16 @@ class Dlsps2PipelineRunner:
         Raises:
             RuntimeError: If validation fails, a submit fails, an instance
                 ends in ``ERROR`` or ``ABORTED``, a stream produces no frames for
-                ``inactivity_timeout`` seconds, or DLSPS stays unreachable for
-                that long. Not raised once the run is cancelled.
+                ``inactivity_timeout`` seconds, DLSPS stays unreachable for
+                that long, or its status has no ``frame_count``. Not raised
+                once the run is cancelled.
         """
         instances: dict[str, str] = {}
-        frames = dict.fromkeys(stream_commands, 0.0)
+        frames = dict.fromkeys(stream_commands, 0)
         seconds = dict.fromkeys(stream_commands, 0.0)
-        windows: dict[str, tuple] = {}
+        # Last frame_count reading per stream, and whether it was seen while measuring.
+        readings: dict[str, tuple[int, float, bool]] = {}
+        live_fps: dict[str, float] = {}
         statuses: dict[str, dict] = {}
         if self.latency_tracer_metrics is not None:
             self.latency_tracer_metrics = {}
@@ -1279,10 +1475,16 @@ class Dlsps2PipelineRunner:
         started_at = time.monotonic()
         metrics_polled_at = started_at
 
-        # DLSPS 2.0 counts FPS at the sink parsed last.
+        # DLSPS 2.0 counts FPS at the fps_element, or, on a server that
+        # ignores it, at the sink parsed last.
+        named = {
+            sid: with_fps_element(command, sid)
+            for sid, command in stream_commands.items()
+        }
+        fps_elements = {sid: element for sid, (_, element) in named.items() if element}
         stream_commands = {
             sid: with_fps_chain_last(command, sid)
-            for sid, command in stream_commands.items()
+            for sid, (command, _) in named.items()
         }
         with self._client() as client, self._metrics_client() as metrics_client:
             if any(
@@ -1318,7 +1520,10 @@ class Dlsps2PipelineRunner:
                             break
                         try:
                             instances[stream_id] = self._start(
-                                client, command, validate_pipeline=False
+                                client,
+                                command,
+                                validate_pipeline=False,
+                                fps_element=fps_elements.get(stream_id),
                             )
                         except httpx.HTTPError as exc:
                             raise RuntimeError(
@@ -1373,22 +1578,52 @@ class Dlsps2PipelineRunner:
                         ):
                             break
 
-                        fps = {
-                            sid: float(statuses[sid].get("frame_fps") or 0.0)
-                            if sid in statuses
-                            else 0.0
+                        outdated = [
+                            sid
                             for sid in instances
-                        }
-                        fresh: list[str] = []
-                        for sid, value in fps.items():
-                            window = (
-                                value,
-                                statuses.get(sid, {}).get("frame_interval"),
+                            if "frame_count" not in statuses[sid]
+                        ]
+                        if outdated:
+                            raise RuntimeError(
+                                "DLSPS 2.0 reports no frame_count for stream(s) "
+                                f"{', '.join(outdated)}; use DLSPS 2.0 2026.3 "
+                                "or later"
                             )
-                            if value > 0 and window != windows.get(sid):
-                                windows[sid] = window
+
+                        all_playing = all(
+                            states.get(sid) == "RUNNING"
+                            and statuses[sid].get("first_frame_time") is not None
+                            for sid in instances
+                        )
+                        if all_playing and playing_since is None:
+                            playing_since = now
+                        measuring = (
+                            all_playing
+                            and playing_since is not None
+                            and now - playing_since >= self._warmup()
+                        )
+
+                        for sid in instances:
+                            read_at = statuses[sid].get("frame_count_time")
+                            if read_at is None:
+                                continue
+                            count = int(statuses[sid]["frame_count"])
+                            previous = readings.get(sid)
+                            if count > 0 and (previous is None or count != previous[0]):
                                 last_frame[sid] = now
-                                fresh.append(sid)
+                            if (
+                                previous is not None
+                                and read_at > previous[1]
+                                and count >= previous[0]
+                            ):
+                                added = count - previous[0]
+                                elapsed = read_at - previous[1]
+                                live_fps[sid] = added / elapsed
+                                if measuring and previous[2]:
+                                    frames[sid] += added
+                                    seconds[sid] += elapsed
+                            readings[sid] = (count, float(read_at), measuring)
+
                         stalled = [
                             sid
                             for sid in instances
@@ -1401,28 +1636,11 @@ class Dlsps2PipelineRunner:
                                 f"DLSPS 2.0 for over {self.inactivity_timeout}s"
                             )
 
-                        all_playing = all(
-                            states.get(sid) == "RUNNING"
-                            and statuses[sid].get("first_frame_time") is not None
-                            for sid in instances
-                        )
-                        if all_playing and playing_since is None:
-                            playing_since = now
-                        if (
-                            all_playing
-                            and playing_since is not None
-                            and now - playing_since >= self._warmup()
-                        ):
-                            for sid in fresh:
-                                interval = float(
-                                    statuses[sid].get("frame_interval")
-                                    or self.poll_interval
-                                )
-                                frames[sid] += fps[sid] * interval
-                                seconds[sid] += interval
-
                         # Mean per stream for the live chart.
-                        self._push_fps_metric(sum(fps.values()) / len(instances))
+                        self._push_fps_metric(
+                            sum(live_fps.get(sid, 0.0) for sid in instances)
+                            / len(instances)
+                        )
                         if (
                             read_metrics
                             and now - metrics_polled_at >= DLSPS2_METRICS_POLL_S
@@ -1435,6 +1653,7 @@ class Dlsps2PipelineRunner:
                 finally:
                     if instances:
                         self._stop_all(client, list(instances.values()))
+                        self._wait_stopped(client, list(instances.values()))
                         try:
                             statuses.update(self._statuses(client, instances))
                         except httpx.HTTPError:

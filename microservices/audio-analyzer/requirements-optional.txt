@@ -37,6 +37,9 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 torchaudio==2.11.0+cpu
 openai-whisper==20250625
-speechbrain==1.0.3
+# speechbrain>=1.1.0 is required with torchaudio>=2.9: 1.0.x calls the removed
+# torchaudio.list_audio_backends() at import time, which crashes pyannote's
+# diarization pipeline (it imports speechbrain) with an AttributeError.
+speechbrain==1.1.2
 pyannote.audio==4.0.4
 pywhispercpp==1.5.0

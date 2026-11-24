@@ -1,7 +1,7 @@
 
 configure_smart_traffic_intersection_agent () {
   workspace="$(ensure_project_path)/smart-traffic-intersection-agent"
-  version="$(ensure_parse_value_option version --version=13c4deb6d933deecc79b801eb37dddac1bc78f6f "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(7860 8081 32776 32770 32771 32772 32773 32774 32775)
 
@@ -51,6 +51,7 @@ debian_90_install_smart_traffic_intersection_agent () {
 debian_90_start_smart_traffic_intersection_agent () {
   configure_smart_traffic_intersection_agent "$@"
   ensure_ports_open start smart_traffic_intersection_agent "${used_ports[@]}"
+  ensure_container_namespace start smart_traffic_intersection_agent $(ensure_container_parse_yaml "$workspace"/smart-traffic-intersection-agent/docker/*.yaml)
 
   [ ! -r "$workspace"/.device ] || set -- "$@" "$(< "$workspace"/.device)"
   local device=$(ensure_parse_device "$@")
@@ -71,13 +72,13 @@ debian_90_stop_smart_traffic_intersection_agent () {
   configure_smart_traffic_intersection_agent "$@"
   cd "$workspace"/smart-traffic-intersection-agent && {
     . ./setup.sh --stop || true
-    . ./setup.sh --clean --keep-models
+    . ./setup.sh --clean --all || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/*.yaml)
   } || true
 }
 
 debian_90_remove_smart_traffic_intersection_agent () {
   debian_90_stop_smart_traffic_intersection_agent "$@"
-  . ./setup.sh --clean --all || true
   ensure_rm "$workspace" 
 }
  

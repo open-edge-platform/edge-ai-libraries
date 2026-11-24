@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Get Started
 
 This page is the entry point for running the Audio Analyzer microservice.
@@ -12,7 +15,7 @@ Optional sentiment analysis per chunk complements the transcription output.
 If you enable speaker diarization in `config.yaml` (`models.asr.diarization: true`), you must provide a
 Hugging Face access token (`HF_TOKEN`) and accept the Pyannote speaker-diarization model license on
 Hugging Face if you want diarization to initialize successfully. If diarization setup is incomplete,
-the service continues running and logs a warning while disabling diarization for that session.
+provisioning or startup fails visibly instead of silently disabling diarization.
 
 ## Before You Begin
 
@@ -20,6 +23,84 @@ the service continues running and logs a warning while disabling diarization for
   [System Requirements](./get-started/system-requirements.md).
 - Review the [Configuration Guide](./get-started/configuration.md) if you plan to change
   models, devices, or chunking behavior.
+
+### FunASR Paraformer with ModelScope
+
+FunASR is opt-in: set `models.asr.provider: funasr` and `models.asr.name:
+paraformer-zh` (or `paraformer-en` / `paraformer-online`) in `config.yaml` and
+build Audio Analyzer with `INSTALL_CJK=true`. Mandarin uses
+`iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch`,
+`iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`, and
+`iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch`, each pinned to the
+ModelScope release revision `v2.0.4`. These are native PyTorch snapshots;
+downloading them does not produce OpenVINO IR. Custom `vad_model` and
+`punc_model` values must be ModelScope repository IDs and use their default
+revision.
+
+### Where model snapshots come from
+
+At startup Audio Analyzer derives the snapshots it needs from `config.yaml`
+(Whisper source for the `openvino` provider, a single `ggml` file for
+`whispercpp`, Paraformer/VAD/punctuation for `funasr`, the pyannote pipeline and
+its dependencies when diarization is enabled) and makes each one available in
+this order:
+
+1. **Already on the models volume and valid** — reused without any network
+   access.
+2. **Shared Model Download service** — when `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL`
+   is set (for example `http://model-downloader:8000`) and the service answers
+   `GET /health`, each snapshot is requested with `POST /models/download`
+   (`huggingface` for Whisper sources and diarization, `modelscope` for FunASR)
+   and the job is polled until it completes. Both containers must mount the
+   **same** storage: the service's `MODELS_DIR` (default `/opt/models`) and Audio
+   Analyzer's `/app/audio_analyzer/models`. Enable the `huggingface` and
+   `modelscope` plugins on the service. Gated diarization models forward
+   `HF_TOKEN` per request as an `override_credentials` entry. The internal call
+   bypasses `http_proxy`/`https_proxy`; set
+   `AUDIO_ANALYZER_MODEL_DOWNLOAD_TIMEOUT_SEC` (default `1800`) if large
+   downloads need longer. This is how Smart Classroom shares one Model Download
+   container between its text-generation and ASR services.
+3. **Direct download inside Audio Analyzer** — the default when no service URL
+   is set, and the fallback (with a warning) when the configured service is
+   unreachable. Audio Analyzer calls the same Hugging Face / ModelScope
+   `snapshot_download` the Model Download plugins use, with the same pinned
+   revisions, so the result on disk is identical. This keeps deployments without
+   a Model Download container (the standalone Compose file in this repository,
+   VSS, Helm charts, bare-metal runs) working with no extra configuration. Set
+   `AUDIO_ANALYZER_MODEL_DIRECT_DOWNLOAD=false` to forbid in-container downloads;
+   Audio Analyzer then fails fast if a snapshot is missing (or if the configured
+   service is unreachable).
+
+Snapshots live under `models/<destination>/<hub>/<owner_model>/`
+(`whisper-source/`, `funasr/`, `diarization/`) with a completion inventory that
+records the requested model, revision, and file sizes. Missing, truncated, or
+mismatched snapshots are rebuilt by the active source; valid ones are retained.
+The inventory detects incomplete files, not same-size content tampering or
+upstream changes to an unpinned branch. Existing exported OpenVINO models are
+reused locally. Existing Hugging Face FunASR snapshots are not migrated or
+deleted: the first ModelScope download goes into `models/funasr/modelscope/` and
+requires additional disk space.
+
+OpenVINO conversion runs locally in Audio Analyzer from the downloaded source
+snapshot (past-aware ASR export for OpenVINO GenAI). For gated pyannote,
+provide `HF_TOKEN` (or `models.asr.hf_token`); tokens are not required to load
+an already provisioned diarization pipeline. Standalone diarization dependencies
+are discovered from the downloaded pipeline configuration; Audio Analyzer writes
+a separate local pipeline configuration and leaves the downloaded one unchanged.
+Native OpenAI Whisper checkpoints and the optional sentiment model keep their
+own direct-download behavior and are not affected by these settings.
+
+After changing the selected model, companions, or diarization settings, recreate
+Audio Analyzer; it provisions whatever is missing on the next start:
+
+```bash
+docker compose up -d --force-recreate audio-analyzer
+```
+
+If provisioning fails, inspect `docker compose logs audio-analyzer` (and the
+Model Download service logs when one is configured), correct the configuration,
+credentials, or network access, and restart. Do not delete the models volume
+when restarting the services.
 
 ## Choose Deployment Path
 

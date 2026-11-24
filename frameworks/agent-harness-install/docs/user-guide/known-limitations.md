@@ -1,3 +1,11 @@
+<!--hide_directive
+```{eval-rst}
+.. meta::
+   :description: Known limitations of the Agent Harness Installer, including the OpenShell integration, model export, the Inference Router, and OpenVINO Model Server behavior.
+   :keywords: Agent Harness Installer, known limitations, OpenShell, OpenClaw, Hermes, Deep Agents Code, Inference Router, OpenVINO Model Server, model export
+```
+hide_directive-->
+
 <!--
   Copyright (C) 2026 Intel Corporation
   SPDX-License-Identifier: Apache-2.0
@@ -6,13 +14,14 @@
 # Known Limitations
 
 For sandbox setup, architecture and lifecycle guidance, see
-[Agent Sandboxing](../agentic-ai-security/agent-sandboxing.md), part of
-[Agentic AI Security](../agentic-ai-security/README.md).
+[Agent Sandboxing](./agentic-ai-security/agent-sandboxing.md), part of
+[Agentic AI Security](./agentic-ai-security.md).
 
 - The OpenShell integration currently targets Linux with Docker, OpenShell
-  0.1.5 and OpenClaw/Hermes. Each agent has one independently owned
+  0.1.5, and OpenClaw/Hermes. Each agent has one independently owned
   profile; both use shared, loopback-published inference. A fresh OpenShell
-  install automatically provisions managed OVMS/IR and defaults to
+  install automatically provisions managed OpenVINO™ Model Server (OVMS) and Inference
+  Router (IR) and defaults to
   `Qwen3.5-9B-int8-ov`. Separate inference provisioning is optional:
   `./install.sh inference --runtime openshell --model <model-id> --non-interactive`.
   Host Node.js is still required for installer configuration handling.
@@ -22,13 +31,13 @@ For sandbox setup, architecture and lifecycle guidance, see
 - Repeated installs without `--model` preserve the saved model selection and
   sandbox data rather than silently replacing existing routes. An explicit new
   `--model` reuses cached files or downloads/converts as needed, reconfigures
-  shared inference and synchronizes both installed agents. This can interrupt
+  shared inference, and synchronizes both installed agents. This can interrupt
   active turns. Interrupted changes are recoverable by rerunning without
   `--model`, but are not atomic across services. Older sandbox images without
   restart-safe model support are rejected before inference is changed.
 - Sandbox runtime network access initially permits only the attached shared IR
-  endpoint. Web search, external browsing/downloads, package updates, messaging
-  and MCP integrations require explicit additional network policy and any
+  endpoint. Web search, external browsing/downloads, package updates, messaging, and MCP
+  integrations require explicit additional network policy and any
   necessary tool dependencies or credentials. Working LLM inference does not
   establish external web-tool connectivity. The host `mcp`/`skill` helpers
   reject OpenShell mode rather than modifying the wrong agent.
@@ -37,7 +46,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   loopback forwarding. The installer does not start the dashboard automatically.
   Existing Hermes sandboxes need recreation with the new policy to gain this
   PTY access; back up needed data first.
-- Automatic agent replacement, legacy-image migration and backup/restore
+- Automatic agent replacement, legacy-image migration, and backup/restore
   workflows are not provided. Normal model changes and sandbox stop/start are
   supported; they are not image upgrades or migration of host agent data.
 - A sandbox's Ready state or successful chat smoke test does not validate
@@ -45,14 +54,12 @@ For sandbox setup, architecture and lifecycle guidance, see
 - The pinned Hermes installer optionally downloads a computer-use driver. Its
   availability depends on image libraries and upstream installer behavior;
   this integration does not enable or validate desktop/computer-use workflows.
-
 - The Inference Router matches the requested model name exactly against the
-  served name, and the served name drops the Hugging Face organisation
+  served name, and the served name drops the Hugging Face organization
   (`org/name` is served as `name`). A client configured with `org/name` gets
   `Unknown model`. Streamed requests are still answered with HTTP 200 and carry
   the error in the response body, so the failure is easy to miss in client
   logs. Configure clients with the name `/v1/models` returns.
-
 - Host-mode OpenClaw onboarding registers the inference endpoint as a custom model
   provider (`openclaw config set models.providers.ovms ...`, OpenClaw's own
   documented `models.providers` mechanism — see
@@ -67,7 +74,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   configure the provider manually with the command the warning prints.
   OpenClaw is installed via `npm install -g openclaw` rather than its own
   `curl | bash` installer intentionally — that installer exists for people
-  who don't want to manage Node.js themselves, but agent-harness-install
+  who do not want to manage Node.js themselves, but Agent Harness Installer
   deliberately manages Node.js (via nvm) itself, consistently across all
   three agents; using OpenClaw's own
   installer too would mean two separate, possibly-conflicting Node.js
@@ -75,14 +82,22 @@ For sandbox setup, architecture and lifecycle guidance, see
   environments that already manage Node.js.
 - "Hermes" installs via its own official installer (curl | bash), not npm —
   this installer downloads and runs it unattended (`--skip-setup --non-interactive`).
-  Nous Research doesn't publish a checksum for it, and the
+  Nous Research does not publish a checksum for it, and the
   `hermes-agent.nousresearch.com` URL always serves the latest script, so
   this installer instead fetches `scripts/install.sh` from a pinned
-  `NousResearch/hermes-agent` commit (the `v0.22.2` tag), verifies its
+  `NousResearch/hermes-agent` commit (the `v0.23.0` tag), verifies its
   SHA-256, and passes the same commit via `--commit`. No flags are needed.
-  To use a different installer, set `HERMES_INSTALL_URL` together with
+  To install another Hermes release with the same mechanics, set
+  `HERMES_PINNED_COMMIT` (full commit SHA) and `HERMES_PINNED_SHA256` (the
+  SHA-256 of `scripts/install.sh` at that commit) together; the pair is
+  checked before anything is installed, and `--runtime openshell` builds
+  the sandbox image with it. To use a
+  different installer, set `HERMES_INSTALL_URL` together with
   `HERMES_INSTALL_SHA256` (or `HERMES_ALLOW_UNVERIFIED_INSTALL=1`, not
   recommended); `HERMES_INSTALL_SHA256` alone overrides the built-in digest.
+  A custom installer URL installs whatever that installer's default channel
+  resolves to, unless `HERMES_PINNED_COMMIT`/`HERMES_PINNED_SHA256` are also
+  set, in which case that commit is passed via `--commit`.
 - "deepagents-code" installs LangChain's official `dcode` CLI via its own
   installer. As with Hermes, this installer fetches `libs/code/scripts/install.sh`
   from a pinned `langchain-ai/deepagents` commit (the `deepagents-code==0.1.86`
@@ -90,10 +105,10 @@ For sandbox setup, architecture and lifecycle guidance, see
   release), verifies its SHA-256 and installs that exact dcode version.
   Override with `DEEPAGENTS_CODE_VERSION`, or use a different installer via
   `DCODE_INSTALL_URL` plus `DCODE_INSTALL_SHA256` (or
-  `HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1`). It's wired to OVMS by writing
+  `HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1`). It is wired to OVMS by writing
   a `[models.providers.openai]` block into `~/.deepagents/config.toml`
   (dcode's own "Compatible APIs" mechanism) inside `BEGIN`/`END` markers, so
-  a re-run replaces only that block and leaves any other provider config
+  a re-run replaces only that block and leaves any other provider configuration
   alone — but a config.toml a user already hand-edited to use a *different*
   `openai` provider block (outside those markers) would end up with two.
   The managed block reads its API key from `HARNESS_DCODE_API_KEY`, which
@@ -101,12 +116,12 @@ For sandbox setup, architecture and lifecycle guidance, see
   `export HARNESS_DCODE_API_KEY=not-needed` (any non-empty value; the local
   endpoint ignores it) or it fails with `MissingCredentialsError`. Behind a
   corporate proxy, dcode's local LangGraph health check is also sent through
-  the proxy and rejected (`Server did not become healthy within 60s (last
-  status: 403)`), because many HTTP clients ignore `localhost` and CIDR
-  entries in `no_proxy` for `127.0.0.1`. Run it without the proxy variables:
+  the proxy and rejected (`Server did not become healthy within 60s (last status: 403)`),
+  because many HTTP clients ignore `localhost` and CIDR entries in `no_proxy` for `127.0.0.1`.
+  Run it without the proxy variables:
   `env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY dcode ...`.
-- Intel's Core Ultra iGPU/Arc lineup has no fixed appliance concept, so
-  there's no dual-node pairing/reboot-resume receipt handling.
+- The Intel® Core™ Ultra iGPU/Intel® Arc™ lineup has no fixed appliance concept, so
+  there is no dual-node pairing/reboot-resume receipt handling.
 - Model export (`optimum-cli export openvino`) is CPU/host-bound and can be
   slow for large models.
 - OVMS runs as the fixed UID 5000 and must read the models directory. After
@@ -120,7 +135,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   `HARNESS_NODE_VERSION`. If Node.js is still missing, `models` warns that
   results may be incomplete; run `./startup.sh --skip-docker --skip-python` to
   install it.
-- `mcp register` has Hermes's config shape and OpenClaw's `mcp set` command
+- `mcp register` has Hermes's configuration shape and OpenClaw's `mcp set` command
   built in; other agents need `HARNESS_MCP_REGISTER_CMD` set to a real
   registration script.
 - `HARNESS_OVMS_EXPORTER` normally defaults to `docker-pull` (the OpenShell
@@ -131,7 +146,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   hosts that need them:
   - `export-model-py` — the original host-venv-based exporter: fetches and
     pins OVMS's `export_model.py`/`requirements.txt` from GitHub, runs them
-    in a Python venv. Kept for hosts that can't/won't run the conversion
+    in a Python venv. Kept for hosts that cannot or will not run the conversion
     step inside Docker.
   - `model-download` — runs edge-ai-libraries' Model Download microservice
     as a one-shot ephemeral container (`get_model.sh`) instead. Newer and
@@ -151,12 +166,12 @@ For sandbox setup, architecture and lifecycle guidance, see
     something else, which is then rejected as a conflict). The hubs are the
     microservice's own: `openvino` (Hugging Face + conversion, the default),
     `huggingface` (raw download), `ollama`, `remote-url`, `ultralytics`,
-    `geti`, `pipeline-zoo-models`, `omz` and `hls`. A download is registered
+    `geti`, `pipeline-zoo-models`, `omz`, and `hls`. A download is registered
     with OVMS, and wired to the Inference Router, only when it contains a
     `graph.pbtxt` — the `openvino` hub always produces one, a pre-converted
-    `huggingface` repo or a `remote-url` tarball may, and the other hubs
+    `huggingface` repository or a `remote-url` tarball may, and the other hubs
     never can (Ollama-format models are not loadable by OVMS yet; Ultralytics,
-    Geti, the zoos and HLS are vision/other-runtime models, not something an
+    Geti™, the zoos, and HLS are vision/other-runtime models, not something an
     agent can use). Whatever is not served is still downloaded and tracked
     (`<models-dir>/unregistered-downloads.json`), so it shows up under
     `./install.sh models list` (labeled "not served by OVMS") and can be
@@ -167,22 +182,22 @@ For sandbox setup, architecture and lifecycle guidance, see
     supports it. `--model` is validated per hub before anything is
     installed (for example `org/name` for Hugging Face, `name[:tag]` for
     Ollama, a URL in `--model-config` for `remote-url`, `GETI_*` for
-    Geti). `--model-type` (default `llm` for `openvino`/`huggingface`),
+    Geti™). `--model-type` (default `llm` for `openvino`/`huggingface`),
     `--model-revision`, `--model-precision` (default `int8`),
-    `--model-device` (default `CPU`), `--model-config` and
+    `--model-device` (default `CPU`), `--model-config`, and
     `HARNESS_MODEL_PLUGINS` mirror `get_model.sh`'s own
     `--type`/`--revision`/`--precision`/`--device`/`--config-json`/`--plugins`
     flags (the matching `HARNESS_MODEL_*` environment variables work too) —
     see microservices/model-download/docs/user-guide/get-started.md in
     edge-ai-libraries for the full parameter reference per hub. Other
-    exporters ignore the options that don't apply to them and say so
+    exporters ignore the options that do not apply to them and say so
     (`--model-precision` also applies to the default `docker-pull`
     and the `export-model-py` exporters, except for pre-converted
     `OpenVINO/*` models, which are already quantized;
     `--model-revision` also to `hf-snapshot`).
   - `hf-snapshot` — a plain `huggingface_hub.snapshot_download` in a host
-    Python venv, no `optimum-cli` conversion step at all. For HF repos
-    already published as ready-to-serve OpenVINO IR + an OVMS MediaPipe
+    Python venv, no `optimum-cli` conversion step at all. For Hugging Face repositories
+    already published as ready-to-serve OpenVINO™ IR + an OVMS MediaPipe
     `graph.pbtxt`. Set `HARNESS_HF_MODEL_REVISION` to pin an exact
     commit/tag. The exact repository `OpenVINO/Qwen3.5-9B-int8-ov` is
     supported even though it omits `graph.pbtxt`: the serving image generates
@@ -220,7 +235,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   IR limits
   concurrent requests (3 by default) and answers `429` above that. IR's `providers[].type` is passed
   straight through to LiteLLM as a `type/model` prefix with no allowlist
-  enforced by IR's own config loader; `HARNESS_IR_PROVIDER_TYPE` defaults
+  enforced by IR's own configuration loader; `HARNESS_IR_PROVIDER_TYPE` defaults
   to `hosted_vllm` (the type IR's own examples use for a self-hosted
   OpenAI-compatible backend). `openai` does not work here: LiteLLM's
   `openai` provider requires an API key, so every request to the keyless
@@ -232,8 +247,8 @@ For sandbox setup, architecture and lifecycle guidance, see
   (`Planning`/`ContextLengthQuality`), never the classifier-backed
   `IntelligentRouting` strategy. `HARNESS_IR_ROUTING_POLICY=Intelligent` is
   **not actually usable with this installer today**: that policy needs an
-  OpenVINO classifier model mounted at `/models/ov-classifier` (IR's own
-  `IR_OV_MODEL` env var/volume), which this installer never prepares,
+  OpenVINO™ classifier model mounted at `/models/ov-classifier` (IR's own
+  `IR_OV_MODEL` environment variable/volume), which this installer never prepares,
   downloads, or mounts — selecting `Intelligent` as-is will very likely
   make IR fail at startup. Treat this override as a placeholder for future
   work, not a supported option, until the classifier model is wired up.
@@ -243,7 +258,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   (`HARNESS_BACKEND_NETWORK`, default `agent-harness-install-backend`) so
   IR can reach OVMS by container name on OVMS's internal port — IR runs in
   its own container and cannot reach OVMS via the install host's
-  loopback/advertised address or a host-published port that's bound
+  loopback/advertised address or a host-published port that is bound
   loopback-only by default (`resolve_bind_host`). Both containers are
   recreated (not just restarted) on host-mode installs when they
   already exist, so a container from an older version of this installer
@@ -293,7 +308,7 @@ For sandbox setup, architecture and lifecycle guidance, see
   the external endpoint serves.
 - Docker, Node.js/npm, and Python (venv + PyYAML) are installed/verified by
   `./startup.sh`, which `./install.sh` now runs automatically as its first
-  step (see [Get Started](get-started.md)) -- there's still only one
+  step (see [Get Started](./get-started.md)) — there is still only one
   script to run. `test/full-flow-test.sh` and `test/smoke-test.sh` also
   call it explicitly up front (so an early prerequisite failure is
   reported before the long per-agent install loop, not buried inside it);

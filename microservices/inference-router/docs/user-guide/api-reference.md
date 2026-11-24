@@ -1,9 +1,17 @@
+<!--hide_directive
+```{eval-rst}
+.. meta::
+   :description: API reference for the Inference Router, an OpenAI-compatible service for chat completions, pass-through services, metrics, providers, plugins, policies, and strategies.
+   :keywords: inference router, API reference, OpenAI-compatible, chat completions, providers, plugins, policies, strategies, metrics
+```
+hide_directive-->
+
 # API Reference
 
 The router exposes an OpenAI-compatible API. All examples assume the router is
 running on `localhost:8000`.
 
-## Service Info
+## Service Information
 
 Endpoint:
 
@@ -113,7 +121,7 @@ curl http://localhost:8000/v1/models
 Lists every available model. One entry per enabled provider in `config.yaml`,
 where `id` is the configured backend model name (the value clients pass in
 `request.model` to route here) and `owned_by` is the provider name. Two
-providers MAY share an `id` — they're distinguishable by `owned_by`, and
+providers MAY share an `id` — they are distinguishable by `owned_by`, and
 routing by model name picks the first such provider in configuration order; pass
 the provider name in `request.model` to target the other. The response
 always includes the virtual model `"auto"` for automatic routing.
@@ -235,7 +243,11 @@ Server-Sent Events (SSE) streaming.
 - 400 Bad Request: routing failed (e.g. unknown model name).
 - 4xx (forwarded): upstream client errors from the backend provider (e.g. an
   invalid payload) are forwarded verbatim with the provider's own status code.
-- 422 Unprocessable Entity: request validation failed.
+- 413 Content Too Large: the request body exceeds `GATEWAY_MAX_REQUEST_BYTES`
+  (default 300 MiB; `0` disables the limit). Applies to every endpoint.
+- 422 Unprocessable Entity: request validation failed, including requests over
+  the collection caps (100,000 `messages`, 10,000 content parts per message,
+  10,000 `tools`, 1,000 `stop` sequences).
 - 429 Too Many Requests: concurrency limit reached.
 - 500 Internal Server Error: inference or unexpected failure.
 - 502 Bad Gateway: upstream provider error (non-4xx).
@@ -319,6 +331,8 @@ curl http://localhost:8000/v1/ocr \
 
 **Errors:**
 
+- 413 Content Too Large: the request body exceeds `GATEWAY_MAX_REQUEST_BYTES`
+  (default 300 MiB).
 - 429 Too Many Requests: concurrency limit reached.
 - 502 Bad Gateway: could not reach the backing service.
 - 503 Service Unavailable: no provider configured for this service, or router
@@ -355,7 +369,7 @@ across both streaming and non-streaming requests.
   `"local/Qwen/Qwen3.5-9B"`. When one provider serves multiple models, or two
   providers expose the same model, each (provider, model) pair gets its own
   bucket so dashboards can disambiguate them. The field name remains
-  `by_provider` for back-compat with pre-existing dashboards; only the key
+  `by_provider` for backward compatibility with pre-existing dashboards; only the key
   strings changed.
 
   - `routing_stats` — total request count and per-bucket request counts.
@@ -368,10 +382,10 @@ across both streaming and non-streaming requests.
     router-side processing (e.g. context compression). Each breakdown reports
     `system_prompt_tokens`, `tool_schema_tokens`, `context_tokens`, and
     `overall_tokens`.
-  - `latency_metrics` — per-bucket average end-to-end latency, TTFT
-    (time-to-first-token), and TPOT (time-per-output-token), plus an `overall`
-    aggregate. TTFT is reported only for streaming requests; non-streaming
-    requests contribute to `avg_latency_ms` only.
+  - `latency_metrics` — per-bucket average end-to-end latency,
+    time-to-first-token (TTFT), and time-per-output-token (TPOT), plus an
+    `overall` aggregate. TTFT is reported only for streaming requests;
+    non-streaming requests contribute to `avg_latency_ms` only.
 
   Example:
 
@@ -766,7 +780,7 @@ their existing placeholders unchanged.
   and `auth` (extra fields allowed).
 - `plugins`: optional. Names of `postrouting`/`postresponse` plugin instances
   attached to this provider, replacing the existing list (`[]` detaches all). See
-  [Attaching Plugins to Providers](./plugin.md#attaching-plugins-to-providers).
+  [Attaching Plugins to Providers](./plugin.md#attach-plugins-to-providers).
 
 **Response:**
 
@@ -847,30 +861,33 @@ curl http://localhost:8000/v1/providers/manage \
 Starts a serving backend (provider service) through an external **Local Provider
 Manager**. Provided by the `provider_management` plugin (see
 [Plugins](./plugin.md#provider_management-plugin)); the manager's base URL is
-configured on the plugin instance as `manager_url` (or passed per request).
+configured on the plugin instance as `manager_url`.
 
 The docker parameters are forwarded to the manager verbatim; it runs
 `docker run -d` and records the result. With `health_endpoint` the router waits
-for the backend to answer 2xx before responding. The router config is **not**
+for the backend to answer 2xx before responding. The router configuration is **not**
 touched: to route to the service, add or enable its provider with
 [Create or Update Provider](#create-or-update-provider)
 (e.g. `POST /v1/providers/{name}` with `{"enabled": true}`).
 
 **Request Body:**
 
-- `name`: **required**. Service name (letters, digits, `.`, `-`, `_`); the
+- `name`: **required**. Service name (letters, digits, `.`, `-`, and `_`); the
   manager keys the container on it (`ir-provider-<name>`). It need not match a
   provider in the router config, though using the same name keeps things clear.
 - `image`, `entrypoint`, `env`, `volumes`, `docker_args`, `command`: docker
   parameters forwarded to the manager (see the Local Provider Manager's API).
-- `health_endpoint`: optional. URL, reachable from the router, polled until it
-  returns 2xx before the router responds (e.g.
-  `http://localhost:24680/health` for vLLM, `/v2/health/ready` for OVMS).
-- `manager_url`: optional. Overrides the plugin's configured manager base URL.
+- `health_endpoint`: optional. http(s) URL, reachable from the router, polled
+  until it returns 2xx before the router responds (e.g.
+  `http://localhost:24680/health` for vLLM, `/v2/health/ready` for OVMS). Its
+  host must be a loopback address, the manager's host, or listed in the plugin's
+  `allowed_health_hosts` setting; otherwise the request fails with 400.
+- `manager_url`: optional, accepted for compatibility only. It must equal the
+  plugin's configured manager URL; any other value fails with 400.
 - `management_timeout`: optional. Timeout in seconds for the manager call and for
   the readiness wait (cold starts can take minutes).
 
-  `health_endpoint`, `manager_url` and `management_timeout` are consumed by the
+  `health_endpoint`, `manager_url`, and `management_timeout` are consumed by the
   router and stripped before the request is forwarded to the manager.
 
 **Response:**
@@ -920,7 +937,7 @@ curl -X DELETE "http://localhost:8000/v1/providers/manage?name=qwen3-local"
 Stops and removes a provider service through the Local Provider Manager:
 forwards `DELETE {manager_url}/providers/{name}` (the manager base URL comes from
 the plugin's `manager_url` setting) and returns the manager's response. The router
-config is **not** touched — disable or delete the provider via
+configuration is **not** touched — disable or delete the provider via
 [Create or Update Provider](#create-or-update-provider) /
 [Delete Provider](#delete-provider) so the router stops routing to it.
 
@@ -962,7 +979,7 @@ manager base URL comes from the plugin's `manager_url` setting.
 This differs from [List Providers](#list-providers) (`GET /v1/providers`), which
 reports the router's own configuration: this endpoint reports what is actually
 running at the manager (the recorded `docker run` command and result, plus the
-live container state). It does not read or change router config.
+live container state). It does not read or change router configuration.
 
 **Query Parameters:**
 
@@ -1007,7 +1024,7 @@ by the `provider_management` plugin, but these calls bypass the Local Provider
 Manager: the plugin strips `provider` from the body and forwards the rest to
 `{endpoint}/v1/load_lora_adapter` (resp. `unload_lora_adapter`) on the provider's
 `settings.endpoint` (a trailing `/v1` is handled), applying the provider's
-configured `settings.auth`. Router config is not changed.
+configured `settings.auth`. Router configuration is not changed.
 
 The vLLM server must be started with `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`
 (e.g. `-e VLLM_ALLOW_RUNTIME_LORA_UPDATING=True` in the start request's
@@ -1070,8 +1087,9 @@ Lists all configured plugins.
 
 - 503 Service Unavailable: router not initialized.
 
+> [!NOTE]
 > **Terminology:** a **`node`** is a plugin *type* (a registered plugin class,
-> e.g. `dummy_logger`); a **`name`** is one configured *instance* of that type.
+> e.g., `dummy_logger`); a **`name`** is one configured *instance* of that type.
 > Instance routes are ordered node-first: `/v1/plugins/{node}/{name}`.
 
 ## List Plugin Nodes
@@ -1131,7 +1149,7 @@ curl http://localhost:8000/v1/plugins/dummy_logger
 Node-level view of a plugin **type**, as defined by that plugin class's
 `describe_node()` hook. The default payload is the type metadata (as in
 `GET /v1/plugins/nodes`); a plugin may override `describe_node()` to add
-node-level aggregate info (e.g. metrics spanning all instances of the type).
+node-level aggregate information (e.g., metrics spanning all instances of the type).
 
 **Response:**
 
@@ -1519,7 +1537,7 @@ Removes a policy and persists the change to `policy.yaml`.
 A **strategy** is a named rule set plus a provider selector: its rules decide
 whether the strategy matches a request, and its `provider_selector` (and
 optional `sort`) pick and rank the providers that can serve it. Strategies are
-stored in strategy.yaml, and policies reference them by name.
+stored in `strategy.yaml`, and policies reference them by name.
 
 `ModelBasedRule` scores the last user message with a small model and the `provider_selector` maps the returned
 index to providers.
@@ -1670,7 +1688,7 @@ every strategy.
 ```
 
 - `kind: "prompt_file"` identifies a multi-class prompt-file rule; its path,
-  labels and threshold remain in the rule's `param`.
+  labels, and threshold remain in the rule's `param`.
 - `status`:
   - `ok`: the strategy is in the active policy and its version is serving.
   - `degraded`: the version could not be loaded. `effective` is the version
@@ -1744,7 +1762,7 @@ response round-trips as a `POST` payload.
 **ModelBasedRule Classifier:**
 
 A strategy may contain at most one `ModelBasedRule`. Its `param` selects the
-classifier in one of these ways (`version`, `text` and `prompt_file` are
+classifier in one of these ways (`version`, `text`, and `prompt_file` are
 mutually exclusive):
 
 | `param` | Classifier |
@@ -1753,7 +1771,6 @@ mutually exclusive):
 | `version` | An existing version: `vN` or `default` |
 | `text` (+ optional `labels`, `threshold`, `note`) | A hard-prompt version packed from `text` |
 | `prompt_file` (+ optional `labels`, `threshold`) | A multi-class prompt file; not a version |
-
 
 ```bash
 curl http://localhost:8000/v1/strategies/Triage \
@@ -1797,7 +1814,7 @@ The response then includes `prompt_result` and `reconcile`:
 **Response:**
 
 - 200 OK: the resulting strategy object.
-- 400 Bad Request: the body is invalid — e.g. a missing `provider_selector`, an
+- 400 Bad Request: the body is invalid — e.g., a missing `provider_selector`, an
   unknown rule `type`, invalid rule `param` (including conflicting
   `ModelBasedRule` fields), or an invalid `name`; or the workspace
   `strategy.yaml` does not exist.
@@ -1808,8 +1825,8 @@ The response then includes `prompt_result` and `reconcile`:
 
 - 404 Not Found: the `ModelBasedRule` names an unknown `model` or a `version`
   that does not exist.
-- 422 Unprocessable Entity: the classifier cannot be used. For example, no IR
-  is configured for the backbone, or the version fails a compatibility check.
+- 422 Unprocessable Entity: the classifier cannot be used. For example, no Intermediate
+  Representation (IR) is configured for the backbone, or the version fails a compatibility check.
   Nothing is written.
 - 500 Internal Server Error: failed to persist `strategy.yaml`.
 

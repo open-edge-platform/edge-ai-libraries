@@ -2,21 +2,13 @@
 name: audio-analyzer-dev
 description: >
   Build, configure, deploy, and operate the Audio Analyzer microservice.
-  Use this skill when a developer or operator wants to: run the service with
-  Docker Compose or on the host; build the image from source; select an ASR
-  provider and device (openai/openvino/whispercpp on CPU/GPU/NPU); enable
-  speaker diarization or voice sentiment; wire Docker volumes, device
-  passthrough (`/dev/dri`, `ACCEL_MOUNT_PATH`); tune `config.yaml` and
-  `AUDIO_ANALYZER__...` overrides; run the root-level or tiered test suites;
-  validate a Dockerfile/Compose change with the Tier-3 build test suite;
-  inspect the active model/device or last-call latency via `/v1/model-info`
-  and `/v1/performance`; or debug a startup, permission, GPU/NPU-visibility,
-  or stuck-model failure. Trigger on phrases like "deploy audio analyzer",
-  "run audio-analyzer in docker", "build audio-analyzer image", "enable
-  NPU", "enable diarization", "configure whisper model", "GPU not
-  detected", "permission denied storage", "audio analyzer won't start",
-  "whisper-large NPU error", "run audio-analyzer tests", "which model is
-  active", "check ASR latency", or "validate the docker build".
+  Use when deploying with Docker Compose or on the host, building images,
+  selecting ASR providers (openai/openvino/whispercpp) and CPU/GPU/NPU devices,
+  enabling diarization or sentiment, configuring volumes and device passthrough
+  (/dev/dri, ACCEL_MOUNT_PATH), tuning config.yaml or AUDIO_ANALYZER__ overrides,
+  running root-level or tiered tests including Tier-3 Docker build validation,
+  inspecting /v1/model-info or /v1/performance, or debugging startup, permission,
+  GPU/NPU visibility, whisper-large NPU, stuck-model, or ASR latency issues.
 argument-hint: >
   Describe what you want to deploy or debug (e.g. "deploy audio-analyzer with
   GPU acceleration" or "enable speaker diarization with my HF token")

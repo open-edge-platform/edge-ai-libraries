@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
 
 from enum import Enum
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _HUB_MODEL_NAME_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
@@ -96,6 +96,12 @@ class TestJobState(str, Enum):
     ```
     """
 
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class AudioJobState(str, Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
@@ -243,7 +249,7 @@ class VideoSource(str, Enum):
     **Origin of an input video file on disk.**
 
     ## Values
-    - `AUTO` - Video downloaded automatically from `default_recordings.yaml`
+    - `AUTO` - Sample video downloaded on demand from `default_recordings.yaml`
       into `/videos/input/auto/`
     - `UPLOADED` - Video uploaded by the user via the
       `POST /videos/upload` endpoint into `/videos/input/uploaded/`
@@ -406,7 +412,7 @@ class StatusResponse(BaseModel):
       "status": "ready",
       "message": null,
       "ready": true,
-      "version": "2026.2.0-rc2",
+      "version": "2026.3.0",
       "revision": "a1b2c3d"
     }
     ```
@@ -1390,6 +1396,9 @@ class ExecutionConfig(BaseModel):
     - `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:
       - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)
       - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints
+    - `pinned_cpu_cores` - Logical CPU ids (as reported by `GET /devices` in `cpu_topology.cores[].cpu`)
+      the GStreamer subprocess is restricted to. Empty list (default) means no pinning — the
+      pipeline may use every CPU available to the service.
 
     ### Example (disabled output, no runtime limit)
     ```json
@@ -1424,6 +1433,15 @@ class ExecutionConfig(BaseModel):
     }
     ```
 
+    ### Example (pinned to the first four logical CPUs)
+    ```json
+    {
+      "output_mode": "disabled",
+      "max_runtime": 0,
+      "pinned_cpu_cores": [0, 1, 2, 3]
+    }
+    ```
+
     """
 
     output_mode: OutputMode = Field(
@@ -1453,6 +1471,24 @@ class ExecutionConfig(BaseModel):
             "(default), no latency samples are read."
         ),
     )
+    pinned_cpu_cores: List[int] = Field(
+        default_factory=list,
+        description=(
+            "Logical CPU ids the pipeline is pinned to, as "
+            "reported by `GET /devices` in `cpu_topology.cores[].cpu`. An "
+            "empty list (default) disables pinning and lets the pipeline run "
+            "on every CPU available to the service. Ids are de-duplicated and "
+            "sorted; ids the service itself cannot run on are rejected."
+        ),
+    )
+
+    @field_validator("pinned_cpu_cores")
+    @classmethod
+    def _normalize_pinned_cpu_cores(cls, cpus: List[int]) -> List[int]:
+        """De-duplicate, sort and reject negative logical CPU ids."""
+        if any(cpu < 0 for cpu in cpus):
+            raise ValueError("pinned_cpu_cores must not contain negative CPU ids.")
+        return sorted(set(cpus))
 
 
 class PerformanceTestSpec(BaseModel):
@@ -2018,6 +2054,27 @@ class DensityJobStatus(TestsJobStatus):
     pass
 
 
+class AudioJobSummary(BaseModel):
+    id: str
+    pipeline_id: str
+    pipeline_name: str
+    operation: Literal["speech_to_text", "text_to_speech"]
+    variant_id: str
+    variant_name: str
+    device: Literal["CPU", "GPU", "NPU"]
+    state: AudioJobState
+    created_at: datetime
+    modified_at: datetime
+    service_round_trip_ms: float | None = None
+    artifact_available: bool
+    error: str | None = None
+
+
+class AudioJobStatus(AudioJobSummary):
+    transcript: str | None = None
+    artifact_url: str | None = None
+
+
 class PerformanceJobSummary(BaseModel):
     """
     **Short summary for a performance test job.**
@@ -2371,6 +2428,26 @@ class ModelSource(str, Enum):
     CUSTOM = "custom"
 
 
+class ModelGated(str, Enum):
+    """
+    **Hugging Face gating mode of a model.**
+
+    ## Values
+    - `FALSE` - Not gated, anyone can download the model
+    - `AUTO` - Gated, access is granted automatically after accepting the license
+    - `MANUAL` - Gated, access must be approved manually by the model authors
+
+    ### Example
+    ```json
+    "auto"
+    ```
+    """
+
+    FALSE = "false"
+    AUTO = "auto"
+    MANUAL = "manual"
+
+
 class ModelDownloadJobState(str, Enum):
     """
     **State of a model download job tracked by vippet-app.**
@@ -2462,6 +2539,8 @@ class Model(BaseModel):
     - `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation
     - `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.
     - `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)
+    - `link` - URL of the model page on its upstream hub (currently Hugging Face only), or null
+    - `gated` - Hugging Face gating mode (`false`, `auto`, `manual`), or null when unknown or not applicable
 
     ### Example
     ```json
@@ -2476,7 +2555,8 @@ class Model(BaseModel):
         {"name": "yolo11n_FP16", "display_name": "YOLO 11n 640x640 (FP16)", "precision": "FP16"}
       ],
       "used_by_pipelines": ["smart-nvr", "goods-detection"],
-      "unsupported_devices": null
+      "unsupported_devices": null,
+      "link": null
     }
     ```
     """
@@ -2527,6 +2607,20 @@ class Model(BaseModel):
         description=(
             "Comma-separated list of devices on which the model "
             "cannot run (e.g. 'NPU'), or null when no restrictions exist."
+        ),
+    )
+    link: Optional[str] = Field(
+        default=None,
+        description=(
+            "URL of the model page on its upstream hub (currently only "
+            "Hugging Face), or null when not available."
+        ),
+    )
+    gated: Optional[ModelGated] = Field(
+        default=None,
+        description=(
+            "Hugging Face gating mode, or null when unknown or not "
+            "applicable (non-Hugging Face models)."
         ),
     )
 
@@ -2586,6 +2680,7 @@ class ModelDownloadRequest(BaseModel):
     - `names` - List of supported-model names to install. Must be non-empty and unique.
     - `hub` - Optional upstream hub for names not in the catalog.
     - `category` - Required when `hub` is `huggingface`; ignored otherwise.
+    - `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.
 
     ### Example
     ```json
@@ -2613,6 +2708,13 @@ class ModelDownloadRequest(BaseModel):
         description=(
             "Model category, required when `hub` is `huggingface` (ignored "
             "for other hubs)."
+        ),
+    )
+    gated: ModelGated | None = Field(
+        default=None,
+        description=(
+            "Gating mode of the hub model, stored on the registered model "
+            "(null when unknown)."
         ),
     )
 
@@ -3023,6 +3125,51 @@ class Video(BaseModel):
             "'/assets/videos/input/{path}'."
         ),
     )
+
+
+class DefaultVideoDownloadState(str, Enum):
+    AVAILABLE = "available"
+    QUEUED = "queued"
+    DOWNLOADING = "downloading"
+    DOWNLOADED = "downloaded"
+    FAILED = "failed"
+    CONFLICT = "conflict"
+
+
+class DefaultVideoConversionState(str, Enum):
+    NOT_CONVERTED = "not_converted"
+    QUEUED = "queued"
+    CONVERTING = "converting"
+    CONVERTED = "converted"
+    FAILED = "failed"
+    CONFLICT = "conflict"
+
+
+class DefaultVideoRecording(BaseModel):
+    filename: str
+    source: str
+    status: DefaultVideoDownloadState
+    hevc_filename: str
+    conversion_status: DefaultVideoConversionState
+
+
+class DefaultVideoDownloadRequest(BaseModel):
+    filename: str
+
+
+class DefaultVideoDownloadResponse(BaseModel):
+    filename: str
+    status: DefaultVideoDownloadState
+
+
+class DefaultVideoConversionRequest(BaseModel):
+    filename: str
+
+
+class DefaultVideoConversionResponse(BaseModel):
+    filename: str
+    hevc_filename: str
+    status: DefaultVideoConversionState
 
 
 class VideoUploadError(BaseModel):

@@ -1,8 +1,8 @@
-locust==2.43.4
-locust-plugins==5.0.0
+locust==2.47.0
+locust-plugins==5.0.3
 numpy==2.4.4
-requests==2.33.1
-transformers==5.5.0
+requests==2.34.2
+transformers==5.22.1
 PyYAML==6.0.3
-matplotlib==3.10.8
-moviepy==2.2.1
+matplotlib==3.11.2
+opencv-python-headless==4.14.0.94

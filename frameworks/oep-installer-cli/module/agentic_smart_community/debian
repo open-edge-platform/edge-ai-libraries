@@ -1,7 +1,7 @@
 
 configure_agentic_smart_community () {
   workspace="$(ensure_project_path)/agentic-smart-community"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(3100 3101 41091 8192 8999)
 
@@ -50,6 +50,7 @@ debian_90_install_agentic_smart_community () {
 debian_90_start_agentic_smart_community () {
   configure_agentic_smart_community "$@"
   ensure_ports_open start agentic_smart_community "${used_ports[@]}"
+  ensure_container_namespace start agentic_smart_community $(ensure_container_parse_yaml "$workspace"/agentic-smart-community/docker/compose.yaml)
 
   cd "$workspace"/agentic-smart-community
   bash setup_docker.sh
@@ -64,7 +65,10 @@ debian_90_start_agentic_smart_community () {
 
 debian_90_stop_agentic_smart_community () {
   configure_agentic_smart_community "$@"
-  cd "$workspace"/agentic-smart-community && bash setup_docker.sh --down || true
+  cd "$workspace"/agentic-smart-community && {
+    bash setup_docker.sh --down || true
+    ensure_container_cleanup $(ensure_container_parse_yaml docker/compose.yaml)
+  } || true
 }
 
 debian_90_remove_agentic_smart_community () {

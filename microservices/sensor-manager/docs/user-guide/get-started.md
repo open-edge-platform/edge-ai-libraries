@@ -77,7 +77,6 @@ REST API.
 ## Learn More
 
 - [Build from Source](./get-started/build-from-source.md)
-- [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md)
 - [API Reference](./api-reference.md)
 
 <!--hide_directive
@@ -86,7 +85,6 @@ REST API.
 
 ./get-started/system-requirements.md
 ./get-started/build-from-source.md
-./get-started/deploy-with-helm-chart.md
 
 :::
 hide_directive-->

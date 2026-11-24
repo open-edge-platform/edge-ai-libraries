@@ -116,6 +116,7 @@ class Benchmark:
         max_runtime: float = 0,
         enable_latency_metrics: bool = False,
         job_id: str | None = None,
+        pinned_cpu_cores: list[int] | None = None,
     ):
         self.best_result = None
         # Every stream runs as its own DLSPS 2.0 instance, which reports
@@ -128,6 +129,7 @@ class Benchmark:
             max_runtime=max_runtime,
             enable_latency_metrics=enable_latency_metrics,
             job_id=job_id,
+            pinned_cpu_cores=pinned_cpu_cores,
         )
         self.logger = logging.getLogger(__name__)
 

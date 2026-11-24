@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 # OpenShell quality gates
 
 For user-facing setup and security boundaries, see the
-[Agent Sandboxing guide](../docs/agentic-ai-security/agent-sandboxing.md).
+[Agent Sandboxing guide](../docs/user-guide/agentic-ai-security/agent-sandboxing.md).
 
 Both suites emit TAP 13 reports and return a nonzero exit status on failure.
 No test requires a GitHub token. Live inference uses the prepared runner's
@@ -40,7 +40,7 @@ merge blockers under this policy unless separately required by administrators.
 Existing required checks must not be removed automatically.
 
 | Decision | Required outcomes |
-|---|---|
+| --- | --- |
 | Relevant changes | Static analysis must succeed (ShellCheck and production `node --check`) |
 | Unrelated changes | Static analysis must be skipped |
 | Failed/cancelled detection, missing/invalid decision, or unexpected job outcome | Fail the final gate |
@@ -129,7 +129,7 @@ Git fixture and command doubles. It never invokes real Docker, sudo, OpenShell,
 downloads or agent installation.
 
 | Behavior | Runtime evidence |
-|---|---|
+| --- | --- |
 | Bootstrap cleanup | Real standalone bootstrap with a local repository; temporary clone removed on payload success and failure; failure status retained |
 | Deferred shell expansion | Generated Bash profile expands the new shell's PATH, not the writer's; repeated setup is idempotent |
 | Runtime sourcing | Real Bash sources a disposable nvm fixture; absent nvm is tolerated |
@@ -170,7 +170,8 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 
 The command above retains the all-in-one local behavior. In CI, named steps
 run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (74 direct
-cases), followed by managed inference (33), lifecycle/CLI (40), and model
+cases), followed by managed inference (33), lifecycle/CLI (40), telemetry (43
+unit cases plus 9 CLI entry-point cases in a separate step), and model
 defaults (7 executed offline cases; two explicit Hermes image-required skips). A separate
 TAP-reporting regression step validates the reporting helper itself.
 
@@ -182,7 +183,7 @@ Missing or incomplete evidence is never reported as a pass. Syntax checks are
 reported separately and are not counted as test cases.
 
 | Area | Automated assertions |
-|---|---|
+| --- | --- |
 | OpenClaw startup | Private SQLite temp directory exported before Node starts, real on-disk FTS5 initialization, inherited SQLite temp path replaced, mode 700, config/token/database preservation across restart, fail-fast directory creation and permissions |
 | Runtime selection | Host default, supported agents, invalid runtime and unsupported agent rejection |
 | Persisted state | Separate agent paths, valid profile loading, missing/malformed/wrong-agent/invalid-owner/newline/symlink rejection |
@@ -194,6 +195,7 @@ reported separately and are not counted as test cases.
 | Managed inference | OpenShell Qwen3.5 default and snapshot exporter, native OVMS graph generation, host compatibility, explicit overrides, persisted selection, fresh-only provisioning, partial deployment refusal, managed OVMS readiness/network/publication, both proxy bypass variables |
 | Model lifecycle | Source/export option roundtrip, coordinated two-agent switch, original environment overridden after restart, token/history preservation, pending-switch retry and conflict rejection, legacy-image preflight, full/scoped uninstall and OpenShell package ownership safeguards |
 | Local-model defaults | Exact Qwen context/output/thinking/sampling/prompt settings, idempotence, explicit overrides and later edits, selection-only isolation, removal on model switch, non-Qwen preservation |
+| Telemetry (`observability`) | Argument validation, Router `memory`/`file` switching that rewrites only the telemetry block and survives config regeneration, group-writable (not world-writable) telemetry file with rootless-Docker fallback, rotation and `--clean` without following symlinks, Hermes plugin install/enable/disable with marker-gated config, managed Jaeger lifecycle (ownership label, loopback-only reuse) and kept-Jaeger handling, disable failure when the plugin cannot be disabled, combined-target preflight and rollback, content-capture warnings, deployment-lock dispatch |
 | Dynamic policy change | Apply a live network deny update; verify the denial and filesystem access, remove it, then confirm network access is restored |
 | Interactive agent policy | Interactive policy differs from the base only by sandbox-local `/dev/ptmx` and `/dev/pts` write access; installer selects it for Hermes and Deep Agents Code, while OpenClaw uses the base policy |
 | CLI safety | Help, invalid runtime, missing option values rejected without hanging, host connect rejection, interactive connections without deployment locking, Docker-group reexecution before locking, explicit sandbox deletion consent and host-only deletion flags |
@@ -258,7 +260,7 @@ Optional settings: `HARNESS_OPENSHELL_GATEWAY`, `HARNESS_IR_CONTAINER`,
 The IR and denied direct-OVMS ports must differ.
 
 | Area | Automated assertions |
-|---|---|
+| --- | --- |
 | Prerequisites | Gateway health, exact model discovery and loopback-only IR publication |
 | Installation | All three agent images build, sandboxes become Ready, native inference checks pass |
 | Local-model defaults | Disposable network-isolated built Hermes image must run all defaults cases, including native YAML and provider request mapping (no runtime-dependent skips) |

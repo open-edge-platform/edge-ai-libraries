@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       plcopen-motion-control_changed: ${{ steps.filter.outputs.plcopen-motion-control }}
+      star_changed: ${{ steps.filter.outputs.star }}
       audio-analyzer_changed: ${{ steps.filter.outputs.audio-analyzer }}
       dlstreamer-pipeline-server_changed: ${{ steps.filter.outputs.dlstreamer-pipeline-server }}
       pgvector_changed: ${{ steps.filter.outputs.pgvector }}
@@ -45,6 +46,8 @@ jobs:
           filters: |
             plcopen-motion-control:
               - 'libraries/edge-control-libraries/plcopen-motion-control/docs/**'
+            star:
+              - 'libraries/star/docs/**'
             audio-analyzer:
               - 'microservices/audio-analyzer/docs/**'
             dlstreamer-pipeline-server:
@@ -91,6 +94,15 @@ jobs:
     uses: ./.github/workflows/docs-reusable-workflow.yaml
     with:
       docs_directory: libraries/edge-control-libraries/plcopen-motion-control
+
+  build_star:
+    permissions:
+      contents: read # needed for actions/checkout
+    needs: filter
+    if: ${{ needs.filter.outputs.star_changed == 'true' }}
+    uses: ./.github/workflows/docs-reusable-workflow.yaml
+    with:
+      docs_directory: libraries/star
 
   build_audio-analyzer:
     permissions:

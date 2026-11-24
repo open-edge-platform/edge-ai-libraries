@@ -10,7 +10,7 @@ act_get () {
     done
     ;;
   init)
-    declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_))
+    declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(bootstrap|resume|list|setup)$' | cut -f2- -d_))
     declare -g _act_cache_modules=($(declare -F | grep -E " ${installer_family}_[0-9]+_($(IFS='|';echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'))
     declare -gA _act_cache_functions=()
 
@@ -115,7 +115,6 @@ act_helper () {
 
   # resolve args
   set -- $(act_resolve_args $act_name "$@")
-  local implicit_mods=($(act_extract_modules $act_name "$@"))
 
   # scan for dependencies
   local handles=($(act_find_deps $act_name "$@" | tr ' ' '\n' | sort $sort_options))
@@ -146,7 +145,7 @@ act_helper () {
         for id1 in ${!licenses[*]}; do
           echo "${licenses_text[$id1]}"
           echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")"
-        done | ensure_license_gate $installer_name "$@"
+        done | ensure_license_gate "$@"
         rc=$?
         if [ $rc -eq 1 ]; then
           echo "License declined"
@@ -169,8 +168,15 @@ act_helper () {
     export _INSTALLER_PANEL_ACTIVE=
     [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1
     {
-      local modules=($([[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && 
-        echo "${implicit_mods[*]}" || echo "${handles[*]#*_*_*_}"
+      local modules=($(
+        all_modules_str="${handles[*]#*_*_*_}"
+        [[ " stop remove " = *"$act_name"* && $stop_remove_all -eq 0 ]] && (
+          local rmods=()
+          for m in $(act_extract_modules $act_name "$@"); do
+            [[ " $all_modules_str " != *" $m "* ]] || rmods+=("$m")
+          done
+          [ ${#rmods[*]} -gt 0 ] && echo "${rmods[*]}" || echo "${handles[0]#*_*_*_}" 
+        ) || echo "$all_modules_str"
       )) _pair _h _m
       for handler in ${handles[*]}; do
         name1=${handler#*_*_*_}

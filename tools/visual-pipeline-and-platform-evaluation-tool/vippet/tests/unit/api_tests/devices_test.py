@@ -6,6 +6,7 @@ from unittest.mock import patch, MagicMock
 from api.routes.devices import router as devices_router
 import api.api_schemas as schemas
 from cpu_topology import CoreType, CpuTopology, LogicalCpu, TopologySource
+from device import DeviceDiscoveryError
 
 
 class TestDevicesAPI(unittest.TestCase):
@@ -211,6 +212,22 @@ class TestDevicesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(
             response.json(), {"message": "Unexpected error when discovering devices"}
+        )
+
+    def test_get_devices_server_unavailable_returns_503(self):
+        with patch("api.routes.devices.DeviceDiscovery") as MockDiscovery:
+            MockDiscovery.return_value.list_devices.side_effect = DeviceDiscoveryError(
+                "refused"
+            )
+            with self.assertLogs("api.routes.devices", level="ERROR"):
+                response = self.client.get("/devices")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json(),
+            {
+                "message": "Device list not available from DL Streamer Pipeline Server 2.0"
+            },
         )
 
 

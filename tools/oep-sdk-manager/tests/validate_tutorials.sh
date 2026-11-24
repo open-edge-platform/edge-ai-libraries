@@ -396,7 +396,7 @@ else
     fi
   done < <(grep -oE 'https://raw\.githubusercontent\.com/[^`" ]+\.sh' "${CONFIG_JS}" || true)
   if [[ "${install_count}" -ne 11 ]]; then
-    fail "Expected 11 selector installer rules, found ${install_count}"
+    fail "Expected 11 selector installer URLs, found ${install_count}"
   fi
 
   while IFS= read -r target; do

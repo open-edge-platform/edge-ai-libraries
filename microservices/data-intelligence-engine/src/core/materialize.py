@@ -4,6 +4,7 @@
 import logging
 import queue
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
 import config
@@ -56,14 +57,13 @@ def streaming_materialize(
     )
     producer.start()
 
-    counts = {"documents_added": len(assets), "chunks_added": 0}
-    try:
-        done = False
-        while not done:
+    def batches():
+        while True:
             first = work.get()
             if first is _SENTINEL:
-                break
+                return
             batch: List[Any] = [first]
+            done = False
             while len(batch) < batch_size:
                 try:
                     item = work.get_nowait()
@@ -73,10 +73,13 @@ def streaming_materialize(
                     done = True
                     break
                 batch.append(item)
-            indexer.embed_items(batch)
-            counts["chunks_added"] += indexer.insert_prepared(
-                [node for node, _, _ in batch]
-            )
+            yield batch
+            if done:
+                return
+
+    counts = {"documents_added": len(assets), "chunks_added": 0}
+    try:
+        counts["chunks_added"] = _embed_insert(indexer, batches())
     finally:
         cancelled.set()
         producer.join()
@@ -145,6 +148,12 @@ def ingesting_asset_ids(pool_id: Optional[str]) -> frozenset:
         return frozenset(asset_id for pool, asset_id in _INGESTING if pool == pool_id)
 
 
+def assets_ingesting(asset_ids: Iterable[str]) -> List[str]:
+    with _INGESTING_LOCK:
+        active = {asset_id for _, asset_id in _INGESTING}
+    return [asset_id for asset_id in asset_ids if asset_id in active]
+
+
 _ACTIVE_INGESTS: "Dict[tuple, int]" = {}
 
 
@@ -180,19 +189,38 @@ def _emit_phase_signal(asset_id: str, phase: str) -> None:
         _set_phase(asset_id, phase)
 
 
-def _embed_insert_batched(indexer: Any, items: Any, batch_size: int) -> int:
+def _embed_insert(indexer: Any, batches: Iterable[List[Any]]) -> int:
     count = 0
-    batch: List[Any] = []
-    for item in items:
-        batch.append(item)
-        if len(batch) >= batch_size:
+    pending = None
+    ready: List[Any] = []
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="materialize-insert") as pool:
+        for batch in batches:
             indexer.embed_items(batch)
-            count += indexer.insert_prepared([node for node, _, _ in batch])
-            batch = []
-    if batch:
-        indexer.embed_items(batch)
-        count += indexer.insert_prepared([node for node, _, _ in batch])
+            ready.extend(node for node, _, _ in batch)
+            if len(ready) >= config.INGEST_INSERT_BATCH_SIZE:
+                if pending is not None:
+                    count += pending.result()
+                pending = pool.submit(indexer.insert_prepared, ready)
+                ready = []
+        if pending is not None:
+            count += pending.result()
+        if ready:
+            count += indexer.insert_prepared(ready)
     return count
+
+
+def _embed_insert_batched(indexer: Any, items: Any, batch_size: int) -> int:
+    def batches():
+        batch: List[Any] = []
+        for item in items:
+            batch.append(item)
+            if len(batch) >= batch_size:
+                yield batch
+                batch = []
+        if batch:
+            yield batch
+
+    return _embed_insert(indexer, batches())
 
 
 def two_phase_ingest(
@@ -493,7 +521,7 @@ def ingest(
     asset_ids = [asset_id_for(file_origin(path)) for path in file_paths]
     if text:
         asset_ids.append(asset_id_for(inline_origin(text_reference)))
-    keys = _begin_ingesting(pool_ids, asset_ids)
+    keys = _begin_ingesting(pool_ids or [None], asset_ids)
     active = _begin_active(getattr(library, "idx", None), pool_ids)
     try:
         _ingest(library, file_paths, text, text_reference, pool_ids, source_id)
