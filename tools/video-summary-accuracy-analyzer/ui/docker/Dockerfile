@@ -28,7 +28,12 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 # Upgrade pip and setuptools to the latest version to fix vuln
-RUN /usr/local/bin/pip install --upgrade pip==26.2.0 setuptools
+RUN /usr/local/bin/pip install --upgrade pip==26.3 setuptools
+
+# Pick up Debian security fixes (CVE-2026-85091) not yet in the base image
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends --only-upgrade zlib1g && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
 RUN groupadd -g ${GID} appuser && \
@@ -48,7 +53,7 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-dev && \
     rm -rf ~/.cache/pypoetry/* ~/.cache/pip/*
 
-RUN "$VENV_PATH/bin/python" -m pip install --no-cache-dir --upgrade pip==26.2
+RUN "$VENV_PATH/bin/python" -m pip install --no-cache-dir --upgrade pip==26.3
 
 
 # `prod` image used for runtime
