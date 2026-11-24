@@ -218,7 +218,7 @@ def download_from_hub(
         except ImportError as exc:
             raise RuntimeError(
                 "modelscope is not installed. Install the optional Chinese-ASR dependencies "
-                "(pip install -r requirements-cjk.txt or build with INSTALL_CJK=true)."
+                "(pip install -r requirements-cjk.txt -c requirements-lock.txt or build with INSTALL_CJK=true)."
             ) from exc
         snapshot_download(model, revision=revision, local_dir=str(directory))
     else:
