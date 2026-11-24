@@ -1,10 +1,5 @@
 # Deploy Time Series Analytics Microservice
 
-<!--
-SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-SPDX-License-Identifier: Apache-2.0
--->
-
 This guide describes how to build, start, and stop the Time Series Analytics Microservice (TSAM)
 as part of the ViPPET stack, and how to configure it with a sample Wind Turbine anomaly
 detection UDF.
@@ -61,12 +56,11 @@ docker ps --format '{{.Names}}' | grep -E 'ia-time-series-analytics-microservice
 
 Once the services are running, follow the steps below to deploy the Wind Turbine anomaly detection UDF into the TSAM.
 
-On the Docker host, open the TSAM Swagger UI at **[http://127.0.0.1:5000/docs](http://127.0.0.1:5000/docs)**.
+The TSAM Swagger UI is available at **[http://127.0.0.1:5000/docs](http://127.0.0.1:5000/docs)**.
 
 ### Step 1. Download the UDF package
 
-Download the Wind Turbine UDF package from the official Edge AI Resources
-repository. Only upload UDF packages you trust, because TSAM runs their Python code.
+Download the pre-built Wind Turbine UDF tar archive:
 
 ```bash
 wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-resources/main/timeseries-udf-deployment-packages/wind-turbine-anomaly-detection.tar
