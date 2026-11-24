@@ -50,8 +50,7 @@ services:
     volumes:
       - ./mosquitto:/mosquitto/config:ro
     ports:
-      - "${MQTT_PORT:-1883}:1883"
-    networks:
+      - "127.0.0.1:${MQTT_PORT:-1883}:1883" # MQTT is internal-only; bind to localhost, not all host interfaces    networks:
       - app_network
     restart: unless-stopped
 
@@ -59,12 +58,12 @@ services:
   # Metrics Manager - System Metrics + Custom Metrics API
   # ===========================================================================
   metrics-manager:
-    image: ${REGISTRY:-}metrics-manager:${METRICS_MANAGER_TAG:-2026.2.0}
+    image: ${REGISTRY:-}metrics-manager:${METRICS_MANAGER_TAG:-2026.3.0-rc2}
     build:
       context: ../../metrics-manager
       dockerfile: Dockerfile
       args:
-        VERSION: ${METRICS_MANAGER_TAG:-2026.2.0}
+        VERSION: ${METRICS_MANAGER_TAG:-2026.3.0-rc2}
         http_proxy: ${http_proxy:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
         https_proxy: ${https_proxy:-}

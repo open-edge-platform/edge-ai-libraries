@@ -73,8 +73,10 @@ class _FakeStreamSet:
     from ``instance_states`` if given there. Stopped instances are
     reported as ``ABORTED``. Each item of ``validations`` answers one
     ``GET /validate/status/{id}`` the same way; the default is ``VALID``.
-    A status with frames and no ``frame_interval`` gets a new one on every
-    poll, so it reads as a new window; pass ``frame_interval`` to repeat one.
+    A status without ``frame_count`` gets one that grows by its ``frame_fps``
+    on every poll, so ``frame_fps`` reads as the stream's rate; pass
+    ``frame_count`` and ``frame_count_time`` to set them, or
+    ``old_server=True`` to leave both out.
     """
 
     def __init__(
@@ -100,6 +102,7 @@ class _FakeStreamSet:
         self.posted = 0
         self.validated = 0
         self.status_polls = 0
+        self.counts: dict[str, int] = {}
         self.stopped: set[str] = set()
         self.deleted: set[str] = set()
         self._round: object = None
@@ -183,9 +186,15 @@ class _FakeStreamSet:
         if index >= len(item):
             return httpx.Response(404, json={"detail": "not found"})
         status = {"id": instance_id, **item[index]}
-        if status.get("frame_fps") and "frame_interval" not in status:
-            # Dyadic, so fps-weighted sums of whole fps stay exact.
-            status["frame_interval"] = 1.0 + self.status_polls / 1024
+        if status.pop("old_server", False):
+            status.pop("frame_count", None)
+        elif "frame_count" not in status:
+            # Like the server: the count grows by frame_fps per 1 s poll and is
+            # read on every poll after the first frame, also without frames.
+            count = self.counts.get(instance_id, 0) + int(status.get("frame_fps") or 0)
+            self.counts[instance_id] = count
+            status["frame_count"] = count
+            status["frame_count_time"] = 1000.0 + self.status_polls if count else None
         if instance_id in self.stopped:
             status["state"] = "ABORTED"
         return httpx.Response(200, json=status)
@@ -500,7 +509,8 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
             ["/pipelines/inst-1", "/pipelines/inst-2"],
         )
         pushed = self._pushed_values()
-        self.assertEqual(pushed[:3], [0.0, 15.0, 25.0])
+        # A rate needs two frame_count readings.
+        self.assertEqual(pushed[:4], [0.0, 0.0, 15.0, 25.0])
         self.assertEqual(pushed[-1], 0.0)
 
     def test_window_starts_at_first_frame_before_any_fps_report(self):
@@ -516,28 +526,38 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
         self.assertEqual(self.clock.now, 10.0)
         self.assertEqual(result.stream_fps, {"a": 30.0, "b": 20.0})
 
-    def test_fps_is_weighted_by_frame_interval_and_each_window_counts_once(self):
-        fake = _FakeStreamSet(
-            [
-                [_running(10.0, frame_interval=1.0)],
-                [_running(10.0, frame_interval=1.0)],
-                [_running(10.0, frame_interval=1.0)],
-                [_running(30.0, frame_interval=0.5)],
-                [_running(30.0, frame_interval=0.5)],
-                [_running(10.0, frame_interval=1.5)],
-            ]
-        )
+    @staticmethod
+    def _counted(counts: list[int]) -> list[list[dict]]:
+        """One poll per second; the count is read at the poll, 30 fps in each window."""
+        return [
+            [_running(30.0, frame_count=count, frame_count_time=1000.0 + i)]
+            for i, count in enumerate(counts)
+        ]
 
-        # Warm-up is max_runtime / 2 = 3 s: windows from t=3 count, t=4 repeats t=3.
-        result = self._run(self._runner(max_runtime=6), fake)
+    def test_fps_of_a_bursty_stream_comes_from_the_frame_count(self):
+        # Frames arrive in every other second; frame_fps reports only those seconds.
+        fake = _FakeStreamSet(self._counted([0, 30, 30, 60, 60, 90, 90, 120, 120, 150]))
+
+        # Warm-up is 5 s: readings from t=5 (90) to t=9 (150) count.
+        result = self._run(self._runner(max_runtime=10), fake)
 
         self.assertEqual(result.stream_fps, {"stream": 15.0})
+        self.assertEqual(self._pushed_values()[:5], [0.0, 30.0, 0.0, 30.0, 0.0])
 
-    def test_unchanged_window_counts_as_no_frames(self):
+    def test_frame_count_that_drops_starts_again_from_the_new_reading(self):
+        fake = _FakeStreamSet(self._counted([0, 10, 20, 30, 40, 50, 60, 5, 15, 25]))
+
+        # The server restarted the instance between t=6 and t=7.
+        result = self._run(self._runner(max_runtime=10), fake)
+
+        self.assertEqual(result.stream_fps, {"stream": 10.0})
+
+    def test_count_that_stops_growing_counts_as_no_frames(self):
+        stalled = _running(0.0, first_frame_time=1000.0)
         fake = _FakeStreamSet(
             [
                 [_running(30.0), _running(20.0)],
-                [_running(30.0), _running(20.0, frame_interval=1.0)],
+                [_running(30.0), stalled],
             ]
         )
 
@@ -546,6 +566,15 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
 
         self.assertIn("No frames from stream(s) b", str(ctx.exception))
         self.assertEqual(len(fake.calls("DELETE")), 2)
+
+    def test_server_without_frame_count_is_rejected(self):
+        fake = _FakeStreamSet([[_running(30.0, old_server=True)]])
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run(self._runner(), fake)
+
+        self.assertIn("no frame_count", str(ctx.exception))
+        self.assertEqual(len(fake.calls("DELETE")), 1)
 
     def test_run_shorter_than_warm_up_falls_back_to_final_avg_fps(self):
         fake = _FakeStreamSet(

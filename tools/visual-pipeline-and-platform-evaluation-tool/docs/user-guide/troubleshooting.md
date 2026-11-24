@@ -233,7 +233,7 @@ produce frames, check the following:
   that ViPPET ships in the `vippet-gst-plugins` volume. Run
   `docker exec dlstreamer-pipeline-server gst-inspect-1.0 aravissrc` and check
   `docker logs dlstreamer-pipeline-server` for a `Failed to load plugin` warning. Rebuild the `vippet`
-  image if it predates the plugin, and make sure the server image uses the same Ubuntu 24.04 base as
+  image if it predates the plugin, and make sure the server image uses the same Ubuntu 26.04 base as
   `vippet` (see `DLSPS2_IMAGE` and `DLSPS2_BASE_IMAGE`).
 - Ensure that ViPPET was started with `make run GIGE=1`. Without host networking, the
   `dlstreamer-pipeline-server` container cannot receive the UDP video stream (GVSP) sent by the camera.
@@ -255,7 +255,7 @@ Every pipeline runs on DL Streamer Pipeline Server 2.0 (the `dlstreamer-pipeline
 for the setup. The following limitations apply:
 
 - **The Aravis plugin for GigE Vision cameras comes from the `vippet` image.** The server image does not
-  include `aravissrc`, so ViPPET ships the plugin and `libaravis` from its Ubuntu 24.04 packages in the
+  include `aravissrc`, so ViPPET ships the plugin and `libaravis` from its Ubuntu 26.04 packages in the
   `vippet-gst-plugins` volume. It loads on a server image with the same base, which the default deployment
   provides; with another server image (`DLSPS2_IMAGE`, `DLSPS2_BASE_IMAGE`), a GigE Vision pipeline can fail
   validation with an unknown element (`aravissrc`).

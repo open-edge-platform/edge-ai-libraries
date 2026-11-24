@@ -20,6 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1176.0",
+    "@aws-sdk/lib-storage": "^3.1176.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
@@ -42,7 +44,7 @@
     "class-validator": "^0.15.1",
     "https-proxy-agent": "^7.0.6",
     "luxon": "^3.7.1",
-    "minio": "^8.0.7",
+    "mime-types": "^3.0.2",
     "nestjs-otel": "^8.0.2",
     "openai": "^4.82.0",
     "pg": "^8.16.3",
@@ -84,12 +86,12 @@
     "typescript-eslint": "^8.39.0"
   },
   "overrides": {
-    "glob": "^10.5.0",
+    "glob": "^14.0.2",
     "protobufjs": "^8.0.2",
     "js-yaml": "^4.1.1",
     "webpack": "^5.105.0",
     "diff": "^8.0.3",
-    "minimatch": "^10.2.5",
+    "minimatch": "^11.0.1",
     "ajv": "^8.18.0",
     "file-type": "^21.3.1",
     "picomatch": "^4.0.4",

@@ -37,5 +37,9 @@ curl -sSL -o opencl-icd.deb "${CR}/intel-opencl-icd_${INTEL_CR_VER}-0_amd64.deb"
 curl -sSL -o ze-gpu.deb     "${CR}/libze-intel-gpu1_${INTEL_CR_VER}-0_amd64.deb"
 dpkg -i ./*.deb
 
+# curl was only needed for the downloads above; drop it and the libraries it
+# pulled in (libcurl, krb5, ldap, ssh2, ...) so they don't ship in the image.
+apt-get purge -y --auto-remove curl
+
 cd /
 rm -rf "$workdir" /var/lib/apt/lists/*

@@ -174,7 +174,7 @@ recorded, `print_runtime_logs` decides *whether you also see it in the terminal*
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `app.client_id` | `default` | **[encoder]** Sent to the decoder at the start of the TCP connection (one-time handshake) and used by the decoder for saved filenames (`recon_images/<client_id>_<frame>.jpeg`) and logs, so they stay stable across encoder reconnects. CLI: `--client-id`. The decoder falls back to the `default` if the handshake is missing or invalid. |
+| `app.client_id` | `default` | **\[encoder\]** Sent to the decoder at the start of the TCP connection (one-time handshake) and used by the decoder for saved filenames (`recon_images/<client_id>_<frame>.jpeg`) and logs, so they stay stable across encoder reconnects. CLI: `--client-id`. The decoder falls back to the `default` if the handshake is missing or invalid. |
 
 ### Compute
 

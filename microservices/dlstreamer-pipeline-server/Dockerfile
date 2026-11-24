@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=intel/dlstreamer:2026.2.0-ubuntu24
+ARG BASE_IMAGE=intel/dlstreamer:2026.3.0-ubuntu24-rc2
 FROM ${BASE_IMAGE} AS gstudfloader-builder
 
 USER root
@@ -43,9 +43,8 @@ ENV VIRTUAL_ENV=/python3venv
 ENV PATH=$VIRTUAL_ENV/bin:$PATH
 ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages
 
-RUN apt-get update && apt-get install -y --no-install-recommends wget && \
-    wget -qO- https://cmake.org/files/v3.15/cmake-3.15.0-Linux-x86_64.tar.gz | \
-    tar --strip-components=1 -xz -C /usr/local
+RUN apt-get update && apt-get install -y --no-install-recommends cmake && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ARG CMAKE_INSTALL_PREFIX
 ARG UTILS_LIB_VERSION
@@ -83,7 +82,7 @@ RUN /bin/bash -c "echo $PATH && \
                   rm -rf build && \
                   mkdir build && \
                   cd build && \
-                  cmake -DCMAKE_INSTALL_INCLUDEDIR=$CMAKE_INSTALL_PREFIX/include -DCMAKE_INSTALL_PREFIX=$CMAKE_INSTALL_PREFIX -DWITH_TESTS=${RUN_TESTS} -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
+                  cmake -DCMAKE_INSTALL_INCLUDEDIR=$CMAKE_INSTALL_PREFIX/include -DCMAKE_INSTALL_PREFIX=$CMAKE_INSTALL_PREFIX -DWITH_TESTS=${RUN_TESTS} -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
                   .. && \
                   make && \
                   if [ "${RUN_TESTS}" = "ON" ] ; then \
@@ -115,7 +114,7 @@ RUN /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
     && mkdir build \
     && cd gst_plugin && sed -i '/dlstreamer_gst_meta/c\\\t/opt/intel/dlstreamer/lib/libdlstreamer_gst_meta.so' CMakeLists.txt && cd .. \
     && cd build \
-    && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} .. \
+    && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. \
     && make"
 
 ############################# DL Streamer Pipeline Server runtime ################################

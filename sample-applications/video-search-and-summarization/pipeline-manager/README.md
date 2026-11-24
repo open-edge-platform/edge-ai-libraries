@@ -16,6 +16,11 @@ The Pipeline Manager Service is a core component of the Video Search and Summari
 - Send Chunk Captions to LLM Service for Video Summarization.
 - Handles video uploads and state management
 
+Pipeline Manager uses the AWS SDK for S3 to access the existing MinIO object
+store. It uses the configured MinIO endpoint and credentials; the storage
+service and object paths are unchanged. As before, newly created buckets grant
+anonymous read access to their objects for playback.
+
 ## Prerequisites
 
 - Docker
