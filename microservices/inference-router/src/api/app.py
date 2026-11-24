@@ -16,6 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from src.api.body_limit import DEFAULT_MAX_REQUEST_BYTES, BodySizeLimitMiddleware
 from src.api.concurrency import (
     get_active_requests,
     get_max_concurrency,
@@ -41,6 +42,7 @@ def create_app(
     *,
     config_path: Optional[Path] = None,
     max_concurrency: int = 0,
+    max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
     verbose: bool = False,
     verbose_full: bool = False,
     log_dir: Optional[Path] = None,
@@ -54,6 +56,8 @@ def create_app(
         telemetry: Optional telemetry backend (InMemoryTelemetry, FileBasedTelemetry).
         max_concurrency: Max concurrent in-flight chat requests. ``0`` = unlimited.
             Enforced by ``concurrency_guard`` on the chat endpoint.
+        max_request_bytes: Max request body size; larger bodies get HTTP 413.
+            ``0`` = unlimited.
         verbose: When ``True``, endpoints print raw backend responses.
         verbose_full: When ``True``, endpoints additionally log raw request bodies.
         log_dir: When set, endpoints additionally append verbose dumps to
@@ -82,6 +86,9 @@ def create_app(
     # Apply concurrency limit. The guard reads this via module state, so it
     # must be set before any endpoint depends on it.
     set_max_concurrency(max_concurrency)
+
+    # Added before CORS so CORS stays outermost and its headers reach 413s too.
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=max_request_bytes)
 
     # Add CORS middleware
     app.add_middleware(

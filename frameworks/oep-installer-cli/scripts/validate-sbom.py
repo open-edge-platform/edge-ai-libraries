@@ -49,9 +49,13 @@ SCHEMA = {
         "gpg-key": { "$ref": "#/$defs/url" },
         "gpg-key-fingerprint": { "type": "string", "pattern": "^[0-9A-F]{40}$" },
         "key-file": { "type": "string", "pattern": "^/[^\\s]+$" },
-        "apt-source": { "type": "string", "pattern": "^deb (\\[[^\\]]*\\] )?https?://\\S+ \\S+ \\S+$" },
         "apt-src-source": { "type": "string", "pattern": "^deb-src " },
         "apt-list-file": { "type": "string", "pattern": "^/etc/apt/sources\\.list\\.d/[^/\\s]+$" },
+        "apt-source": { "anyOf": [
+          { "type": "string", "pattern": "^deb (\\[[^\\]]*\\] )?https?://\\S+ \\S+ \\S+$" },
+          { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        ] },
+        "apt-source-file": { "type": "string", "pattern": "^/etc/apt/sources\\.list\\.d/[^/\\s]+.(list|sources)$" },
         "apt-pref": { "type": "array", "minItems": 1, "items": { "type": "string" } },
         "apt-pref-file": { "type": "string", "pattern": "^/etc/apt/preferences\\.d/[^/\\s]+$" }
       },

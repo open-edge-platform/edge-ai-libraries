@@ -25,6 +25,7 @@ HOST_PORT="${HOST_PORT:-8000}"
 LMCACHE_MP_HOST="${LMCACHE_MP_HOST:-tcp://localhost}"
 LMCACHE_MP_PORT="${LMCACHE_MP_PORT:-6555}"
 LMCACHE_MP_HTTP_PORT="${LMCACHE_MP_HTTP_PORT:-8090}"
+LMCACHE_EXPOSE_HTTP="${LMCACHE_EXPOSE_HTTP:-0}"
 LMCACHE_MP_MQ_TIMEOUT="${LMCACHE_MP_MQ_TIMEOUT:-600}"
 LMCACHE_MP_HEARTBEAT_INTERVAL="${LMCACHE_MP_HEARTBEAT_INTERVAL:-15}"
 LMCACHE_MP_L1_SIZE_GB="${LMCACHE_MP_L1_SIZE_GB:-5}"
@@ -84,6 +85,11 @@ Optional environment variables:
   LMCACHE_MP_HOST       LMCache MP host URI inside the container. Default: tcp://localhost
   LMCACHE_MP_PORT       LMCache MP port. Default: 6555
   LMCACHE_MP_HTTP_PORT  LMCache MP HTTP port. Default: 8090
+  LMCACHE_EXPOSE_HTTP   1 = publish the LMCache admin HTTP port on HOST_BIND_ADDRESS
+                        (needed by tests/vllm-bench-two-waves.sh for /cache/clear).
+                        Default: 0 (HTTP bound to 127.0.0.1 inside the container only).
+                        The LMCache MP request port is never published: the
+                        server is unauthenticated and vLLM runs in the same container.
   LMCACHE_MP_MQ_TIMEOUT LMCache MP message timeout in seconds. Default: 600
   LMCACHE_MP_HEARTBEAT_INTERVAL LMCache MP heartbeat interval in seconds. Default: 15
   LMCACHE_MP_L1_SIZE_GB LMCache L1 size. Default: 15
@@ -162,6 +168,19 @@ chmod 1777 "${MODEL_PATH}/lmcache_disk"
 # group membership matching the host's render/video group GIDs to access
 # /dev/dri (GIDs vary per host, so they can't be baked into the image).
 GROUP_ADD_OPTS=()
+# The LMCache MP ZMQ port is intentionally NOT published: it has no
+# authentication (see GHSA-w5f2-9q9c-ff4h) and vLLM talks to it over
+# loopback inside the same container. The admin HTTP port is only
+# published on explicit opt-in.
+LMCACHE_HTTP_OPTS=( -e LMCACHE_MP_HTTP_HOST=127.0.0.1 )
+if [[ "${LMCACHE_EXPOSE_HTTP}" == "1" ]]; then
+  echo "WARNING: publishing LMCache admin HTTP on ${HOST_BIND_ADDRESS}:${LMCACHE_MP_HTTP_PORT} (unauthenticated)" >&2
+  LMCACHE_HTTP_OPTS=(
+    -e LMCACHE_MP_HTTP_HOST=0.0.0.0
+    -p "${HOST_BIND_ADDRESS}:${LMCACHE_MP_HTTP_PORT}:${LMCACHE_MP_HTTP_PORT}"
+  )
+fi
+
 RENDER_GID="$(stat -c '%g' /dev/dri/renderD* 2>/dev/null | head -n1 || true)"
 VIDEO_GID="$(stat -c '%g' /dev/dri/card* 2>/dev/null | head -n1 || true)"
 [[ -n "${RENDER_GID}" ]] && GROUP_ADD_OPTS+=( --group-add "${RENDER_GID}" )
@@ -225,13 +244,16 @@ docker run -d \
   -e HTTPS_PROXY \
   -e no_proxy="localhost,127.0.0.1" \
   -p "${HOST_BIND_ADDRESS}:${HOST_PORT}:8000" \
-  -p "${HOST_BIND_ADDRESS}:${LMCACHE_MP_PORT}:${LMCACHE_MP_PORT}" \
-  -p "${HOST_BIND_ADDRESS}:${LMCACHE_MP_HTTP_PORT}:${LMCACHE_MP_HTTP_PORT}" \
+  "${LMCACHE_HTTP_OPTS[@]}" \
   ${DOCKER_RUN_OPTS} \
   "${IMAGE_NAME}" \
   /usr/local/bin/start-lmcache-vllm.sh
 
 echo "Container ${CONTAINER_NAME} started"
 echo "vLLM API: http://127.0.0.1:${HOST_PORT}/v1"
-echo "LMCache health: http://127.0.0.1:${LMCACHE_MP_HTTP_PORT}/healthcheck"
+if [[ "${LMCACHE_EXPOSE_HTTP}" == "1" ]]; then
+  echo "LMCache health: http://${HOST_BIND_ADDRESS}:${LMCACHE_MP_HTTP_PORT}/healthcheck"
+else
+  echo "LMCache health (inside container): docker exec ${CONTAINER_NAME} python3 -c \"import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:${LMCACHE_MP_HTTP_PORT}/healthcheck').read().decode())\""
+fi
 echo "Logs: docker logs -f ${CONTAINER_NAME}"

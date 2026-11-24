@@ -14,7 +14,7 @@ reuse the agent-service unmodified.
 
 ## Architecture at a Glance
 
-```
+```text
 Your app / detection pipeline
         │
         │ (1) writes detections to a storage-service-compatible DB
@@ -31,6 +31,7 @@ Your app / detection pipeline
 ```
 
 The agent-service owns none of the detection lifecycle. Your app owns:
+
 - writing detections somewhere queryable (contract 1),
 - telling the agent when to reason, and over what id range (contract 2).
 
@@ -41,12 +42,13 @@ The agent-service reads detections via `STORAGE_SERVICE_URL` (default
 or implement an adapter exposing the same shape:
 
 | Method | Path | Required? | Purpose |
-|--------|------|------------|---------|
+| ------ | ---- | --------- | ------- |
 | `GET` | `/detections?min_id=&max_id=&label=&min_confidence=&limit=` | Yes | Returns detection records the agents reason over |
 | `GET` | `/detections/summary?min_id=&max_id=` | Yes | Per-class aggregate stats used by the analysis agent |
 | `GET` | `/detections/max_id` | Only if using the explicit trigger (Contract 2b) to bookmark a watermark | Current max detection id + total count |
 
 Each detection record must include at least:
+
 ```json
 {
   "frame_id": 42,
@@ -111,7 +113,7 @@ Regardless of which trigger you used, poll for the result via the agent's own
 REST API:
 
 | Method | Path | Purpose |
-|--------|------|---------|
+| ------ | ---- | ------- |
 | `GET` | `/agents/status/{run_id}` | `{"run_id", "status", "phase"}` — `status` is `running`/`completed`/`error` |
 | `GET` | `/agents/results/{run_id}` | Full pipeline output (built-in `policy`/`analysis`/`evidence`/`ticket`, plus `extra_agents` for any custom specialists) once completed |
 | `GET` | `/agents/runs` | List all known runs |
@@ -185,7 +187,7 @@ required to point the agent-service at a different storage backend, MQTT
 broker/topic, or use-case config:
 
 | Env var | Default | Purpose |
-|---------|---------|---------|
+| ------- | ------- | ------- |
 | `STORAGE_SERVICE_URL` | `http://apm-storage:5001` | Contract 1 base URL |
 | `MQTT_HOST` / `MQTT_PORT` | `mqtt-broker` / `1883` | Broker for Contract 2a |
 | `MQTT_BATCH_TOPIC` | `apm/batch-complete` | Topic for Contract 2a |

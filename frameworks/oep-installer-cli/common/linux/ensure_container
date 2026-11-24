@@ -43,16 +43,61 @@ ensure_container_namespace () {
   done
 }
 
-# [--project=<name>] [yaml files]
+# [--project=<name>] [--with-external] [--excludes=,,] [yaml files]
 ensure_container_parse_yaml () {
-python3 - "$@" <<'EOF'
+  python3 - "$@" <<'EOF'
 import os, re, sys, yaml
-def _any(loader, node):  # tolerate Compose !reset / !override tags
-  if isinstance(node, yaml.MappingNode):  return loader.construct_mapping(node, deep=True)
-  if isinstance(node, yaml.SequenceNode): return loader.construct_sequence(node, deep=True)
-  return loader.construct_scalar(node)
-for tag in ("!reset", "!override"):
-  yaml.SafeLoader.add_constructor(tag, _any)
+
+class Override:
+  def __init__(self, v): self.v = v
+RESET = object()
+def _reset(loader, node): return RESET
+def _override(loader, node):
+  if isinstance(node, yaml.MappingNode):  return Override(loader.construct_mapping(node, deep=True))
+  if isinstance(node, yaml.SequenceNode): return Override(loader.construct_sequence(node, deep=True))
+  return Override(loader.construct_scalar(node))
+yaml.SafeLoader.add_constructor("!reset", _reset)
+yaml.SafeLoader.add_constructor("!override", _override)
+
+def strip(v):  # drop tag markers inside a value that wasn't merged
+  if isinstance(v, Override): return strip(v.v)
+  if isinstance(v, dict): return {k: strip(x) for k, x in v.items() if x is not RESET}
+  if isinstance(v, list): return [strip(x) for x in v if x is not RESET]
+  return None if v is RESET else v
+
+def as_map(v):  # networks: [a, b] -> {a: {}, b: {}}
+  return {k: {} for k in v} if isinstance(v, list) else (v or {})
+
+def merge(base, over, key=None):
+  if isinstance(over, Override): return strip(over.v)
+  if key == "networks" and (isinstance(base, list) or isinstance(over, list)):
+    base, over = as_map(base), as_map(over)
+  if isinstance(base, dict) and isinstance(over, dict):
+    out = dict(base)
+    for k, v in over.items():
+      if v is RESET: out.pop(k, None)
+      elif k in out: out[k] = merge(out[k], v, k)
+      else: out[k] = strip(v)
+    return out
+  if isinstance(base, list) and isinstance(over, list):
+    out = list(base)
+    for x in strip(over):
+      if x not in out: out.append(x)
+    return out
+  return strip(over)
+
+def load(path, seen=()):
+  path = os.path.abspath(path)
+  if path in seen: return {}
+  with open(path) as f:
+    d = yaml.safe_load(f) or {}
+  model = {}
+  for inc in d.pop("include", None) or []:   # Compose `include:`
+    files = inc.get("path") if isinstance(inc, dict) else inc
+    for p in ([files] if isinstance(files, str) else files or []):
+      model = merge(model, load(os.path.join(os.path.dirname(path), p), seen + (path,)))
+  return merge(model, d)
+
 INNER = re.compile(r"\$\{([A-Za-z_]\w*)(?:(:?)([-?+])([^${}]*))?\}")
 def resolve(v):
   if v is None: return None
@@ -65,44 +110,56 @@ def resolve(v):
 def normalize(n):
   return re.sub(r"[^a-z0-9_-]", "", n.lower()).lstrip("_-")
 def host_ports(p):
-  if isinstance(p, int): return []                    # container-only port
+  if isinstance(p, int): return []
   if isinstance(p, dict):
     port = resolve(p.get("published"))
   else:
     s = resolve(p)
     if s is None: return []
     s = s.partition("/")[0]
-    if s.startswith("["): s = s.partition("]:")[2]  # [::1]:8080:80
+    if s.startswith("["): s = s.partition("]:")[2]
     parts = s.rsplit(":", 2)
     port = parts[-2] if len(parts) >= 2 else None
   m = re.fullmatch(r"(\d+)(?:-(\d+))?", port or "")
   if not m: return []
   lo = int(m.group(1))
   return range(lo, int(m.group(2) or lo) + 1)
-cli_project, paths = None, []
+
+cli_project, paths, with_external, seen, model = None, [], False, set(), {}
 for a in sys.argv[1:]:
   if a.startswith("--project="): cli_project = a.split("=", 1)[1]
+  elif a.startswith("--excludes="):
+    for p in a.split("=", 1)[1].split(','):
+      seen.add(tuple(p.split(":")))
+  elif a == "--with-external": with_external = True
   else: paths.append(a)
-services, networks, volumes, file_name = {}, {}, {}, None
+if not paths: sys.exit(0)
+
 for path in paths:
-  with open(path) as f:
-    d = yaml.safe_load(f) or {}
-  file_name = d.get("name") or file_name
-  for n, s in (d.get("services") or {}).items():
-    if not isinstance(s, dict): continue
-    m = services.setdefault(n, {"ports": []})
-    for k in ("container_name", "network_mode", "networks", "scale", "deploy"):
-      if k in s: m[k] = s[k]
-    m["ports"] += s.get("ports") or []
-  for sec, tgt in (("networks", networks), ("volumes", volumes)):
-    for k, c in (d.get(sec) or {}).items():
-      tgt.setdefault(k, {}).update(c or {})
-proj = resolve(cli_project or file_name) or os.path.basename(os.path.dirname(os.path.abspath(paths[0])))
+  model = merge(model, load(path))
+
+services = {n: s for n, s in (model.get("services") or {}).items() if isinstance(s, dict)}
+networks = {k: (v or {}) for k, v in (model.get("networks") or {}).items()}
+volumes  = {k: (v or {}) for k, v in (model.get("volumes") or {}).items()}
+
+# Project name as `docker compose -f f1 -f f2 ...` picks it:
+#   --project > COMPOSE_PROJECT_NAME > last `name:` among the -f files > first file's directory.
+# `name:` from `include:` files is ignored.
+top_name = None
+for p in paths:
+  with open(p) as f:
+    n = (yaml.safe_load(f) or {}).get("name")
+  if n is RESET: top_name = None
+  elif n is not None: top_name = strip(n)
+proj = (resolve(cli_project)
+        or resolve(top_name)
+        or os.path.basename(os.path.dirname(os.path.abspath(paths[0]))))
 proj = normalize(proj)
-seen = set()
+
 def out(kind, v):
   if v is not None and (kind, v) not in seen:
     seen.add((kind, v)); print(f"{kind}:{v}")
+
 needs_default = False
 for n, s in services.items():
   if s.get("container_name"):
@@ -113,14 +170,21 @@ for n, s in services.items():
       out("name", f"{proj}-{n}-{i}")
   if "network_mode" not in s and not s.get("networks"):
     needs_default = True
-  for p in s["ports"]:
+  for p in s.get("ports") or []:
     for port in host_ports(p):
       out("port", port)
 if needs_default: networks.setdefault("default", {})
 for kind, table in (("net", networks), ("vol", volumes)):
   for k, c in table.items():
-    if c.get("external"): continue                  # never ours to clean up
-    out(kind, resolve(c["name"]) if c.get("name") else f"{proj}_{k}")
+    ext = c.get("external")
+    if ext and not with_external: continue
+    if isinstance(ext, dict) and ext.get("name"):
+      name = resolve(ext["name"])
+    elif c.get("name"):
+      name = resolve(c["name"])
+    else:
+      name = k if ext else f"{proj}_{k}"
+    out(kind, name)
 EOF
 }
 

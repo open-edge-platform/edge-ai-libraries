@@ -48,12 +48,18 @@ _DLSPS2_ELEMENTS = [
 _elements_patcher = patch(
     "explore.GstInspector._get_dlsps2_elements", return_value=_DLSPS2_ELEMENTS
 )
+# Loading predefined pipelines checks every variant against the DLSPS 2.0
+# device list: keep all variants instead of asking the server.
+_variant_supported_patcher = patch(
+    "managers.pipeline_manager.is_variant_supported", return_value=True
+)
 
 
 def setUpModule() -> None:
-    """Install the VideosManager and element-list patches before any test runs."""
+    """Install the VideosManager, element-list and variant patches before any test runs."""
     global _videos_manager_patcher
     _elements_patcher.start()
+    _variant_supported_patcher.start()
     mock_instance = MagicMock()
     mock_instance.get_video_filename.side_effect = _mock_get_video_filename
     mock_instance.get_video_path.side_effect = _mock_get_video_path
@@ -69,6 +75,7 @@ def tearDownModule() -> None:
     """Remove the patches after the module's tests finish."""
     global _videos_manager_patcher
     _elements_patcher.stop()
+    _variant_supported_patcher.stop()
     if _videos_manager_patcher is not None:
         _videos_manager_patcher.stop()
         _videos_manager_patcher = None
@@ -1851,7 +1858,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             )
 
         self.assertIn(
-            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element.",
+            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file.",
             str(ctx.exception),
         )
 
@@ -1883,7 +1890,35 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             self.manager.build_pipeline_command(specs, execution_config, self.job_id)
 
         self.assertIn(
-            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element.",
+            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file.",
+            str(ctx.exception),
+        )
+
+    def test_metadata_mode_file_with_only_broker_publisher_raises(self):
+        """A pipeline whose only gvametapublish targets a broker cannot produce a file."""
+        graph = create_gvametapublish_graph()
+        for node in graph.nodes:
+            if node.type == "gvametapublish":
+                node.data["method"] = "mqtt"
+                node.data["address"] = "broker:1883"
+                node.data["topic"] = "vippet/metadata"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/mqtt-only/variants/cpu",
+                pipeline_name="mqtt-only",
+                pipeline_graph=graph,
+                streams=1,
+            ),
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        with self.assertRaises(ValueError) as ctx:
+            self.manager.build_pipeline_command(specs, execution_config, self.job_id)
+
+        self.assertIn(
+            "gvametapublish element publishing to a file",
             str(ctx.exception),
         )
 
