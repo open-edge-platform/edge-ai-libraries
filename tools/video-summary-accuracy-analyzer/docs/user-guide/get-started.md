@@ -56,7 +56,7 @@ To use a different registry or image tag, override the defaults before starting 
 
 ```bash
 export REGISTRY="intel/"
-export TAG=2026.3.0-rc1
+export TAG=2026.3.0-rc2
 ```
 
 ## Run the Application with Docker Compose
