@@ -1,18 +1,6 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// Mock minio before any imports to prevent import errors
-jest.mock('minio', () => ({
-  Client: jest.fn().mockImplementation(() => ({
-    bucketExists: jest.fn().mockResolvedValue(true),
-    makeBucket: jest.fn().mockResolvedValue(undefined),
-    putObject: jest.fn().mockResolvedValue({ etag: 'test-etag' }),
-    getObject: jest.fn().mockResolvedValue({}),
-    removeObject: jest.fn().mockResolvedValue(undefined),
-    listObjects: jest.fn().mockReturnValue([]),
-  })),
-}));
-
 // Mock TypeORM before any imports to prevent import errors
 jest.mock('@nestjs/typeorm', () => ({
   InjectRepository: jest.fn(() => jest.fn()),

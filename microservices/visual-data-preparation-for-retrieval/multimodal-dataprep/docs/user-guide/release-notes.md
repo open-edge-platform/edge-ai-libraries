@@ -2,7 +2,7 @@
 
 ## Version 2026.3.0-rc2
 
-**Release Date**: November 21, 2026
+**Release Date:** December 7, 2026
 
 **New**:
 
