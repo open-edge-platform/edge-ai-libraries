@@ -3,6 +3,7 @@ import {
   useConvertSimpleToAdvancedMutation,
   useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
+  useGetVideosQuery,
   useRunPerformanceTestMutation,
   useStopPerformanceTestJobMutation,
   useUpdateVariantMutation,
@@ -35,7 +36,15 @@ import {
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils";
-import type { OutputMode } from "@/api/api.generated";
+import {
+  hasFileMetadataPublisher,
+  hasMetadataPublisher,
+} from "@/lib/pipelineUtils";
+import type {
+  Node as GraphNode,
+  OutputMode,
+  PipelineGraph,
+} from "@/api/api.generated";
 import {
   Tooltip,
   TooltipContent,
@@ -74,6 +83,7 @@ import { NavigationGuard } from "@/components/shared/NavigationGuard";
 import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog.tsx";
 import { extractModelNamesFromNodes } from "@/features/models/modelNames.ts";
 import { useRequiredModelsStatus } from "@/features/models/useRequiredModelsStatus.ts";
+import { useRequiredVideosStatus } from "@/features/videos/useRequiredVideosStatus.ts";
 type UrlParams = {
   id: string;
   variant: string;
@@ -94,6 +104,33 @@ const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
     return false;
   });
 };
+
+// Returns null for nodes that do not read an input video.
+const getInputVideoName = (node: {
+  type?: string;
+  data?: unknown;
+}): string | null => {
+  const data = (node.data ?? {}) as Record<string, unknown>;
+  if (node.type === "source") {
+    if (String(data.kind ?? "").toLowerCase() !== "video") return null;
+    return String(data.source ?? data.location ?? "").trim();
+  }
+  if (node.type === "filesrc") {
+    return String(data.location ?? "").trim();
+  }
+  return null;
+};
+
+// An empty name means no input video is selected.
+const findMissingInputVideos = (
+  nodes: ReactFlowNode[],
+  availableVideos: Set<string>,
+): string[] =>
+  nodes.flatMap((node) => {
+    const name = getInputVideoName(node);
+    if (name === null) return [];
+    return name.startsWith("/") || availableVideos.has(name) ? [] : [name];
+  });
 
 const normalizeSourceNodeData = (
   node: ReactFlowNode,
@@ -122,18 +159,18 @@ const normalizeSourceNodeData = (
   return normalizedData as { [key: string]: string };
 };
 
-const buildGraphData = (
-  nodes: ReactFlowNode[],
-  edges: ReactFlowEdge[],
-): {
-  nodes: Array<{ id: string; type: string; data: { [key: string]: string } }>;
-  edges: Array<{ id: string; source: string; target: string }>;
-} => ({
-  nodes: nodes.map((node) => ({
+const toGraphNodes = (nodes: ReactFlowNode[]): GraphNode[] =>
+  nodes.map((node) => ({
     id: node.id,
     type: node.type ?? "",
     data: normalizeSourceNodeData(node),
-  })),
+  }));
+
+const buildGraphData = (
+  nodes: ReactFlowNode[],
+  edges: ReactFlowEdge[],
+): PipelineGraph => ({
+  nodes: toGraphNodes(nodes),
   edges: edges.map((edge) => ({
     id: edge.id,
     source: edge.source,
@@ -205,6 +242,18 @@ export const Pipelines = () => {
     },
   );
 
+  const { data: videos } = useGetVideosQuery();
+  const missingInputVideos = useMemo(
+    () =>
+      videos
+        ? findMissingInputVideos(
+            currentNodes,
+            new Set(videos.map((video) => video.filename)),
+          )
+        : [],
+    [currentNodes, videos],
+  );
+
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
   const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
@@ -224,6 +273,37 @@ export const Pipelines = () => {
     skip: !data || !variant,
     errorMessage: "Failed to check models used in pipeline",
   });
+
+  const isTimeSeries = data?.tags?.includes("Time Series") ?? false;
+  const requiredVideos = useMemo(() => {
+    if (isTimeSeries) return [];
+    const variantData = data?.variants.find((v) => v.id === variant);
+    const names = (variantData?.pipeline_graph.nodes ?? [])
+      .map(getInputVideoName)
+      .filter((name): name is string => !!name && !name.startsWith("/"));
+    return [...new Set(names)];
+  }, [data, variant, isTimeSeries]);
+
+  const {
+    videoStatuses: pipelineVideoStatuses,
+    hasMissingVideos: hasMissingRequiredVideos,
+    downloadVideo,
+  } = useRequiredVideosStatus(requiredVideos, {
+    skip: !data || !variant,
+  });
+  const [videoStatusDialogOpen, setVideoStatusDialogOpen] = useState(false);
+  const videoDialogPromptedForRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const variantKey = `${id}/${variant}`;
+    if (
+      hasMissingRequiredVideos &&
+      videoDialogPromptedForRef.current !== variantKey
+    ) {
+      videoDialogPromptedForRef.current = variantKey;
+      setVideoStatusDialogOpen(true);
+    }
+  }, [hasMissingRequiredVideos, id, variant]);
 
   const {
     execute: runPipeline,
@@ -397,10 +477,7 @@ export const Pipelines = () => {
         }).unwrap();
       }
 
-      // Check the ADVANCED graph for gvametapublish (simple mode hides these nodes)
-      const hasMetadata = payloadGraphData.nodes.some(
-        (n) => n.type === "gvametapublish",
-      );
+      const hasMetadata = hasFileMetadataPublisher(payloadGraphData.nodes);
 
       const status = await runPipeline({
         performanceTestSpec: {
@@ -518,16 +595,35 @@ export const Pipelines = () => {
           : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
     const isReadOnly = currentVariantData?.read_only ?? false;
-    const pipelineHasMetadata =
-      currentVariantData?.pipeline_graph.nodes.some(
-        (n) => n.type === "gvametapublish",
-      ) ?? false;
+    const editedGraphNodes = toGraphNodes(currentNodes);
+    const metadataPublisherNodes =
+      !isSimpleMode && hasMetadataPublisher(editedGraphNodes)
+        ? editedGraphNodes
+        : (currentVariantData?.pipeline_graph.nodes ?? []);
+    const pipelineHasMetadata = hasFileMetadataPublisher(
+      metadataPublisherNodes,
+    );
     const hasMissingRequiredModels = pipelineModelStatuses.some(
       (item) => item.installStatus !== "installed",
     );
     const missingRequiredModels = pipelineModelStatuses
       .filter((item) => item.installStatus !== "installed")
       .map((item) => item.model);
+    const hasMissingInputVideo =
+      !isTimeSeriesPipeline && missingInputVideos.length > 0;
+    const requiredDialogText = !hasMissingRequiredVideos
+      ? {}
+      : hasMissingRequiredModels
+        ? {
+            title: "Required models and videos are missing",
+            description:
+              "This pipeline uses models that are not installed and input videos that are not downloaded.",
+          }
+        : {
+            title: "Required videos are missing",
+            description:
+              "This pipeline uses input videos that are not downloaded.",
+          };
 
     const editorContent = (
       <div className="w-full h-full relative">
@@ -945,7 +1041,7 @@ export const Pipelines = () => {
                 isStopping={isStopping}
                 onStop={handleStopPipeline}
               />
-            ) : hasMissingRequiredModels ? (
+            ) : hasMissingRequiredModels || hasMissingInputVideo ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="inline-flex">
@@ -957,10 +1053,19 @@ export const Pipelines = () => {
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-80">
-                  <p>Install all required models first.</p>
-                  {missingRequiredModels.length > 0 && (
-                    <p className="mt-1 text-xs text-muted-foreground break-words">
-                      Missing: {missingRequiredModels.join(", ")}
+                  {hasMissingRequiredModels && (
+                    <>
+                      <p>Install all required models first.</p>
+                      {missingRequiredModels.length > 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground break-words">
+                          Missing: {missingRequiredModels.join(", ")}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {hasMissingInputVideo && (
+                    <p className={hasMissingRequiredModels ? "mt-2" : ""}>
+                      Select an available input video first.
                     </p>
                   )}
                 </TooltipContent>
@@ -1101,10 +1206,16 @@ export const Pipelines = () => {
           </ResizablePanelGroup>
         </div>
         <PipelineModelsRequiredDialog
-          open={modelStatusDialogOpen}
-          onOpenChange={setModelStatusDialogOpen}
+          open={modelStatusDialogOpen || videoStatusDialogOpen}
+          onOpenChange={(open) => {
+            setModelStatusDialogOpen(open);
+            setVideoStatusDialogOpen(open);
+          }}
           models={pipelineModelStatuses}
           onModelsChanged={refreshRequiredModels}
+          videos={pipelineVideoStatuses}
+          onDownloadVideo={downloadVideo}
+          {...requiredDialogText}
         />
         {!isSimpleMode && (
           <CpuCorePinningDialog

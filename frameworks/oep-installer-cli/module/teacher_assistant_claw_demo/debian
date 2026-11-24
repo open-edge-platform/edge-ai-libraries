@@ -1,0 +1,77 @@
+
+configure_teacher_assistant_claw_demo () {
+  workspace="$(ensure_project_path)/teacher-assistant-claw-demo"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
+  repository="https://github.com/open-edge-platform/education-ai-suite.git"
+  used_ports=(8000)
+}
+
+verify_teacher_assistant_claw_demo () {
+  [ -e "$workspace"/teacher-assistant-claw-demo/setup-ovms.sh ] &&
+  [ -e "$workspace"/models/OpenVINO/Qwen3-8B-int4-ov/openvino_model.bin ]
+}
+
+debian_90_profile_teacher_assistant_claw_demo () {
+  echo "git curl gawk edge_base docker_io"
+}
+
+debian_90_install_teacher_assistant_claw_demo () {
+  command -v openclaw > /dev/null 2>&1 || {
+    local delay=30
+    echo "@@ATTENTION @@BR"
+    echo "@@ATTENTION OPENCLAW INSTALLATION REQUIRED"
+    echo "@@ATTENTION @@BR"
+    echo "@@ATTENTION Install and configure openclaw and"
+    echo "@@ATTENTION RUN $installer_name resume"
+    echo "@@ATTENTION @@BR"
+    echo "@@ATTENTION @@UNTIL +$delay Dismiss in %s "
+    echo "@@ATTENTION @@BR"
+    sleep $delay
+    return 3
+  }
+
+  configure_teacher_assistant_claw_demo "$@"
+  if verify_teacher_assistant_claw_demo && ! ensure_parse_reinstall "$@"; then
+    echo "Teacher assistant claw demo is installed." >&2
+  else
+    ensure_disk_size 10000
+    ensure_ports_open install teacher_assistant_claw_demo "${used_ports[@]}"
+
+    # clone the repository
+    echo "@@STEP Cloning repository"
+    ensure_git_export "$workspace" $version $repository teacher-assistant-claw-demo
+
+    echo "@@STEP Installing models"
+    cd "$workspace"/teacher-assistant-claw-demo
+    sed -i "s|~/models|$workspace/models|" setup-ovms.sh
+    ./setup-ovms.sh
+
+    echo "@@STEP Configuring openclaw"
+    openclaw config patch --file ./openclaw-basic.json && 
+    openclaw gateway install && 
+    ./setup-openclaw-workspace.sh &&
+    openclaw skills update
+
+    verify_teacher_assistant_claw_demo
+  fi
+
+  if ! docker inspect teacher-assistant-ovms > /dev/null 2>&1; then
+    cd "$workspace"/teacher-assistant-claw-demo
+    ./setup-ovms.sh
+  fi
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name remove"
+  echo "@@HIGHLIGHT openclaw chat"
+}
+
+debian_90_stop_teacher_assistant_claw_demo () {
+  configure_teacher_assistant_claw_demo "$@"
+  docker rm -f teacher-assistant-ovms || true
+}
+
+debian_90_remove_teacher_assistant_claw_demo () {
+  debian_90_stop_teacher_assistant_claw_demo "$@" || true
+  ensure_rm "$workspace"
+}
+

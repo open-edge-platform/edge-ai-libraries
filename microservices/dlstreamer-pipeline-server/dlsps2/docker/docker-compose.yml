@@ -25,7 +25,7 @@ services:
     volumes:
       - ./mosquitto:/mosquitto/config:ro
     ports:
-      - "1883:1883"
+      - "127.0.0.1:1883:1883" # MQTT is internal-only; bind to localhost, not all host interfaces
     networks:
       - app_network
 
@@ -58,6 +58,8 @@ services:
       - WEB_SERVER_LOG_LEVEL=${WEB_SERVER_LOG_LEVEL:-WARNING}
       - GST_DEBUG=1
       - ADDITIONAL_GST_PLUGIN_PATH=${ADDITIONAL_GST_PLUGIN_PATH}
+      # Seconds idle (no pipelines) before the gst worker is restarted; 0 disables
+      - DLSPS_WORKER_RECYCLE_IDLE_SECONDS=${DLSPS_WORKER_RECYCLE_IDLE_SECONDS:-60}
       # OpenTelemetry metrics export
       - ENABLE_OPEN_TELEMETRY=${ENABLE_OPEN_TELEMETRY:-false}
       - OTEL_COLLECTOR_HOST=${OTEL_COLLECTOR_HOST:-otel-collector}

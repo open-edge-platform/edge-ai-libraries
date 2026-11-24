@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import {
   Dialog,
   DialogContent,
@@ -13,16 +14,24 @@ import { LicenseAcknowledgementDialog } from "@/features/models/LicenseAcknowled
 import { isGatedModel } from "@/features/models/modelNames.ts";
 import { useModelInstall } from "@/features/models/useModelInstall.ts";
 import type { PipelineModelStatusItem } from "@/features/models/useRequiredModelsStatus.ts";
+import type {
+  PipelineVideoStatus,
+  PipelineVideoStatusItem,
+} from "@/features/videos/useRequiredVideosStatus.ts";
 import type { Model } from "@/api/api.generated.ts";
 import { useAppSelector } from "@/store/hooks.ts";
 import { selectModels } from "@/store/reducers/models.ts";
 import { useMemo, useState } from "react";
+import { Link } from "react-router";
+import { Download, Loader2 } from "lucide-react";
 
 type PipelineModelsRequiredDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   models: PipelineModelStatusItem[];
   onModelsChanged?: () => void | Promise<void>;
+  videos?: PipelineVideoStatusItem[];
+  onDownloadVideo?: (filename: string) => void | Promise<void>;
   title?: string;
   description?: string;
 };
@@ -31,11 +40,23 @@ export type { PipelineModelStatusItem };
 
 const toModelLabel = (value: string): string => value.split("/").pop() || value;
 
+const VIDEO_STATUS_BADGE: Record<
+  Exclude<PipelineVideoStatus, "downloading">,
+  { label: string; variant: "success" | "outline" | "destructive" }
+> = {
+  downloaded: { label: "Downloaded", variant: "success" },
+  not_downloaded: { label: "Not Downloaded", variant: "outline" },
+  failed: { label: "Failed", variant: "destructive" },
+  conflict: { label: "Name Conflict", variant: "destructive" },
+};
+
 export const PipelineModelsRequiredDialog = ({
   open,
   onOpenChange,
   models,
   onModelsChanged,
+  videos,
+  onDownloadVideo,
   title = "Required models are missing",
   description = "This pipeline uses one or more models that are not installed.",
 }: PipelineModelsRequiredDialogProps) => {
@@ -61,6 +82,9 @@ export const PipelineModelsRequiredDialog = ({
     await onModelsChanged?.();
   };
 
+  const hasVideos = (videos?.length ?? 0) > 0;
+  const showModels = !hasVideos || models.length > 0;
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -70,61 +94,135 @@ export const PipelineModelsRequiredDialog = ({
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
 
-          <div className="max-h-80 overflow-y-auto rounded border">
-            <div className="divide-y">
-              {models.map((item) => {
-                const isInstalled = item.installStatus === "installed";
-                const catalogModel = modelByDisplayName.get(item.model);
-                const installableModelName = catalogModel?.name;
-                const canInstall =
-                  !isInstalled &&
-                  item.installStatus !== "installing" &&
-                  Boolean(installableModelName);
-                const pending = isPending(installableModelName);
-                const showInstallButton = canInstall && !pending;
+          {showModels && hasVideos && (
+            <h3 className="text-sm font-semibold">Models</h3>
+          )}
+          {showModels && (
+            <div className="max-h-80 overflow-y-auto rounded border">
+              <div className="divide-y">
+                {models.map((item) => {
+                  const isInstalled = item.installStatus === "installed";
+                  const catalogModel = modelByDisplayName.get(item.model);
+                  const installableModelName = catalogModel?.name;
+                  const canInstall =
+                    !isInstalled &&
+                    item.installStatus !== "installing" &&
+                    Boolean(installableModelName);
+                  const pending = isPending(installableModelName);
+                  const showInstallButton = canInstall && !pending;
 
-                return (
-                  <div
-                    key={item.model}
-                    className="flex items-center justify-between gap-3 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium" title={item.model}>
-                        {toModelLabel(item.model)}
-                      </p>
+                  return (
+                    <div
+                      key={item.model}
+                      className="flex items-center justify-between gap-3 px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium" title={item.model}>
+                          {toModelLabel(item.model)}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <ModelInstallStatusIndicator
+                          status={item.installStatus}
+                          showInstalling={pending}
+                        />
+
+                        <ModelInstallButtonSlot
+                          showButton={showInstallButton}
+                          disabled={!canInstall}
+                          onInstall={async () => {
+                            if (!catalogModel) {
+                              return;
+                            }
+
+                            if (isGatedModel(catalogModel)) {
+                              setGatedPrompt({
+                                name: catalogModel.name,
+                                link: catalogModel.link ?? null,
+                              });
+                              return;
+                            }
+
+                            await install(catalogModel.name);
+                          }}
+                        />
+                      </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <ModelInstallStatusIndicator
-                        status={item.installStatus}
-                        showInstalling={pending}
-                      />
-
-                      <ModelInstallButtonSlot
-                        showButton={showInstallButton}
-                        disabled={!canInstall}
-                        onInstall={async () => {
-                          if (!catalogModel) {
-                            return;
-                          }
-
-                          if (isGatedModel(catalogModel)) {
-                            setGatedPrompt({
-                              name: catalogModel.name,
-                              link: catalogModel.link ?? null,
-                            });
-                            return;
-                          }
-
-                          await install(catalogModel.name);
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
+
+          {hasVideos && (
+            <>
+              <h3 className="text-sm font-semibold">Videos</h3>
+              <div className="max-h-60 overflow-y-auto rounded border">
+                <div className="divide-y">
+                  {videos?.map((item) => (
+                    <div
+                      key={item.filename}
+                      className="flex items-center justify-between gap-3 px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p
+                          className="truncate font-medium"
+                          title={item.filename}
+                        >
+                          {item.filename}
+                        </p>
+                        {item.status !== "downloaded" &&
+                          !item.downloadable &&
+                          item.status !== "downloading" && (
+                            <p className="text-xs text-muted-foreground">
+                              Upload it on the{" "}
+                              <Link
+                                to="/videos"
+                                className="underline underline-offset-4"
+                              >
+                                Videos page
+                              </Link>
+                              .
+                            </p>
+                          )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {item.status === "downloading" ? (
+                          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <Loader2 className="size-3.5 animate-spin" />
+                            Downloading
+                          </span>
+                        ) : (
+                          <Badge
+                            variant={VIDEO_STATUS_BADGE[item.status].variant}
+                          >
+                            {VIDEO_STATUS_BADGE[item.status].label}
+                          </Badge>
+                        )}
+
+                        <div className="flex min-h-9 min-w-[96px] items-center justify-end">
+                          {item.downloadable && onDownloadVideo ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onDownloadVideo(item.filename)}
+                            >
+                              <Download className="size-4" />
+                              {item.status === "failed" ? "Retry" : "Download"}
+                            </Button>
+                          ) : (
+                            <span className="h-9" aria-hidden="true" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
           <DialogFooter>
             <Button onClick={() => onOpenChange(false)}>Continue</Button>
