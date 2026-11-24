@@ -82,7 +82,7 @@ RUN /bin/bash -c "echo $PATH && \
                   rm -rf build && \
                   mkdir build && \
                   cd build && \
-                  cmake -DCMAKE_INSTALL_INCLUDEDIR=$CMAKE_INSTALL_PREFIX/include -DCMAKE_INSTALL_PREFIX=$CMAKE_INSTALL_PREFIX -DWITH_TESTS=${RUN_TESTS} -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
+                  cmake -DCMAKE_INSTALL_INCLUDEDIR=$CMAKE_INSTALL_PREFIX/include -DCMAKE_INSTALL_PREFIX=$CMAKE_INSTALL_PREFIX -DWITH_TESTS=${RUN_TESTS} -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
                   .. && \
                   make && \
                   if [ "${RUN_TESTS}" = "ON" ] ; then \
@@ -114,7 +114,7 @@ RUN /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
     && mkdir build \
     && cd gst_plugin && sed -i '/dlstreamer_gst_meta/c\\\t/opt/intel/dlstreamer/lib/libdlstreamer_gst_meta.so' CMakeLists.txt && cd .. \
     && cd build \
-    && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} .. \
+    && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. \
     && make"
 
 ############################# DL Streamer Pipeline Server runtime ################################
