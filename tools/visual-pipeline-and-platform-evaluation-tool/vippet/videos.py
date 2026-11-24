@@ -70,10 +70,10 @@ DEFAULT_RECORDINGS_FILE: str = os.environ.get(
 logger = logging.getLogger("videos")
 
 # HEVC encoders in order of preference, as (element, encoder sub-pipeline).
-# VA encoders are registered only when DLSPS can access /dev/dri.
+# VA encoders are registered only when DLSPS can access /dev/dri (gpu/npu
+# profiles). DL Streamer builds GStreamer without x265enc (GPL).
 HEVC_ENCODERS: Tuple[Tuple[str, str], ...] = (
     ("vah265enc", "video/x-raw,format=NV12 ! vah265enc"),
-    ("x265enc", "video/x-raw,format=I420 ! x265enc speed-preset=veryfast"),
 )
 
 
