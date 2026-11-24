@@ -430,6 +430,7 @@ export MM_DATAPREP_HOST=multimodal-dataprep
 export MM_DATAPREP_ENDPOINT=http://$MM_DATAPREP_HOST:8000
 export VIDEO_UPLOAD_ENDPOINT=http://pipeline-manager:3000
 export DEFAULT_BUCKET_NAME="video-summary"
+export LIVE_RETENTION_SWEEP_MINUTES=${LIVE_RETENTION_SWEEP_MINUTES:-15}
 
 # Object detection model cache volume (Hugging Face OpenVINO IR models)
 export DETECTION_MODELS_VOLUME_NAME="dataprep-detection-models"

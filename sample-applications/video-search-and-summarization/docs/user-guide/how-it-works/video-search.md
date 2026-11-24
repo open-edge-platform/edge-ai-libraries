@@ -264,7 +264,8 @@ number of cameras`. At ~2.5 GB/camera-hour:
 
 | Knob | Effect |
 | --- | --- |
-| `MM_DATAPREP_LIVE_RETENTION_HOURS` | Primary lever. A sweeper (`MM_DATAPREP_LIVE_RETENTION_SWEEP_MINUTES`, default 15) deletes embeddings **and** segments older than this window. `0` keeps everything. |
+| `MM_DATAPREP_LIVE_RETENTION_HOURS` | Primary lever. A sweeper deletes embeddings **and** segments older than this window. `0` keeps everything. In VSS, set `LIVE_RETENTION_HOURS`. |
+| `MM_DATAPREP_LIVE_RETENTION_SWEEP_MINUTES` | Minutes between sweeps (default 15); must be positive. In VSS, set `LIVE_RETENTION_SWEEP_MINUTES`. |
 | `MM_DATAPREP_LIVE_STORE_SEGMENTS=false` | Stop recording playback video entirely. Removes ~99% of the cost (leaving only ~20 MB/hour of embeddings), **but search hits on live footage then have no clip to play back**. |
 | Camera bitrate / codec / resolution | The most effective way to shrink the dominant cost. Lower bitrate, H.265 over H.264, or a smaller resolution directly reduces segment size. |
 | `MM_DATAPREP_FRAME_INTERVAL` | Higher = fewer embeddings. Reduces only the small embedding cost (and recall granularity); **does not change video segment size.** |
