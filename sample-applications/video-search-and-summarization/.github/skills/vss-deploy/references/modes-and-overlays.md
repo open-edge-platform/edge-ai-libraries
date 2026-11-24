@@ -89,6 +89,8 @@ values are **forced**, not defaulted, because live ingestion cannot work there.
 `LIVE_RETENTION_HOURS` (default `24`) bounds how long live footage and its
 embeddings are kept. Set it to `0` to keep everything - a 24/7 camera then
 grows the index and object store without bound.
+`LIVE_RETENTION_SWEEP_MINUTES` (default `15`) controls how often expired data
+is removed when retention is enabled; it must be positive.
 
 `LIVE_STREAM_MAX_CONCURRENT` (default `8`, Helm
 `multimodaldataprep.liveStream.maxConcurrent`) caps how many cameras ingest at
