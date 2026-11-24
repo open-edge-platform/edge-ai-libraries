@@ -2148,6 +2148,24 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(config.output_mode, schemas.OutputMode.LIVE_STREAM)
         self.assertEqual(config.max_runtime, 60)
 
+    def test_cpu_id_fields_share_normalization(self):
+        graph = {"nodes": [], "edges": []}
+        for field, build in (
+            (
+                "pinned_cpu_cores",
+                lambda cpus: schemas.ExecutionConfig(pinned_cpu_cores=cpus),
+            ),
+            (
+                "cpu_pinning",
+                lambda cpus: schemas.PipelineGraph(**graph, cpu_pinning=cpus),
+            ),
+        ):
+            with self.subTest(field=field):
+                self.assertEqual(getattr(build([13, 12, 13]), field), [12, 13])
+                for cpus in ([-1], [True], ["12"], [1.5], "12"):
+                    with self.assertRaises(ValueError):
+                        build(cpus)
+
     def test_pipeline_description_source_discriminator(self):
         """
         PipelineDescriptionSource should have source='description' as discriminator.

@@ -9,6 +9,7 @@ import requests
 import time
 import os
 import json
+import re
 import datetime
 from pydantic import ValidationError
 from http import HTTPStatus
@@ -20,6 +21,20 @@ audit_logger = get_audit_logger()
 
 BAD_REQUEST_RESPONSE = 'Invalid pipeline, version or instance'
 NOT_IMPLEMENTED = 'Unsupported endpoint'
+
+_NAME_VERSION_PATTERN = re.compile(r'^[a-zA-Z0-9_.-]{1,128}$')
+# instance_id is uuid.uuid1().hex (pipeline_manager.py) - 32 lowercase hex chars
+_INSTANCE_ID_PATTERN = re.compile(r'^[0-9a-f]{1,64}$')
+
+
+def _valid_identifier(value):
+    """Allowlist check for 'name'/'version' path params."""
+    return isinstance(value, str) and bool(_NAME_VERSION_PATTERN.match(value))
+
+
+def _valid_instance_id(value):
+    """Allowlist check for 'instance_id' path params."""
+    return isinstance(value, str) and bool(_INSTANCE_ID_PATTERN.match(value))
 
 
 def _client_ip():
@@ -85,6 +100,8 @@ class Endpoints:
 
         :rtype: None
         """
+        if not (_valid_identifier(name) and _valid_identifier(version)):
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         return (NOT_IMPLEMENTED, HTTPStatus.BAD_REQUEST)
 
 
@@ -102,6 +119,8 @@ class Endpoints:
 
         :rtype: None
         """
+        if not (_valid_identifier(name) and _valid_identifier(version) and _valid_instance_id(instance_id)):
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         return (NOT_IMPLEMENTED, HTTPStatus.BAD_REQUEST)
 
     def pipelines_instance_id_delete(instance_id):  # noqa: E501
@@ -114,6 +133,8 @@ class Endpoints:
 
         :rtype: None
         """
+        if not _valid_instance_id(instance_id):
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         try:
             logger.debug("DELETE on /pipelines/{id}".format(id=instance_id))
             result = Endpoints.pipeline_server_manager.stop_instance(instance_id)
@@ -141,6 +162,8 @@ class Endpoints:
 
         :rtype: object
         """
+        if not (_valid_identifier(name) and _valid_identifier(version) and _valid_instance_id(instance_id)):
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         return (NOT_IMPLEMENTED, HTTPStatus.BAD_REQUEST)
 
 
@@ -154,6 +177,8 @@ class Endpoints:
 
         :rtype: object
         """
+        if not _valid_instance_id(instance_id):
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         try:
             logger.debug("GET on /pipelines/{id}".format(id=instance_id))
             result, err = Endpoints.pipeline_server_manager.get_pipeline_instance_summary(instance_id)
@@ -179,6 +204,8 @@ class Endpoints:
 
         :rtype: object
         """
+        if not (_valid_identifier(name) and _valid_identifier(version) and _valid_instance_id(instance_id)):
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         return (NOT_IMPLEMENTED, HTTPStatus.BAD_REQUEST)
 
     def pipelines_status_get_all():  # noqa: E501
@@ -209,6 +236,8 @@ class Endpoints:
 
         :rtype: object
         """
+        if not _valid_instance_id(instance_id):
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
         try:
             logger.debug("GET on /pipelines/{id}/status".format(id=instance_id))
             result = Endpoints.pipeline_server_manager.get_instance_status(instance_id)
@@ -235,6 +264,9 @@ class Endpoints:
 
         :rtype: None
         """
+
+        if not (_valid_identifier(name) and _valid_identifier(version)):
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
 
         logger.debug(
             "POST on /pipelines/{name}/{version}".format(name=name, version=str(version)))
@@ -270,6 +302,9 @@ class Endpoints:
 
         :rtype: None
         """
+
+        if not (_valid_identifier(name) and _valid_identifier(version) and _valid_instance_id(instance_id)):
+            return (BAD_REQUEST_RESPONSE, HTTPStatus.BAD_REQUEST)
 
         logger.debug(
             "POST on /pipelines/{name}/{version}/{instance_id}".format(name=name, version=str(version), instance_id=instance_id))

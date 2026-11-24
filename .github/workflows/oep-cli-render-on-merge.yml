@@ -84,7 +84,7 @@ jobs:
             federal_and_aerospace_ai_suite_handheld \
             federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle \
             federal_and_aerospace_ai_suite_mission_sensing_service \
-            edge-workloads-and-benchmarks \
+            edge_workloads_and_benchmarks \
             vippet \
             --output rendered/openedge-cli-federal-aerospace
 

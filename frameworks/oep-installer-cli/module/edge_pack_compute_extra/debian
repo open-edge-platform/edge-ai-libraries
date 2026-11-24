@@ -9,14 +9,14 @@ debian_40_install_edge_pack_compute_extra () {
     echo "intel-edge-compute-extra is installed." >&2
   else
     ensure_prop set installed/edge_pack_compute_extra/owned true
-    ensure_apt purge --auto-remove -y intel-edge-compute-extra || true
-    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-compute-extra=$version*"
+    install_edge_pack_meta "intel-edge-compute-extra=$version*"
   fi
 }
 
 debian_40_remove_edge_pack_compute_extra () {
+  configure_edge_pack "$@"
   [ "$(ensure_prop get installed/edge_pack_compute_extra/owned)" = "true" ] || return 0
-  ensure_apt purge --auto-remove -y intel-edge-compute-extra || true
+  remove_edge_pack_meta intel-edge-compute-extra
 }
 
 debian_40_sbom_edge_pack_compute_extra () {

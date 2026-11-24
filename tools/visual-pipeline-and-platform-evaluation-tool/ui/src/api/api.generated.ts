@@ -1340,6 +1340,8 @@ export type Edge = {
   target: string;
 };
 export type PipelineGraph = {
+  /** Logical CPU ids every stream of this graph is pinned to. Empty uses test-level pinning. */
+  cpu_pinning?: number[];
   /** List of pipeline nodes. */
   nodes: Node[];
   /** List of directed edges between nodes. */
@@ -1568,6 +1570,7 @@ export type ModelSource =
   | "ultralytics"
   | "pipeline-zoo-models"
   | "omz"
+  | "geti"
   | "custom";
 export type ModelDownloadJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type ModelDownloadJobStatus = {
@@ -1698,7 +1701,7 @@ export type ModelDownloadRequest = {
   names: string[];
   /** Upstream hub used for names not found in the model catalog. */
   hub?: ModelSource | null;
-  /** Model category, required when `hub` is `huggingface` (ignored for other hubs). */
+  /** Model category, required when `hub` is `huggingface` or `geti` (ignored for other hubs). */
   category?: ModelCategory | null;
   /** Gating mode of the hub model, stored on the registered model (null when unknown). */
   gated?: ModelGated | null;
@@ -1732,6 +1735,8 @@ export type Variant = {
   pipeline_graph: PipelineGraph;
   /** Simplified graph view for this variant. */
   pipeline_graph_simple: PipelineGraph;
+  /** Whether the advanced graph only decodes media (decodebin3) without inference elements. Pinned media-only graphs decode on VDBox. Set by backend only. */
+  media_only?: boolean;
   /** Creation timestamp as UTC datetime. Set by backend only. */
   created_at: string;
   /** Last modification timestamp as UTC datetime. Set by backend only. */
@@ -1898,7 +1903,8 @@ export type DefaultVideoConversionState =
   | "converting"
   | "converted"
   | "failed"
-  | "conflict";
+  | "conflict"
+  | "unsupported";
 export type DefaultVideoRecording = {
   filename: string;
   source: string;

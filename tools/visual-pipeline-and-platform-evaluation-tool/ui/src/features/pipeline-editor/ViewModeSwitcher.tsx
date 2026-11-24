@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
@@ -14,6 +17,7 @@ import { UnsavedChangesDialog } from "@/components/shared/UnsavedChangesDialog";
 import { useState } from "react";
 
 interface ViewModeSwitcherProps {
+  cpuPinning?: number[];
   pipelineId: string;
   variant: string;
   isPredefined: boolean;
@@ -31,6 +35,7 @@ interface ViewModeSwitcherProps {
 }
 
 const ViewModeSwitcher = ({
+  cpuPinning = [],
   pipelineId,
   variant,
   isPredefined,
@@ -61,6 +66,7 @@ const ViewModeSwitcher = ({
       // Only save current state if not skipping (i.e., when not discarding changes)
       if (!skipSave && !isPredefined) {
         const graphData = {
+          cpu_pinning: cpuPinning,
           nodes: currentNodes.map((node) => ({
             id: node.id,
             type: node.type ?? "",
