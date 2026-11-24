@@ -333,7 +333,7 @@ class VoiceRoutesTests(unittest.TestCase):
                         SimpleNamespace(id="npu", name="NPU", device="NPU"),
                     ],
                     defaults=SimpleNamespace(
-                        audio="sample_male.wav",
+                        audio="OSR_us_000_0010_8k.wav",
                         language="en",
                         text=None,
                         voice=None,
@@ -600,8 +600,8 @@ class VoiceRoutesTests(unittest.TestCase):
             list_assets=MagicMock(
                 return_value=[
                     SimpleNamespace(
-                        filename="sample_male.wav",
-                        path="/audio/sample_male.wav",
+                        filename="OSR_us_000_0010_8k.wav",
+                        path="/audio/OSR_us_000_0010_8k.wav",
                         duration_seconds=33.5,
                     ),
                     SimpleNamespace(
@@ -620,9 +620,9 @@ class VoiceRoutesTests(unittest.TestCase):
             response.json(),
             [
                 {
-                    "filename": "sample_male.wav",
+                    "filename": "OSR_us_000_0010_8k.wav",
                     "duration_seconds": 33.5,
-                    "audio_url": "/api/v1/voice/recordings/sample_male.wav/audio",
+                    "audio_url": "/api/v1/voice/recordings/OSR_us_000_0010_8k.wav/audio",
                 },
                 {
                     "filename": "vippet info.wav",
@@ -632,6 +632,123 @@ class VoiceRoutesTests(unittest.TestCase):
             ],
         )
         assets.list_assets.assert_called_once_with()
+
+    def test_lists_sample_audio_recordings(self) -> None:
+        assets = SimpleNamespace(
+            get_asset=MagicMock(
+                side_effect=lambda name: (
+                    SimpleNamespace(filename=name)
+                    if name == "OSR_us_000_0011_8k.wav"
+                    else None
+                )
+            )
+        )
+        with patch.object(voice, "AudioAssetsManager", return_value=assets):
+            response = self.client.get("/voice/sample-recordings")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 3)
+        self.assertEqual(
+            response.json()[0],
+            {
+                "filename": "OSR_us_000_0010_8k.wav",
+                "gender": "F",
+                "format": "16b PCM",
+                "sample_rate": "8 kHz",
+                "description": "Harvard sentences",
+                "downloaded": False,
+            },
+        )
+        self.assertEqual(
+            [item["downloaded"] for item in response.json()], [False, True, False]
+        )
+
+    def test_downloads_allowlisted_sample_audio_to_server(self) -> None:
+        requests: list[httpx.Request] = []
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(
+                200,
+                content=wav_bytes(),
+                headers={"content-type": "audio/x-wav"},
+            )
+
+        assets = SimpleNamespace(
+            get_asset=MagicMock(return_value=None),
+            save_sample_recording=MagicMock(),
+        )
+        with (
+            patch.object(voice, "AudioAssetsManager", return_value=assets),
+            patch.object(
+                voice,
+                "create_sample_audio_client",
+                lambda: httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+            ),
+        ):
+            response = self.client.post(
+                "/voice/sample-recordings/OSR_us_000_0010_8k.wav/download"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["filename"], "OSR_us_000_0010_8k.wav")
+        self.assertTrue(response.json()["downloaded"])
+        self.assertEqual(requests[0].url.host, "www.voiptroubleshooter.com")
+        assets.save_sample_recording.assert_called_once_with(
+            "OSR_us_000_0010_8k.wav", wav_bytes()
+        )
+
+    def test_skips_fetch_for_already_downloaded_sample_audio(self) -> None:
+        assets = SimpleNamespace(
+            get_asset=MagicMock(return_value=SimpleNamespace()),
+            save_sample_recording=MagicMock(),
+        )
+        with (
+            patch.object(voice, "AudioAssetsManager", return_value=assets),
+            patch.object(voice, "create_sample_audio_client") as create_client,
+        ):
+            response = self.client.post(
+                "/voice/sample-recordings/OSR_us_000_0010_8k.wav/download"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["downloaded"])
+        create_client.assert_not_called()
+        assets.save_sample_recording.assert_not_called()
+
+    def test_rejects_unknown_sample_audio_filename(self) -> None:
+        with patch.object(voice, "create_sample_audio_client") as create_client:
+            response = self.client.post("/voice/sample-recordings/other.wav/download")
+
+        self.assertEqual(response.status_code, 404)
+        create_client.assert_not_called()
+
+    def test_rejects_oversized_sample_audio(self) -> None:
+        def respond(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                content=b"x" * (voice.MAX_SAMPLE_AUDIO_BYTES + 1),
+                headers={"content-type": "audio/x-wav"},
+            )
+
+        assets = SimpleNamespace(
+            get_asset=MagicMock(return_value=None),
+            save_sample_recording=MagicMock(),
+        )
+        with (
+            patch.object(voice, "AudioAssetsManager", return_value=assets),
+            patch.object(
+                voice,
+                "create_sample_audio_client",
+                lambda: httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+            ),
+        ):
+            response = self.client.post(
+                "/voice/sample-recordings/OSR_us_000_0010_8k.wav/download"
+            )
+
+        self.assertEqual(response.status_code, 502)
+        assets.save_sample_recording.assert_not_called()
 
     def test_lists_empty_audio_recordings(self) -> None:
         assets = SimpleNamespace(list_assets=MagicMock(return_value=[]))

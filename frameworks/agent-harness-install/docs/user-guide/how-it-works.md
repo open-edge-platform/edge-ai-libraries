@@ -1,12 +1,20 @@
-# How it works
+<!--hide_directive
+```{eval-rst}
+.. meta::
+   :description: Learn how the Agent Harness Installer prepares the host, starts the inference backend, installs an agent, and runs in host mode or in an OpenShell sandbox.
+   :keywords: Agent Harness Installer, install flow, runtime architecture, Inference Router, OpenVINO Model Server, OpenShell sandbox
+```
+hide_directive-->
 
-## Host-mode install flow
+# How It Works
+
+## Host-Mode Install Flow
 
 `./install.sh` is the only command you run. It prepares the host, brings up
 the inference backend, installs the chosen agent, and wires the two together.
 The diagram below describes host mode; OpenShell's automatic model selection,
-sandbox lifecycle and onboarding are covered in the
-[Agent Sandboxing guide](./agentic-ai-security/agent-sandboxing.md).
+sandbox lifecycle, and onboarding are covered in the
+[Agent Sandboxing guide](./agentic-ai-security/agent-sandboxing.md):
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 45, "curve": "basis"}}}%%
@@ -74,11 +82,11 @@ The Hermes and dcode installers come from pinned upstream commits with their
 digests built in, so no flags are needed; the Docker convenience script still
 needs a digest or an explicit opt-out.
 
-## Runtime architecture
+## Runtime Architecture
 
 Once installed, the agent talks to a single OpenAI-compatible endpoint. The
-Inference Router sits in front of OVMS (or of an external endpoint), and the
-local containers run on a dedicated Docker network. Published ports bind to
+Inference Router (IR) sits in front of OpenVINO™ Model Server (OVMS), or of an external
+endpoint, and the local containers run on a dedicated Docker network. Published ports bind to
 127.0.0.1 by default; set `HARNESS_ADVERTISED_HOST` (a specific address) or
 `HARNESS_BIND_HOST=0.0.0.0` (all interfaces) to reach them from other machines.
 These LAN-publication overrides apply only to host mode; OpenShell mode
@@ -122,7 +130,7 @@ flowchart TD
     class HOST host
 ```
 
-## OpenShell sandbox runtime
+## OpenShell Sandbox Runtime
 
 For OpenShell, the agent runs in its own non-root sandbox. The attached
 inference provider grants access to IR; managed IR-to-OVMS traffic stays on a

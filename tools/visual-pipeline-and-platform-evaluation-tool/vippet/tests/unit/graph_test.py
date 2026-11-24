@@ -14,6 +14,21 @@ from graph import (
 )
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 
+# Pipelines run on DLSPS 2.0, which these tests do not reach: decoder and
+# encoder selection sees no server elements instead of asking the server.
+_elements_patcher = patch("explore.GstInspector._get_gst_elements", return_value=[])
+
+
+def setUpModule() -> None:
+    """Install the element-list patch before any test runs."""
+    _elements_patcher.start()
+
+
+def tearDownModule() -> None:
+    """Remove the element-list patch after the module's tests finish."""
+    _elements_patcher.stop()
+
+
 # Create mock instances for SupportedModelsManager and VideosManager
 mock_models_manager_instance = MagicMock()
 mock_videos_manager_instance = MagicMock()
@@ -4521,7 +4536,25 @@ class TestApplyLoopingModifications(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             graph.apply_looping_modifications()
 
-        self.assertIn("Cannot find source video", str(cm.exception))
+        self.assertIn("Input video 'video.mp4' is not available", str(cm.exception))
+
+    @patch("graph.VideosManager")
+    def test_empty_input_video_raises_clear_error(self, mock_videos_cls):
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": ""}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("No input video is selected", str(cm.exception))
+        mock_videos_cls.return_value.get_ts_path.assert_not_called()
 
     @patch("graph.VideosManager")
     @patch("os.path.isfile")
@@ -5921,6 +5954,109 @@ class TestPrepareIntermediateOutputSinks(unittest.TestCase):
         )
 
 
+class TestValidateBrokerMetadataPublishers(unittest.TestCase):
+    """Test cases for Graph.validate_broker_metadata_publishers method."""
+
+    @staticmethod
+    def _graph(data: dict) -> Graph:
+        return Graph(nodes=[Node(id="0", type="gvametapublish", data=data)], edges=[])
+
+    def test_configured_mqtt_publisher_passes(self):
+        """A broker publisher with address and topic is accepted."""
+        graph = self._graph(
+            {"method": "mqtt", "address": "broker:1883", "topic": "vippet"}
+        )
+        graph.validate_broker_metadata_publishers()
+
+    def test_file_publisher_is_ignored(self):
+        """A file publisher needs no broker settings."""
+        graph = self._graph({"method": "file", "file-path": "/dev/null"})
+        graph.validate_broker_metadata_publishers()
+
+    def test_publisher_without_method_is_ignored(self):
+        """A gvametapublish without an explicit method defaults to file."""
+        self._graph({}).validate_broker_metadata_publishers()
+
+    def test_missing_address_raises(self):
+        """An empty address would silently fail to connect at runtime."""
+        graph = self._graph({"method": "mqtt", "address": "", "topic": "vippet"})
+
+        with self.assertRaises(ValueError) as ctx:
+            graph.validate_broker_metadata_publishers()
+
+        self.assertIn("address", str(ctx.exception))
+
+    def test_missing_address_and_topic_raises_once(self):
+        """Both missing properties are reported in a single message."""
+        graph = self._graph({"method": "mqtt"})
+
+        with self.assertRaises(ValueError) as ctx:
+            graph.validate_broker_metadata_publishers()
+
+        message = str(ctx.exception)
+        self.assertIn("address and topic", message)
+        self.assertIn("are empty", message)
+
+    def test_whitespace_only_topic_raises(self):
+        """Whitespace is not a usable topic."""
+        graph = self._graph(
+            {"method": "mqtt", "address": "broker:1883", "topic": "   "}
+        )
+
+        with self.assertRaises(ValueError) as ctx:
+            graph.validate_broker_metadata_publishers()
+
+        self.assertIn("topic", str(ctx.exception))
+
+
+class TestUnifyAllElementNamesMqttClientId(unittest.TestCase):
+    """Explicit MQTT client IDs must be unique per pipeline and stream."""
+
+    @staticmethod
+    def _graph(publisher_data: dict[str, str]) -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="fakesrc", data={}),
+                Node(id="1", type="gvametapublish", data=publisher_data),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+    def test_explicit_client_id_is_unique_per_stream(self):
+        graph = self._graph(
+            {
+                "method": "mqtt",
+                "address": "mqtt-broker:1883",
+                "mqtt-client-id": "vippet",
+            }
+        )
+
+        first = graph.unify_all_element_names(0, 0)
+        second = graph.unify_all_element_names(0, 1)
+
+        self.assertEqual(first.nodes[1].data["mqtt-client-id"], "vippet_0_0")
+        self.assertEqual(second.nodes[1].data["mqtt-client-id"], "vippet_0_1")
+        self.assertEqual(graph.nodes[1].data["mqtt-client-id"], "vippet")
+
+    def test_empty_client_id_is_left_for_generation(self):
+        graph = self._graph({"method": "mqtt", "mqtt-client-id": ""})
+
+        result = graph.unify_all_element_names(0, 1)
+
+        self.assertEqual(result.nodes[1].data["mqtt-client-id"], "")
+
+    def test_missing_client_id_is_not_added(self):
+        graph = self._graph({"method": "mqtt"})
+
+        result = graph.unify_all_element_names(0, 1)
+
+        self.assertNotIn("mqtt-client-id", result.nodes[1].data)
+
+
 class TestInjectMetadataFilePaths(unittest.TestCase):
     """Test cases for Graph.inject_metadata_file_paths method."""
 
@@ -6039,7 +6175,7 @@ class TestInjectMetadataFilePaths(unittest.TestCase):
                     id="0",
                     type="gvametapublish",
                     data={
-                        "method": "mqtt",
+                        "method": "file",
                         "file-format": "json",
                         "file-path": "/old/path.jsonl",
                     },
@@ -6055,6 +6191,53 @@ class TestInjectMetadataFilePaths(unittest.TestCase):
         self.assertEqual(node.data["file-format"], "json-lines")
         self.assertEqual(node.data["file-path"], "/metadata/new/metadata_0.jsonl")
         self.assertEqual(paths[0], "/metadata/new/metadata_0.jsonl")
+
+    def test_broker_publishing_nodes_are_not_modified(self):
+        """Test that a gvametapublish configured for a broker keeps its settings."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="gvametapublish",
+                    data={
+                        "method": "mqtt",
+                        "address": "mqtt-broker:1883",
+                        "topic": "vippet/metadata",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        paths = graph.inject_metadata_file_paths("/metadata/new")
+
+        self.assertEqual(paths, [])
+        self.assertEqual(
+            graph.nodes[0].data,
+            {
+                "method": "mqtt",
+                "address": "mqtt-broker:1883",
+                "topic": "vippet/metadata",
+            },
+        )
+
+    def test_file_node_still_injected_alongside_broker_node(self):
+        """Test that a file publisher is injected while a broker publisher is skipped."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="gvametapublish", data={"method": "mqtt"}),
+                Node(id="1", type="gvametapublish", data={}),
+            ],
+            edges=[],
+        )
+
+        paths = graph.inject_metadata_file_paths("/metadata/new")
+
+        self.assertEqual(paths, ["/metadata/new/metadata_1.jsonl"])
+        self.assertEqual(graph.nodes[0].data["method"], "mqtt")
+        self.assertEqual(
+            graph.nodes[1].data["file-path"], "/metadata/new/metadata_1.jsonl"
+        )
 
     def test_non_gvametapublish_nodes_are_not_modified(self):
         """Test that nodes of other types are not modified."""
@@ -6832,6 +7015,51 @@ class TestInputVideoNameToPathAbsoluteBypass(unittest.TestCase):
 
         instance.get_video_path.assert_called_once_with("foo.mp4")
         self.assertEqual(nodes[0].data["location"], "/videos/input/uploaded/foo.mp4")
+
+    @patch("graph.VideosManager")
+    def test_missing_video_raises_clear_error(self, mock_videos_cls):
+        from graph import _input_video_name_to_path
+
+        mock_videos_cls.return_value.get_video_path.return_value = None
+
+        nodes = [Node(id="0", type="filesrc", data={"location": "people.mp4"})]
+        with self.assertRaises(ValueError) as cm:
+            _input_video_name_to_path(nodes)
+
+        self.assertIn("Input video 'people.mp4' is not available", str(cm.exception))
+        self.assertIn("Videos page", str(cm.exception))
+
+
+class TestInputVideoPathToDisplayNameMissingVideo(unittest.TestCase):
+    @patch("graph.VideosManager")
+    def test_missing_filesrc_video_keeps_filename(self, mock_videos_cls):
+        from graph import _input_video_path_to_display_name
+
+        mock_videos_cls.return_value.get_video_filename.return_value = None
+
+        nodes = [
+            Node(id="0", type="filesrc", data={"location": "/videos/input/people.mp4"})
+        ]
+        _input_video_path_to_display_name(nodes)
+
+        self.assertEqual(nodes[0].data["location"], "people.mp4")
+
+    @patch("graph.VideosManager")
+    def test_missing_non_filesrc_video_is_cleared(self, mock_videos_cls):
+        from graph import _input_video_path_to_display_name
+
+        mock_videos_cls.return_value.get_video_filename.return_value = None
+
+        nodes = [
+            Node(
+                id="0",
+                type="multifilesrc",
+                data={"location": "/videos/input/people.mp4"},
+            )
+        ]
+        _input_video_path_to_display_name(nodes)
+
+        self.assertEqual(nodes[0].data["location"], "")
 
 
 # --------------------------------------------------------------------------- #

@@ -42,6 +42,7 @@
     >
       <Table
         :table-data="libraryList"
+        :loading="loading"
         :selected-library="libraryData?.name"
         @create="handleCreate"
         @select="handleSelect"
@@ -73,7 +74,7 @@ import type { ConsolePageProps } from "../../types/console";
 import Table from "./components/Table.vue";
 import CreateDialog from "./components/CreateDialog.vue";
 
-const props = defineProps<ConsolePageProps>();
+const props = defineProps<ConsolePageProps & { loading?: boolean }>();
 const emit = defineEmits<{
   refresh: [];
   "select-library": [name: string];
