@@ -9,13 +9,19 @@ This guide describes how to build, start, and stop the Time Series Analytics Mic
 as part of the ViPPET stack, and how to configure it with a sample Wind Turbine anomaly
 detection UDF.
 
+ViPPET replays sample wind turbine readings from a CSV file. The ingestion service
+sends the readings to TSAM as JSON, and ViPPET displays the pipeline's performance
+and input metadata. This quickstart does not require InfluxDB or Grafana.
+
 ## Prerequisites
 
 - Docker and Docker Compose installed
 - `make` available on the host
 - `wget` installed (required to download UDF packages)
 
-> Time Series Analytics can run on CPU or GPU, but NPU is not supported.
+> The included Wind Turbine pipeline uses CPU inference. The experimental Compose
+> stack still requires `/dev/dri` on the Docker host because it maps the device
+> into the TSAM container. NPU inference is not supported.
 
 ## Activate the Experimental Time Series stack
 
@@ -31,7 +37,8 @@ Activation is performed with the
 
 ### Build the experimental stack
 
-Build all required Docker images:
+Build the local images, including the Time Series ingestion service. The TSAM
+service uses a published image; this target does not build TSAM from source.
 
 ```bash
 make build-experimental
@@ -47,24 +54,14 @@ make run-experimental
 
 This command enables the Time Series flow by layering `compose.experimental.yml` on top of the standard
 compose stack, including `ia-time-series-analytics-microservice` and `ia-timeseries-ingestion`.
-By default, Compose uses the published `intel/ia-time-series-analytics-microservice:2026.3.0-rc2`
-image and tags the locally built ingestion image as `intel/ia-timeseries-ingestion:2026.3.0-rc2`.
 
 ### Verify that Time Series services are active
 
-Check if both Time Series services are running:
+Check that both Time Series containers are running and that the analytics
+container reports `healthy` before proceeding:
 
 ```bash
-docker ps --format '{{.Names}}' | grep -E 'ia-time-series-analytics-microservice|ia-timeseries-ingestion'
-```
-
-### Stop and Clean
-
-Stop all running services and clean any artifacts:
-
-```bash
-make stop-experimental
-make clean-experimental
+docker ps --format '{{.Names}}\t{{.Status}}' | grep -E '^(ia-time-series-analytics-microservice|ia-timeseries-ingestion)[[:space:]]'
 ```
 
 ---
@@ -73,11 +70,12 @@ make clean-experimental
 
 Once the services are running, follow the steps below to deploy the Wind Turbine anomaly detection UDF into the TSAM.
 
-The TSAM Swagger UI is available at **[http://localhost:5000/docs](http://localhost:5000/docs)**.
+On the Docker host, open the TSAM Swagger UI at **[http://127.0.0.1:5000/docs](http://127.0.0.1:5000/docs)**.
 
 ### Step 1. Download the UDF package
 
-Download the pre-built Wind Turbine UDF tar archive:
+Download the Wind Turbine UDF package from the official Edge AI Resources
+repository. Only upload UDF packages you trust, because TSAM runs their Python code.
 
 ```bash
 wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-resources/main/timeseries-udf-deployment-packages/wind-turbine-anomaly-detection.tar
@@ -85,7 +83,7 @@ wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-resources/main
 
 ### Step 2. Upload the UDF package
 
-1. Open **[http://localhost:5000/docs](http://localhost:5000/docs)** in a browser.
+1. Open **[http://127.0.0.1:5000/docs](http://127.0.0.1:5000/docs)** in a browser.
 1. Navigate to **POST /udfs/package**.
 1. Click **Try it out**.
 1. Under **Choose File**, select the downloaded `wind-turbine-anomaly-detection.tar` file.
@@ -96,7 +94,7 @@ A successful response returns the message: `UDF deployment package 'wind-turbine
 
 ### Step 3. Apply the configuration
 
-1. Open **[http://localhost:5000/docs](http://localhost:5000/docs)** in a browser.
+1. Open **[http://127.0.0.1:5000/docs](http://127.0.0.1:5000/docs)** in a browser.
 1. Navigate to **POST /config**.
 1. Click **Try it out**.
 1. In the **Request Body** field, paste the following configuration:
@@ -204,3 +202,17 @@ In the right panel:
     src="../../_assets/ViPPET-UI-Wind-Turbine-metrics-light.png"
     alt="Wind Turbine pipeline runtime data in Metadata JSON tab">
 </picture>
+
+## Stop and clean up
+
+When you finish testing, stop the experimental stack:
+
+```bash
+make stop-experimental
+```
+
+To also remove the Compose volumes and their data, run:
+
+```bash
+make clean-experimental
+```
