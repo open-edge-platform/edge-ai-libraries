@@ -40,7 +40,7 @@ x-vippet: &vippet
     # subdirectories of UPLOADED_IMAGES_DIR; no auto-downloaded image
     # content exists today, so only the 'uploaded' tree is mounted.
     UPLOADED_IMAGES_DIR: /images/input/uploaded
-    # 'auto' holds recordings downloaded from default_recordings.yaml;
+    # 'auto' holds sample videos downloaded on demand from default_recordings.yaml;
     # 'uploaded' holds user uploads. Each is created on startup if missing.
     AUTO_VIDEO_DIR: /videos/input/auto
     UPLOADED_VIDEO_DIR: /videos/input/uploaded
@@ -49,7 +49,6 @@ x-vippet: &vippet
     OUTPUT_VIDEO_DIR: /videos/output
     AUTO_AUDIO_DIR: /audio/input/auto
     OUTPUT_AUDIO_DIR: /audio/output
-    DEFAULT_AUDIO_RECORDINGS_FILE: /audio/default_recordings.yaml
     # Upload validation limits for POST /videos/upload. Keep
     # UPLOAD_MAX_SIZE_BYTES in sync with nginx 'client_max_body_size' in
     # ui/nginx.conf.
@@ -306,7 +305,7 @@ services:
       pull: true
       args:
         # Keep in sync with vippet/Dockerfile so both backends run the same DLStreamer.
-        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-${DLSTREAMER_IMAGE:-intel/dlstreamer:2026.3.0-ubuntu26-rc1}}
+        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-${DLSTREAMER_IMAGE:-intel/dlstreamer:2026.3.0-ubuntu26-rc2}}
         UID: ${DLSPS2_UID:-1000}
         USER: ${DLSPS2_USER:-pipeline-server}
         http_proxy:
@@ -371,7 +370,7 @@ services:
       vippet-plugins:
         condition: service_completed_successfully
   metrics-manager:
-    image: docker.io/intel/metrics-manager:2026.3.0-rc1
+    image: docker.io/intel/metrics-manager:2026.3.0-rc2
     pull_policy: daily
     container_name: metrics-manager
     init: true

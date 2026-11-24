@@ -560,6 +560,35 @@ const injectedRtkApi = api
         query: () => ({ url: `/timeseries/ingestion/stream` }),
         providesTags: ["timeseries"],
       }),
+      getDefaultVideoRecordings: build.query<
+        GetDefaultVideoRecordingsApiResponse,
+        GetDefaultVideoRecordingsApiArg
+      >({
+        query: () => ({ url: `/videos/default-recordings` }),
+        providesTags: ["videos"],
+      }),
+      startDefaultVideoDownload: build.mutation<
+        StartDefaultVideoDownloadApiResponse,
+        StartDefaultVideoDownloadApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/videos/download-default`,
+          method: "POST",
+          body: queryArg.defaultVideoDownloadRequest,
+        }),
+        invalidatesTags: ["videos"],
+      }),
+      startDefaultVideoHevcConversion: build.mutation<
+        StartDefaultVideoHevcConversionApiResponse,
+        StartDefaultVideoHevcConversionApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/videos/convert-hevc`,
+          method: "POST",
+          body: queryArg.defaultVideoConversionRequest,
+        }),
+        invalidatesTags: ["videos"],
+      }),
       getVideos: build.query<GetVideosApiResponse, GetVideosApiArg>({
         query: () => ({ url: `/videos` }),
         providesTags: ["videos"],
@@ -660,6 +689,24 @@ const injectedRtkApi = api
         }),
         providesTags: ["voice"],
       }),
+      listSampleAudioRecordingsVoiceSampleRecordingsGet: build.query<
+        ListSampleAudioRecordingsVoiceSampleRecordingsGetApiResponse,
+        ListSampleAudioRecordingsVoiceSampleRecordingsGetApiArg
+      >({
+        query: () => ({ url: `/voice/sample-recordings` }),
+        providesTags: ["voice"],
+      }),
+      downloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPost:
+        build.mutation<
+          DownloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPostApiResponse,
+          DownloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPostApiArg
+        >({
+          query: (queryArg) => ({
+            url: `/voice/sample-recordings/${queryArg.filename}/download`,
+            method: "POST",
+          }),
+          invalidatesTags: ["voice"],
+        }),
       runAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPost:
         build.mutation<
           RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse,
@@ -878,17 +925,17 @@ export type ListHubModelsApiResponse =
 export type ListHubModelsApiArg = {
   modelHubListRequest: ModelHubListRequest;
 };
-export type UploadModelApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 201 Model uploaded successfully */ ModelUploadResponse;
+export type UploadModelApiResponse = /** status 200 Successful Response */
+  | any
+  | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
   /** status 200 Successful Response */
-  | any
-  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+    | any
+    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -992,6 +1039,23 @@ export type GetTimeseriesDataTimeseriesDataGetApiArg = {
 export type StreamIngestionTimeseriesIngestionStreamGetApiResponse =
   /** status 200 Successful Response */ any;
 export type StreamIngestionTimeseriesIngestionStreamGetApiArg = void;
+export type GetDefaultVideoRecordingsApiResponse =
+  /** status 200 Successful Response */ DefaultVideoRecording[];
+export type GetDefaultVideoRecordingsApiArg = void;
+export type StartDefaultVideoDownloadApiResponse =
+  /** status 200 The video is already downloaded or a download is in progress. */
+    | DefaultVideoDownloadResponse
+    | /** status 202 Successful Response */ DefaultVideoDownloadResponse;
+export type StartDefaultVideoDownloadApiArg = {
+  defaultVideoDownloadRequest: DefaultVideoDownloadRequest;
+};
+export type StartDefaultVideoHevcConversionApiResponse =
+  /** status 200 The video is already converted or a conversion is running. */
+    | DefaultVideoConversionResponse
+    | /** status 202 Successful Response */ DefaultVideoConversionResponse;
+export type StartDefaultVideoHevcConversionApiArg = {
+  defaultVideoConversionRequest: DefaultVideoConversionRequest;
+};
 export type GetVideosApiResponse =
   /** status 200 Successful Response */ Video[];
 export type GetVideosApiArg = void;
@@ -1051,6 +1115,15 @@ export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiResponse =
 export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiArg = {
   filename: string;
 };
+export type ListSampleAudioRecordingsVoiceSampleRecordingsGetApiResponse =
+  /** status 200 Successful Response */ SampleAudioRecordingResponse[];
+export type ListSampleAudioRecordingsVoiceSampleRecordingsGetApiArg = void;
+export type DownloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPostApiResponse =
+  /** status 200 Successful Response */ SampleAudioRecordingResponse;
+export type DownloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPostApiArg =
+  {
+    filename: string;
+  };
 export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse =
   /** status 202 Successful Response */ AudioPipelineJobStartResponse;
 export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiArg =
@@ -1304,10 +1377,7 @@ export type Device = {
   gpu_id: number | null;
   cpu_topology?: CpuTopology | null;
 };
-export type AudioJobState =
-  | "RUNNING"
-  | "COMPLETED"
-  | "FAILED";
+export type AudioJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type AudioJobSummary = {
   id: string;
   pipeline_id: string;
@@ -1530,7 +1600,6 @@ export type ModelInstallStatus =
   | "not_installed"
   | "installing"
   | "failed";
-export type ModelGated = "false" | "auto" | "manual";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1541,6 +1610,7 @@ export type ModelVariant = {
   /** Whether the underlying artefacts for this exact variant are present on disk. */
   installed?: boolean;
 };
+export type ModelGated = "false" | "auto" | "manual";
 export type Model = {
   /** Internal model identifier. */
   name: string;
@@ -1815,6 +1885,42 @@ export type DensityTestSpec = {
   /** Execution configuration for output and runtime. */
   execution_config?: ExecutionConfig;
 };
+export type DefaultVideoDownloadState =
+  | "available"
+  | "queued"
+  | "downloading"
+  | "downloaded"
+  | "failed"
+  | "conflict";
+export type DefaultVideoConversionState =
+  | "not_converted"
+  | "queued"
+  | "converting"
+  | "converted"
+  | "failed"
+  | "conflict";
+export type DefaultVideoRecording = {
+  filename: string;
+  source: string;
+  status: DefaultVideoDownloadState;
+  hevc_filename: string;
+  conversion_status: DefaultVideoConversionState;
+};
+export type DefaultVideoDownloadResponse = {
+  filename: string;
+  status: DefaultVideoDownloadState;
+};
+export type DefaultVideoDownloadRequest = {
+  filename: string;
+};
+export type DefaultVideoConversionResponse = {
+  filename: string;
+  hevc_filename: string;
+  status: DefaultVideoConversionState;
+};
+export type DefaultVideoConversionRequest = {
+  filename: string;
+};
 export type VideoSource = "auto" | "uploaded";
 export type Video = {
   filename: string;
@@ -1997,6 +2103,14 @@ export type AudioRecordingResponse = {
   duration_seconds: number;
   audio_url: string;
 };
+export type SampleAudioRecordingResponse = {
+  filename: string;
+  gender: "F" | "M";
+  format: string;
+  sample_rate: string;
+  description: string;
+  downloaded: boolean;
+};
 export type AudioPipelineJobStartResponse = {
   job_id: string;
   status: "RUNNING" | "COMPLETED" | "FAILED";
@@ -2104,6 +2218,10 @@ export const {
   useLazyGetTimeseriesDataTimeseriesDataGetQuery,
   useStreamIngestionTimeseriesIngestionStreamGetQuery,
   useLazyStreamIngestionTimeseriesIngestionStreamGetQuery,
+  useGetDefaultVideoRecordingsQuery,
+  useLazyGetDefaultVideoRecordingsQuery,
+  useStartDefaultVideoDownloadMutation,
+  useStartDefaultVideoHevcConversionMutation,
   useGetVideosQuery,
   useLazyGetVideosQuery,
   useCheckVideoInputExistsQuery,
@@ -2127,6 +2245,9 @@ export const {
   useLazyListAudioRecordingsVoiceRecordingsGetQuery,
   useGetAudioRecordingVoiceRecordingsFilenameAudioGetQuery,
   useLazyGetAudioRecordingVoiceRecordingsFilenameAudioGetQuery,
+  useListSampleAudioRecordingsVoiceSampleRecordingsGetQuery,
+  useLazyListSampleAudioRecordingsVoiceSampleRecordingsGetQuery,
+  useDownloadSampleAudioRecordingVoiceSampleRecordingsFilenameDownloadPostMutation,
   useRunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostMutation,
   useGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,
   useLazyGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,

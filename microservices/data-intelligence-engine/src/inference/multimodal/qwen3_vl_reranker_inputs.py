@@ -42,7 +42,7 @@ def pad_pair(values, positions, seq_len, pad_token_id):
     return padded, padded_positions
 
 
-def normalize_document(document):
+def normalize_document(document, visual_size=VISUAL_SIZE):
     """Use the fixed visual grid traced into the current OpenVINO graphs."""
     from PIL import Image, ImageOps
 
@@ -51,7 +51,7 @@ def normalize_document(document):
     def normalize(image):
         if not isinstance(image, Image.Image):
             raise TypeError("visual reranker inputs must be decoded PIL images")
-        return ImageOps.pad(image.convert("RGB"), VISUAL_SIZE, color=(0, 0, 0))
+        return ImageOps.pad(image.convert("RGB"), tuple(visual_size), color=(0, 0, 0))
 
     if "image" in result:
         result["image"] = normalize(result["image"])
@@ -76,10 +76,10 @@ def _content(prefix, text=None, image=None, video=None):
     return content
 
 
-def encode(processor, query, document):
+def encode(processor, query, document, visual_size=VISUAL_SIZE):
     from qwen_vl_utils import process_vision_info
 
-    document = normalize_document(document)
+    document = normalize_document(document, visual_size=visual_size)
 
     messages = [
         {"role": "system", "content": [{"type": "text", "text": SYSTEM}]},

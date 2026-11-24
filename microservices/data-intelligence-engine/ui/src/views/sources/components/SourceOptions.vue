@@ -71,7 +71,9 @@
           :options="modelOptions"
           :disabled="choice.status === 'none'"
           :placeholder="modelPlaceholder"
-          @update:value="(value?: string) => (vector.model = value ?? '')"
+          @update:value="
+            (value) => (vector.model = typeof value === 'string' ? value : '')
+          "
         />
       </a-form-item>
     </div>
@@ -88,19 +90,17 @@
     <a-form-item v-else>
       <template #label>
         {{ $t("console.device") }}
-        <FormTooltip :title="$t('console.inheritEngineHint')" />
       </template>
       <a-select
         v-model:value="vector.device"
         :loading="devicesLoading"
         :placeholder="$t('console.pleaseSelect')"
-        :options="[
-          { value: '', label: engineDefaultLabel('device') },
-          ...deviceList.map((value) => ({
+        :options="
+          deviceList.map((value) => ({
             value,
             label: value,
-          })),
-        ]"
+          }))
+        "
       />
     </a-form-item>
     <a-collapse ghost>
@@ -350,7 +350,7 @@ const form = defineModel<SourceOptionsForm>({ required: true });
 const handleBackendChange = () => {
   vector.value.model = "";
 };
-const engineDefaultLabel = (field: "backend" | "device" | "model_id") => {
+const engineDefaultLabel = (field: "backend" | "model_id") => {
   const value = inheritedDefault(
     props.modelData.embedding,
     form.value.vectorTypes,
@@ -389,8 +389,9 @@ const modelOptions = computed(() => [
     .filter((name) => name !== choice.value.defaultModel)
     .map((name) => ({ value: name, label: name })),
 ]);
-const selectValue = computed(() =>
-  vector.value.model || (choice.value.status === "default" ? "" : undefined),
+const selectValue = computed(
+  () =>
+    vector.value.model || (choice.value.status === "default" ? "" : undefined),
 );
 const modelPlaceholder = computed(() =>
   choice.value.status === "none"
@@ -408,7 +409,9 @@ const remoteModels = computed(() =>
 // the type just ticked wins and displaces the ones it cannot be combined with.
 const handleVectorTypesChange = (values: Array<string | number | boolean>) => {
   const selected = values.map(String);
-  const added = selected.find((value) => !form.value.vectorTypes.includes(value));
+  const added = selected.find(
+    (value) => !form.value.vectorTypes.includes(value),
+  );
   form.value.vectorTypes =
     added === "video" || added === "document"
       ? [added]
@@ -422,6 +425,18 @@ const devicesLoading = ref(false);
 const mode = computed(() => vectorMode(form.value.vectorTypes));
 const vector = computed(() => form.value.vectors[mode.value]);
 const backends = computed(() => backendChoices(form.value.vectorTypes));
+watch(
+  [deviceList, vector],
+  ([devices, options]) => {
+    if (!devices.length || devices.includes(options.device)) return;
+    options.device =
+      devices.find((device) => device === "GPU") ||
+      devices.find((device) => device.startsWith("GPU.")) ||
+      (devices.includes("CPU") ? "CPU" : devices[0]) ||
+      "";
+  },
+  { immediate: true },
+);
 // A model chosen for one set of content types may not fit another.
 watch(
   () => [...form.value.vectorTypes],

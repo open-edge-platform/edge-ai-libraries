@@ -20,10 +20,24 @@ _TERMINAL_STATES = {"COMPLETED", "FAILED"}
 STT_PIPELINE_ID = "speech-to-text"
 TTS_PIPELINE_ID = "text-to-speech"
 VARIANT_ID = "cpu"
-RECORDING = "sample_male.wav"
+RECORDING = "OSR_us_000_0010_8k.wav"
+
+
+def _download_recording(session: requests.Session) -> None:
+    """Download the sample recording into the managed audio input directory."""
+    response = session.post(
+        f"{BASE_URL}/voice/sample-recordings/{RECORDING}/download",
+        timeout=60,
+    )
+    assert response.status_code == 200, (
+        f"Expected 200 downloading {RECORDING}, "
+        f"got {response.status_code}, body={response.text}"
+    )
+    assert response.json()["downloaded"] is True
 
 
 def _start_stt_job(session: requests.Session) -> str:
+    _download_recording(session)
     response = session.post(
         f"{BASE_URL}/voice/pipelines/{STT_PIPELINE_ID}/variants/{VARIANT_ID}/runs",
         json={"recording": RECORDING, "language": "en"},
@@ -90,10 +104,28 @@ def test_list_audio_pipelines_returns_stt_and_tts(
 
 
 @pytest.mark.smoke
-def test_list_audio_recordings_contains_default_recordings(
+def test_list_sample_audio_recordings_reports_download_status(
     http_client: requests.Session,
 ) -> None:
-    """GET /voice/recordings returns the default recordings with a playable audio_url."""
+    """GET /voice/sample-recordings lists the catalog with each sample's download status."""
+    _download_recording(http_client)
+    response = http_client.get(f"{BASE_URL}/voice/sample-recordings", timeout=30)
+
+    assert response.status_code == 200, (
+        f"Expected 200 from /voice/sample-recordings, "
+        f"got {response.status_code}, body={response.text}"
+    )
+    samples = {s["filename"]: s for s in response.json()}
+    assert RECORDING in samples, f"Sample {RECORDING!r} missing, got {sorted(samples)}"
+    assert samples[RECORDING]["downloaded"] is True
+
+
+@pytest.mark.smoke
+def test_list_audio_recordings_contains_downloaded_sample(
+    http_client: requests.Session,
+) -> None:
+    """GET /voice/recordings returns a downloaded sample with a playable audio_url."""
+    _download_recording(http_client)
     response = http_client.get(f"{BASE_URL}/voice/recordings", timeout=30)
 
     assert response.status_code == 200, (
@@ -102,7 +134,7 @@ def test_list_audio_recordings_contains_default_recordings(
     )
     recordings = {r["filename"]: r for r in response.json()}
     assert RECORDING in recordings, (
-        f"Default recording {RECORDING!r} missing, got {sorted(recordings)}"
+        f"Downloaded recording {RECORDING!r} missing, got {sorted(recordings)}"
     )
     assert recordings[RECORDING]["duration_seconds"] > 0
     assert recordings[RECORDING]["audio_url"].endswith(f"/{RECORDING}/audio")
@@ -111,6 +143,7 @@ def test_list_audio_recordings_contains_default_recordings(
 @pytest.mark.smoke
 def test_get_audio_recording_returns_wav(http_client: requests.Session) -> None:
     """GET /voice/recordings/{filename}/audio returns the recording as a WAV file."""
+    _download_recording(http_client)
     response = http_client.get(
         f"{BASE_URL}/voice/recordings/{RECORDING}/audio", timeout=30
     )

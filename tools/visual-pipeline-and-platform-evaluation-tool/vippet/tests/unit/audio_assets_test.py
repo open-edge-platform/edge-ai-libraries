@@ -9,9 +9,10 @@ import wave
 from pathlib import Path
 from unittest.mock import patch
 
-import yaml
-
 from audio_assets import AudioAssetsManager
+
+FIRST = "OSR_us_000_0010_8k.wav"
+SECOND = "OSR_us_000_0011_8k.wav"
 
 
 def wav_bytes() -> bytes:
@@ -31,154 +32,101 @@ class AudioAssetsManagerTests(unittest.TestCase):
         root = Path(self.temp_dir.name)
         self.auto_dir = root / "input" / "auto"
         self.output_dir = root / "output"
-        self.manifest = root / "default_recordings.yaml"
-        self.local_dir = root / "local"
         AudioAssetsManager._instance = None
         self.addCleanup(setattr, AudioAssetsManager, "_instance", None)
-
-    def write_manifest(self, entries: list[dict[str, str]]) -> None:
-        self.manifest.write_text(yaml.safe_dump(entries), encoding="utf-8")
 
     def create_manager(self) -> AudioAssetsManager:
         patches = (
             patch("audio_assets.AUTO_AUDIO_DIR", str(self.auto_dir)),
             patch("audio_assets.OUTPUT_AUDIO_DIR", str(self.output_dir)),
-            patch("audio_assets.DEFAULT_AUDIO_RECORDINGS_FILE", str(self.manifest)),
-            patch("audio_assets.LOCAL_AUDIO_RECORDINGS_DIR", self.local_dir),
         )
         for active_patch in patches:
             active_patch.start()
             self.addCleanup(active_patch.stop)
         return AudioAssetsManager()
 
-    def test_copies_local_recording_and_registers_it(self) -> None:
-        self.local_dir.mkdir()
-        (self.local_dir / "source.wav").write_bytes(wav_bytes())
-        self.write_manifest([{"local": "source.wav", "filename": "local.wav"}])
+    def test_starts_with_no_recordings(self) -> None:
+        manager = self.create_manager()
+
+        self.assertTrue(self.auto_dir.is_dir())
+        self.assertEqual(manager.list_assets(), [])
+        self.assertEqual(list(self.auto_dir.iterdir()), [])
+
+    def test_saves_and_lists_downloaded_sample(self) -> None:
+        manager = self.create_manager()
+
+        asset = manager.save_sample_recording(FIRST, wav_bytes())
+
+        stored = self.auto_dir / FIRST
+        self.assertEqual(asset.path, str(stored))
+        self.assertAlmostEqual(asset.duration_seconds, 0.1)
+        self.assertEqual(stored.read_bytes(), wav_bytes())
+        self.assertEqual(manager.get_path(FIRST), str(stored))
+        self.assertEqual([item.filename for item in manager.list_assets()], [FIRST])
+
+    def test_lists_existing_downloaded_samples_sorted(self) -> None:
+        self.auto_dir.mkdir(parents=True)
+        (self.auto_dir / SECOND).write_bytes(wav_bytes())
+        (self.auto_dir / FIRST).write_bytes(wav_bytes())
+
+        assets = self.create_manager().list_assets()
+
+        self.assertEqual([asset.filename for asset in assets], [FIRST, SECOND])
+
+    def test_ignores_files_outside_the_sample_catalog(self) -> None:
+        self.auto_dir.mkdir(parents=True)
+        (self.auto_dir / "sample_male.wav").write_bytes(wav_bytes())
 
         manager = self.create_manager()
 
-        installed = self.auto_dir / "local.wav"
-        self.assertEqual(manager.get_path("local.wav"), str(installed))
-        self.assertEqual(installed.read_bytes(), wav_bytes())
+        self.assertEqual(manager.list_assets(), [])
+        self.assertIsNone(manager.get_path("sample_male.wav"))
 
-    def test_keeps_existing_valid_copy_of_local_recording(self) -> None:
-        self.local_dir.mkdir()
-        (self.local_dir / "local.wav").write_bytes(wav_bytes())
+    def test_ignores_invalid_or_symlinked_samples(self) -> None:
         self.auto_dir.mkdir(parents=True)
-        existing = self.auto_dir / "local.wav"
-        other = io.BytesIO()
-        with wave.open(other, "wb") as audio:
-            audio.setnchannels(1)
-            audio.setsampwidth(2)
-            audio.setframerate(16000)
-            audio.writeframes(b"\x01\x00" * 10)
-        existing.write_bytes(other.getvalue())
-        self.write_manifest([{"local": "local.wav", "filename": "local.wav"}])
-
-        manager = self.create_manager()
-
-        self.assertEqual(existing.read_bytes(), other.getvalue())
-        self.assertEqual(manager.get_path("local.wav"), str(existing))
-
-    def test_replaces_invalid_copy_of_local_recording(self) -> None:
-        self.local_dir.mkdir()
-        (self.local_dir / "local.wav").write_bytes(wav_bytes())
-        self.auto_dir.mkdir(parents=True)
-        (self.auto_dir / "local.wav").write_bytes(b"corrupt")
-        self.write_manifest([{"local": "local.wav", "filename": "local.wav"}])
-
-        manager = self.create_manager()
-
-        installed = self.auto_dir / "local.wav"
-        self.assertEqual(installed.read_bytes(), wav_bytes())
-        self.assertEqual(manager.get_path("local.wav"), str(installed))
-
-    def test_replaces_symlinked_copy_of_local_recording(self) -> None:
-        self.local_dir.mkdir()
-        (self.local_dir / "local.wav").write_bytes(wav_bytes())
-        self.auto_dir.mkdir(parents=True)
+        (self.auto_dir / FIRST).write_bytes(b"corrupt")
         external = Path(self.temp_dir.name) / "external.wav"
         external.write_bytes(wav_bytes())
-        managed = self.auto_dir / "local.wav"
-        managed.symlink_to(external)
-        self.write_manifest([{"local": "local.wav", "filename": "local.wav"}])
+        (self.auto_dir / SECOND).symlink_to(external)
 
         manager = self.create_manager()
+
+        self.assertIsNone(manager.get_path(FIRST))
+        self.assertIsNone(manager.get_path(SECOND))
+        self.assertEqual(manager.list_assets(), [])
+
+    def test_save_replaces_symlinked_sample(self) -> None:
+        self.auto_dir.mkdir(parents=True)
+        external = Path(self.temp_dir.name) / "external.wav"
+        external.write_bytes(b"external")
+        managed = self.auto_dir / FIRST
+        managed.symlink_to(external)
+
+        self.create_manager().save_sample_recording(FIRST, wav_bytes())
 
         self.assertFalse(managed.is_symlink())
-        self.assertEqual(manager.get_path("local.wav"), str(managed))
+        self.assertEqual(external.read_bytes(), b"external")
 
-    def test_skips_unusable_local_recordings(self) -> None:
-        self.local_dir.mkdir()
-        (self.local_dir / "broken.wav").write_bytes(b"not a wav")
-        external = Path(self.temp_dir.name) / "external.wav"
-        external.write_bytes(wav_bytes())
-        (self.local_dir / "link.wav").symlink_to(external)
-        self.write_manifest(
-            [
-                {"local": "broken.wav", "filename": "broken.wav"},
-                {"local": "link.wav", "filename": "link.wav"},
-                {"local": "missing.wav", "filename": "missing.wav"},
-                {"local": "../external.wav", "filename": "escape.wav"},
-            ]
-        )
-
+    def test_save_rejects_unknown_filename(self) -> None:
         manager = self.create_manager()
 
-        for name in ("broken.wav", "link.wav", "missing.wav", "escape.wav"):
-            self.assertIsNone(manager.get_path(name))
+        for name in ("other.wav", "../" + FIRST):
+            with self.assertRaises(ValueError):
+                manager.save_sample_recording(name, wav_bytes())
         self.assertEqual(list(self.auto_dir.iterdir()), [])
 
-    def test_rejects_unsafe_manifest_filename(self) -> None:
-        self.local_dir.mkdir()
-        (self.local_dir / "sample.wav").write_bytes(wav_bytes())
-        self.write_manifest([{"local": "sample.wav", "filename": "../sample.wav"}])
-
+    def test_save_rejects_invalid_wav_without_leaving_files(self) -> None:
         manager = self.create_manager()
 
-        self.assertIsNone(manager.get_path("sample.wav"))
-        self.assertFalse((Path(self.temp_dir.name) / "sample.wav").exists())
-
-    def test_ignores_entries_without_a_local_source(self) -> None:
-        self.write_manifest(
-            [{"url": "https://example.com/sample.wav", "filename": "sample.wav"}]
-        )
-
-        manager = self.create_manager()
-
-        self.assertIsNone(manager.get_path("sample.wav"))
+        with self.assertRaises(ValueError):
+            manager.save_sample_recording(FIRST, b"not a wav")
         self.assertEqual(list(self.auto_dir.iterdir()), [])
 
-    def test_lists_registered_recordings_with_durations(self) -> None:
-        self.local_dir.mkdir()
-        (self.local_dir / "b.wav").write_bytes(wav_bytes())
-        (self.local_dir / "a.wav").write_bytes(wav_bytes())
-        self.write_manifest(
-            [
-                {"local": "b.wav", "filename": "b.wav"},
-                {"local": "a.wav", "filename": "a.wav"},
-            ]
-        )
-
+    def test_get_path_accepts_only_catalog_names(self) -> None:
         manager = self.create_manager()
 
-        assets = manager.list_assets()
-        self.assertEqual([asset.filename for asset in assets], ["a.wav", "b.wav"])
-        self.assertAlmostEqual(assets[0].duration_seconds, 0.1)
-        self.assertEqual(assets[0].path, str(self.auto_dir / "a.wav"))
-
-    def test_lists_nothing_when_no_recording_is_registered(self) -> None:
-        self.write_manifest([])
-
-        self.assertEqual(self.create_manager().list_assets(), [])
-
-    def test_get_path_accepts_only_registered_logical_names(self) -> None:
-        self.write_manifest([])
-        manager = self.create_manager()
-
-        self.assertIsNone(manager.get_path("../sample.wav"))
-        self.assertIsNone(manager.get_path(os.path.abspath("sample.wav")))
+        self.assertIsNone(manager.get_path("../" + FIRST))
+        self.assertIsNone(manager.get_path(os.path.abspath(FIRST)))
 
 
 if __name__ == "__main__":
