@@ -213,10 +213,12 @@ export const Pipelines = () => {
   const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
   const [updateVariant] = useUpdateVariantMutation();
 
-  const requiredModels = useMemo(() => {
-    const variantData = data?.variants.find((v) => v.id === variant);
-    return extractModelNamesFromNodes(variantData?.pipeline_graph.nodes);
-  }, [data, variant]);
+  const currentVariant = data?.variants.find((v) => v.id === variant);
+
+  const requiredModels = useMemo(
+    () => extractModelNamesFromNodes(currentVariant?.pipeline_graph.nodes),
+    [currentVariant],
+  );
 
   const {
     modelStatuses: pipelineModelStatuses,
@@ -263,12 +265,10 @@ export const Pipelines = () => {
     setSelectedNode(null);
     setShowDetailsPanel(false);
     setCompletedVideoPath(null);
-    setPinnedCpuCores([]);
     resetHistory();
   }, [variant, resetHistory, setCurrentNodes, setCurrentEdges]);
 
-  const savedCpuPinning = data?.variants.find((entry) => entry.id === variant)
-    ?.pipeline_graph.cpu_pinning;
+  const savedCpuPinning = currentVariant?.pipeline_graph.cpu_pinning;
   const pinningChanged =
     JSON.stringify(pinnedCpuCores) !== JSON.stringify(savedCpuPinning ?? []);
   useEffect(() => {
@@ -276,8 +276,7 @@ export const Pipelines = () => {
   }, [savedCpuPinning, variant]);
 
   // Saving the output would make media-only runs encode-bound, so default it OFF.
-  const isMediaOnlyPipeline =
-    data?.variants.find((v) => v.id === variant)?.media_only ?? false;
+  const isMediaOnlyPipeline = currentVariant?.media_only ?? false;
 
   useEffect(() => {
     setVideoOutputEnabled(!isMediaOnlyPipeline);
@@ -286,9 +285,8 @@ export const Pipelines = () => {
   // Default Metadata JSON ON for the VLM pipeline (its only output is metadata
   // JSON lines); OFF for other pipelines.
   const isVlmPipeline =
-    data?.variants
-      .find((v) => v.id === variant)
-      ?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ?? false;
+    currentVariant?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ??
+    false;
   const isAlertingVlmPipeline = data?.name === "Alerting VLM";
 
   useEffect(() => {
@@ -543,10 +541,9 @@ export const Pipelines = () => {
         : detailsPanelType === "run" || detailsPanelType === "timeseries"
           ? runPanelSizeRef.current
           : 0;
-    const currentVariantData = data.variants.find((v) => v.id === variant);
-    const isReadOnly = currentVariantData?.read_only ?? false;
+    const isReadOnly = currentVariant?.read_only ?? false;
     const pipelineHasMetadata =
-      currentVariantData?.pipeline_graph.nodes.some(
+      currentVariant?.pipeline_graph.nodes.some(
         (n) => n.type === "gvametapublish",
       ) ?? false;
     const hasMissingRequiredModels = pipelineModelStatuses.some(
