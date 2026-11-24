@@ -361,7 +361,10 @@ class Graph:
         return graph
 
     def __post_init__(self) -> None:
-        self.cpu_pinning = normalize_cpu_ids(self.cpu_pinning, "cpu_pinning")
+        self.set_cpu_pinning(self.cpu_pinning)
+
+    def set_cpu_pinning(self, cpus: object) -> None:
+        self.cpu_pinning = normalize_cpu_ids(cpus, "cpu_pinning")
 
     @staticmethod
     def from_dict(data: dict) -> "Graph":
@@ -1684,7 +1687,7 @@ class Graph:
         # Step 4: Apply property changes to advanced view
         # Create a deep copy of the advanced graph to avoid modifying the original
         result_advanced = copy.deepcopy(original_advanced)
-        result_advanced.cpu_pinning = list(modified_simple.cpu_pinning)
+        result_advanced.set_cpu_pinning(modified_simple.cpu_pinning)
 
         # Build a lookup dictionary for advanced nodes
         advanced_nodes_by_id = {node.id: node for node in result_advanced.nodes}

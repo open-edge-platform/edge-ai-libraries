@@ -1300,7 +1300,7 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
         if graphs_without_pinning:
             current = PipelineManager().get_variant_by_ids(pipeline_id, variant_id)
             for internal_graph in graphs_without_pinning:
-                internal_graph.cpu_pinning = list(current.pipeline_graph.cpu_pinning)
+                internal_graph.set_cpu_pinning(current.pipeline_graph.cpu_pinning)
 
         updated_variant = PipelineManager().update_variant(
             pipeline_id=pipeline_id,

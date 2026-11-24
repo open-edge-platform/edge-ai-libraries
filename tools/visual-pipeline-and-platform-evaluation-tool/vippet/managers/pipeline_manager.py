@@ -518,12 +518,7 @@ class PipelineManager:
 
                 # Parse variant pipeline description into advanced graph
                 variant_graph = Graph.from_pipeline_description(variant_pipeline_desc)
-                variant_graph = Graph.from_dict(
-                    {
-                        **variant_graph.to_dict(),
-                        "cpu_pinning": variant_config.get("cpu_pinning", []),
-                    }
-                )
+                variant_graph.set_cpu_pinning(variant_config.get("cpu_pinning", []))
 
                 # Generate simple view for variant
                 variant_simple_graph = variant_graph.to_simple_view()
