@@ -10,6 +10,7 @@ detection UDF.
 - `make` available on the host
 - `wget` installed (required to download UDF packages)
 
+> Time Series Analytics can run on CPU or GPU, but NPU is not supported.
 
 ## Activate the Experimental Time Series stack
 
