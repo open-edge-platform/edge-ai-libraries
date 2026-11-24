@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # How It Works
 
 This article provides a detailed overview of the internal architecture, components, and data
@@ -28,8 +33,8 @@ flowchart TD
     F --> G[log_alert]
     F --> H[trigger_webhook]
     F --> I[publish_mqtt]
-    H --> J[capture_snapshot]
-    J --> K["SSE / WebSocket fanout<br/>to connected subscribers"]
+    F --> J[capture_snapshot]
+    F --> K["SSE / WebSocket fanout<br/>to connected subscribers"]
 ```
 
 ## Components
@@ -102,8 +107,14 @@ The service can be integrated into applications through:
 
 ## Limitations
 
-- OVMS LLM startup can take several minutes; the agent service waits for OVMS to become healthy before starting.
+- OVMS LLM startup can take several minutes. The agent service can start
+  before OVMS is healthy, and `/api/v1/health` reports service-process
+  liveness rather than OVMS readiness.
 - ADK mode requires a compatible chat-completion endpoint (OpenAI-compatible, served by OVMS).
 - For CPU-only Intel devices, set `TARGET_DEVICE=CPU` — inference latency will be higher than GPU but the full ADK pipeline remains functional.
+- The reference Docker Compose deployment supports `GPU`, `CPU`, and Intel
+  `NPU` inference. NPU mode requires a host `/dev/accel` device, device-group
+  access, `TARGET_DEVICE=NPU`, and `ACCEL_MOUNT_PATH` configured for the NPU
+  device node.
 - MCP server connections are HTTP-based; stdio/process-based MCP transports are not currently supported.
 - The `capture_snapshot` tool only saves disk snapshots when the image payload is provided with `encoding=base64`; URI-based payloads are logged but not downloaded.
