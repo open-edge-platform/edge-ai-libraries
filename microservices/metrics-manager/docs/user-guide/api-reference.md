@@ -1,5 +1,10 @@
 # API Reference
 
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 **Version: 2026.3.0**
 
 This document describes all REST API endpoints, request/response formats, and examples.
@@ -507,23 +512,49 @@ Filtered to `coretemp_package_id_*` (CPU package temperature). Tag: `sensor`.
 | `frequency`              | GPU frequency                |
 | `power`                  | GPU power consumption        |
 
-### Intel NPU (`npu`) via `scripts/npu_reader.py`
+### Intel NPU (`npu`) via `mm-plugin-npu`
 
-| Prometheus Name   | Field         | Description                                                                                                                                                                  |
-|-------------------|---------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `npu_power`       | `power`       | NPU power draw in watts (derived from `VPU_ENERGY` delta)                                                                                                                    |
-| `npu_frequency`   | `frequency`   | NPU (DPU) clock frequency in Hz (decoded from `VPU_WORKPOINT`)                                                                                                               |
-| `npu_temperature` | `temperature` | NPU SoC temperature in °C (integer)                                                                                                                                          |
-| `npu_bandwidth`   | `bandwidth`   | NoC memory bandwidth rate in MB/s (counter delta over the actual elapsed sampling interval; a single wrap of the 32-bit counter between samples is corrected)                |
-| `npu_tile_config` | `tile_config` | Active tile configuration                                                                                                                                                    |
-| `npu_utilization` | `utilization` | % NPU utilization over the last interval (0–100). Omitted (not sent as `0`) when the `npu_busy_time_us` sysfs node isn't exposed or can't be read                            |
-| `npu_memory_mb`   | `memory_mb`   | NPU memory usage in MB. Omitted (not sent as `-1`) on pre-PTL platforms (MTL, ARL, LNL), and on PTL when the `npu_memory_utilization` sysfs node is missing or can't be read |
+| Prometheus Name | Field | Description |
+|-----------------|-------|-------------|
+| `npu_power_w` | `power_w` | NPU power in watts, derived from energy over the actual elapsed interval |
+| `npu_frequency_hz` | `frequency_hz` | NPU DPU clock in Hz; divide by 1e6 to display MHz |
+| `npu_temperature_c` | `temperature_c` | NPU SoC temperature in degrees Celsius |
+| `npu_bandwidth_bytes_per_second` | `bandwidth_bytes_per_second` | Transfer rate in bytes/second; divide by 1e6 for decimal MB/s |
+| `npu_tile_config` | `tile_config` | Active tile configuration |
+| `npu_utilization` | `utilization` | Busy time as a percentage, 0–100; omitted when unavailable |
+| `npu_memory_bytes` | `memory_bytes` | Driver-reported memory usage in bytes; divide by 1048576 for MiB |
+| `npu_frequency_max_hz` | `frequency_max_hz` | Driver-reported frequency ceiling, when available |
+| `npu_power_state` | `power_state` | D0=0, D1=1, D2=2, D3hot=3, D3cold=4; unknown=-1 |
+
+Utilization and memory are omitted when their sysfs attributes are absent or
+unreadable. Memory support is detected by attribute availability, not generation.
+A measured zero is valid and must not be replaced with a missing value.
+
+Incomplete PMT snapshots are rejected with a diagnostic and do not replace the
+counter/time baseline. The next complete snapshot uses the actual elapsed time.
+If the initial PMT read fails, the plugin retries at its configured sampling
+interval without emitting a sample until a valid baseline is available.
+If energy or busy time decreases, power, bandwidth and utilization are omitted
+for that interval while the baseline is rebuilt. Instantaneous fields remain
+available. A bandwidth decrease without another discontinuity signal is treated
+as a single 32-bit wrap; a reset cannot always be distinguished from a wrap, and
+multiple wraps between samples cannot be recovered.
+
+MTL bandwidth uses 1000 bytes per counter tick. LNL/PTL use 1024 bytes per tick,
+as specified by the Intel PMT schemas. PTL reads only `0xc18`: `0xc20` is a D0
+entry counter, not additional bandwidth.
+
+Omitting a field does not immediately remove its cached value from Telegraf.
+The output TTL defaults to 60 seconds and is
+[configurable](./get-started/environment-variables.md#telegraf-output-expiration).
+Check sample timestamps when interpreting cached values; neither polling again
+nor dropping just the first benchmark sample guarantees fresh measurements.
 
 **Requirements:**
 
 - Intel NPU present and the `intel_vpu` driver loaded (`ls /sys/bus/pci/drivers/intel_vpu/`)
 - `/sys/class/intel_pmt/` accessible inside the container (provided by `privileged: true` + `/sys:/sys:ro`)
-- Supported generations: Meteor Lake (MTL), Arrow Lake (ARL/ARL-H/ARL-S), Lunar Lake (LNL), Panther Lake (PTL). On pre-PTL platforms, `npu_memory_mb` is **omitted** from the emitted sample entirely (rather than a sentinel value) — a consumer that needs to distinguish "not supported" from "zero" should treat a missing field as the former, not query for `-1`.
+- Supported generations: Meteor Lake (MTL), Arrow Lake (ARL/ARL-H/ARL-S), Lunar Lake (LNL), Panther Lake (PTL).
 
 ---
 

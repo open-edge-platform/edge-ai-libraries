@@ -4,6 +4,7 @@
 package npu
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,9 @@ import (
 // Measurement is the single measurement this collector emits. It is part of
 // the service's public contract and must not be renamed.
 const Measurement = "npu"
+
+// ErrInitialSample distinguishes a failed priming read from absent hardware.
+var ErrInitialSample = errors.New("NPU initial sample unavailable")
 
 // Collector samples NPU telemetry once per call.
 //
@@ -38,7 +42,7 @@ type Collector struct {
 	powerStatePath string
 
 	prevEnergy    float64
-	prevBandwidth float64
+	prevBandwidth uint32
 	prevBusyUS    uint64
 	hasPrevBusy   bool
 	prevTime      time.Time
@@ -50,8 +54,8 @@ type Collector struct {
 // NewCollector opens the PMT device, locates the NPU PCI device and primes the
 // delta counters.
 //
-// An error here means the machine has no usable Intel NPU. Callers should idle
-// rather than exit, so Telegraf does not respawn the plugin in a tight loop.
+// ErrInitialSample permits retrying a failed priming read. Other errors mean
+// there is no usable Intel NPU; callers should idle rather than repeatedly exit.
 func NewCollector(sysfsRoot, hostname string) (*Collector, error) {
 	telemetry, err := Open(sysfsRoot)
 	if err != nil {
@@ -100,10 +104,10 @@ func NewCollector(sysfsRoot, hostname string) (*Collector, error) {
 	}
 
 	if err := telemetry.Update(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrInitialSample, err)
 	}
 	collector.prevEnergy = telemetry.EnergyJoules()
-	collector.prevBandwidth = telemetry.BandwidthBytes()
+	collector.prevBandwidth = telemetry.BandwidthCounter()
 	collector.prevBusyUS, collector.hasPrevBusy = collector.readBusyUS()
 	collector.prevTime = collector.now()
 
@@ -132,30 +136,36 @@ func (c *Collector) Collect() ([]lineproto.Point, error) {
 	if elapsed <= 0 {
 		return nil, fmt.Errorf("NPU sampling interval must be positive, got %s", sampleTime.Sub(c.prevTime))
 	}
-	c.prevTime = sampleTime
-
 	// Power is the derivative of the energy counter over the interval that
 	// actually elapsed, not the nominal one, so scheduling jitter does not
 	// distort the reading.
 	energy := c.telemetry.EnergyJoules()
 	power := (energy - c.prevEnergy) / elapsed
-	c.prevEnergy = energy
-
-	bandwidth := c.telemetry.BandwidthBytes()
+	previousBusy, hadPreviousBusy := c.prevBusyUS, c.hasPrevBusy
+	utilization, hasUtilization := c.utilization(elapsed)
+	busyReset := hadPreviousBusy && c.hasPrevBusy && c.prevBusyUS < previousBusy
+	discontinuity := energy < c.prevEnergy || busyReset
+	bandwidth := c.telemetry.BandwidthCounter()
+	// Unsigned subtraction corrects one wrap before scaling. A bandwidth
+	// reset alone is indistinguishable from a wrap without another signal.
 	bandwidthDelta := bandwidth - c.prevBandwidth
-	if bandwidthDelta < 0 {
-		bandwidthDelta += float64(uint64(1)<<32) * 1e3
-	}
+	c.prevEnergy = energy
 	c.prevBandwidth = bandwidth
+	c.prevTime = sampleTime
 
 	fields := []lineproto.Field{
-		lineproto.FloatField("power_w", power),
 		lineproto.FloatField("frequency_hz", c.telemetry.FrequencyHz()),
 		lineproto.IntField("temperature_c", int64(c.telemetry.TemperatureC())),
-		lineproto.FloatField("bandwidth_bytes_per_second", bandwidthDelta/elapsed),
 		lineproto.IntField("tile_config", int64(c.telemetry.TileConfig())),
 	}
-	if utilization, ok := c.utilization(elapsed); ok {
+	if discontinuity {
+		fmt.Fprintln(os.Stderr, "mm-plugin-npu: counter discontinuity; omitting interval measurements and rebuilding baseline")
+	} else {
+		fields = append(fields,
+			lineproto.FloatField("power_w", power),
+			lineproto.FloatField("bandwidth_bytes_per_second", float64(bandwidthDelta)*c.telemetry.bandwidthBytesPerTick()/elapsed))
+	}
+	if hasUtilization && !discontinuity {
 		fields = append(fields, lineproto.IntField("utilization", utilization))
 	}
 	if memory, ok := c.memoryBytes(); ok {
@@ -215,10 +225,9 @@ func (c *Collector) utilization(elapsed float64) (int64, bool) {
 		return 0, false
 	}
 
-	// The counter resets when the NPU driver reloads. A negative delta is
-	// meaningless, so report idle rather than a large negative number.
+	// A reset is not evidence that the NPU was idle.
 	if busyUS < prevBusyUS {
-		return 0, true
+		return 0, false
 	}
 
 	percent := 100 * float64(busyUS-prevBusyUS) / (elapsed * 1e6)

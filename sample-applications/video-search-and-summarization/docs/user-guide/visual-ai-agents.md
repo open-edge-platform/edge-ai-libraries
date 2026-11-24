@@ -86,7 +86,7 @@ Set the service credentials and the search models. Then start VSS:
 
 ```bash
 cd edge-ai-libraries/sample-applications/video-search-and-summarization
-export REGISTRY_URL=intel TAG=2026.3.0-rc1
+export REGISTRY_URL=intel TAG=2026.3.0-rc2
 export MINIO_ROOT_USER=<user> MINIO_ROOT_PASSWORD=<password>
 export POSTGRES_USER=<user> POSTGRES_PASSWORD=<password>
 export RABBITMQ_USER=<user> RABBITMQ_PASSWORD=<password>

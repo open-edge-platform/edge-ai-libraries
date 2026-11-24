@@ -696,7 +696,7 @@ fi
 # =================== Model Download Microservice (service mode) ===================
 # Image auto-pulled by `docker run` if absent; --pull-always also refreshes a cached copy.
 # Override MODEL_DOWNLOAD_IMAGE or MODEL_DOWNLOAD_TAG to use another image.
-export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-intel/model-download:${MODEL_DOWNLOAD_TAG:-2026.3.0-rc1}}
+export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-intel/model-download:${MODEL_DOWNLOAD_TAG:-2026.3.0-rc2}}
 # OVMS release tag used by the openvino plugin's export_model.py.
 export MODEL_DOWNLOAD_OVMS_TAG=${MODEL_DOWNLOAD_OVMS_TAG:-v2026.4.1}
 # Sub-path under the OVMS models dir for converted models (kept lowercase).
@@ -1639,10 +1639,13 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
                 fi
             fi
 
-            # Add GPU compose override if either device uses GPU
+            # The accelerator image includes the Level Zero runtime needed by GPU and NPU.
             if [[ "$VLM_TARGET_DEVICE" == *"GPU"* ]] || [[ "$LLM_TARGET_DEVICE" == *"GPU"* ]]; then
                 echo -e "[ovms-service] ${BLUE}Using GPU-capable OVMS image${NC}"
                 APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.gpu_ovms.yaml"
+            elif [[ "${VLM_TARGET_DEVICE^^}" == *"NPU"* ]] || [[ "${LLM_TARGET_DEVICE^^}" == *"NPU"* ]]; then
+                echo -e "[ovms-service] ${BLUE}Using NPU-capable OVMS image${NC}"
+                APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.npu_ovms.yaml"
             fi
 
             ovms_split_model=false

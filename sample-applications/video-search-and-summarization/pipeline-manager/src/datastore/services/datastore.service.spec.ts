@@ -1,475 +1,342 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { Test, TestingModule } from '@nestjs/testing';
-import { DatastoreService } from './datastore.service';
+import {
+  CopyObjectCommand,
+  CreateBucketCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  HeadObjectCommand,
+  PutBucketPolicyCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { Client as MinioClient } from 'minio';
+import { randomUUID } from 'crypto';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
 import * as path from 'path';
+import { Readable } from 'stream';
+import { DatastoreService } from './datastore.service';
 
-// Mock for Minio Client
-jest.mock('minio', () => {
-  const mockBucketExists = jest.fn();
-  const mockMakeBucket = jest.fn();
-  const mockSetBucketPolicy = jest.fn();
-  const mockFPutObject = jest.fn();
-  const mockFGetObject = jest.fn();
+const mockSend = jest.fn();
+const mockUploadDone = jest.fn();
 
-  return {
-    Client: jest.fn().mockImplementation(() => ({
-      bucketExists: mockBucketExists,
-      makeBucket: mockMakeBucket,
-      setBucketPolicy: mockSetBucketPolicy,
-      fPutObject: mockFPutObject,
-      fGetObject: mockFGetObject,
-    })),
-  };
-});
+jest.mock('@aws-sdk/client-s3', () => ({
+  ...jest.requireActual('@aws-sdk/client-s3'),
+  S3Client: jest.fn().mockImplementation(() => ({ send: mockSend })),
+}));
 
-// Mock for path.join
-jest.mock('path', () => ({
-  join: jest.fn().mockImplementation((...args) => args.join('/')),
-  basename: jest.fn().mockImplementation((input: string) => {
-    const segments = (input || '').split(/[\\/]/);
-    return segments.pop() || '';
-  }),
+jest.mock('@aws-sdk/lib-storage', () => ({
+  Upload: jest.fn().mockImplementation(() => ({ done: mockUploadDone })),
 }));
 
 describe('DatastoreService', () => {
   let service: DatastoreService;
-  let httpService: HttpService;
-  let configService: ConfigService;
-  let minioClient: any;
-  let mockClientImplementation: any;
-
-  const mockConfig = {
+  const config = {
     'datastore.bucketName': 'test-bucket',
     'datastore.baseUrl': 'http://localhost:9000',
     'datastore.host': 'localhost',
     'datastore.port': 9000,
-    'datastore.accessKey': 'minioadmin',
-    'datastore.secretKey': 'minioadmin',
+    'datastore.accessKey': '<access-key>',
+    'datastore.secretKey': '<secret-key>',
     'datastore.protocol': 'http:',
   };
 
-  beforeEach(async () => {
-    // Reset mocks before each test
+  beforeEach(() => {
     jest.clearAllMocks();
-
-    // Prepare mock implementations
-    mockClientImplementation = {
-      bucketExists: jest.fn(),
-      makeBucket: jest.fn(),
-      setBucketPolicy: jest.fn(),
-      fPutObject: jest.fn(),
-      fGetObject: jest.fn(),
-      putObject: jest.fn(),
-      statObject: jest.fn(),
-      getObject: jest.fn(),
-    };
-
-    // Update the MinioClient mock implementation
-    (MinioClient as jest.Mock).mockImplementation(
-      () => mockClientImplementation,
-    );
-
-    // Mock implementation for ConfigService.get
-    const mockConfigService = {
-      get: jest.fn((key: string) => mockConfig[key]),
-    };
-
-    // Mock implementation for HttpService
-    const mockHttpService = {
-      // Add any HttpService methods you need to mock
-    };
-
-    // Create the test module with mocked dependencies
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        DatastoreService,
-        {
-          provide: HttpService,
-          useValue: mockHttpService,
-        },
-        {
-          provide: ConfigService,
-          useValue: mockConfigService,
-        },
-      ],
-    }).compile();
-
-    httpService = module.get<HttpService>(HttpService);
-    configService = module.get<ConfigService>(ConfigService);
-
-    // Set up default mock behavior before service instantiation
-    mockClientImplementation.bucketExists.mockResolvedValue(true);
-
-    // Now create the service with the mocked behavior
-    service = module.get<DatastoreService>(DatastoreService);
-    minioClient = (service as any).client;
-  });
-
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+    mockSend.mockReset().mockResolvedValue({});
+    mockUploadDone.mockReset().mockResolvedValue({ ETag: 'etag' });
+    const configService = {
+      get: (key: string) => config[key],
+    } as ConfigService;
+    service = new DatastoreService({} as HttpService, configService);
   });
 
   describe('initialization', () => {
-    it('should create a bucket if it does not exist', async () => {
-      // Create a new instance with bucket that doesn't exist
-      mockClientImplementation.bucketExists.mockReset();
-      mockClientImplementation.bucketExists.mockResolvedValueOnce(false);
-
-      // Call initialize directly to test the bucket creation path
-      await (service as any).initialize();
-
-      expect(mockClientImplementation.bucketExists).toHaveBeenCalledWith(
-        'test-bucket',
+    it('uses the existing MinIO endpoint and path-style S3 requests', () => {
+      expect(S3Client).toHaveBeenCalledWith({
+        endpoint: 'http://localhost:9000',
+        region: 'us-east-1',
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: '<access-key>',
+          secretAccessKey: '<secret-key>',
+        },
+      });
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { Bucket: 'test-bucket' } }),
       );
-      expect(mockClientImplementation.makeBucket).toHaveBeenCalledWith(
-        'test-bucket',
-      );
-      expect(mockClientImplementation.setBucketPolicy).toHaveBeenCalledWith(
-        'test-bucket',
-        expect.stringContaining('"Resource":["arn:aws:s3:::test-bucket/*"]'),
-      );
+      expect(mockSend.mock.calls[0][0]).toBeInstanceOf(HeadBucketCommand);
     });
 
-    it('should not create a bucket if it already exists', async () => {
-      // Reset counters to ensure we're only testing the specific initialize call
-      mockClientImplementation.bucketExists.mockReset();
-      mockClientImplementation.bucketExists.mockResolvedValueOnce(true);
-      mockClientImplementation.makeBucket.mockReset();
-      mockClientImplementation.setBucketPolicy.mockReset();
+    it('creates a missing bucket and applies the existing read policy', async () => {
+      mockSend
+        .mockReset()
+        .mockRejectedValueOnce({ $metadata: { httpStatusCode: 404 } })
+        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({});
 
-      // Test initialization with existing bucket
-      await (service as any).initialize();
+      await service['initialize']();
 
-      expect(mockClientImplementation.bucketExists).toHaveBeenCalledWith(
-        'test-bucket',
-      );
-      expect(mockClientImplementation.makeBucket).not.toHaveBeenCalled();
-      expect(mockClientImplementation.setBucketPolicy).not.toHaveBeenCalled();
-    });
-
-    it('should handle bucket existence check failure', async () => {
-      mockClientImplementation.bucketExists.mockReset();
-      mockClientImplementation.bucketExists.mockRejectedValueOnce(
-        new Error('Connection error'),
-      );
-
-      await expect((service as any).initialize()).rejects.toThrow(
-        'Connection error',
-      );
-    });
-
-    it('should handle bucket creation failure', async () => {
-      mockClientImplementation.bucketExists.mockReset();
-      mockClientImplementation.bucketExists.mockResolvedValueOnce(false);
-      mockClientImplementation.makeBucket.mockReset();
-      mockClientImplementation.makeBucket.mockRejectedValueOnce(
-        new Error('Permission denied'),
-      );
-
-      await expect((service as any).initialize()).rejects.toThrow(
-        'Permission denied',
-      );
-    });
-
-    it('should handle bucket policy setting failure', async () => {
-      mockClientImplementation.bucketExists.mockReset();
-      mockClientImplementation.bucketExists.mockResolvedValueOnce(false);
-      mockClientImplementation.makeBucket.mockReset();
-      mockClientImplementation.makeBucket.mockResolvedValueOnce(undefined);
-      mockClientImplementation.setBucketPolicy.mockReset();
-      mockClientImplementation.setBucketPolicy.mockRejectedValueOnce(
-        new Error('Policy error'),
-      );
-
-      await expect((service as any).initialize()).rejects.toThrow(
-        'Policy error',
-      );
-    });
-  });
-
-  describe('getExtension', () => {
-    it('should extract file extension correctly', () => {
-      const extension = (service as any).getExtension('test-file.jpg');
-      expect(extension).toBe('jpg');
-    });
-
-    it('should handle filenames with multiple dots', () => {
-      const extension = (service as any).getExtension('test.file.png');
-      expect(extension).toBe('png');
-    });
-
-    it('should handle filenames without extensions', () => {
-      const extension = (service as any).getExtension('testfile');
-      expect(extension).toBe('testfile');
-    });
-  });
-
-  describe('getObjectName', () => {
-    it('should generate correct object path and extension', () => {
-      const result = service.getObjectName('state-123', 'sample.mp4');
-      expect(result).toEqual({
-        objectPath: 'state-123/source.mp4',
-        fileExtn: 'mp4',
+      expect(mockSend.mock.calls[1][0]).toBeInstanceOf(CreateBucketCommand);
+      expect(mockSend.mock.calls[2][0]).toBeInstanceOf(PutBucketPolicyCommand);
+      expect(JSON.parse(mockSend.mock.calls[2][0].input.Policy)).toEqual({
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: '*',
+            Action: ['s3:GetObject'],
+            Resource: ['arn:aws:s3:::test-bucket/*'],
+          },
+        ],
       });
     });
 
-    it('should handle filenames with multiple dots', () => {
-      const result = service.getObjectName('state-123', 'sample.original.mp4');
-      expect(result).toEqual({
-        objectPath: 'state-123/source.mp4',
-        fileExtn: 'mp4',
-      });
+    it('does not create a bucket on authorization or network errors', async () => {
+      const error = {
+        name: 'AccessDenied',
+        $metadata: { httpStatusCode: 403 },
+      };
+      mockSend.mockReset().mockRejectedValueOnce(error);
+      await expect(service['initialize']()).rejects.toEqual(error);
+      expect(mockSend).toHaveBeenCalledTimes(1);
     });
 
-    it('should handle filenames without extensions', () => {
-      const result = service.getObjectName('state-123', 'README');
-      expect(result).toEqual({
-        objectPath: 'state-123/source',
-        fileExtn: 'README',
-      });
-    });
+    it('propagates bucket creation and policy errors', async () => {
+      mockSend
+        .mockReset()
+        .mockRejectedValueOnce({ name: 'NotFound' })
+        .mockRejectedValueOnce(new Error('Creation error'));
+      await expect(service['initialize']()).rejects.toThrow('Creation error');
 
-    it('should use deterministic object filename for spaced names', () => {
-      const result = service.getObjectName(
-        'state-123',
-        'sample clip @2026!.mp4',
-      );
-      expect(result).toEqual({
-        objectPath: 'state-123/source.mp4',
-        fileExtn: 'mp4',
-      });
-    });
-
-    it('should use deterministic object filename for nested path inputs', () => {
-      const result = service.getObjectName(
-        'state-123',
-        '../../nested/path/my clip.mp4',
-      );
-      expect(result).toEqual({
-        objectPath: 'state-123/source.mp4',
-        fileExtn: 'mp4',
-      });
+      mockSend
+        .mockReset()
+        .mockRejectedValueOnce({ name: 'NotFound' })
+        .mockResolvedValueOnce({})
+        .mockRejectedValueOnce(new Error('Policy error'));
+      await expect(service['initialize']()).rejects.toThrow('Policy error');
     });
   });
 
-  describe('getObjectURL', () => {
-    it('should return the correct URL for an object', () => {
-      const url = service.getObjectURL('test-path/file.mp4');
-      expect(url).toBe('http://localhost:9000/test-bucket/test-path/file.mp4');
+  describe('object paths', () => {
+    it.each([
+      ['sample.mp4', 'source.mp4', 'mp4'],
+      ['sample.original.mp4', 'source.mp4', 'mp4'],
+      ['README', 'source', 'README'],
+      ['../../nested/my clip.mp4', 'source.mp4', 'mp4'],
+    ])('creates deterministic keys for %s', (filename, stored, extension) => {
+      expect(service.getObjectName('state-123', filename)).toEqual({
+        objectPath: `state-123/${stored}`,
+        fileExtn: extension,
+      });
     });
 
-    it('should handle objects with special characters', () => {
-      const url = service.getObjectURL('test path/file with spaces.mp4');
-      expect(url).toBe(
-        'http://localhost:9000/test-bucket/test%20path/file%20with%20spaces.mp4',
+    it('preserves URL paths and encodes object segments', () => {
+      expect(service.getObjectURL('test path/file #1.mp4')).toBe(
+        'http://localhost:9000/test-bucket/test%20path/file%20%231.mp4',
       );
-    });
-  });
-
-  describe('getObjectRelativePath', () => {
-    it('should return the correct relative path for an object', () => {
-      const path = service.getObjectRelativePath('test-path/file.mp4');
-      expect(path).toBe('/test-bucket/test-path/file.mp4');
-    });
-
-    it('should URL-encode path segments with spaces and symbols', () => {
-      const path = service.getObjectRelativePath('test path/file #1.mp4');
-      expect(path).toBe('/test-bucket/test%20path/file%20%231.mp4');
-    });
-  });
-
-  describe('getWithURL', () => {
-    it('should return a complete URL with the given path', () => {
-      const url = service.getWithURL('/test-access/path');
-      expect(url).toBe('http://localhost:9000/test-access/path');
-    });
-
-    it('should handle paths without leading slash', () => {
-      const url = service.getWithURL('test-access/path');
-      expect(url).toBe('http://localhost:9000/test-access/path');
-    });
-  });
-
-  describe('copyObject', () => {
-    it('should copy within the app bucket', async () => {
-      mockClientImplementation.copyObject = jest
-        .fn()
-        .mockResolvedValueOnce({ etag: 'e1' });
-
-      await service.copyObject('src-id/source.mp4', 'dst-id/source.mp4');
-
-      expect(mockClientImplementation.copyObject).toHaveBeenCalledWith(
-        'test-bucket',
-        'dst-id/source.mp4',
-        '/test-bucket/src-id/source.mp4',
+      expect(service.getObjectRelativePath('/test-path/file.mp4')).toBe(
+        '/test-bucket/test-path/file.mp4',
       );
-    });
-
-    it('should strip leading slashes from the source object', async () => {
-      mockClientImplementation.copyObject = jest.fn().mockResolvedValueOnce({});
-
-      await service.copyObject('/src-id/source.mp4', 'dst-id/source.mp4');
-
-      expect(mockClientImplementation.copyObject).toHaveBeenCalledWith(
-        'test-bucket',
-        'dst-id/source.mp4',
-        '/test-bucket/src-id/source.mp4',
+      expect(service.getWithURL('test-access/path')).toBe(
+        'http://localhost:9000/test-access/path',
       );
-    });
-
-    it('should propagate copy errors', async () => {
-      mockClientImplementation.copyObject = jest
-        .fn()
-        .mockRejectedValueOnce(new Error('NoSuchKey'));
-
-      await expect(
-        service.copyObject('src-id/source.mp4', 'dst-id/source.mp4'),
-      ).rejects.toThrow('NoSuchKey');
     });
   });
 
   describe('uploadFile', () => {
-    it('should call fPutObject with correct parameters', async () => {
-      mockClientImplementation.fPutObject.mockResolvedValueOnce('etag-123');
+    let directory: string;
 
-      const result = await service.uploadFile(
-        'dest/file.mp4',
-        '/source/file.mp4',
-      );
-
-      expect(mockClientImplementation.fPutObject).toHaveBeenCalledWith(
-        'test-bucket',
-        'dest/file.mp4',
-        '/source/file.mp4',
-      );
-      expect(result).toBe('etag-123');
+    beforeEach(async () => {
+      directory = await mkdtemp(path.join(tmpdir(), 'vss-datastore-'));
     });
 
-    it('should propagate errors during file upload', async () => {
-      mockClientImplementation.fPutObject.mockRejectedValueOnce(
-        new Error('Upload failed'),
-      );
-
-      await expect(
-        service.uploadFile('dest/file.mp4', '/source/file.mp4'),
-      ).rejects.toThrow('Upload failed');
+    afterEach(async () => {
+      await rm(directory, { recursive: true, force: true });
     });
 
-    it('should handle network timeouts during upload', async () => {
-      mockClientImplementation.fPutObject.mockRejectedValueOnce(
-        new Error('Network timeout'),
-      );
+    it('streams a file with its length and inferred content type', async () => {
+      const file = path.join(directory, 'video.mp4');
+      await writeFile(file, 'abc');
 
-      await expect(
-        service.uploadFile('dest/file.mp4', '/source/file.mp4'),
-      ).rejects.toThrow('Network timeout');
+      await expect(service.uploadFile('id/source.mp4', file)).resolves.toEqual({
+        ETag: 'etag',
+      });
+
+      expect(Upload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          client: expect.any(Object),
+          params: expect.objectContaining({
+            Bucket: 'test-bucket',
+            Key: 'id/source.mp4',
+            ContentLength: 3,
+            ContentType: 'video/mp4',
+            Body: expect.any(Readable),
+          }),
+          partSize: 64 * 1024 * 1024,
+          queueSize: 1,
+        }),
+      );
+    });
+
+    it('uses the existing binary default and propagates upload errors', async () => {
+      const file = path.join(directory, 'no-extension');
+      await writeFile(file, 'abc');
+      mockUploadDone.mockRejectedValueOnce(new Error('Upload failed'));
+
+      await expect(service.uploadFile('id/source', file)).rejects.toThrow(
+        'Upload failed',
+      );
+      expect(jest.mocked(Upload).mock.calls[0][0].params.ContentType).toBe(
+        'application/octet-stream',
+      );
     });
   });
 
   describe('getFile', () => {
-    beforeEach(() => {
-      // Reset path.join mock for getFile tests
-      (path.join as jest.Mock).mockImplementation((...args) => args.join('/'));
+    let directory: string;
+    let objectDir: string;
+    let cwd: jest.SpyInstance;
+
+    beforeEach(async () => {
+      directory = await mkdtemp(path.join(tmpdir(), 'vss-download-'));
+      cwd = jest.spyOn(process, 'cwd').mockReturnValue(directory);
+      objectDir = `test-${randomUUID()}`;
     });
 
-    it('should retrieve a file correctly', async () => {
-      mockClientImplementation.fGetObject.mockResolvedValueOnce(undefined);
-
-      const result = await service.getFile('test-object/file.mp4');
-
-      expect(mockClientImplementation.fGetObject).toHaveBeenCalledWith(
-        'test-bucket',
-        'test-object/file.mp4',
-        expect.stringContaining('test-object/file.mp4'),
-      );
-      expect(result).toEqual(expect.stringContaining('test-object/file.mp4'));
+    afterEach(async () => {
+      cwd.mockRestore();
+      await rm(directory, { recursive: true, force: true });
     });
 
-    it('should handle errors during file retrieval', async () => {
-      mockClientImplementation.fGetObject.mockRejectedValueOnce(
-        new Error('File not found'),
-      );
-
-      await expect(service.getFile('test-object/file.mp4')).rejects.toThrow(
-        'File not found',
-      );
-    });
-
-    it('should handle file paths with special characters', async () => {
-      mockClientImplementation.fGetObject.mockResolvedValueOnce(undefined);
-
-      await service.getFile('test object/file with spaces.mp4');
-
-      expect(mockClientImplementation.fGetObject).toHaveBeenCalledWith(
-        'test-bucket',
-        'test object/file with spaces.mp4',
-        expect.stringContaining('test object/file with spaces.mp4'),
-      );
-    });
-  });
-
-  describe('uploadBuffer', () => {
-    it('should put the buffer with its content type', async () => {
-      const content = Buffer.from('abc');
-      mockClientImplementation.putObject.mockResolvedValueOnce({ etag: 'e' });
-
-      await service.uploadBuffer('search-images/a.png', content, 'image/png');
-
-      expect(mockClientImplementation.putObject).toHaveBeenCalledWith(
-        'test-bucket',
-        'search-images/a.png',
-        content,
-        3,
-        { 'Content-Type': 'image/png' },
-      );
-    });
-  });
-
-  describe('statObject', () => {
-    it('should return null when the object does not exist', async () => {
-      mockClientImplementation.statObject.mockRejectedValueOnce({
-        code: 'NotFound',
+    it('writes the response to a local file', async () => {
+      const objectName = `${objectDir}/file.mp4`;
+      mockSend.mockResolvedValueOnce({
+        Body: Readable.from([Buffer.from('video')]),
       });
-      await expect(service.statObject('missing')).resolves.toBeNull();
+      const file = await service.getFile(objectName);
+      expect(await readFile(file, 'utf8')).toBe('video');
+      expect(mockSend.mock.lastCall?.[0]).toBeInstanceOf(GetObjectCommand);
     });
 
-    it('should rethrow other errors', async () => {
-      mockClientImplementation.statObject.mockRejectedValueOnce(
-        new Error('down'),
+    it('rejects object paths outside its download directory', async () => {
+      await expect(service.getFile('../outside')).rejects.toThrow(
+        'Invalid object path',
       );
-      await expect(service.statObject('x')).rejects.toThrow('down');
+    });
+
+    it('propagates failed downloads', async () => {
+      mockSend.mockRejectedValueOnce(new Error('Download failed'));
+      await expect(service.getFile(`${objectDir}/file`)).rejects.toThrow(
+        'Download failed',
+      );
+    });
+
+    it('removes partial downloads without overwriting an existing file', async () => {
+      const objectName = `${objectDir}/file`;
+      const destination = path.join(directory, 'temp', objectName);
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, 'existing');
+      const body = Readable.from(
+        (async function* () {
+          yield Buffer.from('partial');
+          throw new Error('Stream failed');
+        })(),
+      );
+      mockSend.mockResolvedValueOnce({ Body: body });
+
+      await expect(service.getFile(objectName)).rejects.toThrow(
+        'Stream failed',
+      );
+      expect(await readFile(destination, 'utf8')).toBe('existing');
+      expect(await readdir(path.dirname(destination))).toEqual(['file']);
     });
   });
 
-  describe('getObjectBuffer', () => {
-    const streamOf = (...chunks: Buffer[]) => {
-      const { Readable } = jest.requireActual('stream');
-      return Readable.from(chunks);
-    };
-
-    it('should concatenate the object stream', async () => {
-      mockClientImplementation.getObject.mockResolvedValueOnce(
-        streamOf(Buffer.from('ab'), Buffer.from('cd')),
-      );
-      const result = await service.getObjectBuffer('obj', 10);
-      expect(result.toString()).toBe('abcd');
-      expect(mockClientImplementation.getObject).toHaveBeenCalledWith(
-        'test-bucket',
-        'obj',
-      );
+  it('copies encoded keys within the bucket', async () => {
+    await service.copyObject('/src id/file #1.mp4', 'dst/source.mp4');
+    const command = mockSend.mock.lastCall?.[0];
+    expect(command).toBeInstanceOf(CopyObjectCommand);
+    expect(command.input).toEqual({
+      Bucket: 'test-bucket',
+      Key: 'dst/source.mp4',
+      CopySource: 'test-bucket/src%20id/file%20%231.mp4',
     });
+  });
 
-    it('should abort when the object exceeds maxBytes', async () => {
-      mockClientImplementation.getObject.mockResolvedValueOnce(
-        streamOf(Buffer.from('abc'), Buffer.from('def')),
-      );
-      await expect(service.getObjectBuffer('obj', 4)).rejects.toThrow(
-        'exceeds the maximum size',
-      );
+  it('propagates copy errors', async () => {
+    mockSend.mockRejectedValueOnce(new Error('Copy failed'));
+    await expect(service.copyObject('source', 'destination')).rejects.toThrow(
+      'Copy failed',
+    );
+  });
+
+  it('deletes an object', async () => {
+    await service.deleteObject('id/source.mp4');
+    const command = mockSend.mock.lastCall?.[0];
+    expect(command).toBeInstanceOf(DeleteObjectCommand);
+    expect(command.input).toEqual({
+      Bucket: 'test-bucket',
+      Key: 'id/source.mp4',
     });
+  });
+
+  it('uploads a buffer with its content type', async () => {
+    const content = Buffer.from('abc');
+    await service.uploadBuffer('search-images/a.png', content, 'image/png');
+    const command = mockSend.mock.lastCall?.[0];
+    expect(command).toBeInstanceOf(PutObjectCommand);
+    expect(command.input).toEqual({
+      Bucket: 'test-bucket',
+      Key: 'search-images/a.png',
+      Body: content,
+      ContentLength: 3,
+      ContentType: 'image/png',
+    });
+  });
+
+  it('maps missing objects to null and propagates other stat errors', async () => {
+    mockSend.mockRejectedValueOnce({
+      name: 'NotFound',
+      $metadata: { httpStatusCode: 404 },
+    });
+    await expect(service.statObject('missing')).resolves.toBeNull();
+    expect(mockSend.mock.lastCall?.[0]).toBeInstanceOf(HeadObjectCommand);
+    mockSend.mockRejectedValueOnce(new Error('down'));
+    await expect(service.statObject('x')).rejects.toThrow('down');
+  });
+
+  it('recognizes AWS and legacy missing-object errors', () => {
+    expect(DatastoreService.isNotFoundError({ name: 'NoSuchKey' })).toBe(true);
+    expect(DatastoreService.isNotFoundError({ code: 'NotFound' })).toBe(true);
+    expect(
+      DatastoreService.isNotFoundError({ $metadata: { httpStatusCode: 404 } }),
+    ).toBe(true);
+    expect(
+      DatastoreService.isNotFoundError({
+        name: 'NoSuchBucket',
+        $metadata: { httpStatusCode: 404 },
+      }),
+    ).toBe(false);
+    expect(DatastoreService.isNotFoundError({ name: 'AccessDenied' })).toBe(
+      false,
+    );
+  });
+
+  it('reads object streams and rejects oversized content', async () => {
+    mockSend.mockResolvedValueOnce({ Body: Readable.from(['ab', 'cd']) });
+    await expect(service.getObjectBuffer('obj', 4)).resolves.toEqual(
+      Buffer.from('abcd'),
+    );
+    const stream = Readable.from(['abc', 'def']);
+    mockSend.mockResolvedValueOnce({ Body: stream });
+    await expect(service.getObjectBuffer('obj', 4)).rejects.toThrow(
+      'exceeds the maximum size',
+    );
+    expect(stream.destroyed).toBe(true);
   });
 });

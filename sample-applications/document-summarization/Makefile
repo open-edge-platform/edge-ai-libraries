@@ -20,7 +20,7 @@
 #   LLM_MODEL                   - LLM model name (default: Qwen/Qwen3-4B-Instruct-2507)
 #   VOLUME_OVMS                 - Path to OVMS model volume (required)
 #   REGISTRY                    - Image registry (default: intel/)
-#   TAG                         - Image tag (default: 2026.3.0-rc1)
+#   TAG                         - Image tag (default: 2026.3.0-rc2)
 #
 # ==============================================================================
 
@@ -32,7 +32,7 @@ SHELL := bash -eu -o pipefail
 # ==============================================================================
 
 SERVICE_NAME := document-summary
-VERSION ?= 2026.3.0-rc1
+VERSION ?= 2026.3.0-rc2
 PYTHON_VERSION := 3.11
 
 # ==============================================================================
@@ -40,7 +40,7 @@ PYTHON_VERSION := 3.11
 # ==============================================================================
 
 DEFAULT_REGISTRY := intel/
-DEFAULT_TAG := 2026.3.0-rc1
+DEFAULT_TAG := 2026.3.0-rc2
 
 # ==============================================================================
 # Model Configuration

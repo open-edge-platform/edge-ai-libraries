@@ -3,10 +3,20 @@
 
 """Pydantic models for OpenAI-compatible chat completion API."""
 
-from typing import Optional, List, Dict, Any, Union, Literal
+from typing import Annotated, Optional, List, Dict, Any, Union, Literal
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# Upper bounds on request collections. They are far above what real clients
+# send (OpenAI itself caps tools at 128 and stop at 4); they only stop a single
+# request from making the router validate millions of items. String sizes are
+# bounded by the request body limit (see ``src.api.body_limit``).
+MAX_MESSAGES = 100_000
+MAX_CONTENT_PARTS = 10_000
+MAX_TOOL_CALLS = 10_000
+MAX_TOOLS = 10_000
+MAX_STOP_SEQUENCES = 1_000
 
 
 class ChatCompletionRole(str, Enum):
@@ -30,7 +40,7 @@ class ChatCompletionMessage(BaseModel):
     # Some upstream models (e.g. Qwen3) emit ``reasoning_content`` natively
     # alongside ``content``. The gateway passes it through unchanged.
     reasoning_content: Optional[str] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
+    tool_calls: Optional[List[Dict[str, Any]]] = Field(default=None, max_length=MAX_TOOL_CALLS)
     # Required on ``role: tool`` messages to bind the result to the assistant
     # tool_call that requested it.
     tool_call_id: Optional[str] = None
@@ -48,6 +58,8 @@ class ChatCompletionMessage(BaseModel):
             return value
 
         if isinstance(value, list):
+            if len(value) > MAX_CONTENT_PARTS:
+                raise ValueError(f"content may have at most {MAX_CONTENT_PARTS} parts")
             for item in value:
                 if not isinstance(item, dict):
                     raise ValueError("content parts must be objects")
@@ -74,7 +86,9 @@ class ChatCompletionRequest(BaseModel):
 
     # ``auto`` selects the configured routing policy; a backend model name
     model: str = Field(default="auto", description="Model identifier")
-    messages: List[ChatCompletionMessage] = Field(..., description="List of messages")
+    messages: List[ChatCompletionMessage] = Field(
+        ..., max_length=MAX_MESSAGES, description="List of messages"
+    )
 
     # === Standard OpenAI parameters ===
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
@@ -83,7 +97,7 @@ class ChatCompletionRequest(BaseModel):
     stream_options: Optional[Dict[str, Any]] = None
     top_p: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     n: Optional[int] = Field(default=None, ge=1)
-    stop: Optional[Union[str, List[str]]] = None
+    stop: Optional[Union[str, Annotated[List[str], Field(max_length=MAX_STOP_SEQUENCES)]]] = None
     presence_penalty: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
     frequency_penalty: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
     logit_bias: Optional[Dict[str, float]] = None
@@ -93,7 +107,7 @@ class ChatCompletionRequest(BaseModel):
     top_logprobs: Optional[int] = Field(default=None, ge=0, le=20)
 
     # Tool calling
-    tools: Optional[List[Dict[str, Any]]] = None
+    tools: Optional[List[Dict[str, Any]]] = Field(default=None, max_length=MAX_TOOLS)
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
     parallel_tool_calls: Optional[bool] = None
 

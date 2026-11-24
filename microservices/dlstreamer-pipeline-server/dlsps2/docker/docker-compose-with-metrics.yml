@@ -58,12 +58,12 @@ services:
   # Metrics Manager - System Metrics + Custom Metrics API
   # ===========================================================================
   metrics-manager:
-    image: ${REGISTRY:-}metrics-manager:${METRICS_MANAGER_TAG:-2026.2.0}
+    image: ${REGISTRY:-}metrics-manager:${METRICS_MANAGER_TAG:-2026.3.0-rc2}
     build:
       context: ../../metrics-manager
       dockerfile: Dockerfile
       args:
-        VERSION: ${METRICS_MANAGER_TAG:-2026.2.0}
+        VERSION: ${METRICS_MANAGER_TAG:-2026.3.0-rc2}
         http_proxy: ${http_proxy:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
         https_proxy: ${https_proxy:-}

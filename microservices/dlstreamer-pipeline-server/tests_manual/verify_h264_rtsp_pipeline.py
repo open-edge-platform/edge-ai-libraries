@@ -16,7 +16,7 @@ proves the new RTSP H.264 encoding branch added to GStreamerRtspFactory:
 
 Run inside a container that has dlstreamer + gstreamer-rtsp-server, e.g.:
   docker run --rm --entrypoint bash -v $(pwd)/..:/workspace -w /workspace \
-    intel/dlstreamer-pipeline-server:2026.2.0-ubuntu24-rc1 \
+    intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc2 \
     -lc "python3 tests_manual/verify_h264_rtsp_pipeline.py"
 """
 import ast

@@ -35,6 +35,7 @@ RUN apt-get update && \
         curl libcurl4t64 \
         libglib2.0-0t64 \
         sed && \
+    apt-get install -y --no-install-recommends --only-upgrade zlib1g libc-bin libc6 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -165,6 +166,51 @@ RUN rm -rf /var/lib/apt/lists/* \
            /root/.cache/pip \
            /timeseries_user/.cache/pip || true
 
+RUN python - <<'PY'
+import json
+import shutil
+import sys
+import sysconfig
+from pathlib import Path
+from zipfile import ZipFile
+import pip
+
+if sys.version_info < (3, 14):
+    raise SystemExit("Removing pip's legacy metadata backend requires Python 3.14+")
+
+legacy_requirement = "setuptools==70.3.0"
+legacy_purl = "pkg:pypi/setuptools@70.3.0"
+vendor = Path(pip.__file__).parent / "_vendor"
+vendor_manifest = vendor / "vendor.txt"
+requirements = vendor_manifest.read_text().splitlines(keepends=True)
+
+if any(line.strip() == legacy_requirement for line in requirements):
+    shutil.rmtree(vendor / "pkg_resources")
+    vendor_manifest.write_text(
+        "".join(
+            line for line in requirements if line.strip() != legacy_requirement
+        )
+    )
+    sbom_path = vendor / "bom.cdx.json"
+    sbom = json.loads(sbom_path.read_text())
+    sbom["components"] = [
+        component for component in sbom["components"] if component.get("purl") != legacy_purl
+    ]
+    sbom["dependencies"] = [
+        dependency for dependency in sbom["dependencies"] if dependency["ref"] != legacy_purl
+    ]
+    for dependency in sbom["dependencies"]:
+        if "dependsOn" in dependency:
+            dependency["dependsOn"] = [ref for ref in dependency["dependsOn"] if ref != legacy_purl]
+    sbom_path.write_text(json.dumps(sbom, indent=2) + "\n")
+
+bundled = Path(sysconfig.get_path("stdlib")) / "ensurepip" / "_bundled"
+for wheel_path in bundled.glob("pip-*.whl"):
+    with ZipFile(wheel_path) as wheel:
+        requirements = wheel.read("pip/_vendor/vendor.txt").decode().splitlines()
+    if legacy_requirement in requirements:
+        wheel_path.unlink()
+PY
 
 RUN chown -R $TIMESERIES_USER_NAME:$TIMESERIES_USER_NAME /app
 

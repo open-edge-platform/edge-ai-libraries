@@ -13,7 +13,7 @@
 
   ```sh
   cd [WORKDIR]
-  git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+  git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.3.0
   cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/helm
   ```
 

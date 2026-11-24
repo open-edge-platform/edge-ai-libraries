@@ -1,6 +1,14 @@
+<!--hide_directive
+```{eval-rst}
+.. meta::
+   :description: Quick start guide for deploying the Inference Router, configuring a backend, and verifying the OpenAI-compatible API.
+   :keywords: inference router, quick start, OpenAI-compatible, LiteLLM, vLLM, Docker Compose, model-based routing, pass-through services, compression plugins
+```
+hide_directive-->
+
 # Quick Start Guide
 
-- **Time to Complete:** 10 mins
+- **Time to Complete:** 10 minutes
 - **Programming Language:** Python
 
 Get the Inference Router running with one configured backend and verify the
@@ -75,14 +83,14 @@ When `workspace/config.yaml` references values such as `${OPENAI_API_KEY}` or
 `${ANTHROPIC_API_KEY}`, Docker Compose tool forwards them from `workspace/.env`
 into the container.
 
+#### Model preparation
 
-#### Model Preparation
-Docker Compose deployments require the OpenVINO classifier model prepared
+Docker Compose deployments require the OpenVINO™ classifier model prepared
 **before starting the router**, even if you do not enable model-based routing
 yet: the compose file mounts it into the container. The default model-based
-routing classifier model is `Qwen3.5-2B` in OpenVINO FP16 format.
+routing classifier model is `Qwen3.5-2B` in OpenVINO™ FP16 format.
 
-Download the Qwen3.5 2B OpenVINO model. If your environment uses an internal
+Download the Qwen3.5 2B OpenVINO™ model. If your environment uses an internal
 model mirror, download the same `OpenVINO/Qwen3.5-2B-fp16-ov` repository from
 it:
 
@@ -91,22 +99,26 @@ it:
 pip install -U huggingface_hub
 ```
 
-> **Note**: if you encounter an `externally-managed-environment` error,
-either run the install command with `--break-system-packages`, or create
-a Python virtual environment first.
+> [!TIP]
+> If you encounter an `externally-managed-environment` error, either run the
+> install command with `--break-system-packages`, or create a Python virtual
+> environment first.
 
 ```bash
 hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen3.5-2B-FP16
 ```
 
-> **Note**: **`/opt` permissions:** the default `/opt/models` is typically root-owned.
+> [!NOTE]
+> **`/opt` permissions:** The default `/opt/models` is typically root-owned.
 > Grant your user access
 > (`sudo mkdir -p /opt/models && sudo chown "$USER:$USER" /opt/models`).
 
-> For users based in PRC, you might need to set `export HF_ENDPOINT=https://hf-mirror.com`.
+> [!NOTE]
+> For users based in the People's Republic of China (PRC), you might need to set
+> `export HF_ENDPOINT=https://hf-mirror.com`.
 
 For Docker Compose deployments, export the model path on this host with
-`IR_OV_MODEL`; the compose file mounts it into the container automatically.
+`IR_OV_MODEL`; the compose file mounts it into the container automatically:
 
 ```bash
 export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
@@ -192,13 +204,13 @@ bash scripts/deploy_docker.sh --ui-port 8080
 ```
 
 To skip the UI and deploy only the router (local-only by default, see
-[Enable Remote Access](#enable-remote-access)):
+[Enable remote access](#enable-remote-access)):
 
 ```bash
 bash scripts/deploy_docker.sh --standalone
 ```
 
-#### Enable Remote Access
+#### Enable remote access
 
 In both deployment modes the router binds to `127.0.0.1` (loopback) by default,
 so it is only reachable from the host it runs on. To allow access from **other
@@ -300,7 +312,7 @@ curl http://localhost:8000/v1/metrics
 With model-based routing, a small classifier model on this host reads each
 request and decides whether a local model can handle it or it should go to a
 cloud model. The router ships a ready-to-use classifier for the model prepared
-in [Model Preparation](#model-preparation); no training is needed.
+in [Model preparation](#model-preparation); no training is needed.
 
 1. Give the two providers the labels `local` and `cloud` in
    `workspace/config.yaml`:
@@ -378,17 +390,18 @@ listed, enabled or disabled, and updated through the same
 Currently supported services (the provider `type` selects the service and the
 endpoint it exposes):
 
-| Provider `type` | Endpoint Exposed              | Typical Backend                  |
-| --------------- | ----------------------------- | -------------------------------- |
-| `transcription` | `POST /v1/audio/transcriptions` | Speech-to-text service (e.g. Whisper)  |
-| `tts`           | `POST /v1/audio/speech`         | Text-to-speech                 |
-| `embeddings`    | `POST /v1/embeddings`           | Embedding model                |
-| `rerank`        | `POST /v1/rerank`               | Reranker (Cohere-compatible)   |
-| `ocr`           | `POST /v1/ocr`                  | OCR / document understanding   |
+| Provider `type` | Endpoint Exposed                | Typical Backend                         |
+| --------------- | ------------------------------- | --------------------------------------- |
+| `transcription` | `POST /v1/audio/transcriptions` | Speech-to-text service (e.g., Whisper)  |
+| `tts`           | `POST /v1/audio/speech`         | Text-to-speech                          |
+| `embeddings`    | `POST /v1/embeddings`           | Embedding model                         |
+| `rerank`        | `POST /v1/rerank`               | Reranker (Cohere-compatible)            |
+| `ocr`           | `POST /v1/ocr`                  | OCR / document understanding            |
 
-> **Note**: Optical Character Recognition (OCR)
+> [!NOTE]
+> Here, OCR: Optical Character Recognition
 
-### Enable a pass-through service
+### Enable a Pass-through Service
 
 Add a provider whose `type` is one of the values above. The request is forwarded
 to `settings.endpoint`; if the endpoint is a base URL, the service subpath (e.g.
@@ -440,6 +453,9 @@ Notes:
   `GATEWAY_MAX_CONCURRENCY=<n>` (or pass `--max-concurrency <n>`) to enable
   one. Status and configuration endpoints (`/health`, `/v1/models`,
   `/v1/config`) are never limited.
+- **Request size.** Request bodies above 300 MiB (the same cap as the UI's
+  nginx proxy) are rejected with `413`, on these and all other endpoints. Set
+  `GATEWAY_MAX_REQUEST_BYTES=<bytes>` to change it, or `0` to disable it.
 - **Dynamic control.** Because they are ordinary providers, you can enable,
   disable, update, or delete them at runtime through the `/v1/providers` API; the
   change takes effect immediately. Disabling or removing the provider makes its
@@ -454,14 +470,14 @@ usage, via plugins based on the
 Use the unified `compressor` node and select the compressor type with
 `settings.type`:
 
-
 - `tool` — filters the request `tools` schema to a relevant subset using a
   **tool predictor** (an OpenAI-compatible LLM endpoint, or a reranker endpoint
   for the small-model option).
 - `harness` — compresses system or developer messages using a **compress server**.
 - `context` — compresses the conversation context.
 
->  **Caution:** The context compressor is experimental and is disabled by default.
+> [!CAUTION]
+> The context compressor is experimental and is disabled by default.
 
 The compress server and tool predictor are **not** part of the router.
 For deployment instructions, see the
@@ -469,7 +485,6 @@ For deployment instructions, see the
 repository.
 For detailed purpose and behavior of each compressor, see the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor) repository documentation.
-
 
 ### Configuration
 
@@ -623,7 +638,7 @@ supported key is currently `provider`, the provider that served the request.
   other stage) is rejected at load time, as is an unsupported key.
 - `metrics_keys` only splits how metrics are reported; it does not change which
   requests a compressor runs on. To run a compressor for some providers only,
-  [attach it to those providers](./plugin.md#attaching-plugins-to-providers).
+  [attach it to those providers](./plugin.md#attach-plugins-to-providers).
 
 ### Metrics Checking
 
@@ -676,7 +691,7 @@ It also includes cross-plugin overall fields:
 - `overall.compression_ratio`: `overall.total_output / overall.total_input`.
 - `overall.avg_duration_per_request`: average end-to-end compression time per request.
 
-> **Note**:
+> [!NOTE]
 > `overall.*` fields only count the request parts the compressors cover, and
 > count a part twice when two compressors of the same type run in series. For
 > the whole-request saving, use
@@ -779,7 +794,7 @@ This endpoint includes compressor effect under `token_metrics`:
 - `token_metrics.before_router`: token counts before plugin processing.
 - `token_metrics.after_router`: token counts after plugin processing.
 
-> **Note**:
+> [!NOTE]
 > `after_router` is measured after the `prerouting` and `postrouting` stages are both
 > completed (it is the request that will be forwarded to the backend).
 

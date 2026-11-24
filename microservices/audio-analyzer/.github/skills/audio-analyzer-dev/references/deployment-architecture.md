@@ -44,7 +44,7 @@ Single service, `audio-analyzer`, defined in `docker-compose.yml`:
 services:
   audio-analyzer:
     build: { context: ., dockerfile: docker/Dockerfile }
-    image: ${REGISTRY:-intel}/audio-analyzer:${RELEASE_TAG:-2026.3.0-rc1}
+    image: ${REGISTRY:-intel}/audio-analyzer:${RELEASE_TAG:-2026.3.0-rc2}
     user: "1000:1000"            # fixed — matches the image's baked-in app user
     ports: ["8010:8010"]
     group_add: ["video", "${RENDER_GID:-992}"]
@@ -168,5 +168,5 @@ service:
   useful for quick iteration without touching the Compose-managed tag.
 
 `.env` controls `REGISTRY` (default `intel`) and `RELEASE_TAG` (pinned to the
-selected release candidate, `2026.3.0-rc1`). Never leave an image reference on
+selected release candidate, `2026.3.0-rc2`). Never leave an image reference on
 `:latest` in a committed Compose override meant for production use.

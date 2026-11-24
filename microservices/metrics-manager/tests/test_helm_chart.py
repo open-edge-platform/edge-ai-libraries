@@ -346,7 +346,7 @@ def test_hardware_devices_and_disabled_gpu(render):
             },
             "config": {"enableTurbostat": True, "hostnameOverride": "node-a"},
             "pod": {"supplementalGroups": [1234]},
-            "image": {"tag": "2026.3.0-extended-rc1"},
+            "image": {"tag": "2026.3.0-extended-rc2"},
         }
     )
     paths = {v["hostPath"]["path"] for v in pod(docs)["volumes"] if "hostPath" in v}
@@ -354,7 +354,7 @@ def test_hardware_devices_and_disabled_gpu(render):
     assert environment(docs)["HARDWARE_TELEMETRY_ENABLED"]["value"] == "false"
     assert environment(docs)["METRICS_MANAGER_HOSTNAME"]["value"] == "node-a"
     assert pod(docs)["securityContext"]["supplementalGroups"] == [1234]
-    assert pod(docs)["containers"][0]["image"].endswith(":2026.3.0-extended-rc1")
+    assert pod(docs)["containers"][0]["image"].endswith(":2026.3.0-extended-rc2")
 
 
 @pytest.mark.parametrize("kind", ["Deployment", "DaemonSet"])
@@ -402,9 +402,27 @@ def test_custom_configs_are_readonly_and_roll_pods(render):
     assert checksums["checksum/telegraf-dropins"] != other["checksum/telegraf-dropins"]
 
 
+@pytest.mark.parametrize("ttl", [None, "0", "30s"])
+def test_expiration_setting_and_custom_output_preserved(render, ttl):
+    custom = '[[outputs.prometheus_client]]\nexpiration_interval = "120s"\n'
+    values = {"telegraf": {"config": custom}}
+    if ttl is not None:
+        values["telegraf"]["expirationInterval"] = ttl
+    docs = render(values)
+    assert environment(docs)["TELEGRAF_EXPIRATION_INTERVAL"]["value"] == (ttl or "60s")
+    config = next(
+        doc for doc in docs if doc["kind"] == "ConfigMap" and "telegraf.conf" in doc["data"]
+    )
+    assert config["data"]["telegraf.conf"] == custom.rstrip()
+
+
 @pytest.mark.parametrize(
     "values,message",
     [
+        (
+            {"config": {"extraEnv": [{"name": "TELEGRAF_EXPIRATION_INTERVAL", "value": "10s"}]}},
+            "legacy or duplicate",
+        ),
         ({"controller": {"kind": "StatefulSet"}}, "controller.kind"),
         ({"customMetrics": {"storage": "invalid"}}, "customMetrics.storage"),
         ({"service": {"telegrafPort": 9090}}, "service ports"),

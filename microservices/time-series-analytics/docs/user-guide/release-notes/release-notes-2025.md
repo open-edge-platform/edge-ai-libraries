@@ -47,7 +47,7 @@ and enhanced security measures for the microservice. It offers two deployment op
 - Helm chart version updated from 1.0.0 to 1.1.0-weekly
 - Python dependencies updated across multiple licenses
 
-More details at [user-guide](../../user-guide/index.md)
+More details at [user-guide](../index.md)
 
 ## Version v1.0.0
 
