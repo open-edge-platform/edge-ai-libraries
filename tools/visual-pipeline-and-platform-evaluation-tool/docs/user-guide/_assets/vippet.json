@@ -3136,7 +3136,7 @@
           "pipelines"
         ],
         "summary": "Update Variant",
-        "description": "**Update an existing variant.**\n\n## Operation\n1. Validate request body via `VariantUpdate` model\n2. Validate that pipeline and variant exist\n3. Check that variant is not read-only\n4. Delegate to `PipelineManager.update_variant()`\n5. Backend automatically updates variant's and pipeline's `modified_at` timestamps\n\n## Immutable Fields\nThe following fields **cannot** be updated via API:\n- `id` - Immutable identifier\n- `read_only` - Immutable flag\n- `created_at` - Immutable creation timestamp\n- `modified_at` - Automatically updated by backend\n\n## Restrictions\n- Only one of `pipeline_graph` or `pipeline_graph_simple` can be provided per request\n- Cannot update read-only variants (from PREDEFINED pipelines)\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline containing the variant\n- `variant_id` - ID of the variant to update\n\n## Request Body\n**`VariantUpdate`** (validated by Pydantic) - any combination of:\n- `name` *(optional)* - Variant name (non-empty after trim)\n- `pipeline_graph` *(optional)* - Advanced graph (mutually exclusive with `pipeline_graph_simple`)\n- `pipeline_graph_simple` *(optional)* - Simplified graph (mutually exclusive with `pipeline_graph`)\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200 | Updated Variant object with new `modified_at` |\n| 400 | `MessageResponse` - Variant is read-only |\n| 404 | `MessageResponse` - Pipeline or variant not found |\n| 422 | Pydantic validation error (no fields, both graphs, or empty name) |\n| 500 | `MessageResponse` - Unexpected error |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- Variant is not read-only\n- At least one field provided\n- At most one graph field provided\n- Name is non-empty after trim (if provided)\n- Variant is successfully updated\n- Variant's and pipeline's `modified_at` are updated\n\n### \u274c Failure\n- Pipeline or variant not found \u2192 404\n- Variant is read-only \u2192 400\n- Invalid request (no fields, both graphs, empty name) \u2192 422 (Pydantic validation)\n- Any other exception \u2192 500\n\n## Examples\n\n### Request (Update Name)\n```json\n{\n  \"name\": \"GPU-optimized\"\n}\n```\n\n### Request (Update Advanced Graph)\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [...],\n    \"edges\": [...]\n  }\n}\n```\n\n### Success Response (200)\n```json\n{\n  \"id\": \"variant-1\",\n  \"name\": \"GPU-optimized\",\n  \"read_only\": false,\n  \"pipeline_graph\": {...},\n  \"pipeline_graph_simple\": {...},\n  \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n  \"modified_at\": \"2026-02-05T15:45:00.456000+00:00\"\n}\n```\n\n### Error Response (400 - Read-only)\n```json\n{\n  \"message\": \"Cannot update read-only variant 'variant-1'.\"\n}\n```\n\n### Error Response (422 - Empty Name)\n```json\n{\n  \"detail\": [\n    {\n      \"type\": \"value_error\",\n      \"msg\": \"Value error, Field 'name' must not be empty.\"\n    }\n  ]\n}\n```",
+        "description": "**Update an existing variant.**\n\n## Operation\n1. Validate request body via `VariantUpdate` model\n2. Validate that pipeline and variant exist\n3. Check that variant is not read-only\n4. Delegate to `PipelineManager.update_variant()`\n5. Backend automatically updates variant's and pipeline's `modified_at` timestamps\n\n## Immutable Fields\nThe following fields **cannot** be updated via API:\n- `id` - Immutable identifier\n- `read_only` - Immutable flag\n- `created_at` - Immutable creation timestamp\n- `modified_at` - Automatically updated by backend\n\n## Restrictions\n- Only one of `pipeline_graph` or `pipeline_graph_simple` can be provided per request\n- Cannot update read-only variants (from PREDEFINED pipelines)\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline containing the variant\n- `variant_id` - ID of the variant to update\n\n## Request Body\n**`VariantUpdate`** (validated by Pydantic) - any combination of:\n- `name` *(optional)* - Variant name (non-empty after trim)\n- `pipeline_graph` *(optional)* - Advanced graph (mutually exclusive with `pipeline_graph_simple`)\n- `pipeline_graph_simple` *(optional)* - Simplified graph (mutually exclusive with `pipeline_graph`)\n\n### CPU pinning\n`cpu_pinning` inside the submitted graph controls the variant's pinning:\n- Field omitted - the current pinning is kept\n- `[]` - pinning is cleared\n- List of CPU ids - replaces the pinning; ids are de-duplicated and sorted\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200 | Updated Variant object with new `modified_at` |\n| 400 | `MessageResponse` - Variant is read-only |\n| 404 | `MessageResponse` - Pipeline or variant not found |\n| 422 | Pydantic validation error (no fields, both graphs, or empty name) |\n| 500 | `MessageResponse` - Unexpected error |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- Variant is not read-only\n- At least one field provided\n- At most one graph field provided\n- Name is non-empty after trim (if provided)\n- Variant is successfully updated\n- Variant's and pipeline's `modified_at` are updated\n\n### \u274c Failure\n- Pipeline or variant not found \u2192 404\n- Variant is read-only \u2192 400\n- Invalid request (no fields, both graphs, empty name) \u2192 422 (Pydantic validation)\n- Any other exception \u2192 500\n\n## Examples\n\n### Request (Update Name)\n```json\n{\n  \"name\": \"GPU-optimized\"\n}\n```\n\n### Request (Update Advanced Graph)\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [...],\n    \"edges\": [...]\n  }\n}\n```\n\n### Success Response (200)\n```json\n{\n  \"id\": \"variant-1\",\n  \"name\": \"GPU-optimized\",\n  \"read_only\": false,\n  \"pipeline_graph\": {...},\n  \"pipeline_graph_simple\": {...},\n  \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n  \"modified_at\": \"2026-02-05T15:45:00.456000+00:00\"\n}\n```\n\n### Error Response (400 - Read-only)\n```json\n{\n  \"message\": \"Cannot update read-only variant 'variant-1'.\"\n}\n```\n\n### Error Response (422 - Empty Name)\n```json\n{\n  \"detail\": [\n    {\n      \"type\": \"value_error\",\n      \"msg\": \"Value error, Field 'name' must not be empty.\"\n    }\n  ]\n}\n```",
         "operationId": "update_variant",
         "parameters": [
           {
@@ -8826,6 +8826,14 @@
       },
       "PipelineGraph": {
         "properties": {
+          "cpu_pinning": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Cpu Pinning",
+            "description": "Logical CPU ids every stream of this graph is pinned to. Empty uses test-level pinning."
+          },
           "nodes": {
             "items": {
               "$ref": "#/components/schemas/Node"
@@ -8882,7 +8890,7 @@
           "edges"
         ],
         "title": "PipelineGraph",
-        "description": "**Request or response body containing the structured pipeline graph.**\n\nThis is a generic representation used by multiple endpoints\n(conversion, validation, optimization).\n\n## Attributes\n- `nodes` - List of graph nodes\n- `edges` - Directed connections between nodes"
+        "description": "**Request or response body containing the structured pipeline graph.**\n\nThis is a generic representation used by multiple endpoints\n(conversion, validation, optimization).\n\n## Attributes\n- `cpu_pinning` - Logical CPU ids every stream of this graph is pinned to (empty uses test-level pinning)\n- `nodes` - List of graph nodes\n- `edges` - Directed connections between nodes"
       },
       "PipelineGraphResponse": {
         "properties": {
@@ -9395,6 +9403,12 @@
             "$ref": "#/components/schemas/PipelineGraph",
             "description": "Simplified graph view for this variant."
           },
+          "media_only": {
+            "type": "boolean",
+            "title": "Media Only",
+            "description": "Whether the advanced graph only decodes media (decodebin3) without inference elements. Pinned media-only graphs decode on VDBox. Set by backend only.",
+            "default": false
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -9418,7 +9432,7 @@
           "modified_at"
         ],
         "title": "Variant",
-        "description": "**Single variant of a pipeline for different hardware targets.**\n\n## Attributes\n- `id` - Unique variant identifier generated by the backend (not used when creating or updating variants)\n- `name` - Variant name (e.g., \"CPU\", \"GPU\", \"NPU\")\n- `read_only` - Whether the variant is read-only (defaults to false, can only be true for PREDEFINED pipeline variants)\n- `pipeline_graph` - Advanced graph representation for this variant\n- `pipeline_graph_simple` - Simplified graph representation for this variant\n- `created_at` - Creation timestamp as UTC datetime (set by backend only, not modifiable via API)\n- `modified_at` - Last modification timestamp as UTC datetime (updated when variant is modified, set by backend only)"
+        "description": "**Single variant of a pipeline for different hardware targets.**\n\n## Attributes\n- `id` - Unique variant identifier generated by the backend (not used when creating or updating variants)\n- `name` - Variant name (e.g., \"CPU\", \"GPU\", \"NPU\")\n- `read_only` - Whether the variant is read-only (defaults to false, can only be true for PREDEFINED pipeline variants)\n- `pipeline_graph` - Advanced graph representation for this variant\n- `pipeline_graph_simple` - Simplified graph representation for this variant\n- `media_only` - Whether the advanced graph only decodes media without inference (set by backend only)\n- `created_at` - Creation timestamp as UTC datetime (set by backend only, not modifiable via API)\n- `modified_at` - Last modification timestamp as UTC datetime (updated when variant is modified, set by backend only)"
       },
       "VariantCreate": {
         "properties": {

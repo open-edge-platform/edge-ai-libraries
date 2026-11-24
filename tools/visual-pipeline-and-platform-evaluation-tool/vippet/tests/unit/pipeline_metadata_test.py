@@ -1,3 +1,4 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """Unit tests for metadata publication coverage in built-in pipelines."""
@@ -15,6 +16,18 @@ INFERENCE_ELEMENTS = (*CONVERTED_INFERENCE_ELEMENTS, "gvagenai")
 
 class TestPipelineMetadataCoverage(unittest.TestCase):
     """Ensure inference variants expose metadata for functional validation."""
+
+    def test_media_decode_is_single_variant_without_inference(self):
+        with (PIPELINES_DIR / "media-decode.yaml").open(encoding="utf-8") as source:
+            pipeline = yaml.safe_load(source)
+
+        (variant,) = pipeline["variants"]
+        description = variant["pipeline_description"]
+        self.assertEqual(variant["cpu_pinning"], [])
+        self.assertIn("decodebin3", description)
+        self.assertIn("starting-frame=2000", description)
+        self.assertIn("sync=false async=false", description)
+        self.assertFalse(any(element in description for element in INFERENCE_ELEMENTS))
 
     def test_inference_variants_can_publish_metadata(self):
         """Require converters and publishers appropriate to each inference type.
