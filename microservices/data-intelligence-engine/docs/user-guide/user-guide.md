@@ -678,7 +678,7 @@ embedded in a URL.
 Engine settings from [Configuration](#configuration) go in the same `.env`, for
 example:
 
-```dotenv
+```bash
 ENGINE_DOC_EMBEDDING_DEVICE=CPU
 ENGINE_RERANK_DEVICE=CPU
 ```
