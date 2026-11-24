@@ -80,14 +80,15 @@ cd data-intelligence-engine/skills/knowledgebase
 |---|---|
 | `--library NAME` | Asset library name or ID (default `KB_LIBRARY`, then a discovered library) |
 | `--pool ID` | Asset pool ID, repeatable (default `KB_POOL`, then every pool in the library) |
-| `--top-k N` | Candidates per serving source, 1-100 (default `5`) |
+| `--top-k N` | Candidates per serving source, 1-100 (default `10`) |
 | `--media LIST` | Comma-separated `document`, `image`, `video`, `audio`; `document` returns text passages only (default `KB_TARGET_MEDIA`, then every modality) |
-| `--rerank N` | Rerank the candidates with the engine's default reranker and keep the best N (default `KB_RERANK_TOP_N`, then no reranking) |
+| `--rerank N` | Rerank the candidates with the engine's default reranker and keep the best N (default `KB_RERANK_TOP_N`, then `5`); reranking is on by default |
+| `--no-rerank` | Return the chunks in retrieval order without reranking |
 
 A text chunk prints its passage. A figure, image, video or audio chunk has no
 passage; it prints a `media:` URL served by
 [`GET /v1/blob`](../docs/user-guide/api.md#media-bytes) and its caption or
-surrounding page text as `context:`. With `--rerank`, the reranker must be prepared
+surrounding page text as `context:`. Reranking is on by default, so the reranker must be prepared
 (the default Qwen3-VL INT8 reranker scores text and media chunks together). See the [API reference](../docs/user-guide/api.md#retrieval) for
 `top_k`, `target_media` and `postprocess` semantics.
 
@@ -107,7 +108,7 @@ which for OpenClaw is the gateway:
 | `KB_LIBRARY` | discovered | Asset library name or ID |
 | `KB_POOL` | every pool | One asset pool ID |
 | `KB_TARGET_MEDIA` | every modality | Default for `--media` |
-| `KB_RERANK_TOP_N` | no reranking | Default for `--rerank` |
+| `KB_RERANK_TOP_N` | `5` | Default for `--rerank` |
 | `KB_CONNECT_TIMEOUT` | `10` | Connection timeout in seconds |
 
 A command-line option overrides its variable for that call, and a variable

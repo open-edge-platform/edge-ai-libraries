@@ -3,7 +3,7 @@
 
 [tool.poetry]
 name = "audio-analyzer"
-version = "2026.2.0"
+version = "2026.3.0"
 description = "Intel Audio Analyzer — voice transcription and speaker diarization microservice"
 authors = ["Intel Corporation"]
 readme = "README.md"
