@@ -51,22 +51,13 @@ Check if both Time Series services are running:
 docker ps --format '{{.Names}}' | grep -E 'ia-time-series-analytics-microservice|ia-timeseries-ingestion'
 ```
 
-### Stop and Clean
-
-Stop all running services and clean any artifacts:
-
-```bash
-make stop-experimental
-make clean-experimental
-```
-
 ---
 
 ## Deploy the Wind Turbine anomaly detection UDF
 
 Once the services are running, follow the steps below to deploy the Wind Turbine anomaly detection UDF into the TSAM.
 
-The TSAM Swagger UI is available at **[http://localhost:5000/docs](http://localhost:5000/docs)**.
+The TSAM Swagger UI is available at **[http://127.0.0.1:5000/docs](http://127.0.0.1:5000/docs)**.
 
 ### Step 1. Download the UDF package
 
@@ -78,7 +69,7 @@ wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-resources/main
 
 ### Step 2. Upload the UDF package
 
-1. Open **[http://localhost:5000/docs](http://localhost:5000/docs)** in a browser.
+1. Open **[http://127.0.0.1:5000/docs](http://127.0.0.1:5000/docs)** in a browser.
 1. Navigate to **POST /udfs/package**.
 1. Click **Try it out**.
 1. Under **Choose File**, select the downloaded `wind-turbine-anomaly-detection.tar` file.
@@ -89,7 +80,7 @@ A successful response returns the message: `UDF deployment package 'wind-turbine
 
 ### Step 3. Apply the configuration
 
-1. Open **[http://localhost:5000/docs](http://localhost:5000/docs)** in a browser.
+1. Open **[http://127.0.0.1:5000/docs](http://127.0.0.1:5000/docs)** in a browser.
 1. Navigate to **POST /config**.
 1. Click **Try it out**.
 1. In the **Request Body** field, paste the following configuration:
@@ -197,3 +188,17 @@ In the right panel:
     src="../../_assets/ViPPET-UI-Wind-Turbine-metrics-light.png"
     alt="Wind Turbine pipeline runtime data in Metadata JSON tab">
 </picture>
+
+## Stop and clean up
+
+When you finish testing, stop the experimental stack:
+
+```bash
+make stop-experimental
+```
+
+To also remove the Compose volumes and their data, run:
+
+```bash
+make clean-experimental
+```
