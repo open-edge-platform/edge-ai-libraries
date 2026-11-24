@@ -25,7 +25,7 @@ When you run with Docker Compose, the `.env` file at the project root folder is 
 | Variable           | Default                  | Description                                            |
 | ------------------ | ------------------------ | ------------------------------------------------------ |
 | `SERVICE_NAME`     | `semantic-search-agent`  | Service name reported in health and logs.              |
-| `SERVICE_VERSION`  | `2026.3.0-rc1`           | Service version reported in health responses.          |
+| `SERVICE_VERSION`  | `2026.3.0-rc2`           | Service version reported in health responses.          |
 | `LOG_LEVEL`        | `INFO`                   | Logging level: `DEBUG`, `INFO`, `WARNING`, or `ERROR`. |
 | `API_PORT`         | `8080`                   | Port the FastAPI server listens on.                    |
 | `METRICS_PORT`     | `9090`                   | Port for the Prometheus `/metrics` endpoint.           |
