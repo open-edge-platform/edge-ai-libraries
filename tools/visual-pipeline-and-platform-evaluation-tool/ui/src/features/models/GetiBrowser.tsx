@@ -137,8 +137,8 @@ export const GetiBrowser = ({ onInstalled }: GetiBrowserProps) => {
   const [categoryMatches, setCategoryMatches] = useState<
     ModelHubListResponse["items"]
   >([]);
-  const [offsetStack, setOffsetStack] = useState<number[]>([0]);
-  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState<number | null>(null);
   const [models, setModels] = useState<ModelHubListResponse["items"]>([]);
   const [hasNextPage, setHasNextPage] = useState(false);
 
@@ -195,13 +195,15 @@ export const GetiBrowser = ({ onInstalled }: GetiBrowserProps) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setFilters(inputFilters);
-      setOffsetStack([0]);
+      setPage(0);
     }, 300);
 
     return () => clearTimeout(timer);
   }, [inputFilters]);
 
-  const offset = offsetStack[offsetStack.length - 1];
+  const offset = page * ITEMS_PER_PAGE;
+  const totalPages = total !== null ? Math.ceil(total / ITEMS_PER_PAGE) : null;
+  const canGoNext = totalPages !== null ? page + 1 < totalPages : hasNextPage;
 
   useEffect(() => {
     if (category !== ALL_CATEGORIES) return;
@@ -222,13 +224,13 @@ export const GetiBrowser = ({ onInstalled }: GetiBrowserProps) => {
         setHasNextPage(
           response.has_more ?? (response.items?.length ?? 0) >= ITEMS_PER_PAGE,
         );
-        setNextOffset(response.next_offset ?? offset + ITEMS_PER_PAGE);
+        setTotal(response.total ?? null);
       } catch (err) {
         if (cancelled) return;
         console.error("Failed to fetch models:", err);
         setModels([]);
         setHasNextPage(false);
-        setNextOffset(null);
+        setTotal(null);
       }
     };
 
@@ -284,7 +286,7 @@ export const GetiBrowser = ({ onInstalled }: GetiBrowserProps) => {
     if (category === ALL_CATEGORIES) return;
     setModels(categoryMatches.slice(offset, offset + ITEMS_PER_PAGE));
     setHasNextPage(offset + ITEMS_PER_PAGE < categoryMatches.length);
-    setNextOffset(offset + ITEMS_PER_PAGE);
+    setTotal(categoryMatches.length);
   }, [category, categoryMatches, offset]);
 
   const hasFilters =
@@ -313,7 +315,7 @@ export const GetiBrowser = ({ onInstalled }: GetiBrowserProps) => {
             value={category}
             onValueChange={(value) => {
               setCategory(value);
-              setOffsetStack([0]);
+              setPage(0);
             }}
           >
             <SelectTrigger className="w-full">
@@ -427,37 +429,39 @@ export const GetiBrowser = ({ onInstalled }: GetiBrowserProps) => {
         </Table>
       )}
 
-      {!isLoading && (offsetStack.length > 1 || hasNextPage) && (
+      {!isLoading && (page > 0 || canGoNext) && (
         <div className="flex items-center justify-center">
           <Pagination>
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
-                  onClick={() =>
-                    setOffsetStack((stack) =>
-                      stack.length > 1 ? stack.slice(0, -1) : stack,
-                    )
-                  }
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
                   className={
-                    offsetStack.length === 1
+                    page === 0
                       ? "pointer-events-none opacity-50"
                       : "cursor-pointer"
                   }
                 />
               </PaginationItem>
-              <PaginationItem>
-                <PaginationLink isActive>{offsetStack.length}</PaginationLink>
-              </PaginationItem>
+              {(totalPages !== null
+                ? Array.from({ length: totalPages }, (_, i) => i)
+                : [page]
+              ).map((p) => (
+                <PaginationItem key={p}>
+                  <PaginationLink
+                    isActive={p === page}
+                    onClick={() => setPage(p)}
+                    className="cursor-pointer"
+                  >
+                    {p + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
               <PaginationItem>
                 <PaginationNext
-                  onClick={() =>
-                    setOffsetStack((stack) => [
-                      ...stack,
-                      nextOffset ?? offset + ITEMS_PER_PAGE,
-                    ])
-                  }
+                  onClick={() => setPage((p) => p + 1)}
                   className={
-                    hasNextPage
+                    canGoNext
                       ? "cursor-pointer"
                       : "pointer-events-none opacity-50"
                   }
