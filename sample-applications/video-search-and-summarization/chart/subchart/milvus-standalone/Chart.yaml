@@ -4,5 +4,5 @@ apiVersion: v2
 name: milvusstandalone
 description: A Helm chart for deploying Milvus standalone with etcd
 type: application
-version: 2026.3.0-rc1-helm
+version: 2026.3.0-rc2-helm
 appVersion: "2.6.14"

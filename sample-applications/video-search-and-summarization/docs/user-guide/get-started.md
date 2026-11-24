@@ -84,10 +84,10 @@ Before running the application, you need to set several environment variables:
 
    ```bash
    export REGISTRY_URL=intel
-   export TAG=2026.3.0-rc1
+   export TAG=2026.3.0-rc2
    ```
 
-   The model-download helper defaults to `intel/model-download:2026.3.0-rc1`, independently of `REGISTRY_URL` and `TAG`. Set `MODEL_DOWNLOAD_IMAGE` to override the image, or `MODEL_DOWNLOAD_TAG` to override its tag when `MODEL_DOWNLOAD_IMAGE` is unset.
+   The model-download helper defaults to `intel/model-download:2026.3.0-rc2`, independently of `REGISTRY_URL` and `TAG`. Set `MODEL_DOWNLOAD_IMAGE` to override the image, or `MODEL_DOWNLOAD_TAG` to override its tag when `MODEL_DOWNLOAD_IMAGE` is unset.
 
 2. **Set required credentials for some services**:
    Following variables **must** be set on your current shell before running the setup script:

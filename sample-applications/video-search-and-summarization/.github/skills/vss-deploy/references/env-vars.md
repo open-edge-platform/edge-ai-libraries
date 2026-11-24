@@ -46,7 +46,7 @@ override individual ASR settings on top of it (mapped to
 | `REGISTRY_URL` | empty | `setup.sh` trims/adds a trailing slash, combines with `PROJECT_NAME`, and exports `REGISTRY`. |
 | `PROJECT_NAME` | empty | Also normalized with trailing slash before composing `${REGISTRY_URL}${PROJECT_NAME}`. |
 | `REGISTRY` | derived | Prefix for images such as `${REGISTRY:-}pipeline-manager:${TAG:-latest}`. |
-| `TAG` | `latest` in `setup.sh`; docs example `2026.3.0-rc1` | Image tag for app images. |
+| `TAG` | `latest` in `setup.sh`; docs example `2026.3.0-rc2` | Image tag for app images. |
 | `PULL_ALWAYS` | `false` | `true` (or `setup.sh --pull-always` / `--force-pull`) adds `--pull always` to Compose `up` and to the model-download `docker run`, refreshing cached moving tags such as `latest`. Only `true`/`false`/`1`/`0` are accepted; ignored for `config`, `--stop`, `--clean-data`, and `--setenv`. |
 
 ## Model download service
@@ -67,8 +67,8 @@ model-download cannot fetch them.
 
 | Variable | Default | What it controls |
 |---|---|---|
-| `MODEL_DOWNLOAD_IMAGE` | `intel/model-download:${MODEL_DOWNLOAD_TAG:-2026.3.0-rc1}` | Full image reference for the transient model-download service. |
-| `MODEL_DOWNLOAD_TAG` | `2026.3.0-rc1` | Fallback tag when `MODEL_DOWNLOAD_IMAGE` is unset. |
+| `MODEL_DOWNLOAD_IMAGE` | `intel/model-download:${MODEL_DOWNLOAD_TAG:-2026.3.0-rc2}` | Full image reference for the transient model-download service. |
+| `MODEL_DOWNLOAD_TAG` | `2026.3.0-rc2` | Fallback tag when `MODEL_DOWNLOAD_IMAGE` is unset. |
 | `MODEL_DOWNLOAD_OVMS_TAG` | `v2026.4.1` | OVMS release used by the OpenVINO export plugin. |
 | `MODEL_DOWNLOAD_HOST_PORT` | `8640` | Loopback-only REST port while setup downloads models. |
 | `MODEL_DOWNLOAD_JOB_TIMEOUT` | `5400` | Per-job timeout in seconds; `0` disables the wall-clock limit. |
