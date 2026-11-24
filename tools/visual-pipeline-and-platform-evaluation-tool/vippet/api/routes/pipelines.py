@@ -1190,6 +1190,12 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
     - `pipeline_graph` *(optional)* - Advanced graph (mutually exclusive with `pipeline_graph_simple`)
     - `pipeline_graph_simple` *(optional)* - Simplified graph (mutually exclusive with `pipeline_graph`)
 
+    ### CPU pinning
+    `cpu_pinning` inside the submitted graph controls the variant's pinning:
+    - Field omitted - the current pinning is kept
+    - `[]` - pinning is cleared
+    - List of CPU ids - replaces the pinning; ids are de-duplicated and sorted
+
     ## Response Codes
 
     | Code | Description |
