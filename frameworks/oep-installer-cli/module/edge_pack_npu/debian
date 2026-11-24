@@ -1,14 +1,4 @@
 
-configure_edge_pack_npu () {
-  configure_edge_pack "$@"
-
-  edge_pack_ppa_repo="keyserver.ubuntu.com"
-  edge_pack_ppa_key_url="https://$edge_pack_ppa_repo/pks/lookup?op=get&search=0x0c0e6af955ce463c03fc51574d098d70afbe5e1f"
-  edge_pack_ppa_key_file=/etc/apt/keyrings/kobuk-ppa.gpg
-  edge_pack_ppa_source="deb [signed-by=$edge_pack_ppa_key_file] https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/$ID/20260830T100000Z/ $VERSION_CODENAME main"
-  edge_pack_ppa_list_file=/etc/apt/sources.list.d/kobuk-ppa.list
-}
-
 debian_40_profile_edge_pack_npu () {
   echo "edge_pack libze1 kmod"
 }
@@ -18,21 +8,12 @@ debian_40_group_edge_pack_npu () {
 }
 
 debian_40_install_edge_pack_npu () {
-  configure_edge_pack_npu "$@"
+  configure_edge_pack "$@"
   if ensure_apt_is_installed intel-edge-npu && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-npu is installed." >&2
   else
     ensure_prop set installed/edge_pack_npu/owned true
     ensure_apt purge --auto-remove -y intel-edge-npu || true
-
-    case "$ID$VERSION_ID" in
-    ubuntu24.04)
-      ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor
-      ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source"
-      ensure_apt update -y
-      ;;
-    esac
-
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" \
       $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1)
   fi
@@ -42,24 +23,10 @@ debian_40_install_edge_pack_npu () {
 debian_40_remove_edge_pack_npu () {
   [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0
   ensure_apt purge --auto-remove -y intel-edge-npu || true
-  case "$ID$VERSION_ID" in
-  ubuntu24.04)
-    ensure_rm "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
-    ;;
-  esac
 }
 
 debian_40_sbom_edge_pack_npu () {
-  configure_edge_pack_npu "$@"
-  case "$ID$VERSION_ID" in
-  ubuntu24.04)
-    ensure_sbom_format gpg-key "$edge_pack_ppa_key_url"
-    ensure_sbom_format key-file "$edge_pack_ppa_key_file"
-    ensure_sbom_format apt-source "$edge_pack_ppa_source"
-    ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file"
-    echo "---"
-    ;;
-  esac
+  configure_edge_pack "$@"
   sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-npu=$version*"
 }
