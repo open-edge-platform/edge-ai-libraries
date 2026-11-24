@@ -28,8 +28,8 @@ verify_edge_pack () {
   [ -f "$edge_pack_key_file" ] || return 1
   [ -f "$edge_pack_list_file" ] || return 1
   [ -f "$edge_pack_pref_file" ] || return 1
-  [ -z "$edge_pack_ppa_repo" ] || [ -f "$edge_pack_ppa_key_file" ] || return 1
-  [ -z "$edge_pack_ppa_repo" ] || [ -f "$edge_pack_ppa_list_file" ] || return 1
+  [ -f "$edge_pack_ppa_key_file" ] || return 1
+  [ -f "$edge_pack_ppa_list_file" ] || return 1
 }
 
 debian_39_install_edge_pack () {
@@ -43,10 +43,8 @@ debian_39_install_edge_pack () {
     ensure_apt_source "$edge_pack_list_file" "$edge_pack_source"
     ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}"
 
-    if [ -n "$edge_pack_ppa_repo" ]; then
-      ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor
-      ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source"
-    fi
+    ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor
+    ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source"
 
     ensure_apt update -y
   fi
@@ -56,19 +54,16 @@ debian_39_remove_edge_pack () {
   dpkg -l | grep -q -F intel-edge- || { 
     configure_edge_pack "$@"
     [ "$(ensure_prop get installed/edge_pack/owned)" = "true" ] || return 0
-    ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
-    [ -z "$edge_pack_ppa_repo" ] || ensure_rm "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
+    ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file" "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
   }
 }
 
 sbom_edge_pack_repo_entries () {
-  if [ -n "$edge_pack_ppa_repo" ]; then
-    ensure_sbom_format gpg-key "$edge_pack_ppa_key_url"
-    ensure_sbom_format key-file "$edge_pack_ppa_key_file"
-    ensure_sbom_format apt-source "$edge_pack_ppa_source"
-    ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file"
-    echo "---"
-  fi
+  ensure_sbom_format gpg-key "$edge_pack_ppa_key_url"
+  ensure_sbom_format key-file "$edge_pack_ppa_key_file"
+  ensure_sbom_format apt-source "$edge_pack_ppa_source"
+  ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file"
+  echo "---"
   ensure_sbom_format repo-name "$edge_pack_repo"
   ensure_sbom_format gpg-key "$edge_pack_key_url"
   ensure_sbom_format key-file "$edge_pack_key_file"
