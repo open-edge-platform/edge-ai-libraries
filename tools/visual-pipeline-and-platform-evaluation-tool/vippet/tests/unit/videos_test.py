@@ -1875,16 +1875,9 @@ class TestSelectHevcEncoder(unittest.TestCase):
             inspector.return_value.elements = elements
             return VideosManager._select_hevc_encoder()
 
-    def test_prefers_va_encoder(self):
-        encoder = self._select(
-            [("va", "vah265enc", ""), ("x265", "x265enc", "")]
-        )
+    def test_selects_va_encoder(self):
+        encoder = self._select([("va", "vah265enc", "")])
         self.assertEqual(encoder, "video/x-raw,format=NV12 ! vah265enc")
-
-    def test_falls_back_to_software_encoder(self):
-        encoder = self._select([("x265", "x265enc", "")])
-        self.assertIn("x265enc", encoder)
-        self.assertIn("format=I420", encoder)
 
     def test_raises_when_no_encoder_is_available(self):
         with self.assertRaises(HevcEncoderUnavailableError):

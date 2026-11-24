@@ -34,7 +34,7 @@ const SAMPLE_DOWNLOAD_LABELS = {
 const SAMPLE_POLL_INTERVAL_MS = 2000;
 const SAMPLE_POLL_MAX_ATTEMPTS = 900;
 const HEVC_UNSUPPORTED_MESSAGE =
-  "HEVC conversion is unsupported: no HEVC encoder is available on this platform.";
+  "HEVC conversion needs an Intel GPU; start ViPPET with a GPU profile to enable it.";
 
 export const Videos = () => {
   const { data: videos, isSuccess, isLoading } = useGetVideosQuery();
