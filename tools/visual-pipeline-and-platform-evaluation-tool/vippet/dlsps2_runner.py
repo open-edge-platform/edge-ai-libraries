@@ -623,6 +623,11 @@ class Dlsps2PipelineRunner:
                 string is validated before the run, one per pipeline
                 (``PipelineCommand.validation_stream_ids``); the other streams
                 of a pipeline repeat it. ``None`` validates every stream.
+            stream_cpu_cores: Normal mode only. Logical CPU ids per
+                ``stream_id`` (``PipelineCommand.stream_cpu_cores``), sent as
+                ``cpu_cores`` for that stream's instance instead of
+                ``pinned_cpu_cores``. Streams not listed use
+                ``pinned_cpu_cores``.
 
         Returns:
             PipelineResult with ``exit_code``/``stderr`` (validation mode) or
