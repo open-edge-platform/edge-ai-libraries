@@ -1255,6 +1255,8 @@ completeness only.
 
   intel/model-download    - Intel component, distributed separately with its own notices.
   intel/metrics-manager   - Intel component, distributed separately with its own notices.
+  intel/audio-analyzer    - Intel component, distributed separately with its own notices.
+  intel/text-to-speech    - Intel component, distributed separately with its own notices.
   bluenviron/mediamtx     - MIT License, distributed by its upstream project.
   eclipse-mosquitto       - Eclipse Public License 2.0 and Eclipse Distribution License 1.0
                             (dual-licensed), distributed by its upstream project. Optional;
