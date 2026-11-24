@@ -13,15 +13,14 @@ debian_40_install_edge_pack_graphics_sriov () {
     echo "intel-edge-graphics-sriov is installed." >&2
   else
     ensure_prop set installed/edge_pack_graphics_sriov/owned true
-    ensure_apt remove -y intel-edge-graphics-sriov || true
-    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-sriov=$version*"
+    install_edge_pack_meta "intel-edge-graphics-sriov=$version*"
   fi
   ensure_group_add $(debian_40_group_edge_pack_graphics_sriov)
 }
 
 debian_40_remove_edge_pack_graphics_sriov () {
   [ "$(ensure_prop get installed/edge_pack_graphics_sriov/owned)" = "true" ] || return 0
-  ensure_apt purge --auto-remove -y intel-edge-graphics-sriov || true
+  remove_edge_pack_meta intel-edge-graphics-sriov
 }
 
 debian_40_sbom_edge_pack_graphics_sriov () {

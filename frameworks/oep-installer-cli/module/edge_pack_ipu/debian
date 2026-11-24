@@ -9,8 +9,7 @@ debian_40_install_edge_pack_ipu () {
     echo "intel-edge-ipu is installed." >&2
   else
     ensure_prop set installed/edge_pack_ipu/owned true
-    ensure_apt remove -y intel-edge-ipu || true
-    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*"
+    install_edge_pack_meta "intel-edge-ipu=$version*"
 
     # workaround: reload intel-ipu7
     ensure_sudo modprobe -r intel-ipu7 || true
@@ -20,7 +19,7 @@ debian_40_install_edge_pack_ipu () {
 
 debian_40_remove_edge_pack_ipu () {
   [ "$(ensure_prop get installed/edge_pack_ipu/owned)" = "true" ] || return 0
-  ensure_apt purge --auto-remove -y intel-edge-ipu || true
+  remove_edge_pack_meta intel-edge-ipu
 }
 
 debian_40_sbom_edge_pack_ipu () {

@@ -18,7 +18,11 @@ configure_edge_pack () {
   edge_pack_ppa_source="deb [signed-by=$edge_pack_ppa_key_file] https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/$ID/20260830T100000Z/ $VERSION_CODENAME main"
   edge_pack_ppa_list_file=/etc/apt/sources.list.d/kobuk-ppa.list
 
-  edge_pack_install_options=("--no-install-recommends" "--allow-downgrades")
+  edge_pack_install_options=(
+    "--no-install-recommends" 
+    "--allow-downgrades"
+    $(ensure_parse_reinstall "$@" && echo --reinstall || true)
+  )
 }
 
 debian_39_profile_edge_pack () {
@@ -50,12 +54,33 @@ debian_39_install_edge_pack () {
   fi
 }
 
+install_edge_pack_meta () {
+  local pkg="$1"; shift
+  ensure_apt update
+  ensure_apt install "${edge_pack_install_options[@]}" "$pkg" "$@"
+  ensure_sudo apt-mark manual "${pkg%%=*}"
+}
+
 debian_39_remove_edge_pack () {
   dpkg -l | grep -q -F intel-edge- || { 
     configure_edge_pack "$@"
     [ "$(ensure_prop get installed/edge_pack/owned)" = "true" ] || return 0
     ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file" "$edge_pack_ppa_key_file" "$edge_pack_ppa_list_file"
   }
+}
+
+remove_edge_pack_meta () {
+  local pkg="$1"
+  ensure_apt_is_installed "$pkg" || return 0
+
+  local closure=($(apt-cache depends --recurse --installed --no-recommends --no-suggests --no-conflicts --no-breaks \
+      --no-replaces --no-enhances "$pkg" 2>/dev/null | awk '/^[^ <]/{sub(/:.*/,"");print}' | sort -u))
+
+  ensure_sudo apt-mark auto "$pkg" >/dev/null
+
+  local candidates=($(apt-get -s autoremove 2>/dev/null | awk '$1=="Remv"{sub(/:.*/,"",$2);print $2}' | sort -u))
+  local remove=($(comm -12 <(printf '%s\n' "${closure[@]}") <(printf '%s\n' "${candidates[@]}")))
+  [ ${#remove[@]} -eq 0 ] || ensure_apt purge -y "${remove[@]}" || true
 }
 
 sbom_edge_pack_repo_entries () {
