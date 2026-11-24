@@ -1915,7 +1915,8 @@ export type DefaultVideoConversionState =
   | "converting"
   | "converted"
   | "failed"
-  | "conflict";
+  | "conflict"
+  | "unsupported";
 export type DefaultVideoRecording = {
   filename: string;
   source: string;
