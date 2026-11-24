@@ -37,7 +37,7 @@ request is rejected with a routing error.
 
 ## Built-in Strategies and Policies
 
-The default strategies are defined in [src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/rsd/strategy.yaml):
+The default strategies are defined in [src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/inference-router/src/rsd/strategy.yaml):
 
 | Strategy | Trigger | Provider Selector |
 | --- | --- | --- |
@@ -48,7 +48,7 @@ The default strategies are defined in [src/rsd/strategy.yaml](https://github.com
 | `ModelBasedRouting` | Classifier maps the last user message to index `0` or `1` | Index-based `label` (`0: local`, `1: cloud`) |
 | `PerformanceBased` | Always matches | `performance.requests <= 10`, then sorts by fewest in-flight requests |
 
-The default policies are defined in [src/rsd/policy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/rsd/policy.yaml):
+The default policies are defined in [src/rsd/policy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/inference-router/src/rsd/policy.yaml):
 
 | Policy | Criterion | Strategy Order |
 | --- | --- | --- |
@@ -118,7 +118,7 @@ model inference on the request path.
 
 ### Built-in Rules
 
-Rules are configured in [src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/rsd/strategy.yaml)
+Rules are configured in [src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/inference-router/src/rsd/strategy.yaml)
 with the `type` and `param` fields.
 
 | Rule Type | Purpose | Main Parameters |
@@ -299,7 +299,7 @@ routing:
   policy: PerformanceFirst
 ```
 
-`PerformanceFirst` already ships in [src/rsd/policy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/rsd/policy.yaml)
+`PerformanceFirst` already ships in [src/rsd/policy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/inference-router/src/rsd/policy.yaml)
 — it runs `PerformanceBased` first and falls back to `ZeroCost` when no provider
 clears the load threshold:
 
@@ -314,7 +314,7 @@ policies:
 ```
 
 The bundled `PerformanceBased` strategy (in
-[src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/rsd/strategy.yaml)) consumes the field the
+[src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/inference-router/src/rsd/strategy.yaml)) consumes the field the
 probes publish:
 
 ```yaml
@@ -368,7 +368,7 @@ or a hard prompt.
 ### Soft Prompt
 
 A soft prompt is a set of pre-trained vectors with respect to a dataset and routing task. The
-router packs the vectors and stores them in a binary file with `rcv` as the extension.
+router packs the vectors and stores them in a binary file with `rcv` as the appendix.
 
 For example, the current default version of the soft prompt was trained on the RouterBench
 Dataset, with the ability to route a query to a cloud or local provider based on the complexity.
@@ -422,7 +422,6 @@ strategies:
 2. Label your providers `local` and `cloud`, and activate the policy.
 
 3. Send requests and see where they go. For example:
-
    ```bash
    curl http://localhost:8000/v1/chat/completions \
      -H "Content-Type: application/json" \
