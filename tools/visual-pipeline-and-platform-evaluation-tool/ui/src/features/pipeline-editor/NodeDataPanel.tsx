@@ -592,6 +592,9 @@ const NodeDataPanel = ({
                     const isCameraSource =
                       selectedNode.type === "source" &&
                       isCameraKind(editableData.kind);
+                    const isVideoSource =
+                      selectedNode.type === "filesrc" ||
+                      normalizeKindValue(editableData.kind) === "video";
                     const matchesDiscoveredCamera = cameraOptions.some(
                       (option) => option.value === sourceSelectValue,
                     );
@@ -618,10 +621,13 @@ const NodeDataPanel = ({
                             value: CUSTOM_RTSP_OPTION_ID,
                           },
                         ]
-                      : ensureCurrentSourceOption(
-                          baseOptions,
-                          sourceSelectValue,
-                        );
+                      : // A video that is not downloaded stays unselected.
+                        isVideoSource && !sourceSelectValue.startsWith("/")
+                        ? baseOptions
+                        : ensureCurrentSourceOption(
+                            baseOptions,
+                            sourceSelectValue,
+                          );
                     const selectedId = showCustomRtsp
                       ? CUSTOM_RTSP_OPTION_ID
                       : (sourceOptions.find(
