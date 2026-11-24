@@ -205,9 +205,15 @@ harness, and shows their state:
 - Router spans: with `--backend` given (or saved), a host-side bridge tails
   `ir_metrics.jsonl` and exports one trace per request (service
   `inference-router`) to the same SQLite store or Jaeger as the harness. The
-  Router itself is not modified. The bridge keeps a checkpoint, so it resumes
+  Router itself is not modified. The `request_completed` event becomes the root
+  span (`inference-router.request`, with provider, model and token counts) and the
+  Router's other events become its children. `--content` controls whether event
+  `metadata` and `details` are attached to the spans (the Router records no
+  prompt text). The bridge keeps a checkpoint, so it resumes
   without duplicating spans after a restart, and `disable` (or uninstall) stops
-  it. Without `--backend` the Router keeps its file backend only.
+  it. It does not survive a reboot: run `observability enable` again. With the
+  `sqlite` backend it keeps at most `HARNESS_ROUTER_BRIDGE_MAX_ROWS` (default
+  200000) rows. Without `--backend` the Router keeps its file backend only.
 - `harness` (the installed agent: Hermes or OpenClaw; host
   runtime): turns on the agent's own OpenTelemetry exporter, see
   [Harness agents](#harness-agents). For a fresh setup, the
@@ -336,7 +342,9 @@ the exporter is built into the sandbox image and
 (the receiver for `sqlite`, the managed Jaeger for `jaeger`) through
 `host.openshell.internal`; `disable` removes it. The collected data stays on the
 host. Enabling or disabling OpenClaw restarts its sandbox so the gateway reloads
-its settings. For Hermes the
+its settings; the command then waits up to 60 seconds for the gateway port to
+accept connections, and only warns if it does not, so a prompt sent right after
+it does not fail with `ECONNREFUSED`. For Hermes the
 `hermes-otel` plugin is installed and enabled in the image (enabling downloads
 Python dependencies, which the default policy does not allow) but kept silent by a `hermes_otel.yaml` with `enabled: false`; `enable`
 rewrites that file inside the sandbox and stops the Hermes gateway process there,
@@ -361,6 +369,7 @@ Overrides:
 `HARNESS_OPENCLAW_OTEL_PLUGIN` (an npm spec, default
 `@openclaw/diagnostics-otel@<installed OpenClaw version>`),
 `HARNESS_OTLP_RECEIVER_PORT`, `HARNESS_OTLP_RECEIVER_MAX_ROWS`,
+`HARNESS_ROUTER_BRIDGE_MAX_ROWS`,
 `HARNESS_IR_TELEMETRY_MAX_BYTES`, `HARNESS_IR_TELEMETRY_FILE_MODE`,
 `HARNESS_JAEGER_IMAGE`, `HARNESS_JAEGER_CONTAINER`,
 `HARNESS_JAEGER_UI_PORT`, `HARNESS_JAEGER_OTLP_PORT`.

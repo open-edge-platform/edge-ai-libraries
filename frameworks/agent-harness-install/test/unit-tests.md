@@ -43,7 +43,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 60 |
+| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 72 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -287,7 +287,7 @@ temporary HOME, so nothing touches the host. These cases do not prove that a
 real Router container can write its telemetry file, that an agent
 exports spans, or that Jaeger displays them; those need a live deployment.
 
-[metrics-cli-test.sh](metrics-cli-test.sh) (`bash test/metrics-cli-test.sh`, 9
+[metrics-cli-test.sh](metrics-cli-test.sh) (`bash test/metrics-cli-test.sh`, 10
 cases; its own CI step) additionally runs the real `./install.sh observability ...` entry point as a
 subprocess against stateful fake `docker`, `hermes`, `flock` and `curl`
 executables: the enable/disable round trip, `--keep-jaeger`, a foreign Jaeger
@@ -348,6 +348,17 @@ codes and resulting state, not real containers.
 | `clean_failures_are_reported` | Failed `--clean` | Report the failure instead of claiming the data was cleaned. |
 | `content_capture_warns_for_remote_endpoints` | Content capture and endpoint | Warn only when prompt text would leave this machine. |
 | `router_summary_lists_providers` | `show` output | Print totals and a per provider/model breakdown with control characters removed. |
+| `openclaw_foreign_check_times_out_closed` | Timed-out foreign-exporter check | Fail closed instead of assuming no foreign OpenClaw exporter. |
+| `router_bridge_resolves_its_settings` | Router bridge settings | Resolve backend, endpoint and content from flags, saved state and target. |
+| `router_bridge_follows_enable_and_disable` | Router bridge lifecycle | Start with `enable --backend`, stop on `disable`; `--target router` alone stays file-only. |
+| `router_bridge_external_endpoint_and_switching` | External endpoint and sink switch | Send Router spans to an `--endpoint`, and switch back from the managed Jaeger. |
+| `router_bridge_preflight_fails_before_any_change` | Bridge prerequisites | Fail before the Router config or state is changed. |
+| `router_bridge_start_failure_rolls_back` | Failed bridge start | Roll back the config, state and a newly started Jaeger. |
+| `router_bridge_tailer_resumes_without_duplicates` | Bridge tailer | Resume per batch, replay for a new sink, fail on an unwritable checkpoint. |
+| `router_bridge_sinks_are_idempotent_and_keep_paths` | Bridge sinks | Ignore replayed spans in SQLite and keep an explicit OTLP endpoint path. |
+| `router_bridge_daemon_forwards_events` | Bridge daemon | Forward Router events into the SQLite store and stop cleanly. |
+| `harness_show_and_disable_follow_the_recorded_owner` | Recorded exporter owner | Let `show` and `disable` use the recorded agent even when the selected harness is unsupported. |
+| `openshell_openclaw_stage_off_keeps_ownership_until_applied` | OpenShell OpenClaw disable | Keep exporter ownership until the disable is applied, so a failed restart can be retried. |
 
 ## Agent model defaults
 

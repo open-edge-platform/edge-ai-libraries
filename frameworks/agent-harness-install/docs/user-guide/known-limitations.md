@@ -138,6 +138,10 @@ For sandbox setup, architecture and lifecycle guidance, see
 - `mcp register` has Hermes's configuration shape and OpenClaw's `mcp set` command
   built in; other agents need `HARNESS_MCP_REGISTER_CMD` set to a real
   registration script.
+- The Router span bridge (`observability enable --backend ...`) does not
+  survive a reboot; re-run `observability enable` to start it again. After an
+  OpenClaw sandbox restart the command waits up to 60 seconds for the gateway
+  and only warns if it is still not accepting connections.
 - `./install.sh observability` for OpenClaw with the
   `sqlite` backend starts a loopback OTLP receiver that does not survive a
   reboot; re-run `observability enable` to start it again. OpenClaw spans carry
