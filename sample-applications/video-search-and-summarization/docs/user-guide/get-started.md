@@ -219,6 +219,9 @@ Before running the application, you need to set several environment variables:
       # which grows the index without bound.
       export LIVE_RETENTION_HOURS=24
 
+      # Minutes between retention sweeps when retention is enabled.
+      export LIVE_RETENTION_SWEEP_MINUTES=15
+
       # Maximum cameras ingesting at once. Registering more returns 503;
       # pause or delete a camera to free a slot.
       export LIVE_STREAM_MAX_CONCURRENT=8
