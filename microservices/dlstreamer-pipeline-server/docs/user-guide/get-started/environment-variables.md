@@ -9,7 +9,7 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
     > The REST API has no built-in authentication by design — any network peer
     > that can reach this port can call it. Restricting network access (firewall/
     > network policy) or fronting it with an authenticating reverse proxy is the
-    > responsibility of the deploying infrastructure. See [Security Considerations](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/dlstreamer-pipeline-server/README.md#security-considerations).
+    > responsibility of the deploying infrastructure. See [Security Considerations](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/README.md#security-considerations).
 
 ### RTSP related config
 - **ENABLE_RTSP (Boolean)** - Set to `true` to enable RTSP. Set to `false` to disable RTSP
