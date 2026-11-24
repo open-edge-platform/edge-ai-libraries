@@ -9,7 +9,7 @@ debian_40_install_edge_pack_manageability () {
     echo "intel-edge-manageability is installed." >&2
   else
     ensure_prop set installed/edge_pack_manageability/owned true
-    ensure_apt purge --auto-remove -y intel-edge-manageability || true
+    ensure_apt remove -y intel-edge-manageability || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*"
   fi
 }

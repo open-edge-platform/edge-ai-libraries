@@ -25,7 +25,7 @@ debian_41_install_edge_pack_base_realtime () {
     echo "intel-edge-base-realtime is installed." >&2
   else
     ensure_prop set installed/edge_pack_base_realtime/owned true
-    ensure_apt purge --auto-remove -y intel-edge-base-realtime onevpl-tools || true
+    ensure_apt remove -y intel-edge-base-realtime onevpl-tools || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" \
       $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12) \
       $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1)

@@ -13,7 +13,7 @@ debian_40_install_edge_pack_graphics_core () {
     echo "intel-edge-graphics-core is installed." >&2
   else
     ensure_prop set installed/edge_pack_graphics_core/owned true
-    ensure_apt purge --auto-remove -y intel-edge-graphics-core || true
+    ensure_apt remove -y intel-edge-graphics-core || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
   ensure_group_add $(debian_40_group_edge_pack_graphics_core)
