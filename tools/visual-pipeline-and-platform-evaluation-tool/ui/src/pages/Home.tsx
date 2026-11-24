@@ -167,7 +167,7 @@ export const Home = () => {
           >
             <h3 className="font-semibold text-base mb-1">What's new?</h3>
             <p className="text-sm text-muted-foreground">
-              Check out what's new in the latest ViPPET 2026.1 release
+              Check out what's new in the latest ViPPET 2026.3 release
             </p>
           </a>
         </div>
