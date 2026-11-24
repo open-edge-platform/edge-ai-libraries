@@ -269,8 +269,10 @@ async def get_default_video_recordings():
         source = (
             "Pexels"
             if is_pexels
-            else "OpenVINO" if hostname.endswith("openvinotoolkit.org")
-            else "GitHub" if hostname.endswith("github.com")
+            else "OpenVINO"
+            if hostname.endswith("openvinotoolkit.org")
+            else "GitHub"
+            if hostname.endswith("github.com")
             else hostname
         )
         # A file being moved into place is visible before the download finishes.
@@ -284,9 +286,7 @@ async def get_default_video_recordings():
         elif manager.filename_exists(filename):
             status = schemas.DefaultVideoDownloadState.CONFLICT
         else:
-            status = statuses.get(
-                filename, schemas.DefaultVideoDownloadState.AVAILABLE
-            )
+            status = statuses.get(filename, schemas.DefaultVideoDownloadState.AVAILABLE)
         hevc_filename = manager.default_hevc_filename(filename)
         converted_video = manager.get_video(hevc_filename)
         if (
@@ -300,14 +300,10 @@ async def get_default_video_recordings():
                 conversion_status = _default_video_conversion_status.get(
                     filename, schemas.DefaultVideoConversionState.NOT_CONVERTED
                 )
-            if (
-                conversion_status
-                not in (
-                    schemas.DefaultVideoConversionState.QUEUED,
-                    schemas.DefaultVideoConversionState.CONVERTING,
-                )
-                and manager.filename_exists(hevc_filename)
-            ):
+            if conversion_status not in (
+                schemas.DefaultVideoConversionState.QUEUED,
+                schemas.DefaultVideoConversionState.CONVERTING,
+            ) and manager.filename_exists(hevc_filename):
                 conversion_status = schemas.DefaultVideoConversionState.CONFLICT
         result.append(
             schemas.DefaultVideoRecording(
@@ -400,8 +396,7 @@ async def start_default_video_hevc_conversion(
 ):
     manager = VideosManager()
     if not any(
-        item["filename"] == body.filename
-        for item in manager.get_default_recordings()
+        item["filename"] == body.filename for item in manager.get_default_recordings()
     ):
         raise HTTPException(status_code=404, detail="Unknown sample video filename")
     if not manager.default_video_exists(body.filename):
@@ -444,7 +439,9 @@ async def start_default_video_hevc_conversion(
     )
     return JSONResponse(
         content=response.model_dump(),
-        status_code=202 if status == schemas.DefaultVideoConversionState.QUEUED else 200,
+        status_code=202
+        if status == schemas.DefaultVideoConversionState.QUEUED
+        else 200,
     )
 
 

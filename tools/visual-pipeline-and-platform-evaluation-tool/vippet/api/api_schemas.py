@@ -3126,6 +3126,7 @@ class Video(BaseModel):
         ),
     )
 
+
 class DefaultVideoDownloadState(str, Enum):
     AVAILABLE = "available"
     QUEUED = "queued"
@@ -3153,12 +3154,12 @@ class DefaultVideoRecording(BaseModel):
 
 
 class DefaultVideoDownloadRequest(BaseModel):
-  filename: str
+    filename: str
 
 
 class DefaultVideoDownloadResponse(BaseModel):
-  filename: str
-  status: DefaultVideoDownloadState
+    filename: str
+    status: DefaultVideoDownloadState
 
 
 class DefaultVideoConversionRequest(BaseModel):
