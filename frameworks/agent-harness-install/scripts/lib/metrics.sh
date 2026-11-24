@@ -20,6 +20,11 @@
 #   router   Inference Router. It cannot export OTLP; its telemetry backend is
 #            either "memory" (default, lost on restart) or "file" (JSONL in its
 #            workspace). Both are readable through its /v1/metrics endpoint.
+#            With --backend sqlite|jaeger a host-side bridge
+#            (metrics-router-bridge.py) tails the JSONL file and forwards each
+#            request as a trace (service inference-router) to a local SQLite
+#            store or to the same Jaeger the harness uses; the Router itself
+#            is not modified.
 #
 # Chosen settings are kept in ~/.agent-harness-install/metrics.json so that a
 # later install (which regenerates the Router's config.yaml) preserves them.
@@ -54,6 +59,11 @@ METRICS_RECEIVER_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/metrics-o
 # name of the policy rule that lets the agent reach the host collector.
 METRICS_OS_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/openshell/observability-config.mjs"
 METRICS_OS_RULE=harness_otel
+# Host-side daemon that forwards the Router's JSONL events as spans (sqlite or OTLP); the Router has no exporter.
+METRICS_BRIDGE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/metrics-router-bridge.py"
+HARNESS_ROUTER_BRIDGE_MAX_ROWS="${HARNESS_ROUTER_BRIDGE_MAX_ROWS:-200000}"
+# Set by metrics_resolve_router_settings: bridge backend (empty = file only), exporter URL, managed Jaeger, content mode.
+R_BACKEND="" R_ENDPOINT="" R_MANAGED=false R_CONTENT=off
 # The Router's JSONL file is rotated to ir_metrics.jsonl.1 (one generation) when
 # the installer next prepares it and it is larger than this many bytes; 0 turns
 # rotation off. The Router re-reads the whole file for every /v1/metrics call.
@@ -174,13 +184,7 @@ metrics_parse_args() {
   if [[ -n "$M_CLEAN" && -n "$M_KEEP_JAEGER" ]]; then
     error "--clean and --keep-jaeger conflict: cleaning removes the managed Jaeger and its traces."
   fi
-  if [[ -n "$M_KEEP_JAEGER" && "$M_TARGET" == router ]]; then
-    error "--keep-jaeger applies to the harness; use --target harness or --target all."
-  fi
   [[ "$verb" == enable ]] || return 0
-  if [[ "$M_TARGET" == router && ( -n "$M_BACKEND" || -n "$M_ENDPOINT" || -n "$M_CONTENT" ) ]]; then
-    error "--backend/--endpoint/--content apply to the harness; use --target harness or --target all."
-  fi
   # Omitted flags keep the saved harness settings (see metrics_enable_harness).
   M_BACKEND_GIVEN="$M_BACKEND" M_CONTENT_GIVEN="$M_CONTENT"
   M_BACKEND="${M_BACKEND:-sqlite}"
@@ -367,6 +371,11 @@ metrics_remove_jaeger() {
     foreign)
       warn "Not removing the container ${HARNESS_JAEGER_CONTAINER}: it was not created by this installer." ;;
   esac
+}
+
+# metrics_jaeger_in_use_by <harness|router> -- that target uses (or was told to keep) the managed Jaeger.
+metrics_jaeger_in_use_by() {
+  [[ "$(metrics_state_get "$1.managed_jaeger")" == true || "$(metrics_state_get "$1.kept_jaeger")" == true ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -845,7 +854,7 @@ metrics_enable_harness() {
   if [[ "$managed" != true ]]; then
     if [[ "$prev_managed" == true ]]; then
       # Switching away from a Jaeger that was in use.
-      metrics_remove_jaeger
+      if ! metrics_jaeger_in_use_by router; then metrics_remove_jaeger; fi
     elif [[ "$prev_kept" == true ]]; then
       # Left running on purpose by 'observability disable --keep-jaeger'; only an
       # explicit disable (or uninstall) may remove it and its traces.
@@ -937,14 +946,20 @@ metrics_enable_openshell_sandbox() {
 }
 
 # metrics_openshell_wait_openclaw <on|off> [base] -- waits for the restarted
-# sandbox's start script to have applied the staged OpenClaw settings.
+# sandbox's start script to have applied the staged OpenClaw settings and its gateway to accept connections.
 metrics_openshell_wait_openclaw() {
-  local _
+  local _ applied=false
   for _ in {1..30}; do
-    if metrics_os_exec openclaw-verify "$@" >/dev/null 2>&1; then return 0; fi
+    if metrics_os_exec openclaw-verify "$@" >/dev/null 2>&1; then applied=true; break; fi
     sleep 2
   done
-  error "OpenClaw did not apply the telemetry settings after the sandbox restart; inspect it with './install.sh connect --runtime openshell --harness openclaw'."
+  [[ "$applied" == true ]] \
+    || error "OpenClaw did not apply the telemetry settings after the sandbox restart; inspect it with './install.sh connect --runtime openshell --harness openclaw'."
+  for _ in {1..30}; do
+    if metrics_os_exec openclaw-gateway-ready >/dev/null 2>&1; then return 0; fi
+    sleep 2
+  done
+  warn "The OpenClaw gateway in the sandbox is not accepting connections yet; retry in a moment."
 }
 
 metrics_disable_hermes() {
@@ -993,6 +1008,8 @@ metrics_disable_harness() {
       keep_jaeger=true
       info "Kept managed Jaeger (${HARNESS_JAEGER_CONTAINER}) and its traces: http://127.0.0.1:${HARNESS_JAEGER_UI_PORT}"
       info "Remove it later with './install.sh observability disable --target harness' or uninstall."
+    elif metrics_jaeger_in_use_by router; then
+      info "The managed Jaeger (${HARNESS_JAEGER_CONTAINER}) stays: the Router telemetry bridge still sends to it."
     else
       metrics_remove_jaeger
     fi
@@ -1452,6 +1469,138 @@ metrics_router_preflight() {
   metrics_router_check_container_group
 }
 
+# ---------------------------------------------------------------------------
+# Router telemetry bridge: ir_metrics.jsonl -> spans in SQLite or Jaeger
+# ---------------------------------------------------------------------------
+
+metrics_router_bridge_pidfile() { printf '%s/metrics-router-bridge.pid' "$(harness_state_root)"; }
+metrics_router_bridge_logfile() { printf '%s/metrics-router-bridge.log' "$(harness_state_root)"; }
+metrics_router_bridge_checkpoint() { printf '%s/metrics-router-bridge.json' "$(harness_state_root)"; }
+metrics_router_store() { printf '%s/router-telemetry/ir_otel_live.db' "$(harness_state_root)"; }
+
+# Prints the pid of this installer's bridge when it is alive (the pid alone is not trusted: it may be reused).
+metrics_router_bridge_pid() {
+  local pidfile pid
+  pidfile="$(metrics_router_bridge_pidfile)"
+  [[ -f "$pidfile" && ! -L "$pidfile" ]] || return 1
+  pid="$(cat "$pidfile" 2>/dev/null)" || return 1
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  { tr '\0' ' ' <"/proc/${pid}/cmdline" 2>/dev/null || ps -p "$pid" -o args= 2>/dev/null; } \
+    | grep -Fq "metrics-router-bridge" || return 1
+  printf '%s' "$pid"
+}
+
+metrics_router_bridge_check() {
+  command_exists python3 || error "python3 is required for the Router telemetry bridge (--backend sqlite|jaeger)."
+  python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' \
+    || error "python3 >= 3.8 is required for the Router telemetry bridge."
+  [[ -f "$METRICS_BRIDGE_SCRIPT" ]] || error "Missing ${METRICS_BRIDGE_SCRIPT}."
+  [[ "$HARNESS_ROUTER_BRIDGE_MAX_ROWS" =~ ^[0-9]+$ ]] \
+    || error "HARNESS_ROUTER_BRIDGE_MAX_ROWS must be a number (got '${HARNESS_ROUTER_BRIDGE_MAX_ROWS}')."
+}
+
+# Combines the command line with the saved Router settings and sets R_BACKEND/R_ENDPOINT/R_MANAGED/R_CONTENT;
+# changes no state. An empty R_BACKEND keeps the Router on its plain file backend. Only --target all adopts
+# the sqlite default, so 'enable --target router' alone behaves as before.
+metrics_resolve_router_settings() {
+  local given="${M_BACKEND_GIVEN:-}" given_endpoint="${M_ENDPOINT:-}" saved saved_endpoint saved_managed saved_content
+  saved="$(metrics_state_get router.bridge)"
+  saved_endpoint="$(metrics_state_get router.endpoint)"
+  saved_managed="$(metrics_state_get router.managed_jaeger)"
+  saved_content="$(metrics_state_get router.content)"
+  R_BACKEND="" R_ENDPOINT="" R_MANAGED=false R_CONTENT="${M_CONTENT:-off}"
+  if [[ -n "$given" ]]; then
+    R_BACKEND="$M_BACKEND"
+  elif [[ -n "$saved" ]]; then
+    R_BACKEND="$saved"
+  elif [[ "${M_TARGET:-router}" == all ]]; then
+    R_BACKEND="${M_BACKEND:-sqlite}"
+    # An endpoint on its own means the exporting backend.
+    [[ -z "$given_endpoint" ]] || R_BACKEND=jaeger
+    if ! command_exists python3; then
+      # The default must not make '--target all' fail on a host without python3.
+      warn "python3 not found: the Router's spans are not exported (its telemetry stays in the JSONL file)."
+      R_BACKEND=""
+    fi
+  fi
+  if [[ -z "${M_CONTENT_GIVEN:-}" && "$R_BACKEND" == "$saved" ]]; then
+    case "$saved_content" in off | preview | full) R_CONTENT="$saved_content" ;; esac
+  fi
+  case "$R_BACKEND" in
+    "" | sqlite)
+      [[ -z "$given_endpoint" ]] \
+        || error "--endpoint needs an exporting backend; add --backend jaeger (sqlite exports nothing)."
+      if [[ -z "$R_BACKEND" && -n "${M_CONTENT_GIVEN:-}" ]]; then
+        error "--content applies to span export; add --backend sqlite or jaeger for the Router."
+      fi ;;
+    jaeger)
+      R_ENDPOINT="$given_endpoint"
+      if [[ -z "$R_ENDPOINT" && "$saved" == jaeger && "$saved_managed" != true && "$saved_endpoint" =~ $METRICS_ENDPOINT_RE ]]; then
+        R_ENDPOINT="$saved_endpoint"
+      fi
+      if [[ -z "$R_ENDPOINT" ]]; then
+        R_MANAGED=true
+        R_ENDPOINT="http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}/v1/traces"
+      fi ;;
+  esac
+}
+
+# Everything about the bridge that can be checked before any change is made.
+metrics_router_bridge_preflight() {
+  metrics_resolve_router_settings
+  [[ -n "$R_BACKEND" ]] || return 0
+  metrics_router_bridge_check
+  if [[ "$R_MANAGED" == true ]]; then metrics_jaeger_preflight; fi
+}
+
+metrics_router_bridge_stop() {
+  local pid
+  pid="$(metrics_router_bridge_pid)" || { rm -f -- "$(metrics_router_bridge_pidfile)"; return 0; }
+  kill "$pid" 2>/dev/null || true
+  # The bridge makes one last pass over the file before it exits.
+  for _ in $(seq 1 30); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.5
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+  rm -f -- "$(metrics_router_bridge_pidfile)"
+  ok "Router telemetry bridge stopped"
+}
+
+# Starts the bridge detached from this shell; it does not survive a reboot, 'observability enable' starts it again.
+metrics_router_bridge_start() {
+  local store log _
+  local -a sink_args
+  metrics_router_bridge_check
+  metrics_router_bridge_stop
+  ensure_state_dir >/dev/null
+  log="$(metrics_router_bridge_logfile)"
+  [[ ! -L "$log" && ! -L "$(metrics_router_bridge_checkpoint)" ]] \
+    || error "Refusing to write through a symlink in the installer state directory."
+  case "$R_BACKEND" in
+    sqlite)
+      store="$(metrics_router_store)"
+      [[ ! -L "$store" ]] || error "Refusing to write through a symlink: ${store}"
+      (umask 077 && mkdir -p -- "$(dirname "$store")")
+      sink_args=(--db "$store" --max-rows "$HARNESS_ROUTER_BRIDGE_MAX_ROWS") ;;
+    jaeger) sink_args=(--endpoint "$R_ENDPOINT") ;;
+  esac
+  # fd 200 is the deployment/state lock; a daemon that inherited it would hold the lock until it exits.
+  (umask 077 && : >>"$log")
+  nohup setsid python3 "$METRICS_BRIDGE_SCRIPT" --file "$(metrics_router_telemetry_file)" \
+    --checkpoint "$(metrics_router_bridge_checkpoint)" --content "$R_CONTENT" "${sink_args[@]}" \
+    --pidfile "$(metrics_router_bridge_pidfile)" >>"$log" 2>&1 </dev/null 200>&- &
+  disown 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    metrics_router_bridge_pid >/dev/null && break
+    sleep 0.25
+  done
+  metrics_router_bridge_pid >/dev/null || error "The Router telemetry bridge did not start; see ${log}."
+  ok "Router telemetry bridge running (backend: ${R_BACKEND}, content: ${R_CONTENT})"
+}
+
 metrics_router_apply() {
   local state="$1" prev
   metrics_router_require_environment
@@ -1480,8 +1629,53 @@ metrics_router_apply() {
 }
 
 metrics_enable_router() {
+  local prev_managed
   metrics_router_apply true
   ok "Router telemetry enabled: persisted to $(metrics_router_telemetry_file)"
+  if [[ -z "${R_BACKEND:-}" ]]; then
+    metrics_router_bridge_stop
+    return 0
+  fi
+  prev_managed="$(metrics_state_get router.managed_jaeger)"
+  if [[ "$R_MANAGED" == true ]]; then
+    metrics_ensure_jaeger
+    # Recorded at once so 'observability disable' can clean up if a later step fails.
+    metrics_state_set router.managed_jaeger true router.kept_jaeger false
+  fi
+  metrics_state_set router.bridge "$R_BACKEND" router.endpoint "$R_ENDPOINT" router.content "$R_CONTENT"
+  metrics_router_bridge_start
+  if [[ "$R_MANAGED" != true ]]; then
+    metrics_state_set router.managed_jaeger false
+    if [[ "$prev_managed" == true ]] && ! metrics_jaeger_in_use_by harness; then
+      # Switching away from a Jaeger that was in use.
+      metrics_remove_jaeger
+    fi
+  fi
+  if [[ "$R_BACKEND" == jaeger ]]; then
+    info "Router spans (service inference-router) go to ${R_ENDPOINT}; each request is one trace, written after it completes."
+  else
+    info "Router spans are stored in $(metrics_router_store)"
+  fi
+}
+
+# Stops the bridge and gives up the managed Jaeger unless the harness (or --keep-jaeger) still needs it.
+metrics_router_bridge_disable() {
+  local owns keep=false
+  owns=false
+  if metrics_jaeger_in_use_by router; then owns=true; fi
+  metrics_router_bridge_stop
+  [[ -n "$(metrics_state_get router.bridge)" || "$owns" == true ]] || return 0
+  if [[ "$owns" == true ]]; then
+    if [[ -n "${M_KEEP_JAEGER:-}" ]]; then
+      keep=true
+      info "Kept managed Jaeger (${HARNESS_JAEGER_CONTAINER}) and its traces: http://127.0.0.1:${HARNESS_JAEGER_UI_PORT}"
+    elif metrics_jaeger_in_use_by harness; then
+      info "The managed Jaeger (${HARNESS_JAEGER_CONTAINER}) stays: the harness still sends to it."
+    else
+      metrics_remove_jaeger
+    fi
+  fi
+  metrics_state_set router.bridge "" router.managed_jaeger false router.kept_jaeger "$keep"
 }
 
 # Once the Router is back on in-memory telemetry (it has been restarted) nothing
@@ -1495,6 +1689,8 @@ metrics_router_secure_file() {
 
 metrics_disable_router() {
   metrics_router_apply false
+  # Stopped after the Router went back to memory, so its last events are forwarded.
+  metrics_router_bridge_disable
   metrics_router_secure_file
   if [[ -n "${M_CLEAN:-}" ]]; then
     if metrics_clean_router; then
@@ -1517,6 +1713,10 @@ metrics_clean_router() {
     warn "Refusing to clean a symlinked telemetry file: ${file}"
     return 1
   fi
+  local store
+  store="$(metrics_router_store)"
+  rm -f -- "$(metrics_router_bridge_checkpoint)"
+  if [[ -f "$store" ]]; then metrics_clean_harness_store "$store" || return 1; fi
   if [[ -f "${file}.1" ]]; then
     rm -f -- "${file}.1" || { warn "Could not remove ${file}.1; remove it manually."; return 1; }
     ok "Removed the rotated file ${file}.1"
@@ -1531,6 +1731,58 @@ metrics_clean_router() {
   else
     warn "Could not empty ${file}; remove it manually."
     return 1
+  fi
+}
+
+metrics_show_router_bridge() {
+  local backend endpoint pid ckpt size file store
+  local -a ck
+  backend="$(metrics_state_get router.bridge)"
+  if [[ -z "$backend" ]]; then
+    info "No span export (add it with: ./install.sh observability enable --target router --backend <sqlite|jaeger>)"
+    return 0
+  fi
+  endpoint="$(metrics_state_get router.endpoint)"
+  ok "Span export enabled -- backend: ${backend}${endpoint:+ (${endpoint})}, detail capture: $(metrics_state_get router.content)"
+  if pid="$(metrics_router_bridge_pid)"; then
+    ok "Router telemetry bridge running (pid ${pid})"
+  else
+    warn "Router telemetry bridge is not running (it does not survive a reboot); start it again with './install.sh observability enable --target router'. Log: $(metrics_router_bridge_logfile)"
+  fi
+  ckpt="$(metrics_router_bridge_checkpoint)"
+  file="$(metrics_router_telemetry_file)"
+  if [[ -f "$ckpt" && -f "$file" ]] && command_exists node; then
+    mapfile -t ck < <(node -e '
+      try {
+        const s = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+        console.log(Number(s.offset) || 0);
+        console.log(Number(s.spans) || 0);
+        console.log(String(s.error || "").replace(/[^\x20-\x7e]/g, "?").slice(0, 200));
+      } catch {}
+    ' "$ckpt" 2>/dev/null || true)
+    if [[ "${#ck[@]}" -ge 2 ]]; then
+      size="$(wc -c <"$file" 2>/dev/null | tr -d ' ' || echo 0)"
+      info "Forwarded ${ck[1]} spans; read ${ck[0]} of ${size} bytes of the events file"
+      [[ -z "${ck[2]:-}" ]] || warn "Last export error: ${ck[2]}"
+    fi
+  fi
+  if [[ "$backend" == sqlite ]]; then
+    store="$(metrics_router_store)"
+    if [[ -f "$store" ]]; then
+      info "Local store: ${store}"
+      metrics_show_harness_store "$store"
+    else
+      info "Local store not created yet (${store}); it appears after the first Router request"
+    fi
+  elif [[ "$(metrics_state_get router.managed_jaeger)" == true || "$(metrics_state_get router.kept_jaeger)" == true ]]; then
+    if command_exists curl \
+      && curl --noproxy '*' -sf --max-time 5 "http://127.0.0.1:${HARNESS_JAEGER_UI_PORT}/" >/dev/null 2>&1; then
+      ok "Jaeger UI reachable: http://127.0.0.1:${HARNESS_JAEGER_UI_PORT} (service inference-router)"
+    else
+      warn "Managed Jaeger (${HARNESS_JAEGER_CONTAINER}) is not reachable on port ${HARNESS_JAEGER_UI_PORT}"
+    fi
+  elif [[ -n "$endpoint" ]]; then
+    info "Full trace view: open the UI of the backend receiving ${endpoint} (service inference-router)"
   fi
 }
 
@@ -1557,6 +1809,7 @@ metrics_show_router() {
     fi
   fi
   [[ ! -f "${file}.1" ]] || info "Rotated events file: ${file}.1 (not counted in /v1/metrics)"
+  metrics_show_router_bridge
   if ! command_exists docker; then
     info "Docker not found; cannot read the Inference Router"
     return 0
@@ -1642,7 +1895,7 @@ run_metrics_command() {
     # Every predictable failure is checked before either target is changed, so
     # '--target all' cannot half-apply on a bad option or an unusable Router.
     if [[ -n "$run_harness" ]]; then metrics_enable_harness_preflight; fi
-    if metrics_wants router; then metrics_router_preflight; fi
+    if metrics_wants router; then metrics_router_preflight; metrics_router_bridge_preflight; fi
     metrics_enable_all "$run_harness"
   else
     # A harness failure must not keep the Router from being disabled.
@@ -1663,9 +1916,10 @@ run_metrics_command() {
 # (which has more steps that can still fail, such as fetching the plugin); if
 # the harness fails, a Router change made by this command is undone.
 metrics_enable_all() {
-  local run_harness="$1" prev_router="" rc=0
+  local run_harness="$1" prev_router="" prev_bridge="" rc=0
   if metrics_wants router; then
     prev_router="$(metrics_state_get router.enabled)"
+    prev_bridge="$(metrics_state_get router.bridge)"
     metrics_enable_router
   fi
   [[ -n "$run_harness" ]] || return 0
@@ -1679,7 +1933,12 @@ metrics_enable_all() {
     if metrics_wants router && [[ "$prev_router" != true ]]; then
       warn "Harness telemetry could not be enabled; reverting the Router telemetry change made by this command."
       set +e
-      ( set -e; metrics_router_apply false; metrics_router_secure_file )
+      ( set -e; metrics_router_apply false; metrics_router_bridge_disable; metrics_router_secure_file )
+      set -e
+    elif metrics_wants router && [[ -z "$prev_bridge" && -n "$(metrics_state_get router.bridge)" ]]; then
+      warn "Harness telemetry could not be enabled; stopping the Router span export added by this command."
+      set +e
+      ( set -e; metrics_router_bridge_disable )
       set -e
     fi
     exit "$rc"

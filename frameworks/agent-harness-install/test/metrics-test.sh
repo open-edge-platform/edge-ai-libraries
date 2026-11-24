@@ -28,6 +28,10 @@ fixture() {
     >"$HARNESS_IR_WORKSPACE_DIR/config.yaml"
   ensure_nvm_loaded() { :; }
   M_BACKEND_GIVEN=1 M_CONTENT_GIVEN=1 M_CLEAN="" M_KEEP_JAEGER=""
+  R_BACKEND="" R_ENDPOINT="" R_MANAGED=false R_CONTENT=off
+  # The real bridge is a daemon; only router_bridge_daemon_forwards_events starts it.
+  metrics_router_bridge_start() { printf 'bridge start %s %s\n' "$R_BACKEND" "$R_CONTENT" >>"$ACTIONS"; }
+  metrics_router_bridge_stop() { printf 'bridge stop\n' >>"$ACTIONS"; }
   wait_for_inference_router_ready() { :; }
   docker() {
     case "$1" in
@@ -91,7 +95,9 @@ parse_rejections() {
   expect_failure 'plain http\(s\) URL' \
     metrics_parse_args enable --backend jaeger --endpoint 'http://h:4318/v1/traces?token=x'
   expect_failure 'only valid with .observability enable' metrics_parse_args disable --backend jaeger
-  expect_failure 'apply to the harness' metrics_parse_args enable --target router --content full
+  # --content with --target router parses; the Router resolves it later (see router_bridge_resolves_its_settings).
+  metrics_parse_args enable --target router --content full
+  [[ "$M_TARGET" == router && "$M_CONTENT" == full ]]
   expect_failure 'requires a value' metrics_parse_args enable --endpoint
   expect_failure 'given more than once' metrics_parse_args enable --backend sqlite --backend=jaeger
   expect_failure 'given more than once' metrics_parse_args show --target router --target all
@@ -491,7 +497,8 @@ parse_disable_options() {
   expect_failure 'only valid with .observability disable' metrics_parse_args enable --clean
   expect_failure 'only valid with .observability disable' metrics_parse_args show --keep-jaeger
   expect_failure 'conflict' metrics_parse_args disable --clean --keep-jaeger
-  expect_failure 'applies to the harness' metrics_parse_args disable --keep-jaeger --target router
+  metrics_parse_args disable --keep-jaeger --target router
+  [[ -n "$M_KEEP_JAEGER" && "$M_TARGET" == router ]]
   expect_failure 'Unknown option' metrics_parse_args disable --clean=1
 }
 
@@ -665,8 +672,10 @@ all_target_rolls_the_router_back_when_the_harness_fails() {
   grep -Fq 'backend: "memory"' "$HARNESS_IR_WORKSPACE_DIR/config.yaml"
   # An already-enabled Router stays enabled.
   metrics_router_apply true
+  : >"$ACTIONS"
   TEST_HERMES_FAILS=install expect_failure . run_metrics_command enable --target all
-  [[ "$(metrics_state_get router.enabled)" == true ]]
+  [[ "$(metrics_state_get router.enabled)" == true && -z "$(metrics_state_get router.bridge)" ]]
+  grep -Fxq 'bridge stop' "$ACTIONS"
   out="$(run_metrics_command enable --target all 2>&1)"
   grep -Fq 'Harness telemetry enabled' <<<"$out"
 }
@@ -1086,6 +1095,7 @@ openshell_fixture() {
   openshell_remove_policy_rule() { printf 'unallow %s\n' "$1" >>"$ACTIONS"; }
   metrics_os_exec() {
     if [[ "$1" == check ]]; then printf 'check %s\n' "$2" >>"$ACTIONS"; return 0; fi
+    if [[ "$1" == openclaw-gateway-ready ]]; then printf 'gateway-ready\n' >>"$ACTIONS"; return 0; fi
     sandbox_script "$@"
   }
   metrics_receiver_start() { printf 'receiver start %s %s %s\n' "$1" "$2" "$3" >>"$ACTIONS"; }
@@ -1102,8 +1112,19 @@ openshell_openclaw_lifecycle() {
   grep -Fxq "receiver start openclaw $HOME/.harness-test/openshell-telemetry/openclaw_otel_live.db full" "$ACTIONS"
   grep -Fxq "allow harness_otel ${port} host.openshell.internal" "$ACTIONS"
   grep -Fxq restart "$ACTIONS"
+  grep -Fxq gateway-ready "$ACTIONS"
   [[ "$(node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1])).diagnostics.otel;console.log(o.enabled,o.endpoint,o.captureContent)' "$config")" \
     == "true http://host.openshell.internal:${port} true" ]]
+  # The gateway probe reports whether the configured gateway port accepts connections.
+  local probe_port
+  probe_port="$(node -e 'const s=require("net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')"
+  node -e 'const f=process.argv[1],c=JSON.parse(require("fs").readFileSync(f));c.gateway={port:Number(process.argv[2])};require("fs").writeFileSync(f,JSON.stringify(c))' "$config" "$probe_port"
+  refute sandbox_script openclaw-gateway-ready
+  node -e 'const s=require("net").createServer().listen(Number(process.argv[1]),"127.0.0.1");setTimeout(()=>process.exit(),8000)' "$probe_port" &
+  local listener=$!
+  sleep 1
+  sandbox_script openclaw-gateway-ready
+  kill "$listener" 2>/dev/null || true
   [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.runtime)" == openshell ]]
   # Another runtime must not touch, or claim, the sandbox's exporter.
   HARNESS_RUNTIME=host expect_failure 'enabled for the openshell runtime' metrics_enable_harness
@@ -1230,6 +1251,247 @@ openshell_show_reports_sandbox_and_other_runtime() {
   grep -Fq 'Enabled for the openshell runtime' <<<"$out"
 }
 
+router_bridge_resolves_its_settings() {
+  fixture
+  # The Router alone stays on its file backend unless a backend is named.
+  metrics_parse_args enable --target router
+  metrics_resolve_router_settings
+  [[ -z "$R_BACKEND" ]]
+  metrics_parse_args enable --target all
+  metrics_resolve_router_settings
+  [[ "$R_BACKEND" == sqlite && -z "$R_ENDPOINT" && "$R_MANAGED" == false ]]
+  metrics_parse_args enable --target router --backend jaeger
+  metrics_resolve_router_settings
+  [[ "$R_BACKEND" == jaeger && "$R_MANAGED" == true ]]
+  [[ "$R_ENDPOINT" == "http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}/v1/traces" ]]
+  metrics_parse_args enable --target router --backend jaeger --endpoint http://collector:4318/v1/traces --content preview
+  metrics_resolve_router_settings
+  [[ "$R_MANAGED" == false && "$R_ENDPOINT" == http://collector:4318/v1/traces && "$R_CONTENT" == preview ]]
+  # An endpoint on its own with --target all means jaeger.
+  metrics_parse_args enable --target all --endpoint http://collector:4318/v1/traces
+  metrics_resolve_router_settings
+  [[ "$R_BACKEND" == jaeger && "$R_ENDPOINT" == http://collector:4318/v1/traces ]]
+  metrics_parse_args enable --target router --content full
+  expect_failure 'applies to span export' metrics_resolve_router_settings
+  metrics_parse_args enable --target router --endpoint http://collector:4318/v1/traces
+  expect_failure 'needs an exporting backend' metrics_resolve_router_settings
+  metrics_parse_args enable --target router --backend sqlite --content full
+  metrics_resolve_router_settings
+  [[ "$R_BACKEND" == sqlite && "$R_CONTENT" == full ]]
+  # Saved settings are kept by a later enable that names nothing.
+  metrics_state_set router.bridge jaeger router.endpoint http://collector:4318/v1/traces router.managed_jaeger false router.content full
+  metrics_parse_args enable --target router
+  metrics_resolve_router_settings
+  [[ "$R_BACKEND" == jaeger && "$R_ENDPOINT" == http://collector:4318/v1/traces && "$R_CONTENT" == full && "$R_MANAGED" == false ]]
+  metrics_parse_args enable --target router --backend sqlite
+  metrics_resolve_router_settings
+  [[ "$R_BACKEND" == sqlite && -z "$R_ENDPOINT" && "$R_CONTENT" == off ]]
+}
+
+router_bridge_follows_enable_and_disable() {
+  fixture
+  local out
+  # Without a backend the Router behaves as before and no bridge is started.
+  run_metrics_command enable --target router >/dev/null
+  refute grep -q '^bridge start' "$ACTIONS"
+  [[ -z "$(metrics_state_get router.bridge)" ]]
+  run_metrics_command enable --target router --backend sqlite --content preview >/dev/null
+  grep -Fxq 'bridge start sqlite preview' "$ACTIONS"
+  [[ "$(metrics_state_get router.bridge)" == sqlite && "$(metrics_state_get router.content)" == preview ]]
+  [[ "$(metrics_state_get router.managed_jaeger)" != true ]]
+  refute grep -q 'docker run' "$ACTIONS"
+  run_metrics_command disable --target router >/dev/null
+  grep -Fxq 'bridge stop' "$ACTIONS"
+  [[ -z "$(metrics_state_get router.bridge)" && "$(metrics_state_get router.enabled)" == false ]]
+  # --target all enables the sqlite bridge next to the harness.
+  : >"$ACTIONS"
+  out="$(run_metrics_command enable --target all 2>&1)"
+  grep -Fxq 'bridge start sqlite off' "$ACTIONS"
+  grep -Fq 'Harness telemetry enabled' <<<"$out"
+}
+
+router_bridge_shares_the_managed_jaeger() {
+  fixture
+  # Router first, then the harness; the Jaeger goes with the last user.
+  run_metrics_command enable --target router --backend jaeger >/dev/null
+  grep -Fxq 'bridge start jaeger off' "$ACTIONS"
+  [[ "$(metrics_state_get router.managed_jaeger)" == true ]]
+  run_metrics_command enable --target harness --backend jaeger >/dev/null
+  [[ "$(metrics_state_get harness.managed_jaeger)" == true ]]
+  run_metrics_command disable --target router >/dev/null
+  refute grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  [[ "$(metrics_state_get router.managed_jaeger)" == false ]]
+  run_metrics_command disable --target harness >/dev/null
+  grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  # Harness first, then the Router.
+  : >"$ACTIONS"
+  run_metrics_command enable --target harness --backend jaeger >/dev/null
+  run_metrics_command enable --target router --backend jaeger >/dev/null
+  run_metrics_command disable --target harness >/dev/null
+  refute grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  run_metrics_command disable --target router >/dev/null
+  grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  # --keep-jaeger applies to the Router too.
+  : >"$ACTIONS"
+  run_metrics_command enable --target router --backend jaeger >/dev/null
+  run_metrics_command disable --target router --keep-jaeger >/dev/null
+  refute grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  [[ "$(metrics_state_get router.kept_jaeger)" == true ]]
+}
+
+router_bridge_external_endpoint_and_switching() {
+  fixture
+  run_metrics_command enable --target router --backend jaeger --endpoint http://collector:4318/v1/traces >/dev/null
+  grep -Fxq 'bridge start jaeger off' "$ACTIONS"
+  [[ "$(metrics_state_get router.managed_jaeger)" == false && "$(metrics_state_get router.endpoint)" == http://collector:4318/v1/traces ]]
+  refute grep -q 'docker run' "$ACTIONS"
+  # Switching from the managed Jaeger to sqlite removes the container.
+  run_metrics_command disable --target router >/dev/null
+  run_metrics_command enable --target router --backend jaeger >/dev/null
+  [[ "$(metrics_state_get router.managed_jaeger)" == true ]]
+  run_metrics_command enable --target router --backend sqlite >/dev/null
+  grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  [[ "$(metrics_state_get router.managed_jaeger)" == false && "$(metrics_state_get router.bridge)" == sqlite ]]
+}
+
+router_bridge_clean_removes_its_store() {
+  fixture
+  local store checkpoint
+  store="$(metrics_router_store)"
+  checkpoint="$(metrics_router_bridge_checkpoint)"
+  run_metrics_command enable --target router --backend sqlite >/dev/null
+  mkdir -p "$(dirname "$store")"
+  python3 -c 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("CREATE TABLE events (seq INTEGER PRIMARY KEY, kind TEXT)"); c.execute("INSERT INTO events (kind) VALUES (?)", ("span",)); c.commit()' "$store"
+  printf '{}' >"$checkpoint"
+  run_metrics_command disable --target router >/dev/null
+  [[ "$(sqlite_event_count "$store")" == 1 && -f "$checkpoint" ]]
+  run_metrics_command disable --target router --clean >/dev/null
+  [[ "$(sqlite_event_count "$store")" == 0 && ! -e "$checkpoint" ]]
+}
+
+router_bridge_preflight_fails_before_any_change() {
+  fixture
+  METRICS_BRIDGE_SCRIPT="$TEST_ROOT/missing.py" expect_failure 'Missing' run_metrics_command enable --target router --backend sqlite
+  [[ -z "$(metrics_state_get router.enabled)" ]]
+  expect_failure 'applies to span export' run_metrics_command enable --target router --content full
+  [[ -z "$(metrics_state_get router.enabled)" ]]
+}
+
+router_bridge_tailer_resumes_without_duplicates() {
+  command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
+  python3 - "$SCRIPT_DIR/scripts/lib/metrics-router-bridge.py" "$TEST_ROOT" <<'PY'
+import importlib.util, json, os, sys, tempfile
+
+spec = importlib.util.spec_from_file_location("bridge", sys.argv[1])
+b = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(b)
+d = tempfile.mkdtemp(dir=sys.argv[2])
+f, ck = os.path.join(d, "ir.jsonl"), os.path.join(d, "ck.json")
+
+
+class Sink:
+    def __init__(self, fail_on=None):
+        self.got, self.calls, self.fail_on = [], 0, fail_on
+
+    def send(self, spans):
+        self.calls += 1
+        if self.calls == self.fail_on:
+            raise b.Transient("down")
+        self.got += spans
+
+
+def line(rid, kind="request_completed", **kw):
+    return json.dumps({"event_type": kind, "timestamp": "2026-05-01T10:00:05", "request_id": rid, **kw}) + "\n"
+
+
+def add(text):
+    with open(f, "a", newline="") as h:
+        h.write(text)
+
+
+n = b.BATCH * 2 + 5
+add("".join(line(f"r{i}") for i in range(n)))
+
+# A failure on the second batch repeats nothing that the first batch delivered.
+sink = Sink(fail_on=2)
+t = b.Tailer(f, ck, sink, "off", "a")
+try:
+    t.poll()
+    raise SystemExit("expected a transient failure")
+except b.Transient:
+    pass
+assert len(sink.got) == b.BATCH, len(sink.got)
+sink.fail_on = None
+t = b.Tailer(f, ck, sink, "off", "a")
+t.poll()
+assert sorted(s["span_id"] for s in sink.got) == sorted(set(s["span_id"] for s in sink.got)) and len(sink.got) == n
+
+# Another sink replays the whole file; the same sink resumes where it stopped.
+other = Sink()
+t = b.Tailer(f, ck, other, "off", "b")
+assert t.spans == 0
+t.poll()
+assert len(other.got) == n
+again = Sink()
+b.Tailer(f, ck, again, "off", "b").poll()
+assert not again.got
+
+# Byte-identical lines of one request stay separate spans.
+twin = line("t1", "inference", latency_ms=5.0)
+add(twin + twin)
+sink = Sink()
+b.Tailer(f, ck, sink, "off", "b").poll()
+assert len(sink.got) == 2 and sink.got[0]["span_id"] != sink.got[1]["span_id"]
+
+# A checkpoint that cannot be written stops the daemon instead of re-sending forever.
+add(line("late"))
+t = b.Tailer(f, os.path.join(d, "missing-dir", "ck.json"), Sink(), "off", "c")
+try:
+    t.poll()
+    raise SystemExit("expected a fatal error")
+except b.Fatal:
+    pass
+print("tailer ok")
+PY
+}
+
+router_bridge_daemon_forwards_events() {
+  [[ "$(uname -s)" == Linux ]] || { echo "# skipped: needs /proc"; return 0; }
+  command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
+  fixture
+  # Brings back the real start/stop that fixture replaced.
+  # shellcheck source=../scripts/lib/metrics.sh
+  . "$SCRIPT_DIR/scripts/lib/metrics.sh"
+  local file="$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl" store out pid i
+  trap 'metrics_router_bridge_stop >/dev/null 2>&1 || true' EXIT
+  store="$(metrics_router_store)"
+  run_metrics_command enable --target router --backend sqlite >/dev/null
+  pid="$(metrics_router_bridge_pid)"
+  [[ -n "$pid" ]]
+  printf '%s\n' \
+    '{"event_type":"compression","timestamp":"2026-05-01T10:00:05.100000","request_id":"r1","duration_ms":3.0}' \
+    '{"event_type":"request_completed","timestamp":"2026-05-01T10:00:05.250000","request_id":"r1","provider_name":"p","final_model":"m","total_input_tokens":4,"total_output_tokens":2,"total_latency_ms":10.0}' \
+    >>"$file"
+  for i in $(seq 1 40); do
+    [[ -f "$store" ]] && [[ "$(sqlite_event_count "$store")" == 2 ]] && break
+    sleep 0.25
+  done
+  [[ "$(sqlite_event_count "$store")" == 2 ]]
+  [[ "$(stat -c '%a' "$store")" == 600 ]]
+  out="$(run_metrics_command show --target router 2>&1)"
+  grep -Fq "Router telemetry bridge running (pid ${pid})" <<<"$out"
+  grep -Fq 'inference-router.request' <<<"$out"
+  # A second enable replaces the daemon without duplicating spans.
+  run_metrics_command enable --target router --backend sqlite >/dev/null
+  [[ "$(metrics_router_bridge_pid)" != "$pid" ]]
+  sleep 1
+  [[ "$(sqlite_event_count "$store")" == 2 ]]
+  pid="$(metrics_router_bridge_pid)"
+  run_metrics_command disable --target router >/dev/null
+  refute metrics_router_bridge_pid
+  refute kill -0 "$pid"
+}
+
 dispatch() {
   fixture
   with_deployment_lock() { printf 'lock\n' >>"$ACTIONS"; "$@"; }
@@ -1300,4 +1562,12 @@ run_case 'OpenShell Hermes: plugin baked in, hermes_otel.yaml switched inside th
 run_case 'OpenShell: a missing sandbox fails before any change' openshell_missing_sandbox
 run_case 'OpenShell disable and sandbox removal tolerate a sandbox that is gone' openshell_disable_tolerates_a_removed_sandbox
 run_case 'OpenShell show reads the sandbox and points at the other runtime' openshell_show_reports_sandbox_and_other_runtime
+run_case 'Router bridge settings come from the flags, the saved state, and the target' router_bridge_resolves_its_settings
+run_case 'Router bridge starts and stops with enable/disable; --target router alone stays file-only' router_bridge_follows_enable_and_disable
+run_case 'Router and harness share the managed Jaeger; it goes with the last user' router_bridge_shares_the_managed_jaeger
+run_case 'Router bridge: external endpoint, and switching back from the managed Jaeger' router_bridge_external_endpoint_and_switching
+run_case 'Router disable --clean removes the bridge store and checkpoint' router_bridge_clean_removes_its_store
+run_case 'Router bridge problems are caught before the Router is changed' router_bridge_preflight_fails_before_any_change
+run_case 'Router bridge tailer resumes per batch, replays for a new sink, and fails on an unwritable checkpoint' router_bridge_tailer_resumes_without_duplicates
+run_case 'Router bridge daemon forwards events into the sqlite store and stops cleanly' router_bridge_daemon_forwards_events
 finish_tests

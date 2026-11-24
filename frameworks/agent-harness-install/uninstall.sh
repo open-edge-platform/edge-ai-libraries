@@ -208,6 +208,7 @@ main() {
   metrics_remove_jaeger
   metrics_remove_managed_config
   metrics_receiver_stop
+  metrics_router_bridge_stop
   # OpenClaw keeps its config when the CLI is removed; an exporter we enabled would resume after a reinstall.
   # A sandbox's exporter went away with the sandbox; only a host OpenClaw has config left to undo.
   if [[ "$(metrics_harness_owner)" == openclaw && "$(metrics_harness_runtime)" == host ]]; then

@@ -202,6 +202,12 @@ harness, and shows their state:
   earlier installer version lacks that group: re-run `./install.sh` once to
   recreate it before enabling. The choice is saved only after the file is
   ready, so a failed `enable` leaves the previous setting in place.
+- Router spans: with `--backend` given (or saved), a host-side bridge tails
+  `ir_metrics.jsonl` and exports one trace per request (service
+  `inference-router`) to the same SQLite store or Jaeger as the harness. The
+  Router itself is not modified. The bridge keeps a checkpoint, so it resumes
+  without duplicating spans after a restart, and `disable` (or uninstall) stops
+  it. Without `--backend` the Router keeps its file backend only.
 - `harness` (the installed agent: Hermes or OpenClaw; host
   runtime): turns on the agent's own OpenTelemetry exporter, see
   [Harness agents](#harness-agents). For a fresh setup, the

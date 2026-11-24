@@ -4,6 +4,7 @@
 // Run inside the sandbox, either piped to `node --input-type=module -` by the
 // installer or from /opt/harness (agent-start.sh applies staged OpenClaw settings).
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import {randomUUID} from "node:crypto";
 import {spawnSync} from "node:child_process";
@@ -166,6 +167,17 @@ switch (command) {
   case "openclaw-verify": {
     const [mode, base] = args;
     if (!openclawMatches(mode, base)) process.exitCode = 1;
+    break;
+  }
+  case "openclaw-gateway-ready": {
+    const port = Number(currentOpenclawConfig().gateway?.port ?? 18789);
+    const listening = await new Promise(resolve => {
+      const socket = net.connect({host: "127.0.0.1", port, timeout: 2000});
+      socket.once("connect", () => { socket.destroy(); resolve(true); });
+      socket.once("error", () => resolve(false));
+      socket.once("timeout", () => { socket.destroy(); resolve(false); });
+    });
+    if (!listening) process.exitCode = 1;
     break;
   }
   case "hermes-enable": {
