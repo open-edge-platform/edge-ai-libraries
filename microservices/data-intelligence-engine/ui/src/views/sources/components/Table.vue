@@ -136,17 +136,15 @@
             >
               {{ $t("common.details") }}
             </a-button>
-            <a-tooltip
-              :title="
-                sourceIndexing(record)
-                  ? $t('console.sourceIndexingDeleteHint')
-                  : undefined
-              "
-            >
+            <a-tooltip :title="sourceDeleteHint(record)">
               <a-button
                 danger
                 size="small"
-                :disabled="sourceIndexing(record)"
+                :disabled="
+                  !contentAssetsReady ||
+                  sourceIndexing(record) ||
+                  sourceContentCount(record.id) > 0
+                "
                 @click="handleDelete(record.id, record.name)"
               >
                 {{ $t("common.delete") }}
@@ -171,11 +169,16 @@ import {
   ShareAltOutlined,
 } from "@ant-design/icons-vue";
 import { requestSourceDelete } from "@/api/console";
-import type { Library, Source } from "@/api/console/type";
+import type { Asset, Library, Source } from "@/api/console/type";
 import { getSourceDisplayStatus } from "../../canvas/ResourceModel";
 import getTableColumns from "../ColumnsList";
 import ConsoleTable from "../../../components/ConsoleTable.vue";
-const props = defineProps<{ tableData: Source[]; libraryData: Library }>();
+const props = defineProps<{
+  tableData: Source[];
+  libraryData: Library;
+  contentAssets: Asset[];
+  contentAssetsReady: boolean;
+}>();
 const emit = defineEmits<{ create: []; search: []; view: [id: string] }>();
 const handleCreate = () => emit("create");
 const handleView = (id: string) => emit("view", id);
@@ -197,6 +200,14 @@ const getSourceBindings = (id: string) =>
   );
 const sourceIndexing = (source: Source) =>
   getSourceDisplayStatus(props.libraryData, source) === "indexing";
+const sourceContentCount = (id: string) =>
+  props.contentAssets.filter((asset) => asset.content_source_id === id).length;
+const sourceDeleteHint = (source: Source) => {
+  if (sourceIndexing(source)) return t("console.sourceIndexingDeleteHint");
+  if (!props.contentAssetsReady) return t("console.sourceContentCheckHint");
+  const count = sourceContentCount(source.id);
+  return count ? t("console.sourceContentDeleteHint", { count }) : undefined;
+};
 const tableList = computed(() =>
   props.tableData.filter(
     (item) =>
@@ -208,7 +219,13 @@ const tableList = computed(() =>
 );
 const handleDelete = (id: string, name: string) => {
   const source = props.libraryData.sources.find((item) => item.id === id);
-  if (!source || sourceIndexing(source)) return;
+  if (
+    !source ||
+    !props.contentAssetsReady ||
+    sourceIndexing(source) ||
+    sourceContentCount(id)
+  )
+    return;
   Modal.confirm({
     title: t("common.delete"),
     content: t("console.deleteSource", { name }),
@@ -217,7 +234,13 @@ const handleDelete = (id: string, name: string) => {
     cancelText: t("common.cancel"),
     async onOk() {
       const current = props.libraryData.sources.find((item) => item.id === id);
-      if (!current || sourceIndexing(current)) return;
+      if (
+        !current ||
+        !props.contentAssetsReady ||
+        sourceIndexing(current) ||
+        sourceContentCount(id)
+      )
+        return;
       await requestSourceDelete(props.libraryData.name, id);
       emit("search");
     },
@@ -288,20 +311,22 @@ const handleDelete = (id: string, name: string) => {
     &:hover {
       color: var(--color-primary-second);
     }
-    .name-line {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      a {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .intel-tag {
-        flex-shrink: 0;
-        margin: 0;
-        font-size: 10px;
-      }
+  }
+  .name-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    a {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    :deep(.intel-tag) {
+      flex-shrink: 0;
+      line-height: 16px;
+      margin-left: 4px;
+      font-size: 10px;
     }
   }
 }

@@ -71,8 +71,11 @@ IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
 # The Dockerfile is self-contained: it fetches (vendors) the
 # adaptive-token-compressor source itself. This script only wraps `docker build`
 # with the usual conveniences (tagging, proxy/override forwarding).
+# --pull always fetches the latest base image instead of reusing a stale local
+# copy, so the build picks up upstream security fixes.
 BUILD_CMD=(
   docker build
+  --pull
   --file "${ROOT_DIR}/Dockerfile"
   --tag "${IMAGE_REF}"
 )

@@ -165,6 +165,11 @@ RERANK_MODEL_ID = os.getenv("ENGINE_RERANK_MODEL_ID", "Qwen3-VL-Reranker-2B-INT8
 RERANK_DEVICE = os.getenv("ENGINE_RERANK_DEVICE", "GPU")
 RERANK_API_BASE = os.getenv("ENGINE_RERANK_API_BASE", "")  # remote_openai_compatible
 RERANK_API_KEY = os.getenv("ENGINE_RERANK_API_KEY", "unused")
+# Further endpoints a request's `reranker_model.api_base` may name (comma-separated).
+# Only ENGINE_RERANK_API_BASE receives ENGINE_RERANK_API_KEY.
+RERANK_ALLOWED_API_BASES = [
+    url.strip() for url in os.getenv("ENGINE_RERANK_ALLOWED_API_BASES", "").split(",") if url.strip()
+]
 REMOTE_RERANK_TIMEOUT = 120.0  # seconds
 
 MEDIA_RERANK_BACKEND = _backend("ENGINE_MEDIA_RERANK_BACKEND")
@@ -244,10 +249,10 @@ VIDEO_SUMMARY_TIMEOUT = 300.0
 
 # --- Retrieval defaults -------------------------------------------------------
 # Used when a request omits `top_k` / `postprocess.top_n`.
-RETRIEVE_TOP_K = 5   # per-method top-k
+RETRIEVE_TOP_K = 10   # per-method top-k
 # Max concepts returned by GET /asset_pools/{pool}/graph (best-connected first).
 GRAPH_VIEW_LIMIT = _env_int("ENGINE_GRAPH_VIEW_LIMIT", 1500)
-RERANK_TOP_N = 3     # final result count
+RERANK_TOP_N = 5     # final result count
 # RRF smoothing constant k in `score += 1/(k + rank + 1)`; not a result count.
 RRF_K = 60.0
 

@@ -21,7 +21,12 @@ RUN npm run build
 
 RUN useradd -m -u 1001 user && chown -R user:user /home/user/ui
 
-FROM nginx:stable-alpine
+# Pinned so a rebuild cannot silently ship an older nginx; bump deliberately.
+# >= 1.30.7 for CVE-2026-113425 and related nginx fixes.
+FROM nginx:1.30.7-alpine
+
+# Pick up Alpine security fixes released after the base image (e.g. libxslt).
+RUN apk upgrade --no-cache
 
 RUN adduser -D -u 1001 user
 

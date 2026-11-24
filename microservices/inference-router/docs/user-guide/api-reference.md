@@ -243,7 +243,11 @@ Server-Sent Events (SSE) streaming.
 - 400 Bad Request: routing failed (e.g. unknown model name).
 - 4xx (forwarded): upstream client errors from the backend provider (e.g. an
   invalid payload) are forwarded verbatim with the provider's own status code.
-- 422 Unprocessable Entity: request validation failed.
+- 413 Content Too Large: the request body exceeds `GATEWAY_MAX_REQUEST_BYTES`
+  (default 300 MiB; `0` disables the limit). Applies to every endpoint.
+- 422 Unprocessable Entity: request validation failed, including requests over
+  the collection caps (100,000 `messages`, 10,000 content parts per message,
+  10,000 `tools`, 1,000 `stop` sequences).
 - 429 Too Many Requests: concurrency limit reached.
 - 500 Internal Server Error: inference or unexpected failure.
 - 502 Bad Gateway: upstream provider error (non-4xx).
@@ -327,6 +331,8 @@ curl http://localhost:8000/v1/ocr \
 
 **Errors:**
 
+- 413 Content Too Large: the request body exceeds `GATEWAY_MAX_REQUEST_BYTES`
+  (default 300 MiB).
 - 429 Too Many Requests: concurrency limit reached.
 - 502 Bad Gateway: could not reach the backing service.
 - 503 Service Unavailable: no provider configured for this service, or router
@@ -855,7 +861,7 @@ curl http://localhost:8000/v1/providers/manage \
 Starts a serving backend (provider service) through an external **Local Provider
 Manager**. Provided by the `provider_management` plugin (see
 [Plugins](./plugin.md#provider_management-plugin)); the manager's base URL is
-configured on the plugin instance as `manager_url` (or passed per request).
+configured on the plugin instance as `manager_url`.
 
 The docker parameters are forwarded to the manager verbatim; it runs
 `docker run -d` and records the result. With `health_endpoint` the router waits
@@ -871,10 +877,13 @@ touched: to route to the service, add or enable its provider with
   provider in the router config, though using the same name keeps things clear.
 - `image`, `entrypoint`, `env`, `volumes`, `docker_args`, `command`: docker
   parameters forwarded to the manager (see the Local Provider Manager's API).
-- `health_endpoint`: optional. URL, reachable from the router, polled until it
-  returns 2xx before the router responds (e.g.
-  `http://localhost:24680/health` for vLLM, `/v2/health/ready` for OVMS).
-- `manager_url`: optional. Overrides the plugin's configured manager base URL.
+- `health_endpoint`: optional. http(s) URL, reachable from the router, polled
+  until it returns 2xx before the router responds (e.g.
+  `http://localhost:24680/health` for vLLM, `/v2/health/ready` for OVMS). Its
+  host must be a loopback address, the manager's host, or listed in the plugin's
+  `allowed_health_hosts` setting; otherwise the request fails with 400.
+- `manager_url`: optional, accepted for compatibility only. It must equal the
+  plugin's configured manager URL; any other value fails with 400.
 - `management_timeout`: optional. Timeout in seconds for the manager call and for
   the readiness wait (cold starts can take minutes).
 
