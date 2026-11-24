@@ -1,7 +1,7 @@
 "schema-version": "1"
-"cli-version": "e050fef8c485394d489079867cc0f30c5e33ea38"
-"cli-url": "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/e050fef8c485394d489079867cc0f30c5e33ea38/rendered/openedge-cli-federal-aerospace"
-"cli-sha256": "c9b2e23d7f861139b0324624faec6c951e2ef3383672cf276df74bd8e5b59513"
+"cli-version": "736fafb022ce110597c524deeef255df08db26dc"
+"cli-url": "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/736fafb022ce110597c524deeef255df08db26dc/rendered/openedge-cli-federal-aerospace"
+"cli-sha256": "2b37775947ec177d29f744a5daca26c2394bdab2db940c833dce03e75c2bf9fb"
 "install-cmdline": ["openedge-cli","install","handheld_blueprint","--edgepack","--docker"]
 "module-list": ["handheld_blueprint"]
 ---
@@ -57,6 +57,12 @@
 ---
 "pkg-list": ["autoconf-archive","libglib2.0-dev","libdbus-1-dev","libxml2-dev","libnl-3-dev","libnl-genl-3-dev","libsystemd-dev","systemd-dev","gtk-doc-tools","libupower-glib-dev"]
 ---
+"repo-name": "keyserver.ubuntu.com"
+"gpg-key": "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x0c0e6af955ce463c03fc51574d098d70afbe5e1f"
+"key-file": "/etc/apt/keyrings/kobuk-ppa.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/kobuk-ppa.gpg] https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260830T100000Z/ resolute main"
+"apt-list-file": "/etc/apt/sources.list.d/kobuk-ppa.list"
+---
 "repo-name": "apt.repos.intel.com"
 "gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
 "key-file": "/etc/apt/keyrings/intel-edge-pack.gpg"
@@ -65,6 +71,12 @@
 "apt-pref": ["Package: *","Pin: origin apt.repos.intel.com","Pin-Priority: 1001"]
 "apt-pref-file": "/etc/apt/preferences.d/intel-edge-pack.pref"
 "pkg-list": ["intel-edge-base-standard=1.0*"]
+---
+"repo-name": "keyserver.ubuntu.com"
+"gpg-key": "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x0c0e6af955ce463c03fc51574d098d70afbe5e1f"
+"key-file": "/etc/apt/keyrings/kobuk-ppa.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/kobuk-ppa.gpg] https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260830T100000Z/ resolute main"
+"apt-list-file": "/etc/apt/sources.list.d/kobuk-ppa.list"
 ---
 "repo-name": "apt.repos.intel.com"
 "gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
@@ -75,6 +87,12 @@
 "apt-pref-file": "/etc/apt/preferences.d/intel-edge-pack.pref"
 "pkg-list": ["intel-edge-ipu=1.0*"]
 ---
+"repo-name": "keyserver.ubuntu.com"
+"gpg-key": "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x0c0e6af955ce463c03fc51574d098d70afbe5e1f"
+"key-file": "/etc/apt/keyrings/kobuk-ppa.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/kobuk-ppa.gpg] https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260830T100000Z/ resolute main"
+"apt-list-file": "/etc/apt/sources.list.d/kobuk-ppa.list"
+---
 "repo-name": "apt.repos.intel.com"
 "gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
 "key-file": "/etc/apt/keyrings/intel-edge-pack.gpg"
@@ -83,6 +101,12 @@
 "apt-pref": ["Package: *","Pin: origin apt.repos.intel.com","Pin-Priority: 1001"]
 "apt-pref-file": "/etc/apt/preferences.d/intel-edge-pack.pref"
 "pkg-list": ["intel-edge-manageability=1.0*"]
+---
+"repo-name": "keyserver.ubuntu.com"
+"gpg-key": "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x0c0e6af955ce463c03fc51574d098d70afbe5e1f"
+"key-file": "/etc/apt/keyrings/kobuk-ppa.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/kobuk-ppa.gpg] https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260830T100000Z/ resolute main"
+"apt-list-file": "/etc/apt/sources.list.d/kobuk-ppa.list"
 ---
 "repo-name": "apt.repos.intel.com"
 "gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
@@ -100,6 +124,12 @@
 "apt-list-file": "/etc/apt/sources.list.d/librealsense.list"
 "pkg-list": ["librealsense2","librealsense2-utils","librealsense2-dev","librealsense2-gl","librealsense2-udev-rules"]
 ---
+"repo-name": "keyserver.ubuntu.com"
+"gpg-key": "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x0c0e6af955ce463c03fc51574d098d70afbe5e1f"
+"key-file": "/etc/apt/keyrings/kobuk-ppa.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/kobuk-ppa.gpg] https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260830T100000Z/ resolute main"
+"apt-list-file": "/etc/apt/sources.list.d/kobuk-ppa.list"
+---
 "repo-name": "apt.repos.intel.com"
 "gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
 "key-file": "/etc/apt/keyrings/intel-edge-pack.gpg"
@@ -108,6 +138,12 @@
 "apt-pref": ["Package: *","Pin: origin apt.repos.intel.com","Pin-Priority: 1001"]
 "apt-pref-file": "/etc/apt/preferences.d/intel-edge-pack.pref"
 "pkg-list": ["intel-edge-media-ffmpeg=1.0*"]
+---
+"repo-name": "keyserver.ubuntu.com"
+"gpg-key": "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x0c0e6af955ce463c03fc51574d098d70afbe5e1f"
+"key-file": "/etc/apt/keyrings/kobuk-ppa.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/kobuk-ppa.gpg] https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260830T100000Z/ resolute main"
+"apt-list-file": "/etc/apt/sources.list.d/kobuk-ppa.list"
 ---
 "repo-name": "apt.repos.intel.com"
 "gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
