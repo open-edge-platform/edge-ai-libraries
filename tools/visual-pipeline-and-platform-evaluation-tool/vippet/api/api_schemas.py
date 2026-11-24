@@ -1,9 +1,14 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
 
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from cpu_topology import normalize_cpu_ids
 
 _HUB_MODEL_NAME_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 # Geti model names are free-form labels, e.g. "YOLOX-Tiny (a08374ca)".
@@ -537,9 +542,21 @@ class PipelineGraph(BaseModel):
     (conversion, validation, optimization).
 
     ## Attributes
+    - `cpu_pinning` - Logical CPU ids every stream of this graph is pinned to (empty uses test-level pinning)
     - `nodes` - List of graph nodes
     - `edges` - Directed connections between nodes
     """
+
+    cpu_pinning: List[int] = Field(
+        default_factory=list,
+        description="Logical CPU ids every stream of this graph is pinned to. Empty uses test-level pinning.",
+    )
+
+    @field_validator("cpu_pinning", mode="before")
+    @classmethod
+    def _validate_cpu_pinning(cls, cpus: object) -> List[int]:
+        """Reject non-int or negative CPU ids; de-duplicate and sort the rest."""
+        return normalize_cpu_ids(cpus, "cpu_pinning")
 
     nodes: List[Node] = Field(
         ...,
@@ -574,6 +591,7 @@ class Variant(BaseModel):
     - `read_only` - Whether the variant is read-only (defaults to false, can only be true for PREDEFINED pipeline variants)
     - `pipeline_graph` - Advanced graph representation for this variant
     - `pipeline_graph_simple` - Simplified graph representation for this variant
+    - `media_only` - Whether the advanced graph only decodes media without inference (set by backend only)
     - `created_at` - Creation timestamp as UTC datetime (set by backend only, not modifiable via API)
     - `modified_at` - Last modification timestamp as UTC datetime (updated when variant is modified, set by backend only)
     """
@@ -599,6 +617,10 @@ class Variant(BaseModel):
     pipeline_graph_simple: PipelineGraph = Field(
         ...,
         description="Simplified graph view for this variant.",
+    )
+    media_only: bool = Field(
+        default=False,
+        description="Whether the advanced graph only decodes media (decodebin3) without inference elements. Pinned media-only graphs decode on VDBox. Set by backend only.",
     )
     created_at: datetime = Field(
         ...,
@@ -1484,13 +1506,10 @@ class ExecutionConfig(BaseModel):
         ),
     )
 
-    @field_validator("pinned_cpu_cores")
+    @field_validator("pinned_cpu_cores", mode="before")
     @classmethod
-    def _normalize_pinned_cpu_cores(cls, cpus: List[int]) -> List[int]:
-        """De-duplicate, sort and reject negative logical CPU ids."""
-        if any(cpu < 0 for cpu in cpus):
-            raise ValueError("pinned_cpu_cores must not contain negative CPU ids.")
-        return sorted(set(cpus))
+    def _normalize_pinned_cpu_cores(cls, cpus: object) -> List[int]:
+        return normalize_cpu_ids(cpus, "pinned_cpu_cores")
 
 
 class PerformanceTestSpec(BaseModel):

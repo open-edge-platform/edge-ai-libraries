@@ -1356,6 +1356,8 @@ export type Edge = {
   target: string;
 };
 export type PipelineGraph = {
+  /** Logical CPU ids every stream of this graph is pinned to. Empty uses test-level pinning. */
+  cpu_pinning?: number[];
   /** List of pipeline nodes. */
   nodes: Node[];
   /** List of directed edges between nodes. */
@@ -1749,6 +1751,8 @@ export type Variant = {
   pipeline_graph: PipelineGraph;
   /** Simplified graph view for this variant. */
   pipeline_graph_simple: PipelineGraph;
+  /** Whether the advanced graph only decodes media (decodebin3) without inference elements. Pinned media-only graphs decode on VDBox. Set by backend only. */
+  media_only?: boolean;
   /** Creation timestamp as UTC datetime. Set by backend only. */
   created_at: string;
   /** Last modification timestamp as UTC datetime. Set by backend only. */

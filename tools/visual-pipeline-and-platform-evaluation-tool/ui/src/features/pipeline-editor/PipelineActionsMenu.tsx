@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { useState } from "react";
 import type { Model, Pipeline, PipelineGraph } from "@/api/api.generated";
 import {
@@ -100,6 +103,7 @@ const usesOnlyAppExportModels = (
 };
 
 interface PipelineActionsMenuProps {
+  cpuPinning?: number[];
   pipeline: Pipeline;
   variantId: string;
   currentNodes: ReactFlowNode[];
@@ -120,6 +124,7 @@ interface PipelineActionsMenuProps {
 }
 
 export const PipelineActionsMenu = ({
+  cpuPinning = [],
   pipeline,
   variantId,
   currentNodes,
@@ -310,6 +315,7 @@ export const PipelineActionsMenu = ({
   const handleOptimizePipeline = async () => {
     try {
       const pipelineGraph = {
+        cpu_pinning: cpuPinning,
         nodes: currentNodes.map((node) => ({
           id: node.id,
           type: node.type ?? "",
@@ -737,6 +743,7 @@ export const PipelineActionsMenu = ({
       </Dialog>
 
       <EditVariantDialog
+        cpuPinning={cpuPinning}
         mode={editVariantMode}
         pipelineId={pipelineId}
         variantId={variantId}
