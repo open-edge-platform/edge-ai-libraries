@@ -18,9 +18,16 @@ debian_39_profile_edge_pack () {
   echo "curl gnupg edge_pack_kernel_image"
 }
 
+verify_edge_pack () {
+  [[ -f "$edge_pack_key_file" && -f "$edge_pack_list_file" && -f "$edge_pack_pref_file" ]] || return 1
+  local current="$(< "$edge_pack_list_file")$(< "$edge_pack_pref_file")"
+  local updated="$(printf "%s\n" "$edge_pack_source")$(printf "%s\n" "${edge_pack_pref[@]}")"
+  [ "$current" = "$updated" ]
+}
+
 debian_39_install_edge_pack () {
   configure_edge_pack "$@"
-  if [[ -f "$edge_pack_key_file" && -f "$edge_pack_list_file" && -f "$edge_pack_pref_file" ]] && ! ensure_parse_reinstall "$@"; then
+  if verify_edge_pack && ! ensure_parse_reinstall "$@"; then
     echo "edge_pack configured" >&2
   else
     ensure_prop set installed/edge_pack/owned true
