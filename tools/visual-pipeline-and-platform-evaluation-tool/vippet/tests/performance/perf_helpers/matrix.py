@@ -4,14 +4,15 @@
 """Pure construction of the benchmark matrix (pipeline x variant x streams).
 
 :func:`build_matrix` takes raw ``GET /pipelines`` / ``GET /devices`` payloads
-plus the per-pipeline missing-model map and returns which cases are
-included, which are excluded (with a reason), and which included pipelines
-have models that are not installed. It performs no I/O so it can be used by
-both the pytest ``conftest`` and the CLI ``--dry-run``; :func:`format_matrix`
-renders it as plain text for both.
+plus the per-pipeline missing-model map and the per-variant missing-video
+map, and returns which cases are included, which are excluded (with a
+reason), and which included cases miss models or input videos. It performs
+no I/O so it can be used by both the pytest ``conftest`` and the CLI
+``--dry-run``; :func:`format_matrix` renders it as plain text for both.
 
-Missing models are *reported*, not decided on here: the pytest side passes
-them to ``wrap_cases_for_pytest`` which owns the skip-with-reason behaviour.
+Missing models and videos are *reported*, not decided on here: the pytest
+side passes them to ``wrap_cases_for_pytest`` which owns the
+skip-with-reason behaviour.
 """
 
 import re
@@ -83,6 +84,11 @@ class Matrix:
     excluded: list[Exclusion] = field(default_factory=list)
     missing_models: dict[str, list[str]] = field(default_factory=dict)
     """``{pipeline_id: [model display names]}`` for *included* pipelines only."""
+    missing_videos: dict[tuple[str, str], list[str]] = field(default_factory=dict)
+    """``{(pipeline_id, variant_id): [video names]}`` for *included* cases
+    only; ``""`` means the input node has no video selected."""
+    downloadable_videos: list[str] = field(default_factory=list)
+    """Names in ``missing_videos`` that are sample videos ViPPET can download."""
     stream_counts: list[int] = field(default_factory=list)
     available_families: list[str] = field(default_factory=list)
     known_pipeline_ids: list[str] = field(default_factory=list)
@@ -90,6 +96,9 @@ class Matrix:
     def rows(self) -> list[tuple[MatrixCase, int]]:
         """Return the full (case, stream_count) cross-product."""
         return [(case, s) for case in self.included for s in self.stream_counts]
+
+    def videos_missing_for(self, case: MatrixCase) -> list[str]:
+        return self.missing_videos.get((case.pipeline_id, case.variant_id), [])
 
 
 def make_case_id(pipeline_name: str, variant_name: str) -> str:
@@ -109,14 +118,19 @@ def build_matrix(
     devices: Iterable[Mapping[str, Any]],
     missing_models: Mapping[str, Iterable[str]],
     filters: MatrixFilters,
+    missing_videos: Mapping[tuple[str, str], Iterable[str]] | None = None,
+    downloadable_videos: Iterable[str] = (),
 ) -> Matrix:
     """Classify every discovered (pipeline, variant) pair.
 
     Check order per variant: unknown family name -> ``skip_variants`` ->
     ``variants`` filter -> host availability. Pipeline-level checks
     (``pipelines`` filter, ``skip_pipelines``) run first and produce a
-    single row with variant ``(all)``.
+    single row with variant ``(all)``. *missing_videos* is keyed by
+    ``(pipeline_id, variant_id)``; *downloadable_videos* names the sample
+    videos among them.
     """
+    missing_videos = missing_videos or {}
     available = _available_families(devices)
     allowed_pipelines = (
         None if filters.pipelines == "*" else {p.lower() for p in filters.pipelines}
@@ -233,11 +247,16 @@ def build_matrix(
                 )
             )
             pipeline_included = True
+            videos = list(missing_videos.get((pipeline_id, variant_id)) or [])
+            if videos:
+                matrix.missing_videos[(pipeline_id, variant_id)] = videos
 
         missing = sorted(missing_models.get(pipeline_id) or [])
         if pipeline_included and missing:
             matrix.missing_models[pipeline_id] = missing
 
+    needed = {name for names in matrix.missing_videos.values() for name in names}
+    matrix.downloadable_videos = sorted(needed & set(downloadable_videos))
     return matrix
 
 
@@ -257,13 +276,19 @@ def format_table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
     return "\n".join(lines)
 
 
+def format_video_names(names: Iterable[str]) -> str:
+    """Join video names; an empty name means no input video is selected."""
+    return ", ".join(name or "(none selected)" for name in names)
+
+
 def format_matrix(matrix: Matrix, skip_missing_models: bool = True) -> str:
-    """Render the matrix, exclusions and missing-model runs as plain text.
+    """Render the matrix, exclusions and missing-model/video runs as text.
 
     ``skip_missing_models`` mirrors ``benchmark.filters.skip_missing_models``:
     when false, runs whose models are missing are scheduled anyway, so they
     are counted as runs and listed as "will run anyway" instead of skipped.
-    The ``matrix`` itself is not modified.
+    Runs whose input videos are missing are always skipped. The ``matrix``
+    itself is not modified.
     """
     out: list[str] = []
     families = ", ".join(matrix.available_families) or "(none)"
@@ -274,7 +299,8 @@ def format_matrix(matrix: Matrix, skip_missing_models: bool = True) -> str:
     will_run = [
         (case.pipeline_id, case.device_family, s, case.case_id + f"_x{s}")
         for case, s in rows
-        if not skip_missing_models or case.pipeline_id not in matrix.missing_models
+        if (not skip_missing_models or case.pipeline_id not in matrix.missing_models)
+        and not matrix.videos_missing_for(case)
     ]
     out.append("")
     out.append(
@@ -329,6 +355,26 @@ def format_matrix(matrix: Matrix, skip_missing_models: bool = True) -> str:
         if missing
         else "  (none)"
     )
+
+    if matrix.missing_videos:
+        missing_videos = [
+            (
+                case.pipeline_id,
+                case.device_family,
+                s,
+                format_video_names(matrix.videos_missing_for(case)),
+            )
+            for case, s in rows
+            if matrix.videos_missing_for(case)
+        ]
+        out.append("")
+        out.append(f"Skipped at run time: missing_videos: {len(missing_videos)} run(s)")
+        out.append(
+            format_table(
+                ("pipeline", "variant", "streams", "missing input videos"),
+                missing_videos,
+            )
+        )
     return "\n".join(out)
 
 

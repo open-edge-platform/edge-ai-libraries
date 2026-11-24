@@ -20,6 +20,7 @@ import httpx
 
 from tests.performance.perf_helpers import cli
 from tests.performance.perf_helpers import reporters
+from tests.performance.perf_helpers import video_download as vd
 from tests.performance.perf_helpers.matrix import MatrixFilters, build_matrix
 from tests.performance.perf_helpers.model_install import (
     ENV_MODEL_INSTALL,
@@ -58,18 +59,46 @@ _MODELS = [
 
 
 class _Api:
-    """Fake ViPPET model endpoints; records every request."""
+    """Fake ViPPET model and sample video endpoints; records every request.
+
+    ``recordings`` is the ``GET /videos/default-recordings`` list (``None``:
+    the endpoint does not exist). ``POST /videos/download-default`` marks a
+    recording downloaded with HEVC conversion state ``conversion``.
+    """
 
     def __init__(
-        self, models: list[dict[str, Any]] | None = None, models_status: int = 200
+        self,
+        models: list[dict[str, Any]] | None = None,
+        models_status: int = 200,
+        recordings: list[dict[str, Any]] | None = None,
+        conversion: str = "converted",
+        events: list[str] | None = None,
     ) -> None:
         self.models = _MODELS if models is None else models
         self.models_status = models_status
+        self.recordings = None if recordings is None else [dict(r) for r in recordings]
+        self.conversion = conversion
         self.requests: list[tuple[str, str]] = []
+        self.events = events if events is not None else []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         self.requests.append((request.method, path))
+        self.events.append(f"{request.method} {path}")
+        if path.endswith("/videos/default-recordings"):
+            if self.recordings is None:
+                return httpx.Response(404, json={"detail": "Not Found"})
+            return httpx.Response(200, json=self.recordings)
+        if request.method == "POST" and path.endswith("/videos/download-default"):
+            name = json.loads(request.content)["filename"]
+            for recording in self.recordings or []:
+                if recording["filename"] == name:
+                    recording["status"] = "downloaded"
+                    recording["conversion_status"] = self.conversion
+                    return httpx.Response(
+                        202, json={"filename": name, "status": "queued"}
+                    )
+            return httpx.Response(404, json={"detail": "unknown video"})
         if path.endswith("/models"):
             return httpx.Response(self.models_status, json=self.models)
         if request.method == "POST" and path.endswith("/models/download"):
@@ -98,6 +127,17 @@ class _Api:
     @property
     def posts(self) -> list[str]:
         return [path for method, path in self.requests if method == "POST"]
+
+
+_RECORDINGS = [
+    {
+        "filename": "cars.mp4",
+        "source": "Pexels",
+        "status": "available",
+        "hevc_filename": "cars_h265.mp4",
+        "conversion_status": "not_converted",
+    }
+]
 
 
 def _api_client(**kwargs: Any) -> Callable[[], httpx.Client]:
@@ -195,6 +235,27 @@ class TestParser(unittest.TestCase):
             ["--install-missing-models", "maybe"],
             ["--model-install-timeout", "0"],
             ["--model-install-timeout", "1.5"],
+        ):
+            with self.subTest(argv=argv):
+                with self.assertRaises(SystemExit):
+                    with patch("sys.stderr", io.StringIO()):
+                        _parse(*argv)
+
+    def test_video_download_flags(self) -> None:
+        ns = _parse(
+            "--download-missing-videos", "yes", "--video-download-timeout", "90"
+        )
+        self.assertEqual(
+            cli.cli_overrides(ns),
+            {
+                "benchmark.videos.download": "yes",
+                "benchmark.videos.download_timeout_seconds": 90,
+            },
+        )
+        for argv in (
+            ["--download-missing-videos", "maybe"],
+            ["--video-download-timeout", "0"],
+            ["--video-download-timeout", "1.5"],
         ):
             with self.subTest(argv=argv):
                 with self.assertRaises(SystemExit):
@@ -555,6 +616,174 @@ class TestModelInstallStep(unittest.TestCase):
         self.assertEqual([o.name for o in outcomes], ["lprnet"])
 
 
+def _video_matrix(settings: Any) -> Any:
+    """Matrix in which LPR misses a model and the sample video cars.mp4."""
+    return build_matrix(
+        _PIPELINES,
+        [{"device_family": "CPU"}],
+        {"lpr": {"LPR Net"}},
+        MatrixFilters.from_settings(settings),
+        missing_videos={("lpr", "3"): ["cars.mp4"]},
+        downloadable_videos=["cars.mp4"],
+    )
+
+
+class TestDryRunVideoPlan(unittest.TestCase):
+    def _dry_run(self, api: _Api, tty: bool = False) -> tuple[int, str]:
+        out = io.StringIO()
+        rc = cli.run_dry_run(
+            resolve_settings("default", env={}),
+            discover=_video_matrix,
+            preflight=Mock(),
+            client_factory=api.factory(),
+            stdin_is_tty=lambda: tty,
+            stdout=out,
+            stderr=io.StringIO(),
+        )
+        return rc, out.getvalue()
+
+    def test_prints_plan_and_never_downloads(self) -> None:
+        api = _Api(recordings=_RECORDINGS)
+        rc, out = self._dry_run(api)
+        self.assertEqual(rc, 0)
+        models_part, videos_part = out.split("\nVideo download\n")
+        self.assertIn("Model installation", models_part)
+        self.assertIn("missing_videos: 2 run(s)", models_part)
+        self.assertIn("cars.mp4", videos_part)
+        self.assertIn("Pexels", videos_part)
+        self.assertIn(vd.PEXELS_LICENSE_URL, videos_part)
+        self.assertIn(vd.PEXELS_TERMS_URL, videos_part)
+        self.assertIn(vd.LICENSE_NOTE, videos_part)
+        self.assertIn("stdin is not a terminal", videos_part)
+        self.assertEqual(api.posts, [])
+
+    def test_older_vippet_is_one_line(self) -> None:
+        rc, out = self._dry_run(_Api(recordings=None))
+        self.assertEqual(rc, 0)
+        self.assertIn("returned 404", out.split("\nVideo download\n")[1])
+
+
+class TestVideoDownloadStep(unittest.TestCase):
+    def setUp(self) -> None:
+        self.settings = resolve_settings(
+            "default", env={}, cli_overrides={"benchmark.stream_counts": [1]}
+        )
+
+    def _step(
+        self,
+        *,
+        models: str,
+        videos: str,
+        answers: tuple[str, ...] = (),
+        api: _Api | None = None,
+    ) -> tuple[int, Any, Any, str, _Api, list[str]]:
+        events: list[str] = []
+        api = api or _Api(recordings=_RECORDINGS, events=events)
+        api.events = events
+        answers_left = list(answers)
+
+        def input_fn(text: str) -> str:
+            events.append(f"PROMPT {text}")
+            if not answers_left:
+                raise AssertionError("must not prompt")
+            return answers_left.pop(0)
+
+        out = io.StringIO()
+        rc, model_outcomes, video_outcomes = cli.run_downloads(
+            self.settings,
+            models=models,  # type: ignore[arg-type]
+            videos=videos,  # type: ignore[arg-type]
+            discover=_video_matrix,
+            preflight=Mock(),
+            client_factory=api.factory(),
+            input_fn=input_fn,
+            sleep=lambda _: None,
+            stdout=out,
+            stderr=io.StringIO(),
+        )
+        return rc, model_outcomes, video_outcomes, out.getvalue(), api, events
+
+    def test_both_prompts_come_before_any_download(self) -> None:
+        rc, model_outcomes, video_outcomes, out, _, events = self._step(
+            models="prompt", videos="prompt", answers=("y", "y")
+        )
+        self.assertEqual(rc, 0)
+        prompts = [i for i, e in enumerate(events) if e.startswith("PROMPT")]
+        posts = [i for i, e in enumerate(events) if e.startswith("POST")]
+        self.assertEqual(len(prompts), 2)
+        self.assertIn("model(s)", events[prompts[0]])
+        self.assertIn("video(s)", events[prompts[1]])
+        self.assertLess(max(prompts), min(posts))
+        self.assertLess(out.index("Model installation"), out.index("Video download"))
+        self.assertEqual([o.outcome for o in model_outcomes], [Outcome.INSTALLED])
+        self.assertEqual(
+            video_outcomes,
+            [vd.VideoOutcome("cars.mp4", vd.Outcome.DOWNLOADED, "", "converted")],
+        )
+        self.assertIn("[video-download] cars.mp4: downloaded", out)
+
+    def test_yes_downloads_without_asking(self) -> None:
+        rc, model_outcomes, video_outcomes, _, api, _ = self._step(
+            models="skip", videos="install"
+        )
+        self.assertEqual(rc, 0)
+        self.assertIsNone(model_outcomes)
+        self.assertEqual(api.posts, ["/api/v1/videos/download-default"])
+        self.assertEqual([o.outcome for o in video_outcomes], [vd.Outcome.DOWNLOADED])
+
+    def test_declining_videos_downloads_none(self) -> None:
+        rc, _, video_outcomes, out, api, _ = self._step(
+            models="skip", videos="prompt", answers=("n",)
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(api.posts, [])
+        self.assertEqual([o.outcome for o in video_outcomes], [vd.Outcome.DECLINED])
+        self.assertIn("Not downloading", out)
+
+    def test_failed_conversion_is_one_line_and_not_an_error(self) -> None:
+        api = _Api(recordings=_RECORDINGS, conversion="failed")
+        _, _, video_outcomes, out, _, _ = self._step(
+            models="skip", videos="install", api=api
+        )
+        self.assertEqual(video_outcomes[0].outcome, vd.Outcome.DOWNLOADED)
+        self.assertEqual(video_outcomes[0].conversion_status, "failed")
+        self.assertEqual(out.count("HEVC conversion failed for 1 video(s)"), 1)
+
+    def test_older_vippet_skips_the_video_step_with_one_warning(self) -> None:
+        rc, model_outcomes, video_outcomes, out, api, _ = self._step(
+            models="install", videos="install", api=_Api(recordings=None)
+        )
+        self.assertEqual(rc, 0)
+        self.assertIsNone(video_outcomes)
+        self.assertEqual([o.outcome for o in model_outcomes], [Outcome.INSTALLED])
+        self.assertEqual(out.count("returned 404"), 1)
+        self.assertNotIn("/api/v1/videos/download-default", api.posts)
+
+    def test_nothing_missing_is_one_line(self) -> None:
+        def discover(settings: Any) -> Any:
+            return build_matrix(
+                _PIPELINES,
+                [{"device_family": "CPU"}],
+                {},
+                MatrixFilters.from_settings(settings),
+            )
+
+        out = io.StringIO()
+        _, _, video_outcomes = cli.run_downloads(
+            self.settings,
+            models="skip",
+            videos="install",
+            discover=discover,
+            preflight=Mock(),
+            client_factory=_Api(recordings=_RECORDINGS).factory(),
+            sleep=lambda _: None,
+            stdout=out,
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(video_outcomes, [])
+        self.assertEqual(out.getvalue(), f"{vd.NOTHING_TO_DOWNLOAD}\n")
+
+
 class TestMainInstallStep(unittest.TestCase):
     def _main(
         self,
@@ -563,18 +792,27 @@ class TestMainInstallStep(unittest.TestCase):
         tty: bool,
         step: Any = None,
         pytest_args: tuple[str, ...] = (),
+        video_mode: str = "no",
     ) -> tuple[int, Mock, Mock]:
-        step = step or Mock(return_value=(0, []))
+        step = step or Mock(return_value=(0, [], None))
         runner = Mock(return_value=0)
         with (
             patch.dict(os.environ, {}, clear=False),
-            patch.object(cli, "run_model_install", step),
+            patch.object(cli, "run_downloads", step),
             patch.object(cli, "run_pytest", runner),
             patch.object(cli, "_stdin_is_tty", return_value=tty),
             patch("sys.stderr", io.StringIO()),
         ):
             os.environ.pop("PERF_INSTALL_MISSING_MODELS", None)
-            argv = ["--config", "quick", "--install-missing-models", mode]
+            os.environ.pop("PERF_DOWNLOAD_MISSING_VIDEOS", None)
+            argv = [
+                "--config",
+                "quick",
+                "--install-missing-models",
+                mode,
+                "--download-missing-videos",
+                video_mode,
+            ]
             if pytest_args:
                 argv += ["--", *pytest_args]
             rc = cli.main(argv)
@@ -623,26 +861,79 @@ class TestMainInstallStep(unittest.TestCase):
 
     def test_ask_with_terminal_prompts(self) -> None:
         _, step, _ = self._main("ask", tty=True)
-        self.assertIs(step.call_args.kwargs["ask"], True)
+        self.assertEqual(step.call_args.kwargs["models"], "prompt")
+        self.assertEqual(step.call_args.kwargs["videos"], "skip")
 
     def test_yes_installs_without_terminal(self) -> None:
         _, step, _ = self._main("yes", tty=False)
-        self.assertIs(step.call_args.kwargs["ask"], False)
+        self.assertEqual(step.call_args.kwargs["models"], "install")
+
+    def test_video_mode_is_decided_on_its_own(self) -> None:
+        _, step, _ = self._main("no", tty=True, video_mode="ask")
+        self.assertEqual(
+            (step.call_args.kwargs["models"], step.call_args.kwargs["videos"]),
+            ("skip", "prompt"),
+        )
+        _, step, _ = self._main("ask", tty=False, video_mode="yes")
+        self.assertEqual(
+            (step.call_args.kwargs["models"], step.call_args.kwargs["videos"]),
+            ("skip", "install"),
+        )
+
+    def test_video_env_var_reaches_the_step(self) -> None:
+        step = Mock(return_value=(0, None, None))
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PERF_DOWNLOAD_MISSING_VIDEOS": "yes",
+                    "PERF_INSTALL_MISSING_MODELS": "no",
+                },
+            ),
+            patch.object(cli, "run_downloads", step),
+            patch.object(cli, "run_pytest", Mock(return_value=0)),
+            patch.object(cli, "_stdin_is_tty", return_value=False),
+            patch("sys.stderr", io.StringIO()),
+        ):
+            cli.main(["--config", "quick"])
+        self.assertEqual(
+            (step.call_args.kwargs["models"], step.call_args.kwargs["videos"]),
+            ("skip", "install"),
+        )
 
     def test_outcome_is_passed_to_pytest(self) -> None:
         outcome = ModelOutcome("m", "M", Outcome.FAILED, "no token")
         _, _, runner = self._main(
-            "yes", tty=False, step=Mock(return_value=(0, [outcome]))
+            "yes", tty=False, step=Mock(return_value=(0, [outcome], None))
         )
         extra_env = runner.call_args.kwargs["extra_env"]
         self.assertEqual(decode_outcomes(extra_env[ENV_MODEL_INSTALL]), [outcome])
+        self.assertNotIn(vd.ENV_VIDEO_DOWNLOAD, extra_env)
+
+    def test_video_outcome_is_passed_to_pytest(self) -> None:
+        outcome = vd.VideoOutcome("a.mp4", vd.Outcome.FAILED, "offline", "")
+        _, _, runner = self._main(
+            "no",
+            tty=False,
+            video_mode="yes",
+            step=Mock(return_value=(0, None, [outcome])),
+        )
+        extra_env = runner.call_args.kwargs["extra_env"]
+        self.assertEqual(
+            vd.decode_outcomes(extra_env[vd.ENV_VIDEO_DOWNLOAD]), [outcome]
+        )
+        self.assertNotIn(ENV_MODEL_INSTALL, extra_env)
 
     def test_skipped_step_passes_no_outcome(self) -> None:
-        _, _, runner = self._main("yes", tty=False, step=Mock(return_value=(0, None)))
+        _, _, runner = self._main(
+            "yes", tty=False, step=Mock(return_value=(0, None, None))
+        )
         self.assertEqual(runner.call_args.kwargs["extra_env"], {})
 
     def test_step_failure_stops_the_run(self) -> None:
-        rc, _, runner = self._main("yes", tty=False, step=Mock(return_value=(2, None)))
+        rc, _, runner = self._main(
+            "yes", tty=False, step=Mock(return_value=(2, None, None))
+        )
         self.assertEqual(rc, 2)
         runner.assert_not_called()
 
@@ -654,9 +945,9 @@ class TestMainInstallStep(unittest.TestCase):
         runner.assert_not_called()
 
     def test_env_exported_by_discovery_does_not_reach_pytest(self) -> None:
-        def step(*_: Any, **__: Any) -> tuple[int, list[Any]]:
+        def step(*_: Any, **__: Any) -> tuple[int, list[Any], None]:
             os.environ["VIPPET_BASE_URL"] = "http://exported/api/v1"
-            return 0, []
+            return 0, [], None
 
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("VIPPET_BASE_URL", None)
@@ -1016,6 +1307,26 @@ class TestRunPytest(unittest.TestCase):
         )
         self.assertNotIn(ENV_MODEL_INSTALL, seen[0])
         self.assertEqual(seen[1][ENV_MODEL_INSTALL], "[]")
+
+    def test_video_outcome_env_comes_only_from_the_cli(self) -> None:
+        seen: list[dict[str, str]] = []
+
+        def runner(cmd: list[str], env: dict[str, str], check: bool) -> Any:
+            seen.append(env)
+            return subprocess.CompletedProcess(cmd, 0)
+
+        layer = {"config": None, "overrides": {}}
+        stale = {vd.ENV_VIDEO_DOWNLOAD: "[stale]"}
+        cli.run_pytest(layer, [], base_env=stale, runner=runner)
+        cli.run_pytest(
+            layer,
+            [],
+            base_env=stale,
+            extra_env={vd.ENV_VIDEO_DOWNLOAD: "[]"},
+            runner=runner,
+        )
+        self.assertNotIn(vd.ENV_VIDEO_DOWNLOAD, seen[0])
+        self.assertEqual(seen[1][vd.ENV_VIDEO_DOWNLOAD], "[]")
 
     def test_perf_dir_always_passed_before_passthrough(self) -> None:
         test_file = str(cli.PERF_DIR / "test_pipeline_performance.py")

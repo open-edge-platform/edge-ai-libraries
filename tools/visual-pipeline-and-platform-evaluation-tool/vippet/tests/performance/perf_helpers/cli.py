@@ -14,11 +14,13 @@ Effective configuration precedence (later wins)::
 A normal run passes ``--config`` and the setting flags to a
 ``python -m pytest -m perf`` subprocess through ``PERF_CLI_LAYER``; pytest
 resolves them again, so the result artefact records the same values and
-sources. Before that, with ``--install-missing-models=yes`` (or ``ask`` when
-stdin is a terminal), it offers to install the models the selected runs
-need and hands the outcome to pytest (see :mod:`perf_helpers.model_install`).
-``--dry-run`` prints the resolved matrix with exclusion reasons and the
-install plan, and exits without submitting any job.
+sources. Before that, with ``--install-missing-models=yes`` and
+``--download-missing-videos=yes`` (or ``ask`` when stdin is a terminal), it
+offers to install the models and download the sample input videos the
+selected runs need, and hands the outcomes to pytest (see
+:mod:`perf_helpers.model_install` and :mod:`perf_helpers.video_download`).
+``--dry-run`` prints the resolved matrix with exclusion reasons and both
+plans, and exits without submitting any job.
 """
 
 import argparse
@@ -27,11 +29,18 @@ import json
 import os
 import subprocess
 import sys
-import time
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
+from . import model_install, video_download
+from .asset_download import (
+    DownloadAction,
+    download_action,
+    interruptible_sleep,
+    run_concurrently,
+)
 from .matrix import (
     Matrix,
     MatrixFilters,
@@ -49,8 +58,13 @@ from .model_install import (
     encode_outcomes,
     fetch_models,
     format_plan,
-    install_action,
-    offer_and_install,
+)
+from .video_download import (
+    ENV_VIDEO_DOWNLOAD,
+    VideoDownloader,
+    VideoOutcome,
+    VideoPlan,
+    fetch_default_recordings,
 )
 from .preflight import (
     FATAL_PREFLIGHT_EXIT_CODE,
@@ -387,6 +401,31 @@ def _read_models(
         return None
 
 
+_NO_SAMPLE_LIST = (
+    "Video download: this ViPPET lists no sample videos to download "
+    "(GET /videos/default-recordings returned 404); the runs whose input "
+    "videos are missing are skipped."
+)
+
+
+def _read_recordings(
+    client: httpx.Client, settings: ResolvedSettings, stderr: TextIO | None
+) -> tuple[bool, list[dict[str, Any]] | None]:
+    """Return ``(ok, GET /videos/default-recordings)``.
+
+    The list is ``None`` when ViPPET has no such endpoint; ``ok`` is false
+    (and the reason printed) when reading it failed.
+    """
+    base_url = settings["vippet.base_url"]
+    try:
+        return True, fetch_default_recordings(
+            client, base_url, settings["vippet.timeout"]
+        )
+    except (httpx.HTTPError, ValueError) as exc:
+        print(f"error: {describe_discovery_error(exc, base_url)}", file=stderr)
+        return False, None
+
+
 def run_dry_run(
     settings: ResolvedSettings,
     *,
@@ -397,15 +436,17 @@ def run_dry_run(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
-    """Print the settings, the resolved matrix and the model install plan.
+    """Print the settings, the resolved matrix and the model and video plans.
 
-    Never submits a job, never prompts and never installs a model.
+    Never submits a job, never prompts, never installs a model and never
+    downloads a video.
 
     Args:
         settings: The resolved settings.
         discover: Builds the matrix from the live ViPPET inventory.
         preflight: The readiness check (see :func:`wait_for_vippet_ready`).
-        client_factory: Opens the HTTP client used to read ``GET /models``.
+        client_factory: Opens the HTTP client used to read ``GET /models``
+            and ``GET /videos/default-recordings``.
         stdin_is_tty: Tells whether a real run could prompt on this terminal.
         stdout: Stream for the report; defaults to ``sys.stdout``.
         stderr: Stream for pre-flight lines and errors; defaults to
@@ -424,10 +465,15 @@ def run_dry_run(
     )
     if matrix is None:
         return FATAL_PREFLIGHT_EXIT_CODE
+    recordings: list[dict[str, Any]] | None = []
     with client_factory() as client:
         models = _read_models(client, settings, stderr)
-    if models is None:
-        return FATAL_PREFLIGHT_EXIT_CODE
+        if models is None:
+            return FATAL_PREFLIGHT_EXIT_CODE
+        if matrix.missing_videos:
+            ok, recordings = _read_recordings(client, settings, stderr)
+            if not ok:
+                return FATAL_PREFLIGHT_EXIT_CODE
     print(
         format_matrix(
             matrix,
@@ -445,12 +491,181 @@ def run_dry_run(
             describe_mode_effect(settings["benchmark.models.install"], stdin_is_tty()),
             file=stdout,
         )
+    print("\nVideo download", file=stdout)
+    if recordings is None:
+        print(_NO_SAMPLE_LIST, file=stdout)
+        return EXIT_OK
+    video_plan = video_download.build_plan(recordings, matrix)
+    print(video_download.format_plan(video_plan), file=stdout)
+    if video_plan.videos:
+        print(
+            video_download.describe_mode_effect(
+                settings["benchmark.videos.download"], stdin_is_tty()
+            ),
+            file=stdout,
+        )
     return EXIT_OK
 
 
 # --------------------------------------------------------------------------- #
-# Model installation before the pytest run
+# Model installation and video download before the pytest run
 # --------------------------------------------------------------------------- #
+
+
+def run_downloads(
+    settings: ResolvedSettings,
+    *,
+    models: DownloadAction,
+    videos: DownloadAction,
+    discover: Callable[[ResolvedSettings], Matrix] = _default_discover,
+    preflight: Callable[..., None] = _default_preflight,
+    client_factory: Callable[[], httpx.Client] = _default_client,
+    input_fn: Callable[[str], str] = input,
+    sleep: Callable[[float], None] | None = None,
+    stdout: TextIO | None = None,
+    stderr: TextIO | None = None,
+) -> tuple[int, list[ModelOutcome] | None, list[VideoOutcome] | None]:
+    """Offer to install models and download videos the selected runs need.
+
+    Both plans are printed first (models, then videos), then each is asked
+    about (``prompt``) or accepted (``install``), and the accepted ones run
+    at the same time; each has its own timeout. The first Ctrl-C while they
+    run stops waiting for both; a second one aborts.
+
+    The readiness check is quiet (only WAITING and FAILED lines), because
+    pytest runs its own visible one right after this step.
+
+    Args:
+        settings: The resolved settings.
+        models: What to do with missing models; ``skip`` leaves them alone.
+        videos: What to do with missing sample videos; ``skip`` leaves them
+            alone.
+        discover: Builds the matrix from the live ViPPET inventory.
+        preflight: The readiness check (see :func:`wait_for_vippet_ready`).
+        client_factory: Opens the HTTP client for the download endpoints.
+        input_fn: Reads the answers to the prompts.
+        sleep: Waits between polls; defaults to a wait that a Ctrl-C ends.
+        stdout: Stream for the plans and progress; defaults to
+            ``sys.stdout``.
+        stderr: Stream for pre-flight lines and errors; defaults to
+            ``sys.stderr``.
+
+    Returns:
+        ``(exit_code, model_outcomes, video_outcomes)``. An outcome list is
+        ``None`` when its step was not requested (or the sample list does
+        not exist). A failed readiness check or inventory read returns
+        ``(FATAL_PREFLIGHT_EXIT_CODE, None, None)``, as ``--dry-run`` does.
+        Invalid filter ids return ``(0, None, None)``: pytest aborts anyway.
+
+    Raises:
+        KeyboardInterrupt: Ctrl-C at a prompt, or a second Ctrl-C while
+            waiting (``main`` exits with 130).
+    """
+    stdout = stdout or sys.stdout
+    stderr = stderr or sys.stderr
+    matrix = _ready_matrix(
+        settings, preflight=preflight, discover=discover, stderr=stderr, verbose=False
+    )
+    if matrix is None:
+        return FATAL_PREFLIGHT_EXIT_CODE, None, None
+    if settings["benchmark.filters.on_unknown_id"] == "fail" and (
+        find_unknown_filter_ids(
+            MatrixFilters.from_settings(settings), matrix.known_pipeline_ids
+        )
+    ):
+        # pytest stops the run with exit code 4 and explains the bad ids;
+        # downloading for a run that will not happen makes no sense.
+        return EXIT_OK, None, None
+
+    lock = threading.Lock()
+
+    def report(text: str) -> None:
+        with lock:
+            print(text, file=stdout, flush=True)
+
+    with client_factory() as client:
+        model_plan: model_install.InstallPlan | None = None
+        if models != "skip":
+            inventory = _read_models(client, settings, stderr)
+            if inventory is None:
+                return FATAL_PREFLIGHT_EXIT_CODE, None, None
+            model_plan = build_plan(inventory, matrix)
+        video_plan: VideoPlan | None = None
+        if videos != "skip":
+            recordings: list[dict[str, Any]] | None = []
+            if matrix.missing_videos:
+                ok, recordings = _read_recordings(client, settings, stderr)
+                if not ok:
+                    return FATAL_PREFLIGHT_EXIT_CODE, None, None
+            if recordings is None:
+                report(_NO_SAMPLE_LIST)
+            else:
+                video_plan = video_download.build_plan(recordings, matrix)
+
+        if model_plan is not None:
+            model_install.present_plan(model_plan, report)
+        if video_plan is not None:
+            video_download.present_plan(video_plan, report)
+
+        model_outcomes: list[ModelOutcome] | None = None
+        install_models = False
+        if model_plan is not None:
+            model_outcomes = []
+            if model_plan.models:
+                install_models = model_install.agree_to_install(
+                    model_plan, ask=models == "prompt", input_fn=input_fn, report=report
+                )
+                if not install_models:
+                    model_outcomes = model_install.declined(model_plan)
+        video_outcomes: list[VideoOutcome] | None = None
+        download_videos = False
+        if video_plan is not None:
+            video_outcomes = []
+            if video_plan.videos:
+                download_videos = video_download.agree_to_download(
+                    video_plan, ask=videos == "prompt", input_fn=input_fn, report=report
+                )
+                if not download_videos:
+                    video_outcomes = video_download.declined(video_plan)
+
+        stop = threading.Event()
+        wait = interruptible_sleep(stop, sleep)
+        tasks: list[Callable[[], Any]] = []
+        if install_models:
+            assert model_plan is not None
+            installer = ModelInstaller(
+                client=client,
+                base_url=settings["vippet.base_url"],
+                poll_interval=settings["vippet.poll_interval"],
+                timeout_seconds=settings["benchmark.models.install_timeout_seconds"],
+                request_timeout=settings["vippet.timeout"],
+                report=report,
+                sleep=wait,
+            )
+            tasks.append(lambda: installer.install(model_plan))
+        if download_videos:
+            assert video_plan is not None
+            downloader = VideoDownloader(
+                client=client,
+                base_url=settings["vippet.base_url"],
+                poll_interval=settings["vippet.poll_interval"],
+                timeout_seconds=settings["benchmark.videos.download_timeout_seconds"],
+                request_timeout=settings["vippet.timeout"],
+                report=report,
+                sleep=wait,
+            )
+            tasks.append(lambda: downloader.download(video_plan))
+        results = run_concurrently(tasks, stop) if tasks else []
+
+    if install_models:
+        model_outcomes = results.pop(0)
+        report(model_install.format_outcomes(model_outcomes or []))
+    if download_videos:
+        video_outcomes = results.pop(0)
+        report(video_download.format_outcomes(video_outcomes or []))
+    return EXIT_OK, model_outcomes, video_outcomes
+
+
 def run_model_install(
     settings: ResolvedSettings,
     *,
@@ -459,78 +674,28 @@ def run_model_install(
     preflight: Callable[..., None] = _default_preflight,
     client_factory: Callable[[], httpx.Client] = _default_client,
     input_fn: Callable[[str], str] = input,
-    sleep: Callable[[float], None] = time.sleep,
+    sleep: Callable[[float], None] | None = None,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> tuple[int, list[ModelOutcome] | None]:
-    """Offer to install the models the selected runs need, before pytest.
-
-    The readiness check is quiet (only WAITING and FAILED lines), because
-    pytest runs its own visible one right after this step.
-
-    Args:
-        settings: The resolved settings.
-        ask: Prompt before installing (``ask`` on a terminal); otherwise
-            install without asking (``yes``).
-        discover: Builds the matrix from the live ViPPET inventory.
-        preflight: The readiness check (see :func:`wait_for_vippet_ready`).
-        client_factory: Opens the HTTP client for the model endpoints.
-        input_fn: Reads the answer to the prompt.
-        sleep: Waits between job polls.
-        stdout: Stream for the plan and progress; defaults to ``sys.stdout``.
-        stderr: Stream for pre-flight lines and errors; defaults to
-            ``sys.stderr``.
+    """Only the model step of :func:`run_downloads` (``prompt`` or ``install``).
 
     Returns:
-        ``(exit_code, outcomes)``. A failed readiness check or discovery
-        returns ``(FATAL_PREFLIGHT_EXIT_CODE, None)``, as ``--dry-run`` does.
-        ``outcomes`` is also ``None`` when the step was skipped because
-        pytest will abort on invalid filter ids anyway.
-
-    Raises:
-        KeyboardInterrupt: Ctrl-C at the prompt (``main`` exits with 130).
-            Ctrl-C while waiting is handled by the installer.
+        ``(exit_code, model_outcomes)``.
     """
-    stdout = stdout or sys.stdout
-    stderr = stderr or sys.stderr
-    matrix = _ready_matrix(
-        settings, preflight=preflight, discover=discover, stderr=stderr, verbose=False
+    rc, outcomes, _ = run_downloads(
+        settings,
+        models="prompt" if ask else "install",
+        videos="skip",
+        discover=discover,
+        preflight=preflight,
+        client_factory=client_factory,
+        input_fn=input_fn,
+        sleep=sleep,
+        stdout=stdout,
+        stderr=stderr,
     )
-    if matrix is None:
-        return FATAL_PREFLIGHT_EXIT_CODE, None
-    if settings["benchmark.filters.on_unknown_id"] == "fail" and (
-        find_unknown_filter_ids(
-            MatrixFilters.from_settings(settings), matrix.known_pipeline_ids
-        )
-    ):
-        # pytest stops the run with exit code 4 and explains the bad ids;
-        # installing models for a run that will not happen makes no sense.
-        return EXIT_OK, None
-
-    def report(text: str) -> None:
-        print(text, file=stdout, flush=True)
-
-    with client_factory() as client:
-        models = _read_models(client, settings, stderr)
-        if models is None:
-            return FATAL_PREFLIGHT_EXIT_CODE, None
-        installer = ModelInstaller(
-            client=client,
-            base_url=settings["vippet.base_url"],
-            poll_interval=settings["vippet.poll_interval"],
-            timeout_seconds=settings["benchmark.models.install_timeout_seconds"],
-            request_timeout=settings["vippet.timeout"],
-            report=report,
-            sleep=sleep,
-        )
-        outcomes = offer_and_install(
-            build_plan(models, matrix),
-            ask=ask,
-            install=installer.install,
-            input_fn=input_fn,
-            report=report,
-        )
-    return EXIT_OK, outcomes
+    return rc, outcomes
 
 
 # --------------------------------------------------------------------------- #
@@ -638,8 +803,8 @@ def run_pytest(
         pytest_args: Arguments after ``--``, passed to pytest unchanged.
         base_env: Environment to start from; defaults to ``os.environ``.
         extra_env: Data for pytest that only the CLI produces, such as the
-            model install outcome. A stale outcome inherited from
-            *base_env* is always dropped.
+            model install and video download outcomes. Stale outcomes
+            inherited from *base_env* are always dropped.
         runner: Runs the command (``subprocess.run``).
 
     Returns:
@@ -647,6 +812,7 @@ def run_pytest(
     """
     env = dict(os.environ if base_env is None else base_env)
     env.pop(ENV_MODEL_INSTALL, None)
+    env.pop(ENV_VIDEO_DOWNLOAD, None)
     env.update(extra_env or {})
     env[ENV_CLI_LAYER] = json.dumps(cli_layer)
     completed = runner(build_pytest_command(pytest_args), env=env, check=False)
@@ -682,21 +848,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     if namespace.report_only is not None:
         return run_report_only(settings, namespace.report_only, namespace.report_output)
     cli_layer = {"config": namespace.config, "overrides": overrides}
-    # Snapshot before the install step: discovery exports the resolved
+    # Snapshot before the download step: discovery exports the resolved
     # settings into os.environ, which must not reach pytest (see run_pytest).
     base_env = dict(os.environ)
     extra_env: dict[str, str] = {}
-    action = install_action(settings["benchmark.models.install"], _stdin_is_tty())
-    if action != "skip" and not _pytest_runs_no_test(pytest_args):
+    tty = _stdin_is_tty()
+    models = download_action(settings["benchmark.models.install"], tty)
+    videos = download_action(settings["benchmark.videos.download"], tty)
+    if (models, videos) != ("skip", "skip") and not _pytest_runs_no_test(pytest_args):
         try:
-            rc, outcomes = run_model_install(settings, ask=action == "prompt")
+            rc, model_outcomes, video_outcomes = run_downloads(
+                settings, models=models, videos=videos
+            )
         except KeyboardInterrupt:
             print("\naborted (Ctrl-C)", file=sys.stderr)
             return EXIT_INTERRUPTED
         if rc != EXIT_OK:
             return rc
-        if outcomes is not None:
-            extra_env[ENV_MODEL_INSTALL] = encode_outcomes(outcomes)
+        if model_outcomes is not None:
+            extra_env[ENV_MODEL_INSTALL] = encode_outcomes(model_outcomes)
+        if video_outcomes is not None:
+            extra_env[ENV_VIDEO_DOWNLOAD] = video_download.encode_outcomes(
+                video_outcomes
+            )
     return run_pytest(cli_layer, pytest_args, base_env=base_env, extra_env=extra_env)
 
 

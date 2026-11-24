@@ -37,6 +37,28 @@ _PIPELINES = [
     {"id": "lpr", "name": "LPR", "variants": [{"id": "2", "name": "CPU"}]},
 ]
 
+# "od" reads no video; "vid" reads the sample video cars.mp4, which the fake
+# ViPPET has not downloaded.
+_VIDEO_PIPELINES = [
+    _PIPELINES[0],
+    {
+        "id": "vid",
+        "name": "Video",
+        "variants": [
+            {
+                "id": "3",
+                "name": "CPU",
+                "pipeline_graph": {
+                    "nodes": [
+                        {"id": "0", "type": "filesrc", "data": {"location": "cars.mp4"}}
+                    ],
+                    "edges": [],
+                },
+            }
+        ],
+    },
+]
+
 
 class TestMatrixMessages(unittest.TestCase):
     def test_all_excluded_points_at_table_and_flags(self) -> None:
@@ -245,6 +267,7 @@ class TestJobOutcomeMessages(unittest.TestCase):
 
 class _FakeVippet(BaseHTTPRequestHandler):
     job_state = "COMPLETED"
+    pipelines: Any = _PIPELINES
     post_status = 200  # HTTP status for POST /tests/performance
     status_polls = 0  # the first job status poll answers RUNNING
 
@@ -274,7 +297,17 @@ class _FakeVippet(BaseHTTPRequestHandler):
                     "full_device_name": "Fake CPU",
                 }
             ],
-            "/api/v1/pipelines": _PIPELINES,
+            "/api/v1/pipelines": self.pipelines,
+            "/api/v1/videos": [],
+            "/api/v1/videos/default-recordings": [
+                {
+                    "filename": "cars.mp4",
+                    "source": "Pexels",
+                    "status": "available",
+                    "hevc_filename": "cars_h265.mp4",
+                    "conversion_status": "not_converted",
+                }
+            ],
             "/api/v1/models": [
                 {
                     "display_name": "LPR Net",
@@ -318,11 +351,16 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         pytest_args: tuple[str, ...] = (),
         results_extra: str = "",
         api_path: str = "/api/v1",
+        vippet_pipelines: Any = _PIPELINES,
     ) -> subprocess.CompletedProcess[str]:
         handler = type(
             "Handler",
             (_FakeVippet,),
-            {"job_state": job_state, "post_status": post_status},
+            {
+                "job_state": job_state,
+                "post_status": post_status,
+                "pipelines": vippet_pipelines,
+            },
         )
         server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -600,6 +638,117 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 2, completed.stdout)
         self.assertIn("PERF_MODEL_INSTALL_OUTCOME is not a valid", completed.stderr)
+        self.assertNotIn("Traceback", completed.stdout + completed.stderr)
+
+    @staticmethod
+    def _video_env(
+        outcome: str, reason: str = "", conversion: str = ""
+    ) -> dict[str, str]:
+        return {
+            "PERF_VIDEO_DOWNLOAD_OUTCOME": json.dumps(
+                [
+                    {
+                        "filename": "cars.mp4",
+                        "outcome": outcome,
+                        "reason": reason,
+                        "conversion_status": conversion,
+                    }
+                ]
+            )
+        }
+
+    def _run_videos(self, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return self._run("COMPLETED", vippet_pipelines=_VIDEO_PIPELINES, **kwargs)
+
+    def _video_case(self) -> dict[str, Any]:
+        run_dir = self._run_dir()
+        report = json.loads((run_dir / f"{run_dir.name}.json").read_text("utf-8"))
+        (case,) = [tc for tc in report["test_cases"] if tc["pipeline_id"] == "vid"]
+        return {"report": report, **case}
+
+    def test_missing_video_runs_are_skipped_with_a_download_hint(self) -> None:
+        completed = self._run_videos()
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self._assert_in_order(
+            out,
+            "Matrix: 1 run(s)",
+            "Skipped at run time: missing_videos: 1 run(s)",
+            "[object_detection_cpu_x1] PASSED",
+            "[video_cpu_x1] SKIPPED",
+            "Video download",
+            "1 run(s) were skipped because their input videos are missing",
+            "a direct pytest run never does",
+            "Benchmark artefacts",
+        )
+        case = self._video_case()
+        self.assertIsNone(case["report"]["video_download"])
+        self.assertEqual(case["status"], "skipped")
+        self.assertIn("['cars.mp4']", case["error"])
+        self.assertIn('PERF_ARGS="--download-missing-videos=yes"', case["error"])
+
+    def test_failed_video_download_is_an_error(self) -> None:
+        completed = self._run_videos(extra_env=self._video_env("failed", "offline"))
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 1, out + completed.stderr)
+        self._assert_in_order(
+            out,
+            "[object_detection_cpu_x1] PASSED",
+            "[video_cpu_x1] ERROR",
+            "Video download",
+            "Video download: 1 failed",
+            "Benchmark artefacts",
+        )
+        self.assertIn("input video 'cars.mp4' failed to download: offline", out)
+        self.assertNotIn("run(s) were skipped because", out)
+        case = self._video_case()
+        self.assertEqual(case["status"], "error")
+        self.assertEqual(case["report"]["summary"]["error"], 1)
+        self.assertEqual(
+            case["report"]["video_download"],
+            [
+                {
+                    "filename": "cars.mp4",
+                    "outcome": "failed",
+                    "reason": "offline",
+                    "conversion_status": "",
+                }
+            ],
+        )
+        html = (self._run_dir() / f"{self._run_dir().name}.html").read_text("utf-8")
+        self.assertIn('id="video-download"', html)
+
+    def test_declined_video_download_keeps_the_skip(self) -> None:
+        completed = self._run_videos(extra_env=self._video_env("declined"))
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self.assertIn("[video_cpu_x1] SKIPPED", out)
+        self.assertIn("you declined downloading their input videos", out)
+
+    def test_interrupted_video_download_is_skipped(self) -> None:
+        completed = self._run_videos(extra_env=self._video_env("interrupted", "x"))
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        case = self._video_case()
+        self.assertEqual(case["status"], "skipped")
+        self.assertIn("interrupted (Ctrl-C)", case["error"])
+
+    def test_failed_conversion_is_one_summary_line(self) -> None:
+        completed = self._run_videos(
+            extra_env=self._video_env("downloaded", conversion="failed")
+        )
+        out = completed.stdout
+        self.assertEqual(out.count("HEVC conversion failed for 1 video(s)"), 1)
+        self.assertEqual(
+            self._video_case()["report"]["video_download"][0]["conversion_status"],
+            "failed",
+        )
+
+    def test_invalid_video_outcome_env_exits_2(self) -> None:
+        completed = self._run(
+            "COMPLETED", extra_env={"PERF_VIDEO_DOWNLOAD_OUTCOME": "[1]"}
+        )
+        self.assertEqual(completed.returncode, 2, completed.stdout)
+        self.assertIn("PERF_VIDEO_DOWNLOAD_OUTCOME is not a valid", completed.stderr)
         self.assertNotIn("Traceback", completed.stdout + completed.stderr)
 
     def test_failure_without_results_is_not_reported_as_not_run(self) -> None:

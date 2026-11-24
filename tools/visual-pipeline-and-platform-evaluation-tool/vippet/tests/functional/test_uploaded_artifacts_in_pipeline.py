@@ -95,7 +95,9 @@ _IMAGE_EXTENSIONS: tuple[str, ...] = (
 RETRY_DELAY_SECONDS: float = 5.0
 
 
-PIPELINE_CASES, CASE_IDS = discover_pipeline_cases_for_pytest()
+# Every test here replaces the input with an uploaded artifact, so a missing
+# default input video does not matter.
+PIPELINE_CASES, CASE_IDS = discover_pipeline_cases_for_pytest(skip_missing_videos=False)
 
 
 @pytest.fixture(autouse=True)

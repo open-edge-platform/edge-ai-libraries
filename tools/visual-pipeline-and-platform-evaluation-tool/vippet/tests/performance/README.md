@@ -6,7 +6,9 @@ Collects hardware KPIs per job and produces JSON, CSV, and HTML bar-chart report
 ## Prerequisites
 
 - ViPPET running and reachable (default API base URL: `http://localhost/api/v1`; change it
-  with `--base-url`) with the models of the pipelines you want to benchmark installed
+  with `--base-url`) with the models and input videos of the pipelines you want to
+  benchmark (the CLI can get both, see [Installing missing models](#installing-missing-models)
+  and [Downloading missing videos](#downloading-missing-videos))
 - Python 3 with `venv` (see [Setup](#setup))
 
 ## Setup
@@ -46,6 +48,7 @@ make test-performance PERF_ARGS="--dry-run"
 make test-performance PERF_CONFIG=quick PERF_ARGS="--streams 1,5 --pipelines goods-detection"
 make test-performance PERF_ARGS="--report-only"   # rebuild HTML from results/latest
 make test-performance PERF_ARGS="--install-missing-models=yes"   # install missing models first
+make test-performance PERF_ARGS="--download-missing-videos=yes"  # download missing sample videos first
 
 # Verbose: stream INFO logs live (arguments after `--` go to pytest).
 # The full INFO log is always saved next to the reports; see "Reports" below.
@@ -147,11 +150,90 @@ result JSON (`model_install`) and the HTML report. Direct pytest never prompts a
 installs; when runs are skipped because models are missing, the console says how to
 install them, or, if you answered no at the prompt, how to rerun and install them.
 
+#### Downloading missing videos
+
+ViPPET downloads its sample input videos on demand, from the Videos page of the UI. A
+pipeline whose input video is not downloaded cannot run. Before it starts pytest, the CLI
+can download the sample videos that the selected runs need. `--download-missing-videos`
+(`benchmark.videos.download`, `PERF_DOWNLOAD_MISSING_VIDEOS`) decides what happens, with
+the same values as `--install-missing-models`:
+
+| Value           | Behaviour                                                                                             |
+|-----------------|-------------------------------------------------------------------------------------------------------|
+| `ask` (default) | Show the plan and ask `[y/N]`, only when stdin is a terminal. Otherwise (CI, pipes) behave like `no`. |
+| `yes`           | Show the plan and download without asking.                                                            |
+| `no`            | Never download; runs whose input videos are missing are skipped.                                      |
+
+```bash
+# via make
+make test-performance PERF_ARGS="--download-missing-videos=yes"
+PERF_DOWNLOAD_MISSING_VIDEOS=yes make test-performance PERF_CONFIG=quick
+make test-performance PERF_ARGS="--install-missing-models=yes --download-missing-videos=yes"
+
+# via the CLI (venv active, PYTHONPATH set as in Setup)
+python -m perf_helpers.cli --pipelines vehicle-detection --download-missing-videos=yes
+```
+
+`make test-performance` keeps stdin on the terminal, so `ask` prompts there too. With
+`make -j` or redirected stdin it behaves like `no`.
+
+A run needs the videos that its variant's input nodes read: the `location` of a
+`filesrc` node and the video of a `source` node, as the ViPPET UI Pipelines page shows
+them. Absolute paths are not checked. A video is missing when `GET /videos` does not list
+it. The plan offers only the missing videos that `GET /videos/default-recordings` lists
+as sample videos. For each it shows the source, the pipelines of this run that use it and
+how many runs need it, and, for Pexels videos, links to the
+[Pexels License](https://www.pexels.com/license/) and
+[Terms of Service](https://www.pexels.com/terms-of-service/). By downloading you accept
+the license terms of each video's source. Videos that ViPPET is already downloading are
+waited for, not requested again.
+
+Runs whose input video is missing are always skipped (`missing_videos`), with the
+reason:
+
+| Reason                                                  | What to do                                                         |
+|---------------------------------------------------------|--------------------------------------------------------------------|
+| A sample video is not downloaded                        | Use `--download-missing-videos=yes`, or the ViPPET UI Videos page. |
+| The video is not a sample video (e.g. one you uploaded) | Upload it on the ViPPET UI Videos page.                            |
+| The input node has no video selected                    | Select one in the pipeline's Input node in ViPPET.                 |
+
+There is no flag to run them anyway, because a pipeline cannot start without its input.
+
+When you answer the prompts, the model question comes first, then the video question.
+Nothing is downloaded until both are answered; then the models and the videos are
+downloaded at the same time. Each video is requested with `POST /videos/download-default`
+and `GET /videos/default-recordings` is polled until it is downloaded. A line is printed
+when a video's state changes, and a summary every 60 s. After the download, ViPPET
+converts each video to HEVC (`<name>_h265.mp4`); the CLI waits for that too. The
+benchmark reads the original video, so a failed conversion never affects a run: the CLI
+prints one line, "HEVC conversion failed for N video(s); the benchmark is not affected".
+`--video-download-timeout` (`benchmark.videos.download_timeout_seconds`,
+`PERF_VIDEO_DOWNLOAD_TIMEOUT`, default 1800 s) bounds the wait for all downloads and
+conversions together.
+
+| Video outcome                                           | Runs that need the video                          |
+|---------------------------------------------------------|---------------------------------------------------|
+| `downloaded`                                            | Run normally, whatever the HEVC conversion result |
+| `failed` (including a rejected request, HTTP 404 / 409) | `ERROR` with the reason; exit `1`                 |
+| `timed_out`                                             | `ERROR`; the download continues on the server     |
+| `declined` (answered no)                                | `SKIPPED`, as without downloading                 |
+| `interrupted` (Ctrl-C while waiting)                    | `SKIPPED`; the download continues on the server   |
+
+Everything else works as for models: Ctrl-C at the prompt exits with `130`, Ctrl-C while
+waiting runs the benchmark with what is ready, a single line replaces the plan when
+nothing is missing, `--dry-run` shows the plan and never downloads, the step is skipped
+for pytest arguments that run no test, and direct pytest never downloads. A ViPPET
+version without `GET /videos/default-recordings` (HTTP 404) downloads its sample videos
+at startup; the step then prints one line and is skipped.
+
+The outcome is shown in the console section **Video download**, and recorded in the
+result JSON (`video_download`) and the HTML report.
+
 #### Dry run
 
-`--dry-run` checks that ViPPET is up and reads `/pipelines`, `/devices` and
-`/models`. It never submits a job. Combine it with any selection flag to preview
-exactly what a run would do:
+`--dry-run` checks that ViPPET is up and reads `/pipelines`, `/devices`, `/models`,
+`/videos` and `/videos/default-recordings`. It never submits a job. Combine it with
+any selection flag to preview exactly what a run would do:
 
 ```bash
 python -m perf_helpers.cli --dry-run                                   # default preset
@@ -186,6 +268,12 @@ It prints:
   [Installing missing models](#installing-missing-models)) and what
   `--install-missing-models` would do in this terminal. A dry run never prompts and
   never installs.
+- **Skipped at run time: missing_videos**: runs that pytest will skip because their
+  input videos are missing, with the video names (`(none selected)` when the input
+  node has no video). These runs are never counted in the matrix.
+- **Video download**: the download plan (see
+  [Downloading missing videos](#downloading-missing-videos)) and what
+  `--download-missing-videos` would do in this terminal. A dry run never downloads.
 
 ```text
 Matrix: 4 run(s) = pipeline x variant x streams [1, 3]
@@ -274,12 +362,16 @@ Every run (CLI or direct pytest) prints these sections in order:
    capabilities and version snapshots used for the report.
 1. **Discovered hardware**: the ViPPET version and the device names per CPU/GPU/NPU family.
 1. **Benchmark matrix**: the same tables as `--dry-run`, covering runs, exclusions
-   with reasons, and runs skipped for missing models.
+   with reasons, and runs skipped for missing models or input videos.
 1. **Per-test status**: one `PASSED`/`FAILED`/`SKIPPED`/`ERROR` line per run (`-v` is
    set in `pytest.ini`; pass `-q` after `--` for dots). `ERROR` means the run could
-   not be set up, e.g. because a model it needs failed to install.
+   not be set up, e.g. because a model it needs failed to install or its input video
+   failed to download.
 1. **Model installation**: each model's install outcome when the CLI installed models,
    and how to install the models of runs that were skipped because they are missing.
+1. **Video download**: each video's download outcome and HEVC conversion when the CLI
+   downloaded videos, one line if conversions failed, and how to get the input videos
+   of runs that were skipped because they are missing.
 1. **Benchmark artefacts**: the run directory, the JSON/CSV/HTML reports, the log file
    and the `latest` link, or why no reports were written. Also a warning if no
    hardware metrics were sampled.
@@ -319,6 +411,10 @@ export and reports.
   The CLI offers the models of your own pipelines like those of predefined ones.
   Runs of a pipeline with missing models are skipped, with the model names shown.
   `--no-skip-missing-models` runs them anyway, and they will most likely fail.
+- **Select its input video.** Runs of a variant whose input video is missing are
+  skipped. Sample videos can be downloaded with `--download-missing-videos=yes` (see
+  [Downloading missing videos](#downloading-missing-videos)); upload other videos on
+  the ViPPET UI Videos page.
 
 ### 2. Find the pipeline id
 
@@ -388,15 +484,16 @@ object-detection  (all)    pipeline_filter  not listed in benchmark.pipelines
 
 Your pipeline must appear in the **Matrix**. If it does not, look it up in **Excluded**:
 
-| What the dry run shows                               | Cause and fix                                                                                     |
-|------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| Pipeline in neither table                            | ViPPET does not report it. Check that it exists and that `--base-url` points to the right ViPPET. |
-| `pipeline_filter`                                    | Its id is not in `--pipelines`.                                                                   |
-| `skip_pipelines` / `skip_variants`                   | Remove it from `--skip-pipelines` / `--skip-variants`.                                            |
-| `variant_filter`                                     | The variant needs a device family that is missing in `--variants`. Add it.                        |
-| `unsupported_family`, "unknown device family"        | The variant name is not CPU, GPU, NPU or a combination of them. Rename the variant in ViPPET.     |
-| `unsupported_family`, "host does not report"         | The host has no such device. Nothing to fix; the variant cannot run here.                         |
-| In the Matrix and also under **Skipped at run time** | Models are missing. Install them in ViPPET, or run with `--install-missing-models=yes`.           |
+| What the dry run shows                               | Cause and fix                                                                                             |
+|------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| Pipeline in neither table                            | ViPPET does not report it. Check that it exists and that `--base-url` points to the right ViPPET.         |
+| `pipeline_filter`                                    | Its id is not in `--pipelines`.                                                                           |
+| `skip_pipelines` / `skip_variants`                   | Remove it from `--skip-pipelines` / `--skip-variants`.                                                    |
+| `variant_filter`                                     | The variant needs a device family that is missing in `--variants`. Add it.                                |
+| `unsupported_family`, "unknown device family"        | The variant name is not CPU, GPU, NPU or a combination of them. Rename the variant in ViPPET.             |
+| `unsupported_family`, "host does not report"         | The host has no such device. Nothing to fix; the variant cannot run here.                                 |
+| In the Matrix and also under **Skipped at run time** | Models are missing. Install them in ViPPET, or run with `--install-missing-models=yes`.                   |
+| Under **Skipped at run time: missing_videos**        | Input videos are missing. Download or upload them in ViPPET, or run with `--download-missing-videos=yes`. |
 
 ### 5. Run it
 
@@ -423,14 +520,14 @@ runs the same CLI.
 
 ### Run modes and general options
 
-| Option                     | Description                                                                                                                                 |
-|----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `--config NAME_OR_PATH`    | Preset name in `config/` (`default`, `quick`, `full`), a YAML path, or a result JSON / run directory. See [Configuration](#configuration).  |
-| `--dry-run`                | Print the settings, matrix, exclusions and model install plan, then exit. See [Dry run](#dry-run). Exclusive with `--report-only`.          |
-| `-h`, `--help`             | Show the option list and exit.                                                                                                              |
-| `--report-only [PATH ...]` | Rebuild the HTML report from saved result JSON, without contacting ViPPET. See [Report only](#report-only). Exclusive with `--dry-run`.     |
-| `--report-output PATH`     | HTML file to write with `--report-only`. Requires `--report-only`.                                                                          |
-| `-- PYTEST_ARGS`           | Everything after `--` goes to pytest unchanged, e.g. `-- -k vehicle_detection --log-cli-level=INFO`.                                        |
+| Option                     | Description                                                                                                                                             |
+|----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--config NAME_OR_PATH`    | Preset name in `config/` (`default`, `quick`, `full`), a YAML path, or a result JSON / run directory. See [Configuration](#configuration).              |
+| `--dry-run`                | Print the settings, matrix, exclusions, model install plan and video download plan, then exit. See [Dry run](#dry-run). Exclusive with `--report-only`. |
+| `-h`, `--help`             | Show the option list and exit.                                                                                                                          |
+| `--report-only [PATH ...]` | Rebuild the HTML report from saved result JSON, without contacting ViPPET. See [Report only](#report-only). Exclusive with `--dry-run`.                 |
+| `--report-output PATH`     | HTML file to write with `--report-only`. Requires `--report-only`.                                                                                      |
+| `-- PYTEST_ARGS`           | Everything after `--` goes to pytest unchanged, e.g. `-- -k vehicle_detection --log-cli-level=INFO`.                                                    |
 
 Without `--dry-run` and `--report-only` the CLI runs the benchmark.
 
@@ -440,34 +537,36 @@ Every setting has a CLI flag and a YAML key, and some have an environment variab
 flag overrides the environment variable, which overrides the YAML file, which overrides
 the built-in default. The defaults below are those of the `default` preset.
 
-| Flag                                                | Default                                           | YAML key                                   | Env var                       | Meaning                                                                     |
-|-----------------------------------------------------|---------------------------------------------------|--------------------------------------------|-------------------------------|-----------------------------------------------------------------------------|
-| `--base-url URL`                                    | `http://localhost/api/v1`                         | `vippet.base_url`                          | `VIPPET_BASE_URL`             | ViPPET API base URL                                                         |
-| `--capabilities-url URL`                            | `http://<base-url host>:9090/api/v1/capabilities` | `metrics.capabilities_url`                 | `VIPPET_CAPABILITIES_URL`     | metrics-manager capabilities endpoint (not behind the nginx proxy)          |
-| `--formats FORMATS`                                 | `json,csv`                                        | `results.formats`                          |                               | Export formats: `json`, `csv`. The HTML report is always written.           |
-| `--install-missing-models {ask,yes,no}`             | `ask`                                             | `benchmark.models.install`                 | `PERF_INSTALL_MISSING_MODELS` | Install missing models first; see [details](#installing-missing-models)     |
-| `--latest-link`, `--no-latest-link`                 | on                                                | `results.create_latest_link`               |                               | Point `<results-dir>/latest` at the newest run                              |
-| `--max-job-duration SECONDS`                        | `600`                                             | `vippet.max_job_duration`                  | `VIPPET_JOB_TIMEOUT_SECONDS`  | Longest wait for one job, whole seconds                                     |
-| `--max-retries N`                                   | `2`                                               | `benchmark.execution.max_retries`          |                               | Retries for a job that does not complete                                    |
-| `--max-runtime SECONDS`                             | `30`                                              | `benchmark.execution.max_runtime`          |                               | How long each run lasts; `0` runs until the end of the video                |
-| `--metrics-interval SECONDS`                        | `2.0`                                             | `metrics.sample_interval_seconds`          | `PERF_METRICS_INTERVAL`       | Hardware metrics sampling interval                                          |
-| `--metrics-trim-fraction FRACTION`                  | `0.1`                                             | `metrics.trim_fraction`                    | `PERF_METRICS_TRIM_FRACTION`  | Share of samples trimmed from each end before averaging, `0` to below `0.5` |
-| `--metrics-url URL`                                 | `http://<base-url host>/metrics/stream`           | `metrics.metrics_url`                      | `VIPPET_METRICS_URL`          | Hardware metrics endpoint                                                   |
-| `--model-install-timeout SECONDS`                   | `3600`                                            | `benchmark.models.install_timeout_seconds` | `PERF_MODEL_INSTALL_TIMEOUT`  | Longest wait for all model installs together, whole seconds                 |
-| `--on-unknown-id {fail,warn}`                       | `fail`                                            | `benchmark.filters.on_unknown_id`          | `PERF_ON_UNKNOWN_ID`          | Unknown id in a filter: abort the run, or warn and skip it                  |
-| `--output-mode {disabled,file,live_stream}`         | `disabled`                                        | `benchmark.execution.output_mode`          |                               | Pipeline output mode                                                        |
-| `--pipelines IDS`                                   | `*`                                               | `benchmark.pipelines`                      |                               | `*` for all pipelines, or comma-separated pipeline ids                      |
-| `--poll-interval SECONDS`                           | `2`                                               | `vippet.poll_interval`                     | `VIPPET_JOB_POLL_INTERVAL`    | Job status polling interval                                                 |
-| `--readiness-timeout SECONDS`                       | `60`                                              | `vippet.readiness_timeout_seconds`         |                               | Longest wait for ViPPET to become ready before the run starts               |
-| `--results-dir DIR`                                 | `vippet/tests/performance/results`                | `results.output_dir`                       | `PERF_RESULTS_DIR`            | Directory that receives the run directories                                 |
-| `--retry-delay SECONDS`                             | `5`                                               | `benchmark.execution.retry_delay_seconds`  |                               | Pause between retries                                                       |
-| `--save-log`, `--no-save-log`                       | on                                                | `results.save_log`                         |                               | Write the run's INFO log next to its reports                                |
-| `--skip-missing-models`, `--no-skip-missing-models` | on                                                | `benchmark.filters.skip_missing_models`    |                               | Skip pipelines with missing models, or run them anyway                      |
-| `--skip-pipelines IDS`                              | none                                              | `benchmark.filters.skip_pipelines`         |                               | Comma-separated pipeline ids to leave out; `''` clears the list             |
-| `--skip-variants VARIANTS`                          | none                                              | `benchmark.filters.skip_variants`          |                               | Comma-separated variant names to leave out, e.g. `GPU_NPU`                  |
-| `--streams COUNTS`                                  | `1,3`                                             | `benchmark.stream_counts`                  |                               | Comma-separated stream counts                                               |
-| `--timeout SECONDS`                                 | `600`                                             | `vippet.timeout`                           |                               | HTTP request timeout                                                        |
-| `--variants FAMILIES`                               | `cpu,gpu,npu`                                     | `benchmark.variants`                       |                               | Allowed device families (see [Configuration](#configuration))               |
+| Flag                                                | Default                                           | YAML key                                    | Env var                        | Meaning                                                                           |
+|-----------------------------------------------------|---------------------------------------------------|---------------------------------------------|--------------------------------|-----------------------------------------------------------------------------------|
+| `--base-url URL`                                    | `http://localhost/api/v1`                         | `vippet.base_url`                           | `VIPPET_BASE_URL`              | ViPPET API base URL                                                               |
+| `--capabilities-url URL`                            | `http://<base-url host>:9090/api/v1/capabilities` | `metrics.capabilities_url`                  | `VIPPET_CAPABILITIES_URL`      | metrics-manager capabilities endpoint (not behind the nginx proxy)                |
+| `--download-missing-videos {ask,yes,no}`            | `ask`                                             | `benchmark.videos.download`                 | `PERF_DOWNLOAD_MISSING_VIDEOS` | Download missing sample videos first; see [details](#downloading-missing-videos)  |
+| `--formats FORMATS`                                 | `json,csv`                                        | `results.formats`                           |                                | Export formats: `json`, `csv`. The HTML report is always written.                 |
+| `--install-missing-models {ask,yes,no}`             | `ask`                                             | `benchmark.models.install`                  | `PERF_INSTALL_MISSING_MODELS`  | Install missing models first; see [details](#installing-missing-models)           |
+| `--latest-link`, `--no-latest-link`                 | on                                                | `results.create_latest_link`                |                                | Point `<results-dir>/latest` at the newest run                                    |
+| `--max-job-duration SECONDS`                        | `600`                                             | `vippet.max_job_duration`                   | `VIPPET_JOB_TIMEOUT_SECONDS`   | Longest wait for one job, whole seconds                                           |
+| `--max-retries N`                                   | `2`                                               | `benchmark.execution.max_retries`           |                                | Retries for a job that does not complete                                          |
+| `--max-runtime SECONDS`                             | `30`                                              | `benchmark.execution.max_runtime`           |                                | How long each run lasts; `0` runs until the end of the video                      |
+| `--metrics-interval SECONDS`                        | `2.0`                                             | `metrics.sample_interval_seconds`           | `PERF_METRICS_INTERVAL`        | Hardware metrics sampling interval                                                |
+| `--metrics-trim-fraction FRACTION`                  | `0.1`                                             | `metrics.trim_fraction`                     | `PERF_METRICS_TRIM_FRACTION`   | Share of samples trimmed from each end before averaging, `0` to below `0.5`       |
+| `--metrics-url URL`                                 | `http://<base-url host>/metrics/stream`           | `metrics.metrics_url`                       | `VIPPET_METRICS_URL`           | Hardware metrics endpoint                                                         |
+| `--model-install-timeout SECONDS`                   | `3600`                                            | `benchmark.models.install_timeout_seconds`  | `PERF_MODEL_INSTALL_TIMEOUT`   | Longest wait for all model installs together, whole seconds                       |
+| `--on-unknown-id {fail,warn}`                       | `fail`                                            | `benchmark.filters.on_unknown_id`           | `PERF_ON_UNKNOWN_ID`           | Unknown id in a filter: abort the run, or warn and skip it                        |
+| `--output-mode {disabled,file,live_stream}`         | `disabled`                                        | `benchmark.execution.output_mode`           |                                | Pipeline output mode                                                              |
+| `--pipelines IDS`                                   | `*`                                               | `benchmark.pipelines`                       |                                | `*` for all pipelines, or comma-separated pipeline ids                            |
+| `--poll-interval SECONDS`                           | `2`                                               | `vippet.poll_interval`                      | `VIPPET_JOB_POLL_INTERVAL`     | Job status polling interval                                                       |
+| `--readiness-timeout SECONDS`                       | `60`                                              | `vippet.readiness_timeout_seconds`          |                                | Longest wait for ViPPET to become ready before the run starts                     |
+| `--results-dir DIR`                                 | `vippet/tests/performance/results`                | `results.output_dir`                        | `PERF_RESULTS_DIR`             | Directory that receives the run directories                                       |
+| `--retry-delay SECONDS`                             | `5`                                               | `benchmark.execution.retry_delay_seconds`   |                                | Pause between retries                                                             |
+| `--save-log`, `--no-save-log`                       | on                                                | `results.save_log`                          |                                | Write the run's INFO log next to its reports                                      |
+| `--skip-missing-models`, `--no-skip-missing-models` | on                                                | `benchmark.filters.skip_missing_models`     |                                | Skip pipelines with missing models, or run them anyway                            |
+| `--skip-pipelines IDS`                              | none                                              | `benchmark.filters.skip_pipelines`          |                                | Comma-separated pipeline ids to leave out; `''` clears the list                   |
+| `--skip-variants VARIANTS`                          | none                                              | `benchmark.filters.skip_variants`           |                                | Comma-separated variant names to leave out, e.g. `GPU_NPU`                        |
+| `--streams COUNTS`                                  | `1,3`                                             | `benchmark.stream_counts`                   |                                | Comma-separated stream counts                                                     |
+| `--timeout SECONDS`                                 | `600`                                             | `vippet.timeout`                            |                                | HTTP request timeout                                                              |
+| `--variants FAMILIES`                               | `cpu,gpu,npu`                                     | `benchmark.variants`                        |                                | Allowed device families (see [Configuration](#configuration))                     |
+| `--video-download-timeout SECONDS`                  | `1800`                                            | `benchmark.videos.download_timeout_seconds` | `PERF_VIDEO_DOWNLOAD_TIMEOUT`  | Longest wait for all video downloads and HEVC conversions together, whole seconds |
 
 ### Presets
 
@@ -479,13 +578,13 @@ the built-in default. The defaults below are those of the `default` preset.
 
 ### Exit codes
 
-| Exit code | Cause                                                                                                                                                                                   |
-|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `0`       | All benchmarks passed, or `--dry-run` / `--report-only` succeeded                                                                                                                       |
-| `1`       | At least one benchmark failed (state, attempts, job id and the fix are shown per test), or a run could not be set up, e.g. a model it needs failed to install (`ERROR`)                 |
-| `2`       | Invalid config or flag; ViPPET unreachable, not the ViPPET API, or not ready within `--readiness-timeout`; invalid input for `--report-only`; `--report-output` without `--report-only` |
-| `4`       | A filter id in `pipelines` / `variants` / `skip_*` matches nothing and `on_unknown_id` is `fail` (default)                                                                              |
-| `130`     | Ctrl-C at the model installation prompt                                                                                                                                                 |
+| Exit code | Cause                                                                                                                                                                                                         |
+|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `0`       | All benchmarks passed, or `--dry-run` / `--report-only` succeeded                                                                                                                                             |
+| `1`       | At least one benchmark failed (state, attempts, job id and the fix are shown per test), or a run could not be set up, e.g. a model it needs failed to install or its input video failed to download (`ERROR`) |
+| `2`       | Invalid config or flag; ViPPET unreachable, not the ViPPET API, or not ready within `--readiness-timeout`; invalid input for `--report-only`; `--report-output` without `--report-only`                       |
+| `4`       | A filter id in `pipelines` / `variants` / `skip_*` matches nothing and `on_unknown_id` is `fail` (default)                                                                                                    |
+| `130`     | Ctrl-C at the model installation or video download prompt                                                                                                                                                     |
 
 Other exit codes come from pytest itself, which the CLI passes through.
 
@@ -536,26 +635,29 @@ Notes:
 
 Environment variable defaults:
 
-| Env var                       | Default                                          | Description                                                                                                                                                               |
-|-------------------------------|--------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `VIPPET_BASE_URL`             | `http://localhost/api/v1`                        | VIPPET API endpoint. Its host (and port) is reused to build the default `VIPPET_METRICS_URL`/`VIPPET_CAPABILITIES_URL` below, so set this alone to target a remote device |
-| `VIPPET_METRICS_URL`          | derived from `VIPPET_BASE_URL`'s host/port       | Metrics endpoint (via nginx proxy); set explicitly to override                                                                                                            |
-| `VIPPET_CAPABILITIES_URL`     | derived from `VIPPET_BASE_URL`'s host, port 9090 | metrics-manager capabilities endpoint (direct, not nginx-proxied); set explicitly to override                                                                             |
-| `VIPPET_JOB_POLL_INTERVAL`    | `2.0`                                            | Job status polling interval (seconds)                                                                                                                                     |
-| `VIPPET_JOB_TIMEOUT_SECONDS`  | `600`                                            | Max wait for a job, whole seconds                                                                                                                                         |
-| `PERF_CONFIG`                 | `default`                                        | Config preset (`default`, `quick`, `full`)                                                                                                                                |
-| `PERF_CONFIG_FILE`            | (unset)                                          | Explicit YAML path; wins over `PERF_CONFIG`                                                                                                                               |
-| `PERF_RESULTS_DIR`            | `vippet/tests/performance/results`               | Output directory for reports                                                                                                                                              |
-| `PERF_METRICS_INTERVAL`       | `2.0`                                            | HW sampling interval (seconds)                                                                                                                                            |
-| `PERF_METRICS_TRIM_FRACTION`  | `0.1`                                            | Fraction of HW samples trimmed from each end before averaging (see [HW metric trimming](#hw-metric-trimming))                                                             |
-| `PERF_ON_UNKNOWN_ID`          | `fail`                                           | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning                                            |
-| `PERF_INSTALL_MISSING_MODELS` | `ask`                                            | Install missing models before the benchmark: `ask`, `yes` or `no` (see [Installing missing models](#installing-missing-models))                                           |
-| `PERF_MODEL_INSTALL_TIMEOUT`  | `3600`                                           | Longest wait for all model installs together (whole seconds)                                                                                                              |
+| Env var                        | Default                                          | Description                                                                                                                                                               |
+|--------------------------------|--------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `VIPPET_BASE_URL`              | `http://localhost/api/v1`                        | VIPPET API endpoint. Its host (and port) is reused to build the default `VIPPET_METRICS_URL`/`VIPPET_CAPABILITIES_URL` below, so set this alone to target a remote device |
+| `VIPPET_METRICS_URL`           | derived from `VIPPET_BASE_URL`'s host/port       | Metrics endpoint (via nginx proxy); set explicitly to override                                                                                                            |
+| `VIPPET_CAPABILITIES_URL`      | derived from `VIPPET_BASE_URL`'s host, port 9090 | metrics-manager capabilities endpoint (direct, not nginx-proxied); set explicitly to override                                                                             |
+| `VIPPET_JOB_POLL_INTERVAL`     | `2.0`                                            | Job status polling interval (seconds)                                                                                                                                     |
+| `VIPPET_JOB_TIMEOUT_SECONDS`   | `600`                                            | Max wait for a job, whole seconds                                                                                                                                         |
+| `PERF_CONFIG`                  | `default`                                        | Config preset (`default`, `quick`, `full`)                                                                                                                                |
+| `PERF_CONFIG_FILE`             | (unset)                                          | Explicit YAML path; wins over `PERF_CONFIG`                                                                                                                               |
+| `PERF_RESULTS_DIR`             | `vippet/tests/performance/results`               | Output directory for reports                                                                                                                                              |
+| `PERF_METRICS_INTERVAL`        | `2.0`                                            | HW sampling interval (seconds)                                                                                                                                            |
+| `PERF_METRICS_TRIM_FRACTION`   | `0.1`                                            | Fraction of HW samples trimmed from each end before averaging (see [HW metric trimming](#hw-metric-trimming))                                                             |
+| `PERF_ON_UNKNOWN_ID`           | `fail`                                           | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning                                            |
+| `PERF_INSTALL_MISSING_MODELS`  | `ask`                                            | Install missing models before the benchmark: `ask`, `yes` or `no` (see [Installing missing models](#installing-missing-models))                                           |
+| `PERF_MODEL_INSTALL_TIMEOUT`   | `3600`                                           | Longest wait for all model installs together (whole seconds)                                                                                                              |
+| `PERF_DOWNLOAD_MISSING_VIDEOS` | `ask`                                            | Download missing sample videos before the benchmark: `ask`, `yes` or `no` (see [Downloading missing videos](#downloading-missing-videos))                                 |
+| `PERF_VIDEO_DOWNLOAD_TIMEOUT`  | `1800`                                           | Longest wait for all video downloads and their HEVC conversions together (whole seconds)                                                                                  |
 
 `VIPPET_JOB_POLL_INTERVAL` and `VIPPET_JOB_TIMEOUT_SECONDS` are also read by the
 functional-test helpers. The CLI and direct pytest both resolve them the same way.
-`PERF_MODEL_INSTALL_OUTCOME` is set by the CLI to hand the install outcome to pytest;
-don't set it yourself (an invalid value stops the run with exit code `2`).
+`PERF_MODEL_INSTALL_OUTCOME` and `PERF_VIDEO_DOWNLOAD_OUTCOME` are set by the CLI to
+hand the install and download outcomes to pytest; don't set them yourself (an invalid
+value stops the run with exit code `2`).
 Numbers must be finite (`nan` and `inf` are rejected). With direct pytest, an invalid
 config also prints a one-line error and exits with `2`.
 
@@ -582,8 +684,9 @@ python -m perf_helpers.cli --config vippet/tests/performance/results/latest --dr
 - What runs is decided by the current host as usual: cases whose models are missing
   are skipped (`benchmark.filters.skip_missing_models`), and models installed since
   the recording are used. The `config` block does not record the host's matrix.
-- `benchmark.models.install` is never replayed: a replayed run uses `ask` unless you
-  pass `--install-missing-models` or `PERF_INSTALL_MISSING_MODELS` again.
+- `benchmark.models.install` and `benchmark.videos.download` are never replayed: a
+  replayed run uses `ask` unless you pass `--install-missing-models` /
+  `--download-missing-videos` (or their env vars) again.
 - A result written by a suite version with different setting keys is refused
   (exit `2`); copy its settings into a YAML config instead.
 
@@ -649,6 +752,7 @@ conftest.py                 # pytest fixtures and parametrize hook
 pytest.ini                  # markers and pythonpath
 test_pipeline_performance.py  # test module
 perf_helpers/
+├── asset_download.py       # shared by model installs and video downloads: prompt, outcome hand-off, waiting
 ├── cli.py                  # CLI entry point (python -m perf_helpers.cli)
 ├── config.py               # module constants derived from settings.py
 ├── discovery.py            # read-only ViPPET queries feeding matrix.py
@@ -660,7 +764,8 @@ perf_helpers/
 ├── reporters.py            # JSON/CSV export + HTML report generation (incl. the Configuration section)
 ├── run_config.py           # builds the result "config" block
 ├── settings.py             # setting specs + defaults -> YAML -> env -> CLI resolver
-└── system_info.py          # builds the report's System info block
+├── system_info.py          # builds the report's System info block
+└── video_download.py       # download plan, prompt, sample video downloads and their outcome for pytest
 config/
 ├── default.yaml            # CPU+GPU+NPU, 1 & 3 streams
 ├── quick.yaml              # CPU+GPU, 1 stream
@@ -679,11 +784,14 @@ exact paths are listed in the run's **Benchmark artefacts** section:
   (`default`, `yaml`, `env` or `cli`), the applied `filters` with the excluded
   pipeline variants, and the code `revisions` (suite git commit, ViPPET version).
   `model_install` lists each model the CLI tried to install with its `outcome` and
-  `reason` (`null` when no installation was attempted), and `summary.error` counts the
-  runs that could not be set up (e.g. their model failed to install)
+  `reason` (`null` when no installation was attempted). `video_download` lists each
+  video the CLI tried to download with its `outcome`, `reason` and HEVC
+  `conversion_status` (`null` when no download was attempted). `summary.error` counts
+  the runs that could not be set up (e.g. their model failed to install)
 - `.csv` — flat table for spreadsheet analysis
 - `.html` — interactive Chart.js report with FPS, utilization, and power charts, and a
-  Model installation section when the CLI installed models
+  Model installation and a Video download section when the CLI installed models or
+  downloaded videos
 - `.log` — the full INFO log of the run, including the per-request HTTP lines hidden from
   the console (`results.save_log`, on by default)
 
@@ -722,3 +830,7 @@ Rebuild the HTML later with `--report-only` (see [Report only](#report-only)).
 | Every model install fails right after ViPPET was started                                                                                    | model-download may still be starting. Check it with `docker compose ps model-download`, then rerun.                                                                                     |
 | A replayed run (`--config <result JSON>`) asks again to install models                                                                      | Replay never restores `--install-missing-models`. Pass the flag again.                                                                                                                  |
 | A run shows `ERROR`                                                                                                                         | It could not be set up; the reason is shown for the run. For a failed model install see [Installing missing models](#installing-missing-models).                                        |
+| Runs are `SKIPPED` with `missing_videos` on a fresh ViPPET                                                                                  | Sample videos are downloaded on demand. Run with `--download-missing-videos=yes`, or download them on the ViPPET UI Videos page.                                                        |
+| A video download fails                                                                                                                      | Check the ViPPET logs (`docker compose logs vippet`) and the network or proxy settings of the host, then rerun.                                                                         |
+| "HEVC conversion failed for N video(s)"                                                                                                     | The benchmark is not affected; it reads the original video. The conversion needs a GPU encoder, so it fails on hosts without one.                                                       |
+| A replayed run asks again to download videos                                                                                                | Replay never restores `--download-missing-videos`. Pass the flag again.                                                                                                                 |

@@ -29,9 +29,11 @@ from helpers.api_helpers import (
 )
 from helpers.config import BASE_URL
 from helpers.pipeline_case_helpers import (
+    MissingVideos,
     PipelineCase,
     collect_pipeline_cases,
     missing_models_per_pipeline,
+    missing_videos_per_variant,
     wrap_cases_for_pytest,
 )
 
@@ -88,11 +90,13 @@ def _discover_metadata_pipeline_cases() -> tuple[
     )
     inference_case_keys: set[tuple[str, str]] = set()
     meta_cases: list[PipelineCase] = []
+    missing_videos = MissingVideos()
     try:
         with requests.Session() as session:
             session.headers.update({"Accept": "application/json"})
             all_cases = collect_pipeline_cases(session)
             missing = missing_models_per_pipeline(session)
+            missing_videos = missing_videos_per_variant(session)
             pipeline_cache: dict[str, JsonDict] = {}
             for case in all_cases:
                 node_types = _variant_node_types(
@@ -114,7 +118,9 @@ def _discover_metadata_pipeline_cases() -> tuple[
             ["no-cases"],
             set(),
         )
-    params, ids = wrap_cases_for_pytest(meta_cases, missing)
+    params, ids = wrap_cases_for_pytest(
+        meta_cases, missing, missing_videos=missing_videos
+    )
     return params, ids, inference_case_keys
 
 

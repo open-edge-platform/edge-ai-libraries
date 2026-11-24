@@ -105,6 +105,24 @@ def fetch_videos(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
+def fetch_default_video_recordings(session: requests.Session) -> list[JsonDict] | None:
+    """Return ``GET /videos/default-recordings``, the downloadable sample videos.
+
+    Returns ``None`` when ViPPET has no such endpoint (HTTP 404, older
+    releases that download every sample video at startup).
+    """
+    logger.info("Fetching sample videos from %s/videos/default-recordings", BASE_URL)
+    response = session.get(f"{BASE_URL}/videos/default-recordings", timeout=30)
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    payload = response.json()
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
+    return [item for item in payload if isinstance(item, dict)]
+
+
 def check_video_input_exists(session: requests.Session, filename: str) -> JsonDict:
     """Call ``GET /videos/check-video-input-exists?filename=...``.
 

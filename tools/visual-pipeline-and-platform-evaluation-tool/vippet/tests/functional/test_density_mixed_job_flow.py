@@ -29,7 +29,9 @@ from helpers.config import BASE_URL
 from helpers.pipeline_case_helpers import (
     PipelineCase,
     collect_pipeline_cases,
+    describe_missing_videos,
     missing_models_per_pipeline,
+    missing_videos_per_variant,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,10 +81,11 @@ def _resolve_pair(
 
     Skips the calling test (with a descriptive reason) when either
     pipeline is not present, has no variant matching an available
-    device, or has any required model missing.
+    device, or has any required model or input video missing.
     """
     cases = collect_pipeline_cases(session)
     missing = missing_models_per_pipeline(session)
+    missing_videos = missing_videos_per_variant(session)
 
     fixed_case = _pick_case_by_pipeline_name(cases, name_fixed)
     grow_case = _pick_case_by_pipeline_name(cases, name_grow)
@@ -101,6 +104,14 @@ def _resolve_pair(
             pytest.skip(
                 f"Mixed-density {label} pipeline {pipeline_name!r} requires "
                 f"model(s) that are not installed: {sorted(case_missing)}."
+            )
+        case_videos = missing_videos.get(case.pipeline_id, case.variant_id)
+        if case_videos:
+            pytest.skip(
+                f"Mixed-density {label} pipeline: "
+                + describe_missing_videos(
+                    pipeline_name, case_videos, missing_videos.downloadable
+                )
             )
 
     assert fixed_case is not None and grow_case is not None
