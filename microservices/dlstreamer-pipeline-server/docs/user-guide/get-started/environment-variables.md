@@ -122,7 +122,7 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
   - > [!NOTE]
     > Defaults to `false`. TLS termination is expected to be provided by
     > deployment infrastructure (e.g. an ingress/gateway) unless you explicitly
-    > set `HTTPS=true`. See [Security Considerations](../../../README.md#security-considerations).
+    > set `HTTPS=true`. See [Security Considerations](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/dlstreamer-pipeline-server/README.md#security-considerations).
 - **LOG_LEVEL (String)** - Set the logging level for DL Streamer Pipeline Server
   - Example: `LOG_LEVEL=INFO`
   - Example: `LOG_LEVEL=DEBUG`
