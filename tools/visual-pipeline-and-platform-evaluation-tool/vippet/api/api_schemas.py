@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Union, Literal
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from cpu_topology import normalize_cpu_ids
+
 _HUB_MODEL_NAME_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
@@ -550,11 +552,7 @@ class PipelineGraph(BaseModel):
     @field_validator("cpu_pinning", mode="before")
     @classmethod
     def _validate_cpu_pinning(cls, cpus: object) -> List[int]:
-        if not isinstance(cpus, list) or any(
-            type(cpu) is not int or cpu < 0 for cpu in cpus
-        ):
-            raise ValueError("cpu_pinning must be a list of non-negative CPU ids.")
-        return list(dict.fromkeys(cpus))
+        return normalize_cpu_ids(cpus, "cpu_pinning")
 
     nodes: List[Node] = Field(
         ...,
@@ -1504,13 +1502,10 @@ class ExecutionConfig(BaseModel):
         ),
     )
 
-    @field_validator("pinned_cpu_cores")
+    @field_validator("pinned_cpu_cores", mode="before")
     @classmethod
-    def _normalize_pinned_cpu_cores(cls, cpus: List[int]) -> List[int]:
-        """De-duplicate, sort and reject negative logical CPU ids."""
-        if any(cpu < 0 for cpu in cpus):
-            raise ValueError("pinned_cpu_cores must not contain negative CPU ids.")
-        return sorted(set(cpus))
+    def _normalize_pinned_cpu_cores(cls, cpus: object) -> List[int]:
+        return normalize_cpu_ids(cpus, "pinned_cpu_cores")
 
 
 class PerformanceTestSpec(BaseModel):

@@ -12,6 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+from cpu_topology import normalize_cpu_ids
 from models import SupportedModelsManager
 from resources import (
     get_labels_manager,
@@ -360,11 +361,7 @@ class Graph:
         return graph
 
     def __post_init__(self) -> None:
-        if not isinstance(self.cpu_pinning, list) or any(
-            type(cpu) is not int or cpu < 0 for cpu in self.cpu_pinning
-        ):
-            raise ValueError("cpu_pinning must be a list of non-negative CPU ids.")
-        self.cpu_pinning = list(dict.fromkeys(self.cpu_pinning))
+        self.cpu_pinning = normalize_cpu_ids(self.cpu_pinning, "cpu_pinning")
 
     @staticmethod
     def from_dict(data: dict) -> "Graph":

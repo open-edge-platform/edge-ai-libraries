@@ -34,7 +34,7 @@ def tearDownModule() -> None:
 
 class TestGraphCpuPinning(unittest.TestCase):
     def test_pinning_round_trips_and_reaches_simple_view(self):
-        graph = Graph.from_dict({"nodes": [], "edges": [], "cpu_pinning": [12, 13, 12]})
+        graph = Graph.from_dict({"nodes": [], "edges": [], "cpu_pinning": [13, 12, 13]})
         self.assertEqual(graph.cpu_pinning, [12, 13])
         self.assertEqual(Graph.from_dict(graph.to_dict()).cpu_pinning, [12, 13])
         self.assertEqual(graph.to_simple_view().cpu_pinning, [12, 13])
