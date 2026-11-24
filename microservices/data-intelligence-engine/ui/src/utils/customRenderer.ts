@@ -1,6 +1,7 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+import DOMPurify from "dompurify";
 import { marked } from "marked";
 import hljs from "highlight.js";
 import { useClipboard } from "./clipboard";
@@ -198,3 +199,11 @@ const createCustomRenderer = () => {
 
 const CustomRenderer = createCustomRenderer();
 export default CustomRenderer;
+
+// Chunks and chat answers carry untrusted document text: sanitize the rendered
+// HTML before it reaches v-html. `target` keeps external links in a new tab.
+export const renderMarkdown = (text: string) =>
+  DOMPurify.sanitize(
+    marked.parse(text, { renderer: CustomRenderer, async: false }) as string,
+    { ADD_ATTR: ["target"] },
+  );

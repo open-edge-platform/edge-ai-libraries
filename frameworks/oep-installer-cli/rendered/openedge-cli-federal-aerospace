@@ -4415,22 +4415,7 @@ printf '%s\n' "$f";
 done);
     fi;
     ensure_sudo mkdir -p "$(dirname "$file")";
-    local pending_blank=0 seen_priority=0;
-    for line in "$@";
-    do
-        if [[ -z "${line//[[:space:]]/}" ]]; then
-            [[ -z "$content" ]] || pending_blank=1;
-            seen_priority=0;
-            continue;
-        fi;
-        (( seen_priority )) && pending_blank=1 && seen_priority=0 || true;
-        if (( pending_blank )); then
-            printf "\n";
-            pending_blank=0;
-        fi;
-        printf "%s\n" "$line";
-        [[ "$line" =~ ^[[:space:]]*[Pp]in-[Pp]riority: ]] && seen_priority=1 || true;
-    done | ensure_sudo tee "$file" > /dev/null;
+    printf "%s\n" "$@" | ensure_sudo tee "$file" > /dev/null;
     ensure_sudo chmod 0644 "$file"
 }
 ensure_apt_remove_package () 
@@ -4475,9 +4460,7 @@ norm_uri "${BASH_REMATCH[3]}"
     esac;
 done | sort -u));
     [ ${#legacies[*]} -eq 0 ] || ensure_apt_source_remove "${legacies[*]}";
-    ( IFS='
-';
-    echo "$*" ) | ensure_sudo tee $file > /dev/null
+    printf "%s\n" "$@" | ensure_sudo tee $file > /dev/null
 }
 ensure_apt_source_remove () 
 { 
