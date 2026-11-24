@@ -25,15 +25,17 @@ passed through :func:`clean_text` before it is printed.
 """
 
 import json
-import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 
 from .asset_download import (
+    AssetWaiter,
+    WaitState,
+    response_message,
     AssetProblem,
     clean_text,
     confirm,
@@ -47,7 +49,6 @@ from .settings import InstallMode
 ENV_VIDEO_DOWNLOAD: str = "PERF_VIDEO_DOWNLOAD_OUTCOME"
 _OUTCOME_KEYS = ("filename", "outcome", "reason", "conversion_status")
 
-SUMMARY_INTERVAL_SECONDS: float = 60.0
 _LOG_PREFIX = "[video-download]"
 
 # Download states of GET /videos/default-recordings.
@@ -515,18 +516,6 @@ def fetch_default_recordings(
     return [r for r in payload if isinstance(r, dict)]
 
 
-def _response_message(response: httpx.Response) -> str:
-    try:
-        body = response.json()
-    except ValueError:
-        return clean_text(response.text) or "no message"
-    if isinstance(body, dict):
-        for key in ("message", "detail"):
-            if body.get(key):
-                return clean_text(body[key])
-    return clean_text(body) or "no message"
-
-
 @dataclass
 class _Track:
     video: PlannedVideo
@@ -535,10 +524,9 @@ class _Track:
 
 
 @dataclass
-class _DownloadState:
+class _DownloadState(WaitState):
     """Progress of one :meth:`VideoDownloader.download` call."""
 
-    start: float
     downloading: dict[str, _Track] = field(default_factory=dict)
     """Videos still being downloaded, by filename."""
     converting: dict[str, _Track] = field(default_factory=dict)
@@ -568,7 +556,7 @@ class _DownloadState:
 
 
 @dataclass
-class VideoDownloader:
+class VideoDownloader(AssetWaiter):
     """Start the downloads of a plan and wait for them and their conversion.
 
     ``download`` never raises for server or network problems: they become
@@ -576,31 +564,7 @@ class VideoDownloader:
     result then get the outcome ``interrupted``.
     """
 
-    client: httpx.Client
-    base_url: str
-    poll_interval: float
-    timeout_seconds: float
-    request_timeout: float
-    report: Callable[[str], None] = print
-    monotonic: Callable[[], float] = time.monotonic
-    sleep: Callable[[float], None] = time.sleep
-    summary_interval: float = SUMMARY_INTERVAL_SECONDS
-
-    @property
-    def _api(self) -> str:
-        return self.base_url.rstrip("/")
-
-    def _elapsed(self, state: _DownloadState) -> str:
-        return format_duration(self.monotonic() - state.start)
-
-    def _remaining(self, state: _DownloadState) -> float:
-        return state.start + self.timeout_seconds - self.monotonic()
-
-    def _request_timeout(self, state: _DownloadState) -> float:
-        return max(0.001, min(self.request_timeout, self._remaining(state)))
-
-    def _say(self, text: str) -> None:
-        self.report(f"{_LOG_PREFIX} {text}")
+    log_prefix: ClassVar[str] = _LOG_PREFIX
 
     def download(self, plan: VideoPlan) -> list[VideoOutcome]:
         """Download the videos of *plan* and wait until each has an outcome.
@@ -668,7 +632,7 @@ class VideoDownloader:
                     state,
                     video,
                     f"ViPPET rejected the download (HTTP {response.status_code}): "
-                    f"{_response_message(response)}",
+                    f"{response_message(response)}",
                 )
                 continue
             state.downloading[video.filename] = _Track(video)
@@ -676,21 +640,13 @@ class VideoDownloader:
                 self._say(f"{video.label}: download started")
 
     def _wait(self, state: _DownloadState) -> None:
-        last_summary = self.monotonic()
-        while state.downloading or state.converting:
-            if self._remaining(state) > 0:
-                self._poll(state)
-            if not (state.downloading or state.converting):
-                return
-            remaining = self._remaining(state)
-            if remaining <= 0:
-                self._time_out(state)
-                return
-            now = self.monotonic()
-            if now - last_summary >= self.summary_interval:
-                last_summary = now
-                self._say(self._summary(state))
-            self.sleep(min(self.poll_interval, remaining))
+        self._wait_until_done(
+            state,
+            pending=lambda: bool(state.downloading or state.converting),
+            poll=lambda: self._poll(state),
+            time_out=lambda: self._time_out(state),
+            summary=lambda: self._summary(state),
+        )
 
     def _time_out(self, state: _DownloadState) -> None:
         budget = format_duration(self.timeout_seconds)

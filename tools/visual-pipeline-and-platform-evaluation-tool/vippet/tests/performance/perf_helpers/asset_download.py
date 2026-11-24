@@ -19,6 +19,9 @@ holds what the two share:
 * :func:`decode_outcome_env` - strict parsing of an outcome handed to pytest;
 * :class:`AssetProblem` and :data:`SETUP_ERROR_MARK` - how pytest reports a
   run whose asset failed;
+* :class:`AssetWaiter` - the HTTP client, time budget, progress lines and
+  poll loop that :class:`~perf_helpers.model_install.ModelInstaller` and
+  :class:`~perf_helpers.video_download.VideoDownloader` share;
 * :func:`run_concurrently` and :func:`interruptible_sleep` - model installs
   and video downloads wait at the same time, and one Ctrl-C stops both.
 """
@@ -26,16 +29,22 @@ holds what the two share:
 import json
 import re
 import threading
+import time
 import unicodedata
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, TypeVar
+from typing import Any, ClassVar, Literal, TypeVar
+
+import httpx
 
 from .settings import InstallMode
 
 # pytest marker that turns a run into an ERROR (set at collection, raised by
 # an autouse fixture during setup).
 SETUP_ERROR_MARK: str = "perf_setup_error"
+
+# How often a downloader prints a progress summary while it waits.
+SUMMARY_INTERVAL_SECONDS: float = 60.0
 
 _T = TypeVar("_T")
 
@@ -311,3 +320,106 @@ def run_concurrently(
         if error is not None:
             raise error
     return results
+
+
+# --------------------------------------------------------------------------- #
+# Waiting for downloads on the server
+# --------------------------------------------------------------------------- #
+
+
+def response_message(response: httpx.Response) -> str:
+    """Return the cleaned ``message``/``detail`` of an error response."""
+    try:
+        body = response.json()
+    except ValueError:
+        return clean_text(response.text) or "no message"
+    if isinstance(body, dict):
+        for key in ("message", "detail"):
+            if body.get(key):
+                return clean_text(body[key])
+    return clean_text(body) or "no message"
+
+
+@dataclass
+class WaitState:
+    """When one download call started; downloaders add their progress."""
+
+    start: float
+
+
+@dataclass
+class AssetWaiter:
+    """What model installs and video downloads share while they wait.
+
+    Holds the HTTP client and the timing (all injectable for tests), prints
+    progress lines with :attr:`log_prefix`, caps each request by the time
+    left, and runs the poll loop (:meth:`_wait_until_done`).
+    """
+
+    client: httpx.Client
+    base_url: str
+    poll_interval: float
+    timeout_seconds: float
+    request_timeout: float
+    report: Callable[[str], None] = print
+    monotonic: Callable[[], float] = time.monotonic
+    sleep: Callable[[float], None] = time.sleep
+    summary_interval: float = SUMMARY_INTERVAL_SECONDS
+
+    log_prefix: ClassVar[str] = ""
+
+    @property
+    def _api(self) -> str:
+        return self.base_url.rstrip("/")
+
+    def _say(self, text: str) -> None:
+        self.report(f"{self.log_prefix} {text}")
+
+    def _elapsed(self, state: WaitState) -> str:
+        return format_duration(self.monotonic() - state.start)
+
+    def _remaining(self, state: WaitState) -> float:
+        return state.start + self.timeout_seconds - self.monotonic()
+
+    def _request_timeout(self, state: WaitState) -> float:
+        """HTTP timeout of one request, capped by the remaining budget.
+
+        The first request runs with the whole budget; every later request
+        is only sent while budget is left. The floor only keeps httpx from
+        getting a zero or negative timeout.
+        """
+        return max(0.001, min(self.request_timeout, self._remaining(state)))
+
+    def _wait_until_done(
+        self,
+        state: WaitState,
+        *,
+        pending: Callable[[], bool],
+        poll: Callable[[], None],
+        time_out: Callable[[], None],
+        summary: Callable[[], str],
+    ) -> None:
+        """Poll until nothing is *pending* or the budget is spent.
+
+        Args:
+            state: The call's start time.
+            pending: Whether anything is still being waited for.
+            poll: Checks the server once and resolves what has finished.
+            time_out: Resolves what is still pending once the budget is spent.
+            summary: The progress line printed every :attr:`summary_interval`.
+        """
+        last_summary = self.monotonic()
+        while pending():
+            if self._remaining(state) > 0:
+                poll()
+            if not pending():
+                return
+            remaining = self._remaining(state)
+            if remaining <= 0:
+                time_out()
+                return
+            now = self.monotonic()
+            if now - last_summary >= self.summary_interval:
+                last_summary = now
+                self._say(summary())
+            self.sleep(min(self.poll_interval, remaining))

@@ -27,15 +27,17 @@ The parts shared with :mod:`perf_helpers.video_download` live in
 
 import json
 import re
-import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 
 from .asset_download import (
+    AssetWaiter,
+    WaitState,
+    response_message,
     SETUP_ERROR_MARK,
     AssetProblem,
     DownloadAction,
@@ -61,8 +63,6 @@ ModelInstallError = OutcomeEnvError
 InstallProblem = AssetProblem
 InstallAction = DownloadAction
 install_action = download_action
-
-SUMMARY_INTERVAL_SECONDS: float = 60.0
 
 _INSTALLED = "installed"
 _INSTALLING = "installing"
@@ -509,18 +509,6 @@ def fetch_models(
     return [m for m in payload if isinstance(m, dict)]
 
 
-def _response_message(response: httpx.Response) -> str:
-    try:
-        body = response.json()
-    except ValueError:
-        return clean_text(response.text) or "no message"
-    if isinstance(body, dict):
-        for key in ("message", "detail"):
-            if body.get(key):
-                return clean_text(body[key])
-    return clean_text(body) or "no message"
-
-
 @dataclass
 class _Job:
     model: PlannedModel
@@ -530,10 +518,9 @@ class _Job:
 
 
 @dataclass
-class _InstallState:
+class _InstallState(WaitState):
     """Progress of one :meth:`ModelInstaller.install` call."""
 
-    start: float
     jobs: dict[str, _Job] = field(default_factory=dict)
     """Models still being waited for, by model name."""
     outcomes: dict[str, ModelOutcome] = field(default_factory=dict)
@@ -551,7 +538,7 @@ class _InstallState:
 
 
 @dataclass
-class ModelInstaller:
+class ModelInstaller(AssetWaiter):
     """Start the downloads of a plan and wait for them.
 
     ``install`` never raises for server or network problems: they become
@@ -559,34 +546,7 @@ class ModelInstaller:
     result then get the outcome ``interrupted``.
     """
 
-    client: httpx.Client
-    base_url: str
-    poll_interval: float
-    timeout_seconds: float
-    request_timeout: float
-    report: Callable[[str], None] = print
-    monotonic: Callable[[], float] = time.monotonic
-    sleep: Callable[[float], None] = time.sleep
-    summary_interval: float = SUMMARY_INTERVAL_SECONDS
-
-    @property
-    def _api(self) -> str:
-        return self.base_url.rstrip("/")
-
-    def _elapsed(self, state: _InstallState) -> str:
-        return format_duration(self.monotonic() - state.start)
-
-    def _remaining(self, state: _InstallState) -> float:
-        return state.start + self.timeout_seconds - self.monotonic()
-
-    def _request_timeout(self, state: _InstallState) -> float:
-        """HTTP timeout of one request, capped by the remaining install budget.
-
-        The download request runs first, with the whole budget; every later
-        request is only sent while budget is left. The floor only keeps httpx
-        from getting a zero or negative timeout.
-        """
-        return max(0.001, min(self.request_timeout, self._remaining(state)))
+    log_prefix: ClassVar[str] = _LOG_PREFIX
 
     def _time_out(
         self, state: _InstallState, jobs: Iterable[_Job], reason: str
@@ -594,9 +554,6 @@ class ModelInstaller:
         for job in list(jobs):
             state.resolve(job.model, Outcome.TIMED_OUT, reason)
             self._say(f"{job.model.display_name}: TIMED OUT: {reason}")
-
-    def _say(self, text: str) -> None:
-        self.report(f"{_LOG_PREFIX} {text}")
 
     def install(self, plan: InstallPlan) -> list[ModelOutcome]:
         """Install the models of *plan* and wait until each has an outcome.
@@ -663,7 +620,7 @@ class ModelInstaller:
         if not isinstance(items, dict):
             reason = (
                 f"ViPPET rejected the download request (HTTP "
-                f"{response.status_code}): {_response_message(response)}"
+                f"{response.status_code}): {response_message(response)}"
             )
             for model in to_download:
                 self._fail(state, model, reason)
@@ -799,30 +756,24 @@ class ModelInstaller:
         }
 
     def _wait(self, state: _InstallState) -> None:
-        if not state.jobs:
-            return
-        last_summary = self.monotonic()
-        while state.jobs:
+        def poll() -> None:
             for job in list(state.jobs.values()):
                 if self._remaining(state) <= 0:
                     break
                 self._poll(state, job)
-            if not state.jobs:
-                return
-            remaining = self._remaining(state)
-            if remaining <= 0:
-                self._time_out(
-                    state,
-                    state.jobs.values(),
-                    f"still installing after {format_duration(self.timeout_seconds)} "
-                    "(--model-install-timeout); the download continues on the server",
-                )
-                return
-            now = self.monotonic()
-            if now - last_summary >= self.summary_interval:
-                last_summary = now
-                self._say(self._summary(state))
-            self.sleep(min(self.poll_interval, remaining))
+
+        self._wait_until_done(
+            state,
+            pending=lambda: bool(state.jobs),
+            poll=poll,
+            time_out=lambda: self._time_out(
+                state,
+                state.jobs.values(),
+                f"still installing after {format_duration(self.timeout_seconds)} "
+                "(--model-install-timeout); the download continues on the server",
+            ),
+            summary=lambda: self._summary(state),
+        )
 
     def _summary(self, state: _InstallState) -> str:
         installed = state.count(Outcome.INSTALLED)

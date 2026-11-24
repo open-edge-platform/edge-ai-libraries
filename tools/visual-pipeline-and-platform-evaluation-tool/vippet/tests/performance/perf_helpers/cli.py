@@ -402,7 +402,7 @@ def _read_models(
 
 
 _NO_SAMPLE_LIST = (
-    "Video download: this ViPPET lists no sample videos to download "
+    "warning: video download skipped: this ViPPET has no sample video list "
     "(GET /videos/default-recordings returned 404); the runs whose input "
     "videos are missing are skipped."
 )
@@ -664,38 +664,6 @@ def run_downloads(
         video_outcomes = results.pop(0)
         report(video_download.format_outcomes(video_outcomes or []))
     return EXIT_OK, model_outcomes, video_outcomes
-
-
-def run_model_install(
-    settings: ResolvedSettings,
-    *,
-    ask: bool,
-    discover: Callable[[ResolvedSettings], Matrix] = _default_discover,
-    preflight: Callable[..., None] = _default_preflight,
-    client_factory: Callable[[], httpx.Client] = _default_client,
-    input_fn: Callable[[str], str] = input,
-    sleep: Callable[[float], None] | None = None,
-    stdout: TextIO | None = None,
-    stderr: TextIO | None = None,
-) -> tuple[int, list[ModelOutcome] | None]:
-    """Only the model step of :func:`run_downloads` (``prompt`` or ``install``).
-
-    Returns:
-        ``(exit_code, model_outcomes)``.
-    """
-    rc, outcomes, _ = run_downloads(
-        settings,
-        models="prompt" if ask else "install",
-        videos="skip",
-        discover=discover,
-        preflight=preflight,
-        client_factory=client_factory,
-        input_fn=input_fn,
-        sleep=sleep,
-        stdout=stdout,
-        stderr=stderr,
-    )
-    return rc, outcomes
 
 
 # --------------------------------------------------------------------------- #

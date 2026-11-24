@@ -517,9 +517,10 @@ class TestModelInstallStep(unittest.TestCase):
             return answer
 
         out, err = io.StringIO(), io.StringIO()
-        rc, outcomes = cli.run_model_install(
+        rc, outcomes, _ = cli.run_downloads(
             settings or self.settings,
-            ask=ask,
+            models="prompt" if ask else "install",
+            videos="skip",
             discover=discover or self._discover,
             preflight=preflight or Mock(),
             client_factory=api.factory(),
