@@ -162,10 +162,15 @@ class KapacitorClassifier():
                               python_package_installation_path)
             return False
         if os.path.isfile(python_package_requirement_file):
+            install_env = os.environ.copy()
+            default_ca = "/run/secrets/ca_certificate.pem"
+            if install_env.get("SSL_CERT_FILE") == default_ca and not os.path.exists(default_ca):
+                install_env.pop("SSL_CERT_FILE")
             status = exec_command([
-                "pip3", "install", "-r", python_package_requirement_file,
+                "uv", "pip", "install", "--python", sys.executable,
+                "--no-cache", "--link-mode", "copy", "-r", python_package_requirement_file,
                 "--target", python_package_installation_path
-            ], check=False)
+            ], check=False, env=install_env)
             if status.returncode != SUCCESS:
                 self.logger.error("Failed to install python packages from %s",
                                   python_package_requirement_file)

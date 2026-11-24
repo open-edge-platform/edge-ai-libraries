@@ -184,7 +184,7 @@ since that silently changes what was actually deployed.
 ## Dependencies beyond the base image
 
 An optional `udfs/requirements.txt` in your deployment package gets
-`pip install --target`-ed into a directory that's prepended to
+installed with `uv pip install --target` into a directory that's prepended to
 `PYTHONPATH` before your UDF process starts. Use it for anything beyond
 what's already in the image (numpy and scikit-learn-intelex are already
 present).
