@@ -736,6 +736,7 @@ export const Pipelines = () => {
                         onClearGraph={() => {
                           setCurrentNodes([]);
                           setCurrentEdges([]);
+                          setPinnedCpuCores(savedCpuPinning ?? []);
                         }}
                         onRefetch={refetch}
                         onEditorKeyChange={() =>
