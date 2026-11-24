@@ -7,7 +7,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: data_intelligence_engine "question" [--library NAME] [--pool ID] [--top-k N]
-                                [--media LIST] [--rerank N] [--include-media]
+                                [--media LIST] [--rerank N | --no-rerank] [--include-media]
 
 Retrieves the most relevant knowledge base chunks from the Data Intelligence
 Engine (POST /v1/retrieve). The engine returns source text only; it does not
@@ -17,11 +17,12 @@ Options:
   --library NAME  asset library name or ID (default: $KB_LIBRARY, or one library
                   discovered on the engine)
   --pool ID       asset pool ID to search, repeatable (default: $KB_POOL, or every pool)
-  --top-k N       chunks retrieved per source, 1-100 (default: 5)
+  --top-k N       chunks retrieved per source, 1-100 (default: 10)
   --media LIST    comma-separated document,image,video,audio to search only those
                   (default: $KB_TARGET_MEDIA, or every modality)
   --rerank N      rerank the candidates and keep the best N (default: $KB_RERANK_TOP_N,
-                  or no reranking)
+                  or 5); reranking is on by default
+  --no-rerank     return the retrieval order without reranking
   --include-media also retrieve visual evidence (include_media_data:true):
                   image/video-frame data URIs are decoded to files in a temp
                   directory; stdout carries a manifest with file paths (never
@@ -154,9 +155,10 @@ fi
 
 library="${KB_LIBRARY:-}"
 library_given=false
-top_k="5"
+top_k="10"
 media="${KB_TARGET_MEDIA:-}"
-rerank="${KB_RERANK_TOP_N:-}"
+rerank="${KB_RERANK_TOP_N:-5}"
+rerank_enabled="1"
 include_media="0"
 list_pools="0"
 pools=()
@@ -188,7 +190,12 @@ while [[ $# -gt 0 ]]; do
     --rerank)
       [[ $# -ge 2 ]] || { echo "Error: --rerank requires a value." >&2; exit 2; }
       rerank="$2"
+      rerank_enabled="1"
       shift 2
+      ;;
+    --no-rerank)
+      rerank_enabled="0"
+      shift
       ;;
     --include-media)
       include_media="1"
@@ -296,7 +303,7 @@ if [[ -n "$media" ]]; then
 fi
 
 postprocess_json=""
-if [[ -n "$rerank" ]]; then
+if [[ "$rerank_enabled" == "1" ]]; then
   postprocess_json=",\"postprocess\":{\"processor_type\":\"reranker\",\"top_n\":$rerank}"
 fi
 

@@ -91,7 +91,6 @@
 </template>
 <script lang="ts" setup name="MessageItem">
 import { computed, ref } from "vue";
-import { marked } from "marked";
 import {
   CopyOutlined,
   FileTextOutlined,
@@ -103,7 +102,7 @@ import { useClipboard } from "@/utils/clipboard";
 import type { Chunk } from "@/api/console/type";
 import type { ChatMessage } from "../Type";
 import { stripThinking } from "../SseService";
-import CustomRenderer from "@/utils/customRenderer";
+import { renderMarkdown } from "@/utils/customRenderer";
 const props = defineProps<{ message: ChatMessage }>();
 const emit = defineEmits<{ citation: [chunk: Chunk] }>();
 const handleCitation = (chunk: Chunk) => emit("citation", chunk);
@@ -120,8 +119,6 @@ const handleImageClick = (event: MouseEvent) => {
   imageSrc.value = event.target.src;
   imageVisible.value = true;
 };
-const renderMarkdown = (text: string) =>
-  marked.parse(text, { renderer: CustomRenderer, async: false });
 const contentParts = computed(() => {
   if (props.message.role === "user")
     return [{ text: props.message.content, number: 0, source: undefined }];

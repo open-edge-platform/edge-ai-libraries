@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, List, Optional, Protocol, Sequence, runtime_checkable
 
@@ -35,6 +36,35 @@ def resolve_model_path(model_path: str) -> str:
         if resolved.exists():
             return str(resolved)
     return model_path
+
+
+def check_request_model_path(model_path: Optional[str]) -> None:
+    """Reject a caller-selected model that resolves outside the model roots.
+
+    Model packages can carry code the loader runs, so a request may only select
+    models under ENGINE_MODEL_ROOT_PATH, MODEL_PATH or ~/models, never uploads or
+    stored content. A name that matches nothing on disk passes: nothing would be
+    loaded, and the loader reports the missing model as before.
+    """
+    if not model_path:
+        return
+    resolved = Path(resolve_model_path(model_path))
+    if not resolved.is_absolute() or not resolved.exists():
+        return
+    real = Path(os.path.realpath(resolved))
+
+    def within(directory: str) -> bool:
+        # Symlinked models are resolved; compare against the root as named and its target.
+        bases = {Path(os.path.abspath(Path(directory).expanduser())),
+                 Path(os.path.realpath(Path(directory).expanduser()))}
+        return any(real == base or base in real.parents for base in bases)
+
+    roots = (config.MODEL_DIR, config.LEGACY_MODEL_DIR, config.SHARED_MODEL_DIR)
+    stores = (config.UPLOAD_DIR, config.CONTENT_DIR)
+    if not any(within(root) for root in roots if root) or any(within(store) for store in stores if store):
+        raise ValueError(
+            f"Model {model_path!r} is not a prepared model under ENGINE_MODEL_ROOT_PATH"
+        )
 
 
 def model_exist(model_path: str) -> bool:

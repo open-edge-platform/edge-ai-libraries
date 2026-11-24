@@ -20,7 +20,7 @@ from core.indexer import MultimodalIndexer
 from core.multimodal.retrieval import _TARGET_ROLES, _projection_target, media_nodes_to_chunks, targeted_projections
 from core.file_asset_library import nodes_to_chunks, postprocess_chunks
 from core.manager import registry
-from core.postprocessor import is_media_reranker
+from core.postprocessor import check_reranker_selection, is_media_reranker
 from core.retrievers import RETRIEVER_TYPES, build_pool_retriever, graph_search_of, pool_asset_scope
 from schemas import GraphTrace, RetrieveRequest, RetrieveResult
 from fastapi import APIRouter, HTTPException, Request, Response, status
@@ -91,6 +91,11 @@ async def retrieve(body: RetrieveRequest, request: Request = None):
             for chunk in chunks
         )
         selected = options.reranker_model
+        if selected is not None:
+            try:
+                check_reranker_selection(selected)
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=str(error)) from error
         # Default to the media reranker for media candidates; otherwise follow the chosen model.
         media_rerank = (
             requested_media or recalled_media or is_media_reranker(config.RERANK_MODEL_ID) if selected is None

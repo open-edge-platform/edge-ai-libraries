@@ -28,6 +28,10 @@ from .shared import TASK_DIRECTORY, shared_path, upload_directory
 logger = logging.getLogger(__name__)
 
 
+def _single_line(value: str) -> str:
+    return " ".join(value.replace("\n", r"\n").replace("\r", r"\r").splitlines())
+
+
 def create_app(
     config: Config | None = None, *, api_key: str | None = None,
     max_task_bytes: int | None = None, upload_dir: Path | None = None,
@@ -52,6 +56,7 @@ def create_app(
             raise HTTPException(401, "Invalid extractor credentials", headers={"WWW-Authenticate": "Bearer"})
 
     def process(task: ExtractionTask) -> ExtractionResult:
+        log_task_id = _single_line(task.task_id)
         client = None
         lock = None
         try:
@@ -76,8 +81,8 @@ def create_app(
                 client = LLMClient(cfg.llm)
                 began = time.monotonic()
                 concepts = extract_bundle(cfg, client, tree, candidate, options=task.options,
-                                          label=f"task {task.task_id[:8]}")
-                print(f"[task {task.task_id[:8]}] done: {len(concepts)} concept(s) in "
+                                          label=f"task {log_task_id[:8]}")
+                print(f"[task {log_task_id[:8]}] done: {len(concepts)} concept(s) in "
                       f"{time.monotonic() - began:.0f}s", flush=True)
                 # Only non-secret metadata lives with the bundle, not raw documents.
                 (candidate / "task.json").write_text(json.dumps({
@@ -95,25 +100,25 @@ def create_app(
         except TaskTooLarge as error:
             raise HTTPException(413, str(error)) from error
         except PlanningResponseError as error:
-            logger.warning("OKF task %s failed during instruction planning: %s", task.task_id, error)
+            logger.warning("OKF task %s failed during instruction planning: %s", log_task_id, _single_line(str(error)))
             raise HTTPException(
                 502, str(error), headers={"X-OKF-Task-ID": task.task_id},
             ) from error
         except ExtractionResponseError as error:
-            logger.warning("OKF task %s failed during concept extraction: %s", task.task_id, error)
+            logger.warning("OKF task %s failed during concept extraction: %s", log_task_id, _single_line(str(error)))
             raise HTTPException(
                 502, str(error), headers={"X-OKF-Task-ID": task.task_id},
             ) from error
         except ValueError as error:
-            logger.warning("OKF task %s rejected: %s", task.task_id, error)
+            logger.warning("OKF task %s rejected: %s", log_task_id, _single_line(str(error)))
             raise HTTPException(
                 422, str(error), headers={"X-OKF-Task-ID": task.task_id},
             ) from error
         except (httpx.HTTPError, ContextOverflowError) as error:
-            logger.exception("Model request failed for OKF task %s", task.task_id)
+            logger.error("Model request failed for OKF task %s (%s)", log_task_id, type(error).__name__)
             raise HTTPException(502, "The extraction model request failed") from error
-        except Exception:
-            logger.exception("OKF task %s failed", task.task_id)
+        except Exception as error:
+            logger.error("OKF task %s failed (%s)", log_task_id, type(error).__name__)
             raise HTTPException(500, "OKF extraction failed") from None
         finally:
             if client is not None:

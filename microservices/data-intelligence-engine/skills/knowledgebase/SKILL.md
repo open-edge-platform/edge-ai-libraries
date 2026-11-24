@@ -75,7 +75,7 @@ Located at `<SKILL_DIR>/data_intelligence_engine`, this shell script calls the D
 #### Usage via Bash Tool
 
 ```javascript
-// Simple query (retrieves the top 5 chunks)
+// Simple query (retrieves 10 chunks per source, reranks them and keeps the best 5)
 Bash({
   command: '<SKILL_DIR>/data_intelligence_engine "your question here"',
   description: "Query knowledge base"
@@ -93,11 +93,12 @@ Optional query settings:
 ```
 
 Options:
-- `--top-k N`: chunks retrieved per source, 1-100 (default 5); raise it when the answer needs more context
+- `--top-k N`: chunks retrieved per source, 1-100 (default 10); raise it when the answer needs more context
 - `--library NAME`: asset library to search, by name or ID (default: the deployment's configured library, or one discovered automatically, see below)
 - `--pool ID`: asset pool to search, repeatable. Must be the pool **ID**, not its display name (default: every pool in the library)
 - `--media LIST`: search only these modalities, comma-separated `document`, `image`, `video`, `audio` (default: every modality). Use `--media document` to get text passages only
-- `--rerank N`: rerank the retrieved candidates and keep the best N; combine with a larger `--top-k` for better precision. **With visual candidates (`--include-media` or media hits), every candidate is decoded and scored by the VL reranker, so latency grows with `--top-k`, not just N: keep `--top-k` small (about 5) and N small (2-5). Large `--top-k` with rerank can take minutes**
+- `--rerank N`: rerank the retrieved candidates and keep the best N (reranking is on by default, N defaults to 5); and combine with a larger `--top-k` for better precision. **With visual candidates (`--include-media` or media hits), every candidate is decoded and scored by the VL reranker, so latency grows with `--top-k`, not just N: keep `--top-k` small (about 5) and N small (2-5). Large `--top-k` with rerank can take minutes**
+- `--no-rerank`: skip reranking and return the chunks in retrieval order
 - `--include-media`: also retrieve **visual evidence** for the hits (`include_media_data:true` on the engine): decoded image/video-frame files plus a manifest. Use for questions about what an image, document figure or video scene shows. See [Visual questions](#visual-questions---include-media)
 - `--list-pools`: list the library's asset pools and indexed asset types, then exit. Run this first when you are unsure which pool to search
 
