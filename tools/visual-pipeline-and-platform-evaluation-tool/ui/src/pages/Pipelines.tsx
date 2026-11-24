@@ -144,17 +144,6 @@ const buildGraphData = (
   })),
 });
 
-// Mirrors Graph.uses_vdbox_decode: pinned media-only graphs decode on VDBox.
-const isMediaOnlyGraph = (nodes: Array<{ type?: string }>): boolean =>
-  nodes.some((node) => node.type === "decodebin3") &&
-  !nodes.some(
-    (node) =>
-      node.type?.startsWith("gva") &&
-      !["gvafpscounter", "gvametaconvert", "gvametapublish"].includes(
-        node.type,
-      ),
-  );
-
 export const Pipelines = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
   const { id, variant } = useParams<UrlParams>();
@@ -286,12 +275,9 @@ export const Pipelines = () => {
     setPinnedCpuCores(savedCpuPinning ?? []);
   }, [savedCpuPinning, variant]);
 
-  const isMediaDecodeGraph = isMediaOnlyGraph(currentNodes);
-
   // Saving the output would make media-only runs encode-bound, so default it OFF.
-  const isMediaOnlyPipeline = isMediaOnlyGraph(
-    data?.variants.find((v) => v.id === variant)?.pipeline_graph.nodes ?? [],
-  );
+  const isMediaOnlyPipeline =
+    data?.variants.find((v) => v.id === variant)?.media_only ?? false;
 
   useEffect(() => {
     setVideoOutputEnabled(!isMediaOnlyPipeline);
@@ -1155,7 +1141,7 @@ export const Pipelines = () => {
             onOpenChange={setCpuPinningDialogOpen}
             pinnedCores={pinnedCpuCores}
             onApply={setPinnedCpuCores}
-            allowLpeOnly={isMediaDecodeGraph}
+            allowLpeOnly={isMediaOnlyPipeline}
           />
         )}
       </div>

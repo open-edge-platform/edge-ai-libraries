@@ -340,18 +340,17 @@ class Graph:
     edges: list[Edge]
     cpu_pinning: list[int] = field(default_factory=list)
 
+    def is_media_only(self) -> bool:
+        """Graph decodes media with decodebin3 and runs no inference elements."""
+        return self.has_decodebin3() and not any(
+            node.type.startswith("gva")
+            and node.type not in {"gvafpscounter", "gvametaconvert", "gvametapublish"}
+            for node in self.nodes
+        )
+
     def uses_vdbox_decode(self) -> bool:
         """Pinned media-only graphs keep decodebin3 and decode on VDBox."""
-        return (
-            bool(self.cpu_pinning)
-            and self.has_decodebin3()
-            and not any(
-                node.type.startswith("gva")
-                and node.type
-                not in {"gvafpscounter", "gvametaconvert", "gvametapublish"}
-                for node in self.nodes
-            )
-        )
+        return bool(self.cpu_pinning) and self.is_media_only()
 
     def with_vdbox_decode(self) -> "Graph":
         graph = copy.deepcopy(self)

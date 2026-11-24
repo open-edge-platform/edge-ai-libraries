@@ -963,6 +963,55 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(variant["name"], "CPU")
         self.assertIn("pipeline_graph", variant)
         self.assertIn("pipeline_graph_simple", variant)
+        self.assertFalse(variant["media_only"])
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_get_pipeline_by_id_marks_media_only_variant(
+        self, mock_pipeline_manager_cls
+    ):
+        timestamp = _get_test_timestamp()
+        nodes = [
+            {"id": "0", "type": "filesrc", "data": {"location": "/tmp/a.mp4"}},
+            {"id": "1", "type": "decodebin3", "data": {}},
+            {"id": "2", "type": "gvafpscounter", "data": {}},
+            {"id": "3", "type": "fakesink", "data": {}},
+        ]
+        edges = [
+            {"id": "0", "source": "0", "target": "1"},
+            {"id": "1", "source": "1", "target": "2"},
+            {"id": "2", "source": "2", "target": "3"},
+        ]
+        media_graph = Graph.from_dict({"nodes": nodes, "edges": edges})
+        inference_graph = Graph.from_dict(
+            {
+                "nodes": nodes + [{"id": "4", "type": "gvadetect", "data": {}}],
+                "edges": edges,
+            }
+        )
+        variants = [
+            InternalVariant(
+                id=variant_id,
+                name=variant_id,
+                read_only=False,
+                pipeline_graph=graph,
+                pipeline_graph_simple=graph,
+                created_at=timestamp,
+                modified_at=timestamp,
+            )
+            for variant_id, graph in (
+                ("media", media_graph),
+                ("inference", inference_graph),
+            )
+        ]
+        mock_pipeline_manager_cls.return_value.get_pipeline_by_id.return_value = (
+            self._create_internal_pipeline(variants=variants)
+        )
+
+        response = self.client.get("/pipelines/pipeline-abc123")
+
+        self.assertEqual(response.status_code, 200)
+        media_only = {v["id"]: v["media_only"] for v in response.json()["variants"]}
+        self.assertEqual(media_only, {"media": True, "inference": False})
 
     # ------------------------------------------------------------------
     # Convert graph endpoints tests

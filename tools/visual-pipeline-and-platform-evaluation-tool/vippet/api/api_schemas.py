@@ -589,6 +589,7 @@ class Variant(BaseModel):
     - `read_only` - Whether the variant is read-only (defaults to false, can only be true for PREDEFINED pipeline variants)
     - `pipeline_graph` - Advanced graph representation for this variant
     - `pipeline_graph_simple` - Simplified graph representation for this variant
+    - `media_only` - Whether the advanced graph only decodes media without inference (set by backend only)
     - `created_at` - Creation timestamp as UTC datetime (set by backend only, not modifiable via API)
     - `modified_at` - Last modification timestamp as UTC datetime (updated when variant is modified, set by backend only)
     """
@@ -614,6 +615,10 @@ class Variant(BaseModel):
     pipeline_graph_simple: PipelineGraph = Field(
         ...,
         description="Simplified graph view for this variant.",
+    )
+    media_only: bool = Field(
+        default=False,
+        description="Whether the advanced graph only decodes media (decodebin3) without inference elements. Pinned media-only graphs decode on VDBox. Set by backend only.",
     )
     created_at: datetime = Field(
         ...,
