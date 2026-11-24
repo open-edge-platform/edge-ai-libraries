@@ -3723,7 +3723,7 @@
             }
           },
           "200": {
-            "description": "The video is already converted or a conversion is running.",
+            "description": "The video is already converted, a conversion is running, or no HEVC encoder is available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6453,7 +6453,8 @@
           "converting",
           "converted",
           "failed",
-          "conflict"
+          "conflict",
+          "unsupported"
         ],
         "title": "DefaultVideoConversionState"
       },

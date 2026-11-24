@@ -17,6 +17,9 @@ downloads sample videos automatically at startup. Download clips individually wh
 **Download all videos** to download every sample clip that is not ready yet, one after another.
 After each download, ViPPET converts the clip to HEVC in the background, so the conversion
 continues even if you leave the Videos page.
+The conversion uses the VA-API encoder (`vah265enc`), so it needs an Intel GPU available to the
+pipeline server, which means starting ViPPET with the `gpu` or `npu` profile. Otherwise, the clip is
+marked **HEVC unsupported** and only the original video is kept.
 If a pipeline's input video is not available, the pipeline editor opens a dialog listing the
 required videos with a **Download** button for each sample clip. Until the video is available, the
 Input node's video field stays empty and **Run** is disabled.
