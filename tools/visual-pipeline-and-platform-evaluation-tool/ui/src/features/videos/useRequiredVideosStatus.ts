@@ -12,11 +12,7 @@ import { useAppDispatch } from "@/store/hooks.ts";
 import { toast } from "@/lib/toast";
 
 export type PipelineVideoStatus =
-  | "downloaded"
-  | "not_downloaded"
-  | "downloading"
-  | "failed"
-  | "conflict";
+  "downloaded" | "not_downloaded" | "downloading" | "failed" | "conflict";
 
 export type PipelineVideoStatusItem = {
   filename: string;
