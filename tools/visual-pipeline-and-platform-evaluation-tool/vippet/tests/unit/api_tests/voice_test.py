@@ -719,9 +719,7 @@ class VoiceRoutesTests(unittest.TestCase):
 
     def test_rejects_unknown_sample_audio_filename(self) -> None:
         with patch.object(voice, "create_sample_audio_client") as create_client:
-            response = self.client.post(
-                "/voice/sample-recordings/other.wav/download"
-            )
+            response = self.client.post("/voice/sample-recordings/other.wav/download")
 
         self.assertEqual(response.status_code, 404)
         create_client.assert_not_called()
