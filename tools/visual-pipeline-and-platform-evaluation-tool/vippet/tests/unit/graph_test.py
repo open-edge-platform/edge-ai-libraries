@@ -7038,9 +7038,7 @@ class TestInputVideoPathToDisplayNameMissingVideo(unittest.TestCase):
         mock_videos_cls.return_value.get_video_filename.return_value = None
 
         nodes = [
-            Node(
-                id="0", type="filesrc", data={"location": "/videos/input/people.mp4"}
-            )
+            Node(id="0", type="filesrc", data={"location": "/videos/input/people.mp4"})
         ]
         _input_video_path_to_display_name(nodes)
 
