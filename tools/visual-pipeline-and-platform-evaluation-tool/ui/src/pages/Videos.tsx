@@ -33,6 +33,8 @@ const SAMPLE_DOWNLOAD_LABELS = {
 };
 const SAMPLE_POLL_INTERVAL_MS = 2000;
 const SAMPLE_POLL_MAX_ATTEMPTS = 900;
+const HEVC_UNSUPPORTED_MESSAGE =
+  "HEVC conversion is unsupported: no HEVC encoder is available on this platform.";
 
 export const Videos = () => {
   const { data: videos, isSuccess, isLoading } = useGetVideosQuery();
@@ -157,6 +159,8 @@ export const Videos = () => {
           );
         } else if (result.status === "converted") {
           dispatch(api.util.invalidateTags(["videos"]));
+        } else if (result.status === "unsupported") {
+          toast.info(HEVC_UNSUPPORTED_MESSAGE);
         }
       } catch {
         toast.error("Could not prepare the sample video.");
@@ -175,6 +179,7 @@ export const Videos = () => {
     setIsBulkProcessing(true);
     let completed = 0;
     let failed = 0;
+    let unsupported = 0;
 
     const waitForVideo = async (
       filename: string,
@@ -214,19 +219,30 @@ export const Videos = () => {
             }
           }
 
-          if (video.conversion_status !== "converted") {
+          if (
+            video.conversion_status !== "converted" &&
+            video.conversion_status !== "unsupported"
+          ) {
             await startDefaultVideoHevcConversion({
               defaultVideoConversionRequest: { filename: video.filename },
             }).unwrap();
             video = await waitForVideo(candidate.filename, (current) =>
-              ["converted", "failed", "conflict", "not_converted"].includes(
-                current.conversion_status,
-              ),
+              [
+                "converted",
+                "failed",
+                "conflict",
+                "not_converted",
+                "unsupported",
+              ].includes(current.conversion_status),
             );
-            if (video.conversion_status !== "converted") {
+            if (
+              video.conversion_status !== "converted" &&
+              video.conversion_status !== "unsupported"
+            ) {
               throw new Error("HEVC conversion failed");
             }
           }
+          if (video.conversion_status === "unsupported") unsupported += 1;
           completed += 1;
         } catch {
           if (isUnmountedRef.current) return;
@@ -239,6 +255,9 @@ export const Videos = () => {
         toast.warning(`${completed} video(s) ready; ${failed} failed.`);
       } else {
         toast.success(`${completed} video(s) ready.`);
+      }
+      if (unsupported > 0) {
+        toast.info(HEVC_UNSUPPORTED_MESSAGE);
       }
     } finally {
       setIsBulkProcessing(false);
@@ -319,14 +338,22 @@ export const Videos = () => {
     if (trackedConversions.length === 0) return;
     const finished = trackedConversions.every((filename) => {
       const sample = sampleVideos.find((video) => video.filename === filename);
-      return ["converted", "failed", "conflict"].includes(
+      return ["converted", "failed", "conflict", "unsupported"].includes(
         sample?.conversion_status ?? "",
       );
     });
     if (!finished) return;
 
+    const hasUnsupported = trackedConversions.some(
+      (filename) =>
+        sampleVideos.find((video) => video.filename === filename)
+          ?.conversion_status === "unsupported",
+    );
     setTrackedConversions([]);
     dispatch(api.util.invalidateTags(["videos"]));
+    if (hasUnsupported) {
+      toast.info(HEVC_UNSUPPORTED_MESSAGE);
+    }
   }, [dispatch, sampleVideos, trackedConversions]);
 
   const filteredVideos =
@@ -443,7 +470,9 @@ export const Videos = () => {
                 isDownloaded &&
                 (video.conversion_status === "queued" ||
                   video.conversion_status === "converting" ||
-                  (isBulkCurrent && video.conversion_status !== "converted"));
+                  (isBulkCurrent &&
+                    video.conversion_status !== "converted" &&
+                    video.conversion_status !== "unsupported"));
               return (
                 <TableRow key={video.filename} className="odd:bg-muted/30">
                   <TableCell>
@@ -480,7 +509,17 @@ export const Videos = () => {
                         Converting
                       </Badge>
                     ) : isDownloaded ? (
-                      <Badge variant="success">Downloaded</Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="success">Downloaded</Badge>
+                        {video.conversion_status === "unsupported" && (
+                          <Badge
+                            variant="secondary"
+                            title={HEVC_UNSUPPORTED_MESSAGE}
+                          >
+                            HEVC unsupported
+                          </Badge>
+                        )}
+                      </div>
                     ) : isDownloading ? (
                       <Badge variant="secondary">
                         <Loader2 className="animate-spin" />
