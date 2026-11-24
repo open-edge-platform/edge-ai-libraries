@@ -30,7 +30,7 @@ To build the image directly using the `docker` CLI, run the command from the sam
 docker build \
   --build-arg HTTP_PROXY=${HTTP_PROXY} \
   --build-arg HTTPS_PROXY=${HTTPS_PROXY} \
-  -t intel/semantic-search-agent:2026.3.0-rc1 \
+  -t intel/semantic-search-agent:2026.3.0-rc2 \
   -f docker/Dockerfile \
   .
 ```
