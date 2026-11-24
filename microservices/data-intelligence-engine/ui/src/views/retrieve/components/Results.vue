@@ -147,8 +147,7 @@ import {
 } from "@ant-design/icons-vue";
 import { blobUrl } from "@/api/console";
 import type { Chunk, RetrieveResult } from "@/api/console/type";
-import { marked } from "marked";
-import CustomRenderer from "@/utils/customRenderer";
+import { renderMarkdown } from "@/utils/customRenderer";
 import type { ConceptFocus } from "../Type";
 const props = defineProps<{
   result?: RetrieveResult;
@@ -181,8 +180,6 @@ const handleImageClick = (event: MouseEvent) => {
   imageSrc.value = event.target.src;
   imageVisible.value = true;
 };
-const renderMarkdown = (text: string) =>
-  marked.parse(text, { renderer: CustomRenderer, async: false });
 const getMediaUrl = (chunk: Chunk) => {
   const metadata = chunk.metadata;
   const url = `${blobUrl}?${new URLSearchParams({ library: metadata.library!, media_key: metadata.media_key! })}`;
