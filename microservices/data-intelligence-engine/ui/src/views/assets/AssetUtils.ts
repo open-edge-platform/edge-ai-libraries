@@ -90,6 +90,15 @@ export const collectAssets = async (
   return assets;
 };
 
+export const collectLibraryAssets = (
+  library: string,
+  incompleteError: () => Error,
+) =>
+  collectAssets(
+    (page) => getAssetList(library, { page_num: page, page_size: 500 }),
+    incompleteError,
+  );
+
 export interface StagedFile {
   file: File;
   path: string;

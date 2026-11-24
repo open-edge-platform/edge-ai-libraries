@@ -19,6 +19,8 @@ class OpenVINOVLReranking:
         import openvino as ov
         from transformers import AutoProcessor
 
+        from inference.multimodal.qwen3_vl_reranker_inputs import VISUAL_SIZE
+
         directory = Path(model_id_or_path)
         score_config = directory / "1_LogitScore" / "config.json"
         if not score_config.is_file():
@@ -29,6 +31,8 @@ class OpenVINOVLReranking:
         self.config = json.loads((directory / "config.json").read_text())
         manifest = directory / "export_shapes.json"
         self.export_shapes = json.loads(manifest.read_text()) if manifest.is_file() else None
+        # One letterbox for images and video frames; _prepare's grid check rejects a mismatch.
+        self.visual_size = tuple((self.export_shapes or {}).get("visual_size", VISUAL_SIZE))
         self.true_id = int(ids["true_token_id"])
         self.false_id = int(ids["false_token_id"])
         self.processor = AutoProcessor.from_pretrained(
@@ -81,7 +85,7 @@ class OpenVINOVLReranking:
         from inference.multimodal.qwen3_vl_reranker_inputs import encode, pad_pair, rope_position_ids
 
         mode = "video" if "video" in document else "image" if "image" in document else "text"
-        values = encode(self.processor, query, document)
+        values = encode(self.processor, query, document, visual_size=self.visual_size)
         if mode != "text":
             values["position_ids"] = rope_position_ids(values, self.config)
             if self.export_shapes is None:

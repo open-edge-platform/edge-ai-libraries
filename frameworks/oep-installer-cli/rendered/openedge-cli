@@ -3249,7 +3249,7 @@ configure_ros_openvino ()
             ros_distro=jazzy
         ;;
     esac;
-    ov_deb_pref=("Package: openvino" "Pin: version $ov_version*" "Pin-Priority: 1001" "Package: ros-$ros_distro-openvino-wrapper-lib" "Pin: version $ov_version*" "Pin-Priority: 1002" "Package: ros-$ros_distro-openvino-node" "Pin: version $ov_version*" "Pin-Priority: 1002");
+    ov_deb_pref=("Package: openvino" "Pin: version $ov_version*" "Pin-Priority: 1001" "" "Package: ros-$ros_distro-openvino-wrapper-lib" "Pin: version $ov_version*" "Pin-Priority: 1002" "" "Package: ros-$ros_distro-openvino-node" "Pin: version $ov_version*" "Pin-Priority: 1002");
     amr_repo_name="amrdocs.intel.com";
     amr_key_url=https://$amr_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg;
     amr_key_file=/usr/share/keyrings/amr-archive-keyring.gpg;
@@ -9275,22 +9275,7 @@ printf '%s\n' "$f";
 done);
     fi;
     ensure_sudo mkdir -p "$(dirname "$file")";
-    local pending_blank=0 seen_priority=0;
-    for line in "$@";
-    do
-        if [[ -z "${line//[[:space:]]/}" ]]; then
-            [[ -z "$content" ]] || pending_blank=1;
-            seen_priority=0;
-            continue;
-        fi;
-        (( seen_priority )) && pending_blank=1 && seen_priority=0 || true;
-        if (( pending_blank )); then
-            printf "\n";
-            pending_blank=0;
-        fi;
-        printf "%s\n" "$line";
-        [[ "$line" =~ ^[[:space:]]*[Pp]in-[Pp]riority: ]] && seen_priority=1 || true;
-    done | ensure_sudo tee "$file" > /dev/null;
+    printf "%s\n" "$@" | ensure_sudo tee "$file" > /dev/null;
     ensure_sudo chmod 0644 "$file"
 }
 ensure_apt_remove_package () 
@@ -9335,9 +9320,7 @@ norm_uri "${BASH_REMATCH[3]}"
     esac;
 done | sort -u));
     [ ${#legacies[*]} -eq 0 ] || ensure_apt_source_remove "${legacies[*]}";
-    ( IFS='
-';
-    echo "$*" ) | ensure_sudo tee $file > /dev/null
+    printf "%s\n" "$@" | ensure_sudo tee $file > /dev/null
 }
 ensure_apt_source_remove () 
 { 
