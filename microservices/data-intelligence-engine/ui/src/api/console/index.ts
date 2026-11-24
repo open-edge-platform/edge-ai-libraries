@@ -219,6 +219,20 @@ export const requestSourceCreate = (name: string, data: Object) => {
   });
 };
 
+export const requestSourceDeviceUpdate = (
+  name: string,
+  id: string,
+  data: { embedding_device: string },
+) => {
+  return request({
+    url: `/v1/libraries/${name}/sources/${id}`,
+    method: "patch",
+    data,
+    showSuccessMsg: true,
+    successMsg: "console.saved",
+  });
+};
+
 export const requestSourceDelete = (name: string, id: string) => {
   return request({
     url: `/v1/libraries/${name}/sources/${id}`,

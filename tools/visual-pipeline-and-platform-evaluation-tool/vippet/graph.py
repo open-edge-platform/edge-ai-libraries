@@ -637,6 +637,8 @@ class Graph:
 
                 if "location" in node.data:
                     location = node.data["location"]
+                    if not location:
+                        raise ValueError(_missing_input_video_message(location))
 
                     # Ensure TS file exists before using it
                     ts_path = videos_manager.get_ts_path(location)
@@ -654,7 +656,7 @@ class Graph:
 
                         if source_path is None:
                             raise ValueError(
-                                f"Cannot find source video '{source_filename}' for TS conversion."
+                                _missing_input_video_message(source_filename)
                             )
 
                         ts_path = videos_manager.ensure_ts_file(source_path)
@@ -884,19 +886,27 @@ class Graph:
         """
         Unify all element names in the graph to ensure uniqueness across multiple pipelines.
 
+        Explicit ``mqtt-client-id`` values get the same suffix, because an MQTT
+        broker disconnects a client when another connects with the same ID.
+
         Args:
             pipeline_index: Index of the pipeline (used in new element name)
             stream_index: Index of the stream (used in new element name)
         """
         modified_graph = copy.deepcopy(self)
+        suffix = f"_{pipeline_index}_{stream_index}"
 
         for node in modified_graph.nodes:
             if "name" in node.data:
                 old_name = node.data["name"]
-                node.data["name"] = f"{old_name}_{pipeline_index}_{stream_index}"
+                node.data["name"] = f"{old_name}{suffix}"
                 logger.debug(
                     f"Unified element name in node {node.id}: {old_name} -> {node.data['name']}"
                 )
+
+            client_id = str(node.data.get("mqtt-client-id", "")).strip()
+            if node.type == "gvametapublish" and client_id:
+                node.data["mqtt-client-id"] = f"{client_id}{suffix}"
 
         return modified_graph
 
@@ -1255,30 +1265,37 @@ class Graph:
         self, metadata_dir: str, stream_index: int = 0
     ) -> list[str]:
         """
-        Assign output file paths to all gvametapublish nodes and configure them for file output.
+        Assign output file paths to all file-publishing gvametapublish nodes.
 
         Sets method=file, file-format=json-lines, and a stream-unique file-path on
         every gvametapublish node found in the graph, overwriting existing values.
+        Nodes explicitly configured to publish to a message broker (for example
+        ``method=mqtt``) are left untouched so that a user-configured broker
+        destination is not silently replaced by a file.
 
         Args:
             metadata_dir: Directory where metadata files will be written.
             stream_index: Zero-based index of the pipeline stream.
 
         Returns:
-            list[str]: Paths of the metadata files that were injected (one per gvametapublish node).
+            list[str]: Paths of the metadata files that were injected (one per
+                file-publishing gvametapublish node).
         """
         metadata_file_paths: list[str] = []
         for node in self.nodes:
-            if node.type == "gvametapublish":
-                stream_suffix = f"_stream_{stream_index}" if stream_index > 0 else ""
-                meta_path = os.path.join(
-                    metadata_dir,
-                    f"metadata_{node.id}{stream_suffix}.jsonl",
-                )
-                node.data["method"] = "file"
-                node.data["file-format"] = "json-lines"
-                node.data["file-path"] = meta_path
-                metadata_file_paths.append(meta_path)
+            if node.type != "gvametapublish":
+                continue
+            if node.data.get("method", "file") != "file":
+                continue
+            stream_suffix = f"_stream_{stream_index}" if stream_index > 0 else ""
+            meta_path = os.path.join(
+                metadata_dir,
+                f"metadata_{node.id}{stream_suffix}.jsonl",
+            )
+            node.data["method"] = "file"
+            node.data["file-format"] = "json-lines"
+            node.data["file-path"] = meta_path
+            metadata_file_paths.append(meta_path)
         return metadata_file_paths
 
     def unify_model_instance_ids(self) -> "Graph":
@@ -1906,6 +1923,20 @@ class Graph:
             True if at least one gvametapublish node is present, False otherwise.
         """
         return any(node.type == "gvametapublish" for node in self.nodes)
+
+    def has_file_gvametapublish(self) -> bool:
+        """Check whether the graph publishes metadata to a file.
+
+        A gvametapublish node without an explicit ``method`` counts as a file
+        publisher, mirroring the element's own default.
+
+        Returns:
+            True if at least one file-publishing gvametapublish node is present.
+        """
+        return any(
+            node.type == "gvametapublish" and node.data.get("method", "file") == "file"
+            for node in self.nodes
+        )
 
     def has_decodebin3(self) -> bool:
         """Check whether the graph contains a decodebin3 element."""
@@ -3596,6 +3627,38 @@ class Graph:
                     f"but found '{next_type}' instead"
                 )
 
+    def validate_broker_metadata_publishers(self) -> None:
+        """Validate that broker-publishing gvametapublish elements are configured.
+
+        ``gvametapublish`` accepts ``method=mqtt`` with an empty ``address`` or
+        ``topic`` and then silently fails to connect, so the pipeline runs with
+        no metadata output and no error. Catch the missing configuration before
+        the pipeline is started.
+
+        Raises:
+            ValueError: If a broker publisher is missing ``address`` or ``topic``.
+        """
+        broker_methods = {"mqtt", "kafka"}
+        for node in self.nodes:
+            if node.type != "gvametapublish":
+                continue
+            method = node.data.get("method", "file")
+            if method not in broker_methods:
+                continue
+            missing = [
+                prop
+                for prop in ("address", "topic")
+                if not str(node.data.get(prop, "")).strip()
+            ]
+            if missing:
+                raise ValueError(
+                    f"gvametapublish is set to method={method} but "
+                    f"{' and '.join(missing)} "
+                    f"{'is' if len(missing) == 1 else 'are'} empty. "
+                    f"Set the broker address (for example 'mqtt-broker:1883') and "
+                    f"topic, or switch the element back to method=file."
+                )
+
     def validate_inference_devices_share_va_display(self) -> None:
         """Validate that every VA-accelerated inference element can reach the frames.
 
@@ -4538,7 +4601,8 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
     Side effects:
         - Modifies node.data["location"] or node.data["source"] for file source nodes
         - Converts absolute paths to filenames only
-        - Sets empty string if video path is not found
+        - Keeps the filename of a filesrc video that is not available yet,
+          so it can still be downloaded; sets empty string otherwise
         - Only processes filesrc, multifilesrc, and urisourcebin node types
         - Logs debug messages for each conversion
 
@@ -4566,9 +4630,24 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
             if filename := VideosManager().get_video_filename(path):
                 node.data[key] = filename
                 logger.debug(f"Converted video path to filename: {path} -> {filename}")
+            elif node.type == "filesrc":
+                node.data[key] = os.path.basename(os.path.normpath(path))
+                logger.debug(f"Video not available yet: {path}")
             else:
                 node.data[key] = ""
                 logger.debug(f"Video path not found: {path}")
+
+
+def _missing_input_video_message(name: str) -> str:
+    if not name:
+        return (
+            "No input video is selected. Download or upload a video on the "
+            "Videos page, then select it in the pipeline Input node."
+        )
+    return (
+        f"Input video '{name}' is not available. Download or upload it on the "
+        "Videos page, then select it in the pipeline Input node."
+    )
 
 
 def _input_video_name_to_path(nodes: list[Node]) -> None:
@@ -4617,9 +4696,7 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
 
             path = VideosManager().get_video_path(name)
             if not path:
-                raise ValueError(
-                    f"Node {node.id}. {node.type}: can't map '{key}={name}' to video path"
-                )
+                raise ValueError(_missing_input_video_message(name))
 
             node.data[key] = path
             logger.debug(f"Converted video filename to path: {name} -> {path}")

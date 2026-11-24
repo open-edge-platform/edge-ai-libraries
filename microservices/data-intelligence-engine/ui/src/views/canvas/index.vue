@@ -70,6 +70,8 @@
       :edge="selectedEdge"
       :node-list="nodeList"
       :assets="assetList"
+      :content-assets="contentAssetsForDelete"
+      :content-assets-ready="contentAssetsReady"
       :submit-loading="submitLoading"
       @close="handleDeselect"
       @connect="handleConnect"
@@ -129,7 +131,7 @@ import {
   requestAssetPoolSourcesUpdate,
   requestSourceDelete,
 } from "@/api/console";
-import type { IngestResult, Source } from "@/api/console/type";
+import type { Asset, IngestResult, Source } from "@/api/console/type";
 import { customNotification } from "@/utils/notification";
 import type { ConsolePageProps } from "../../types/console";
 import type { CanvasEdge, CanvasNode, NodeKind, Position } from "./Type";
@@ -145,6 +147,7 @@ import CreatePoolDialog from "../pools/components/CreateDialog.vue";
 import CreateSourceDialog from "../sources/components/CreateDialog.vue";
 import UploadDialog from "../assets/components/UploadDialog.vue";
 import {
+  collectLibraryAssets,
   getAssetProgress,
   readDroppedFiles,
   syncAssetProgress,
@@ -179,6 +182,29 @@ const uploadPool = ref<string>();
 const uploadFiles = ref<StagedFile[]>([]);
 const progress = getAssetProgress(props.libraryData!.name);
 const assetList = computed(() => progress.rows);
+const contentAssets = ref<Asset[]>([]);
+const contentAssetsForDelete = computed(() => [
+  ...contentAssets.value,
+  ...assetList.value.filter(
+    (asset) => !contentAssets.value.some((listed) => listed.id === asset.id),
+  ),
+]);
+const contentAssetsReady = ref(false);
+const sourceContentCount = (id: string) =>
+  contentAssetsForDelete.value.filter((asset) => asset.content_source_id === id)
+    .length;
+const loadContentAssets = async () => {
+  contentAssetsReady.value = false;
+  try {
+    contentAssets.value = await collectLibraryAssets(
+      props.libraryData!.name,
+      () => new Error(t("console.incompleteAssetList")),
+    );
+    contentAssetsReady.value = true;
+  } catch (error) {
+    console.error(error);
+  }
+};
 const trackedIds = computed(() => progress.trackedIds);
 let timer: ReturnType<typeof setTimeout> | undefined;
 let disposed = false;
@@ -231,7 +257,7 @@ const poll = async () => {
 };
 onMounted(async () => {
   try {
-    await queryAssetList(true);
+    await Promise.all([queryAssetList(true), loadContentAssets()]);
   } catch (error) {
     console.error(error);
   } finally {
@@ -298,6 +324,38 @@ const handleRemoveNode = (key: string) => {
         title: t("console.removeCanvas"),
         content: t("console.removeCanvasLinkedAsset", {
           pools: pools.map((pool) => pool.name).join(", "),
+        }),
+        okText: t("common.confirm"),
+      });
+      return;
+    }
+  }
+  if (
+    key.startsWith("pool:") &&
+    edgeList.value.some((edge) => edge.from === key || edge.to === key)
+  ) {
+    Modal.warning({
+      title: t("console.removeCanvas"),
+      content: t("console.removeCanvasLinkedPool"),
+      okText: t("common.confirm"),
+    });
+    return;
+  }
+  if (key.startsWith("source:")) {
+    const pools = edgeList.value
+      .filter((edge) => edge.to === key)
+      .map((edge) => {
+        const id = edge.from.slice("pool:".length);
+        return (
+          props.libraryData?.asset_pools.find((pool) => pool.id === id)?.name ||
+          id
+        );
+      });
+    if (pools.length) {
+      Modal.warning({
+        title: t("console.removeCanvas"),
+        content: t("console.removeCanvasLinkedSource", {
+          pools: pools.join(", "),
         }),
         okText: t("common.confirm"),
       });
@@ -572,6 +630,7 @@ const handleUploaded = async (result: IngestResult) => {
   );
   if (ids.length === 1) pendingSelection.value = `asset:${ids[0]}`;
   await queryAssetList();
+  await loadContentAssets();
   emit("refresh");
 };
 const handleDeleteAsset = () => {
@@ -597,6 +656,7 @@ const handleDeleteAsset = () => {
       if (selectedKey.value === `asset:${id}`) handleDeselect();
       progress.remove([id]);
       await queryAssetList();
+      await loadContentAssets();
       emit("refresh");
     },
   });
@@ -625,7 +685,9 @@ const handleDeleteSource = () => {
   const source = selectedSource.value;
   if (
     !source ||
-    getSourceDisplayStatus(props.libraryData!, source) === "indexing"
+    !contentAssetsReady.value ||
+    getSourceDisplayStatus(props.libraryData!, source) === "indexing" ||
+    sourceContentCount(source.id) > 0
   )
     return;
   const id = source.id;
@@ -637,7 +699,9 @@ const handleDeleteSource = () => {
       const current = props.libraryData!.sources.find((item) => item.id === id);
       if (
         !current ||
-        getSourceDisplayStatus(props.libraryData!, current) === "indexing"
+        !contentAssetsReady.value ||
+        getSourceDisplayStatus(props.libraryData!, current) === "indexing" ||
+        sourceContentCount(current.id) > 0
       )
         return;
       await requestSourceDelete(props.libraryData!.name, id);
