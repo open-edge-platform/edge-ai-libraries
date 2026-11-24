@@ -3,9 +3,9 @@
 These release notes describe the Vector Retriever microservice. For sample-application
 integration context, see the [Video Search and Summarization release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/release-notes.html).
 
-## Version 2026.3.0-rc1
+## Version 2026.3.0-rc2
 
-**Release Date:** November 6, 2026
+**Release Date:** December 7, 2026
 
 **New:**
 
