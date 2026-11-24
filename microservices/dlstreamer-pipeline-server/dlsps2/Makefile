@@ -12,6 +12,7 @@ PYLINT_DISABLE ?= no-member,unsubscriptable-object,no-name-in-module
 RUN_IN_IMAGE = docker run --rm --user root --entrypoint /bin/bash \
 	-v "$(CURDIR)/src:/home/pipeline-server/src:ro" \
 	-v "$(CURDIR)/tests:/home/pipeline-server/tests:ro" \
+	-v /tmp:/tmp:rw \
 	$(IMAGE) -c
 
 .PHONY: all build lint test coverage help
@@ -31,8 +32,8 @@ test:
 	$(RUN_IN_IMAGE) 'pip3 install -q $(TEST_DEPS) >/dev/null 2>&1 && cd /home/pipeline-server && python3 -m pytest tests -q -p no:cacheprovider --tb=short'
 
 coverage:
-	@# Help: Runs the pytest suite with coverage for src
-	$(RUN_IN_IMAGE) 'pip3 install -q $(TEST_DEPS) >/dev/null 2>&1 && cd /home/pipeline-server && python3 -m pytest tests -q -p no:cacheprovider --cov=src --cov-report=term-missing'
+	@# Help: Runs the pytest suite with coverage for src, emitting an HTML report to /tmp/htmlcov-dlsps2
+	$(RUN_IN_IMAGE) 'pip3 install -q $(TEST_DEPS) >/dev/null 2>&1 && cd /home/pipeline-server && python3 -m pytest tests -q -p no:cacheprovider --cov=src --cov-report=term-missing --cov-report=html:/tmp/htmlcov-dlsps2'
 
 help:
 	@# Help: Displays make targets

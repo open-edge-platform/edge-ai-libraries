@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/validate", tags=["validation"])
 
+# validation_id is str(uuid.uuid4()) (core/pipeline_manager.py) - standard dashed hex UUID
+_VALIDATION_ID_PATTERN = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
 _pipeline_manager: Optional[PipelineManager] = None
 
 
@@ -55,7 +58,7 @@ async def list_validations():
 
 
 @router.get("/status/{validation_id}", response_model=ValidationStatus)
-async def get_validation_status(validation_id: str = Path(..., description="Validation request identifier")):
+async def get_validation_status(validation_id: str = Path(..., pattern=_VALIDATION_ID_PATTERN, description="Validation request identifier")):
     """Return the status of a specific validation request."""
     validation = _get_manager().get_validation(validation_id)
     if not validation:
