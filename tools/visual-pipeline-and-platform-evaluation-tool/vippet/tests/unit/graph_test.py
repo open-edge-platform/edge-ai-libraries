@@ -45,6 +45,49 @@ class TestGraphCpuPinning(unittest.TestCase):
                 Graph.from_dict({"nodes": [], "edges": [], "cpu_pinning": cpus})
 
 
+class TestGraphVdboxDecode(unittest.TestCase):
+    @staticmethod
+    def _media_graph(source: Node, cpu_pinning: list[int]) -> Graph:
+        return Graph(
+            nodes=[
+                source,
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+            cpu_pinning=cpu_pinning,
+        )
+
+    def test_pinned_compressed_input_uses_vdbox(self):
+        source = Node(id="0", type="filesrc", data={"location": "a.mp4"})
+        for codec in ("h265", None):
+            with (
+                self.subTest(codec=codec),
+                patch.object(Graph, "determine_input_codec", return_value=codec),
+            ):
+                self.assertTrue(self._media_graph(source, [12]).uses_vdbox_decode())
+                self.assertFalse(self._media_graph(source, []).uses_vdbox_decode())
+
+    def test_raw_bayer_and_image_set_inputs_skip_vdbox(self):
+        cases = {
+            "raw": (Node(id="0", type="v4l2src", data={}), "YUYV"),
+            "bayer": (Node(id="0", type="aravissrc", data={}), "BayerRG8"),
+            "image_set": (
+                Node(id="0", type="multifilesrc", data={"__image_set": "jpg"}),
+                "jpg",
+            ),
+        }
+        for name, (source, codec) in cases.items():
+            with (
+                self.subTest(name),
+                patch.object(Graph, "determine_input_codec", return_value=codec),
+            ):
+                self.assertFalse(self._media_graph(source, [12]).uses_vdbox_decode())
+
+
 # Create mock instances for SupportedModelsManager and VideosManager
 mock_models_manager_instance = MagicMock()
 mock_videos_manager_instance = MagicMock()

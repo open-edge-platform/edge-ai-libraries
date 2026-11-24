@@ -350,8 +350,19 @@ class Graph:
         )
 
     def uses_vdbox_decode(self) -> bool:
-        """Pinned media-only graphs keep decodebin3 and decode on VDBox."""
-        return bool(self.cpu_pinning) and self.is_media_only()
+        """Pinned media-only graphs with compressed input keep decodebin3 and decode on VDBox."""
+        if (
+            not self.cpu_pinning
+            or not self.is_media_only()
+            or self.has_image_set_source()
+        ):
+            return False
+        # Raw and Bayer inputs need the source adaptation done by apply_decodebin3_replacement.
+        codec = self.determine_input_codec()
+        decoder = VideoDecoder()
+        return not codec or not (
+            decoder.is_raw_format(codec) or decoder.is_bayer_format(codec)
+        )
 
     def with_vdbox_decode(self) -> "Graph":
         graph = copy.deepcopy(self)

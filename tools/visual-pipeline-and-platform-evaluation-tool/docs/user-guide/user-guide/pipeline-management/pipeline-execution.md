@@ -55,7 +55,8 @@ The decoder depends on the variant's CPU pinning:
   (VDBox) and the DLSPS instance runs on the pinned cores. VDBox requires an Intel
   GPU with VA decode support and access to its render node in the DLSPS container.
   If DLSPS reports no GPU, ViPPET logs a warning and uses the default decoder,
-  keeping the CPU pinning.
+  keeping the CPU pinning. Image sets and raw or Bayer camera inputs always use
+  the default decoder.
 - **Without CPU pinning**, `decodebin3` is replaced with a decoder that matches the
   input codec, as in other pipelines.
 
