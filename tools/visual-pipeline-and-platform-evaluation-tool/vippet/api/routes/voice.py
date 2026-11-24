@@ -478,9 +478,7 @@ async def download_sample_audio_recording(
     if assets.get_asset(filename) is None:
         audio_bytes = await _fetch_sample_audio(recording)
         try:
-            await asyncio.to_thread(
-                assets.save_sample_recording, filename, audio_bytes
-            )
+            await asyncio.to_thread(assets.save_sample_recording, filename, audio_bytes)
         except (OSError, ValueError) as exc:
             logger.error(
                 "Unable to store sample audio recording: %s", type(exc).__name__

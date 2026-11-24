@@ -16,6 +16,8 @@ import yaml
 
 from dlsps2_runner import Dlsps2PipelineRunner
 from explore import GstInspector
+from mpegts_loop_align import align
+
 
 # The TS conversion runs on DLSPS 2.0. Both containers mount the same video
 # directories, so the output lands here.
@@ -422,7 +424,9 @@ class VideosManager:
             self._scan_and_load_all_videos()
             output_video = self._videos.get(output_filename)
             if output_video is None or output_video.codec != "h265":
-                logger.error("HEVC conversion output '%s' is not H.265", output_filename)
+                logger.error(
+                    "HEVC conversion output '%s' is not H.265", output_filename
+                )
                 self._cleanup_file(output_path)
                 self._cleanup_file(f"{output_path}.json")
                 self._videos.pop(output_filename, None)
@@ -940,14 +944,18 @@ class VideosManager:
                     f"! mpegtsmux ! filesink location={ts_path}"
                 )
             runner.run(pipeline_command)
+            aligned_path = ts_path + ".aligned"
+            align(ts_path, aligned_path)
+            os.replace(aligned_path, ts_path)
             return True
         except Exception as e:
             logger.error(f"Failed to convert '{source_filename}' to TS: {e}")
             # A half-written file would later pass for a finished conversion.
-            try:
-                os.remove(ts_path)
-            except OSError:
-                pass
+            for path in (ts_path, ts_path + ".aligned"):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
             return False
 
     @staticmethod
