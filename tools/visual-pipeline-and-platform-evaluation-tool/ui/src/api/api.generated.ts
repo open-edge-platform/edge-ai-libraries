@@ -519,6 +519,16 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["pipelines"],
       }),
+      exportVariantAsApp: build.mutation<
+        ExportVariantAsAppApiResponse,
+        ExportVariantAsAppApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/export-app`,
+          method: "POST",
+        }),
+        invalidatesTags: ["pipelines"],
+      }),
       runPerformanceTest: build.mutation<
         RunPerformanceTestApiResponse,
         RunPerformanceTestApiArg
@@ -1020,6 +1030,12 @@ export type ConvertSimpleToAdvancedApiArg = {
   pipelineId: string;
   variantId: string;
   pipelineGraph: PipelineGraph;
+};
+export type ExportVariantAsAppApiResponse =
+  /** status 200 Zip archive of the app */ Blob;
+export type ExportVariantAsAppApiArg = {
+  pipelineId: string;
+  variantId: string;
 };
 export type RunPerformanceTestApiResponse =
   /** status 202 Performance test job created */ TestJobResponse;
@@ -2213,6 +2229,7 @@ export const {
   useUpdateVariantMutation,
   useConvertAdvancedToSimpleMutation,
   useConvertSimpleToAdvancedMutation,
+  useExportVariantAsAppMutation,
   useRunPerformanceTestMutation,
   useRunDensityTestMutation,
   useGetTimeseriesDataTimeseriesDataGetQuery,

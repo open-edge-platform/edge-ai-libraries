@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Pipeline } from "@/api/api.generated";
+import type { Model, Pipeline, PipelineGraph } from "@/api/api.generated";
 import {
   useGetOptimizationJobStatusQuery,
   useGetValidationJobStatusQuery,
@@ -9,7 +9,10 @@ import {
   useUpdateVariantMutation,
   useValidatePipelineMutation,
 } from "@/api/api.generated";
+import { useExportVariantAsAppMutation } from "@/api/apiEnhancements";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
+import { useAppSelector } from "@/store/hooks";
+import { selectModels } from "@/store/reducers/models";
 import {
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
@@ -20,6 +23,7 @@ import {
   FileJson,
   Lock,
   MoreVertical,
+  Package,
   PencilLine,
   Save,
   Terminal,
@@ -29,7 +33,11 @@ import {
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { handleApiError } from "@/lib/apiUtils";
-import { downloadFile, MimeType } from "@/lib/fileUtils";
+import {
+  downloadFile,
+  downloadResponseAsFile,
+  MimeType,
+} from "@/lib/fileUtils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +68,37 @@ import {
   PipelineDialogButton,
 } from "./shared";
 
+// Keep in sync with SUPPORTED_MODELS in vippet/app_export/pipelines.py.
+const APP_EXPORT_MODELS = new Set(["pallet_defect_detection"]);
+const INFERENCE_ELEMENTS = new Set([
+  "gvadetect",
+  "gvaclassify",
+  "gvainference",
+]);
+
+/** Whether every model of the saved variant graph may be exported as an app. */
+const usesOnlyAppExportModels = (
+  graph: PipelineGraph | undefined,
+  models: Model[],
+): boolean => {
+  const modelNames = (graph?.nodes ?? [])
+    .filter((node) => INFERENCE_ELEMENTS.has(node.type) && node.data.model)
+    .map(
+      (node) =>
+        models.find((model) =>
+          model.variants?.some(
+            (variant) => variant.display_name === node.data.model,
+          ),
+        )?.name,
+    );
+  return (
+    modelNames.length > 0 &&
+    modelNames.every(
+      (name) => name !== undefined && APP_EXPORT_MODELS.has(name),
+    )
+  );
+};
+
 interface PipelineActionsMenuProps {
   pipeline: Pipeline;
   variantId: string;
@@ -68,6 +107,7 @@ interface PipelineActionsMenuProps {
   currentViewport?: Viewport;
   isSimpleMode: boolean;
   isReadOnly: boolean;
+  hasUnsavedChanges: boolean;
   performanceTestJobId: string | null;
   onGraphUpdate: (
     nodes: ReactFlowNode[],
@@ -87,6 +127,7 @@ export const PipelineActionsMenu = ({
   currentViewport,
   isSimpleMode,
   isReadOnly,
+  hasUnsavedChanges,
   performanceTestJobId,
   onGraphUpdate,
   onVariantDeleted,
@@ -97,6 +138,11 @@ export const PipelineActionsMenu = ({
   const variantName =
     pipeline.variants.find((v) => v.id === variantId)?.name ?? "";
   const variantsCount = pipeline.variants.length;
+  const models = useAppSelector(selectModels);
+  const canExportAsApp = usesOnlyAppExportModels(
+    pipeline.variants.find((v) => v.id === variantId)?.pipeline_graph,
+    models,
+  );
 
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editVariantDialogOpen, setEditVariantDialogOpen] = useState(false);
@@ -113,6 +159,8 @@ export const PipelineActionsMenu = ({
     useToDescriptionMutation();
   const [toGraph] = useToGraphMutation();
   const [updateVariant] = useUpdateVariantMutation();
+  const [exportVariantAsApp, { isLoading: isExportingApp }] =
+    useExportVariantAsAppMutation();
 
   const { execute: executeValidation, isLoading: isValidating } = useAsyncJob({
     asyncJobHook: useValidatePipelineMutation,
@@ -177,6 +225,34 @@ export const PipelineActionsMenu = ({
     } catch (error) {
       handleApiError(error, "Failed to generate pipeline description");
       console.error("Failed to generate description:", error);
+    }
+  };
+
+  const handleExportApp = async () => {
+    const toastId = toast.loading("Preparing the app archive...", {
+      description: "Bundling the model and input video can take a moment.",
+    });
+    try {
+      const archive = await exportVariantAsApp({
+        pipelineId,
+        variantId,
+      }).unwrap();
+      const headers = new Headers();
+      if (archive.contentDisposition) {
+        headers.set("content-disposition", archive.contentDisposition);
+      }
+      await downloadResponseAsFile(
+        new Response(archive.blob, { headers }),
+        `${pipelineId}-${variantId}-app.zip`,
+      );
+      toast.success("App archive downloaded", {
+        id: toastId,
+        description: "Unzip it and follow README.md to run the app.",
+      });
+    } catch (error) {
+      toast.dismiss(toastId);
+      handleApiError(error, "Failed to export the app");
+      console.error("Failed to export the app:", error);
     }
   };
 
@@ -534,6 +610,31 @@ export const PipelineActionsMenu = ({
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+          )}
+          {canExportAsApp && (
+            <DropdownMenuItem
+              onClick={handleExportApp}
+              disabled={hasUnsavedChanges || isExportingApp}
+              className="flex items-center justify-between gap-2"
+            >
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4" />
+                Export as app
+              </div>
+              {hasUnsavedChanges && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="pointer-events-auto">
+                      <Lock className="h-4 w-4" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    Save your changes first. The app is built from the saved
+                    variant.
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </DropdownMenuItem>
           )}
           <DropdownMenuItem
             variant="destructive"

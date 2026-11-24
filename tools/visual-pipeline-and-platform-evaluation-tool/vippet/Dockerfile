@@ -106,6 +106,7 @@ COPY --chown=dlstreamer:dlstreamer vippet/benchmarks/ /home/dlstreamer/vippet/be
 COPY --chown=dlstreamer:dlstreamer vippet/models/ /home/dlstreamer/vippet/models
 COPY --chown=dlstreamer:dlstreamer vippet/api/ /home/dlstreamer/vippet/api
 COPY --chown=dlstreamer:dlstreamer vippet/managers/ /home/dlstreamer/vippet/managers
+COPY --chown=dlstreamer:dlstreamer vippet/app_export/ /home/dlstreamer/vippet/app_export
 COPY --chown=dlstreamer:dlstreamer vippet/gst_plugins/ /home/dlstreamer/vippet/gst_plugins
 COPY --chown=dlstreamer:dlstreamer --from=aravis /out/aravis/ /home/dlstreamer/vippet/gst_plugins/aravis
 

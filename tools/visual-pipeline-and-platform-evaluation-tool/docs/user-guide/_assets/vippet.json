@@ -3406,6 +3406,89 @@
         }
       }
     },
+    "/pipelines/{pipeline_id}/variants/{variant_id}/export-app": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Export Variant as App",
+        "description": "**Export a saved pipeline variant as a standalone app (zip archive).**\n\nThe app runs the variant on DL Streamer Pipeline Server 2.0 with Docker\nCompose, without ViPPET. Unsaved editor changes are not included.\n\n## Operation\n1. Load the saved pipeline variant\n2. Check that it can run as an app: one video file source, stock elements,\n   and only models supported by app export (currently Pallet Defect Detection)\n3. Build one launch string per app output (`fakesink`, `file`, `rtsp`)\n4. Bundle compose file, scripts, launch strings, model and input video into a zip\n\n## Archive Content\nOne directory named `<pipeline>-<variant>-app` with `README.md`, `compose.yml`,\n`start_app.sh`, `run.sh`, `status.sh`, `stop.sh`, `stop_app.sh`,\n`pipelines.json`, `manifest.json`, `assets/` (models and videos) and `output/`.\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline\n- `variant_id` - ID of the variant to export\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200 | `application/zip` attachment named `<pipeline>-<variant>-app.zip` |\n| 400 | `MessageResponse` - Variant cannot be exported as an app |\n| 404 | `MessageResponse` - Pipeline or variant not found |\n| 500 | `MessageResponse` - Unexpected error |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- The variant passes the app export checks and all its files are present\n\n### \u274c Failure\n- Pipeline or variant not found \u2192 404\n- Unsupported source, element or model, or a missing model or video file \u2192 400\n- Any other exception \u2192 500\n\n## Examples\n\n### Error Response (400)\n```json\n{\n  \"message\": \"Export as app currently supports Pallet Defect Detection pipelines only (model 'Pallet Defect Detection').\"\n}\n```",
+        "operationId": "export_variant_as_app",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Zip archive of the app",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Variant cannot be exported as an app",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline or variant not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tests/performance": {
       "post": {
         "tags": [
