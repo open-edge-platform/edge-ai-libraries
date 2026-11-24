@@ -3142,6 +3142,7 @@ class DefaultVideoConversionState(str, Enum):
     CONVERTED = "converted"
     FAILED = "failed"
     CONFLICT = "conflict"
+    UNSUPPORTED = "unsupported"
 
 
 class DefaultVideoRecording(BaseModel):

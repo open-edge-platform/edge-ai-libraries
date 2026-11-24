@@ -13,6 +13,7 @@ import api.api_schemas as schemas
 from videos import (
     VIDEO_EXTENSIONS,
     UPLOADED_VIDEO_DIR,
+    HevcEncoderUnavailableError,
     Video as DomainVideo,
     VideosManager,
 )
@@ -195,6 +196,7 @@ def _queue_default_hevc_conversion(manager: VideosManager, filename: str) -> boo
         if _default_video_conversion_status.get(filename) in (
             schemas.DefaultVideoConversionState.QUEUED,
             schemas.DefaultVideoConversionState.CONVERTING,
+            schemas.DefaultVideoConversionState.UNSUPPORTED,
         ) or manager.filename_exists(manager.default_hevc_filename(filename)):
             return False
         _default_video_conversion_status[filename] = (
@@ -235,14 +237,21 @@ def _convert_default_recording_to_hevc(filename: str) -> None:
                 schemas.DefaultVideoConversionState.CONVERTING
             )
         manager = VideosManager()
+        unsupported = False
         try:
             output_filename = manager.convert_default_video_to_hevc(filename)
+        except HevcEncoderUnavailableError as exc:
+            logger.warning("Sample video '%s' not converted to HEVC: %s", filename, exc)
+            output_filename = None
+            unsupported = True
         except Exception:
             logger.exception("Failed to convert sample video '%s' to HEVC", filename)
             output_filename = None
 
         if output_filename:
             status = schemas.DefaultVideoConversionState.CONVERTED
+        elif unsupported:
+            status = schemas.DefaultVideoConversionState.UNSUPPORTED
         elif manager.filename_exists(manager.default_hevc_filename(filename)):
             status = schemas.DefaultVideoConversionState.CONFLICT
         else:
@@ -387,7 +396,10 @@ async def start_default_video_download(
     status_code=202,
     responses={
         200: {
-            "description": "The video is already converted or a conversion is running.",
+            "description": (
+                "The video is already converted, a conversion is running, "
+                "or no HEVC encoder is available."
+            ),
             "model": schemas.DefaultVideoConversionResponse,
         },
         404: {"description": "The filename is not in the sample manifest."},
@@ -423,6 +435,7 @@ async def start_default_video_hevc_conversion(
             if status in (
                 schemas.DefaultVideoConversionState.QUEUED,
                 schemas.DefaultVideoConversionState.CONVERTING,
+                schemas.DefaultVideoConversionState.UNSUPPORTED,
             ):
                 pass
             elif manager.filename_exists(output_filename):

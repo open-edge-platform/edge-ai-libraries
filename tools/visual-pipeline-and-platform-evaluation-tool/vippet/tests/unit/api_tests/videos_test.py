@@ -301,6 +301,28 @@ class TestVideosAPI(unittest.TestCase):
             videos_route.schemas.DefaultVideoConversionState.CONVERTED,
         )
 
+    def test_download_default_recording_reports_unsupported_hevc(self):
+        with patch("api.routes.videos.VideosManager") as manager_class:
+            manager = manager_class.return_value
+            manager.download_default_video.return_value = True
+            manager.default_hevc_filename.return_value = "sample_h265.mp4"
+            manager.get_video.return_value = None
+            manager.filename_exists.return_value = False
+            manager.convert_default_video_to_hevc.side_effect = (
+                videos_route.HevcEncoderUnavailableError("no encoder")
+            )
+
+            videos_route._download_default_recording("sample.mp4")
+
+        self.assertEqual(
+            videos_route._default_video_download_status["sample.mp4"],
+            videos_route.schemas.DefaultVideoDownloadState.DOWNLOADED,
+        )
+        self.assertEqual(
+            videos_route._default_video_conversion_status["sample.mp4"],
+            videos_route.schemas.DefaultVideoConversionState.UNSUPPORTED,
+        )
+
     def test_download_default_recording_skips_conversion_on_failure(self):
         with patch("api.routes.videos.VideosManager") as manager_class:
             manager = manager_class.return_value
