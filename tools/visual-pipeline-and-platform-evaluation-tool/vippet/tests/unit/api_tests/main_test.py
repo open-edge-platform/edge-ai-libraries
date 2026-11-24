@@ -55,8 +55,6 @@ class VoiceInitializationTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-        manifest = root / "recordings.yaml"
-        manifest.write_text("[]", encoding="utf-8")
         for target in (
             "get_cpu_topology",
             "_release_pipeline_execution",
@@ -77,9 +75,6 @@ class VoiceInitializationTests(unittest.TestCase):
         )
         self.enterContext(patch("audio_assets.AUTO_AUDIO_DIR", str(root / "input")))
         self.enterContext(patch("audio_assets.OUTPUT_AUDIO_DIR", str(root / "output")))
-        self.enterContext(
-            patch("audio_assets.DEFAULT_AUDIO_RECORDINGS_FILE", str(manifest))
-        )
         self.enterContext(
             patch(
                 "managers.pipeline_manager.PipelineLoader.list",
