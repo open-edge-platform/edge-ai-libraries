@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Get Started
 
 The Alert Agent Service is a generic multimodal alert action dispatcher. It accepts alert events from detection pipelines (video analytics, audio sensors, IoT devices, and more), optionally applies LLM-based reasoning via Google ADK and OpenVINO™ Model Server, and dispatches configurable action tools such as webhook notifications, MQTT publishing, snapshot saving, and structured logging.
@@ -20,7 +25,9 @@ The Alert Agent Service is a generic multimodal alert action dispatcher. It acce
 - Sufficient disk space for the LLM model (approximately 4 GB for the default Phi-4-mini-instruct model)
 
 > [!NOTE]
-> The default configuration uses `TARGET_DEVICE=GPU` for the OVMS LLM container. To run on CPU-only Intel devices, set `TARGET_DEVICE=CPU` in your environment. This increases LLM inference latency but requires no GPU.
+> The default configuration uses `TARGET_DEVICE=GPU` for the OVMS LLM
+> container. Set `TARGET_DEVICE=CPU` for CPU-only inference or follow the NPU
+> configuration below to use a supported Intel NPU.
 
 See [System Requirements](./get-started/system-requirements.md) for full details.
 
@@ -48,20 +55,19 @@ export LOG_LEVEL=INFO
 export REGISTRY="intel/"
 export TAG=2026.3.0-rc1
 
-# ----- ADK / LLM -----
-export AGENT_MODE=true
+# ----- ADK / LLM (agent mode only) -----
 export LLM_URL=http://ovms-llm:9000/v3
 export LLM_PORT=9001
 export LLM_MODEL=OpenVINO/Phi-4-mini-instruct-int4-ov
 export LLM_TIMEOUT=10.0
-export TARGET_DEVICE=GPU          # GPU (default) or CPU
-export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render*)   #run this when deploying for GPU
+export TARGET_DEVICE=GPU          # GPU (default), CPU, or NPU
+
 # ----- Webhook action tool (optional) -----
 export WEBHOOK_URL=https://your-webhook-endpoint.example.com/hook
 export WEBHOOK_SECRET=                # leave empty to skip HMAC signing
 
-# ----- MQTT action tool (optional) -----
-export MQTT_BROKER=                   # e.g. mqtt.example.com
+# ----- MQTT action tool -----
+export MQTT_BROKER=mqtt               # bundled broker; replace for an external broker
 export MQTT_PORT=1883
 export MQTT_HOST_PORT=1883
 export MQTT_USERNAME=
@@ -74,21 +80,45 @@ export https_proxy=
 export no_proxy=localhost,127.0.0.1,ovms-llm
 ```
 
+For a GPU deployment, also export the render-device group ID:
+
+```bash
+export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render*)
+```
+
+Skip this command when `TARGET_DEVICE=CPU`.
+
+For an Intel NPU deployment, verify that the host NPU driver exposes a device
+node, then configure that specific node:
+
+```bash
+ls -l /dev/accel/
+export TARGET_DEVICE=NPU
+export ACCEL_MOUNT_PATH=/dev/accel/accel0
+export RENDER_DEVICE_GID=$(stat -c "%g" "$ACCEL_MOUNT_PATH")
+```
+
+When `ACCEL_MOUNT_PATH` is unset, Compose maps `/dev/null` to the container's
+NPU device path so CPU/GPU deployments do not require NPU hardware.
+
 > [!NOTE]
-> `WEBHOOK_URL` and `MQTT_BROKER` are optional. If not set, the corresponding tools are skipped gracefully when invoked.
+> `WEBHOOK_URL` is optional; the webhook tool is skipped when it is not set.
+> In the Compose deployment, an empty or unset `MQTT_BROKER` selects the
+> bundled `mqtt` service. Set `MQTT_BROKER` to another hostname to use an
+> external broker.
 
 ### 3. Start the Services
 
 For rule-based mode:
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d
+AGENT_MODE=false docker compose -f docker/docker-compose.yml up -d
 ```
 
 For ADK / agent mode:
 
 ```bash
-docker compose -f docker/docker-compose.yml --profile agent up -d
+AGENT_MODE=true docker compose -f docker/docker-compose.yml --profile agent up -d
 ```
 
 This starts up to three containers:
@@ -118,6 +148,28 @@ Check the health endpoint:
 
 ```bash
 curl http://localhost:8000/api/v1/health
+```
+
+This endpoint reports Alert Agent Service process liveness only. In agent
+mode, it does not verify that OVMS is ready. Before dispatching an alert,
+confirm that `ovms-llm` is healthy:
+
+```bash
+docker compose -f docker/docker-compose.yml --profile agent ps ovms-llm
+```
+
+For agent mode on NPU, start the same profile after exporting the NPU
+variables:
+
+```bash
+AGENT_MODE=true TARGET_DEVICE=NPU \
+docker compose -f docker/docker-compose.yml --profile agent up -d
+```
+
+Then confirm that OVMS loaded the model and can accept requests:
+
+```bash
+curl --fail http://localhost:9001/v3/models
 ```
 
 Expected response:
@@ -241,7 +293,9 @@ curl http://localhost:8000/api/v1/tools
 | `PORT`                     | `8000`                                 | Port the service listens on                                                   |
 | `LOG_LEVEL`                | `INFO`                                 | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)                           |
 | `AGENT_MODE`               | `true`                                 | Enable ADK (LLM-reasoned) dispatch; set `false` for rule-based mode           |
-| `TARGET_DEVICE`            | `GPU`                                  | OVMS inference device — set to `CPU` for Intel devices without a discrete GPU |
+| `TARGET_DEVICE`            | `GPU`                                  | OVMS inference device (`GPU`, `CPU`, or `NPU`)                                 |
+| `ACCEL_MOUNT_PATH`         | `/dev/null`                            | Host NPU device node, typically `/dev/accel/accel0`; required for NPU          |
+| `RENDER_DEVICE_GID`        | `992`                                  | Supplemental device-group GID used for GPU/NPU access                          |
 | `LLM_URL`                  | `http://ovms-llm:9000/v3`              | OpenAI-compatible LLM endpoint                                                |
 | `LLM_PORT`                 | `9001`                                 | Host port mapped to the OVMS container's internal port `9000`                 |
 | `LLM_MODEL`                | `OpenVINO/Phi-4-mini-instruct-int4-ov` | Model repository path / name                                                  |
@@ -249,7 +303,7 @@ curl http://localhost:8000/api/v1/tools
 | `ACTION_WORKERS`           | `2`                                    | Concurrent worker pool size for tool execution                                |
 | `WEBHOOK_URL`              | _(empty)_                              | Default webhook endpoint for `trigger_webhook`                                |
 | `WEBHOOK_SECRET`           | _(empty)_                              | HMAC-SHA256 secret for webhook request signing                                |
-| `MQTT_BROKER`              | _(empty)_                              | MQTT broker hostname or IP                                                    |
+| `MQTT_BROKER`              | `mqtt` in Compose                      | MQTT broker hostname or IP; Compose defaults to the bundled broker             |
 | `MQTT_PORT`                | `1883`                                 | MQTT broker port                                                              |
 | `MQTT_HOST_PORT`           | `1883`                                 | Host port mapped to the bundled MQTT broker's internal port `1883`             |
 | `MQTT_USERNAME`            | _(empty)_                              | MQTT broker username                                                          |
@@ -358,7 +412,8 @@ Set `"enabled": false` to disable a server without removing its configuration.
 
 **MQTT publishing is skipped:**
 
-- Verify `MQTT_BROKER` is set and the broker is reachable.
+- The Compose deployment defaults `MQTT_BROKER` to the bundled `mqtt`
+  service. If you override it, verify that the configured broker is reachable.
 - Ensure `MQTT_PORT`, `MQTT_USERNAME`, and `MQTT_PASSWORD` are correct.
 
 **Container logs:**

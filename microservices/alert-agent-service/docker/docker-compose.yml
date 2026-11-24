@@ -27,6 +27,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     devices:
       - "/dev/dri:/dev/dri"
+      # Keep CPU/GPU hosts usable when no NPU device is configured.
+      - "${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0"
     group_add:
       - ${RENDER_DEVICE_GID:-992}
     command:
