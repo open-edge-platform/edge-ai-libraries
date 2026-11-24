@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import json
-import re
 
 import httpx
 
@@ -74,10 +73,19 @@ class LLMClient:
 
 
 def parse_json(text: str) -> dict:
-    """Strip code fences and <think> blocks, then parse the outermost {...} block."""
-    text = (text or "").strip()
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    """Skip complete reasoning blocks and parse the outermost JSON object."""
+    text = text or ""
+    parts = []
+    cursor = 0
+    while (opening := text.find("<think>", cursor)) != -1:
+        closing = text.find("</think>", opening + len("<think>"))
+        if closing == -1:
+            break
+        parts.append(text[cursor:opening])
+        cursor = closing + len("</think>")
+    parts.append(text[cursor:])
+    text = "".join(parts)
+    # Fences are outside the object's braces; no separate removal is needed.
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end == -1:

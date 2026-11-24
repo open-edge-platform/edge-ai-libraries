@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+mimetypes.add_type("image/webp", ".webp")
+
 #: A `media_key` with this prefix names a local file rather than a content-store blob.
 FILE_SCHEME = "file://"
 
