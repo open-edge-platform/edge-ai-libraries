@@ -411,8 +411,10 @@ can start and manage that Jaeger for you.
 ### Router telemetry file
 
 The Inference Router supports exactly two telemetry backends, `memory` and
-`file`; `observability enable` selects `file`. Nothing leaves
-the machine: the Router appends to a local file and does not export telemetry.
+`file`; `observability enable` selects `file`. The Router itself only appends to
+a local file and does not export telemetry. When `--backend` is given, the
+[Router span bridge](#observability) reads that file and exports spans to the
+local SQLite store or to Jaeger (an external `--endpoint` can be off-host).
 
 | | `memory` (default) | `file` (after `observability enable`) |
 |---|---|---|
