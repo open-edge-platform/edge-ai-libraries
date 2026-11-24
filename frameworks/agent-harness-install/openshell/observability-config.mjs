@@ -70,7 +70,7 @@ function pluginInstalled() {
 
 function assertNoForeignOpenclawExporter() {
   const staged = stagedState();
-  if (currentOpenclawConfig().diagnostics?.otel?.enabled === true && staged?.enabled !== true)
+  if (currentOpenclawConfig().diagnostics?.otel?.enabled === true && staged?.enabled !== true && staged?.owned !== true)
     throw Error("OpenClaw already has diagnostics.otel enabled that this installer did not set up; it is not overwritten");
 }
 
@@ -95,6 +95,8 @@ function openclawApply() {
     if (config.plugins?.entries?.["diagnostics-otel"]) config.plugins.entries["diagnostics-otel"].enabled = false;
   }
   writeFile(openclawConfig, JSON.stringify(config, null, 2));
+  // Ownership is kept until the exporter is actually off, so a failed restart can be retried.
+  if (!staged.enabled) writeFile(stateFile, JSON.stringify({enabled: false}));
 }
 
 // A hermes_otel.yaml this installer did not write is never replaced.
@@ -156,8 +158,8 @@ switch (command) {
   case "openclaw-stage": {
     const [mode, base, content] = args;
     assertNoForeignOpenclawExporter();
-    if (mode === "on") writeFile(stateFile, JSON.stringify({enabled: true, endpoint: validBase(base), content: validContent(content)}));
-    else if (mode === "off") writeFile(stateFile, JSON.stringify({enabled: false}));
+    if (mode === "on") writeFile(stateFile, JSON.stringify({enabled: true, endpoint: validBase(base), content: validContent(content), owned: true}));
+    else if (mode === "off") writeFile(stateFile, JSON.stringify({enabled: false, owned: true}));
     else throw Error("Invalid staging mode");
     break;
   }

@@ -20,6 +20,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
@@ -152,6 +153,12 @@ class SqliteSink:
         self.con = sqlite3.connect(path, timeout=10)
         self.con.execute("PRAGMA journal_mode=WAL")
         self.con.execute(SCHEMA)
+        # Stores written before span ids were unique may hold replayed duplicates; keep the first of each.
+        self.con.execute(
+            "DELETE FROM events WHERE kind = 'span' AND seq NOT IN "
+            "(SELECT MIN(seq) FROM events WHERE kind = 'span' GROUP BY trace_id, span_id)")
+        self.con.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS events_span_ids ON events (trace_id, span_id) WHERE kind = 'span'")
         self.con.commit()
 
     def send(self, spans):
@@ -162,7 +169,7 @@ class SqliteSink:
         ) for s in spans]
         try:
             self.con.executemany(
-                "INSERT INTO events (kind, ts, data, trace_id, span_id, parent_span_id, session_id, name, status, "
+                "INSERT OR IGNORE INTO events (kind, ts, data, trace_id, span_id, parent_span_id, session_id, name, status, "
                 "start_ns, end_ns, duration_ms) VALUES ('span', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
             self.inserted += len(rows)
             if self.max_rows and self.inserted >= 500:
@@ -192,8 +199,9 @@ def _attr(key, value):
 
 class OtlpSink:
     def __init__(self, endpoint):
-        endpoint = endpoint.rstrip("/")
-        self.url = endpoint if endpoint.endswith("/v1/traces") else endpoint + "/v1/traces"
+        parts = urllib.parse.urlsplit(endpoint.rstrip("/"))
+        # A bare collector URL gets the standard path; an explicit path is used as given.
+        self.url = endpoint.rstrip("/") if parts.path else endpoint.rstrip("/") + "/v1/traces"
         # Internal collectors are reached directly, never through a corporate proxy.
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 

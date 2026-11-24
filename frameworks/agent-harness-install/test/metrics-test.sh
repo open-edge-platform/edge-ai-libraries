@@ -1065,6 +1065,20 @@ for content in ("off", "preview", "full"):
     else:
         assert "x" * 500 in run_row[3] and "y" * 500 in run_row[3]
 
+# A storage failure is retryable (503), not a malformed request (400).
+db = f"{root}/broken.db"
+proc, port = start("openclaw", "off", db)
+try:
+    con = sqlite3.connect(db)
+    con.execute("DROP TABLE events")
+    con.commit()
+    con.close()
+    assert post(port, oc) == 503
+    assert post(port, b"\xff\xff") == 400
+finally:
+    proc.terminate()
+    proc.wait(10)
+
 print("receiver ok")
 PY
 }
@@ -1455,6 +1469,116 @@ print("tailer ok")
 PY
 }
 
+router_bridge_sinks_are_idempotent_and_keep_paths() {
+  command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
+  python3 - "$SCRIPT_DIR/scripts/lib/metrics-router-bridge.py" "$TEST_ROOT" <<'PY'
+import importlib.util, os, sqlite3, sys, tempfile
+
+spec = importlib.util.spec_from_file_location("bridge", sys.argv[1])
+b = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(b)
+d = tempfile.mkdtemp(dir=sys.argv[2])
+db = os.path.join(d, "t.db")
+
+
+def span(sid):
+    return {"end": 2, "start": 1, "attrs": {}, "trace_id": "t", "span_id": sid, "parent": None, "name": "n", "error": False}
+
+
+def count(path):
+    con = sqlite3.connect(path)
+    try:
+        return con.execute("SELECT COUNT(*) FROM events WHERE kind='span'").fetchone()[0]
+    finally:
+        con.close()
+
+
+# Replaying spans (a checkpoint reset, a re-created sink) does not duplicate them.
+sink = b.SqliteSink(db, 0)
+sink.send([span("a"), span("a"), span("b")])
+sink.send([span("a"), span("b"), span("c")])
+sink.close()
+assert count(db) == 3, count(db)
+
+# A store written before span ids were unique is deduplicated when opened.
+old = os.path.join(d, "old.db")
+con = sqlite3.connect(old)
+con.execute(b.SCHEMA)
+for _ in range(2):
+    con.execute("INSERT INTO events (kind, ts, data, trace_id, span_id, name, status, start_ns, end_ns, duration_ms) "
+                "VALUES ('span', 2, '{}', 't', 'x', 'n', 'OK', 1, 2, 0)")
+con.commit()
+con.close()
+assert count(old) == 2
+b.SqliteSink(old, 0).close()
+assert count(old) == 1
+
+# A bare collector URL gets the standard path; an explicit path is used as given.
+for given, want in (
+    ("http://h:4318", "http://h:4318/v1/traces"),
+    ("http://h:4318/", "http://h:4318/v1/traces"),
+    ("http://h:4318/v1/traces", "http://h:4318/v1/traces"),
+    ("http://h/otlp/traces", "http://h/otlp/traces"),
+    ("http://h:4318/custom/", "http://h:4318/custom"),
+):
+    assert b.OtlpSink(given).url == want, (given, b.OtlpSink(given).url)
+print("sinks ok")
+PY
+}
+
+router_bridge_start_failure_rolls_back() {
+  fixture
+  # The Jaeger container exists only once this command has started it.
+  metrics_container_exists() {
+    if [[ "$1" == "$HARNESS_JAEGER_CONTAINER" ]]; then grep -q '^docker run' "$ACTIONS"; else return 0; fi
+  }
+  metrics_router_bridge_start() { error "bridge boom"; }
+  expect_failure 'bridge boom' run_metrics_command enable --target router --backend jaeger
+  grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  [[ "$(metrics_state_get router.enabled)" == false && -z "$(metrics_state_get router.bridge)" ]]
+  [[ "$(metrics_state_get router.managed_jaeger)" == false ]]
+  # A Jaeger that was already there is left alone.
+  fixture
+  metrics_container_exists() { return 0; }
+  metrics_router_bridge_start() { error "bridge boom"; }
+  expect_failure 'bridge boom' run_metrics_command enable --target router --backend jaeger
+  refute grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  [[ "$(metrics_state_get router.enabled)" == false && -z "$(metrics_state_get router.bridge)" ]]
+}
+
+harness_show_and_disable_follow_the_recorded_owner() {
+  fixture
+  HARNESS_RUNTIME=openshell
+  HARNESS_AGENT=deepagents-code
+  refute metrics_harness_check
+  refute metrics_harness_check enable
+  metrics_state_set harness.enabled true harness.agent hermes
+  # An unsupported selection no longer hides the exporter that is on.
+  refute metrics_harness_check enable
+  metrics_harness_check show
+  [[ "$M_AGENT" == hermes && "$HARNESS_AGENT" == hermes ]]
+  HARNESS_AGENT=deepagents-code
+  metrics_harness_check disable
+  [[ "$M_AGENT" == hermes ]]
+}
+
+openshell_openclaw_stage_off_keeps_ownership_until_applied() {
+  openshell_fixture openclaw
+  local config="$SANDBOX_HOME/.openclaw/openclaw.json" state="$SANDBOX_HOME/.harness-observability.json"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  # A restart that fails after staging 'off' leaves the exporter on; a retry must not call it foreign.
+  sandbox_script openclaw-stage off
+  sandbox_script openclaw-stage off
+  [[ "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).diagnostics.otel.enabled)' "$config")" == true ]]
+  sandbox_script openclaw-apply
+  [[ "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).diagnostics.otel.enabled)' "$config")" == false ]]
+  [[ "$(cat "$state")" == '{"enabled":false}' ]]
+  # Once off, an exporter somebody else turns on is foreign again.
+  node -e 'const f=process.argv[1],c=JSON.parse(require("fs").readFileSync(f));c.diagnostics.otel.enabled=true;require("fs").writeFileSync(f,JSON.stringify(c))' "$config"
+  refute sandbox_script openclaw-stage off
+}
+
 router_bridge_daemon_forwards_events() {
   [[ "$(uname -s)" == Linux ]] || { echo "# skipped: needs /proc"; return 0; }
   command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
@@ -1569,5 +1693,9 @@ run_case 'Router bridge: external endpoint, and switching back from the managed 
 run_case 'Router disable --clean removes the bridge store and checkpoint' router_bridge_clean_removes_its_store
 run_case 'Router bridge problems are caught before the Router is changed' router_bridge_preflight_fails_before_any_change
 run_case 'Router bridge tailer resumes per batch, replays for a new sink, and fails on an unwritable checkpoint' router_bridge_tailer_resumes_without_duplicates
+run_case 'Router bridge sinks ignore replayed spans and keep an explicit endpoint path' router_bridge_sinks_are_idempotent_and_keep_paths
+run_case 'A failed Router bridge start rolls back the config, state and a new Jaeger' router_bridge_start_failure_rolls_back
+run_case 'Harness show and disable follow the recorded owner even when the selected harness is unsupported' harness_show_and_disable_follow_the_recorded_owner
+run_case 'OpenShell OpenClaw keeps ownership of the exporter until the disable is applied' openshell_openclaw_stage_off_keeps_ownership_until_applied
 run_case 'Router bridge daemon forwards events into the sqlite store and stops cleanly' router_bridge_daemon_forwards_events
 finish_tests

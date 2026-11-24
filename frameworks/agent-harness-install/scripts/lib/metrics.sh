@@ -434,9 +434,20 @@ metrics_harness_store() {
   esac
 }
 
-# Sets M_AGENT; on failure sets M_SKIP_REASON and returns 1.
+# Sets M_AGENT; on failure sets M_SKIP_REASON and returns 1. For show and disable the
+# agent whose exporter this installer enabled is used, whichever agent is selected now.
 metrics_harness_check() {
+  local verb="${1:-}" owner=""
   M_SKIP_REASON=""
+  if [[ "$verb" == show || "$verb" == disable ]]; then
+    owner="$(metrics_harness_owner)"
+    case "$owner" in
+      hermes | openclaw)
+        M_AGENT="$owner"
+        if metrics_openshell; then HARNESS_AGENT="$owner"; fi
+        return 0 ;;
+    esac
+  fi
   if metrics_openshell; then
     # Whether the sandbox exists is checked by the verbs: disable and show must
     # still work when it is gone.
@@ -1269,7 +1280,7 @@ metrics_show_harness_receiver() {
 metrics_show_harness() {
   local home store enabled backend endpoint content size name recorded
   printf '\n%sHarness telemetry%s\n' "$C_BOLD" "$C_RESET"
-  if ! metrics_harness_check; then
+  if ! metrics_harness_check show; then
     info "Not available: ${M_SKIP_REASON}."
     return 0
   fi
@@ -1629,7 +1640,11 @@ metrics_router_apply() {
 }
 
 metrics_enable_router() {
-  local prev_managed
+  local prev_managed prev_enabled prev_bridge prev_endpoint prev_content jaeger_existed=false rc=0
+  prev_enabled="$(metrics_state_get router.enabled)"
+  prev_bridge="$(metrics_state_get router.bridge)"
+  prev_endpoint="$(metrics_state_get router.endpoint)"
+  prev_content="$(metrics_state_get router.content)"
   metrics_router_apply true
   ok "Router telemetry enabled: persisted to $(metrics_router_telemetry_file)"
   if [[ -z "${R_BACKEND:-}" ]]; then
@@ -1637,6 +1652,41 @@ metrics_enable_router() {
     return 0
   fi
   prev_managed="$(metrics_state_get router.managed_jaeger)"
+  if metrics_container_exists "$HARNESS_JAEGER_CONTAINER"; then jaeger_existed=true; fi
+  # errexit is off around the subshell so a failure is reported through rc and can be rolled back.
+  set +e
+  ( set -e; metrics_router_start_export "$prev_managed" )
+  rc=$?
+  set -e
+  if (( rc != 0 )); then
+    warn "The Router span export could not be started; reverting the changes made by this command."
+    set +e
+    (
+      set -e
+      metrics_router_bridge_stop
+      if [[ "$R_MANAGED" == true && "$jaeger_existed" != true ]] && ! metrics_jaeger_in_use_by harness; then
+        metrics_remove_jaeger
+      fi
+      metrics_state_set router.bridge "$prev_bridge" router.endpoint "$prev_endpoint" router.content "$prev_content" \
+        router.managed_jaeger "${prev_managed:-false}"
+      if [[ "$prev_enabled" != true ]]; then
+        metrics_router_apply false
+        metrics_router_secure_file
+      fi
+    )
+    set -e
+    exit "$rc"
+  fi
+  if [[ "$R_BACKEND" == jaeger ]]; then
+    info "Router spans (service inference-router) go to ${R_ENDPOINT}; each request is one trace, written after it completes."
+  else
+    info "Router spans are stored in $(metrics_router_store)"
+  fi
+}
+
+# metrics_router_start_export <previous router.managed_jaeger> -- Jaeger (when managed), saved state, then the bridge.
+metrics_router_start_export() {
+  local prev_managed="$1"
   if [[ "$R_MANAGED" == true ]]; then
     metrics_ensure_jaeger
     # Recorded at once so 'observability disable' can clean up if a later step fails.
@@ -1650,11 +1700,6 @@ metrics_enable_router() {
       # Switching away from a Jaeger that was in use.
       metrics_remove_jaeger
     fi
-  fi
-  if [[ "$R_BACKEND" == jaeger ]]; then
-    info "Router spans (service inference-router) go to ${R_ENDPOINT}; each request is one trace, written after it completes."
-  else
-    info "Router spans are stored in $(metrics_router_store)"
   fi
 }
 
@@ -1882,7 +1927,7 @@ run_metrics_command() {
 
   local run_harness=""
   if metrics_wants harness; then
-    if metrics_harness_check; then
+    if metrics_harness_check "$verb"; then
       run_harness=1
     elif [[ "$M_TARGET" == harness ]]; then
       error "${M_SKIP_REASON}."

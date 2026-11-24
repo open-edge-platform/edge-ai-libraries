@@ -40,7 +40,9 @@ done
 
 [[ -f "$ENV_FILE" ]] || die "missing $ENV_FILE (set ENV_FILE or pass --env-file)"
 # shellcheck disable=SC1090
+set -a
 source "$ENV_FILE"
+set +a
 [[ -n "${HARNESS_STATE_DIRNAME:-}" && "$HARNESS_STATE_DIRNAME" != .agent-harness-install ]] \
   || die "refusing to run without an isolated HARNESS_STATE_DIRNAME (would touch the live deployment)"
 [[ -d "${SRC:-}" ]] || die "SRC is not a directory: ${SRC:-unset}"
