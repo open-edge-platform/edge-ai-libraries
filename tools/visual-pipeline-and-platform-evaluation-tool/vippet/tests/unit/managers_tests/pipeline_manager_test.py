@@ -1858,7 +1858,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             )
 
         self.assertIn(
-            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element.",
+            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file.",
             str(ctx.exception),
         )
 
@@ -1890,7 +1890,35 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             self.manager.build_pipeline_command(specs, execution_config, self.job_id)
 
         self.assertIn(
-            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element.",
+            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file.",
+            str(ctx.exception),
+        )
+
+    def test_metadata_mode_file_with_only_broker_publisher_raises(self):
+        """A pipeline whose only gvametapublish targets a broker cannot produce a file."""
+        graph = create_gvametapublish_graph()
+        for node in graph.nodes:
+            if node.type == "gvametapublish":
+                node.data["method"] = "mqtt"
+                node.data["address"] = "broker:1883"
+                node.data["topic"] = "vippet/metadata"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/mqtt-only/variants/cpu",
+                pipeline_name="mqtt-only",
+                pipeline_graph=graph,
+                streams=1,
+            ),
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        with self.assertRaises(ValueError) as ctx:
+            self.manager.build_pipeline_command(specs, execution_config, self.job_id)
+
+        self.assertIn(
+            "gvametapublish element publishing to a file",
             str(ctx.exception),
         )
 
@@ -2334,11 +2362,13 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
         self.assertEqual(multi_variant_count, predefined_count)
 
     @patch("managers.pipeline_manager.PipelineLoader")
-    def test_audio_definitions_are_skipped(self, mock_loader_cls):
-        """Audio definitions have no graph and must not be loaded as pipelines."""
+    def test_audio_unknown_and_empty_definitions_are_skipped(self, mock_loader_cls):
+        """Only supported graph definitions belong in this registry."""
         configs = {
             "config_0.yaml": MOCK_PIPELINE_CONFIGS[0],
             "config_1.yaml": {"name": "Speech to Text", "type": "audio"},
+            "config_2.yaml": {"type": "unknown", "variants": "invalid"},
+            "config_3.yaml": None,
         }
         mock_loader_cls.list.return_value = list(configs)
         mock_loader_cls.config.side_effect = configs.__getitem__

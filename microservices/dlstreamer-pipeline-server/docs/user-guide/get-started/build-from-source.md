@@ -20,7 +20,7 @@ Geti-specific model download and inference features are unavailable in these ima
 1. Clone the Edge-AI-Libraries repository from open edge platform and change to the docker directory inside DL Streamer Pipeline Server project:
 
     ```sh
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.3.0
     cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/
     ```
 

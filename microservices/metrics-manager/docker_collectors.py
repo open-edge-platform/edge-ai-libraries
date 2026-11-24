@@ -45,6 +45,10 @@ def log(level: str, message: str) -> None:
 
 
 def validate_environment(environment: Mapping[str, str]) -> dict[str, bool]:
+    if environment.get("TELEGRAF_EXPIRATION_INTERVAL", "60s") == "":
+        raise ConfigurationError(
+            "TELEGRAF_EXPIRATION_INTERVAL must not be empty; use 0 to disable expiration"
+        )
     ports = []
     for key, default in (
         ("METRICS_PORT", "9090"),

@@ -14,7 +14,6 @@ from internal_types import InternalPipelineType
 from utils import load_thumbnail_as_base64, slugify_text
 
 AUDIO_PIPELINES_DIR = Path(__file__).resolve().parent.parent / "pipelines"
-OTHER_PIPELINE_TYPES = {pipeline_type.value for pipeline_type in InternalPipelineType}
 PIPELINE_FIELDS = {
     "name",
     "definition",
@@ -99,11 +98,7 @@ class AudioPipelineManager:
             ) from exc
         if not isinstance(config, dict):
             raise ValueError(f"Audio pipeline '{config_path.name}' must be a mapping")
-        # Vision and time-series definitions share this directory.
-        if (
-            config.get("type", InternalPipelineType.VISION.value)
-            in OTHER_PIPELINE_TYPES
-        ):
+        if config.get("type") != InternalPipelineType.AUDIO.value:
             return None
         unknown_fields = set(config) - PIPELINE_FIELDS
         if unknown_fields:
@@ -119,8 +114,6 @@ class AudioPipelineManager:
         description = config.get("definition", "")
         if not isinstance(description, str):
             raise ValueError(f"Audio pipeline '{pipeline_id}' definition must be text")
-        if config.get("type") != "audio":
-            raise ValueError(f"Audio pipeline '{pipeline_id}' type must be 'audio'")
         try:
             operation = AudioPipelineOperation(config.get("operation"))
         except ValueError as exc:
@@ -153,7 +146,7 @@ class AudioPipelineManager:
             id=pipeline_id,
             name=name,
             description=description.strip(),
-            type="audio",
+            type=InternalPipelineType.AUDIO.value,
             operation=operation,
             tags=[tag.strip() for tag in tags],
             thumbnail=thumbnail,

@@ -91,9 +91,22 @@
             >
               {{ $t("console.upload") }}
             </a-button>
-            <a-button danger size="small" @click="handleDelete(record.name)">
-              {{ $t("common.delete") }}
-            </a-button>
+            <a-tooltip
+              :title="
+                isIndexingLibrary(record)
+                  ? $t('console.libraryIndexingDeleteHint')
+                  : undefined
+              "
+            >
+              <a-button
+                danger
+                size="small"
+                :disabled="loading || isIndexingLibrary(record)"
+                @click="handleDelete(record.name)"
+              >
+                {{ $t("common.delete") }}
+              </a-button>
+            </a-tooltip>
           </a-space>
         </template>
       </template>
@@ -112,9 +125,14 @@ import {
 } from "@ant-design/icons-vue";
 import { requestAssetLibraryDelete } from "@/api/console";
 import type { Library } from "@/api/console/type";
+import { getSourceDisplayStatus } from "../../canvas/ResourceModel";
 import getTableColumns from "../ColumnsList";
 import ConsoleTable from "../../../components/ConsoleTable.vue";
-const props = defineProps<{ tableData: Library[]; selectedLibrary?: string }>();
+const props = defineProps<{
+  tableData: Library[];
+  selectedLibrary?: string;
+  loading?: boolean;
+}>();
 const emit = defineEmits<{
   create: [];
   select: [name: string];
@@ -137,7 +155,15 @@ const tableList = computed(() =>
       .includes(searchName.value.toLowerCase()),
   ),
 );
+const isIndexingLibrary = (library: Library) =>
+  library.asset_pools.some((pool) => pool.display_status === "indexing") ||
+  library.sources.some(
+    (source) => getSourceDisplayStatus(library, source) === "indexing",
+  );
 const handleDelete = (name: string) => {
+  if (props.loading) return;
+  const library = props.tableData.find((item) => item.name === name);
+  if (!library || isIndexingLibrary(library)) return;
   Modal.confirm({
     title: t("common.delete"),
     content: t("console.deleteLibrary", { name }),
@@ -145,6 +171,8 @@ const handleDelete = (name: string) => {
     cancelText: t("common.cancel"),
     okType: "danger",
     async onOk() {
+      const current = props.tableData.find((item) => item.name === name);
+      if (!current || isIndexingLibrary(current)) return;
       await requestAssetLibraryDelete(name);
       emit("deleted", name);
       emit("search");

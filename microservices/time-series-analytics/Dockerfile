@@ -35,6 +35,7 @@ RUN apt-get update && \
         curl libcurl4t64 \
         libglib2.0-0t64 \
         sed && \
+    apt-get install -y --no-install-recommends --only-upgrade zlib1g libc-bin libc6 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -164,7 +165,6 @@ RUN rm -rf /var/lib/apt/lists/* \
            /var/tmp/* \
            /root/.cache/pip \
            /timeseries_user/.cache/pip || true
-
 
 RUN chown -R $TIMESERIES_USER_NAME:$TIMESERIES_USER_NAME /app
 

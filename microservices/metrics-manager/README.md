@@ -153,7 +153,7 @@ with an explicitly selected RC image:
 
 ```bash
 helm install metrics-manager ./helm/metrics-manager \
-  --set image.tag=2026.3.0-rc1 \
+  --set image.tag=2026.3.0-rc2 \
   --namespace observability --create-namespace
 ```
 
@@ -214,7 +214,7 @@ through Compose.
 docker compose build metrics-manager
 
 # Override on the command line
-TAG=2026.3.0-rc1 docker compose build metrics-manager
+TAG=2026.3.0-rc2 docker compose build metrics-manager
 
 # Build and run in one step
 docker compose up --build -d
@@ -227,10 +227,10 @@ two variants with distinct tags so that one does not overwrite the other:
 
 ```bash
 # Default: telemetry collectors and API, without OpenVINO or media VA drivers
-make build REGISTRY=intel/ TAG=2026.3.0-rc1 INSTALL_OPENVINO=false
+make build REGISTRY=intel/ TAG=2026.3.0-rc2 INSTALL_OPENVINO=false
 
 # Extended: the same collectors/API plus OpenVINO GPU/NPU runtimes and VAAPI tools
-make build REGISTRY=intel/ TAG=2026.3.0-extended-rc1 INSTALL_OPENVINO=true
+make build REGISTRY=intel/ TAG=2026.3.0-extended-rc2 INSTALL_OPENVINO=true
 ```
 
 The extended image includes checksum-pinned Intel OpenCL/Level Zero GPU and NPU
@@ -253,7 +253,7 @@ To run a locally built RC with Compose, use its matching tag and
 `--no-build` (choose one deployment variant as described above):
 
 ```bash
-REGISTRY=intel/ TAG=2026.3.0-rc1 docker compose up --no-build -d metrics-manager
+REGISTRY=intel/ TAG=2026.3.0-rc2 docker compose up --no-build -d metrics-manager
 ```
 
 After validation and authorization to publish, push each explicit tag;
@@ -263,8 +263,8 @@ The [release validation scope](./docs/user-guide/get-started/testing.md#release-
 distinguishes functional checks from real-hardware validation.
 
 ```bash
-docker push intel/metrics-manager:2026.3.0-rc1
-docker push intel/metrics-manager:2026.3.0-extended-rc1
+docker push intel/metrics-manager:2026.3.0-rc2
+docker push intel/metrics-manager:2026.3.0-extended-rc2
 ```
 
 ### Releasing a new version

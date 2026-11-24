@@ -44,7 +44,7 @@
 {{- fail "global.devices.ovms.llm.key is required when LLM device is GPU, NPU, or HETERO" -}}
 {{- end -}}
 {{- /* --- 4. HARDWARE FLAGS: drive conditional sections (image tag, device mounts, resources) --- */ -}}
-{{- /* ovmsNeedsGpu -> GPU image tag, /dev/dri mount | ovmsNeedsNpu -> /dev/accel mount */ -}}
+{{- /* ovmsNeedsAccelerator -> GPU image tag (carries GPU+NPU runtimes) | ovmsNeedsGpu -> /dev/dri mount | ovmsNeedsNpu -> /dev/accel mount */ -}}
 {{- $ovmsNeedsAccelerator := or (contains "GPU" $ovmsVlmDevice) (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsVlmDevice) (contains "NPU" $ovmsLlmDevice) -}}
 {{- $ovmsNeedsGpu := or (contains "GPU" $ovmsVlmDevice) (contains "GPU" $ovmsLlmDevice) -}}
 {{- $ovmsNeedsNpu := or (contains "NPU" $ovmsVlmDevice) (contains "NPU" $ovmsLlmDevice) -}}
@@ -58,6 +58,17 @@
 {{- $llmDeviceDir := regexReplaceAll "[^A-Za-z0-9._-]+" (lower $ovmsLlmDevice) "_" -}}
 {{- $vlmBasePath := printf "ovms/openvino_models/%s/%s/%s" $vlmDeviceDir (lower $ovmsVlmWeightFormat) .Values.global.vlmName -}}
 {{- $llmBasePath := printf "ovms/openvino_models/%s/%s/%s" $llmDeviceDir (lower $ovmsLlmWeightFormat) $effectiveOvmLlmModel -}}
+{{- /* --- 6c. MODEL READINESS CHECK: /v2/health/ready stays 200 even when a servable fails to
+       load, so startup/readiness probe each configured model instead. --- */ -}}
+{{- $readyModels := list $vlmStorageName -}}
+{{- if $ovmsSplitModel -}}
+{{- $readyModels = append $readyModels $llmStorageName -}}
+{{- end -}}
+{{- $readyChecks := list -}}
+{{- range $readyModels -}}
+{{- $readyChecks = append $readyChecks (printf "curl --noproxy '*' -fsS -o /dev/null --max-time 8 http://localhost:%v/v2/models/%s/ready" $.Values.ovms.containerPort (urlquery .)) -}}
+{{- end -}}
+{{- $modelReadyCommand := join " && " $readyChecks -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -239,18 +250,23 @@ spec:
               mountPath: /opt/models
               subPath: ov-models/models
       # --- 8. OVMS CONTAINER ---
-      # Uses the GPU-tagged image when any device targets GPU; otherwise the default CPU image.
+      # Uses the GPU-tagged image when any device targets GPU or NPU (the CPU image lacks the
+      # NPU runtime and fails with "Unsupported platform: 'AUTO_DETECT'"); otherwise the CPU image.
       # Mounts the same workspace volume (with exported models) and starts OVMS pointing at config.json.
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{- if $ovmsNeedsGpu -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.Gputag }} {{- else -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }} {{- end -}}"
+          image: "{{- if $ovmsNeedsAccelerator -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.Gputag }} {{- else -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }} {{- end -}}"
           imagePullPolicy: {{ .Values.ovms.image.pullPolicy }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe:
-            {{- toYaml .Values.readinessProbe | nindent 12 }}
+            exec:
+              command: ["sh", "-c", {{ $modelReadyCommand | quote }}]
+            {{- toYaml (omit .Values.readinessProbe "httpGet" "tcpSocket" "exec") | nindent 12 }}
           startupProbe:
-            {{- toYaml .Values.startupProbe | nindent 12 }}
+            exec:
+              command: ["sh", "-c", {{ $modelReadyCommand | quote }}]
+            {{- toYaml (omit .Values.startupProbe "httpGet" "tcpSocket" "exec") | nindent 12 }}
           ports:
             - containerPort: {{ .Values.ovms.containerPort }}
               name: {{ .Values.ovms.containerPortName }}
