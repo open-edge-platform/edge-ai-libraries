@@ -8,7 +8,7 @@ This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.
 
 **New**
 
-- **Pipeline status APIs**: added endpoints to stop a running UDF task and check its status without shutting down Kapacitor.
+- **Pipeline status APIs**: added endpoints to check the configured UDF task's status and stop analytics. Stopping analytics shuts down Kapacitor and verifies it has stopped, while keeping the API and UDF configuration available.
 
 **Improved**
 
@@ -16,6 +16,8 @@ This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.
 - **Smaller Containerized image**: Removed not used dependencies and simplified driver installation.
 - **Dependencies**: updated Python runtime, test, and simulator dependencies, including FastAPI, scikit-learn, asyncua, and protobuf.
 - **Deployment images**: updated Docker image versions to 2026.3.0 and refreshed the Python base image.
+- **Ubuntu 26.04 GPU support**: configured Docker Compose to grant the container access to GPU render devices on Ubuntu 26.04 hosts.
+- **Security**: updated the Go toolchain and Kapacitor dependencies, including Go Crypto, Go Net, Go JOSE, Klaus Post Compress, and the OpenTelemetry SDK. Also upgraded the container's `zlib1g`, `libc-bin`, and `libc6` packages to address security scan findings.
 - **Validation**: added shell linting to CI and corrected ShellCheck findings in startup scripts.
 - **Documentation**: improved component cross-links, standardized admonitions, and updated release documentation.
 
@@ -24,6 +26,7 @@ This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.
 - **Configuration API**: corrected the restart field to use a non-nullable boolean in the API and OpenAPI schema.
 - **Swagger UI**: fixed the display of the optional restart parameter.
 - **Classifier startup**: resolved CodeQL findings in startup handling.
+- **Temperature simulator**: added an HTTP request timeout so an unresponsive endpoint cannot block the simulator indefinitely.
 
 **Removed**
 
