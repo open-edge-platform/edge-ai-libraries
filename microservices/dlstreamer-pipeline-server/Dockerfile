@@ -43,9 +43,8 @@ ENV VIRTUAL_ENV=/python3venv
 ENV PATH=$VIRTUAL_ENV/bin:$PATH
 ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages
 
-RUN apt-get update && apt-get install -y --no-install-recommends wget && \
-    wget -qO- https://cmake.org/files/v3.15/cmake-3.15.0-Linux-x86_64.tar.gz | \
-    tar --strip-components=1 -xz -C /usr/local
+RUN apt-get update && apt-get install -y --no-install-recommends cmake && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ARG CMAKE_INSTALL_PREFIX
 ARG UTILS_LIB_VERSION
