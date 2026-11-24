@@ -28,7 +28,11 @@ class TestJobIdPathValidation:
 
         response = client.get("/optimize/result/etc%2Fpasswd")
 
-        assert response.status_code == 422
+        # ASGI routing decodes %2F into a literal '/' before route matching,
+        # turning this into extra path segments rather than a single job_id ->
+        # 404/405 (no matching route) instead of 422 (pattern rejected). Either
+        # way the value never reaches the handler as a job_id.
+        assert response.status_code in (404, 405, 422)
 
     def test_accepts_well_formed_uuid_and_reaches_handler(self):
         client = _client()

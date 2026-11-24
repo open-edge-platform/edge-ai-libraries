@@ -379,22 +379,25 @@ jobs:
         make coverage IMAGE=intel/dlstreamer-pipeline-server-2.0:${{ github.sha }}-${{ matrix.ubuntu_version }} | tee /tmp/pytest_output-dlsps2-${{ matrix.ubuntu_version }}.txt
 
     - name: Create Unit Test Summary
+      if: always()
       run: |
         pytest_output=$(cat /tmp/pytest_output-dlsps2-${{ matrix.ubuntu_version }}.txt)
-        summary_line=$(echo "$pytest_output" | grep -E '==+ .* in .*s ==+')
+        summary_line=$(echo "$pytest_output" | grep -E '[0-9]+ (passed|failed|error)' | tail -1 || true)
         echo "### DLSPS-2.0 Unit Test Completed for commit id ${{ github.sha }} (${{ matrix.ubuntu_version }})" >> $GITHUB_STEP_SUMMARY
         echo "### Pytest Summary" >> "$GITHUB_STEP_SUMMARY"
         echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
-        echo "$summary_line" >> "$GITHUB_STEP_SUMMARY"
+        echo "${summary_line:-no summary line found in pytest output}" >> "$GITHUB_STEP_SUMMARY"
         echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Upload unit test results to Github
+      if: always()
       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: DLSPS2_Coverage-reports-${{ matrix.ubuntu_version }}
         path: /tmp/htmlcov-dlsps2
 
     - name: Scan Docker extended image with Trivy
+      if: always()
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@dca07fa1cdf8ed3eaf8f318f3d905fd12cef3b41 #v0.74.0
       with:
         scan_target: "intel/dlstreamer-pipeline-server-2.0:${{ github.sha }}-${{ matrix.ubuntu_version }}"
