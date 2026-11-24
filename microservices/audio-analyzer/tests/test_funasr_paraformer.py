@@ -1,15 +1,43 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for the optional FunASR Paraformer provider (Chinese/English ASR).
+"""Tests for the FunASR Paraformer provider (Chinese/English ASR).
 
-These assert the provider is genuinely opt-in: the module imports cleanly
-without ``funasr`` installed, and the instantiation guards raise actionable
-errors. This protects existing Whisper/OpenVINO consumers.
+The provider also supports images built without ``funasr``: the module imports
+cleanly and the instantiation guard raises an actionable error.
 """
 import sys
 import types
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import yaml
+
+
+class FunASRBuildDefaultsTests(unittest.TestCase):
+    def test_dockerfile_and_compose_enable_funasr_by_default(self):
+        root = Path(__file__).resolve().parents[1]
+        dockerfile = (root / "docker/Dockerfile").read_text(encoding="utf-8")
+        compose = yaml.safe_load((root / "docker-compose.yml").read_text(encoding="utf-8"))
+
+        self.assertIn('ARG INSTALL_CJK="true"', dockerfile.splitlines())
+        self.assertEqual(
+            compose["services"]["audio-analyzer"]["build"]["args"]["INSTALL_CJK"],
+            "${INSTALL_CJK:-true}",
+        )
+
+    def test_cjk_requirements_are_pinned_and_constrained(self):
+        root = Path(__file__).resolve().parents[1]
+        dockerfile = (root / "docker/Dockerfile").read_text(encoding="utf-8")
+        requirements = [line.strip() for line in (root / "requirements-cjk.txt").read_text(
+            encoding="utf-8"
+        ).splitlines() if line.strip() and not line.lstrip().startswith("#")]
+        constraints = set((root / "requirements-lock.txt").read_text(encoding="utf-8").splitlines())
+
+        self.assertIn("install -r requirements-cjk.txt -c requirements-lock.txt", dockerfile)
+        for requirement in requirements:
+            self.assertRegex(requirement, r"^[A-Za-z0-9._-]+==[^=<>!~\s]+$")
+            self.assertIn(requirement, constraints)
 
 
 class ParaformerProviderTests(unittest.TestCase):
@@ -106,9 +134,7 @@ class ParaformerProviderTests(unittest.TestCase):
     def test_valid_model_without_funasr_raises_runtime_error(self):
         import components.asr.funasr.paraformer as pf
 
-        if "funasr" in sys.modules:
-            self.skipTest("funasr is installed; opt-in guard not exercised")
-        with self.assertRaises(RuntimeError) as ctx:
+        with patch.dict(sys.modules, {"funasr": None}), self.assertRaises(RuntimeError) as ctx:
             pf.Paraformer("paraformer-zh")
         self.assertIn("requirements-cjk.txt", str(ctx.exception))
 
