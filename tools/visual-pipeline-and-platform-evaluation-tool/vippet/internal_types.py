@@ -38,10 +38,12 @@ class InternalPipelineType(str, Enum):
     Values:
         VISION: Pipeline processes video/image data using GStreamer and DLStreamer.
         TIME_SERIES: Pipeline processes time-series data using the Time Series Analytics Microservice.
+        AUDIO: Pipeline performs speech-to-text or text-to-speech conversion.
     """
 
     VISION = "vision"
     TIME_SERIES = "time_series"
+    AUDIO = "audio"
 
 
 class InternalAppStatus(str, Enum):
