@@ -1,5 +1,10 @@
 # Deploy Time Series Analytics Microservice
 
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 This guide describes how to build, start, and stop the Time Series Analytics Microservice (TSAM)
 as part of the ViPPET stack, and how to configure it with a sample Wind Turbine anomaly
 detection UDF.
@@ -42,6 +47,8 @@ make run-experimental
 
 This command enables the Time Series flow by layering `compose.experimental.yml` on top of the standard
 compose stack, including `ia-time-series-analytics-microservice` and `ia-timeseries-ingestion`.
+By default, Compose uses the published `intel/ia-time-series-analytics-microservice:2026.3.0-rc2`
+image and tags the locally built ingestion image as `intel/ia-timeseries-ingestion:2026.3.0-rc2`.
 
 ### Verify that Time Series services are active
 
