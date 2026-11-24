@@ -18,7 +18,7 @@ Multi-vs-03,VLM Model Serving Deployment,Deploy and verify Vision-Language Model
 ,,,2. Check container status: docker ps,,,,
 ,,,"3. Curl with multimodal requests:
 curl http://<model-serving-ip-address>:41091/v1/chat/completions -XPOST -H ""Content-Type: application/json"" -d '{
-    ""model"": ""Qwen/Qwen3.5-35B-A3B"",
+    ""model"": ""Qwen/Qwen3.6-35B-A3B"",
     ""messages"": [
       {
         ""role"": ""user"",
@@ -42,7 +42,7 @@ Multi-vs-04,LLM Model Serving Deployment,Deploy and verify Large-Language Model 
 ,,,2. Check container status: docker ps,,,,
 ,,,"3. Curl with pure language requests:
 curl http://<model-serving-ip-address>:41091/v1/chat/completions -XPOST -H ""Content-Type: application/json"" -d '{
-    ""model"": ""Qwen/Qwen3.5-35B-A3B"",
+    ""model"": ""Qwen/Qwen3.6-35B-A3B"",
     ""messages"": [
       {
         ""role"": ""user"",

@@ -78,7 +78,7 @@ The following models are validated by the service:
 
 | Model ID             | Description                          | Parameters              | HF link   |
 | -------------------- | ------------------------------------ | ----------------------- | --------- |
-| Qwen/Qwen3.5-35B-A3B | Multimodal (serves VLM + LLM roles)  | ~35B total / ~3B active | [link](https://huggingface.co/Qwen/Qwen3.5-35B-A3B) |
+| Qwen/Qwen3.6-35B-A3B | Multimodal (serves VLM + LLM roles)  | ~35B total / ~3B active | [link](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) |
 
 The on-device deployment defaults to a single `Qwen/Qwen3.6-35B-A3B` endpoint for both the VLM and LLM roles. This default is separate from the validated-model record above. Any OpenAI-compatible serving is supported, so separate VLM and LLM models can still be configured via `VLM_BASE_URL` / `LLM_BASE_URL`.
 
