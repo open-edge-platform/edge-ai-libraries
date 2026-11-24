@@ -39,6 +39,11 @@ retrieve: query -> document fusion or media search -> optional reranking -> chun
   `curl` script so an external agent can query the engine and answer from the
   returned chunks.
 
+## Release Notes and system requirements
+
+- [Release Notes](docs/user-guide/release-notes.md)
+- [System Requirements](docs/user-guide/system-requirements.md)
+
 ## Quick Start
 
 This is the minimal path to a running engine and a first retrieval; the
@@ -80,7 +85,8 @@ bge-reranker-large, PP-DocLayoutV3, ViCLIP-B, Whisper and the Qwen3-VL INT8
 media reranker), starts Milvus and the engine, and registers Milvus as
 `local-milvus`. Later runs just start the services. The script also takes
 `--models "LIST"` to prepare other models, `--build` to rebuild the image,
-`--gpu` to run embedding and reranking on an Intel GPU, and `--down` to stop and
+`--cpu` to run every model on the CPU instead of the Intel GPU (the default; a
+host without `/dev/dri` falls back to the CPU), and `--down` to stop and
 remove the services while keeping the data and models; run it with `--help` for
 details. Host-specific settings go in `deployment/docker/.env`, which the script
 writes on the first run; a value exported in the shell, such as `ENGINE_PORT`,

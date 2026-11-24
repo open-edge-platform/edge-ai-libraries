@@ -180,10 +180,8 @@ class ClassifierRegistry:
 
         packaged = packaged_default.parent / f"{version}.rcv"
         artifact = artifacts_dir(self._env) / model / f"{version}.rcv"
-        if packaged.is_file() and artifact.is_file():
-            raise ClassifierRegistryError(
-                f"Version collision for {model}/{version}: both {packaged} and {artifact} exist"
-            )
+        # The artifacts copy wins: deployments seed the packaged versions there
+        # (scripts/deploy_docker.sh), so the same version is in both places.
         if artifact.is_file():
             return _VersionSource(version, artifact, "artifacts")
         if packaged.is_file():
@@ -343,9 +341,9 @@ class ClassifierRegistry:
 
         For display: files are read (format and file-name checks only, no
         backbone), a version already serving is not read again, and a file
-        that cannot be used -- unreadable, a metadata version that does not
-        match its name, the same version in both places -- is listed with an
-        ``error`` instead of failing the listing.
+        that cannot be used -- unreadable, or a metadata version that does not
+        match its name -- is listed with an ``error`` instead of failing the
+        listing. A version in both places is listed once, from the artifacts.
 
         Raises:
             ClassifierNotFoundError: Unknown model.
@@ -368,18 +366,8 @@ class ClassifierRegistry:
             published = dict(self._info)
         listings = []
         for version in sorted(found, key=lambda v: int(v[1:])):
-            places = found[version]
             loaded = (model, version) in published
-            if len(places) > 1:
-                paths = " and ".join(str(path) for _, path in places)
-                listings.append(
-                    VersionListing(
-                        version, places[0][0], None, loaded,
-                        f"Version collision for {model}/{version}: both {paths} exist",
-                    )
-                )
-                continue
-            origin, path = places[0]
+            origin, path = found[version][-1]  # artifacts over package, as in _source
             if loaded:
                 bundle = published[(model, version)].classifier.bundle
                 listings.append(VersionListing(version, origin, bundle, True))

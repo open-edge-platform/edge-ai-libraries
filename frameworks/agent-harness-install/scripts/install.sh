@@ -37,6 +37,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 . "${SCRIPT_DIR}/scripts/lib/agents.sh"
 # shellcheck source=lib/harness-mcp.sh
 . "${SCRIPT_DIR}/scripts/lib/harness-mcp.sh"
+# shellcheck source=lib/metrics.sh
+. "${SCRIPT_DIR}/scripts/lib/metrics.sh"
 # shellcheck source=lib/openshell.sh
 . "${SCRIPT_DIR}/scripts/lib/openshell.sh"
 
@@ -54,6 +56,7 @@ usage() {
     ./install.sh models <list|remove> [name]     List or delete exported OpenVINO models
     ./install.sh mcp register <name> <url> [agent]  Register an arbitrary MCP endpoint URL
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
+    ./install.sh observability <enable|disable|show> [options]  Manage telemetry for the harness and the Inference Router
     ./install.sh status                          Show agent-harness-install/OVMS/agent health
     ./install.sh onboard                         Re-run onboarding only
     ./install.sh inference --model <model>        Provision shared inference without installing an agent
@@ -84,6 +87,18 @@ usage() {
     --model-device <CPU|GPU|NPU|HETERO:…>    Conversion target device (model-download exporter; default: CPU)
     --help, -h                        Show this help message and exit
 
+  Observability options (./install.sh observability ...):
+    --backend <sqlite|jaeger>          enable only; where the harness (Hermes + hermes-otel) sends telemetry. sqlite = local store
+                                       only (default); jaeger = managed loopback Jaeger container, or your own Jaeger at --endpoint
+    --endpoint <url>                   enable only; OTLP/HTTP traces URL of an existing Jaeger, e.g. http://host:4318/v1/traces
+    --content <off|preview|full>       enable only; how much prompt/response text the plugin records (default: off)
+    --clean                            disable only; also delete the collected data (Router telemetry.jsonl, Hermes local store,
+                                       and the managed Jaeger with its traces)
+    --keep-jaeger                      disable only; keep the managed Jaeger container (and its traces) running
+    show prints a CLI summary (Router requests/tokens/latency per model; Hermes local-store span summary) and the Jaeger UI
+    URL when Jaeger is the backend; Jaeger gives the full trace view.
+    Router telemetry is persisted as a JSONL file and readable via /v1/metrics. Hermes only; not available in OpenShell sandboxes.
+
   Environment:
     HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)
     HARNESS_RUNTIME             host (default) | openshell
@@ -91,6 +106,8 @@ usage() {
     HERMES_INSTALL_URL            Custom Hermes installer URL (default: scripts/install.sh at a pinned hermes-agent commit, checksum built in)
     HERMES_INSTALL_SHA256         Expected SHA-256 of the Hermes installer (required with HERMES_INSTALL_URL unless HERMES_ALLOW_UNVERIFIED_INSTALL=1)
     HERMES_ALLOW_UNVERIFIED_INSTALL  Run a custom Hermes installer without a pinned checksum (not recommended)
+    HERMES_PINNED_COMMIT, HERMES_PINNED_SHA256  Install another hermes-agent release: its full commit SHA and the SHA-256 of scripts/install.sh
+                                  at that commit (set both together; default: the release this installer was validated with)
     DCODE_INSTALL_URL             Custom dcode installer URL (default: libs/code/scripts/install.sh at a pinned deepagents commit, checksum built in)
     DCODE_INSTALL_SHA256          Expected SHA-256 of the dcode installer (required with DCODE_INSTALL_URL unless HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1)
     HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL  Run a custom dcode installer without a pinned checksum (not recommended)
@@ -108,7 +125,7 @@ usage() {
     HARNESS_OVMS_EXPORT_IMAGE     OVMS "-py" image used by the docker-pull exporter to convert non-OpenVINO/* models (default: openvino/model_server:2026.1-py)
     HARNESS_BACKEND_NETWORK      Docker network joining OVMS + the Inference Router so they can reach each other by name (default: agent-harness-install-backend)
     MIN_NODE_VERSION
-    HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser <parser>)
+    HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --log_level DEBUG); not for per-model options such as --tool_parser
     HARNESS_OVMS_EXPORTER         docker-pull (default) | export-model-py | model-download | hf-snapshot (see Known limitations)
     HARNESS_HF_MODEL_REVISION     Pin an exact HF revision (commit/tag/branch) for the hf-snapshot exporter
     HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt (export-model-py exporter only)
@@ -132,6 +149,11 @@ usage() {
     HARNESS_IR_PROVIDER_TYPE       LiteLLM provider-type prefix for the Router's provider entry (default: hosted_vllm)
     HARNESS_IR_ROUTING_POLICY      Balanced (default, only supported value today) | Intelligent — see Known limitations (Intelligent needs a classifier model this installer does not yet provision)
     HERMES_CONFIG                  Path to Hermes's config.yaml (default: ~/.hermes/config.yaml)
+    HARNESS_HERMES_OTEL_PLUGIN     Plugin reference for 'hermes plugins install' (default: hermes_otel, the commit pinned in Hermes's plugin catalog)
+    HARNESS_HERMES_OTEL_REF        Pin the plugin install to this full 40-character commit SHA ('--ref'; default: unset)
+    HARNESS_IR_TELEMETRY_MAX_BYTES  Rotate the Router's telemetry.jsonl to telemetry.jsonl.1 at install/enable above this size (default: 20971520; 0 = never)
+    HARNESS_IR_TELEMETRY_FILE_MODE  664 (default; Router joins your primary group) | 666 (world-writable; for rootless Docker or a Router created without your group)
+    HARNESS_JAEGER_IMAGE, HARNESS_JAEGER_CONTAINER, HARNESS_JAEGER_UI_PORT, HARNESS_JAEGER_OTLP_PORT  Managed Jaeger for 'observability enable --backend jaeger' (default: jaegertracing/all-in-one:1.76.0, 16686, 4318; loopback only)
     HARNESS_MCP_REGISTER_CMD       Script to register an MCP endpoint with a non-Hermes agent
     HARNESS_ADVERTISED_HOST       Host/IP printed in endpoint URLs (default: 127.0.0.1)
     HARNESS_BIND_HOST             Address Docker binds published ports to (default: same as HARNESS_ADVERTISED_HOST)
@@ -487,6 +509,12 @@ main() {
   export HARNESS_MODEL_PRECISION HARNESS_MODEL_DEVICE HARNESS_MODEL_DOWNLOAD_REVISION HARNESS_HF_MODEL_REVISION
   apply_model_source_defaults
 
+  # A half or malformed Hermes pin override must fail here, before prerequisite
+  # setup or ensure_inference_backend can touch an existing deployment.
+  case "${positional[0]:-}" in
+    "" | inference | onboard) validate_hermes_pin ;;
+  esac
+
   # Group refresh may exec this script again. Do it before opening the
   # deployment lock, so the new process cannot inherit and reacquire that lock.
   case "${positional[0]:-}" in
@@ -495,12 +523,24 @@ main() {
   case "${positional[0]:-}" in
     # Interactive connections must not hold a deployment-wide lock for a chat.
     status | connect) run_installer_command "${positional[@]}" ;;
+    # Read-only: like status, it must work while a long install holds the lock.
+    observability) if [[ "${positional[1]:-}" == show ]]; then
+        run_installer_command "${positional[@]}"
+      else
+        with_deployment_lock run_installer_command "${positional[@]}"
+      fi ;;
     *) with_deployment_lock run_installer_command "${positional[@]}" ;;
   esac
 }
 
 run_installer_command() {
   local -a positional=("$@")
+  # Handled before the OpenShell branch: the Router is shared host infrastructure
+  # and the harness check reports why a sandbox cannot be instrumented.
+  if [[ "${positional[0]:-}" == "observability" ]]; then
+    run_metrics_command "${positional[@]:1}"
+    exit 0
+  fi
   if [[ "${HARNESS_RUNTIME:-host}" == "openshell" ]]; then
     case "${positional[0]:-}" in
       status) status_openshell_agent; exit 0 ;;

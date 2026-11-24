@@ -147,6 +147,31 @@ export const requestAssetPoolAssetsCreate = (
   });
 };
 
+export const requestAssetPoolAssetsDelete = (
+  name: string,
+  poolId: string,
+  data: Object,
+) =>
+  request({
+    url: `/v1/libraries/${name}/asset_pools/${poolId}/assets`,
+    method: "delete",
+    data,
+    showSuccessMsg: true,
+    successMsg: "console.saved",
+  });
+
+export const requestAssetPoolAssetDelete = (
+  name: string,
+  poolId: string,
+  assetId: string,
+) =>
+  request({
+    url: `/v1/libraries/${name}/asset_pools/${poolId}/assets/${assetId}`,
+    method: "delete",
+    showSuccessMsg: true,
+    successMsg: "console.saved",
+  });
+
 export const requestSourceServingUpdate = (
   name: string,
   poolId: string,
@@ -188,6 +213,20 @@ export const requestSourceCreate = (name: string, data: Object) => {
   return request({
     url: `/v1/libraries/${name}/sources`,
     method: "post",
+    data,
+    showSuccessMsg: true,
+    successMsg: "console.saved",
+  });
+};
+
+export const requestSourceDeviceUpdate = (
+  name: string,
+  id: string,
+  data: { embedding_device: string },
+) => {
+  return request({
+    url: `/v1/libraries/${name}/sources/${id}`,
+    method: "patch",
     data,
     showSuccessMsg: true,
     successMsg: "console.saved",

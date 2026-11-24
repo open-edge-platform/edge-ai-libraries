@@ -32,7 +32,7 @@ debian_90_install_real_time_scene_understanding () {
     echo "Live Video Captioning is installed." >&2
   else
     ensure_disk_size 64000
-    ensure_ram_size 16777216 # 16GiB
+    ensure_ram_size 14680064 # 14 GiB
     ensure_ports_open install real_time_scene_understanding "${used_ports[@]}"
 
     # clone the repository

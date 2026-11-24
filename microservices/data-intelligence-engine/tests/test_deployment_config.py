@@ -111,8 +111,8 @@ def test_every_engine_environment_setting_is_forwarded_and_documented():
 def test_every_engine_environment_setting_has_a_compose_default():
     compose = yaml.safe_load((DEPLOYMENT / ENGINE_COMPOSE).read_text(encoding="utf-8"))
     environment = compose["services"]["engine"]["environment"]
-    # ENGINE_PORT is fed by ENGINE_CONTAINER_PORT, the one variable not named after itself.
-    source = {"ENGINE_PORT": "ENGINE_CONTAINER_PORT"}
+    # ENGINE_PORT and ENGINE_WORKSPACE are fed by differently named variables.
+    source = {"ENGINE_PORT": "ENGINE_CONTAINER_PORT", "ENGINE_WORKSPACE": "ENGINE_WORKSPACE_CONTAINER_PATH"}
     # Whisper uses an explicitly empty language for automatic detection. It has
     # a default for unset environments, but must not replace an empty override.
     separator = {"ENGINE_ASR_LANGUAGE": "-"}
@@ -157,16 +157,16 @@ def test_dotenv_runtime_values_override_compose_defaults(compose_config):
 
     assert service["environment"]["ENGINE_DOC_EMBEDDING_MODEL_ID"] == "example/dense"
     assert service["environment"]["ENGINE_RERANK_BACKEND"] == "remote_openai_compatible"
-    assert service["environment"]["ENGINE_LAYOUT_DEVICE"] == "CPU"
+    assert service["environment"]["ENGINE_LAYOUT_DEVICE"] == "GPU"
     assert service["environment"]["ENGINE_UPLOAD_DIR"] == "/workspace/uploads"
     assert service["environment"]["ENGINE_MODEL_ROOT_PATH"] == "/workspace/models"
 
 
 @pytest.mark.parametrize("overrides,expected", [
     ({}, "/workspace/models"),
-    ({"ENGINE_WORKSPACE": "/srv/engine-state"}, "/srv/engine-state/models"),
+    ({"ENGINE_WORKSPACE_CONTAINER_PATH": "/srv/engine-state"}, "/srv/engine-state/models"),
     ({"ENGINE_MODEL_ROOT_PATH": ""}, "/workspace/models"),
-    ({"ENGINE_WORKSPACE": "/srv/engine-state", "ENGINE_MODEL_ROOT_PATH": ""}, "/srv/engine-state/models"),
+    ({"ENGINE_WORKSPACE_CONTAINER_PATH": "/srv/engine-state", "ENGINE_MODEL_ROOT_PATH": ""}, "/srv/engine-state/models"),
     ({"ENGINE_MODEL_ROOT_PATH": "/shared/models"}, "/shared/models"),
 ])
 def test_compose_model_root_follows_workspace_unless_overridden(compose_config, overrides, expected):
@@ -202,7 +202,7 @@ def test_engine_ports_workspace_and_runtime_overrides_are_consistent(compose_con
         ENGINE_COMPOSE,
         ENGINE_PORT="26022",
         ENGINE_CONTAINER_PORT="18022",
-        ENGINE_WORKSPACE="/srv/engine-state",
+        ENGINE_WORKSPACE_CONTAINER_PATH="/srv/engine-state",
         ENGINE_LAYOUT_DEVICE="GPU",
         ENGINE_RERANK_API_BASE="http://reranker.internal",
         ENGINE_RERANK_API_KEY="rerank-key",
@@ -315,7 +315,7 @@ def test_compose_stacks_use_the_configured_shared_network(compose_config, filena
 
 @pytest.mark.parametrize("overrides", [
     {},
-    {"ENGINE_WORKSPACE_PATH": "/srv/state", "ENGINE_WORKSPACE": "/data"},
+    {"ENGINE_WORKSPACE_HOST_PATH": "/srv/state", "ENGINE_WORKSPACE_CONTAINER_PATH": "/data"},
     {"ENGINE_UPLOAD_PATH": "/srv/shared-uploads", "ENGINE_UPLOAD_DIR": "/shared/uploads"},
 ])
 def test_engine_and_extractor_share_the_same_writable_upload_directory(compose_config, overrides):

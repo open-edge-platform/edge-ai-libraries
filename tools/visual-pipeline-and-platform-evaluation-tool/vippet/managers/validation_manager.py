@@ -76,6 +76,7 @@ class ValidationManager:
 
         The method:
 
+        * validates the RTSP URLs of rtspsrc nodes,
         * converts the internal Graph to a pipeline description string,
         * extracts and validates runtime parameters (e.g. ``max-runtime``),
         * creates a new :class:`InternalValidationJob` with RUNNING state,
@@ -93,8 +94,10 @@ class ValidationManager:
         ------
         ValueError
             If user-provided parameters are invalid (e.g. ``max-runtime``
-            is less than 1).
+            is less than 1) or an rtspsrc node has an invalid location.
         """
+        validation_request.pipeline_graph.validate_rtsp_sources()
+
         # Get pipeline description from internal Graph
         pipeline_description = (
             validation_request.pipeline_graph.to_pipeline_description()

@@ -32,7 +32,7 @@ debian_90_install_wind_turbine_anomaly_detection () {
     echo "Wind turbine anomaly detection is installed." >&2
   else
     ensure_disk_size 64000
-    ensure_ram_size 16777216 # 16 GiB
+    ensure_ram_size 14680064 # 14 GiB
     ensure_ports_open install wind_turbine_anomaly_detection "${used_ports[@]}"
 
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series

@@ -2,7 +2,7 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/agent-quality-handler">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/agent-quality-handler">
      GitHub
   </a>
 </div>
@@ -26,9 +26,9 @@ model download. It does not include a UI or Nginx.
 ## Documentation
 
 - [Get Started](./get-started.md)
-- [System Requirements](./get-started/system-requirements.md)
+  - [System Requirements](./get-started/system-requirements.md)
+  - [Build from Source](./get-started/build-from-source.md)
 - [How It Works](./how-it-works.md)
-- [Build from Source](./build-from-source.md)
 - [API Reference](./api-reference.md)
 - [Agent Service Integration Guide](./agent-service-integration-guide.md)
 - [Troubleshooting](./troubleshooting.md)
@@ -38,12 +38,11 @@ model download. It does not include a UI or Nginx.
 :::{toctree}
 :hidden:
 
-get-started
-how-it-works
-Build From Source <build-from-source.md>
-How to Integrate <agent-service-integration-guide.md>
-api-reference
-troubleshooting
+./get-started.md
+./how-it-works.md
+How to Integrate <./agent-service-integration-guide.md>
+./api-reference.md
+./troubleshooting.md
 Release Notes <./release-notes.md>
 
 :::

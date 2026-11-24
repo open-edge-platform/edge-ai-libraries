@@ -205,9 +205,15 @@ class AssetLibrary(ABC, Generic[AssetT]):
         return self.add_source(source) if register else source
 
     def update_source(self, source_id: str, **fields: Any) -> List[str]:
-        """Rename, relabel, or switch a source on or off; returns pools needing a sync."""
+        """Rename, relabel, switch a source on or off, or move its embedding to another device; returns pools needing a sync."""
         changes = updates.check_patch(fields)
         source = self.source_for(source_id)
+        switched: List[str] = []
+        if "embedding_device" in changes:
+            switched = self._switch_embedding_device(
+                source_id, str(changes.pop("embedding_device")).strip()
+            )
+            source = self.source_for(source_id)
         if "enabled" in changes and source.source_type == "object":
             raise updates.SourceRuleError(
                 "A content source cannot be disabled: assets read their bytes "
@@ -246,7 +252,63 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 resync.append(asset_pool.asset_pool_id)
         if switched_off:
             gc.collect()
-        return resync
+        return list(dict.fromkeys([*switched, *resync]))
+
+    def _with_embedding_device(self, source: Source, device: str) -> Optional[Source]:
+        raise updates.SourceRuleError(
+            f"Source {source.name or source.source_id!r} has no embedding device"
+        )
+
+    def _reembeds_on_switch(self, source: Source, updated: Source) -> bool:
+        return True
+
+    def _check_device_switch(self, asset_pool: AssetPool) -> None:
+        pass
+
+    def _switch_embedding_device(self, source_id: str, device: str) -> List[str]:
+        source = self.source_for(source_id)
+        updated = self._with_embedding_device(source, device)
+        if updated is None:
+            return []
+        reembed = self._reembeds_on_switch(source, updated)
+        pools = [
+            pool for pool in self._asset_pools.values()
+            if source_id in pool.source_statuses
+        ]
+        locked: List[threading.RLock] = []
+        try:
+            for pool in pools:
+                lock = self._sync_lock(pool.asset_pool_id)
+                if not lock.acquire(blocking=False):
+                    raise updates.SourceBusyError(
+                        f"Asset pool {pool.asset_pool_id!r} is syncing its sources. Wait until "
+                        "every source of the pool shows ready or failed, then change the "
+                        "embedding device again"
+                    )
+                locked.append(lock)
+                self._check_device_switch(pool)
+            rebuilt = {
+                pool.asset_pool_id: self.build_projection(str(uuid.uuid4()), pool.name, updated)
+                for pool in pools
+                if any(p.source.source_id == source_id for p in pool.projections)
+            }
+            self._sources[source_id] = updated
+            for pool in pools:
+                if pool.asset_pool_id in rebuilt:
+                    pool.replace_projection(rebuilt[pool.asset_pool_id])
+                for kept in (pool.frozen_sources, pool.unavailable_sources):
+                    if source_id in kept:
+                        kept[source_id] = updated
+                if reembed:
+                    pool.source_statuses[source_id].mark_reembed()
+        finally:
+            for lock in locked:
+                lock.release()
+        gc.collect()
+        return [
+            pool_id for pool_id in rebuilt
+            if self._asset_pools[pool_id].source_statuses[source_id].reembed_pending
+        ]
 
     @staticmethod
     def _carry_source_fields(asset_pool: AssetPool, updated: Source) -> None:
@@ -828,7 +890,9 @@ class AssetLibrary(ABC, Generic[AssetT]):
             source_id = projection.source.source_id
             status = asset_pool.source_statuses.get(source_id)
             if status is None or (
-                status.status == "ready" and status.indexed_revision >= revision
+                status.status == "ready"
+                and status.indexed_revision >= revision
+                and not status.reembed_pending
             ):
                 continue
             if binding.is_frozen(self._sources.get(source_id, projection.source), status):
@@ -862,6 +926,8 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 )
 
             try:
+                if status.reembed_pending:
+                    self._reembed(projection, status, indexed_ids)
                 if assets:
                     self._prepare_projection_add(asset_pool, projection, assets)
                 if assets and isinstance(projection, ChunkProjection):
@@ -920,6 +986,27 @@ class AssetLibrary(ABC, Generic[AssetT]):
             ),
         )
 
+    def _reembed(
+        self, projection: Projection, status: SourceSyncStatus, held: Collection[str]
+    ) -> None:
+        reembed = getattr(projection, "reembed", None)
+        if reembed is None:
+            status.finish_reembed()
+            return
+        reembed_concepts = getattr(projection, "reembed_concepts", None)
+        if reembed_concepts is not None:
+            reembed_concepts()
+        pending = [asset_id for asset_id in status.reembed_asset_ids if asset_id in held]
+        size = self.BACKFILL_BATCH_SIZE or len(pending) or 1
+        for start in range(0, len(pending), size):
+            batch = pending[start: start + size]
+            reembed([self._assets[asset_id] for asset_id in batch])
+            for asset_pool in self._asset_pools.values():
+                shared = asset_pool.source_statuses.get(projection.source.source_id)
+                if shared is not None:
+                    shared.mark_reembedded(batch)
+        status.finish_reembed()
+
     def add_assets(
         self,
         assets: Sequence[AssetT],
@@ -960,18 +1047,6 @@ class AssetLibrary(ABC, Generic[AssetT]):
                 for projection in self._require_pool_projections(asset_pool)
             )
             for asset_pool in self._select_asset_pools(asset_pool_ids)
-        }
-
-    def ingest(self, requests: Mapping[str, Any]) -> Dict[str, Any]:
-        """Materialize a per-pool request directly, bypassing the asset registry."""
-        return {
-            asset_pool_id: merge_counts(
-                projection.materialize(request)
-                for projection in self._require_pool_projections(
-                    self._require_asset_pool(asset_pool_id)
-                )
-            )
-            for asset_pool_id, request in requests.items()
         }
 
     def retrieve(self, requests: Mapping[str, Any]) -> Dict[str, Any]:

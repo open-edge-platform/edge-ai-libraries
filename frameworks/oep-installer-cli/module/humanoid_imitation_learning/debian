@@ -10,7 +10,7 @@ configure_humanoid_imitation_learning () {
 }
 
 debian_90_profile_humanoid_imitation_learning () {
-  echo "git curl edge_base docker_io"
+  echo "git curl edge_base_robotics docker_io"
 }
 
 verify_humanoid_imitation_learning_workspace () {

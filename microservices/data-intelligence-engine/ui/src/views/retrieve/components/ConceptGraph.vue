@@ -176,19 +176,7 @@
           :aria-label="$t('console.graph')"
         />
         <div v-if="!model.nodes.length && !loading" class="graph-empty">
-          <a-empty
-            :description="
-              $t(
-                !poolId
-                  ? 'console.noGraph'
-                  : errorMessage
-                    ? 'console.graphLoadFailed'
-                    : traversedOnly
-                      ? 'console.graphNoTraversal'
-                      : 'console.graphEmpty',
-              )
-            "
-          />
+          <a-empty :description="$t(emptyDescriptionKey)" />
         </div>
         <div class="graph-footer">
           <div
@@ -204,8 +192,7 @@
                 <i :style="legendStyle(hop)" />
                 {{ $t("console.graphHop", { hop }) }}
               </span>
-              <span
-                :title="$t('console.graphRecallHitHint')"
+              <span :title="$t('console.graphRecallHitHint')"
                 ><i class="evidence-dot" />{{
                   $t("console.graphRecallHit")
                 }}</span
@@ -312,7 +299,9 @@ const updateFinalResultRing = (
   group: IGroup | undefined,
 ) => {
   if (!group) return;
-  const shape = group.find((child) => child.get("name") === "final-result-ring");
+  const shape = group.find(
+    (child) => child.get("name") === "final-result-ring",
+  );
   if (!model?.finalResult) {
     shape?.hide();
     return;
@@ -331,11 +320,12 @@ const updateFinalResultRing = (
   if (shape) {
     shape.attr(attributes);
     shape.show();
-  } else group.addShape("circle", {
-    attrs: attributes,
-    name: "final-result-ring",
-    capture: false,
-  });
+  } else
+    group.addShape("circle", {
+      attrs: attributes,
+      name: "final-result-ring",
+      capture: false,
+    });
 };
 registerNode(
   "concept-score-circle",
@@ -369,6 +359,12 @@ const errorMessage = ref("");
 const poolId = ref("");
 const searchName = ref("");
 const traversedOnly = ref(false);
+const emptyDescriptionKey = computed(() => {
+  if (!poolId.value) return "console.noGraph";
+  if (errorMessage.value) return "console.graphLoadFailed";
+  if (traversedOnly.value) return "console.graphNoTraversal";
+  return "console.graphEmpty";
+});
 const showRelations = ref(false);
 const fullscreen = ref(false);
 const graphData = ref<PoolGraph>();
@@ -427,8 +423,12 @@ const model = computed(() =>
 );
 const detailDrawer = computed(() => {
   const node = model.value.nodes.find((node) => node.id === selectedId.value);
-  const concept = trace.value?.concepts.find((node) => node.id === selectedId.value);
-  const edge = model.value.edges.find((edge) => edge.id === selectedEdgeId.value);
+  const concept = trace.value?.concepts.find(
+    (node) => node.id === selectedId.value,
+  );
+  const edge = model.value.edges.find(
+    (edge) => edge.id === selectedEdgeId.value,
+  );
   const data: GraphDetailData = {
     node,
     concept,
@@ -808,12 +808,20 @@ watch(
     JSON.stringify([
       props.libraryData.name,
       poolId.value,
-      graphPools.value.find((pool) => pool.id === poolId.value)
-        ?.source_statuses.filter((status) => props.libraryData.sources.some(
-          (source) => source.id === status.source_id && source.type === "graph",
-        )).map((status) => [
-          status.source_id, status.display_status, status.indexed_revision,
-          status.updated_at, status.extraction?.outdated,
+      graphPools.value
+        .find((pool) => pool.id === poolId.value)
+        ?.source_statuses.filter((status) =>
+          props.libraryData.sources.some(
+            (source) =>
+              source.id === status.source_id && source.type === "graph",
+          ),
+        )
+        .map((status) => [
+          status.source_id,
+          status.display_status,
+          status.indexed_revision,
+          status.updated_at,
+          status.extraction?.outdated,
           status.extraction?.last?.finished_at,
         ]),
     ]),

@@ -7,7 +7,7 @@ Application build identifiers for ViPPET.
 Resolves the release/build identifiers exposed via ``GET /status`` and the
 FastAPI OpenAPI document:
 
-- ``VIPPET_VERSION`` - release string / image tag (e.g. "2026.2.0-rc2").
+- ``VIPPET_VERSION`` - release string / image tag (e.g. "2026.3.0").
 - ``VIPPET_REVISION`` - git commit hash of the source tree the image was
   built from, suffixed with "-dirty" if the working tree had uncommitted
   changes at build time (e.g. "a1b2c3d" or "a1b2c3d-dirty").

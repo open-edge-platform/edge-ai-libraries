@@ -280,15 +280,37 @@ joins `ENGINE_NETWORK` (the same existing network as the engine). Configure
 docker compose -f docker-compose-okf-extractor.yml up -d --build
 ```
 
+When building on a machine that uses a proxy, pass the proxy environment
+variables explicitly with `docker build --build-arg` instead of `up --build`.
+From the same deployment directory, build the image and then start the stack
+without rebuilding it. Use the same image tag as the Compose stack:
+
+```sh
+docker build \
+  --build-arg http_proxy="${http_proxy:-${HTTP_PROXY:-}}" \
+  --build-arg https_proxy="${https_proxy:-${HTTPS_PROXY:-}}" \
+  --build-arg no_proxy="${no_proxy:-${NO_PROXY:-}}" \
+  -t "${OKF_EXTRACTOR_IMAGE:-data-intelligence-okf-extractor:latest}" \
+  ../../tools/okf_extractor
+docker compose -f docker-compose-okf-extractor.yml up -d --no-build
+```
+
+The command accepts lowercase proxy variables or falls back to their uppercase
+equivalents. These build arguments apply to dependency installation, not the
+service's runtime environment. Use a proxy address reachable from the build
+container: `localhost`/`127.0.0.1` points to the container itself, not the host.
+Proxy access for base-image pulls must be configured separately on the Docker
+daemon or BuildKit builder.
+
 Set a graph source's `external_extractor.url` to `http://okf-extractor:8080` and
 match its `api_key` to `OKF_EXTRACTOR_API_KEY` if enabled. Increase its `timeout`
 for multi-document tasks (for example 1800 seconds). No document volume mount
 is sent over the API: both services must use the same writable upload volume.
-The Compose stacks default to the uploads subdirectory of `ENGINE_WORKSPACE_PATH`,
-mounted at `ENGINE_UPLOAD_DIR` (normally `/workspace/uploads`). Set the same
+The Compose stacks default to the uploads subdirectory of `ENGINE_WORKSPACE_HOST_PATH`,
+mounted at `ENGINE_UPLOAD_DIR` (`$ENGINE_WORKSPACE_CONTAINER_PATH/uploads`). Set the same
 absolute `ENGINE_UPLOAD_PATH` in both stacks to share a different host folder.
-The extractor runs as UID/GID `1000:1000` by default, matching the engine image;
-set `OKF_EXTRACTOR_UID`/`OKF_EXTRACTOR_GID` to match the actual engine/file ownership
+The extractor runs as `USER_UID`/`USER_GID` (default `1000:1000`), like the engine;
+set `USER_UID`/`USER_GID` to match the actual engine/file ownership
 if your deployment differs. Do not fix permissions by running the service as root.
 
 Extractor URLs and model endpoints are **trusted operator configuration** and
