@@ -508,9 +508,9 @@ def write_rcv(path: Union[str, Path], bundle: ClassifierBundle) -> Path:
         raise FileExistsError(f"{path} already exists; .rcv files are immutable")
     fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
+        # mkstemp creates the file 0600 (owner-only). That is kept on purpose:
+        # versions are written and read by the router process itself.
         with os.fdopen(fd, "wb") as handle:
-            # mkstemp creates the file 0600; versions are read by whoever runs the router.
-            os.chmod(tmp, 0o644)
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())

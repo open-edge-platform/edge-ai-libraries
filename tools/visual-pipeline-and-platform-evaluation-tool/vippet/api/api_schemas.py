@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from cpu_topology import normalize_cpu_ids
 
 _HUB_MODEL_NAME_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+# Geti model names are free-form labels, e.g. "YOLOX-Tiny (a08374ca)".
+_GETI_MODEL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ ()-]{0,127}$")
 
 
 def _is_valid_hub_model_name(name: str) -> bool:
@@ -254,7 +256,7 @@ class VideoSource(str, Enum):
     **Origin of an input video file on disk.**
 
     ## Values
-    - `AUTO` - Video downloaded automatically from `default_recordings.yaml`
+    - `AUTO` - Sample video downloaded on demand from `default_recordings.yaml`
       into `/videos/input/auto/`
     - `UPLOADED` - Video uploaded by the user via the
       `POST /videos/upload` endpoint into `/videos/input/uploaded/`
@@ -2432,6 +2434,7 @@ class ModelSource(str, Enum):
     - `ULTRALYTICS` - Ultralytics model zoo
     - `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models
     - `OMZ` - OpenVINO Open Model Zoo
+    - `GETI` - Intel Geti server
     - `CUSTOM` - User-uploaded model
 
     ### Example
@@ -2444,6 +2447,7 @@ class ModelSource(str, Enum):
     ULTRALYTICS = "ultralytics"
     PIPELINE_ZOO_MODELS = "pipeline-zoo-models"
     OMZ = "omz"
+    GETI = "geti"
     CUSTOM = "custom"
 
 
@@ -2690,15 +2694,17 @@ class ModelDownloadRequest(BaseModel):
     When `hub` is set, names not found in the catalog are downloaded from
     that hub (names as returned by `POST /models/list`) and registered in
     the catalog together with every installed precision. Supported hubs:
-    `ultralytics` (category derived from the name suffix) and
-    `huggingface` (category must be provided via `category`, since
-    HuggingFace repo ids have no fixed naming convention to derive it
-    from).
+    `ultralytics` (category derived from the name suffix), `huggingface`
+    (category must be provided via `category`, since HuggingFace repo ids
+    have no fixed naming convention to derive it from) and `geti`
+    (category must be provided via `category`; the model is resolved by
+    name on the configured Geti server and every OpenVINO precision it
+    offers is downloaded).
 
     ## Attributes
     - `names` - List of supported-model names to install. Must be non-empty and unique.
     - `hub` - Optional upstream hub for names not in the catalog.
-    - `category` - Required when `hub` is `huggingface`; ignored otherwise.
+    - `category` - Required when `hub` is `huggingface` or `geti`; ignored otherwise.
     - `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.
 
     ### Example
@@ -2725,8 +2731,8 @@ class ModelDownloadRequest(BaseModel):
     category: ModelCategory | None = Field(
         default=None,
         description=(
-            "Model category, required when `hub` is `huggingface` (ignored "
-            "for other hubs)."
+            "Model category, required when `hub` is `huggingface` or `geti` "
+            "(ignored for other hubs)."
         ),
     )
     gated: ModelGated | None = Field(
@@ -2746,7 +2752,10 @@ class ModelDownloadRequest(BaseModel):
             if not name:
                 raise ValueError("Model names must be non-empty strings.")
             # Hub names become filesystem path segments.
-            if self.hub is not None and not _is_valid_hub_model_name(name):
+            if self.hub == ModelSource.GETI:
+                if not _GETI_MODEL_NAME_RE.match(name):
+                    raise ValueError(f"Invalid hub model name: {name!r}")
+            elif self.hub is not None and not _is_valid_hub_model_name(name):
                 raise ValueError(f"Invalid hub model name: {name!r}")
             if name in seen:
                 duplicates.append(name)
@@ -3144,6 +3153,51 @@ class Video(BaseModel):
             "'/assets/videos/input/{path}'."
         ),
     )
+
+
+class DefaultVideoDownloadState(str, Enum):
+    AVAILABLE = "available"
+    QUEUED = "queued"
+    DOWNLOADING = "downloading"
+    DOWNLOADED = "downloaded"
+    FAILED = "failed"
+    CONFLICT = "conflict"
+
+
+class DefaultVideoConversionState(str, Enum):
+    NOT_CONVERTED = "not_converted"
+    QUEUED = "queued"
+    CONVERTING = "converting"
+    CONVERTED = "converted"
+    FAILED = "failed"
+    CONFLICT = "conflict"
+
+
+class DefaultVideoRecording(BaseModel):
+    filename: str
+    source: str
+    status: DefaultVideoDownloadState
+    hevc_filename: str
+    conversion_status: DefaultVideoConversionState
+
+
+class DefaultVideoDownloadRequest(BaseModel):
+    filename: str
+
+
+class DefaultVideoDownloadResponse(BaseModel):
+    filename: str
+    status: DefaultVideoDownloadState
+
+
+class DefaultVideoConversionRequest(BaseModel):
+    filename: str
+
+
+class DefaultVideoConversionResponse(BaseModel):
+    filename: str
+    hevc_filename: str
+    status: DefaultVideoConversionState
 
 
 class VideoUploadError(BaseModel):

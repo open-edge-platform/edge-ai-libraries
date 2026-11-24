@@ -272,7 +272,7 @@ use separate pools or source filters to avoid that choice.
 
 An empty `asset_pool_ids` list searches all vector-capable pools in the named
 libraries. Omit `postprocess` to return retrieval results without reranking.
-Omitted `top_k` defaults to `5`, and omitted `postprocess.top_n` to `3`
+Omitted `top_k` defaults to `10`, and omitted `postprocess.top_n` to `5`
 (`RETRIEVE_TOP_K` / `RERANK_TOP_N` in `src/config.py`).
 `target_media` scopes the search by modality: empty searches every searchable
 source; an explicit list searches those modalities only. `document` retrieves
@@ -329,6 +329,12 @@ or another `/rerank` endpoint) for one request only:
                     "model_id":"BAAI/bge-reranker-large",
                     "api_base":"http://reranker:8000/v1"}}
 ```
+
+A request `api_base` must be `ENGINE_RERANK_API_BASE` or listed in
+`ENGINE_RERANK_ALLOWED_API_BASES`, and only `ENGINE_RERANK_API_BASE` receives
+`ENGINE_RERANK_API_KEY`. A local `model_id` must name a prepared model under
+the model roots (`ENGINE_MODEL_ROOT_PATH`, `MODEL_PATH` or `~/models`), not an
+uploaded file. Other values are rejected with 400.
 
 ### Media bytes
 

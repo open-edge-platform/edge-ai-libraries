@@ -51,6 +51,9 @@
         </template>
       </a-dropdown>
     </div>
+    <a-typography-text v-if="showId" copyable class="resource-id">
+      {{ node.id }}
+    </a-typography-text>
     <template v-if="!compact">
       <div class="resource-meta">
         <template v-if="node.kind === 'asset'">
@@ -103,6 +106,7 @@ const props = defineProps<{
   node: CanvasNode;
   compact?: boolean;
   selected?: boolean;
+  showId?: boolean;
 }>();
 const emit = defineEmits<{ "show-linked": []; "remove-node": [] }>();
 const { t, te } = useI18n();
@@ -185,6 +189,13 @@ const typeLabel = computed(() => {
     font-size: 13px;
     line-height: 21px;
   }
+}
+.resource-id {
+  display: block;
+  margin-top: 8px;
+  color: var(--font-info-color);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 .resource-menu {
   flex-shrink: 0;

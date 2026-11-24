@@ -7,3 +7,4 @@ services:
     build:
       context: ../..
       dockerfile: ./ui/docker/Dockerfile.ui
+      pull: true  # always fetch the latest base image (security fixes)
