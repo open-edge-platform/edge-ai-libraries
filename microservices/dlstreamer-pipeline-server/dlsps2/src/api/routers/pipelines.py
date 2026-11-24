@@ -28,6 +28,10 @@ from core.audit import get_audit_logger
 from core.pipeline_manager import PipelineManager
 
 logger = logging.getLogger(__name__)
+
+_NAME_VERSION_PATTERN = r"^[a-zA-Z0-9_.-]{1,128}$"
+# instance_id is str(uuid.uuid4()) (core/pipeline_manager.py) - standard dashed hex UUID
+_INSTANCE_ID_PATTERN = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 audit_logger = get_audit_logger()
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
@@ -187,7 +191,7 @@ async def list_pipelines_status():
 
 
 @router.get("/{instance_id}", response_model=PipelineSummaryResponse)
-async def get_pipeline(instance_id: str = Path(..., description="Pipeline instance identifier")):
+async def get_pipeline(instance_id: str = Path(..., pattern=_INSTANCE_ID_PATTERN, description="Pipeline instance identifier")):
     """Return details (status + pipeline config) for a specific pipeline instance."""
     instance = _get_manager().get(instance_id)
     if not instance:
@@ -196,7 +200,7 @@ async def get_pipeline(instance_id: str = Path(..., description="Pipeline instan
 
 
 @router.get("/{instance_id}/status", response_model=PipelineStatusResponse)
-async def get_pipeline_status(instance_id: str = Path(..., description="Pipeline instance identifier")):
+async def get_pipeline_status(instance_id: str = Path(..., pattern=_INSTANCE_ID_PATTERN, description="Pipeline instance identifier")):
     """Return status only (no pipeline config) for a specific pipeline instance."""
     instance = _get_manager().get(instance_id)
     if not instance:
@@ -205,7 +209,7 @@ async def get_pipeline_status(instance_id: str = Path(..., description="Pipeline
 
 
 @router.delete("/{instance_id}", response_model=StopPipelineResponse)
-async def stop_pipeline(http_request: Request, instance_id: str = Path(..., description="Pipeline instance identifier")):
+async def stop_pipeline(http_request: Request, instance_id: str = Path(..., pattern=_INSTANCE_ID_PATTERN, description="Pipeline instance identifier")):
     """Stop a queued, running, or restarting pipeline instance. ABORTED is reported once teardown completes."""
     manager = _get_manager()
     instance = manager.get(instance_id)
@@ -229,8 +233,8 @@ async def stop_pipeline(http_request: Request, instance_id: str = Path(..., desc
 async def run_named_pipeline(
     http_request: Request,
     request: StartNamedPipelineRequest,
-    name: str = Path(..., description="Pipeline name"),
-    version: str = Path(..., description="Pipeline version (matches config 'name' field)"),
+    name: str = Path(..., pattern=_NAME_VERSION_PATTERN, description="Pipeline name"),
+    version: str = Path(..., pattern=_NAME_VERSION_PATTERN, description="Pipeline version (matches config 'name' field)"),
 ):
     """Start a named pipeline from config.json.
 
