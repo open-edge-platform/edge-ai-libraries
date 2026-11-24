@@ -88,21 +88,35 @@ def test_check_udf_package_missing_udf(kapacitor_classifier):
         assert_condition(kapacitor_classifier.check_udf_package(config, dir_name="missingudf") is False)
         assert_condition(any("Missing udf" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "warning"))
 
-def test_install_udf_package_runs_pip(monkeypatch, kapacitor_classifier):
-    called = []
-    def fake_run(cmd, check=False, **kwargs):
-        called.append(cmd)
-        class Dummy:
-            returncode = 0
-        return Dummy()
-    monkeypatch.setattr("subprocess.run", fake_run)
-    monkeypatch.setattr(os.path, "isfile", lambda p: True)
+@pytest.mark.parametrize("cert_path,cert_exists,use_override", [
+    ("/run/secrets/ca_certificate.pem", False, False),
+    ("/run/secrets/ca_certificate.pem", True, True),
+    ("/custom/ca.pem", False, True),
+])
+def test_install_udf_package_runs_uv(
+    monkeypatch, tmp_path, kapacitor_classifier, cert_path, cert_exists, use_override
+):
+    monkeypatch.setattr(cs, "SECURE_TEMP_DIR", str(tmp_path))
+    requirements = tmp_path / "somedir" / "udfs" / "requirements.txt"
+    requirements.parent.mkdir(parents=True)
+    requirements.touch()
+    monkeypatch.setenv("SSL_CERT_FILE", cert_path)
+    path_exists = os.path.exists
+    monkeypatch.setattr(os.path, "exists", lambda path: cert_exists if path == cert_path else path_exists(path))
+    expected_env = os.environ.copy()
+    if not use_override:
+        expected_env.pop("SSL_CERT_FILE")
+    run_command = mock.Mock(return_value=mock.Mock(returncode=0))
+    monkeypatch.setattr(cs, "exec_command", run_command)
     kapacitor_classifier.install_udf_package("somedir")
-    # Accept either pip3 install or mkdir -p, depending on implementation
-    assert_condition(any(
-        (isinstance(cmd, list) and (cmd[:2] == ["mkdir", "-p"] or ("pip3" in cmd and "install" in cmd)))
-        for cmd in called
-    ))
+    target = str(tmp_path / "py_package")
+    assert run_command.call_args_list == [
+        mock.call(["mkdir", "-p", target], check=False),
+        mock.call([
+            "uv", "pip", "install", "--python", cs.sys.executable,
+            "--no-cache", "--link-mode", "copy", "-r", str(requirements), "--target", target,
+        ], check=False, env=expected_env),
+    ]
 
 
 def test_start_kapacitor_success(monkeypatch, kapacitor_classifier):

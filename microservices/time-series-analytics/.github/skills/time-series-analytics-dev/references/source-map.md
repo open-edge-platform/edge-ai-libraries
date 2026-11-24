@@ -35,7 +35,7 @@ files read from; `POST /config` is the only writer at runtime.
 3. `KapacitorClassifier.check_udf_package` — verifies
    `/tmp/<dir_name>/udfs/<name>.py`, `.../tick_scripts/<name>.tick`, and (if
    `udfs.models` is set) a matching file under `.../models/` all exist.
-4. `install_udf_package` — `pip install --target` for an optional
+4. `install_udf_package` — `uv pip install --target` for an optional
    `udfs/requirements.txt`.
 5. `start_kapacitor` — spawns `kapacitord` as a subprocess inside this same
    container (not a separate container) and reaps it on exit.

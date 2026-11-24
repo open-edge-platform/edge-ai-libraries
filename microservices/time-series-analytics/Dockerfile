@@ -25,7 +25,15 @@ RUN git clone --depth 1 --branch v${KAPACITOR_VERSION} \
         --version "${KAPACITOR_VERSION}" --outdir /tmp/kapacitor-bin && \
     strip --strip-unneeded /tmp/kapacitor-bin/kapacitord /tmp/kapacitor-bin/kapacitor
 
-FROM python:${PYTHON_VERSION}-slim as runtime
+FROM python:${PYTHON_VERSION}-slim AS python-runtime
+RUN python -m pip uninstall -y pip && \
+    rm -f /usr/local/bin/pip /usr/local/bin/pip3 && \
+    rm -rf "$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')/ensurepip"
+
+FROM scratch AS runtime
+COPY --from=python-runtime / /
+COPY --from=ghcr.io/astral-sh/uv:0.12.9@sha256:8b940d3a9d65bed080436972241af2e21c84b5e8c9193f7014ed71479ee795ff /uv /usr/local/bin/uv
+ENV LANG=C.UTF-8 UV_SYSTEM_CERTS=true UV_PYTHON_DOWNLOADS=never
 
 # Security upgrades for known CVEs
 RUN apt-get update && \
@@ -97,8 +105,7 @@ COPY ./requirements.txt .
 #     icx-lto.so, clbltfn*.rtl, libocl_svml_*, clang resource headers) -
 #     oneDAL/oneMKL GPU kernels ship precompiled; the real device compiler
 #     (intel-igc-*) is already installed system-wide.
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
+RUN uv pip install --system --no-cache --link-mode copy -r requirements.txt && \
     find /usr/local/lib -maxdepth 1 \( \
         -name 'libintelocl.so*' -o \
         -name 'libomptarget.so*' -o -name 'libomptarget.sycl.wrap.so*' -o -name 'libpstloffload.so*' -o \
@@ -146,14 +153,16 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         cd /copyleft_sources/python && \
         apt-get update && apt-get install -y --no-install-recommends gcc libffi-dev python3-dev && \
         # Download python package sources with relevant licenses \
-        pip freeze | cut -d= -f1 | while read pkg; do \
-            meta=$(pip show $pkg 2>/dev/null); \
-            lic=$(echo "$meta" | grep -i '^License:' | grep -E 'MPL|GPL|General Public License|EPL|Eclipse Public License|CDDL|LGPL'); \
+        uv pip freeze --system | cut -d= -f1 | while read pkg; do \
+            meta=$(python -c 'from importlib.metadata import metadata; import sys; print(metadata(sys.argv[1]).get("License", ""))' "$pkg"); \
+            lic=$(printf '%s\n' "$meta" | grep -E 'MPL|GPL|General Public License|EPL|Eclipse Public License|CDDL|LGPL'); \
             if [ ! -z "$lic" ]; then \
                 echo "Downloading source for $pkg with license: $lic"; \
-                pip download --no-binary :all: $pkg || true; \
+                UV_CACHE_DIR=/tmp/copyleft-uv-cache uv tool run --python /usr/local/bin/python \
+                    --from pip pip download --no-binary :all: "$pkg" || true; \
             fi; \
         done; \
+        rm -rf /tmp/copyleft-uv-cache && \
         apt-get remove --purge -y gcc libffi-dev python3-dev; \
     fi
 
