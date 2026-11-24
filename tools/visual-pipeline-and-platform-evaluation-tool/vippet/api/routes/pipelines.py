@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import tempfile
 from typing import List
@@ -1187,6 +1190,12 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
     - `pipeline_graph` *(optional)* - Advanced graph (mutually exclusive with `pipeline_graph_simple`)
     - `pipeline_graph_simple` *(optional)* - Simplified graph (mutually exclusive with `pipeline_graph`)
 
+    ### CPU pinning
+    `cpu_pinning` inside the submitted graph controls the variant's pinning:
+    - Field omitted - the current pinning is kept
+    - `[]` - pinning is cleared
+    - List of CPU ids - replaces the pinning; ids are de-duplicated and sorted
+
     ## Response Codes
 
     | Code | Description |
@@ -1277,6 +1286,21 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
             if body.pipeline_graph_simple is not None
             else None
         )
+
+        graphs_without_pinning = [
+            internal_graph
+            for request_graph, internal_graph in (
+                (body.pipeline_graph, graph),
+                (body.pipeline_graph_simple, graph_simple),
+            )
+            if request_graph is not None
+            and internal_graph is not None
+            and "cpu_pinning" not in request_graph.model_fields_set
+        ]
+        if graphs_without_pinning:
+            current = PipelineManager().get_variant_by_ids(pipeline_id, variant_id)
+            for internal_graph in graphs_without_pinning:
+                internal_graph.set_cpu_pinning(current.pipeline_graph.cpu_pinning)
 
         updated_variant = PipelineManager().update_variant(
             pipeline_id=pipeline_id,
@@ -1649,6 +1673,7 @@ def _internal_variant_to_api(variant: InternalVariant) -> schemas.Variant:
         pipeline_graph_simple=schemas.PipelineGraph.model_validate(
             variant.pipeline_graph_simple.to_dict()
         ),
+        media_only=variant.pipeline_graph.is_media_only(),
         created_at=variant.created_at,
         modified_at=variant.modified_at,
     )

@@ -169,7 +169,9 @@ const toGraphNodes = (nodes: ReactFlowNode[]): GraphNode[] =>
 const buildGraphData = (
   nodes: ReactFlowNode[],
   edges: ReactFlowEdge[],
+  cpuPinning: number[] = [],
 ): PipelineGraph => ({
+  cpu_pinning: cpuPinning,
   nodes: toGraphNodes(nodes),
   edges: edges.map((edge) => ({
     id: edge.id,
@@ -259,10 +261,12 @@ export const Pipelines = () => {
   const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
   const [updateVariant] = useUpdateVariantMutation();
 
-  const requiredModels = useMemo(() => {
-    const variantData = data?.variants.find((v) => v.id === variant);
-    return extractModelNamesFromNodes(variantData?.pipeline_graph.nodes);
-  }, [data, variant]);
+  const currentVariant = data?.variants.find((v) => v.id === variant);
+
+  const requiredModels = useMemo(
+    () => extractModelNamesFromNodes(currentVariant?.pipeline_graph.nodes),
+    [currentVariant],
+  );
 
   const {
     modelStatuses: pipelineModelStatuses,
@@ -277,12 +281,11 @@ export const Pipelines = () => {
   const isTimeSeries = data?.tags?.includes("Time Series") ?? false;
   const requiredVideos = useMemo(() => {
     if (isTimeSeries) return [];
-    const variantData = data?.variants.find((v) => v.id === variant);
-    const names = (variantData?.pipeline_graph.nodes ?? [])
+    const names = (currentVariant?.pipeline_graph.nodes ?? [])
       .map(getInputVideoName)
       .filter((name): name is string => !!name && !name.startsWith("/"));
     return [...new Set(names)];
-  }, [data, variant, isTimeSeries]);
+  }, [currentVariant, isTimeSeries]);
 
   const {
     videoStatuses: pipelineVideoStatuses,
@@ -340,16 +343,28 @@ export const Pipelines = () => {
     setSelectedNode(null);
     setShowDetailsPanel(false);
     setCompletedVideoPath(null);
-    setPinnedCpuCores([]);
     resetHistory();
   }, [variant, resetHistory, setCurrentNodes, setCurrentEdges]);
+
+  const savedCpuPinning = currentVariant?.pipeline_graph.cpu_pinning;
+  const pinningChanged =
+    JSON.stringify(pinnedCpuCores) !== JSON.stringify(savedCpuPinning ?? []);
+  useEffect(() => {
+    setPinnedCpuCores(savedCpuPinning ?? []);
+  }, [savedCpuPinning, variant]);
+
+  // Saving the output would make media-only runs encode-bound, so default it OFF.
+  const isMediaOnlyPipeline = currentVariant?.media_only ?? false;
+
+  useEffect(() => {
+    setVideoOutputEnabled(!isMediaOnlyPipeline);
+  }, [isMediaOnlyPipeline]);
 
   // Default Metadata JSON ON for the VLM pipeline (its only output is metadata
   // JSON lines); OFF for other pipelines.
   const isVlmPipeline =
-    data?.variants
-      .find((v) => v.id === variant)
-      ?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ?? false;
+    currentVariant?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ??
+    false;
   const isAlertingVlmPipeline = data?.name === "Alerting VLM";
 
   useEffect(() => {
@@ -384,7 +399,11 @@ export const Pipelines = () => {
     if (!id || !variant) return;
 
     try {
-      const graphData = buildGraphData(currentNodes, currentEdges);
+      const graphData = buildGraphData(
+        currentNodes,
+        currentEdges,
+        pinnedCpuCores,
+      );
 
       await updateVariant({
         pipelineId: id,
@@ -466,7 +485,11 @@ export const Pipelines = () => {
           ? "file"
           : "disabled";
 
-      const graphData = buildGraphData(currentNodes, currentEdges);
+      const graphData = buildGraphData(
+        currentNodes,
+        currentEdges,
+        isSimpleMode ? [] : pinnedCpuCores,
+      );
 
       let payloadGraphData = graphData;
       if (isSimpleMode) {
@@ -593,13 +616,12 @@ export const Pipelines = () => {
         : detailsPanelType === "run" || detailsPanelType === "timeseries"
           ? runPanelSizeRef.current
           : 0;
-    const currentVariantData = data.variants.find((v) => v.id === variant);
-    const isReadOnly = currentVariantData?.read_only ?? false;
+    const isReadOnly = currentVariant?.read_only ?? false;
     const editedGraphNodes = toGraphNodes(currentNodes);
     const metadataPublisherNodes =
       !isSimpleMode && hasMetadataPublisher(editedGraphNodes)
         ? editedGraphNodes
-        : (currentVariantData?.pipeline_graph.nodes ?? []);
+        : (currentVariant?.pipeline_graph.nodes ?? []);
     const pipelineHasMetadata = hasFileMetadataPublisher(
       metadataPublisherNodes,
     );
@@ -671,7 +693,7 @@ export const Pipelines = () => {
                 currentVariant={variant}
                 variants={data.variants}
                 source={source}
-                hasUnsavedChanges={canUndo}
+                hasUnsavedChanges={canUndo || pinningChanged}
                 disabled={jobStatus?.state === "RUNNING"}
               />
             )}
@@ -715,7 +737,7 @@ export const Pipelines = () => {
               <TooltipTrigger asChild>
                 <Button
                   onClick={handleSave}
-                  disabled={isReadOnly || !canUndo}
+                  disabled={isReadOnly || (!canUndo && !pinningChanged)}
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Save"
@@ -794,19 +816,21 @@ export const Pipelines = () => {
                         View mode
                       </p>
                       <ViewModeSwitcher
+                        cpuPinning={pinnedCpuCores}
                         pipelineId={id}
                         variant={variant}
                         isPredefined={data.source === "PREDEFINED"}
                         isSimpleMode={isSimpleMode}
                         currentNodes={currentNodes}
                         currentEdges={currentEdges}
-                        hasUnsavedChanges={canUndo}
+                        hasUnsavedChanges={canUndo || pinningChanged}
                         onModeChange={setIsSimpleMode}
                         onTransitionStart={() => setIsTransitioning(true)}
                         onTransitionEnd={() => setIsTransitioning(false)}
                         onClearGraph={() => {
                           setCurrentNodes([]);
                           setCurrentEdges([]);
+                          setPinnedCpuCores(savedCpuPinning ?? []);
                         }}
                         onRefetch={refetch}
                         onEditorKeyChange={() =>
@@ -1077,6 +1101,7 @@ export const Pipelines = () => {
               />
             )}
             <PipelineActionsMenu
+              cpuPinning={pinnedCpuCores}
               pipeline={data}
               variantId={variant!}
               currentNodes={currentNodes}
@@ -1223,6 +1248,7 @@ export const Pipelines = () => {
             onOpenChange={setCpuPinningDialogOpen}
             pinnedCores={pinnedCpuCores}
             onApply={setPinnedCpuCores}
+            allowLpeOnly={isMediaOnlyPipeline}
           />
         )}
       </div>

@@ -346,6 +346,7 @@ class Benchmark:
                 allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
                 stream_commands=pipeline_cmd.stream_commands,
                 validation_stream_ids=set(pipeline_cmd.validation_stream_ids) or None,
+                stream_cpu_cores=pipeline_cmd.stream_cpu_cores,
             )
 
             # Check for cancellation
