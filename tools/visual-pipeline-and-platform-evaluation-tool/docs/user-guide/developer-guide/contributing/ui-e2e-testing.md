@@ -40,6 +40,10 @@ Worth knowing:
   (port `4173`, override with `PLAYWRIGHT_PREVIEW_PORT`) and serves the
   production bundle from `ui/dist/`. No backend is involved. This is what
   CI uses, and it is available locally through `make ui-e2e`.
+- With `PLAYWRIGHT_WEB_SERVER=dev`, Playwright starts the Vite dev server
+  instead (port `5173`, override with `PLAYWRIGHT_DEV_PORT`). No build is
+  needed and trace snapshots keep the page styling (see
+  [Playwright UI Mode](#playwright-ui-mode-on-a-headless-host)).
 
 ## One-time setup
 
@@ -248,9 +252,32 @@ under `.vscode/settings.json`, for example:
 ## Debugging on a headless remote host
 
 VS Code Remote-SSH does **not** forward X11, and ViPPET dev hosts are
-typically headless. `--headed` and `--ui` need a display and will fail
+typically headless. `--headed` and plain `--ui` need a display and will fail
 with `Looks like you launched a headed browser without having a XServer
-running.` The workflow is:
+running.`
+
+### Playwright UI Mode on a headless host
+
+UI Mode can be served over HTTP instead of opening a window:
+
+```bash
+cd ui
+npm run test:e2e:ui:dev
+```
+
+This starts the Vite dev server (`PLAYWRIGHT_WEB_SERVER=dev`) and UI Mode on
+port `8080`. Under VS Code Remote-SSH the port is auto-forwarded — open
+`http://localhost:8080` in your local browser. From there you can run single
+tests, step through every action, and inspect DOM snapshots, network and
+console.
+
+Use the dev server for UI Mode rather than `PLAYWRIGHT_WEB_SERVER=1`: the
+production bundle loads its CSS through `<link crossorigin>`, which the
+snapshot viewer does not apply, so snapshots of the built UI look unstyled.
+The dev server injects CSS as `<style>` tags that are stored in the
+snapshots.
+
+### Traces from a regular run
 
 1. Run tests headless with tracing on:
 
@@ -306,7 +333,8 @@ Playwright UI Mode. Point it at a running remote UI with
 | `No tests found` / only `chromium` runs                               | Ran from the repo root, so `ui/playwright.config.ts` is not picked up.                 | `cd ui` first, or pass `--config ui/playwright.config.ts`.                                             |
 | `Executable doesn't exist` for `chrome` / `msedge`                    | Real Google Chrome / Microsoft Edge is not installed on the host.                      | Either install them (`npx playwright install chrome msedge`) or exclude the projects with `--project`. |
 | `connect ECONNREFUSED 127.0.0.1`                                      | The UI is not running at `baseURL`.                                                    | Start it with `make run` or `npm run dev`, or set `PLAYWRIGHT_BASE_URL`.                               |
-| `Looks like you launched a headed browser without having an XServer.` | `--headed` / `--ui` on a headless host.                                                | Use the trace viewer via `npx playwright show-report` instead.                                         |
+| `Looks like you launched a headed browser without having an XServer.` | `--headed` / `--ui` on a headless host.                                                | Use `npm run test:e2e:ui:dev` (UI Mode over HTTP) or `npx playwright show-report`.                     |
+| UI Mode / trace snapshots show the page without styles                | Tests ran against the production bundle, whose CSS the snapshot viewer does not apply. | Run against the dev server: `npm run test:e2e:ui:dev` or `PLAYWRIGHT_WEB_SERVER=dev`.                  |
 | Firefox / WebKit missing binaries                                     | `npm install` does not fetch browsers.                                                 | `npx playwright install --with-deps chromium firefox webkit`.                                          |
 | Extension shows tests but does not run Firefox                        | The **PLAYWRIGHT** panel at the bottom of the Testing view has `firefox` un-ticked.    | Tick the desired projects there.                                                                       |
 
