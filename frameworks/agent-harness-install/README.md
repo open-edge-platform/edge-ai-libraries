@@ -75,6 +75,9 @@ for details.
 
 ## Documentation
 
+- [Agent Harness Installer, Explained Simply](./docs/user-guide/overview-for-everyone.md):
+  a plain-language overview of what AHI does and why it matters, for
+  non-technical readers.
 - [Get Started](./docs/user-guide/get-started.md): install flow, usage and
   [model sources](./docs/user-guide/get-started.md#model-sources) (Hugging Face,
   Ollama, remote URL and the other Model Download hubs).
@@ -86,29 +89,34 @@ for details.
 ## Layout
 
 ```text
-startup.sh                    prerequisite setup: installs/verifies curl/git, Docker, Node.js/npm, Python -- run automatically by install.sh, or standalone
-install.sh                   thin bootstrap (delegates to scripts/install.sh, or self-clones)
-uninstall.sh                  removes the Inference Router, OVMS, the installed agent, and state dir (models too, unless --keep-models)
-scripts/install.sh            payload: install flow + status/onboard/models/mcp/skill subcommands
-scripts/lib/colors.sh         logging/spinner helpers
-scripts/lib/state.sh          state dir, symlink-safe path assertions, atomic writes
-scripts/lib/sudo.sh           non-interactive-safe sudo authorization
-scripts/lib/verify.sh         HTTPS-only, checksum-verified downloads of third-party scripts
-scripts/lib/shim.sh           CLI shim + PATH profile management
-scripts/lib/gpu-intel.sh      Intel GPU + compute-runtime readiness detection (no install)
-scripts/lib/docker-setup.sh   Docker install/group setup, Docker daemon proxy config + GPU device args
-scripts/lib/nodejs.sh         Node.js-via-nvm bootstrap
-scripts/lib/python-setup.sh   Python (venv + PyYAML) bootstrap
-scripts/lib/openvino.sh       OpenVINO Model Server (OpenAI-compatible inference)
-scripts/lib/inference-router.sh  Inference Router (always run in front of OVMS or an external endpoint; agents are wired to it, not to the model server directly)
-scripts/lib/agents.sh         Agent Harness Installer's agent catalog: openclaw / deepagents-code (dcode) / hermes
-scripts/lib/harness-mcp.sh    registers an arbitrary MCP endpoint URL with an agent (Hermes and OpenClaw built in; others via HARNESS_MCP_REGISTER_CMD)
-scripts/lib/metrics.sh       observability commands for Router and Hermes telemetry
-docs/user-guide/              usage documentation (see Documentation above)
-test/metrics-test.sh          observability behavior tests (Docker/Hermes stubbed)
-test/metrics-cli-test.sh      observability CLI entry-point tests
-test/smoke-test.sh            end-to-end smoke test suite (phased; see --list)
-test/full-flow-test.sh        full install -> real chat completion -> uninstall run, per agent
+.
+├── startup.sh                      # prerequisite setup: installs/verifies curl/git, Docker, Node.js/npm, Python -- run automatically by install.sh, or standalone
+├── install.sh                      # thin bootstrap (delegates to scripts/install.sh, or self-clones)
+├── uninstall.sh                    # removes the Inference Router, OVMS, the installed agent, and state dir (models too, unless --keep-models)
+├── scripts/
+│   ├── install.sh                  # payload: install flow + status/onboard/models/mcp/skill subcommands
+│   └── lib/
+│       ├── colors.sh               # logging/spinner helpers
+│       ├── state.sh                # state dir, symlink-safe path assertions, atomic writes
+│       ├── sudo.sh                 # non-interactive-safe sudo authorization
+│       ├── verify.sh               # HTTPS-only, checksum-verified downloads of third-party scripts
+│       ├── shim.sh                 # CLI shim + PATH profile management
+│       ├── gpu-intel.sh            # Intel GPU + compute-runtime readiness detection (no install)
+│       ├── docker-setup.sh         # Docker install/group setup, Docker daemon proxy config + GPU device args
+│       ├── nodejs.sh               # Node.js-via-nvm bootstrap
+│       ├── python-setup.sh         # Python (venv + PyYAML) bootstrap
+│       ├── openvino.sh             # OpenVINO Model Server (OpenAI-compatible inference)
+│       ├── inference-router.sh     # Inference Router (always run in front of OVMS or an external endpoint; agents are wired to it, not to the model server directly)
+│       ├── agents.sh               # Agent Harness Installer's agent catalog: openclaw / deepagents-code (dcode) / hermes
+│       ├── harness-mcp.sh          # registers an arbitrary MCP endpoint URL with an agent (Hermes and OpenClaw built in; others via HARNESS_MCP_REGISTER_CMD)
+│       └── metrics.sh              # observability commands for Router and Hermes telemetry
+├── docs/
+│   └── user-guide/                 # usage documentation (see Documentation above)
+└── test/
+    ├── metrics-test.sh             # observability behavior tests (Docker/Hermes stubbed)
+    ├── metrics-cli-test.sh         # observability CLI entry-point tests
+    ├── smoke-test.sh               # end-to-end smoke test suite (phased; see --list)
+    └── full-flow-test.sh           # full install -> real chat completion -> uninstall run, per agent
 ```
 
 ## Design notes
