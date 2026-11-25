@@ -6,13 +6,13 @@ from typing import Any
 import pytest
 import requests
 
-from helpers.api_helpers import fetch_default_video_recordings, fetch_videos
+from helpers.api_helpers import (
+    DEFAULT_RECORDING_STATES,
+    fetch_default_video_recordings,
+    fetch_videos,
+)
 
 logger = logging.getLogger(__name__)
-
-VALID_RECORDING_STATUSES: frozenset[str] = frozenset(
-    {"available", "queued", "downloading", "downloaded", "failed", "conflict"}
-)
 
 REQUIRED_VIDEO_KEYS: set[str] = {
     "filename",
@@ -60,7 +60,7 @@ def test_default_recordings_match_manifest(
     )
     for recording in recordings:
         name = recording["filename"]
-        assert recording.get("status") in VALID_RECORDING_STATUSES, (
+        assert recording.get("status") in DEFAULT_RECORDING_STATES, (
             f"Default recording '{name}' has an unknown status "
             f"{recording.get('status')!r}"
         )

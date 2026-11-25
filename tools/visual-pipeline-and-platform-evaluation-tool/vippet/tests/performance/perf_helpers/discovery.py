@@ -13,7 +13,6 @@ Requires the functional-test ``helpers`` package on ``sys.path`` and
 """
 
 import requests
-
 from helpers.api_helpers import fetch_devices, fetch_pipelines
 from helpers.pipeline_case_helpers import (
     missing_models_per_pipeline,

@@ -218,6 +218,28 @@ def missing_videos_per_variant(session: requests.Session) -> MissingVideos:
     return missing_videos_for_pipelines(session, fetch_pipelines(session))
 
 
+def _missing_videos_or_none(
+    session: requests.Session, pipelines: Sequence[Mapping[str, Any]]
+) -> MissingVideos:
+    """Like :func:`missing_videos_for_pipelines`, but a failed video lookup
+    is logged and reported as nothing missing, so it cannot hide every case
+    behind one "no-cases" skip."""
+    try:
+        missing_videos = missing_videos_for_pipelines(session, pipelines)
+    except (requests.RequestException, AssertionError) as exc:
+        logger.warning(
+            "Could not look up input videos (%s); no case is skipped for "
+            "missing videos",
+            exc,
+        )
+        return MissingVideos()
+    if missing_videos.by_variant:
+        logger.info(
+            "Variants with missing input videos: %s", missing_videos.by_variant
+        )
+    return missing_videos
+
+
 _DEFAULT_DOWNLOAD_HINT: str = (
     "Download them on the ViPPET UI Videos page (or through "
     "POST /videos/download-default) to enable this case."
@@ -260,7 +282,10 @@ def describe_missing_videos(
     return " ".join(parts)
 
 
-def collect_pipeline_cases(session: requests.Session) -> list[PipelineCase]:
+def collect_pipeline_cases(
+    session: requests.Session,
+    pipelines: Sequence[Mapping[str, Any]] | None = None,
+) -> list[PipelineCase]:
     """Discover runnable (pipeline, variant) combinations from the live API.
 
     Returns every variant whose required device families are advertised
@@ -269,6 +294,9 @@ def collect_pipeline_cases(session: requests.Session) -> list[PipelineCase]:
     decide what to do with model-unrunnable cases; use
     :func:`wrap_cases_for_pytest` to attach
     ``pytest.mark.skip`` reasons after filtering.
+
+    *pipelines* is a ``GET /pipelines`` response the caller already has;
+    when omitted it is fetched here.
     """
     available_families: set[str] = {
         device.get("device_family", "").upper()
@@ -283,7 +311,9 @@ def collect_pipeline_cases(session: requests.Session) -> list[PipelineCase]:
     logger.info("Available device families: %s", sorted(available_families))
 
     cases: list[PipelineCase] = []
-    for pipeline in fetch_pipelines(session):
+    if pipelines is None:
+        pipelines = fetch_pipelines(session)
+    for pipeline in pipelines:
         pipeline_id: str = pipeline.get("id", "")
         pipeline_name: str = pipeline.get("name", "")
         if not (pipeline_id and pipeline_name):
@@ -392,7 +422,9 @@ def discover_pipeline_cases_for_pytest(
     models are not installed are wrapped in ``pytest.mark.skip`` with
     the missing model display names. Set it to false to schedule them
     without a skip mark. ``skip_missing_videos`` does the same for input
-    videos; set it to false for tests that replace the input video.
+    videos; set it to false for tests that replace the input video. When
+    only the video lookup fails, a warning is logged and no case is skipped
+    for its videos (a really missing video then fails its case visibly).
 
     If discovery fails or yields no runnable combinations at all,
     returns a single skipped parameter to keep collection stable and
@@ -408,7 +440,8 @@ def discover_pipeline_cases_for_pytest(
     try:
         with requests.Session() as session:
             session.headers.update({"Accept": "application/json"})
-            cases = collect_pipeline_cases(session)
+            pipelines = fetch_pipelines(session)
+            cases = collect_pipeline_cases(session, pipelines)
             missing = missing_models_by_pipeline = missing_models_per_pipeline(session)
             if missing:
                 logger.info(
@@ -416,12 +449,7 @@ def discover_pipeline_cases_for_pytest(
                     {k: sorted(v) for k, v in missing.items()},
                 )
             if skip_missing_videos:
-                missing_videos = missing_videos_per_variant(session)
-                if missing_videos.by_variant:
-                    logger.info(
-                        "Variants with missing input videos: %s",
-                        missing_videos.by_variant,
-                    )
+                missing_videos = _missing_videos_or_none(session, pipelines)
     except Exception:
         logger.exception("Failed to collect pipeline cases from VIPPET API")
         cases = []

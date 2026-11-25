@@ -7,9 +7,10 @@ Used by the CLI (``python -m perf_helpers.cli``) before it starts pytest:
 
 1. :func:`build_plan` picks the models that are not installed and are used
    by a pipeline in the benchmark matrix.
-2. :func:`offer_and_install` prints the plan, asks (``ask``) or not
-   (``yes``), and runs :class:`ModelInstaller`, which starts the downloads
-   through ``POST /models/download`` and waits for their jobs.
+2. The CLI prints the plan (:func:`present_plan`), asks (``ask``) or not
+   (``yes``) through :func:`agree_to_install`, and runs
+   :class:`ModelInstaller`, which starts the downloads through
+   ``POST /models/download`` and waits for their jobs.
 3. The per-model outcome is handed to the pytest subprocess as JSON in
    :data:`ENV_MODEL_INSTALL` (see :func:`encode_outcomes` /
    :func:`decode_outcomes`). pytest turns runs whose model failed to install
@@ -34,20 +35,16 @@ from typing import Any, ClassVar
 
 import httpx
 
+from . import asset_download
 from .asset_download import (
+    AssetProblem,
     AssetWaiter,
     WaitState,
-    response_message,
-    SETUP_ERROR_MARK,
-    AssetProblem,
-    DownloadAction,
-    OutcomeEnvError,
     clean_link,
     clean_text,
-    confirm,
     decode_outcome_env,
-    download_action,
     format_duration,
+    response_message,
 )
 from .matrix import Matrix, format_table
 from .settings import InstallMode
@@ -56,13 +53,6 @@ from .settings import InstallMode
 ENV_MODEL_INSTALL: str = "PERF_MODEL_INSTALL_OUTCOME"
 _OUTCOME_KEYS = ("name", "display_name", "outcome", "reason")
 
-# Kept for callers of this module; the marker is shared with video downloads.
-MODEL_INSTALL_ERROR_MARK: str = SETUP_ERROR_MARK
-ModelInstallError = OutcomeEnvError
-"""Raised when the outcome handed over by the CLI is not valid."""
-InstallProblem = AssetProblem
-InstallAction = DownloadAction
-install_action = download_action
 
 _INSTALLED = "installed"
 _INSTALLING = "installing"
@@ -286,26 +276,12 @@ def describe_mode_effect(mode: InstallMode, stdin_is_tty: bool) -> str:
     Returns:
         One sentence naming the setting and its effect on this terminal.
     """
-    action = install_action(mode, stdin_is_tty)
-    if action == "install":
-        return (
-            "With --install-missing-models=yes a run installs these models "
-            "without asking."
-        )
-    if action == "prompt":
-        return (
-            "With --install-missing-models=ask (default) a run asks before "
-            "installing these models."
-        )
-    if mode == "no":
-        return (
-            "With --install-missing-models=no a run does not install them; "
-            "the runs that need them are skipped."
-        )
-    return (
-        "With --install-missing-models=ask (default) a run does not install "
-        "them here, because stdin is not a terminal; pass "
-        "--install-missing-models=yes to install them without asking."
+    return asset_download.describe_mode_effect(
+        mode,
+        stdin_is_tty,
+        flag="--install-missing-models",
+        verb="install",
+        noun="models",
     )
 
 
@@ -370,7 +346,7 @@ def decode_outcomes(raw: str | None) -> list[ModelOutcome] | None:
         The outcomes, or ``None`` when the value is unset or empty.
 
     Raises:
-        ModelInstallError: The value is not a valid outcome list.
+        OutcomeEnvError: The value is not a valid outcome list.
     """
     items = decode_outcome_env(
         raw,
@@ -393,7 +369,7 @@ def decode_outcomes(raw: str | None) -> list[ModelOutcome] | None:
 
 def install_problem(
     missing_display_names: Iterable[str], outcomes: Iterable[ModelOutcome]
-) -> InstallProblem | None:
+) -> AssetProblem | None:
     """Decide what happens to a run whose models are missing.
 
     Missing names come raw from ``GET /models``; the outcome names were
@@ -414,7 +390,7 @@ def install_problem(
     relevant = [by_display[name] for name in cleaned if name in by_display]
     failed = [o for o in relevant if o.outcome in ERROR_OUTCOMES]
     if failed:
-        return InstallProblem(
+        return AssetProblem(
             "error",
             "; ".join(
                 f"model {o.display_name!r} failed to install: {o.reason}"
@@ -424,7 +400,7 @@ def install_problem(
     interrupted = [o for o in relevant if o.outcome == Outcome.INTERRUPTED]
     if interrupted:
         names = ", ".join(repr(o.display_name) for o in interrupted)
-        return InstallProblem(
+        return AssetProblem(
             "skip",
             f"model(s) {names} were still installing when waiting was "
             "interrupted (Ctrl-C); the download continues on the server. "
@@ -859,11 +835,12 @@ class ModelInstaller(AssetWaiter):
 
 def present_plan(plan: InstallPlan, report: Callable[[str], None] = print) -> None:
     """Print the plan under the section header, or one line when it is empty."""
-    if not plan.models:
-        report(NOTHING_TO_INSTALL)
-        return
-    report(SECTION_HEADER)
-    report(format_plan(plan))
+    asset_download.present_plan(
+        format_plan(plan) if plan.models else None,
+        header=SECTION_HEADER,
+        nothing_missing=NOTHING_TO_INSTALL,
+        report=report,
+    )
 
 
 def agree_to_install(
@@ -878,43 +855,14 @@ def agree_to_install(
     Returns:
         ``True`` to install; ``False`` when the user declined.
     """
-    if not ask:
-        report("Installing without asking (--install-missing-models=yes).")
-        return True
-    if confirm(prompt_text(plan), input_fn):
-        return True
-    report(
-        f"Not installing. The runs that need these models are skipped. {INSTALL_HINT}."
+    return asset_download.agree(
+        ask=ask,
+        question=prompt_text(plan),
+        unasked="Installing without asking (--install-missing-models=yes).",
+        declined=(
+            "Not installing. The runs that need these models are skipped. "
+            f"{INSTALL_HINT}."
+        ),
+        input_fn=input_fn,
+        report=report,
     )
-    return False
-
-
-def offer_and_install(
-    plan: InstallPlan,
-    *,
-    ask: bool,
-    install: Callable[[InstallPlan], list[ModelOutcome]],
-    input_fn: Callable[[str], str] = input,
-    report: Callable[[str], None] = print,
-) -> list[ModelOutcome]:
-    """Print the plan, ask if needed, install, and return the outcomes.
-
-    Args:
-        plan: The install plan.
-        ask: Prompt before installing; otherwise install without asking.
-        install: Installs the plan (usually :meth:`ModelInstaller.install`).
-        input_fn: Reads the answer to the prompt.
-        report: Prints one line of output.
-
-    Returns:
-        One outcome per planned model; empty when nothing is missing (one
-        line is printed then, with no section header).
-    """
-    present_plan(plan, report)
-    if not plan.models:
-        return []
-    if not agree_to_install(plan, ask=ask, input_fn=input_fn, report=report):
-        return declined(plan)
-    outcomes = install(plan)
-    report(format_outcomes(outcomes))
-    return outcomes

@@ -872,13 +872,15 @@ def results_collector(
             },
             "hardware": hw_families,
             "system_info": system_info,
-            # None when no model installation was attempted by the CLI.
+            # None when the CLI did not run the install step; [] when
+            # nothing was missing.
             "model_install": (
                 None
                 if _MODEL_INSTALL is None
                 else [outcome.to_dict() for outcome in _MODEL_INSTALL]
             ),
-            # None when no video download was attempted by the CLI.
+            # None when the CLI did not run the download step; [] when
+            # nothing was missing.
             "video_download": (
                 None
                 if _VIDEO_DOWNLOAD is None

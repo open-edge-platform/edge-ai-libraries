@@ -5,7 +5,9 @@
 
 import unittest
 from typing import Any
+from unittest import mock
 
+import requests
 from _pytest.mark.structures import ParameterSet
 
 from helpers.pipeline_case_helpers import (
@@ -13,6 +15,7 @@ from helpers.pipeline_case_helpers import (
     MissingVideos,
     PipelineCase,
     describe_missing_videos,
+    discover_pipeline_cases_for_pytest,
     find_missing_videos,
     input_video_names,
     missing_videos_for_pipelines,
@@ -169,7 +172,7 @@ class _Response:
 
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
-            raise RuntimeError(f"HTTP {self.status_code}")
+            raise requests.HTTPError(f"HTTP {self.status_code}")
 
 
 class _Session:
@@ -236,3 +239,72 @@ class TestMissingVideos(unittest.TestCase):
         missing = missing_videos_for_pipelines(session, _VIDEO_PIPELINES)  # type: ignore[arg-type]
         self.assertEqual(missing, MissingVideos())
         self.assertEqual(session.paths, ["/videos"])
+
+
+class _DiscoverySession(_Session):
+    """Fake session for discover_pipeline_cases_for_pytest (one CPU case)."""
+
+    def __init__(self, videos: list[str] | None) -> None:
+        super().__init__(videos or [], [])
+        self.videos_fail = videos is None
+        self.headers: dict[str, str] = {}
+
+    def __enter__(self) -> "_DiscoverySession":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def get(self, url: str, timeout: float) -> _Response:
+        path = url.split("/api/v1", 1)[-1]
+        if path == "/devices":
+            self.paths.append(path)
+            return _Response(200, [{"device_family": "CPU"}])
+        if path == "/pipelines":
+            self.paths.append(path)
+            pipeline = {
+                "id": "p1",
+                "name": "People",
+                "variants": [
+                    dict(
+                        _variant("cpu", _node("filesrc", location="people.mp4")),
+                        name="CPU",
+                    )
+                ],
+            }
+            return _Response(200, [pipeline])
+        if path == "/models":
+            self.paths.append(path)
+            return _Response(200, [])
+        if path == "/videos" and self.videos_fail:
+            self.paths.append(path)
+            return _Response(500, {"detail": "boom"})
+        return super().get(url, timeout)
+
+
+def _discover(session: _DiscoverySession) -> tuple[list[Any], list[str]]:
+    with mock.patch(
+        "helpers.pipeline_case_helpers.requests.Session", return_value=session
+    ):
+        return discover_pipeline_cases_for_pytest()
+
+
+class TestDiscoverPipelineCases(unittest.TestCase):
+    def test_pipelines_are_fetched_once(self) -> None:
+        session = _DiscoverySession(["people.mp4"])
+        params, ids = _discover(session)
+        self.assertEqual(ids, ["people_cpu"])
+        self.assertIsInstance(params[0], PipelineCase)
+        self.assertEqual(session.paths.count("/pipelines"), 1)
+
+    def test_missing_video_skips_the_case(self) -> None:
+        params, ids = _discover(_DiscoverySession([]))
+        self.assertEqual(ids, ["people_cpu"])
+        self.assertIn("people.mp4", _skip_reason(params[0]))
+
+    def test_failed_video_lookup_runs_the_cases(self) -> None:
+        with self.assertLogs("helpers.pipeline_case_helpers", "WARNING") as logs:
+            params, ids = _discover(_DiscoverySession(None))
+        self.assertEqual(ids, ["people_cpu"])
+        self.assertIsInstance(params[0], PipelineCase)
+        self.assertIn("Could not look up input videos", logs.output[0])

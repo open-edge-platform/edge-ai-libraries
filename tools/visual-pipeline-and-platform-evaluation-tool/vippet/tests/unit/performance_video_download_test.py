@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 
+from api.api_schemas import DefaultVideoConversionState
 from tests.performance.perf_helpers import video_download as vd
 from tests.performance.perf_helpers.asset_download import OutcomeEnvError
 from tests.performance.perf_helpers.matrix import MatrixFilters, build_matrix
@@ -421,11 +422,22 @@ class TestReporting(unittest.TestCase):
                     vd.VideoOutcome("a", vd.Outcome.DOWNLOADED, "", "failed"),
                     vd.VideoOutcome("b", vd.Outcome.DOWNLOADED, "", "conflict"),
                     vd.VideoOutcome("c", vd.Outcome.DOWNLOADED, "", "converted"),
+                    vd.VideoOutcome("d", vd.Outcome.DOWNLOADED, "", "unsupported"),
                 ]
             ),
-            "HEVC conversion failed for 2 video(s); the benchmark is not affected",
+            "HEVC conversion failed for 3 video(s); the benchmark is not affected",
         )
         self.assertEqual(vd.conversion_failure_line([]), "")
+
+    def test_unsupported_conversion_is_labelled(self) -> None:
+        outcome = vd.VideoOutcome("a.mp4", vd.Outcome.DOWNLOADED, "", "unsupported")
+        self.assertEqual(vd.decode_outcomes(vd.encode_outcomes([outcome])), [outcome])
+        self.assertIn("not converted (no HEVC encoder)", vd.format_outcomes([outcome]))
+
+    def test_conversion_states_match_the_api(self) -> None:
+        self.assertEqual(
+            vd.CONVERSION_STATES, {s.value for s in DefaultVideoConversionState}
+        )
 
     def test_skipped_hint(self) -> None:
         self.assertIn(

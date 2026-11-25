@@ -32,15 +32,15 @@ from typing import Any, ClassVar
 
 import httpx
 
+from . import asset_download
 from .asset_download import (
+    AssetProblem,
     AssetWaiter,
     WaitState,
-    response_message,
-    AssetProblem,
     clean_text,
-    confirm,
     decode_outcome_env,
     format_duration,
+    response_message,
 )
 from .matrix import Matrix, format_table
 from .settings import InstallMode
@@ -57,13 +57,24 @@ _DOWNLOADED = "downloaded"
 _CONFLICT = "conflict"
 # HEVC conversion states that are still running.
 _CONVERTING: frozenset[str] = frozenset({"queued", "converting"})
+# Every ``conversion_status`` of GET /videos/default-recordings. A unit test
+# checks it against ``DefaultVideoConversionState`` in api/api_schemas.py.
 CONVERSION_STATES: frozenset[str] = frozenset(
-    {"not_converted", "queued", "converting", "converted", "failed", "conflict"}
+    {
+        "not_converted",
+        "queued",
+        "converting",
+        "converted",
+        "failed",
+        "conflict",
+        "unsupported",
+    }
 )
 PEXELS_LICENSE_URL = "https://www.pexels.com/license/"
 PEXELS_TERMS_URL = "https://www.pexels.com/terms-of-service/"
-# HEVC conversion states in which no HEVC copy was made.
-CONVERSION_FAILED: frozenset[str] = frozenset({"failed", "conflict"})
+# HEVC conversion states in which no HEVC copy was made; counted together in
+# the "HEVC conversion failed" line. ``unsupported``: no HEVC encoder.
+CONVERSION_FAILED: frozenset[str] = frozenset({"failed", "conflict", "unsupported"})
 
 DOWNLOAD_HINT: str = (
     'Download them with make test-performance PERF_ARGS="--download-missing-videos=yes" '
@@ -276,25 +287,12 @@ def describe_mode_effect(mode: InstallMode, stdin_is_tty: bool) -> str:
     Returns:
         One sentence naming the setting and its effect on this terminal.
     """
-    if mode == "yes":
-        return (
-            "With --download-missing-videos=yes a run downloads these videos "
-            "without asking."
-        )
-    if mode == "ask" and stdin_is_tty:
-        return (
-            "With --download-missing-videos=ask (default) a run asks before "
-            "downloading these videos."
-        )
-    if mode == "no":
-        return (
-            "With --download-missing-videos=no a run does not download them; "
-            "the runs that need them are skipped."
-        )
-    return (
-        "With --download-missing-videos=ask (default) a run does not download "
-        "them here, because stdin is not a terminal; pass "
-        "--download-missing-videos=yes to download them without asking."
+    return asset_download.describe_mode_effect(
+        mode,
+        stdin_is_tty,
+        flag="--download-missing-videos",
+        verb="download",
+        noun="videos",
     )
 
 
@@ -412,6 +410,7 @@ _CONVERSION_LABELS: dict[str, str] = {
     "not_converted": "not converted",
     "queued": "still converting",
     "converting": "still converting",
+    "unsupported": "not converted (no HEVC encoder)",
 }
 
 
@@ -761,13 +760,13 @@ class VideoDownloader(AssetWaiter):
 def present_plan(plan: VideoPlan, report: Callable[[str], None] = print) -> None:
     """Print the plan under the section header, or one line when it has no
     video to download (plus the videos that must be uploaded, if any)."""
-    if not plan.videos:
-        report(NOTHING_TO_DOWNLOAD)
-        if plan.unavailable:
-            report(_unavailable_note(plan))
-        return
-    report(SECTION_HEADER)
-    report(format_plan(plan))
+    asset_download.present_plan(
+        format_plan(plan) if plan.videos else None,
+        header=SECTION_HEADER,
+        nothing_missing=NOTHING_TO_DOWNLOAD,
+        notes=[_unavailable_note(plan)] if plan.unavailable else [],
+        report=report,
+    )
 
 
 def agree_to_download(
@@ -782,13 +781,14 @@ def agree_to_download(
     Returns:
         ``True`` to download; ``False`` when the user declined.
     """
-    if not ask:
-        report("Downloading without asking (--download-missing-videos=yes).")
-        return True
-    if confirm(prompt_text(plan), input_fn):
-        return True
-    report(
-        "Not downloading. The runs that need these videos are skipped. "
-        f"{DOWNLOAD_HINT}."
+    return asset_download.agree(
+        ask=ask,
+        question=prompt_text(plan),
+        unasked="Downloading without asking (--download-missing-videos=yes).",
+        declined=(
+            "Not downloading. The runs that need these videos are skipped. "
+            f"{DOWNLOAD_HINT}."
+        ),
+        input_fn=input_fn,
+        report=report,
     )
-    return False

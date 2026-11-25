@@ -24,7 +24,6 @@ plans, and exits without submitting any job.
 """
 
 import argparse
-import httpx
 import json
 import os
 import subprocess
@@ -34,6 +33,9 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
+
+import httpx
+
 from . import model_install, video_download
 from .asset_download import (
     DownloadAction,
@@ -59,13 +61,6 @@ from .model_install import (
     fetch_models,
     format_plan,
 )
-from .video_download import (
-    ENV_VIDEO_DOWNLOAD,
-    VideoDownloader,
-    VideoOutcome,
-    VideoPlan,
-    fetch_default_recordings,
-)
 from .preflight import (
     FATAL_PREFLIGHT_EXIT_CODE,
     PreflightError,
@@ -83,9 +78,16 @@ from .settings import (
     PERF_DIR,
     SPECS,
     ResolvedSettings,
-    SettingSpec,
     SettingsError,
+    SettingSpec,
     resolve_settings,
+)
+from .video_download import (
+    ENV_VIDEO_DOWNLOAD,
+    VideoDownloader,
+    VideoOutcome,
+    VideoPlan,
+    fetch_default_recordings,
 )
 
 FUNCTIONAL_DIR: Path = PERF_DIR.parent / "functional"

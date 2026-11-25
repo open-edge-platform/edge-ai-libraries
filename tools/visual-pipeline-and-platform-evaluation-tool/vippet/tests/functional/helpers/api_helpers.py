@@ -105,6 +105,26 @@ def fetch_videos(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
+# ``status`` values of GET /videos/default-recordings
+# (``DefaultVideoDownloadState`` in vippet/api/api_schemas.py).
+DEFAULT_RECORDING_STATES: frozenset[str] = frozenset(
+    {"available", "queued", "downloading", "downloaded", "failed", "conflict"}
+)
+# ``conversion_status`` values of GET /videos/default-recordings
+# (``DefaultVideoConversionState``); ``unsupported``: no HEVC encoder.
+DEFAULT_CONVERSION_STATES: frozenset[str] = frozenset(
+    {
+        "not_converted",
+        "queued",
+        "converting",
+        "converted",
+        "failed",
+        "conflict",
+        "unsupported",
+    }
+)
+
+
 def fetch_default_video_recordings(session: requests.Session) -> list[JsonDict] | None:
     """Return ``GET /videos/default-recordings``, the downloadable sample videos.
 

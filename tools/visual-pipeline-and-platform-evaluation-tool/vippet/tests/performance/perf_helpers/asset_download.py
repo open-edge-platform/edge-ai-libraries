@@ -12,8 +12,10 @@ per-asset outcome to pytest through an environment variable. This module
 holds what the two share:
 
 * :func:`download_action` - what a run does for an ``ask``/``yes``/``no``
-  setting on this terminal;
-* :func:`confirm` - the yes/no prompt;
+  setting on this terminal, and :func:`describe_mode_effect` - the same as
+  one sentence for ``--dry-run``;
+* :func:`present_plan`, :func:`agree` and :func:`confirm` - the plan
+  section and the yes/no prompt;
 * :func:`clean_text` / :func:`clean_link` - untrusted server text made safe
   to print;
 * :func:`decode_outcome_env` - strict parsing of an outcome handed to pytest;
@@ -152,6 +154,95 @@ def confirm(text: str, input_fn: Callable[[str], str] = input) -> bool:
     except EOFError:
         return False
     return answer.strip().lower() in {"y", "yes"}
+
+
+def describe_mode_effect(
+    mode: InstallMode, stdin_is_tty: bool, *, flag: str, verb: str, noun: str
+) -> str:
+    """Describe what a benchmark run would do with a plan (for ``--dry-run``).
+
+    Args:
+        mode: The ``ask``/``yes``/``no`` setting.
+        stdin_is_tty: Whether stdin is a terminal.
+        flag: The CLI flag of the setting, e.g. ``--install-missing-models``.
+        verb: What the run does, e.g. ``install`` (``installs``,
+            ``installing`` are derived).
+        noun: What it acts on, e.g. ``models``.
+
+    Returns:
+        One sentence naming the setting and its effect on this terminal.
+    """
+    action = download_action(mode, stdin_is_tty)
+    if action == "install":
+        return f"With {flag}=yes a run {verb}s these {noun} without asking."
+    if action == "prompt":
+        return f"With {flag}=ask (default) a run asks before {verb}ing these {noun}."
+    if mode == "no":
+        return (
+            f"With {flag}=no a run does not {verb} them; the runs that need them "
+            "are skipped."
+        )
+    return (
+        f"With {flag}=ask (default) a run does not {verb} them here, because "
+        f"stdin is not a terminal; pass {flag}=yes to {verb} them without asking."
+    )
+
+
+def present_plan(
+    plan_text: str | None,
+    *,
+    header: str,
+    nothing_missing: str,
+    notes: Sequence[str] = (),
+    report: Callable[[str], None] = print,
+) -> None:
+    """Print a plan under its section header, or one line when it is empty.
+
+    Args:
+        plan_text: The rendered plan, or ``None`` when nothing is missing.
+        header: The section header printed above the plan.
+        nothing_missing: The single line printed instead of an empty plan.
+        notes: Lines printed after that line (only for an empty plan).
+        report: Prints one line of output.
+    """
+    if plan_text is None:
+        report(nothing_missing)
+        for note in notes:
+            report(note)
+        return
+    report(header)
+    report(plan_text)
+
+
+def agree(
+    *,
+    ask: bool,
+    question: str,
+    unasked: str,
+    declined: str,
+    input_fn: Callable[[str], str] = input,
+    report: Callable[[str], None] = print,
+) -> bool:
+    """Ask whether to download a non-empty plan (or say it does so unasked).
+
+    Args:
+        ask: Prompt (``ask`` on a terminal); otherwise accept (``yes``).
+        question: The ``[y/N]`` question.
+        unasked: Printed when accepting without asking.
+        declined: Printed when the user declined.
+        input_fn: Reads the answer.
+        report: Prints one line of output.
+
+    Returns:
+        ``True`` to download; ``False`` when the user declined.
+    """
+    if not ask:
+        report(unasked)
+        return True
+    if confirm(question, input_fn):
+        return True
+    report(declined)
+    return False
 
 
 # --------------------------------------------------------------------------- #

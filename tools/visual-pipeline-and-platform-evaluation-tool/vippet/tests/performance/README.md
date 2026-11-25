@@ -784,9 +784,10 @@ exact paths are listed in the run's **Benchmark artefacts** section:
   (`default`, `yaml`, `env` or `cli`), the applied `filters` with the excluded
   pipeline variants, and the code `revisions` (suite git commit, ViPPET version).
   `model_install` lists each model the CLI tried to install with its `outcome` and
-  `reason` (`null` when no installation was attempted). `video_download` lists each
-  video the CLI tried to download with its `outcome`, `reason` and HEVC
-  `conversion_status` (`null` when no download was attempted). `summary.error` counts
+  `reason` (`null` when the CLI did not run the install step; an empty list when
+  nothing was missing). `video_download` lists each video the CLI tried to download
+  with its `outcome`, `reason` and HEVC `conversion_status` (`null` when the CLI did
+  not run the download step; an empty list when nothing was missing). `summary.error` counts
   the runs that could not be set up (e.g. their model failed to install)
 - `.csv` — flat table for spreadsheet analysis
 - `.html` — interactive Chart.js report with FPS, utilization, and power charts, and a
