@@ -234,9 +234,7 @@ def _missing_videos_or_none(
         )
         return MissingVideos()
     if missing_videos.by_variant:
-        logger.info(
-            "Variants with missing input videos: %s", missing_videos.by_variant
-        )
+        logger.info("Variants with missing input videos: %s", missing_videos.by_variant)
     return missing_videos
 
 
