@@ -2269,7 +2269,7 @@
           "models"
         ],
         "summary": "Start one or more model download jobs",
-        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`, `geti`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n  - `geti`: `category` is required; the model is resolved by name on\n    the configured Geti server, every OpenVINO precision it offers is\n    downloaded in parallel and `geti/<name>/` is scanned for the\n    installed precisions.\n- **`category`** *(optional)* - Required when `hub` is `huggingface` or `geti`.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
+        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`, `geti`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n  - `geti`: `category` is required; the model is resolved by name on\n    the configured Geti server, every OpenVINO precision it offers is\n    downloaded in parallel and `geti/<name>/` is scanned for the\n    installed precisions.\n- **`category`** *(optional)* - Required when `hub` is `huggingface` or `geti`.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
         "operationId": "start_model_download",
         "requestBody": {
           "content": {
@@ -3764,7 +3764,7 @@
             "description": "A requested filename is not in the sample manifest."
           },
           "409": {
-            "description": "A filename conflict or concurrent Pexels download exists."
+            "description": "A filename conflict exists."
           },
           "422": {
             "description": "Validation Error",
@@ -4397,6 +4397,84 @@
         "responses": {
           "200": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/sample-recordings": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "List Sample Audio Recordings",
+        "description": "# List Sample Audio Recordings\n\n## Operation\nReturn the allowlisted sample catalog, including audio metadata and whether\neach recording is already available locally. No files are downloaded.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Sample recordings and their local download status |\n| 503 | Voice initialization failed |",
+        "operationId": "list_sample_audio_recordings_voice_sample_recordings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SampleAudioRecordingResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Sample Audio Recordings Voice Sample Recordings Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/sample-recordings/{filename}/download": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Download Sample Audio Recording",
+        "description": "# Download Sample Audio Recording\n\n## Operation\nDownload an allowlisted WAV sample and store it locally for playback and\nspeech-to-text pipelines. Reuse an existing valid local recording.\n\n## Parameters\n- `filename`: Sample filename from the catalog, not a URL or arbitrary path.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Sample is available locally |\n| 404 | Filename is not in the sample catalog |\n| 500 | Sample could not be stored locally |\n| 502 | Upstream download failed or returned invalid or oversized audio |\n| 503 | Voice initialization failed |\n| 504 | Upstream download timed out |",
+        "operationId": "download_sample_audio_recording_voice_sample_recordings__filename__download_post",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleAudioRecordingResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The filename is not in the sample catalog."
+          },
+          "502": {
+            "description": "The upstream sample could not be downloaded."
+          },
+          "504": {
+            "description": "The upstream sample download timed out."
           },
           "422": {
             "description": "Validation Error",
@@ -9127,6 +9205,48 @@
         ],
         "title": "PipelineValidation",
         "description": "**Request body for pipeline validation.**\n\n## Attributes\n- `pipeline_graph` - Structured graph representation of the pipeline\n- `parameters` - Optional parameter set for validation (e.g., `{\"max-runtime\": 10}`)\n\n### Example\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [...],\n    \"edges\": [...]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```"
+      },
+      "SampleAudioRecordingResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "F",
+              "M"
+            ],
+            "title": "Gender"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "sample_rate": {
+            "type": "string",
+            "title": "Sample Rate"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "downloaded": {
+            "type": "boolean",
+            "title": "Downloaded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "gender",
+          "format",
+          "sample_rate",
+          "description",
+          "downloaded"
+        ],
+        "title": "SampleAudioRecordingResponse"
       },
       "StatusResponse": {
         "properties": {
