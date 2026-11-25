@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+if(@OPTICALFLOW_ENABLE_OPENCL@)
+  find_dependency(OpenCL)
+  find_dependency(Threads)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/optical_flow_sdkTargets.cmake")
+check_required_components(optical_flow_sdk)

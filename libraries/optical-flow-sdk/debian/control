@@ -1,0 +1,45 @@
+Source: optical-flow-sdk
+Section: libs
+Priority: optional
+Maintainer: Intel Corporation <eci.maintainer@intel.com>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.20),
+               pkg-config,
+               g++ | clang++,
+               python3-dev,
+               pybind11-dev,
+               python3-numpy,
+               opencl-headers,
+               ocl-icd-opencl-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/open-edge-platform/edge-ai-libraries
+Rules-Requires-Root: no
+
+Package: liboptical-flow-sdk0
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Suggests: intel-opencl-icd | mesa-opencl-icd
+Description: Intel Optical Flow SDK — shared library
+ Dense optical flow (DIS / Farneback) and sparse PyrLK for Intel CPU/GPU.
+ Backend selection is via the OpticalFlow / SparsePyrLK facade APIs.
+ .
+ This package contains the runtime shared library (CPU + OpenCL when built).
+
+Package: liboptical-flow-sdk-dev
+Architecture: any
+Section: libdevel
+Depends: liboptical-flow-sdk0 (= ${binary:Version}), ${misc:Depends}
+Description: Intel Optical Flow SDK — development files
+ Headers, CMake package config, pkg-config, and C++ samples for
+ liboptical-flow-sdk.
+
+Package: python3-optical-flow-sdk
+Architecture: any
+Section: python
+Depends: liboptical-flow-sdk0 (= ${binary:Version}),
+         ${python3:Depends}, ${misc:Depends},
+         python3-numpy
+Description: Intel Optical Flow SDK — Python 3 bindings
+ pybind11 module optical_flow_sdk with facade APIs matching the C++ SDK.
+ Includes python samples under /usr/share/optical-flow-sdk/python-samples.

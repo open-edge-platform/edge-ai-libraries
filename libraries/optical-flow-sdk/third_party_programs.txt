@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+This component does not currently vendor third-party source trees.
+Algorithm references (not redistributed here):
+
+- Dense Inverse Search (Kroeger et al., ECCV 2016)
+- Nvidia Optical Flow SDK documentation (reference only)

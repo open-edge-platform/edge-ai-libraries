@@ -1,0 +1,5 @@
+optical-flow-sdk (0.1.0-1) unstable; urgency=medium
+
+  * Initial Debian packaging: shared lib, -dev, and Python 3 bindings.
+
+ -- Intel Corporation <eci.maintainer@intel.com>  Mon, 09 Nov 2026 19:00:00 -0800
