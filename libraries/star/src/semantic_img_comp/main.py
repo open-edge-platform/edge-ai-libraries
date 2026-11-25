@@ -241,6 +241,8 @@ def _apply_cli_overrides(cfg, args: argparse.Namespace) -> None:
         cfg.app.client_id = args.client_id
 
     if args.stream_buffer_size is not None:
+        if args.stream_buffer_size < 1:
+            raise ValueError("--stream-buffer-size must be >= 1")
         cfg.enc.stream_buffer_size = args.stream_buffer_size
 
     cfg.model.skip_obj_detection = bool(args.skip_obj_detection)
