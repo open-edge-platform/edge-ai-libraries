@@ -273,7 +273,7 @@ async def get_default_video_recordings():
         statuses = dict(_default_video_download_status)
     for recording in manager.get_default_recordings():
         filename = recording["filename"]
-        hostname = urlparse(recording["url"]).hostname.lower() or ""
+        hostname = (urlparse(recording["url"]).hostname or "").lower()
         is_pexels = hostname == "pexels.com" or hostname.endswith(".pexels.com")
         is_openvino = hostname == "openvinotoolkit.org" or hostname.endswith(
             ".openvinotoolkit.org"
