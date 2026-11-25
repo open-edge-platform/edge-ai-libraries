@@ -3,26 +3,29 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Agent Harness Installer
+# Agent Harness Installer (AHI)
 
-An installer that deploys an agent harness onto Intel hardware and wires it
-to a local, OpenAI-compatible inference endpoint.
+Agent Harness Installer (AHI) is the recommended reference Agent runtime installer which sets up an optimized execution environment for autonomous agents on Intel hardware. AHI installs the chosen Agent harness, sets up the Routing capability, provides Observability options, and the configured Security capabilities. AHI is used across all Agentic blueprint applications in Open Edge Platform with notable examples being [Virtual Security Guard Agent](https://github.com/open-edge-platform/metro-ai-suite/tree/main/virtual-security-guard-agent) in **Metro Suite**, [QSR Store Agent](https://github.com/intel-retail/qsr-agent/tree/main) in **Retail Suite**, and [Factory Defects Inspector Agent](https://github.com/open-edge-platform/manufacturing-ai-suite/tree/main/factory-defects-inspector-agent) in **Manufacturing Suite**.
 
-The installer deploys one of three open-source agent projects, each
-published independently:
+The following sections provide overview of the major features offered. In addition to the listed features, AHI provides mechanisms to register MCP tools backed with relevant Skills.
 
-| Agent | Verified package |
+## Install the chosen Agent Harness
+
+AHI offers ease-of-deployment by providing support to deploy one of the following open-source Agentic frameworks:
+
+| Agent Framework | Verified package |
 | --- | --- |
-| `openclaw` | npm `openclaw` — github.com/openclaw/openclaw |
-| `deepagents-code` | `dcode` (Deep Agents Code) — github.com/langchain-ai/deepagents |
-| `hermes` | Nous Research's official installer — github.com/NousResearch/hermes-agent (pinned installer script from the repo, not npm) |
+| [`openclaw`](https://github.com/openclaw/openclaw) | npm `openclaw`  |
+| [`hermes`](https://github.com/nousresearch/hermes-agent) | Nous Research's official installer from its repo (pinned installer script from the repo, not npm) |
+| [`deepagents-code`](https://github.com/langchain-ai/deepagents) | `dcode` (Deep Agents Code) in its repo |
+
+The installation ensures the default configuration for the installed Agent framework is the recommended configuration to maximize performance and security.
+
+## Inference Router
 
 The inference backend is **configurable**, but every request goes through the
-**Inference Router** (IR): agents are wired to the Router's endpoint, never
-directly to a model server. By default the Router sits in front of a local
-**OpenVINO Model Server** (OVMS) serving an OpenAI-compatible
-`/v3/chat/completions` endpoint on Intel Core Ultra iGPU and Arc (CRI)
-GPUs; the Router itself is the published `intel/inference-router` image.
+[**Inference Router** (IR)](../../microservices/inference-router). The agents are wired to the router's endpoint, never directly to a model server. By default the Router sits in front of a local **OpenVINO Model Server** (OVMS) serving an OpenAI-compatible `/v3/chat/completions` endpoint on Intel Core Ultra iGPU and Arc (CRI) GPUs; the Router itself is the published `intel/inference-router` image.
+
 Setting `HARNESS_LLM_ROUTER_ENDPOINT` instead points the Router at any
 existing OpenAI-compatible endpoint you already operate (e.g., Ollama, vLLM,
 an internal gateway), with `HARNESS_LLM_ROUTER_API_KEY` as an optional bearer
@@ -32,6 +35,8 @@ externally"). Host mode has no fresh-install default model: name it with
 `--model` or the model environment variables. The installer can reuse a
 previously exported model; otherwise it prompts on a terminal and fails
 non-interactively without a selection.
+
+The Inference Router provides integration with [KV Quantization](../../libraries/kv-quant-offload) and [Token compression](../../libraries/adaptive-token-compressor) to offer KV-cache and Prompt optimization capabilities.
 
 ## Agentic AI Security
 
