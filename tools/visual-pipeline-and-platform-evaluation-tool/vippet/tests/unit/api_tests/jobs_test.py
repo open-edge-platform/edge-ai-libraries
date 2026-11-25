@@ -171,7 +171,7 @@ class TestAudioJobsAPI(unittest.TestCase):
 
         started = self.client.post(
             "/voice/pipelines/speech-to-text/variants/cpu/runs",
-            json={"recording": "sample_male.wav", "language": "en"},
+            json={"recording": "OSR_us_000_0010_8k.wav", "language": "en"},
         )
         listed = self.client.get("/jobs/audio/status")
 

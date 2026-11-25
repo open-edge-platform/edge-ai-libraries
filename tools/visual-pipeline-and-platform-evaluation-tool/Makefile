@@ -44,7 +44,7 @@ endef
 # skips the server, so it never overwrites the tag; `run` pulls it.
 BUILD_SERVICES := $(if $(DLSPS2_IMAGE),vippet vippet-ui sensor-manager)
 # DLSPS 2.0 image used by `run-prebuilt` unless DLSPS2_IMAGE is set.
-PREBUILT_DLSPS2_IMAGE ?= intel/dlstreamer-pipeline-server:2026.3.0-ubuntu26-2.0-rc2
+PREBUILT_DLSPS2_IMAGE ?= intel/dlstreamer-pipeline-server:2026.3.0-ubuntu26-2.0-rc3
 
 # Set MQTT=1 to run a Mosquitto broker for gvametapublish method=mqtt (see compose.mqtt.yml).
 MQTT ?= 0

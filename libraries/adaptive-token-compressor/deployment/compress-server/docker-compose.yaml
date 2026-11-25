@@ -27,7 +27,8 @@
 #   the clear. For any cross-host access, terminate TLS in a reverse proxy
 #   (nginx / caddy / traefik) that fronts this service, keep the container
 #   published to loopback (default COMPRESS_SERVER_BIND_HOST=127.0.0.1), and point the
-#   proxy upstream at 127.0.0.1:${COMPRESS_SERVER_PORT}. The proxy also carries auth,
+#   proxy upstream at 127.0.0.1:${COMPRESS_SERVER_OV_PORT} (ov) or :${COMPRESS_SERVER_PORT}
+#   (pytorch). The proxy also carries auth,
 #   rate limiting, and request-size limits. Do not publish plain HTTP on a
 #   routable interface.
 #
@@ -38,6 +39,14 @@ services:
   compress-server-pytorch:
     image: adaptive-compress-server-pytorch:latest
     container_name: adaptive-compress-server-pytorch
+    user: "1000:1000"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777
     build:
       context: ../..
       dockerfile: deployment/compress-server/Dockerfile.pytorch
@@ -46,7 +55,7 @@ services:
         - https_proxy=${https_proxy:-}
         - no_proxy=${no_proxy:-}
     ports:
-      - "${COMPRESS_SERVER_BIND_HOST:-127.0.0.1}:${COMPRESS_SERVER_PORT:-8001}:8001"
+      - "${COMPRESS_SERVER_BIND_HOST:-127.0.0.1}:${COMPRESS_SERVER_PORT:-8002}:8001"
     environment:
       - COMPRESS_SERVER_PORT=8001
       - COMPRESS_SERVER_RUNTIME=pytorch
@@ -64,7 +73,7 @@ services:
       - compress-server-models:/home/user/.cache/huggingface
     devices:
       # Intel GPU passthrough. Harmless on CPU hosts (COMPRESS_SERVER_DEVICE=cpu skips
-      # IPEX/XPU code paths). Comment out only if your docker daemon refuses
+      # XPU code paths). Comment out only if your docker daemon refuses
       # /dev/dri because the device file does not exist.
       - /dev/dri:/dev/dri
     group_add:
@@ -87,6 +96,14 @@ services:
   compress-server-ov:
     image: adaptive-compress-server-ov:latest
     container_name: adaptive-compress-server-ov
+    user: "1000:1000"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777
     build:
       context: ../..
       dockerfile: deployment/compress-server/Dockerfile.ov
@@ -95,7 +112,7 @@ services:
         - https_proxy=${https_proxy:-}
         - no_proxy=${no_proxy:-}
     ports:
-      - "${COMPRESS_SERVER_BIND_HOST:-127.0.0.1}:${COMPRESS_SERVER_OV_PORT:-8002}:8001"
+      - "${COMPRESS_SERVER_BIND_HOST:-127.0.0.1}:${COMPRESS_SERVER_OV_PORT:-8001}:8001"
     environment:
       - COMPRESS_SERVER_PORT=8001
       - COMPRESS_SERVER_RUNTIME=ov

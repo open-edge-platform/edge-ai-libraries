@@ -8,7 +8,7 @@
       OpenVINO:   python compress_server.py --runtime ov --device gpu --port 8001
                   (ov devices: cpu / gpu, lowercase; default gpu)
 
-Heavy deps (torch / llmlingua / fastapi / IPEX) are deferred into
+Heavy deps (torch / llmlingua / fastapi) are deferred into
 ``build_app`` so module import from a client doesn't pull them in.
 """
 from __future__ import annotations
@@ -99,7 +99,7 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         default=_env_str("COMPRESS_SERVER_RUNTIME", "pytorch"),
         choices=["pytorch", "ov"],
-        help="Inference runtime: pytorch (with optional IPEX) or OpenVINO",
+        help="Inference runtime: pytorch or OpenVINO",
     )
     parser.add_argument(
         "--device",
@@ -206,7 +206,12 @@ def build_app(args: argparse.Namespace) -> Any:
 
     if args.runtime == "pytorch" and args.device == "xpu":
         # Fail fast: pytorch+xpu must not silently fall back to CPU.
-        import intel_extension_for_pytorch  # noqa: F401
+        # XPU support is native in stock PyTorch (IPEX is retired).
+        if not (hasattr(torch, "xpu") and torch.xpu.is_available()):
+            raise RuntimeError(
+                "--device xpu requested, but torch.xpu is not available. "
+                "Install the XPU PyTorch build and pass /dev/dri, or use --device cpu."
+            )
     if args.runtime == "pytorch" and args.device == "cuda":
         if not torch.cuda.is_available():
             raise RuntimeError(
@@ -257,25 +262,20 @@ def build_app(args: argparse.Namespace) -> Any:
         if args.runtime == "pytorch":
             if args.device == "xpu":
                 device_index = args.device_index
-                try:
-                    if hasattr(torch, "xpu") and torch.xpu.is_available():
-                        xpu_count = torch.xpu.device_count()
-                        logger.info("Detected XPU devices: %d", xpu_count)
-                        for idx in range(xpu_count):
-                            logger.info("XPU[%d] name: %s", idx, torch.xpu.get_device_name(idx))
-                        if device_index < 0 or device_index >= xpu_count:
-                            raise RuntimeError(
-                                f"Invalid --device_index={device_index}; available range is 0..{xpu_count - 1}."
-                            )
-                        logger.info(
-                            "Selecting xpu:%d (%s). Note: index alone cannot guarantee iGPU vs dGPU.",
-                            device_index,
-                            torch.xpu.get_device_name(device_index),
-                        )
-                    else:
-                        logger.warning("--device xpu requested, but torch.xpu is not available")
-                except Exception as exc:
-                    logger.warning("Failed to enumerate XPU devices: %s", type(exc).__name__)
+                # torch.xpu availability is already checked at startup.
+                xpu_count = torch.xpu.device_count()
+                logger.info("Detected XPU devices: %d", xpu_count)
+                for idx in range(xpu_count):
+                    logger.info("XPU[%d] name: %s", idx, torch.xpu.get_device_name(idx))
+                if device_index < 0 or device_index >= xpu_count:
+                    raise RuntimeError(
+                        f"Invalid --device_index={device_index}; available range is 0..{xpu_count - 1}."
+                    )
+                logger.info(
+                    "Selecting xpu:%d (%s). Note: index alone cannot guarantee iGPU vs dGPU.",
+                    device_index,
+                    torch.xpu.get_device_name(device_index),
+                )
 
                 device = torch.device(f"xpu:{device_index}")
                 llm_lingua.model = llm_lingua.model.to(device)
@@ -401,8 +401,8 @@ def build_app(args: argparse.Namespace) -> Any:
                 compiled_model = getattr(req, "compiled_model", None)
                 if compiled_model is not None:
                     ov_exec_devices = compiled_model.get_property("EXECUTION_DEVICES")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("OpenVINO startup device probe failed: %s", type(exc).__name__)
 
             # LLMLingua moves tokenizer tensors via torch.Tensor.to(self.device).
             # Keep tensor device on CPU; OpenVINO runtime target is tracked separately.
@@ -534,9 +534,9 @@ def build_app(args: argparse.Namespace) -> Any:
                     probed = compiled_model.get_property("EXECUTION_DEVICES")
                     if probed:
                         state["ov_exec_devices"] = probed
-            except Exception:
+            except Exception as exc:
                 # Keep startup fallback value if probe still unavailable.
-                pass
+                logger.debug("OpenVINO post-inference device probe failed: %s", type(exc).__name__)
             state["ov_exec_reprobe_done"] = True
             logger.info("OpenVINO execution devices (post-first-compress): %s", state["ov_exec_devices"])
 

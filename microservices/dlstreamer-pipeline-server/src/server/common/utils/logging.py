@@ -27,7 +27,7 @@ def _set_log_level(logger, level):
     try:
         logger.setLevel(level)
     except Exception:
-        print('Unable to set log level, defaulting to "DEBUG"')
+        logging.warning('Unable to set log level, defaulting to "DEBUG"')
         logger.setLevel('DEBUG')
 
 

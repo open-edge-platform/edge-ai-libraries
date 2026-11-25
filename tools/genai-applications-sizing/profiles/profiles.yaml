@@ -61,7 +61,7 @@ profiles:
           "audioSummaryReducePrompt": "You are provided with intermediate summaries derived from a full audio transcript. Merge them into one coherent final summary (aim for 2–4 paragraphs) while preserving chronology, key points, and critical details.\n\n%data%\n",
           "audioSummarySinglePrompt": "Condense the following audio-transcript summary while retaining the key points, chronology, and critical details:\n\n%data%\n",
           "produceFinalSummary": "true",
-          "title": "one-by-one-person-detection.mp4"
+          "title": "store-aisle-detection.mp4"
         }'
         
   chatqna_wsf:

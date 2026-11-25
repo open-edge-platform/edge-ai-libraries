@@ -602,6 +602,7 @@ class Dlsps2PipelineRunner:
         allowed_stream_ids: "set[str] | None" = None,
         stream_commands: dict[str, str] | None = None,
         validation_stream_ids: "set[str] | None" = None,
+        stream_cpu_cores: dict[str, list[int]] | None = None,
     ) -> PipelineResult:
         """Run a pipeline against DLSPS 2.0 and return a `PipelineResult`.
 
@@ -622,6 +623,11 @@ class Dlsps2PipelineRunner:
                 string is validated before the run, one per pipeline
                 (``PipelineCommand.validation_stream_ids``); the other streams
                 of a pipeline repeat it. ``None`` validates every stream.
+            stream_cpu_cores: Normal mode only. Logical CPU ids per
+                ``stream_id`` (``PipelineCommand.stream_cpu_cores``), sent as
+                ``cpu_cores`` for that stream's instance instead of
+                ``pinned_cpu_cores``. Streams not listed use
+                ``pinned_cpu_cores``.
 
         Returns:
             PipelineResult with ``exit_code``/``stderr`` (validation mode) or
@@ -644,7 +650,7 @@ class Dlsps2PipelineRunner:
                 )
             stream_commands = {"stream": pipeline_command}
         return self._run_streams(
-            stream_commands, allowed_stream_ids, validation_stream_ids
+            stream_commands, allowed_stream_ids, validation_stream_ids, stream_cpu_cores
         )
 
     # ------------------------------------------------------------------
@@ -690,14 +696,16 @@ class Dlsps2PipelineRunner:
         client: httpx.Client,
         pipeline_command: str,
         validate_pipeline: bool = True,
+        cpu_cores: list[int] | None = None,
         fps_element: str | None = None,
     ) -> str:
         body: dict[str, object] = {
             "pipeline": pipeline_command,
             "validate_pipeline": validate_pipeline,
         }
-        if self.pinned_cpu_cores:
-            body["cpu_cores"] = self.pinned_cpu_cores
+        cores = self.pinned_cpu_cores if cpu_cores is None else cpu_cores
+        if cores:
+            body["cpu_cores"] = cores
         if fps_element:
             body["fps_element"] = fps_element
         response = client.post(f"{self.base_url}/pipelines", json=body)
@@ -1419,6 +1427,7 @@ class Dlsps2PipelineRunner:
         stream_commands: dict[str, str],
         allowed_stream_ids: "set[str] | None" = None,
         validation_stream_ids: "set[str] | None" = None,
+        stream_cpu_cores: dict[str, list[int]] | None = None,
     ) -> PipelineResult:
         """Run every stream as its own DLSPS 2.0 instance and measure each one.
 
@@ -1523,6 +1532,7 @@ class Dlsps2PipelineRunner:
                                 client,
                                 command,
                                 validate_pipeline=False,
+                                cpu_cores=(stream_cpu_cores or {}).get(stream_id),
                                 fps_element=fps_elements.get(stream_id),
                             )
                         except httpx.HTTPError as exc:

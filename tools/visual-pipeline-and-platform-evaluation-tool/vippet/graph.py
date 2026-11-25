@@ -1,14 +1,18 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import copy
 import logging
 import os
 import re
 from collections import defaultdict
 from collections.abc import Iterator
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+from cpu_topology import normalize_cpu_ids
 from models import SupportedModelsManager
 from resources import (
     get_labels_manager,
@@ -335,6 +339,43 @@ class Edge:
 class Graph:
     nodes: list[Node]
     edges: list[Edge]
+    cpu_pinning: list[int] = field(default_factory=list)
+
+    def is_media_only(self) -> bool:
+        """Graph decodes media with decodebin3 and runs no inference elements."""
+        return self.has_decodebin3() and not any(
+            node.type.startswith("gva")
+            and node.type not in {"gvafpscounter", "gvametaconvert", "gvametapublish"}
+            for node in self.nodes
+        )
+
+    def uses_vdbox_decode(self) -> bool:
+        """Pinned media-only graphs with compressed input keep decodebin3 and decode on VDBox."""
+        if (
+            not self.cpu_pinning
+            or not self.is_media_only()
+            or self.has_image_set_source()
+        ):
+            return False
+        # Raw and Bayer inputs need the source adaptation done by apply_decodebin3_replacement.
+        codec = self.determine_input_codec()
+        decoder = VideoDecoder()
+        return not codec or not (
+            decoder.is_raw_format(codec) or decoder.is_bayer_format(codec)
+        )
+
+    def with_vdbox_decode(self) -> "Graph":
+        graph = copy.deepcopy(self)
+        for node in graph.nodes:
+            if node.type == "decodebin3":
+                node.data["caps"] = '"video/x-raw(memory:VAMemory)"'
+        return graph
+
+    def __post_init__(self) -> None:
+        self.set_cpu_pinning(self.cpu_pinning)
+
+    def set_cpu_pinning(self, cpus: object) -> None:
+        self.cpu_pinning = normalize_cpu_ids(cpus, "cpu_pinning")
 
     @staticmethod
     def from_dict(data: dict) -> "Graph":
@@ -367,9 +408,9 @@ class Graph:
             for edge in data["edges"]
         ]
 
-        return Graph(nodes=nodes, edges=edges)
+        return Graph(nodes=nodes, edges=edges, cpu_pinning=data.get("cpu_pinning", []))
 
-    def to_dict(self) -> dict[str, list[dict[str, str | dict[str, str]]]]:
+    def to_dict(self) -> dict:
         """
         Convert Graph into a plain dictionary (for example for JSON serialization).
 
@@ -379,7 +420,10 @@ class Graph:
         The resulting structure is compatible with the public API schema.
         Using asdict() here ensures all dataclass fields are serialized consistently.
         """
-        return asdict(self)
+        data = asdict(self)
+        if not self.cpu_pinning:
+            data.pop("cpu_pinning")
+        return data
 
     @staticmethod
     def from_pipeline_description(pipeline_description: str) -> "Graph":
@@ -637,6 +681,8 @@ class Graph:
 
                 if "location" in node.data:
                     location = node.data["location"]
+                    if not location:
+                        raise ValueError(_missing_input_video_message(location))
 
                     # Ensure TS file exists before using it
                     ts_path = videos_manager.get_ts_path(location)
@@ -654,7 +700,7 @@ class Graph:
 
                         if source_path is None:
                             raise ValueError(
-                                f"Cannot find source video '{source_filename}' for TS conversion."
+                                _missing_input_video_message(source_filename)
                             )
 
                         ts_path = videos_manager.ensure_ts_file(source_path)
@@ -1343,6 +1389,7 @@ class Graph:
         backwards from it) and return the recommended encoder device based on
         memory type. Falls back to the last video/x-raw node in the list when
         the main output sink cannot be identified.
+        Raw caps set directly on decodebin3 are also considered.
 
         Note: NPU variants are not considered because NPUs do not provide dedicated
         memory accessible for GStreamer pipeline buffering; they operate exclusively
@@ -1360,6 +1407,15 @@ class Graph:
             if "memory:VAMemory" in caps_type:
                 return ENCODER_DEVICE_GPU
             return ENCODER_DEVICE_CPU
+
+        def _raw_caps(node: Node) -> str:
+            if node.type.startswith("video/x-raw"):
+                return node.type
+            if node.type == "decodebin3":
+                caps = node.data.get("caps", "").strip('"')
+                if caps.startswith("video/x-raw"):
+                    return caps
+            return ""
 
         # Prefer caps on the path feeding the main output sink; caps on other
         # tee branches (e.g. a sysmem VLM branch) must not decide the encoder.
@@ -1380,14 +1436,14 @@ class Graph:
                 node = nodes_by_id.get(node_id)
                 if node is None:
                     continue
-                if node.type.startswith("video/x-raw"):
-                    return _device_for_caps(node.type)
+                if caps := _raw_caps(node):
+                    return _device_for_caps(caps)
                 pending.extend(sources_by_target.get(node_id, []))
             return ENCODER_DEVICE_CPU
 
         for node in reversed(self.nodes):
-            if node.type.startswith("video/x-raw"):
-                return _device_for_caps(node.type)
+            if caps := _raw_caps(node):
+                return _device_for_caps(caps)
 
         return ENCODER_DEVICE_CPU
 
@@ -1495,7 +1551,11 @@ class Graph:
         logger.debug(
             f"Simple view graph created with {len(simple_nodes)} nodes and {len(simple_edges)} edges"
         )
-        return Graph(nodes=simple_nodes, edges=simple_edges)
+        return Graph(
+            nodes=simple_nodes,
+            edges=simple_edges,
+            cpu_pinning=list(self.cpu_pinning),
+        )
 
     @staticmethod
     def apply_simple_view_changes(
@@ -1655,6 +1715,7 @@ class Graph:
         # Step 4: Apply property changes to advanced view
         # Create a deep copy of the advanced graph to avoid modifying the original
         result_advanced = copy.deepcopy(original_advanced)
+        result_advanced.set_cpu_pinning(modified_simple.cpu_pinning)
 
         # Build a lookup dictionary for advanced nodes
         advanced_nodes_by_id = {node.id: node for node in result_advanced.nodes}
@@ -4232,6 +4293,18 @@ def _add_property_to_last_node(nodes: list[Node], token: _Token) -> None:
     logger.debug(f"Added property to node {nodes[-1].id}: {key}={value}")
 
 
+def _quote_if_spaced(value: object) -> str:
+    """Double-quote a property value that contains whitespace.
+
+    GStreamer launch syntax splits unquoted values at spaces; values that are
+    already quoted are left as they are.
+    """
+    text = str(value)
+    if text[:1] in ('"', "'") or not re.search(r"\s", text):
+        return text
+    return f'"{text}"'
+
+
 def _build_chain(
     start_id: str,
     node_by_id: dict[str, Node],
@@ -4307,7 +4380,7 @@ def _build_chain(
             props_items = [
                 (key, value)
                 for key, value in node.data.items()
-                if not key.startswith("__")
+                if not key.startswith("__") and value != ""
             ]
 
             if props_items:
@@ -4326,13 +4399,13 @@ def _build_chain(
             result_parts.append(node.type)
             spec = _model_spec(node.type)
             for key, value in node.data.items():
-                if key.startswith("__"):
+                if key.startswith("__") or value == "":
                     continue
                 # Remap the canonical in-memory key ``model`` back to the wire key
                 # declared in NODE_MODEL_SPECS for this node type (e.g. ``model-path``
                 # for ``gvagenai``). All other keys pass through unchanged.
                 output_key = spec.model_key if key == "model" else key
-                result_parts.append(f"{output_key}={value}")
+                result_parts.append(f"{output_key}={_quote_if_spaced(value)}")
 
         targets = edges_from.get(current_id, [])
         if not targets:
@@ -4410,6 +4483,10 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
             continue
 
         model_proc_path = node.data.get("model-proc", None)
+        # Paths with spaces are quoted in generated launch strings.
+        model_path = model_path.strip("\"'")
+        if model_proc_path is not None:
+            model_proc_path = model_proc_path.strip("\"'")
         # Match against every supported model (installed or not) so that
         # pipelines referencing a not-yet-installed model still get a
         # resolved display name. This lets ``used_by_pipelines`` in the
@@ -4599,7 +4676,8 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
     Side effects:
         - Modifies node.data["location"] or node.data["source"] for file source nodes
         - Converts absolute paths to filenames only
-        - Sets empty string if video path is not found
+        - Keeps the filename of a filesrc video that is not available yet,
+          so it can still be downloaded; sets empty string otherwise
         - Only processes filesrc, multifilesrc, and urisourcebin node types
         - Logs debug messages for each conversion
 
@@ -4627,9 +4705,24 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
             if filename := VideosManager().get_video_filename(path):
                 node.data[key] = filename
                 logger.debug(f"Converted video path to filename: {path} -> {filename}")
+            elif node.type == "filesrc":
+                node.data[key] = os.path.basename(os.path.normpath(path))
+                logger.debug(f"Video not available yet: {path}")
             else:
                 node.data[key] = ""
                 logger.debug(f"Video path not found: {path}")
+
+
+def _missing_input_video_message(name: str) -> str:
+    if not name:
+        return (
+            "No input video is selected. Download or upload a video on the "
+            "Videos page, then select it in the pipeline Input node."
+        )
+    return (
+        f"Input video '{name}' is not available. Download or upload it on the "
+        "Videos page, then select it in the pipeline Input node."
+    )
 
 
 def _input_video_name_to_path(nodes: list[Node]) -> None:
@@ -4678,9 +4771,7 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
 
             path = VideosManager().get_video_path(name)
             if not path:
-                raise ValueError(
-                    f"Node {node.id}. {node.type}: can't map '{key}={name}' to video path"
-                )
+                raise ValueError(_missing_input_video_message(name))
 
             node.data[key] = path
             logger.debug(f"Converted video filename to path: {name} -> {path}")
