@@ -27,6 +27,13 @@ VALIDATION_PAYLOAD: dict[str, Any] = {
     "parameters": {"max-runtime": 10},
 }
 
+# The API echoes the graph as parsed by PipelineGraph, which fills in
+# defaults for optional fields omitted from the request.
+EXPECTED_ECHOED_PIPELINE_GRAPH: dict[str, Any] = {
+    "cpu_pinning": [],
+    **VALIDATION_PAYLOAD["pipeline_graph"],
+}
+
 
 @pytest.mark.full
 def test_pipeline_validate_job_completes(http_client: requests.Session) -> None:
@@ -45,45 +52,50 @@ def test_pipeline_validate_job_completes(http_client: requests.Session) -> None:
     assert isinstance(job_id, str) and job_id, "Validation response missing job_id"
     logger.info("Validation job accepted with id %s", job_id)
 
-    all_statuses_response = http_client.get(
-        f"{BASE_URL}/jobs/validation/status",
-        timeout=30,
-    )
-    assert all_statuses_response.status_code == 200, (
-        f"GET /jobs/validation/status returned {all_statuses_response.status_code}, "
-        f"body={all_statuses_response.text}"
-    )
-    all_statuses = all_statuses_response.json()
-    assert isinstance(all_statuses, list) and len(all_statuses) != 0, (
-        "GET /jobs/validation/status returned an empty list"
-    )
-    logger.info("GET /jobs/validation/status returned %d job(s)", len(all_statuses))
-
-    summary_response = http_client.get(
-        f"{BASE_URL}/jobs/validation/{job_id}",
-        timeout=30,
-    )
-    assert summary_response.status_code == 200, (
-        f"GET /jobs/validation/{job_id} returned {summary_response.status_code}, "
-        f"body={summary_response.text}"
-    )
-    summary = summary_response.json()
-    assert summary.get("id") == job_id, (
-        f"Job summary id mismatch: expected {job_id!r}, got {summary.get('id')!r}"
-    )
-    request_body = summary.get("request", {})
-    assert request_body.get("pipeline_graph") == VALIDATION_PAYLOAD["pipeline_graph"], (
-        f"Job summary pipeline_graph mismatch: {request_body.get('pipeline_graph')}"
-    )
-    assert request_body.get("parameters") == VALIDATION_PAYLOAD["parameters"], (
-        f"Job summary parameters mismatch: {request_body.get('parameters')}"
-    )
-    logger.info("Job summary for %s matches the submitted payload", job_id)
-
     status_url = f"{BASE_URL}/jobs/validation/{job_id}/status"
-    last_status = wait_for_job_completion(
-        http_client, status_url, assert_initial_running=False
-    )
+    # Always wait for the job to finish, even when an assertion below fails;
+    # otherwise the still-running job makes subsequent tests get 409 Conflict.
+    try:
+        all_statuses_response = http_client.get(
+            f"{BASE_URL}/jobs/validation/status",
+            timeout=30,
+        )
+        assert all_statuses_response.status_code == 200, (
+            f"GET /jobs/validation/status returned {all_statuses_response.status_code}, "
+            f"body={all_statuses_response.text}"
+        )
+        all_statuses = all_statuses_response.json()
+        assert isinstance(all_statuses, list) and len(all_statuses) != 0, (
+            "GET /jobs/validation/status returned an empty list"
+        )
+        logger.info(
+            "GET /jobs/validation/status returned %d job(s)", len(all_statuses)
+        )
+
+        summary_response = http_client.get(
+            f"{BASE_URL}/jobs/validation/{job_id}",
+            timeout=30,
+        )
+        assert summary_response.status_code == 200, (
+            f"GET /jobs/validation/{job_id} returned {summary_response.status_code}, "
+            f"body={summary_response.text}"
+        )
+        summary = summary_response.json()
+        assert summary.get("id") == job_id, (
+            f"Job summary id mismatch: expected {job_id!r}, got {summary.get('id')!r}"
+        )
+        request_body = summary.get("request", {})
+        assert request_body.get("pipeline_graph") == EXPECTED_ECHOED_PIPELINE_GRAPH, (
+            f"Job summary pipeline_graph mismatch: {request_body.get('pipeline_graph')}"
+        )
+        assert request_body.get("parameters") == VALIDATION_PAYLOAD["parameters"], (
+            f"Job summary parameters mismatch: {request_body.get('parameters')}"
+        )
+        logger.info("Job summary for %s matches the submitted payload", job_id)
+    finally:
+        last_status = wait_for_job_completion(
+            http_client, status_url, assert_initial_running=False
+        )
 
     assert last_status.get("state") == "COMPLETED", (
         f"Validation job {job_id} finished in unexpected state {last_status.get('state')}"
