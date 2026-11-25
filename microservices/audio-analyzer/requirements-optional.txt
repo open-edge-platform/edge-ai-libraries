@@ -42,4 +42,7 @@ openai-whisper==20250625
 # diarization pipeline (it imports speechbrain) with an AttributeError.
 speechbrain==1.1.2
 pyannote.audio==4.0.4
+# torch>=2.9's torch.onnx.export imports onnxscript even with dynamo=False; the
+# OpenVINO-backed diarizer (models.diarization.device GPU/NPU) exports pyannote to ONNX.
+onnxscript==0.7.2
 pywhispercpp==1.5.0

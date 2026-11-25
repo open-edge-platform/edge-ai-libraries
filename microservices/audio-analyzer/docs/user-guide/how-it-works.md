@@ -118,6 +118,9 @@ over WebSocket, transcribed utterance by utterance).
 4. **ASR inference** — Each chunk is transcribed by the configured ASR
    backend (`openai`, `openvino`, or `whispercpp`) on the configured device
    (typically `CPU`; `GPU` is available only for supported OpenVINO™ paths).
+   With diarization enabled, each chunk is also diarized (`diarization_mode=chunk`),
+   or, with `diarization_mode=file`, the whole upload is diarized once in parallel
+   with transcription and the speakers are matched against any `speaker_profiles`.
 5. **Sentiment (optional)** — When `sentiment.enabled` is true, the
    service runs the configured sentiment model (`openvino` or `pytorch`) and
    aggregates a session-level summary.

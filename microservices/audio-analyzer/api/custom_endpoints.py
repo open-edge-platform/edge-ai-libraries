@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -59,6 +60,49 @@ def asr_model_info():
 @router.get("/v1/performance")
 def asr_performance():
     return JSONResponse(content={"latency": asr_latency.stats()})
+
+
+# Shorter samples give unstable voice embeddings.
+MIN_SPEAKER_SAMPLE_SECONDS = 1.0
+
+
+@router.post("/v1/audio/speaker-embedding")
+def speaker_embedding(file: UploadFile = File(...)):
+    """Voice embedding of a one-speaker sample, for ``speaker_profiles`` on transcriptions.
+
+    Stateless: the sample is deleted once the embedding is computed; the caller
+    stores the embedding (it is biometric data).
+    """
+    if not config.models.asr.diarization:
+        raise HTTPException(
+            status_code=400,
+            detail="Speaker embeddings need diarization: set models.asr.diarization=true",
+        )
+    from components.asr_component import ASRComponent
+    from components.ffmpeg.audio_preprocessing import get_audio_duration, process_audio_segment
+
+    session_id = generate_session_id()
+    try:
+        _, filepath = save_audio_file(file, session_id=session_id)
+        duration = float(get_audio_duration(filepath) or 0.0)
+        if duration < MIN_SPEAKER_SAMPLE_SECONDS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"The sample must be at least {MIN_SPEAKER_SAMPLE_SECONDS:g} s long",
+            )
+        prepared = process_audio_segment(filepath, 0.0, duration, "embedding", session_id=session_id, full_file=True)
+        embedding = ASRComponent.get_shared_diarizer().compute_speaker_embedding(prepared["chunk_path"])
+    finally:
+        shutil.rmtree(get_session_dir(session_id), ignore_errors=True)
+    if embedding is None:
+        raise HTTPException(status_code=422, detail="No speech was found in the sample")
+    return JSONResponse(content={
+        "object": "speaker.embedding",
+        "model": config.models.diarization.name,
+        "dim": int(embedding.shape[0]),
+        "duration": round(duration, 3),
+        "embedding": [round(float(v), 6) for v in embedding],
+    })
 
 
 @router.post("/v1/audio/transcriptions/stream")

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
+from components.asr.diarization.speaker_profiles import SpeakerProfileError, build_speaker_options
 from dto.audiosource import AudioSource
 from dto.transcription_dto import validate_transcription_options
 from pipeline import Pipeline
@@ -52,6 +53,30 @@ def _sse_transcription_events(pipeline: Pipeline, filepath: str, language: str |
     yield "data: [DONE]\n\n"
 
 
+def _speaker_options(diarization: bool | None, **fields):
+    """Validated opt-in speaker options; None keeps per-chunk diarization (400 on bad input)."""
+    diar_cfg = getattr(config.models, "diarization", None)
+    try:
+        options = build_speaker_options(
+            configured_mode=getattr(diar_cfg, "mode", None),
+            configured_threshold=getattr(diar_cfg, "speaker_match_threshold", None),
+            voice_enrollment_enabled=bool(getattr(diar_cfg, "voice_enrollment_enabled", False)),
+            **fields,
+        )
+    except SpeakerProfileError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    diarization_active = bool(config.models.asr.diarization) and diarization is not False
+    if options is None or diarization_active:
+        return options
+    # A deployment default of mode=file does not apply when diarization is off.
+    if any(value is not None for value in fields.values()):
+        raise HTTPException(
+            status_code=400,
+            detail="Speaker options need diarization: set models.asr.diarization=true and do not send diarization=false",
+        )
+    return None
+
+
 @router.post("/v1/audio/transcriptions")
 def transcribe_audio(
     file: UploadFile = File(...),
@@ -65,6 +90,13 @@ def transcribe_audio(
     stream: bool = Form(False),
     diarization: bool | None = Form(None),
     device: str | None = Form(None),
+    diarization_mode: str | None = Form(None),
+    num_speakers: int | None = Form(None),
+    min_speakers: int | None = Form(None),
+    max_speakers: int | None = Form(None),
+    speaker_profiles: str | None = Form(None),
+    unknown_speaker_label: str | None = Form(None),
+    speaker_match_threshold: float | None = Form(None),
 ):
     language, _ = validate_transcription_options(
         temperature=temperature,
@@ -72,6 +104,16 @@ def transcribe_audio(
         prompt=prompt,
         model=model,
         response_format=response_format,
+    )
+    speaker_options = _speaker_options(
+        diarization,
+        mode=diarization_mode,
+        num_speakers=num_speakers,
+        min_speakers=min_speakers,
+        max_speakers=max_speakers,
+        speaker_profiles=speaker_profiles,
+        unknown_speaker_label=unknown_speaker_label,
+        speaker_match_threshold=speaker_match_threshold,
     )
 
     try:
@@ -108,6 +150,7 @@ def transcribe_audio(
         diarization=diarization,
         device=resolved_device,
         pool=Pipeline.POOL_FINAL,
+        speaker_options=speaker_options,
     )
     if language and is_english_only_model(pipeline.asr_model_name):
         # English-only Whisper checkpoints (".en" suffix) carry no language
@@ -134,13 +177,17 @@ def transcribe_audio(
         response.headers["Cache-Control"] = "no-cache"
         return response
 
-    result = pipeline.transcribe(
-        SimpleNamespace(
-            audio_filename=filepath,
-            source_type=AudioSource.AUDIO_FILE,
-        ),
-        language=language,
-    )
+    try:
+        result = pipeline.transcribe(
+            SimpleNamespace(
+                audio_filename=filepath,
+                source_type=AudioSource.AUDIO_FILE,
+            ),
+            language=language,
+        )
+    except SpeakerProfileError as exc:
+        # Profiles whose embeddings do not fit the diarization model.
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if response_format == "text":
         response = PlainTextResponse(result["text"])

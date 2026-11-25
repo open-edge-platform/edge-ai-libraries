@@ -6,6 +6,7 @@ from typing import Iterator
 
 from components.asr_component import ASRComponent
 from components.ffmpeg.audio_preprocessing import chunk_by_silence
+from dto.audiosource import AudioSource
 from utils.asr_pool_config import POOL_FINAL, POOL_PREVIEW, resolve_pool_config
 from utils.config_loader import config
 from utils.openvino_runtime_validation import resolve_asr_device
@@ -30,7 +31,7 @@ class Pipeline:
 
     def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None,
                  diarization: bool | None = None, device: str | None = None, pool: str = POOL_FINAL,
-                 persist: bool = True):
+                 persist: bool = True, speaker_options=None):
         """Build a transcription pipeline.
 
         Args:
@@ -49,6 +50,8 @@ class Pipeline:
             persist: Write the result to the session's state files. False makes
                 a final-pool call a pure decode, like a preview-pool call; the
                 caller then persists it with :meth:`append_precomputed`.
+            speaker_options: Opt-in ``SpeakerOptions`` (whole-file diarization,
+                speaker profiles); None keeps per-chunk diarization.
         """
         logger.info("pipeline initialized")
         self.session_id = session_id or generate_session_id()
@@ -72,6 +75,7 @@ class Pipeline:
             speaker_scope_id=speaker_scope_id,
             diarization=diarization,
             pool=pool,
+            speaker_options=speaker_options,
         )
         self.sentiment_component = None
         if SENTIMENT_ENABLED:
@@ -187,6 +191,10 @@ class Pipeline:
     def _iter_chunk_transcriptions(self, input, language: str | None = None):
         """Yield (chunk_transcription, sentiment_result) for each chunk.
         ASR and sentiment run in parallel via a thread pool."""
+        audio_path = getattr(input, "audio_filename", None)
+        prepare = getattr(self.asr_component, "prepare_file_diarization", None)
+        if audio_path and prepare and getattr(input, "source_type", None) != AudioSource.MICROPHONE:
+            prepare(audio_path)
         chunk_generator = chunk_by_silence(input, self.session_id)
 
         if not SENTIMENT_ENABLED:
@@ -224,7 +232,17 @@ class Pipeline:
             # to re-derive it from per-request speaker labels.
             if "is_primary" in segment:
                 verbose_segment["is_primary"] = bool(segment["is_primary"])
+            # Known-speaker label from the request's speaker_profiles / unknown_speaker_label.
+            if "speaker_label" in segment:
+                verbose_segment["speaker_label"] = segment["speaker_label"]
+            if "speaker_similarity" in segment:
+                verbose_segment["speaker_similarity"] = segment["speaker_similarity"]
         return verbose_segment
+
+    def _speaker_summary(self) -> list[dict] | None:
+        summary = getattr(getattr(self, "asr_component", None), "speaker_summary", None)
+        result = summary() if callable(summary) else None
+        return result if isinstance(result, list) else None
 
     def _resolve_output_language(
         self,
@@ -290,6 +308,9 @@ class Pipeline:
             ],
             "is_final": True,
         }
+        speakers = self._speaker_summary()
+        if speakers is not None:
+            final_event["speakers"] = speakers
         if chunk_sentiments:
             from components.sentiment_component import SentimentComponent
             final_event["sentiment_summary"] = SentimentComponent.aggregate(
@@ -400,6 +421,9 @@ class Pipeline:
             "text": full_text,
             "segments": verbose_segments,
         }
+        speakers = self._speaker_summary()
+        if speakers is not None:
+            result["speakers"] = speakers
 
         if chunk_sentiments:
             from components.sentiment_component import SentimentComponent
