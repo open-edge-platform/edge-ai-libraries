@@ -57,6 +57,15 @@ CONTENT_KEYS = {
 # Indexed forms such as gen_ai.prompt.0.content.
 CONTENT_PREFIXES = ("gen_ai.prompt.", "gen_ai.completion.", "llm.prompts", "llm.completions", "openclaw.content.")
 DROP_KEYS = {"gen_ai.tool.definitions", "openclaw.content.tool_definitions"}
+# Tool command lines, targets and error text: free text that content=off withholds too.
+TOOL_TEXT_KEYS = {
+    "hermes.tool.command",
+    "hermes.tool.target",
+    "hermes.error.message",
+    "error.message",
+    "exception.message",
+    "exception.stacktrace",
+}
 SESSION_KEYS = (
     "openclaw.sessionKey",
     "session.id",
@@ -76,7 +85,7 @@ def is_content(key):
 def span_data(span, content):
     out = {}
     for key, val in span["attrs"].items():
-        if key in DROP_KEYS:
+        if key in DROP_KEYS or (content == "off" and key in TOOL_TEXT_KEYS):
             continue
         if is_content(key):
             if content == "off":

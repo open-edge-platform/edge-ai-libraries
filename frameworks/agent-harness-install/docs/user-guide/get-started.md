@@ -272,6 +272,16 @@ installed). Each agent keeps its own exporter; the installer only configures it.
 - **`--content`:** `preview` (a short excerpt) exists for Hermes and for
   `--backend sqlite` with OpenClaw. With `--backend jaeger` OpenClaw accepts
   only `off` or `full`, since its exporter has no preview mode.
+  For Hermes, `off` also turns off the plugin's `capture_tool_command`,
+  `capture_tool_target` and `capture_error_message`, so tool command lines,
+  paths and error text are not recorded either; the receiver drops the same
+  attributes. A `hermes-otel` plugin that predates those settings cannot honour
+  `off` on its own, so `enable` refuses it (host runtime, or OpenShell with a
+  collector other than the local receiver): update the plugin, or pin a newer
+  one with `HARNESS_HERMES_OTEL_REF`.
+- The receiver's store directory is private to your user (mode 700 for
+  directories the installer owns) and the store file is mode 600; symlinks and
+  files owned by another user are refused.
 - OpenClaw spans carry no session id, so `show` reports `sessions: 0` for them.
 
 ### Cleaning collected data and keeping Jaeger
@@ -340,7 +350,11 @@ the host receiver stores Hermes's spans in
 the sandbox is not read). With `--backend jaeger --endpoint <url>` the sandbox
 exports to your own collector instead of the managed Jaeger: `enable` allows
 sandbox egress to exactly that host and port (port 80/443 by scheme when the URL
-has none) and `disable` removes it. The collector must be reachable from the
+has none), and only for `POST` to the exporter's traces path, from the agent's
+own executables (Node for OpenClaw, Python for Hermes); `GET`, `HEAD` and
+`OPTIONS` are denied, and `disable` removes the rule. A collector other than
+`host.openshell.internal` must use `https://`, since plain http would leave this
+machine unencrypted. The collector must be reachable from the
 sandbox by hostname or IPv4 address; loopback and IPv6 literals are refused (use
 `host.openshell.internal` for a collector on the same machine, or omit
 `--endpoint` for the managed Jaeger). A sandbox created before this support

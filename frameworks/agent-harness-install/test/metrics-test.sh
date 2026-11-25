@@ -59,7 +59,8 @@ $HARNESS_IR_CONTAINER}" ;;
     case "$1 ${2:-}" in
       'plugins install')
         [[ "${TEST_HERMES_FAILS:-}" != install ]] || return 1
-        mkdir -p "$HERMES_HOME/plugins/hermes_otel"; printf 'hermes install %s%s\n' "$3" "${4:+ $4 $5}" >>"$ACTIONS" ;;
+        mkdir -p "$HERMES_HOME/plugins/hermes_otel"; printf '%s\n' "${TEST_HERMES_PLUGIN_SRC:-capture_tool_command}" >"$HERMES_HOME/plugins/hermes_otel/__init__.py"
+        printf 'hermes install %s%s\n' "$3" "${4:+ $4 $5}" >>"$ACTIONS" ;;
       'plugins enable') printf 'hermes enable\n' >>"$ACTIONS" ;;
       'plugins disable')
         [[ "${TEST_HERMES_FAILS:-}" != disable ]] || return 1
@@ -1056,8 +1057,83 @@ for content in ("off", "preview", "full"):
     else:
         assert "x" * 500 in run_row[3] and "y" * 500 in run_row[3]
 
+# Hermes tool commands, targets and error text are withheld with content off, kept otherwise.
+tool = {"hermes.tool.command": "rm -rf /secret", "hermes.tool.target": "/etc/shadow", "error.message": "boom", "hermes.tool.name": "terminal"}
+hm = request(span("hermes.tool", tool))
+
+
+def hm_body(port):
+    assert post(port, hm) == 200
+
+
+for content in ("off", "preview", "full"):
+    data = run("hermes", content, hm_body)[0][3]
+    assert "hermes.tool.name" in data, data
+    for secret in ("rm -rf /secret", "/etc/shadow", "boom"):
+        assert (secret not in data) == (content == "off"), (content, data)
+
 print("receiver ok")
 PY
+}
+
+hermes_content_off_omits_tool_text() {
+  fixture
+  local cfg="$HERMES_HOME/hermes_otel.yaml"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  grep -Fxq 'capture_tool_command: false' "$cfg"
+  grep -Fxq 'capture_tool_target: false' "$cfg"
+  grep -Fxq 'capture_error_message: false' "$cfg"
+  M_CONTENT=preview
+  metrics_enable_harness
+  refute grep -Fq 'capture_' "$cfg"
+  # A plugin that predates the settings would keep tool text, so content off is refused.
+  fixture
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  TEST_HERMES_PLUGIN_SRC=old expect_failure 'predates capture_tool_command' metrics_enable_harness
+  [[ ! -e "$HERMES_HOME/hermes_otel.yaml" ]]
+  M_CONTENT=preview
+  metrics_enable_harness
+}
+
+receiver_store_is_private() {
+  fixture
+  [[ "$(uname -s)" == Linux ]] || { echo "# skipped: needs GNU stat"; return 0; }
+  local dir="$HOME/.harness-test/openshell-telemetry" store
+  store="$dir/x.db"
+  mkdir -p "$dir"
+  chmod 755 "$dir"
+  : >"$store"
+  chmod 644 "$store"
+  metrics_secure_store "$store"
+  [[ "$(stat -c '%a' "$dir")" == 700 && "$(stat -c '%a' "$store")" == 600 ]]
+  rm -rf "$dir"
+  metrics_secure_store "$store"
+  [[ "$(stat -c '%a' "$dir")" == 700 ]]
+  rm -rf "$dir"
+  mkdir -p "$HOME/elsewhere"
+  ln -s "$HOME/elsewhere" "$dir"
+  [[ -L "$dir" ]] || { echo "# skipped: symlinks unavailable"; return 0; }
+  expect_failure 'symlink' metrics_secure_store "$store"
+}
+
+openshell_policy_is_post_only_on_one_path() {
+  fixture
+  OPENSHELL_NAME=sb OPENSHELL_GATEWAY=gw
+  openshell() { printf '%s\n' "$*" >>"$ACTIONS"; }
+  openshell_allow_otlp_post harness_otel collector.example.net 443 /otlp/v1/traces /usr/local/bin/node '/b/python*'
+  grep -Fq -- '--rule-name harness_otel --binary /usr/local/bin/node --binary /b/python* --add-endpoint collector.example.net:443:read-only:rest:enforce' "$ACTIONS"
+  grep -Fq -- '--add-allow collector.example.net:443:POST:/otlp/v1/traces' "$ACTIONS"
+  grep -Fq -- '--add-deny collector.example.net:443:GET:/**' "$ACTIONS"
+  grep -Fq -- '--add-deny collector.example.net:443:OPTIONS:/' "$ACTIONS"
+  refute grep -Fq ':full:' "$ACTIONS"
+  # A rule that could not be narrowed is not left behind.
+  : >"$ACTIONS"
+  openshell() { printf '%s\n' "$*" >>"$ACTIONS"; [[ "$*" != *--add-allow* ]]; }
+  expect_failure 'the rule was removed' openshell_allow_otlp_post harness_otel h.example 443 /v1/traces /usr/local/bin/node
+  [[ "$(tail -n 1 "$ACTIONS")" == *'--remove-rule harness_otel'* ]]
+  expect_failure 'Invalid sandbox egress path' openshell_allow_otlp_post harness_otel h.example 443 '/a b' /usr/local/bin/node
+  expect_failure 'No sandbox binaries' openshell_allow_otlp_post harness_otel h.example 443 /v1/traces
 }
 
 # openshell_fixture <agent> -- OpenShell runtime with the sandbox, its policy and the
@@ -1082,7 +1158,7 @@ openshell_fixture() {
   openshell_sandbox_phase() { printf '%s\n' "${TEST_SANDBOX_PHASE:-Ready}"; }
   openshell_ensure_ready() { printf 'ready\n' >>"$ACTIONS"; }
   openshell_restart_sandbox() { printf 'restart\n' >>"$ACTIONS"; sandbox_script openclaw-apply; }
-  openshell_allow_host_port() { printf 'allow %s %s%s\n' "$1" "$2" "${3:+ $3}" >>"$ACTIONS"; }
+  openshell_allow_otlp_post() { printf 'allow %s %s %s %s\nbinaries %s\n' "$1" "$3" "$2" "$4" "${*:5}" >>"$ACTIONS"; }
   openshell_remove_policy_rule() { printf 'unallow %s\n' "$1" >>"$ACTIONS"; }
   metrics_os_exec() {
     if [[ "$1" == check ]]; then printf 'check %s\n' "$2" >>"$ACTIONS"; return 0; fi
@@ -1100,7 +1176,8 @@ openshell_openclaw_lifecycle() {
   metrics_enable_harness
   grep -Fxq "check openclaw" "$ACTIONS"
   grep -Fxq "receiver start openclaw $HOME/.harness-test/openshell-telemetry/openclaw_otel_live.db full" "$ACTIONS"
-  grep -Fxq "allow harness_otel ${port} host.openshell.internal" "$ACTIONS"
+  grep -Fxq "allow harness_otel ${port} host.openshell.internal /v1/traces" "$ACTIONS"
+  grep -Fxq 'binaries /usr/local/bin/node' "$ACTIONS"
   grep -Fxq restart "$ACTIONS"
   [[ "$(node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1])).diagnostics.otel;console.log(o.enabled,o.endpoint,o.captureContent)' "$config")" \
     == "true http://host.openshell.internal:${port} true" ]]
@@ -1118,23 +1195,31 @@ openshell_jaeger_uses_the_managed_container() {
   openshell_fixture openclaw
   M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT="" M_CONTENT=off
   metrics_enable_harness
-  grep -Fxq "allow harness_otel ${HARNESS_JAEGER_OTLP_PORT} host.openshell.internal" "$ACTIONS"
+  grep -Fxq "allow harness_otel ${HARNESS_JAEGER_OTLP_PORT} host.openshell.internal /v1/traces" "$ACTIONS"
   [[ "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).diagnostics.otel.endpoint)' "$SANDBOX_HOME/.openclaw/openclaw.json")" \
     == "http://host.openshell.internal:${HARNESS_JAEGER_OTLP_PORT}" ]]
   refute grep -Fq 'receiver start' "$ACTIONS"
   # An external collector is allowed by its own host and port, and used as given.
   openshell_fixture openclaw
-  M_BACKEND=jaeger M_BACKEND_GIVEN=1 M_ENDPOINT=http://collector.example.net:4318/v1/traces M_CONTENT=off
+  M_BACKEND=jaeger M_BACKEND_GIVEN=1 M_ENDPOINT=https://collector.example.net:4318/v1/traces M_CONTENT=off
   metrics_enable_harness
-  grep -Fxq 'allow harness_otel 4318 collector.example.net' "$ACTIONS"
+  grep -Fxq 'allow harness_otel 4318 collector.example.net /v1/traces' "$ACTIONS"
   [[ "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).diagnostics.otel.endpoint)' "$SANDBOX_HOME/.openclaw/openclaw.json")" \
-    == http://collector.example.net:4318 ]]
+    == https://collector.example.net:4318 ]]
   refute grep -Fq 'receiver start' "$ACTIONS"
   # The port defaults from the scheme.
   openshell_fixture openclaw
   M_ENDPOINT=https://10.1.2.3/v1/traces
   metrics_enable_harness
-  grep -Fxq 'allow harness_otel 443 10.1.2.3' "$ACTIONS"
+  grep -Fxq 'allow harness_otel 443 10.1.2.3 /v1/traces' "$ACTIONS"
+  # Plain http leaves the host unencrypted, so only this machine's own services may use it.
+  openshell_fixture openclaw
+  M_ENDPOINT=http://collector.example.net:4318/v1/traces
+  expect_failure 'must use https' metrics_enable_harness
+  refute grep -Fq 'allow ' "$ACTIONS"
+  M_ENDPOINT=http://host.openshell.internal:4318/v1/traces
+  metrics_enable_harness
+  grep -Fxq 'allow harness_otel 4318 host.openshell.internal /v1/traces' "$ACTIONS"
   # Loopback is the sandbox's own, not this host's.
   openshell_fixture openclaw
   M_ENDPOINT=http://127.0.0.1:4318/v1/traces
@@ -1158,9 +1243,13 @@ openshell_hermes_lifecycle() {
   metrics_enable_harness
   grep -Fxq "check hermes" "$ACTIONS"
   grep -Fxq "receiver start hermes $HOME/.harness-test/openshell-telemetry/hermes_otel_live.db off" "$ACTIONS"
-  grep -Fxq "allow harness_otel ${port} host.openshell.internal" "$ACTIONS"
+  grep -Fxq "allow harness_otel ${port} host.openshell.internal /v1/traces" "$ACTIONS"
+  grep -Fxq 'binaries /home/node/.hermes/tools/python-*/bin/python* /home/node/.local/share/uv/python/cpython-*/bin/python*' "$ACTIONS"
   refute grep -Fxq restart "$ACTIONS"
   grep -Fxq 'content_capture: "off"' "$cfg"
+  grep -Fxq 'capture_tool_command: false' "$cfg"
+  grep -Fxq 'capture_tool_target: false' "$cfg"
+  grep -Fxq 'capture_error_message: false' "$cfg"
   grep -Fxq "    endpoint: \"http://host.openshell.internal:${port}/v1/traces\"" "$cfg"
   refute grep -Fq 'enabled: false' "$cfg"
   [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.runtime)" == openshell ]]
@@ -1170,18 +1259,27 @@ openshell_hermes_lifecycle() {
   grep -Fxq 'hermes gateway stop' "$ACTIONS"
   sandbox_script status hermes | grep -Fq 'on, http://host.openshell.internal'
   # A gateway that cannot be stopped keeps the old settings, so that is an error.
-  HERMES_STOP_RC=3 expect_failure 'Could not stop the running Hermes gateway' sandbox_script hermes-enable http://x:1/v1/traces off
+  HERMES_STOP_RC=3 expect_failure 'Could not stop the running Hermes gateway' sandbox_script hermes-enable http://host.openshell.internal:1/v1/traces off filtered
   HERMES_STOP_RC=3 expect_failure 'Could not stop the running Hermes gateway' sandbox_script hermes-disable
+  # Plain http is only for this machine's own services.
+  expect_failure 'plain http is only allowed' sandbox_script hermes-enable http://collector.example:4318/v1/traces preview
+  # Without a filtering receiver, content off needs a plugin that can leave tool text out.
+  expect_failure 'predates capture_tool_command' sandbox_script hermes-enable https://collector.example/v1/traces off direct
+  sandbox_script hermes-enable https://collector.example/v1/traces preview direct
+  refute grep -Fq 'capture_tool_command' "$cfg"
   metrics_disable_harness
   grep -Fxq 'unallow harness_otel' "$ACTIONS"
   grep -Fxq 'enabled: false' "$cfg"
   sandbox_script status hermes | grep -Fq '(off)'
   [[ "$(metrics_state_get harness.enabled)" == false ]]
-  # An external traces URL reaches Hermes exactly as given.
+  # An external traces URL reaches Hermes exactly as given, once the plugin can omit tool text.
   M_BACKEND=jaeger M_BACKEND_GIVEN=1 M_ENDPOINT=https://collector.example.net/otlp/traces
+  expect_failure 'predates capture_tool_command' metrics_enable_harness
+  printf 'capture_tool_command\n' >"$home/plugins/hermes_otel/__init__.py"
   metrics_enable_harness
-  grep -Fxq 'allow harness_otel 443 collector.example.net' "$ACTIONS"
+  grep -Fxq 'allow harness_otel 443 collector.example.net /otlp/traces' "$ACTIONS"
   grep -Fxq '    endpoint: "https://collector.example.net/otlp/traces"' "$cfg"
+  grep -Fxq 'capture_tool_command: false' "$cfg"
   metrics_disable_harness
   # A hermes_otel.yaml this installer did not write is never replaced.
   printf 'enabled: true\n' >"$cfg"
@@ -1287,6 +1385,9 @@ run_case '--target all disable still disables the Router when the harness cannot
 run_case 'OpenClaw plugin lifecycle: install once, re-enable after disable, receiver follows the backend' openclaw_enable_disable
 run_case 'OpenClaw with Jaeger, preview rejected, a foreign diagnostics exporter is never overwritten' openclaw_jaeger_and_foreign_exporter
 run_case 'OTLP receiver decodes, filters and stores spans per agent and content mode' receiver_stores_filtered_spans
+run_case 'Hermes content off omits tool commands, targets and errors; a plugin that cannot is refused' hermes_content_off_omits_tool_text
+run_case 'the receiver store directory and file are made private, symlinks refused' receiver_store_is_private
+run_case 'OpenShell egress is POST-only on one path for the exporter binaries and removed on failure' openshell_policy_is_post_only_on_one_path
 run_case 'OpenClaw disable only touches an exporter this installer enabled' openclaw_disable_needs_installer_ownership
 run_case 'one harness exporter is recorded; enable for another agent is refused and disable follows the owner' only_one_harness_exporter_is_recorded
 run_case 'a failed OpenClaw enable is recorded so disable can clean it up' openclaw_failed_enable_can_be_disabled

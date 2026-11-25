@@ -18,6 +18,8 @@ const home = process.env.HOME;
 const stateFile = path.join(home, ".harness-observability.json");
 const openclawConfig = path.join(home, ".openclaw", "openclaw.json");
 const baseUrl = /^https?:\/\/[A-Za-z0-9._-]+(:[1-9][0-9]{0,4})?(\/[A-Za-z0-9._~%\/-]*[A-Za-z0-9._~%-])?$/;
+// The host's own services; any other collector must be reached over https.
+const localHttp = /^http:\/\/host\.openshell\.internal(:\d+)?(\/|$)/;
 const pluginDir = "/home/node/.openclaw/npm/projects";
 const script = "/opt/harness/observability-config.mjs";
 // Hermes: the hermes-otel plugin is installed and enabled in the image (enabling downloads
@@ -47,6 +49,8 @@ function readJson(file) {
 function validBase(value) {
   if (!baseUrl.test(value ?? "") || Number(/^https?:\/\/[^/:]+:(\d+)/.exec(value)?.[1] ?? 1) > 65535)
     throw Error("Invalid sandbox telemetry endpoint");
+  if (value.startsWith("http://") && !localHttp.test(value))
+    throw Error("Invalid sandbox telemetry endpoint: plain http is only allowed to the host's own services");
   return value;
 }
 
@@ -111,6 +115,14 @@ function hermesPluginInstalled() {
   return fs.existsSync(hermesPlugin);
 }
 
+// Plugin versions before the capture_tool_* settings export command lines and paths whatever content_capture says.
+function hermesPluginOmitsToolText() {
+  const walk = dir => fs.readdirSync(dir, {withFileTypes: true}).some(entry => entry.isDirectory()
+    ? walk(path.join(dir, entry.name))
+    : entry.name.endsWith(".py") && fs.readFileSync(path.join(dir, entry.name), "utf8").includes("capture_tool_command"));
+  return walk(path.dirname(hermesPlugin));
+}
+
 // `hermes -z` leaves a gateway process running that holds the loaded plugin
 // configuration; the next turn starts a new one with the settings just written.
 function restartHermesGateway() {
@@ -169,12 +181,18 @@ switch (command) {
     break;
   }
   case "hermes-enable": {
-    const [tracesUrl, content] = args;
+    // "filtered" means the receiver on the other end drops tool text itself.
+    const [tracesUrl, content, receiver] = args;
     validBase(tracesUrl);
     validContent(content);
     assertHermesConfigWritable();
+    const omitToolText = content === "off";
+    if (omitToolText && receiver !== "filtered" && !hermesPluginOmitsToolText())
+      throw Error("The hermes-otel plugin in this sandbox image predates capture_tool_command, so --content off would still export tool commands and paths; use --backend sqlite, or rebuild the sandbox with a newer plugin (HARNESS_HERMES_OTEL_REF)");
     // "off" must stay quoted: bare off is a YAML 1.1 boolean.
-    writeFile(hermesConfig, [hermesMarker, `content_capture: "${content}"`, "backends:", "  - type: otlp",
+    writeFile(hermesConfig, [hermesMarker, `content_capture: "${content}"`,
+      ...(omitToolText ? ["capture_tool_command: false", "capture_tool_target: false", "capture_error_message: false"] : []),
+      "backends:", "  - type: otlp",
       `    endpoint: "${tracesUrl}"`, "    metrics: false", "    logs: false", ""].join("\n"));
     restartHermesGateway();
     break;

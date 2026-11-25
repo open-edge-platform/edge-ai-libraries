@@ -687,34 +687,37 @@ openshell_restart_sandbox() {
   openshell_wait_phase Ready
 }
 
-# openshell_allow_host_port <rule-name> <port> [host] -- lets the agent binaries that
-# may already reach inference also reach one more host:port (default: the host's
-# own services, through host.openshell.internal). The rule is hot-loaded;
-# replacing it first drops a host or port from an earlier configuration.
-openshell_allow_host_port() {
-  local rule="$1" port="$2" host="${3:-host.openshell.internal}" dir out binary
-  local -a binaries bin_args=()
+# openshell_allow_otlp_post <rule-name> <host> <port> <path> <binary>... -- lets just
+# these binaries POST to one path on one host:port. The rule is hot-loaded;
+# replacing it first drops a host, port or path from an earlier configuration.
+# The endpoint is added read-only and its GET/HEAD/OPTIONS are then denied (deny wins),
+# so the only request left is the allowed POST. A failure after the first call removes the rule.
+openshell_allow_otlp_post() {
+  local rule="$1" host="$2" port="$3" path="$4" binary method spec
+  shift 4
+  local -a bin_args=() deny_args=()
   [[ "$rule" =~ ^[a-z][a-z0-9_]*$ ]] || error "Invalid OpenShell policy rule name."
   [[ "$port" =~ ^[1-9][0-9]{0,4}$ ]] || error "Invalid sandbox egress port: ${port}"
   (( port <= 65535 )) || error "Invalid sandbox egress port: ${port}"
   [[ "$host" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || error "Invalid sandbox egress host."
-  dir="$(openshell_profile_dir)"
-  assert_state_path_safe "$dir/provider.json"
-  assert_owned_by_current_user "$dir/provider.json"
-  out="$(node - "$dir/provider.json" <<'JS'
-const p = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8"));
-if (!Array.isArray(p.binaries) || !p.binaries.length ||
-    p.binaries.some(b => typeof b !== "string" || !b.startsWith("/") || /[\x00-\x20]/.test(b)))
-  throw Error("Invalid saved provider binaries");
-console.log(p.binaries.join("\n"));
-JS
-  )" || error "Could not read the sandbox's allowed binaries."
-  mapfile -t binaries <<<"$out"
-  for binary in "${binaries[@]}"; do bin_args+=(--binary "$binary"); done
+  [[ "$path" =~ ^/[A-Za-z0-9._~%/-]*$ ]] || error "Invalid sandbox egress path: ${path}"
+  (( $# )) || error "No sandbox binaries given for the egress rule."
+  for binary in "$@"; do
+    [[ "$binary" == /* && ! "$binary" =~ [[:space:]] ]] || error "Invalid sandbox binary: ${binary}"
+    bin_args+=(--binary "$binary")
+  done
+  spec="${host}:${port}"
+  for method in GET HEAD OPTIONS; do
+    deny_args+=(--add-deny "${spec}:${method}:/" --add-deny "${spec}:${method}:/**")
+  done
   openshell policy update "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --remove-rule "$rule" --wait >/dev/null 2>&1 || true
   openshell policy update "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --rule-name "$rule" "${bin_args[@]}" \
-    --add-endpoint "${host}:${port}:full:rest:enforce" --wait \
-    || error "Could not allow sandbox egress to ${host}:${port}."
+    --add-endpoint "${spec}:read-only:rest:enforce" --wait \
+    || error "Could not allow sandbox egress to ${spec}."
+  openshell policy update "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --rule-name "$rule" "${bin_args[@]}" \
+    --add-allow "${spec}:POST:${path}" "${deny_args[@]}" --wait \
+    || { openshell policy update "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --remove-rule "$rule" --wait >/dev/null 2>&1 || true
+         error "Could not restrict sandbox egress to POST ${spec}${path}; the rule was removed."; }
 }
 
 openshell_remove_policy_rule() {

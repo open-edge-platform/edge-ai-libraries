@@ -99,7 +99,7 @@ usage() {
     URL when Jaeger is the backend; Jaeger gives the full trace view.
     Router telemetry is persisted as a JSONL file and readable via /v1/metrics. Harness telemetry in an OpenShell sandbox
     (--runtime openshell) supports OpenClaw and Hermes and --endpoint (a collector the sandbox can reach by hostname or IPv4;
-    not loopback).
+    not loopback; https unless it is host.openshell.internal). Sandbox egress is limited to POST on the traces path.
 
   Environment:
     HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)
