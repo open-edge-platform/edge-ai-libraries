@@ -67,7 +67,7 @@ test("SDK installers pin the 2026.3.0-rc2 component images", () => {
       "openvino/model_server:2026.4.1",
       "openvino/ubuntu24_dev:2026.4.1",
       "intel/dlstreamer:2026.3.0-ubuntu24-rc2",
-      "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc2",
+      "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc3",
       "intel/scenescape-manager:2026.3.0-rc2",
       "intel/scenescape-controller:2026.3.0-rc2",
       "intel/scenescape-autocalibration:2026.3.0-rc2",
@@ -82,7 +82,7 @@ test("SDK installers pin the 2026.3.0-rc2 component images", () => {
       "intel/chatqna-ui:core_2026.3.0-rc2",
     ],
     "metro-visual-ai-demo-kit.sh": [
-      "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc2",
+      "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc3",
     ],
     "uav-mission-compute-sdk.sh": [
       "intel/metrics-manager:2026.3.0-rc2",
