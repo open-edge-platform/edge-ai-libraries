@@ -275,9 +275,8 @@ async def get_default_video_recordings():
         filename = recording["filename"]
         hostname = urlparse(recording["url"]).hostname.lower() or ""
         is_pexels = hostname == "pexels.com" or hostname.endswith(".pexels.com")
-        is_openvino = (
-            hostname == "openvinotoolkit.org"
-            or hostname.endswith(".openvinotoolkit.org")
+        is_openvino = hostname == "openvinotoolkit.org" or hostname.endswith(
+            ".openvinotoolkit.org"
         )
         is_github = hostname == "github.com" or hostname.endswith(".github.com")
         source = (
