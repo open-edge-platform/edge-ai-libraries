@@ -99,7 +99,7 @@ docker run --rm --user "$(id -u):$(id -g)" \
   -e http_proxy -e https_proxy -e no_proxy \
   -v "${PWD}:/home/dlstreamer/" \
   -w /home/dlstreamer \
-  intel/dlstreamer:2026.3.0-ubuntu24-rc1 \
+  intel/dlstreamer:2026.3.0-ubuntu24-rc2 \
   bash -c '
     set -e
     export MODELS_PATH=/home/dlstreamer
@@ -165,7 +165,7 @@ while true; do
         --env https_proxy \
         --env no_proxy \
         -w /workspace \
-        intel/dlstreamer:2026.3.0-ubuntu24-rc1 \
+        intel/dlstreamer:2026.3.0-ubuntu24-rc2 \
         gst-launch-1.0 \
             filesrc location=/workspace/bottle-detection.mp4 ! \
             qtdemux ! h264parse ! avdec_h264 ! \

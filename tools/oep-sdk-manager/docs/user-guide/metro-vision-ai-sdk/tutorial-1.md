@@ -69,7 +69,7 @@ docker run --rm --user "$(id -u):$(id -g)" \
   -e http_proxy -e https_proxy -e no_proxy \
   -v "${PWD}:/home/dlstreamer/" \
   -w /home/dlstreamer \
-  intel/dlstreamer:2026.3.0-ubuntu24-rc1 \
+  intel/dlstreamer:2026.3.0-ubuntu24-rc2 \
   bash -c '
     set -e
     export MODELS_PATH=/home/dlstreamer
