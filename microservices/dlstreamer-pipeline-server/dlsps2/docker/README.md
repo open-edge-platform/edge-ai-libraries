@@ -234,6 +234,11 @@ HOST_METRICS_PORT=9090         # Metrics Manager API
 HOST_TELEGRAF_PORT=9273        # Prometheus metrics
 MQTT_PORT=1883                 # MQTT broker
 ```
+> [!NOTE]
+> `REST_SERVER_PORT` has no built-in authentication or HTTPS/TLS support by
+> design. Restricting network access or fronting it with an authenticating/
+> TLS-terminating reverse proxy is the responsibility of the deploying
+> infrastructure.
 
 **Logging:**
 ```bash
@@ -241,6 +246,11 @@ LOG_LEVEL=INFO                 # Metrics Manager log level
 APP_LOG_LEVEL=INFO             # DL Streamer app logs
 WEB_SERVER_LOG_LEVEL=WARNING   # DL Streamer web server logs
 GST_DEBUG=1                    # GStreamer debug level
+```
+
+**Worker recycling:**
+```bash
+DLSPS_WORKER_RECYCLE_IDLE_SECONDS=60  # Restart the gst worker after this many idle seconds (no pipelines); 0 disables
 ```
 
 **Metrics:**

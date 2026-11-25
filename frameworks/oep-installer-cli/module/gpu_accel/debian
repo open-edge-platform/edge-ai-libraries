@@ -4,7 +4,7 @@ configure_gpu_accel () {
   key_file="/usr/share/keyrings/intel-graphics.gpg"
   apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified"
   apt_file="/etc/apt/sources.list.d/intel-graphics.list"
-  pkg_list=(clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
+  pkg_list=(clinfo vainfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
   allow_downgrades=(libva-wayland2)
 }
 
@@ -67,7 +67,7 @@ debian_40_remove_gpu_accel () {
   [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0
 
   configure_gpu_accel "$@"
-  ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || return $?
+  ensure_apt remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || return $?
   local repo_file
   for repo_file in "$apt_file" "$key_file"; do
     if [ "$(ensure_prop get "installed/gpu_accel/repositories/${repo_file##*/}")" = true ]; then

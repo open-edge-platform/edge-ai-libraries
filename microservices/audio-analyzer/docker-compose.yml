@@ -17,10 +17,9 @@ services:
         # matrix and measured sizes.
         IMAGE_VARIANT: ${IMAGE_VARIANT:-full}
         INSTALL_GPU_NPU_RUNTIME: ${INSTALL_GPU_NPU_RUNTIME:-true}
-        # Set INSTALL_CJK=true to bundle the optional FunASR Paraformer provider
-        # (Chinese/English ASR). Defaults to false so the standard image is
-        # unchanged for existing consumers.
-        INSTALL_CJK: ${INSTALL_CJK:-false}
+        # Set INSTALL_CJK=false to omit the FunASR Paraformer provider
+        # (Chinese/English ASR), which is included by default.
+        INSTALL_CJK: ${INSTALL_CJK:-true}
         http_proxy: ${http_proxy:-}
         https_proxy: ${https_proxy:-}
         ftp_proxy: ${ftp_proxy:-}
@@ -41,6 +40,7 @@ services:
       - "${RENDER_GID:-992}"
     environment:
       HF_HOME: /app/audio_analyzer/.cache/huggingface
+      HF_HUB_DISABLE_XET: ${HF_HUB_DISABLE_XET:-1}
       # Model snapshots (Whisper source, FunASR via ModelScope, diarization)
       # are downloaded by Audio Analyzer itself on first start and kept on the
       # models volume. To source them from a shared Model Download REST

@@ -22,6 +22,19 @@
   align-items: center;
   justify-content: flex-end;
 }
+.console-info-hint {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  color: var(--font-info-color);
+  font-size: 12px;
+  line-height: 1.5;
+  .anticon {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+}
 .vertical-center {
   display: flex;
   align-items: center;
@@ -98,7 +111,11 @@
   }
 }
 .special-button-primary {
-  background: linear-gradient(to bottom, var(--color-primary-hover), var(--color-primary));
+  background: linear-gradient(
+    to bottom,
+    var(--color-primary-hover),
+    var(--color-primary)
+  );
   color: var(--color-white);
   border: none;
   border-radius: 20px;

@@ -40,7 +40,7 @@ x-vippet: &vippet
     # subdirectories of UPLOADED_IMAGES_DIR; no auto-downloaded image
     # content exists today, so only the 'uploaded' tree is mounted.
     UPLOADED_IMAGES_DIR: /images/input/uploaded
-    # 'auto' holds recordings downloaded from default_recordings.yaml;
+    # 'auto' holds sample videos downloaded on demand from default_recordings.yaml;
     # 'uploaded' holds user uploads. Each is created on startup if missing.
     AUTO_VIDEO_DIR: /videos/input/auto
     UPLOADED_VIDEO_DIR: /videos/input/uploaded
@@ -49,7 +49,6 @@ x-vippet: &vippet
     OUTPUT_VIDEO_DIR: /videos/output
     AUTO_AUDIO_DIR: /audio/input/auto
     OUTPUT_AUDIO_DIR: /audio/output
-    DEFAULT_AUDIO_RECORDINGS_FILE: /audio/default_recordings.yaml
     # Upload validation limits for POST /videos/upload. Keep
     # UPLOAD_MAX_SIZE_BYTES in sync with nginx 'client_max_body_size' in
     # ui/nginx.conf.
@@ -62,11 +61,13 @@ x-vippet: &vippet
     # proxies release a response only once their block buffer fills, which a low-rate
     # metadata stream never does on its own. Raise behind an aggressive proxy.
     SSE_PADDING_BYTES: ${SSE_PADDING_BYTES:-8192}
-    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source,videoscale"
+    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source,videoscale,sscape_*"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark,gvainference"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
     RTSPSRC_DEFAULT_LATENCY_MS: ${RTSPSRC_DEFAULT_LATENCY_MS:-100}
+    # Timeout (s) for probing the codec of custom RTSP streams with gst-discoverer.
+    RTSP_PROBE_TIMEOUT_S: ${RTSP_PROBE_TIMEOUT_S:-5}
     METRICS_MANAGER_URL: ${METRICS_MANAGER_URL:-http://metrics-manager:9090}
     # DLSPS 2.0 (dlstreamer-pipeline-server) runs every pipeline vippet builds.
     DLSPS2_BASE_URL: ${DLSPS2_BASE_URL:-http://dlstreamer-pipeline-server:8080}
@@ -144,7 +145,7 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:2026.3.0-rc1
+    image: docker.io/intel/model-download:2026.3.0-rc2
     pull_policy: daily
     container_name: model-download
     ports:
@@ -196,7 +197,7 @@ services:
       - ./shared/model-download/venv-geti:/opt/.venv-geti
       - ./shared/model-download/venv-hls:/opt/.venv-hls
   audio-analyzer:
-    image: ${AUDIO_ANALYZER_IMAGE:-docker.io/intel/audio-analyzer:${AUDIO_ANALYZER_TAG:-2026.3.0-rc1}}
+    image: ${AUDIO_ANALYZER_IMAGE:-docker.io/intel/audio-analyzer:${AUDIO_ANALYZER_TAG:-2026.3.0-rc2}}
     container_name: audio-analyzer
     ports:
       - "8010:8010"
@@ -232,7 +233,7 @@ services:
       start_period: 15m
       retries: 5
   text-to-speech:
-    image: ${TEXT_TO_SPEECH_IMAGE:-docker.io/intel/text-to-speech:${TEXT_TO_SPEECH_TAG:-2026.3.0-rc1}}
+    image: ${TEXT_TO_SPEECH_IMAGE:-docker.io/intel/text-to-speech:${TEXT_TO_SPEECH_TAG:-2026.3.0-rc2}}
     container_name: text-to-speech
     ports:
       - "8011:8011"
@@ -304,7 +305,7 @@ services:
       pull: true
       args:
         # Keep in sync with vippet/Dockerfile so both backends run the same DLStreamer.
-        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-${DLSTREAMER_IMAGE:-intel/dlstreamer:2026.3.0-ubuntu24-rc1}}
+        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-${DLSTREAMER_IMAGE:-intel/dlstreamer:2026.3.0-ubuntu26-rc2}}
         UID: ${DLSPS2_UID:-1000}
         USER: ${DLSPS2_USER:-pipeline-server}
         http_proxy:
@@ -342,10 +343,13 @@ services:
       OTEL_EXPORT_INTERVAL_MILLIS: ${DLSPS2_OTEL_INTERVAL_MS:-1000}
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager"
+      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager,host.docker.internal"
       HTTP_PROXY: ${http_proxy}
       HTTPS_PROXY: ${https_proxy}
-      NO_PROXY: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager"
+      NO_PROXY: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager,host.docker.internal"
+    # Custom RTSP streams served on the host (rtsp://host.docker.internal:...).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     tmpfs:
       - /tmp
       - /var/tmp
@@ -366,7 +370,7 @@ services:
       vippet-plugins:
         condition: service_completed_successfully
   metrics-manager:
-    image: docker.io/intel/metrics-manager:2026.3.0-rc1
+    image: docker.io/intel/metrics-manager:2026.3.0-rc2
     pull_policy: daily
     container_name: metrics-manager
     init: true

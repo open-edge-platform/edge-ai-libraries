@@ -2,7 +2,14 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.12-slim
+FROM python:3.12-slim-trixie
+
+RUN apt-get update -o APT::Update::Error-Mode=any \
+    && apt-get upgrade -y --no-install-recommends \
+    && (dpkg --compare-versions \
+        "$(dpkg-query -W -f='${Version}' zlib1g)" ge '1:1.3.dfsg+really1.3.1-1+deb13u1' \
+        || { echo 'zlib1g security version check failed (CVE-2026-85091)' >&2; exit 1; }) \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY requirements.txt /app/requirements.txt

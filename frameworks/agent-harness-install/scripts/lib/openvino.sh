@@ -27,8 +27,10 @@ HARNESS_OVMS_CONTAINER="${HARNESS_OVMS_CONTAINER:-agent-harness-install-ovms}"
 # is loopback-only by default (resolve_bind_host), neither of which a
 # separate container (IR) can reach. See ensure_backend_network.
 HARNESS_BACKEND_NETWORK="${HARNESS_BACKEND_NETWORK:-agent-harness-install-backend}"
-# Extra OVMS server flags, e.g. "--tool_parser <parser> --task text_generation"
-# for agents that need OpenAI-style tool calls.
+# Extra OVMS *server* flags (e.g. "--log_level DEBUG"), appended to the
+# container's command line. Per-model options such as --tool_parser do not
+# belong here: OVMS rejects them when started from --config_path, so the
+# container crash-loops. OVMS picks the tool parser from the chat template itself.
 HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
 
 # Set HARNESS_LLM_ROUTER_ENDPOINT to point this installer's Inference Router
@@ -1044,6 +1046,14 @@ ensure_backend_network() {
 ensure_openvino_model_server() {
   local gpu_args group_add_args bind_host
   local -a proxy_args=()
+  # Per-model graph options on the server command line make OVMS exit at
+  # startup under --config_path, and --restart unless-stopped then loops it.
+  case " $HARNESS_OVMS_EXTRA_ARGS " in
+    *" --tool_parser"* | *" --reasoning_parser"*)
+      error "HARNESS_OVMS_EXTRA_ARGS contains a per-model option (--tool_parser/--reasoning_parser)
+that OVMS rejects when started from --config_path. OVMS 2026.3 and later pick the tool
+parser from the model's chat template by themselves." ;;
+  esac
   ensure_ovms_config
   ensure_ovms_models_readable
   ensure_backend_network

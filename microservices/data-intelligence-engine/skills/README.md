@@ -9,7 +9,7 @@ writes the answer from them. The engine itself never generates an answer.
 
 | Skill | What it does | Files |
 |---|---|---|
-| [`knowledgebase`](knowledgebase/SKILL.md) | Retrieves the most relevant chunks for a question from an asset library and has the agent answer, summarize, compare or report from them | `SKILL.md`, `data_intelligence_engine` |
+| [`knowledgebase`](knowledgebase/SKILL.md) | Retrieves the most relevant chunks for a question from an asset library and has the agent answer, summarize, compare or report from them; `--include-media` additionally decodes image/video-frame visual evidence for visual questions | `SKILL.md`, `data_intelligence_engine`, `render_media.py` |
 
 The `data_intelligence_engine` wrapper sends one `POST /v1/retrieve` request with
 `curl`, the same request as [`scripts/retrieve.sh query`](../scripts/README.md#retrieval),
@@ -17,6 +17,27 @@ and prints the chunks as a numbered list. It needs only `bash` and `curl`; with
 `jq` installed the output is the numbered list, otherwise the raw JSON response.
 It does not need the engine's scripts, Python or a checkout of this repository, so
 the skill directory can be copied to the agent's host on its own.
+
+The optional `--include-media` flag sets the engine's `include_media_data` request
+field: the response's image/video-frame data URIs are decoded by `render_media.py`
+into files under a temporary `openclaw-media-*` directory, and stdout carries a
+media manifest with file paths instead of base64 data. This visual mode needs
+`python3` on the agent's host; the agent reads the decoded image files with its
+file-reading tool to answer visual questions.
+
+## Temporary media cleanup
+
+The wrapper deletes the raw response (base64) immediately after rendering, but
+the decoded JPGs must outlive the wrapper so the agent can read them. They are
+**not** removed automatically per call. Use [`cleanup_media.sh`](knowledgebase/cleanup_media.sh)
+to delete `openclaw-media-*` directories older than a TTL (default 24 hours,
+`--dry-run` to preview). Schedule it on the agent's host, for example:
+
+```cron
+0 3 * * * /path/to/skills/knowledgebase/cleanup_media.sh 24
+```
+
+Set `TMPDIR` in the cron environment if the agent's wrapper uses a custom one.
 
 ## Prerequisites
 
@@ -59,14 +80,15 @@ cd data-intelligence-engine/skills/knowledgebase
 |---|---|
 | `--library NAME` | Asset library name or ID (default `KB_LIBRARY`, then a discovered library) |
 | `--pool ID` | Asset pool ID, repeatable (default `KB_POOL`, then every pool in the library) |
-| `--top-k N` | Candidates per serving source, 1-100 (default `5`) |
+| `--top-k N` | Candidates per serving source, 1-100 (default `10`) |
 | `--media LIST` | Comma-separated `document`, `image`, `video`, `audio`; `document` returns text passages only (default `KB_TARGET_MEDIA`, then every modality) |
-| `--rerank N` | Rerank the candidates with the engine's default reranker and keep the best N (default `KB_RERANK_TOP_N`, then no reranking) |
+| `--rerank N` | Rerank the candidates with the engine's default reranker and keep the best N (default `KB_RERANK_TOP_N`, then `5`); reranking is on by default |
+| `--no-rerank` | Return the chunks in retrieval order without reranking |
 
 A text chunk prints its passage. A figure, image, video or audio chunk has no
 passage; it prints a `media:` URL served by
 [`GET /v1/blob`](../docs/user-guide/api.md#media-bytes) and its caption or
-surrounding page text as `context:`. With `--rerank`, the reranker must be prepared
+surrounding page text as `context:`. Reranking is on by default, so the reranker must be prepared
 (the default Qwen3-VL INT8 reranker scores text and media chunks together). See the [API reference](../docs/user-guide/api.md#retrieval) for
 `top_k`, `target_media` and `postprocess` semantics.
 
@@ -86,7 +108,7 @@ which for OpenClaw is the gateway:
 | `KB_LIBRARY` | discovered | Asset library name or ID |
 | `KB_POOL` | every pool | One asset pool ID |
 | `KB_TARGET_MEDIA` | every modality | Default for `--media` |
-| `KB_RERANK_TOP_N` | no reranking | Default for `--rerank` |
+| `KB_RERANK_TOP_N` | `5` | Default for `--rerank` |
 | `KB_CONNECT_TIMEOUT` | `10` | Connection timeout in seconds |
 
 A command-line option overrides its variable for that call, and a variable

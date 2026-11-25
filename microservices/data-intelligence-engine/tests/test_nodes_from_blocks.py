@@ -43,15 +43,15 @@ class FakeParser:
                 text=document.get_content(),
                 metadata=dict(document.metadata),
                 id_=document.id_,
-                excluded_embed_metadata_keys=[],
-                excluded_llm_metadata_keys=[],
+                excluded_embed_metadata_keys=list(document.excluded_embed_metadata_keys),
+                excluded_llm_metadata_keys=list(document.excluded_llm_metadata_keys),
             )
             for document in documents
         ]
 
 
 def _indexer(context_chars=400, fused_embed=None, blob_reader=None):
-    """A `VectorIndexer` with only the parts `nodes_from` uses.
+    """A `VectorIndexer` with only the parts `iter_node_items` and `embed_items` use.
 
     Built without `__init__`, which would want an embedding model, a collection
     and a live backend -- none of which parsing blocks into nodes depends on.
@@ -69,6 +69,12 @@ def _indexer(context_chars=400, fused_embed=None, blob_reader=None):
     indexer._blob_reader = blob_reader
     indexer.configuration = {}
     return indexer
+
+
+def _nodes(indexer, asset):
+    items = list(indexer.iter_node_items(asset))
+    indexer.embed_items([item for item in items if item[1] == "fused"])
+    return [node for node, _, _ in items]
 
 
 def _asset(blocks, asset_id="a1", metadata=None):
@@ -107,7 +113,7 @@ def _figure(order, page, caption="", bbox=(1.0, 2.0, 3.0, 4.0)):
 def test_each_block_is_parsed_on_its_own():
     asset = _asset([_text(0, "page one", 1), _text(1, "page two", 2)])
 
-    nodes = _indexer().nodes_from(asset)
+    nodes = _nodes(_indexer(), asset)
 
     assert [node.text for node in nodes] == ["page one", "page two"]
 
@@ -117,7 +123,7 @@ def test_a_chunk_keeps_the_page_it_came_from():
     you cannot trust."""
     asset = _asset([_text(0, "page one", 1), _text(1, "page two", 2)])
 
-    nodes = _indexer().nodes_from(asset)
+    nodes = _nodes(_indexer(), asset)
 
     assert [node.metadata["page"] for node in nodes] == [1, 2]
     assert [node.metadata["reading_order"] for node in nodes] == [0, 1]
@@ -127,7 +133,7 @@ def test_document_metadata_still_reaches_every_chunk():
     """Deletion addresses records by file_path and by asset_id."""
     asset = _asset([_text(0, "words", 1)])
 
-    node = _indexer().nodes_from(asset)[0]
+    node = _nodes(_indexer(), asset)[0]
 
     assert node.metadata["file_path"] == "/w/report.pdf"
     assert node.metadata["asset_id"] == "a1"
@@ -137,7 +143,7 @@ def test_layout_is_kept_for_citing_and_excluded_from_the_embedding():
     """Coordinates say where a chunk is, not what it says."""
     asset = _asset([_text(0, "words", 1)])
 
-    node = _indexer().nodes_from(asset)[0]
+    node = _nodes(_indexer(), asset)[0]
 
     assert set(node.excluded_embed_metadata_keys) == set(EMBED_EXCLUDED_METADATA_KEYS)
     assert set(LAYOUT_METADATA_KEYS) <= set(node.excluded_embed_metadata_keys)
@@ -147,7 +153,7 @@ def test_layout_is_kept_for_citing_and_excluded_from_the_embedding():
 def test_an_empty_block_produces_no_node():
     asset = _asset([_text(0, "   ", 1), _text(1, "words", 2)])
 
-    assert len(_indexer().nodes_from(asset)) == 1
+    assert len(_nodes(_indexer(), asset)) == 1
 
 
 # --- figures ------------------------------------------------------------------
@@ -156,7 +162,7 @@ def test_an_empty_block_produces_no_node():
 def test_a_figure_becomes_one_image_node():
     asset = _asset([_text(0, "before", 1), _figure(1, 1, "Figure 1"), _text(2, "after", 1)])
 
-    nodes = _indexer().nodes_from(asset)
+    nodes = _nodes(_indexer(), asset)
 
     assert len(nodes) == 3
     assert isinstance(nodes[1], ImageNode)
@@ -169,7 +175,7 @@ def test_a_figure_is_searchable_through_the_text_around_it():
         [_text(0, "before it", 1), _figure(1, 1), _text(2, "after it", 1)]
     )
 
-    figure = _indexer().nodes_from(asset)[1]
+    figure = _nodes(_indexer(), asset)[1]
 
     assert figure.text == ""
     context = figure.metadata["surrounding_text"]
@@ -180,7 +186,7 @@ def test_a_figure_is_searchable_through_the_text_around_it():
 def test_a_caption_is_the_reference_without_unrelated_neighbouring_prose():
     asset = _asset([_text(0, "before it", 1), _figure(1, 1, "Figure 1"), _text(2, "after it", 1)])
 
-    figure = _indexer().nodes_from(asset)[1]
+    figure = _nodes(_indexer(), asset)[1]
 
     assert figure.text == "Figure 1"
     assert "surrounding_text" not in figure.metadata
@@ -189,7 +195,7 @@ def test_a_caption_is_the_reference_without_unrelated_neighbouring_prose():
 def test_a_figure_keeps_its_position_for_citation():
     asset = _asset([_text(0, "before", 3), _figure(1, 3, "Figure 1")])
 
-    figure = _indexer().nodes_from(asset)[1]
+    figure = _nodes(_indexer(), asset)[1]
 
     assert figure.metadata["page"] == 3
     assert figure.metadata["bbox"] == [1.0, 2.0, 3.0, 4.0]
@@ -200,13 +206,13 @@ def test_a_figure_with_nothing_to_say_is_dropped():
     """No caption and no prose around it: nothing a query could ever match."""
     asset = _asset([_figure(0, 1)])
 
-    assert _indexer().nodes_from(asset) == []
+    assert _nodes(_indexer(), asset) == []
 
 
 def test_the_context_window_is_bounded():
     asset = _asset([_text(0, "x " * 2000, 1), _figure(1, 1)])
 
-    figure = _indexer(context_chars=50).nodes_from(asset)[1]
+    figure = _nodes(_indexer(context_chars=50), asset)[1]
 
     assert len(figure.metadata["surrounding_text"]) <= 50
 
@@ -232,7 +238,7 @@ def test_an_image_node_is_embedded_jointly_from_its_pixels_and_text():
     )
     asset.content_source_id = "obj-src"
 
-    nodes = _indexer(fused_embed=fused_embed, blob_reader=blob_reader).nodes_from(asset)
+    nodes = _nodes(_indexer(fused_embed=fused_embed, blob_reader=blob_reader), asset)
 
     figure = nodes[1]
     assert figure.embedding == [0.1, 0.2, 0.3]
@@ -255,7 +261,7 @@ def _streaming_indexer():
 
     indexer = object.__new__(VectorIndexer)
     # A real splitter, so text nodes expose `get_content` for the consumer to embed
-    # (the `FakeParser` above is for `nodes_from`, which never embeds text).
+    # (the `FakeParser` above is for `_nodes`, which never embeds text).
     indexer._node_parser = build_node_parser(chunk_size=512, chunk_overlap=50)
     indexer._context_chars = 400
     indexer._embedding_model = MockEmbedding(embed_dim=3)
@@ -297,7 +303,7 @@ def test_iter_node_items_filters_to_requested_blocks_with_full_context():
 
 def test_add_streams_every_block_into_the_collection():
     """`add` goes through the producer/consumer pipeline, not one batch at the end:
-    each block's node is embedded and inserted, and the counts match `nodes_from`."""
+    each block's node is embedded and inserted."""
     indexer = _streaming_indexer()
     asset = _asset(
         [_text(0, "page one", 1), _figure(1, 1, "Figure 1"), _text(2, "page two", 2)]
@@ -314,7 +320,7 @@ def test_a_text_only_model_leaves_image_nodes_for_the_text_path():
     from its caption and surrounding text like any text node."""
     asset = _asset([_text(0, "before", 1), _figure(1, 1, "Figure 1")])
 
-    figure = _indexer().nodes_from(asset)[1]
+    figure = _nodes(_indexer(), asset)[1]
 
     assert figure.embedding is None
 
@@ -328,9 +334,7 @@ def test_unreadable_pixels_fall_back_to_the_text_path():
 
     asset = _asset([_text(0, "before", 1), _figure(1, 1, "Figure 1")])
 
-    figure = _indexer(fused_embed=fused_embed, blob_reader=blob_reader).nodes_from(
-        asset
-    )[1]
+    figure = _nodes(_indexer(fused_embed=fused_embed, blob_reader=blob_reader), asset)[1]
 
     assert figure.embedding is None
 
@@ -380,7 +384,7 @@ def test_a_media_file_is_a_node_like_anything_else():
     )
     asset = _asset([block], metadata={"file_path": "/w/q3.mp4"})
 
-    nodes = _indexer().nodes_from(asset)
+    nodes = _nodes(_indexer(), asset)
 
     assert len(nodes) == 1
     assert not isinstance(nodes[0], ImageNode), "a video is not an image"

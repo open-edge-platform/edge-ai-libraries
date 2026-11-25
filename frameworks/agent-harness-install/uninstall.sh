@@ -30,6 +30,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 . "${SCRIPT_DIR}/scripts/lib/inference-router.sh"
 # shellcheck source=scripts/lib/agents.sh
 . "${SCRIPT_DIR}/scripts/lib/agents.sh"
+# shellcheck source=scripts/lib/metrics.sh
+. "${SCRIPT_DIR}/scripts/lib/metrics.sh"
 # shellcheck source=scripts/lib/openshell.sh
 . "${SCRIPT_DIR}/scripts/lib/openshell.sh"
 
@@ -203,6 +205,14 @@ main() {
   info "Removing Inference Router…"
   remove_deployment_container "$HARNESS_IR_CONTAINER"
   ok "Inference Router removed"
+  metrics_remove_jaeger
+  metrics_remove_managed_config
+  metrics_receiver_stop
+  # OpenClaw keeps its config when the CLI is removed; an exporter we enabled would resume after a reinstall.
+  if [[ "$(metrics_harness_owner)" == openclaw ]]; then
+    ( metrics_disable_openclaw ) \
+      || warn "OpenClaw's telemetry exporter could not be turned off. ${METRICS_OPENCLAW_GATEWAY_HINT} Or run 'openclaw config set diagnostics.otel.enabled false --strict-json' later."
+  fi
   if ovms_is_managed; then
     info "Removing OpenVINO Model Server…"
     remove_deployment_container "$HARNESS_OVMS_CONTAINER"

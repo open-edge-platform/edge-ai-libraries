@@ -30,8 +30,6 @@ directories must exist and are not created as empty substitutes. The default
 recordings YAML comes from this checkout's shared\videos\default_recordings.yaml.
 An explicit DEFAULT_RECORDINGS_FILE override is preserved; a missing override
 warns that automatic recording downloads will be skipped.
-DEFAULT_AUDIO_RECORDINGS_FILE defaults to shared\audio\default_recordings.yaml;
-an explicit missing override warns that bundled audio recordings will be skipped.
 
 Unspecified MODEL_DOWNLOAD_URL, METRICS_MANAGER_URL, DLSPS2_BASE_URL and LIVE_STREAM_SERVER_HOST
 default to local services (ports 8000, 9090, 8080 and RTSP 8554). APP_LOG_LEVEL defaults
@@ -149,7 +147,7 @@ foreach ($name in @('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'PATH', 'VIRTUAL_EN
     'PYTHONPATH', 'PYGI_DLL_DIRS', 'GI_TYPELIB_PATH', 'SCRIPTS_PATH', 'LABELS_PATH',
     'PUBLIC_MODEL_PROC_PATH', 'DEFAULT_RECORDINGS_FILE', 'MODELS_PATH', 'INPUT_VIDEO_DIR',
     'AUTO_VIDEO_DIR', 'UPLOADED_VIDEO_DIR', 'OUTPUT_VIDEO_DIR', 'UPLOADED_IMAGES_DIR',
-    'AUTO_AUDIO_DIR', 'OUTPUT_AUDIO_DIR', 'DEFAULT_AUDIO_RECORDINGS_FILE',
+    'AUTO_AUDIO_DIR', 'OUTPUT_AUDIO_DIR',
     'METADATA_DIR', 'DATABASE_URL', 'MODEL_DOWNLOAD_URL', 'METRICS_MANAGER_URL',
     'DLSPS2_BASE_URL',
     'LIVE_STREAM_SERVER_HOST', 'LIVE_STREAM_SERVER_PORT', 'APP_LOG_LEVEL')) {
@@ -274,18 +272,6 @@ if (!$env:DEFAULT_RECORDINGS_FILE) {
     $env:DEFAULT_RECORDINGS_FILE = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($env:DEFAULT_RECORDINGS_FILE)
     if (!(Test-Path -LiteralPath $env:DEFAULT_RECORDINGS_FILE -PathType Leaf)) {
         Write-Warning 'DEFAULT_RECORDINGS_FILE does not exist; automatic recording downloads will be skipped.'
-    }
-}
-
-Write-Host '[start] Configuring the audio recordings YAML...'
-if (!$env:DEFAULT_AUDIO_RECORDINGS_FILE) {
-    $audioRecordings = Join-Path $component 'shared\audio\default_recordings.yaml'
-    if (!(Test-Path -LiteralPath $audioRecordings -PathType Leaf)) { throw "Default audio recordings YAML not found: $audioRecordings" }
-    $env:DEFAULT_AUDIO_RECORDINGS_FILE = $audioRecordings
-} else {
-    $env:DEFAULT_AUDIO_RECORDINGS_FILE = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($env:DEFAULT_AUDIO_RECORDINGS_FILE)
-    if (!(Test-Path -LiteralPath $env:DEFAULT_AUDIO_RECORDINGS_FILE -PathType Leaf)) {
-        Write-Warning 'DEFAULT_AUDIO_RECORDINGS_FILE does not exist; bundled audio recordings will be skipped.'
     }
 }
 

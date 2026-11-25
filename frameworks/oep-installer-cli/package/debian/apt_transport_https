@@ -1,0 +1,11 @@
+debian_40_install_apt_transport_https () {
+  ensure_apt_install_package apt-transport-https
+}
+
+debian_40_remove_apt_transport_https () {
+  ensure_apt_remove_package apt-transport-https
+}
+
+debian_40_sbom_apt_transport_https () {
+  ensure_sbom_format pkg-list apt-transport-https
+}

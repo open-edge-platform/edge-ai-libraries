@@ -1,12 +1,19 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
+import os
 import tempfile
 from typing import List
 import socket
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.background import BackgroundTask
 
 import api.api_schemas as schemas
+from app_export.archive import AppSource, app_name, write_app_archive
+from app_export.pipelines import build_app_pipelines
 from managers.execution_coordinator import JobExecutionConflictError
 from managers.optimization_manager import OptimizationManager
 from managers.pipeline_manager import PipelineManager
@@ -652,6 +659,10 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
             "description": "Optimization job successfully started",
             "model": schemas.OptimizationJobResponse,
         },
+        400: {
+            "description": "Invalid optimization parameters",
+            "model": schemas.MessageResponse,
+        },
         409: {
             "description": "Only one job can be run at the same time.",
             "model": schemas.MessageResponse,
@@ -677,6 +688,11 @@ def optimize_variant(
     > **Note:** Optimization works with both read-only (PREDEFINED) and user-created variants.
     > The optimization job uses the variant's graphs as input but does not modify the original variant.
 
+    The optimizer runs on DL Streamer Pipeline Server, so candidate pipelines run on
+    the server's runtime and devices. A variant named `CPU`, `GPU` or `NPU` restricts
+    the search to that device. Cancel a running job with
+    `DELETE /jobs/optimization/{job_id}`.
+
     ## Path Parameters
     - `pipeline_id` - ID of the pipeline containing the variant
     - `variant_id` - ID of the variant to optimize
@@ -697,7 +713,9 @@ def optimize_variant(
     | Code | Description |
     |------|-------------|
     | 202 | `OptimizationJobResponse` with `job_id` of created job |
+    | 400 | `MessageResponse` - For `optimize`, `search_duration` or `sample_duration` is not a number greater than 0 |
     | 404 | `MessageResponse` - Pipeline or variant with given IDs do not exist |
+    | 409 | `MessageResponse` - Another execution job is already running |
     | 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |
 
     ## Conditions
@@ -710,6 +728,8 @@ def optimize_variant(
     ### ❌ Failure
     - Another execution job is already running → 409
     - Unknown pipeline or variant ID → 404
+    - For `optimize`, `search_duration` or `sample_duration` not a number greater than 0 → 400
+      (numeric strings such as `"30"` are accepted)
     - Unhandled exception in pipeline/variant lookup or job creation → 500
 
     ## Examples
@@ -1174,6 +1194,12 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
     - `pipeline_graph` *(optional)* - Advanced graph (mutually exclusive with `pipeline_graph_simple`)
     - `pipeline_graph_simple` *(optional)* - Simplified graph (mutually exclusive with `pipeline_graph`)
 
+    ### CPU pinning
+    `cpu_pinning` inside the submitted graph controls the variant's pinning:
+    - Field omitted - the current pinning is kept
+    - `[]` - pinning is cleared
+    - List of CPU ids - replaces the pinning; ids are de-duplicated and sorted
+
     ## Response Codes
 
     | Code | Description |
@@ -1264,6 +1290,21 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
             if body.pipeline_graph_simple is not None
             else None
         )
+
+        graphs_without_pinning = [
+            internal_graph
+            for request_graph, internal_graph in (
+                (body.pipeline_graph, graph),
+                (body.pipeline_graph_simple, graph_simple),
+            )
+            if request_graph is not None
+            and internal_graph is not None
+            and "cpu_pinning" not in request_graph.model_fields_set
+        ]
+        if graphs_without_pinning:
+            current = PipelineManager().get_variant_by_ids(pipeline_id, variant_id)
+            for internal_graph in graphs_without_pinning:
+                internal_graph.set_cpu_pinning(current.pipeline_graph.cpu_pinning)
 
         updated_variant = PipelineManager().update_variant(
             pipeline_id=pipeline_id,
@@ -1604,6 +1645,140 @@ def convert_simple_to_advanced(
         )
 
 
+@router.post(
+    "/{pipeline_id}/variants/{variant_id}/export-app",
+    operation_id="export_variant_as_app",
+    summary="Export Variant as App",
+    response_class=FileResponse,
+    responses={
+        200: {
+            "description": "Zip archive of the app",
+            "content": {
+                "application/zip": {"schema": {"type": "string", "format": "binary"}}
+            },
+        },
+        400: {
+            "description": "Variant cannot be exported as an app",
+            "model": schemas.MessageResponse,
+        },
+        404: {
+            "description": "Pipeline or variant not found",
+            "model": schemas.MessageResponse,
+        },
+        500: {"description": "Internal server error", "model": schemas.MessageResponse},
+    },
+)
+def export_variant_as_app(pipeline_id: str, variant_id: str):
+    """
+    **Export a saved pipeline variant as a standalone app (zip archive).**
+
+    The app runs the variant on DL Streamer Pipeline Server 2.0 with Docker
+    Compose, without ViPPET. Unsaved editor changes are not included.
+
+    ## Operation
+    1. Load the saved pipeline variant
+    2. Check that it can run as an app: one video file source, stock elements,
+       and only models supported by app export (currently Pallet Defect Detection)
+    3. Build one launch string per app output (`fakesink`, `file`, `rtsp`)
+    4. Bundle compose file, scripts, launch strings, model and input video into a zip
+
+    ## Archive Content
+    One directory named `<pipeline>-<variant>-app` with `README.md`, `compose.yml`,
+    `start_app.sh`, `run.sh`, `status.sh`, `stop.sh`, `stop_app.sh`,
+    `pipelines.json`, `manifest.json`, `assets/` (models and videos) and `output/`.
+
+    ## Path Parameters
+    - `pipeline_id` - ID of the pipeline
+    - `variant_id` - ID of the variant to export
+
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 200 | `application/zip` attachment named `<pipeline>-<variant>-app.zip` |
+    | 400 | `MessageResponse` - Variant cannot be exported as an app |
+    | 404 | `MessageResponse` - Pipeline or variant not found |
+    | 500 | `MessageResponse` - Unexpected error |
+
+    ## Conditions
+
+    ### ✅ Success
+    - Pipeline and variant exist
+    - The variant passes the app export checks and all its files are present
+
+    ### ❌ Failure
+    - Pipeline or variant not found → 404
+    - Unsupported source, element or model, or a missing model or video file → 400
+    - Any other exception → 500
+
+    ## Examples
+
+    ### Error Response (400)
+    ```json
+    {
+      "message": "Export as app currently supports Pallet Defect Detection pipelines only (model 'Pallet Defect Detection')."
+    }
+    ```
+    """
+    manager = PipelineManager()
+    try:
+        pipeline = manager.get_pipeline_by_id(pipeline_id)
+        variant = manager.get_variant_by_ids(pipeline_id, variant_id)
+    except ValueError as e:
+        logger.warning("Pipeline or variant not found: %s", e)
+        return JSONResponse(
+            content=schemas.MessageResponse(message=str(e)).model_dump(),
+            status_code=404,
+        )
+
+    archive_path: str | None = None
+    try:
+        app = build_app_pipelines(variant.pipeline_graph)
+        source = AppSource(
+            pipeline_id=pipeline.id,
+            pipeline_name=pipeline.name,
+            variant_id=variant.id,
+            variant_name=variant.name,
+            launch_string=variant.pipeline_graph.to_pipeline_description(),
+        )
+        fd, archive_path = tempfile.mkstemp(prefix="vippet-app-", suffix=".zip")
+        with os.fdopen(fd, "wb") as archive:
+            write_app_archive(archive, source, app)
+        logger.info(
+            "Exported variant %s of pipeline %s as an app", variant_id, pipeline_id
+        )
+        return FileResponse(
+            archive_path,
+            media_type="application/zip",
+            filename=f"{app_name(source)}.zip",
+            background=BackgroundTask(_remove_file, archive_path),
+        )
+    except ValueError as e:
+        _remove_file(archive_path)
+        logger.warning(
+            "Cannot export variant %s of pipeline %s: %s", variant_id, pipeline_id, e
+        )
+        return JSONResponse(
+            content=schemas.MessageResponse(message=str(e)).model_dump(),
+            status_code=400,
+        )
+    except Exception as e:
+        _remove_file(archive_path)
+        logger.error("Unexpected error while exporting an app", exc_info=True)
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Failed to export the app: {str(e)}"
+            ).model_dump(),
+            status_code=500,
+        )
+
+
+def _remove_file(path: str | None) -> None:
+    """Delete a temporary file if it exists."""
+    if path is not None and os.path.exists(path):
+        os.remove(path)
+
+
 # ------------------------------------------------------------------
 # Conversion helpers: API types <-> internal types
 #
@@ -1636,6 +1811,7 @@ def _internal_variant_to_api(variant: InternalVariant) -> schemas.Variant:
         pipeline_graph_simple=schemas.PipelineGraph.model_validate(
             variant.pipeline_graph_simple.to_dict()
         ),
+        media_only=variant.pipeline_graph.is_media_only(),
         created_at=variant.created_at,
         modified_at=variant.modified_at,
     )

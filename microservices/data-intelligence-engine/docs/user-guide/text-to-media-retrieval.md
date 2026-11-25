@@ -27,7 +27,7 @@ curl -sS -X POST http://localhost:16022/v1/retrieve \
 | `top_k`                 | From 1 to 100. Maximum candidates retrieved per serving source; without reranking, also the maximum returned per source. With one source per modality, this is equivalent to a per-modality limit.                                                                                                                                                     |
 | `exclude_chunk_ids`     | Optional chunk IDs to exclude from the results. Excluded IDs are allowed for in the search depth, up to 100.                                                                                                                                                  |
 | `allow_missing_targets` | Optional. When `true`, a missing projection is omitted from the results if at least one requested modality is available. The default is `false`.                                                                                                          |
-| `postprocess`           | Optional media reranker: `{"processor_type":"reranker","top_n":3}`. `top_n` controls the final global result count (default 3, from `RERANK_TOP_N`), while `top_k` controls each source's input candidates. See [Media reranking](#media-reranking). |
+| `postprocess`           | Optional media reranker: `{"processor_type":"reranker","top_n":3}`. `top_n` controls the final global result count (default 5, from `RERANK_TOP_N`), while `top_k` controls each source's input candidates. See [Media reranking](#media-reranking). |
 
 `asset_pool_ids` narrows a media request to the named pools; with the default empty list, every pool serving a requested modality is searched. Without `postprocess`, `top_k` applies separately to each serving source. Graph retrieval runs on the document path; select `document` or omit `target_media` and set `retriever_type` to `graph` or `rrf` as appropriate.
 
@@ -136,12 +136,10 @@ Video uses eight sampled frames by default.
 The runtime defaults to the INT8 weight-only package
 (`Qwen/Qwen3-VL-Reranker-2B-INT8`, read from
 `Qwen3-VL-Reranker-2B-INT8-OV/`). Prepare it with
-`data-intelligence-engine/scripts/prepare-models.sh media-reranker-int8`, which
-downloads the checkpoint, exports all three modes to FP16 OpenVINO IRs, and
-quantizes them to INT8 as described in
-[How to prepare models](how-to-guides/how-to-prepare-models.md). To serve the
-FP16 export instead, set `ENGINE_MEDIA_RERANK_MODEL_ID=Qwen/Qwen3-VL-Reranker-2B`.
-The manual procedure below shows what the preparation step does.
+`data-intelligence-engine/scripts/prepare-models.sh media-reranker`; the full
+procedure (checkpoint download, FP16 export, INT8 quantization, FP16 cleanup)
+is in
+[How to prepare models](how-to-guides/how-to-prepare-models.md#47-qwen3-vl-reranker-2b-unified-media-reranking).
 
 `Qwen/Qwen3-VL-Reranker-2B-INT8` is an Engine configuration ID, not a separate
 Hugging Face repository. The upstream checkpoint is
@@ -150,47 +148,7 @@ component and appends `-OV` to find the local package under
 `$ENGINE_MODEL_ROOT_PATH`; `/v1/models/reranker` lists that package by its
 directory name, `Qwen3-VL-Reranker-2B-INT8-OV`.
 
-Install the `media-export` optional dependency and place the official
-`Qwen/Qwen3-VL-Reranker-2B` checkpoint in a local directory. Export each media
-mode that the engine will serve:
-
-```bash
-PYTHONPATH=data-intelligence-engine/src python data-intelligence-engine/scripts/export_qwen3_vl_reranker_ov.py \
-  --source /path/to/Qwen3-VL-Reranker-2B \
-  --output data-intelligence-engine/workspace/models/Qwen3-VL-Reranker-2B-OV \
-  --mode image --sample /path/to/example.jpg
-```
-
-Use `--mode text` for audio transcripts. For video, add `--mode video` and
-`--sample /path/to/example.mp4`. The source directory must contain the official
-`1_LogitScore/config.json` and reference script. The exporter writes the
-processor files and one `reranker_<mode>.xml`/`.bin` pair per invocation.
-
-Quantize the exported FP16 IRs to the default INT8 package with
-`data-intelligence-engine/scripts/quantize_qwen3_vl_reranker_int8.py` (NNCF
-`compress_weights`, INT8_ASYM per-channel). It halves the model size; per the
-frozen-pool comparison, image and audio quality is unchanged within noise while
-video loses part of the FP16 reranking gain. Build it with
-`prepare-models.sh media-reranker-int8`; the default model ID loads its package
-from `Qwen3-VL-Reranker-2B-INT8-OV`. When video quality matters, select the
-FP16 package explicitly.
-
-Before serving, compare OpenVINO scores and rankings against the official
-reference script using the repository checker:
-
-```bash
-python data-intelligence-engine/scripts/check_qwen3_vl_reranker_parity.py \
-  --source /path/to/Qwen3-VL-Reranker-2B \
-  --ov data-intelligence-engine/workspace/models/Qwen3-VL-Reranker-2B-INT8-OV \
-  --fixtures /path/to/pairs.jsonl --device GPU
-```
-
-Each JSONL row contains `query`, `target`, and either `text` for audio or a
-local `path` for image/video. The checker exits with a nonzero status when
-scores exceed its tolerance or a query's within-media ranking changes. The
-engine runs the reranker only for requests that include `postprocess`.
-The OpenVINO IR package is read from `$ENGINE_MODEL_ROOT_PATH/<model-id-last-component>-OV`;
-place the exported package there.
+The engine runs the reranker only for requests that include `postprocess`.
 
 ## Limitations
 

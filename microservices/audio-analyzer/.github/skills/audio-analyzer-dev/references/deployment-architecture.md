@@ -50,6 +50,7 @@ services:
     group_add: ["video", "${RENDER_GID:-992}"]
     environment:
       HF_HOME: /app/audio_analyzer/.cache/huggingface
+      HF_HUB_DISABLE_XET: ${HF_HUB_DISABLE_XET:-1}
       ZE_ENABLE_ALT_DRIVERS: libze_intel_npu.so
       HF_TOKEN: ${HF_TOKEN:-}
     volumes:
@@ -71,6 +72,9 @@ Key points:
   user and the ownership of the named volumes. Do not change it.
 - `group_add` adds the `video` group and `RENDER_GID` so the non-root app
   user can access `/dev/dri` for GPU.
+- `HF_HUB_DISABLE_XET` defaults to `1` to avoid Hugging Face Xet connection
+  stalls during fresh model downloads. Set it to `0` in `.env` to re-enable
+  Xet when reachable, then recreate the container to apply the change.
 - `healthcheck.start_period` is intentionally long (240s) because warming up
   a Whisper model on GPU can take up to ~120s; a tighter window would flap
   the container to `unhealthy` during normal boot.
@@ -163,6 +167,6 @@ service:
 - `docker build -t audio-analyzer:local .` — direct build outside Compose,
   useful for quick iteration without touching the Compose-managed tag.
 
-`.env` controls `REGISTRY` (default `intel`) and `RELEASE_TAG` (pinned to the
-current release, e.g. `2026.2.0`). Never leave an image reference on
-`:latest` in a committed Compose override meant for production use.
+`.env` controls `REGISTRY` (default `intel`) and `RELEASE_TAG` (default
+`latest`). Pin `RELEASE_TAG` to a specific release for production deployments
+that require reproducible image versions.

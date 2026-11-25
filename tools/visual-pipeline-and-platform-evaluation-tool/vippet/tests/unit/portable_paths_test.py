@@ -37,7 +37,6 @@ PATH_DEFAULTS = {
     "DEFAULT_RECORDINGS_FILE": "/videos/default_recordings.yaml",
     "AUTO_AUDIO_DIR": "/audio/input/auto",
     "OUTPUT_AUDIO_DIR": "/audio/output",
-    "DEFAULT_AUDIO_RECORDINGS_FILE": "/audio/default_recordings.yaml",
     "METADATA_DIR": "/metadata",
 }
 
@@ -86,7 +85,6 @@ class TestPortablePathDefaults(unittest.TestCase):
                         in {
                             "MODELS_PATH",
                             "DEFAULT_RECORDINGS_FILE",
-                            "DEFAULT_AUDIO_RECORDINGS_FILE",
                         }
                         else os.path.normpath(default_path)
                     )
@@ -129,7 +127,10 @@ class TestPortableProperties(unittest.TestCase):
                 parts = []
                 _build_chain("0", nodes, {}, {}, set(), parts)
                 graph = Graph.from_pipeline_description(" ".join(parts))
-                self.assertEqual(graph.nodes[0].data["location"], value)
+                if value == "":
+                    self.assertNotIn("location", graph.nodes[0].data)
+                else:
+                    self.assertEqual(graph.nodes[0].data["location"], value)
 
     def test_pipeline_separators(self):
         graph = Graph.from_pipeline_description('filesrc location="a b.mp4" ! fakesink')
@@ -169,7 +170,11 @@ class TestPortableProperties(unittest.TestCase):
                 )
 
     def test_ts_conversion_quotes_paths(self):
-        with patch("videos.Dlsps2PipelineRunner") as runner:
+        with (
+            patch("videos.Dlsps2PipelineRunner") as runner,
+            patch("videos.align") as align,
+            patch("videos.os.replace") as replace,
+        ):
             for extension in ("mp4", "264"):
                 source = rf"C:\video files\clip!.{extension}"
                 target = r"C:\video files\clip!.ts"
@@ -180,6 +185,8 @@ class TestPortableProperties(unittest.TestCase):
                     description = runner.return_value.run.call_args.args[0]
                     self.assertIn(f"location={quote_property(source)}", description)
                     self.assertIn(f"location={quote_property(target)}", description)
+                    align.assert_called_with(target, target + ".aligned")
+                    replace.assert_called_with(target + ".aligned", target)
 
 
 class TestLegacyResourceMapping(unittest.TestCase):

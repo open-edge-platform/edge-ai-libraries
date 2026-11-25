@@ -46,13 +46,19 @@ export const buildMessages = (
   return [
     {
       role: "system",
-      content:
-        "Answer the user's question using the retrieval results provided with it. If they do not contain the answer, say so. Cite the results you use by number, like [1].",
+      content: `You are an AI assistant. Your task is to learn from the following context. Then answer the user's question based on what you learned from the context but not your own knowledge.
+
+${context}
+
+Pay attention to your formatting of response. If you need to reference content from context, try to keep the formatting.
+Try to summarize from the context, do some reasoning before response, then response. Make sure your response is logically sound and self-consistent.
+
+`,
     },
     ...completed.slice(-6),
     {
       role: "user",
-      content: `Retrieval results:\n${context || "(No retrieval results.)"}\n\nQuestion: ${question}`,
+      content: `\n${question}\n`,
     },
   ];
 };

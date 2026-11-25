@@ -106,6 +106,26 @@
           }
         },
         {
+          "label": "Robotics AI Suite",
+          "value": "robotics_ai_suite",
+          "supports": {
+            "OP_SYSTEM": [
+              "UBUNTU_24_04",
+              "UBUNTU_26_04"
+            ]
+          }
+        },
+        {
+          "label": "Education AI Suite",
+          "value": "education_ai_suite",
+          "supports": {
+            "OP_SYSTEM": [
+              "UBUNTU_24_04",
+              "UBUNTU_26_04"
+            ]
+          }
+        },
+        {
           "label": "Federal and Aerospace (Handheld)",
           "value": "federal_and_aerospace_ai_suite_handheld",
           "supports": {
@@ -126,18 +146,8 @@
           }
         },
         {
-          "label": "Federal and Aerospace (Mission Decision Support)",
-          "value": "federal_and_aerospace_ai_suite_mission_decision_support",
-          "supports": {
-            "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
-            ]
-          }
-        },
-        {
-          "label": "Robotics AI Suite",
-          "value": "robotics_ai_suite",
+          "label": "Federal and Aerospace (Mission Sensing Service)",
+          "value": "federal_and_aerospace_ai_suite_mission_sensing_service",
           "supports": {
             "OP_SYSTEM": [
               "UBUNTU_24_04",
@@ -364,6 +374,20 @@
           },
           "startStop": true,
           "remove": true
+        },
+        {
+          "label": "Smart Tolling",
+          "value": "smart_tolling",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true,
+          "options": [
+            "--gpu"
+          ]
         },
         {
           "label": "Smart Traffic Intersection Agent",
@@ -650,6 +674,85 @@
           "remove": true
         },
         {
+          "label": "Autonomous Mobile Robot",
+          "value": "autonomous_mobile_robot",
+          "supports": {
+            "PROFILE": [
+              "robotics_ai_suite"
+            ]
+          },
+          "remove": true
+        },
+        {
+          "label": "Stationary Robot Vision",
+          "value": "stationary_robot_vision",
+          "supports": {
+            "PROFILE": [
+              "robotics_ai_suite"
+            ]
+          },
+          "remove": true
+        },
+        {
+          "label": "Humanoid Imitation Learning",
+          "value": "humanoid_imitation_learning",
+          "supports": {
+            "PROFILE": [
+              "robotics_ai_suite"
+            ]
+          },
+          "remove": true
+        },
+        {
+          "label": "Physical AI Framework",
+          "value": "physical_ai_framework",
+          "supports": {
+            "PROFILE": [
+              "robotics_ai_suite"
+            ]
+          },
+          "remove": true
+        },
+        {
+          "label": "Physical AI Studio",
+          "value": "physical_ai_studio",
+          "supports": {
+            "PROFILE": [
+              "robotics_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true
+        },
+        {
+          "label": "Smart Classroom",
+          "value": "smart_classroom",
+          "supports": {
+            "PROFILE": [
+              "education_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true,
+          "options": [
+            "--gpu"
+          ]
+        },
+        {
+          "label": "Teacher Assistant Claw Demo",
+          "value": "teacher_assistant_claw_demo",
+          "supports": {
+            "PROFILE": [
+              "education_ai_suite"
+            ]
+          },
+          "startStop": false,
+          "remove": true,
+          "options": [
+            "--gpu"
+          ]
+        },
+        {
           "label": "Handheld Blueprint",
           "value": "handheld_blueprint",
           "supports": {
@@ -701,21 +804,11 @@
           "remove": true
         },
         {
-          "label": "Deterministic Threat Detection",
-          "value": "deterministic_threat_detection",
+          "label": "Mission Sensing Service Blueprint",
+          "value": "mission_sensing_service_blueprint",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
-            ]
-          },
-          "remove": true
-        },
-        {
-          "label": "Mission Decision Support Blueprint",
-          "value": "mission_decision_support_blueprint",
-          "supports": {
-            "PROFILE": [
-              "federal_and_aerospace_ai_suite_mission_decision_support"
+              "federal_and_aerospace_ai_suite_mission_sensing_service"
             ]
           }
         },
@@ -724,71 +817,9 @@
           "value": "deterministic_threat_detection",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite_mission_decision_support"
+              "federal_and_aerospace_ai_suite_mission_sensing_service"
             ]
           },
-          "remove": true
-        },
-        {
-          "label": "UAV Mission Compute SDK",
-          "value": "uav_mission_compute_sdk",
-          "supports": {
-            "PROFILE": [
-              "federal_and_aerospace_ai_suite_mission_decision_support"
-            ]
-          },
-          "startStop": true,
-          "remove": true
-        },
-        {
-          "label": "Autonomous Mobile Robot",
-          "value": "autonomous_mobile_robot",
-          "supports": {
-            "PROFILE": [
-              "robotics_ai_suite"
-            ]
-          },
-          "remove": true
-        },
-        {
-          "label": "Stationary Robot Vision",
-          "value": "stationary_robot_vision",
-          "supports": {
-            "PROFILE": [
-              "robotics_ai_suite"
-            ]
-          },
-          "remove": true
-        },
-        {
-          "label": "Humanoid Imitation Learning",
-          "value": "humanoid_imitation_learning",
-          "supports": {
-            "PROFILE": [
-              "robotics_ai_suite"
-            ]
-          },
-          "remove": true
-        },
-        {
-          "label": "Physical AI Framework",
-          "value": "physical_ai_framework",
-          "supports": {
-            "PROFILE": [
-              "robotics_ai_suite"
-            ]
-          },
-          "remove": true
-        },
-        {
-          "label": "Physical AI Studio",
-          "value": "physical_ai_studio",
-          "supports": {
-            "PROFILE": [
-              "robotics_ai_suite"
-            ]
-          },
-          "startStop": true,
           "remove": true
         }
       ]
@@ -858,14 +889,14 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/release-2026.3.0/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
@@ -1013,6 +1044,38 @@
         },
         {
           "when": {
+            "PROFILE": "robotics_ai_suite",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
+        },
+        {
+          "when": {
+            "PROFILE": "robotics_ai_suite",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
+        },
+        {
+          "when": {
+            "PROFILE": "education_ai_suite",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/education-suite-metro.html"
+        },
+        {
+          "when": {
+            "PROFILE": "education_ai_suite",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/education-suite-metro.html"
+        },
+        {
+          "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
@@ -1045,7 +1108,7 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "text": "Get Started",
@@ -1053,27 +1116,11 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "Get Started",
           "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
-        },
-        {
-          "when": {
-            "PROFILE": "robotics_ai_suite",
-            "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
-        },
-        {
-          "when": {
-            "PROFILE": "robotics_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
         }
       ]
     },
@@ -1205,6 +1252,10 @@
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-route-planning-agent/index.html"
             },
             {
+              "text": "Smart Tolling",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-tolling/index.html"
+            },
+            {
               "text": "Smart Traffic Intersection Agent",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-traffic-intersection-agent/index.html"
             },
@@ -1273,6 +1324,10 @@
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-route-planning-agent/index.html"
             },
             {
+              "text": "Smart Tolling",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-tolling/index.html"
+            },
+            {
               "text": "Smart Traffic Intersection Agent",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-traffic-intersection-agent/index.html"
             },
@@ -1460,78 +1515,6 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
-            "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "links": [
-            {
-              "text": "Handheld Multi-Modal Application",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "links": [
-            {
-              "text": "Handheld Multi-Modal Application",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
-            "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "links": [
-            {
-              "text": "Uncrewed Aerial Vehicle - Vision Analytics",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "links": [
-            {
-              "text": "Uncrewed Aerial Vehicle - Vision Analytics",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
-            "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "links": [
-            {
-              "text": "Deterministic Threat Detection",
-              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/release-2026.3.0/deterministic-threat-detection"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "links": [
-            {
-              "text": "Deterministic Threat Detection",
-              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/release-2026.3.0/deterministic-threat-detection"
-            }
-          ]
-        },
-        {
-          "when": {
             "PROFILE": "robotics_ai_suite",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
@@ -1583,6 +1566,110 @@
             {
               "text": "Physical AI Studio",
               "url": "https://github.com/open-edge-platform/physical-ai-studio"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "education_ai_suite",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "links": [
+            {
+              "text": "Smart Classroom",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-classroom/index.html"
+            },
+            {
+              "text": "Teacher Assistant Claw Demo",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/teacher-assistant-claw-demo/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "education_ai_suite",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "links": [
+            {
+              "text": "Smart Classroom",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-classroom/index.html"
+            },
+            {
+              "text": "Teacher Assistant Claw Demo",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/teacher-assistant-claw-demo/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "links": [
+            {
+              "text": "Handheld Multi-Modal Application",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "links": [
+            {
+              "text": "Handheld Multi-Modal Application",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "links": [
+            {
+              "text": "Uncrewed Aerial Vehicle - Vision Analytics",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "links": [
+            {
+              "text": "Uncrewed Aerial Vehicle - Vision Analytics",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "links": [
+            {
+              "text": "Deterministic Threat Detection",
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/release-2026.3.0/deterministic-threat-detection"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_sensing_service",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "links": [
+            {
+              "text": "Deterministic Threat Detection",
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/release-2026.3.0/deterministic-threat-detection"
             }
           ]
         }
