@@ -15,6 +15,9 @@ import {
   useGetPipelinesQuery,
 } from "@/api/api.generated";
 import { type RefObject, useEffect, useRef, useState } from "react";
+import { version } from "../../package.json";
+
+const docsVersion = version.slice(0, 6);
 
 /**
  * Calculates how many cards can fit in one row based on the container width.
@@ -145,7 +148,7 @@ export const Home = () => {
         <div className="flex gap-3">
           <BookOpen className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
+            href={`https://docs.openedgeplatform.intel.com/${docsVersion}/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html`}
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-brand-accent transition-colors"
@@ -160,14 +163,14 @@ export const Home = () => {
         <div className="flex gap-3">
           <Sparkles className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/release-notes.html"
+            href={`https://docs.openedgeplatform.intel.com/${docsVersion}/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/release-notes.html`}
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-brand-accent transition-colors"
           >
             <h3 className="font-semibold text-base mb-1">What's new?</h3>
             <p className="text-sm text-muted-foreground">
-              Check out what's new in the latest ViPPET 2026.3 release
+              Check out what's new in the latest ViPPET {docsVersion} release
             </p>
           </a>
         </div>
