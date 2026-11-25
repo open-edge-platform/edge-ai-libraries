@@ -25,11 +25,11 @@ agents on Intel hardware. AHI installs the chosen Agent harness, sets up
 the Routing capability, provides Observability options, and the configured
 Security capabilities. AHI is used across all Agentic blueprint applications
 in Open Edge Platform with notable examples being
-[Virtual Security Guard Agent](https://github.com/open-edge-platform/metro-ai-suite/tree/main/virtual-security-guard-agent)
+[Virtual Security Guard Agent](https://github.com/open-edge-platform/metro-ai-suite/tree/release-2026.3.0/virtual-security-guard-agent)
 in **Metro Suite**,
 [QSR Store Agent](https://github.com/intel-retail/qsr-agent/tree/main)
 in **Retail Suite**, and
-[Factory Defects Inspector Agent](https://github.com/open-edge-platform/manufacturing-ai-suite/tree/main/factory-defects-inspector-agent)
+[Factory Defects Inspector Agent](https://github.com/open-edge-platform/manufacturing-ai-suite/tree/release-2026.3.0/factory-defects-inspector-agent)
 in **Manufacturing Suite**.
 
 The following sections provide overview of the major features offered. In
@@ -54,7 +54,7 @@ security.
 ## Inference Router
 
 The inference backend is **configurable**, but every request goes through the
-[**Inference Router** (IR)](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/inference-router).
+[**Inference Router** (IR)](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/microservices/inference-router).
 The agents are wired to the router's endpoint, never directly to a model
 server. By default the Router sits in front of a local **OpenVINO™ Model
 Server** (OVMS) serving an OpenAI-compatible `/v3/chat/completions` endpoint
@@ -72,9 +72,9 @@ previously exported model; otherwise it prompts on a terminal and fails
 non-interactively without a selection.
 
 The Inference Router provides integration with
-[KV Quantization](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/kv-quant-offload)
+[KV Quantization](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/kv-quant-offload)
 and
-[Token compression](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+[Token compression](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
 to offer KV-cache and Prompt optimization capabilities.
 
 ## Agentic AI Security
