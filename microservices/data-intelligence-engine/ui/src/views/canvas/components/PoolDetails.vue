@@ -186,7 +186,10 @@
       </a-button>
     </div>
   </div>
-  <p class="section-hint">{{ $t("console.poolHint") }}</p>
+  <p class="console-info-hint">
+    <InfoCircleOutlined />
+    <span>{{ $t("console.poolHint") }}</span>
+  </p>
   <a-space wrap class="detail-action">
     <a-button type="primary" ghost @click="emit('manage', pool.id)">{{
       $t("console.manage")
@@ -210,7 +213,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Modal } from "ant-design-vue";
-import { DeleteOutlined } from "@ant-design/icons-vue";
+import { DeleteOutlined, InfoCircleOutlined } from "@ant-design/icons-vue";
 import JsonPretty from "vue-json-pretty";
 import {
   requestAssetPoolAssetDelete,

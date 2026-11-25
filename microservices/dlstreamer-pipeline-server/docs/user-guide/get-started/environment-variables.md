@@ -5,6 +5,11 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
 ### Enable and specify port for REST server 
 - **REST_SERVER_PORT (Integer)**  - Port on which REST Server is hosted
   - Example: `REST_SERVER_PORT=8080`
+  - > [!NOTE]
+    > The REST API has no built-in authentication by design — any network peer
+    > that can reach this port can call it. Restricting network access (firewall/
+    > network policy) or fronting it with an authenticating reverse proxy is the
+    > responsibility of the deploying infrastructure. See [Security Considerations](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/README.md#security-considerations).
 
 ### RTSP related config
 - **ENABLE_RTSP (Boolean)** - Set to `true` to enable RTSP. Set to `false` to disable RTSP
@@ -114,6 +119,10 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
 - **HTTPS (Boolean)** - Make it `true` to enable SSL/TLS secure mode, mount the generated certificates
   - Example: `HTTPS=true`
   - Example: `HTTPS=false`
+  - > [!NOTE]
+    > Defaults to `false`. TLS termination is expected to be provided by
+    > deployment infrastructure (e.g. an ingress/gateway) unless you explicitly
+    > set `HTTPS=true`. See [Security Considerations](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/README.md#security-considerations).
 - **LOG_LEVEL (String)** - Set the logging level for DL Streamer Pipeline Server
   - Example: `LOG_LEVEL=INFO`
   - Example: `LOG_LEVEL=DEBUG`

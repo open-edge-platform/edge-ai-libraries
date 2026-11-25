@@ -1,32 +1,25 @@
 
-configure_edge_pack_tsn () {
-  configure_edge_pack "$@"
-  version="1.0"
-}
-
 debian_40_profile_edge_pack_tsn () {
   echo "edge_pack"
 }
 
 debian_40_install_edge_pack_tsn () {
-  configure_edge_pack_tsn "$@"
+  configure_edge_pack "$@"
   if ensure_apt_is_installed intel-edge-tsn && ! ensure_parse_reinstall "$@"; then
     echo "intel-edge-tsn is installed." >&2
   else
     ensure_prop set installed/edge_pack_tsn/owned true
-    ensure_apt purge --auto-remove -y intel-edge-tsn || true
-    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*" || true
-    ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*"
+    install_edge_pack_meta "intel-edge-tsn=$version*"
   fi
 }
 
 debian_40_remove_edge_pack_tsn () {
   [ "$(ensure_prop get installed/edge_pack_tsn/owned)" = "true" ] || return 0
-  ensure_apt purge --auto-remove -y intel-edge-tsn || true
+  remove_edge_pack_meta intel-edge-tsn
 }
 
 debian_40_sbom_edge_pack_tsn () {
-  configure_edge_pack_tsn "$@"
+  configure_edge_pack "$@"
   sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-tsn=$version*"
 }

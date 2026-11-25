@@ -16,10 +16,10 @@ hide_directive-->
 <!--hide_directive
 ::::{container} component_header_row
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/star">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/star">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/star/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/star/README.md">
      Readme
   </a>
 </div>

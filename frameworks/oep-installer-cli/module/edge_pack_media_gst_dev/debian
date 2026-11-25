@@ -1,0 +1,27 @@
+
+debian_70_profile_edge_pack_media_gst_dev () {
+  echo "edge_pack"
+}
+
+debian_70_install_edge_pack_media_gst_dev () {
+  configure_edge_pack "$@"
+  if ensure_apt_is_installed intel-edge-media-gst-dev && ! ensure_parse_reinstall "$@"; then
+    echo "intel-edge-media-gst-dev is installed." >&2
+  else
+    ensure_prop set installed/edge_pack_media_gst_dev/owned true
+    ensure_apt remove -y onevpl-tools || true
+    install_edge_pack_meta "intel-edge-media-gst-dev=$version*"
+  fi
+}
+
+debian_70_remove_edge_pack_media_gst_dev () {
+  [ "$(ensure_prop get installed/edge_pack_media_gst_dev/owned)" = "true" ] || return 0
+  remove_edge_pack_meta intel-edge-media-gst-dev
+}
+
+debian_70_sbom_edge_pack_media_gst_dev () {
+  configure_edge_pack "$@"
+  sbom_edge_pack_repo_entries "$@"
+  ensure_sbom_format pkg-list "intel-edge-media-gst-dev=$version*"
+}
+

@@ -4,6 +4,8 @@
     <Table
       :table-data="libraryData.sources"
       :library-data="libraryData"
+      :content-assets="contentAssets"
+      :content-assets-ready="contentAssetsReady"
       @create="handleCreate"
       @view="handleView"
       @search="handleSearch"
@@ -24,12 +26,29 @@
   </div>
 </template>
 <script lang="ts" setup name="ConsoleSource">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import type { Asset } from "@/api/console/type";
+import { collectLibraryAssets } from "../assets/AssetUtils";
 import type { ConsolePageProps } from "../../types/console";
 import Table from "./components/Table.vue";
 import CreateDialog from "./components/CreateDialog.vue";
 import DetailDrawer from "./components/DetailDrawer.vue";
 const props = defineProps<ConsolePageProps>();
+const { t } = useI18n();
+const contentAssets = ref<Asset[]>([]);
+const contentAssetsReady = ref(false);
+onMounted(async () => {
+  try {
+    contentAssets.value = await collectLibraryAssets(
+      props.libraryData!.name,
+      () => new Error(t("console.incompleteAssetList")),
+    );
+    contentAssetsReady.value = true;
+  } catch (error) {
+    console.error(error);
+  }
+});
 const emit = defineEmits<{ refresh: [] }>();
 const createDialog = ref(false);
 const selectedId = ref("");

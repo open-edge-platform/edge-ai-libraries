@@ -51,7 +51,7 @@ Two platforms have been validated:
 **Required Software**:
 
 - Docker 24.0
-- Python 3.10
+- Python 3.11
 
 ## Validation
 

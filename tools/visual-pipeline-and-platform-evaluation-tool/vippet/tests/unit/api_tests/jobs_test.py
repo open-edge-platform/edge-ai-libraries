@@ -42,6 +42,7 @@ from managers.audio_pipeline_manager import AudioPipelineOperation
 class TestAudioJobsAPI(unittest.TestCase):
     def setUp(self) -> None:
         self.app = FastAPI()
+        self.app.state.voice_available = True
         self.app.include_router(jobs_router, prefix="/jobs")
         self.app.include_router(voice.router, prefix="/voice")
         self.manager = MagicMock()
@@ -170,7 +171,7 @@ class TestAudioJobsAPI(unittest.TestCase):
 
         started = self.client.post(
             "/voice/pipelines/speech-to-text/variants/cpu/runs",
-            json={"recording": "sample_male.wav", "language": "en"},
+            json={"recording": "OSR_us_000_0010_8k.wav", "language": "en"},
         )
         listed = self.client.get("/jobs/audio/status")
 

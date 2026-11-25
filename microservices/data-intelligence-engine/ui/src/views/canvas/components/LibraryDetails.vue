@@ -23,25 +23,22 @@
       libraryData.content_database || "—"
     }}</a-descriptions-item>
   </a-descriptions>
-  <p class="section-hint detail-notice">
-    {{ $t("console.canvasInteractionHint") }}
+  <p class="console-info-hint detail-notice">
+    <InfoCircleOutlined />
+    <span>{{ $t("console.canvasInteractionHint") }}</span>
   </p>
   <a-button type="primary" @click="emit('retrieve')">{{
     $t("console.retrieve")
   }}</a-button>
 </template>
 <script lang="ts" setup name="CanvasLibraryDetails">
+import { InfoCircleOutlined } from "@ant-design/icons-vue";
 import type { Library } from "@/api/console/type";
 
 defineProps<{ libraryData: Library }>();
 const emit = defineEmits<{ retrieve: [] }>();
 </script>
 <style scoped lang="less">
-.section-hint {
-  color: var(--font-info-color);
-  font-size: 12px;
-  line-height: 1.7;
-}
 .detail-notice {
   margin: 16px 0;
 }

@@ -567,7 +567,8 @@ graph retriever's options.
 | `ENGINE_RERANK_MODEL_ID` | `Qwen3-VL-Reranker-2B-INT8-OV` | Default reranker when a request sets no `postprocess.reranker_model`: a directory under the shared root. The Qwen3-VL default scores document text, figures, images, video and audio transcripts together; set a text reranker such as `BAAI/bge-reranker-large` to rerank document-only requests with it. |
 | `ENGINE_RERANK_DEVICE` | `GPU` | OpenVINO reranker device. |
 | `ENGINE_RERANK_API_BASE` | empty | Remote rerank endpoint for the `remote_openai_compatible` backend (vLLM, TEI, or any Cohere/Jina-style `/rerank`); `/rerank` is appended unless already present. |
-| `ENGINE_RERANK_API_KEY` | `unused` | API key sent as `Authorization: Bearer` to the remote rerank endpoint. |
+| `ENGINE_RERANK_API_KEY` | `unused` | API key sent as `Authorization: Bearer` to the remote rerank endpoint; it is sent only to `ENGINE_RERANK_API_BASE`. |
+| `ENGINE_RERANK_ALLOWED_API_BASES` | empty | Comma-separated further rerank endpoints a request may name in `postprocess.reranker_model.api_base`; a request naming any other endpoint is rejected with 400. These endpoints receive no API key. |
 | `ENGINE_MEDIA_RERANK_BACKEND` | `local_openvino` | Media reranker backend; `local_openvino` is the only supported value. |
 | `ENGINE_MEDIA_RERANK_MODEL_ID` | `Qwen3-VL-Reranker-2B-INT8-OV` | Multimodal reranker for text, image, video and audio-transcript candidates: the Qwen3-VL IR package directory under the shared model root. |
 | `ENGINE_MEDIA_RERANK_DEVICE` | `GPU` | OpenVINO device for media reranking. |
