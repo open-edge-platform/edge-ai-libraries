@@ -68,9 +68,7 @@ def test_pipeline_validate_job_completes(http_client: requests.Session) -> None:
         assert isinstance(all_statuses, list) and len(all_statuses) != 0, (
             "GET /jobs/validation/status returned an empty list"
         )
-        logger.info(
-            "GET /jobs/validation/status returned %d job(s)", len(all_statuses)
-        )
+        logger.info("GET /jobs/validation/status returned %d job(s)", len(all_statuses))
 
         summary_response = http_client.get(
             f"{BASE_URL}/jobs/validation/{job_id}",
