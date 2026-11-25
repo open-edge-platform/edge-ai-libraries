@@ -97,7 +97,7 @@ global:
   modelDownload:
     image:
       repository: intel/model-download
-      tag: "2026.3.0-rc1"
+      tag: "2026.3.0-rc2"
       pullPolicy: IfNotPresent
     ovmsReleaseTag: "v2026.4.1"
   proxy:

@@ -5,21 +5,71 @@ All notable changes to this project will be documented in this file.
 ## [2026.3] - December 2026
 
 ### Added
-- Added `POST /stop_pipeline` and `GET /pipeline_status` APIs to stop a UDF task and check its status without shutting down Kapacitor. ([a1fba42](https://github.com/open-edge-platform/edge-ai-libraries/commit/a1fba423371cd78f4b834b34b116848ef4a9dd67))
+- Added `POST /stop_pipeline` to stop Kapacitor and verify shutdown while retaining the API and UDF configuration, and `GET /pipeline_status` to check the configured UDF task's status while Kapacitor is running. ([a1fba42], [#3779])
+- Added GPU render-device access for Ubuntu 26.04 hosts in Docker Compose. ([#3717])
 
 ### Changed
-- Built Kapacitor 1.8.7 from source with a pinned Go toolchain and simplified GPU driver installation to reduce image size. (#3386, #3281, #3426)
-- Updated deployment images to 2026.3.0 and refreshed the Python base image. (#3207, #3228)
-- Updated Python runtime, test, and simulator dependencies. (#3161, #3277, #3332, #3399, #3462)
-- Added shell linting to CI and corrected ShellCheck findings in startup scripts. (#3226, #3310)
+- Built Kapacitor 1.8.7 from source with a pinned Go toolchain and simplified GPU driver installation to reduce image size. ([#3386], [#3281], [#3426])
+- Moved the base image to Python 3.14 and updated the Docker Compose image tag to `2026.3.0-rc2` on the release branch. ([#3207], [#3228], [#4080])
+- Updated Python runtime, test, and simulator dependencies. ([#3161], [#3277], [#3332], [#3399], [#3462], [#3600], [#3708])
+- Added shell linting to CI and corrected ShellCheck findings in startup scripts. ([#3226], [#3310])
+
+### Removed
+- Removed Helm charts and Helm deployment documentation. Use Docker Compose for deployment. ([#3719])
 
 ### Fixed
-- Fixed the `/config` restart field to use a non-nullable boolean in the API and OpenAPI schema. (#3334)
-- Fixed CodeQL findings in classifier startup handling. (#3143)
-- Fixed the Swagger UI display of the optional restart parameter. (#3415)
+- Fixed the `/config` restart field to use a non-nullable boolean in the API and OpenAPI schema. ([#3334])
+- Fixed CodeQL findings in classifier startup handling. ([#3143])
+- Fixed the Swagger UI display of the optional restart parameter. ([#3415])
+- Added an HTTP request timeout so the temperature simulator does not wait indefinitely for an unresponsive endpoint. ([#3714])
+
+### Security
+- Updated the Go toolchain and Kapacitor's Go dependencies, including `golang.org/x/crypto`, `golang.org/x/net`, Go JOSE, `klauspost/compress`, and the OpenTelemetry SDK, to address security scan findings. ([#3714])
+- Upgraded `zlib1g`, `libc-bin`, and `libc6` in the container image to address security scan findings. ([#4066])
 
 ### Documentation
-- Updated release documentation and publishing links, standardized admonitions, and improved component documentation cross-links. (#2783, #2838, #3028, #3230, #3246)
+- Updated release documentation, publishing links, and component cross-links; standardized admonitions and clarified the branch and working directories to use in setup steps. ([#2783], [#2838], [#3028], [#3230], [#3246], [#3690], [#3822], [#3869], [#3905], [#3941], [#4032])
+- Added Time Series Analytics guidance for coding agents and refreshed the third-party dependency notices. ([#3005], [#3616])
+
+---
+
+[a1fba42]: https://github.com/open-edge-platform/edge-ai-libraries/commit/a1fba423371cd78f4b834b34b116848ef4a9dd67
+[#2783]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2783
+[#2838]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2838
+[#3005]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3005
+[#3028]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3028
+[#3143]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3143
+[#3161]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3161
+[#3207]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3207
+[#3226]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3226
+[#3228]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3228
+[#3230]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3230
+[#3246]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3246
+[#3277]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3277
+[#3281]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3281
+[#3310]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3310
+[#3332]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3332
+[#3334]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3334
+[#3386]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3386
+[#3399]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3399
+[#3415]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3415
+[#3426]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3426
+[#3462]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3462
+[#3600]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3600
+[#3616]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3616
+[#3690]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3690
+[#3708]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3708
+[#3714]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3714
+[#3717]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3717
+[#3719]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3719
+[#3779]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3779
+[#3822]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3822
+[#3869]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3869
+[#3905]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3905
+[#3941]: https://github.com/open-edge-platform/edge-ai-libraries/pull/3941
+[#4032]: https://github.com/open-edge-platform/edge-ai-libraries/pull/4032
+[#4066]: https://github.com/open-edge-platform/edge-ai-libraries/pull/4066
+[#4080]: https://github.com/open-edge-platform/edge-ai-libraries/pull/4080
 
 ---
 

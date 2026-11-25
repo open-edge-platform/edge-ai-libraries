@@ -26,4 +26,35 @@ export const mockDemoApi = async (page: Page) => {
       });
     });
   }
+
+  await page.route("**/api/v1/videos/default-recordings", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([]),
+    });
+  });
+
+  await page.route("**/api/v1/videos/download-default", async (route) => {
+    await route.fulfill({
+      status: 202,
+      contentType: "application/json",
+      body: JSON.stringify({
+        filename: "sample.mp4",
+        status: "queued",
+      }),
+    });
+  });
+
+  await page.route("**/api/v1/videos/convert-hevc", async (route) => {
+    await route.fulfill({
+      status: 202,
+      contentType: "application/json",
+      body: JSON.stringify({
+        filename: "sample.mp4",
+        hevc_filename: "sample_h265.mp4",
+        status: "queued",
+      }),
+    });
+  });
 };

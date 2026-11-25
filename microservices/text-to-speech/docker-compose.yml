@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${REGISTRY:-intel}/text-to-speech:${RELEASE_TAG:-latest}
+    image: ${REGISTRY:-intel}/text-to-speech:${RELEASE_TAG:-2026.3.0-rc2}
     container_name: text-to-speech
     # Hardcoded to match the image's baked-in app user and the
     # ownership of the named volumes. Do not change.

@@ -63,7 +63,7 @@ Expected response:
 {
   "status": "healthy",
   "service": "semantic-search-agent",
-  "version": "2026.3.0-rc1",
+  "version": "2026.3.0-rc2",
   "vlm_backend": "ovms",
   "vlm_status": "connected",
   "uptime_seconds": 5.12

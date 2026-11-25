@@ -46,7 +46,7 @@ WORKDIR /app
 # index to get the lean CPU-only build and avoid the heavy accelerator runtime
 # packages the default PyPI torch wheel pulls in on Linux (unused here, ~GBs).
 RUN pip install --no-cache-dir \
-        torch==2.8.0+cpu \
+        torch==2.10.0+cpu \
         --index-url https://download.pytorch.org/whl/cpu
 
 # Compress Server's own runtime deps (NOT adaptive-token-compressor).
@@ -80,14 +80,16 @@ RUN pip install --no-cache-dir \
         setuptools==84.0.0 \
         wheel==0.48.0 \
         jaraco.context==6.1.2 \
-        msgpack==1.2.2
+        msgpack==1.2.3 \
+        nltk==3.10.4
 
 # Apply the neighbor-protection patch to LLMLingua-2 (digit_neighbor_radius). Same patch file used by
 # bare-metal `python -m ...apply_patch`. See plan §6.5.1.5.
 COPY src/adaptive_token_compressor/model_servers/compress_server/patches/0001-digit-neighbor-radius.patch /tmp/
 RUN patch -d "$(python -c 'import llmlingua, os; print(os.path.dirname(llmlingua.__file__))')" -p1 \
         < /tmp/0001-digit-neighbor-radius.patch \
-    && rm /tmp/0001-digit-neighbor-radius.patch
+        && rm /tmp/0001-digit-neighbor-radius.patch \
+        && apt-get purge -y patch
 
 # Server entry — copied as a renamed standalone script (plan §17.A:
 # app.py runs both `python -m ...compress_server` and `python compress_server.py`).
@@ -96,7 +98,12 @@ COPY src/adaptive_token_compressor/model_servers/compress_server/app.py /app/com
 # HuggingFace model cache (mounted as a named volume in compose). Lives under
 # the non-root user's home so the mounted volume is writable without root.
 ENV HF_HOME=/home/user/.cache/huggingface
-RUN useradd -m -u 1000 user && mkdir -p ${HF_HOME} && chown -R user:user ${HF_HOME} /app
+RUN useradd -m -u 1000 user \
+        && mkdir -p ${HF_HOME} \
+        && chown -R user:user ${HF_HOME} \
+        && chmod 0755 /app \
+        && chmod 0644 /app/compress_server.py \
+        && find / -xdev -type f \( -perm -4000 -o -perm -2000 \) -exec chmod a-s {} +
 USER user
 
 ENV COMPRESS_SERVER_PORT=8001

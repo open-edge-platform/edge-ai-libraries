@@ -64,6 +64,12 @@ Start the complete Gen AI application stack using Docker Compose:
 docker compose -f docker/compose.yaml up
 ```
 
+On the first run the application downloads and converts the AI models, which can take several minutes. The `chatqna-core-openvino` container reports `(healthy)` in `docker ps` once it is ready, and only then does Docker Compose start the web server (nginx) on port 8102. Until then the application is not reachable. Wait for this line in the `chatqna-core-openvino` logs:
+
+```text
+INFO:     Application startup complete.
+```
+
 
 ### Step 3: Access the Application Interface
 

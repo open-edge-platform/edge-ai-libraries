@@ -453,6 +453,9 @@ Notes:
   `GATEWAY_MAX_CONCURRENCY=<n>` (or pass `--max-concurrency <n>`) to enable
   one. Status and configuration endpoints (`/health`, `/v1/models`,
   `/v1/config`) are never limited.
+- **Request size.** Request bodies above 300 MiB (the same cap as the UI's
+  nginx proxy) are rejected with `413`, on these and all other endpoints. Set
+  `GATEWAY_MAX_REQUEST_BYTES=<bytes>` to change it, or `0` to disable it.
 - **Dynamic control.** Because they are ordinary providers, you can enable,
   disable, update, or delete them at runtime through the `/v1/providers` API; the
   change takes effect immediately. Disabling or removing the provider makes its

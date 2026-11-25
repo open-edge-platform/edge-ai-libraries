@@ -1,15 +1,17 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 
 # This script automatically detects the available device (NPU, GPU, or CPU)
 # and writes COMPOSE_PROFILES, RENDER_GROUP_ID, DOCKER_TAG, PREBUILT_TAG, and GIT_REVISION
 # to the .env file. DOCKER_TAG and PREBUILT_TAG can be overridden from the environment.
 
-VERSION=2026.3.0-rc1
+VERSION=2026.3.0-rc2
 # Published images run by `make run-prebuilt`: `latest` on main, the release version on a release branch.
 if [[ "$VERSION" == *-dev ]]; then DEFAULT_PREBUILT_TAG=latest; else DEFAULT_PREBUILT_TAG="$VERSION"; fi
 COMPOSE_PROFILES=""
 RENDER_GROUP_ID=""
-TIMESERIES_ANALYTICS_MICROSERVICE_IMAGE_SUFFIX="2026.3.0-rc1"
+TIMESERIES_ANALYTICS_MICROSERVICE_IMAGE_SUFFIX="2026.3.0-rc2"
 TIMESERIES_ANALYTICS_MICROSERVICE_WEEKLY_BUILD_DATE=""
 # GID of the host 'video' group, required by sensor-manager to open /dev/video* devices
 VIDEO_GID="$(getent group video | cut -d: -f3)"

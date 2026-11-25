@@ -75,16 +75,29 @@ wget -O sample.mp4 https://raw.githubusercontent.com/open-edge-platform/edge-ai-
 Download and convert the COCO-trained YOLO11s detector using the DL Streamer container:
 
 ```bash
-# Download YOLO11s model using DL Streamer
+# Download and export YOLO11s to OpenVINO IR using DL Streamer's Ultralytics script
 docker run --rm --user "$(id -u):$(id -g)" \
   -e HOME=/home/dlstreamer \
   -e http_proxy -e https_proxy -e no_proxy \
   -v "${PWD}:/home/dlstreamer/" \
+  -w /home/dlstreamer \
   intel/dlstreamer:2026.3.0-ubuntu24-rc2 \
-  bash -c "export MODELS_PATH=/home/dlstreamer && /opt/intel/dlstreamer/samples/download_public_models.sh yolo11s"
+  bash -c '
+    set -e
+    export MODELS_PATH=/home/dlstreamer
+    SCRIPTS_DIR=/opt/intel/dlstreamer/scripts/download_models
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    source "$HOME/.local/bin/env"
+    [[ -d .ultralytics_models_venv ]] || uv venv .ultralytics_models_venv
+    source .ultralytics_models_venv/bin/activate
+    uv pip install --index-strategy unsafe-best-match -r "${SCRIPTS_DIR}/requirements_download_ultralytics_models.txt"
+    python3 "${SCRIPTS_DIR}/download_ultralytics_models.py" --model yolo11s --outdir "${MODELS_PATH}/public/yolo11s/FP16/" --half
+  '
 ```
 
-The downloader creates `public/yolo11s/FP16/yolo11s.xml` and `yolo11s.bin` in the working directory. YOLO11s detects COCO classes including `person`, `car`, `bus`, and `truck`; DL Streamer reads its class labels and preprocessing metadata directly from the exported model, so no model-proc file is needed.
+> **Note:** Because the working directory is the container's home, the command leaves a Python virtual environment in `.ultralytics_models_venv/`, plus the `uv` binary in `.local/` and download caches in `.cache/`. The virtual environment is reused if you run the command again. Delete these folders after the model is exported if you no longer need them.
+
+The script creates `public/yolo11s/FP16/yolo11s.xml` and `yolo11s.bin` in the working directory. YOLO11s detects COCO classes including `person`, `car`, `bus`, and `truck`; DL Streamer reads its class labels and preprocessing metadata directly from the exported model, so no model-proc file is needed.
 
 ### Step 3: Pipeline Execution
 

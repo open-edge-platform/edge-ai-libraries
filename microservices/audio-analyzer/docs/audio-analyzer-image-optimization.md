@@ -28,8 +28,8 @@ and what remains open, for a future presentation and for mentor review.
   matching `docker-compose.yml`'s existing (and unchanged) `/dev/dri`,
   `/dev/accel/accel0`, and `group_add` wiring, which previously relied on
   the DLStreamer base image's bundled GPU/NPU userspace libraries.
-- `INSTALL_CJK=false` (default, unchanged) — optional FunASR Paraformer
-  provider, same flag/behavior as the prior Dockerfile.
+- `INSTALL_CJK=false` was the default during this promotion session. The
+  current default is `true`; set it to `false` to omit FunASR dependencies.
 
 This exact `IMAGE_VARIANT=full` + `INSTALL_GPU_NPU_RUNTIME=true` combination
 had **not** been built or tested together before this session (prior sessions

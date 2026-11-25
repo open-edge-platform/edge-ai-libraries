@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import threading
 from copy import deepcopy
@@ -5,8 +8,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
 
+import yaml
+
 from graph import Graph, OUTPUT_PLACEHOLDER, graph_is_metadata_only
-from device import is_variant_supported
+from device import (
+    DeviceDiscovery,
+    DeviceDiscoveryError,
+    DeviceFamily,
+    is_variant_supported,
+)
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -32,6 +42,15 @@ from videos import OUTPUT_VIDEO_DIR
 from managers.metadata_manager import METADATA_DIR
 
 logger = logging.getLogger("pipeline_manager")
+
+
+def _has_gpu() -> bool:
+    try:
+        devices = DeviceDiscovery().list_devices()
+    except DeviceDiscoveryError:
+        logger.warning("Device discovery failed, assuming no GPU", exc_info=True)
+        return False
+    return any(device.device_family == DeviceFamily.GPU for device in devices)
 
 
 @dataclass
@@ -80,6 +99,7 @@ class PipelineCommand:
         default_factory=dict
     )
     stream_commands: dict[str, str] = field(default_factory=dict)
+    stream_cpu_cores: dict[str, list[int]] = field(default_factory=dict)
 
     @property
     def all_stream_ids(self) -> list[str]:
@@ -450,11 +470,30 @@ class PipelineManager:
         pipelines_base_path = PipelineLoader.get_pipelines_directory()
 
         for config_path in PipelineLoader.list():
-            config = PipelineLoader.config(config_path)
-
-            # Audio pipelines have no GStreamer graph; AudioPipelineManager owns them.
-            if config.get("type") == "audio":
+            try:
+                config = PipelineLoader.config(config_path)
+            except (OSError, UnicodeError, yaml.YAMLError):
+                self.logger.warning(
+                    "Skipping unreadable pipeline config: %s", config_path
+                )
                 continue
+            if not isinstance(config, dict):
+                self.logger.warning(
+                    "Skipping non-mapping pipeline config: %s", config_path
+                )
+                continue
+            pipeline_type_str = config.get("type", InternalPipelineType.VISION.value)
+            if pipeline_type_str == InternalPipelineType.AUDIO.value:
+                continue
+            if pipeline_type_str not in (
+                InternalPipelineType.VISION.value,
+                InternalPipelineType.TIME_SERIES.value,
+            ):
+                self.logger.warning(
+                    "Skipping unknown pipeline type in: %s", config_path
+                )
+                continue
+            pipeline_type = InternalPipelineType(pipeline_type_str)
 
             pipeline_name = config.get("name", "").strip()
             if not pipeline_name:
@@ -500,6 +539,7 @@ class PipelineManager:
 
                 # Parse variant pipeline description into advanced graph
                 variant_graph = Graph.from_pipeline_description(variant_pipeline_desc)
+                variant_graph.set_cpu_pinning(variant_config.get("cpu_pinning", []))
 
                 # Generate simple view for variant
                 variant_simple_graph = variant_graph.to_simple_view()
@@ -524,18 +564,6 @@ class PipelineManager:
             tags = config.get("tags", [])
             if not isinstance(tags, list):
                 tags = []
-
-            # Read type from config, default to vision
-            pipeline_type_str = config.get("type", InternalPipelineType.VISION.value)
-            try:
-                pipeline_type = InternalPipelineType(pipeline_type_str)
-            except ValueError:
-                self.logger.warning(
-                    "Unknown pipeline type '%s' in pipeline '%s', defaulting to 'vision'",
-                    pipeline_type_str,
-                    pipeline_name,
-                )
-                pipeline_type = InternalPipelineType.VISION
 
             # Load thumbnail if specified, using pipelines directory as base path
             thumbnail_path = config.get("thumbnail", "")
@@ -645,6 +673,7 @@ class PipelineManager:
         # key in the job's `latency_tracer_metrics` map.
         streams_per_pipeline: dict[str, list[InternalStreamInfo]] = {}
         stream_commands: dict[str, str] = {}
+        stream_cpu_cores: dict[str, list[int]] = {}
 
         # Determine if we need looping behavior based on max_runtime
         # Looping is only supported for disabled and live_stream modes
@@ -668,14 +697,17 @@ class PipelineManager:
             # Validate all VA-accelerated inference elements share one GPU render node
             base_graph.validate_inference_devices_share_va_display()
 
+            # Validate broker-publishing gvametapublish elements are configured
+            base_graph.validate_broker_metadata_publishers()
+
             # Validate pipeline has gvametapublish when metadata publishing is enabled
             if (
                 execution_config.metadata_mode != InternalMetadataMode.DISABLED
-                and not base_graph.has_gvametapublish()
+                and not base_graph.has_file_gvametapublish()
             ):
                 raise ValueError(
-                    f"Metadata generation is enabled, but the pipeline does not contain any gvametapublish element. "
-                    f"Please add a gvametapublish element to the pipeline '{pipeline_name}' (id: '{pipeline_id}') definition to enable metadata output."
+                    f"Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file. "
+                    f"Please add a gvametapublish element with method=file to the pipeline '{pipeline_name}' (id: '{pipeline_id}') definition to enable metadata output."
                 )
 
             # Apply RTSP credentials and settings to rtspsrc nodes
@@ -694,7 +726,17 @@ class PipelineManager:
             # have to be adapted to the raw-video stream produced by the dedicated
             # image decoder; ``apply_decodebin3_replacement`` handles both cases.
             _, target_gpu_index = split_device_target(base_graph.get_target_device())
-            if base_graph.has_decodebin3() or base_graph.has_image_set_source():
+            use_vdbox = base_graph.uses_vdbox_decode()
+            if use_vdbox and not _has_gpu():
+                logger.warning(
+                    "No GPU available for VDBox decode in pipeline '%s'; "
+                    "using the default decoder.",
+                    pipeline_name,
+                )
+                use_vdbox = False
+            if use_vdbox:
+                base_graph = base_graph.with_vdbox_decode()
+            elif base_graph.has_decodebin3() or base_graph.has_image_set_source():
                 codec = base_graph.determine_input_codec()
                 target_device = base_graph.get_target_device()
                 base_graph = base_graph.apply_decodebin3_replacement(
@@ -839,6 +881,10 @@ class PipelineManager:
 
                 pipeline_parts.append(unique_pipeline_str)
                 stream_commands[stream_info.stream_id] = unique_pipeline_str
+                if spec.pipeline_graph.cpu_pinning:
+                    stream_cpu_cores[stream_info.stream_id] = list(
+                        spec.pipeline_graph.cpu_pinning
+                    )
 
         return PipelineCommand(
             command=" ".join(pipeline_parts),
@@ -847,6 +893,7 @@ class PipelineManager:
             metadata_file_paths=metadata_file_paths,
             streams_per_pipeline=streams_per_pipeline,
             stream_commands=stream_commands,
+            stream_cpu_cores=stream_cpu_cores,
         )
 
     def add_variant(

@@ -231,6 +231,43 @@ def scan_huggingface_variant(
 DownloadRequest = dict[str, Any]
 
 
+class _DownloadSetupError(Exception):
+    """A download cannot start for a reason that is not an HTTP failure."""
+
+
+# Geti hub installs: the model-download Geti plugin extracts the variant
+# archive into ``<MODELS_PATH>/geti/<lowercased name>/<lowercased precision>/``.
+GETI_SOURCE_DIR: str = "geti"
+_GETI_PRECISION_DIR_RE = re.compile(r"^(fp|int)\d+$", re.IGNORECASE)
+
+
+def scan_geti_variants(name: str) -> list[tuple[str, str]]:
+    """Find installed precisions of a Geti model on disk.
+
+    Args:
+        name: Geti model name as listed by the hub.
+
+    Returns:
+        list[tuple[str, str]]: ``(PRECISION, model_path)`` pairs sorted by
+        precision, where ``model_path`` is relative to ``MODELS_PATH``.
+    """
+    rel_root = os.path.join(GETI_SOURCE_DIR, name.lower())
+    abs_root = os.path.join(MODELS_PATH, rel_root)
+    if not os.path.isdir(abs_root):
+        return []
+
+    variants: list[tuple[str, str]] = []
+    for precision in sorted(os.listdir(abs_root)):
+        prec_dir = os.path.join(abs_root, precision)
+        if not _GETI_PRECISION_DIR_RE.match(precision) or not os.path.isdir(prec_dir):
+            continue
+        xml_path = _find_first_xml(prec_dir)
+        if xml_path is None:
+            continue
+        variants.append((precision.upper(), os.path.relpath(xml_path, MODELS_PATH)))
+    return variants
+
+
 def _precision_is_complete(category: str | None, model_path: str) -> bool:
     """Return True only when the model files at *model_path* are complete.
 
@@ -517,8 +554,8 @@ class ModelManager:
         When ``hub`` is given and ``model_name`` is not in the catalog, the
         model is downloaded from that hub and registered on success.
         ``category`` is required for hubs that have no naming convention to
-        derive it from (currently: ``huggingface``); it is ignored for
-        ``ultralytics`` (derived from the name suffix instead).
+        derive it from (currently: ``huggingface`` and ``geti``); it is
+        ignored for ``ultralytics`` (derived from the name suffix instead).
         ``gated`` is stored on the registered hub model as-is.
 
         Returns a tuple ``(job_id, http_status, message)`` where
@@ -615,10 +652,10 @@ class ModelManager:
         in the DB.
 
         Args:
-            hub: Upstream hub name (``ultralytics`` or ``huggingface``).
+            hub: Upstream hub name (``ultralytics``, ``huggingface`` or ``geti``).
             name: Model name as returned by the hub listing.
-            category: Required for ``huggingface`` (no naming convention to
-                derive it from); ignored for ``ultralytics``.
+            category: Required for ``huggingface`` and ``geti`` (no naming
+                convention to derive it from); ignored for ``ultralytics``.
             gated: Gating mode reported by the hub listing, persisted on
                 the registered model. ``None`` when the hub has no such
                 notion.
@@ -630,16 +667,23 @@ class ModelManager:
             resolved_category = ultralytics_category(name)
             source = InternalModelSource.ULTRALYTICS
             finalize = self._finalize_ultralytics_install
-        elif hub == InternalModelSource.HUGGINGFACE.value:
+        elif hub in (
+            InternalModelSource.HUGGINGFACE.value,
+            InternalModelSource.GETI.value,
+        ):
             if category is None:
                 return (
                     None,
                     400,
-                    "A 'category' is required to install a model from hub 'huggingface'",
+                    f"A 'category' is required to install a model from hub '{hub}'",
                 )
             resolved_category = category
-            source = InternalModelSource.HUGGINGFACE
-            finalize = self._finalize_huggingface_install
+            source = InternalModelSource(hub)
+            finalize = (
+                self._finalize_huggingface_install
+                if source == InternalModelSource.HUGGINGFACE
+                else self._finalize_geti_install
+            )
         else:
             return None, 400, f"Installing models from hub '{hub}' is not supported"
 
@@ -661,6 +705,10 @@ class ModelManager:
             )
 
         download_request: dict[str, Any] = {"hub": hub, "name": name}
+        if source == InternalModelSource.GETI:
+            # Stored as-is for re-installs; the worker fans it out to one
+            # request per available precision (see ``_expand_download_request``).
+            download_request["config"] = {"model_format": "openvino"}
 
         job_id = uuid.uuid1().hex
         job = InternalModelDownloadJobStatus(
@@ -739,6 +787,34 @@ class ModelManager:
             [variant],
             InternalModelSource.HUGGINGFACE,
             "huggingface",
+            gated,
+        )
+
+    def _finalize_geti_install(
+        self,
+        job_id: str,
+        model_name: str,
+        category: InternalModelCategory,
+        download_request: dict[str, Any],
+        gated: str | None = None,
+    ) -> None:
+        """Register a freshly downloaded Geti model in the DB."""
+        variants = scan_geti_variants(model_name)
+        if not variants:
+            self._fail_job(
+                job_id,
+                f"No installed precisions found for '{model_name}' after download",
+            )
+            return
+
+        self._persist_and_complete_hub_job(
+            job_id,
+            model_name,
+            category,
+            download_request,
+            variants,
+            InternalModelSource.GETI,
+            GETI_SOURCE_DIR,
             gated,
         )
 
@@ -845,6 +921,60 @@ class ModelManager:
     # Worker: remote download (model-download microservice)
     # ------------------------------------------------------------------
 
+    def _expand_download_request(
+        self, client: httpx.Client, download_request: DownloadRequest
+    ) -> list[DownloadRequest]:
+        """Turn a stored download request into the requests to submit.
+
+        Every request is submitted as its own model-download job and runs
+        in parallel. A Geti request without a precision is fanned out into
+        one request per OpenVINO precision the model offers.
+        """
+        config = download_request.get("config") or {}
+        if download_request.get("hub") != InternalModelSource.GETI.value or config.get(
+            "precision"
+        ):
+            return [download_request]
+
+        name = str(download_request.get("name", ""))
+        precisions = self._list_geti_openvino_precisions(client, name)
+        return [
+            {**download_request, "config": {**config, "precision": precision}}
+            for precision in precisions
+        ]
+
+    @staticmethod
+    def _list_geti_openvino_precisions(client: httpx.Client, name: str) -> list[str]:
+        """Ask model-download which OpenVINO precisions a Geti model offers."""
+        response = client.post(
+            f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/list",
+            json={
+                "hub": "geti",
+                "filters": {"model_name": name, "model_format": "openvino"},
+                "limit": 200,
+            },
+        )
+        response.raise_for_status()
+        for item in response.json().get("items", []):
+            if str(item.get("name", "")).lower() != name.lower():
+                continue
+            precisions: list[str] = []
+            for variant in (item.get("metadata") or {}).get("variants") or []:
+                if str(variant.get("model_format", "")).lower() != "openvino":
+                    continue
+                raw = variant.get("precision")
+                for precision in raw if isinstance(raw, list) else [raw]:
+                    # The value becomes a directory name, so only accept known shapes.
+                    if (
+                        isinstance(precision, str)
+                        and _GETI_PRECISION_DIR_RE.match(precision)
+                        and precision.lower() not in precisions
+                    ):
+                        precisions.append(precision.lower())
+            if precisions:
+                return precisions
+        raise _DownloadSetupError(f"No OpenVINO precisions available for '{name}'")
+
     def _execute_remote_download(
         self,
         job_id: str,
@@ -859,14 +989,16 @@ class ModelManager:
         try:
             download_path = "."
             url = f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/download"
-            body = {"models": [download_request]}
-
-            self._append_detail(
-                job_id,
-                f"POST {url}?download_path={download_path} body={body}",
-            )
 
             with httpx.Client(timeout=HTTP_REQUEST_TIMEOUT_S) as client:
+                requests = self._expand_download_request(client, download_request)
+                body = {"models": requests}
+
+                self._append_detail(
+                    job_id,
+                    f"POST {url}?download_path={download_path} body={body}",
+                )
+
                 response = client.post(
                     url, params={"download_path": download_path}, json=body
                 )
@@ -876,54 +1008,79 @@ class ModelManager:
             external_ids = payload.get("job_ids")
             if (
                 not isinstance(external_ids, list)
-                or len(external_ids) != 1
-                or not isinstance(external_ids[0], str)
-                or not external_ids[0]
+                or len(external_ids) != len(requests)
+                or not all(isinstance(i, str) and i for i in external_ids)
             ):
                 self._fail_job(
-                    job_id, "model-download did not return exactly one job id"
+                    job_id,
+                    f"model-download did not return exactly {len(requests)} job id(s)",
                 )
                 return
-            external_id = external_ids[0]
 
             with self._jobs_lock:
                 job = self._jobs.get(job_id)
                 if job is not None:
-                    job.external_job_id = external_id
+                    job.external_job_id = ",".join(external_ids)
                     job.progress_message = payload.get("status")
 
+            # Job id -> precision label, used to attribute a failure.
+            pending = {
+                external_id: str((request.get("config") or {}).get("precision", ""))
+                for external_id, request in zip(external_ids, requests)
+            }
+            total = len(pending)
             deadline = time.monotonic() + DOWNLOAD_TIMEOUT_S
             with httpx.Client(timeout=HTTP_REQUEST_TIMEOUT_S) as client:
                 while time.monotonic() < deadline:
-                    response = client.get(
-                        f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/jobs/{external_id}"
-                    )
-                    if response.status_code == 404:
-                        self._fail_job(job_id, f"job {external_id} not found")
+                    status = "processing"
+                    for external_id in list(pending):
+                        response = client.get(
+                            f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/jobs/{external_id}"
+                        )
+                        if response.status_code == 404:
+                            self._fail_job(job_id, f"job {external_id} not found")
+                            return
+                        response.raise_for_status()
+                        data = response.json()
+                        status = data.get("status", "processing")
+
+                        if status == "failed":
+                            error = (
+                                data.get("error")
+                                or "model-download reported a failed job"
+                            )
+                            label = pending[external_id]
+                            self._fail_job(
+                                job_id, f"{label}: {error}" if label else error
+                            )
+                            return
+                        if status == "completed":
+                            del pending[external_id]
+
+                    if not pending:
+                        with self._jobs_lock:
+                            job = self._jobs.get(job_id)
+                            if job is not None:
+                                job.progress_message = "completed"
+                        (on_success or self._finalize_success)(job_id, model_name)
                         return
-                    response.raise_for_status()
-                    data = response.json()
-                    status = data.get("status", "processing")
+
                     with self._jobs_lock:
                         job = self._jobs.get(job_id)
                         if job is not None:
-                            job.progress_message = status
-
-                    if status == "completed":
-                        (on_success or self._finalize_success)(job_id, model_name)
-                        return
-                    if status == "failed":
-                        self._fail_job(
-                            job_id,
-                            data.get("error") or "model-download reported a failed job",
-                        )
-                        return
+                            job.progress_message = (
+                                status
+                                if total == 1
+                                else f"downloading ({total - len(pending)}/{total} done)"
+                            )
 
                     time.sleep(DOWNLOAD_POLL_INTERVAL_S)
 
             self._fail_job(
                 job_id, f"Download timed out after {DOWNLOAD_TIMEOUT_S:.0f}s"
             )
+        except _DownloadSetupError as exc:
+            self._fail_job(job_id, str(exc))
         except httpx.HTTPError as exc:
             logger.error(
                 "HTTP error while downloading %s in job %s",

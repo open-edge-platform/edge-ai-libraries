@@ -23,6 +23,9 @@ from core.optimizer_manager import (
 
 router = APIRouter(prefix="/optimize", tags=["optimization"])
 
+# job_id is str(uuid.uuid4()) (core/optimizer_manager.py) - standard dashed hex UUID
+_JOB_ID_PATTERN = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
 _optimizer_manager: Optional[OptimizerManager] = None
 
 
@@ -82,13 +85,13 @@ async def list_optimization_status():
 
 
 @router.get("/status/{job_id}", response_model=OptimizeStatusResponse)
-async def get_optimization_status(job_id: str = Path(..., description="Optimizer job ID")):
+async def get_optimization_status(job_id: str = Path(..., pattern=_JOB_ID_PATTERN, description="Optimizer job ID")):
     """Return the progress of an optimizer job."""
     return _get_job(job_id).status_dict()
 
 
 @router.get("/result/{job_id}", response_model=OptimizeResultResponse)
-async def get_optimization_result(job_id: str = Path(..., description="Optimizer job ID")):
+async def get_optimization_result(job_id: str = Path(..., pattern=_JOB_ID_PATTERN, description="Optimizer job ID")):
     """Return the optimizer result.
 
     While the job is running (``final`` is false) the best pipeline found so far
@@ -98,7 +101,7 @@ async def get_optimization_result(job_id: str = Path(..., description="Optimizer
 
 
 @router.delete("/{job_id}")
-async def cancel_optimization(job_id: str = Path(..., description="Optimizer job ID")):
+async def cancel_optimization(job_id: str = Path(..., pattern=_JOB_ID_PATTERN, description="Optimizer job ID")):
     """Cancel a running optimizer job. Partial results remain available via /optimize/result/{job_id}."""
     _get_job(job_id)
     if not _get_manager().cancel(job_id):

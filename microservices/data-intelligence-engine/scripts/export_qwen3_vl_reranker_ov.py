@@ -42,6 +42,9 @@ def main():
                         help="video mode pads the token axis to this fixed length, "
                              "so every video query shares one compiled graph")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--visual-size", type=int, default=160,
+                        help="square letterbox for images and video frames; "
+                             "use one value for every mode of a package")
     args = parser.parse_args()
     if args.mode != "text" and (args.sample is None or not args.sample.is_file()):
         parser.error("--sample must point to a local media file for image/video")
@@ -71,7 +74,7 @@ def main():
     from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
 
     from inference.multimodal.qwen3_vl_reranker_inputs import (
-        VISUAL_SIZE, encode, pad_frames, pad_pair, rope_position_ids,
+        encode, pad_frames, pad_pair, rope_position_ids,
     )
 
     processor = AutoProcessor.from_pretrained(
@@ -89,7 +92,8 @@ def main():
         from core.multimodal.frames import sample_frames
 
         document = {"video": pad_frames(sample_frames(str(args.sample), args.frames), args.frames)}
-    encoded = encode(processor, args.query, document)
+    visual_size = (args.visual_size, args.visual_size)
+    encoded = encode(processor, args.query, document, visual_size=visual_size)
     if args.mode != "text":
         encoded["position_ids"] = rope_position_ids(encoded, config)
     if args.mode == "video":
@@ -184,7 +188,7 @@ def main():
     shutil.copy2(score_path, score_dest / "config.json")
     manifest_path = out / "export_shapes.json"
     manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {"modes": {}}
-    manifest["visual_size"] = list(VISUAL_SIZE)
+    manifest["visual_size"] = list(visual_size)
     if args.mode == "video":
         manifest["video_seq_bucket"] = args.seq_bucket
         manifest["video_frames"] = args.frames

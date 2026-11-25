@@ -53,8 +53,11 @@ that provider's ``settings.endpoint``, applying its configured auth. The vLLM
 server must run with ``VLLM_ALLOW_RUNTIME_LORA_UPDATING=True``. Router config is
 not changed.
 
-Per request the manager URL / timeout can be overridden with ``manager_url`` /
-``management_timeout`` in the start body. These and ``health_endpoint`` are
+Per request the timeout can be overridden with ``management_timeout`` in the
+start body. ``manager_url`` may be repeated there only if it matches the
+configured setting (the router never forwards to a caller-chosen manager).
+``health_endpoint`` must be an http(s) URL on a loopback address, the manager's
+host, or a host listed in the ``allowed_health_hosts`` setting. These fields are
 stripped before the request is forwarded to the manager.
 """
 
@@ -63,7 +66,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Optional, Type
+import re
+from typing import Any, List, Optional, Type
+from urllib.parse import SplitResult, urlsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
@@ -102,17 +107,43 @@ _CONTROL_FIELDS = ("manager_url", "management_timeout", "health_endpoint")
 # so it is only offered for providers registered under the vLLM router type.
 _LORA_PROVIDER_TYPES = ("hosted_vllm",)
 
+# Hosts a ``health_endpoint`` may always point at (the router's own machine).
+_LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
+
 
 class ProviderManagementSettings(BaseModel):
     """Settings for one provider-management plugin instance.
 
     ``manager_url`` is the base URL of the Local Provider Manager this instance
-    drives (e.g. ``http://localhost:9900``); it can be overridden per request.
+    drives (e.g. ``http://localhost:9900``).
     ``timeout`` is the default forward timeout (seconds) for manager calls.
+    ``allowed_health_hosts`` lists extra hosts a start request's
+    ``health_endpoint`` may point at, beyond loopback and the manager's host.
     """
 
     manager_url: Optional[str] = None
     timeout: float = _DEFAULT_MANAGE_TIMEOUT
+    allowed_health_hosts: List[str] = []
+
+
+def _split_http_url(url: str, what: str) -> SplitResult:
+    """Parse ``url`` or raise 400 unless it is a plain http(s) URL with a host.
+
+    Credentials in the URL are refused: they would be sent to whatever host the
+    URL names.
+    """
+    try:
+        parts = urlsplit(url.strip())
+        parts.port  # raises ValueError on a malformed port
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid {what}: {exc}") from exc
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise HTTPException(
+            status_code=400, detail=f"{what} must be an http(s) URL with a host"
+        )
+    if parts.username is not None or parts.password is not None:
+        raise HTTPException(status_code=400, detail=f"{what} must not contain credentials")
+    return parts
 
 
 def _normalize_manager_base(url: str) -> str:
@@ -122,10 +153,40 @@ def _normalize_manager_base(url: str) -> str:
     that already points at the ``/providers`` collection, so operators can be
     loose about which form they configure.
     """
+    _split_http_url(url, "manager_url")
     base = url.strip().rstrip("/")
     if base.endswith("/providers"):
         base = base[: -len("/providers")]
     return base
+
+
+def _validate_health_endpoint(http_request: Request, url: str, manager_base: str) -> str:
+    """Return ``url`` if it targets a host the router may probe, else 400.
+
+    The router polls this URL itself, so it must not be an arbitrary
+    caller-chosen destination: only loopback, the manager's host, or a host in
+    the ``allowed_health_hosts`` setting are accepted. The URL must be
+    ``http(s)://<allowed host>[:port][/path]``; requiring the host right after
+    ``//`` also rules out embedded credentials (``user@host``).
+    """
+    allowed = {*_LOOPBACK_HOSTS, urlsplit(manager_base).hostname.lower()}
+    allowed.update(
+        h.strip().lower() for h in _plugin_setting(http_request, "allowed_health_hosts") or []
+    )
+    hosts = "|".join(re.escape(f"[{h}]" if ":" in h else h) for h in sorted(allowed) if h)
+    url = url.strip()
+    if not re.fullmatch(
+        rf"https?://(?:{hosts})(?::[0-9]{{1,5}})?(?:[/?#]\S*)?", url, flags=re.IGNORECASE
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "health_endpoint must be an http(s) URL on a loopback address, the "
+                "manager's host, or a host in the plugin's 'allowed_health_hosts' "
+                "setting, without credentials"
+            ),
+        )
+    return url
 
 
 def _plugin_setting(http_request: Request, attr: str) -> Any:
@@ -144,18 +205,34 @@ def _plugin_setting(http_request: Request, attr: str) -> Any:
     return None
 
 
-def _resolve_manager_base(http_request: Request, override: Optional[str]) -> str:
-    """Pick the manager base URL: request override first, else the setting."""
-    candidate = override or _plugin_setting(http_request, "manager_url")
-    if not isinstance(candidate, str) or not candidate.strip():
+def _resolve_manager_base(http_request: Request, override: Optional[str] = None) -> str:
+    """Return the configured manager base URL.
+
+    A request may repeat ``manager_url`` (older clients send it), but only the
+    configured value is accepted: forwarding to a caller-chosen URL would let
+    any API client make the router issue requests to arbitrary hosts.
+    """
+    configured = _plugin_setting(http_request, "manager_url")
+    if not isinstance(configured, str) or not configured.strip():
         raise HTTPException(
             status_code=400,
             detail=(
                 "No provider manager URL: set 'manager_url' in the "
-                "provider_management plugin settings or pass it in the request body"
+                "provider_management plugin settings"
             ),
         )
-    return _normalize_manager_base(candidate)
+    base = _normalize_manager_base(configured)
+    if override is not None and (
+        not isinstance(override, str) or _normalize_manager_base(override) != base
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "manager_url cannot be overridden per request; it is set in the "
+                "provider_management plugin settings"
+            ),
+        )
+    return base
 
 
 def _resolve_timeout(http_request: Request, override: Any) -> float:
@@ -195,7 +272,7 @@ async def _await_ready(
     """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
-    async with httpx.AsyncClient(timeout=_PROBE_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_PROBE_TIMEOUT, follow_redirects=False) as client:
         while True:
             try:
                 probe = await client.request("GET", health_url)
@@ -242,7 +319,7 @@ async def _forward(
 ) -> httpx.Response:
     """Forward a request to ``target`` (the manager by default), mapping transport errors."""
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
             return await client.request(method, url, **kwargs)
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail=f"{target.capitalize()} timed out: {exc}") from exc
@@ -361,44 +438,16 @@ def _passthrough(upstream: httpx.Response) -> JSONResponse:
     return JSONResponse(content=_response_json(upstream), status_code=upstream.status_code)
 
 
-def _validate_service_name(name: str) -> None:
-    """400 unless ``name`` is a safe name (it is interpolated into manager URLs)."""
+def _validate_service_name(name: str) -> str:
+    """Return ``name`` if it is a safe name, else 400.
+
+    The name is interpolated into manager URLs, so callers must use the returned
+    (validated) value.
+    """
     try:
-        validate_name(name, "Provider")
+        return validate_name(name, "Provider")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-def _parse_start_body(body: bytes) -> dict:
-    """Parse and validate the start request body into a docker-params dict."""
-    if not body:
-        return {}
-    try:
-        payload = json.loads(body)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON body: {exc}") from exc
-    if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail="Start body must be a JSON object")
-    return payload
-
-
-async def _forward(method: str, url: str, timeout: float, **kwargs: Any) -> httpx.Response:
-    """Forward a request to the provider manager, mapping transport errors."""
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            return await client.request(method, url, **kwargs)
-    except httpx.TimeoutException as exc:
-        raise HTTPException(status_code=504, detail=f"Provider manager timed out: {exc}") from exc
-    except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to reach provider manager: {exc}") from exc
-
-
-def _response_json(upstream: httpx.Response) -> Any:
-    """Best-effort JSON parse of a manager response, else its text under ``detail``."""
-    try:
-        return upstream.json()
-    except ValueError:
-        return {"detail": upstream.text}
 
 
 async def _react_and_respond(
@@ -489,7 +538,7 @@ class ProviderManagementPlugin(PluginBaseNode):
                 raise HTTPException(
                     status_code=400, detail="Start request must include 'name'"
                 )
-            _validate_service_name(body_name)
+            body_name = _validate_service_name(body_name)
 
             # Peel off our control fields so only docker params reach the manager.
             control = {field: payload.pop(field, None) for field in _CONTROL_FIELDS}
@@ -502,13 +551,19 @@ class ProviderManagementPlugin(PluginBaseNode):
                 )
 
             manager_base = _resolve_manager_base(http_request, control["manager_url"])
+            # Only the validated URL is ever probed.
+            health_url = (
+                _validate_health_endpoint(http_request, health_endpoint, manager_base)
+                if health_endpoint
+                else None
+            )
             timeout = _resolve_timeout(http_request, control["management_timeout"])
 
             upstream = await _forward(
                 "POST", f"{manager_base}/providers", timeout, json=payload
             )
-            if 200 <= upstream.status_code < 300 and health_endpoint:
-                failure = await _await_ready(manager_base, body_name, health_endpoint, timeout)
+            if 200 <= upstream.status_code < 300 and health_url:
+                failure = await _await_ready(manager_base, body_name, health_url, timeout)
                 if failure is not None:
                     status_code, reason = failure
                     logger.warning(
@@ -536,7 +591,7 @@ class ProviderManagementPlugin(PluginBaseNode):
         async def stop_provider(name: str, http_request: Request) -> JSONResponse:
             # ``name`` is a query parameter (``?name=...``): keep the path stable
             # at ``/providers/manage`` for both lifecycle verbs.
-            _validate_service_name(name)
+            name = _validate_service_name(name)
             manager_base = _resolve_manager_base(http_request, None)
             upstream = await _forward(
                 "DELETE", f"{manager_base}/providers/{name}",
@@ -553,10 +608,8 @@ class ProviderManagementPlugin(PluginBaseNode):
             # ``?name=`` query). Unlike ``GET /v1/providers`` (the router's config
             # view), this reflects what is actually running at the manager. No
             # config lookup; the manager URL is the plugin setting.
-            if name:
-                _validate_service_name(name)
             manager_base = _resolve_manager_base(http_request, None)
-            path = f"/providers/{name}" if name else "/providers"
+            path = f"/providers/{_validate_service_name(name)}" if name else "/providers"
             upstream = await _forward("GET", f"{manager_base}{path}", _READ_TIMEOUT)
             return _passthrough(upstream)
 

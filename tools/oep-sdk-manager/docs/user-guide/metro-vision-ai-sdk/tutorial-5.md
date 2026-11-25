@@ -93,13 +93,25 @@ cd ~/oep/metro-vision-tutorial-5
 # Download sample video for object detection
 wget -O bottle-detection.mp4 https://storage.openvinotoolkit.org/test_data/videos/bottle-detection.mp4
 
-# Download YOLOv10s model using DL Streamer container
+# Download and export YOLOv10s (FP32) to OpenVINO IR using DL Streamer's Ultralytics script
 docker run --rm --user "$(id -u):$(id -g)" \
   -e HOME=/home/dlstreamer \
   -e http_proxy -e https_proxy -e no_proxy \
   -v "${PWD}:/home/dlstreamer/" \
+  -w /home/dlstreamer \
   intel/dlstreamer:2026.3.0-ubuntu24-rc2 \
-  bash -c "export MODELS_PATH=/home/dlstreamer && /opt/intel/dlstreamer/samples/download_public_models.sh yolov10s"
+  bash -c '
+    set -e
+    export MODELS_PATH=/home/dlstreamer
+    SCRIPTS_DIR=/opt/intel/dlstreamer/scripts/download_models
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    source "$HOME/.local/bin/env"
+    [[ -d .ultralytics_models_venv ]] || uv venv .ultralytics_models_venv
+    source .ultralytics_models_venv/bin/activate
+    uv pip install --index-strategy unsafe-best-match -r "${SCRIPTS_DIR}/requirements_download_ultralytics_models.txt"
+    python3 "${SCRIPTS_DIR}/download_ultralytics_models.py" --model yolov10s --outdir "${MODELS_PATH}/public/yolov10s/FP32/"
+  '
+# Export leaves .ultralytics_models_venv/, .local/ and .cache/ here; delete them afterwards if not needed
 
 # Create a continuous DL Streamer pipeline script
 cat > metro_vision_pipeline.sh << 'EOF'

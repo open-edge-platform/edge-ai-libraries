@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import re
 import os
 import unittest
@@ -27,6 +30,62 @@ def setUpModule() -> None:
 def tearDownModule() -> None:
     """Remove the element-list patch after the module's tests finish."""
     _elements_patcher.stop()
+
+
+class TestGraphCpuPinning(unittest.TestCase):
+    def test_pinning_round_trips_and_reaches_simple_view(self):
+        graph = Graph.from_dict({"nodes": [], "edges": [], "cpu_pinning": [13, 12, 13]})
+        self.assertEqual(graph.cpu_pinning, [12, 13])
+        self.assertEqual(Graph.from_dict(graph.to_dict()).cpu_pinning, [12, 13])
+        self.assertEqual(graph.to_simple_view().cpu_pinning, [12, 13])
+
+    def test_invalid_cpu_pinning_is_rejected(self):
+        for cpus in ([-1], [True], ["12"], [1.5], "12", None):
+            with self.subTest(cpus=cpus), self.assertRaises(ValueError):
+                Graph.from_dict({"nodes": [], "edges": [], "cpu_pinning": cpus})
+
+
+class TestGraphVdboxDecode(unittest.TestCase):
+    @staticmethod
+    def _media_graph(source: Node, cpu_pinning: list[int]) -> Graph:
+        return Graph(
+            nodes=[
+                source,
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+            cpu_pinning=cpu_pinning,
+        )
+
+    def test_pinned_compressed_input_uses_vdbox(self):
+        source = Node(id="0", type="filesrc", data={"location": "a.mp4"})
+        for codec in ("h265", None):
+            with (
+                self.subTest(codec=codec),
+                patch.object(Graph, "determine_input_codec", return_value=codec),
+            ):
+                self.assertTrue(self._media_graph(source, [12]).uses_vdbox_decode())
+                self.assertFalse(self._media_graph(source, []).uses_vdbox_decode())
+
+    def test_raw_bayer_and_image_set_inputs_skip_vdbox(self):
+        cases = {
+            "raw": (Node(id="0", type="v4l2src", data={}), "YUYV"),
+            "bayer": (Node(id="0", type="aravissrc", data={}), "BayerRG8"),
+            "image_set": (
+                Node(id="0", type="multifilesrc", data={"__image_set": "jpg"}),
+                "jpg",
+            ),
+        }
+        for name, (source, codec) in cases.items():
+            with (
+                self.subTest(name),
+                patch.object(Graph, "determine_input_codec", return_value=codec),
+            ):
+                self.assertFalse(self._media_graph(source, [12]).uses_vdbox_decode())
 
 
 # Create mock instances for SupportedModelsManager and VideosManager
@@ -3341,6 +3400,28 @@ class TestToFromDict(unittest.TestCase):
 
 
 class TestGraphToDescription(unittest.TestCase):
+    def test_blank_properties_are_not_serialized(self):
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="fakesrc", data={"name": "", "num-buffers": "0"}),
+                Node(
+                    id="1",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "format": "", "width": "1280"},
+                ),
+                Node(id="2", type="fakesink", data={"sync": "false"}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+        self.assertEqual(
+            graph.to_pipeline_description(),
+            "fakesrc num-buffers=0 ! video/x-raw,width=1280 ! fakesink sync=false",
+        )
+        self.assertEqual(graph.nodes[0].data["name"], "")
+
     @patch("graph.SupportedModelsManager")
     @patch("graph.VideosManager")
     def test_graph_to_description(self, mock_videos_cls, mock_models_cls):
@@ -3666,6 +3747,43 @@ class TestValidateInferenceDevicesShareVaDisplay(unittest.TestCase):
 
 class TestGetRecommendedEncoderDevice(unittest.TestCase):
     """Test cases for Graph.get_recommended_encoder_device method."""
+
+    def test_gpu_encoder_for_decodebin3_va_caps_property(self):
+        for caps in ('"video/x-raw(memory:VAMemory)"', "video/x-raw(memory:VAMemory)"):
+            for sink_type in ("fakesink", "filesink"):
+                with self.subTest(caps=caps, sink_type=sink_type):
+                    graph = Graph(
+                        nodes=[
+                            Node(id="0", type="decodebin3", data={"caps": caps}),
+                            Node(
+                                id="1",
+                                type=sink_type,
+                                data={"name": "default_output_sink"},
+                            ),
+                        ],
+                        edges=[Edge(id="0", source="0", target="1")],
+                    )
+                    self.assertEqual(
+                        graph.get_recommended_encoder_device(), ENCODER_DEVICE_GPU
+                    )
+
+    def test_downstream_system_memory_overrides_decodebin3_va_caps(self):
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="decodebin3",
+                    data={"caps": '"video/x-raw(memory:VAMemory)"'},
+                ),
+                Node(id="1", type="video/x-raw", data={"__node_kind": "caps"}),
+                Node(id="2", type="fakesink", data={"name": "default_output_sink"}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_CPU)
 
     def test_gpu_encoder_for_va_memory_caps(self):
         """Test that GPU encoder is recommended when video/x-raw(memory:VAMemory) is found."""
@@ -4536,7 +4654,25 @@ class TestApplyLoopingModifications(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             graph.apply_looping_modifications()
 
-        self.assertIn("Cannot find source video", str(cm.exception))
+        self.assertIn("Input video 'video.mp4' is not available", str(cm.exception))
+
+    @patch("graph.VideosManager")
+    def test_empty_input_video_raises_clear_error(self, mock_videos_cls):
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": ""}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("No input video is selected", str(cm.exception))
+        mock_videos_cls.return_value.get_ts_path.assert_not_called()
 
     @patch("graph.VideosManager")
     @patch("os.path.isfile")
@@ -5936,6 +6072,109 @@ class TestPrepareIntermediateOutputSinks(unittest.TestCase):
         )
 
 
+class TestValidateBrokerMetadataPublishers(unittest.TestCase):
+    """Test cases for Graph.validate_broker_metadata_publishers method."""
+
+    @staticmethod
+    def _graph(data: dict) -> Graph:
+        return Graph(nodes=[Node(id="0", type="gvametapublish", data=data)], edges=[])
+
+    def test_configured_mqtt_publisher_passes(self):
+        """A broker publisher with address and topic is accepted."""
+        graph = self._graph(
+            {"method": "mqtt", "address": "broker:1883", "topic": "vippet"}
+        )
+        graph.validate_broker_metadata_publishers()
+
+    def test_file_publisher_is_ignored(self):
+        """A file publisher needs no broker settings."""
+        graph = self._graph({"method": "file", "file-path": "/dev/null"})
+        graph.validate_broker_metadata_publishers()
+
+    def test_publisher_without_method_is_ignored(self):
+        """A gvametapublish without an explicit method defaults to file."""
+        self._graph({}).validate_broker_metadata_publishers()
+
+    def test_missing_address_raises(self):
+        """An empty address would silently fail to connect at runtime."""
+        graph = self._graph({"method": "mqtt", "address": "", "topic": "vippet"})
+
+        with self.assertRaises(ValueError) as ctx:
+            graph.validate_broker_metadata_publishers()
+
+        self.assertIn("address", str(ctx.exception))
+
+    def test_missing_address_and_topic_raises_once(self):
+        """Both missing properties are reported in a single message."""
+        graph = self._graph({"method": "mqtt"})
+
+        with self.assertRaises(ValueError) as ctx:
+            graph.validate_broker_metadata_publishers()
+
+        message = str(ctx.exception)
+        self.assertIn("address and topic", message)
+        self.assertIn("are empty", message)
+
+    def test_whitespace_only_topic_raises(self):
+        """Whitespace is not a usable topic."""
+        graph = self._graph(
+            {"method": "mqtt", "address": "broker:1883", "topic": "   "}
+        )
+
+        with self.assertRaises(ValueError) as ctx:
+            graph.validate_broker_metadata_publishers()
+
+        self.assertIn("topic", str(ctx.exception))
+
+
+class TestUnifyAllElementNamesMqttClientId(unittest.TestCase):
+    """Explicit MQTT client IDs must be unique per pipeline and stream."""
+
+    @staticmethod
+    def _graph(publisher_data: dict[str, str]) -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="fakesrc", data={}),
+                Node(id="1", type="gvametapublish", data=publisher_data),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+    def test_explicit_client_id_is_unique_per_stream(self):
+        graph = self._graph(
+            {
+                "method": "mqtt",
+                "address": "mqtt-broker:1883",
+                "mqtt-client-id": "vippet",
+            }
+        )
+
+        first = graph.unify_all_element_names(0, 0)
+        second = graph.unify_all_element_names(0, 1)
+
+        self.assertEqual(first.nodes[1].data["mqtt-client-id"], "vippet_0_0")
+        self.assertEqual(second.nodes[1].data["mqtt-client-id"], "vippet_0_1")
+        self.assertEqual(graph.nodes[1].data["mqtt-client-id"], "vippet")
+
+    def test_empty_client_id_is_left_for_generation(self):
+        graph = self._graph({"method": "mqtt", "mqtt-client-id": ""})
+
+        result = graph.unify_all_element_names(0, 1)
+
+        self.assertEqual(result.nodes[1].data["mqtt-client-id"], "")
+
+    def test_missing_client_id_is_not_added(self):
+        graph = self._graph({"method": "mqtt"})
+
+        result = graph.unify_all_element_names(0, 1)
+
+        self.assertNotIn("mqtt-client-id", result.nodes[1].data)
+
+
 class TestInjectMetadataFilePaths(unittest.TestCase):
     """Test cases for Graph.inject_metadata_file_paths method."""
 
@@ -6054,7 +6293,7 @@ class TestInjectMetadataFilePaths(unittest.TestCase):
                     id="0",
                     type="gvametapublish",
                     data={
-                        "method": "mqtt",
+                        "method": "file",
                         "file-format": "json",
                         "file-path": "/old/path.jsonl",
                     },
@@ -6070,6 +6309,53 @@ class TestInjectMetadataFilePaths(unittest.TestCase):
         self.assertEqual(node.data["file-format"], "json-lines")
         self.assertEqual(node.data["file-path"], "/metadata/new/metadata_0.jsonl")
         self.assertEqual(paths[0], "/metadata/new/metadata_0.jsonl")
+
+    def test_broker_publishing_nodes_are_not_modified(self):
+        """Test that a gvametapublish configured for a broker keeps its settings."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="gvametapublish",
+                    data={
+                        "method": "mqtt",
+                        "address": "mqtt-broker:1883",
+                        "topic": "vippet/metadata",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        paths = graph.inject_metadata_file_paths("/metadata/new")
+
+        self.assertEqual(paths, [])
+        self.assertEqual(
+            graph.nodes[0].data,
+            {
+                "method": "mqtt",
+                "address": "mqtt-broker:1883",
+                "topic": "vippet/metadata",
+            },
+        )
+
+    def test_file_node_still_injected_alongside_broker_node(self):
+        """Test that a file publisher is injected while a broker publisher is skipped."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="gvametapublish", data={"method": "mqtt"}),
+                Node(id="1", type="gvametapublish", data={}),
+            ],
+            edges=[],
+        )
+
+        paths = graph.inject_metadata_file_paths("/metadata/new")
+
+        self.assertEqual(paths, ["/metadata/new/metadata_1.jsonl"])
+        self.assertEqual(graph.nodes[0].data["method"], "mqtt")
+        self.assertEqual(
+            graph.nodes[1].data["file-path"], "/metadata/new/metadata_1.jsonl"
+        )
 
     def test_non_gvametapublish_nodes_are_not_modified(self):
         """Test that nodes of other types are not modified."""
@@ -6847,6 +7133,51 @@ class TestInputVideoNameToPathAbsoluteBypass(unittest.TestCase):
 
         instance.get_video_path.assert_called_once_with("foo.mp4")
         self.assertEqual(nodes[0].data["location"], "/videos/input/uploaded/foo.mp4")
+
+    @patch("graph.VideosManager")
+    def test_missing_video_raises_clear_error(self, mock_videos_cls):
+        from graph import _input_video_name_to_path
+
+        mock_videos_cls.return_value.get_video_path.return_value = None
+
+        nodes = [Node(id="0", type="filesrc", data={"location": "people.mp4"})]
+        with self.assertRaises(ValueError) as cm:
+            _input_video_name_to_path(nodes)
+
+        self.assertIn("Input video 'people.mp4' is not available", str(cm.exception))
+        self.assertIn("Videos page", str(cm.exception))
+
+
+class TestInputVideoPathToDisplayNameMissingVideo(unittest.TestCase):
+    @patch("graph.VideosManager")
+    def test_missing_filesrc_video_keeps_filename(self, mock_videos_cls):
+        from graph import _input_video_path_to_display_name
+
+        mock_videos_cls.return_value.get_video_filename.return_value = None
+
+        nodes = [
+            Node(id="0", type="filesrc", data={"location": "/videos/input/people.mp4"})
+        ]
+        _input_video_path_to_display_name(nodes)
+
+        self.assertEqual(nodes[0].data["location"], "people.mp4")
+
+    @patch("graph.VideosManager")
+    def test_missing_non_filesrc_video_is_cleared(self, mock_videos_cls):
+        from graph import _input_video_path_to_display_name
+
+        mock_videos_cls.return_value.get_video_filename.return_value = None
+
+        nodes = [
+            Node(
+                id="0",
+                type="multifilesrc",
+                data={"location": "/videos/input/people.mp4"},
+            )
+        ]
+        _input_video_path_to_display_name(nodes)
+
+        self.assertEqual(nodes[0].data["location"], "")
 
 
 # --------------------------------------------------------------------------- #
@@ -8042,6 +8373,33 @@ class TestInternalMarkersStrippedFromPipelineDescription(unittest.TestCase):
         self.assertNotIn("__internal_marker", description)
         self.assertNotIn("should-not-leak", description)
         self.assertIn("num-buffers=10", description)
+
+
+class TestWhitespaceValuesQuoted(unittest.TestCase):
+    """Property values with whitespace must be quoted in launch strings."""
+
+    @staticmethod
+    def _description(location: str) -> str:
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="identity", data={"location": location}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+        return graph.to_pipeline_description()
+
+    def test_value_with_spaces_and_parentheses_is_quoted(self) -> None:
+        path = "/models/output/geti/yolox-tiny (09e2b40d)/fp16/model.xml"
+        self.assertIn(f'location="{path}"', self._description(path))
+
+    def test_value_without_whitespace_is_unchanged(self) -> None:
+        self.assertIn("location=/tmp/foo.mp4", self._description("/tmp/foo.mp4"))
+
+    def test_already_quoted_value_is_not_quoted_twice(self) -> None:
+        description = self._description('"/tmp/a b.mp4"')
+        self.assertIn('location="/tmp/a b.mp4"', description)
+        self.assertNotIn('""', description)
 
 
 class TestGigECameraSource(unittest.TestCase):

@@ -180,7 +180,8 @@ writer.release()
       [ \"\$mode\" = image ] && sample=/tmp/sample.png
       [ \"\$mode\" = video ] && sample=/tmp/sample.mp4
       python /engine/scripts/export_qwen3_vl_reranker_ov.py \
-        --source /hf/$name --output /ov/$fp16_rel --mode \"\$mode\" \${sample:+--sample \"\$sample\"}
+        --source /hf/$name --output /ov/$fp16_rel --mode \"\$mode\" \${sample:+--sample \"\$sample\"} \
+        --visual-size 320
     done
   "
   log "Quantizing Qwen3-VL reranker to INT8 (weight-only)"
@@ -283,12 +284,12 @@ prepare_video() {
         repo=OpenGVLab/ViCLIP-L-14-hf revision=1652361522e1cb41c28cdfae870f690d00e7456b
       fi
       exporter=export_viclip_ov.py
-      requirements=requirements-viclip-export.txt
+      requirements="requirements-viclip-export.txt"
       ;;
     cosmos-224p)
       repo=nvidia/Cosmos-Embed1-224p revision=787e0b996f5260a71ad474a283c90539a2e12986
       exporter=export_cosmos_ov.py
-      requirements=requirements-cosmos-export.txt
+      requirements="requirements-cosmos-export.txt"
       patterns=("*.py" "*.json" "*.safetensors" "*.bin" "*.txt")
       ;;
     *) die "unsupported video model '$name'" ;;
