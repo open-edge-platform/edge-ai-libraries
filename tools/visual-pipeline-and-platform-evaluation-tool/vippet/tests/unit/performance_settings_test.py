@@ -3,6 +3,7 @@
 
 """Unit tests for performance-benchmark settings resolution."""
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -397,6 +398,67 @@ class TestTrimFractionBounds(_TmpConfigMixin):
     def test_upper_bound_message_is_explicit(self) -> None:
         with self.assertRaisesRegex(s.SettingsError, "less than 0.5"):
             s.SPECS_BY_KEY[self._KEY].coerce("0.5")
+
+
+class TestModelInstallSettings(_TmpConfigMixin):
+    def test_defaults_and_env(self) -> None:
+        resolved = s.resolve_settings("default", env={})
+        self.assertEqual(resolved["benchmark.models.install"], "ask")
+        self.assertEqual(resolved["benchmark.models.install_timeout_seconds"], 3600)
+        from_env = s.resolve_settings(
+            "default",
+            env={
+                "PERF_INSTALL_MISSING_MODELS": "yes",
+                "PERF_MODEL_INSTALL_TIMEOUT": "120",
+            },
+        )
+        self.assertEqual(from_env["benchmark.models.install"], "yes")
+        self.assertEqual(from_env["benchmark.models.install_timeout_seconds"], 120)
+        self.assertEqual(from_env.sources["benchmark.models.install"], s.SOURCE_ENV)
+
+    def test_invalid_values_rejected(self) -> None:
+        spec = s.SPECS_BY_KEY
+        for key, value in (
+            ("benchmark.models.install", "always"),
+            ("benchmark.models.install_timeout_seconds", "0"),
+            ("benchmark.models.install_timeout_seconds", "nan"),
+        ):
+            with self.subTest(key=key, value=value):
+                with self.assertRaises(s.SettingsError):
+                    spec[key].coerce(value)
+
+    def _recorded_result(self, **overrides: Any) -> Path:
+        recorded = s.resolve_settings("default", env={}, cli_overrides=overrides)
+        result = {
+            "benchmark_id": "bench_20260101_000000",
+            "test_cases": [],
+            "config": {"values": dict(recorded.values)},
+        }
+        return self.write_config(json.dumps(result), "result.json")
+
+    def test_replay_never_restores_the_install_mode(self) -> None:
+        path = self._recorded_result(
+            **{
+                "benchmark.models.install": "yes",
+                "benchmark.models.install_timeout_seconds": 77,
+            }
+        )
+        replayed = s.resolve_settings(path, env={})
+        self.assertEqual(replayed["benchmark.models.install"], "ask")
+        self.assertEqual(replayed.sources["benchmark.models.install"], s.SOURCE_DEFAULT)
+        # Other settings, including the install timeout, are replayed.
+        self.assertEqual(replayed["benchmark.models.install_timeout_seconds"], 77)
+        self.assertEqual(
+            replayed.sources["benchmark.models.install_timeout_seconds"], s.SOURCE_YAML
+        )
+        explicit = s.resolve_settings(path, env={"PERF_INSTALL_MISSING_MODELS": "yes"})
+        self.assertEqual(explicit["benchmark.models.install"], "yes")
+
+    def test_yaml_config_may_set_the_install_mode(self) -> None:
+        path = self.write_config("benchmark:\n  models:\n    install: 'no'\n")
+        self.assertEqual(
+            s.resolve_settings(path, env={})["benchmark.models.install"], "no"
+        )
 
 
 class TestValidation(_TmpConfigMixin):

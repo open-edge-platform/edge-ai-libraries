@@ -234,6 +234,9 @@ COPY ./docker/run.sh ./docker/detect-cores.sh ./
 COPY ./utils/*.py ./utils/
 COPY ./src/ ./src
 
+# Copy third-party software notice file (open-source license obligations)
+COPY ./thirdparty/third_party_programs.txt /home/pipeline-server/licensing/third_party_programs.txt
+
 USER root
 
 RUN pip3 install --no-cache-dir wheel==0.46.2 setuptools==82.0.1 packaging==25.0 && \
