@@ -327,7 +327,8 @@ class ContextCompressor:
             details["cache_hits"] += 1
             return cached
         adapter = self._claw_adapter
-        assert adapter is not None
+        if adapter is None:
+            raise RuntimeError("Claw adapter is not configured for the active compression mode")
         result = adapter.compress_with_claw(content, content_type)
         cache_set(self._cache, self._cache_lock, key, result)
         if key is not None:
