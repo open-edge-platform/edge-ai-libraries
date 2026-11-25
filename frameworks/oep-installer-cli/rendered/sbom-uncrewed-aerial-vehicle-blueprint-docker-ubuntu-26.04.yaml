@@ -1,6 +1,6 @@
 "schema-version": "1"
-"cli-version": "c3fa66139448dc4bbedd0ca63c91ebff4e6cf36d"
-"cli-url": "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/c3fa66139448dc4bbedd0ca63c91ebff4e6cf36d/rendered/openedge-cli-federal-aerospace"
+"cli-version": "33b376bd5944ba5906cf9fdee2f1e4428cdd3853"
+"cli-url": "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/33b376bd5944ba5906cf9fdee2f1e4428cdd3853/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace"
 "cli-sha256": "4506634c61c05c4c30d6e47528555f04a9a4daff0b7bc948ddbe63ea56a4d73a"
 "install-cmdline": ["openedge-cli","install","uncrewed_aerial_vehicle_blueprint","--edgepack","--docker"]
 "module-list": ["uncrewed_aerial_vehicle_blueprint"]
