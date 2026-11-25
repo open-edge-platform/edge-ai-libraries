@@ -48,6 +48,9 @@ def validate_transcription_options(
     normalized_language = _normalize_optional_text(language)
     if normalized_language and len(normalized_language) > MAX_LANGUAGE_LENGTH:
         raise HTTPException(status_code=400, detail="language is too long")
+    # "auto" (OpenAI clients, UIs) means detect, like an omitted language.
+    if normalized_language and normalized_language.lower() == "auto":
+        normalized_language = None
 
     normalized_prompt = _normalize_optional_text(prompt)
     # prompt is accepted but not yet forwarded to the ASR backend (future: initial_prompt)

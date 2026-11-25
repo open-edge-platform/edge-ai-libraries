@@ -139,6 +139,55 @@ class ASRComponent(PipelineComponent):
     # per-session enrolled embeddings persist across chunked HTTP requests.
     _pyannote_diarizer = None
     _pyannote_diarizer_key = None
+    _pyannote_diarizer_lock = threading.Lock()
+
+    @classmethod
+    def get_shared_diarizer(cls):
+        """The process-wide diarizer for the configured device, loaded on first use."""
+        from components.asr.diarization.pyannote_diarizer import PyannoteDiarizer
+        from utils.ensure_model import _resolve_hf_token
+        from utils.openvino_runtime_validation import resolve_diarization_torch_device
+
+        _diar_cfg_local = getattr(config.models, "diarization", None)
+        _config_diar_device = str(getattr(_diar_cfg_local, "device", "CPU") if _diar_cfg_local else "CPU")
+        diar_device = resolve_diarization_torch_device(_config_diar_device)
+
+        # Reuse a single shared diarizer across all requests so the
+        # pyannote pipeline (weights + embedding model) is loaded once
+        # and per-session enrolled speaker embeddings persist across
+        # the many chunked HTTP requests of one kiosk conversation.
+        diarizer_key = (diar_device,)
+        with cls._pyannote_diarizer_lock:
+            if (
+                ASRComponent._pyannote_diarizer is None
+                or ASRComponent._pyannote_diarizer_key != diarizer_key
+            ):
+                hf_token = _resolve_hf_token()
+                if diar_device.upper() in ("GPU", "NPU"):
+                    # OpenVINO-backed diarization: segmentation model runs on
+                    # the requested OV device; embedding + clustering on CPU.
+                    from components.asr.diarization.ov_pyannote_diarizer import (
+                        OVBackedPyannoteDiarizer,
+                    )
+                    from utils.ensure_model import get_diarization_model_path
+
+                    ASRComponent._pyannote_diarizer = OVBackedPyannoteDiarizer(
+                        ov_device=diar_device.upper(),
+                        hf_token=hf_token,
+                        model_dir=get_diarization_model_path(),
+                    )
+                else:
+                    # CPU path: existing PyannoteDiarizer (PyTorch CPU).
+                    ASRComponent._pyannote_diarizer = PyannoteDiarizer(
+                        device="cpu",
+                        hf_token=hf_token,
+                    )
+                ASRComponent._pyannote_diarizer_key = diarizer_key
+                logger.info(
+                    "[DIARIZATION] Diarizer loaded on device=%s",
+                    diar_device,
+                )
+            return ASRComponent._pyannote_diarizer
 
     @staticmethod
     def _resolve_backend(provider: str, model_name: str, device: str):
@@ -193,9 +242,16 @@ class ASRComponent(PipelineComponent):
         raise ValueError(f"Unsupported ASR provider/model: {normalized_provider}/{normalized_model_name}")
 
     def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0,
-                 speaker_scope_id=None, diarization: bool | None = None, pool: str = "final"):
+                 speaker_scope_id=None, diarization: bool | None = None, pool: str = "final",
+                 speaker_options=None):
 
         self.session_id = session_id
+        # Opt-in per-request speaker options (components.asr.diarization.speaker_profiles);
+        # None keeps per-chunk diarization with primary-speaker lock-on.
+        self.speaker_options = speaker_options
+        self._file_diarization = None  # Future of (turns, label_embeddings) in file mode
+        self._file_speakers: dict[str, dict] | None = None
+        self._file_matches: dict[str, tuple[str, float]] = {}
         # Which model-instance pool this component's calls use (see the
         # _models docstring above). Passed down explicitly from Pipeline;
         # never inferred from append_to_session.
@@ -254,49 +310,7 @@ class ASRComponent(PipelineComponent):
         self.pyannote_diarizer = None
         if self.enable_diarization:
             try:
-                from components.asr.diarization.pyannote_diarizer import PyannoteDiarizer
-                from utils.ensure_model import _resolve_hf_token
-                from utils.openvino_runtime_validation import resolve_diarization_torch_device
-
-                _diar_cfg_local = getattr(config.models, "diarization", None)
-                _config_diar_device = str(getattr(_diar_cfg_local, "device", "CPU") if _diar_cfg_local else "CPU")
-                diar_device = resolve_diarization_torch_device(_config_diar_device)
-
-                # Reuse a single shared diarizer across all requests so the
-                # pyannote pipeline (weights + embedding model) is loaded once
-                # and per-session enrolled speaker embeddings persist across
-                # the many chunked HTTP requests of one kiosk conversation.
-                diarizer_key = (diar_device,)
-                if (
-                    ASRComponent._pyannote_diarizer is None
-                    or ASRComponent._pyannote_diarizer_key != diarizer_key
-                ):
-                    hf_token = _resolve_hf_token()
-                    if diar_device.upper() in ("GPU", "NPU"):
-                        # OpenVINO-backed diarization: segmentation model runs on
-                        # the requested OV device; embedding + clustering on CPU.
-                        from components.asr.diarization.ov_pyannote_diarizer import (
-                            OVBackedPyannoteDiarizer,
-                        )
-                        from utils.ensure_model import get_diarization_model_path
-
-                        ASRComponent._pyannote_diarizer = OVBackedPyannoteDiarizer(
-                            ov_device=diar_device.upper(),
-                            hf_token=hf_token,
-                            model_dir=get_diarization_model_path(),
-                        )
-                    else:
-                        # CPU path: existing PyannoteDiarizer (PyTorch CPU).
-                        ASRComponent._pyannote_diarizer = PyannoteDiarizer(
-                            device="cpu",
-                            hf_token=hf_token,
-                        )
-                    ASRComponent._pyannote_diarizer_key = diarizer_key
-                    logger.info(
-                        "[DIARIZATION] Diarizer loaded on device=%s",
-                        diar_device,
-                    )
-                self.pyannote_diarizer = ASRComponent._pyannote_diarizer
+                self.pyannote_diarizer = ASRComponent.get_shared_diarizer()
 
                 if IDENTITY_ENABLED and ASRComponent._speaker_identity_store is None:
                     from components.asr.diarization.speaker_identity import SpeakerIdentityStore
@@ -336,6 +350,106 @@ class ASRComponent(PipelineComponent):
             return text
         return _collapse_repeated_phrases(text)
 
+    # ── Opt-in speaker options (whole-file diarization, speaker profiles) ──
+
+    def prepare_file_diarization(self, audio_path: str) -> None:
+        """In file mode, start diarizing the whole recording alongside transcription.
+
+        No-op unless the request set ``diarization_mode=file`` (or the deployment
+        defaults to it for this endpoint) and diarization is enabled.
+        """
+        options = self.speaker_options
+        if not (options and options.file_mode and self.enable_diarization and self.pyannote_diarizer):
+            return
+        from concurrent.futures import ThreadPoolExecutor
+
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="file-diarization")
+        self._file_diarization = executor.submit(self._diarize_whole_file, audio_path)
+        executor.shutdown(wait=False)
+
+    def _diarize_whole_file(self, audio_path: str) -> tuple[list[dict], dict]:
+        from components.ffmpeg.audio_preprocessing import get_audio_duration, process_audio_segment
+
+        options = self.speaker_options
+        # 16 kHz mono PCM of the whole input (the upload itself when already in that format).
+        prepared = process_audio_segment(
+            audio_path, 0.0, get_audio_duration(audio_path), "diarization",
+            session_id=self.session_id, full_file=True,
+        )
+        try:
+            return self.pyannote_diarizer.diarize_file(
+                prepared["chunk_path"],
+                num_speakers=options.num_speakers,
+                min_speakers=options.min_speakers,
+                max_speakers=options.max_speakers,
+            )
+        finally:
+            if not prepared.get("passthrough") and os.path.exists(prepared["chunk_path"]):
+                os.remove(prepared["chunk_path"])
+
+    def _file_diarization_result(self) -> tuple[list[dict], dict[str, tuple[str, float]]]:
+        """Whole-file turns and profile matches; waits for the diarization pass."""
+        from components.asr.diarization.speaker_profiles import match_speakers
+
+        turns, label_embeddings = self._file_diarization.result()
+        if self._file_speakers is None:
+            options = self.speaker_options
+            matches = match_speakers(label_embeddings, options.profiles, options.match_threshold)
+            durations: dict[str, float] = {}
+            for turn in turns:
+                durations[turn["speaker"]] = durations.get(turn["speaker"], 0.0) + turn["end"] - turn["start"]
+            self._file_speakers = {
+                speaker: {
+                    "speaker": speaker,
+                    "duration": round(durations.get(speaker, 0.0), 3),
+                    **self._label_fields(speaker, matches),
+                }
+                for speaker in sorted(set(durations) | set(label_embeddings))
+            }
+            self._file_matches = matches
+            logger.info("[DIARIZATION][FILE] session=%s speakers: %s", self.session_id, list(self._file_speakers.values()))
+        return turns, self._file_matches
+
+    def _label_fields(self, speaker: str | None, matches: dict[str, tuple[str, float]]) -> dict:
+        """``speaker_label`` / ``speaker_similarity`` for a segment, when the caller asked for labels."""
+        options = self.speaker_options
+        if speaker is None or not (options and options.labels_requested):
+            return {}
+        if speaker in matches:
+            label, similarity = matches[speaker]
+            return {"speaker_label": label, "speaker_similarity": round(similarity, 3)}
+        return {"speaker_label": options.unknown_label} if options.unknown_label is not None else {}
+
+    def speaker_summary(self) -> list[dict] | None:
+        """Per-speaker totals of a file-mode request (None otherwise)."""
+        if self._file_speakers is None:
+            return None
+        return list(self._file_speakers.values())
+
+    def _transcribed_chunks(self, input_generator, language: str | None):
+        """Yield ``(chunk_data, transcription)``.
+
+        In file mode every chunk is transcribed before the first is labelled,
+        so transcription overlaps the whole-file diarization pass.
+        """
+        def transcribe(chunk_data):
+            _t0 = time.monotonic()
+            transcription = self.asr.transcribe(
+                chunk_data["chunk_path"],
+                temperature=self.temperature,
+                language=language,
+            )
+            asr_latency.record((time.monotonic() - _t0) * 1000)
+            return chunk_data, transcription
+
+        if self._file_diarization is None:
+            for chunk_data in input_generator:
+                yield transcribe(chunk_data)
+            return
+        transcribed = [transcribe(chunk_data) for chunk_data in input_generator]
+        self._file_diarization_result()
+        yield from transcribed
+
     def process(self, input_generator, language: str | None = None):
 
         project_path = get_session_dir(self.session_id)
@@ -346,20 +460,14 @@ class ASRComponent(PipelineComponent):
 
         try:
 
-            for chunk_data in input_generator:
+            for chunk_data, transcription in self._transcribed_chunks(input_generator, language):
                 chunk_path = chunk_data["chunk_path"]
-                _t0 = time.monotonic()
-                transcription = self.asr.transcribe(
-                    chunk_path,
-                    temperature=self.temperature,
-                    language=language,
-                )
-                asr_latency.record((time.monotonic() - _t0) * 1000)
 
                 ui_segments = []
                 transcribed_text = ""
 
                 if self.enable_diarization and transcription.get("segments"):
+                    file_mode = self._file_diarization is not None
                     # Prefer per-whisper-segment enrollment labeling when
                     # voice enrollment is enabled. Pyannote's clustering can
                     # merge two co-located voices into a single turn on
@@ -368,13 +476,15 @@ class ASRComponent(PipelineComponent):
                     # independently and comparing to the enrolled primary
                     # reliably surfaces the secondary voice as SPEAKER_01.
                     use_per_segment_enrollment = bool(
-                        self.pyannote_diarizer
+                        not file_mode
+                        and self.pyannote_diarizer
                         and getattr(self.pyannote_diarizer, "voice_enrollment_enabled", False)
                     )
 
                     speaker_turns: list[dict] = []
                     label_embeddings: dict = {}
                     primary_map: dict[str, bool] = {}
+                    label_matches: dict[str, tuple[str, float]] = {}
                     source_segments: list[dict] = transcription["segments"]
 
                     if use_per_segment_enrollment:
@@ -400,6 +510,22 @@ class ASRComponent(PipelineComponent):
                                 for lbl in labelled_segments
                             ) or "none",
                         )
+                    elif file_mode:
+                        # Whole-file turns, shifted into this chunk's time base so the
+                        # max-overlap assignment below is unchanged.
+                        file_turns, label_matches = self._file_diarization_result()
+                        chunk_start = float(chunk_data.get("start_time", 0.0))
+                        chunk_end = float(chunk_data.get("end_time", float("inf")))
+                        speaker_turns = [
+                            {"start": t["start"] - chunk_start, "end": t["end"] - chunk_start, "speaker": t["speaker"]}
+                            for t in file_turns
+                            if t["end"] > chunk_start and t["start"] < chunk_end
+                        ]
+                        primary_label = self.speaker_options.primary_label
+                        primary_map = {
+                            speaker: primary_label is not None and label == primary_label
+                            for speaker, (label, _) in label_matches.items()
+                        }
                     else:
                         speaker_turns, label_embeddings = self.pyannote_diarizer.diarize(
                             chunk_path, session_id=self.session_id
@@ -417,6 +543,14 @@ class ASRComponent(PipelineComponent):
                         if ASRComponent._speaker_identity_store is not None:
                             primary_map = ASRComponent._speaker_identity_store.resolve(
                                 self.session_id, label_embeddings, speaker_turns,
+                            )
+                        if self.speaker_options and self.speaker_options.profiles:
+                            from components.asr.diarization.speaker_profiles import match_speakers
+
+                            label_matches = match_speakers(
+                                label_embeddings,
+                                self.speaker_options.profiles,
+                                self.speaker_options.match_threshold,
                             )
 
                     transcribed_lines = []
@@ -490,6 +624,7 @@ class ASRComponent(PipelineComponent):
                             # downstream consumers (kiosk-core) don't need their
                             # own model or lock-on logic.
                             segment["is_primary"] = is_primary
+                            segment.update(self._label_fields(speaker, label_matches))
 
                         ui_segments.append(segment)
                         self.all_segments.append(segment)

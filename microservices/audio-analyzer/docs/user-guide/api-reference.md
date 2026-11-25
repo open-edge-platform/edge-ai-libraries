@@ -38,6 +38,11 @@ Form fields:
 | `stream`          | No       | `true` streams the result as OpenAI-compatible SSE (see below).             |
 | `speaker_scope_id`| No       | Stable key that keeps speaker enrollment across utterances of one conversation. |
 | `diarization`     | No       | Narrowing override: `false` disables diarization for this request. Cannot enable it when `models.asr.diarization` is `false`. |
+| `diarization_mode`| No       | `chunk` (default, per ASR chunk with primary-speaker lock-on) or `file` (one pass over the whole upload). See [Speaker options](#speaker-options). |
+| `num_speakers`, `min_speakers`, `max_speakers` | No | Speaker count for `diarization_mode=file` (1-20). Use `num_speakers` or the bounds, not both. |
+| `speaker_profiles`| No       | JSON array of known voices, `[{"label": "Doctor", "embedding": [...]}]`, from `POST /v1/audio/speaker-embedding`. |
+| `unknown_speaker_label` | No | `speaker_label` of speakers that match no profile, such as `Patient`. |
+| `speaker_match_threshold` | No | Cosine similarity (0-1) a speaker needs to take a profile's label. Defaults to `models.diarization.speaker_match_threshold` (0.5). |
 
 The optional `device` field accepts `CPU`, `GPU`, or `NPU`. When omitted, it
 uses the service configuration.
@@ -46,7 +51,9 @@ The `language` hint is forwarded to the ASR backend unchanged, except when the
 configured model is an English-only Whisper checkpoint (a `.en` suffix, such as
 `distil-small.en`). Those checkpoints have no language token at all and reject
 any hint, so the service drops it for them only — multilingual deployments
-always receive the caller's `language`.
+always receive the caller's `language`. `language=auto` (or an empty value)
+lets Whisper detect the language; the OpenVINO GenAI backend then reports the
+detected code in `language`. The default is still `en`.
 
 Example:
 
@@ -94,6 +101,60 @@ other formats return HTTP 400.
 The optional `device` applies to both single-response and `stream=true`
 requests on this endpoint. It controls ASR inference only. Diarization, when
 enabled, continues to use `models.diarization.device`.
+
+### Speaker options
+
+With `models.asr.diarization: true`, `verbose_json` segments carry `speaker`
+and `is_primary`. By default (`diarization_mode=chunk`) each ASR chunk is
+diarized on its own and `is_primary` marks the voice that spoke first in the
+session, which suits a kiosk with one customer. Requests that set none of the
+fields below keep exactly that behaviour.
+
+For a recorded conversation (for example a doctor and a patient):
+
+- `diarization_mode=file` diarizes the whole upload once, alongside
+  transcription, so `speaker` (`SPEAKER_00`, `SPEAKER_01`, ...) means the same
+  person throughout the file. Chunk events are emitted once diarization ends.
+  Pass `num_speakers` when it is known.
+- `speaker_profiles` names known voices. Each diarized speaker is compared with
+  the profiles (cosine similarity of the voice embeddings); labels are assigned
+  one-to-one, best match first, at or above `speaker_match_threshold`. Several
+  profiles may share a label (more than one sample of one person). Matching also
+  works in `chunk` mode (per chunk) unless `models.diarization.voice_enrollment_enabled`
+  is set.
+- Segments then carry `speaker_label` (the profile label, or
+  `unknown_speaker_label`) and `speaker_similarity`. In `file` mode,
+  `is_primary` marks the first profile's speaker, and the response has a
+  `speakers` summary: `[{"speaker", "duration", "speaker_label", "speaker_similarity"}]`.
+
+These fields need diarization; otherwise the request returns HTTP 400. Realtime
+and VSS endpoints always use `chunk` mode. `models.diarization.mode: file`
+makes `file` the default of this endpoint.
+
+```bash
+# 1. Enrol: a few seconds of the doctor alone
+curl --noproxy '*' -F file=@doctor_sample.wav http://127.0.0.1:8010/v1/audio/speaker-embedding
+# {"object": "speaker.embedding", "model": "pyannote/speaker-diarization-community-1", "dim": 256, "duration": 9.0, "embedding": [...]}
+
+# 2. Transcribe a consultation
+curl --noproxy '*' \
+  -F file=@consultation.wav -F response_format=verbose_json \
+  -F diarization_mode=file -F num_speakers=2 \
+  -F 'speaker_profiles=[{"label": "Doctor", "embedding": [...]}]' \
+  -F unknown_speaker_label=Patient \
+  http://127.0.0.1:8010/v1/audio/transcriptions
+```
+
+## `POST /v1/audio/speaker-embedding`
+
+Returns the voice embedding of a one-speaker sample (at least 1 s; a few
+seconds of clear speech work best) for `speaker_profiles`. It uses the
+configured diarization model, so it needs `models.asr.diarization: true`
+(otherwise HTTP 400). HTTP 422 means no speech was found.
+
+The service keeps nothing: the sample is deleted once the embedding is
+computed. Store the embedding on the client side; it is biometric data. An
+embedding is only comparable with the same diarization model (`model`, `dim`).
 
 ## `POST /v1/audio/transcriptions/stream`
 

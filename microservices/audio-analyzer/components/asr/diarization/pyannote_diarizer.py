@@ -3,6 +3,7 @@
 
 import logging
 import os
+import threading
 import time
 from unittest.mock import patch
 import numpy as np
@@ -16,6 +17,9 @@ from utils.ensure_model import get_diarization_model_path
 from utils.config_loader import config
 
 logger = logging.getLogger(__name__)
+
+# Serialises the long whole-file / embedding passes on the shared pipeline.
+_FILE_PIPELINE_LOCK = threading.Lock()
 
 
 def _is_gpu_tagged_storage_error(exc: Exception) -> bool:
@@ -643,6 +647,91 @@ class PyannoteDiarizer:
                     label_embeddings[label] = embedding
 
         return segments, label_embeddings
+
+    # ── Whole-file diarization and speaker embeddings (opt-in, per request) ──
+
+    @staticmethod
+    def _read_audio_input(audio_path: str) -> dict:
+        waveform, sample_rate = sf.read(audio_path, dtype="float32", always_2d=True)
+        waveform = np.ascontiguousarray(waveform.T)
+        return {"waveform": torch.from_numpy(waveform), "sample_rate": sample_rate}
+
+    @staticmethod
+    def _output_label_embeddings(output) -> dict[str, np.ndarray]:
+        """Per-label embeddings from a pyannote ``DiarizeOutput`` (rows follow ``labels()``)."""
+        label_embeddings: dict[str, np.ndarray] = {}
+        speaker_embeddings = getattr(output, "speaker_embeddings", None)
+        if speaker_embeddings is None:
+            return label_embeddings
+        labels = output.speaker_diarization.labels()
+        for label, embedding in zip(labels, speaker_embeddings):
+            if embedding is not None and np.any(embedding):
+                label_embeddings[label] = np.asarray(embedding, dtype=np.float32)
+        return label_embeddings
+
+    def diarize_file(
+        self,
+        audio_path: str,
+        *,
+        num_speakers: int | None = None,
+        min_speakers: int | None = None,
+        max_speakers: int | None = None,
+    ) -> tuple[list[dict], dict[str, np.ndarray]]:
+        """Diarize a whole recording in one pass, so labels are consistent across it.
+
+        Unlike :meth:`diarize` (one ASR chunk at a time, kiosk lock-on), this
+        clusters every speaker over the full audio. Speaker counts fall back to
+        the configured ``min_speakers``/``max_speakers``. Voice enrollment is not
+        applied.
+
+        Returns:
+            ``(turns, label_embeddings)`` as :meth:`diarize` does, with times
+            relative to the start of ``audio_path``.
+        """
+        audio_input = self._read_audio_input(audio_path)
+        pipeline_kwargs: dict = {}
+        if num_speakers is not None:
+            pipeline_kwargs["num_speakers"] = int(num_speakers)
+        else:
+            low = self.min_speakers if min_speakers is None else min_speakers
+            high = self.max_speakers if max_speakers is None else max_speakers
+            if low is not None:
+                pipeline_kwargs["min_speakers"] = int(low)
+            if high is not None:
+                pipeline_kwargs["max_speakers"] = int(high)
+
+        started = time.monotonic()
+        with _FILE_PIPELINE_LOCK:
+            output = self.pipeline(audio_input, **pipeline_kwargs)
+        turns = [
+            {"start": float(turn.start), "end": float(turn.end), "speaker": speaker}
+            for turn, _, speaker in output.exclusive_speaker_diarization.itertracks(yield_label=True)
+        ]
+        label_embeddings = self._output_label_embeddings(output)
+        logger.info(
+            "[DIARIZATION][FILE] %d turn(s), %d speaker(s) in %.1fs (%s)",
+            len(turns), len(label_embeddings), time.monotonic() - started, pipeline_kwargs,
+        )
+        return turns, label_embeddings
+
+    def compute_speaker_embedding(self, audio_path: str) -> np.ndarray | None:
+        """Voice embedding of a single-speaker recording (for speaker profiles).
+
+        Uses the pipeline's own speaker embedding (``num_speakers=1``), so it is
+        directly comparable with the per-speaker embeddings of
+        :meth:`diarize_file` and :meth:`diarize`. None when no speech is found.
+        """
+        audio_input = self._read_audio_input(audio_path)
+        with _FILE_PIPELINE_LOCK:
+            output = self.pipeline(audio_input, num_speakers=1)
+        embeddings = list(self._output_label_embeddings(output).values())
+        if not embeddings:
+            return None
+        embedding = embeddings[0].reshape(-1)
+        norm = float(np.linalg.norm(embedding))
+        if norm < 1e-8 or not np.isfinite(embedding).all():
+            return None
+        return (embedding / norm).astype(np.float32)
 
     # ── Voice-enrollment helpers ────────────────────────────────────────────
 

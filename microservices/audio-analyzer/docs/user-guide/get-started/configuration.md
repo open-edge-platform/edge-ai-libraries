@@ -50,6 +50,7 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 ## Key Sections
 
 - `models.asr`: backend provider, model name, device, export precision, decoding settings
+- `models.diarization`: speaker diarization (when `models.asr.diarization` is `true`): model, device, speaker counts, primary-speaker `identity`, default `mode` (`chunk` or `file`) of `POST /v1/audio/transcriptions`, and `speaker_match_threshold` for `speaker_profiles` (see [Speaker options](../api-reference.md#speaker-options))
 - `audio_preprocessing`: chunk size, silence detection, denoise and loudness-normalization filters, chunk directory
 - `audio_util`: max file size, allowed extensions, upload read chunk size
 - `minio`: external MinIO endpoint/credentials, used only by `POST /transcriptions` when a MinIO source is supplied instead of a direct file upload

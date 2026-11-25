@@ -59,10 +59,15 @@ class Whisper(BaseASR):
             duration = (len(audio) / float(sr)) if sr else 0.0
             segments.append({"start": 0.0, "end": duration, "text": text})
 
-        return {
+        output = {
             "text": text,
             "segments": segments
         }
+        # The language Whisper detected when none was requested ("<|ms|>" -> "ms").
+        detected = getattr(result, "language", None)
+        if not language and isinstance(detected, str) and detected.strip("<|> "):
+            output["language"] = detected.strip("<|> ")
+        return output
    
    def _load_wav_mono_16k(self, path):
     # load with soundfile and resample to 16 kHz if necessary

@@ -126,6 +126,14 @@ models:
       lock_min_duration_sec: 0.75  # min turn duration before it can be locked as primary
       session_ttl_seconds: 1800    # evict idle session identity state after 30 min
 
+    # Default diarization_mode of POST /v1/audio/transcriptions (overridable per request):
+    #   chunk - per ASR chunk with the primary-speaker identity above (kiosk; default)
+    #   file  - one pass over the whole upload: consistent labels for every speaker
+    #           (conversations, e.g. doctor-patient). Realtime and VSS endpoints always use chunk.
+    mode: chunk
+    # Cosine similarity a diarized speaker needs to take a speaker_profiles label.
+    speaker_match_threshold: 0.5
+
 audio_preprocessing:
   chunk_duration_sec: 15
   silence_threshold: -35  # in dB
