@@ -184,19 +184,6 @@
             "description": "Explicit per-client image sequence number; auto-incremented if omitted."
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/octet-stream": {
-              "schema": {
-                "type": "string",
-                "contentMediaType": "application/octet-stream",
-                "description": "Raw JPEG frame bytes.",
-                "title": "Jpeg Bytes"
-              }
-            }
-          }
-        },
         "responses": {
           "202": {
             "description": "Successful Response",
@@ -215,6 +202,19 @@
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "contentMediaType": "application/octet-stream",
+                "description": "Raw JPEG frame bytes.",
+                "title": "Jpeg Bytes"
               }
             }
           }

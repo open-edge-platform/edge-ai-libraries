@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import httpx
-from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi import Path as ApiPath
 from pydantic import BaseModel, Field, field_validator
 
@@ -436,10 +436,28 @@ def create_app(service: EncoderService) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"unknown stream {stream_id}")
         return Response(status_code=204)
 
-    @app.post("/v1/streams/{stream_id}/frames", status_code=202, response_model=FrameAcceptedResponse)
+    @app.post(
+        "/v1/streams/{stream_id}/frames",
+        status_code=202,
+        response_model=FrameAcceptedResponse,
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/octet-stream": {
+                        "schema": {
+                            "type": "string",
+                            "contentMediaType": "application/octet-stream",
+                            "description": "Raw JPEG frame bytes.",
+                            "title": "Jpeg Bytes",
+                        }
+                    }
+                },
+            }
+        },
+    )
     async def post_frame(
         request: Request,
-        jpeg_bytes: bytes = Body(..., media_type="application/octet-stream", description="Raw JPEG frame bytes."),
         stream_id: str = ApiPath(
             ..., pattern=_STREAM_ID_PATTERN,
             description="ID of the stream to submit the frame to; created automatically if it doesn't exist.",
@@ -448,6 +466,10 @@ def create_app(service: EncoderService) -> FastAPI:
             default=None, description="Explicit per-client image sequence number; auto-incremented if omitted.",
         ),
     ):
+        # Read raw instead of declaring a typed Body(): on FastAPI 0.115.x a declared
+        # Body() field makes requests with no Content-Type header go through
+        # request.json(), which raises on non-JSON bytes before this handler runs.
+        jpeg_bytes = await request.body()
         if not jpeg_bytes:
             raise HTTPException(status_code=400, detail="empty request body; expected raw JPEG bytes")
         if len(jpeg_bytes) > service.cfg.enc.max_body_bytes:

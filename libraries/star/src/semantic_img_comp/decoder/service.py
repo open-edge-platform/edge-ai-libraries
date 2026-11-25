@@ -34,7 +34,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi import Path as ApiPath
 from pydantic import BaseModel, Field
 
@@ -257,12 +257,34 @@ def create_app(service: DecoderService) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"unknown stream {stream_id}")
         return Response(status_code=204)
 
-    @app.post("/v1/streams/{stream_id}/payloads", status_code=202, response_model=FrameAcceptedResponse)
+    @app.post(
+        "/v1/streams/{stream_id}/payloads",
+        status_code=202,
+        response_model=FrameAcceptedResponse,
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/octet-stream": {
+                        "schema": {
+                            "type": "string",
+                            "contentMediaType": "application/octet-stream",
+                            "description": "Raw payload bytes.",
+                            "title": "Payload",
+                        }
+                    }
+                },
+            }
+        },
+    )
     async def post_payload(
         request: Request,
-        payload: bytes = Body(..., media_type="application/octet-stream", description="Raw payload bytes."),
         stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to ingest the payload into; created automatically if it doesn't exist."),
     ):
+        # Read raw instead of declaring a typed Body(): on FastAPI 0.115.x a declared
+        # Body() field makes requests with no Content-Type header go through
+        # request.json(), which raises on non-JSON bytes before this handler runs.
+        payload = await request.body()
         if not payload:
             raise HTTPException(status_code=400, detail="empty request body; expected a mux payload")
         if len(payload) > service.cfg.dec.max_body_bytes:
