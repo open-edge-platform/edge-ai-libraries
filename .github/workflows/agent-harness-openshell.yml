@@ -164,14 +164,14 @@ jobs:
         run: |
           set -euo pipefail
           bash test/model-lifecycle-test.sh | tee "$RUNNER_TEMP/openshell-offline/lifecycle.tap"
-      - name: Telemetry (metrics) regression
+      - name: Observability regression
         id: metrics
         if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
         working-directory: frameworks/agent-harness-install
         run: |
           set -euo pipefail
           bash test/metrics-test.sh | tee "$RUNNER_TEMP/openshell-offline/metrics.tap"
-      - name: Telemetry (metrics) CLI entry point
+      - name: Observability CLI entry point
         id: metrics-cli
         if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
         working-directory: frameworks/agent-harness-install
