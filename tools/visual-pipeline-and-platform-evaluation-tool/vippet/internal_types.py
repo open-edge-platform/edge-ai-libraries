@@ -267,6 +267,7 @@ class InternalModelSource(str, Enum):
         ULTRALYTICS: Ultralytics model zoo.
         PIPELINE_ZOO_MODELS: OpenVINO Pipeline Zoo models.
         OMZ: OpenVINO Open Model Zoo.
+        GETI: Intel Geti server.
         CUSTOM: User-uploaded model.
     """
 
@@ -274,6 +275,7 @@ class InternalModelSource(str, Enum):
     ULTRALYTICS = "ultralytics"
     PIPELINE_ZOO_MODELS = "pipeline-zoo-models"
     OMZ = "omz"
+    GETI = "geti"
     CUSTOM = "custom"
 
 

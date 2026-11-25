@@ -53,7 +53,7 @@ Export variables with the required configuration:
 export PORT=8000
 export LOG_LEVEL=INFO
 export REGISTRY="intel/"
-export TAG=2026.3.0-rc1
+export TAG=2026.3.0-rc2
 
 # ----- ADK / LLM (agent mode only) -----
 export LLM_URL=http://ovms-llm:9000/v3

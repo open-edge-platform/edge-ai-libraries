@@ -9,6 +9,7 @@ services:
     build:
       context: ../..
       dockerfile: Dockerfile
+      pull: true  # always fetch the latest base image (security fixes)
       args:
         http_proxy: ${http_proxy:-}
         https_proxy: ${https_proxy:-}
@@ -34,6 +35,7 @@ services:
       - GATEWAY_VERBOSE=${GATEWAY_VERBOSE:-}
       - GATEWAY_VERBOSE_FULL=${GATEWAY_VERBOSE_FULL:-}
       - GATEWAY_MAX_CONCURRENCY=${GATEWAY_MAX_CONCURRENCY:-0}
+      - GATEWAY_MAX_REQUEST_BYTES=${GATEWAY_MAX_REQUEST_BYTES:-}
       - GATEWAY_CONFIG=/app/config.yaml
       - GATEWAY_LOG_DIR=${GATEWAY_LOG_DIR:-/app/logs}
       - IR_OV_MODEL=/models/ov-classifier

@@ -49,7 +49,7 @@ SPDX-License-Identifier: Apache-2.0
 | 3 | Deploy chatqna with ollama runtime using helm and set device gpu. | PASS (4/4) | FAIL (0/4) |
 | 4 | Translate these compose vars to helm overrides and deploy: BACKEND=openvino DEVI... | PASS (6/6) | FAIL (1/6) |
 | 5 | Before deploy, run preflight and ensure namespace rag exists. | PASS (4/4) | FAIL (2/4) |
-| 6 | Use OCI chart source version 2026.2.0-rc2-helm for chatqna core and deploy to namespace ai. | PASS (4/4) | FAIL (0/4) |
+| 6 | Use OCI chart source version 2026.3.0-rc2-helm for chatqna core and deploy to namespace ai. | PASS (4/4) | FAIL (0/4) |
 | 7 | After install, provide hard evidence that deployment is healthy. | PASS (4/4) | FAIL (0/4) |
 | 8 | Give me the access URLs and cleanup command after deployment. | PASS (3/3) | FAIL (0/3) |
 | 9 | helm template failed due to invalid gpu key. What should the skill do? | PASS (3/3) | PASS (3/3) |

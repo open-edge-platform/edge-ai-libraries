@@ -24,12 +24,12 @@ ensure_apt_source () {
       esac
     done | sort -u
   ))
-  [ ${#legacies[*]} -eq 0 ] || ensure_apt_source_remove "${legacies[*]}"
+  [ ${#legacies[*]} -eq 0 ] || ensure_apt_source_disable "${legacies[*]}"
   printf "%s\n" "$@" | ensure_sudo tee $file > /dev/null
 }
 
-# remove apt source by uri
-ensure_apt_source_remove () {
+# disable apt source by uri
+ensure_apt_source_disable () {
   local updated;
   for v in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
     [ -r "$v" ] || continue

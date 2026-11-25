@@ -298,15 +298,18 @@ plugins:
       settings:
         manager_url: "http://localhost:9900"   # base URL of the Local Provider Manager
         # timeout: 1200                          # optional; seconds, for slow cold starts
+        # allowed_health_hosts: ["backend-1.lan"] # optional; extra health_endpoint hosts
 ```
 
 **Start** — `POST /v1/providers/manage` with the manager's start-request body
 (docker parameters: `name` / `image` / `entrypoint` / `env` / `volumes` /
 `docker_args` / `command`). The service `name` travels in the body (there is no
 `{name}` in the path — the manager keys the container on it). Optionally add
-`health_endpoint` — a URL (reachable from the router) that answers 2xx once the
-backend is ready, e.g., `http://localhost:24680/health` for vLLM or
-`http://localhost:24690/v2/health/ready` for OpenVINO™ Model Server (OVMS).
+`health_endpoint` — an http(s) URL (reachable from the router) that answers 2xx
+once the backend is ready, e.g., `http://localhost:24680/health` for vLLM or
+`http://localhost:24690/v2/health/ready` for OpenVINO™ Model Server (OVMS). The
+router only probes loopback addresses, the manager's host, and hosts listed in
+`allowed_health_hosts`; any other host is rejected with 400.
 
 The plugin forwards the docker parameters to `POST {manager_url}/providers`, which
 runs `docker run -d` and records the result, and returns the manager's response
@@ -399,14 +402,15 @@ curl -s -XPOST localhost:8000/v1/providers/manage/unload_lora_adapter -H 'Conten
   -d '{"provider":"vllm-qwen35-9b","lora_name":"sql_adapter"}'
 ```
 
-Per-request overrides (start body only, stripped before forwarding together with
-`health_endpoint`): `manager_url` overrides the configured base URL, and
-`management_timeout` the timeout (seconds) for the manager call and for the
-readiness wait.
+Per-request override (start body only, stripped before forwarding together with
+`health_endpoint`): `management_timeout` sets the timeout (seconds) for the
+manager call and for the readiness wait.
 
 The `/v1/providers/manage` routes are always mounted for the registered type; a
-`plugins:` entry configures the `manager_url` they use. Start can also take it per
-request, but stop and inspect read it only from the plugin settings.
+`plugins:` entry configures the `manager_url` they use. The manager URL is read
+only from the plugin settings: a start body may still carry `manager_url`, but
+only if it equals the configured value (otherwise 400), so API clients cannot
+point the router at another host.
 
 ### `dummy_logger` Plugin
 

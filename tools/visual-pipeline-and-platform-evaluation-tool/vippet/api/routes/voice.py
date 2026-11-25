@@ -1,17 +1,22 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
+import io
+import logging
 import os
 import re
+import wave
 from typing import Annotated
 from urllib.parse import quote
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import ValidationError
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from audio_assets import AudioAssetsManager
+from audio_assets import SAMPLE_AUDIO_RECORDINGS, AudioAssetsManager
 from audio_service_client import (
     normalize_media_type,
     normalize_upload_filename,
@@ -41,6 +46,9 @@ from managers.audio_pipeline_manager import get_audio_pipeline_manager
 
 router = APIRouter(dependencies=[Depends(require_voice_available)])
 
+logger = logging.getLogger("api.routes.voice")
+SAMPLE_AUDIO_TIMEOUT_SECONDS = 30
+MAX_SAMPLE_AUDIO_BYTES = 2 * 1024 * 1024
 
 _AUDIO_PIPELINE_RUN_REQUEST_SCHEMA = schemas.AudioPipelineRunRequest.model_json_schema()
 # Inline the voice enum because openapi_extra embeds this schema without its own
@@ -78,6 +86,14 @@ AUDIO_PIPELINE_RUN_OPENAPI = {
         },
     }
 }
+
+
+def create_sample_audio_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(SAMPLE_AUDIO_TIMEOUT_SECONDS, connect=5.0),
+        trust_env=True,
+        follow_redirects=False,
+    )
 
 
 AudioJobManagerDependency = Annotated[
@@ -153,6 +169,118 @@ async def get_audio_recording(filename: str) -> FileResponse:
         media_type="audio/wav",
         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
     )
+
+
+def _get_sample_audio_recording(filename: str) -> dict[str, str]:
+    recording = next(
+        (item for item in SAMPLE_AUDIO_RECORDINGS if item["filename"] == filename),
+        None,
+    )
+    if recording is None:
+        raise HTTPException(404, "Sample audio recording not found.")
+    return recording
+
+
+async def _fetch_sample_audio(recording: dict[str, str]) -> bytes:
+    try:
+        async with asyncio.timeout(SAMPLE_AUDIO_TIMEOUT_SECONDS):
+            async with create_sample_audio_client() as client:
+                async with client.stream("GET", recording["url"]) as upstream:
+                    if upstream.status_code != 200:
+                        raise HTTPException(502, "Unable to download audio sample.")
+                    content_type = upstream.headers.get("content-type", "")
+                    content_type = content_type.split(";", maxsplit=1)[0].lower()
+                    if content_type not in {"audio/wav", "audio/x-wav"}:
+                        raise HTTPException(502, "Invalid audio sample response.")
+                    content_length = upstream.headers.get("content-length")
+                    if content_length is not None:
+                        try:
+                            if int(content_length) > MAX_SAMPLE_AUDIO_BYTES:
+                                raise HTTPException(
+                                    502, "Audio sample exceeds the size limit."
+                                )
+                        except ValueError as exc:
+                            raise HTTPException(
+                                502, "Invalid audio sample response."
+                            ) from exc
+
+                    audio_bytes = bytearray()
+                    async for chunk in upstream.aiter_bytes():
+                        if len(audio_bytes) + len(chunk) > MAX_SAMPLE_AUDIO_BYTES:
+                            raise HTTPException(
+                                502, "Audio sample exceeds the size limit."
+                            )
+                        audio_bytes.extend(chunk)
+    except (TimeoutError, httpx.TimeoutException) as exc:
+        raise HTTPException(504, "Audio sample download timed out.") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, "Unable to download audio sample.") from exc
+
+    try:
+        with wave.open(io.BytesIO(audio_bytes), "rb") as audio:
+            is_valid_wav = (
+                audio.getnchannels() > 0
+                and audio.getframerate() > 0
+                and audio.getnframes() > 0
+            )
+    except (EOFError, OSError, wave.Error) as exc:
+        raise HTTPException(502, "Invalid audio sample response.") from exc
+    if not is_valid_wav:
+        raise HTTPException(502, "Invalid audio sample response.")
+    return bytes(audio_bytes)
+
+
+def _sample_audio_recording_response(
+    recording: dict[str, str], downloaded: bool
+) -> schemas.SampleAudioRecordingResponse:
+    return schemas.SampleAudioRecordingResponse(
+        filename=recording["filename"],
+        gender=recording["gender"],  # type: ignore[arg-type]
+        format=recording["format"],
+        sample_rate=recording["sample_rate"],
+        description=recording["description"],
+        downloaded=downloaded,
+    )
+
+
+@router.get(
+    "/sample-recordings",
+    response_model=list[schemas.SampleAudioRecordingResponse],
+)
+async def list_sample_audio_recordings() -> list[schemas.SampleAudioRecordingResponse]:
+    assets = AudioAssetsManager()
+    return [
+        _sample_audio_recording_response(
+            recording, assets.get_asset(recording["filename"]) is not None
+        )
+        for recording in SAMPLE_AUDIO_RECORDINGS
+    ]
+
+
+@router.post(
+    "/sample-recordings/{filename}/download",
+    response_model=schemas.SampleAudioRecordingResponse,
+    responses={
+        404: {"description": "The filename is not in the sample catalog."},
+        502: {"description": "The upstream sample could not be downloaded."},
+        504: {"description": "The upstream sample download timed out."},
+    },
+)
+async def download_sample_audio_recording(
+    filename: str,
+) -> schemas.SampleAudioRecordingResponse:
+    recording = _get_sample_audio_recording(filename)
+    assets = AudioAssetsManager()
+    if assets.get_asset(filename) is None:
+        audio_bytes = await _fetch_sample_audio(recording)
+        try:
+            await asyncio.to_thread(assets.save_sample_recording, filename, audio_bytes)
+        except (OSError, ValueError) as exc:
+            logger.error(
+                "Unable to store sample audio recording: %s", type(exc).__name__
+            )
+            raise HTTPException(500, "Unable to store audio sample.") from exc
+    return _sample_audio_recording_response(recording, True)
 
 
 @router.post(

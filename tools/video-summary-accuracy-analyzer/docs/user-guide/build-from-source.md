@@ -29,7 +29,7 @@ The `compose.yaml` file names the images as `${REGISTRY:-intel/}video-accuracy-e
 
 ```bash
 export REGISTRY="intel/"
-export TAG=2026.3.0-rc1
+export TAG=2026.3.0-rc2
 ```
 
 The `scripts/setup_env.sh` script also sets these defaults when they are not already defined.

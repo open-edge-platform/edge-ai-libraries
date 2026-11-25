@@ -132,9 +132,9 @@ def test_write_and_read_file(tmp_path):
     assert not list(tmp_path.glob(".*.tmp"))  # temp file cleaned up
 
 
-def test_written_file_is_world_readable(tmp_path):
+def test_written_file_is_owner_only(tmp_path):
     path = write_rcv(tmp_path / "v2.rcv", _soft())
-    assert path.stat().st_mode & 0o777 == 0o644
+    assert path.stat().st_mode & 0o777 == 0o600
 
 
 def test_refuses_to_overwrite(tmp_path):
@@ -402,7 +402,7 @@ def test_nan_and_inf_tensors_are_rejected():
 
 
 @pytest.mark.unit
-def test_write_rcv_closes_the_fd_when_chmod_fails(tmp_path, monkeypatch):
+def test_write_rcv_closes_the_fd_when_writing_fails(tmp_path, monkeypatch):
     import os
 
     bundle = _soft()
@@ -417,11 +417,11 @@ def test_write_rcv_closes_the_fd_when_chmod_fails(tmp_path, monkeypatch):
         captured["tmp"] = tmp
         return fd, tmp
 
-    def broken_chmod(*args, **kwargs):
+    def broken_fsync(*args, **kwargs):
         raise OSError("permission denied")
 
     monkeypatch.setattr(tempfile, "mkstemp", mkstemp)
-    monkeypatch.setattr(rcv.os, "chmod", broken_chmod)
+    monkeypatch.setattr(rcv.os, "fsync", broken_fsync)
     with pytest.raises(OSError, match="permission denied"):
         write_rcv(str(target), bundle)
     assert not Path(captured["tmp"]).exists()  # temp cleaned up

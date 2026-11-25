@@ -18,6 +18,16 @@ x-chatqna-core-common: &chatqna-core-common
     HF_ACCESS_TOKEN: ${HF_ACCESS_TOKEN}
   expose:
     - "8888"
+  # The API starts listening only after the models are downloaded, converted and loaded,
+  # which can take several minutes on the first run. nginx waits for this check to pass
+  # (see depends_on below), so clients never get 502 Bad Gateway from a half-started backend.
+  healthcheck:
+    test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8888/health"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    # Failures during start_period do not count; allow a slow first-run download/conversion.
+    start_period: 30m
   volumes:
     - "${MODEL_CACHE_PATH}:/tmp/model_cache"
     - "${MODEL_CONFIG_PATH:-/dev/null}:/tmp/model_config/config.yaml"
@@ -38,16 +48,20 @@ services:
     profiles:
       - OPENVINO
     depends_on:
-      - chatqna-core-openvino
-      - chatqna-core-ui
+      chatqna-core-openvino:
+        condition: service_healthy
+      chatqna-core-ui:
+        condition: service_started
 
   nginx-ollama:
     <<: *nginx-common
     profiles:
       - OLLAMA
     depends_on:
-      - chatqna-core-ollama
-      - chatqna-core-ui
+      chatqna-core-ollama:
+        condition: service_healthy
+      chatqna-core-ui:
+        condition: service_started
 
   chatqna-core-openvino:
     <<: *chatqna-core-common

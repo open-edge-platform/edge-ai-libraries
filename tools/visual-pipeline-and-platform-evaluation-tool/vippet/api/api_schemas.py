@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
@@ -5,7 +8,11 @@ from typing import Any, Dict, List, Optional, Union, Literal
 from enum import Enum
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from cpu_topology import normalize_cpu_ids
+
 _HUB_MODEL_NAME_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+# Geti model names are free-form labels, e.g. "YOLOX-Tiny (a08374ca)".
+_GETI_MODEL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ ()-]{0,127}$")
 
 
 def _is_valid_hub_model_name(name: str) -> bool:
@@ -250,6 +257,15 @@ class AudioRecordingResponse(BaseModel):
     audio_url: str
 
 
+class SampleAudioRecordingResponse(BaseModel):
+    filename: str
+    gender: Literal["F", "M"]
+    format: str
+    sample_rate: str
+    description: str
+    downloaded: bool
+
+
 class AudioRecordingRunRequest(BaseModel):
     """
     **Request to transcribe a registered audio recording.**
@@ -436,7 +452,7 @@ class VideoSource(str, Enum):
     **Origin of an input video file on disk.**
 
     ## Values
-    - `AUTO` - Video downloaded automatically from `default_recordings.yaml`
+    - `AUTO` - Sample video downloaded on demand from `default_recordings.yaml`
       into `/videos/input/auto/`
     - `UPLOADED` - Video uploaded by the user via the
       `POST /videos/upload` endpoint into `/videos/input/uploaded/`
@@ -722,9 +738,21 @@ class PipelineGraph(BaseModel):
     (conversion, validation, optimization).
 
     ## Attributes
+    - `cpu_pinning` - Logical CPU ids every stream of this graph is pinned to (empty uses test-level pinning)
     - `nodes` - List of graph nodes
     - `edges` - Directed connections between nodes
     """
+
+    cpu_pinning: List[int] = Field(
+        default_factory=list,
+        description="Logical CPU ids every stream of this graph is pinned to. Empty uses test-level pinning.",
+    )
+
+    @field_validator("cpu_pinning", mode="before")
+    @classmethod
+    def _validate_cpu_pinning(cls, cpus: object) -> List[int]:
+        """Reject non-int or negative CPU ids; de-duplicate and sort the rest."""
+        return normalize_cpu_ids(cpus, "cpu_pinning")
 
     nodes: List[Node] = Field(
         ...,
@@ -759,6 +787,7 @@ class Variant(BaseModel):
     - `read_only` - Whether the variant is read-only (defaults to false, can only be true for PREDEFINED pipeline variants)
     - `pipeline_graph` - Advanced graph representation for this variant
     - `pipeline_graph_simple` - Simplified graph representation for this variant
+    - `media_only` - Whether the advanced graph only decodes media without inference (set by backend only)
     - `created_at` - Creation timestamp as UTC datetime (set by backend only, not modifiable via API)
     - `modified_at` - Last modification timestamp as UTC datetime (updated when variant is modified, set by backend only)
     """
@@ -784,6 +813,10 @@ class Variant(BaseModel):
     pipeline_graph_simple: PipelineGraph = Field(
         ...,
         description="Simplified graph view for this variant.",
+    )
+    media_only: bool = Field(
+        default=False,
+        description="Whether the advanced graph only decodes media (decodebin3) without inference elements. Pinned media-only graphs decode on VDBox. Set by backend only.",
     )
     created_at: datetime = Field(
         ...,
@@ -1669,13 +1702,10 @@ class ExecutionConfig(BaseModel):
         ),
     )
 
-    @field_validator("pinned_cpu_cores")
+    @field_validator("pinned_cpu_cores", mode="before")
     @classmethod
-    def _normalize_pinned_cpu_cores(cls, cpus: List[int]) -> List[int]:
-        """De-duplicate, sort and reject negative logical CPU ids."""
-        if any(cpu < 0 for cpu in cpus):
-            raise ValueError("pinned_cpu_cores must not contain negative CPU ids.")
-        return sorted(set(cpus))
+    def _normalize_pinned_cpu_cores(cls, cpus: object) -> List[int]:
+        return normalize_cpu_ids(cpus, "pinned_cpu_cores")
 
 
 class PerformanceTestSpec(BaseModel):
@@ -2630,6 +2660,7 @@ class ModelSource(str, Enum):
     - `ULTRALYTICS` - Ultralytics model zoo
     - `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models
     - `OMZ` - OpenVINO Open Model Zoo
+    - `GETI` - Intel Geti server
     - `CUSTOM` - User-uploaded model
 
     ### Example
@@ -2642,6 +2673,7 @@ class ModelSource(str, Enum):
     ULTRALYTICS = "ultralytics"
     PIPELINE_ZOO_MODELS = "pipeline-zoo-models"
     OMZ = "omz"
+    GETI = "geti"
     CUSTOM = "custom"
 
 
@@ -2888,15 +2920,17 @@ class ModelDownloadRequest(BaseModel):
     When `hub` is set, names not found in the catalog are downloaded from
     that hub (names as returned by `POST /models/list`) and registered in
     the catalog together with every installed precision. Supported hubs:
-    `ultralytics` (category derived from the name suffix) and
-    `huggingface` (category must be provided via `category`, since
-    HuggingFace repo ids have no fixed naming convention to derive it
-    from).
+    `ultralytics` (category derived from the name suffix), `huggingface`
+    (category must be provided via `category`, since HuggingFace repo ids
+    have no fixed naming convention to derive it from) and `geti`
+    (category must be provided via `category`; the model is resolved by
+    name on the configured Geti server and every OpenVINO precision it
+    offers is downloaded).
 
     ## Attributes
     - `names` - List of supported-model names to install. Must be non-empty and unique.
     - `hub` - Optional upstream hub for names not in the catalog.
-    - `category` - Required when `hub` is `huggingface`; ignored otherwise.
+    - `category` - Required when `hub` is `huggingface` or `geti`; ignored otherwise.
     - `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.
 
     ### Example
@@ -2923,8 +2957,8 @@ class ModelDownloadRequest(BaseModel):
     category: ModelCategory | None = Field(
         default=None,
         description=(
-            "Model category, required when `hub` is `huggingface` (ignored "
-            "for other hubs)."
+            "Model category, required when `hub` is `huggingface` or `geti` "
+            "(ignored for other hubs)."
         ),
     )
     gated: ModelGated | None = Field(
@@ -2944,7 +2978,10 @@ class ModelDownloadRequest(BaseModel):
             if not name:
                 raise ValueError("Model names must be non-empty strings.")
             # Hub names become filesystem path segments.
-            if self.hub is not None and not _is_valid_hub_model_name(name):
+            if self.hub == ModelSource.GETI:
+                if not _GETI_MODEL_NAME_RE.match(name):
+                    raise ValueError(f"Invalid hub model name: {name!r}")
+            elif self.hub is not None and not _is_valid_hub_model_name(name):
                 raise ValueError(f"Invalid hub model name: {name!r}")
             if name in seen:
                 duplicates.append(name)
@@ -3342,6 +3379,52 @@ class Video(BaseModel):
             "'/assets/videos/input/{path}'."
         ),
     )
+
+
+class DefaultVideoDownloadState(str, Enum):
+    AVAILABLE = "available"
+    QUEUED = "queued"
+    DOWNLOADING = "downloading"
+    DOWNLOADED = "downloaded"
+    FAILED = "failed"
+    CONFLICT = "conflict"
+
+
+class DefaultVideoConversionState(str, Enum):
+    NOT_CONVERTED = "not_converted"
+    QUEUED = "queued"
+    CONVERTING = "converting"
+    CONVERTED = "converted"
+    FAILED = "failed"
+    CONFLICT = "conflict"
+    UNSUPPORTED = "unsupported"
+
+
+class DefaultVideoRecording(BaseModel):
+    filename: str
+    source: str
+    status: DefaultVideoDownloadState
+    hevc_filename: str
+    conversion_status: DefaultVideoConversionState
+
+
+class DefaultVideoDownloadRequest(BaseModel):
+    filename: str
+
+
+class DefaultVideoDownloadResponse(BaseModel):
+    filename: str
+    status: DefaultVideoDownloadState
+
+
+class DefaultVideoConversionRequest(BaseModel):
+    filename: str
+
+
+class DefaultVideoConversionResponse(BaseModel):
+    filename: str
+    hevc_filename: str
+    status: DefaultVideoConversionState
 
 
 class VideoUploadError(BaseModel):

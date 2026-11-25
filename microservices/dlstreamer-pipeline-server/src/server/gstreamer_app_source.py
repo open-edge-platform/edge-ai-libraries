@@ -17,9 +17,12 @@ gi.require_version('GstApp', '1.0')
 from gi.repository import Gst
 from gstgva.util import GVAJSONMeta
 from src.server.app_source import AppSource
+from src.server.common.utils import logging
 from src.server.gstreamer_app_destination import GvaSample
 from src.server.gstreamer_pipeline import GStreamerPipeline
 # pylint: enable=wrong-import-position
+
+logger = logging.get_logger('GStreamerAppSource', is_static=True)
 
 fields = ['data',
           'caps',
@@ -78,8 +81,8 @@ class GStreamerAppSource(AppSource, Thread):
                 if (item.message) and (isinstance(item.message, str)):
                     try:
                         item.message = json.loads(item.message)
-                    except Exception:
-                        pass
+                    except Exception as error:
+                        logger.warning("Failed to parse item.message as JSON: %s", error)
                 if (item.message):
                     GVAJSONMeta.add_json_meta(gst_buffer, json.dumps(item.message))
             gst_caps = item.caps

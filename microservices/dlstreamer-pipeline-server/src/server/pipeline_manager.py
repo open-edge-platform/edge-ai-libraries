@@ -320,8 +320,10 @@ class PipelineManager:
         try:
             if (self.pipeline_queue):
                 return self.pipeline_queue.popleft()
-        except Exception:
+        except IndexError:
             pass
+        except Exception as error:
+            self.logger.warning("Unexpected error popping pipeline queue: %s", error)
 
         return None
 
@@ -364,8 +366,10 @@ class PipelineManager:
         if self.instance_exists(instance_id, name, version):
             try:
                 self.pipeline_queue.remove(instance_id)
-            except Exception:
-                pass
+            except ValueError:
+                self.logger.debug("Instance %s not in pipeline queue (already started)", instance_id)
+            except Exception as error:
+                self.logger.warning("Unexpected error removing instance %s from queue: %s", instance_id, error)
             return self.pipeline_instances[instance_id].stop()
         return None
 

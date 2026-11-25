@@ -105,7 +105,7 @@ def _initialize_in_background(app: FastAPI) -> None:
 
     try:
         app_state_manager.set_status(
-            InternalAppStatus.INITIALIZING, "Downloading videos and loading metadata..."
+            InternalAppStatus.INITIALIZING, "Loading video metadata..."
         )
 
         # Read the CPU core types once so they are logged at startup and
@@ -115,12 +115,16 @@ def _initialize_in_background(app: FastAPI) -> None:
         # Before the TS conversion below starts pipelines on DLSPS 2.0.
         _release_pipeline_execution()
 
-        # Initialize VideosManager - downloads videos, scans files,
-        # extracts metadata, and converts to TS format
+        # Initialize VideosManager - scans local files, extracts metadata,
+        # and converts to TS format
         VideosManager()
 
         try:
+            # Initialize AudioAssetsManager - creates the audio input/output
+            # directories before any sample download or Audio pipeline run.
             AudioAssetsManager()
+
+            # Load and validate read-only Audio pipeline definitions.
             get_audio_pipeline_manager()
             configure_audio_pipeline_job_manager_factory(
                 _create_audio_pipeline_job_manager

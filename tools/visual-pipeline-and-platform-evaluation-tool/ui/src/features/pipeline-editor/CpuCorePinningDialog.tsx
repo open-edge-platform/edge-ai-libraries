@@ -38,6 +38,7 @@ type CpuCorePinningDialogProps = {
   /** Empty means all cores. */
   pinnedCores: number[];
   onApply: (cores: number[]) => void;
+  allowLpeOnly?: boolean;
 };
 
 const formatCoreList = (cores: number[]): string => {
@@ -69,6 +70,7 @@ export const CpuCorePinningDialog = ({
   onOpenChange,
   pinnedCores,
   onApply,
+  allowLpeOnly = false,
 }: CpuCorePinningDialogProps) => {
   const topology = useAppSelector(selectCpuTopology);
   const [draft, setDraft] = useState<number[]>(pinnedCores);
@@ -110,8 +112,8 @@ export const CpuCorePinningDialog = ({
     [topology],
   );
 
-  const isLpeOnlySelection =
-    draft.length > 0 && draft.every((cpu) => lpeCpus.has(cpu));
+  const isLpeOnlyBlocked =
+    !allowLpeOnly && draft.length > 0 && draft.every((cpu) => lpeCpus.has(cpu));
 
   const toggleCpu = (cpu: number, checked: boolean) => {
     setDraft((previous) =>
@@ -181,7 +183,9 @@ export const CpuCorePinningDialog = ({
                     </label>
 
                     <p className="pl-6 text-xs text-muted-foreground">
-                      {CORE_TYPE_DESCRIPTIONS[group.type]}
+                      {allowLpeOnly && group.type === "LPE"
+                        ? "Lowest power."
+                        : CORE_TYPE_DESCRIPTIONS[group.type]}
                     </p>
 
                     <div className="flex flex-wrap gap-x-2.5 gap-y-2 pl-6">
@@ -209,7 +213,7 @@ export const CpuCorePinningDialog = ({
               })}
             </div>
 
-            {isLpeOnlySelection && (
+            {isLpeOnlyBlocked && (
               <div className="flex items-start gap-2 border border-destructive/40 bg-destructive/10 p-2 text-xs">
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                 <span>
@@ -246,7 +250,7 @@ export const CpuCorePinningDialog = ({
           </Button>
           <Button
             onClick={handleApply}
-            disabled={!hasTopology || isLpeOnlySelection}
+            disabled={!hasTopology || isLpeOnlyBlocked}
           >
             Apply
           </Button>

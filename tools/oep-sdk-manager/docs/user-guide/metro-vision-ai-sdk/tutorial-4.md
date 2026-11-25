@@ -74,8 +74,7 @@ cd ~/oep/metro-vision-tutorial-4
 wget -O face-demographics-walking.mp4 \
   "https://github.com/intel-iot-devkit/sample-videos/raw/master/face-demographics-walking.mp4"
 
-# Download and convert the YOLO26s-pose model to OpenVINO IR (FP16)
-# using the model download script shipped in the DL Streamer container
+# Download and export YOLO26s-pose to OpenVINO IR (FP16) using DL Streamer's Ultralytics script
 docker run --rm --net=host \
   --user "$(id -u):$(id -g)" \
   -e HOME=/home/dlstreamer \
@@ -85,11 +84,23 @@ docker run --rm --net=host \
   -e http_proxy=$http_proxy \
   -v "${PWD}:/home/dlstreamer" \
   intel/dlstreamer:2026.3.0-ubuntu24-rc1 \
-  bash -c "export MODELS_PATH=/home/dlstreamer/models && \
-           /opt/intel/dlstreamer/samples/download_public_models.sh yolo26s-pose"
+  bash -c '
+    set -e
+    export MODELS_PATH=/home/dlstreamer/models
+    SCRIPTS_DIR=/opt/intel/dlstreamer/scripts/download_models
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    source "$HOME/.local/bin/env"
+    [[ -d .ultralytics_models_venv ]] || uv venv .ultralytics_models_venv
+    source .ultralytics_models_venv/bin/activate
+    uv pip install --index-strategy unsafe-best-match -r "${SCRIPTS_DIR}/requirements_download_ultralytics_models.txt"
+    python3 "${SCRIPTS_DIR}/download_ultralytics_models.py" --model yolo26s-pose --outdir "${MODELS_PATH}/public/yolo26s-pose/FP16/" --half
+  '
 ```
 
 The model is saved to `models/public/yolo26s-pose/FP16/yolo26s-pose.xml`, which is the path expected by the DL Streamer human pose estimation sample.
+
+> **Note:** Because the working directory is the container's home, the command leaves a Python virtual environment in `.ultralytics_models_venv/`, plus the `uv` binary in `.local/` and download caches in `.cache/`. The virtual environment is reused if you run the command again. Delete these folders after the model is exported if you no longer need them.
+
 Run Docker as your regular non-root host user, without `sudo`; matching UID:GID keeps generated files editable on the host.
 The workspace provides a writable home for preparation environments and caches, but existing root-owned files are not repaired.
 
