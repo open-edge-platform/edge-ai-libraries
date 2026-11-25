@@ -123,12 +123,27 @@ def wait_for_vippet_ready(
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     report: Callable[[str], None] = print,
+    verbose: bool = True,
 ) -> None:
     """Check ViPPET health and wait for its status endpoint to report ready.
 
-    *client* is owned by the caller (opened and closed there); this function
-    never closes it.
+    Args:
+        base_url: ViPPET API base URL.
+        readiness_timeout_seconds: How long to wait for ``ready``.
+        poll_interval: Seconds between status polls.
+        request_timeout: Timeout of one request, in seconds.
+        client: HTTP client, owned by the caller (opened and closed there);
+            this function never closes it.
+        monotonic: Clock, injectable for tests.
+        sleep: Waits between polls, injectable for tests.
+        report: Prints one ``[pre-flight]`` line.
+        verbose: When ``False`` only WAITING and FAILED lines are reported;
+            the OK/READY lines of a healthy service are not.
+
+    Raises:
+        PreflightError: ViPPET is unreachable, unhealthy or not ready in time.
     """
+    report_ok = report if verbose else (lambda _line: None)
     health_url = f"{base_url.rstrip('/')}/health"
     status_url = f"{base_url.rstrip('/')}/status"
     deadline = monotonic() + readiness_timeout_seconds
@@ -136,7 +151,7 @@ def wait_for_vippet_ready(
     try:
         timeout = _remaining_timeout(deadline, request_timeout, monotonic)
         response, health_payload = _get_json_object(client, health_url, timeout)
-        report(
+        report_ok(
             f"[pre-flight] GET {health_url}: OK "
             f"(HTTP {response.status_code}, healthy={health_payload.get('healthy')!r})"
         )
@@ -154,7 +169,7 @@ def wait_for_vippet_ready(
             response, payload = _get_json_object(client, status_url, timeout)
             last_observed = _state_description(payload)
             if payload.get("ready") is True:
-                report(
+                report_ok(
                     f"[pre-flight] GET {status_url}: READY "
                     f"(HTTP {response.status_code}, {last_observed})"
                 )

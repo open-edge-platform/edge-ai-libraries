@@ -78,6 +78,9 @@ services:
     depends_on:
       - otel-collector
     volumes:
+      # REST API source/destination file paths are restricted to this directory
+      # (see README.md#security-considerations); mount custom media as a
+      # subfolder here, e.g. "/host/videos:/home/pipeline-server/resources/videos".
       - "../resources:/home/pipeline-server/resources/"
       # - "../configs/default/config.json:/home/pipeline-server/config.json"
       - vol_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999

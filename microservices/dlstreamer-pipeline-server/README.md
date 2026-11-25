@@ -47,6 +47,15 @@ be aware of:
   ingress/gateway) unless you explicitly set `HTTPS=true` — see
   [environment-variables.md](./docs/user-guide/get-started/environment-variables.md)
   and the [HTTPS how-to guide](./docs/user-guide/advanced-guide/detailed_usage/how-to-advanced/https/dlstreamer_pipeline_server_https.md).
+- **`source`/`destination` file paths are restricted to `/home/pipeline-server/resources`
+  inside the container.** Any `file://` URI or file-type destination path
+  (`destination.metadata.path`) outside that directory is rejected, to prevent a
+  client from reading/writing arbitrary files on the container filesystem. If you
+  previously mounted your own video/image/model folder at a different container
+  path, remount it under `/home/pipeline-server/resources` instead (e.g.
+  `- /your/host/folder:/home/pipeline-server/resources/your-folder` in
+  `docker-compose.yml`) and update any `file://` references in your requests to
+  match the new container path.
 
 ## Prerequisites For Target System
 
