@@ -110,15 +110,19 @@ make format      # Auto-format with ruff
 
 | Target              | Description                                                          |
 | ------------------- | -------------------------------------------------------------------- |
-| `make build`        | Build all Docker images (DLSPS 2.0 skipped if `DLSPS2_IMAGE` is set) |
+| `make build`        | Build core images (DLSPS 2.0 skipped if `DLSPS2_IMAGE` is set)       |
 | `make run`          | Start all services via Docker Compose                                |
 | `make run-prebuilt` | Pull and start the published images (`latest` on main); never builds |
 | `make stop`         | Stop all services                                                    |
-| `make clean`        | Stop and remove containers/volumes                                   |
+| `make clean`        | Delete models, caches and media under `shared/`; keeps volumes       |
 | `make shell`        | Open shell in vippet container                                       |
 | `make shell-ui`     | Open shell in UI container                                           |
 | `make shell-dlsps`  | Open shell in DL Streamer Pipeline Server 2.0 container              |
 | `make test`         | Run tests in Docker                                                  |
+
+`make build` does not build the Voice images (`audio-analyzer`, `text-to-speech`): `make run` pulls the published
+images, and only `make build-dev` builds them from source. `make clean` does not stop containers or remove named
+volumes. See `docs/user-guide/user-guide/voice-conversion.md`.
 
 ## API
 
@@ -182,7 +186,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `MODELS_PATH`                      | Path to downloaded models                                    | `/models/output`                                           |
 | `AUTO_VIDEO_DIR`                   | Path to auto-downloaded videos                               | `/videos/input/auto`                                       |
 | `UPLOADED_VIDEO_DIR`               | Path to user-uploaded videos                                 | `/videos/input/uploaded`                                   |
-| `DEFAULT_RECORDINGS_FILE`          | Path to the YAML listing recordings to auto-download         | `/videos/default_recordings.yaml`                          |
+| `DEFAULT_RECORDINGS_FILE`          | Path to the YAML listing downloadable sample videos          | `/videos/default_recordings.yaml`                          |
 | `UPLOAD_ALLOWED_EXTENSIONS`        | Comma-separated allow-list of upload file extensions         | `mp4,mkv,mov,avi,ts,264,avc,h265,hevc`                     |
 | `UPLOAD_ALLOWED_CONTAINERS`        | Comma-separated allow-list of upload container formats       | `mp4,mov,mkv,avi,mpegts,raw`                               |
 | `UPLOAD_ALLOWED_CODECS`            | Comma-separated allow-list of upload video codecs            | `h264,h265`                                                |

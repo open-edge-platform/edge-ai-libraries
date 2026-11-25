@@ -10,10 +10,7 @@
     <div class="detail-body">
       <template v-if="node">
         <div class="detail-title">
-          <CanvasResource :node="node" />
-          <a-typography-text copyable class="resource-id">{{
-            node.id
-          }}</a-typography-text>
+          <CanvasResource :node="node" show-id />
         </div>
         <AssetDetails
           v-if="node.kind === 'asset' && selectedAsset"
@@ -50,6 +47,8 @@
           :source="selectedSource"
           :node="node"
           :library-data="libraryData"
+          :content-assets="contentAssets"
+          :content-assets-ready="contentAssetsReady"
           :submit-loading="submitLoading"
           @connect="handleConnect"
           @detach="emit('detach', $event)"
@@ -75,18 +74,22 @@
         />
       </template>
     </div>
-    <template #footer
-      ><span class="section-hint">{{
-        $t("console.canvasKeyboardHint")
-      }}</span></template
-    >
+    <template #footer>
+      <div class="canvas-footer">
+        <span class="console-info-hint">
+          <InfoCircleOutlined />
+          <span>{{ $t("console.canvasKeyboardHint") }}</span>
+        </span>
+      </div>
+    </template>
   </a-drawer>
 </template>
 <script lang="ts" setup name="CanvasDetails">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { InfoCircleOutlined } from "@ant-design/icons-vue";
 import "vue-json-pretty/lib/styles.css";
-import type { Library } from "@/api/console/type";
+import type { Asset, Library } from "@/api/console/type";
 import type { AssetRow } from "../../assets/AssetProgress";
 import type { CanvasEdge, CanvasNode } from "../Type";
 import CanvasResource from "./CanvasResource.vue";
@@ -103,6 +106,8 @@ const props = defineProps<{
   edge?: CanvasEdge;
   nodeList: CanvasNode[];
   assets: AssetRow[];
+  contentAssets: Asset[];
+  contentAssetsReady: boolean;
   submitLoading: boolean;
 }>();
 const emit = defineEmits<{
@@ -143,13 +148,6 @@ const selectedSource = computed(() =>
 <style scoped lang="less">
 .detail-title {
   margin-bottom: 16px;
-  .resource-id {
-    display: block;
-    margin-top: 8px;
-    font-size: 12px;
-    color: var(--font-info-color);
-    overflow-wrap: anywhere;
-  }
 }
 .detail-body {
   :deep(.detail-action) {
@@ -191,5 +189,13 @@ const selectedSource = computed(() =>
   font-size: 12px;
   line-height: 1.7;
   margin-top: 10px;
+}
+.detail-body :deep(.console-info-hint:not(.detail-notice)) {
+  margin: 12px 0;
+}
+.canvas-footer {
+  display: flex;
+  justify-content: flex-end;
+  text-align: right;
 }
 </style>

@@ -49,6 +49,7 @@ import {
   useGetVideosQuery,
 } from "@/api/api.generated";
 import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
+import { isTruthyPropertyValue } from "@/lib/pipelineUtils.ts";
 import { isRtspUrl, validateRtspUrl } from "@/lib/rtspUtils.ts";
 
 const CUSTOM_RTSP_OPTION_ID = "__custom_rtsp__";
@@ -64,6 +65,7 @@ type NodePropertyConfig = {
   description?: string;
   required?: boolean;
   params?: { [key: string]: string };
+  visibleWhen?: { key: string; equals: readonly string[] };
 };
 
 const getOptionValue = (option: SelectOptionConfig): string =>
@@ -74,6 +76,107 @@ const getOptionLabel = (option: SelectOptionConfig): string =>
 
 type NodeConfig = {
   editableProperties: NodePropertyConfig[];
+};
+
+const getNodeConfig = (nodeType: string): NodeConfig | null => {
+  // TODO: change switch to associative array
+  switch (nodeType) {
+    case "gvametaconvert":
+      return gvaMetaConvertConfig;
+    case "gvametapublish":
+      return gvaMetaPublishConfig;
+    case "gvatrack":
+      return gvaTrackConfig;
+    case "gvaclassify":
+      return gvaClassifyConfig;
+    case "gvainference":
+      return gvaInferenceConfig;
+    case "gvadetect":
+      return gvaDetectConfig;
+    case "gvagenai":
+      return gvaGenAIConfig;
+    case "gvamotiondetect":
+      return gvaMotionDetectConfig;
+    case "source":
+      return sourceNodeConfig;
+    case "gvaproximitytrigger_py":
+      return proximityTriggerConfig;
+    case "sscape_timestamp_capture":
+      return sscapeTimestampCaptureConfig;
+    case "sscape_post_inference_data_publish":
+      return sscapePostInferenceDataPublishConfig;
+    case "multifilesink":
+      return multiFileSinkConfig;
+    case "filesink":
+      return fileSinkConfig;
+    case "fakesink":
+      return fakeSinkConfig;
+    case "filesrc":
+      return fileSrcConfig;
+    case "tee":
+      return teeConfig;
+    case "queue":
+    case "queue2":
+      return queueConfig;
+    case "mp4mux":
+      return mp4MuxConfig;
+    case "gvafpscounter":
+      return gvaFpsCounterConfig;
+    case "splitmuxsink":
+      return splitMuxSinkConfig;
+    case "datasrc":
+      return dataSrcConfig;
+    case "tsam-ingestion":
+      return tsamIngestionConfig;
+    case "tsam-udf":
+      return tsamUdfConfig;
+    case "tsam-output":
+      return tsamOutputConfig;
+    default:
+      return null;
+  }
+};
+
+const isPropertyVisible = (
+  prop: NodePropertyConfig,
+  properties: NodePropertyConfig[],
+  data: Record<string, unknown>,
+): boolean => {
+  if (!prop.visibleWhen) {
+    return true;
+  }
+  const controllingProp = properties.find(
+    (candidate) => candidate.key === prop.visibleWhen?.key,
+  );
+  const current = data[prop.visibleWhen.key] ?? controllingProp?.defaultValue;
+  return prop.visibleWhen.equals.includes(String(current ?? ""));
+};
+
+const isControllingProperty = (
+  key: string,
+  properties: NodePropertyConfig[],
+): boolean => properties.some((prop) => prop.visibleWhen?.key === key);
+
+const syncConditionalProperties = (
+  properties: NodePropertyConfig[],
+  data: Record<string, unknown>,
+): Record<string, unknown> => {
+  const synced = { ...data };
+  for (const prop of properties) {
+    if (!prop.visibleWhen) {
+      continue;
+    }
+    const seeded = synced[prop.key] ?? prop.defaultValue;
+    if (
+      isPropertyVisible(prop, properties, data) &&
+      String(seeded ?? "") !== ""
+    ) {
+      synced[prop.key] = seeded;
+    } else {
+      delete synced[prop.key];
+    }
+  }
+  return synced;
 };
 
 type SelectOption = {
@@ -313,7 +416,19 @@ const NodeDataPanel = ({
     }
 
     const nextValue = key === "kind" ? normalizeKindValue(value) : value;
-    const updatedData = { ...editableData, [key]: nextValue };
+    let updatedData = { ...editableData, [key]: nextValue };
+
+    const config = getNodeConfig(selectedNode.type ?? "");
+    if (config) {
+      const properties = config.editableProperties;
+      if (
+        String(nextValue ?? "") === "" &&
+        !isControllingProperty(key, properties)
+      ) {
+        delete updatedData[key];
+      }
+      updatedData = syncConditionalProperties(properties, updatedData);
+    }
 
     if (selectedNode.type === "source" && key === "kind") {
       setCustomRtspNodeId(null);
@@ -352,73 +467,16 @@ const NodeDataPanel = ({
     );
   }
 
-  const getNodeConfig = (nodeType: string): NodeConfig | null => {
-    // TODO: change switch to associative array
-    switch (nodeType) {
-      case "gvametaconvert":
-        return gvaMetaConvertConfig;
-      case "gvatrack":
-        return gvaTrackConfig;
-      case "gvaclassify":
-        return gvaClassifyConfig;
-      case "gvainference":
-        return gvaInferenceConfig;
-      case "gvadetect":
-        return gvaDetectConfig;
-      case "gvagenai":
-        return gvaGenAIConfig;
-      case "gvamotiondetect":
-        return gvaMotionDetectConfig;
-      case "source":
-        return sourceNodeConfig;
-      case "gvaproximitytrigger_py":
-        return proximityTriggerConfig;
-      case "sscape_timestamp_capture":
-        return sscapeTimestampCaptureConfig;
-      case "sscape_post_inference_data_publish":
-        return sscapePostInferenceDataPublishConfig;
-      case "multifilesink":
-        return multiFileSinkConfig;
-      case "filesink":
-        return fileSinkConfig;
-      case "fakesink":
-        return fakeSinkConfig;
-      case "filesrc":
-        return fileSrcConfig;
-      case "tee":
-        return teeConfig;
-      case "queue":
-      case "queue2":
-        return queueConfig;
-      case "mp4mux":
-        return mp4MuxConfig;
-      case "gvafpscounter":
-        return gvaFpsCounterConfig;
-      case "gvametapublish":
-        return gvaMetaPublishConfig;
-      case "splitmuxsink":
-        return splitMuxSinkConfig;
-      case "datasrc":
-        return dataSrcConfig;
-      case "tsam-ingestion":
-        return tsamIngestionConfig;
-      case "tsam-udf":
-        return tsamUdfConfig;
-      case "tsam-output":
-        return tsamOutputConfig;
-      default:
-        return null;
-    }
-  };
-
   const nodeConfig = getNodeConfig(selectedNode.type ?? "");
 
   const editableProperties = nodeConfig?.editableProperties ?? [];
 
-  // TODO: maybe it should only display defined fields
   const dataEntries = nodeConfig
     ? editableProperties
         .filter((prop) => !prop.key.startsWith("__"))
+        .filter((prop) =>
+          isPropertyVisible(prop, editableProperties, editableData),
+        )
         .map((prop) => [prop.key, editableData[prop.key] ?? prop.defaultValue])
     : Object.entries(editableData ?? {}).filter(
         // Keys starting with '__' are internal/private properties and should not be displayed to users.
@@ -534,6 +592,9 @@ const NodeDataPanel = ({
                     const isCameraSource =
                       selectedNode.type === "source" &&
                       isCameraKind(editableData.kind);
+                    const isVideoSource =
+                      selectedNode.type === "filesrc" ||
+                      normalizeKindValue(editableData.kind) === "video";
                     const matchesDiscoveredCamera = cameraOptions.some(
                       (option) => option.value === sourceSelectValue,
                     );
@@ -560,10 +621,13 @@ const NodeDataPanel = ({
                             value: CUSTOM_RTSP_OPTION_ID,
                           },
                         ]
-                      : ensureCurrentSourceOption(
-                          baseOptions,
-                          sourceSelectValue,
-                        );
+                      : // A video that is not downloaded stays unselected.
+                        isVideoSource && !sourceSelectValue.startsWith("/")
+                        ? baseOptions
+                        : ensureCurrentSourceOption(
+                            baseOptions,
+                            sourceSelectValue,
+                          );
                     const selectedId = showCustomRtsp
                       ? CUSTOM_RTSP_OPTION_ID
                       : (sourceOptions.find(
@@ -685,22 +749,23 @@ const NodeDataPanel = ({
                 ) : inputType === "boolean" ? (
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      checked={Boolean(value)}
+                      checked={isTruthyPropertyValue(value)}
                       onCheckedChange={(checked) =>
-                        handleInputChange(keyStr, checked)
+                        // Node data is serialised as element properties, always strings.
+                        handleInputChange(keyStr, checked ? "true" : "false")
                       }
                     />
-                    <span className="text-xs">{value ? "True" : "False"}</span>
+                    <span className="text-xs">
+                      {isTruthyPropertyValue(value) ? "True" : "False"}
+                    </span>
                   </div>
                 ) : inputType === "number" ? (
                   <Input
                     type="number"
                     value={String(value ?? "")}
                     onChange={(e) =>
-                      handleInputChange(
-                        keyStr,
-                        e.target.value ? Number(e.target.value) : "",
-                      )
+                      // Node data is serialised as element properties, always strings.
+                      handleInputChange(keyStr, e.target.value)
                     }
                     className={FIELD_INPUT_CLASS}
                     placeholder={`Enter ${propConfig?.label ?? keyStr}`}

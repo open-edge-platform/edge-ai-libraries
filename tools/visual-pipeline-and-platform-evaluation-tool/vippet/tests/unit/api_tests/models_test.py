@@ -922,6 +922,39 @@ class TestModelsDownloadFromHubAPI(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 422)
 
+    def test_geti_accepts_name_with_spaces_and_forwards_category(self):
+        with patch("api.routes.models.ModelManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
+            mock_manager_instance.start_download = AsyncMock(
+                return_value=("job-1", 202, "Download started (job job-1)")
+            )
+            mock_manager_cls.return_value = mock_manager_instance
+
+            response = self.client.post(
+                "/models/download",
+                json={
+                    "names": ["YOLOX-Tiny (a08374ca)"],
+                    "hub": "geti",
+                    "category": "object_detection",
+                },
+            )
+
+            self.assertEqual(response.status_code, 202)
+            mock_manager_instance.start_download.assert_awaited_once_with(
+                "YOLOX-Tiny (a08374ca)",
+                "geti",
+                InternalModelCategory.OBJECT_DETECTION,
+                None,
+            )
+
+    def test_geti_rejects_slash_and_dot_segment_names(self):
+        for name in ("a/b", "../etc", ".hidden"):
+            response = self.client.post(
+                "/models/download",
+                json={"names": [name], "hub": "geti", "category": "object_detection"},
+            )
+            self.assertEqual(response.status_code, 422, name)
+
 
 class TestModelsCheckStatusAPI(unittest.TestCase):
     """Tests for POST /models/check-status route layer."""

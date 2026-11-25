@@ -28,21 +28,20 @@
     :binding="selectedBinding"
     @search="emit('search')"
   />
-  <a-alert
-    v-if="edge.content"
-    type="info"
-    showIcon
-    :message="$t('console.contentLink')"
-  />
+  <p v-if="edge.content" class="console-info-hint">
+    <InfoCircleOutlined />
+    <span>{{ $t("console.contentLink") }}</span>
+  </p>
   <template v-else>
-    <p class="section-hint">
-      {{
+    <p class="console-info-hint">
+      <InfoCircleOutlined />
+      <span>{{
         $t(
           edge.from.startsWith("asset:")
             ? "console.removePoolAssetHint"
             : "console.detachHint",
         )
-      }}
+      }}</span>
     </p>
     <a-tooltip :title="detachHint">
       <a-button
@@ -65,7 +64,7 @@
 <script lang="ts" setup name="CanvasLinkDetails">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { ArrowDownOutlined } from "@ant-design/icons-vue";
+import { ArrowDownOutlined, InfoCircleOutlined } from "@ant-design/icons-vue";
 import type { Library } from "@/api/console/type";
 import {
   isAssetDeletionBlocked,
@@ -172,11 +171,5 @@ const selectedBinding = computed(() =>
   color: var(--color-success);
   font-size: 16px;
   font-weight: 700;
-}
-.section-hint {
-  color: var(--font-info-color);
-  font-size: 12px;
-  line-height: 1.7;
-  margin: 12px 0;
 }
 </style>

@@ -1,0 +1,120 @@
+"schema-version": "1"
+"cli-version": "c2c8902ea25385ba311178f045b9b4e590656d28"
+"cli-url": "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/c2c8902ea25385ba311178f045b9b4e590656d28/rendered/openedge-cli-federal-aerospace"
+"cli-sha256": "6d87c3fd660afefb2bc6c0d69c8b564ca7d539b5832075e94280ecd669c3b031"
+"install-cmdline": ["openedge-cli","install","handheld_blueprint","--edgepack","--docker"]
+"module-list": ["handheld_blueprint"]
+---
+"pkg-list": ["curl","ca-certificates"]
+---
+"pkg-list": ["dmidecode"]
+---
+"pkg-list": ["kmod"]
+---
+"pkg-list": ["pciutils"]
+---
+"pkg-list": ["gnupg"]
+---
+"pkg-list": ["cpuid"]
+---
+"pkg-list": ["gawk"]
+---
+---
+"pkg-list": ["linux-image-7.0.0-42-generic","linux-headers-7.0.0-42-generic"]
+"kernel-cmdline": ["xe.max_vfs=7","xe.force_probe=*","modprobe.blacklist=i915","udmabuf.list_limit=8192"]
+---
+"pkg-list": ["autoconf"]
+---
+"pkg-list": ["automake"]
+---
+"pkg-list": ["chrony"]
+---
+"pkg-list": ["cmake"]
+---
+"pkg-list": ["docker.io","docker-buildx","docker-compose-v2"]
+---
+"pkg-list": ["git","ca-certificates"]
+---
+"pkg-list": ["golang"]
+---
+"pkg-list": ["gcc-15","g++-15","linux-headers-7.0.0-42-generic"]
+---
+"pkg-list": ["linux-tools-common","linux-tools-7.0.0-42-generic","linux-perf","bpftool"]
+---
+"pkg-list": ["lm-sensors"]
+---
+"pkg-list": ["make"]
+---
+"pkg-list": ["msr-tools"]
+---
+"pkg-list": ["pkg-config"]
+---
+"pkg-list": ["python3-venv"]
+---
+"pkg-list": ["stress-ng"]
+---
+"pkg-list": ["sysbench"]
+---
+"pkg-list": ["autoconf-archive","libglib2.0-dev","libdbus-1-dev","libxml2-dev","libnl-3-dev","libnl-genl-3-dev","libsystemd-dev","systemd-dev","gtk-doc-tools","libupower-glib-dev"]
+---
+"repo-name": "apt.repos.intel.com"
+"gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+"key-file": "/etc/apt/keyrings/intel-edge-pack.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/intel-edge-pack.gpg] https://apt.repos.intel.com/edgepack resolute stable"
+"apt-list-file": "/etc/apt/sources.list.d/intel-edge-pack.list"
+"apt-pref": ["Package: *","Pin: origin apt.repos.intel.com","Pin-Priority: 1001"]
+"apt-pref-file": "/etc/apt/preferences.d/intel-edge-pack.pref"
+"pkg-list": ["intel-edge-base-standard=1.0*"]
+---
+"repo-name": "apt.repos.intel.com"
+"gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+"key-file": "/etc/apt/keyrings/intel-edge-pack.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/intel-edge-pack.gpg] https://apt.repos.intel.com/edgepack resolute stable"
+"apt-list-file": "/etc/apt/sources.list.d/intel-edge-pack.list"
+"apt-pref": ["Package: *","Pin: origin apt.repos.intel.com","Pin-Priority: 1001"]
+"apt-pref-file": "/etc/apt/preferences.d/intel-edge-pack.pref"
+"pkg-list": ["intel-edge-ipu=1.0*"]
+---
+"repo-name": "apt.repos.intel.com"
+"gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+"key-file": "/etc/apt/keyrings/intel-edge-pack.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/intel-edge-pack.gpg] https://apt.repos.intel.com/edgepack resolute stable"
+"apt-list-file": "/etc/apt/sources.list.d/intel-edge-pack.list"
+"apt-pref": ["Package: *","Pin: origin apt.repos.intel.com","Pin-Priority: 1001"]
+"apt-pref-file": "/etc/apt/preferences.d/intel-edge-pack.pref"
+"pkg-list": ["intel-edge-manageability=1.0*"]
+---
+"repo-name": "apt.repos.intel.com"
+"gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+"key-file": "/etc/apt/keyrings/intel-edge-pack.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/intel-edge-pack.gpg] https://apt.repos.intel.com/edgepack resolute stable"
+"apt-list-file": "/etc/apt/sources.list.d/intel-edge-pack.list"
+"apt-pref": ["Package: *","Pin: origin apt.repos.intel.com","Pin-Priority: 1001"]
+"apt-pref-file": "/etc/apt/preferences.d/intel-edge-pack.pref"
+"pkg-list": ["intel-edge-npu=1.0*"]
+---
+"repo-name": "librealsense.realsenseai.com"
+"gpg-key": "https://librealsense.realsenseai.com/Debian/librealsenseai.asc"
+"key-file": "/etc/apt/keyrings/librealsenseai.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/librealsenseai.gpg] https://librealsense.realsenseai.com/Debian/apt-repo resolute main"
+"apt-list-file": "/etc/apt/sources.list.d/librealsense.list"
+"pkg-list": ["librealsense2","librealsense2-utils","librealsense2-dev","librealsense2-gl","librealsense2-udev-rules"]
+---
+"repo-name": "apt.repos.intel.com"
+"gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+"key-file": "/etc/apt/keyrings/intel-edge-pack.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/intel-edge-pack.gpg] https://apt.repos.intel.com/edgepack resolute stable"
+"apt-list-file": "/etc/apt/sources.list.d/intel-edge-pack.list"
+"apt-pref": ["Package: *","Pin: origin apt.repos.intel.com","Pin-Priority: 1001"]
+"apt-pref-file": "/etc/apt/preferences.d/intel-edge-pack.pref"
+"pkg-list": ["intel-edge-media-ffmpeg=1.0*"]
+---
+"repo-name": "apt.repos.intel.com"
+"gpg-key": "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+"key-file": "/etc/apt/keyrings/intel-edge-pack.gpg"
+"apt-source": "deb [signed-by=/etc/apt/keyrings/intel-edge-pack.gpg] https://apt.repos.intel.com/edgepack resolute stable"
+"apt-list-file": "/etc/apt/sources.list.d/intel-edge-pack.list"
+"apt-pref": ["Package: *","Pin: origin apt.repos.intel.com","Pin-Priority: 1001"]
+"apt-pref-file": "/etc/apt/preferences.d/intel-edge-pack.pref"
+"pkg-list": ["intel-edge-media-gst=1.0*"]
+---

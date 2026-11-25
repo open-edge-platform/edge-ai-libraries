@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: Media Decode
+definition: >
+  Media-only decode for measuring stream density and CPU utilization.
+  Decodes on VDBox when CPU pinning is set, otherwise uses the default decoder.
+tags:
+  - Media
+thumbnail: images/media-decode.png
+type: vision
+variants:
+  - name: Decode
+    cpu_pinning: []
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      queue !
+      gvafpscounter starting-frame=2000 !
+      fakesink name=default_output_sink sync=false async=false

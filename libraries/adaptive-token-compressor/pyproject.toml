@@ -8,8 +8,8 @@
 #   - The default install pulls the SDK client deps plus `claw-compactor`,
 #     which HarnessCompressor / ContextCompressor use for content-type-aware
 #     compression. `claw-compactor` resolves from PyPI like any other dep.
-#   - The `compress-server-pytorch-xpu` extra requires Intel XPU wheels; pip needs explicit
-#     `--extra-index-url` flags (pyproject cannot encode index URLs).
+#   - The `compress-server-pytorch-xpu` extra requires the Intel XPU torch wheel; pip needs an
+#     explicit `--extra-index-url` flag (pyproject cannot encode index URLs).
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -32,7 +32,7 @@ dependencies = [
 # Compress Server extras — one per runtime (`--runtime pytorch|ov`, matching
 # deployment/compress-server/Dockerfile.pytorch|Dockerfile.ov); the PyTorch
 # runtime is further split by device:
-#   * compress-server-pytorch-xpu -> PyTorch runtime on Intel XPU (IPEX)
+#   * compress-server-pytorch-xpu -> PyTorch runtime on Intel XPU (native torch.xpu)
 #   * compress-server-pytorch-cpu -> PyTorch runtime on CPU
 #   * compress-server-ov          -> OpenVINO runtime (device cpu / gpu)
 #
@@ -41,20 +41,16 @@ dependencies = [
 # the OV extra are NOT combinable: they pin different transformers /
 # huggingface-hub versions (see the note on compress-server-ov).
 #
-# compress-server-pytorch-xpu needs two --extra-index-url flags (pyproject can't encode
-# index URLs); torch/torchvision/torchaudio versions must move together (IPEX ABI):
+# compress-server-pytorch-xpu needs the XPU wheel index (pyproject can't encode
+# index URLs):
 #   pip install --extra-index-url https://download.pytorch.org/whl/xpu \
-#               --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ \
 #               ".[compress-server-pytorch-xpu]"
 #
-# PyTorch runtime, XPU (torch + IPEX + oneccl). Also runs on CPU (`--device cpu`,
-# IPEX unused), but CPU-only users should prefer the lighter `compress-server-pytorch-cpu`.
+# PyTorch runtime, XPU (stock torch XPU build; IPEX / oneccl_bind_pt are retired and
+# not needed). Also runs on CPU (`--device cpu`), but CPU-only users should prefer
+# the lighter `compress-server-pytorch-cpu`.
 compress-server-pytorch-xpu = [
-    "torch==2.8.0",
-    "torchvision==0.23.0",
-    "torchaudio==2.8.0",
-    "intel-extension-for-pytorch==2.8.10+xpu",
-    "oneccl_bind_pt==2.8.0+xpu",
+    "torch==2.10.0",
     "llmlingua==0.2.2",
     "transformers==5.16.1",
     "tokenizers==0.23.2",
@@ -63,7 +59,7 @@ compress-server-pytorch-xpu = [
     "uvicorn[standard]==0.52.4",
     "pydantic==2.13.5",
 ]
-# CPU-only fallback for the PyTorch runtime (no IPEX, no XPU wheels needed).
+# CPU-only fallback for the PyTorch runtime (no XPU wheels needed).
 # Pass `--runtime pytorch --device cpu` on launch. Install from the CPU wheel
 # index to get the lean CPU-only torch build and avoid the heavy accelerator
 # runtime packages the default PyPI wheel pulls in on Linux (pyproject can't
@@ -72,7 +68,7 @@ compress-server-pytorch-xpu = [
 #               --extra-index-url https://pypi.org/simple \
 #               ".[compress-server-pytorch-cpu]"
 compress-server-pytorch-cpu = [
-    "torch==2.8.0",
+    "torch==2.10.0",
     "llmlingua==0.2.2",
     "transformers==5.16.1",
     "tokenizers==0.23.2",
@@ -82,7 +78,7 @@ compress-server-pytorch-cpu = [
     "pydantic==2.13.5",
 ]
 # OpenVINO runtime (`--runtime ov`, device cpu / gpu). OV drives the Intel GPU
-# via its own runtime (not torch), so plain CPU torch is enough — no IPEX/XPU
+# via its own runtime (not torch), so plain CPU torch is enough — no XPU
 # wheels. Install from the CPU wheel index to get the lean CPU-only torch build
 # and avoid the heavy accelerator runtime packages the default PyPI wheel pulls
 # in on Linux (pyproject can't encode index URLs):
@@ -94,7 +90,7 @@ compress-server-pytorch-cpu = [
 # Docker image (Dockerfile.ov) overrides transformers to 5.16.1 in a separate
 # pip step, which a single extras resolve cannot express.
 compress-server-ov = [
-    "torch==2.8.0",
+    "torch==2.10.0",
     "llmlingua==0.2.2",
     "transformers==5.5.4",
     "tokenizers==0.22.2",
