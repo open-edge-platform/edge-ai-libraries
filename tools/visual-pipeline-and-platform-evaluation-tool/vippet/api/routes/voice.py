@@ -241,6 +241,19 @@ def _sample_audio_recording_response(
     response_model=list[schemas.SampleAudioRecordingResponse],
 )
 async def list_sample_audio_recordings() -> list[schemas.SampleAudioRecordingResponse]:
+    """
+    # List Sample Audio Recordings
+
+    ## Operation
+    Return the allowlisted sample catalog, including audio metadata and whether
+    each recording is already available locally. No files are downloaded.
+
+    ## Response Codes
+    | Code | Description |
+    |------|-------------|
+    | 200 | Sample recordings and their local download status |
+    | 503 | Voice initialization failed |
+    """
     assets = AudioAssetsManager()
     return [
         _sample_audio_recording_response(
@@ -262,6 +275,26 @@ async def list_sample_audio_recordings() -> list[schemas.SampleAudioRecordingRes
 async def download_sample_audio_recording(
     filename: str,
 ) -> schemas.SampleAudioRecordingResponse:
+    """
+    # Download Sample Audio Recording
+
+    ## Operation
+    Download an allowlisted WAV sample and store it locally for playback and
+    speech-to-text pipelines. Reuse an existing valid local recording.
+
+    ## Parameters
+    - `filename`: Sample filename from the catalog, not a URL or arbitrary path.
+
+    ## Response Codes
+    | Code | Description |
+    |------|-------------|
+    | 200 | Sample is available locally |
+    | 404 | Filename is not in the sample catalog |
+    | 500 | Sample could not be stored locally |
+    | 502 | Upstream download failed or returned invalid or oversized audio |
+    | 503 | Voice initialization failed |
+    | 504 | Upstream download timed out |
+    """
     recording = _get_sample_audio_recording(filename)
     assets = AudioAssetsManager()
     if assets.get_asset(filename) is None:

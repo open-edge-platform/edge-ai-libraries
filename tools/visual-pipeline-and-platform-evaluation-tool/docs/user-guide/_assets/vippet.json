@@ -4417,6 +4417,7 @@
           "voice"
         ],
         "summary": "List Sample Audio Recordings",
+        "description": "# List Sample Audio Recordings\n\n## Operation\nReturn the allowlisted sample catalog, including audio metadata and whether\neach recording is already available locally. No files are downloaded.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Sample recordings and their local download status |\n| 503 | Voice initialization failed |",
         "operationId": "list_sample_audio_recordings_voice_sample_recordings_get",
         "responses": {
           "200": {
@@ -4442,6 +4443,7 @@
           "voice"
         ],
         "summary": "Download Sample Audio Recording",
+        "description": "# Download Sample Audio Recording\n\n## Operation\nDownload an allowlisted WAV sample and store it locally for playback and\nspeech-to-text pipelines. Reuse an existing valid local recording.\n\n## Parameters\n- `filename`: Sample filename from the catalog, not a URL or arbitrary path.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Sample is available locally |\n| 404 | Filename is not in the sample catalog |\n| 500 | Sample could not be stored locally |\n| 502 | Upstream download failed or returned invalid or oversized audio |\n| 503 | Voice initialization failed |\n| 504 | Upstream download timed out |",
         "operationId": "download_sample_audio_recording_voice_sample_recordings__filename__download_post",
         "parameters": [
           {
