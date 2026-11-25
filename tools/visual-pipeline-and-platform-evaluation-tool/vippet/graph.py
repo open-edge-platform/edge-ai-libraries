@@ -4309,18 +4309,6 @@ def _add_property_to_last_node(nodes: list[Node], token: _Token) -> None:
     logger.debug(f"Added property to node {nodes[-1].id}: {key}={value}")
 
 
-def _quote_if_spaced(value: object) -> str:
-    """Double-quote a property value that contains whitespace.
-
-    GStreamer launch syntax splits unquoted values at spaces; values that are
-    already quoted are left as they are.
-    """
-    text = str(value)
-    if text[:1] in ('"', "'") or not re.search(r"\s", text):
-        return text
-    return f'"{text}"'
-
-
 def _build_chain(
     start_id: str,
     node_by_id: dict[str, Node],
