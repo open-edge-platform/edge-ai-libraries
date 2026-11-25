@@ -1751,3 +1751,357 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 Except as contained in this notice, the name of the X Consortium shall not be used in advertising or otherwise to promote the sale, use or other dealings in this Software without prior written authorization from the X Consortium.
 
 X Window System is a trademark of X Consortium, Inc.
+
+===========================================================
+10) connexion, tornado, boto3, botocore, kafka-python, swagger-ui-bundle,
+    opentelemetry-sdk, opentelemetry-exporter-prometheus,
+    opentelemetry-exporter-otlp, opentelemetry-exporter-otlp-proto-grpc,
+    opentelemetry-exporter-otlp-proto-http, prometheus_client,
+    python-dateutil (dual-licensed, Apache-2.0 option)
+
+Apache License, Version 2.0.
+
+See the full "Apache License, Version 2.0" text reproduced under entry (1)
+above; it applies identically to the components listed in this entry.
+
+-----------------------------------------------------------------------
+11) pydantic, Flask-Cors, rfc3339-validator, rfc3986-validator, jsonschema,
+    influxdb-client, marshmallow, ntplib, fastapi
+
+MIT License.
+
+See the full "MIT License" text reproduced under entry (2) above; it applies
+identically to the components listed in this entry.
+
+Note: Flask-Cors (PyPI package "Flask-Cors") does not carry a machine-readable
+license classifier in its package metadata; its license is declared as the MIT
+License in the project's upstream repository/documentation.
+
+Note: fastapi is a dependency of the "dlsps2" (FastAPI-based) implementation,
+which is Alpha/work-in-progress and was not present in the image scanned to
+produce the SBOM this notice file was reconciled against. It is included here
+for completeness since it is already declared in dlsps2/src/requirements.txt.
+
+-----------------------------------------------------------------------
+12) numpy, Jinja2, psutil, uvicorn
+
+BSD 3-Clause License.
+
+See the full "BSD 3-Clause License" text reproduced under entry (4) above; it
+applies identically to the components listed in this entry.
+
+Note: uvicorn is a dependency of the "dlsps2" (FastAPI-based) implementation,
+which is Alpha/work-in-progress and was not present in the image scanned to
+produce the SBOM this notice file was reconciled against. It is included here
+for completeness since it is already declared in dlsps2/src/requirements.txt.
+
+-----------------------------------------------------------------------
+13) opencv-python (clarification)
+
+opencv-python is already referenced in this file: the Python packaging/build
+scripts of the "opencv-python" PyPI distribution are MIT licensed (see the
+"opencv-python / Copyright (c) Olli-Pekka Heinisuo" notice under entry (2)
+above), while the underlying OpenCV library it bundles is licensed under the
+Apache License, Version 2.0 (see entry (1) above). Both license texts required
+for this component are therefore already present in this file.
+
+-----------------------------------------------------------------------
+14) asyncua
+
+                   GNU LESSER GENERAL PUBLIC LICENSE
+                       Version 3, 29 June 2007
+
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ Everyone is permitted to copy and distribute verbatim copies of this
+ license document, but changing it is not allowed.
+
+
+  This version of the GNU Lesser General Public License incorporates
+the terms and conditions of version 3 of the GNU General Public
+License, supplemented by the additional permissions listed below.
+
+  0. Additional Definitions.
+
+  As used herein, "this License" refers to version 3 of the GNU Lesser
+General Public License, and the "GNU GPL" refers to version 3 of the GNU
+General Public License.
+
+  "The Library" refers to a covered work governed by this License,
+other than an Application or a Combined Work as defined below.
+
+  An "Application" is any work that makes use of an interface provided
+by the Library, but which is not otherwise based on the Library.
+Defining a subclass of a class defined by the Library is deemed a mode
+of using an interface provided by the Library.
+
+  A "Combined Work" is a work produced by combining or linking an
+Application with the Library. The particular version of the Library
+with which the Combined Work was made is also called the "Linked
+Version".
+
+  The "Minimal Corresponding Source" for a Combined Work means the
+Corresponding Source for the Combined Work, excluding any source code
+for portions of the Combined Work that, considered in isolation, are
+based on the Application, and not on the Linked Version.
+
+  The "Corresponding Application Code" for a Combined Work means the
+object code and/or source code for the Application, including any data
+and utility programs needed for reproducing the Combined Work from the
+Application, but excluding the System Libraries of the Combined Work.
+
+  1. Exception to Section 3 of the GNU GPL.
+
+  You may convey a covered work under sections 3 and 4 of this License
+without being bound by section 3 of the GNU GPL.
+
+  2. Conveying Modified Versions.
+
+  If you modify a copy of the Library, and, in your modifications, a
+facility refers to a function or data to be supplied by an Application
+that uses the facility (other than as an argument passed when the
+facility is invoked), then you may convey a copy of the modified
+version:
+
+   a) under this License, provided that you make a good faith effort to
+   ensure that, in the event an Application does not supply the
+   function or data, the facility still operates, and performs
+   whatever part of its purpose remains meaningful, or
+
+   b) under the GNU GPL, with none of the additional permissions of
+   this License applicable to that copy.
+
+  3. Object Code Incorporating Material from Library Header Files.
+
+  The object code form of an Application may incorporate material from
+a header file that is part of the Library. You may convey such object
+code under terms of your choice, provided that, if the incorporated
+material is not limited to numerical parameters, data structure
+layouts and accessors, or small macros, inline functions and templates
+(ten or fewer lines in length), you do both of the following:
+
+   a) Give prominent notice with each copy of the object code that the
+   Library is used in it and that the Library and its use are covered
+   by this License.
+
+   b) Accompany the object code with a copy of the GNU GPL and this
+   license document.
+
+  4. Combined Works.
+
+  You may convey a Combined Work under terms of your choice that,
+taken together, effectively do not restrict modification of the
+portions of the Library contained in the Combined Work and reverse
+engineering for debugging such modifications, if you also do each of
+the following:
+
+   a) Give prominent notice with each copy of the Combined Work that
+   the Library is used in it and that the Library and its use are
+   covered by this License.
+
+   b) Accompany the Combined Work with a copy of the GNU GPL and this
+   license document.
+
+   c) For a Combined Work that displays copyright notices during
+   execution, include the copyright notice for the Library among
+   these notices, as well as a reference directing the user to the
+   copies of the GNU GPL and this license document.
+
+   d) Do one of the following:
+
+       0) Convey the Minimal Corresponding Source under the terms of
+       this License, and the Corresponding Application Code in a form
+       suitable for, and under terms that permit, the user to
+       recombine or relink the Application with a modified version of
+       the Linked Version to produce a modified Combined Work.
+
+       1) Use a suitable shared library mechanism for linking with the
+       Library.
+
+   e) Provide Installation Information, but this requirement does not
+   apply if neither you nor any third party retains the ability to
+   install modified object code on the Application.
+
+  5. Combined Libraries.
+
+  You may place library facilities that are a work based on the
+Library side by side in a single library together with other library
+facilities that are not Applications and are not covered by this
+License, and convey such a combined library under terms of your
+choice, if you do both of the following:
+
+   a) Accompany the combined library with a copy of the same work
+   based on the Library, uncombined with any other library facilities,
+   conveyed under the terms of this License.
+
+   b) Give prominent notice with the combined library that part of it
+   is a work based on the Library, and explaining where to find the
+   accompanying uncombined form of the same work.
+
+  6. Revised Versions of the GNU Lesser General Public License.
+
+  The Free Software Foundation may publish revised and/or new versions
+of the GNU Lesser General Public License from time to time. Such new
+versions will be similar in spirit to the present version, but may
+differ in detail to address new problems or concerns.
+
+  Each version is given a distinguishing version number. If the
+Library as you received it specifies that a certain numbered version
+of the GNU Lesser General Public License "or any later version"
+applies to it, you have the option of following the terms and
+conditions either of that published version or of any later version
+published by the Free Software Foundation. If the Library as you
+received it does not specify a version number of the GNU Lesser
+General Public License, you may choose any version of the GNU Lesser
+General Public License ever published by the Free Software Foundation.
+
+  If the Library as you received it specifies that a proxy can decide
+whether future versions of the GNU Lesser General Public License shall
+apply, that proxy's public statement of acceptance of any version is
+permanent authorization for you to choose that version for the
+Library.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. SEE THE GNU LESSER
+GENERAL PUBLIC LICENSE FOR MORE DETAILS.
+
+-----------------------------------------------------------------------
+15) paho-mqtt (PyPI Python client library "paho-mqtt", distinct from the
+    C library "paho.mqtt.c" already covered under entry (6) above)
+
+This program and the accompanying materials are made available under the
+terms of the Eclipse Public License v1.0 and Eclipse Distribution License
+v1.0 which accompany this distribution.
+
+The Eclipse Public License is available at
+   http://www.eclipse.org/legal/epl-v10.html
+and the Eclipse Distribution License is available at
+   http://www.eclipse.org/org/documents/edl-v10.php.
+
+
+Eclipse Distribution License - v 1.0
+
+Copyright (c) 2007, Eclipse Foundation, Inc. and its licensors.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+  Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+
+  Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+
+  Neither the name of the Eclipse Foundation, Inc. nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+-----------------------------------------------------------------------
+16) orjson — FLAGGED FOR SWLC / LEGAL REVIEW
+
+orjson's package metadata declares a composite license expression:
+"MPL-2.0 AND (Apache-2.0 OR MIT)". The primary dual license (Apache-2.0 OR
+MIT) is already covered by the texts under entries (1) and (11) above.
+However, the "MPL-2.0 AND" component indicates that one or more statically
+linked Rust crates bundled into the compiled orjson wheel are licensed under
+the Mozilla Public License 2.0 (full MPL-2.0 text already present in this
+file under entry (8), "ca-certificates"). orjson does not publish a
+per-crate attribution/NOTICE breakdown in its PyPI distribution, so the
+specific MPL-2.0 component(s) could not be independently identified from
+the SBOM or package metadata alone.
+
+ACTION REQUIRED: SWLC/legal should confirm the specific MPL-2.0-licensed
+sub-component(s) bundled in orjson (e.g. via the project's Cargo.lock /
+source repository) and whether additional source-availability obligations
+under MPL-2.0 Section 3.1 apply to this distribution.
+
+-----------------------------------------------------------------------
+17) GLib (libglib2.0-0), libusb-1.0 (libusb-1.0-0), libtool/libltdl (libtool)
+
+These are OS-level (apt) packages explicitly installed by name in the
+runtime stage of this component's own `Dockerfile` (not merely inherited
+transitively from the base image), so they are called out individually here
+in addition to being covered by the automated GPL source-offer process
+described below.
+
+GNU Lesser General Public License, version 2.1 or later.
+
+See the full "GNU LESSER GENERAL PUBLIC LICENSE Version 2.1" text reproduced
+under entry (7) above; it applies identically to the components listed in
+this entry.
+
+-----------------------------------------------------------------------
+18) cJSON (libcjson1)
+
+MIT License.
+
+See the full "MIT License" text reproduced under entry (2) above; it applies
+identically to this component.
+
+-----------------------------------------------------------------------
+19) OpenSSL 3.x (libssl3), libopencv-core / libopencv-imgcodecs
+
+Apache License, Version 2.0.
+
+See the full "Apache License, Version 2.0" text reproduced under entry (1)
+above; it applies identically to the components listed in this entry.
+(libopencv-core/libopencv-imgcodecs are the system shared libraries for the
+same OpenCV project already referenced for `opencv-python` under entry (13)
+above; libssl3 is only installed on the Ubuntu 22.04 build variant.)
+
+-----------------------------------------------------------------------
+20) libxtst6 (clarification)
+
+libxtst6 is part of the X.Org project and is already covered by the
+"X11 License" text reproduced under entry (9) above; no separate text is
+required.
+
+-----------------------------------------------------------------------
+21) cpuid, util-linux — GPL-licensed OS utility packages
+
+These are explicitly apt-get-installed by name in the runtime stage of this
+component's `Dockerfile`. Both are GPL-licensed Debian/Ubuntu packages whose
+source-availability obligation is fulfilled by the existing automated
+mechanism in `sources.Dockerfile`: it enumerates every OS package recorded in
+`thirdparty/third_party_deb_apk_deps_ubuntu22.txt` /
+`third_party_deb_apk_deps_ubuntu24.txt`, inspects each package's own
+`/usr/share/doc/<package>/copyright` for a GPL marker, and downloads the
+matching source package when found. No additional text is required in this
+file for these two packages specifically beyond this cross-reference, since
+their own on-disk `/usr/share/doc/.../copyright` file (shipped as part of the
+Debian/Ubuntu package itself) already carries the required copyright notice.
+
+ACTION REQUIRED: SWLC/legal should confirm whether
+`thirdparty/third_party_deb_apk_deps_ubuntu22.txt` /
+`_ubuntu24.txt` and the base images referenced by `sources.Dockerfile`
+(`intel/dlstreamer-pipeline-server:2026.2.0-extended-ubuntu22`,
+`intel/dlstreamer-pipeline-server:2026.1.0-extended-ubuntu24`) are
+regenerated/re-pinned to match the actual 2026.3.0 release artifacts before
+this release ships — as found, both stages reference older
+(2026.1.0/2026.2.0) image tags rather than 2026.3.0, so the automatically
+downloaded GPL sources may not correspond 1:1 with what is actually shipped
+in the 2026.3.0 images.
+
+===========================================================
+Entries (10)-(16) above were added to reconcile this notice file against the
+direct Python dependencies declared in src/requirements.txt and
+dlsps2/src/requirements.txt, using license data extracted from the CycloneDX
+SBOM generated for the 2026.3.0 release image (Protex/Black Duck scanning is
+not applicable to this open-source component). Entries (17)-(21) were added
+to reconcile this notice file against the OS/apt packages explicitly
+installed by name in this component's own Dockerfile. Entries (1)-(9) predate
+this reconciliation and were left unchanged.
