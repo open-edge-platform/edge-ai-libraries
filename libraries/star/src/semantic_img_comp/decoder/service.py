@@ -303,7 +303,7 @@ def create_app(service: DecoderService) -> FastAPI:
 
         return FrameAcceptedResponse(frame_seq=frame.frame_seq, img_idx=frame.img_idx)
 
-    @app.get("/v1/streams/{stream_id}/frames/next", responses=JpegFrameResponse().to_openapi())
+    @app.get("/v1/streams/{stream_id}/frames/next", response_class=Response, responses=JpegFrameResponse().to_openapi())
     async def get_next_frame(
         stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to poll."),
         consumer_id: str = Query(..., min_length=1, max_length=128, description="Caller-chosen id identifying this consumer's own read cursor."),
@@ -319,7 +319,7 @@ def create_app(service: DecoderService) -> FastAPI:
             return Response(status_code=204)
         return Response(content=frame.jpeg_bytes, media_type="image/jpeg", headers=_frame_headers(frame))
 
-    @app.get("/v1/streams/{stream_id}/frames/{frame_seq}", responses=JpegFrameResponse().to_openapi())
+    @app.get("/v1/streams/{stream_id}/frames/{frame_seq}", response_class=Response, responses=JpegFrameResponse().to_openapi())
     def get_frame_by_seq(
         frame_seq: int = ApiPath(..., description="Frame sequence number to fetch."),
         stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream."),

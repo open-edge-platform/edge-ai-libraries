@@ -240,9 +240,6 @@
           "200": {
             "description": "Decoded JPEG frame.",
             "content": {
-              "application/json": {
-                "schema": {}
-              },
               "image/jpeg": {}
             }
           },
@@ -292,9 +289,6 @@
           "200": {
             "description": "Decoded JPEG frame.",
             "content": {
-              "application/json": {
-                "schema": {}
-              },
               "image/jpeg": {}
             }
           },
