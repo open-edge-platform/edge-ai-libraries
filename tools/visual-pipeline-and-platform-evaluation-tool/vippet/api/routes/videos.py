@@ -273,15 +273,20 @@ async def get_default_video_recordings():
         statuses = dict(_default_video_download_status)
     for recording in manager.get_default_recordings():
         filename = recording["filename"]
-        hostname = urlparse(recording["url"]).hostname or ""
-        is_pexels = hostname.lower().endswith(".pexels.com")
+        hostname = urlparse(recording["url"]).hostname.lower() or ""
+        is_pexels = hostname == "pexels.com" or hostname.endswith(".pexels.com")
+        is_openvino = (
+            hostname == "openvinotoolkit.org"
+            or hostname.endswith(".openvinotoolkit.org")
+        )
+        is_github = hostname == "github.com" or hostname.endswith(".github.com")
         source = (
             "Pexels"
             if is_pexels
             else "OpenVINO"
-            if hostname.endswith("openvinotoolkit.org")
+            if is_openvino
             else "GitHub"
-            if hostname.endswith("github.com")
+            if is_github
             else hostname
         )
         # A file being moved into place is visible before the download finishes.
