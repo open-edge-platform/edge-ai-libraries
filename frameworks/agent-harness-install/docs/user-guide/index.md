@@ -129,7 +129,7 @@ for details.
 :::{toctree}
 :hidden:
 
-./overview-for-everyone.md
+Overview (non-technical) <./overview.md>
 ./get-started.md
 ./how-it-works.md
 ./agentic-ai-security.md
