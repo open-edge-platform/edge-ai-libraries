@@ -16,8 +16,7 @@ configuration and asks for Kubernetes/Helm deployment.
 | `DEVICE=cpu` | `gpu.enabled=false` | Default |
 | `/dev/dri` usage + render group | `gpu.devices=/dev/dri`, `gpu.key=<cluster-gpu-label>` | `RENDER_DEVICE_GID` is not needed in chart values |
 | `REGISTRY` | `image.registry` | Keep trailing slash style used by chart |
-| `BACKEND_TAG` (OpenVINO CPU) | `image.tags.openvinoCPU` | |
-| `BACKEND_TAG` (OpenVINO GPU) | `image.tags.openvinoGPU` | |
+| `BACKEND_TAG` (OpenVINO) | `image.tags.openvino` | |
 | `BACKEND_TAG` (Ollama) | `image.tags.ollama` | |
 | `MODEL_CACHE_PATH` volume | `global.model_cache_path` | PVC mount path inside container |
 | `HUGGINGFACEHUB_API_TOKEN` / `HF_ACCESS_TOKEN` | `global.huggingface.apiToken` | OpenVINO path |
@@ -45,5 +44,5 @@ gpu:
 image:
   registry: intel/
   tags:
-    openvinoCPU: core_2026.2.0-rc2
+    openvino: core_2026.3.0-rc2
 ```
