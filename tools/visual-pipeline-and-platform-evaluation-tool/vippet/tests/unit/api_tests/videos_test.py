@@ -168,6 +168,40 @@ class TestVideosAPI(unittest.TestCase):
             ],
         )
 
+    def test_get_default_video_recordings_maps_source_from_hostname(self):
+        cases = [
+            ("https://pexels.com/a.mp4", "Pexels"),
+            ("https://videos.PEXELS.com/a.mp4", "Pexels"),
+            ("https://openvinotoolkit.org/a.mp4", "OpenVINO"),
+            ("https://storage.openvinotoolkit.org/a.mp4", "OpenVINO"),
+            ("https://github.com/a.mp4", "GitHub"),
+            ("https://raw.github.com/a.mp4", "GitHub"),
+            # Suffix match must not accept look-alike hosts.
+            ("https://evilgithub.com/x.mp4", "evilgithub.com"),
+            ("https://github.com.evil.test/x.mp4", "github.com.evil.test"),
+            ("https://notpexels.com/x.mp4", "notpexels.com"),
+            ("https://example.test/x.mp4", "example.test"),
+            ("not-a-url", ""),
+        ]
+        for url, expected_source in cases:
+            with (
+                self.subTest(url=url),
+                patch("api.routes.videos.VideosManager") as manager_class,
+            ):
+                manager = manager_class.return_value
+                manager.get_default_recordings.return_value = [
+                    {"filename": "sample.mp4", "url": url}
+                ]
+                manager.default_video_exists.return_value = False
+                manager.filename_exists.return_value = False
+                manager.default_hevc_filename.return_value = "sample_h265.mp4"
+                manager.get_video.return_value = None
+
+                response = self.client.get("/videos/default-recordings")
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()[0]["source"], expected_source)
+
     def test_get_default_video_recordings_reports_download_in_progress(self):
         videos_route._default_video_download_status["sample.mp4"] = (
             videos_route.schemas.DefaultVideoDownloadState.DOWNLOADING
