@@ -35,6 +35,8 @@ nncf==3.1.0
 # diarization pipeline (it imports speechbrain) with an AttributeError.
 speechbrain==1.1.2
 pyannote.audio==4.0.4
+# torch>=2.9's torch.onnx.export needs it for OpenVINO-backed (GPU/NPU) diarization.
+onnxscript==0.7.2
 huggingface-hub==0.34.4
 hf_xet==1.4.3
 librosa==0.11.0

@@ -83,6 +83,8 @@ nncf==3.1.0
 numba==0.61.2
 numpy==2.2.6
 onnx==1.22.0
+onnx_ir==1.1.0
+onnxscript==0.7.2
 openai-whisper==20250625
 opentelemetry-api==1.45.1
 opentelemetry-exporter-http-transport==0.66b1

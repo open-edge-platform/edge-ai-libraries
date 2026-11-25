@@ -241,6 +241,8 @@ def _export_to_onnx_bytes(
             input_names=[input_name],
             output_names=[output_name],
             dynamic_axes=dynamic_axes,
+            # torch>=2.9 defaults to the dynamo exporter, which cannot decompose pyannote's graph.
+            dynamo=False,
         )
     except Exception as exc:
         detail = str(exc)
@@ -397,6 +399,7 @@ def _build_or_load_ov_embedding_head(
                 input_names=["fbank", "weights"],
                 output_names=["embedding"],
                 dynamic_axes=dynamic_axes,
+                dynamo=False,
             )
         except Exception as exc:
             detail = str(exc)
