@@ -7,7 +7,7 @@
 FROM python:3.13-slim AS compressor-src
 
 ARG COMPRESSOR_REPO=https://github.com/open-edge-platform/edge-ai-libraries.git
-ARG COMPRESSOR_REF=release-2026.2.0
+ARG COMPRESSOR_REF=release-2026.3.0
 ARG COMPRESSOR_SUBDIR=libraries/adaptive-token-compressor
 
 RUN apt-get update \
@@ -27,14 +27,27 @@ RUN git clone --depth 1 --branch "${COMPRESSOR_REF}" --filter=blob:none --sparse
 # ---- Runtime stage ----
 FROM python:3.13-slim
 
+# Pick up Debian security fixes released after the base image (perl-base,
+# openssl, zlib, util-linux, ...).
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY src/ src/
+# Third-party notices ship with the image. Kept outside /app because the compose
+# deployment mounts the workspace over /app.
+COPY third_party_programs.txt /opt/third_party_programs.txt
 COPY --from=compressor-src /libs/adaptive-token-compressor/ /libs/adaptive-token-compressor/
 
+# pip is only needed to build the image, and it vendors its own older copies of
+# certifi/urllib3/msgpack/setuptools that vulnerability scanners flag, so it is
+# removed once the packages are installed.
 RUN pip install --no-cache-dir ".[ov]" && \
-    pip install --no-cache-dir "/libs/adaptive-token-compressor"
+    pip install --no-cache-dir "/libs/adaptive-token-compressor" && \
+    pip uninstall -y pip
 
 COPY scripts/install_gpu_runtime.sh /tmp/install_gpu_runtime.sh
 RUN bash /tmp/install_gpu_runtime.sh && rm /tmp/install_gpu_runtime.sh

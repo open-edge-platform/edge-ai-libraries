@@ -29,6 +29,8 @@
 #   GATEWAY_MAX_CONCURRENCY
 #                  Max concurrent in-flight requests; excess get HTTP 429.
 #                  Default: 0 (unlimited).
+#   IR_OV_MODEL    Host directory of the classifier backbone's OpenVINO IR (required).
+#   IR_BACKBONE    Backbone of that IR: qwen35-2b (default), qwen3-0.6b or llama3-1b.
 #
 # With no REGISTRY set the deploy uses the local ${REGISTRY}inference-router:${TAG}
 # image (build it first with --build). When REGISTRY is set the image is pulled
@@ -192,6 +194,7 @@ export GATEWAY_VERBOSE
 export GATEWAY_VERBOSE_FULL
 export GATEWAY_MAX_CONCURRENCY="${GATEWAY_MAX_CONCURRENCY:-0}"
 export IR_OV_MODEL
+export IR_BACKBONE="${IR_BACKBONE:-qwen35-2b}"
 # Image reference the compose file interpolates: ${REGISTRY}inference-router:${TAG}
 export REGISTRY
 export TAG
@@ -221,6 +224,7 @@ case "$IR_BIND_HOST" in
         echo "  Access:           reachable at $IR_BIND_HOST (remote); localhost refused" ;;
 esac
 echo "  OV model:         $IR_OV_MODEL"
+echo "  OV backbone:      $IR_BACKBONE"
 echo "  OV device:        $IR_DEVICE"
 [ -n "$GATEWAY_VERBOSE" ]           && echo "  Verbose:          enabled"
 [ -n "$GATEWAY_VERBOSE_FULL" ]      && echo "  Verbose full:     enabled"
@@ -303,6 +307,43 @@ seed_rsd_defaults() {
     docker rm "$cid" >/dev/null
 }
 seed_rsd_defaults
+
+# ---- Seed workspace classifier versions from the router image ----
+# The packaged v1 of each backbone goes to workspace/artifacts/router/<backbone>/,
+# next to the versions created through the API; the router serves the workspace
+# copy. A v1 already in the workspace is kept as it is. Skipped when workspace/.env 
+# moves the artifacts with IR_ARTIFACTS_DIR.
+IMAGE_PROMPTS_DIR="$IMAGE_RSD_DIR/model_based/prompts"
+seed_packaged_versions() {
+    local artifacts="$PROJECT_ROOT/workspace/artifacts/router" tmp cid src backbone dest
+    if grep -qE '^[[:space:]]*IR_ARTIFACTS_DIR=' "$PROJECT_ROOT/workspace/.env" 2>/dev/null; then
+        echo "IR_ARTIFACTS_DIR is set in workspace/.env; not seeding the packaged classifier versions"
+        return 0
+    fi
+
+    tmp="$(mktemp -d)"
+    cid="$(docker create "$IMAGE_REF")"
+    if ! docker cp "$cid:$IMAGE_PROMPTS_DIR" "$tmp/" 2>/dev/null; then
+        # Not fatal: the router still serves the versions packaged in the image.
+        docker rm "$cid" >/dev/null
+        rm -rf "$tmp"
+        echo "Warning: $IMAGE_PROMPTS_DIR not found in $IMAGE_REF; not seeding the packaged classifier versions"
+        return 0
+    fi
+    docker rm "$cid" >/dev/null
+
+    for src in "$tmp"/prompts/*/v1.rcv; do
+        [ -f "$src" ] || continue
+        backbone="$(basename "$(dirname "$src")")"
+        dest="$artifacts/$backbone/v1.rcv"
+        [ -f "$dest" ] && continue
+        echo "workspace/artifacts/router/$backbone/v1.rcv not found; copying it from image $IMAGE_REF"
+        mkdir -p "$(dirname "$dest")"
+        cp "$src" "$dest"
+    done
+    rm -rf "$tmp"
+}
+seed_packaged_versions
 
 # ---- Obtain the UI image: same policy as the router image ----
 if [ "$WITH_UI" = true ]; then

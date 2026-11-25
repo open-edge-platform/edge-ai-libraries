@@ -73,8 +73,8 @@ distributes; contact the ViPPET maintainers through the repository issue tracker
 2. BASE CONTAINER IMAGES
 ====================================================================================================
 
-intel/vippet-app            built FROM intel/dlstreamer (Ubuntu 24.04 based)
-intel/vippet-videogenerator built FROM intel/dlstreamer (Ubuntu 24.04 based)
+intel/vippet-app            built FROM intel/dlstreamer (Ubuntu 26.04 based)
+intel/vippet-videogenerator built FROM intel/dlstreamer (Ubuntu 26.04 based)
 intel/vippet-onvif-discovery built FROM python:3.14-slim (Debian based)
 intel/vippet-ui             built FROM node:24 (build stage only) and nginx:alpine (runtime)
 
@@ -1255,7 +1255,12 @@ completeness only.
 
   intel/model-download    - Intel component, distributed separately with its own notices.
   intel/metrics-manager   - Intel component, distributed separately with its own notices.
+  intel/audio-analyzer    - Intel component, distributed separately with its own notices.
+  intel/text-to-speech    - Intel component, distributed separately with its own notices.
   bluenviron/mediamtx     - MIT License, distributed by its upstream project.
+  eclipse-mosquitto       - Eclipse Public License 2.0 and Eclipse Distribution License 1.0
+                            (dual-licensed), distributed by its upstream project. Optional;
+                            pulled only with the compose.mqtt.yml overlay (make run MQTT=1).
 
 The experimental time-series profile (compose.experimental.yml) is not part of the default
 deployment. It builds intel/ia-timeseries-ingestion from timeseries-ingestion/, which on top of

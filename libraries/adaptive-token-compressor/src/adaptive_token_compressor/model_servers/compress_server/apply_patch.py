@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import subprocess  # nosec B404 - build-time helper; runs `patch` with a fixed list argv, no shell, no untrusted input
+import shutil
 import sys
 from pathlib import Path
 
@@ -37,7 +38,6 @@ def _llmlingua_dir() -> Path:
             "              --extra-index-url https://pypi.org/simple \\\n"
             "              \".[compress-server-ov]\"            # OpenVINO\n"
             "  pip install --extra-index-url https://download.pytorch.org/whl/xpu \\\n"
-            "              --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ \\\n"
             "              \".[compress-server-pytorch-xpu]\"   # XPU (PyTorch)"
         ) from e
     return Path(llmlingua.__file__).parent
@@ -55,8 +55,11 @@ def apply() -> None:
             f"Patch file missing from package: {_PATCH_FILE}. "
             "Reinstall adaptive-token-compressor."
         )
+    patch_executable = shutil.which("patch")
+    if patch_executable is None:
+        raise FileNotFoundError("Required executable 'patch' was not found on PATH")
     result = subprocess.run(
-        ["patch", "-p1", "-i", str(_PATCH_FILE)],
+        [patch_executable, "-p1", "-i", str(_PATCH_FILE)],  # nosec B603 - absolute executable and fixed package-controlled arguments; no shell or user input
         cwd=target_dir,
         capture_output=True,
         text=True,

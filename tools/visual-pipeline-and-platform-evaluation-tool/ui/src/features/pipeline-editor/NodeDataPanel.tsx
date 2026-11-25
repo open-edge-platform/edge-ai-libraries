@@ -28,6 +28,8 @@ import { tsamOutputConfig } from "@/features/pipeline-editor/nodes/TsamOutputNod
 import { tsamUdfConfig } from "@/features/pipeline-editor/nodes/TsamUdfNode.config.ts";
 import { sourceNodeConfig } from "./nodes/custom/SourceNode.config.ts";
 import { proximityTriggerConfig } from "./nodes/custom/ProximityTriggerNode.config.ts";
+import { sscapeTimestampCaptureConfig } from "./nodes/custom/SscapeTimestampCaptureNode.config.ts";
+import { sscapePostInferenceDataPublishConfig } from "./nodes/custom/SscapePostInferenceDataPublishNode.config.ts";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,6 +49,10 @@ import {
   useGetVideosQuery,
 } from "@/api/api.generated";
 import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
+import { isTruthyPropertyValue } from "@/lib/pipelineUtils.ts";
+import { isRtspUrl, validateRtspUrl } from "@/lib/rtspUtils.ts";
+
+const CUSTOM_RTSP_OPTION_ID = "__custom_rtsp__";
 
 type SelectOptionConfig = string | readonly [string, string];
 
@@ -59,6 +65,7 @@ type NodePropertyConfig = {
   description?: string;
   required?: boolean;
   params?: { [key: string]: string };
+  visibleWhen?: { key: string; equals: readonly string[] };
 };
 
 const getOptionValue = (option: SelectOptionConfig): string =>
@@ -69,6 +76,107 @@ const getOptionLabel = (option: SelectOptionConfig): string =>
 
 type NodeConfig = {
   editableProperties: NodePropertyConfig[];
+};
+
+const getNodeConfig = (nodeType: string): NodeConfig | null => {
+  // TODO: change switch to associative array
+  switch (nodeType) {
+    case "gvametaconvert":
+      return gvaMetaConvertConfig;
+    case "gvametapublish":
+      return gvaMetaPublishConfig;
+    case "gvatrack":
+      return gvaTrackConfig;
+    case "gvaclassify":
+      return gvaClassifyConfig;
+    case "gvainference":
+      return gvaInferenceConfig;
+    case "gvadetect":
+      return gvaDetectConfig;
+    case "gvagenai":
+      return gvaGenAIConfig;
+    case "gvamotiondetect":
+      return gvaMotionDetectConfig;
+    case "source":
+      return sourceNodeConfig;
+    case "gvaproximitytrigger_py":
+      return proximityTriggerConfig;
+    case "sscape_timestamp_capture":
+      return sscapeTimestampCaptureConfig;
+    case "sscape_post_inference_data_publish":
+      return sscapePostInferenceDataPublishConfig;
+    case "multifilesink":
+      return multiFileSinkConfig;
+    case "filesink":
+      return fileSinkConfig;
+    case "fakesink":
+      return fakeSinkConfig;
+    case "filesrc":
+      return fileSrcConfig;
+    case "tee":
+      return teeConfig;
+    case "queue":
+    case "queue2":
+      return queueConfig;
+    case "mp4mux":
+      return mp4MuxConfig;
+    case "gvafpscounter":
+      return gvaFpsCounterConfig;
+    case "splitmuxsink":
+      return splitMuxSinkConfig;
+    case "datasrc":
+      return dataSrcConfig;
+    case "tsam-ingestion":
+      return tsamIngestionConfig;
+    case "tsam-udf":
+      return tsamUdfConfig;
+    case "tsam-output":
+      return tsamOutputConfig;
+    default:
+      return null;
+  }
+};
+
+const isPropertyVisible = (
+  prop: NodePropertyConfig,
+  properties: NodePropertyConfig[],
+  data: Record<string, unknown>,
+): boolean => {
+  if (!prop.visibleWhen) {
+    return true;
+  }
+  const controllingProp = properties.find(
+    (candidate) => candidate.key === prop.visibleWhen?.key,
+  );
+  const current = data[prop.visibleWhen.key] ?? controllingProp?.defaultValue;
+  return prop.visibleWhen.equals.includes(String(current ?? ""));
+};
+
+const isControllingProperty = (
+  key: string,
+  properties: NodePropertyConfig[],
+): boolean => properties.some((prop) => prop.visibleWhen?.key === key);
+
+const syncConditionalProperties = (
+  properties: NodePropertyConfig[],
+  data: Record<string, unknown>,
+): Record<string, unknown> => {
+  const synced = { ...data };
+  for (const prop of properties) {
+    if (!prop.visibleWhen) {
+      continue;
+    }
+    const seeded = synced[prop.key] ?? prop.defaultValue;
+    if (
+      isPropertyVisible(prop, properties, data) &&
+      String(seeded ?? "") !== ""
+    ) {
+      synced[prop.key] = seeded;
+    } else {
+      delete synced[prop.key];
+    }
+  }
+  return synced;
 };
 
 type SelectOption = {
@@ -96,6 +204,8 @@ const NodeDataPanel = ({
   onNodeDataUpdate,
 }: NodeDataPanelProps) => {
   const [editableData, setEditableData] = useState<Record<string, unknown>>({});
+  // Id of the source node for which "Custom RTSP URL" was picked explicitly.
+  const [customRtspNodeId, setCustomRtspNodeId] = useState<string | null>(null);
   const models = useAppSelector(selectModels);
   const { data: cameras = [] } = useGetCamerasQuery();
   const { data: videos = [] } = useGetVideosQuery();
@@ -288,10 +398,6 @@ const NodeDataPanel = ({
   const isImageSetKind = (kind: unknown): boolean =>
     normalizeKindValue(kind) === "image_set";
 
-  const hasAvailableCamera = cameraOptions.some(
-    (option) => !option.disabled && option.value,
-  );
-
   const getSourceOptionsForKind = (kind: unknown): SelectOption[] => {
     if (isCameraKind(kind)) {
       return cameraOptions;
@@ -310,9 +416,22 @@ const NodeDataPanel = ({
     }
 
     const nextValue = key === "kind" ? normalizeKindValue(value) : value;
-    const updatedData = { ...editableData, [key]: nextValue };
+    let updatedData = { ...editableData, [key]: nextValue };
+
+    const config = getNodeConfig(selectedNode.type ?? "");
+    if (config) {
+      const properties = config.editableProperties;
+      if (
+        String(nextValue ?? "") === "" &&
+        !isControllingProperty(key, properties)
+      ) {
+        delete updatedData[key];
+      }
+      updatedData = syncConditionalProperties(properties, updatedData);
+    }
 
     if (selectedNode.type === "source" && key === "kind") {
+      setCustomRtspNodeId(null);
       const sourceOptions = getSourceOptionsForKind(nextValue);
       const defaultSource = getDefaultSourceValue(sourceOptions);
       updatedData.source = defaultSource;
@@ -348,69 +467,16 @@ const NodeDataPanel = ({
     );
   }
 
-  const getNodeConfig = (nodeType: string): NodeConfig | null => {
-    // TODO: change switch to associative array
-    switch (nodeType) {
-      case "gvametaconvert":
-        return gvaMetaConvertConfig;
-      case "gvatrack":
-        return gvaTrackConfig;
-      case "gvaclassify":
-        return gvaClassifyConfig;
-      case "gvainference":
-        return gvaInferenceConfig;
-      case "gvadetect":
-        return gvaDetectConfig;
-      case "gvagenai":
-        return gvaGenAIConfig;
-      case "gvamotiondetect":
-        return gvaMotionDetectConfig;
-      case "source":
-        return sourceNodeConfig;
-      case "gvaproximitytrigger_py":
-        return proximityTriggerConfig;
-      case "multifilesink":
-        return multiFileSinkConfig;
-      case "filesink":
-        return fileSinkConfig;
-      case "fakesink":
-        return fakeSinkConfig;
-      case "filesrc":
-        return fileSrcConfig;
-      case "tee":
-        return teeConfig;
-      case "queue":
-      case "queue2":
-        return queueConfig;
-      case "mp4mux":
-        return mp4MuxConfig;
-      case "gvafpscounter":
-        return gvaFpsCounterConfig;
-      case "gvametapublish":
-        return gvaMetaPublishConfig;
-      case "splitmuxsink":
-        return splitMuxSinkConfig;
-      case "datasrc":
-        return dataSrcConfig;
-      case "tsam-ingestion":
-        return tsamIngestionConfig;
-      case "tsam-udf":
-        return tsamUdfConfig;
-      case "tsam-output":
-        return tsamOutputConfig;
-      default:
-        return null;
-    }
-  };
-
   const nodeConfig = getNodeConfig(selectedNode.type ?? "");
 
   const editableProperties = nodeConfig?.editableProperties ?? [];
 
-  // TODO: maybe it should only display defined fields
   const dataEntries = nodeConfig
     ? editableProperties
         .filter((prop) => !prop.key.startsWith("__"))
+        .filter((prop) =>
+          isPropertyVisible(prop, editableProperties, editableData),
+        )
         .map((prop) => [prop.key, editableData[prop.key] ?? prop.defaultValue])
     : Object.entries(editableData ?? {}).filter(
         // Keys starting with '__' are internal/private properties and should not be displayed to users.
@@ -523,56 +589,126 @@ const NodeDataPanel = ({
                 ) : (selectedNode.type === "source" && keyStr === "source") ||
                   (selectedNode.type === "filesrc" && keyStr === "location") ? (
                   (() => {
-                    const sourceOptions = ensureCurrentSourceOption(
+                    const isCameraSource =
+                      selectedNode.type === "source" &&
+                      isCameraKind(editableData.kind);
+                    const isVideoSource =
+                      selectedNode.type === "filesrc" ||
+                      normalizeKindValue(editableData.kind) === "video";
+                    const matchesDiscoveredCamera = cameraOptions.some(
+                      (option) => option.value === sourceSelectValue,
+                    );
+                    const showCustomRtsp =
+                      isCameraSource &&
+                      (customRtspNodeId === selectedNode.id ||
+                        (isRtspUrl(sourceSelectValue) &&
+                          !matchesDiscoveredCamera));
+                    const baseOptions =
                       selectedNode.type === "filesrc"
                         ? videoOptions
-                        : getSourceOptionsForKind(editableData.kind),
-                      sourceSelectValue,
-                    );
-                    const selectedId =
-                      sourceOptions.find(
-                        (option) => option.value === sourceSelectValue,
-                      )?.id ?? "";
+                        : getSourceOptionsForKind(editableData.kind);
+                    const sourceOptions = isCameraSource
+                      ? [
+                          ...(showCustomRtsp
+                            ? baseOptions
+                            : ensureCurrentSourceOption(
+                                baseOptions,
+                                sourceSelectValue,
+                              )),
+                          {
+                            id: CUSTOM_RTSP_OPTION_ID,
+                            label: "Custom RTSP URL…",
+                            value: CUSTOM_RTSP_OPTION_ID,
+                          },
+                        ]
+                      : // A video that is not downloaded stays unselected.
+                        isVideoSource && !sourceSelectValue.startsWith("/")
+                        ? baseOptions
+                        : ensureCurrentSourceOption(
+                            baseOptions,
+                            sourceSelectValue,
+                          );
+                    const selectedId = showCustomRtsp
+                      ? CUSTOM_RTSP_OPTION_ID
+                      : (sourceOptions.find(
+                          (option) => option.value === sourceSelectValue,
+                        )?.id ?? "");
+                    const rtspError = showCustomRtsp
+                      ? validateRtspUrl(sourceSelectValue)
+                      : null;
 
                     return (
-                      <Select
-                        value={selectedId}
-                        onValueChange={(id) => {
-                          const option = sourceOptions.find(
-                            (candidate) => candidate.id === id,
-                          );
-                          if (option) {
-                            handleInputChange(keyStr, option.value);
-                          }
-                        }}
-                        disabled={
-                          selectedNode.type === "source" &&
-                          isCameraKind(editableData.kind) &&
-                          !hasAvailableCamera
-                        }
-                      >
-                        <SelectTrigger
-                          size="sm"
-                          className={FIELD_CONTROL_CLASS}
+                      <>
+                        <Select
+                          value={selectedId}
+                          onValueChange={(id) => {
+                            if (id === CUSTOM_RTSP_OPTION_ID) {
+                              setCustomRtspNodeId(selectedNode.id);
+                              if (
+                                matchesDiscoveredCamera ||
+                                !isRtspUrl(sourceSelectValue)
+                              ) {
+                                handleInputChange(keyStr, "");
+                              }
+                              return;
+                            }
+                            const option = sourceOptions.find(
+                              (candidate) => candidate.id === id,
+                            );
+                            if (option) {
+                              setCustomRtspNodeId(null);
+                              handleInputChange(keyStr, option.value);
+                            }
+                          }}
                         >
-                          <SelectValue
-                            placeholder={`Select ${propConfig?.label ?? keyStr}`}
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {sourceOptions.map((option) => (
-                            <SelectItem
-                              key={option.id}
-                              value={option.id}
-                              disabled={option.disabled}
-                              className="text-xs"
-                            >
-                              {option.label}
-                              {option.disabled ? " (Not authorized)" : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                          <SelectTrigger
+                            size="sm"
+                            className={FIELD_CONTROL_CLASS}
+                          >
+                            <SelectValue
+                              placeholder={`Select ${propConfig?.label ?? keyStr}`}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sourceOptions.map((option) => (
+                              <SelectItem
+                                key={option.id}
+                                value={option.id}
+                                disabled={option.disabled}
+                                className="text-xs"
+                              >
+                                {option.label}
+                                {option.disabled ? " (Not authorized)" : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {showCustomRtsp && (
+                          <div className="mt-2">
+                            <Input
+                              type="text"
+                              value={sourceSelectValue}
+                              onChange={(e) =>
+                                handleInputChange(keyStr, e.target.value)
+                              }
+                              placeholder="rtsp://host:8554/stream"
+                              aria-label="Custom RTSP URL"
+                              aria-invalid={rtspError !== null}
+                              className={FIELD_INPUT_CLASS}
+                            />
+                            {rtspError ? (
+                              <p className="text-xs text-destructive mt-1">
+                                {rtspError}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Stream must be reachable from the ViPPET
+                                containers. Credentials are not supported.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </>
                     );
                   })()
                 ) : inputType === "select" && selectOptions ? (
@@ -613,22 +749,23 @@ const NodeDataPanel = ({
                 ) : inputType === "boolean" ? (
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      checked={Boolean(value)}
+                      checked={isTruthyPropertyValue(value)}
                       onCheckedChange={(checked) =>
-                        handleInputChange(keyStr, checked)
+                        // Node data is serialised as element properties, always strings.
+                        handleInputChange(keyStr, checked ? "true" : "false")
                       }
                     />
-                    <span className="text-xs">{value ? "True" : "False"}</span>
+                    <span className="text-xs">
+                      {isTruthyPropertyValue(value) ? "True" : "False"}
+                    </span>
                   </div>
                 ) : inputType === "number" ? (
                   <Input
                     type="number"
                     value={String(value ?? "")}
                     onChange={(e) =>
-                      handleInputChange(
-                        keyStr,
-                        e.target.value ? Number(e.target.value) : "",
-                      )
+                      // Node data is serialised as element properties, always strings.
+                      handleInputChange(keyStr, e.target.value)
                     }
                     className={FIELD_INPUT_CLASS}
                     placeholder={`Enter ${propConfig?.label ?? keyStr}`}

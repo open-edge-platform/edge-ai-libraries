@@ -68,14 +68,14 @@ test("runtime TAP CLI fails closed and accepts a complete passing report", t => 
 test("summary reports skips, missing files and failed process outcomes", t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tap-summary-"));
   t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
-  const ids = ["runtime", "core", "inference", "lifecycle", "defaults", "reporting"];
+  const ids = ["runtime", "core", "inference", "lifecycle", "metrics", "metrics-cli", "defaults", "reporting"];
   const outcomes = Object.fromEntries(ids.map(id => [id, "success"]));
   for (const id of ids) fs.writeFileSync(path.join(dir, `${id}.tap`), "ok 1 - works\n1..1\n");
   fs.writeFileSync(path.join(dir, "defaults.tap"), "ok 1 - Hermes # SKIP Requires image\n1..1\n");
   const passing = summarize(dir, outcomes);
   assert.equal(passing.success, true);
   assert.match(passing.markdown, /Hermes: Requires image/);
-  assert.match(passing.markdown, /\*\*5\*\* \| \*\*5\*\* \| \*\*0\*\* \| \*\*1\*\*/);
+  assert.match(passing.markdown, /\*\*7\*\* \| \*\*7\*\* \| \*\*0\*\* \| \*\*1\*\*/);
   assert.equal(summarize(dir, {...outcomes, runtime: "failure"}).success, false);
   fs.unlinkSync(path.join(dir, "runtime.tap"));
   assert.equal(summarize(dir, outcomes).success, false);

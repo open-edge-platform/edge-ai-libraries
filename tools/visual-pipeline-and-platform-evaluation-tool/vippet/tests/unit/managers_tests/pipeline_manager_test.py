@@ -1,8 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
+from device import DeviceDiscoveryError, DeviceFamily, DeviceInfo
 from graph import Graph
 from internal_types import (
     InternalExecutionConfig,
@@ -48,12 +52,18 @@ _DLSPS2_ELEMENTS = [
 _elements_patcher = patch(
     "explore.GstInspector._get_dlsps2_elements", return_value=_DLSPS2_ELEMENTS
 )
+# Loading predefined pipelines checks every variant against the DLSPS 2.0
+# device list: keep all variants instead of asking the server.
+_variant_supported_patcher = patch(
+    "managers.pipeline_manager.is_variant_supported", return_value=True
+)
 
 
 def setUpModule() -> None:
-    """Install the VideosManager and element-list patches before any test runs."""
+    """Install the VideosManager, element-list and variant patches before any test runs."""
     global _videos_manager_patcher
     _elements_patcher.start()
+    _variant_supported_patcher.start()
     mock_instance = MagicMock()
     mock_instance.get_video_filename.side_effect = _mock_get_video_filename
     mock_instance.get_video_path.side_effect = _mock_get_video_path
@@ -69,6 +79,7 @@ def tearDownModule() -> None:
     """Remove the patches after the module's tests finish."""
     global _videos_manager_patcher
     _elements_patcher.stop()
+    _variant_supported_patcher.stop()
     if _videos_manager_patcher is not None:
         _videos_manager_patcher.stop()
         _videos_manager_patcher = None
@@ -177,6 +188,96 @@ def create_pipeline_definition(
 
 
 class TestPipelineManager(unittest.TestCase):
+    @patch("managers.pipeline_manager._has_gpu", return_value=True)
+    @patch("managers.pipeline_manager.VideoEncoder")
+    def test_media_vdbox_file_output_uses_gpu_encoder(self, encoder_class, _):
+        spec = create_internal_performance_spec("vdbox", "VDBox", streams=1)
+        spec.pipeline_graph = Graph.from_dict(
+            {
+                **Graph.from_pipeline_description(
+                    "fakesrc ! decodebin3 ! queue ! gvafpscounter starting-frame=2000 ! "
+                    "fakesink name=default_output_sink sync=false async=false"
+                ).to_dict(),
+                "cpu_pinning": [12],
+            }
+        )
+        encoder = encoder_class.return_value
+        encoder.create_video_output_subpipeline.return_value = (
+            "vah264enc ! h264parse ! mp4mux ! filesink location=/tmp/output.mp4"
+        )
+        config = create_internal_execution_config()
+        config.output_mode = InternalOutputMode.FILE
+        command = PipelineManager().build_pipeline_command([spec], config, "vdbox-file")
+        encoder.create_video_output_subpipeline.assert_called_once()
+        self.assertEqual(
+            encoder.create_video_output_subpipeline.call_args.args[1], "GPU"
+        )
+        self.assertIn("decodebin3", command.command)
+        self.assertIn("vah264enc", command.command)
+        self.assertNotIn("openh264enc", command.command)
+
+    @patch("managers.pipeline_manager._has_gpu", return_value=True)
+    def test_media_decode_uses_vdbox_only_when_pinned(self, _):
+        manager = PipelineManager()
+        description = (
+            "fakesrc ! decodebin3 ! queue ! gvafpscounter starting-frame=2000 ! "
+            "fakesink name=default_output_sink sync=false async=false"
+        )
+        pinned = create_internal_performance_spec("pinned", "Pinned", streams=5)
+        pinned.pipeline_graph = Graph.from_dict(
+            {
+                **Graph.from_pipeline_description(description).to_dict(),
+                "cpu_pinning": [12, 13],
+            }
+        )
+        unpinned = create_internal_performance_spec("unpinned", "Unpinned", streams=1)
+        unpinned.pipeline_graph = Graph.from_pipeline_description(description)
+        command = manager.build_pipeline_command(
+            [pinned, unpinned], create_internal_execution_config(), "media"
+        )
+        self.assertEqual(len(command.stream_commands), 6)
+        self.assertEqual(list(command.stream_cpu_cores.values()), [[12, 13]] * 5)
+        for info in command.streams_per_pipeline["pinned"]:
+            launch = command.stream_commands[info.stream_id]
+            self.assertIn("decodebin3", launch)
+            self.assertIn("memory:VAMemory", launch)
+        for info in command.streams_per_pipeline["unpinned"]:
+            self.assertNotIn(info.stream_id, command.stream_cpu_cores)
+            self.assertNotIn("memory:VAMemory", command.stream_commands[info.stream_id])
+
+    def test_pinned_media_decode_falls_back_without_gpu(self):
+        cpu_only = [DeviceInfo(device_name="CPU", device_family=DeviceFamily.CPU)]
+        for name, discovery in (
+            ("cpu_only", {"return_value": cpu_only}),
+            ("discovery_error", {"side_effect": DeviceDiscoveryError("down")}),
+        ):
+            with (
+                self.subTest(name),
+                patch("managers.pipeline_manager.DeviceDiscovery") as discovery_class,
+            ):
+                discovery_class.return_value.list_devices.configure_mock(**discovery)
+                spec = create_internal_performance_spec(name, name, streams=2)
+                spec.pipeline_graph = Graph.from_dict(
+                    {
+                        **Graph.from_pipeline_description(
+                            "fakesrc ! decodebin3 ! queue ! gvafpscounter ! "
+                            "fakesink name=default_output_sink"
+                        ).to_dict(),
+                        "cpu_pinning": [12, 13],
+                    }
+                )
+                with self.assertLogs("pipeline_manager", "WARNING") as logs:
+                    command = PipelineManager().build_pipeline_command(
+                        [spec], create_internal_execution_config(), name
+                    )
+                self.assertIn(
+                    "No GPU available for VDBox decode", "\n".join(logs.output)
+                )
+                self.assertNotIn("memory:VAMemory", command.command)
+                self.assertEqual(
+                    list(command.stream_cpu_cores.values()), [[12, 13]] * 2
+                )
+
     def setUp(self):
         """Reset singleton state before each test."""
         PipelineManager._instance = None
@@ -1851,7 +1952,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             )
 
         self.assertIn(
-            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element.",
+            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file.",
             str(ctx.exception),
         )
 
@@ -1883,7 +1984,35 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             self.manager.build_pipeline_command(specs, execution_config, self.job_id)
 
         self.assertIn(
-            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element.",
+            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element publishing to a file.",
+            str(ctx.exception),
+        )
+
+    def test_metadata_mode_file_with_only_broker_publisher_raises(self):
+        """A pipeline whose only gvametapublish targets a broker cannot produce a file."""
+        graph = create_gvametapublish_graph()
+        for node in graph.nodes:
+            if node.type == "gvametapublish":
+                node.data["method"] = "mqtt"
+                node.data["address"] = "broker:1883"
+                node.data["topic"] = "vippet/metadata"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/mqtt-only/variants/cpu",
+                pipeline_name="mqtt-only",
+                pipeline_graph=graph,
+                streams=1,
+            ),
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        with self.assertRaises(ValueError) as ctx:
+            self.manager.build_pipeline_command(specs, execution_config, self.job_id)
+
+        self.assertIn(
+            "gvametapublish element publishing to a file",
             str(ctx.exception),
         )
 

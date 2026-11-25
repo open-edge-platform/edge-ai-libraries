@@ -12,7 +12,8 @@ queue never deadlocks, and a producer error surfaces to the caller rather than
 hanging the consumer.
 """
 
-from threading import RLock
+import time
+from threading import Event, RLock, current_thread, main_thread
 from types import SimpleNamespace
 
 import pytest
@@ -65,9 +66,8 @@ def test_every_node_is_embedded_then_inserted_in_bounded_batches():
     counts = streaming_materialize(indexer, [_asset("a")], batch_size=2, queue_max=10)
 
     assert counts == {"documents_added": 1, "chunks_added": 5}
-    assert all(len(batch) <= 2 for batch in indexer.insert_batches)
+    assert all(len(batch) <= 2 for batch in indexer.embed_batches)
     assert sum(len(batch) for batch in indexer.insert_batches) == 5
-    assert len(indexer.embed_batches) == len(indexer.insert_batches)
     assert indexer.flushed == 1
     # Each node was embedded (by the consumer) before it was inserted.
     assert all(node.embedding is not None for node, _, _ in items)
@@ -124,6 +124,119 @@ def test_a_producer_error_is_raised_to_the_caller_not_hung():
 
     with pytest.raises(RuntimeError, match="producer boom"):
         streaming_materialize(indexer, [_asset("a")], batch_size=4, queue_max=4)
+
+
+class OverlapIndexer(FakeIndexer):
+    def __init__(self, items_per_asset):
+        super().__init__(items_per_asset)
+        self.second_embed = Event()
+        self.overlapped = None
+
+    def embed_items(self, items):
+        super().embed_items(items)
+        if len(self.embed_batches) == 2:
+            self.second_embed.set()
+
+    def insert_prepared(self, nodes):
+        if not self.insert_batches:
+            self.overlapped = self.second_embed.wait(timeout=5)
+        return super().insert_prepared(nodes)
+
+
+def test_the_next_batch_is_embedded_while_the_previous_one_is_inserted(monkeypatch):
+    monkeypatch.setattr(materialize.config, "INGEST_INSERT_BATCH_SIZE", 2)
+    items = [_item(i) for i in range(6)]
+    indexer = OverlapIndexer({"a": items})
+
+    counts = streaming_materialize(indexer, [_asset("a")], batch_size=2, queue_max=10)
+
+    assert indexer.overlapped is True
+    assert counts["chunks_added"] == 6
+    assert [n.nid for batch in indexer.insert_batches for n in batch] == list(range(6))
+    assert indexer.flushed == 1
+
+
+def test_embed_insert_batched_overlaps_and_keeps_order(monkeypatch):
+    monkeypatch.setattr(materialize.config, "INGEST_INSERT_BATCH_SIZE", 2)
+    items = [_item(i) for i in range(5)]
+    indexer = OverlapIndexer({})
+
+    count = materialize._embed_insert_batched(indexer, iter(items), 2)
+
+    assert indexer.overlapped is True
+    assert count == 5
+    assert [len(batch) for batch in indexer.insert_batches] == [2, 2, 1]
+    assert [n.nid for batch in indexer.insert_batches for n in batch] == list(range(5))
+
+
+def test_an_embed_error_waits_for_the_in_flight_insert_before_raising(monkeypatch):
+    monkeypatch.setattr(materialize.config, "INGEST_INSERT_BATCH_SIZE", 2)
+    class SlowInsertIndexer(FakeIndexer):
+        def embed_items(self, items):
+            if self.embed_batches:
+                raise RuntimeError("embed boom")
+            super().embed_items(items)
+
+        def insert_prepared(self, nodes):
+            time.sleep(0.2)
+            return super().insert_prepared(nodes)
+
+    indexer = SlowInsertIndexer({})
+
+    with pytest.raises(RuntimeError, match="embed boom"):
+        materialize._embed_insert_batched(indexer, iter([_item(i) for i in range(4)]), 2)
+
+    assert len(indexer.insert_batches) == 1
+
+
+class ThreadRecordingIndexer(FakeIndexer):
+    def __init__(self, items_per_asset):
+        super().__init__(items_per_asset)
+        self.insert_threads = []
+
+    def insert_prepared(self, nodes):
+        self.insert_threads.append(current_thread().name)
+        return super().insert_prepared(nodes)
+
+
+def test_embedded_batches_are_accumulated_into_larger_inserts(monkeypatch):
+    monkeypatch.setattr(materialize.config, "INGEST_INSERT_BATCH_SIZE", 5)
+    indexer = ThreadRecordingIndexer({})
+
+    count = materialize._embed_insert_batched(indexer, iter([_item(i) for i in range(13)]), 2)
+
+    assert count == 13
+    assert [len(batch) for batch in indexer.embed_batches] == [2, 2, 2, 2, 2, 2, 1]
+    assert [len(batch) for batch in indexer.insert_batches] == [6, 6, 1]
+    assert [n.nid for batch in indexer.insert_batches for n in batch] == list(range(13))
+    assert indexer.insert_threads[-1] == main_thread().name
+    assert all(name.startswith("materialize-insert") for name in indexer.insert_threads[:-1])
+
+
+def test_fewer_nodes_than_one_insert_batch_are_inserted_once_without_a_worker(monkeypatch):
+    monkeypatch.setattr(materialize.config, "INGEST_INSERT_BATCH_SIZE", 100)
+    items = [_item(i) for i in range(40)]
+    indexer = ThreadRecordingIndexer({"a": items})
+
+    counts = streaming_materialize(indexer, [_asset("a")], batch_size=16, queue_max=64)
+
+    assert counts["chunks_added"] == 40
+    assert [len(batch) for batch in indexer.insert_batches] == [40]
+    assert indexer.insert_threads == [main_thread().name]
+    assert indexer.flushed == 1
+
+
+def test_an_insert_error_is_raised_and_nothing_is_flushed():
+    class BoomInsertIndexer(FakeIndexer):
+        def insert_prepared(self, nodes):
+            raise RuntimeError("insert boom")
+
+    indexer = BoomInsertIndexer({"a": [_item(i) for i in range(10)]})
+
+    with pytest.raises(RuntimeError, match="insert boom"):
+        streaming_materialize(indexer, [_asset("a")], batch_size=2, queue_max=4)
+
+    assert indexer.flushed == 0
 
 
 # --- ingest: the background orchestrator --------------------------------------

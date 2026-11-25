@@ -1,3 +1,11 @@
+<!--hide_directive
+```{eval-rst}
+.. meta::
+   :description: The Agent Harness Installer deploys the OpenClaw, Deep Agents Code, or Hermes agent harness on Intel hardware and wires it to a local OpenAI-compatible inference endpoint through the Inference Router.
+   :keywords: Agent Harness Installer, OpenClaw, Deep Agents Code, Hermes, OpenVINO Model Server, Inference Router, OpenShell, agent sandboxing
+```
+hide_directive-->
+
 # Agent Harness Installer
 
 <!--hide_directive
@@ -21,13 +29,13 @@ published independently:
 | --- | --- |
 | `openclaw` | npm `openclaw` — github.com/openclaw/openclaw |
 | `deepagents-code` | `dcode` (Deep Agents Code) — github.com/langchain-ai/deepagents |
-| `hermes` | Nous Research's official installer — github.com/NousResearch/hermes-agent (pinned installer script from the repo, not npm) |
+| `hermes` | Nous Research's official installer — github.com/NousResearch/hermes-agent (pinned installer script from the repository, not npm) |
 
 The inference backend is **configurable**, but every request goes through the
 **Inference Router** (IR): agents are wired to the Router's endpoint, never
 directly to a model server. By default the Router sits in front of a local
-**OpenVINO Model Server** (OVMS) serving an OpenAI-compatible
-`/v3/chat/completions` endpoint on Intel Core Ultra iGPU and Arc (CRI)
+**OpenVINO™ Model Server** (OVMS) serving an OpenAI-compatible
+`/v3/chat/completions` endpoint on Intel® Core™ Ultra iGPU and Intel® Arc™ (CRI)
 GPUs; the Router itself is the published `intel/inference-router` image.
 Setting `HARNESS_LLM_ROUTER_ENDPOINT` instead points the Router at any
 existing OpenAI-compatible endpoint you already operate (e.g., Ollama, vLLM,
@@ -50,7 +58,7 @@ of `host` or `openshell`; pressing Enter selects `host`. Non-interactive
 installation also defaults to host mode unless a runtime is explicitly selected
 with `--runtime` or `HARNESS_RUNTIME`.
 
-Select `--runtime openshell` to deploy OpenClaw, Hermes or Deep Agents Code in
+Select `--runtime openshell` to deploy OpenClaw, Hermes, or Deep Agents Code in
 a sandbox. The installer supplies default sandbox policies and agent/provider
 configuration as a functional starting point. Fresh managed OpenShell deployments
 default to `OpenVINO/Qwen3.5-9B-int8-ov` when no explicit or reusable model
@@ -61,9 +69,9 @@ for prerequisites and limitations.
 
 ## Documentation
 
-- [Get Started](./get-started.md): install flow, usage and
+- [Get Started](./get-started.md): install flow, usage, and
   [model sources](./get-started.md#model-sources) (Hugging Face,
-  Ollama, remote URL and the other Model Download hubs).
+  Ollama, remote URL, and the other Model Download hubs).
 - [Run Without a Checkout](./get-started/run-without-a-checkout.md):
   the standalone `curl | bash` bootstrap path.
 - [Uninstall](./get-started/uninstall.md).

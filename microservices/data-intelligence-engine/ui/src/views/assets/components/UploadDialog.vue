@@ -7,6 +7,7 @@
     centered
     :maskClosable="false"
     :closable="!submitLoading"
+    wrap-class-name="upload-assets-modal"
     @cancel="handleClose"
   >
     <div class="upload-dialog">
@@ -27,20 +28,23 @@
               :before-upload="handleBeforeUpload"
               :showUploadList="false"
               multiple
-              :disabled="submitLoading"
+              :disabled="submitLoading || stagingFiles"
               :openFileDialogOnClick="false"
             >
               <InboxOutlined class="upload-icon" />
               <p class="upload-title">{{ $t("console.dropFiles") }}</p>
               <p class="upload-hint">{{ $t("console.fileSupportHint") }}</p>
+              <p class="upload-hint upload-formats">
+                {{ $t("console.documentFormatsHint") }}
+              </p>
               <a-space>
                 <a-upload
                   :before-upload="handleBeforeUpload"
                   :showUploadList="false"
                   multiple
-                  :disabled="submitLoading"
+                  :disabled="submitLoading || stagingFiles"
                 >
-                  <a-button :disabled="submitLoading">
+                  <a-button :disabled="submitLoading || stagingFiles">
                     {{ $t("console.chooseFiles") }}
                   </a-button>
                 </a-upload>
@@ -49,9 +53,9 @@
                   :showUploadList="false"
                   directory
                   multiple
-                  :disabled="submitLoading"
+                  :disabled="submitLoading || stagingFiles"
                 >
-                  <a-button :disabled="submitLoading">
+                  <a-button :disabled="submitLoading || stagingFiles">
                     {{ $t("console.chooseFolder") }}
                   </a-button>
                 </a-upload>
@@ -64,7 +68,7 @@
               <a-button
                 type="link"
                 size="small"
-                :disabled="submitLoading"
+                :disabled="submitLoading || stagingFiles"
                 @click="handleClearFiles"
               >
                 {{ $t("common.clear") }}
@@ -154,7 +158,11 @@
       <a-button :disabled="submitLoading" @click="handleClose">
         {{ $t("common.cancel") }}
       </a-button>
-      <a-button type="primary" :loading="submitLoading" @click="handleSubmit">
+      <a-button
+        type="primary"
+        :loading="submitLoading || stagingFiles"
+        @click="handleSubmit"
+      >
         {{ $t("console.addAssets") }}
       </a-button>
     </template>
@@ -163,6 +171,7 @@
 <script lang="ts" setup name="UploadDialog">
 import { reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import JSZip from "jszip";
 import {
   AlignLeftOutlined,
   CloseOutlined,
@@ -171,10 +180,7 @@ import {
   InboxOutlined,
   UploadOutlined,
 } from "@ant-design/icons-vue";
-import {
-  requestAssetCreate,
-  requestAssetUpload,
-} from "@/api/console";
+import { requestAssetCreate, requestAssetUpload } from "@/api/console";
 import type { IngestResult, Library, UploadResult } from "@/api/console/type";
 import { customNotification } from "@/utils/notification";
 import { readDroppedFiles } from "../AssetUtils";
@@ -196,6 +202,8 @@ const { t } = useI18n();
 const modelVisible = ref(true);
 const activeKey = ref("files");
 const submitLoading = ref(false);
+const stagingFiles = ref(false);
+let pendingStages = 0;
 const validationError = ref("");
 const fileList = ref<
   (StagedFile & { progress: number; failed: boolean; result?: UploadResult })[]
@@ -205,22 +213,62 @@ const form = reactive({
   paths: "",
   poolIds: props.poolId ? [props.poolId] : [],
 });
-const handleStageFiles = (files: StagedFile[]) => {
-  for (const item of files) {
-    if (
-      !item.path.split("/").some((part) => part.startsWith(".")) &&
-      !fileList.value.some((current) => current.path === item.path)
-    )
-      fileList.value.push({ ...item, progress: 0, failed: false });
+const handleStageFiles = async (files: StagedFile[]) => {
+  pendingStages++;
+  stagingFiles.value = true;
+  try {
+    for (const item of files) {
+      if (item.path.split("/").some((part) => part.startsWith("."))) continue;
+      if (!/\.zip$/i.test(item.path)) {
+        if (!fileList.value.some((current) => current.path === item.path))
+          fileList.value.push({ ...item, progress: 0, failed: false });
+        continue;
+      }
+      try {
+        const zip = await JSZip.loadAsync(item.file);
+        const entries = Object.values(zip.files).filter(
+          (entry) =>
+            !entry.dir &&
+            !entry.name.split("/").some((part) => part.startsWith(".")),
+        );
+        if (!entries.length) {
+          validationError.value = t("console.emptyZip");
+          continue;
+        }
+        const root = item.path.slice(0, -4);
+        for (const entry of entries) {
+          const path = `${root}/${entry.name}`;
+          if (fileList.value.some((current) => current.path === path)) continue;
+          const blob = await entry.async("blob");
+          const name = entry.name.split("/").pop()!;
+          fileList.value.push({
+            file: new File([blob], name, {
+              type: blob.type || "application/octet-stream",
+            }),
+            path,
+            progress: 0,
+            failed: false,
+          });
+        }
+      } catch (error) {
+        customNotification(
+          "error",
+          t("common.error"),
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
+  } finally {
+    if (--pendingStages === 0) stagingFiles.value = false;
   }
 };
-if (props.files) handleStageFiles(props.files);
+if (props.files) void handleStageFiles(props.files);
 const handleBeforeUpload = (file: File) => {
-  handleStageFiles([{ file, path: file.webkitRelativePath || file.name }]);
+  void handleStageFiles([{ file, path: file.webkitRelativePath || file.name }]);
   return false;
 };
 const handleDrop = async (event: DragEvent) => {
-  if (submitLoading.value || !event.dataTransfer) return;
+  if (submitLoading.value || stagingFiles.value || !event.dataTransfer) return;
   try {
     handleStageFiles(await readDroppedFiles(event.dataTransfer));
   } catch (error) {
@@ -232,6 +280,7 @@ const handleDrop = async (event: DragEvent) => {
   }
 };
 const handleSubmit = async () => {
+  if (stagingFiles.value) return;
   validationError.value = "";
   const paths = form.paths
     .split(",")
@@ -290,16 +339,18 @@ const handleSubmit = async () => {
     }
     for (const [name, supported] of folders)
       (supported ? paths : skipped).push(name);
+    if (!paths.length && !form.text.trim()) {
+      validationError.value = skipped.length
+        ? t("console.unsupportedUploads", { names: skipped.join(", ") })
+        : t("console.ingestRequired");
+      return;
+    }
     if (skipped.length)
       customNotification(
         "warning",
         t("console.upload"),
         t("console.skipped", { names: skipped.join(", ") }),
       );
-    if (!paths.length && !form.text.trim()) {
-      validationError.value = t("console.ingestRequired");
-      return;
-    }
     const data = await requestAssetCreate(props.libraryData.name, {
       asset_pool_ids: form.poolIds,
       file_paths: paths,
@@ -318,6 +369,20 @@ const handleSubmit = async () => {
 };
 </script>
 <style scoped lang="less">
+:global(.upload-assets-modal .intel-modal-content) {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+}
+:global(.upload-assets-modal .intel-modal-body) {
+  min-height: 0;
+  overflow-y: auto;
+}
+:global(.upload-assets-modal .intel-modal-header),
+:global(.upload-assets-modal .intel-modal-footer) {
+  flex-shrink: 0;
+}
 .upload-dialog {
   padding: 16px 0 4px;
 }
@@ -343,7 +408,11 @@ const handleSubmit = async () => {
   .upload-hint {
     color: var(--font-info-color);
     font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .upload-formats {
     margin-bottom: 20px;
+    overflow-wrap: anywhere;
   }
 }
 .file-list {

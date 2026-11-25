@@ -9,44 +9,66 @@ are available:
 - [Bare-Metal Installation](#bare-metal-installation), for hosts where Docker
   is not available
 
+## Get the Source Code
+
+Both deployment options run from the `adaptive-token-compressor` source tree.
+If you have not cloned it yet, fetch only this library from the larger
+`edge-ai-libraries` monorepo with sparse checkout:
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries
+git sparse-checkout set libraries/adaptive-token-compressor
+cd libraries/adaptive-token-compressor
+```
+
+All paths below are relative to this `libraries/adaptive-token-compressor`
+directory (the repository root for this library).
+
 ## Docker Compose Deployment (Recommended)
 
-Reference docker compose recipe for the Compress Server. The PyTorch service
-uses **XPU** by default. Select the runtime by starting the corresponding
-service; use `COMPRESS_SERVER_DEVICE` to choose the hardware.
+Reference docker compose recipe for the Compress Server. Select the runtime by
+starting the corresponding service; use `COMPRESS_SERVER_DEVICE` to choose the
+hardware.
 
 The deployment uses two runtime-specific Dockerfiles:
 
-- `Dockerfile.pytorch` for PyTorch / IPEX / XPU
-- `Dockerfile.ov` for OpenVINO™
+- `Dockerfile.ov` for OpenVINO™ (CPU / GPU) — **recommended**
+- `Dockerfile.pytorch` for PyTorch (XPU / CPU)
 
 These are alternative runtimes. Start only the server that matches your
-requirements; you do not need to run both services.
+requirements; you do not need to run both services. The OpenVINO™ runtime is
+the recommended choice on both CPU and Intel® GPU: its image is much smaller
+(about 2.5 GB vs. 8 GB for PyTorch/XPU), and in our measurements on an Intel®
+Arc™ B390 iGPU it compressed about 2× faster than PyTorch on XPU with identical
+output.
 
 The compose file defines two services:
 
-- `compress-server-pytorch` on host port `8001`
-- `compress-server-ov` on host port `8002`
+- `compress-server-ov` on host port `8001`
+- `compress-server-pytorch` on host port `8002`
 
-### Quick start
+### Quick start (OpenVINO™, recommended)
+
+```bash
+cd deployment/compress-server
+docker compose up -d --build compress-server-ov                            # Intel GPU (default)
+COMPRESS_SERVER_DEVICE=cpu docker compose up -d --build compress-server-ov # CPU only
+```
+
+Default: `--device gpu`, host port `8001`, which matches the library client
+default — no config change required.
+
+### Quick start (PyTorch)
 
 ```bash
 cd deployment/compress-server
 docker compose up -d --build compress-server-pytorch
 ```
 
-Default: `--device xpu`, `--port 8001`. The library client default
-(`TokenPruneBackend(compress_server_url="http://localhost:8001/compress")`)
-matches out of the box — no config change required.
-
-To start the OpenVINO™ service:
-
-```bash
-docker compose up -d --build compress-server-ov
-```
-
-Default: `--device gpu`, `--port 8002`. Point the client at
-`http://localhost:8002/compress` to use it.
+Default: `--device xpu`, host port `8002`. The library client defaults to
+`http://localhost:8001/compress` (the OpenVINO™ service port), so set
+`compress_server_url` to `http://localhost:8002/compress` to use this service.
 
 ### Override variables (no .env file needed)
 
@@ -54,11 +76,11 @@ All variables have `:-default` fallbacks in `docker-compose.yaml`. Pass
 inline on the command line:
 
 ```bash
-# CPU fallback
-COMPRESS_SERVER_DEVICE=cpu docker compose up -d --build compress-server-pytorch
-
-# OpenVINO™ runtime (devices: cpu / gpu, lowercase; default gpu)
+# OpenVINO™ runtime on CPU (devices: cpu / gpu, lowercase; default gpu)
 COMPRESS_SERVER_DEVICE=cpu docker compose up -d --build compress-server-ov
+
+# PyTorch runtime on CPU
+COMPRESS_SERVER_DEVICE=cpu docker compose up -d --build compress-server-pytorch
 
 # Select device index (PyTorch xpu:<index>; OpenVINO GPU.<index>). CPU takes no index.
 COMPRESS_SERVER_DEVICE=xpu COMPRESS_SERVER_DEVICE_INDEX=1 docker compose up -d --build compress-server-pytorch
@@ -73,8 +95,8 @@ COMPRESS_SERVER_DEVICE=cpu COMPRESS_SERVER_PORT=9000 docker compose up -d --buil
 | Variable | Default | Notes |
 | ---------- | --------- | ------- |
 | `COMPRESS_SERVER_BIND_HOST` | `127.0.0.1` | Host bind address for the published port. Setting it to `0.0.0.0` exposes the HTTP service to the network and is generally not recommended without appropriate network and TLS controls. |
-| `COMPRESS_SERVER_PORT` | `8001` | Container always listens on `8001`; this maps host port. |
-| `COMPRESS_SERVER_OV_PORT` | `8002` | Host port for the `compress-server-ov` service. |
+| `COMPRESS_SERVER_OV_PORT` | `8001` | Host port for the `compress-server-ov` service. Container always listens on `8001`. |
+| `COMPRESS_SERVER_PORT` | `8002` | Host port for the `compress-server-pytorch` service. Container always listens on `8001`. |
 | `COMPRESS_SERVER_DEVICE` | `xpu` (pytorch) / `gpu` (ov) | Lowercase, case-insensitive. Shared by both services: pytorch accepts `cpu` / `xpu`; ov accepts `cpu` / `gpu`. ov defaults to `gpu`. `xpu`/`gpu` require `/dev/dri`. Don't pass pytorch-only `xpu` to the ov profile. |
 | `COMPRESS_SERVER_DEVICE_INDEX` | `0` | Index within the device class. PyTorch uses `xpu:<index>`; OpenVINO uses `GPU.<index>` (falls back to generic `GPU` for index `0`). Ignored/rejected for `cpu`. |
 | `COMPRESS_SERVER_MODE` | `llmlingua2` | Compression mode: `llmlingua2` only. |
@@ -86,6 +108,10 @@ COMPRESS_SERVER_DEVICE=cpu COMPRESS_SERVER_PORT=9000 docker compose up -d --buil
 
 ### Verify
 
+The examples below target the OpenVINO™ service on host port `8001` (or your
+`COMPRESS_SERVER_OV_PORT`). For the PyTorch service use `8002` (or your
+`COMPRESS_SERVER_PORT`) instead.
+
 ```bash
 curl http://localhost:8001/health
 # → {
@@ -96,8 +122,8 @@ curl http://localhost:8001/health
 #     "initialized_modes":{
 #       "llmlingua2":{
 #         "model_name_id":"...",
-#         "device":"xpu:0",
-#         "execution_devices":"n/a"
+#         "device":"ov:GPU",
+#         "execution_devices":"GPU (Intel(R) Arc(TM) B390 GPU (iGPU))"
 #       }
 #     }
 #   }
@@ -108,9 +134,8 @@ curl -X POST http://localhost:8001/compress \
 # → {"compressed_prompt":"...","compression_time_ms":12.3,...}
 ```
 
-For the OpenVINO™ service use host port `8002` (or your `COMPRESS_SERVER_OV_PORT`)
-instead of `8001`. Its `/health` reports the OpenVINO™ device, e.g.,
-`"device":"ov:GPU","execution_devices":"GPU (Intel(R) Arc(TM) B390 GPU (iGPU))"`.
+The PyTorch service's `/health` reports `"device":"xpu:0","execution_devices":"n/a"`
+(or `"device":"cpu"`).
 
 For OpenVINO™ runtime, the startup logs include explicit device mapping and resolved
 runtime info, e.g.:
@@ -133,8 +158,8 @@ curl -X POST http://localhost:8001/compress \
 ### Stop & cleanup
 
 ```bash
-docker compose --profile pytorch down  # stop / remove the PyTorch service/container
 docker compose --profile ov down       # stop / remove the OpenVINO service/container
+docker compose --profile pytorch down  # stop / remove the PyTorch service/container
 docker compose --profile pytorch --profile ov down -v  # remove both services and the HF model cache volume
 ```
 
@@ -147,30 +172,36 @@ matching the runtime you launch with (`--runtime pytorch|ov`). The package is
 installed from source, so run the `pip install` commands below from the
 repository root.
 
-### Install (PyTorch runtime — XPU)
-
-```bash
-pip install --extra-index-url https://download.pytorch.org/whl/xpu \
-            --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ \
-            ".[compress-server-pytorch-xpu]"
-```
-
-### Install (PyTorch runtime — CPU)
-
-For CPU-only hosts, use the lighter `compress-server-pytorch-cpu` extra (no IPEX / XPU wheels):
-
-```bash
-pip install --index-url https://download.pytorch.org/whl/cpu \
-            --extra-index-url https://pypi.org/simple \
-            ".[compress-server-pytorch-cpu]"
-```
-
-### Install (OpenVINO runtime — CPU or GPU)
+### Install (OpenVINO™ runtime — CPU or GPU, recommended)
 
 ```bash
 pip install --index-url https://download.pytorch.org/whl/cpu \
             --extra-index-url https://pypi.org/simple \
             ".[compress-server-ov]"
+```
+
+`--device gpu` requires the Intel® GPU driver and compute runtime on the host.
+
+### Install (PyTorch runtime — XPU)
+
+```bash
+pip install --extra-index-url https://download.pytorch.org/whl/xpu \
+            ".[compress-server-pytorch-xpu]"
+```
+
+> [!IMPORTANT]
+> Requires oneAPI Level Zero loader `libze1` 1.36.0 or newer on the host; older
+> versions may crash at startup. Install it from the
+> [Level Zero releases](https://github.com/oneapi-src/level-zero/releases).
+
+### Install (PyTorch runtime — CPU)
+
+For CPU-only hosts, use the lighter `compress-server-pytorch-cpu` extra (no XPU wheels):
+
+```bash
+pip install --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple \
+            ".[compress-server-pytorch-cpu]"
 ```
 
 ### Apply the neighbor-protection patch (one-time, required)
@@ -192,10 +223,10 @@ echo $?    # 0 = patched, 1 = not patched
 ### Run
 
 ```bash
+python -m adaptive_token_compressor.model_servers.compress_server --runtime ov            # recommended; ov default device: gpu
+python -m adaptive_token_compressor.model_servers.compress_server --runtime ov --device cpu
 python -m adaptive_token_compressor.model_servers.compress_server    # default --runtime pytorch --device xpu --port 8001
 python -m adaptive_token_compressor.model_servers.compress_server --runtime pytorch --device cpu
-python -m adaptive_token_compressor.model_servers.compress_server --runtime ov            # ov default device: gpu
-python -m adaptive_token_compressor.model_servers.compress_server --runtime ov --device cpu
 python -m adaptive_token_compressor.model_servers.compress_server --model_name_id microsoft/llmlingua-2-xlm-roberta-large-meetingbank
 ```
 
@@ -207,20 +238,6 @@ The server binds `localhost` by default (`--host`). Every flag also reads the
 Models are downloaded from the HuggingFace Hub on first use; the endpoint defaults
 to the `https://hf-mirror.com` mirror — pass `--hf_endpoint` or set
 `HF_ENDPOINT=https://huggingface.co` for upstream.
-
-### Compatible client
-
-```python
-from adaptive_token_compressor.core.backends import TokenPruneBackend
-
-backend = TokenPruneBackend(compress_server_url="http://localhost:8001/compress", timeout=60.0)
-result = backend.compress(
-    text="...",
-    rate=0.6,
-    force_reserve_digit=True,
-    digit_neighbor_radius=3,
-)
-```
 
 ## See also
 

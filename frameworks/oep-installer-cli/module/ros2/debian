@@ -68,10 +68,6 @@ sbom_osrf_gazebo_ros2 () {
 
 debian_50_profile_ros2 () {
   echo "curl gnupg git software_properties_common lsb_release"
-  # --realtime (set by edge_base_robotics) supplies GPU/NPU prep via
-  # edge_pack_base_realtime instead; skip edge_base to avoid installing both
-  # the standard and real-time edge-pack base bundles together.
-  ensure_parse_option --realtime "$@" || echo "edge_base"
 }
 
 verify_ros2 () {
@@ -119,9 +115,9 @@ debian_50_remove_ros2 () {
 
   configure_ros2
   if verify_ros2; then
-    ensure_apt purge --auto-remove -y ros-$ros_distro-desktop ros-dev-tools || true
+    ensure_apt remove -y ros-$ros_distro-desktop ros-dev-tools || true
     # the ros2-apt-source package owns the ROS 2 apt source list and signing key
-    ensure_apt purge --auto-remove -y ros2-apt-source || true
+    ensure_apt remove -y ros2-apt-source || true
     [ ! -w ~/.bashrc ] || sed -i "\|^source /opt/ros/$ros_distro/setup.bash\$|d" ~/.bashrc
   else
     echo "ROS 2 already removed. Skipping"

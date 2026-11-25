@@ -17,7 +17,7 @@
 # syntax=docker/dockerfile:1.7
 
 # Use DLStreamer as the base image
-ARG DLSTREAMER_IMAGE=intel/dlstreamer:2026.3.0-ubuntu24-rc1
+ARG DLSTREAMER_IMAGE=intel/dlstreamer:2026.3.0-ubuntu26-rc2
 
 # Aravis GStreamer plugin (aravissrc, GigE Vision cameras) for DL Streamer Pipeline Server 2.0,
 # whose image does not include it. The plugin and libaravis go to gst_plugins/aravis/, which the
@@ -76,9 +76,6 @@ USER dlstreamer
 ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/
 ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH:/usr/local/lib/vippet-gst-plugins
 
-# Add DLSOptimizer scripts to PYTHONPATH
-ENV PYTHONPATH=$PYTHONPATH:/opt/intel/dlstreamer/scripts/optimizer/
-
 # Set the working directory inside the container
 WORKDIR /home/dlstreamer/vippet
 
@@ -109,6 +106,7 @@ COPY --chown=dlstreamer:dlstreamer vippet/benchmarks/ /home/dlstreamer/vippet/be
 COPY --chown=dlstreamer:dlstreamer vippet/models/ /home/dlstreamer/vippet/models
 COPY --chown=dlstreamer:dlstreamer vippet/api/ /home/dlstreamer/vippet/api
 COPY --chown=dlstreamer:dlstreamer vippet/managers/ /home/dlstreamer/vippet/managers
+COPY --chown=dlstreamer:dlstreamer vippet/app_export/ /home/dlstreamer/vippet/app_export
 COPY --chown=dlstreamer:dlstreamer vippet/gst_plugins/ /home/dlstreamer/vippet/gst_plugins
 COPY --chown=dlstreamer:dlstreamer --from=aravis /out/aravis/ /home/dlstreamer/vippet/gst_plugins/aravis
 

@@ -248,3 +248,26 @@ for pkg in sorted(mismatched):
             f"Installed package versions do not satisfy their requirers' version "
             f"specifiers:\n{result.stdout}\n{result.stderr}"
         )
+
+    @pytest.mark.tier3
+    def test_diarization_stack_imports_with_installed_torchaudio(self, built_image):
+        """
+        Regression for ITEP-98456: speechbrain 1.0.x calls
+        ``torchaudio.list_audio_backends()`` at import time, which torchaudio
+        2.9+ removed. pyannote's diarization pipeline imports speechbrain
+        guarded only by ``except ImportError``, so the resulting
+        ``AttributeError`` aborted service startup whenever diarization was
+        enabled. Importing both here catches any future torch/speechbrain
+        version skew without needing gated model weights.
+        """
+        script = (
+            "import speechbrain.inference.speaker; "
+            "import pyannote.audio.pipelines.speaker_diarization; "
+            "from pyannote.audio.pipelines import speaker_verification as sv; "
+            "assert sv.SPEECHBRAIN_IS_AVAILABLE; print('ok')"
+        )
+        result = _run_in_image(built_image, f'python3.12 -c "{script}"')
+        assert result.returncode == 0 and "ok" in result.stdout, (
+            f"speechbrain/pyannote diarization imports failed inside the image "
+            f"(exit {result.returncode}).\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )

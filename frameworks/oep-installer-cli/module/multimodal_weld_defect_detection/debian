@@ -53,7 +53,7 @@ debian_90_install_multimodal_weld_defect_detection () {
     echo "Multimodal weld defect detection is installed." >&2
   else
     ensure_disk_size 15000
-    ensure_ram_size 16777216 # 16 GiB
+    ensure_ram_size 14680064 # 14 GiB
     ensure_ports_open install multimodal_weld_defect_detection "${used_ports[@]}"
 
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal

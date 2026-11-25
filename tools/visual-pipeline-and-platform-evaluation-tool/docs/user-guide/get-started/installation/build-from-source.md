@@ -15,7 +15,8 @@ Before starting, ensure the following:
 
 - **System requirements**: The system meets the [minimum requirements](./system-requirements.md).
 - **Internet access**: The host has outbound internet connectivity. Base images, apt and Python packages, npm
-  dependencies, sample videos, and models are downloaded during the build and on first start. Offline or
+   dependencies, and models are downloaded during the build and on first start. Sample videos are downloaded
+   only when requested from the Videos page. Offline or
   air-gapped installation is not supported. See
   [Network Requirements](./system-requirements.md#network-requirements).
 - **Docker platform**: **Docker Engine** is installed. On Linux, install it from the Docker apt repository, see
@@ -110,7 +111,7 @@ To use a published server image instead of building one, set `DLSPS2_IMAGE` to o
 `make build` then skips the server, and `make run` pulls the image:
 
 ```bash
-export DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-2.0-rc1
+export DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-ubuntu26-2.0-rc2
 make build run
 ```
 

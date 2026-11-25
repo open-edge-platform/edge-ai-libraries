@@ -30,7 +30,10 @@ optimum-intel[openvino]==1.27.0
 # above), which this service relies on for OpenVINO model export/quantization.
 # Pinned explicitly for reproducibility since it is pulled in either way.
 nncf==3.1.0
-speechbrain==1.0.3
+# speechbrain>=1.1.0 is required with torchaudio>=2.9: 1.0.x calls the removed
+# torchaudio.list_audio_backends() at import time, which crashes pyannote's
+# diarization pipeline (it imports speechbrain) with an AttributeError.
+speechbrain==1.1.2
 pyannote.audio==4.0.4
 huggingface-hub==0.34.4
 hf_xet==1.4.3
