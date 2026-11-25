@@ -71,7 +71,8 @@ cat >"$BIN/hermes" <<'EOF'
 p="$FAKE/plugin"
 printf 'hermes %s\n' "$*" >>"$FAKE/hermes.log"
 case "$1 ${2:-}" in
-  'plugins install') mkdir -p "$HERMES_HOME/plugins/hermes_otel"; echo disabled >"$p/state" ;;
+  'plugins install') mkdir -p "$HERMES_HOME/plugins/hermes_otel"
+    echo 'capture_tool_command = True' >"$HERMES_HOME/plugins/hermes_otel/__init__.py"; echo disabled >"$p/state" ;;
   'plugins enable') echo enabled >"$p/state" ;;
   'plugins disable')
     [[ "${FAKE_HERMES_DISABLE_FAILS:-}" != 1 ]] || exit 1

@@ -1092,6 +1092,7 @@ hermes_content_off_omits_tool_text() {
   M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
   TEST_HERMES_PLUGIN_SRC=old expect_failure 'predates capture_tool_command' metrics_enable_harness
   [[ ! -e "$HERMES_HOME/hermes_otel.yaml" ]]
+  refute grep -Fxq 'hermes enable' "$ACTIONS"
   M_CONTENT=preview
   metrics_enable_harness
 }
@@ -1115,6 +1116,10 @@ receiver_store_is_private() {
   ln -s "$HOME/elsewhere" "$dir"
   [[ -L "$dir" ]] || { echo "# skipped: symlinks unavailable"; return 0; }
   expect_failure 'symlink' metrics_secure_store "$store"
+  # An agent's own data directory may itself be a symlink.
+  mkdir -p "$HOME/real-agent"
+  ln -s "$HOME/real-agent" "$HOME/agent-link"
+  metrics_secure_store "$HOME/agent-link/x.db"
 }
 
 openshell_policy_is_post_only_on_one_path() {
@@ -1274,7 +1279,10 @@ openshell_hermes_lifecycle() {
   [[ "$(metrics_state_get harness.enabled)" == false ]]
   # An external traces URL reaches Hermes exactly as given, once the plugin can omit tool text.
   M_BACKEND=jaeger M_BACKEND_GIVEN=1 M_ENDPOINT=https://collector.example.net/otlp/traces
+  : >"$ACTIONS"
   expect_failure 'predates capture_tool_command' metrics_enable_harness
+  refute grep -Fq 'allow ' "$ACTIONS"
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
   printf 'capture_tool_command\n' >"$home/plugins/hermes_otel/__init__.py"
   metrics_enable_harness
   grep -Fxq 'allow harness_otel 443 collector.example.net /otlp/traces' "$ACTIONS"

@@ -457,7 +457,7 @@ metrics_check_plugin_source() {
 }
 
 metrics_install_hermes_otel_plugin() {
-  local home plugin_dir
+  local content="${1:-}" home plugin_dir
   metrics_check_plugin_source
   local -a ref_args=()
   if [[ -n "$HARNESS_HERMES_OTEL_REF" ]]; then
@@ -470,7 +470,8 @@ metrics_install_hermes_otel_plugin() {
       || error "'hermes plugins install ${HARNESS_HERMES_OTEL_PLUGIN}' failed (see output above).
 Requires Hermes >= 0.21 and network access to the plugin source."
   fi
-  # Enabling also prepares the plugin's declared Python dependencies.
+  # Enabling also prepares the plugin's declared Python dependencies; an enabled plugin without a config runs on its defaults.
+  [[ "$content" != off ]] || metrics_require_hermes_tool_privacy
   spin "Enabling the hermes-otel plugin" hermes plugins enable hermes_otel \
     || error "'hermes plugins enable hermes_otel' failed (see output above)."
 }
@@ -589,7 +590,6 @@ metrics_secure_store() {
   local store="$1" dir root
   dir="$(dirname "$store")" root="$(harness_state_root)"
   [[ ! -L "$store" ]] || error "Refusing to write through a symlink: ${store}"
-  [[ ! -L "$dir" ]] || error "Refusing to write through a symlink: ${dir}"
   case "$dir" in "$root" | "$root"/*) assert_state_path_safe "$dir" ;; esac
   (umask 077 && mkdir -p -- "$dir")
   assert_owned_by_current_user "$dir"
@@ -806,6 +806,11 @@ metrics_enable_harness_preflight() {
   if metrics_openshell && [[ "$H_BACKEND" == jaeger && "$H_MANAGED" != true ]]; then
     metrics_openshell_check_endpoint "$H_ENDPOINT"
   fi
+  if metrics_openshell && [[ "$M_AGENT" == hermes ]]; then
+    # Refused before any policy or state change if the plugin could not honour --content off.
+    metrics_os_exec hermes-check "$H_CONTENT" "$([[ "$H_BACKEND" == sqlite ]] && printf filtered || printf direct)" \
+      || error "The sandbox cannot export with --content ${H_CONTENT} (see above)."
+  fi
   if [[ "$M_AGENT" == hermes ]] && ! metrics_openshell; then
     metrics_check_plugin_source
     metrics_check_hermes_otel_config_path
@@ -830,10 +835,7 @@ metrics_enable_harness() {
     [[ -z "$stray" ]] || warn "Exporter variables set in this shell (${stray% }) may make Hermes export traces even with --backend sqlite."
   fi
   case "$M_AGENT" in
-    hermes) if ! metrics_openshell; then
-        metrics_install_hermes_otel_plugin
-        [[ "$content" != off ]] || metrics_require_hermes_tool_privacy
-      fi ;;
+    hermes) if ! metrics_openshell; then metrics_install_hermes_otel_plugin "$content"; fi ;;
     openclaw) if ! metrics_openshell; then metrics_install_openclaw_otel_plugin; fi ;;
   esac
   if [[ "$managed" == true ]]; then

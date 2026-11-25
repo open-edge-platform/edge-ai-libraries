@@ -123,6 +123,13 @@ function hermesPluginOmitsToolText() {
   return walk(path.dirname(hermesPlugin));
 }
 
+// "filtered" means the receiver on the other end drops tool text itself.
+function assertHermesContentSupported(content, receiver) {
+  validContent(content);
+  if (content === "off" && receiver !== "filtered" && !hermesPluginOmitsToolText())
+    throw Error("The hermes-otel plugin in this sandbox image predates capture_tool_command, so --content off would still export tool commands and paths; use --backend sqlite, or rebuild the sandbox with a newer plugin (HARNESS_HERMES_OTEL_REF)");
+}
+
 // `hermes -z` leaves a gateway process running that holds the loaded plugin
 // configuration; the next turn starts a new one with the settings just written.
 function restartHermesGateway() {
@@ -180,15 +187,15 @@ switch (command) {
     if (!openclawMatches(mode, base)) process.exitCode = 1;
     break;
   }
+  case "hermes-check":
+    assertHermesContentSupported(args[0], args[1]);
+    break;
   case "hermes-enable": {
-    // "filtered" means the receiver on the other end drops tool text itself.
     const [tracesUrl, content, receiver] = args;
     validBase(tracesUrl);
-    validContent(content);
     assertHermesConfigWritable();
+    assertHermesContentSupported(content, receiver);
     const omitToolText = content === "off";
-    if (omitToolText && receiver !== "filtered" && !hermesPluginOmitsToolText())
-      throw Error("The hermes-otel plugin in this sandbox image predates capture_tool_command, so --content off would still export tool commands and paths; use --backend sqlite, or rebuild the sandbox with a newer plugin (HARNESS_HERMES_OTEL_REF)");
     // "off" must stay quoted: bare off is a YAML 1.1 boolean.
     writeFile(hermesConfig, [hermesMarker, `content_capture: "${content}"`,
       ...(omitToolText ? ["capture_tool_command: false", "capture_tool_target: false", "capture_error_message: false"] : []),
