@@ -20,6 +20,15 @@ rouge-score = "^0.1.2"
 sentence-transformers = "6.1.0"
 uvicorn = "0.54.0"
 spicy = "0.16.0"
+# Minimum versions for transitive dependencies to address CVEs
+certifi = ">=2026.10.18"
+dnspython = ">=2.9.2"
+filelock = ">=4.2.1"
+nltk = ">=3.10.4"
+pillow = ">=13.0.0"
+setuptools = ">=78.1.1"
+soupsieve = ">=4.0.0"
+urllib3 = ">=2.8.0"
 #optax = "^0.1.6"
 
 [tool.poetry.group.dev.dependencies]
