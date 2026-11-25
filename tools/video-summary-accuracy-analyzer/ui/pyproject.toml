@@ -11,9 +11,15 @@ package-mode = false
 [tool.poetry.dependencies]
 python = "^3.12"
 fastapi = { version = ">=0.138,<1", extras = ["standard"] }
-gradio = "6.29.0"
+gradio = "6.32.0"
 pandas = "^2.2.3"
 requests = "^2.34.2"
+# Minimum versions for transitive dependencies to address CVEs
+certifi = ">=2026.10.18"
+dnspython = ">=2.9.2"
+filelock = ">=4.2.1"
+pillow = ">=13.0.0"
+urllib3 = ">=2.8.0"
 
 [build-system]
 requires = ["poetry-core>=1.8.3"]
