@@ -45,6 +45,7 @@ on `PYTHONPATH`) before `python -m semantic_img_comp.main` can find it. Install 
 everything from the repository root:
 
 ```bash
+source .venv/bin/activate         # venv created by `make pull-model` (or create your own)
 pip install -r requirements.txt
 pip install -e .                  # required: makes `semantic_img_comp` importable from anywhere
 
@@ -62,6 +63,9 @@ make pull-model
 
 This command downloads the model, converts it to OpenVINO™ format, and places it in the
 default directory.
+
+> **Note:** `make pull-model` creates a virtual environment in `.venv` and installs the requirements there.
+> Activate it afterwards with `source .venv/bin/activate` before running the application locally.
 
 ### Make `avifenc` / `avifdec` Available (Required for AV1 Image File Format Codecs)
 

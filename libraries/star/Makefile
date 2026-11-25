@@ -56,12 +56,13 @@ clean: ## Tear down the running containers and remove orphans
 	NPU_RENDER_GID=0 docker compose --profile npu down --remove-orphans
 
 pull-model: dirs ## Downloads yolov8m and change it to OpenVINO format.
-	pip install -r requirements.txt
+	python3.10 -m venv .venv
+	. .venv/bin/activate && pip install -r requirements.txt
 	mkdir -p "$(MODEL_DIR)"
 	curl -fL "$(YOLO_MODEL_URL)" -o "$(MODEL_DIR)/$(YOLO_MODEL_NAME).pt"
 	rm -rf "$(YOLO_MODEL_OUT_DIR)"
 	rm -rf "src/datasets/coco8"
-	python3 -c "from ultralytics import YOLO; YOLO('$(MODEL_DIR)/$(YOLO_MODEL_NAME).pt').export(format='openvino', int8=True)"
+	. .venv/bin/activate && python -c "from ultralytics import YOLO; YOLO('$(MODEL_DIR)/$(YOLO_MODEL_NAME).pt').export(format='openvino', int8=True)"
 	mv "$(YOLO_MODEL_OUT_DIR)/$(YOLO_MODEL_NAME).xml" "$(YOLO_MODEL_OUT_DIR)/best.xml"
 	mv "$(YOLO_MODEL_OUT_DIR)/$(YOLO_MODEL_NAME).bin" "$(YOLO_MODEL_OUT_DIR)/best.bin"
 	rm "$(MODEL_DIR)/$(YOLO_MODEL_NAME).pt"
