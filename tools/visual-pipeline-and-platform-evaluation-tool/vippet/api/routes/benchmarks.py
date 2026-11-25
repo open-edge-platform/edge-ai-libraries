@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 import api.api_schemas as schemas
 from database import get_session
@@ -761,6 +762,7 @@ async def get_benchmark_suite_run_by_id(
         if workload_run_ids:
             test_case_runs_result = await session.execute(
                 select(BenchmarkTestCaseRun)
+                .options(defer(BenchmarkTestCaseRun.metrics, raiseload=True))
                 .where(BenchmarkTestCaseRun.workload_run_id.in_(workload_run_ids))
                 .order_by(BenchmarkTestCaseRun.id)
             )
@@ -830,7 +832,7 @@ async def get_benchmark_suite_run_by_id(
                     score_total=row.score_total,
                     score_performance=row.score_performance,
                     score_efficiency=row.score_efficiency,
-                    metrics=row.metrics,
+                    metrics=None,
                     job_id=row.job_id,
                     status=status,
                 )
