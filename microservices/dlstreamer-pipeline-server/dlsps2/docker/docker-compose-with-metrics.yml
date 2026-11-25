@@ -210,6 +210,9 @@ services:
 
     # Volume mounts
     volumes:
+      # REST API source/destination file paths are restricted to this directory
+      # (see dlsps2/README.md#security-considerations); mount custom media as a
+      # subfolder here, e.g. "/host/videos:/home/pipeline-server/resources/videos".
       - ../resources:/home/pipeline-server/resources/
       - /run/udev:/run/udev:ro
       - /dev:/dev
