@@ -18,6 +18,8 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from audio_assets import SAMPLE_AUDIO_RECORDINGS, AudioAssetsManager
 from audio_service_client import (
+    SAMPLE_AUDIO_TIMEOUT_SECONDS,
+    create_sample_audio_client,
     normalize_media_type,
     normalize_upload_filename,
 )
@@ -47,7 +49,6 @@ from managers.audio_pipeline_manager import get_audio_pipeline_manager
 router = APIRouter(dependencies=[Depends(require_voice_available)])
 
 logger = logging.getLogger("api.routes.voice")
-SAMPLE_AUDIO_TIMEOUT_SECONDS = 30
 MAX_SAMPLE_AUDIO_BYTES = 2 * 1024 * 1024
 
 _AUDIO_PIPELINE_RUN_REQUEST_SCHEMA = schemas.AudioPipelineRunRequest.model_json_schema()
@@ -86,14 +87,6 @@ AUDIO_PIPELINE_RUN_OPENAPI = {
         },
     }
 }
-
-
-def create_sample_audio_client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(
-        timeout=httpx.Timeout(SAMPLE_AUDIO_TIMEOUT_SECONDS, connect=5.0),
-        trust_env=True,
-        follow_redirects=False,
-    )
 
 
 AudioJobManagerDependency = Annotated[

@@ -258,6 +258,18 @@ class AudioRecordingResponse(BaseModel):
 
 
 class SampleAudioRecordingResponse(BaseModel):
+    """
+    **Allowlisted sample recording and its local download status.**
+
+    ## Attributes
+    - `filename` - Sample WAV filename
+    - `gender` - Speaker gender reported by the sample catalog
+    - `format` - Audio encoding description
+    - `sample_rate` - Sample rate description
+    - `description` - Description of the recorded speech
+    - `downloaded` - Whether the sample is available locally
+    """
+
     filename: str
     gender: Literal["F", "M"]
     format: str

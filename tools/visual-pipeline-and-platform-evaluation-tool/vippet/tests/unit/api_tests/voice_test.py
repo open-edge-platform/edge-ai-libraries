@@ -159,6 +159,19 @@ class VoiceServiceTests(unittest.IsolatedAsyncioTestCase):
         client_patch.start()
         self.addCleanup(client_patch.stop)
 
+    def test_sample_audio_client_configuration(self) -> None:
+        self.assertIs(
+            voice.create_sample_audio_client, speech_client.create_sample_audio_client
+        )
+        with patch.object(speech_client.httpx, "AsyncClient") as client_type:
+            speech_client.create_sample_audio_client()
+
+        client_type.assert_called_once_with(
+            timeout=httpx.Timeout(30, connect=5.0),
+            trust_env=True,
+            follow_redirects=False,
+        )
+
     def respond(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         if self.failure:

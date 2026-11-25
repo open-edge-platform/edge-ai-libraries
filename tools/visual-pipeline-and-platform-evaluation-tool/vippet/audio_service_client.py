@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 MAX_ERROR_RESPONSE_BYTES = 8 * 1024
 TIMEOUT_SECONDS = 20 * 60
+SAMPLE_AUDIO_TIMEOUT_SECONDS = 30
 AUDIO_ANALYZER_URL = os.getenv("AUDIO_ANALYZER_URL", "http://audio-analyzer:8010")
 TEXT_TO_SPEECH_URL = os.getenv("TEXT_TO_SPEECH_URL", "http://text-to-speech:8011")
 MEDIA_TYPE_PATTERN = re.compile(
@@ -99,6 +100,15 @@ def create_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=httpx.Timeout(TIMEOUT_SECONDS, connect=5.0),
         trust_env=False,
+        follow_redirects=False,
+    )
+
+
+def create_sample_audio_client() -> httpx.AsyncClient:
+    """Create a bounded, proxy-aware client for allowlisted public WAV samples."""
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(SAMPLE_AUDIO_TIMEOUT_SECONDS, connect=5.0),
+        trust_env=True,
         follow_redirects=False,
     )
 

@@ -9246,7 +9246,8 @@
           "description",
           "downloaded"
         ],
-        "title": "SampleAudioRecordingResponse"
+        "title": "SampleAudioRecordingResponse",
+        "description": "**Allowlisted sample recording and its local download status.**\n\n## Attributes\n- `filename` - Sample WAV filename\n- `gender` - Speaker gender reported by the sample catalog\n- `format` - Audio encoding description\n- `sample_rate` - Sample rate description\n- `description` - Description of the recorded speech\n- `downloaded` - Whether the sample is available locally"
       },
       "StatusResponse": {
         "properties": {
