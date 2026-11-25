@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
 from fastapi import Path as ApiPath
 from pydantic import BaseModel, Field, field_validator
 
@@ -108,7 +108,7 @@ class FrameMetric(BaseModel):
     payload_bytes: int = Field(description="Total size in bytes of the encoded payload sent to the decoder.")
     compression_rate: Optional[float] = Field(default=None, description="Ratio of original to encoded size for this frame.")
     aggregated_compression_rate: Optional[float] = Field(
-        default=None, description="Running average compression rate across frames processed so far for this client. Calculated from the start of the encoder to time point when this frame was processed.",
+        default=None, description="Ratio of total input JPEG bytes to total encoded payload bytes across all clients, since startup or the most recent compression-level change.",
     )
     target_compression_rate: Optional[float] = Field(
         default=None, description="Target compression rate this frame's encode attempted to hit.",
@@ -439,6 +439,7 @@ def create_app(service: EncoderService) -> FastAPI:
     @app.post("/v1/streams/{stream_id}/frames", status_code=202, response_model=FrameAcceptedResponse)
     async def post_frame(
         request: Request,
+        jpeg_bytes: bytes = Body(..., media_type="application/octet-stream", description="Raw JPEG frame bytes."),
         stream_id: str = ApiPath(
             ..., pattern=_STREAM_ID_PATTERN,
             description="ID of the stream to submit the frame to; created automatically if it doesn't exist.",
@@ -447,7 +448,6 @@ def create_app(service: EncoderService) -> FastAPI:
             default=None, description="Explicit per-client image sequence number; auto-incremented if omitted.",
         ),
     ):
-        jpeg_bytes = await request.body()
         if not jpeg_bytes:
             raise HTTPException(status_code=400, detail="empty request body; expected raw JPEG bytes")
         if len(jpeg_bytes) > service.cfg.enc.max_body_bytes:

@@ -1054,6 +1054,10 @@ def load_config(config_path: Optional[str] = None) -> Config:
     if cfg.enc.scale_search_step_size <= 0:
         raise ValueError("encoder.scale_search_step_size must be > 0")
 
+    # 0 would make queue.Queue(maxsize=0) unbounded while deque(maxlen=0) stays empty.
+    if cfg.enc.stream_buffer_size < 1:
+        raise ValueError("encoder.stream_buffer_size must be >= 1")
+
 
     if cfg.pipeline_manager.queue_backlog_threshold_1 < 0:
         raise ValueError("pipeline_manager.queue_backlog_threshold_1 must be >= 0")

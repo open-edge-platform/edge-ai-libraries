@@ -154,6 +154,19 @@
             "description": "ID of the stream to ingest the payload into; created automatically if it doesn't exist."
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "contentMediaType": "application/octet-stream",
+                "description": "Raw payload bytes.",
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "202": {
             "description": "Successful Response",

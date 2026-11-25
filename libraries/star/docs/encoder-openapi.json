@@ -184,6 +184,19 @@
             "description": "Explicit per-client image sequence number; auto-incremented if omitted."
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "contentMediaType": "application/octet-stream",
+                "description": "Raw JPEG frame bytes.",
+                "title": "Jpeg Bytes"
+              }
+            }
+          }
+        },
         "responses": {
           "202": {
             "description": "Successful Response",
@@ -374,7 +387,7 @@
               }
             ],
             "title": "Aggregated Compression Rate",
-            "description": "Running average compression rate across frames processed so far for this client. Calculated from the start of the encoder to time point when this frame was processed."
+            "description": "Ratio of total input JPEG bytes to total encoded payload bytes across all clients, since startup or the most recent compression-level change."
           },
           "target_compression_rate": {
             "anyOf": [

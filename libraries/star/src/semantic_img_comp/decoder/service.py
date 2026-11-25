@@ -34,7 +34,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
 from fastapi import Path as ApiPath
 from pydantic import BaseModel, Field
 
@@ -69,9 +69,13 @@ class FrameAcceptedResponse(BaseModel):
     img_idx: int = Field(description="Per-stream image index reported by the encoder.")
 
 
-_JPEG_FRAME_RESPONSES = {
-    200: {"content": {"image/jpeg": {}}, "description": "Decoded JPEG frame."},
-}
+class JpegFrameResponse(BaseModel):
+    status_code: int = Field(default=200, description="HTTP status code returned for a decoded frame.")
+    media_type: str = Field(default="image/jpeg", description="Media type of the raw frame body.")
+    description: str = Field(default="Decoded JPEG frame.", description="OpenAPI description of this response.")
+
+    def to_openapi(self) -> dict:
+        return {self.status_code: {"content": {self.media_type: {}}, "description": self.description}}
 
 
 @dataclass
@@ -254,8 +258,11 @@ def create_app(service: DecoderService) -> FastAPI:
         return Response(status_code=204)
 
     @app.post("/v1/streams/{stream_id}/payloads", status_code=202, response_model=FrameAcceptedResponse)
-    async def post_payload(request: Request, stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to ingest the payload into; created automatically if it doesn't exist.")):
-        payload = await request.body()
+    async def post_payload(
+        request: Request,
+        payload: bytes = Body(..., media_type="application/octet-stream", description="Raw payload bytes."),
+        stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to ingest the payload into; created automatically if it doesn't exist."),
+    ):
         if not payload:
             raise HTTPException(status_code=400, detail="empty request body; expected a mux payload")
         if len(payload) > service.cfg.dec.max_body_bytes:
@@ -274,7 +281,7 @@ def create_app(service: DecoderService) -> FastAPI:
 
         return FrameAcceptedResponse(frame_seq=frame.frame_seq, img_idx=frame.img_idx)
 
-    @app.get("/v1/streams/{stream_id}/frames/next", responses=_JPEG_FRAME_RESPONSES)
+    @app.get("/v1/streams/{stream_id}/frames/next", responses=JpegFrameResponse().to_openapi())
     async def get_next_frame(
         stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream to poll."),
         consumer_id: str = Query(..., min_length=1, max_length=128, description="Caller-chosen id identifying this consumer's own read cursor."),
@@ -290,7 +297,7 @@ def create_app(service: DecoderService) -> FastAPI:
             return Response(status_code=204)
         return Response(content=frame.jpeg_bytes, media_type="image/jpeg", headers=_frame_headers(frame))
 
-    @app.get("/v1/streams/{stream_id}/frames/{frame_seq}", responses=_JPEG_FRAME_RESPONSES)
+    @app.get("/v1/streams/{stream_id}/frames/{frame_seq}", responses=JpegFrameResponse().to_openapi())
     def get_frame_by_seq(
         frame_seq: int = ApiPath(..., description="Frame sequence number to fetch."),
         stream_id: str = ApiPath(..., pattern=_STREAM_ID_PATTERN, description="ID of the stream."),
