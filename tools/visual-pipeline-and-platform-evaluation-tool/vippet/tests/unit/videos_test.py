@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from videos import (
     VIDEO_EXTENSIONS,
+    HevcEncoderUnavailableError,
     Video,
     VideoFileInfo,
     VideosManager,
@@ -1204,7 +1205,9 @@ class TestDefaultRecordings(unittest.TestCase):
                 output_filename = "sample_h265.mp4"
                 output_path = os.path.join(self.auto_dir, output_filename)
 
-                def write_converted_file(_source: str, temp_path: str) -> bool:
+                def write_converted_file(
+                    _source: str, temp_path: str, _encoder: str
+                ) -> bool:
                     with open(temp_path, "wb") as converted:
                         converted.write(b"hevc")
                     return True
@@ -1224,6 +1227,11 @@ class TestDefaultRecordings(unittest.TestCase):
                     manager._video_paths[output_filename] = output_path
 
                 with (
+                    patch.object(
+                        manager,
+                        "_select_hevc_encoder",
+                        return_value="video/x-raw,format=NV12 ! vah265enc",
+                    ),
                     patch.object(
                         manager, "_convert_to_hevc", side_effect=write_converted_file
                     ),
@@ -1825,6 +1833,7 @@ class TestConvertToHevc(unittest.TestCase):
             ok = VideosManager._convert_to_hevc(
                 "/videos/input/auto/sample clip.mp4",
                 "/videos/input/auto/sample_h265.mp4.partial",
+                "video/x-raw,format=NV12 ! vah265enc",
             )
 
         self.assertTrue(ok)
@@ -1851,11 +1860,32 @@ class TestConvertToHevc(unittest.TestCase):
                 )
                 with self.assertLogs("videos", level="ERROR"):
                     ok = VideosManager._convert_to_hevc(
-                        "/videos/input/auto/sample.mp4", output_path
+                        "/videos/input/auto/sample.mp4",
+                        output_path,
+                        "video/x-raw,format=NV12 ! vah265enc",
                     )
 
             self.assertFalse(ok)
             self.assertFalse(os.path.exists(output_path))
+
+
+class TestSelectHevcEncoder(unittest.TestCase):
+    def _select(self, elements):
+        with patch("videos.GstInspector") as inspector:
+            inspector.return_value.elements = elements
+            return VideosManager._select_hevc_encoder()
+
+    def test_selects_va_encoder(self):
+        encoder = self._select([("va", "vah265enc", "")])
+        self.assertEqual(encoder, "video/x-raw,format=NV12 ! vah265enc")
+
+    def test_raises_when_no_encoder_is_available(self):
+        with self.assertRaises(HevcEncoderUnavailableError):
+            self._select([("libav", "avdec_h264", "")])
+
+    def test_unknown_element_list_is_not_reported_as_unsupported(self):
+        with self.assertLogs("videos", level="ERROR"):
+            self.assertIsNone(self._select([]))
 
 
 class TestRegisterUploadedVideoFailures(unittest.TestCase):

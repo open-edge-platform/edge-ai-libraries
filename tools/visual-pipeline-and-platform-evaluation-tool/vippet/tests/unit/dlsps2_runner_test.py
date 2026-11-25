@@ -728,6 +728,18 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
             [{"pipeline": PIPELINE, "validate_pipeline": False, "cpu_cores": [1, 3]}],
         )
 
+    def test_per_stream_pinning_overrides_test_level_pinning(self):
+        runner = self._runner(pinned_cpu_cores=[1, 3])
+        fake = _FakeDlsps2([])
+        with fake.client() as client:
+            runner._start(client, PIPELINE, cpu_cores=[12])
+            runner._start(client, PIPELINE, cpu_cores=[])
+            runner._start(client, PIPELINE)
+        bodies = [json.loads(request.content) for request in fake.calls("POST")]
+        self.assertEqual(bodies[0]["cpu_cores"], [12])
+        self.assertNotIn("cpu_cores", bodies[1])
+        self.assertEqual(bodies[2]["cpu_cores"], [1, 3])
+
     def test_invalid_launch_string_raises_before_any_instance_starts(self):
         fake = _FakeStreamSet(
             [[_running(30.0)]],

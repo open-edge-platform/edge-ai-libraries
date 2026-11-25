@@ -2267,7 +2267,7 @@
           "models"
         ],
         "summary": "Start one or more model download jobs",
-        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n- **`category`** *(optional)* - Required when `hub` is `huggingface`.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
+        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`, `geti`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n  - `geti`: `category` is required; the model is resolved by name on\n    the configured Geti server, every OpenVINO precision it offers is\n    downloaded in parallel and `geti/<name>/` is scanned for the\n    installed precisions.\n- **`category`** *(optional)* - Required when `hub` is `huggingface` or `geti`.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
         "operationId": "start_model_download",
         "requestBody": {
           "content": {
@@ -3136,7 +3136,7 @@
           "pipelines"
         ],
         "summary": "Update Variant",
-        "description": "**Update an existing variant.**\n\n## Operation\n1. Validate request body via `VariantUpdate` model\n2. Validate that pipeline and variant exist\n3. Check that variant is not read-only\n4. Delegate to `PipelineManager.update_variant()`\n5. Backend automatically updates variant's and pipeline's `modified_at` timestamps\n\n## Immutable Fields\nThe following fields **cannot** be updated via API:\n- `id` - Immutable identifier\n- `read_only` - Immutable flag\n- `created_at` - Immutable creation timestamp\n- `modified_at` - Automatically updated by backend\n\n## Restrictions\n- Only one of `pipeline_graph` or `pipeline_graph_simple` can be provided per request\n- Cannot update read-only variants (from PREDEFINED pipelines)\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline containing the variant\n- `variant_id` - ID of the variant to update\n\n## Request Body\n**`VariantUpdate`** (validated by Pydantic) - any combination of:\n- `name` *(optional)* - Variant name (non-empty after trim)\n- `pipeline_graph` *(optional)* - Advanced graph (mutually exclusive with `pipeline_graph_simple`)\n- `pipeline_graph_simple` *(optional)* - Simplified graph (mutually exclusive with `pipeline_graph`)\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200 | Updated Variant object with new `modified_at` |\n| 400 | `MessageResponse` - Variant is read-only |\n| 404 | `MessageResponse` - Pipeline or variant not found |\n| 422 | Pydantic validation error (no fields, both graphs, or empty name) |\n| 500 | `MessageResponse` - Unexpected error |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- Variant is not read-only\n- At least one field provided\n- At most one graph field provided\n- Name is non-empty after trim (if provided)\n- Variant is successfully updated\n- Variant's and pipeline's `modified_at` are updated\n\n### \u274c Failure\n- Pipeline or variant not found \u2192 404\n- Variant is read-only \u2192 400\n- Invalid request (no fields, both graphs, empty name) \u2192 422 (Pydantic validation)\n- Any other exception \u2192 500\n\n## Examples\n\n### Request (Update Name)\n```json\n{\n  \"name\": \"GPU-optimized\"\n}\n```\n\n### Request (Update Advanced Graph)\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [...],\n    \"edges\": [...]\n  }\n}\n```\n\n### Success Response (200)\n```json\n{\n  \"id\": \"variant-1\",\n  \"name\": \"GPU-optimized\",\n  \"read_only\": false,\n  \"pipeline_graph\": {...},\n  \"pipeline_graph_simple\": {...},\n  \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n  \"modified_at\": \"2026-02-05T15:45:00.456000+00:00\"\n}\n```\n\n### Error Response (400 - Read-only)\n```json\n{\n  \"message\": \"Cannot update read-only variant 'variant-1'.\"\n}\n```\n\n### Error Response (422 - Empty Name)\n```json\n{\n  \"detail\": [\n    {\n      \"type\": \"value_error\",\n      \"msg\": \"Value error, Field 'name' must not be empty.\"\n    }\n  ]\n}\n```",
+        "description": "**Update an existing variant.**\n\n## Operation\n1. Validate request body via `VariantUpdate` model\n2. Validate that pipeline and variant exist\n3. Check that variant is not read-only\n4. Delegate to `PipelineManager.update_variant()`\n5. Backend automatically updates variant's and pipeline's `modified_at` timestamps\n\n## Immutable Fields\nThe following fields **cannot** be updated via API:\n- `id` - Immutable identifier\n- `read_only` - Immutable flag\n- `created_at` - Immutable creation timestamp\n- `modified_at` - Automatically updated by backend\n\n## Restrictions\n- Only one of `pipeline_graph` or `pipeline_graph_simple` can be provided per request\n- Cannot update read-only variants (from PREDEFINED pipelines)\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline containing the variant\n- `variant_id` - ID of the variant to update\n\n## Request Body\n**`VariantUpdate`** (validated by Pydantic) - any combination of:\n- `name` *(optional)* - Variant name (non-empty after trim)\n- `pipeline_graph` *(optional)* - Advanced graph (mutually exclusive with `pipeline_graph_simple`)\n- `pipeline_graph_simple` *(optional)* - Simplified graph (mutually exclusive with `pipeline_graph`)\n\n### CPU pinning\n`cpu_pinning` inside the submitted graph controls the variant's pinning:\n- Field omitted - the current pinning is kept\n- `[]` - pinning is cleared\n- List of CPU ids - replaces the pinning; ids are de-duplicated and sorted\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200 | Updated Variant object with new `modified_at` |\n| 400 | `MessageResponse` - Variant is read-only |\n| 404 | `MessageResponse` - Pipeline or variant not found |\n| 422 | Pydantic validation error (no fields, both graphs, or empty name) |\n| 500 | `MessageResponse` - Unexpected error |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- Variant is not read-only\n- At least one field provided\n- At most one graph field provided\n- Name is non-empty after trim (if provided)\n- Variant is successfully updated\n- Variant's and pipeline's `modified_at` are updated\n\n### \u274c Failure\n- Pipeline or variant not found \u2192 404\n- Variant is read-only \u2192 400\n- Invalid request (no fields, both graphs, empty name) \u2192 422 (Pydantic validation)\n- Any other exception \u2192 500\n\n## Examples\n\n### Request (Update Name)\n```json\n{\n  \"name\": \"GPU-optimized\"\n}\n```\n\n### Request (Update Advanced Graph)\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [...],\n    \"edges\": [...]\n  }\n}\n```\n\n### Success Response (200)\n```json\n{\n  \"id\": \"variant-1\",\n  \"name\": \"GPU-optimized\",\n  \"read_only\": false,\n  \"pipeline_graph\": {...},\n  \"pipeline_graph_simple\": {...},\n  \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n  \"modified_at\": \"2026-02-05T15:45:00.456000+00:00\"\n}\n```\n\n### Error Response (400 - Read-only)\n```json\n{\n  \"message\": \"Cannot update read-only variant 'variant-1'.\"\n}\n```\n\n### Error Response (422 - Empty Name)\n```json\n{\n  \"detail\": [\n    {\n      \"type\": \"value_error\",\n      \"msg\": \"Value error, Field 'name' must not be empty.\"\n    }\n  ]\n}\n```",
         "operationId": "update_variant",
         "parameters": [
           {
@@ -3365,6 +3365,89 @@
           },
           "400": {
             "description": "Invalid graph or conversion failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline or variant not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{pipeline_id}/variants/{variant_id}/export-app": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Export Variant as App",
+        "description": "**Export a saved pipeline variant as a standalone app (zip archive).**\n\nThe app runs the variant on DL Streamer Pipeline Server 2.0 with Docker\nCompose, without ViPPET. Unsaved editor changes are not included.\n\n## Operation\n1. Load the saved pipeline variant\n2. Check that it can run as an app: one video file source, stock elements,\n   and only models supported by app export (currently Pallet Defect Detection)\n3. Build one launch string per app output (`fakesink`, `file`, `rtsp`)\n4. Bundle compose file, scripts, launch strings, model and input video into a zip\n\n## Archive Content\nOne directory named `<pipeline>-<variant>-app` with `README.md`, `compose.yml`,\n`start_app.sh`, `run.sh`, `status.sh`, `stop.sh`, `stop_app.sh`,\n`pipelines.json`, `manifest.json`, `assets/` (models and videos) and `output/`.\n\n## Path Parameters\n- `pipeline_id` - ID of the pipeline\n- `variant_id` - ID of the variant to export\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200 | `application/zip` attachment named `<pipeline>-<variant>-app.zip` |\n| 400 | `MessageResponse` - Variant cannot be exported as an app |\n| 404 | `MessageResponse` - Pipeline or variant not found |\n| 500 | `MessageResponse` - Unexpected error |\n\n## Conditions\n\n### \u2705 Success\n- Pipeline and variant exist\n- The variant passes the app export checks and all its files are present\n\n### \u274c Failure\n- Pipeline or variant not found \u2192 404\n- Unsupported source, element or model, or a missing model or video file \u2192 400\n- Any other exception \u2192 500\n\n## Examples\n\n### Error Response (400)\n```json\n{\n  \"message\": \"Export as app currently supports Pallet Defect Detection pipelines only (model 'Pallet Defect Detection').\"\n}\n```",
+        "operationId": "export_variant_as_app",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Zip archive of the app",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Variant cannot be exported as an app",
             "content": {
               "application/json": {
                 "schema": {
@@ -3723,7 +3806,7 @@
             }
           },
           "200": {
-            "description": "The video is already converted or a conversion is running.",
+            "description": "The video is already converted, a conversion is running, or no HEVC encoder is available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6453,7 +6536,8 @@
           "converting",
           "converted",
           "failed",
-          "conflict"
+          "conflict",
+          "unsupported"
         ],
         "title": "DefaultVideoConversionState"
       },
@@ -7685,7 +7769,7 @@
                 "type": "null"
               }
             ],
-            "description": "Model category, required when `hub` is `huggingface` (ignored for other hubs)."
+            "description": "Model category, required when `hub` is `huggingface` or `geti` (ignored for other hubs)."
           },
           "gated": {
             "anyOf": [
@@ -7704,7 +7788,7 @@
           "names"
         ],
         "title": "ModelDownloadRequest",
-        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\nWhen `hub` is set, names not found in the catalog are downloaded from\nthat hub (names as returned by `POST /models/list`) and registered in\nthe catalog together with every installed precision. Supported hubs:\n`ultralytics` (category derived from the name suffix) and\n`huggingface` (category must be provided via `category`, since\nHuggingFace repo ids have no fixed naming convention to derive it\nfrom).\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n- `hub` - Optional upstream hub for names not in the catalog.\n- `category` - Required when `hub` is `huggingface`; ignored otherwise.\n- `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\nWhen `hub` is set, names not found in the catalog are downloaded from\nthat hub (names as returned by `POST /models/list`) and registered in\nthe catalog together with every installed precision. Supported hubs:\n`ultralytics` (category derived from the name suffix), `huggingface`\n(category must be provided via `category`, since HuggingFace repo ids\nhave no fixed naming convention to derive it from) and `geti`\n(category must be provided via `category`; the model is resolved by\nname on the configured Geti server and every OpenVINO precision it\noffers is downloaded).\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n- `hub` - Optional upstream hub for names not in the catalog.\n- `category` - Required when `hub` is `huggingface` or `geti`; ignored otherwise.\n- `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
       },
       "ModelGated": {
         "type": "string",
@@ -7864,10 +7948,11 @@
           "ultralytics",
           "pipeline-zoo-models",
           "omz",
+          "geti",
           "custom"
         ],
         "title": "ModelSource",
-        "description": "**Upstream hub a model is downloaded from.**\n\nMirrors the `hub` value used by the model-download microservice and\nadds `CUSTOM` for user-uploaded models.\n\n## Values\n- `HUGGINGFACE` - HuggingFace Hub\n- `ULTRALYTICS` - Ultralytics model zoo\n- `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models\n- `OMZ` - OpenVINO Open Model Zoo\n- `CUSTOM` - User-uploaded model\n\n### Example\n```json\n\"huggingface\"\n```"
+        "description": "**Upstream hub a model is downloaded from.**\n\nMirrors the `hub` value used by the model-download microservice and\nadds `CUSTOM` for user-uploaded models.\n\n## Values\n- `HUGGINGFACE` - HuggingFace Hub\n- `ULTRALYTICS` - Ultralytics model zoo\n- `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models\n- `OMZ` - OpenVINO Open Model Zoo\n- `GETI` - Intel Geti server\n- `CUSTOM` - User-uploaded model\n\n### Example\n```json\n\"huggingface\"\n```"
       },
       "ModelStatusItem": {
         "properties": {
@@ -8741,6 +8826,14 @@
       },
       "PipelineGraph": {
         "properties": {
+          "cpu_pinning": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Cpu Pinning",
+            "description": "Logical CPU ids every stream of this graph is pinned to. Empty uses test-level pinning."
+          },
           "nodes": {
             "items": {
               "$ref": "#/components/schemas/Node"
@@ -8797,7 +8890,7 @@
           "edges"
         ],
         "title": "PipelineGraph",
-        "description": "**Request or response body containing the structured pipeline graph.**\n\nThis is a generic representation used by multiple endpoints\n(conversion, validation, optimization).\n\n## Attributes\n- `nodes` - List of graph nodes\n- `edges` - Directed connections between nodes"
+        "description": "**Request or response body containing the structured pipeline graph.**\n\nThis is a generic representation used by multiple endpoints\n(conversion, validation, optimization).\n\n## Attributes\n- `cpu_pinning` - Logical CPU ids every stream of this graph is pinned to (empty uses test-level pinning)\n- `nodes` - List of graph nodes\n- `edges` - Directed connections between nodes"
       },
       "PipelineGraphResponse": {
         "properties": {
@@ -9310,6 +9403,12 @@
             "$ref": "#/components/schemas/PipelineGraph",
             "description": "Simplified graph view for this variant."
           },
+          "media_only": {
+            "type": "boolean",
+            "title": "Media Only",
+            "description": "Whether the advanced graph only decodes media (decodebin3) without inference elements. Pinned media-only graphs decode on VDBox. Set by backend only.",
+            "default": false
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -9333,7 +9432,7 @@
           "modified_at"
         ],
         "title": "Variant",
-        "description": "**Single variant of a pipeline for different hardware targets.**\n\n## Attributes\n- `id` - Unique variant identifier generated by the backend (not used when creating or updating variants)\n- `name` - Variant name (e.g., \"CPU\", \"GPU\", \"NPU\")\n- `read_only` - Whether the variant is read-only (defaults to false, can only be true for PREDEFINED pipeline variants)\n- `pipeline_graph` - Advanced graph representation for this variant\n- `pipeline_graph_simple` - Simplified graph representation for this variant\n- `created_at` - Creation timestamp as UTC datetime (set by backend only, not modifiable via API)\n- `modified_at` - Last modification timestamp as UTC datetime (updated when variant is modified, set by backend only)"
+        "description": "**Single variant of a pipeline for different hardware targets.**\n\n## Attributes\n- `id` - Unique variant identifier generated by the backend (not used when creating or updating variants)\n- `name` - Variant name (e.g., \"CPU\", \"GPU\", \"NPU\")\n- `read_only` - Whether the variant is read-only (defaults to false, can only be true for PREDEFINED pipeline variants)\n- `pipeline_graph` - Advanced graph representation for this variant\n- `pipeline_graph_simple` - Simplified graph representation for this variant\n- `media_only` - Whether the advanced graph only decodes media without inference (set by backend only)\n- `created_at` - Creation timestamp as UTC datetime (set by backend only, not modifiable via API)\n- `modified_at` - Last modification timestamp as UTC datetime (updated when variant is modified, set by backend only)"
       },
       "VariantCreate": {
         "properties": {

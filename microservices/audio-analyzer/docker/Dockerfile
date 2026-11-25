@@ -22,8 +22,8 @@
 #       exact package list and the reasoning for what is/isn't included.
 #
 # Optional Chinese/English FunASR Paraformer provider (requirements-cjk.txt):
-#   --build-arg INSTALL_CJK=true adds the funasr/modelscope packages. Off
-#   by default so the standard image is unchanged for existing consumers.
+#   funasr/modelscope packages are included by default. Set
+#   --build-arg INSTALL_CJK=false to omit them.
 #
 # GPU/NPU userspace runtime:
 #   --build-arg INSTALL_GPU_NPU_RUNTIME=true (production default) installs
@@ -54,10 +54,9 @@ FROM ubuntu:24.04 AS builder
 
 ARG IMAGE_VARIANT
 ARG DEBIAN_FRONTEND=noninteractive
-# INSTALL_CJK: set to "true" to add the optional FunASR Paraformer provider for
-# Chinese/English ASR (requirements-cjk.txt). Off by default so the standard
-# image and its existing consumers stay unchanged.
-ARG INSTALL_CJK="false"
+# INSTALL_CJK: set to "false" to omit the FunASR Paraformer provider for
+# Chinese/English ASR (requirements-cjk.txt).
+ARG INSTALL_CJK="true"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -85,12 +84,10 @@ RUN python3.12 -m venv "$VIRTUAL_ENV" \
     && if [ "$IMAGE_VARIANT" = "full" ]; then \
         "$VIRTUAL_ENV/bin/pip" install -r requirements-optional.txt -c requirements-lock.txt; \
     fi \
-    # Optional Chinese/English FunASR Paraformer provider. Only installed
-    # when the image is built with --build-arg INSTALL_CJK=true; the
-    # default build is unchanged for existing consumers. Not constrained
-    # via requirements-lock.txt.
+    # Chinese/English FunASR Paraformer provider. Installed by default;
+    # set INSTALL_CJK=false to omit it.
     && if [ "$INSTALL_CJK" = "true" ]; then \
-        "$VIRTUAL_ENV/bin/pip" install -r requirements-cjk.txt; \
+        "$VIRTUAL_ENV/bin/pip" install -r requirements-cjk.txt -c requirements-lock.txt; \
     fi \
     && ("$VIRTUAL_ENV/bin/pip" uninstall -y torchcodec || true) \
     # triton (~0.9GB installed) is a hard dependency of openai-whisper on

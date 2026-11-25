@@ -38,27 +38,28 @@ the repository root):
 docker build -f docker/Dockerfile -t audio-analyzer:local .
 ```
 
-By default this builds the `full` image variant with GPU/NPU runtime
-packages included (`IMAGE_VARIANT=full`, `INSTALL_GPU_NPU_RUNTIME=true`),
+By default this builds the `full` image variant with GPU/NPU runtime and
+FunASR packages included (`IMAGE_VARIANT=full`, `INSTALL_GPU_NPU_RUNTIME=true`,
+`INSTALL_CJK=true`),
 matching what `docker compose build` produces. For a smaller CPU-only,
 default-ASR-only image, pass `--build-arg IMAGE_VARIANT=slim
---build-arg INSTALL_GPU_NPU_RUNTIME=false` explicitly.
+--build-arg INSTALL_GPU_NPU_RUNTIME=false --build-arg INSTALL_CJK=false`
+explicitly.
 
 ### Optional Chinese/English FunASR Provider
 
 The `funasr` ASR provider (Paraformer models for Chinese/English
-transcription) is **not installed by default** in either the `slim` or
-`full` variant, to keep the standard image unchanged for existing
-consumers. To add it, build with:
+transcription) is installed by default in both the `slim` and `full`
+variants. To omit it, build with:
 
 ```bash
-docker build -f docker/Dockerfile -t audio-analyzer:full-cjk \
-    --build-arg INSTALL_CJK=true .
+docker build -f docker/Dockerfile -t audio-analyzer:without-cjk \
+  --build-arg INSTALL_CJK=false .
 ```
 
-This installs the extra dependencies listed in `requirements-cjk.txt`
+The default image installs the dependencies listed in `requirements-cjk.txt`
 (`funasr`, `modelscope`, etc.) on top of whichever `IMAGE_VARIANT` is
-selected. The CJK variant also retains `setuptools` to provide the
+selected, constrained by `requirements-lock.txt`. It also retains `setuptools` to provide the
 `distutils.version` compatibility module required by FunASR on Python 3.12.
 The build verifies that Paraformer is registered before producing the image.
 See [`funasr` provider notes](./configuration.md#asr-provider-notes)

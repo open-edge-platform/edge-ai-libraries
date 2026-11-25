@@ -82,6 +82,7 @@ def _initialize_in_background(app: FastAPI) -> None:
     responding to health checks immediately while initialization proceeds.
     """
     app_state_manager = AppStateManager()
+    app.state.voice_available = False
 
     try:
         app_state_manager.set_status(
@@ -99,12 +100,13 @@ def _initialize_in_background(app: FastAPI) -> None:
         # and converts to TS format
         VideosManager()
 
-        # Initialize AudioAssetsManager - creates the audio input/output
-        # directories before any sample download or Audio pipeline run.
-        AudioAssetsManager()
-
-        # Load and validate read-only Audio pipeline definitions.
-        get_audio_pipeline_manager()
+        try:
+            AudioAssetsManager()
+            get_audio_pipeline_manager()
+        except Exception:
+            logger.exception("Voice initialization failed; Voice is disabled")
+        else:
+            app.state.voice_available = True
 
         # Initialize ImagesManager - ensures the uploaded image-set
         # root directory exists with the right permissions before any
