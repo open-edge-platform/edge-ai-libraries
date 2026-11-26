@@ -335,7 +335,7 @@ suite still requires native inference, restart persistence and cleanup to pass.
 The standalone workflow `.github/workflows/agent-harness-openshell-hosted.yml`
 runs every Monday at 03:23 UTC on the default branch. It also supports manual
 dispatch and `workflow_call` so future dependency-upgrade automation can reuse
-the same acceptance job. It uses standard `ubuntu-24.04` GitHub-hosted VMs, no
+the same acceptance job. It uses standard `ubuntu-26.04` GitHub-hosted VMs, no
 repository secrets, no protected environment approvals and read-only repository
 permissions. Checkout credentials are not persisted. It does not create PRs,
 change the integrated OpenShell pin or modify branch protection.
