@@ -235,7 +235,7 @@ export const Pipelines = () => {
     resetHistory,
   } = useUndoRedo();
 
-  const { data, isSuccess, refetch } = useGetPipelineQuery(
+  const { data, isSuccess, isError, error, refetch } = useGetPipelineQuery(
     {
       pipelineId: id ?? "",
     },
@@ -597,6 +597,27 @@ export const Pipelines = () => {
       }
     },
   });
+
+  const notFoundMessage = isError
+    ? error && "status" in error && error.status === 404
+      ? `Pipeline "${id}" not found.`
+      : `Failed to load pipeline "${id}".`
+    : isSuccess && data && !currentVariant
+      ? `Variant "${variant}" not found in pipeline "${data.name}".`
+      : null;
+
+  if (notFoundMessage) {
+    return (
+      <div className="flex flex-col h-full w-full">
+        <header className="flex h-[3.75rem] shrink-0 items-center gap-2 border-b px-2">
+          <BackButton to={source === "dashboard" ? "/" : "/pipelines"} />
+        </header>
+        <p role="alert" className="p-6 text-sm text-destructive">
+          {notFoundMessage}
+        </p>
+      </div>
+    );
+  }
 
   if (isSuccess && data) {
     const isTimeSeriesPipeline = data.tags?.includes("Time Series") ?? false;
