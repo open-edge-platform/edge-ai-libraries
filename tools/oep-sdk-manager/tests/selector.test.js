@@ -47,7 +47,7 @@ test("all SDK/version combinations retain their install and tutorial rules", () 
               VISUAL_AI_DEMO: "visual-ai-demo-kit.sh",
               UAV_MISSION_COMPUTE: "uav-mission-compute-sdk.sh",
             };
-            const path = version === "latest" || version === "2026.3.0-rc1"
+            const path = version === "latest" || version === "2026.3.0-rc2"
               ? "edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/" + latestNames[sdk.value]
               : "edge-ai-suites/refs/heads/release-" + version + ".0/metro-ai-suite/metro-sdk-manager/scripts/" + releaseNames[sdk.value];
             if (rule.text !== "curl -fsS https://raw.githubusercontent.com/open-edge-platform/" + path + " | bash") return false;
@@ -61,31 +61,31 @@ test("all SDK/version combinations retain their install and tutorial rules", () 
   assert.equal(result, 15);
 });
 
-test("SDK installers pin the 2026.3.0-rc1 component images", () => {
+test("SDK installers pin the 2026.3.0-rc2 component images", () => {
   const expectedImages = {
     "metro-vision-ai-sdk.sh": [
       "openvino/model_server:2026.4.1",
       "openvino/ubuntu24_dev:2026.4.1",
-      "intel/dlstreamer:2026.3.0-ubuntu24-rc1",
-      "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc1",
-      "intel/scenescape-manager:2026.3.0-rc1",
-      "intel/scenescape-controller:2026.3.0-rc1",
-      "intel/scenescape-autocalibration:2026.3.0-rc1",
+      "intel/dlstreamer:2026.3.0-ubuntu24-rc2",
+      "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc3",
+      "intel/scenescape-manager:2026.3.0-rc2",
+      "intel/scenescape-controller:2026.3.0-rc2",
+      "intel/scenescape-autocalibration:2026.3.0-rc2",
     ],
     "metro-gen-ai-sdk.sh": [
-      "intel/audio-analyzer:2026.3.0-rc1",
-      "intel/document-ingestion:2026.3.0-rc1",
-      "intel/multimodal-embedding-serving:2026.3.0-rc1",
-      "intel/multimodal-dataprep:2026.3.0-rc1",
-      "intel/model-download:2026.3.0-rc1",
-      "intel/chatqna:core_2026.3.0-rc1",
-      "intel/chatqna-ui:core_2026.3.0-rc1",
+      "intel/audio-analyzer:2026.3.0-rc2",
+      "intel/document-ingestion:2026.3.0-rc2",
+      "intel/multimodal-embedding-serving:2026.3.0-rc2",
+      "intel/multimodal-dataprep:2026.3.0-rc2",
+      "intel/model-download:2026.3.0-rc2",
+      "intel/chatqna:core_2026.3.0-rc2",
+      "intel/chatqna-ui:core_2026.3.0-rc2",
     ],
     "metro-visual-ai-demo-kit.sh": [
-      "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc1",
+      "intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-rc3",
     ],
     "uav-mission-compute-sdk.sh": [
-      "intel/metrics-manager:2026.3.0-rc1",
+      "intel/metrics-manager:2026.3.0-rc2",
     ],
   };
 

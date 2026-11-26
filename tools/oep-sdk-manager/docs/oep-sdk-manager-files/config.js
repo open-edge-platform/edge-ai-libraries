@@ -45,7 +45,7 @@ const CONFIG = {
           // Limit which options in other categories are compatible with this SDK.
           // Buttons for values not listed here will be greyed out when this SDK is selected.
           supports: {
-            VERSION: ["latest", "2026.3.0-rc1", "2026.2"]
+            VERSION: ["latest", "2026.3.0-rc2", "2026.2"]
           }
         }
       ]
@@ -60,8 +60,8 @@ const CONFIG = {
           value: "latest"
         },
         {
-          label: "2026.3.0-rc1",
-          value: "2026.3.0-rc1"
+          label: "2026.3.0-rc2",
+          value: "2026.3.0-rc2"
         },
         {
           label: "2026.2",
@@ -648,13 +648,13 @@ const CONFIG = {
   ]
 };
 
-// RC1 uses the current installer and documentation rules, with RC1-pinned images.
-const rc1Version = "2026.3.0-rc1";
+// RC2 uses the current installer and documentation rules, with RC2-pinned images.
+const rc2Version = "2026.3.0-rc2";
 for (const output of CONFIG.outputs) {
   const latestRules = output.rules.filter((rule) => rule.when.VERSION === "latest");
   output.rules.push(...latestRules.map((rule) => ({
     ...rule,
-    when: { ...rule.when, VERSION: rc1Version }
+    when: { ...rule.when, VERSION: rc2Version }
   })));
 }
 
