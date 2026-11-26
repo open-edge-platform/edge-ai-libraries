@@ -1,24 +1,21 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import sys
 import logging
 from pathlib import Path
 from typing import Optional
 
+from platform_paths import PUBLIC_MODEL_PROC_PATH
+
 logger = logging.getLogger("resources")
 
-# Default directories for resources
-DEFAULT_LABELS_DIR = "/home/dlstreamer/dlstreamer/samples/labels"
-DEFAULT_SCRIPTS_DIR = "/scripts"
-DEFAULT_PUBLIC_MODEL_PROC_DIR = (
-    "/home/dlstreamer/dlstreamer/samples/gstreamer/model_proc/public"
-)
-
 # Read resource paths from environment variables if set
-LABELS_PATH = os.path.normpath(os.environ.get("LABELS_PATH", DEFAULT_LABELS_DIR))
-SCRIPTS_PATH = os.path.normpath(os.environ.get("SCRIPTS_PATH", DEFAULT_SCRIPTS_DIR))
-PUBLIC_MODEL_PROC_PATH = os.path.normpath(
-    os.environ.get("PUBLIC_MODEL_PROC_PATH", DEFAULT_PUBLIC_MODEL_PROC_DIR)
+LABELS_PATH: str = os.path.normpath(
+    os.environ.get("LABELS_PATH", "/home/dlstreamer/dlstreamer/samples/labels")
 )
+SCRIPTS_PATH: str = os.path.normpath(os.environ.get("SCRIPTS_PATH", "/scripts"))
 
 
 # Singleton instance for LabelsManager

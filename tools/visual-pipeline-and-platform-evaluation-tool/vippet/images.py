@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Image-set storage and validation.
 
@@ -51,10 +54,8 @@ logger = logging.getLogger("images")
 
 # Default location of the uploaded image sets on disk. Matches the shared
 # volume layout declared in compose.yml.
-_UPLOADED_IMAGES_DIR = "/images/input/uploaded"
-
 UPLOADED_IMAGES_DIR: str = os.path.normpath(
-    os.environ.get("UPLOADED_IMAGES_DIR", _UPLOADED_IMAGES_DIR)
+    os.environ.get("UPLOADED_IMAGES_DIR", "/images/input/uploaded")
 )
 
 # Supported archive extensions (lowercase, no leading dot). Multipart

@@ -35,6 +35,12 @@ import uuid
 from dataclasses import dataclass
 from typing import Callable
 
+from gst_properties import (
+    LAUNCH_ELEMENT,
+    LAUNCH_TOKEN,
+    quote_property,
+    unquote_property,
+)
 from managers.metadata_manager import METADATA_DIR
 from pipeline_runner import PipelineEvent
 
@@ -46,16 +52,10 @@ EVENTS_DIR: str = os.path.join(METADATA_DIR, ".events")
 # How often the event files are read while a run lasts, seconds.
 EVENTS_POLL_INTERVAL_S: float = float(os.environ.get("EVENTS_POLL_INTERVAL_S", "0.5"))
 
-# One element of a launch string: the text between "!" separators that are not
-# inside double quotes (prompts may contain "!").
-LAUNCH_ELEMENT = re.compile(r'(?:[^!"]|"[^"]*")+')
-
 TRIGGER_ELEMENT = "gvaproximitytrigger_py"
 TRIGGER_EVENTS_PROPERTY = "events-file"
 GENAI_ELEMENT = "gvagenai"
 
-_NAME = re.compile(r'(?:^|\s)name=(?:"([^"]*)"|(\S+))')
-_PROMPT = re.compile(r'(?:^|\s)prompt=(?:"([^"]*)"|(\S+))')
 _UNSAFE_PATH_CHARS = re.compile(r"[^A-Za-z0-9_.-]")
 
 # gvagenai's cumulative means in its JSON metadata, and the field each becomes.
@@ -84,11 +84,12 @@ class EventSource:
     stream_id: str | None = None
 
 
-def _property(pattern: re.Pattern, element: str) -> str | None:
-    match = pattern.search(element)
-    if match is None:
-        return None
-    return match.group(1) if match.group(1) is not None else match.group(2)
+def _property(name: str, element: str) -> str | None:
+    for token in LAUNCH_TOKEN.findall(element):
+        key, separator, value = token.partition("=")
+        if separator and key == name:
+            return unquote_property(value)
+    return None
 
 
 def _safe(text: str) -> str:
@@ -112,22 +113,29 @@ def add_event_outputs(
 
     def _rewrite(match: re.Match) -> str:
         element = match.group(0)
-        tokens = element.split()
+        tokens = LAUNCH_TOKEN.findall(element)
         if not tokens or tokens[0] not in (TRIGGER_ELEMENT, GENAI_ELEMENT):
             return element
-        if tokens[0] == TRIGGER_ELEMENT and f"{TRIGGER_EVENTS_PROPERTY}=" in element:
+        if (
+            tokens[0] == TRIGGER_ELEMENT
+            and _property(TRIGGER_EVENTS_PROPERTY, element) is not None
+        ):
             return element
         stripped = element.rstrip()
         trailing = element[len(stripped) :]
         path = os.path.join(directory, f"{_safe(stream_id)}-{len(sources)}.jsonl")
-        name = _property(_NAME, element)
+        name = _property("name", element)
         if tokens[0] == TRIGGER_ELEMENT:
             sources[path] = EventSource("trigger", name, stream_id=stream_id)
-            return f"{stripped} {TRIGGER_EVENTS_PROPERTY}={path}{trailing}"
-        sources[path] = EventSource("vlm", name, _property(_PROMPT, element), stream_id)
+            return (
+                f"{stripped} {TRIGGER_EVENTS_PROPERTY}={quote_property(path)}{trailing}"
+            )
+        sources[path] = EventSource(
+            "vlm", name, _property("prompt", element), stream_id
+        )
         return (
             f"{stripped} ! gvametapublish file-format=json-lines "
-            f"file-path={path}{trailing}"
+            f"file-path={quote_property(path)}{trailing}"
         )
 
     rewritten = LAUNCH_ELEMENT.sub(_rewrite, command)

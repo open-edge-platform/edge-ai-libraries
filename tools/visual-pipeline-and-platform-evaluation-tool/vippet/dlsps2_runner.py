@@ -81,7 +81,8 @@ from typing import Callable, Optional
 
 import httpx
 
-from pipeline_events import LAUNCH_ELEMENT, EventCapture
+from gst_properties import LAUNCH_ELEMENT, LAUNCH_TOKEN, QUOTED_VALUE
+from pipeline_events import EventCapture
 from pipeline_runner import LatencyTracerSample, PipelineEvent, PipelineResult
 
 logger = logging.getLogger("dlsps2_runner")
@@ -197,7 +198,6 @@ def dlsps2_latency_configured() -> bool:
     )
 
 
-_LAUNCH_ELEMENT = LAUNCH_ELEMENT
 _METRICS_ON = re.compile(r"(?:^|\s)metrics=(?:true|1|yes)(?:\s|$)", re.IGNORECASE)
 
 
@@ -221,7 +221,7 @@ def _wants_post_metrics(element: str) -> bool:
 def wants_genai_post_metrics(command: str) -> bool:
     """Whether ``command`` has a ``gvagenai`` with ``metrics=true`` and no ``post-metrics``."""
     return any(
-        _wants_post_metrics(m.group(0)) for m in _LAUNCH_ELEMENT.finditer(command)
+        _wants_post_metrics(m.group(0)) for m in LAUNCH_ELEMENT.finditer(command)
     )
 
 
@@ -243,11 +243,8 @@ def with_genai_post_metrics(command: str) -> str:
         stripped = element.rstrip()
         return f"{stripped} post-metrics=true{element[len(stripped) :]}"
 
-    return _LAUNCH_ELEMENT.sub(_add, command)
+    return LAUNCH_ELEMENT.sub(_add, command)
 
-
-# A launch string token: whitespace-separated, double-quoted parts kept whole.
-_LAUNCH_TOKEN = re.compile(r'(?:[^\s"]|"[^"]*")+')
 
 # Parentheses attached to the text before them, without spaces inside: caps
 # features (``video/x-raw(memory:VAMemory)``, also shell-escaped as
@@ -281,8 +278,8 @@ def with_fps_chain_last(command: str, stream_id: str) -> str:
     """
     chains: list[list[str]] = [[]]
     after_link = True
-    for token in _LAUNCH_TOKEN.findall(command):
-        unquoted = _ATTACHED_PARENS.sub("", re.sub(r'"[^"]*"', "", token))
+    for token in LAUNCH_TOKEN.findall(command):
+        unquoted = _ATTACHED_PARENS.sub("", QUOTED_VALUE.sub("", token))
         if token != "!" and ("!" in unquoted or "(" in unquoted or ")" in unquoted):
             # A link without spaces around it, or a bin: leave it as written.
             return command
@@ -344,25 +341,25 @@ def with_fps_element(command: str, stream_id: str) -> tuple[str, str | None]:
     """
     counters = [
         match
-        for match in _LAUNCH_ELEMENT.finditer(command)
-        if _LAUNCH_TOKEN.findall(match.group(0))[:1] == ["gvafpscounter"]
+        for match in LAUNCH_ELEMENT.finditer(command)
+        if LAUNCH_TOKEN.findall(match.group(0))[:1] == ["gvafpscounter"]
     ]
     if len(counters) == 1:
         element = counters[0].group(0)
-        tokens = _LAUNCH_TOKEN.findall(element)
+        tokens = LAUNCH_TOKEN.findall(element)
         end = 1
         while end < len(tokens) and "=" in tokens[end]:
             end += 1
         name = dict(token.split("=", 1) for token in tokens[1:end]).get("name")
         if name is not None:
             return command, name.strip('"')
-        if f"name={_FPS_COUNTER_NAME}" not in _LAUNCH_TOKEN.findall(command):
+        if f"name={_FPS_COUNTER_NAME}" not in LAUNCH_TOKEN.findall(command):
             start = counters[0].start() + element.index("gvafpscounter")
             start += len("gvafpscounter")
             named = f"{command[:start]} name={_FPS_COUNTER_NAME}{command[start:]}"
             return named, _FPS_COUNTER_NAME
     _, _, sink = stream_id.partition("__")
-    tokens = set(_LAUNCH_TOKEN.findall(command))
+    tokens = set(LAUNCH_TOKEN.findall(command))
     if sink and {f"name={sink}", f'name="{sink}"'} & tokens:
         return command, sink
     return command, None
@@ -404,7 +401,7 @@ def validation_launch_string(command: str) -> str:
 
     def _swap(match: re.Match) -> str:
         element = match.group(0)
-        tokens = _LAUNCH_TOKEN.findall(element)
+        tokens = LAUNCH_TOKEN.findall(element)
         if not tokens or tokens[0] not in _WRITING_SINKS | _WRITING_PASSTHROUGHS:
             return element
         end = 1
@@ -426,7 +423,7 @@ def validation_launch_string(command: str) -> str:
         trailing = element[len(element.rstrip()) :]
         return leading + " ".join(swapped + tokens[end:]) + trailing
 
-    return _LAUNCH_ELEMENT.sub(_swap, command)
+    return LAUNCH_ELEMENT.sub(_swap, command)
 
 
 # States in which a DLSPS 2.0 instance may still hold devices. A STOPPING

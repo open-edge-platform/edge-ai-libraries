@@ -8396,10 +8396,12 @@ class TestWhitespaceValuesQuoted(unittest.TestCase):
     def test_value_without_whitespace_is_unchanged(self) -> None:
         self.assertIn("location=/tmp/foo.mp4", self._description("/tmp/foo.mp4"))
 
-    def test_already_quoted_value_is_not_quoted_twice(self) -> None:
-        description = self._description('"/tmp/a b.mp4"')
-        self.assertIn('location="/tmp/a b.mp4"', description)
-        self.assertNotIn('""', description)
+    def test_literal_surrounding_quotes_are_preserved(self) -> None:
+        location = '"/tmp/a b.mp4"'
+        description = self._description(location)
+        self.assertIn(r'location="\"/tmp/a b.mp4\""', description)
+        imported = Graph.from_pipeline_description(description)
+        self.assertEqual(imported.nodes[0].data["location"], location)
 
 
 class TestGigECameraSource(unittest.TestCase):

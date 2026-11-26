@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """metadata_manager.py
 
 Thread-safe singleton that tails gvametapublish output files and exposes
@@ -35,11 +38,8 @@ _SSE_KEEPALIVE = ":" + " " * SSE_PADDING_BYTES + "\n\n"
 # takes ~2 keepalives to release the response head, 32 KiB releases it immediately.
 _SSE_PREAMBLE = ":" + " " * (SSE_PADDING_BYTES * 4) + "\n\n"
 
-# Default directory for metadata files
-_METADATA_DIR = "/metadata"
-
 # Read METADATA_DIR from environment variable, fallback to default if not set
-METADATA_DIR: str = os.path.normpath(os.getenv("METADATA_DIR", _METADATA_DIR))
+METADATA_DIR: str = os.path.normpath(os.environ.get("METADATA_DIR", "/metadata"))
 
 
 class MetadataManager:
