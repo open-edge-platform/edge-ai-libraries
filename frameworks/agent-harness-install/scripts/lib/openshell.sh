@@ -613,7 +613,8 @@ _install_openshell_agent() {
     --env "HERMES_HOME=/home/node/.hermes"
     --env "HARNESS_SANDBOX_ENDPOINT=http://host.openshell.internal:${HARNESS_IR_PORT}/v1")
   if [[ "$agent" == deepagents-code ]]; then
-    agent_env+=(--env "DEEPAGENTS_CODE_NO_UPDATE_CHECK=1")
+    agent_env+=(--env "DEEPAGENTS_CODE_NO_UPDATE_CHECK=1"
+      --env "FF_INMEM_CORE=false" --env "PYTHON_GRPC_BIND_HOST=::1")
   else
     agent_env+=(--env "OPENAI_API_KEY=not-needed")
   fi

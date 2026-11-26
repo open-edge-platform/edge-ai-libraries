@@ -418,7 +418,7 @@ profile_workspace() {
   if openshell_resource_exists sandbox; then return 1; fi
 }
 profile_creation_persists_workspace() {
-  HARNESS_AGENT=openclaw
+  HARNESS_AGENT="${1:-openclaw}"
   HARNESS_LLM_MODEL=test-model
   OPENSHELL_WORKSPACE=team-a
   ensure_openshell_cli() { :; }
@@ -429,7 +429,8 @@ profile_creation_persists_workspace() {
   openshell_assert_owned() { :; }
   openshell() {
     case "$1" in
-      status | profile | provider | sandbox) return 0 ;;
+      sandbox) printf '%s\n' "$@" >"$TEST_ROOT/sandbox-create-args" ;;
+      status | profile | provider) return 0 ;;
       *) return 1 ;;
     esac
   }
@@ -440,6 +441,13 @@ const profile = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf
 assert.equal(profile.workspace, "team-a");
 JS
   [[ "$OPENSHELL_WORKSPACE" == team-a ]]
+  if [[ "$HARNESS_AGENT" == deepagents-code ]]; then
+    grep -Fxq 'FF_INMEM_CORE=false' "$TEST_ROOT/sandbox-create-args"
+    grep -Fxq 'PYTHON_GRPC_BIND_HOST=::1' "$TEST_ROOT/sandbox-create-args"
+  else
+    ! grep -Fq 'FF_INMEM_CORE=' "$TEST_ROOT/sandbox-create-args"
+    ! grep -Fq 'PYTHON_GRPC_BIND_HOST=' "$TEST_ROOT/sandbox-create-args"
+  fi
 }
 profile_invalid() {
   write_profile "$1"
@@ -686,6 +694,7 @@ run_case 'valid persisted profile loads' profile_valid
 run_case 'saved workspace overrides caller defaults for OpenShell commands' profile_workspace
 rm -rf -- "$HOME/$HARNESS_STATE_DIRNAME"
 run_case 'new ownership profiles persist the selected workspace' profile_creation_persists_workspace
+run_case 'Deep Agents Code sandbox uses Python in-memory runtime and native loopback' profile_creation_persists_workspace deepagents-code
 # Each test gets a subshell, but fixtures on disk must also be reset between cases.
 rm -rf -- "$HOME/$HARNESS_STATE_DIRNAME"
 run_case 'missing profile rejected' profile_missing

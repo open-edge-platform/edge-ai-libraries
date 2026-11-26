@@ -169,7 +169,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 ```
 
 The command above retains the all-in-one local behavior. In CI, named steps
-run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (75 direct
+run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (76 direct
 cases), followed by managed inference (33), lifecycle/CLI (40), telemetry (60
 unit cases plus 9 CLI entry-point cases in a separate step), and model
 defaults (7 executed offline cases; two explicit Hermes image-required skips). A separate
@@ -193,6 +193,7 @@ reported separately and are not counted as test cases.
 | Inference boundary | Invalid ports, LAN/IPv6/mismatched/missing Docker publication and missing IR rejection |
 | Model discovery | Exact served model accepted; unserved model, HTTP error and malformed JSON rejected |
 | Deep Agents Code inference diagnostics | A failed native inference command retains its captured output and original exit status while onboarding still fails |
+| Deep Agents Code transport compatibility | New dcode sandboxes select LangGraph's Python in-memory fallback and native IPv6 loopback; other agents do not receive these settings |
 | Managed inference | OpenShell Qwen3.5 default and snapshot exporter, native OVMS graph generation, host compatibility, explicit overrides, persisted selection, fresh-only provisioning, partial deployment refusal, managed OVMS readiness/network/publication, both proxy bypass variables |
 | Model lifecycle | Source/export option roundtrip, coordinated two-agent switch, original environment overridden after restart, token/history preservation, pending-switch retry and conflict rejection, legacy-image preflight, full/scoped uninstall and OpenShell package ownership safeguards |
 | Local-model defaults | Exact Qwen context/output/thinking/sampling/prompt settings, idempotence, explicit overrides and later edits, selection-only isolation, removal on model switch, non-Qwen preservation |
@@ -317,6 +318,19 @@ Options: `--harness`, `--backend`, `--skip-install`, `--keep`,
 `--full-uninstall`; logs go to `~/otel-e2e-logs/<timestamp>`.
 
 ## Automatic GitHub-hosted live validation
+
+Deep Agents Code's LangGraph API 0.19.0 embedded-core path creates Python gRPC
+listeners using IPv4-mapped IPv6 loopback. OpenShell 0.1.5 rejects these addresses
+in its broker's loopback classification, causing `Permission denied` during
+server bind/connect and preventing agent startup before model inference.
+New dcode sandboxes set `FF_INMEM_CORE=false` to select LangGraph's Python
+in-memory compatibility runtime and `PYTHON_GRPC_BIND_HOST=::1` to keep any
+remaining Python checkpoint-service listener on native loopback. These are
+sandbox-local runtime settings, not disabled security checks: filesystem and
+network policies, privilege dropping and the integrated OpenShell pin remain
+unchanged. Existing sandbox creation environments are immutable; back up their
+data and recreate the owned dcode sandbox to pick up the settings. The live
+suite still requires native inference, restart persistence and cleanup to pass.
 
 The standalone workflow `.github/workflows/agent-harness-openshell-hosted.yml`
 runs every Monday at 03:23 UTC on the default branch. It also supports manual
