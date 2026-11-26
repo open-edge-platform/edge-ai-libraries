@@ -65,7 +65,6 @@ jobs:
       HARNESS_OVMS_EXPORTER: hf-snapshot
       HARNESS_HF_MODEL_REVISION: f864c6106efb6c7f7b4ef274a78a98e37210dddd
       HOSTED_MODEL_REPO: OpenVINO/Qwen3-0.6B-int4-ov
-      HOSTED_REPORT_DIR: ${{ runner.temp }}/openshell-hosted-results
       HOSTED_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -74,6 +73,12 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: 24.21.0
+      - name: Initialize hosted report directory
+        run: |
+          set -euo pipefail
+          report_dir="$RUNNER_TEMP/openshell-hosted-results"
+          mkdir -p "$report_dir"
+          printf 'HOSTED_REPORT_DIR=%s\n' "$report_dir" >>"$GITHUB_ENV"
       - name: Check fresh hosted VM and record baseline
         id: preflight
         run: |
