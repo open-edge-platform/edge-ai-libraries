@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+<mxfile host="app.diagrams.net">
+  <diagram id="current" name="0 - Obecny widok">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1400" pageHeight="2200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c_title" value="0 - Obecny widok: Pipeline editor → panel &quot;Test pipeline&quot; (PerformanceTestPanel + MetricsDashboard)" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="0" y="0" width="1100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c_header" value="Header: Pipeline name · variant · Run settings · Run / Stop · ⋯ menu" style="rounded=0;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="0" y="40" width="1020" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_editor" value="Pipeline editor canvas&#xa;(ResizablePanel)" style="rounded=0;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="0" y="94" width="240" height="800" as="geometry" />
+        </mxCell>
+        <mxCell id="c_panel" value="ResizablePanel: Test pipeline (scroll)" style="rounded=0;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#666666;verticalAlign=bottom;align=left;spacingLeft=8;spacingBottom=4;fontColor=#999999;fontSize=10;" parent="1" vertex="1">
+          <mxGeometry x="260" y="94" width="760" height="2042" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ptitle" value="Test pipeline" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontColor=#333333;fontSize=14;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="106" width="300" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="c_tabs" value="Tabs: Live Preview | Metadata JSON" style="rounded=1;arcSize=20;whiteSpace=wrap;fillColor=#eeeeee;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="280" y="140" width="720" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="c_live" value="Live: WebRTC live preview / Output video" style="rounded=0;whiteSpace=wrap;fillColor=#d6d6d6;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="280" y="182" width="720" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="c_events" value="Card: Video captions / pipeline events (VLM pipelines only)" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="280" y="492" width="720" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_sc1" value="Card (stat): Frame Rate - fps" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="280" y="556" width="355" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_sc2" value="Card (stat): CPU Usage - %" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="645" y="556" width="355" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_sc3" value="Card (stat): GPU Usage - %" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="280" y="636" width="355" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_sc4" value="Card (stat): Latency - ms (optional)" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="645" y="636" width="355" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_sc5" value="Card (stat): NPU Usage - % (if NPU)" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="280" y="716" width="355" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch1" value="Chart: Frame Rate" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="800" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch2" value="Chart: CPU Usage" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="800" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch3" value="Chart: Memory Utilization" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="990" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch4" value="Chart: CPU Temperature" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="990" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch5" value="Chart: CPU Frequency" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="1180" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch6" value="Chart: GPU Usage (engines)&#xa;+ GPU selector" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="1180" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch7" value="Chart: GPU Power&#xa;+ GPU selector" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="1370" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch8" value="Chart: GPU Frequency&#xa;+ GPU selector" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="1370" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch9" value="Chart: NPU Usage" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="1560" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch10" value="Chart: NPU Power" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="1560" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch11" value="Chart: NPU Frequency" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="1750" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch12" value="Chart: Latency avg / min / max" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="1750" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ch13" value="Chart: VLM metrics (TTFT / TPOT / Total) - VLM only" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="1940" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="c_fold" value="" style="line;strokeWidth=2;dashed=1;strokeColor=#cc0000;fillColor=none;" parent="1" vertex="1">
+          <mxGeometry x="260" y="889" width="760" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="c_foldlbl" value="koniec 1. ekranu (~1080p)" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontColor=#cc0000;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1030" y="880" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="c_note" value="Obecny stan&#xa;&#xa;Problemy:&#xa;• 5 stat cards + 12+ wykresów w siatce 2 kolumn → kilka ekranów przewijania&#xa;• brak grupowania wg urządzenia (CPU / GPU / NPU przemieszane)&#xa;• GPU selector powtórzony w 3 wykresach&#xa;• stat cards dublują ostatnią wartość z wykresów&#xa;• po przewinięciu znika wideo i kluczowe KPI&#xa;• po teście ten sam układ w trybie Summary (tylko inne obramowanie)" style="shape=note;size=14;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontSize=11;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="94" width="340" height="230" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="optA" name="A - Zakladki wg urzadzenia">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1400" pageHeight="1300" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="a_title" value="Opcja A - KPI strip + zakładki wg urządzenia (Tabs)" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="0" y="0" width="1100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="a_header" value="Header: Pipeline name · variant · Run settings · Run / Stop · ⋯ menu" style="rounded=0;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="0" y="40" width="1020" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="a_editor" value="Pipeline editor canvas&#xa;(ResizablePanel)" style="rounded=0;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="0" y="94" width="240" height="800" as="geometry" />
+        </mxCell>
+        <mxCell id="a_panel" value="ResizablePanel: Test pipeline" style="rounded=0;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#666666;verticalAlign=bottom;align=left;spacingLeft=8;spacingBottom=4;fontColor=#999999;fontSize=10;" parent="1" vertex="1">
+          <mxGeometry x="260" y="94" width="760" height="1072" as="geometry" />
+        </mxCell>
+        <mxCell id="a_ptitle" value="Test pipeline" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontColor=#333333;fontSize=14;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="106" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="a_status" value="Status: ● Running · 00:42" style="ellipse;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#999999;fontColor=#333333;fontSize=10;" parent="1" vertex="1">
+          <mxGeometry x="850" y="106" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="a_live" value="Live: Live Preview / Output video&#xa;Card header: Tabs [Preview | Metadata JSON] · ▴ collapse" style="rounded=0;whiteSpace=wrap;fillColor=#d6d6d6;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="280" y="144" width="720" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="a_kpibg" value="" style="rounded=1;arcSize=6;whiteSpace=wrap;fillColor=#fafafa;strokeColor=#999999;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="272" y="380" width="736" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="a_k1" value="FPS&#xa;30.0&#xa;∿ sparkline" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="280" y="388" width="113" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="a_k2" value="Latency&#xa;33 ms&#xa;∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="401" y="388" width="113" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="a_k3" value="CPU&#xa;45 %&#xa;∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="522" y="388" width="113" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="a_k4" value="GPU 0&#xa;72 %&#xa;∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="643" y="388" width="113" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="a_k5" value="NPU&#xa;12 %&#xa;∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="764" y="388" width="113" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="a_k6" value="Memory&#xa;58 %&#xa;∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="885" y="388" width="113" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="a_tabs" value="Tabs: Overview | Pipeline | CPU &amp; Memory | GPU [GPU 0 ▾] | NPU" style="rounded=1;arcSize=20;whiteSpace=wrap;fillColor=#eeeeee;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="280" y="490" width="720" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="a_ch1" value="Chart: Frame Rate (fps) + Latency (ms, prawa oś)" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="536" width="720" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="a_ch2" value="Chart: Utilization % - CPU · GPU 0 · NPU · Memory&#xa;(jeden wykres, serie włączane w legendzie)" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="768" width="720" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="a_ch3" value="Chart: CPU Temperature (°C)" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="980" width="355" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="a_ch4" value="Chart: Power (W) - GPU · Package · NPU" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="980" width="355" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="a_otherlbl" value="Zawartość pozostałych zakładek:" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontColor=#333333;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="94" width="340" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="a_tab_pipe" value="Tab: Pipeline&#xa;• Chart: Frame Rate (pełna szerokość)&#xa;• Chart: Latency avg / min / max&#xa;• Chart: VLM TTFT / TPOT / Total (tylko VLM)" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="124" width="340" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="a_tab_cpu" value="Tab: CPU &amp; Memory (siatka 2×2)&#xa;• Chart: CPU Usage&#xa;• Chart: CPU Frequency&#xa;• Chart: CPU Temperature&#xa;• Chart: Memory Utilization" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="214" width="340" height="94" as="geometry" />
+        </mxCell>
+        <mxCell id="a_tab_gpu" value="Tab: GPU - selector [GPU 0 ▾] raz, w zakładce&#xa;• Chart: Engine usage (Compute / Render / Copy / Video / VE)&#xa;• Chart: Frequency&#xa;• Chart: Power - GPU / Package" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="318" width="340" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="a_tab_npu" value="Tab: NPU (ukryta, gdy brak NPU)&#xa;• Usage · Power · Frequency" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="408" width="340" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="a_note" value="Opcja A - zakładki wg urządzenia&#xa;&#xa;+ najmniej przewijania - całość mieści się w ~1 ekranie&#xa;+ KPI strip &quot;sticky&quot; - kluczowe wartości zawsze widoczne&#xa;+ klik w kafelek KPI → przejście do zakładki urządzenia&#xa;+ GPU selector tylko raz (w nagłówku zakładki GPU)&#xa;+ Overview łączy serie na wspólnych wykresach&#xa;– nie widać jednocześnie szczegółów CPU i GPU&#xa;&#xa;Komponenty: Tabs, Card, Badge, ChartContainer (recharts).&#xa;Dane: wszystkie serie są już w useMetricHistory - zmiana tylko we frontendzie.&#xa;Po teście: ten sam układ + Badge &quot;Run summary&quot; i wartości avg." style="shape=note;size=14;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontSize=11;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="480" width="340" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="a_e1" style="endArrow=block;dashed=1;strokeColor=#999999;" parent="1" source="a_k4" target="a_tabs" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="optB" name="B - Sekcje zwijane">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1400" pageHeight="1300" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="b_title" value="Opcja B - sekcje zwijane (Accordion) + small multiples" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="0" y="0" width="1100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="b_header" value="Header: Pipeline name · variant · Run settings · Run / Stop · ⋯ menu" style="rounded=0;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="0" y="40" width="1020" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="b_editor" value="Pipeline editor canvas&#xa;(ResizablePanel)" style="rounded=0;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="0" y="94" width="240" height="800" as="geometry" />
+        </mxCell>
+        <mxCell id="b_panel" value="ResizablePanel: Test pipeline (scroll)" style="rounded=0;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#666666;verticalAlign=bottom;align=left;spacingLeft=8;spacingBottom=4;fontColor=#999999;fontSize=10;" parent="1" vertex="1">
+          <mxGeometry x="260" y="94" width="760" height="1142" as="geometry" />
+        </mxCell>
+        <mxCell id="b_ptitle" value="Test pipeline" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontColor=#333333;fontSize=14;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="106" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="b_status" value="Status: ● Running · 00:42" style="ellipse;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#999999;fontColor=#333333;fontSize=10;" parent="1" vertex="1">
+          <mxGeometry x="710" y="106" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="b_btn" value="Button: Collapse all" style="rounded=1;arcSize=40;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="870" y="105" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="b_live" value="Live: Live Preview / Output video&#xa;Tabs: Preview | Metadata JSON" style="rounded=0;whiteSpace=wrap;fillColor=#d6d6d6;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="280" y="146" width="720" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="b_s1" value="▾  Pipeline              FPS 30.0  ·  Latency 33 ms" style="rounded=0;whiteSpace=wrap;fillColor=#eeeeee;strokeColor=#999999;align=left;spacingLeft=10;fontColor=#333333;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="360" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="b_c1" value="Chart: Frame Rate   ⤢" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="404" width="355" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="b_c2" value="Chart: Latency avg / min / max   ⤢" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="404" width="355" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="b_s2" value="▾  CPU              Usage 45 %  ·  3.2 GHz  ·  62 °C" style="rounded=0;whiteSpace=wrap;fillColor=#eeeeee;strokeColor=#999999;align=left;spacingLeft=10;fontColor=#333333;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="566" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="b_c3" value="Chart: Usage   ⤢" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="610" width="233" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b_c4" value="Chart: Frequency   ⤢" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="523" y="610" width="233" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b_c5" value="Chart: Temperature   ⤢" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="766" y="610" width="234" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b_s3" value="▸  Memory              58 %    ∿ inline sparkline" style="rounded=0;whiteSpace=wrap;fillColor=#eeeeee;strokeColor=#999999;align=left;spacingLeft=10;fontColor=#333333;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="742" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="b_s4" value="▾  GPU   [ GPU 0 | GPU 1 ]          Max engine 72 %  ·  1.8 GHz  ·  24 W" style="rounded=0;whiteSpace=wrap;fillColor=#eeeeee;strokeColor=#999999;align=left;spacingLeft=10;fontColor=#333333;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="790" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="b_c6" value="Chart: Engine usage - Compute · Render · Copy · Video · Video Enhance   ⤢" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="834" width="720" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="b_c7" value="Chart: Frequency   ⤢" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="1004" width="355" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b_c8" value="Chart: Power - GPU · Package   ⤢" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="1004" width="355" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b_s5" value="▸  NPU              12 %  ·  4 W  ·  1.4 GHz     (ukryte, gdy brak NPU)" style="rounded=0;whiteSpace=wrap;fillColor=#eeeeee;strokeColor=#999999;align=left;spacingLeft=10;fontColor=#333333;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="1136" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="b_s6" value="▸  VLM metrics              TTFT · TPOT · Total     (tylko pipeline'y VLM)" style="rounded=0;whiteSpace=wrap;fillColor=#eeeeee;strokeColor=#999999;align=left;spacingLeft=10;fontColor=#333333;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="1184" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="b_modal" value="Modal: Expanded chart (Dialog)&#xa;• pełnowymiarowy wykres klikniętej metryki&#xa;• legenda włącza / wyłącza serie&#xa;• tooltip z dokładnymi wartościami&#xa;• Button: Close" style="rounded=1;arcSize=4;whiteSpace=wrap;dashed=1;fillColor=#ffffff;strokeColor=#666666;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontColor=#333333;fontSize=11;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="404" width="360" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="b_modalchart" value="Chart: GPU engine usage (duży)" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="1056" y="504" width="328" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="b_e1" style="endArrow=block;dashed=1;strokeColor=#999999;" parent="1" source="b_c6" target="b_modal" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b_note" value="Opcja B - sekcje zwijane&#xa;&#xa;+ wszystko na jednej stronie, pogrupowane wg urządzenia&#xa;+ nagłówek sekcji pokazuje bieżące wartości - zwinięta sekcja nadal informuje&#xa;+ mniejsze wykresy (3 w rzędzie dla CPU) = mniej przewijania&#xa;+ ⤢ otwiera wykres w dużym oknie&#xa;+ GPU selector raz, w nagłówku sekcji&#xa;– przy wszystkich rozwiniętych sekcjach nadal trzeba przewijać&#xa;&#xa;Komponenty: Accordion, Dialog, Card, ChartContainer.&#xa;Stan zwinięcia zapamiętany lokalnie (redux-persist).&#xa;Zmiana tylko we frontendzie." style="shape=note;size=14;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontSize=11;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="700" width="360" height="250" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="optC" name="C - Konfigurowalny dashboard">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1400" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="d_title" value="Opcja C - wideo + KPI obok siebie, przypinane wykresy (konfigurowalny dashboard)" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="0" y="0" width="1100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d_header" value="Header: Pipeline name · variant · Run settings · Run / Stop · ⋯ menu" style="rounded=0;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="0" y="40" width="1020" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="d_editor" value="Pipeline editor canvas&#xa;(ResizablePanel)" style="rounded=0;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="0" y="94" width="240" height="800" as="geometry" />
+        </mxCell>
+        <mxCell id="d_panel" value="ResizablePanel: Test pipeline" style="rounded=0;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#666666;verticalAlign=bottom;align=left;spacingLeft=8;spacingBottom=4;fontColor=#999999;fontSize=10;" parent="1" vertex="1">
+          <mxGeometry x="260" y="94" width="760" height="852" as="geometry" />
+        </mxCell>
+        <mxCell id="d_ptitle" value="Test pipeline" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontColor=#333333;fontSize=14;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="106" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="d_status" value="Status: ● Running · 00:42" style="ellipse;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#999999;fontColor=#333333;fontSize=10;" parent="1" vertex="1">
+          <mxGeometry x="850" y="106" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="d_b1" value="Button: + Add chart" style="rounded=1;arcSize=40;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="280" y="146" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d_b2" value="Button: Preset: Default ▾" style="rounded=1;arcSize=40;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="420" y="146" width="170" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d_b3" value="Button: Columns 1 | 2" style="rounded=1;arcSize=40;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="600" y="146" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d_b4" value="Button: Reset layout" style="rounded=1;arcSize=40;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="750" y="146" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d_live" value="Live: Live Preview (16:9)&#xa;Tabs: Preview | Metadata JSON" style="rounded=0;whiteSpace=wrap;fillColor=#d6d6d6;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="280" y="188" width="420" height="236" as="geometry" />
+        </mxCell>
+        <mxCell id="d_k1" value="FPS&#xa;30.0  ∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="710" y="188" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="d_k2" value="Latency&#xa;33 ms  ∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="860" y="188" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="d_k3" value="CPU&#xa;45 %  ∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="710" y="271" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="d_k4" value="GPU 0&#xa;72 %  ∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="860" y="271" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="d_k5" value="NPU&#xa;12 %  ∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="710" y="354" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="d_k6" value="Memory&#xa;58 %  ∿" style="rounded=1;arcSize=8;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="860" y="354" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="d_pinlbl" value="Pinned charts" style="text;whiteSpace=wrap;align=left;verticalAlign=middle;fontColor=#333333;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="436" width="200" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="d_c1" value="Chart: Frame Rate&#xa;⋯ menu (Move up / down) · ✕ unpin" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="468" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="d_c2" value="Chart: GPU 0 engine usage&#xa;⋯ · ✕" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="468" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="d_c3" value="Chart: CPU Usage&#xa;⋯ · ✕" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="280" y="658" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="d_c4" value="Chart: Latency avg / min / max&#xa;⋯ · ✕" style="rounded=1;arcSize=4;whiteSpace=wrap;fillColor=#e0e0e0;fillStyle=hatch;strokeColor=#999999;fontColor=#333333;fontSize=11;labelBackgroundColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="645" y="658" width="355" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="d_add" value="+ Add chart (otwiera wybór metryk)" style="rounded=1;arcSize=4;whiteSpace=wrap;dashed=1;fillColor=none;strokeColor=#999999;fontColor=#999999;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="280" y="848" width="720" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="d_modal" value="Modal: Add chart (Dialog)&#xa;&#xa;Input: Search metric…&#xa;&#xa;Pipeline:  ☑ Frame Rate  ☑ Latency  ☐ VLM TTFT / TPOT&#xa;CPU:  ☑ Usage  ☐ Frequency  ☐ Temperature&#xa;Memory:  ☐ Utilization&#xa;GPU [0 ▾]:  ☑ Engines  ☐ Frequency  ☐ Power&#xa;NPU:  ☐ Usage  ☐ Power  ☐ Frequency&#xa;&#xa;Button: Cancel      Button: Add" style="rounded=1;arcSize=4;whiteSpace=wrap;dashed=1;fillColor=#ffffff;strokeColor=#666666;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontColor=#333333;fontSize=11;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="94" width="360" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="d_e1" style="endArrow=block;dashed=1;strokeColor=#999999;" parent="1" source="d_b1" target="d_modal" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d_note" value="Opcja C - konfigurowalny dashboard&#xa;&#xa;+ użytkownik sam wybiera i przypina wykresy&#xa;+ presety: Default / GPU focus / CPU focus&#xa;+ wideo i KPI obok siebie - metryki widoczne razem z podglądem&#xa;– największy nakład pracy&#xa;– ryzyko &quot;pustego&quot; dashboardu bez dobrego presetu&#xa;&#xa;Uwaga: drag &amp; drop nie ma w stacku referencyjnym (wymagałby nowej zależności) → zamiast tego menu ⋯ Move up / Move down.&#xa;&#xa;Komponenty: Dialog, Checkbox, DropdownMenu, Card, ChartContainer.&#xa;Konfiguracja zapisywana lokalnie (redux-persist), bez zmian w backendzie." style="shape=note;size=14;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontSize=11;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="340" width="360" height="280" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
