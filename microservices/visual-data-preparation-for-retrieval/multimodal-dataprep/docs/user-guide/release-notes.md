@@ -1,8 +1,8 @@
 # Release Notes: Multimodal Data Preparation for Retrieval
 
-## Version 2026.3.0-rc1
+## Version 2026.3.0-rc2
 
-**Release Date**: November 6, 2026
+**Release Date:** December 7, 2026
 
 **New**:
 

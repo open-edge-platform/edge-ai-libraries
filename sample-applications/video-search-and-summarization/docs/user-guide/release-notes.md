@@ -1,8 +1,8 @@
 # Release Notes: Video Search and Summarization Sample Application
 
-## Version 2026.3.0-rc1
+## Version 2026.3.0-rc2
 
-**Release Date:** November 6, 2026
+**Release Date:** December 7, 2026
 
 > **Note:** Helm Chart support will be deprecated in the next release. Limited validation has been performed on the Helm charts for this release.
 
@@ -21,9 +21,7 @@
 
 **Improved:**
 
-- **Dependency refresh:** Updated the Pipeline Manager and UI dependency sets to the latest in-range patch/minor releases. UI advisories drop from 6 to **0**; Pipeline Manager drops from 19 to **8**. The residual Pipeline Manager advisories come from three transitive packages, each unfixable without causing a regression:
-  - `braces` (via the `@swc/cli` build tool, dev-only) has no patched release — every published version is affected.
-  - `stream-json` and `decode-uri-component` arrive through `minio@8.0.7`, the latest release. `npm audit fix --force` "fixes" them by **downgrading** minio to `7.1.3`, and minio only imports `stream-json/jsonl/Parser.js`, not the vulnerable `pick`/`ignore`/`filter`/`replace` filters named in the advisory. Overriding `decode-uri-component` to the patched `0.5.0` is also not viable: that release is ESM-only and would make minio's CommonJS build throw `ERR_REQUIRE_ESM` at runtime.
+- **Dependency refresh:** Updated the Pipeline Manager and UI dependencies. Pipeline Manager now uses the AWS SDK for S3 with the existing MinIO service, replacing the MinIO Node.js client and its vulnerable `stream-json` and `decode-uri-component` dependencies.
 - **Dependency override cleanup:** Removed 9 now-redundant `overrides` entries from Pipeline Manager (`sha.js`, `qs`, `systeminformation`, `fast-xml-parser`, `socket.io-parser`, `lodash`, `body-parser`, `multer`, `serialize-javascript`) and all 9 from the UI, after confirming each one no longer changes dependency resolution. The remaining Pipeline Manager overrides are retained because dropping them measurably readmits older duplicate copies (`ajv`, `minimatch`, `picomatch`, `glob`, `webpack`) or downgrades a package outright (`diff` 8.0.4 → 4.0.4).
 - **Live camera limit is configurable:** `LIVE_STREAM_MAX_CONCURRENT` (default `8`; Helm `multimodaldataprep.liveStream.maxConcurrent`) sets how many cameras ingest at once. Registering more returns `503`; pause or delete a camera to free a slot.
 - **Search filters panel:** The time range, number of results and minimum peak score filters share one panel. Edits are drafts until **Apply**, and sliders show their value while dragging.
