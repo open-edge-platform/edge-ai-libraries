@@ -38,21 +38,13 @@ const useVisibleCardsCount = (
 
       const availableWidth = containerRef.current.offsetWidth;
 
-      const maxCardsAtMinWidth = Math.floor(
-        (availableWidth + gap) / (minCardWidth + gap),
+      const cardsPerRow = Math.max(
+        1,
+        Math.floor((availableWidth + gap) / (minCardWidth + gap)),
       );
 
-      const actualCardWidth =
-        maxCardsAtMinWidth > 0
-          ? (availableWidth - gap * (maxCardsAtMinWidth - 1)) /
-            maxCardsAtMinWidth
-          : 0;
-
-      const cardsPerRow = Math.floor(
-        (availableWidth + gap) / (actualCardWidth + gap),
-      );
-
-      const pipelineCardsCount = Math.max(0, cardsPerRow - 1);
+      // In a single-column layout still show one card below the "Create" card.
+      const pipelineCardsCount = Math.max(1, cardsPerRow - 1);
 
       setVisibleCards(pipelineCardsCount);
     };
