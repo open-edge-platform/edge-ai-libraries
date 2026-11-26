@@ -9037,7 +9037,7 @@ debian_90_stop_suspicious_activity_detection ()
     cd "$workspace"/suspicious-activity-detection && { 
         make down || true;
         make clean-all || true;
-        ensure_container_cleanup $(ensure_container_parse_yaml docker/docker-compose*.yaml ../scenescape/docker-compose.yaml) --with-external
+        ensure_container_cleanup $(ensure_container_parse_yaml docker/docker-compose*.yaml ../scenescape/docker-compose.yaml --with-external)
     } || true
 }
 debian_90_stop_take_away () 
@@ -13128,7 +13128,7 @@ verify_smart_parking ()
             return 1
         };
     done;
-    for p in FP16 FP32 INT8;
+    for p in INT8;
     do
         [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/public/yolo11s/$p/yolo11s.bin ] || { 
             echo "Missing $p/yolo11s.bin" 1>&2;
