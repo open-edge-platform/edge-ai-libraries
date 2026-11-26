@@ -31,7 +31,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 bash test/installer-runtime-test.sh | tee installer-runtime.tap
 ```
 
-The outer suite currently reports 77 cases. Three are wrapper cases that run
+The outer suite currently reports 78 cases. Three are wrapper cases that run
 the managed-inference, lifecycle and model-default suites below. Their case
 counts must not be added to the outer count as independent top-level results.
 
@@ -40,7 +40,7 @@ counts must not be added to the outer count as independent top-level results.
 | Scope | Command | Current cases |
 |---|---|---|
 | Installer bootstrap, profiles, failure guards, configuration publication and environment isolation | `bash test/installer-runtime-test.sh` | 38; see [runtime behavior coverage](README.md#installer-runtime-regression) |
-| Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
+| Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 78, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
 | Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 63 |
@@ -65,11 +65,15 @@ Both relevant PRs and relevant pushes to `main` run the same offline coverage in
 the [quality-gates workflow](../../../.github/workflows/agent-harness-openshell.yml).
 CI separates the suites into named steps and TAP artifacts rather than invoking
 the nested wrappers: `HARNESS_TEST_SKIP_NESTED=1 bash test/openshell-test.sh`
-runs the 74 direct cases; the other five suites run once in their own steps.
-The all-in-one local command still runs 77 outer registrations as documented
+runs the 75 direct cases; the other five suites run once in their own steps.
+The all-in-one local command still runs 78 outer registrations as documented
 above. CI additionally runs the reporting-helper tests described below.
 CI triggers, syntax checks and prepared-runner instructions are described in
 the [test README](README.md).
+
+The Deep Agents Code onboarding regression injects a failed native inference
+command and checks that its captured diagnostic and original exit status are
+reported without turning the failure into a pass.
 
 ### Reporting-helper regression tests
 

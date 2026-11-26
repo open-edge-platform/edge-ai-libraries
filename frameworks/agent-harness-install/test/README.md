@@ -169,7 +169,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 ```
 
 The command above retains the all-in-one local behavior. In CI, named steps
-run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (74 direct
+run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (75 direct
 cases), followed by managed inference (33), lifecycle/CLI (40), telemetry (60
 unit cases plus 9 CLI entry-point cases in a separate step), and model
 defaults (7 executed offline cases; two explicit Hermes image-required skips). A separate
@@ -192,6 +192,7 @@ reported separately and are not counted as test cases.
 | Version pin | Exact OpenShell version accepted; incompatible version rejected |
 | Inference boundary | Invalid ports, LAN/IPv6/mismatched/missing Docker publication and missing IR rejection |
 | Model discovery | Exact served model accepted; unserved model, HTTP error and malformed JSON rejected |
+| Deep Agents Code inference diagnostics | A failed native inference command retains its captured output and original exit status while onboarding still fails |
 | Managed inference | OpenShell Qwen3.5 default and snapshot exporter, native OVMS graph generation, host compatibility, explicit overrides, persisted selection, fresh-only provisioning, partial deployment refusal, managed OVMS readiness/network/publication, both proxy bypass variables |
 | Model lifecycle | Source/export option roundtrip, coordinated two-agent switch, original environment overridden after restart, token/history preservation, pending-switch retry and conflict rejection, legacy-image preflight, full/scoped uninstall and OpenShell package ownership safeguards |
 | Local-model defaults | Exact Qwen context/output/thinking/sampling/prompt settings, idempotence, explicit overrides and later edits, selection-only isolation, removal on model switch, non-Qwen preservation |
