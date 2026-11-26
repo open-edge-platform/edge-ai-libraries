@@ -35,6 +35,7 @@ import {
 } from "@/lib/apiUtils.ts";
 import { useAppSelector } from "@/store/hooks.ts";
 import { selectModels } from "@/store/reducers/models";
+import { selectPipelines } from "@/store/reducers/pipelines";
 import { Button } from "@/components/ui/button.tsx";
 import { Card } from "@/components/ui/card.tsx";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group.tsx";
@@ -69,6 +70,8 @@ import { useAsyncJob } from "@/hooks/useAsyncJob";
 import {
   type CreatePipelineFormData,
   createPipelineSchema,
+  DUPLICATE_PIPELINE_NAME_MESSAGE,
+  isPipelineNameTaken,
 } from "./pipelineSchemas";
 import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
 import { isSupportedVideoFilename } from "@/lib/videoUtils.ts";
@@ -93,6 +96,7 @@ export const CreatePipelineDialog = ({
     useGetPipelineTemplatesQuery();
   const { data: videos = [] } = useGetVideosQuery();
   const models = useAppSelector(selectModels);
+  const pipelines = useAppSelector(selectPipelines);
 
   const {
     register,
@@ -101,6 +105,8 @@ export const CreatePipelineDialog = ({
     reset,
     watch,
     setValue,
+    setError,
+    getValues,
     trigger,
   } = useForm<CreatePipelineFormData>({
     resolver: zodResolver(createPipelineSchema),
@@ -195,7 +201,15 @@ export const CreatePipelineDialog = ({
     };
   };
 
+  const isNameAvailable = (name: string): boolean => {
+    if (!isPipelineNameTaken(pipelines, name)) return true;
+    setError("name", { message: DUPLICATE_PIPELINE_NAME_MESSAGE });
+    return false;
+  };
+
   const onSubmit = async (data: CreatePipelineFormData) => {
+    if (!isNameAvailable(data.name)) return;
+
     try {
       // Step 1: Convert description to graph
       const graphResponse = await toGraph({
@@ -246,6 +260,8 @@ export const CreatePipelineDialog = ({
   };
 
   const onSubmitTemplate = async (data: CreatePipelineFormData) => {
+    if (!isNameAvailable(data.name)) return;
+
     try {
       if (!selectedTemplate) return;
 
@@ -608,7 +624,10 @@ export const CreatePipelineDialog = ({
                                 "tags",
                                 "templateId",
                               ]);
-                              if (isValid) {
+                              if (
+                                isValid &&
+                                isNameAvailable(getValues("name"))
+                              ) {
                                 stepperRef.current?.nextStep();
                               }
                             }}

@@ -15,7 +15,11 @@ import { handleApiError } from "@/lib/apiUtils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field.tsx";
+import { useAppSelector } from "@/store/hooks.ts";
+import { selectPipelines } from "@/store/reducers/pipelines";
 import {
+  DUPLICATE_PIPELINE_NAME_MESSAGE,
+  isPipelineNameTaken,
   type PipelineMetadataFormData,
   pipelineMetadataSchema,
 } from "./pipelineSchemas";
@@ -34,6 +38,7 @@ export const DuplicatePipelineDialog = ({
   onOpenChange,
   onSuccess,
 }: DuplicatePipelineDialogProps) => {
+  const pipelines = useAppSelector(selectPipelines);
   const {
     register,
     handleSubmit,
@@ -41,6 +46,7 @@ export const DuplicatePipelineDialog = ({
     reset,
     watch,
     setValue,
+    setError,
     trigger,
   } = useForm<PipelineMetadataFormData>({
     resolver: zodResolver(pipelineMetadataSchema),
@@ -57,6 +63,11 @@ export const DuplicatePipelineDialog = ({
     useCreatePipelineMutation();
 
   const onSubmit = async (data: PipelineMetadataFormData) => {
+    if (isPipelineNameTaken(pipelines, data.name)) {
+      setError("name", { message: DUPLICATE_PIPELINE_NAME_MESSAGE });
+      return;
+    }
+
     try {
       await createPipeline({
         pipelineDefinition: {

@@ -20,6 +20,16 @@ type PipelineTagsComboboxProps = {
   portalContainer?: RefObject<HTMLElement | ShadowRoot | null>;
 };
 
+const dedupeTagsIgnoringCase = (tags: string[]): string[] => {
+  const seen = new Set<string>();
+  return tags.filter((tag) => {
+    const key = tag.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 export const PipelineTagsCombobox = ({
   value,
   onChange,
@@ -30,7 +40,11 @@ export const PipelineTagsCombobox = ({
   const { tagColorMap, availableTags } = usePipelineTagColors(pipelines);
 
   return (
-    <Combobox value={value} onValueChange={onChange} multiple>
+    <Combobox
+      value={value}
+      onValueChange={(tags: string[]) => onChange(dedupeTagsIgnoringCase(tags))}
+      multiple
+    >
       <ComboboxChips>
         {value.map((tag) => {
           const color = tagColorMap.get(tag);
@@ -59,8 +73,14 @@ export const PipelineTagsCombobox = ({
             if (e.key === "Enter" && e.currentTarget.value) {
               e.preventDefault();
               const newTag = e.currentTarget.value.trim();
-              if (newTag && !value.includes(newTag)) {
-                onChange([...value, newTag]);
+              if (newTag) {
+                // Reuse the casing of an existing tag, e.g. "dup" -> "DUP".
+                const existingTag = availableTags.find(
+                  (tag) => tag.toLowerCase() === newTag.toLowerCase(),
+                );
+                onChange(
+                  dedupeTagsIgnoringCase([...value, existingTag ?? newTag]),
+                );
                 e.currentTarget.value = "";
               }
             }

@@ -1,4 +1,21 @@
 import { z } from "zod";
+import type { Pipeline } from "@/api/api.generated";
+
+export const DUPLICATE_PIPELINE_NAME_MESSAGE =
+  "A pipeline with this name already exists";
+
+export const isPipelineNameTaken = (
+  pipelines: Pipeline[],
+  name: string,
+  excludePipelineId?: string,
+): boolean => {
+  const normalizedName = name.trim().toLowerCase();
+  return pipelines.some(
+    (pipeline) =>
+      pipeline.id !== excludePipelineId &&
+      pipeline.name.trim().toLowerCase() === normalizedName,
+  );
+};
 
 export const pipelineMetadataSchema = z.object({
   name: z
