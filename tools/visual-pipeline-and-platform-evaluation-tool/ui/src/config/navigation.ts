@@ -36,6 +36,7 @@ import { BenchmarkDetail } from "@/pages/BenchmarkDetail";
 import { BenchmarkRunDetail } from "@/pages/BenchmarkRunDetail";
 import { BenchmarkRunTestDetail } from "@/pages/BenchmarkRunTestDetail";
 import { VoiceConversion } from "@/features/voice/VoiceConversion";
+import { NotFound } from "@/pages/NotFound";
 
 export type NavigationItem = {
   url: string;
@@ -103,6 +104,7 @@ export const routeConfig: Array<RouteObject> = [
     path: "benchmarks/:benchmarkId/run/:runId/test/:testId",
     Component: BenchmarkRunTestDetail,
   },
+  { path: "*", Component: NotFound },
 ];
 
 // Routes that should stay mounted (keep-alive) when navigating away
