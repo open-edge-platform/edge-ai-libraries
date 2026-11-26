@@ -384,10 +384,7 @@
             ]
           },
           "startStop": true,
-          "remove": true,
-          "options": [
-            "--gpu"
-          ]
+          "remove": true
         },
         {
           "label": "Smart Traffic Intersection Agent",
@@ -733,10 +730,7 @@
             ]
           },
           "startStop": true,
-          "remove": true,
-          "options": [
-            "--gpu"
-          ]
+          "remove": true
         },
         {
           "label": "Teacher Assistant Claw Demo",
@@ -747,10 +741,7 @@
             ]
           },
           "startStop": false,
-          "remove": true,
-          "options": [
-            "--gpu"
-          ]
+          "remove": true
         },
         {
           "label": "Handheld Blueprint",
@@ -1064,7 +1055,7 @@
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/2026.3/education-suite-metro.html"
+          "link": "https://docs.openedgeplatform.intel.com/2026.3/ai-suite-education.html"
         },
         {
           "when": {
@@ -1072,7 +1063,7 @@
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/2026.3/education-suite-metro.html"
+          "link": "https://docs.openedgeplatform.intel.com/2026.3/ai-suite-education.html"
         },
         {
           "when": {
