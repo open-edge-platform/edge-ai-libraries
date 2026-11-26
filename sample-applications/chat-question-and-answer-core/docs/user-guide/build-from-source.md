@@ -165,7 +165,7 @@ After building the images for the `Chat Q&A Core` application, you can run the a
 
 3. Access the application:
 
-   - Open your web browser and navigate to `http://<host-ip>:8102` to view the application dashboard.
+   - Open your web browser and navigate to `http://<host-ip>:8102` to view the application dashboard. On the first run the models are downloaded and converted, which can take several minutes; the web server starts only after the backend container is `(healthy)`.
 
 ## Verification
 

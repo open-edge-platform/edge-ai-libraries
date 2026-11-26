@@ -126,6 +126,11 @@ By following this guide, you will learn how to:
 
 7. **Verify the Application**:
 
+   On the first run the models are downloaded and converted, which can take several minutes. The backend
+   container (`chatqna-core-openvino`) is reported as `(healthy)` by `docker ps` once it is ready, and only
+   then does Docker Compose start the web server (nginx) on port 8102. Until then the application is not
+   reachable.
+
    The following log will be printed on the console, confirming that the application is ready for use.
 
    ```text
