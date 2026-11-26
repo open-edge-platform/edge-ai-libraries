@@ -376,6 +376,23 @@ dcode_connect_args() {
     HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 DEEPAGENTS_CODE_ONBOARDING=0 \
     /home/node/.local/bin/dcode --no-interpreter)
 }
+dcode_onboard_failure_output() {
+  HARNESS_AGENT=deepagents-code
+  OPENSHELL_MODEL=test-model
+  openshell_load_profile() { :; }
+  openshell_assert_owned() { :; }
+  openshell_wait_phase() { :; }
+  openshell_wait_agent_config() { :; }
+  openshell_agent_exec() {
+    [[ "$1" != /usr/bin/curl ]] || return 0
+    printf 'fixture inference diagnostic\n'
+    return 23
+  }
+  local result rc=0
+  result="$(onboard_openshell_agent 2>&1)" || rc=$?
+  [[ "$rc" != 0 && "$result" == *'fixture inference diagnostic'* &&
+     "$result" == *'Deep Agents Code inference failed (exit 23)'* ]]
+}
 write_profile() {
   local dir
   dir="$(openshell_profile_dir)"
@@ -660,6 +677,7 @@ run_case 'host runtime remains supported' runtime_supported host openclaw
 run_case 'OpenClaw supports OpenShell' runtime_supported openshell openclaw
 run_case 'Deep Agents Code supports OpenShell' runtime_supported openshell deepagents-code
 run_case 'Deep Agents Code connect supplies placeholder key without storing it' dcode_connect_args
+run_case 'Deep Agents Code inference failure retains diagnostic output and exit status' dcode_onboard_failure_output
 run_case 'Hermes supports OpenShell' runtime_supported openshell hermes
 run_case 'unsupported agent rejected' expect_failure 'supports openclaw, deepagents-code and hermes only' runtime_supported openshell invalid-agent
 run_case 'invalid runtime rejected' expect_failure 'Unknown runtime' runtime_supported invalid openclaw
