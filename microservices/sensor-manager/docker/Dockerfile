@@ -35,6 +35,7 @@ RUN groupadd -g ${GID} appuser && \
 
 COPY --from=builder /opt/venv /opt/venv
 COPY src /app/src
+COPY third_party_programs.txt /opt/third_party_programs.txt
 
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
