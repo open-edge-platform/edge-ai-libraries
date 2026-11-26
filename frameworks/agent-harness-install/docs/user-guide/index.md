@@ -124,6 +124,7 @@ for details.
   the standalone `curl | bash` bootstrap path.
 - [Uninstall](./get-started/uninstall.md) Agent Harness Installer.
 - [Known Limitations](./known-limitations.md) in current version.
+- [Release Notes](./release-notes.md).
 
 <!--hide_directive
 :::{toctree}
@@ -134,6 +135,7 @@ Overview (non-technical) <./overview.md>
 ./how-it-works.md
 ./agentic-ai-security.md
 ./known-limitations.md
+./release-notes.md
 
 :::
 hide_directive-->
