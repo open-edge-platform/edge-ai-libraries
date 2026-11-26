@@ -462,6 +462,8 @@ services:
     build:
       context: video_generator
       dockerfile: Dockerfile
+      additional_contexts:
+        vippet-root: .
       pull: true
       args:
         DLSTREAMER_IMAGE:
