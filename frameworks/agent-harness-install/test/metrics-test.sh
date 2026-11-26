@@ -160,7 +160,7 @@ harness_enable_disable() {
   # An external Jaeger: exported to, but not managed, so no query_port is written.
   M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT=http://collector:4318/v1/traces M_CONTENT=preview
   metrics_enable_harness
-  grep -Fxq 'hermes install hermes_otel' "$ACTIONS"
+  grep -Fxq 'hermes install hermes_otel --ref ead500947cffdfc8307ec55fb150d9fbc720e781' "$ACTIONS"
   grep -Fxq 'hermes enable' "$ACTIONS"
   grep -Fxq 'content_capture: "preview"' "$cfg"
   grep -Fq 'type: jaeger' "$cfg"
@@ -291,6 +291,11 @@ plugin_ref_pins_the_install() {
   [[ ! -d "$HERMES_HOME/plugins/hermes_otel" ]]
   HARNESS_HERMES_OTEL_REF=f15b3e67fa9fd0e5ce9a08cf9cc8d7d2c356ceea metrics_enable_harness
   grep -Fxq 'hermes install hermes_otel --ref f15b3e67fa9fd0e5ce9a08cf9cc8d7d2c356ceea' "$ACTIONS"
+  # An empty ref opts out of the default and installs the catalog's own pin.
+  fixture
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  HARNESS_HERMES_OTEL_REF='' metrics_enable_harness
+  grep -Fxq 'hermes install hermes_otel' "$ACTIONS"
 }
 
 router_file_is_not_world_writable() {

@@ -595,11 +595,13 @@ _install_openshell_agent() {
   fi
   if [[ "$agent" == hermes ]]; then
     # The default sandbox policy denies registry egress, so its telemetry plugin is installed into the image.
+    local otel_ref="${HARNESS_HERMES_OTEL_REF:-}"
     if declare -F metrics_check_plugin_source >/dev/null; then
       HARNESS_HERMES_OTEL_PLUGIN="${HARNESS_HERMES_OTEL_PLUGIN:-hermes_otel}" metrics_check_plugin_source
+      otel_ref="$(metrics_hermes_otel_ref)"
     fi
     pin_args+=(--build-arg "HERMES_OTEL_PLUGIN=${HARNESS_HERMES_OTEL_PLUGIN:-hermes_otel}"
-      --build-arg "HERMES_OTEL_REF=${HARNESS_HERMES_OTEL_REF:-}")
+      --build-arg "HERMES_OTEL_REF=${otel_ref}")
   fi
   docker build --build-arg "HARNESS_AGENT=$agent" "${pin_args[@]}" \
     --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg http_proxy --build-arg https_proxy \

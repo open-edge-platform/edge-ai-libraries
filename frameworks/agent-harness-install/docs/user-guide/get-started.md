@@ -373,11 +373,15 @@ Overrides:
 `HARNESS_JAEGER_IMAGE`, `HARNESS_JAEGER_CONTAINER`,
 `HARNESS_JAEGER_UI_PORT`, `HARNESS_JAEGER_OTLP_PORT`.
 
-By default the plugin is installed from Hermes's reviewed plugin catalog
-(`hermes plugins install hermes_otel`), which checks out the commit pinned
-there and applies Hermes's removal kill-list. To pin another commit, set
-`HARNESS_HERMES_OTEL_REF` to a full 40-character SHA; it is passed as `--ref`
-and applies to a fresh plugin install only (an installed plugin is left as is).
+By default the plugin is installed from Hermes's plugin catalog
+(`hermes plugins install hermes_otel`) at v1.33.3
+(`ead500947cffdfc8307ec55fb150d9fbc720e781`), the first release that supports
+`capture_tool_command` and so honours `--content off`. To pin another commit,
+set `HARNESS_HERMES_OTEL_REF` to a full 40-character SHA; set it empty to
+install the commit pinned in the catalog instead. It is passed as `--ref` and
+applies to a fresh plugin install only (an installed plugin is left as is). The
+default applies to the catalog plugin only; with another
+`HARNESS_HERMES_OTEL_PLUGIN` source no ref is passed unless you set one.
 
 ### Harness backends
 

@@ -158,7 +158,9 @@ For sandbox setup, architecture and lifecycle guidance, see
   Hermes sandbox also keeps the plugin's own local store inside the sandbox.
   `--content preview` needs the `sqlite`
   backend for OpenClaw. Hermes `--content off` needs a `hermes-otel` plugin that
-  supports `capture_tool_command` (or the `sqlite` backend inside OpenShell,
+  supports `capture_tool_command` (the default pin does; an older plugin that is
+  already installed, or a custom `HARNESS_HERMES_OTEL_REF`, may not, and `enable`
+  then refuses unless the backend is `sqlite` inside OpenShell,
   where the receiver drops tool text itself).
 - `HARNESS_OVMS_EXPORTER` normally defaults to `docker-pull` (the OpenShell
   Qwen3.5 default uses `hf-snapshot` instead), which runs OVMS's own

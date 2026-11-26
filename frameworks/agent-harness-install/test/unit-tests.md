@@ -324,7 +324,7 @@ codes and resulting state, not real containers.
 | `all_target_rolls_the_router_back_when_the_harness_fails` | Combined-target failure handling | Validate harness options before the Router changes, and revert a Router change made by the command when the harness fails. |
 | `all_target_disable_reaches_the_router_after_a_harness_failure` | Combined-target disable | Still disable the Router when the harness cannot be disabled, and exit non-zero with the harness left enabled for a retry. |
 | `plugin_source_is_validated` | Plugin reference | Accept a catalog name or `owner/repo[/plugin]`; reject anything else. |
-| `plugin_ref_pins_the_install` | Exact-commit pin | Accept only a full lowercase 40-character SHA and pass it to the plugin install as `--ref`. |
+| `plugin_ref_pins_the_install` | Exact-commit pin | Accept only a full lowercase 40-character SHA and pass it to the plugin install as `--ref`; an empty ref installs the catalog's own pin. |
 | `router_file_is_not_world_writable` | Telemetry file mode | Use group-writable 664 (666 only when requested), refuse 664 when the primary group is root, and reject other modes. |
 | `router_enable_rejects_a_container_without_the_group` | Router created by an older installer | Fail before changing state when the container lacks the group needed to write the file. |
 | `all_target_fails_before_touching_the_harness` | Combined-target ordering | Check the Router first so a failure leaves the harness unchanged. |

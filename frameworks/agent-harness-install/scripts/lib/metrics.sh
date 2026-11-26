@@ -33,13 +33,14 @@ HARNESS_JAEGER_OTLP_PORT="${HARNESS_JAEGER_OTLP_PORT:-4318}"
 # someone else created (and its traces) is never adopted or deleted.
 METRICS_JAEGER_LABEL_KEY="io.agent-harness-install.managed-by"
 METRICS_JAEGER_LABEL_VALUE="metrics-jaeger"
-# Plugin source handed to `hermes plugins install`. The bare catalog name makes
-# Hermes install the commit pinned in its reviewed plugin catalog (and apply
-# its removal kill-list); override with an explicit <owner>/<repo>/<plugin>
-# reference to use a different source. HARNESS_HERMES_OTEL_REF additionally
-# pins any source to an exact 40-character commit SHA (`--ref`).
+# Plugin source handed to `hermes plugins install`. The bare catalog name is
+# installed at METRICS_HERMES_OTEL_DEFAULT_REF (v1.33.3, the first release with
+# capture_tool_command, which `--content off` needs); override with an explicit
+# <owner>/<repo>/<plugin> reference to use a different source.
+# HARNESS_HERMES_OTEL_REF pins any source to an exact 40-character commit SHA
+# (`--ref`); set it empty to install the commit pinned in Hermes's catalog.
 HARNESS_HERMES_OTEL_PLUGIN="${HARNESS_HERMES_OTEL_PLUGIN:-hermes_otel}"
-HARNESS_HERMES_OTEL_REF="${HARNESS_HERMES_OTEL_REF:-}"
+METRICS_HERMES_OTEL_DEFAULT_REF=ead500947cffdfc8307ec55fb150d9fbc720e781
 # OpenClaw's OTel exporter plugin. Empty means the npm package at the version of
 # the installed OpenClaw; set it to any npm spec to override (e.g.
 # @openclaw/diagnostics-otel@2026.9.5).
@@ -449,19 +450,31 @@ metrics_harness_check() {
   return 0
 }
 
+# The commit to install: an explicit HARNESS_HERMES_OTEL_REF (empty means the catalog pin), else the default for the catalog plugin only.
+metrics_hermes_otel_ref() {
+  if [[ -n "${HARNESS_HERMES_OTEL_REF+x}" ]]; then
+    printf '%s' "$HARNESS_HERMES_OTEL_REF"
+  elif [[ "${HARNESS_HERMES_OTEL_PLUGIN:-hermes_otel}" == hermes_otel ]]; then
+    printf '%s' "$METRICS_HERMES_OTEL_DEFAULT_REF"
+  fi
+}
+
 metrics_check_plugin_source() {
+  local ref
+  ref="$(metrics_hermes_otel_ref)"
   [[ "$HARNESS_HERMES_OTEL_PLUGIN" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*(/[A-Za-z0-9_][A-Za-z0-9._-]*){0,2}$ ]] \
     || error "HARNESS_HERMES_OTEL_PLUGIN must be a plugin name or <owner>/<repo>[/<plugin>] (got '${HARNESS_HERMES_OTEL_PLUGIN}')."
-  [[ -z "$HARNESS_HERMES_OTEL_REF" || "$HARNESS_HERMES_OTEL_REF" =~ ^[0-9a-f]{40}$ ]] \
-    || error "HARNESS_HERMES_OTEL_REF must be a full 40-character lowercase commit SHA (got '${HARNESS_HERMES_OTEL_REF}')."
+  [[ -z "$ref" || "$ref" =~ ^[0-9a-f]{40}$ ]] \
+    || error "HARNESS_HERMES_OTEL_REF must be a full 40-character lowercase commit SHA (got '${ref}')."
 }
 
 metrics_install_hermes_otel_plugin() {
-  local content="${1:-}" home plugin_dir
+  local content="${1:-}" home plugin_dir ref
   metrics_check_plugin_source
   local -a ref_args=()
-  if [[ -n "$HARNESS_HERMES_OTEL_REF" ]]; then
-    ref_args=(--ref "$HARNESS_HERMES_OTEL_REF")
+  ref="$(metrics_hermes_otel_ref)"
+  if [[ -n "$ref" ]]; then
+    ref_args=(--ref "$ref")
   fi
   home="$(metrics_hermes_home)"
   plugin_dir="${home}/plugins/hermes_otel"
