@@ -94,6 +94,14 @@ the [developer entrypoint](integration-tests.md#developer-entrypoint-validate-lo
 They exercise mocked preparation and failure paths; they do not provision a
 machine or execute live integration.
 
+Run `node --test test/hosted-openshell-report-test.mjs` for the automatic hosted
+workflow's reporting checks. These cover successful evidence, missing/failed
+stages, skipped outcomes, invalid TAP, receipt identity, unavailable measurements,
+public-runner cost assumptions and real subprocess failure propagation.
+They use disposable local files and do not install OpenShell or certify a
+GitHub-hosted deployment. See the [hosted workflow](README.md#automatic-github-hosted-live-validation)
+for acceptance and cost-evidence requirements.
+
 ## Startup, runtime, profiles and boundaries
 
 Source and execution: [openshell-test.sh](openshell-test.sh),

@@ -13,7 +13,6 @@ for command in node docker openshell curl timeout; do
   command -v "$command" >/dev/null || { printf 'Missing prerequisite: %s\n' "$command" >&2; exit 2; }
 done
 [[ "$(uname -s)" == Linux ]] || { printf 'Linux is required.\n' >&2; exit 2; }
-[[ "$(openshell --version)" == 'openshell 0.1.5' ]] || { printf 'OpenShell 0.1.5 is required.\n' >&2; exit 2; }
 
 export HARNESS_STATE_DIRNAME=".agent-harness-ci-$(node -e 'console.log(require("node:crypto").randomBytes(8).toString("hex"))')"
 export HARNESS_BIND_HOST=127.0.0.1
@@ -23,6 +22,8 @@ for lib in colors verify state sudo shim gpu-intel docker-setup nodejs openvino 
   # shellcheck disable=SC1090
   . "$SCRIPT_DIR/scripts/lib/$lib.sh"
 done
+[[ "$(openshell --version)" == "openshell $HARNESS_OPENSHELL_VERSION" ]] \
+  || { printf 'OpenShell %s is required.\n' "$HARNESS_OPENSHELL_VERSION" >&2; exit 2; }
 . "$SCRIPT_DIR/test/openshell-test-lib.sh"
 TEST_ROOT="$(mktemp -d)"
 export HARNESS_OPENSHELL_GATEWAY="${HARNESS_OPENSHELL_GATEWAY:-openshell}"

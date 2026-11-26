@@ -315,6 +315,98 @@ container names and ports
 Options: `--harness`, `--backend`, `--skip-install`, `--keep`,
 `--full-uninstall`; logs go to `~/otel-e2e-logs/<timestamp>`.
 
+## Automatic GitHub-hosted live validation
+
+The standalone workflow `.github/workflows/agent-harness-openshell-hosted.yml`
+runs every Monday at 03:23 UTC on the default branch. It also supports manual
+dispatch and `workflow_call` so future dependency-upgrade automation can reuse
+the same acceptance job. It uses standard `ubuntu-24.04` GitHub-hosted VMs, no
+repository secrets, no protected environment approvals and read-only repository
+permissions. Checkout credentials are not persisted. It does not create PRs,
+change the integrated OpenShell pin or modify branch protection.
+
+The offline job runs shell syntax checks, installer/runtime regressions, the
+all-in-one OpenShell regressions and hosted-report/TAP parser tests. The live
+job only starts after those checks pass. On a fresh disposable VM it:
+
+1. Verifies Docker, passwordless sudo and at least 12 GiB free disk, starts the
+  runner user's systemd manager and exports its D-Bus environment.
+2. Prepares Python through `startup.sh`. Downloads
+  `OpenVINO/Qwen3-0.6B-int4-ov` at immutable revision
+  `f864c6106efb6c7f7b4ef274a78a98e37210dddd` using `huggingface_hub==0.36.0`.
+  This fixture lacks an OVMS graph, so the existing production graph helper
+  generates one before the normal inference install command registers and
+  serves the model. This does not test the default-model download/export path.
+3. Provisions real OVMS/IR and installer-owned OpenShell, using the current
+  production OpenShell version and installer checksum without overrides.
+4. Executes `test/openshell-integration-test.sh` for all three harnesses,
+  including real CPU inference, policy boundaries and restart persistence.
+  A complete, nonempty TAP report with zero failures and zero skips is required.
+5. Attempts full installer-owned runtime uninstall even after preparation or
+  integration failure, then checks that the CLI, deployment state and managed
+  containers are gone. Failed cleanup fails the job. GitHub discards the VM
+  after execution, including when a hard cancellation prevents shell cleanup.
+
+Runs are serialized per ref and the live job has a 120-minute timeout. A run
+must not weaken sandbox policies or disable kernel security controls to pass.
+Kernel/runtime incompatibilities or insufficient disk/RAM are failures to
+investigate, not successful skipped validation. The hosted runner's ability to
+start OpenShell and complete the full suite must be established by actual runs;
+local reporting-unit-test success is not hosted acceptance evidence.
+
+### Execution and acceptance
+
+After the workflow is on the default branch, select
+**[Agent Harness] GitHub-hosted OpenShell live validation** in Actions and choose
+**Run workflow**. Alternatively, with GitHub CLI access:
+
+```bash
+gh workflow run agent-harness-openshell-hosted.yml --ref main
+gh run list --workflow agent-harness-openshell-hosted.yml
+```
+
+The schedule then runs without manual intervention. GitHub scheduling can be
+delayed; public-repository schedules can also be disabled after prolonged
+repository inactivity. No automatic PR trigger is added, so this workflow
+does not execute arbitrary fork PR code. A caller of the reusable workflow
+must supply an equally restrictive permission policy.
+
+Before treating this milestone as qualified, retain three consecutive
+unattended passing runs, including a cold run (this workflow currently restores
+no caches), and confirm a deliberate acceptance failure prevents success.
+The reporter's offline tests exercise failure, missing/truncated TAP, skipped
+cases, missing receipts and failed executable launch. They do not replace a
+negative live run. Add merge requirements only after this qualification;
+the existing static-only merge policy and prepared-runner workflow are unchanged.
+
+### Usage and cost evidence
+
+The job summary and seven-day `openshell-hosted-results` artifact record the
+commit, available OpenShell version, runner image/kernel, model revision,
+per-stage durations and sampled whole-VM RAM/filesystem usage. Resource samples
+are taken every five seconds and at stage boundaries; short spikes can be
+missed. Whole-VM usage includes preinstalled software and unrelated services.
+Artifacts contain TAP, stage receipts and bounded resource inventories, not
+HOME directories, gateway certificates, full environment dumps or agent state.
+
+Standard GitHub-hosted compute is free for this public repository under
+[GitHub's published billing policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+The report also estimates larger Linux x64 runner costs at $0.012/minute
+(4-core) and $0.022/minute (8-core), with five-run and thirty-run monthly
+projections. These are illustrative measured-stage estimates, not actual bills:
+checkout, tool setup, the offline job, uploads, retries and storage are excluded,
+and each measured stage is conservatively rounded up separately.
+Recheck [runner rates](https://docs.github.com/en/billing/reference/actions-runner-pricing)
+and configure an organization budget before selecting any paid runner.
+Use the first cold hosted runs to decide whether the standard VM has enough
+disk/RAM; switching to a paid runner requires a separate decision.
+
+There is no external inference API cost. CPU validation with this small fixture
+does not qualify the default 9B model, Intel GPU acceleration, browser interaction,
+MCP or multi-step agent tool use. The existing live-suite coverage limits still
+apply. This milestone validates the currently integrated version; selecting a
+candidate version and creating upgrade PRs remain separate work.
+
 ## GitHub Actions setup
 
 The repository-level workflow `.github/workflows/agent-harness-openshell.yml`

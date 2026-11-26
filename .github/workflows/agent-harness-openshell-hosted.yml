@@ -1,0 +1,158 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: "[Agent Harness] GitHub-hosted OpenShell live validation"
+
+on:
+  schedule:
+    - cron: '23 3 * * 1'
+  workflow_dispatch:
+  workflow_call:
+
+permissions: {}
+
+concurrency:
+  group: agent-harness-openshell-hosted-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline:
+    name: Hosted validation regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: frameworks/agent-harness-install
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.21.0
+      - name: Syntax and offline regression
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do bash -n "$file"; done < <(find scripts openshell test -name '*.sh' -print0)
+          bash -n install.sh
+          bash -n uninstall.sh
+          bash test/installer-runtime-test.sh
+          bash test/openshell-test.sh
+          node --test test/tap-summary-test.mjs test/hosted-openshell-report-test.mjs
+
+  live:
+    name: GitHub-hosted OpenShell live validation
+    needs: offline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: frameworks/agent-harness-install
+    env:
+      NO_COLOR: '1'
+      HARNESS_BIND_HOST: 127.0.0.1
+      HARNESS_ADVERTISED_HOST: 127.0.0.1
+      HARNESS_LLM_MODEL: Qwen3-0.6B-int4-ov
+      HARNESS_OVMS_EXPORTER: hf-snapshot
+      HARNESS_HF_MODEL_REVISION: f864c6106efb6c7f7b4ef274a78a98e37210dddd
+      HOSTED_MODEL_REPO: OpenVINO/Qwen3-0.6B-int4-ov
+      HOSTED_REPORT_DIR: ${{ runner.temp }}/openshell-hosted-results
+      HOSTED_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.21.0
+      - name: Check fresh hosted VM and record baseline
+        id: preflight
+        run: |
+          set -euo pipefail
+          node test/hosted-openshell-report.mjs metadata "$HOSTED_REPORT_DIR"
+          node test/hosted-openshell-report.mjs run preflight "$HOSTED_REPORT_DIR" -- bash -euo pipefail -c '
+            [[ "${GITHUB_ACTIONS:-}" == true && "${RUNNER_ENVIRONMENT:-}" == github-hosted ]]
+            [[ "$(uname -s)" == Linux ]]
+            [[ ! -e "$HOME/.agent-harness-install" && ! -L "$HOME/.agent-harness-install" ]]
+            [[ ! -e "$HOME/.config/openshell" && ! -L "$HOME/.config/openshell" ]]
+            [[ ! -e "$HOME/.local/state/openshell" && ! -L "$HOME/.local/state/openshell" ]]
+            if command -v openshell >/dev/null; then exit 1; fi
+            sudo -n true
+            docker info >/dev/null
+            user_id="$(id -u)"
+            sudo loginctl enable-linger "$USER"
+            sudo systemctl start "user@${user_id}.service"
+            export XDG_RUNTIME_DIR="/run/user/$user_id"
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+            printf "XDG_RUNTIME_DIR=%s\nDBUS_SESSION_BUS_ADDRESS=%s\n" "$XDG_RUNTIME_DIR" "$DBUS_SESSION_BUS_ADDRESS" >>"$GITHUB_ENV"
+            systemctl --user show-environment >/dev/null
+            [[ "$(df --output=avail -BG "$HOME" | tail -1 | tr -dc 0-9)" -ge 12 ]]
+            free -m
+            df -h "$HOME"
+          '
+      - name: Provision CPU inference and installer-owned OpenShell
+        id: prepare
+        run: |
+          set -euo pipefail
+          node test/hosted-openshell-report.mjs run prepare "$HOSTED_REPORT_DIR" -- bash -euo pipefail -c '
+            bash startup.sh --skip-docker --skip-nodejs
+            . scripts/install.sh
+            ensure_state_dir >/dev/null
+            ensure_ovms_config
+            python3 -m venv "$RUNNER_TEMP/openshell-model-download"
+            "$RUNNER_TEMP/openshell-model-download/bin/pip" install --disable-pip-version-check huggingface_hub==0.36.0
+            "$RUNNER_TEMP/openshell-model-download/bin/python" -c '\''import os, sys; from huggingface_hub import snapshot_download; snapshot_download(repo_id=os.environ["HOSTED_MODEL_REPO"], revision=os.environ["HARNESS_HF_MODEL_REVISION"], local_dir=sys.argv[1])'\'' "$HARNESS_MODELS_DIR/$HARNESS_LLM_MODEL"
+            docker pull "$HARNESS_OVMS_IMAGE"
+            configure_ovms_text_generation_graph "$HARNESS_MODELS_DIR/$HARNESS_LLM_MODEL"
+            bash install.sh inference --runtime openshell --model "$HOSTED_MODEL_REPO" --non-interactive
+            with_deployment_lock ensure_openshell_cli
+            timeout 30 openshell status -g openshell
+          '
+          node test/hosted-openshell-report.mjs metadata "$HOSTED_REPORT_DIR"
+      - name: Run existing live acceptance suite
+        id: integration
+        env:
+          HARNESS_RUN_OPENSHELL_INTEGRATION: '1'
+        run: |
+          set -euo pipefail
+          node test/hosted-openshell-report.mjs run integration "$HOSTED_REPORT_DIR" -- \
+            bash test/openshell-integration-test.sh | tee "$HOSTED_REPORT_DIR/integration.tap"
+          node test/tap-summary.mjs --require-no-skips "$HOSTED_REPORT_DIR/integration.tap"
+      - name: Uninstall owned runtime and verify removal
+        id: uninstall
+        if: ${{ always() && steps.preflight.outcome == 'success' && steps.prepare.outcome != 'skipped' }}
+        run: |
+          set -euo pipefail
+          node test/hosted-openshell-report.mjs run uninstall "$HOSTED_REPORT_DIR" -- bash -euo pipefail -c '
+            timeout 300 bash uninstall.sh --runtime openshell --yes
+            if command -v openshell >/dev/null; then exit 1; fi
+            [[ ! -e "$HOME/.agent-harness-install" ]]
+            containers="$(docker container ls -a --format "{{.Names}}")"
+            ! grep -Eq "^(agent-harness-install-(ir|ovms)|openshell-.*--)" <<<"$containers"
+          '
+      - name: Record resource inventory
+        if: always()
+        run: |
+          mkdir -p "$HOSTED_REPORT_DIR"
+          df -h "$HOME" >"$HOSTED_REPORT_DIR/disk.txt"
+          free -m >"$HOSTED_REPORT_DIR/memory.txt"
+          docker system df >"$HOSTED_REPORT_DIR/docker-disk.txt"
+          docker ps -a --format '{{.Names}} {{.Status}}' >"$HOSTED_REPORT_DIR/containers.txt"
+      - name: Publish validation and usage summary
+        if: always()
+        env:
+          HOSTED_STEP_OUTCOMES: '{"preflight":"${{ steps.preflight.outcome }}","prepare":"${{ steps.prepare.outcome }}","integration":"${{ steps.integration.outcome }}","uninstall":"${{ steps.uninstall.outcome }}"}'
+        run: node test/hosted-openshell-report.mjs summary "$HOSTED_REPORT_DIR"
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: openshell-hosted-results
+          path: ${{ runner.temp }}/openshell-hosted-results/
+          if-no-files-found: error
+          retention-days: 7
