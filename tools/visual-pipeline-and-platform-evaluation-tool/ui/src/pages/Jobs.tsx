@@ -22,9 +22,15 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { parsePipelineVariantReference } from "@/features/pipeline-tests/pipelineVariantReference";
 import { formatElapsedTimeMillis, formatTimestamp } from "@/lib/timeUtils.ts";
 import { handleApiError } from "@/lib/apiUtils.ts";
 import { cn } from "@/lib/utils";
+
+const JobPipelineName = ({ id }: { id: string }) => {
+  const { pipelineId, variantId } = parsePipelineVariantReference(id);
+  return <PipelineName pipelineId={pipelineId} variantId={variantId} />;
+};
 
 export const Jobs = () => {
   const location = useLocation();
@@ -270,7 +276,7 @@ export const Jobs = () => {
                                 key={pipeline.id}
                                 className="text-sm truncate"
                               >
-                                <PipelineName pipelineId={pipeline.id} />
+                                <JobPipelineName id={pipeline.id} />
                                 <span className="text-muted-foreground ml-1">
                                   ({pipeline.streams})
                                 </span>
@@ -412,7 +418,7 @@ export const Jobs = () => {
                           <div className="flex flex-col">
                             {job.streams_per_pipeline?.map((pipeline) => (
                               <div key={pipeline.id} className="text-sm">
-                                <PipelineName pipelineId={pipeline.id} />
+                                <JobPipelineName id={pipeline.id} />
                                 <span className="text-muted-foreground ml-1">
                                   ({pipeline.streams})
                                 </span>
