@@ -63,6 +63,7 @@ encoder:
   obj_budget_ratio: 0.9 # fraction of total budget allocated to objects (vs background)
   object_budget_soft: true
   max_body_bytes: 26214400  # 25 MiB; SDL443/T-004 cap on encoder-service request bodies
+  stream_buffer_size: 200     # Max frames/metrics retained per stream before the oldest is evicted (encoder + decoder REST services)
   max_iter_bg: 8             # 0 = fixed scale (bg_scaling_min1 or min2), no binary search
   max_iter_obj: 3            # obj scale search iterations; 0 = fixed obj_scaling_min + last codec, no binary search
   scale_search_step_size: 1  # Step size for binary search when finding scale for budget
@@ -77,7 +78,7 @@ encoder:
 # =========================
 # Pipeline manager setting
 # =========================
-pipeline_manager:
+pipeline_manager: 
   queue_backlog_threshold_1: 5             # queue < t1 => normal path (bg+obj), else evaluate next tier
   queue_backlog_threshold_2: 10            # t1 <= queue < t2 => fast bg + normal obj
   queue_backlog_threshold_3: 15            # t2 <= queue < t3 => fast bg + fast obj; queue >= t3 => skip obj detect + fast bg

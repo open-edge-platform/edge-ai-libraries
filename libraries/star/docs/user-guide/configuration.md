@@ -38,7 +38,7 @@ This chapter lists the flags that you can set on the encoder/decoder application
 | `--decoder-url` | URL | none | encoder | Base URL of the decoder's REST service to forward encoded payloads to, e.g., `http://decoder:8000`. Falls back to the `DECODER_URL` environment variable. **Required** for `--role encoder`. |
 | `--service-host` | string | `0.0.0.0` | both | Bind address for the REST service side. |
 | `--service-port` | int `1..65535` | `8000` | both | Bind port for the REST service side. |
-| `--stream-buffer-size` | int | `200` | decoder | Maximum decoded frames retained per stream (REST service side) before the oldest is evicted. |
+| `--stream-buffer-size` | int | `encoder.stream_buffer_size` (`200`) | encoder, decoder | Maximum decoded frames retained per stream (REST service side) before the oldest is evicted. |
 
 CLI values always override the corresponding YAML keys. Exit codes: `0` success, `2` bad
 arguments / missing paths, `1` runtime error or interrupt.
@@ -301,6 +301,8 @@ To get the specification for HTTP endpoints in JSON format, run the following co
 curl -fsS http://localhost:8001/openapi.json -o encoder-openapi.json
 curl -fsS http://localhost:8002/openapi.json -o decoder-openapi.json
 ```
+
+or see latest version of API for [encoder](./encoder-openapi.json) and [decoder](./decoder-openapi.json) in the documentation.
 
 To use HTTP endpoints, you have to create a stream on the encoder:
 
