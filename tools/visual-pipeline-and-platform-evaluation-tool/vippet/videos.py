@@ -15,6 +15,9 @@ import cv2
 import yaml
 
 from dlsps2_runner import Dlsps2PipelineRunner
+from explore import GstInspector
+from mpegts_loop_align import align
+
 
 # The TS conversion runs on DLSPS 2.0. Both containers mount the same video
 # directories, so the output lands here.
@@ -65,6 +68,17 @@ DEFAULT_RECORDINGS_FILE: str = os.environ.get(
 )
 
 logger = logging.getLogger("videos")
+
+# HEVC encoders in order of preference, as (element, encoder sub-pipeline).
+# VA encoders are registered only when DLSPS can access /dev/dri (gpu/npu
+# profiles). DL Streamer builds GStreamer without x265enc (GPL).
+HEVC_ENCODERS: Tuple[Tuple[str, str], ...] = (
+    ("vah265enc", "video/x-raw,format=NV12 ! vah265enc"),
+)
+
+
+class HevcEncoderUnavailableError(RuntimeError):
+    """No HEVC encoder is available in the pipeline server."""
 
 
 @dataclass
@@ -364,7 +378,11 @@ class VideosManager:
                 self._pending_video_outputs.discard(filename)
 
     def convert_default_video_to_hevc(self, filename: str) -> Optional[str]:
-        """Encode a downloaded manifest video as a separate H.265 MP4."""
+        """Encode a downloaded manifest video as a separate H.265 MP4.
+
+        Raises:
+            HevcEncoderUnavailableError: If DLSPS has no HEVC encoder.
+        """
         if not any(
             recording["filename"] == filename
             for recording in self.get_default_recordings()
@@ -383,6 +401,10 @@ class VideosManager:
                 else None
             )
 
+        encoder = self._select_hevc_encoder()
+        if encoder is None:
+            return None
+
         with self._upload_lock:
             if self.filename_exists(output_filename):
                 return None
@@ -391,7 +413,7 @@ class VideosManager:
         temp_path = f"{output_path}.partial"
         try:
             source_path = os.path.join(AUTO_VIDEO_DIR, filename)
-            if not self._convert_to_hevc(source_path, temp_path):
+            if not self._convert_to_hevc(source_path, temp_path, encoder):
                 return None
             if not os.path.isfile(temp_path) or os.path.getsize(temp_path) == 0:
                 logger.error("HEVC conversion produced no output for '%s'", filename)
@@ -402,7 +424,9 @@ class VideosManager:
             self._scan_and_load_all_videos()
             output_video = self._videos.get(output_filename)
             if output_video is None or output_video.codec != "h265":
-                logger.error("HEVC conversion output '%s' is not H.265", output_filename)
+                logger.error(
+                    "HEVC conversion output '%s' is not H.265", output_filename
+                )
                 self._cleanup_file(output_path)
                 self._cleanup_file(f"{output_path}.json")
                 self._videos.pop(output_filename, None)
@@ -920,14 +944,18 @@ class VideosManager:
                     f"! mpegtsmux ! filesink location={ts_path}"
                 )
             runner.run(pipeline_command)
+            aligned_path = ts_path + ".aligned"
+            align(ts_path, aligned_path)
+            os.replace(aligned_path, ts_path)
             return True
         except Exception as e:
             logger.error(f"Failed to convert '{source_filename}' to TS: {e}")
             # A half-written file would later pass for a finished conversion.
-            try:
-                os.remove(ts_path)
-            except OSError:
-                pass
+            for path in (ts_path, ts_path + ".aligned"):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
             return False
 
     @staticmethod
@@ -936,13 +964,36 @@ class VideosManager:
         return f'"{escaped}"'
 
     @staticmethod
-    def _convert_to_hevc(source_path: str, output_path: str) -> bool:
-        """Transcode video to HEVC using the DLSPS VA-API encoder."""
+    def _select_hevc_encoder() -> Optional[str]:
+        """Return the preferred HEVC encoder sub-pipeline available in DLSPS.
+
+        Returns None when the element list cannot be read.
+
+        Raises:
+            HevcEncoderUnavailableError: If DLSPS lists no HEVC encoder.
+        """
+        elements = GstInspector().elements
+        if not elements:
+            logger.error("Cannot select an HEVC encoder: no DLSPS element list")
+            return None
+        available = {element for _, element, _ in elements}
+        for element, encoder in HEVC_ENCODERS:
+            if element in available:
+                return encoder
+        raise HevcEncoderUnavailableError(
+            "No HEVC encoder ("
+            + ", ".join(element for element, _ in HEVC_ENCODERS)
+            + ") is available in the pipeline server"
+        )
+
+    @staticmethod
+    def _convert_to_hevc(source_path: str, output_path: str, encoder: str) -> bool:
+        """Transcode video to HEVC on DLSPS with the given encoder sub-pipeline."""
         source = VideosManager._gst_location(source_path)
         output = VideosManager._gst_location(output_path)
         pipeline_command = (
             f"filesrc location={source} ! decodebin3 caps=video/x-raw ! "
-            "videoconvert ! video/x-raw,format=NV12 ! vah265enc ! h265parse ! "
+            f"videoconvert ! {encoder} ! h265parse ! "
             f"mp4mux ! filesink location={output}"
         )
         try:

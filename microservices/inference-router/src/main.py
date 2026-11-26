@@ -35,6 +35,7 @@ from src.observability import (
 )
 from src.router.logging_utils import log_to_gateway_file
 from src.api.app import create_app
+from src.api.body_limit import DEFAULT_MAX_REQUEST_BYTES
 from src.api.logging_setup import (
     resolve_log_dir,
     resolve_verbose_flags,
@@ -127,12 +128,18 @@ def build_app() -> FastAPI:
     # Unlimited by default; set GATEWAY_MAX_CONCURRENCY to a positive integer
     # to cap concurrent in-flight requests (excess requests get HTTP 429).
     max_concurrency = int(os.environ.get("GATEWAY_MAX_CONCURRENCY") or "0")
+    # Request bodies above this many bytes get HTTP 413 (default 300 MiB,
+    # matching the UI nginx proxy; 0 = unlimited).
+    max_request_bytes = int(
+        os.environ.get("GATEWAY_MAX_REQUEST_BYTES") or DEFAULT_MAX_REQUEST_BYTES
+    )
     app = create_app(
         router,
         config,
         telemetry,
         config_path=config_path,
         max_concurrency=max_concurrency,
+        max_request_bytes=max_request_bytes,
         verbose=verbose,
         verbose_full=verbose_full,
         log_dir=log_dir,

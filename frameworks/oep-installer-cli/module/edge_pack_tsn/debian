@@ -9,14 +9,13 @@ debian_40_install_edge_pack_tsn () {
     echo "intel-edge-tsn is installed." >&2
   else
     ensure_prop set installed/edge_pack_tsn/owned true
-    ensure_apt purge --auto-remove -y intel-edge-tsn || true
-    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*"
+    install_edge_pack_meta "intel-edge-tsn=$version*"
   fi
 }
 
 debian_40_remove_edge_pack_tsn () {
   [ "$(ensure_prop get installed/edge_pack_tsn/owned)" = "true" ] || return 0
-  ensure_apt purge --auto-remove -y intel-edge-tsn || true
+  remove_edge_pack_meta intel-edge-tsn
 }
 
 debian_40_sbom_edge_pack_tsn () {

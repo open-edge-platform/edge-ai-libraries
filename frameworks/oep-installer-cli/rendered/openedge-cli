@@ -2290,7 +2290,7 @@ configure_autonomous_mobile_robot_device ()
 { 
     configure_autonomous_mobile_robot_slam "$1";
     ensure_apt_is_installed "$amr_slam_pkg" && return 0;
-    ensure_apt purge --auto-remove -y $(printf '%s\n' "${amr_slam_pkgs[@]}" | grep -v -x -F "$amr_slam_pkg");
+    ensure_apt remove -y $(printf '%s\n' "${amr_slam_pkgs[@]}" | grep -v -x -F "$amr_slam_pkg");
     ensure_apt install -y "$amr_slam_pkg";
     ensure_apt_is_installed "$amr_slam_pkg"
 }
@@ -2413,13 +2413,12 @@ configure_edge_pack ()
     edge_pack_list_file=/etc/apt/sources.list.d/intel-edge-pack.list;
     edge_pack_pref=("Package: *" "Pin: origin $edge_pack_repo" "Pin-Priority: 1001");
     edge_pack_pref_file=/etc/apt/preferences.d/intel-edge-pack.pref;
-    edge_pack_incompatible_files=(/etc/apt/preferences.d/priorities /etc/apt/preferences.d/edgepack.pref /etc/apt/sources.list.d/intel-edge-pack.sources /etc/apt/sources.list.d/kobuk-ppa.sources);
-    edge_pack_install_options=("--no-install-recommends" "--allow-downgrades");
-    edge_pack_ppa_repo=;
-    edge_pack_ppa_key_url=;
-    edge_pack_ppa_key_file=;
-    edge_pack_ppa_source=;
-    edge_pack_ppa_list_file=
+    edge_pack_ppa_repo="keyserver.ubuntu.com";
+    edge_pack_ppa_key_url="https://$edge_pack_ppa_repo/pks/lookup?op=get&search=0x0c0e6af955ce463c03fc51574d098d70afbe5e1f";
+    edge_pack_ppa_key_file=/etc/apt/keyrings/kobuk-ppa.gpg;
+    edge_pack_ppa_source="deb [signed-by=$edge_pack_ppa_key_file] https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/$ID/20260830T100000Z/ $VERSION_CODENAME main";
+    edge_pack_ppa_list_file=/etc/apt/sources.list.d/kobuk-ppa.list;
+    edge_pack_install_options=("--no-install-recommends" "--allow-downgrades" $(ensure_parse_reinstall "$@" && echo --reinstall || true))
 }
 configure_edge_pack_base_realtime () 
 { 
@@ -2474,11 +2473,14 @@ configure_edge_pack_selection ()
 { 
     local ep_list="$1";
     shift;
-    if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-        echo "$ep_list";
-    else
-        echo "gpu_accel npu_accel";
-    fi
+    ensure_parse_option --edgepack "$@" || { 
+        configure_edge_pack_kernel_image "$@" || version="";
+        [ "$(uname -r)" = "$version" ] && ! ensure_parse_option gpu_accel "$@" && ! ensure_parse_option npu_accel "$@" || { 
+            echo "gpu_accel npu_accel";
+            return 0
+        }
+    };
+    echo "$ep_list"
 }
 configure_edge_workloads_and_benchmarks () 
 { 
@@ -3002,7 +3004,12 @@ configure_nicu_warmer_device ()
 configure_nodejs () 
 { 
     version="$(ensure_parse_value_option version --version=22 "$@")";
-    repo_script="https://deb.nodesource.com/setup_$version.x"
+    repo_script="https://deb.nodesource.com/setup_$version.x";
+    nodejs_repo="deb.nodesource.com";
+    nodejs_key_url="https://$nodejs_repo/gpgkey/nodesource-repo.gpg.key";
+    nodejs_key_file=/etc/apt/keyrings/nodesource.gpg;
+    nodejs_source=("deb [signed-by=$nodejs_key_file] https://$nodejs_repo/node_$version.x nodistro main");
+    nodejs_list_file=/etc/apt/sources.list.d/nodesource.list
 }
 configure_npu_accel () 
 { 
@@ -3332,7 +3339,7 @@ configure_smart_kiosk_assistant_device ()
 configure_smart_nvr () 
 { 
     workspace="$(ensure_project_path)/smart-nvr";
-    version="$(ensure_parse_value_option version --version=v2026.3.0-rc1 "$@")";
+    version="$(ensure_parse_value_option version --version=v2026.3.0-rc2 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(7860 8000 5000 6379 1884 443 1880 3000 8086 8554);
     export REGISTRY_URL="intel";
@@ -3502,7 +3509,7 @@ configure_video_processing_for_nvr ()
 configure_video_search_and_summarization () 
 { 
     workspace="$(ensure_project_path)/video-search-and-summarization";
-    version="$(ensure_parse_value_option version --version=v2026.3.0-rc1 "$@")";
+    version="$(ensure_parse_value_option version --version=v2026.3.0-rc2 "$@")";
     repository="https://github.com/open-edge-platform/edge-ai-libraries.git";
     skills=(vss-search-index vss-summarize-video);
     export APP_HOST_PORT=${APP_HOST_PORT:-12345};
@@ -3573,7 +3580,7 @@ configure_vippet ()
 configure_visual_search_question_and_answering () 
 { 
     workspace="$(ensure_project_path)/visual-search-question-and-answering";
-    version="$(ensure_parse_value_option version --version=v2026.3.0-rc1 "$@")";
+    version="$(ensure_parse_value_option version --version=v2026.3.0-rc2 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(17580 19530 9764 9990 6008 9777);
     demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip";
@@ -4153,7 +4160,7 @@ debian_30_remove_kernel_module_essential ()
         [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue;
         pkgs+=($p);
     done;
-    [ ${#pkgs[@]} -eq 0 ] || ensure_apt purge --auto-remove -y "${pkgs[@]}"
+    [ ${#pkgs[@]} -eq 0 ] || ensure_apt remove -y "${pkgs[@]}"
 }
 debian_30_remove_linux_tools () 
 { 
@@ -4202,7 +4209,7 @@ debian_30_remove_v4l_utils ()
 debian_30_remove_xpu_smi () 
 { 
     [ "$(ensure_prop get installed/xpu_smi/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y xpu-smi
+    ensure_apt remove -y xpu-smi
 }
 debian_30_sbom_autoconf () 
 { 
@@ -4460,18 +4467,11 @@ debian_39_install_edge_pack ()
         echo "edge_pack configured" 1>&2;
     else
         ensure_prop set installed/edge_pack/owned true;
-        local p;
-        for p in "${edge_pack_incompatible_files[@]}";
-        do
-            [ ! -f "$p" ] || ensure_sudo mv -f "$p" "$p".save;
-        done;
         ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor;
         ensure_apt_source "$edge_pack_list_file" "$edge_pack_source";
         ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}";
-        if [ -n "$edge_pack_ppa_repo" ]; then
-            ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor;
-            ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source";
-        fi;
+        ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor;
+        ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source";
         ensure_apt update -y;
     fi
 }
@@ -4484,8 +4484,7 @@ debian_39_remove_edge_pack ()
     dpkg -l | grep -q -F intel-edge- || { 
         configure_edge_pack "$@";
         [ "$(ensure_prop get installed/edge_pack/owned)" = "true" ] || return 0;
-        ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file";
-        [ -z "$edge_pack_ppa_repo" ] || ensure_rm "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
+        ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file" "$edge_pack_ppa_key_file" "$edge_pack_ppa_list_file"
     }
 }
 debian_40_group_edge_pack_base_standard () 
@@ -4496,11 +4495,23 @@ debian_40_group_edge_pack_graphics_core ()
 { 
     echo "render:992 video:44"
 }
+debian_40_group_edge_pack_graphics_core_dev () 
+{ 
+    echo "render:992 video:44"
+}
 debian_40_group_edge_pack_graphics_display () 
 { 
     echo "render:992 video:44"
 }
+debian_40_group_edge_pack_graphics_display_dev () 
+{ 
+    echo "render:992 video:44"
+}
 debian_40_group_edge_pack_graphics_sriov () 
+{ 
+    echo "render:992 video:44"
+}
+debian_40_group_edge_pack_graphics_sriov_dev () 
 { 
     echo "render:992 video:44"
 }
@@ -4543,8 +4554,8 @@ debian_40_install_edge_pack_base_standard ()
         echo "intel-edge-base-standard is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_base_standard/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-standard onevpl-tools || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12) $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1);
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-base-standard=$version*" $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12) $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1);
     fi;
     ensure_group_add $(debian_40_group_edge_pack_base_standard)
 }
@@ -4555,8 +4566,7 @@ debian_40_install_edge_pack_compute_extra ()
         echo "intel-edge-compute-extra is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_compute_extra/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-compute-extra || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-compute-extra=$version*";
+        install_edge_pack_meta "intel-edge-compute-extra=$version*";
     fi
 }
 debian_40_install_edge_pack_graphics_core () 
@@ -4566,10 +4576,20 @@ debian_40_install_edge_pack_graphics_core ()
         echo "intel-edge-graphics-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_core/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-graphics-core || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*";
+        install_edge_pack_meta "intel-edge-graphics-core=$version*";
     fi;
     ensure_group_add $(debian_40_group_edge_pack_graphics_core)
+}
+debian_40_install_edge_pack_graphics_core_dev () 
+{ 
+    configure_edge_pack "$@";
+    if ensure_apt_is_installed intel-edge-graphics-core-dev && ! ensure_parse_reinstall "$@"; then
+        echo "intel-edge-graphics-core-dev is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_graphics_core_dev/owned true;
+        install_edge_pack_meta "intel-edge-graphics-core-dev=$version*";
+    fi;
+    ensure_group_add $(debian_40_group_edge_pack_graphics_core_dev)
 }
 debian_40_install_edge_pack_graphics_display () 
 { 
@@ -4578,10 +4598,20 @@ debian_40_install_edge_pack_graphics_display ()
         echo "intel-edge-graphics-display is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_display/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-graphics-display || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*";
+        install_edge_pack_meta "intel-edge-graphics-display=$version*";
     fi;
     ensure_group_add $(debian_40_group_edge_pack_graphics_display)
+}
+debian_40_install_edge_pack_graphics_display_dev () 
+{ 
+    configure_edge_pack "$@";
+    if ensure_apt_is_installed intel-edge-graphics-display-dev && ! ensure_parse_reinstall "$@"; then
+        echo "intel-edge-graphics-display-dev is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_graphics_display_dev/owned true;
+        install_edge_pack_meta "intel-edge-graphics-display-dev=$version*";
+    fi;
+    ensure_group_add $(debian_40_group_edge_pack_graphics_display_dev)
 }
 debian_40_install_edge_pack_graphics_sriov () 
 { 
@@ -4590,10 +4620,20 @@ debian_40_install_edge_pack_graphics_sriov ()
         echo "intel-edge-graphics-sriov is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_sriov/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-graphics-sriov || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-sriov=$version*";
+        install_edge_pack_meta "intel-edge-graphics-sriov=$version*";
     fi;
     ensure_group_add $(debian_40_group_edge_pack_graphics_sriov)
+}
+debian_40_install_edge_pack_graphics_sriov_dev () 
+{ 
+    configure_edge_pack "$@";
+    if ensure_apt_is_installed intel-edge-graphics-sriov-dev && ! ensure_parse_reinstall "$@"; then
+        echo "intel-edge-graphics-sriov-dev is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_graphics_sriov_dev/owned true;
+        install_edge_pack_meta "intel-edge-graphics-sriov-dev=$version*";
+    fi;
+    ensure_group_add $(debian_40_group_edge_pack_graphics_sriov_dev)
 }
 debian_40_install_edge_pack_ipu () 
 { 
@@ -4602,8 +4642,7 @@ debian_40_install_edge_pack_ipu ()
         echo "intel-edge-ipu is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_ipu/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-ipu || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*";
+        install_edge_pack_meta "intel-edge-ipu=$version*";
         ensure_sudo modprobe -r intel-ipu7 || true;
         ensure_sudo modprobe intel-ipu7 || true;
     fi
@@ -4615,8 +4654,7 @@ debian_40_install_edge_pack_manageability ()
         echo "intel-edge-manageability is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_manageability/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-manageability || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*";
+        install_edge_pack_meta "intel-edge-manageability=$version*";
     fi
 }
 debian_40_install_edge_pack_media_core () 
@@ -4626,8 +4664,19 @@ debian_40_install_edge_pack_media_core ()
         echo "intel-edge-media-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_core/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-core onevpl-tools || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*" $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12);
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-media-core=$version*" $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12);
+    fi
+}
+debian_40_install_edge_pack_media_core_dev () 
+{ 
+    configure_edge_pack "$@";
+    if ensure_apt_is_installed intel-edge-media-core-dev && ! ensure_parse_reinstall "$@"; then
+        echo "intel-edge-media-core-dev is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_media_core_dev/owned true;
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-media-core-dev=$version*" $(ensure_apt_policy_version "intel-edge-media-core-dev=$version*" libigdgmm12);
     fi
 }
 debian_40_install_edge_pack_npu () 
@@ -4637,8 +4686,7 @@ debian_40_install_edge_pack_npu ()
         echo "intel-edge-npu is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_npu/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-npu || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1);
+        install_edge_pack_meta "intel-edge-npu=$version*" $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1);
     fi;
     ensure_group_add $(debian_40_group_edge_pack_npu)
 }
@@ -4649,8 +4697,17 @@ debian_40_install_edge_pack_tsn ()
         echo "intel-edge-tsn is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_tsn/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-tsn || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*";
+        install_edge_pack_meta "intel-edge-tsn=$version*";
+    fi
+}
+debian_40_install_edge_pack_tsn_dev () 
+{ 
+    configure_edge_pack "$@";
+    if ensure_apt_is_installed intel-edge-tsn-dev && ! ensure_parse_reinstall "$@"; then
+        echo "intel-edge-tsn-dev is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_tsn_dev/owned true;
+        install_edge_pack_meta "intel-edge-tsn-dev=$version*";
     fi
 }
 debian_40_install_gpu_accel () 
@@ -4797,11 +4854,23 @@ debian_40_profile_edge_pack_graphics_core ()
 { 
     echo "edge_pack"
 }
+debian_40_profile_edge_pack_graphics_core_dev () 
+{ 
+    echo "edge_pack"
+}
 debian_40_profile_edge_pack_graphics_display () 
 { 
     echo "edge_pack"
 }
+debian_40_profile_edge_pack_graphics_display_dev () 
+{ 
+    echo "edge_pack"
+}
 debian_40_profile_edge_pack_graphics_sriov () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_graphics_sriov_dev () 
 { 
     echo "edge_pack"
 }
@@ -4817,11 +4886,19 @@ debian_40_profile_edge_pack_media_core ()
 { 
     echo "edge_pack"
 }
+debian_40_profile_edge_pack_media_core_dev () 
+{ 
+    echo "edge_pack"
+}
 debian_40_profile_edge_pack_npu () 
 { 
     echo "edge_pack libze1 kmod"
 }
 debian_40_profile_edge_pack_tsn () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_tsn_dev () 
 { 
     echo "edge_pack"
 }
@@ -4861,58 +4938,86 @@ debian_40_remove_core_types ()
 debian_40_remove_edge_pack_base_standard () 
 { 
     [ "$(ensure_prop get installed/edge_pack_base_standard/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-base-standard || true
+    remove_edge_pack_meta intel-edge-base-standard
 }
 debian_40_remove_edge_pack_compute_extra () 
 { 
+    configure_edge_pack "$@";
     [ "$(ensure_prop get installed/edge_pack_compute_extra/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-compute-extra || true
+    remove_edge_pack_meta intel-edge-compute-extra
 }
 debian_40_remove_edge_pack_graphics_core () 
 { 
+    configure_edge_pack "$@";
     [ "$(ensure_prop get installed/edge_pack_graphics_core/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-graphics-core || true
+    remove_edge_pack_meta intel-edge-graphics-core
+}
+debian_40_remove_edge_pack_graphics_core_dev () 
+{ 
+    configure_edge_pack "$@";
+    [ "$(ensure_prop get installed/edge_pack_graphics_core_dev/owned)" = "true" ] || return 0;
+    remove_edge_pack_meta intel-edge-graphics-core-dev
 }
 debian_40_remove_edge_pack_graphics_display () 
 { 
     [ "$(ensure_prop get installed/edge_pack_graphics_display/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-graphics-display || true
+    remove_edge_pack_meta intel-edge-graphics-display
+}
+debian_40_remove_edge_pack_graphics_display_dev () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_graphics_display_dev/owned)" = "true" ] || return 0;
+    remove_edge_pack_meta intel-edge-graphics-display-dev
 }
 debian_40_remove_edge_pack_graphics_sriov () 
 { 
     [ "$(ensure_prop get installed/edge_pack_graphics_sriov/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-graphics-sriov || true
+    remove_edge_pack_meta intel-edge-graphics-sriov
+}
+debian_40_remove_edge_pack_graphics_sriov_dev () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_graphics_sriov_dev/owned)" = "true" ] || return 0;
+    remove_edge_pack_meta intel-edge-graphics-sriov-dev
 }
 debian_40_remove_edge_pack_ipu () 
 { 
     [ "$(ensure_prop get installed/edge_pack_ipu/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-ipu || true
+    remove_edge_pack_meta intel-edge-ipu
 }
 debian_40_remove_edge_pack_manageability () 
 { 
     [ "$(ensure_prop get installed/edge_pack_manageability/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-manageability || true
+    remove_edge_pack_meta intel-edge-manageability
 }
 debian_40_remove_edge_pack_media_core () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_core/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-media-core || true
+    remove_edge_pack_meta intel-edge-media-core
+}
+debian_40_remove_edge_pack_media_core_dev () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_media_core_dev/owned)" = "true" ] || return 0;
+    remove_edge_pack_meta intel-edge-media-core-dev
 }
 debian_40_remove_edge_pack_npu () 
 { 
     [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-npu || true
+    remove_edge_pack_meta intel-edge-npu
 }
 debian_40_remove_edge_pack_tsn () 
 { 
     [ "$(ensure_prop get installed/edge_pack_tsn/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-tsn || true
+    remove_edge_pack_meta intel-edge-tsn
+}
+debian_40_remove_edge_pack_tsn_dev () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_tsn_dev/owned)" = "true" ] || return 0;
+    remove_edge_pack_meta intel-edge-tsn-dev
 }
 debian_40_remove_gpu_accel () 
 { 
     [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0;
     configure_gpu_accel "$@";
-    ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || return $?;
+    ensure_apt remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || return $?;
     local repo_file;
     for repo_file in "$apt_file" "$key_file";
     do
@@ -4932,7 +5037,7 @@ debian_40_remove_npu_accel ()
 { 
     [ "$(ensure_prop get installed/npu_accel/owned)" = "true" ] || return 0;
     configure_npu_accel "$@";
-    ensure_apt purge --auto-remove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true;
+    ensure_apt remove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true;
     ensure_rm "$workspace"
 }
 debian_40_remove_pcm () 
@@ -4975,17 +5080,35 @@ debian_40_sbom_edge_pack_graphics_core ()
     sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-graphics-core=$version*"
 }
+debian_40_sbom_edge_pack_graphics_core_dev () 
+{ 
+    configure_edge_pack "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-graphics-core-dev=$version*"
+}
 debian_40_sbom_edge_pack_graphics_display () 
 { 
     configure_edge_pack "$@";
     sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-graphics-display=$version*"
 }
+debian_40_sbom_edge_pack_graphics_display_dev () 
+{ 
+    configure_edge_pack "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-graphics-display-dev=$version*"
+}
 debian_40_sbom_edge_pack_graphics_sriov () 
 { 
     configure_edge_pack "$@";
     sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-graphics-sriov=$version*"
+}
+debian_40_sbom_edge_pack_graphics_sriov_dev () 
+{ 
+    configure_edge_pack "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-graphics-sriov-dev=$version*"
 }
 debian_40_sbom_edge_pack_ipu () 
 { 
@@ -5005,6 +5128,12 @@ debian_40_sbom_edge_pack_media_core ()
     sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-core=$version*"
 }
+debian_40_sbom_edge_pack_media_core_dev () 
+{ 
+    configure_edge_pack "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-media-core-dev=$version*"
+}
 debian_40_sbom_edge_pack_npu () 
 { 
     configure_edge_pack "$@";
@@ -5016,6 +5145,12 @@ debian_40_sbom_edge_pack_tsn ()
     configure_edge_pack "$@";
     sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-tsn=$version*"
+}
+debian_40_sbom_edge_pack_tsn_dev () 
+{ 
+    configure_edge_pack "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-tsn-dev=$version*"
 }
 debian_40_sbom_gpu_accel () 
 { 
@@ -5060,8 +5195,8 @@ debian_41_install_edge_pack_base_realtime ()
         echo "intel-edge-base-realtime is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_base_realtime/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-realtime onevpl-tools || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12) $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1);
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-base-realtime=$version*" $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12) $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1);
     fi;
     ensure_group_add $(debian_40_group_edge_pack_base_realtime)
 }
@@ -5073,7 +5208,7 @@ debian_41_remove_edge_pack_base_realtime ()
 { 
     configure_edge_pack_base_realtime "$@" || return 0;
     [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-base-realtime || true
+    remove_edge_pack_meta intel-edge-base-realtime
 }
 debian_41_sbom_edge_pack_base_realtime () 
 { 
@@ -5249,8 +5384,8 @@ debian_50_remove_ros2 ()
     [ "$(ensure_prop get installed/ros2/owned)" = "true" ] || return 0;
     configure_ros2;
     if verify_ros2; then
-        ensure_apt purge --auto-remove -y ros-$ros_distro-desktop ros-dev-tools || true;
-        ensure_apt purge --auto-remove -y ros2-apt-source || true;
+        ensure_apt remove -y ros-$ros_distro-desktop ros-dev-tools || true;
+        ensure_apt remove -y ros2-apt-source || true;
         [ ! -w ~/.bashrc ] || sed -i "\|^source /opt/ros/$ros_distro/setup.bash\$|d" ~/.bashrc;
     else
         echo "ROS 2 already removed. Skipping";
@@ -5363,13 +5498,13 @@ debian_55_install_ros_openvino ()
         ensure_apt_source $ov_list "$ov_deb_entry";
         ensure_apt_preference $ov_pref "${ov_deb_pref[@]}";
         ensure_apt update -y;
-        ensure_apt purge --auto-remove -y ros-$ros_distro-openvino-node || true;
+        ensure_apt remove -y ros-$ros_distro-openvino-node || true;
         echo PURGE | ensure_sudo debconf-communicate ros-$ros_distro-openvino-node > /dev/null 2>&1 || true;
         echo "ros-$ros_distro-openvino-node ros-$ros_distro-openvino-node/install_models boolean true" | ensure_sudo debconf-set-selections > /dev/null 2>&1 || true;
         local ov_installed;
         ov_installed="$(dpkg-query -W -f='${Version}' openvino 2> /dev/null | cut -d. -f1-3)";
         if [ -n "$ov_installed" ] && [ "$ov_installed" != "$ov_version" ]; then
-            ensure_apt purge --auto-remove -y openvino $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "*openvino*-$ov_installed" 2> /dev/null | awk '$1 == "ii" {print $2}');
+            ensure_apt remove -y openvino $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "*openvino*-$ov_installed" 2> /dev/null | awk '$1 == "ii" {print $2}');
         fi;
         ensure_apt install -y --allow-downgrades "openvino=$ov_version*";
         ensure_apt install -y ros-$ros_distro-openvino-node;
@@ -5429,7 +5564,7 @@ debian_55_remove_ros_openvino ()
     [ "$(ensure_prop get installed/ros_openvino/owned)" = "true" ] || return 0;
     configure_ros_openvino;
     if verify_ros_openvino; then
-        ensure_apt purge --auto-remove -y ros-$ros_distro-openvino-node openvino || true;
+        ensure_apt remove -y ros-$ros_distro-openvino-node openvino || true;
         ensure_rm "$ov_key_file" "$ov_list" "$ov_pref" "$amr_key_file" "$amr_list" "$amr_pref_file";
     else
         echo "ROS 2 OpenVINO toolkit already removed. Skipping";
@@ -5475,8 +5610,19 @@ debian_70_install_edge_pack_media_ffmpeg ()
         echo "intel-edge-media-ffmpeg is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_ffmpeg/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg onevpl-tools || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*";
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-media-ffmpeg=$version*";
+    fi
+}
+debian_70_install_edge_pack_media_ffmpeg_dev () 
+{ 
+    configure_edge_pack "$@";
+    if ensure_apt_is_installed intel-edge-media-ffmpeg-dev && ! ensure_parse_reinstall "$@"; then
+        echo "intel-edge-media-ffmpeg-dev is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_media_ffmpeg_dev/owned true;
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-media-ffmpeg-dev=$version*";
     fi
 }
 debian_70_install_edge_pack_media_gst () 
@@ -5486,8 +5632,19 @@ debian_70_install_edge_pack_media_gst ()
         echo "intel-edge-media-gst is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_gst/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-gst onevpl-tools || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*";
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-media-gst=$version*";
+    fi
+}
+debian_70_install_edge_pack_media_gst_dev () 
+{ 
+    configure_edge_pack "$@";
+    if ensure_apt_is_installed intel-edge-media-gst-dev && ! ensure_parse_reinstall "$@"; then
+        echo "intel-edge-media-gst-dev is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_media_gst_dev/owned true;
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-media-gst-dev=$version*";
     fi
 }
 debian_70_install_ffmpeg () 
@@ -5512,8 +5669,10 @@ debian_70_install_nodejs ()
         echo "nodejs is installed" 1>&2;
     else
         ensure_prop set installed/nodejs/owned true;
-        ensure_fetch "$repo_script" - | ensure_sudo bash;
-        ensure_apt install -y nodejs=$version.*;
+        ensure_apt_key "$nodejs_key_file" "$nodejs_key_url" --dearmor;
+        ensure_apt_source "$nodejs_list_file" "${nodejs_source[@]}";
+        ensure_apt update -y;
+        ensure_apt install -y "nodejs=$version.*";
     fi
 }
 debian_70_install_openvino () 
@@ -5555,7 +5714,15 @@ debian_70_profile_edge_pack_media_ffmpeg ()
 { 
     echo "edge_pack"
 }
+debian_70_profile_edge_pack_media_ffmpeg_dev () 
+{ 
+    echo "edge_pack"
+}
 debian_70_profile_edge_pack_media_gst () 
+{ 
+    echo "edge_pack"
+}
+debian_70_profile_edge_pack_media_gst_dev () 
 { 
     echo "edge_pack"
 }
@@ -5581,12 +5748,22 @@ debian_70_profile_time_confighub ()
 debian_70_remove_edge_pack_media_ffmpeg () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_ffmpeg/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true
+    remove_edge_pack_meta intel-edge-media-ffmpeg
+}
+debian_70_remove_edge_pack_media_ffmpeg_dev () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_media_ffmpeg_dev/owned)" = "true" ] || return 0;
+    remove_edge_pack_meta intel-edge-media-ffmpeg-dev
 }
 debian_70_remove_edge_pack_media_gst () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_gst/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-media-gst || true
+    remove_edge_pack_meta intel-edge-media-gst
+}
+debian_70_remove_edge_pack_media_gst_dev () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_media_gst_dev/owned)" = "true" ] || return 0;
+    remove_edge_pack_meta intel-edge-media-gst-dev
 }
 debian_70_remove_ffmpeg () 
 { 
@@ -5601,12 +5778,12 @@ debian_70_remove_nodejs ()
 { 
     [ "$(ensure_prop get installed/nodejs/owned)" = "true" ] || return 0;
     ensure_apt_remove_package nodejs;
-    ensure_rm /etc/apt/sources.list.d/nodesource.sources /etc/apt/preferences.d/nodejs /etc/apt/preferences.d/nsolid
+    ensure_rm "$nodejs_list_file" "$nodejs_key_file"
 }
 debian_70_remove_openvino () 
 { 
     [ "$(ensure_prop get installed/openvino/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y $(dpkg -l | grep openvino | awk '{print$2}') || true;
+    ensure_apt remove -y $(dpkg -l | grep openvino | awk '{print$2}') || true;
     ensure_rm "$workspace"
 }
 debian_70_remove_time_confighub () 
@@ -5621,11 +5798,23 @@ debian_70_sbom_edge_pack_media_ffmpeg ()
     sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-ffmpeg=$version*"
 }
+debian_70_sbom_edge_pack_media_ffmpeg_dev () 
+{ 
+    configure_edge_pack "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-media-ffmpeg-dev=$version*"
+}
 debian_70_sbom_edge_pack_media_gst () 
 { 
     configure_edge_pack "$@";
     sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-gst=$version*"
+}
+debian_70_sbom_edge_pack_media_gst_dev () 
+{ 
+    configure_edge_pack "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-media-gst-dev=$version*"
 }
 debian_70_sbom_ffmpeg () 
 { 
@@ -5635,7 +5824,12 @@ debian_70_sbom_ffmpeg ()
 debian_70_sbom_nodejs () 
 { 
     configure_nodejs "$@";
-    ensure_sbom_format pkg-list "$repo_script"
+    ensure_sbom_format repo-name "$nodejs_repo";
+    ensure_sbom_format gpg-key "$nodejs_key_url";
+    ensure_sbom_format key-file "$nodejs_key_file";
+    ensure_sbom_format apt-source "${nodejs_source[@]}";
+    ensure_sbom_format apt-list-file "$nodejs_list_file";
+    ensure_sbom_format pkg-list "nodejs=$version.*"
 }
 debian_70_sbom_openvino () 
 { 
@@ -5681,7 +5875,7 @@ debian_75_remove_dlstreamer ()
 { 
     configure_dlstreamer "$@";
     [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true;
+    ensure_apt remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true;
     ensure_rm "$workspace" || true;
     ensure_skills remove "${skills[@]}"
 }
@@ -7321,7 +7515,7 @@ debian_90_remove_autonomous_mobile_robot ()
     [ "$(ensure_prop get installed/autonomous_mobile_robot/owned)" = "true" ] || return 0;
     configure_autonomous_mobile_robot;
     if ensure_apt_is_installed ros-$ros_distro-robotics-sdk || ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete; then
-        ensure_apt purge --auto-remove -y ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete "${amr_slam_pkgs[@]}" || true;
+        ensure_apt remove -y ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete "${amr_slam_pkgs[@]}" || true;
         verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2;
         remove_oneapi_ros_openvino;
     else
@@ -7504,7 +7698,7 @@ debian_90_remove_stationary_robot_vision ()
     [ "$(ensure_prop get installed/stationary_robot_vision/owned)" = "true" ] || return 0;
     configure_stationary_robot_vision;
     if ensure_apt_is_installed ros-$ros_distro-rvc-simulation || ensure_apt_is_installed ros-$ros_distro-rvc; then
-        ensure_apt purge --auto-remove -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins;
+        ensure_apt remove -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins;
         verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2;
         remove_oneapi_ros_openvino;
     else
@@ -9318,10 +9512,10 @@ norm_uri "${BASH_REMATCH[3]}"
         ;;
     esac;
 done | sort -u));
-    [ ${#legacies[*]} -eq 0 ] || ensure_apt_source_remove "${legacies[*]}";
+    [ ${#legacies[*]} -eq 0 ] || ensure_apt_source_disable "${legacies[*]}";
     printf "%s\n" "$@" | ensure_sudo tee $file > /dev/null
 }
-ensure_apt_source_remove () 
+ensure_apt_source_disable () 
 { 
     local updated;
     for v in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources;
@@ -11313,6 +11507,14 @@ install_anomalib ()
     test_anomalib "$@";
     echo "@@HIGHLIGHT venv: $workspace/.venv"
 }
+install_edge_pack_meta () 
+{ 
+    local pkg="$1";
+    shift;
+    ensure_apt update;
+    ensure_apt install "${edge_pack_install_options[@]}" "$pkg" "$@";
+    ensure_sudo apt-mark manual "${pkg%%=*}"
+}
 install_geti () 
 { 
     configure_geti "$@";
@@ -11548,6 +11750,16 @@ remove_anomalib ()
     configure_anomalib "$@";
     ensure_rm "$workspace" || true
 }
+remove_edge_pack_meta () 
+{ 
+    local pkg="$1";
+    ensure_apt_is_installed "$pkg" || return 0;
+    local closure=($(apt-cache depends --recurse --installed --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances "$pkg" 2> /dev/null | awk '/^[^ <]/{sub(/:.*/,"");print}' | sort -u));
+    ensure_sudo apt-mark auto "$pkg" > /dev/null;
+    local candidates=($(apt-get -s autoremove 2> /dev/null | awk '$1=="Remv"{sub(/:.*/,"",$2);print $2}' | sort -u));
+    local remove=($(comm -12 <(printf '%s\n' "${closure[@]}") <(printf '%s\n' "${candidates[@]}")));
+    [ ${#remove[@]} -eq 0 ] || ensure_apt purge -y "${remove[@]}" || true
+}
 remove_geti () 
 { 
     stop_geti "$@";
@@ -11599,13 +11811,12 @@ resolve_uncrewed_aerial_vehicle_vision_analytics_ports ()
 }
 sbom_edge_pack_repo_entries () 
 { 
-    if [ -n "$edge_pack_ppa_repo" ]; then
-        ensure_sbom_format gpg-key "$edge_pack_ppa_key_url";
-        ensure_sbom_format key-file "$edge_pack_ppa_key_file";
-        ensure_sbom_format apt-source "$edge_pack_ppa_source";
-        ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file";
-        echo "---";
-    fi;
+    ensure_sbom_format repo-name "$edge_pack_ppa_repo";
+    ensure_sbom_format gpg-key "$edge_pack_ppa_key_url";
+    ensure_sbom_format key-file "$edge_pack_ppa_key_file";
+    ensure_sbom_format apt-source "$edge_pack_ppa_source";
+    ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file";
+    echo "---";
     ensure_sbom_format repo-name "$edge_pack_repo";
     ensure_sbom_format gpg-key "$edge_pack_key_url";
     ensure_sbom_format key-file "$edge_pack_key_file";
@@ -11726,7 +11937,7 @@ subcommand_list ()
 
             ;;
             --auto-completion | --auto-completion=*)
-                local data="Y21kcyBpbnN0YWxsIHJlbW92ZSBzdGFydCBzdG9wCm5hbWVzIGN1cmwgZG1pZGVjb2RlIGttb2QgcGNpdXRpbHMgc3lzdGVtX2luc3BlY3Rpb24gZ251cGcgd2dldCBjcHVpZCBkZWJjb25mX3V0aWxzIGdhd2sganEgbGliZ2wxIGxpYnRiYjEyIGxpYnplMSB1bnppcCB5cSBlZGdlX3BhY2tfa2VybmVsX2ltYWdlIHJlYm9vdCBhdXRvY29uZiBhdXRvbWFrZSBidWlsZF9lc3NlbnRpYWwgY2hyb255IGNtYWtlIGRvY2tlcl9jZSBkb2NrZXJfaW8gZ2l0IGdvbGFuZyBrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbCBsaWJwY3JlMl9kZXYgbGludXhfdG9vbHMgbG1fc2Vuc29ycyBtYWtlIG1zcl90b29scyBwa2dfY29uZmlnIHB5dGhvbjNfZGV2IHB5dGhvbjNfdmVudiBweXRob24zX3lhbWwgcnN5bmMgcnVzdHVwIHN0cmVzc19uZyBzeXNiZW5jaCB2NGxfdXRpbHMgeHB1X3NtaSBrM3NfaW8gaW50ZWxfbHBtZCBlZGdlX3BhY2sgYXB0X3RyYW5zcG9ydF9odHRwcyBiYyBjb3JlX3R5cGVzIGVkZ2VfcGFja19iYXNlX3N0YW5kYXJkIGVkZ2VfcGFja19jb21wdXRlX2V4dHJhIGVkZ2VfcGFja19ncmFwaGljc19jb3JlIGVkZ2VfcGFja19ncmFwaGljc19kaXNwbGF5IGVkZ2VfcGFja19ncmFwaGljc19zcmlvdiBlZGdlX3BhY2tfaXB1IGVkZ2VfcGFja19tYW5hZ2VhYmlsaXR5IGVkZ2VfcGFja19tZWRpYV9jb3JlIGVkZ2VfcGFja19ucHUgZWRnZV9wYWNrX3RzbiBncHVfYWNjZWwgbGlieWFuZyBsc2JfcmVsZWFzZSBucHVfYWNjZWwgcGNtIHByb2NwcyBzb2Z0d2FyZV9wcm9wZXJ0aWVzX2NvbW1vbiBzeXN0ZW1faW5mbyBlZGdlX3BhY2tfYmFzZV9yZWFsdGltZSBjbG91ZF9pbWFnZV91dGlscyBsaWJjYXAyX2JpbiBtZW10ZXN0ZXIgb3ZtZiBwaXB4IHBvd2VyX3R1bmluZyBxZW11X3N5c3RlbV94ODYgcWVtdV91dGlscyBydF90ZXN0cyB1YnVudHVfc2VydmVyIHJvczIgdXYgY2RpIHJlYWxzZW5zZSByb3Nfb3BlbnZpbm8gZWRnZV9wYWNrX21lZGlhX2ZmbXBlZyBlZGdlX3BhY2tfbWVkaWFfZ3N0IGZmbXBlZyBtZWRpYW10eCBub2RlanMgb3BlbnZpbm8gdGltZV9jb25maWdodWIgZGxzdHJlYW1lciBhbm9tYWxpYiBlc3EgaGFuZGhlbGRfYmx1ZXByaW50IG1pc3Npb25fc2Vuc2luZ19zZXJ2aWNlX2JsdWVwcmludCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnQgdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uIGFnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZSBhZ2VudGljX3NtYXJ0X2NvbW11bml0eSBhdXRvbm9tb3VzX21vYmlsZV9yb2JvdCBkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb24gZGlnaXRhbF9zaWduYWdlIGRpbmVfaW4gZWRnZV93b3JrbG9hZHNfYW5kX2JlbmNobWFya3MgZ2V0aSBoYW5kaGVsZF9tdWx0aV9tb2RhbCBodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmcgaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoIGxpdmVfdmlkZW9fYWxlcnRfYWdlbnQgbGl2ZV92aWRlb19jYXB0aW9uaW5nIGxpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWcgbGl2ZV92aWRlb19zZWFyY2ggbG9pdGVyaW5nX2RldGVjdGlvbiBsb3NzX3ByZXZlbnRpb24gbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nIG11bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uIG5pY3Vfd2FybWVyIHBhbGxldF9kZWZlY3RfZGV0ZWN0aW9uIHBjYl9hbm9tYWx5X2RldGVjdGlvbiBwZXJzb25fb2ZfaW50ZXJlc3QgcGh5c2ljYWxfYWlfZnJhbWV3b3JrIHBoeXNpY2FsX2FpX3N0dWRpbyByZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZyBzY2VuZXNjYXBlIHNtYXJ0X2NsYXNzcm9vbSBzbWFydF9pbnRlcnNlY3Rpb24gc21hcnRfa2lvc2tfYXNzaXN0YW50IHNtYXJ0X252ciBzbWFydF9wYXJraW5nIHNtYXJ0X3RvbGxpbmcgc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnQgc3RhdGlvbmFyeV9yb2JvdF92aXNpb24gc3VyZ2ljYWxfaW5zdHJ1bWVudCBzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbiB0YWtlX2F3YXkgdGVhY2hlcl9hc3Npc3RhbnRfY2xhd19kZW1vIHVhdl9taXNzaW9uX2NvbXB1dGVfc2RrIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2dyb3VuZF9zdGF0aW9uIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MgdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyIHZpcHBldCB2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmcgd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uIHNtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50IHN5c3RlbV9zdW1tYXJ5IG1ldHJvX2FpX3N1aXRlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZCBpbmZlcmVuY2luZyBtYW51ZmFjdHVyaW5nX2FpX3N1aXRlIHJvYm90aWNzX2FpX3N1aXRlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZSBlZGdlX2Jhc2UgZWRnZV9iYXNlX3JvYm90aWNzIGludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2UgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fc2Vuc2luZ19zZXJ2aWNlIHJldGFpbF9haV9zdWl0ZSBjb21wdXRlcl92aXNpb24gaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGUgZWR1Y2F0aW9uX2FpX3N1aXRlCmZsYWdzIGluc3RhbGwgLS1jb250aW51ZSAtLWRyeS1ydW4gLS1yZWluc3RhbGwgLS12YWxpZGF0ZQpzdGF0ZSBpbnN0YWxsIC0KbW9kIGluc3RhbGwgcmVib290Cm1vZCBpbnN0YWxsIGxpdmVfdmlkZW9fY2FwdGlvbmluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCB0YWtlX2F3YXkgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgZWRnZV9wYWNrX2Jhc2VfcmVhbHRpbWUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgZGlnaXRhbF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHBjbSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCB0aW1lX2NvbmZpZ2h1YiAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBidWlsZF9lc3NlbnRpYWwKbW9kIGluc3RhbGwgcHl0aG9uM192ZW52Cm1vZCBpbnN0YWxsIGVkZ2VfcGFja190c24gQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgY2hyb255Cm1vZCBpbnN0YWxsIGszc19pbwptb2QgaW5zdGFsbCBzb2Z0d2FyZV9wcm9wZXJ0aWVzX2NvbW1vbgptb2QgaW5zdGFsbCBlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCByZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBnZXRpIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHJzeW5jCm1vZCBpbnN0YWxsIHZpcHBldCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgaW5zdGFsbCBjbG91ZF9pbWFnZV91dGlscwptb2QgaW5zdGFsbCBnaXQKbW9kIGluc3RhbGwgZWRnZV9iYXNlIEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbG9zc19wcmV2ZW50aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1scCAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgLS1vYyAtLW9kIEBkZXZpY2U6Z3B1IC0tYWdlIC0tbHB2bG0KbW9kIGluc3RhbGwgZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwga21vZAptb2QgaW5zdGFsbCBncHVfYWNjZWwgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgcGNiX2Fub21hbHlfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGNtYWtlCm1vZCBpbnN0YWxsIGF1dG9tYWtlCm1vZCBpbnN0YWxsIG1hbnVmYWN0dXJpbmdfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgdjRsX3V0aWxzCm1vZCBpbnN0YWxsIHN5c3RlbV9zdW1tYXJ5Cm1vZCBpbnN0YWxsIGdudXBnCm1vZCBpbnN0YWxsIG92bWYKbW9kIGluc3RhbGwgbnB1X2FjY2VsIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGxtX3NlbnNvcnMKbW9kIGluc3RhbGwgbGliZ2wxCm1vZCBpbnN0YWxsIHNtYXJ0X2NsYXNzcm9vbSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBzdHJlc3NfbmcKbW9kIGluc3RhbGwgbm9kZWpzIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGRvY2tlcl9jZQptb2QgaW5zdGFsbCBtZW10ZXN0ZXIKbW9kIGluc3RhbGwgYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGVkZ2VfcGFja19pcHUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgc3RhdGlvbmFyeV9yb2JvdF92aXNpb24gLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgZWR1Y2F0aW9uX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHJ0X3Rlc3RzCm1vZCBpbnN0YWxsIHN5c3RlbV9pbnNwZWN0aW9uCm1vZCBpbnN0YWxsIGNvbXB1dGVyX3Zpc2lvbiBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbiAtLXZhbGlkYXRlCm1vZCBpbnN0YWxsIHBpcHgKbW9kIGluc3RhbGwgbWVkaWFtdHggQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIGluc3RhbGwgbG9pdGVyaW5nX2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbWVkaWFfZmZtcGVnIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2UgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgb3BlbnZpbm8gQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24gLS12YWxpZGF0ZQptb2QgaW5zdGFsbCBtYWtlCm1vZCBpbnN0YWxsIHNtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50IEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHV2Cm1vZCBpbnN0YWxsIHNjZW5lc2NhcGUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgdWJ1bnR1X3NlcnZlcgptb2QgaW5zdGFsbCBlc3EgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgYXV0b25vbW91c19tb2JpbGVfcm9ib3QgQGRldmljZTpucHUgLS1yZWluc3RhbGwgQGRldmljZTpjcHUgQGRldmljZTpncHUgLS1jb21wbGV0ZQptb2QgaW5zdGFsbCBsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50IEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGVkZ2VfcGFja19iYXNlX3N0YW5kYXJkIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHZpZGVvX3Byb2Nlc3NpbmdfZm9yX252ciBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCB2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgZGluZV9pbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBkb2NrZXJfaW8KbW9kIGluc3RhbGwgcGh5c2ljYWxfYWlfZnJhbWV3b3JrIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIC0tdmFsaWRhdGUgQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgcGVyc29uX29mX2ludGVyZXN0IEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHJ1c3R1cAptb2QgaW5zdGFsbCByb3Nfb3BlbnZpbm8gLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgcHl0aG9uM195YW1sCm1vZCBpbnN0YWxsIGxpYnRiYjEyCm1vZCBpbnN0YWxsIHBhbGxldF9kZWZlY3RfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGxpdmVfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHBvd2VyX3R1bmluZyAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBweXRob24zX2Rldgptb2QgaW5zdGFsbCBwa2dfY29uZmlnCm1vZCBpbnN0YWxsIGhhbmRoZWxkX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCBpbnN0YWxsIHNtYXJ0X252ciBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBlZGdlX2Jhc2Vfcm9ib3RpY3MgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tcmVhbHRpbWUgLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHFlbXVfdXRpbHMKbW9kIGluc3RhbGwgZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbGliY2FwMl9iaW4KbW9kIGluc3RhbGwgZ2F3awptb2QgaW5zdGFsbCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGQgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHRlYWNoZXJfYXNzaXN0YW50X2NsYXdfZGVtbyBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBsaWJ6ZTEgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIGluc3RhbGwgZmZtcGVnCm1vZCBpbnN0YWxsIHVuemlwCm1vZCBpbnN0YWxsIGRsc3RyZWFtZXIgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24gLS12YWxpZGF0ZQptb2QgaW5zdGFsbCB1YXZfbWlzc2lvbl9jb21wdXRlX3NkayBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBhdXRvY29uZgptb2QgaW5zdGFsbCBtaXNzaW9uX3NlbnNpbmdfc2VydmljZV9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgaW5zdGFsbCByb2JvdGljc19haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcGkwNS1ydGMtb3YgLS1yZWluc3RhbGwgLS12ZXJzaW9uIC0tdmFsaWRhdGUgQGRldmljZTpjcHUgQGRldmljZTpncHUgLS1jb21wbGV0ZQptb2QgaW5zdGFsbCBhcHRfdHJhbnNwb3J0X2h0dHBzCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19tZWRpYV9nc3QgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbGlicGNyZTJfZGV2Cm1vZCBpbnN0YWxsIHBoeXNpY2FsX2FpX3N0dWRpbyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBpbmZlcmVuY2luZyBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbiAtLXZhbGlkYXRlCm1vZCBpbnN0YWxsIHJvczIgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgc3VzcGljaW91c19hY3Rpdml0eV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXVzZWNhc2UgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEB2YWx1ZTotLXVzZWNhc2UgQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgd2dldAptb2QgaW5zdGFsbCBtZXRyb19haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBzbWFydF9yb3V0ZV9wbGFubmluZ19hZ2VudCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBzbWFydF90b2xsaW5nIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2dyb3VuZF9zdGF0aW9uIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGRtaWRlY29kZQptb2QgaW5zdGFsbCBuaWN1X3dhcm1lciBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBzeXN0ZW1faW5mbyAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmcgQHZhbHVlOi0tdmVyc2lvbiAtLXBpMDUtcnRjLW92IC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbAptb2QgaW5zdGFsbCB4cHVfc21pCm1vZCBpbnN0YWxsIGNwdWlkCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19jb21wdXRlX2V4dHJhIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGxzYl9yZWxlYXNlCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19tYW5hZ2VhYmlsaXR5IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGVkZ2Vfd29ya2xvYWRzX2FuZF9iZW5jaG1hcmtzIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHN5c2JlbmNoCm1vZCBpbnN0YWxsIGFnZW50aWNfc21hcnRfY29tbXVuaXR5IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHN1cmdpY2FsX2luc3RydW1lbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwganEKbW9kIGluc3RhbGwgZGViY29uZl91dGlscwptb2QgaW5zdGFsbCBwY2l1dGlscwptb2QgaW5zdGFsbCBpbWFnZV9iYXNlZF92aWRlb19zZWFyY2ggQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbGlieWFuZwptb2QgaW5zdGFsbCBsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBlZGdlX3BhY2tfa2VybmVsX2ltYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBpbnN0YWxsIG1zcl90b29scwptb2QgaW5zdGFsbCBjZGkgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgYW5vbWFsaWIgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24gLS12YWxpZGF0ZQptb2QgaW5zdGFsbCBjdXJsCm1vZCBpbnN0YWxsIGJjCm1vZCBpbnN0YWxsIHNtYXJ0X2tpb3NrX2Fzc2lzdGFudCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBpbnRlbF9scG1kIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIG11bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGdvbGFuZwptb2QgaW5zdGFsbCBjb3JlX3R5cGVzIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX3NlbnNpbmdfc2VydmljZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBoYW5kaGVsZF9tdWx0aV9tb2RhbCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBzbWFydF9pbnRlcnNlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgbGludXhfdG9vbHMKbW9kIGluc3RhbGwgcHJvY3BzCm1vZCBpbnN0YWxsIGVkZ2VfcGFjayBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCB3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgeXEKbW9kIGluc3RhbGwgc21hcnRfcGFya2luZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCB2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgcmV0YWlsX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS11c2VjYXNlIC0tbHAgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEB2YWx1ZTotLXVzZWNhc2UgQGRldmljZTpjcHUgLS1vYyAtLW9kIEBkZXZpY2U6Z3B1IC0tYWdlIC0tbHB2bG0KbW9kIGluc3RhbGwgcWVtdV9zeXN0ZW1feDg2Cm1vZCBpbnN0YWxsIHJlYWxzZW5zZSAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbWVkaWFfY29yZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbnB1IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19ncmFwaGljc19zcmlvdiBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgpmbGFncyByZW1vdmUgLS1kcnktcnVuIC0tcmVtb3ZlLWFsbCAtLXJlbW92ZS1tZQpzdGF0ZSByZW1vdmUgaW5zdGFsbGVkCm1vZCByZW1vdmUgbGl2ZV92aWRlb19jYXB0aW9uaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdGFrZV9hd2F5IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZGlnaXRhbF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZWRnZV9wYWNrX2Jhc2VfcmVhbHRpbWUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBwY20gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB0aW1lX2NvbmZpZ2h1Ygptb2QgcmVtb3ZlIGJ1aWxkX2Vzc2VudGlhbAptb2QgcmVtb3ZlIGVkZ2VfcGFja190c24KbW9kIHJlbW92ZSBrM3NfaW8KbW9kIHJlbW92ZSBlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheQptb2QgcmVtb3ZlIHJlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgcnN5bmMKbW9kIHJlbW92ZSBnZXRpIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdmlwcGV0IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgY2xvdWRfaW1hZ2VfdXRpbHMKbW9kIHJlbW92ZSB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgcmVtb3ZlIGdpdAptb2QgcmVtb3ZlIGVkZ2VfYmFzZSBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uCm1vZCByZW1vdmUgbG9zc19wcmV2ZW50aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljcwptb2QgcmVtb3ZlIGdwdV9hY2NlbAptb2QgcmVtb3ZlIHBjYl9hbm9tYWx5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGNtYWtlCm1vZCByZW1vdmUgYXV0b21ha2UKbW9kIHJlbW92ZSBtYW51ZmFjdHVyaW5nX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdjRsX3V0aWxzCm1vZCByZW1vdmUgb3ZtZgptb2QgcmVtb3ZlIG5wdV9hY2NlbCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGxtX3NlbnNvcnMKbW9kIHJlbW92ZSBzbWFydF9jbGFzc3Jvb20gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBzdHJlc3NfbmcKbW9kIHJlbW92ZSBub2RlanMKbW9kIHJlbW92ZSBkb2NrZXJfY2UKbW9kIHJlbW92ZSBtZW10ZXN0ZXIKbW9kIHJlbW92ZSBhZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBlZGdlX3BhY2tfaXB1Cm1vZCByZW1vdmUgaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbgptb2QgcmVtb3ZlIGVkdWNhdGlvbl9haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHJ0X3Rlc3RzCm1vZCByZW1vdmUgY29tcHV0ZXJfdmlzaW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbG9pdGVyaW5nX2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIG1lZGlhbXR4Cm1vZCByZW1vdmUgZWRnZV9wYWNrX21lZGlhX2ZmbXBlZwptb2QgcmVtb3ZlIGludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2UgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBvcGVudmlubyAtLXZhbGlkYXRlCm1vZCByZW1vdmUgbWFrZQptb2QgcmVtb3ZlIHNtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdXYKbW9kIHJlbW92ZSBzY2VuZXNjYXBlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZXNxIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgYXV0b25vbW91c19tb2JpbGVfcm9ib3QgLS1jb21wbGV0ZQptb2QgcmVtb3ZlIGxpdmVfdmlkZW9fYWxlcnRfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZAptb2QgcmVtb3ZlIHZpZGVvX3Byb2Nlc3NpbmdfZm9yX252ciBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGRpbmVfaW4gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHJlbW92ZSBkb2NrZXJfaW8KbW9kIHJlbW92ZSBwaHlzaWNhbF9haV9mcmFtZXdvcmsgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBwZXJzb25fb2ZfaW50ZXJlc3QgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBydXN0dXAKbW9kIHJlbW92ZSByb3Nfb3BlbnZpbm8KbW9kIHJlbW92ZSBwYWxsZXRfZGVmZWN0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGxpdmVfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgcG93ZXJfdHVuaW5nCm1vZCByZW1vdmUgcGtnX2NvbmZpZwptb2QgcmVtb3ZlIGhhbmRoZWxkX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCByZW1vdmUgc21hcnRfbnZyIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZWRnZV9iYXNlX3JvYm90aWNzIEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXJlYWx0aW1lIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGVkZ2VfcGFja19ncmFwaGljc19jb3JlCm1vZCByZW1vdmUgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdGVhY2hlcl9hc3Npc3RhbnRfY2xhd19kZW1vIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZmZtcGVnCm1vZCByZW1vdmUgdW56aXAKbW9kIHJlbW92ZSBkbHN0cmVhbWVyIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdWF2X21pc3Npb25fY29tcHV0ZV9zZGsgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBhdXRvY29uZgptb2QgcmVtb3ZlIG1pc3Npb25fc2Vuc2luZ19zZXJ2aWNlX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCByZW1vdmUgcm9ib3RpY3NfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiAtLXBpMDUtcnRjLW92IC0tdmVyc2lvbiAtLWNvbXBsZXRlCm1vZCByZW1vdmUgYXB0X3RyYW5zcG9ydF9odHRwcwptb2QgcmVtb3ZlIGVkZ2VfcGFja19tZWRpYV9nc3QKbW9kIHJlbW92ZSBwaHlzaWNhbF9haV9zdHVkaW8gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBpbmZlcmVuY2luZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHJvczIKbW9kIHJlbW92ZSBzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIG1ldHJvX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCByZW1vdmUgc21hcnRfcm91dGVfcGxhbm5pbmdfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBzbWFydF90b2xsaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24KbW9kIHJlbW92ZSBkbWlkZWNvZGUKbW9kIHJlbW92ZSBuaWN1X3dhcm1lciBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHN5c3RlbV9pbmZvCm1vZCByZW1vdmUgaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nIEB2YWx1ZTotLXZlcnNpb24gLS1waTA1LXJ0Yy1vdiAtLXZlcnNpb24KbW9kIHJlbW92ZSBrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbAptb2QgcmVtb3ZlIHhwdV9zbWkKbW9kIHJlbW92ZSBjcHVpZAptb2QgcmVtb3ZlIGVkZ2VfcGFja19jb21wdXRlX2V4dHJhCm1vZCByZW1vdmUgZWRnZV9wYWNrX21hbmFnZWFiaWxpdHkKbW9kIHJlbW92ZSBzeXNiZW5jaAptb2QgcmVtb3ZlIGVkZ2Vfd29ya2xvYWRzX2FuZF9iZW5jaG1hcmtzIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgYWdlbnRpY19zbWFydF9jb21tdW5pdHkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBzdXJnaWNhbF9pbnN0cnVtZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUganEKbW9kIHJlbW92ZSBkZWJjb25mX3V0aWxzCm1vZCByZW1vdmUgaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbGlieWFuZwptb2QgcmVtb3ZlIGxpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWcgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBtc3JfdG9vbHMKbW9kIHJlbW92ZSBjZGkKbW9kIHJlbW92ZSBhbm9tYWxpYiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGJjCm1vZCByZW1vdmUgc21hcnRfa2lvc2tfYXNzaXN0YW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgaW50ZWxfbHBtZAptb2QgcmVtb3ZlIG11bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZ29sYW5nCm1vZCByZW1vdmUgY29yZV90eXBlcwptb2QgcmVtb3ZlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX3NlbnNpbmdfc2VydmljZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgc21hcnRfaW50ZXJzZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbGludXhfdG9vbHMKbW9kIHJlbW92ZSBlZGdlX3BhY2sgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB5cQptb2QgcmVtb3ZlIHNtYXJ0X3BhcmtpbmcgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHJlbW92ZSByZXRhaWxfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSByZWFsc2Vuc2UKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWVkaWFfY29yZQptb2QgcmVtb3ZlIGVkZ2VfcGFja19ucHUKbW9kIHJlbW92ZSBlZGdlX3BhY2tfZ3JhcGhpY3Nfc3Jpb3YKZmxhZ3Mgc3RhcnQgLS1jb250aW51ZSAtLWRyeS1ydW4Kc3RhdGUgc3RhcnQgaW5zdGFsbGVkCm1vZCBzdGFydCBsaXZlX3ZpZGVvX2NhcHRpb25pbmcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHRha2VfYXdheSBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgZGlnaXRhbF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCByZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgZ2V0aSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgdmlwcGV0IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBsb3NzX3ByZXZlbnRpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLWxwIC0tdmVyc2lvbiAtLWJlbmNobWFyayBAZGV2aWNlOmNwdSAtLW9jIC0tb2QgQGRldmljZTpncHUgLS1hZ2UgLS1scHZsbQptb2Qgc3RhcnQgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljcwptb2Qgc3RhcnQgcGNiX2Fub21hbHlfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBzbWFydF9jbGFzc3Jvb20gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IGFnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZSBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgbG9pdGVyaW5nX2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHNjZW5lc2NhcGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IGVzcSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgbGl2ZV92aWRlb19hbGVydF9hZ2VudCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBkaW5lX2luIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCB2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHBlcnNvbl9vZl9pbnRlcmVzdCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IGxpdmVfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBzbWFydF9udnIgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IG11bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgdWF2X21pc3Npb25fY29tcHV0ZV9zZGsgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IHBoeXNpY2FsX2FpX3N0dWRpbyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgc3VzcGljaW91c19hY3Rpdml0eV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHNtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBzbWFydF90b2xsaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbgptb2Qgc3RhcnQgbmljdV93YXJtZXIgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IGVkZ2Vfd29ya2xvYWRzX2FuZF9iZW5jaG1hcmtzIEB2YWx1ZTotLXZlcnNpb24gLS1haSAtLXZlcnNpb24gLS1nZW5haSAtLXZpc2lvbiAtLW1lZGlhCm1vZCBzdGFydCBhZ2VudGljX3NtYXJ0X2NvbW11bml0eSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgc3VyZ2ljYWxfaW5zdHJ1bWVudCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBzbWFydF9raW9za19hc3Npc3RhbnQgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IG11bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBoYW5kaGVsZF9tdWx0aV9tb2RhbCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgc21hcnRfaW50ZXJzZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCB3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHNtYXJ0X3BhcmtpbmcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHZpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQpmbGFncyBzdG9wIC0tZHJ5LXJ1biAtLXN0b3AtYWxsCnN0YXRlIHN0b3Agc3RhcnRlZAptb2Qgc3RvcCBsaXZlX3ZpZGVvX2NhcHRpb25pbmcgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdGFrZV9hd2F5IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGRpZ2l0YWxfc2lnbmFnZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCByZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBnZXRpIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHZpcHBldCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBsb3NzX3ByZXZlbnRpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljcwptb2Qgc3RvcCBwY2JfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgbWFudWZhY3R1cmluZ19haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBzbWFydF9jbGFzc3Jvb20gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGhlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGVkdWNhdGlvbl9haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBjb21wdXRlcl92aXNpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgbG9pdGVyaW5nX2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHNtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHNjZW5lc2NhcGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZXNxCm1vZCBzdG9wIGxpdmVfdmlkZW9fYWxlcnRfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGRpbmVfaW4gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdG9wIHBlcnNvbl9vZl9pbnRlcmVzdCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBwYWxsZXRfZGVmZWN0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBsaXZlX3ZpZGVvX3NlYXJjaCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBzbWFydF9udnIgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIG11bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB0ZWFjaGVyX2Fzc2lzdGFudF9jbGF3X2RlbW8gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdWF2X21pc3Npb25fY29tcHV0ZV9zZGsgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3Agcm9ib3RpY3NfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgcGh5c2ljYWxfYWlfc3R1ZGlvIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHN1c3BpY2lvdXNfYWN0aXZpdHlfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIG1ldHJvX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdG9wIHNtYXJ0X3JvdXRlX3BsYW5uaW5nX2FnZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHNtYXJ0X3RvbGxpbmcgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24KbW9kIHN0b3AgbmljdV93YXJtZXIgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZWRnZV93b3JrbG9hZHNfYW5kX2JlbmNobWFya3MgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgYWdlbnRpY19zbWFydF9jb21tdW5pdHkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGxpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWcgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlCm1vZCBzdG9wIHNtYXJ0X2tpb3NrX2Fzc2lzdGFudCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBtdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBoYW5kaGVsZF9tdWx0aV9tb2RhbCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBzbWFydF9pbnRlcnNlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3Agd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHNtYXJ0X3BhcmtpbmcgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdG9wIHJldGFpbF9haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgo=" cmd state;
+                local data="Y21kcyBpbnN0YWxsIHJlbW92ZSBzdGFydCBzdG9wCm5hbWVzIGN1cmwgZG1pZGVjb2RlIGttb2QgcGNpdXRpbHMgc3lzdGVtX2luc3BlY3Rpb24gZ251cGcgd2dldCBjcHVpZCBkZWJjb25mX3V0aWxzIGdhd2sganEgbGliZ2wxIGxpYnRiYjEyIGxpYnplMSB1bnppcCB5cSBlZGdlX3BhY2tfa2VybmVsX2ltYWdlIHJlYm9vdCBhdXRvY29uZiBhdXRvbWFrZSBidWlsZF9lc3NlbnRpYWwgY2hyb255IGNtYWtlIGRvY2tlcl9jZSBkb2NrZXJfaW8gZ2l0IGdvbGFuZyBrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbCBsaWJwY3JlMl9kZXYgbGludXhfdG9vbHMgbG1fc2Vuc29ycyBtYWtlIG1zcl90b29scyBwa2dfY29uZmlnIHB5dGhvbjNfZGV2IHB5dGhvbjNfdmVudiBweXRob24zX3lhbWwgcnN5bmMgcnVzdHVwIHN0cmVzc19uZyBzeXNiZW5jaCB2NGxfdXRpbHMgeHB1X3NtaSBrM3NfaW8gaW50ZWxfbHBtZCBlZGdlX3BhY2sgYXB0X3RyYW5zcG9ydF9odHRwcyBiYyBjb3JlX3R5cGVzIGVkZ2VfcGFja19iYXNlX3N0YW5kYXJkIGVkZ2VfcGFja19jb21wdXRlX2V4dHJhIGVkZ2VfcGFja19ncmFwaGljc19jb3JlIGVkZ2VfcGFja19ncmFwaGljc19jb3JlX2RldiBlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheSBlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheV9kZXYgZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92IGVkZ2VfcGFja19ncmFwaGljc19zcmlvdl9kZXYgZWRnZV9wYWNrX2lwdSBlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eSBlZGdlX3BhY2tfbWVkaWFfY29yZSBlZGdlX3BhY2tfbWVkaWFfY29yZV9kZXYgZWRnZV9wYWNrX25wdSBlZGdlX3BhY2tfdHNuIGVkZ2VfcGFja190c25fZGV2IGdwdV9hY2NlbCBsaWJ5YW5nIGxzYl9yZWxlYXNlIG5wdV9hY2NlbCBwY20gcHJvY3BzIHNvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uIHN5c3RlbV9pbmZvIGVkZ2VfcGFja19iYXNlX3JlYWx0aW1lIGNsb3VkX2ltYWdlX3V0aWxzIGxpYmNhcDJfYmluIG1lbXRlc3RlciBvdm1mIHBpcHggcG93ZXJfdHVuaW5nIHFlbXVfc3lzdGVtX3g4NiBxZW11X3V0aWxzIHJ0X3Rlc3RzIHVidW50dV9zZXJ2ZXIgcm9zMiB1diBjZGkgcmVhbHNlbnNlIHJvc19vcGVudmlubyBlZGdlX3BhY2tfbWVkaWFfZmZtcGVnIGVkZ2VfcGFja19tZWRpYV9mZm1wZWdfZGV2IGVkZ2VfcGFja19tZWRpYV9nc3QgZWRnZV9wYWNrX21lZGlhX2dzdF9kZXYgZmZtcGVnIG1lZGlhbXR4IG5vZGVqcyBvcGVudmlubyB0aW1lX2NvbmZpZ2h1YiBkbHN0cmVhbWVyIGFub21hbGliIGVzcSBoYW5kaGVsZF9ibHVlcHJpbnQgbWlzc2lvbl9zZW5zaW5nX3NlcnZpY2VfYmx1ZXByaW50IHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludCB2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb24gYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lIGFnZW50aWNfc21hcnRfY29tbXVuaXR5IGF1dG9ub21vdXNfbW9iaWxlX3JvYm90IGRldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbiBkaWdpdGFsX3NpZ25hZ2UgZGluZV9pbiBlZGdlX3dvcmtsb2Fkc19hbmRfYmVuY2htYXJrcyBnZXRpIGhhbmRoZWxkX211bHRpX21vZGFsIGh1bWFub2lkX2ltaXRhdGlvbl9sZWFybmluZyBpbWFnZV9iYXNlZF92aWRlb19zZWFyY2ggbGl2ZV92aWRlb19hbGVydF9hZ2VudCBsaXZlX3ZpZGVvX2NhcHRpb25pbmcgbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZyBsaXZlX3ZpZGVvX3NlYXJjaCBsb2l0ZXJpbmdfZGV0ZWN0aW9uIGxvc3NfcHJldmVudGlvbiBtdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmcgbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb24gbmljdV93YXJtZXIgcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb24gcGNiX2Fub21hbHlfZGV0ZWN0aW9uIHBlcnNvbl9vZl9pbnRlcmVzdCBwaHlzaWNhbF9haV9mcmFtZXdvcmsgcGh5c2ljYWxfYWlfc3R1ZGlvIHJlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nIHNjZW5lc2NhcGUgc21hcnRfY2xhc3Nyb29tIHNtYXJ0X2ludGVyc2VjdGlvbiBzbWFydF9raW9za19hc3Npc3RhbnQgc21hcnRfbnZyIHNtYXJ0X3Bhcmtpbmcgc21hcnRfdG9sbGluZyBzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudCBzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbiBzdXJnaWNhbF9pbnN0cnVtZW50IHN1c3BpY2lvdXNfYWN0aXZpdHlfZGV0ZWN0aW9uIHRha2VfYXdheSB0ZWFjaGVyX2Fzc2lzdGFudF9jbGF3X2RlbW8gdWF2X21pc3Npb25fY29tcHV0ZV9zZGsgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24gdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljcyB2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnIgdmlwcGV0IHZpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZyB3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb24gc21hcnRfcm91dGVfcGxhbm5pbmdfYWdlbnQgc3lzdGVtX3N1bW1hcnkgbWV0cm9fYWlfc3VpdGUgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIGluZmVyZW5jaW5nIG1hbnVmYWN0dXJpbmdfYWlfc3VpdGUgcm9ib3RpY3NfYWlfc3VpdGUgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlIGVkZ2VfYmFzZSBlZGdlX2Jhc2Vfcm9ib3RpY3MgaW50ZXJhY3RpdmVfYWlfc21hcnRfc2lnbmFnZSBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9zZW5zaW5nX3NlcnZpY2UgcmV0YWlsX2FpX3N1aXRlIGNvbXB1dGVyX3Zpc2lvbiBoZWFsdGhfYW5kX2xpZmVfc2NpZW5jZV9haV9zdWl0ZSBlZHVjYXRpb25fYWlfc3VpdGUKZmxhZ3MgaW5zdGFsbCAtLWNvbnRpbnVlIC0tZHJ5LXJ1biAtLXJlaW5zdGFsbCAtLXZhbGlkYXRlCnN0YXRlIGluc3RhbGwgLQptb2QgaW5zdGFsbCByZWJvb3QKbW9kIGluc3RhbGwgbGl2ZV92aWRlb19jYXB0aW9uaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHRha2VfYXdheSBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBlZGdlX3BhY2tfYmFzZV9yZWFsdGltZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBkaWdpdGFsX3NpZ25hZ2UgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgcGNtIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHRpbWVfY29uZmlnaHViIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGJ1aWxkX2Vzc2VudGlhbAptb2QgaW5zdGFsbCBweXRob24zX3ZlbnYKbW9kIGluc3RhbGwgZWRnZV9wYWNrX3RzbiBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBjaHJvbnkKbW9kIGluc3RhbGwgazNzX2lvCm1vZCBpbnN0YWxsIHNvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19ncmFwaGljc19kaXNwbGF5IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHJlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGdldGkgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgcnN5bmMKbW9kIGluc3RhbGwgdmlwcGV0IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCBpbnN0YWxsIGNsb3VkX2ltYWdlX3V0aWxzCm1vZCBpbnN0YWxsIGdpdAptb2QgaW5zdGFsbCBlZGdlX2Jhc2UgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBsb3NzX3ByZXZlbnRpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLWxwIC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSAtLW9jIC0tb2QgQGRldmljZTpncHUgLS1hZ2UgLS1scHZsbQptb2QgaW5zdGFsbCBkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljcyAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBrbW9kCm1vZCBpbnN0YWxsIGdwdV9hY2NlbCAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBwY2JfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgY21ha2UKbW9kIGluc3RhbGwgYXV0b21ha2UKbW9kIGluc3RhbGwgbWFudWZhY3R1cmluZ19haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCB2NGxfdXRpbHMKbW9kIGluc3RhbGwgc3lzdGVtX3N1bW1hcnkKbW9kIGluc3RhbGwgZ251cGcKbW9kIGluc3RhbGwgb3ZtZgptb2QgaW5zdGFsbCBucHVfYWNjZWwgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbG1fc2Vuc29ycwptb2QgaW5zdGFsbCBsaWJnbDEKbW9kIGluc3RhbGwgc21hcnRfY2xhc3Nyb29tIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHN0cmVzc19uZwptb2QgaW5zdGFsbCBub2RlanMgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIGluc3RhbGwgZG9ja2VyX2NlCm1vZCBpbnN0YWxsIG1lbXRlc3Rlcgptb2QgaW5zdGFsbCBhZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmUgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgZWRnZV9wYWNrX2lwdSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBoZWFsdGhfYW5kX2xpZmVfc2NpZW5jZV9haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbiAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBlZHVjYXRpb25fYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgZWRnZV9wYWNrX21lZGlhX2NvcmVfZGV2IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19tZWRpYV9nc3RfZGV2IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHJ0X3Rlc3RzCm1vZCBpbnN0YWxsIHN5c3RlbV9pbnNwZWN0aW9uCm1vZCBpbnN0YWxsIGNvbXB1dGVyX3Zpc2lvbiBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbiAtLXZhbGlkYXRlCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19ncmFwaGljc19kaXNwbGF5X2RldiBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBwaXB4Cm1vZCBpbnN0YWxsIG1lZGlhbXR4IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGxvaXRlcmluZ19kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgZWRnZV9wYWNrX21lZGlhX2ZmbXBlZyBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIG9wZW52aW5vIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uIC0tdmFsaWRhdGUKbW9kIGluc3RhbGwgbWFrZQptb2QgaW5zdGFsbCBzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCB1dgptb2QgaW5zdGFsbCBzY2VuZXNjYXBlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVidW50dV9zZXJ2ZXIKbW9kIGluc3RhbGwgZXNxIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGF1dG9ub21vdXNfbW9iaWxlX3JvYm90IEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1IC0tY29tcGxldGUKbW9kIGluc3RhbGwgbGl2ZV92aWRlb19hbGVydF9hZ2VudCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCB2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnIgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGRpbmVfaW4gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgZG9ja2VyX2lvCm1vZCBpbnN0YWxsIHBoeXNpY2FsX2FpX2ZyYW1ld29yayBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiAtLXZhbGlkYXRlIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHBlcnNvbl9vZl9pbnRlcmVzdCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBydXN0dXAKbW9kIGluc3RhbGwgcm9zX29wZW52aW5vIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIHB5dGhvbjNfeWFtbAptb2QgaW5zdGFsbCBsaWJ0YmIxMgptb2QgaW5zdGFsbCBwYWxsZXRfZGVmZWN0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBsaXZlX3ZpZGVvX3NlYXJjaCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBwb3dlcl90dW5pbmcgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgcHl0aG9uM19kZXYKbW9kIGluc3RhbGwgcGtnX2NvbmZpZwptb2QgaW5zdGFsbCBoYW5kaGVsZF9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgaW5zdGFsbCBzbWFydF9udnIgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92X2RldiBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBlZGdlX2Jhc2Vfcm9ib3RpY3MgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tcmVhbHRpbWUgLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHFlbXVfdXRpbHMKbW9kIGluc3RhbGwgZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbGliY2FwMl9iaW4KbW9kIGluc3RhbGwgZ2F3awptb2QgaW5zdGFsbCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGQgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHRlYWNoZXJfYXNzaXN0YW50X2NsYXdfZGVtbyBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBsaWJ6ZTEgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIGluc3RhbGwgZmZtcGVnCm1vZCBpbnN0YWxsIHVuemlwCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19ncmFwaGljc19jb3JlX2RldiBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBkbHN0cmVhbWVyIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uIC0tdmFsaWRhdGUKbW9kIGluc3RhbGwgdWF2X21pc3Npb25fY29tcHV0ZV9zZGsgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgYXV0b2NvbmYKbW9kIGluc3RhbGwgbWlzc2lvbl9zZW5zaW5nX3NlcnZpY2VfYmx1ZXByaW50IEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXZlcnNpb24gLS1rM3MKbW9kIGluc3RhbGwgcm9ib3RpY3NfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXBpMDUtcnRjLW92IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiAtLXZhbGlkYXRlIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1IC0tY29tcGxldGUKbW9kIGluc3RhbGwgYXB0X3RyYW5zcG9ydF9odHRwcwptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbWVkaWFfZ3N0IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGxpYnBjcmUyX2Rldgptb2QgaW5zdGFsbCBwaHlzaWNhbF9haV9zdHVkaW8gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgaW5mZXJlbmNpbmcgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24gLS12YWxpZGF0ZQptb2QgaW5zdGFsbCByb3MyIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGVkZ2VfcGFja190c25fZGV2IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHN1c3BpY2lvdXNfYWN0aXZpdHlfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS11c2VjYXNlIC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAdmFsdWU6LS11c2VjYXNlIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHdnZXQKbW9kIGluc3RhbGwgbWV0cm9fYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgc21hcnRfcm91dGVfcGxhbm5pbmdfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgc21hcnRfdG9sbGluZyBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbiAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBkbWlkZWNvZGUKbW9kIGluc3RhbGwgbmljdV93YXJtZXIgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgc3lzdGVtX2luZm8gLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nIEB2YWx1ZTotLXZlcnNpb24gLS1waTA1LXJ0Yy1vdiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwga2VybmVsX21vZHVsZV9lc3NlbnRpYWwKbW9kIGluc3RhbGwgeHB1X3NtaQptb2QgaW5zdGFsbCBjcHVpZAptb2QgaW5zdGFsbCBlZGdlX3BhY2tfY29tcHV0ZV9leHRyYSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBsc2JfcmVsZWFzZQptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBlZGdlX3dvcmtsb2Fkc19hbmRfYmVuY2htYXJrcyBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBzeXNiZW5jaAptb2QgaW5zdGFsbCBhZ2VudGljX3NtYXJ0X2NvbW11bml0eSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbWVkaWFfZmZtcGVnX2RldiBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBzdXJnaWNhbF9pbnN0cnVtZW50IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGpxCm1vZCBpbnN0YWxsIGRlYmNvbmZfdXRpbHMKbW9kIGluc3RhbGwgcGNpdXRpbHMKbW9kIGluc3RhbGwgaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGxpYnlhbmcKbW9kIGluc3RhbGwgbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgZWRnZV9wYWNrX2tlcm5lbF9pbWFnZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBtc3JfdG9vbHMKbW9kIGluc3RhbGwgY2RpIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGFub21hbGliIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uIC0tdmFsaWRhdGUKbW9kIGluc3RhbGwgY3VybAptb2QgaW5zdGFsbCBiYwptb2QgaW5zdGFsbCBzbWFydF9raW9za19hc3Npc3RhbnQgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgaW50ZWxfbHBtZCAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBtdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgaW5zdGFsbCBnb2xhbmcKbW9kIGluc3RhbGwgY29yZV90eXBlcyAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9zZW5zaW5nX3NlcnZpY2UgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgaGFuZGhlbGRfbXVsdGlfbW9kYWwgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgc21hcnRfaW50ZXJzZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIGxpbnV4X3Rvb2xzCm1vZCBpbnN0YWxsIHByb2Nwcwptb2QgaW5zdGFsbCBlZGdlX3BhY2sgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHlxCm1vZCBpbnN0YWxsIHNtYXJ0X3BhcmtpbmcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXJlaW5zdGFsbCAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIGluc3RhbGwgdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBpbnN0YWxsIHJldGFpbF9haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdXNlY2FzZSAtLWxwIC0tcmVpbnN0YWxsIC0tdmVyc2lvbiBAdmFsdWU6LS11c2VjYXNlIEBkZXZpY2U6Y3B1IC0tb2MgLS1vZCBAZGV2aWNlOmdwdSAtLWFnZSAtLWxwdmxtCm1vZCBpbnN0YWxsIHFlbXVfc3lzdGVtX3g4Ngptb2QgaW5zdGFsbCByZWFsc2Vuc2UgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgZWRnZV9wYWNrX21lZGlhX2NvcmUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgZWRnZV9wYWNrX25wdSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBlZGdlX3BhY2tfZ3JhcGhpY3Nfc3Jpb3YgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KZmxhZ3MgcmVtb3ZlIC0tZHJ5LXJ1biAtLXJlbW92ZS1hbGwgLS1yZW1vdmUtbWUKc3RhdGUgcmVtb3ZlIGluc3RhbGxlZAptb2QgcmVtb3ZlIGxpdmVfdmlkZW9fY2FwdGlvbmluZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHRha2VfYXdheSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGRpZ2l0YWxfc2lnbmFnZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGVkZ2VfcGFja19iYXNlX3JlYWx0aW1lIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCByZW1vdmUgcGNtIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdGltZV9jb25maWdodWIKbW9kIHJlbW92ZSBidWlsZF9lc3NlbnRpYWwKbW9kIHJlbW92ZSBlZGdlX3BhY2tfdHNuCm1vZCByZW1vdmUgazNzX2lvCm1vZCByZW1vdmUgZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXkKbW9kIHJlbW92ZSByZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHJzeW5jCm1vZCByZW1vdmUgZ2V0aSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHZpcHBldCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGNsb3VkX2ltYWdlX3V0aWxzCm1vZCByZW1vdmUgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfYmx1ZXByaW50IEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXZlcnNpb24gLS1rM3MKbW9kIHJlbW92ZSBnaXQKbW9kIHJlbW92ZSBlZGdlX2Jhc2UgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGxvc3NfcHJldmVudGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGRldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MKbW9kIHJlbW92ZSBncHVfYWNjZWwKbW9kIHJlbW92ZSBwY2JfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBjbWFrZQptb2QgcmVtb3ZlIGF1dG9tYWtlCm1vZCByZW1vdmUgbWFudWZhY3R1cmluZ19haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHY0bF91dGlscwptb2QgcmVtb3ZlIG92bWYKbW9kIHJlbW92ZSBucHVfYWNjZWwgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBsbV9zZW5zb3JzCm1vZCByZW1vdmUgc21hcnRfY2xhc3Nyb29tIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgc3RyZXNzX25nCm1vZCByZW1vdmUgbm9kZWpzCm1vZCByZW1vdmUgZG9ja2VyX2NlCm1vZCByZW1vdmUgbWVtdGVzdGVyCm1vZCByZW1vdmUgYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZWRnZV9wYWNrX2lwdQptb2QgcmVtb3ZlIGhlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCByZW1vdmUgc3RhdGlvbmFyeV9yb2JvdF92aXNpb24KbW9kIHJlbW92ZSBlZHVjYXRpb25fYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWVkaWFfY29yZV9kZXYKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWVkaWFfZ3N0X2Rldgptb2QgcmVtb3ZlIHJ0X3Rlc3RzCm1vZCByZW1vdmUgY29tcHV0ZXJfdmlzaW9uIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCByZW1vdmUgZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXlfZGV2Cm1vZCByZW1vdmUgbG9pdGVyaW5nX2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIG1lZGlhbXR4Cm1vZCByZW1vdmUgZWRnZV9wYWNrX21lZGlhX2ZmbXBlZwptb2QgcmVtb3ZlIGludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2UgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIHJlbW92ZSBvcGVudmlubyAtLXZhbGlkYXRlCm1vZCByZW1vdmUgbWFrZQptb2QgcmVtb3ZlIHNtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdXYKbW9kIHJlbW92ZSBzY2VuZXNjYXBlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZXNxIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgYXV0b25vbW91c19tb2JpbGVfcm9ib3QgLS1jb21wbGV0ZQptb2QgcmVtb3ZlIGxpdmVfdmlkZW9fYWxlcnRfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZAptb2QgcmVtb3ZlIHZpZGVvX3Byb2Nlc3NpbmdfZm9yX252ciBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGRpbmVfaW4gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHJlbW92ZSBkb2NrZXJfaW8KbW9kIHJlbW92ZSBwaHlzaWNhbF9haV9mcmFtZXdvcmsgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBwZXJzb25fb2ZfaW50ZXJlc3QgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBydXN0dXAKbW9kIHJlbW92ZSByb3Nfb3BlbnZpbm8KbW9kIHJlbW92ZSBwYWxsZXRfZGVmZWN0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGxpdmVfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgcG93ZXJfdHVuaW5nCm1vZCByZW1vdmUgcGtnX2NvbmZpZwptb2QgcmVtb3ZlIGhhbmRoZWxkX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCByZW1vdmUgc21hcnRfbnZyIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92X2Rldgptb2QgcmVtb3ZlIGVkZ2VfYmFzZV9yb2JvdGljcyBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS1yZWFsdGltZSAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIHJlbW92ZSBlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgcmVtb3ZlIG11bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHRlYWNoZXJfYXNzaXN0YW50X2NsYXdfZGVtbyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGZmbXBlZwptb2QgcmVtb3ZlIHVuemlwCm1vZCByZW1vdmUgZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmVfZGV2IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCByZW1vdmUgZGxzdHJlYW1lciBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHVhdl9taXNzaW9uX2NvbXB1dGVfc2RrIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgYXV0b2NvbmYKbW9kIHJlbW92ZSBtaXNzaW9uX3NlbnNpbmdfc2VydmljZV9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgcmVtb3ZlIHJvYm90aWNzX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS1waTA1LXJ0Yy1vdiAtLXJlaW5zdGFsbCAtLXZlcnNpb24gLS1jb21wbGV0ZQptb2QgcmVtb3ZlIGFwdF90cmFuc3BvcnRfaHR0cHMKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWVkaWFfZ3N0Cm1vZCByZW1vdmUgcGh5c2ljYWxfYWlfc3R1ZGlvIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgaW5mZXJlbmNpbmcgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIHJlbW92ZSByb3MyCm1vZCByZW1vdmUgZWRnZV9wYWNrX3Rzbl9kZXYKbW9kIHJlbW92ZSBzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIG1ldHJvX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS1yZWluc3RhbGwgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCByZW1vdmUgc21hcnRfcm91dGVfcGxhbm5pbmdfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBzbWFydF90b2xsaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24KbW9kIHJlbW92ZSBkbWlkZWNvZGUKbW9kIHJlbW92ZSBuaWN1X3dhcm1lciBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHN5c3RlbV9pbmZvCm1vZCByZW1vdmUgaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nIEB2YWx1ZTotLXZlcnNpb24gLS1waTA1LXJ0Yy1vdiAtLXZlcnNpb24KbW9kIHJlbW92ZSBrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbAptb2QgcmVtb3ZlIHhwdV9zbWkKbW9kIHJlbW92ZSBjcHVpZAptb2QgcmVtb3ZlIGVkZ2VfcGFja19jb21wdXRlX2V4dHJhIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCByZW1vdmUgZWRnZV9wYWNrX21hbmFnZWFiaWxpdHkKbW9kIHJlbW92ZSBzeXNiZW5jaAptb2QgcmVtb3ZlIGVkZ2Vfd29ya2xvYWRzX2FuZF9iZW5jaG1hcmtzIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgYWdlbnRpY19zbWFydF9jb21tdW5pdHkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWVkaWFfZmZtcGVnX2Rldgptb2QgcmVtb3ZlIHN1cmdpY2FsX2luc3RydW1lbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBqcQptb2QgcmVtb3ZlIGRlYmNvbmZfdXRpbHMKbW9kIHJlbW92ZSBpbWFnZV9iYXNlZF92aWRlb19zZWFyY2ggQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBsaWJ5YW5nCm1vZCByZW1vdmUgbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgcmVtb3ZlIG1zcl90b29scwptb2QgcmVtb3ZlIGNkaQptb2QgcmVtb3ZlIGFub21hbGliIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgYmMKbW9kIHJlbW92ZSBzbWFydF9raW9za19hc3Npc3RhbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBpbnRlbF9scG1kCm1vZCByZW1vdmUgbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBnb2xhbmcKbW9kIHJlbW92ZSBjb3JlX3R5cGVzCm1vZCByZW1vdmUgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fc2Vuc2luZ19zZXJ2aWNlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCByZW1vdmUgaGFuZGhlbGRfbXVsdGlfbW9kYWwgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBzbWFydF9pbnRlcnNlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBsaW51eF90b29scwptb2QgcmVtb3ZlIGVkZ2VfcGFjayBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHdpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHlxCm1vZCByZW1vdmUgc21hcnRfcGFya2luZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHZpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2QgcmVtb3ZlIHJldGFpbF9haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHJlYWxzZW5zZQptb2QgcmVtb3ZlIGVkZ2VfcGFja19tZWRpYV9jb3JlCm1vZCByZW1vdmUgZWRnZV9wYWNrX25wdQptb2QgcmVtb3ZlIGVkZ2VfcGFja19ncmFwaGljc19zcmlvdgpmbGFncyBzdGFydCAtLWNvbnRpbnVlIC0tZHJ5LXJ1bgpzdGF0ZSBzdGFydCBpbnN0YWxsZWQKbW9kIHN0YXJ0IGxpdmVfdmlkZW9fY2FwdGlvbmluZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgdGFrZV9hd2F5IEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBkaWdpdGFsX3NpZ25hZ2UgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IHJlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBnZXRpIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCB2aXBwZXQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IGxvc3NfcHJldmVudGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tbHAgLS12ZXJzaW9uIC0tYmVuY2htYXJrIEBkZXZpY2U6Y3B1IC0tb2MgLS1vZCBAZGV2aWNlOmdwdSAtLWFnZSAtLWxwdmxtCm1vZCBzdGFydCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzCm1vZCBzdGFydCBwY2JfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHNtYXJ0X2NsYXNzcm9vbSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBsb2l0ZXJpbmdfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBpbnRlcmFjdGl2ZV9haV9zbWFydF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgc2NlbmVzY2FwZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgZXNxIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50IEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCB2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnIgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IGRpbmVfaW4gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgcGVyc29uX29mX2ludGVyZXN0IEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCBwYWxsZXRfZGVmZWN0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgbGl2ZV92aWRlb19zZWFyY2ggQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHNtYXJ0X252ciBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1Cm1vZCBzdGFydCB1YXZfbWlzc2lvbl9jb21wdXRlX3NkayBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RhcnQgcGh5c2ljYWxfYWlfc3R1ZGlvIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBzdXNwaWNpb3VzX2FjdGl2aXR5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgc21hcnRfcm91dGVfcGxhbm5pbmdfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IHNtYXJ0X3RvbGxpbmcgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2dyb3VuZF9zdGF0aW9uCm1vZCBzdGFydCBuaWN1X3dhcm1lciBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgZWRnZV93b3JrbG9hZHNfYW5kX2JlbmNobWFya3MgQHZhbHVlOi0tdmVyc2lvbiAtLWFpIC0tdmVyc2lvbiAtLWdlbmFpIC0tdmlzaW9uIC0tbWVkaWEKbW9kIHN0YXJ0IGFnZW50aWNfc21hcnRfY29tbXVuaXR5IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBzdXJnaWNhbF9pbnN0cnVtZW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBpbWFnZV9iYXNlZF92aWRlb19zZWFyY2ggQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IGxpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHNtYXJ0X2tpb3NrX2Fzc2lzdGFudCBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCBzbWFydF9pbnRlcnNlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0YXJ0IHdpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgc21hcnRfcGFya2luZyBAdmFsdWU6LS12ZXJzaW9uIEBkZXZpY2U6bnB1IC0tdmVyc2lvbiBAZGV2aWNlOmNwdSBAZGV2aWNlOmdwdQptb2Qgc3RhcnQgdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nIEB2YWx1ZTotLXZlcnNpb24gQGRldmljZTpucHUgLS12ZXJzaW9uIEBkZXZpY2U6Y3B1IEBkZXZpY2U6Z3B1CmZsYWdzIHN0b3AgLS1kcnktcnVuIC0tc3RvcC1hbGwKc3RhdGUgc3RvcCBzdGFydGVkCm1vZCBzdG9wIGxpdmVfdmlkZW9fY2FwdGlvbmluZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB0YWtlX2F3YXkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZGlnaXRhbF9zaWduYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHJlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGdldGkgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdmlwcGV0IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGxvc3NfcHJldmVudGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzCm1vZCBzdG9wIHBjYl9hbm9tYWx5X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBtYW51ZmFjdHVyaW5nX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHNtYXJ0X2NsYXNzcm9vbSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBhZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZWR1Y2F0aW9uX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGNvbXB1dGVyX3Zpc2lvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBsb2l0ZXJpbmdfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGludGVyYWN0aXZlX2FpX3NtYXJ0X3NpZ25hZ2UgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3Agc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3Agc2NlbmVzY2FwZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBlc3EKbW9kIHN0b3AgbGl2ZV92aWRlb19hbGVydF9hZ2VudCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnIgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgZGluZV9pbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb24gQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0b3AgcGVyc29uX29mX2ludGVyZXN0IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHBhbGxldF9kZWZlY3RfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGxpdmVfdmlkZW9fc2VhcmNoIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHNtYXJ0X252ciBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHRlYWNoZXJfYXNzaXN0YW50X2NsYXdfZGVtbyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB1YXZfbWlzc2lvbl9jb21wdXRlX3NkayBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCByb2JvdGljc19haV9zdWl0ZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBwaHlzaWNhbF9haV9zdHVkaW8gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3Agc3VzcGljaW91c19hY3Rpdml0eV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgbWV0cm9fYWlfc3VpdGUgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0b3Agc21hcnRfcm91dGVfcGxhbm5pbmdfYWdlbnQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3Agc21hcnRfdG9sbGluZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbgptb2Qgc3RvcCBuaWN1X3dhcm1lciBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBlZGdlX3dvcmtsb2Fkc19hbmRfYmVuY2htYXJrcyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBhZ2VudGljX3NtYXJ0X2NvbW11bml0eSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBpbWFnZV9iYXNlZF92aWRlb19zZWFyY2ggQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGUKbW9kIHN0b3Agc21hcnRfa2lvc2tfYXNzaXN0YW50IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIG11bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdG9wIHNtYXJ0X2ludGVyc2VjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3Agc21hcnRfcGFya2luZyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmcgQHZhbHVlOi0tdmVyc2lvbiBAZGV2aWNlOm5wdSAtLXZlcnNpb24gQGRldmljZTpjcHUgQGRldmljZTpncHUKbW9kIHN0b3AgcmV0YWlsX2FpX3N1aXRlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCg==" cmd state;
                 [[ $data != @@* ]] || { 
                     echo "Completion data not rendered; run bootstrap" 1>&2;
                     return 3
@@ -11785,13 +11996,18 @@ subcommand_list ()
             return 3;
         fi;
         ensure_sbom_format schema-version 1;
-        if git rev-parse --is-inside-work-tree &> /dev/null && git remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
-            [ -n "$cli_version" ] || cli_version=$(git rev-parse HEAD);
+        local script_dir script_name script_path;
+        script_dir="$(cd "$(dirname "$0")" && pwd -P)";
+        script_name="${0##*/}";
+        script_path="$script_dir/$script_name";
+        if git -C "$script_dir" rev-parse --is-inside-work-tree &> /dev/null && git -C "$script_dir" remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
+            [ -n "$cli_version" ] || cli_version=$(git -C "$script_dir" rev-parse HEAD);
             ensure_sbom_format cli-version "$cli_version";
             if [[ "/$0" = *"/rendered/"* ]]; then
-                local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
-                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
-                ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')";
+                local remote="$(git -C "$script_dir" remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
+                local rel_path="$(git -C "$script_dir" rev-parse --show-prefix)$script_name";
+                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/$rel_path";
+                ensure_sbom_format cli-sha256 "$(sha256sum "$script_path" | cut -f1 -d' ')";
             fi;
         fi;
         ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
@@ -12612,11 +12828,10 @@ verify_dlstreamer ()
 }
 verify_edge_pack () 
 { 
-    [ -f "$edge_pack_key_file" ] || return 1;
-    [ -f "$edge_pack_list_file" ] || return 1;
-    [ -f "$edge_pack_pref_file" ] || return 1;
-    [ -z "$edge_pack_ppa_repo" ] || [ -f "$edge_pack_ppa_key_file" ] || return 1;
-    [ -z "$edge_pack_ppa_repo" ] || [ -f "$edge_pack_ppa_list_file" ] || return 1
+    [[ -f "$edge_pack_key_file" && -f "$edge_pack_list_file" && -f "$edge_pack_pref_file" && -f "$edge_pack_ppa_key_file" && -f "$edge_pack_ppa_list_file" ]] || return 1;
+    local current="$(< "$edge_pack_list_file")$(< "$edge_pack_pref_file")$(< "$edge_pack_ppa_list_file")";
+    local updated="$(printf "%s\n" "$edge_pack_source")$(printf "%s\n" "${edge_pack_pref[@]}")$(printf "%s\n" "$edge_pack_ppa_source")";
+    [ "$current" = "$updated" ]
 }
 verify_edge_workloads_and_benchmarks () 
 { 

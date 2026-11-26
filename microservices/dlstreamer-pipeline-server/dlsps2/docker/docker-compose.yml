@@ -89,6 +89,9 @@ services:
     depends_on:
       - broker
     volumes:
+      # REST API source/destination file paths are restricted to this directory
+      # (see dlsps2/README.md#security-considerations); mount custom media as a
+      # subfolder here, e.g. "/host/videos:/home/pipeline-server/resources/videos".
       - "../../resources:/home/pipeline-server/resources/"
       # Mount a legacy config.json to enable the named-pipeline API:
       # - "../../configs/default/config.json:/home/pipeline-server/config.json:ro"

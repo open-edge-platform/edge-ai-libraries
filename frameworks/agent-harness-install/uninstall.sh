@@ -207,6 +207,12 @@ main() {
   ok "Inference Router removed"
   metrics_remove_jaeger
   metrics_remove_managed_config
+  metrics_receiver_stop
+  # OpenClaw keeps its config when the CLI is removed; an exporter we enabled would resume after a reinstall.
+  if [[ "$(metrics_harness_owner)" == openclaw ]]; then
+    ( metrics_disable_openclaw ) \
+      || warn "OpenClaw's telemetry exporter could not be turned off. ${METRICS_OPENCLAW_GATEWAY_HINT} Or run 'openclaw config set diagnostics.otel.enabled false --strict-json' later."
+  fi
   if ovms_is_managed; then
     info "Removing OpenVINO Model Server…"
     remove_deployment_container "$HARNESS_OVMS_CONTAINER"

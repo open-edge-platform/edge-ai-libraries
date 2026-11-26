@@ -47,9 +47,26 @@ def validate_file_uri(uri):
     return True
 
 
+def validate_file_path(path):
+    """Same check as validate_file_uri, but for a plain filesystem path (no
+    file:// scheme) such as destination.metadata.path.
+    """
+    if not path:
+        return True
+    try:
+        resolved = pathlib.Path(path).resolve()
+        base = RESOURCES_BASE_DIR.resolve()
+        resolved.relative_to(base)
+    except (ValueError, OSError):
+        return False
+    return True
+
+
 def validate_request_uris(request):
     """Validate every file:// URI in a pipeline start/execute request's
-    'source'/'destination' fields. Returns (True, None) or (False, error_message).
+    'source'/'destination' fields, and the destination's file path
+    (destination.metadata.path) if the destination type is 'file'. Returns
+    (True, None) or (False, error_message).
     """
     for field in ("source", "destination"):
         section = request.get(field) if isinstance(request, dict) else None
@@ -58,6 +75,13 @@ def validate_request_uris(request):
         uri = section.get("uri")
         if uri is not None and not validate_file_uri(uri):
             return False, "Invalid {} URI: path outside allowed resources directory".format(field)
+
+    destination = request.get("destination") if isinstance(request, dict) else None
+    metadata = destination.get("metadata") if isinstance(destination, dict) else None
+    if isinstance(metadata, dict) and metadata.get("type") == "file":
+        if not validate_file_path(metadata.get("path")):
+            return False, "Invalid destination.metadata.path: path outside allowed resources directory"
+
     return True, None
 
 

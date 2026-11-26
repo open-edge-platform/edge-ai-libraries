@@ -13,6 +13,7 @@ import api.api_schemas as schemas
 from videos import (
     VIDEO_EXTENSIONS,
     UPLOADED_VIDEO_DIR,
+    HevcEncoderUnavailableError,
     Video as DomainVideo,
     VideosManager,
 )
@@ -195,6 +196,7 @@ def _queue_default_hevc_conversion(manager: VideosManager, filename: str) -> boo
         if _default_video_conversion_status.get(filename) in (
             schemas.DefaultVideoConversionState.QUEUED,
             schemas.DefaultVideoConversionState.CONVERTING,
+            schemas.DefaultVideoConversionState.UNSUPPORTED,
         ) or manager.filename_exists(manager.default_hevc_filename(filename)):
             return False
         _default_video_conversion_status[filename] = (
@@ -235,14 +237,21 @@ def _convert_default_recording_to_hevc(filename: str) -> None:
                 schemas.DefaultVideoConversionState.CONVERTING
             )
         manager = VideosManager()
+        unsupported = False
         try:
             output_filename = manager.convert_default_video_to_hevc(filename)
+        except HevcEncoderUnavailableError as exc:
+            logger.warning("Sample video '%s' not converted to HEVC: %s", filename, exc)
+            output_filename = None
+            unsupported = True
         except Exception:
             logger.exception("Failed to convert sample video '%s' to HEVC", filename)
             output_filename = None
 
         if output_filename:
             status = schemas.DefaultVideoConversionState.CONVERTED
+        elif unsupported:
+            status = schemas.DefaultVideoConversionState.UNSUPPORTED
         elif manager.filename_exists(manager.default_hevc_filename(filename)):
             status = schemas.DefaultVideoConversionState.CONFLICT
         else:
@@ -264,13 +273,19 @@ async def get_default_video_recordings():
         statuses = dict(_default_video_download_status)
     for recording in manager.get_default_recordings():
         filename = recording["filename"]
-        hostname = urlparse(recording["url"]).hostname or ""
-        is_pexels = hostname.lower().endswith(".pexels.com")
+        hostname = (urlparse(recording["url"]).hostname or "").lower()
+        is_pexels = hostname == "pexels.com" or hostname.endswith(".pexels.com")
+        is_openvino = hostname == "openvinotoolkit.org" or hostname.endswith(
+            ".openvinotoolkit.org"
+        )
+        is_github = hostname == "github.com" or hostname.endswith(".github.com")
         source = (
             "Pexels"
             if is_pexels
-            else "OpenVINO" if hostname.endswith("openvinotoolkit.org")
-            else "GitHub" if hostname.endswith("github.com")
+            else "OpenVINO"
+            if is_openvino
+            else "GitHub"
+            if is_github
             else hostname
         )
         # A file being moved into place is visible before the download finishes.
@@ -284,9 +299,7 @@ async def get_default_video_recordings():
         elif manager.filename_exists(filename):
             status = schemas.DefaultVideoDownloadState.CONFLICT
         else:
-            status = statuses.get(
-                filename, schemas.DefaultVideoDownloadState.AVAILABLE
-            )
+            status = statuses.get(filename, schemas.DefaultVideoDownloadState.AVAILABLE)
         hevc_filename = manager.default_hevc_filename(filename)
         converted_video = manager.get_video(hevc_filename)
         if (
@@ -300,14 +313,10 @@ async def get_default_video_recordings():
                 conversion_status = _default_video_conversion_status.get(
                     filename, schemas.DefaultVideoConversionState.NOT_CONVERTED
                 )
-            if (
-                conversion_status
-                not in (
-                    schemas.DefaultVideoConversionState.QUEUED,
-                    schemas.DefaultVideoConversionState.CONVERTING,
-                )
-                and manager.filename_exists(hevc_filename)
-            ):
+            if conversion_status not in (
+                schemas.DefaultVideoConversionState.QUEUED,
+                schemas.DefaultVideoConversionState.CONVERTING,
+            ) and manager.filename_exists(hevc_filename):
                 conversion_status = schemas.DefaultVideoConversionState.CONFLICT
         result.append(
             schemas.DefaultVideoRecording(
@@ -387,7 +396,10 @@ async def start_default_video_download(
     status_code=202,
     responses={
         200: {
-            "description": "The video is already converted or a conversion is running.",
+            "description": (
+                "The video is already converted, a conversion is running, "
+                "or no HEVC encoder is available."
+            ),
             "model": schemas.DefaultVideoConversionResponse,
         },
         404: {"description": "The filename is not in the sample manifest."},
@@ -400,8 +412,7 @@ async def start_default_video_hevc_conversion(
 ):
     manager = VideosManager()
     if not any(
-        item["filename"] == body.filename
-        for item in manager.get_default_recordings()
+        item["filename"] == body.filename for item in manager.get_default_recordings()
     ):
         raise HTTPException(status_code=404, detail="Unknown sample video filename")
     if not manager.default_video_exists(body.filename):
@@ -423,6 +434,7 @@ async def start_default_video_hevc_conversion(
             if status in (
                 schemas.DefaultVideoConversionState.QUEUED,
                 schemas.DefaultVideoConversionState.CONVERTING,
+                schemas.DefaultVideoConversionState.UNSUPPORTED,
             ):
                 pass
             elif manager.filename_exists(output_filename):
@@ -444,7 +456,9 @@ async def start_default_video_hevc_conversion(
     )
     return JSONResponse(
         content=response.model_dump(),
-        status_code=202 if status == schemas.DefaultVideoConversionState.QUEUED else 200,
+        status_code=202
+        if status == schemas.DefaultVideoConversionState.QUEUED
+        else 200,
     )
 
 

@@ -26,9 +26,10 @@ provisioning or startup fails visibly instead of silently disabling diarization.
 
 ### FunASR Paraformer with ModelScope
 
-FunASR is opt-in: set `models.asr.provider: funasr` and `models.asr.name:
-paraformer-zh` (or `paraformer-en` / `paraformer-online`) in `config.yaml` and
-build Audio Analyzer with `INSTALL_CJK=true`. Mandarin uses
+FunASR dependencies are included in the default image. Set
+`models.asr.provider: funasr` and `models.asr.name: paraformer-zh` (or
+`paraformer-en` / `paraformer-online`) in `config.yaml`. To omit the FunASR
+dependencies when building an image, set `INSTALL_CJK=false`. Mandarin uses
 `iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch`,
 `iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`, and
 `iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch`, each pinned to the
