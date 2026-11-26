@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  ovms-service:
+    image: openvino/model_server:2026.4.1-gpu

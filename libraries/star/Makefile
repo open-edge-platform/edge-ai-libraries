@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: tests-image tests-run image dirs decoder encoder run rm dlstreamer-up dlstreamer-down certs certs-trust certs-clean fuzz-services pull-model
+.PHONY: tests-image tests-run image dirs decoder encoder run rm dlstreamer-up dlstreamer-down certs certs-trust certs-clean fuzz-services pull-model check-openapi-specs
 
 .DEFAULT_GOAL := image
 
@@ -27,6 +27,8 @@ tests-image: ## Build the Docker images for tests
 	docker build -t image-pipeline-tests -f Dockerfile.test .
 	git restore .dockerignore
 
+# if test images are not present in the folder, following command can pull images from the specified source
+# python3 tests/sample_data/fetch_sample_data.py --count 10 --source picsum --output-dir tests/fixtures/sample_images
 tests-run: ## Run the tests inside the container
 	docker run --rm image-pipeline-tests
 
@@ -94,6 +96,9 @@ fuzz-services: image dirs ## Fuzz the encoder/decoder REST services using RESTle
 			--no_ssl \
 			--no_results_analyzer || exit 1; \
 	done
+
+check-openapi-specs: dirs ## Deploy encoder/decoder and fail if their live OpenAPI spec drifted from docs/
+	./scripts/check_openapi_specs.sh
 
 help: ## Show this help
 	@awk ' \

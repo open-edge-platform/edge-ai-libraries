@@ -145,6 +145,7 @@ services:
             # further registrations return 503.
             MM_DATAPREP_LIVE_STREAM_ENABLED: ${LIVE_STREAM_ENABLED:-true}
             MM_DATAPREP_LIVE_RETENTION_HOURS: ${LIVE_RETENTION_HOURS:-24}
+            MM_DATAPREP_LIVE_RETENTION_SWEEP_MINUTES: ${LIVE_RETENTION_SWEEP_MINUTES:-15}
             MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT: ${LIVE_STREAM_MAX_CONCURRENT:-8}
 
             # Live-stream registry persistence (reuses the shared PostgreSQL

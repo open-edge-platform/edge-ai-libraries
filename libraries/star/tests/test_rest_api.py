@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import io
 import sys
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -26,7 +28,10 @@ if str(SRC_DIR) not in sys.path:
 from semantic_img_comp.decoder.decoder import Decoder  # noqa: E402
 from semantic_img_comp.decoder.service import DecoderService, create_app as create_decoder_app  # noqa: E402
 from semantic_img_comp.encoder.encoder import Encoder  # noqa: E402
-from semantic_img_comp.encoder.service import EncoderService, create_app as create_encoder_app  # noqa: E402
+from semantic_img_comp.encoder.service import (  # noqa: E402
+    EncoderService,
+    create_app as create_encoder_app,
+)
 from semantic_img_comp.integration.semantic_codec_bridge import SemanticCodecBridge  # noqa: E402
 from semantic_img_comp.utils.config import load_config  # noqa: E402
 
@@ -35,6 +40,35 @@ def _make_jpeg_bytes(color=(10, 20, 30), size=(64, 48)) -> bytes:
     buf = io.BytesIO()
     Image.new("RGB", size, color=color).save(buf, format="JPEG")
     return buf.getvalue()
+
+
+def _fake_encode_result(img_idx: int, *, original_bytes: int = 1000, payload_bytes: int = 250):
+    """Stand-in for an EncodeResult, shaped like what EncoderService.record_metrics reads."""
+    return SimpleNamespace(
+        img_data=SimpleNamespace(img_idx=img_idx, org_jpeg_bytes=original_bytes),
+        size_log={"payload": payload_bytes},
+        comp_rate=original_bytes / payload_bytes,
+        aggregated_comp_rate=2.0,
+        tar_comp_rate=100.0,
+        comp_level=1,
+        fast_path_selected=False,
+        obj_detection_skipped=False,
+        timing_ms={"encode": 1.23},
+    )
+
+
+def _wait_for_metrics(client, stream_id, expected_count, timeout=5.0, interval=0.02):
+    """Poll GET /metrics until the forwarder thread has recorded *expected_count* frames."""
+    deadline = time.monotonic() + timeout
+    metrics = []
+    while time.monotonic() < deadline:
+        resp = client.get(f"/v1/streams/{stream_id}/metrics")
+        assert resp.status_code == 200
+        metrics = resp.json()
+        if len(metrics) >= expected_count:
+            return metrics
+        time.sleep(interval)
+    pytest.fail(f"metrics for stream {stream_id} did not reach {expected_count} within {timeout}s (got {len(metrics)})")
 
 
 @pytest.fixture()
@@ -169,3 +203,133 @@ def test_encoder_forwards_payload_to_decoder(cfg):
     assert "/v1/streams/s1/payloads" in captured["url"]
     assert captured["headers"].get("x-client-sent-at") == "123.456"
     assert captured["body_len"] > 0
+
+
+def test_metrics_endpoints_404_for_unknown_stream(cfg):
+    bridge = SemanticCodecBridge(cfg, encoder=Encoder(cfg))
+    service = EncoderService(cfg, decoder_url="http://decoder.local:8000", bridge=bridge)
+    app = create_encoder_app(service)
+
+    with TestClient(app) as client:
+        assert client.get("/v1/streams/unknown/metrics").status_code == 404
+        assert client.get("/v1/streams/unknown/metrics/1").status_code == 404
+
+
+def test_metrics_list_empty_and_image_404_before_any_frame(cfg):
+    bridge = SemanticCodecBridge(cfg, encoder=Encoder(cfg))
+    service = EncoderService(cfg, decoder_url="http://decoder.local:8000", bridge=bridge)
+    app = create_encoder_app(service)
+
+    with TestClient(app) as client:
+        client.put("/v1/streams/s1")
+        assert client.get("/v1/streams/s1/metrics").json() == []
+        assert client.get("/v1/streams/s1/metrics/1").status_code == 404
+        client.delete("/v1/streams/s1")
+
+
+def test_metrics_endpoints_reflect_submitted_frame(cfg):
+    """GET /metrics (list) and /metrics/{img_idx} (single) surface the FrameMetric that the
+    stream's forwarder thread records after a frame is submitted and encoded."""
+    transport = httpx.MockTransport(lambda request: httpx.Response(202, json={"frame_seq": 1}))
+    bridge = SemanticCodecBridge(cfg, encoder=Encoder(cfg))
+    service = EncoderService(cfg, decoder_url="http://decoder.local:8000", http_transport=transport, bridge=bridge)
+    app = create_encoder_app(service)
+
+    with TestClient(app) as client:
+        client.put("/v1/streams/s1")
+        resp = client.post("/v1/streams/s1/frames", params={"img_id": 1}, content=_make_jpeg_bytes())
+        assert resp.status_code == 202
+
+        metrics = _wait_for_metrics(client, "s1", expected_count=1)
+        metric = metrics[0]
+        assert metric["stream_id"] == "s1"
+        assert metric["img_idx"] == 1
+        assert metric["original_bytes"] > 0
+        assert metric["payload_bytes"] > 0
+        assert "fast_path_selected" in metric
+        assert "obj_detection_skipped" in metric
+
+        single_resp = client.get("/v1/streams/s1/metrics/1")
+        assert single_resp.status_code == 200
+        single = single_resp.json()
+        assert single["stream_id"] == "s1"
+        assert single["img_idx"] == 1
+
+        assert client.get("/v1/streams/s1/metrics/999").status_code == 404
+
+        client.delete("/v1/streams/s1")
+
+
+def test_metrics_are_isolated_per_stream(cfg):
+    """Metrics recorded on one stream must not leak into another stream's history."""
+    bridge = SemanticCodecBridge(cfg, encoder=Encoder(cfg))
+    service = EncoderService(cfg, decoder_url="http://decoder.local:8000", bridge=bridge)
+    state_a = service.get_or_create_stream("stream-a")
+    service.get_or_create_stream("stream-b")
+    try:
+        service.record_metrics(state_a, _fake_encode_result(img_idx=1))
+
+        assert len(service.get_metrics_for_stream("stream-a")) == 1
+        assert service.get_metrics_for_stream("stream-b") == []
+        with pytest.raises(KeyError):
+            service.get_metric_for_image("stream-b", 1)
+    finally:
+        service.close_stream("stream-a")
+        service.close_stream("stream-b")
+
+
+def test_metrics_history_bounded_per_stream(cfg):
+    """Each stream's metrics history is capped at stream_buffer_size entries, oldest evicted first."""
+    bridge = SemanticCodecBridge(cfg, encoder=Encoder(cfg))
+    service = EncoderService(cfg, decoder_url="http://decoder.local:8000", bridge=bridge)
+    queue_size = service.stream_buffer_size
+    state = service.get_or_create_stream("bounded")
+    try:
+        total = queue_size + 10
+        for img_idx in range(total):
+            service.record_metrics(state, _fake_encode_result(img_idx=img_idx))
+
+        metrics = service.get_metrics_for_stream("bounded")
+        assert len(metrics) == queue_size
+        assert metrics[0].img_idx == total - queue_size
+        assert metrics[-1].img_idx == total - 1
+    finally:
+        service.close_stream("bounded")
+
+
+def test_metrics_endpoint_bounded_to_queue_size(cfg):
+    """GET /metrics only ever returns up to stream_buffer_size entries, and GET /metrics/{img_idx}
+    404s once that image's metric has aged out of the bounded per-stream history."""
+    bridge = SemanticCodecBridge(cfg, encoder=Encoder(cfg))
+    service = EncoderService(cfg, decoder_url="http://decoder.local:8000", bridge=bridge)
+    queue_size = service.stream_buffer_size
+    app = create_encoder_app(service)
+
+    with TestClient(app) as client:
+        client.put("/v1/streams/s1")
+        state = service.get_stream("s1")
+
+        total = queue_size + 10
+        for img_idx in range(total):
+            service.record_metrics(state, _fake_encode_result(img_idx=img_idx))
+
+        resp = client.get("/v1/streams/s1/metrics")
+        assert resp.status_code == 200
+        metrics = resp.json()
+        assert len(metrics) == queue_size
+        assert [m["img_idx"] for m in metrics] == list(range(total - queue_size, total))
+
+        # Oldest entries were evicted by the bounded deque; the endpoint must 404 for them.
+        evicted_img_idx = total - queue_size - 1
+        assert client.get(f"/v1/streams/s1/metrics/{evicted_img_idx}").status_code == 404
+
+        # The oldest still-retained entry and the newest one both 200.
+        oldest_retained = client.get(f"/v1/streams/s1/metrics/{total - queue_size}")
+        assert oldest_retained.status_code == 200
+        assert oldest_retained.json()["img_idx"] == total - queue_size
+
+        newest = client.get(f"/v1/streams/s1/metrics/{total - 1}")
+        assert newest.status_code == 200
+        assert newest.json()["img_idx"] == total - 1
+
+        client.delete("/v1/streams/s1")
