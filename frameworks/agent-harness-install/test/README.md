@@ -356,7 +356,15 @@ local reporting-unit-test success is not hosted acceptance evidence.
 
 ### Execution and acceptance
 
-After the workflow is on the default branch, select
+Opening, reopening or updating a PR that changes
+`frameworks/agent-harness-install/**` or
+`.github/workflows/agent-harness-openshell-hosted.yml` triggers the offline and
+live jobs before merge. Unrelated PRs do not trigger this workflow. The live
+job starts only after offline regression succeeds and tests GitHub's PR merge
+commit in a fresh hosted VM. Repository Actions policies may require maintainer
+approval for fork-contributor runs; this workflow does not bypass that approval.
+
+For manual execution after the workflow is on the default branch, select
 **[Agent Harness] GitHub-hosted OpenShell live validation** in Actions and choose
 **Run workflow**. Alternatively, with GitHub CLI access:
 
@@ -367,9 +375,12 @@ gh run list --workflow agent-harness-openshell-hosted.yml
 
 The schedule then runs without manual intervention. GitHub scheduling can be
 delayed; public-repository schedules can also be disabled after prolonged
-repository inactivity. No automatic PR trigger is added, so this workflow
-does not execute arbitrary fork PR code. A caller of the reusable workflow
-must supply an equally restrictive permission policy.
+repository inactivity. PR validation uses `pull_request`, not
+`pull_request_target`: PR code runs only on disposable GitHub-hosted VMs, with
+no repository secrets, read-only repository permissions and no persisted checkout
+credentials. Do not enable write tokens or secrets for fork PRs in repository
+Actions settings. A caller of the reusable workflow must supply an equally
+restrictive permission policy.
 
 Before treating this milestone as qualified, retain three consecutive
 unattended passing runs, including a cold run (this workflow currently restores

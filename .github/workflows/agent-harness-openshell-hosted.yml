@@ -3,6 +3,10 @@
 name: "[Agent Harness] GitHub-hosted OpenShell live validation"
 
 on:
+  pull_request:
+    paths:
+      - 'frameworks/agent-harness-install/**'
+      - '.github/workflows/agent-harness-openshell-hosted.yml'
   schedule:
     - cron: '23 3 * * 1'
   workflow_dispatch:
