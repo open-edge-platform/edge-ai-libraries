@@ -22,7 +22,7 @@ For concepts and operational guidance, see the [user guide](user-guide.md).
 ## System
 
 | Method | Path | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `GET` | `/` | Redirect to the console. |
 | `GET` | `/health` | Return liveness, workspace path, and database/library counts. |
 
@@ -31,7 +31,7 @@ For concepts and operational guidance, see the [user guide](user-guide.md).
 All routes in this section use the `/v1/libraries` prefix.
 
 | Method | Path | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `GET` | `/` | List asset libraries. |
 | `POST` | `/` | Create an asset library. |
 | `GET` | `/{library}` | Get one library by name or ID. |
@@ -126,7 +126,7 @@ curl -X POST http://localhost:16022/v1/libraries/manuals/asset_pools \
 All routes in this section use the `/v1/databases` prefix.
 
 | Method | Path | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `GET` | `/` | List registered database connections. |
 | `POST` | `/` | Register a database connection. |
 | `GET` | `/backends` | List supported database types and backends. |
@@ -169,7 +169,7 @@ service restarts.
 ## Assets
 
 | Method | Path | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `POST` | `/v1/libraries/{library}/assets` | Store files and/or inline text as assets, optionally indexing them through selected pools. |
 
 A bare file name is resolved under `$ENGINE_UPLOAD_DIR`; absolute paths are used
@@ -267,7 +267,7 @@ use separate pools or source filters to avoid that choice.
 ## Retrieval
 
 | Method | Path | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `POST` | `/v1/retrieve` | Retrieve across libraries and optionally postprocess the merged chunks. |
 
 An empty `asset_pool_ids` list searches all vector-capable pools in the named
@@ -348,7 +348,7 @@ not be readable through this route.
 All routes in this section use the `/v1/models` prefix.
 
 | Method | Path | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `GET` | `/` | Return `embedding`, `reranker`, `layout` and `asr` options. |
 | `GET` | `/devices` | List available OpenVINO devices plus `AUTO`. |
 | `GET` | `/{model_type}` | Return options for one model type. `multimodal` is a compatibility view of media-capable embeddings. |

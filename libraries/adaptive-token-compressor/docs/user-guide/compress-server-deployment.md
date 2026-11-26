@@ -16,7 +16,7 @@ If you have not cloned it yet, fetch only this library from the larger
 `edge-ai-libraries` monorepo with sparse checkout:
 
 ```bash
-git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --branch main --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries
 git sparse-checkout set libraries/adaptive-token-compressor
 cd libraries/adaptive-token-compressor
@@ -48,7 +48,11 @@ The compose file defines two services:
 - `compress-server-ov` on host port `8001`
 - `compress-server-pytorch` on host port `8002`
 
-### Quick start (OpenVINO™, recommended)
+### Quick Start
+
+<!--hide_directive ::::{tab-set} hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> OpenVINO™ (recommended)
+<!--hide_directive :sync: openvino hide_directive-->
 
 ```bash
 cd deployment/compress-server
@@ -58,8 +62,10 @@ COMPRESS_SERVER_DEVICE=cpu docker compose up -d --build compress-server-ov # CPU
 
 Default: `--device gpu`, host port `8001`, which matches the library client
 default — no config change required.
+<!--hide_directive ::: hide_directive-->
 
-### Quick start (PyTorch)
+<!--hide_directive :::{tab-item} hide_directive--> PyTorch
+<!--hide_directive :sync: pytorch hide_directive-->
 
 ```bash
 cd deployment/compress-server
@@ -69,6 +75,8 @@ docker compose up -d --build compress-server-pytorch
 Default: `--device xpu`, host port `8002`. The library client defaults to
 `http://localhost:8001/compress` (the OpenVINO™ service port), so set
 `compress_server_url` to `http://localhost:8002/compress` to use this service.
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::: hide_directive-->
 
 ### Override variables (no .env file needed)
 
@@ -172,7 +180,11 @@ matching the runtime you launch with (`--runtime pytorch|ov`). The package is
 installed from source, so run the `pip install` commands below from the
 repository root.
 
-### Install (OpenVINO™ runtime — CPU or GPU, recommended)
+### Install
+
+<!--hide_directive ::::{tab-set} hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> OpenVINO™ (CPU or GPU, recommended)
+<!--hide_directive :sync: openvino hide_directive-->
 
 ```bash
 pip install --index-url https://download.pytorch.org/whl/cpu \
@@ -181,8 +193,10 @@ pip install --index-url https://download.pytorch.org/whl/cpu \
 ```
 
 `--device gpu` requires the Intel® GPU driver and compute runtime on the host.
+<!--hide_directive ::: hide_directive-->
 
-### Install (PyTorch runtime — XPU)
+<!--hide_directive :::{tab-item} hide_directive--> PyTorch (XPU)
+<!--hide_directive :sync: pytorch-xpu hide_directive-->
 
 ```bash
 pip install --extra-index-url https://download.pytorch.org/whl/xpu \
@@ -193,8 +207,10 @@ pip install --extra-index-url https://download.pytorch.org/whl/xpu \
 > Requires oneAPI Level Zero loader `libze1` 1.36.0 or newer on the host; older
 > versions may crash at startup. Install it from the
 > [Level Zero releases](https://github.com/oneapi-src/level-zero/releases).
+<!--hide_directive ::: hide_directive-->
 
-### Install (PyTorch runtime — CPU)
+<!--hide_directive :::{tab-item} hide_directive--> PyTorch (CPU)
+<!--hide_directive :sync: pytorch-cpu hide_directive-->
 
 For CPU-only hosts, use the lighter `compress-server-pytorch-cpu` extra (no XPU wheels):
 
@@ -203,6 +219,8 @@ pip install --index-url https://download.pytorch.org/whl/cpu \
             --extra-index-url https://pypi.org/simple \
             ".[compress-server-pytorch-cpu]"
 ```
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::: hide_directive-->
 
 ### Apply the neighbor-protection patch (one-time, required)
 

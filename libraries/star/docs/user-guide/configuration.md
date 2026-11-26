@@ -302,7 +302,9 @@ curl -fsS http://localhost:8001/openapi.json -o encoder-openapi.json
 curl -fsS http://localhost:8002/openapi.json -o decoder-openapi.json
 ```
 
-or see latest version of API for [encoder](./encoder-openapi.json) and [decoder](./decoder-openapi.json) in the documentation.
+Alternatively, see the [API Reference](./api-reference.md), or see the latest version of API
+for [encoder](./_assets/encoder-openapi.json) and [decoder](./_assets/decoder-openapi.json)
+in the documentation.
 
 To use HTTP endpoints, you have to create a stream on the encoder:
 
