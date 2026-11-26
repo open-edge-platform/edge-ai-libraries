@@ -4,9 +4,9 @@
 
 Optional provider selected via ``models.asr.provider: funasr``. It gives
 higher-accuracy Chinese transcription than multilingual Whisper and also
-supports English (``paraformer-en``). ``funasr`` is imported lazily inside ``__init__`` so
-importing this module never requires the optional dependencies — the default
-image ships without them and existing Whisper/OpenVINO consumers are unaffected.
+supports English (``paraformer-en``). ``funasr`` is imported lazily inside
+``__init__`` so this module also works with images built without the optional
+dependencies.
 """
 import logging
 import re
@@ -62,7 +62,7 @@ class Paraformer(BaseASR):
         except ImportError as exc:
             raise RuntimeError(
                 "The FunASR Paraformer provider requires the optional Chinese-ASR "
-                "dependencies. Install them with: pip install -r requirements-cjk.txt"
+                "dependencies. Install them with: pip install -r requirements-cjk.txt -c requirements-lock.txt"
             ) from exc
 
         self.model_key = model_name

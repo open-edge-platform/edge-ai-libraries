@@ -17,6 +17,23 @@ original design. It also ships a **legacy compatibility layer** so existing
 `config.json`-based pipeline definitions and the `POST /pipelines/{name}/{version}`
 REST route from 1.0 continue to work.
 
+## Security Considerations
+
+By design, DLSPS 2.0 ships with no built-in authentication and no HTTPS/TLS
+support on its REST API (port `8080`, configurable via `REST_SERVER_PORT`) — any
+network peer that can reach the port can call it, and traffic is unencrypted.
+Restricting network access (firewall rules, network policy, or an authenticating/
+TLS-terminating reverse proxy) is the responsibility of the deploying
+infrastructure, not this microservice. Do not expose this port to an untrusted
+network without such a layer in front of it.
+
+`source`/`destination` file paths are similarly restricted to
+`/home/pipeline-server/resources` inside the container — any `file://` URI or
+file-type destination path outside it is rejected. If you previously mounted
+your own media folder elsewhere, remount it under
+`/home/pipeline-server/resources` and update your requests to use the new
+container path.
+
 ## Summary of changes vs. DLSPS 1.0
 
 - **New REST surface**: adds `POST /pipelines` (submit a raw gst-launch pipeline

@@ -161,7 +161,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 # ============================================================================
 # Frameworks
 # ============================================================================
-/frameworks/agent-harness-install/                      @vinayg-intel @bharagha @shahmitu
+/frameworks/agent-harness-install/                       @vinayg-intel @bharagha @shahmitu
+/frameworks/agent-harness-install/docs/                  @vinayg-intel @bharagha @shahmitu @open-edge-platform/open-edge-platform-docs-write
+/frameworks/agent-harness-install/README.md              @vinayg-intel @bharagha @shahmitu @open-edge-platform/open-edge-platform-docs-write
+
 /frameworks/edgedevice-enablement-framework/             @chinthap @ANUSHABHASKAR @mutra-vamsi
 /frameworks/edgedevice-enablement-framework/docs/        @chinthap @ANUSHABHASKAR @mutra-vamsi @k-mochi  @open-edge-platform/open-edge-platform-docs-write
 /frameworks/edgedevice-enablement-framework/README.md    @chinthap @ANUSHABHASKAR @mutra-vamsi @k-mochi  @open-edge-platform/open-edge-platform-docs-write

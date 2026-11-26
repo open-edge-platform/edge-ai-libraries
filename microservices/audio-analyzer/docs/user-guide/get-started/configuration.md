@@ -73,7 +73,7 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 - `whispercpp`: downloads the matching whisper.cpp `ggml` model under `models/whispercpp/...` and runs on `CPU` only.
 
 - `funasr`: loads Paraformer, VAD, and punctuation snapshots from ModelScope;
-  requires the optional `INSTALL_CJK=true` image build.
+  included in the default image build, unless `INSTALL_CJK=false` is set.
 
 Audio Analyzer provisions the snapshots this configuration selects on startup:
 it reuses valid snapshots on the models volume, requests missing ones from a

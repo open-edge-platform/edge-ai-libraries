@@ -42,6 +42,7 @@ from managers.audio_pipeline_manager import AudioPipelineOperation
 class TestAudioJobsAPI(unittest.TestCase):
     def setUp(self) -> None:
         self.app = FastAPI()
+        self.app.state.voice_available = True
         self.app.include_router(jobs_router, prefix="/jobs")
         self.app.include_router(voice.router, prefix="/voice")
         self.manager = MagicMock()

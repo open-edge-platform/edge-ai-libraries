@@ -12,6 +12,7 @@ import pytest
 
 from src.server.path_validator import (
     validate_file_uri,
+    validate_file_path,
     validate_request_uris,
     restrict_file_destination_permissions,
 )
@@ -65,15 +66,45 @@ class TestValidateRequestUris:
         assert is_valid is False
         assert "destination" in err
 
-    def test_destination_without_uri_field_passes(self):
-        # destination.metadata.path (file-type destination) is a different
-        # field, checked by restrict_file_destination_permissions, not here.
+    def test_destination_metadata_path_inside_resources_passes(self):
+        request = {"destination": {"metadata": {
+            "type": "file", "path": "/home/pipeline-server/resources/results.jsonl"}}}
+        assert validate_request_uris(request) == (True, None)
+
+    def test_destination_metadata_path_outside_resources_rejected(self):
+        # Regression test: restrict_file_destination_permissions() opens/chmods
+        # whatever path is given here, so it must be validated against the
+        # resources allowlist just like destination.uri (CodeQL py/path-injection).
         request = {"destination": {"metadata": {"type": "file", "path": "/tmp/results.jsonl"}}}
+        is_valid, err = validate_request_uris(request)
+        assert is_valid is False
+        assert "destination.metadata.path" in err
+
+    def test_non_file_metadata_type_path_not_checked(self):
+        request = {"destination": {"metadata": {"type": "mqtt", "path": "/etc/passwd"}}}
         assert validate_request_uris(request) == (True, None)
 
     def test_non_uri_source_type_passes(self):
         request = {"source": {"type": "application"}}
         assert validate_request_uris(request) == (True, None)
+
+
+class TestValidateFilePath:
+
+    def test_none_passes(self):
+        assert validate_file_path(None) is True
+
+    def test_empty_string_passes(self):
+        assert validate_file_path("") is True
+
+    def test_path_inside_resources_passes(self):
+        assert validate_file_path("/home/pipeline-server/resources/results.jsonl") is True
+
+    def test_path_outside_resources_rejected(self):
+        assert validate_file_path("/tmp/results.jsonl") is False
+
+    def test_traversal_rejected(self):
+        assert validate_file_path("/home/pipeline-server/resources/../../etc/shadow") is False
 
 
 class TestRestrictFileDestinationPermissions:

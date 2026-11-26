@@ -1,6 +1,10 @@
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Optional
+
+import yaml
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
@@ -14,6 +18,7 @@ from internal_types import (
     InternalPipelineType,
     InternalVariant,
 )
+from managers.pipeline_template_manager import PipelineTemplateManager
 
 
 # Helper to generate test timestamp as datetime
@@ -154,6 +159,50 @@ class TestPipelineTemplatesAPI(unittest.TestCase):
         second = data[1]
         self.assertEqual(second["id"], "detect-classify")
         self.assertEqual(len(second["variants"]), 2)
+
+    @patch("graph.VideosManager")
+    @patch("api.routes.pipeline_templates.PipelineTemplateManager")
+    def test_get_pipeline_templates_skips_unsupported_types(
+        self, mock_manager_cls, _mock_videos_manager
+    ):
+        manager = object.__new__(PipelineTemplateManager)
+        manager.logger = MagicMock()
+        with TemporaryDirectory() as pipelines_dir:
+            templates_dir = Path(pipelines_dir) / "templates"
+            templates_dir.mkdir()
+            for template_type in ("vision", "time_series", "audio", "unknown", None):
+                config = {
+                    "name": template_type or "default",
+                    "variants": [
+                        {
+                            "name": "CPU",
+                            "pipeline_description": "videotestsrc ! fakesink",
+                        }
+                    ],
+                }
+                if template_type is not None:
+                    config["type"] = template_type
+                if template_type in ("audio", "unknown"):
+                    config.pop("name")
+                    config["variants"] = "invalid"
+                (templates_dir / f"{template_type}.yaml").write_text(
+                    yaml.safe_dump(config), encoding="utf-8"
+                )
+            with patch(
+                "managers.pipeline_template_manager.PipelineLoader.get_pipelines_directory",
+                return_value=pipelines_dir,
+            ):
+                templates = manager._load_templates()
+        self.assertEqual(manager.logger.warning.call_count, 2)
+        mock_manager_cls.return_value.get_templates.return_value = templates
+
+        response = self.client.get("/pipeline-templates")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            {template["name"]: template["type"] for template in response.json()},
+            {"vision": "vision", "time_series": "time_series", "default": "vision"},
+        )
 
     @patch("api.routes.pipeline_templates.PipelineTemplateManager")
     def test_get_pipeline_templates_returns_empty_list(self, mock_manager_cls):

@@ -1,0 +1,31 @@
+
+debian_40_profile_edge_pack_graphics_sriov_dev () {
+  echo "edge_pack"
+}
+
+debian_40_group_edge_pack_graphics_sriov_dev () {
+  echo "render:992 video:44"
+}
+
+debian_40_install_edge_pack_graphics_sriov_dev () {
+  configure_edge_pack "$@"
+  if ensure_apt_is_installed intel-edge-graphics-sriov-dev && ! ensure_parse_reinstall "$@"; then
+    echo "intel-edge-graphics-sriov-dev is installed." >&2
+  else
+    ensure_prop set installed/edge_pack_graphics_sriov_dev/owned true
+    install_edge_pack_meta "intel-edge-graphics-sriov-dev=$version*"
+  fi
+  ensure_group_add $(debian_40_group_edge_pack_graphics_sriov_dev)
+}
+
+debian_40_remove_edge_pack_graphics_sriov_dev () {
+  [ "$(ensure_prop get installed/edge_pack_graphics_sriov_dev/owned)" = "true" ] || return 0
+  remove_edge_pack_meta intel-edge-graphics-sriov-dev
+}
+
+debian_40_sbom_edge_pack_graphics_sriov_dev () {
+  configure_edge_pack "$@"
+  sbom_edge_pack_repo_entries "$@"
+  ensure_sbom_format pkg-list "intel-edge-graphics-sriov-dev=$version*"
+}
+

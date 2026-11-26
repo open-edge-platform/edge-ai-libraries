@@ -234,6 +234,11 @@ HOST_METRICS_PORT=9090         # Metrics Manager API
 HOST_TELEGRAF_PORT=9273        # Prometheus metrics
 MQTT_PORT=1883                 # MQTT broker
 ```
+> [!NOTE]
+> `REST_SERVER_PORT` has no built-in authentication or HTTPS/TLS support by
+> design. Restricting network access or fronting it with an authenticating/
+> TLS-terminating reverse proxy is the responsibility of the deploying
+> infrastructure.
 
 **Logging:**
 ```bash

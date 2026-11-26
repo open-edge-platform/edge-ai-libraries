@@ -2282,13 +2282,12 @@ configure_edge_pack ()
     edge_pack_list_file=/etc/apt/sources.list.d/intel-edge-pack.list;
     edge_pack_pref=("Package: *" "Pin: origin $edge_pack_repo" "Pin-Priority: 1001");
     edge_pack_pref_file=/etc/apt/preferences.d/intel-edge-pack.pref;
-    edge_pack_incompatible_files=(/etc/apt/preferences.d/priorities /etc/apt/preferences.d/edgepack.pref /etc/apt/sources.list.d/intel-edge-pack.sources /etc/apt/sources.list.d/kobuk-ppa.sources);
-    edge_pack_install_options=("--no-install-recommends" "--allow-downgrades");
-    edge_pack_ppa_repo=;
-    edge_pack_ppa_key_url=;
-    edge_pack_ppa_key_file=;
-    edge_pack_ppa_source=;
-    edge_pack_ppa_list_file=
+    edge_pack_ppa_repo="keyserver.ubuntu.com";
+    edge_pack_ppa_key_url="https://$edge_pack_ppa_repo/pks/lookup?op=get&search=0x0c0e6af955ce463c03fc51574d098d70afbe5e1f";
+    edge_pack_ppa_key_file=/etc/apt/keyrings/kobuk-ppa.gpg;
+    edge_pack_ppa_source="deb [signed-by=$edge_pack_ppa_key_file] https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/$ID/20260830T100000Z/ $VERSION_CODENAME main";
+    edge_pack_ppa_list_file=/etc/apt/sources.list.d/kobuk-ppa.list;
+    edge_pack_install_options=("--no-install-recommends" "--allow-downgrades" $(ensure_parse_reinstall "$@" && echo --reinstall || true))
 }
 configure_edge_pack_kernel_image () 
 { 
@@ -2329,11 +2328,25 @@ configure_edge_pack_selection ()
 { 
     local ep_list="$1";
     shift;
-    if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
-        echo "$ep_list";
-    else
-        echo "gpu_accel npu_accel";
-    fi
+    ensure_parse_option --edgepack "$@" || { 
+        configure_edge_pack_kernel_image "$@" || version="";
+        [ "$(uname -r)" = "$version" ] && ! ensure_parse_option gpu_accel "$@" && ! ensure_parse_option npu_accel "$@" || { 
+            echo "gpu_accel npu_accel";
+            return 0
+        }
+    };
+    echo "$ep_list"
+}
+configure_edge_workloads_and_benchmarks () 
+{ 
+    workspace="$(ensure_project_path)/edge-workloads-and-benchmarks";
+    version="$(ensure_parse_value_option version --version=9e0c35854b66746281e15671b12bc39f1842b189 "$@")";
+    repository=https://github.com/open-edge-platform/edge-workloads-and-benchmarks.git;
+    used_ports=(8080)
+}
+configure_ffmpeg () 
+{ 
+    packages=(ffmpeg "$(apt-cache search libx264-16* | head -n1 | cut -f1 -d' ')")
 }
 configure_gpu_accel () 
 { 
@@ -2627,9 +2640,17 @@ debian_10_install_gnupg ()
 { 
     ensure_apt_install_package gnupg
 }
+debian_10_install_wget () 
+{ 
+    ensure_apt_install_package wget ca-certificates
+}
 debian_10_sbom_gnupg () 
 { 
     ensure_sbom_format pkg-list gnupg
+}
+debian_10_sbom_wget () 
+{ 
+    ensure_sbom_format pkg-list wget ca-certificates
 }
 debian_15_install_cpuid () 
 { 
@@ -2763,6 +2784,10 @@ debian_30_install_automake ()
 { 
     ensure_apt_install_package automake
 }
+debian_30_install_build_essential () 
+{ 
+    ensure_apt_install_package build-essential
+}
 debian_30_install_chrony () 
 { 
     ensure_apt_install_package chrony
@@ -2880,6 +2905,10 @@ debian_30_install_pkg_config ()
 { 
     ensure_apt_install_package pkg-config
 }
+debian_30_install_python3_dev () 
+{ 
+    ensure_apt_install_package python3-dev
+}
 debian_30_install_python3_venv () 
 { 
     ensure_apt_install_package python3-venv
@@ -2912,6 +2941,10 @@ debian_30_remove_autoconf ()
 debian_30_remove_automake () 
 { 
     ensure_apt_remove_package automake
+}
+debian_30_remove_build_essential () 
+{ 
+    ensure_apt_remove_package build-essential
 }
 debian_30_remove_cmake () 
 { 
@@ -2947,7 +2980,7 @@ debian_30_remove_kernel_module_essential ()
         [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue;
         pkgs+=($p);
     done;
-    [ ${#pkgs[@]} -eq 0 ] || ensure_apt purge --auto-remove -y "${pkgs[@]}"
+    [ ${#pkgs[@]} -eq 0 ] || ensure_apt remove -y "${pkgs[@]}"
 }
 debian_30_remove_linux_tools () 
 { 
@@ -2992,6 +3025,10 @@ debian_30_sbom_autoconf ()
 debian_30_sbom_automake () 
 { 
     ensure_sbom_format pkg-list automake
+}
+debian_30_sbom_build_essential () 
+{ 
+    ensure_sbom_format pkg-list build-essential
 }
 debian_30_sbom_chrony () 
 { 
@@ -3038,6 +3075,10 @@ debian_30_sbom_msr_tools ()
 debian_30_sbom_pkg_config () 
 { 
     ensure_sbom_format pkg-list pkg-config
+}
+debian_30_sbom_python3_dev () 
+{ 
+    ensure_sbom_format pkg-list python3-dev
 }
 debian_30_sbom_python3_venv () 
 { 
@@ -3197,18 +3238,11 @@ debian_39_install_edge_pack ()
         echo "edge_pack configured" 1>&2;
     else
         ensure_prop set installed/edge_pack/owned true;
-        local p;
-        for p in "${edge_pack_incompatible_files[@]}";
-        do
-            [ ! -f "$p" ] || ensure_sudo mv -f "$p" "$p".save;
-        done;
         ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor;
         ensure_apt_source "$edge_pack_list_file" "$edge_pack_source";
         ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}";
-        if [ -n "$edge_pack_ppa_repo" ]; then
-            ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor;
-            ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source";
-        fi;
+        ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor;
+        ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source";
         ensure_apt update -y;
     fi
 }
@@ -3221,8 +3255,7 @@ debian_39_remove_edge_pack ()
     dpkg -l | grep -q -F intel-edge- || { 
         configure_edge_pack "$@";
         [ "$(ensure_prop get installed/edge_pack/owned)" = "true" ] || return 0;
-        ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file";
-        [ -z "$edge_pack_ppa_repo" ] || ensure_rm "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
+        ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file" "$edge_pack_ppa_key_file" "$edge_pack_ppa_list_file"
     }
 }
 debian_40_group_edge_pack_base_standard () 
@@ -3240,6 +3273,14 @@ debian_40_group_gpu_accel ()
 debian_40_group_npu_accel () 
 { 
     echo "render:992"
+}
+debian_40_install_apt_transport_https () 
+{ 
+    ensure_apt_install_package apt-transport-https
+}
+debian_40_install_bc () 
+{ 
+    ensure_apt_install_package bc
 }
 debian_40_install_core_types () 
 { 
@@ -3260,8 +3301,8 @@ debian_40_install_edge_pack_base_standard ()
         echo "intel-edge-base-standard is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_base_standard/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-standard onevpl-tools || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12) $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1);
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-base-standard=$version*" $(ensure_apt_policy_version "intel-edge-media-core=$version*" libigdgmm12) $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1);
     fi;
     ensure_group_add $(debian_40_group_edge_pack_base_standard)
 }
@@ -3272,8 +3313,7 @@ debian_40_install_edge_pack_ipu ()
         echo "intel-edge-ipu is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_ipu/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-ipu || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*";
+        install_edge_pack_meta "intel-edge-ipu=$version*";
         ensure_sudo modprobe -r intel-ipu7 || true;
         ensure_sudo modprobe intel-ipu7 || true;
     fi
@@ -3285,8 +3325,7 @@ debian_40_install_edge_pack_manageability ()
         echo "intel-edge-manageability is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_manageability/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-manageability || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*";
+        install_edge_pack_meta "intel-edge-manageability=$version*";
     fi
 }
 debian_40_install_edge_pack_npu () 
@@ -3296,8 +3335,7 @@ debian_40_install_edge_pack_npu ()
         echo "intel-edge-npu is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_npu/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-npu || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1);
+        install_edge_pack_meta "intel-edge-npu=$version*" $(ensure_apt_policy_version "intel-edge-npu=$version*" libze1);
     fi;
     ensure_group_add $(debian_40_group_edge_pack_npu)
 }
@@ -3308,8 +3346,7 @@ debian_40_install_edge_pack_tsn ()
         echo "intel-edge-tsn is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_tsn/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-tsn || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*";
+        install_edge_pack_meta "intel-edge-tsn=$version*";
     fi
 }
 debian_40_install_gpu_accel () 
@@ -3336,6 +3373,10 @@ debian_40_install_gpu_accel ()
         verify_gpu_accel_packages;
     fi;
     ensure_group_add $(debian_40_group_gpu_accel)
+}
+debian_40_install_lsb_release () 
+{ 
+    ensure_apt_install_package lsb-release
 }
 debian_40_install_npu_accel () 
 { 
@@ -3387,6 +3428,14 @@ debian_40_install_pcm ()
         ensure_sudo systemctl restart systemd-modules-load;
         verify_pcm;
     fi
+}
+debian_40_install_procps () 
+{ 
+    ensure_apt_install_package procps
+}
+debian_40_install_software_properties_common () 
+{ 
+    ensure_apt_install_package software-properties-common
 }
 debian_40_install_system_info () 
 { 
@@ -3451,6 +3500,14 @@ debian_40_profile_system_info ()
 { 
     echo "git"
 }
+debian_40_remove_apt_transport_https () 
+{ 
+    ensure_apt_remove_package apt-transport-https
+}
+debian_40_remove_bc () 
+{ 
+    ensure_apt_remove_package bc
+}
 debian_40_remove_core_types () 
 { 
     [ "$(ensure_prop get installed/core_types/owned)" = "true" ] || return 0;
@@ -3459,33 +3516,33 @@ debian_40_remove_core_types ()
 debian_40_remove_edge_pack_base_standard () 
 { 
     [ "$(ensure_prop get installed/edge_pack_base_standard/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-base-standard || true
+    remove_edge_pack_meta intel-edge-base-standard
 }
 debian_40_remove_edge_pack_ipu () 
 { 
     [ "$(ensure_prop get installed/edge_pack_ipu/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-ipu || true
+    remove_edge_pack_meta intel-edge-ipu
 }
 debian_40_remove_edge_pack_manageability () 
 { 
     [ "$(ensure_prop get installed/edge_pack_manageability/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-manageability || true
+    remove_edge_pack_meta intel-edge-manageability
 }
 debian_40_remove_edge_pack_npu () 
 { 
     [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-npu || true
+    remove_edge_pack_meta intel-edge-npu
 }
 debian_40_remove_edge_pack_tsn () 
 { 
     [ "$(ensure_prop get installed/edge_pack_tsn/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-tsn || true
+    remove_edge_pack_meta intel-edge-tsn
 }
 debian_40_remove_gpu_accel () 
 { 
     [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0;
     configure_gpu_accel "$@";
-    ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || return $?;
+    ensure_apt remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || return $?;
     local repo_file;
     for repo_file in "$apt_file" "$key_file";
     do
@@ -3499,7 +3556,7 @@ debian_40_remove_npu_accel ()
 { 
     [ "$(ensure_prop get installed/npu_accel/owned)" = "true" ] || return 0;
     configure_npu_accel "$@";
-    ensure_apt purge --auto-remove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true;
+    ensure_apt remove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true;
     ensure_rm "$workspace"
 }
 debian_40_remove_pcm () 
@@ -3515,6 +3572,14 @@ debian_40_remove_system_info ()
         ensure_rm "$system_info_path/system-info.sh" || return $?;
     fi;
     ensure_rm "$workspace"
+}
+debian_40_sbom_apt_transport_https () 
+{ 
+    ensure_sbom_format pkg-list apt-transport-https
+}
+debian_40_sbom_bc () 
+{ 
+    ensure_sbom_format pkg-list bc
 }
 debian_40_sbom_edge_pack_base_standard () 
 { 
@@ -3556,6 +3621,10 @@ debian_40_sbom_gpu_accel ()
     ensure_sbom_format key-file "$key_file";
     ensure_sbom_format pkg-list "${pkg_list[@]}"
 }
+debian_40_sbom_lsb_release () 
+{ 
+    ensure_sbom_format pkg-list lsb-release
+}
 debian_40_sbom_npu_accel () 
 { 
     configure_npu_accel "$@";
@@ -3565,6 +3634,14 @@ debian_40_sbom_npu_accel ()
         return 3
     };
     ensure_sbom_format pkg-list "${packages[@]}"
+}
+debian_40_sbom_procps () 
+{ 
+    ensure_sbom_format pkg-list procps
+}
+debian_40_sbom_software_properties_common () 
+{ 
+    ensure_sbom_format pkg-list software-properties-common
 }
 debian_45_install_power_tuning () 
 { 
@@ -3746,8 +3823,8 @@ debian_70_install_edge_pack_media_ffmpeg ()
         echo "intel-edge-media-ffmpeg is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_ffmpeg/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg onevpl-tools || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*";
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-media-ffmpeg=$version*";
     fi
 }
 debian_70_install_edge_pack_media_gst () 
@@ -3757,9 +3834,14 @@ debian_70_install_edge_pack_media_gst ()
         echo "intel-edge-media-gst is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_gst/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-gst onevpl-tools || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*";
+        ensure_apt remove -y onevpl-tools || true;
+        install_edge_pack_meta "intel-edge-media-gst=$version*";
     fi
+}
+debian_70_install_ffmpeg () 
+{ 
+    configure_ffmpeg "$@";
+    ensure_apt_install_package "${packages[@]}"
 }
 debian_70_profile_edge_pack_media_ffmpeg () 
 { 
@@ -3772,12 +3854,17 @@ debian_70_profile_edge_pack_media_gst ()
 debian_70_remove_edge_pack_media_ffmpeg () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_ffmpeg/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true
+    remove_edge_pack_meta intel-edge-media-ffmpeg
 }
 debian_70_remove_edge_pack_media_gst () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_gst/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-media-gst || true
+    remove_edge_pack_meta intel-edge-media-gst
+}
+debian_70_remove_ffmpeg () 
+{ 
+    configure_ffmpeg "$@";
+    ensure_apt_remove_package "${packages[@]}"
 }
 debian_70_sbom_edge_pack_media_ffmpeg () 
 { 
@@ -3790,6 +3877,11 @@ debian_70_sbom_edge_pack_media_gst ()
     configure_edge_pack "$@";
     sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-gst=$version*"
+}
+debian_70_sbom_ffmpeg () 
+{ 
+    configure_ffmpeg "$@";
+    ensure_sbom_format pkg-list "${packages[@]}"
 }
 debian_85_group_handheld_blueprint () 
 { 
@@ -3830,6 +3922,29 @@ debian_90_install_deterministic_threat_detection ()
     fi;
     echo "@@HIGHLIGHT application: ${application/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT guide: ${application/#"$HOME"/"~"}/docs/user-guide/deterministic-threat-detection/get-started.md"
+}
+debian_90_install_edge_workloads_and_benchmarks () 
+{ 
+    configure_edge_workloads_and_benchmarks "$@";
+    if verify_edge_workloads_and_benchmarks && ! ensure_parse_reinstall "$@"; then
+        echo "Edge-workloads-and-benchmarks is installed." 1>&2;
+    else
+        ensure_ports_open install edge_workloads_and_benchmarks "${used_ports[@]}";
+        ensure_disk_size 16000;
+        ensure_ram_size 14680064;
+        echo "@@STEP Cloning repository";
+        ensure_git_clone "$workspace" $version $repository;
+        cd "$workspace";
+        make check;
+        echo "@@STEP Downloading collateral";
+        cd "$workspace/workloads/media-benchmarks";
+        make collateral;
+    fi;
+    echo "@@HIGHLIGHT $installer_name start [--vision]";
+    echo "@@HIGHLIGHT $installer_name start [--media]";
+    echo "@@HIGHLIGHT $installer_name start [--ai]";
+    echo "@@HIGHLIGHT $installer_name start [--genai]";
+    echo "@@HIGHLIGHT $installer_name remove"
 }
 debian_90_install_handheld_multi_modal () 
 { 
@@ -3972,6 +4087,10 @@ debian_90_profile_deterministic_threat_detection ()
 { 
     echo "docker_io git"
 }
+debian_90_profile_edge_workloads_and_benchmarks () 
+{ 
+    echo "docker_io make curl git edge_base jq lsb_release build_essential cmake wget python3_dev python3_venv ffmpeg cpuid bc gnupg apt_transport_https software_properties_common procps"
+}
 debian_90_profile_handheld_multi_modal () 
 { 
     echo "yq make curl git docker_io edge_base"
@@ -3991,6 +4110,15 @@ debian_90_profile_vippet ()
 debian_90_remove_deterministic_threat_detection () 
 { 
     configure_deterministic_threat_detection "$@";
+    ensure_rm "$workspace"
+}
+debian_90_remove_edge_workloads_and_benchmarks () 
+{ 
+    debian_90_stop_edge_workloads_and_benchmarks "$@";
+    cd "$workspace" && { 
+        ensure_sudo make clean-results || true;
+        ensure_sudo make clean-all
+    } || true;
     ensure_rm "$workspace"
 }
 debian_90_remove_handheld_multi_modal () 
@@ -4033,6 +4161,53 @@ debian_90_remove_vippet ()
 { 
     debian_90_stop_vippet "$@";
     ensure_rm "$workspace"
+}
+debian_90_start_edge_workloads_and_benchmarks () 
+{ 
+    configure_edge_workloads_and_benchmarks "$@";
+    ensure_ports_open start edge_workloads_and_benchmarks "${used_ports[@]}";
+    cd "$workspace";
+    echo "@@STEP Downloading collateral";
+    local mode=media-benchmarks;
+    if ensure_parse_option --vision "$@"; then
+        mode="vision-benchmarks";
+    else
+        if ensure_parse_option --media "$@"; then
+            mode="media-benchmarks";
+        else
+            if ensure_parse_option --ai "$@"; then
+                mode="edge-ai-pipelines";
+            else
+                if ensure_parse_option --genai "$@"; then
+                    mode="genai-benchmarks";
+                    ensure_disk_size 128000;
+                fi;
+            fi;
+        fi;
+    fi;
+    echo "@@STEP Downloading for $mode";
+    cd "$workspace/workloads/$mode";
+    make collateral;
+    echo "@@STEP Starting $mode";
+    ensure_sudo make benchmarks;
+    echo "@@STEP Creating report";
+    cd "$workspace";
+    ensure_sudo make report;
+    echo "@@STEP Serving report";
+    local host_ip="$(ensure_ip)";
+    ( for fd in /proc/$BASHPID/fd/*;
+    do
+        fd=${fd##*/};
+        (( fd > 2 )) && eval "exec $fd>&-";
+    done 2> /dev/null;
+    cd tools/html;
+    python3 -u -m http.server ${used_ports[0]} --bind $host_ip > serve.log 2>&1 ) < /dev/null > /dev/null 2>&1 & disown;
+    echo "@@HIGHLIGHT URL: http://$host_ip:${used_ports[0]}";
+    echo "@@HIGHLIGHT $installer_name start [--vision]";
+    echo "@@HIGHLIGHT $installer_name start [--media]";
+    echo "@@HIGHLIGHT $installer_name start [--ai]";
+    echo "@@HIGHLIGHT $installer_name start [--genai]";
+    echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 debian_90_start_handheld_multi_modal () 
 { 
@@ -4174,6 +4349,13 @@ debian_90_start_vippet ()
     make run-prebuilt;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+debian_90_stop_edge_workloads_and_benchmarks () 
+{ 
+    configure_edge_workloads_and_benchmarks "$@";
+    cd "$workspace" && { 
+        ensure_sudo pkill -f "http.server ${used_ports[0]}" || true
+    } || true
 }
 debian_90_stop_handheld_multi_modal () 
 { 
@@ -4507,10 +4689,10 @@ norm_uri "${BASH_REMATCH[3]}"
         ;;
     esac;
 done | sort -u));
-    [ ${#legacies[*]} -eq 0 ] || ensure_apt_source_remove "${legacies[*]}";
+    [ ${#legacies[*]} -eq 0 ] || ensure_apt_source_disable "${legacies[*]}";
     printf "%s\n" "$@" | ensure_sudo tee $file > /dev/null
 }
-ensure_apt_source_remove () 
+ensure_apt_source_disable () 
 { 
     local updated;
     for v in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources;
@@ -6466,6 +6648,14 @@ ensure_trap ()
         fi;
     done
 }
+install_edge_pack_meta () 
+{ 
+    local pkg="$1";
+    shift;
+    ensure_apt update;
+    ensure_apt install "${edge_pack_install_options[@]}" "$pkg" "$@";
+    ensure_sudo apt-mark manual "${pkg%%=*}"
+}
 install_k3s_io_sriov () 
 { 
     local config=/etc/cloud/config-file enabled;
@@ -6681,6 +6871,16 @@ install_uncrewed_aerial_vehicle_vision_analytics_source ()
     git -C "$workspace" fetch --depth 1 origin "$version" && git -C "$workspace" checkout --detach FETCH_HEAD || return $?;
     echo "UAV source commit: $(git -C "$workspace" rev-parse HEAD)"
 }
+remove_edge_pack_meta () 
+{ 
+    local pkg="$1";
+    ensure_apt_is_installed "$pkg" || return 0;
+    local closure=($(apt-cache depends --recurse --installed --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances "$pkg" 2> /dev/null | awk '/^[^ <]/{sub(/:.*/,"");print}' | sort -u));
+    ensure_sudo apt-mark auto "$pkg" > /dev/null;
+    local candidates=($(apt-get -s autoremove 2> /dev/null | awk '$1=="Remv"{sub(/:.*/,"",$2);print $2}' | sort -u));
+    local remove=($(comm -12 <(printf '%s\n' "${closure[@]}") <(printf '%s\n' "${candidates[@]}")));
+    [ ${#remove[@]} -eq 0 ] || ensure_apt purge -y "${remove[@]}" || true
+}
 remove_k3s_io_sriov () 
 { 
     [ "$(ensure_prop get installed/k3s_io/sriov_owned)" = true ] || return 0;
@@ -6714,13 +6914,12 @@ resolve_uncrewed_aerial_vehicle_vision_analytics_ports ()
 }
 sbom_edge_pack_repo_entries () 
 { 
-    if [ -n "$edge_pack_ppa_repo" ]; then
-        ensure_sbom_format gpg-key "$edge_pack_ppa_key_url";
-        ensure_sbom_format key-file "$edge_pack_ppa_key_file";
-        ensure_sbom_format apt-source "$edge_pack_ppa_source";
-        ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file";
-        echo "---";
-    fi;
+    ensure_sbom_format repo-name "$edge_pack_ppa_repo";
+    ensure_sbom_format gpg-key "$edge_pack_ppa_key_url";
+    ensure_sbom_format key-file "$edge_pack_ppa_key_file";
+    ensure_sbom_format apt-source "$edge_pack_ppa_source";
+    ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file";
+    echo "---";
     ensure_sbom_format repo-name "$edge_pack_repo";
     ensure_sbom_format gpg-key "$edge_pack_key_url";
     ensure_sbom_format key-file "$edge_pack_key_file";
@@ -6801,7 +7000,7 @@ subcommand_list ()
 
             ;;
             --auto-completion | --auto-completion=*)
-                local data="Y21kcyBpbnN0YWxsIHJlbW92ZSBzdGFydCBzdG9wCm5hbWVzIGN1cmwgZG1pZGVjb2RlIGttb2QgcGNpdXRpbHMgc3lzdGVtX2luc3BlY3Rpb24gZ251cGcgY3B1aWQgZ2F3ayBqcSBsaWJ0YmIxMiBsaWJ6ZTEgeXEgZWRnZV9wYWNrX2tlcm5lbF9pbWFnZSByZWJvb3QgYXV0b2NvbmYgYXV0b21ha2UgY2hyb255IGNtYWtlIGRvY2tlcl9pbyBnaXQgZ29sYW5nIGtlcm5lbF9tb2R1bGVfZXNzZW50aWFsIGxpbnV4X3Rvb2xzIGxtX3NlbnNvcnMgbWFrZSBtc3JfdG9vbHMgcGtnX2NvbmZpZyBweXRob24zX3ZlbnYgc3RyZXNzX25nIHN5c2JlbmNoIHY0bF91dGlscyBrM3NfaW8gaW50ZWxfbHBtZCBlZGdlX3BhY2sgY29yZV90eXBlcyBlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZCBlZGdlX3BhY2tfaXB1IGVkZ2VfcGFja19tYW5hZ2VhYmlsaXR5IGVkZ2VfcGFja19ucHUgZWRnZV9wYWNrX3RzbiBncHVfYWNjZWwgbnB1X2FjY2VsIHBjbSBzeXN0ZW1faW5mbyBwb3dlcl90dW5pbmcgdWJ1bnR1X3NlcnZlciBjZGkgcmVhbHNlbnNlIGVkZ2VfcGFja19tZWRpYV9mZm1wZWcgZWRnZV9wYWNrX21lZGlhX2dzdCBoYW5kaGVsZF9ibHVlcHJpbnQgbWlzc2lvbl9zZW5zaW5nX3NlcnZpY2VfYmx1ZXByaW50IHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludCBkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb24gaGFuZGhlbGRfbXVsdGlfbW9kYWwgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24gdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljcyB2aXBwZXQgc3lzdGVtX3N1bW1hcnkgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZSBlZGdlX2Jhc2UgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fc2Vuc2luZ19zZXJ2aWNlCmZsYWdzIGluc3RhbGwgLS1jb250aW51ZSAtLWRyeS1ydW4gLS1yZWluc3RhbGwgLS12YWxpZGF0ZQpzdGF0ZSBpbnN0YWxsIC0KbW9kIGluc3RhbGwgcmVib290Cm1vZCBpbnN0YWxsIHBjbSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBweXRob24zX3ZlbnYKbW9kIGluc3RhbGwgZWRnZV9wYWNrX3RzbiBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBjaHJvbnkKbW9kIGluc3RhbGwgazNzX2lvCm1vZCBpbnN0YWxsIHZpcHBldCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgaW5zdGFsbCBnaXQKbW9kIGluc3RhbGwgZWRnZV9iYXNlIEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwga21vZAptb2QgaW5zdGFsbCBncHVfYWNjZWwgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgY21ha2UKbW9kIGluc3RhbGwgYXV0b21ha2UKbW9kIGluc3RhbGwgdjRsX3V0aWxzCm1vZCBpbnN0YWxsIHN5c3RlbV9zdW1tYXJ5Cm1vZCBpbnN0YWxsIGdudXBnCm1vZCBpbnN0YWxsIG5wdV9hY2NlbCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBsbV9zZW5zb3JzCm1vZCBpbnN0YWxsIHN0cmVzc19uZwptb2QgaW5zdGFsbCBlZGdlX3BhY2tfaXB1IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHN5c3RlbV9pbnNwZWN0aW9uCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19tZWRpYV9mZm1wZWcgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgbWFrZQptb2QgaW5zdGFsbCB1YnVudHVfc2VydmVyCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19iYXNlX3N0YW5kYXJkIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGRvY2tlcl9pbwptb2QgaW5zdGFsbCBsaWJ0YmIxMgptb2QgaW5zdGFsbCBwb3dlcl90dW5pbmcgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgcGtnX2NvbmZpZwptb2QgaW5zdGFsbCBoYW5kaGVsZF9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgaW5zdGFsbCBnYXdrCm1vZCBpbnN0YWxsIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBsaWJ6ZTEgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIGluc3RhbGwgYXV0b2NvbmYKbW9kIGluc3RhbGwgbWlzc2lvbl9zZW5zaW5nX3NlcnZpY2VfYmx1ZXByaW50IEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXZlcnNpb24gLS1rM3MKbW9kIGluc3RhbGwgZWRnZV9wYWNrX21lZGlhX2dzdCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbiAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBkbWlkZWNvZGUKbW9kIGluc3RhbGwgc3lzdGVtX2luZm8gLS1yZWluc3RhbGwKbW9kIGluc3RhbGwga2VybmVsX21vZHVsZV9lc3NlbnRpYWwKbW9kIGluc3RhbGwgY3B1aWQKbW9kIGluc3RhbGwgZWRnZV9wYWNrX21hbmFnZWFiaWxpdHkgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgc3lzYmVuY2gKbW9kIGluc3RhbGwganEKbW9kIGluc3RhbGwgcGNpdXRpbHMKbW9kIGluc3RhbGwgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19rZXJuZWxfaW1hZ2UgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIGluc3RhbGwgbXNyX3Rvb2xzCm1vZCBpbnN0YWxsIGNkaSAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBjdXJsCm1vZCBpbnN0YWxsIGludGVsX2xwbWQgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgZ29sYW5nCm1vZCBpbnN0YWxsIGNvcmVfdHlwZXMgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fc2Vuc2luZ19zZXJ2aWNlIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGxpbnV4X3Rvb2xzCm1vZCBpbnN0YWxsIGVkZ2VfcGFjayBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCB5cQptb2QgaW5zdGFsbCByZWFsc2Vuc2UgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgZWRnZV9wYWNrX25wdSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgpmbGFncyByZW1vdmUgLS1kcnktcnVuIC0tcmVtb3ZlLWFsbCAtLXJlbW92ZS1tZQpzdGF0ZSByZW1vdmUgaW5zdGFsbGVkCm1vZCByZW1vdmUgcGNtIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgZWRnZV9wYWNrX3Rzbgptb2QgcmVtb3ZlIGszc19pbwptb2QgcmVtb3ZlIHZpcHBldCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCByZW1vdmUgZ2l0Cm1vZCByZW1vdmUgZWRnZV9iYXNlIEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXZlcnNpb24KbW9kIHJlbW92ZSBkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzCm1vZCByZW1vdmUgZ3B1X2FjY2VsCm1vZCByZW1vdmUgY21ha2UKbW9kIHJlbW92ZSBhdXRvbWFrZQptb2QgcmVtb3ZlIHY0bF91dGlscwptb2QgcmVtb3ZlIG5wdV9hY2NlbCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGxtX3NlbnNvcnMKbW9kIHJlbW92ZSBzdHJlc3NfbmcKbW9kIHJlbW92ZSBlZGdlX3BhY2tfaXB1Cm1vZCByZW1vdmUgZWRnZV9wYWNrX21lZGlhX2ZmbXBlZwptb2QgcmVtb3ZlIG1ha2UKbW9kIHJlbW92ZSBlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZAptb2QgcmVtb3ZlIGRvY2tlcl9pbwptb2QgcmVtb3ZlIHBvd2VyX3R1bmluZwptb2QgcmVtb3ZlIHBrZ19jb25maWcKbW9kIHJlbW92ZSBoYW5kaGVsZF9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgcmVtb3ZlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGF1dG9jb25mCm1vZCByZW1vdmUgbWlzc2lvbl9zZW5zaW5nX3NlcnZpY2VfYmx1ZXByaW50IEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXZlcnNpb24gLS1rM3MKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWVkaWFfZ3N0Cm1vZCByZW1vdmUgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24KbW9kIHJlbW92ZSBkbWlkZWNvZGUKbW9kIHJlbW92ZSBzeXN0ZW1faW5mbwptb2QgcmVtb3ZlIGtlcm5lbF9tb2R1bGVfZXNzZW50aWFsCm1vZCByZW1vdmUgY3B1aWQKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eQptb2QgcmVtb3ZlIHN5c2JlbmNoCm1vZCByZW1vdmUganEKbW9kIHJlbW92ZSBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGUgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBtc3JfdG9vbHMKbW9kIHJlbW92ZSBjZGkKbW9kIHJlbW92ZSBpbnRlbF9scG1kCm1vZCByZW1vdmUgZ29sYW5nCm1vZCByZW1vdmUgY29yZV90eXBlcwptb2QgcmVtb3ZlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX3NlbnNpbmdfc2VydmljZSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbGludXhfdG9vbHMKbW9kIHJlbW92ZSBlZGdlX3BhY2sgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSB5cQptb2QgcmVtb3ZlIHJlYWxzZW5zZQptb2QgcmVtb3ZlIGVkZ2VfcGFja19ucHUKZmxhZ3Mgc3RhcnQgLS1jb250aW51ZSAtLWRyeS1ydW4Kc3RhdGUgc3RhcnQgaW5zdGFsbGVkCm1vZCBzdGFydCB2aXBwZXQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0YXJ0IHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MKbW9kIHN0YXJ0IHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2dyb3VuZF9zdGF0aW9uCm1vZCBzdGFydCBoYW5kaGVsZF9tdWx0aV9tb2RhbCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgpmbGFncyBzdG9wIC0tZHJ5LXJ1biAtLXN0b3AtYWxsCnN0YXRlIHN0b3Agc3RhcnRlZAptb2Qgc3RvcCB2aXBwZXQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljcwptb2Qgc3RvcCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGQgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHN0b3AgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24KbW9kIHN0b3AgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlCm1vZCBzdG9wIGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCg==" cmd state;
+                local data="Y21kcyBpbnN0YWxsIHJlbW92ZSBzdGFydCBzdG9wCm5hbWVzIGN1cmwgZG1pZGVjb2RlIGttb2QgcGNpdXRpbHMgc3lzdGVtX2luc3BlY3Rpb24gZ251cGcgd2dldCBjcHVpZCBnYXdrIGpxIGxpYnRiYjEyIGxpYnplMSB5cSBlZGdlX3BhY2tfa2VybmVsX2ltYWdlIHJlYm9vdCBhdXRvY29uZiBhdXRvbWFrZSBidWlsZF9lc3NlbnRpYWwgY2hyb255IGNtYWtlIGRvY2tlcl9pbyBnaXQgZ29sYW5nIGtlcm5lbF9tb2R1bGVfZXNzZW50aWFsIGxpbnV4X3Rvb2xzIGxtX3NlbnNvcnMgbWFrZSBtc3JfdG9vbHMgcGtnX2NvbmZpZyBweXRob24zX2RldiBweXRob24zX3ZlbnYgc3RyZXNzX25nIHN5c2JlbmNoIHY0bF91dGlscyBrM3NfaW8gaW50ZWxfbHBtZCBlZGdlX3BhY2sgYXB0X3RyYW5zcG9ydF9odHRwcyBiYyBjb3JlX3R5cGVzIGVkZ2VfcGFja19iYXNlX3N0YW5kYXJkIGVkZ2VfcGFja19pcHUgZWRnZV9wYWNrX21hbmFnZWFiaWxpdHkgZWRnZV9wYWNrX25wdSBlZGdlX3BhY2tfdHNuIGdwdV9hY2NlbCBsc2JfcmVsZWFzZSBucHVfYWNjZWwgcGNtIHByb2NwcyBzb2Z0d2FyZV9wcm9wZXJ0aWVzX2NvbW1vbiBzeXN0ZW1faW5mbyBwb3dlcl90dW5pbmcgdWJ1bnR1X3NlcnZlciBjZGkgcmVhbHNlbnNlIGVkZ2VfcGFja19tZWRpYV9mZm1wZWcgZWRnZV9wYWNrX21lZGlhX2dzdCBmZm1wZWcgaGFuZGhlbGRfYmx1ZXByaW50IG1pc3Npb25fc2Vuc2luZ19zZXJ2aWNlX2JsdWVwcmludCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnQgZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uIGVkZ2Vfd29ya2xvYWRzX2FuZF9iZW5jaG1hcmtzIGhhbmRoZWxkX211bHRpX21vZGFsIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2dyb3VuZF9zdGF0aW9uIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MgdmlwcGV0IHN5c3RlbV9zdW1tYXJ5IGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGUgZWRnZV9iYXNlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX3NlbnNpbmdfc2VydmljZQpmbGFncyBpbnN0YWxsIC0tY29udGludWUgLS1kcnktcnVuIC0tcmVpbnN0YWxsIC0tdmFsaWRhdGUKc3RhdGUgaW5zdGFsbCAtCm1vZCBpbnN0YWxsIHJlYm9vdAptb2QgaW5zdGFsbCBwY20gQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgYnVpbGRfZXNzZW50aWFsCm1vZCBpbnN0YWxsIHB5dGhvbjNfdmVudgptb2QgaW5zdGFsbCBlZGdlX3BhY2tfdHNuIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGNocm9ueQptb2QgaW5zdGFsbCBrM3NfaW8KbW9kIGluc3RhbGwgc29mdHdhcmVfcHJvcGVydGllc19jb21tb24KbW9kIGluc3RhbGwgdmlwcGV0IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCBpbnN0YWxsIGdpdAptb2QgaW5zdGFsbCBlZGdlX2Jhc2UgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb24gQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfdmlzaW9uX2FuYWx5dGljcyAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBrbW9kCm1vZCBpbnN0YWxsIGdwdV9hY2NlbCAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBjbWFrZQptb2QgaW5zdGFsbCBhdXRvbWFrZQptb2QgaW5zdGFsbCB2NGxfdXRpbHMKbW9kIGluc3RhbGwgc3lzdGVtX3N1bW1hcnkKbW9kIGluc3RhbGwgZ251cGcKbW9kIGluc3RhbGwgbnB1X2FjY2VsIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGxtX3NlbnNvcnMKbW9kIGluc3RhbGwgc3RyZXNzX25nCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19pcHUgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgc3lzdGVtX2luc3BlY3Rpb24KbW9kIGluc3RhbGwgZWRnZV9wYWNrX21lZGlhX2ZmbXBlZyBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBtYWtlCm1vZCBpbnN0YWxsIHVidW50dV9zZXJ2ZXIKbW9kIGluc3RhbGwgZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmQgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIGluc3RhbGwgZG9ja2VyX2lvCm1vZCBpbnN0YWxsIGxpYnRiYjEyCm1vZCBpbnN0YWxsIHBvd2VyX3R1bmluZyAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBweXRob24zX2Rldgptb2QgaW5zdGFsbCBwa2dfY29uZmlnCm1vZCBpbnN0YWxsIGhhbmRoZWxkX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCBpbnN0YWxsIGdhd2sKbW9kIGluc3RhbGwgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGxpYnplMSBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBmZm1wZWcKbW9kIGluc3RhbGwgYXV0b2NvbmYKbW9kIGluc3RhbGwgbWlzc2lvbl9zZW5zaW5nX3NlcnZpY2VfYmx1ZXByaW50IEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXZlcnNpb24gLS1rM3MKbW9kIGluc3RhbGwgYXB0X3RyYW5zcG9ydF9odHRwcwptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbWVkaWFfZ3N0IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHdnZXQKbW9kIGluc3RhbGwgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24gLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgZG1pZGVjb2RlCm1vZCBpbnN0YWxsIHN5c3RlbV9pbmZvIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGtlcm5lbF9tb2R1bGVfZXNzZW50aWFsCm1vZCBpbnN0YWxsIGNwdWlkCm1vZCBpbnN0YWxsIGxzYl9yZWxlYXNlCm1vZCBpbnN0YWxsIGVkZ2VfcGFja19tYW5hZ2VhYmlsaXR5IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIGVkZ2Vfd29ya2xvYWRzX2FuZF9iZW5jaG1hcmtzIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHN5c2JlbmNoCm1vZCBpbnN0YWxsIGpxCm1vZCBpbnN0YWxsIHBjaXV0aWxzCm1vZCBpbnN0YWxsIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBlZGdlX3BhY2tfa2VybmVsX2ltYWdlIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBpbnN0YWxsIG1zcl90b29scwptb2QgaW5zdGFsbCBjZGkgLS1yZWluc3RhbGwKbW9kIGluc3RhbGwgY3VybAptb2QgaW5zdGFsbCBiYwptb2QgaW5zdGFsbCBpbnRlbF9scG1kIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGdvbGFuZwptb2QgaW5zdGFsbCBjb3JlX3R5cGVzIC0tcmVpbnN0YWxsCm1vZCBpbnN0YWxsIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX3NlbnNpbmdfc2VydmljZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBoYW5kaGVsZF9tdWx0aV9tb2RhbCBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgaW5zdGFsbCBsaW51eF90b29scwptb2QgaW5zdGFsbCBwcm9jcHMKbW9kIGluc3RhbGwgZWRnZV9wYWNrIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCBpbnN0YWxsIHlxCm1vZCBpbnN0YWxsIHJlYWxzZW5zZSAtLXJlaW5zdGFsbAptb2QgaW5zdGFsbCBlZGdlX3BhY2tfbnB1IEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCmZsYWdzIHJlbW92ZSAtLWRyeS1ydW4gLS1yZW1vdmUtYWxsIC0tcmVtb3ZlLW1lCnN0YXRlIHJlbW92ZSBpbnN0YWxsZWQKbW9kIHJlbW92ZSBwY20gQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBidWlsZF9lc3NlbnRpYWwKbW9kIHJlbW92ZSBlZGdlX3BhY2tfdHNuCm1vZCByZW1vdmUgazNzX2lvCm1vZCByZW1vdmUgdmlwcGV0IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfYmx1ZXByaW50IEB2YWx1ZTotLXZlcnNpb24gLS1lZGdlcGFjayAtLXZlcnNpb24gLS1rM3MKbW9kIHJlbW92ZSBnaXQKbW9kIHJlbW92ZSBlZGdlX2Jhc2UgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGRldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbiBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIHVuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX3Zpc2lvbl9hbmFseXRpY3MKbW9kIHJlbW92ZSBncHVfYWNjZWwKbW9kIHJlbW92ZSBjbWFrZQptb2QgcmVtb3ZlIGF1dG9tYWtlCm1vZCByZW1vdmUgdjRsX3V0aWxzCm1vZCByZW1vdmUgbnB1X2FjY2VsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCByZW1vdmUgbG1fc2Vuc29ycwptb2QgcmVtb3ZlIHN0cmVzc19uZwptb2QgcmVtb3ZlIGVkZ2VfcGFja19pcHUKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWVkaWFfZmZtcGVnCm1vZCByZW1vdmUgbWFrZQptb2QgcmVtb3ZlIGVkZ2VfcGFja19iYXNlX3N0YW5kYXJkCm1vZCByZW1vdmUgZG9ja2VyX2lvCm1vZCByZW1vdmUgcG93ZXJfdHVuaW5nCm1vZCByZW1vdmUgcGtnX2NvbmZpZwptb2QgcmVtb3ZlIGhhbmRoZWxkX2JsdWVwcmludCBAdmFsdWU6LS12ZXJzaW9uIC0tZWRnZXBhY2sgLS12ZXJzaW9uIC0tazNzCm1vZCByZW1vdmUgZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCByZW1vdmUgZmZtcGVnCm1vZCByZW1vdmUgYXV0b2NvbmYKbW9kIHJlbW92ZSBtaXNzaW9uX3NlbnNpbmdfc2VydmljZV9ibHVlcHJpbnQgQHZhbHVlOi0tdmVyc2lvbiAtLWVkZ2VwYWNrIC0tdmVyc2lvbiAtLWszcwptb2QgcmVtb3ZlIGFwdF90cmFuc3BvcnRfaHR0cHMKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWVkaWFfZ3N0Cm1vZCByZW1vdmUgdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfZ3JvdW5kX3N0YXRpb24KbW9kIHJlbW92ZSBkbWlkZWNvZGUKbW9kIHJlbW92ZSBzeXN0ZW1faW5mbwptb2QgcmVtb3ZlIGtlcm5lbF9tb2R1bGVfZXNzZW50aWFsCm1vZCByZW1vdmUgY3B1aWQKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eQptb2QgcmVtb3ZlIHN5c2JlbmNoCm1vZCByZW1vdmUgZWRnZV93b3JrbG9hZHNfYW5kX2JlbmNobWFya3MgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24KbW9kIHJlbW92ZSBqcQptb2QgcmVtb3ZlIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZSBAdmFsdWU6LS12ZXJzaW9uIC0tcmVpbnN0YWxsIC0tdmVyc2lvbgptb2QgcmVtb3ZlIG1zcl90b29scwptb2QgcmVtb3ZlIGNkaQptb2QgcmVtb3ZlIGJjCm1vZCByZW1vdmUgaW50ZWxfbHBtZAptb2QgcmVtb3ZlIGdvbGFuZwptb2QgcmVtb3ZlIGNvcmVfdHlwZXMKbW9kIHJlbW92ZSBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9zZW5zaW5nX3NlcnZpY2UgQHZhbHVlOi0tdmVyc2lvbiAtLXJlaW5zdGFsbCAtLXZlcnNpb24KbW9kIHJlbW92ZSBoYW5kaGVsZF9tdWx0aV9tb2RhbCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2QgcmVtb3ZlIGxpbnV4X3Rvb2xzCm1vZCByZW1vdmUgZWRnZV9wYWNrIEB2YWx1ZTotLXZlcnNpb24gLS1yZWluc3RhbGwgLS12ZXJzaW9uCm1vZCByZW1vdmUgeXEKbW9kIHJlbW92ZSByZWFsc2Vuc2UKbW9kIHJlbW92ZSBlZGdlX3BhY2tfbnB1CmZsYWdzIHN0YXJ0IC0tY29udGludWUgLS1kcnktcnVuCnN0YXRlIHN0YXJ0IGluc3RhbGxlZAptb2Qgc3RhcnQgdmlwcGV0IEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCm1vZCBzdGFydCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzCm1vZCBzdGFydCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbgptb2Qgc3RhcnQgZWRnZV93b3JrbG9hZHNfYW5kX2JlbmNobWFya3MgQHZhbHVlOi0tdmVyc2lvbiAtLWFpIC0tdmVyc2lvbiAtLWdlbmFpIC0tdmlzaW9uIC0tbWVkaWEKbW9kIHN0YXJ0IGhhbmRoZWxkX211bHRpX21vZGFsIEB2YWx1ZTotLXZlcnNpb24gLS12ZXJzaW9uCmZsYWdzIHN0b3AgLS1kcnktcnVuIC0tc3RvcC1hbGwKc3RhdGUgc3RvcCBzdGFydGVkCm1vZCBzdG9wIHZpcHBldCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV92aXNpb25fYW5hbHl0aWNzCm1vZCBzdG9wIGZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZCBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCB1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ncm91bmRfc3RhdGlvbgptb2Qgc3RvcCBlZGdlX3dvcmtsb2Fkc19hbmRfYmVuY2htYXJrcyBAdmFsdWU6LS12ZXJzaW9uIC0tdmVyc2lvbgptb2Qgc3RvcCBmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGUKbW9kIHN0b3AgaGFuZGhlbGRfbXVsdGlfbW9kYWwgQHZhbHVlOi0tdmVyc2lvbiAtLXZlcnNpb24K" cmd state;
                 [[ $data != @@* ]] || { 
                     echo "Completion data not rendered; run bootstrap" 1>&2;
                     return 3
@@ -6860,13 +7059,18 @@ subcommand_list ()
             return 3;
         fi;
         ensure_sbom_format schema-version 1;
-        if git rev-parse --is-inside-work-tree &> /dev/null && git remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
-            [ -n "$cli_version" ] || cli_version=$(git rev-parse HEAD);
+        local script_dir script_name script_path;
+        script_dir="$(cd "$(dirname "$0")" && pwd -P)";
+        script_name="${0##*/}";
+        script_path="$script_dir/$script_name";
+        if git -C "$script_dir" rev-parse --is-inside-work-tree &> /dev/null && git -C "$script_dir" remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
+            [ -n "$cli_version" ] || cli_version=$(git -C "$script_dir" rev-parse HEAD);
             ensure_sbom_format cli-version "$cli_version";
             if [[ "/$0" = *"/rendered/"* ]]; then
-                local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
-                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
-                ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')";
+                local remote="$(git -C "$script_dir" remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
+                local rel_path="$(git -C "$script_dir" rev-parse --show-prefix)$script_name";
+                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/$rel_path";
+                ensure_sbom_format cli-sha256 "$(sha256sum "$script_path" | cut -f1 -d' ')";
             fi;
         fi;
         ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
@@ -7422,11 +7626,14 @@ verify_deterministic_threat_detection ()
 }
 verify_edge_pack () 
 { 
-    [ -f "$edge_pack_key_file" ] || return 1;
-    [ -f "$edge_pack_list_file" ] || return 1;
-    [ -f "$edge_pack_pref_file" ] || return 1;
-    [ -z "$edge_pack_ppa_repo" ] || [ -f "$edge_pack_ppa_key_file" ] || return 1;
-    [ -z "$edge_pack_ppa_repo" ] || [ -f "$edge_pack_ppa_list_file" ] || return 1
+    [[ -f "$edge_pack_key_file" && -f "$edge_pack_list_file" && -f "$edge_pack_pref_file" && -f "$edge_pack_ppa_key_file" && -f "$edge_pack_ppa_list_file" ]] || return 1;
+    local current="$(< "$edge_pack_list_file")$(< "$edge_pack_pref_file")$(< "$edge_pack_ppa_list_file")";
+    local updated="$(printf "%s\n" "$edge_pack_source")$(printf "%s\n" "${edge_pack_pref[@]}")$(printf "%s\n" "$edge_pack_ppa_source")";
+    [ "$current" = "$updated" ]
+}
+verify_edge_workloads_and_benchmarks () 
+{ 
+    [ -e "$workspace"/workloads/media-benchmarks/media/avc/apple_1080.h264 ]
 }
 verify_gpu_accel () 
 { 
