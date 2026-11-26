@@ -131,8 +131,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--stream-buffer-size",
         type=int,
-        default=200,
-        help="[decoder REST service] Max decoded frames retained per stream before the oldest is evicted.",
+        default=None,
+        help="[encoder REST services] Max frames/metrics retained per stream before the "
+             "oldest is evicted. Falls back to encoder.stream_buffer_size in the config file.",
     )
     parser.add_argument(
         "--client-id",
@@ -239,6 +240,11 @@ def _apply_cli_overrides(cfg, args: argparse.Namespace) -> None:
     if args.client_id is not None:
         cfg.app.client_id = args.client_id
 
+    if args.stream_buffer_size is not None:
+        if args.stream_buffer_size < 1:
+            raise ValueError("--stream-buffer-size must be >= 1")
+        cfg.enc.stream_buffer_size = args.stream_buffer_size
+
     cfg.model.skip_obj_detection = bool(args.skip_obj_detection)
 
     if args.skip_obj_detection:
@@ -302,13 +308,13 @@ def _run_encoder_service(cfg, host: str, port: int, decoder_url: str, fps: float
     serve(cfg, host=host, port=port, decoder_url=decoder_url, bridge=bridge, fps=fps)
 
 
-def _run_decoder_service(cfg, host: str, port: int, stream_buffer_size: int, *, bridge=None) -> None:
+def _run_decoder_service(cfg, host: str, port: int, *, bridge=None) -> None:
     serve = importlib.import_module("semantic_img_comp.decoder.service").serve
     serve(
         cfg,
         host=host,
         port=port,
-        buffer_size=stream_buffer_size,
+        buffer_size=cfg.enc.stream_buffer_size,
         output_dir=cfg.io.output_dir,
         save_visualizations=bool(cfg.io.save_visualizations),
         bridge=bridge,
@@ -413,7 +419,7 @@ def main(argv=None) -> int:
                 [
                     lambda: _run_decoder(cfg, args.host, args.port, bridge=bridge),
                     lambda: _run_decoder_service(
-                        cfg, args.service_host, args.service_port, args.stream_buffer_size, bridge=bridge
+                        cfg, args.service_host, args.service_port, bridge=bridge
                     ),
                 ],
             )
