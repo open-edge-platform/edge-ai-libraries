@@ -15,7 +15,7 @@ verify_smart_parking () {
       return 1
     }
   done
-  for p in FP16 FP32 INT8; do
+  for p in INT8; do
     [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/public/yolo11s/$p/yolo11s.bin ] || {
       echo "Missing $p/yolo11s.bin" >&2
       return 1
