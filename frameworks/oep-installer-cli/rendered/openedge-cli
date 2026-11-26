@@ -3339,7 +3339,7 @@ configure_smart_kiosk_assistant_device ()
 configure_smart_nvr () 
 { 
     workspace="$(ensure_project_path)/smart-nvr";
-    version="$(ensure_parse_value_option version --version=v2026.3.0-rc1 "$@")";
+    version="$(ensure_parse_value_option version --version=v2026.3.0-rc2 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(7860 8000 5000 6379 1884 443 1880 3000 8086 8554);
     export REGISTRY_URL="intel";
@@ -3509,7 +3509,7 @@ configure_video_processing_for_nvr ()
 configure_video_search_and_summarization () 
 { 
     workspace="$(ensure_project_path)/video-search-and-summarization";
-    version="$(ensure_parse_value_option version --version=v2026.3.0-rc1 "$@")";
+    version="$(ensure_parse_value_option version --version=v2026.3.0-rc2 "$@")";
     repository="https://github.com/open-edge-platform/edge-ai-libraries.git";
     skills=(vss-search-index vss-summarize-video);
     export APP_HOST_PORT=${APP_HOST_PORT:-12345};
@@ -3580,7 +3580,7 @@ configure_vippet ()
 configure_visual_search_question_and_answering () 
 { 
     workspace="$(ensure_project_path)/visual-search-question-and-answering";
-    version="$(ensure_parse_value_option version --version=v2026.3.0-rc1 "$@")";
+    version="$(ensure_parse_value_option version --version=v2026.3.0-rc2 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(17580 19530 9764 9990 6008 9777);
     demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip";
@@ -11997,13 +11997,18 @@ subcommand_list ()
             return 3;
         fi;
         ensure_sbom_format schema-version 1;
-        if git rev-parse --is-inside-work-tree &> /dev/null && git remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
-            [ -n "$cli_version" ] || cli_version=$(git rev-parse HEAD);
+        local script_dir script_name script_path;
+        script_dir="$(cd "$(dirname "$0")" && pwd -P)";
+        script_name="${0##*/}";
+        script_path="$script_dir/$script_name";
+        if git -C "$script_dir" rev-parse --is-inside-work-tree &> /dev/null && git -C "$script_dir" remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
+            [ -n "$cli_version" ] || cli_version=$(git -C "$script_dir" rev-parse HEAD);
             ensure_sbom_format cli-version "$cli_version";
             if [[ "/$0" = *"/rendered/"* ]]; then
-                local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
-                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
-                ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')";
+                local remote="$(git -C "$script_dir" remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
+                local rel_path="$(git -C "$script_dir" rev-parse --show-prefix)$script_name";
+                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/$rel_path";
+                ensure_sbom_format cli-sha256 "$(sha256sum "$script_path" | cut -f1 -d' ')";
             fi;
         fi;
         ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
