@@ -39,8 +39,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -f "$ENV_FILE" ]] || die "missing $ENV_FILE (set ENV_FILE or pass --env-file)"
-# shellcheck disable=SC1090
 set -a
+# shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
 [[ -n "${HARNESS_STATE_DIRNAME:-}" && "$HARNESS_STATE_DIRNAME" != .agent-harness-install ]] \

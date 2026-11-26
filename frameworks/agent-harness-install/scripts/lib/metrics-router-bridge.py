@@ -30,6 +30,8 @@ PREVIEW = 200
 MAX_DEPTH = 3
 BATCH = 200
 HEAD_BYTES = 256
+# Status codes that mean the batch itself is unacceptable (bad request, too large, wrong type, invalid).
+REJECTED = (400, 413, 415, 422)
 GATED_KEYS = {"metadata", "details"}
 SKIP_KEYS = {"event_type", "timestamp", "request_id", "provider_name", "final_model",
              "total_input_tokens", "total_output_tokens"}
@@ -147,6 +149,8 @@ def make_span(event, raw, content, offset=0):
 # --- sinks -----------------------------------------------------------------
 
 class SqliteSink:
+    last_drop = ""
+
     def __init__(self, path, max_rows):
         self.max_rows, self.inserted = max_rows, 0
         os.umask(0o077)
@@ -179,6 +183,7 @@ class SqliteSink:
         except sqlite3.Error as exc:
             self.con.rollback()
             raise Transient(f"sqlite: {exc}")
+        return 0
 
     def close(self):
         try:
@@ -198,6 +203,8 @@ def _attr(key, value):
 
 
 class OtlpSink:
+    last_drop = ""
+
     def __init__(self, endpoint):
         parts = urllib.parse.urlsplit(endpoint.rstrip("/"))
         # A bare collector URL gets the standard path; an explicit path is used as given.
@@ -206,8 +213,8 @@ class OtlpSink:
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     def send(self, spans):
-        for i in range(0, len(spans), BATCH):
-            self._post(spans[i:i + BATCH])
+        """Returns how many spans the collector refused for good."""
+        return sum(self._post(spans[i:i + BATCH]) for i in range(0, len(spans), BATCH))
 
     def _post(self, spans):
         body = json.dumps({"resourceSpans": [{
@@ -229,13 +236,16 @@ class OtlpSink:
             with self.opener.open(request, timeout=10) as reply:
                 reply.read()
         except urllib.error.HTTPError as exc:
-            if 400 <= exc.code < 500 and exc.code not in (408, 429):
-                # A batch the collector rejects will never be accepted; retrying would block the tail.
+            if exc.code in REJECTED:
+                # The collector refuses this batch itself, so a retry cannot help; it is counted and shown.
+                self.last_drop = f"HTTP {exc.code} from {self.url}"
                 log(f"collector rejected {len(spans)} spans with HTTP {exc.code}; dropped")
-                return
+                return len(spans)
+            # Other errors (401/403/404/5xx...) are about the endpoint, not the batch: retried until fixed.
             raise Transient(f"HTTP {exc.code} from {self.url}")
         except (urllib.error.URLError, OSError) as exc:
             raise Transient(f"{self.url}: {getattr(exc, 'reason', exc)}")
+        return 0
 
     def close(self):
         pass
@@ -247,6 +257,7 @@ class Tailer:
     def __init__(self, path, checkpoint, sink, content, sink_id):
         self.path, self.checkpoint, self.sink, self.content, self.sink_id = path, checkpoint, sink, content, sink_id
         self.inode, self.offset, self.head, self.spans, self.error = None, 0, "", 0, ""
+        self.dropped, self.drop_reason = 0, ""
         try:
             with open(checkpoint, "r", encoding="utf-8") as handle:
                 saved = json.load(handle)
@@ -256,6 +267,8 @@ class Tailer:
                 self.offset = int(saved.get("offset", 0))
                 self.head = str(saved.get("head", ""))
                 self.spans = int(saved.get("spans", 0))
+                self.dropped = int(saved.get("dropped", 0))
+                self.drop_reason = str(saved.get("drop_reason", ""))
         except (OSError, ValueError, TypeError, AttributeError):
             pass
 
@@ -264,7 +277,8 @@ class Tailer:
         try:
             with open(tmp, "w", encoding="utf-8") as handle:
                 json.dump({"sink": self.sink_id, "inode": self.inode, "offset": self.offset, "head": self.head,
-                           "spans": self.spans, "error": self.error}, handle)
+                           "spans": self.spans, "error": self.error, "dropped": self.dropped,
+                           "drop_reason": self.drop_reason}, handle)
             os.replace(tmp, self.checkpoint)
         except OSError as exc:
             raise Fatal(f"cannot save {self.checkpoint}: {exc}")
@@ -300,8 +314,11 @@ class Tailer:
                     part = lines[i:i + BATCH]
                     spans = self._spans(part, self.offset)
                     if spans:
-                        self.sink.send(spans)
-                        self.spans += len(spans)
+                        lost = self.sink.send(spans) or 0
+                        self.spans += len(spans) - lost
+                        if lost:
+                            self.dropped += lost
+                            self.drop_reason = self.sink.last_drop[:300]
                     self.offset += sum(len(raw) + 1 for raw in part)
                     if not self.head:
                         handle.seek(0)

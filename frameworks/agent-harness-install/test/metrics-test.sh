@@ -1281,10 +1281,9 @@ router_bridge_resolves_its_settings() {
   metrics_parse_args enable --target router --backend jaeger --endpoint http://collector:4318/v1/traces --content preview
   metrics_resolve_router_settings
   [[ "$R_MANAGED" == false && "$R_ENDPOINT" == http://collector:4318/v1/traces && "$R_CONTENT" == preview ]]
-  # An endpoint on its own with --target all means jaeger.
+  # An endpoint on its own is refused with --target all too, as for the harness.
   metrics_parse_args enable --target all --endpoint http://collector:4318/v1/traces
-  metrics_resolve_router_settings
-  [[ "$R_BACKEND" == jaeger && "$R_ENDPOINT" == http://collector:4318/v1/traces ]]
+  expect_failure 'needs an exporting backend' metrics_resolve_router_settings
   metrics_parse_args enable --target router --content full
   expect_failure 'applies to span export' metrics_resolve_router_settings
   metrics_parse_args enable --target router --endpoint http://collector:4318/v1/traces
@@ -1544,6 +1543,83 @@ router_bridge_start_failure_rolls_back() {
   expect_failure 'bridge boom' run_metrics_command enable --target router --backend jaeger
   refute grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
   [[ "$(metrics_state_get router.enabled)" == false && -z "$(metrics_state_get router.bridge)" ]]
+  # A bridge that was running is brought back when its replacement cannot start.
+  fixture
+  metrics_container_exists() { return 0; }
+  run_metrics_command enable --target router --backend sqlite >/dev/null
+  metrics_router_bridge_pid() { printf 123; }
+  metrics_router_bridge_start() {
+    [[ "$R_BACKEND" != jaeger ]] || error "bridge boom"
+    printf 'bridge start %s %s\n' "$R_BACKEND" "$R_CONTENT" >>"$ACTIONS"
+  }
+  : >"$ACTIONS"
+  expect_failure 'bridge boom' run_metrics_command enable --target router --backend jaeger
+  grep -Fxq 'bridge start sqlite off' "$ACTIONS"
+  [[ "$(metrics_state_get router.bridge)" == sqlite && "$(metrics_state_get router.enabled)" == true ]]
+}
+
+router_bridge_otlp_errors_are_retried_or_counted() {
+  command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
+  python3 - "$SCRIPT_DIR/scripts/lib/metrics-router-bridge.py" "$TEST_ROOT" <<'PY'
+import http.server, importlib.util, json, os, sys, tempfile, threading
+
+spec = importlib.util.spec_from_file_location("bridge", sys.argv[1])
+b = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(b)
+d = tempfile.mkdtemp(dir=sys.argv[2])
+code = {"v": 200}
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        self.send_response(code["v"])
+        self.end_headers()
+
+    def log_message(self, *_):
+        pass
+
+
+server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+threading.Thread(target=server.serve_forever, daemon=True).start()
+url = f"http://127.0.0.1:{server.server_port}/v1/traces"
+span = {"trace_id": "t", "span_id": "s", "parent": "", "name": "n", "start": 1, "end": 2,
+        "error": False, "root": True, "attrs": {}}
+
+sink = b.OtlpSink(url)
+assert sink.send([span]) == 0
+# A refused batch is dropped and reported.
+code["v"] = 400
+assert sink.send([span]) == 1 and "HTTP 400" in sink.last_drop
+# An endpoint problem (wrong path, bad credentials) is retried, never dropped.
+for status in (401, 403, 404, 503):
+    code["v"] = status
+    try:
+        sink.send([span])
+        raise SystemExit(f"HTTP {status} must be retried")
+    except b.Transient:
+        pass
+
+# The tailer counts dropped spans in its checkpoint and keeps the offset on a retry.
+f, ck = os.path.join(d, "ir.jsonl"), os.path.join(d, "ck.json")
+with open(f, "w") as h:
+    for i in range(3):
+        h.write(json.dumps({"event_type": "request_completed", "timestamp": "2026-05-01T10:00:05", "request_id": f"r{i}"}) + "\n")
+code["v"] = 404
+t = b.Tailer(f, ck, b.OtlpSink(url), "off", url)
+try:
+    t.poll()
+    raise SystemExit("expected a transient failure")
+except b.Transient:
+    pass
+assert t.offset == 0
+code["v"] = 400
+t = b.Tailer(f, ck, b.OtlpSink(url), "off", url)
+t.poll()
+saved = json.load(open(ck))
+assert saved["dropped"] == 3 and saved["spans"] == 0 and "HTTP 400" in saved["drop_reason"], saved
+print("otlp errors ok")
+PY
 }
 
 harness_show_and_disable_follow_the_recorded_owner() {
@@ -1694,7 +1770,8 @@ run_case 'Router disable --clean removes the bridge store and checkpoint' router
 run_case 'Router bridge problems are caught before the Router is changed' router_bridge_preflight_fails_before_any_change
 run_case 'Router bridge tailer resumes per batch, replays for a new sink, and fails on an unwritable checkpoint' router_bridge_tailer_resumes_without_duplicates
 run_case 'Router bridge sinks ignore replayed spans and keep an explicit endpoint path' router_bridge_sinks_are_idempotent_and_keep_paths
-run_case 'A failed Router bridge start rolls back the config, state and a new Jaeger' router_bridge_start_failure_rolls_back
+run_case 'A failed Router bridge start rolls back the config, state and a new Jaeger, and restarts the old bridge' router_bridge_start_failure_rolls_back
+run_case 'Router bridge to OTLP: endpoint errors are retried, refused batches are dropped and counted' router_bridge_otlp_errors_are_retried_or_counted
 run_case 'Harness show and disable follow the recorded owner even when the selected harness is unsupported' harness_show_and_disable_follow_the_recorded_owner
 run_case 'OpenShell OpenClaw keeps ownership of the exporter until the disable is applied' openshell_openclaw_stage_off_keeps_ownership_until_applied
 run_case 'Router bridge daemon forwards events into the sqlite store and stops cleanly' router_bridge_daemon_forwards_events

@@ -139,12 +139,15 @@ For sandbox setup, architecture and lifecycle guidance, see
   built in; other agents need `HARNESS_MCP_REGISTER_CMD` set to a real
   registration script.
 - The Router span bridge (`observability enable --backend ...`) does not
-  survive a reboot; re-run `observability enable` to start it again. After an
-  OpenClaw sandbox restart the command waits up to 60 seconds for the gateway
-  and only warns if it is still not accepting connections.
+  survive a reboot; re-run `observability enable` to start it again. To Jaeger it
+  delivers at-least-once: a crash between a send and its checkpoint repeats that
+  batch (SQLite ignores repeats). After an
+  OpenClaw sandbox restart the command waits up to 60 seconds (wall clock) for the
+  gateway and only warns if it is still not accepting connections.
 - `./install.sh observability` for OpenClaw with the
   `sqlite` backend starts a loopback OTLP receiver that does not survive a
-  reboot; re-run `observability enable` to start it again. OpenClaw spans carry
+  reboot and accepts writes from any local user (it listens on 127.0.0.1 only);
+  re-run `observability enable` to start it again. OpenClaw spans carry
   no session id, and OpenClaw's configuration and plugin changes need its
   gateway stopped: stop it (`openclaw gateway stop`) before enable or disable
   and start it again afterwards. With `--runtime openshell`, OpenClaw and Hermes
