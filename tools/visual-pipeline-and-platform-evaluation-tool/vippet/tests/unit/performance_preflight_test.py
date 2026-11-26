@@ -85,6 +85,56 @@ class TestPerformancePreflight(unittest.TestCase):
         self.assertTrue(any("status='initializing'" in line for line in reports))
         self.assertIn("READY", reports[-1])
 
+    def test_quiet_check_reports_only_waiting_and_failures(self) -> None:
+        status_responses = iter(
+            [
+                {"status": "initializing", "ready": False, "message": "Loading"},
+                {"status": "ready", "ready": True, "message": None},
+            ]
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/health"):
+                return httpx.Response(200, json={"healthy": True})
+            return httpx.Response(200, json=next(status_responses))
+
+        clock = _FakeClock()
+        reports: list[str] = []
+        with _client(handler) as client:
+            preflight.wait_for_vippet_ready(
+                "http://localhost/api/v1",
+                60,
+                2,
+                10,
+                client=client,
+                monotonic=clock.monotonic,
+                sleep=clock.sleep,
+                report=reports.append,
+                verbose=False,
+            )
+
+        self.assertEqual(len(reports), 1)
+        self.assertIn("/status: WAITING", reports[0])
+
+    def test_quiet_check_still_reports_a_health_failure(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("refused")
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            with self.assertRaises(preflight.PreflightError):
+                preflight.wait_for_vippet_ready(
+                    "http://localhost/api/v1",
+                    60,
+                    2,
+                    10,
+                    client=client,
+                    report=reports.append,
+                    verbose=False,
+                )
+        self.assertEqual(len(reports), 1)
+        self.assertIn("/health: FAILED", reports[0])
+
     def test_unreachable_health_endpoint_is_actionable(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             raise httpx.ConnectError("connection refused", request=request)

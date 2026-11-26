@@ -226,6 +226,7 @@ def _internal_variant_to_api(variant: InternalVariant) -> schemas.Variant:
         pipeline_graph_simple=schemas.PipelineGraph.model_validate(
             variant.pipeline_graph_simple.to_dict()
         ),
+        media_only=variant.pipeline_graph.is_media_only(),
         created_at=variant.created_at,
         modified_at=variant.modified_at,
     )

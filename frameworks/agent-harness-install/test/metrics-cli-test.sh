@@ -141,7 +141,7 @@ case_enable_all_then_disable() {
   cli observability enable --target all --backend jaeger
   check 'enable exits 0' rc_is 0
   check 'router config switched to file telemetry' file_has "$HARNESS_IR_WORKSPACE_DIR/config.yaml" 'backend: "file"'
-  check 'router telemetry file created' test -f "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl"
+  check 'router telemetry file created' test -f "$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl"
   check 'router restarted' log_has docker 'docker restart agent-harness-install-ir'
   check 'jaeger started with the installer label' log_has docker 'io.agent-harness-install.managed-by=metrics-jaeger'
   check 'jaeger published on loopback only' log_has docker '127.0.0.1:16686:16686'
@@ -158,7 +158,7 @@ case_enable_all_then_disable() {
   check 'disable exits 0' rc_is 0
   check 'router config back to memory' file_has "$HARNESS_IR_WORKSPACE_DIR/config.yaml" 'backend: "memory"'
   if chmod_is_effective; then
-    check 'telemetry file no longer world/group writable' test "$(stat -c %a "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl")" = 600
+    check 'telemetry file no longer world/group writable' test "$(stat -c %a "$HARNESS_IR_WORKSPACE_DIR/ir_metrics.jsonl")" = 600
   fi
   check 'plugin disabled' log_has hermes 'plugins disable hermes_otel'
   check 'managed config removed' test ! -e "$HERMES_HOME/hermes_otel.yaml"

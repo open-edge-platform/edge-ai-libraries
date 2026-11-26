@@ -9,6 +9,7 @@ pipelines on both CPU and GPU for performance comparison.
 - [Using Predefined Pipelines](./pipeline-management/predefined-pipelines.md)
 - [Simple vs. Advanced View](./pipeline-management/simple-vs-advanced.md)
 - [Publishing Metadata Over MQTT](./pipeline-management/mqtt-metadata.md)
+- [Exporting a Pipeline as an App](./pipeline-management/export-as-app.md)
 
 <!--hide_directive
 :::{toctree}
@@ -19,6 +20,7 @@ pipelines on both CPU and GPU for performance comparison.
 ./pipeline-management/predefined-pipelines
 ./pipeline-management/simple-vs-advanced
 ./pipeline-management/mqtt-metadata
+./pipeline-management/export-as-app
 
 :::
 hide_directive-->

@@ -6,6 +6,7 @@
   - [Deep Learning Streamer Pipeline Server](#deep-learning-streamer-pipeline-server)
     - [Overview](#overview)
     - [Architecture](#architecture)
+  - [Security Considerations](#security-considerations)
   - [Prerequisites For Target System](#prerequisites-for-target-system)
   - [Quick try out](#quick-try-out)
       - [Pull the docker image and start container](#pull-the-image-and-start-container)
@@ -29,6 +30,32 @@ Video analytics involves the conversion of video streams into valuable insights 
 ## Architecture
 
 ![Deep Learning Streamer Pipeline Server Architecture](./docs/user-guide/_assets/dls-pipelineserver-simplified-arch.png)
+
+## Security Considerations
+
+By design, DL Streamer Pipeline Server ships with two defaults that deployers must
+be aware of:
+
+- **No built-in authentication on the REST API.** `/pipelines/*` and `/models`
+  endpoints (port `8080`) accept requests from any network peer that can reach
+  them. Restricting access (firewall rules, network policy, or an authenticating
+  reverse proxy/API gateway) is the responsibility of the deploying
+  infrastructure, not this microservice. Do not expose this port to an untrusted
+  network without such a layer in front of it.
+- **HTTPS/mTLS is disabled by default** (`HTTPS=false`, `MTLS_VERIFICATION=false`).
+  TLS termination is expected to be provided by deployment infrastructure (e.g. an
+  ingress/gateway) unless you explicitly set `HTTPS=true` — see
+  [environment-variables.md](./docs/user-guide/get-started/environment-variables.md)
+  and the [HTTPS how-to guide](./docs/user-guide/advanced-guide/detailed_usage/how-to-advanced/https/dlstreamer_pipeline_server_https.md).
+- **`source`/`destination` file paths are restricted to `/home/pipeline-server/resources`
+  inside the container.** Any `file://` URI or file-type destination path
+  (`destination.metadata.path`) outside that directory is rejected, to prevent a
+  client from reading/writing arbitrary files on the container filesystem. If you
+  previously mounted your own video/image/model folder at a different container
+  path, remount it under `/home/pipeline-server/resources` instead (e.g.
+  `- /your/host/folder:/home/pipeline-server/resources/your-folder` in
+  `docker-compose.yml`) and update any `file://` references in your requests to
+  match the new container path.
 
 ## Prerequisites For Target System
 
