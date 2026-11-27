@@ -89,6 +89,9 @@ type UrlParams = {
   variant: string;
 };
 
+// Same upper bound as the Performance tests page.
+const MAX_STREAMS = 64;
+
 // Helper function to detect if nodes contain camera input
 const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
   return nodes.some((node) => {
@@ -874,7 +877,9 @@ export const Pipelines = () => {
                           </div>
                         </TooltipTrigger>
                         <TooltipContent side="bottom">
-                          <p>Number of parallel streams to run (1–12)</p>
+                          <p>
+                            Number of parallel streams to run (1–{MAX_STREAMS})
+                          </p>
                         </TooltipContent>
                       </Tooltip>
                       <Input
@@ -899,7 +904,7 @@ export const Pipelines = () => {
                           const parsedValue = Number.parseInt(value, 10);
 
                           const normalizedValue = Math.min(
-                            12,
+                            MAX_STREAMS,
                             Math.max(1, parsedValue),
                           );
                           setStreams(normalizedValue);
@@ -911,7 +916,7 @@ export const Pipelines = () => {
                               : Number.parseInt(streamsInput, 10);
 
                           const normalizedValue = Number.isFinite(parsedValue)
-                            ? Math.min(12, Math.max(1, parsedValue))
+                            ? Math.min(MAX_STREAMS, Math.max(1, parsedValue))
                             : 1;
 
                           setStreams(normalizedValue);
